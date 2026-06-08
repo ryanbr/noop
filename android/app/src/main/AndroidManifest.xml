@@ -120,6 +120,20 @@
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
 
+        <!-- Wrist alerts: this is what makes NOOP appear in Android's Notification Access list. The
+             system binds it (guarded by BIND_NOTIFICATION_LISTENER_SERVICE) only after the user grants
+             access; it reads which app posted a notification — never the content — to buzz the strap,
+             gated by the Notifications-screen settings. Does nothing until access is granted + enabled. -->
+        <service
+            android:name="com.noop.notif.NoopNotificationListener"
+            android:label="NOOP wrist alerts"
+            android:exported="false"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <!-- Shares the strap log (a cache file) for bug reports. Not exported; read access is granted
              per-share via FLAG_GRANT_READ_URI_PERMISSION. Authority is applicationId-scoped so the
              full + demo flavors don't collide. -->

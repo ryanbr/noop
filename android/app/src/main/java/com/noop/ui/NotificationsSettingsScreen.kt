@@ -74,7 +74,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 // MARK: - Domain model (mirrors NotificationSettingsStore.swift)
 
 /** Haptic pattern fired on the strap; only the repeat count varies. */
-private enum class BuzzPattern(val label: String, val loops: Int) {
+internal enum class BuzzPattern(val label: String, val loops: Int) {
     Single("Single", 1),
     Double("Double", 2),
     Triple("Triple", 3),
@@ -82,7 +82,7 @@ private enum class BuzzPattern(val label: String, val loops: Int) {
 }
 
 /** Grouping for the settings screen, with its header icon + default pattern. */
-private enum class NotifCategory(
+internal enum class NotifCategory(
     val title: String,
     val icon: ImageVector,
     val defaultPattern: BuzzPattern,
@@ -94,7 +94,7 @@ private enum class NotifCategory(
 }
 
 /** A notification-capable app NOOP can mirror to the wrist. `id` is the persistence key. */
-private data class NotifApp(
+internal data class NotifApp(
     val id: String,
     val name: String,
     val category: NotifCategory,
@@ -131,7 +131,7 @@ private val activeCategories: List<NotifCategory> =
  * non-secret toggles). Per-app prefs are flattened to `app.<id>.enabled` / `app.<id>.pattern`
  * keys so no JSON dependency is needed.
  */
-private object NotifPrefs {
+internal object NotifPrefs {
     private const val FILE = "noop_notif_prefs"
     const val MASTER = "notif.masterEnabled"
     const val WORN = "notif.onlyWhenWorn"
@@ -167,6 +167,13 @@ private object NotifPrefs {
 
     fun setAppPattern(ctx: Context, id: String, pattern: BuzzPattern) =
         prefs(ctx).edit().putString("app.$id.pattern", pattern.name).apply()
+
+    /** Buzz loop-count for [pkg] (for the notification listener; no NotifApp needed). Defaults to
+     *  Double if no per-app pattern was chosen. */
+    fun appLoops(ctx: Context, pkg: String): Int {
+        val name = prefs(ctx).getString("app.$pkg.pattern", null)
+        return BuzzPattern.entries.firstOrNull { it.name == name }?.loops ?: BuzzPattern.Double.loops
+    }
 }
 
 // MARK: - Screen

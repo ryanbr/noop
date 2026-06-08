@@ -221,6 +221,26 @@ log, so they don't. Developers who want to watch a session live over
 and the "Share strap log" export work the same whether or not debug logging is on, so
 the diagnostic path is always available without ever defaulting users into logcat.
 
+### 2.5 Wrist alerts: the Android notification listener
+
+Android wrist alerts (buzz the strap when chosen apps notify you) need a
+`NotificationListenerService` — that's the only way to register in the OS's
+**Notification Access** list and be told a notification was posted. Notification
+access is a powerful permission, so for a privacy-first app it's worth being precise
+about what NOOP does and does not do with it:
+
+- **Off by default, double opt-in.** The service does nothing until you both grant
+  Notification Access in system settings *and* turn on **Wrist alerts** in NOOP, then
+  enable specific apps (each app is off by default).
+- **It reads only the posting package name — never content.** On a posted
+  notification NOOP looks at *which app* posted (and skips ongoing / foreground-service /
+  group-summary noise), checks your settings (master toggle, that app's opt-in, quiet
+  hours, only-when-worn), and if all pass, sends a haptic-pattern command to the strap.
+  The notification's title, text, sender, and extras are never read, stored, logged, or
+  transmitted.
+- **Nothing leaves the device.** There is no server; the only output is a Bluetooth
+  buzz to your own strap. (`android/.../notif/NoopNotificationListener.kt`.)
+
 ---
 
 ## 3. Threat model

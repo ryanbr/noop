@@ -17,6 +17,22 @@ approximate; downloads are on the [Releases](https://github.com/NoopApp/noop/rel
 
 ---
 
+## 1.27 — Wrist alerts work on Android
+
+- **Fixed (Android): wrist alerts couldn't be enabled — NOOP didn't appear in Notification Access**
+  (issue #52). The Notifications screen had the full wrist-alerts UI (master toggle, per-app filters,
+  quiet hours — all already persisted in `NotifPrefs`) and an "Open Notification Access" button, but the
+  manifest declared **no `NotificationListenerService`**, so NOOP could never appear in the system's
+  Notification Access list (and nothing acted on notifications even if it could). Added
+  `com.noop.notif.NoopNotificationListener` + its manifest `<service>` (guarded by
+  `BIND_NOTIFICATION_LISTENER_SERVICE`). Once the user grants access and enables wrist alerts, it buzzes
+  the strap via the existing `RUN_HAPTICS_PATTERN` path on a posted notification, gated by the persisted
+  settings (master, per-app opt-in, the app's buzz pattern → loops, quiet hours with midnight-wrap,
+  only-when-worn) and skipping ongoing / foreground-service / group-summary noise. **Privacy-preserving by
+  design: it reads only the posting package name — never notification content — and nothing leaves the
+  device** (documented in `PRIVACY_SECURITY.md` §2.5). Works on WHOOP 4.0; 5/MG haptics are dropped by the
+  `send()` guard until verified (#48).
+
 ## 1.26 — Smart alarm actually works on Android
 
 - **Fixed (Android): the Automations "Smart alarm" was a non-functional mock-up** (issue #51). The whole
