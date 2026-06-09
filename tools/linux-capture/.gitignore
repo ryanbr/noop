@@ -1,4 +1,11 @@
 __pycache__/
 *.pyc
 .venv/
-capture*.json
+.venv-ble/
+# Ignore ALL JSON in this tool dir — captures + any `export --out <name>.json` decode dumps
+# (they carry HR and timeline; the .db also carries the strap serial / session token / MAC).
+*.json
+captures/
+*.db
+*.db-wal
+*.db-shm

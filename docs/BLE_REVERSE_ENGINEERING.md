@@ -370,6 +370,26 @@ raw rows first, then sends `HISTORICAL_DATA_RESULT` (23) as a confirmed write ec
 `end_data` — only then may the strap forget that chunk. This makes the offload resumable: the durable
 `strap_trim` cursor means the next session resumes exactly where the last one stopped.
 
+### Offload throughput is firmware-paced (~10 records/s), not link-bound
+
+The offload runs at a steady **~10 type-47 records per second**, and since the records are 1 Hz that is
+only **~10× real-time** (a full day ≈ 40 min, a night ≈ 30 min). This is a property of the strap
+firmware, **not** the BLE link. Measured on a real worn WHOOP 4 (`tools/linux-capture/`), the rate did
+not move when either link parameter was forced upward:
+
+- **ATT MTU 23 → 247** — a 104-byte type-47 frame goes from 6 notification packets to 1. No change.
+  (BlueZ does not auto-negotiate the MTU; `whoop_sync.py` calls `_acquire_mtu()` to raise it — the
+  offload still streams at ~10/s.)
+- **Connection interval 50 ms → 7.5 ms** — via BlueZ `conn_min/max_interval` debugfs, the Linux
+  equivalent of Android's `requestConnectionPriority(CONNECTION_PRIORITY_HIGH)`. No change.
+
+The rate is rock-steady across the whole drain — the signature of firmware-side pacing of the per-record
+`HISTORY` stream, not transmission throughput or the per-chunk ack round-trip. **Implication:** matching
+the official app's far faster sync (24 h in 1–3 min) would require a different **bulk / flash-page
+transfer command**, not link tuning, and that command is not yet reverse-engineered. For unattended
+periodic sync ~10× real-time is fine (and resumable via the trim cursor if interrupted). It also means
+adding `requestConnectionPriority`/`requestMtu` to a client to speed *this* offload is not worthwhile.
+
 ### WHOOP 5.0 historical offload (hardware-verified)
 
 The ack is not just for resumability on WHOOP 5 — **it is what makes the offload progress at all.**
@@ -408,6 +428,12 @@ garbage (HR `0`, gravity overflow). The fields below were read off real frames a
 The strongest check on the HR offset: where a historical record and a live `REALTIME_DATA` (§5, 2A37
 ground-truth-verified) frame share a timestamp, the historical HR equalled the live HR at **96/96**
 samples — so HR@22 is anchored to hardware ground truth, not just internally consistent.
+
+A second, independent corroboration comes from **two straps on the same wearer**: a WHOOP 4 and a
+WHOOP 5 worn over the same window, both offloaded and decoded, agree at **corr 0.96** across ~28 000
+overlapping 1 Hz samples, with a **rest-only mean absolute error of 0.7 bpm** (they diverge only during
+exercise, as two independent PPG sensors do). That is a large-sample, cross-generation check on HR@22
+on top of the live-vs-historical match above.
 
 PPG / SpO₂ / skin-temp live further in the 124-byte record but lack on-device ground truth, so they
 are left as a single raw region rather than guessed (project rule: real captures, never invented

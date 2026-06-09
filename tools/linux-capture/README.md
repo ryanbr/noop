@@ -18,9 +18,11 @@ no second decoder to drift.
 | Path | State |
 |---|---|
 | WHOOP 4.0 — capture + decode | ✅ verified on real hardware (frames decode CRC-valid) |
+| WHOOP 4.0 — **historical offload** + decode (HR/RR/resp/SpO₂/accel) | ✅ verified on real hardware (`whoop_sync.py` — durable ack-loop drain, thousands of type-47 records) |
 | WHOOP 5.0 — bond + `CLIENT_HELLO` session + command set | ✅ verified on real hardware |
 | WHOOP 5.0 — historical offload trigger (`SEND_HISTORICAL_DATA`) | ✅ verified (full burst, same trim-cursor mechanism as 4.0) |
-| WHOOP 5.0 — biometric **field offsets** | ⬜ open — inner record still unparsed (`parseFrameWhoop5`) |
+| WHOOP 5.0 — historical **biometrics** (type-47 v18) | ✅ unix + HR + R-R + gravity decoded (`parseFrameWhoop5`); cross-validated vs a 4C on the same person/window (HR corr 0.96, ±1 bpm at rest) |
+| WHOOP 5.0 — optical channels (PPG/SpO₂/skin-temp) + v26 layout | ⬜ open — kept raw (no on-device ground truth yet) |
 
 See [`../../docs/BLE_REVERSE_ENGINEERING.md`](../../docs/BLE_REVERSE_ENGINEERING.md) §3 for the
 protocol details these tools exercise.
@@ -77,7 +79,8 @@ the Python capture side does not require Swift.
 
 | File | Role |
 |---|---|
-| `whoop_capture.py` | Scan → connect → bond → subscribe → reassemble → write `capture.json`. `--probe` drives the post-hello command sequence. |
+| `whoop_capture.py` | Scan → connect → bond → subscribe → reassemble → write `capture.json`. `--probe` drives the post-hello command sequence. The RE workbench (whoop5-focused). |
+| `whoop_sync.py` | **WHOOP 4.0 durable historical offload.** Connect → drain the on-device store (cmd 22 + `HISTORY_END` ack loop) into a device-scoped SQLite DB with **persist-before-ack** + auto-reconnect/resume. Subcommands: `sync` / `status` / `devices` / `export` / `label`. See [Historical sync](#historical-sync-whoop_syncpy). |
 | `whoop_frame.py` | CRC8 / CRC16-Modbus / CRC32, frame builders (`build_command_frame`, `build_puffin_command`), the family-aware `Reassembler`, and the standard-HR parser. Stdlib only. |
 | `pair_probe.py` | One-shot WHOOP 5 bonding probe: scan → connect → `pair()` → test `fd4b` access. `python3 pair_probe.py <MAC>`. |
 | `test_whoop_frame.py` | Unit tests for framing / reassembly / HR parsing (no `bleak` needed). |
@@ -134,6 +137,89 @@ python3 whoop_capture.py --model whoop5 --address $WHOOP_MAC --probe --duration 
 `--probe` sends the (4.0) command numbers re-framed for puffin after `CLIENT_HELLO`;
 `SEND_HISTORICAL_DATA` triggers a full historical offload. Without it you get only the hello response.
 
+## Historical sync (`whoop_sync.py`)
+
+`whoop_capture.py` is the RE workbench (records raw frames; whoop5-focused). `whoop_sync.py` is the
+**production offload path** (`--model whoop4|whoop5`): it drives the on-device **historical offload**
+to completion and stores the frames durably, so you can pull a day — or a night — of **second-by-second**
+biometrics off a strap you own: HR, RR intervals, respiration, SpO₂, skin temperature, and a 3-axis
+accelerometer/gravity vector.
+
+- **WHOOP 4.0** — fully working: offload + ack + decode (`whoop-decode` parses the type-47 fields).
+- **WHOOP 5.0** — offload transport + ack + durable storage work (puffin framing, `CLIENT_HELLO`).
+  The type-47 **v18** record decodes: `unix` @ 15, `heart_rate` @ 22 (stored by the sync), plus R-R
+  and gravity via `whoop-decode`. Validated against a 4C worn by the same person in the same window
+  (HR corr 0.96, ±1 bpm at rest). The optical channels (PPG/SpO₂/skin-temp) and a less-common **v26**
+  record layout are kept raw (`unix`/`hr` = NULL) pending ground truth.
+
+```
+  whoop_sync.py sync ─► whoop4.db (SQLite, device-scoped) ─► export ─► capture.json ─► whoop-decode
+   (bleak / BlueZ)        persist-before-ack + trim cursor     (per device)               (HR/RR/resp/accel)
+```
+
+### The offload handshake (verified on real hardware)
+
+1. Connect, subscribe the three `6108` notify channels, and silence the live type-43 raw flood
+   (`TOGGLE_REALTIME_HR` / `SEND_R10_R11_REALTIME` off) so it doesn't starve the offload of airtime.
+2. Write `SEND_HISTORICAL_DATA` (cmd 22, payload `[0x00]`, confirmed). The strap streams
+   `METADATA HISTORY_START` → `HISTORICAL_DATA` (type-47) chunks → `METADATA HISTORY_END`.
+3. On each `HISTORY_END`, **persist the chunk, then** ack with `HISTORICAL_DATA_RESULT` (cmd 23,
+   payload `[0x01] + end_data`, confirmed), where `end_data` is the 8-byte trim cursor at
+   `frame[17:25]`. The ack advances the strap's cursor to the next chunk — **without it the strap
+   re-serves the same early chunk forever** and the type-47 records past it never arrive.
+4. Loop until `METADATA HISTORY_COMPLETE`.
+
+> WHOOP-4 frame offsets are the verified whoop5 offsets minus 4 (inner record starts at byte 4, not 8):
+> inner type `@ frame[4]`, meta_type `@ frame[6]`, record unix `@ frame[11]`, trim cursor `@ frame[17:25]`.
+
+### Durability — persist-before-ack
+
+The ack tells the strap it may **trim (delete)** the acked chunk, so each chunk is committed to SQLite
+(`journal_mode=WAL`, `synchronous=FULL` → fsync) **before** its ack is sent: a dropped BLE frame can
+never be lost to a trim. The trim cursor is persisted too, so a reconnect **resumes where you left off**
+(the strap also remembers; the stored cursor is for the client's own bookkeeping + gap reporting).
+
+### Device scoping
+
+Every frame, label, and cursor is tied to a `devices` row (MAC + advertised name + optional subject).
+Multiple straps — or a partner as a test subject — never mix; dedup is **per device**
+(`UNIQUE(device_id, hex)`).
+
+### Usage
+
+```bash
+# bond once (see "WHOOP 5: bonding" above — the same bluetoothctl pair/trust works for 4.0), then:
+python3 whoop_sync.py sync   --model whoop4 --address AA:BB:CC:DD:EE:FF --subject me  --db captures/whoop.db   # drain (resumable)
+python3 whoop_sync.py sync   --model whoop5 --address 11:22:33:44:55:66 --subject partner --db captures/whoop.db
+python3 whoop_sync.py status  --db captures/whoop.db [--address ..]     # cursor, coverage, counts, labels
+python3 whoop_sync.py devices --db captures/whoop.db                    # every strap/subject in the store
+python3 whoop_sync.py export  --db captures/whoop.db --address .. --out all.json [--only-type 47]
+python3 whoop_sync.py label   --db .. --address .. --activity walking --start 19:58 --end 20:43
+```
+
+`sync` auto-reconnects and resumes on a mid-session drop (up to `--max` seconds); it stops on
+`HISTORY_COMPLETE`, on `--idle` seconds with no offload frame, or after two dry reconnects (store
+drained / strap asleep). Re-run any time to continue — the cursor is durable. Times for `label`
+accept epoch seconds, ISO-8601, or `HH:MM` (today).
+
+> **The strap must be advertising to connect.** A bonded strap that BlueZ already auto-connected is
+> *not* advertising, so `sync` force-disconnects and scans for the device object before connecting
+> (and retries). If the strap has been idle a while it sleeps — nudge it (move it / pull it off the
+> charger) so it advertises again; a central cannot wake a sleeping peripheral.
+
+### SQLite schema
+
+| Table | Columns | Purpose |
+|---|---|---|
+| `devices` | `id, address, name, subject, model` | one row per strap / subject |
+| `frames` | `device_id, recv_ms, char, inner_type, unix, hr, hex` | every frame; deduped `UNIQUE(device_id, hex)` |
+| `sync_state` | `(device_id, k) → v` | per-device `last_trim` cursor, coverage range, `history_complete` |
+| `labels` | `device_id, start_unix, end_unix, activity, note` | activity labels for analysis / ML training |
+
+Feed `export`'s `capture.json` to `whoop-decode` (below); then the decoded HR series → the strain
+engine (`extracted/layer1-strain-engine/`), and the HR/RR/respiration + accelerometer fields →
+the sleep stager.
+
 ## Decode (`whoop-decode`)
 
 Built from the `WhoopProtocol` Swift package (builds on Linux — Foundation only):
@@ -167,7 +253,12 @@ $BIN --family whoop5 --hex aa0108000001e67123019101363e5c8d   # one frame ad hoc
 - The only frames written are the **session/bond handshake** and, under `--probe`, a small set of
   **non-destructive** read/toggle commands (`GET_CLOCK`, `TOGGLE_REALTIME_HR`, `SEND_R10_R11_REALTIME`,
   `SEND_HISTORICAL_DATA`) — all part of the curated command set described in the project's BLE safety
-  contract. No destructive commands (reboot, firmware, trim, ship-mode, DFU) are sent.
+  contract. No firmware/reboot/ship-mode/DFU commands are sent.
+- **`whoop_sync.py` additionally sends `HISTORICAL_DATA_RESULT` (cmd 23), the offload ack.** This
+  advances the strap's trim cursor, which causes the strap to **trim (delete) historical chunks it has
+  already served** — exactly the same housekeeping WHOOP's own app performs on every sync, not a wipe
+  of device function. Because the ack is destructive *to the on-strap copy*, the tool commits each
+  chunk to disk **before** acking it (persist-before-ack), and the data lives on in the local DB.
 - Use only on **hardware you own**. Capture files contain your strap's serial / a session token /
   its MAC — they are git-ignored and should not be shared.
 - "WHOOP" is used **nominatively** to name the hardware. These tools contain no WHOOP code or assets.
