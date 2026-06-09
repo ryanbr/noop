@@ -25,7 +25,7 @@ object AppChangelog {
      * Bump this when you add a release below. The "What's New" sheet shows automatically when the
      * stored last-seen version is behind this. (Decoupled from the bundle version on purpose.)
      */
-    const val CURRENT_VERSION = "1.44"
+    const val CURRENT_VERSION = "1.45"
 
     data class Release(
         val version: String,
@@ -36,6 +36,14 @@ object AppChangelog {
 
     /** Newest first. */
     val releases: List<Release> = listOf(
+        Release(
+            version = "1.45",
+            title = "Clearer pairing guidance for WHOOP 5.0/MG",
+            date = "June 2026",
+            items = listOf(
+                "Improved (Mac): live heart rate on a WHOOP 5.0/MG streams even before the strap is fully paired — but buzz, alarms, double-tap and full history sync all need that real pairing. NOOP now keeps the \"free the strap from the WHOOP app\" guidance visible (in clearer wording) whenever the strap isn't fully paired, so it's obvious what to do to unlock the rest. Thanks to a 5.0/MG report (#69).",
+            ),
+        ),
         Release(
             version = "1.44",
             title = "Fixes a false \"pairing refused\" warning (Mac)",

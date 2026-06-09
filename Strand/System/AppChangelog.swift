@@ -7,7 +7,7 @@ enum AppChangelog {
 
     /// Bump this when you add a release below. The "What's New" sheet shows automatically when the
     /// stored last-seen version is behind this. (Decoupled from the bundle version on purpose.)
-    static let currentVersion = "1.44"
+    static let currentVersion = "1.45"
 
     struct Release: Identifiable {
         let version: String
@@ -19,6 +19,13 @@ enum AppChangelog {
 
     /// Newest first.
     static let releases: [Release] = [
+        Release(
+            version: "1.45",
+            title: "Clearer pairing guidance for WHOOP 5.0/MG",
+            date: "June 2026",
+            items: [
+                "Improved (Mac): live heart rate on a WHOOP 5.0/MG streams even before the strap is fully paired — but buzz, alarms, double-tap and full history sync all need that real pairing. NOOP now keeps the \"free the strap from the WHOOP app\" guidance visible (in clearer wording) whenever the strap isn't fully paired, so it's obvious what to do to unlock the rest. Thanks to a 5.0/MG report (#69).",
+            ]),
         Release(
             version: "1.44",
             title: "Fixes a false \"pairing refused\" warning (Mac)",

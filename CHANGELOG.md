@@ -17,6 +17,19 @@ approximate; downloads are on the [Releases](https://github.com/NoopApp/noop/rel
 
 ---
 
+## 1.45 — Clearer pairing guidance for WHOOP 5.0/MG (Mac, #69)
+
+- **A 5.0/MG streams live heart rate before it's fully (encrypted-)paired** — and buzz, alarms,
+  double-tap and full history sync all need that real pairing. NOOP now keeps the "free the strap
+  from the WHOOP app" guidance visible (in clearer wording) whenever the strap isn't fully paired,
+  instead of hiding it once live HR appears — so it's obvious what to do to unlock the rest (#69).
+- This **reverts v1.44's over-eager hint-clearing**: on a 5/MG, `bonded` is also set by the live-HR
+  shortcut (HR rides the unbonded standard profile), so clearing the hint there hid the *accurate*
+  "free the strap" guidance from users who were streaming HR but never got the real encrypted bond.
+  The hint now only clears on a genuine bond (the `CLIENT_HELLO` ack) or a fresh connect attempt, and
+  the banner is reworded from "Pairing refused" to guidance.
+- Android: **version bump only** (the banner is macOS-only).
+
 ## 1.44 — Fixes a false "pairing refused" warning (Mac, #69)
 
 - **The "Pairing refused" banner no longer cries wolf on a working connection** (Mac). It could stay

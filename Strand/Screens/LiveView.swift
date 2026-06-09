@@ -118,7 +118,7 @@ struct LiveView: View {
                 .foregroundStyle(StrandPalette.statusWarning)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
-                Text("Pairing refused — free the strap from the WHOOP app")
+                Text("Live HR works — free the strap to unlock buzz, alarms & sync")
                     .font(StrandFont.subhead).foregroundStyle(StrandPalette.textPrimary)
                 Text(hint)
                     .font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
