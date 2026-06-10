@@ -6,8 +6,13 @@ import androidx.lifecycle.viewModelScope
 import com.noop.NoopApplication
 import com.noop.analytics.IllnessWatch
 import com.noop.analytics.IntelligenceEngine
+import com.noop.analytics.RouteMath
+import com.noop.analytics.Sport
 import com.noop.analytics.StrainScorer
 import com.noop.analytics.UserProfile
+import com.noop.analytics.WorkoutSport
+import com.noop.location.LocationTracker
+import kotlinx.coroutines.Job
 import com.noop.ble.LiveState
 import com.noop.ble.WhoopConnectionService
 import com.noop.ble.WhoopModel
@@ -253,7 +258,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      *  recomputed as the window grows so the active card shows strain building in real time. */
     data class ActiveWorkout(
         val startMs: Long,
+        val sport: Sport,
+        val gpsEnabled: Boolean,
         val samples: List<HrSample> = emptyList(),
+        val track: List<RouteMath.LatLng> = emptyList(),
+        val distanceM: Double = 0.0,
+        val paceSecPerKm: Double? = null,
         val liveStrain: Double = 0.0,
         val avgHr: Int = 0,
         val peakHr: Int = 0,
@@ -264,33 +274,59 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _lastWorkout = MutableStateFlow<WorkoutRow?>(null)
     val lastWorkout: StateFlow<WorkoutRow?> = _lastWorkout.asStateFlow()
 
-    /** Begin a manually-tracked workout (single buzz confirms). */
-    fun startWorkout() {
+    private val locationTracker by lazy { LocationTracker(appContext) }
+    private var gpsJob: Job? = null
+
+    /** Begin a workout for [sport]; start GPS route tracking when [gpsEnabled]. Single buzz confirms. */
+    fun startWorkout(sport: Sport = WorkoutSport.default, gpsEnabled: Boolean = false) {
         if (_activeWorkout.value != null) return
         _lastWorkout.value = null
-        _activeWorkout.value = ActiveWorkout(startMs = System.currentTimeMillis())
+        _activeWorkout.value = ActiveWorkout(startMs = System.currentTimeMillis(), sport = sport, gpsEnabled = gpsEnabled)
         buzz(1)
+        if (gpsEnabled) {
+            gpsJob = viewModelScope.launch {
+                locationTracker.stream().collect { pt -> appendTrackPoint(pt) }
+            }
+        }
     }
 
-    /** Finish the active workout: score the captured HR window and save it as a WorkoutRow. A session
-     *  with too few samples (never streamed HR) is discarded quietly. Double-buzz confirms the save. */
+    private fun appendTrackPoint(pt: RouteMath.LatLng) {
+        val w = _activeWorkout.value ?: return
+        val track = w.track + pt
+        val dist = RouteMath.totalMeters(track)
+        val secs = (System.currentTimeMillis() - w.startMs) / 1000.0
+        _activeWorkout.value = w.copy(track = track, distanceM = dist, paceSecPerKm = RouteMath.paceSecPerKm(dist, secs))
+    }
+
+    /** Finish the active workout: score the captured HR window + finalize the GPS route, save a
+     *  WorkoutRow, and (opt-in) write it to Health Connect. A session with no HR AND no track is
+     *  discarded quietly. Double-buzz confirms the save. */
     fun endWorkout() {
         val w = _activeWorkout.value ?: return
         _activeWorkout.value = null
+        gpsJob?.cancel(); gpsJob = null
         val samples = w.samples
-        if (samples.size < 2) { _lastWorkout.value = null; return }
+        if (samples.size < 2 && w.track.size < 2) { _lastWorkout.value = null; return }
         val endMs = System.currentTimeMillis()
-        val avg = samples.sumOf { it.bpm } / samples.size
-        val peak = samples.maxOf { it.bpm }
-        val strain = StrainScorer.strain(samples, maxHR = profileStore.hrMax.toDouble(), sex = profileStore.sex)
+        val avg = if (samples.isNotEmpty()) samples.sumOf { it.bpm } / samples.size else null
+        val peak = if (samples.isNotEmpty()) samples.maxOf { it.bpm } else null
+        val strain = if (samples.size >= 2)
+            StrainScorer.strain(samples, maxHR = profileStore.hrMax.toDouble(), sex = profileStore.sex) else null
         val row = WorkoutRow(
             deviceId = deviceId, startTs = w.startMs / 1000, endTs = endMs / 1000,
-            sport = "Workout", source = "manual", durationS = (endMs - w.startMs) / 1000.0,
+            sport = w.sport.name, source = "manual", durationS = (endMs - w.startMs) / 1000.0,
             avgHr = avg, maxHr = peak, strain = strain,
+            distanceM = w.distanceM.takeIf { it > 0 },
+            routePolyline = if (w.track.size >= 2) RouteMath.encode(w.track) else null,
         )
         _lastWorkout.value = row
         buzz(2)
-        viewModelScope.launch { runCatching { repository.upsertWorkouts(listOf(row)) } }
+        viewModelScope.launch {
+            runCatching { repository.upsertWorkouts(listOf(row)) }
+            if (_hcWriteback.value) {
+                runCatching { HealthConnectWriter.writeExercise(appContext, row, w.sport.exerciseType) }
+            }
+        }
     }
 
     /** Append the current smoothed bpm to the active workout and recompute its running strain. Called

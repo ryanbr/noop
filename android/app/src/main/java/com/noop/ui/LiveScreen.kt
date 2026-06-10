@@ -37,6 +37,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
+import com.noop.analytics.Sport
+import com.noop.analytics.WorkoutSport
 import com.noop.ble.WhoopModel
 
 /**
@@ -150,6 +160,63 @@ fun LiveScreen(viewModel: AppViewModel) {
             )
         }
 
+        // GPS workout sport picker — pick a sport (searchable) + GPS toggle, then start.
+        var showSportPicker by remember { mutableStateOf(false) }
+        if (showSportPicker) {
+            var query by remember { mutableStateOf("") }
+            var selected by remember { mutableStateOf(WorkoutSport.default) }
+            var gpsOn by remember(selected) { mutableStateOf(selected.isDistanceSport) }
+            val filtered = WorkoutSport.all.filter { it.name.contains(query, ignoreCase = true) }
+            AlertDialog(
+                onDismissRequest = { showSportPicker = false },
+                title = { Text("Start a workout") },
+                text = {
+                    Column {
+                        OutlinedTextField(
+                            value = query, onValueChange = { query = it },
+                            label = { Text("Search sport") }, singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Column(modifier = Modifier.heightIn(max = 240.dp).verticalScroll(rememberScrollState())) {
+                            filtered.forEach { sp ->
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                        .clickable { selected = sp; gpsOn = sp.isDistanceSport }
+                                        .padding(vertical = 10.dp),
+                                ) {
+                                    Text(
+                                        sp.name, style = NoopType.body,
+                                        color = if (sp == selected) Palette.accent else Palette.textPrimary,
+                                    )
+                                    if (sp.isDistanceSport) {
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("· GPS", style = NoopType.footnote, color = Palette.textTertiary)
+                                    }
+                                }
+                            }
+                        }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        ) {
+                            Text("Track GPS route", style = NoopType.body, color = Palette.textPrimary)
+                            Spacer(Modifier.weight(1f))
+                            Switch(checked = gpsOn, onCheckedChange = { gpsOn = it })
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = { viewModel.startWorkout(selected, gpsOn); showSportPicker = false }) {
+                        Text("Start ${selected.name}")
+                    }
+                },
+                dismissButton = {
+                    OutlinedButton(onClick = { showSportPicker = false }) { Text("Cancel") }
+                },
+            )
+        }
+
         // Manual workout — start/stop a session yourself; records HR + strain until you end it.
         val w = activeWorkout
         if (w != null) {
@@ -161,7 +228,7 @@ fun LiveScreen(viewModel: AppViewModel) {
             NoopCard {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                        Text("● RECORDING WORKOUT", style = NoopType.overline, color = Palette.statusCritical)
+                        Text("● ${w.sport.name.uppercase()}", style = NoopType.overline, color = Palette.statusCritical)
                         Spacer(Modifier.weight(1f))
                         Text(
                             String.format("%d:%02d", elapsedS / 60, elapsedS % 60),
@@ -173,6 +240,12 @@ fun LiveScreen(viewModel: AppViewModel) {
                         StatTile(modifier = Modifier.weight(1f), label = "Avg", value = if (w.avgHr > 0) "${w.avgHr}" else "—")
                         StatTile(modifier = Modifier.weight(1f), label = "Peak", value = if (w.peakHr > 0) "${w.peakHr}" else "—")
                         StatTile(modifier = Modifier.weight(1f), label = "Strain", value = String.format("%.1f", w.liveStrain))
+                    }
+                    if (w.gpsEnabled) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(Metrics.gap)) {
+                            StatTile(modifier = Modifier.weight(1f), label = "Distance", value = String.format("%.2f km", w.distanceM / 1000.0))
+                            StatTile(modifier = Modifier.weight(1f), label = "Pace", value = w.paceSecPerKm?.let { String.format("%d:%02d /km", (it / 60).toInt(), (it % 60).toInt()) } ?: "—")
+                        }
                     }
                     Button(
                         onClick = { viewModel.endWorkout() },
@@ -187,7 +260,7 @@ fun LiveScreen(viewModel: AppViewModel) {
         } else {
             if (live.bonded) {
                 Button(
-                    onClick = { viewModel.startWorkout() },
+                    onClick = { showSportPicker = true },
                     modifier = Modifier.fillMaxWidth(),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                     colors = ButtonDefaults.buttonColors(
@@ -199,13 +272,15 @@ fun LiveScreen(viewModel: AppViewModel) {
                 val mins = ((row.durationS ?: 0.0) / 60).toInt()
                 val parts = listOfNotNull(
                     "$mins min",
+                    row.distanceM?.let { String.format("%.2f km", it / 1000.0) },
                     row.avgHr?.let { "$it avg bpm" },
                     row.strain?.let { String.format("strain %.1f", it) },
                 )
                 Text(
-                    "✓ Workout saved · ${parts.joinToString(" · ")}",
+                    "✓ ${row.sport} saved · ${parts.joinToString(" · ")}",
                     style = NoopType.footnote, color = Palette.textSecondary,
                 )
+                row.routePolyline?.let { RouteCanvas(it, modifier = Modifier.padding(top = 8.dp)) }
             }
         }
 

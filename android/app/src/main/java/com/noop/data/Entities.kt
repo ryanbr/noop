@@ -261,6 +261,7 @@ data class WorkoutRow(
     val distanceM: Double? = null,
     val zonesJSON: String? = null,
     val notes: String? = null,
+    val routePolyline: String? = null, // Encoded GPS route (RouteMath polyline); null = no GPS.
 )
 
 /**

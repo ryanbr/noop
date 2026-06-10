@@ -40,7 +40,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         WorkoutRow::class,
         AppleDaily::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 abstract class WhoopDatabase : RoomDatabase() {
@@ -90,12 +90,23 @@ abstract class WhoopDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v3 -> v4: ADDITIVE — adds `workout.routePolyline` (nullable TEXT) for GPS routes. Nullable so
+         * existing workouts migrate untouched; the SQL must match Room's generated schema for a `String?`
+         * column exactly (TEXT, no NOT NULL, no default). Mirrors MIGRATION_2_3's additive form.
+         */
+        internal val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `workout` ADD COLUMN `routePolyline` TEXT")
+            }
+        }
+
         private fun build(appContext: Context): WhoopDatabase =
             Room.databaseBuilder(appContext, WhoopDatabase::class.java, DB_NAME)
                 // Real additive migration — NO destructive fallback (see the class doc): with
                 // exportSchema=false a silent rebuild would lose already-acked, non-resendable strap
                 // history on any schema mismatch. Room throws loudly instead; CI guards the SQL.
-                .addMigrations(MIGRATION_2_3)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
                 .build()
     }
 }

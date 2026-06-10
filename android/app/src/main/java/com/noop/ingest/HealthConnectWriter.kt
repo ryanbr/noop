@@ -3,14 +3,18 @@ package com.noop.ingest
 import android.content.Context
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
+import androidx.health.connect.client.records.DistanceRecord
+import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord
 import androidx.health.connect.client.records.OxygenSaturationRecord
 import androidx.health.connect.client.records.Record
 import androidx.health.connect.client.records.RespiratoryRateRecord
 import androidx.health.connect.client.records.RestingHeartRateRecord
 import androidx.health.connect.client.records.metadata.Metadata
+import androidx.health.connect.client.units.Length
 import androidx.health.connect.client.units.Percentage
 import com.noop.data.WhoopRepository
+import com.noop.data.WorkoutRow
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -109,4 +113,45 @@ object HealthConnectWriter {
         clientRecordId = "noop-$metric-$day",
         clientRecordVersion = version,
     )
+
+    // --- Workout (ExerciseSession) writeback (GPS workouts, v1.71) ---
+
+    /** Write-permission strings for exercise sessions + distance; union into the writeback request. */
+    val EXERCISE_PERMISSIONS: Set<String> = setOf(
+        HealthPermission.getWritePermission(ExerciseSessionRecord::class),
+        HealthPermission.getWritePermission(DistanceRecord::class),
+    )
+
+    /** Pure: build the records for one workout (testable without a client). */
+    fun buildExerciseRecords(row: WorkoutRow, exerciseType: Int): List<Record> {
+        val start = Instant.ofEpochSecond(row.startTs)
+        val end = Instant.ofEpochSecond(row.endTs)
+        val offset = ZoneId.systemDefault().rules.getOffset(start)
+        val out = ArrayList<Record>()
+        out.add(
+            ExerciseSessionRecord(
+                startTime = start, startZoneOffset = offset, endTime = end, endZoneOffset = offset,
+                exerciseType = exerciseType, title = row.sport,
+                metadata = Metadata(clientRecordId = "noop-workout-${row.startTs}", clientRecordVersion = row.endTs),
+            ),
+        )
+        row.distanceM?.let {
+            out.add(
+                DistanceRecord(
+                    startTime = start, startZoneOffset = offset, endTime = end, endZoneOffset = offset,
+                    distance = Length.meters(it),
+                    metadata = Metadata(clientRecordId = "noop-workout-dist-${row.startTs}", clientRecordVersion = row.endTs),
+                ),
+            )
+        }
+        return out
+    }
+
+    /** Insert one workout's records into Health Connect. Opt-in caller; wrap in runCatching. */
+    suspend fun writeExercise(context: Context, row: WorkoutRow, exerciseType: Int): Int {
+        if (HealthConnectClient.getSdkStatus(context) != HealthConnectClient.SDK_AVAILABLE) return 0
+        val recs = buildExerciseRecords(row, exerciseType)
+        HealthConnectClient.getOrCreate(context).insertRecords(recs)
+        return recs.size
+    }
 }

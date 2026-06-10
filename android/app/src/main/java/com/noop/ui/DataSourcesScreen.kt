@@ -238,7 +238,10 @@ fun DataSourcesScreen(vm: AppViewModel) {
             if (granted.containsAll(HealthConnectWriter.PERMISSIONS)) {
                 vm.writebackHealthConnectNow()
             } else {
-                hcWritePermissionLauncher.launch(HealthConnectWriter.PERMISSIONS)
+                // Also request exercise-session write perms so GPS workouts can write back too
+                // (the metric-writeback gate above stays on PERMISSIONS; exercise writeback is
+                // opt-in + non-fatal). v1.71.
+                hcWritePermissionLauncher.launch(HealthConnectWriter.PERMISSIONS + HealthConnectWriter.EXERCISE_PERMISSIONS)
             }
         }
     }
