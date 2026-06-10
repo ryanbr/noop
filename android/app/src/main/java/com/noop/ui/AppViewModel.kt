@@ -110,6 +110,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Whether the illness early-warning runs (banner + notification). */
     val illnessWatchEnabled: StateFlow<Boolean> = _illnessWatchEnabled.asStateFlow()
 
+    // Declared BEFORE the init block for the SAME reason as _illnessWatchEnabled above: the bond
+    // collector launched from init runs synchronously on Main.immediate and reads _smartAlarmEnabled on
+    // its first (cached) emission. A declaration after init is null there and NPEs the constructor on a
+    // cold start where the strap is already bonded — the #84 "crashes once, fine on the retry" race on
+    // fast devices (S24+). Port of macOS BehaviorStore (Swift two-phase init makes this safe for free).
+    private val _smartAlarmEnabled = MutableStateFlow(NoopPrefs.smartAlarmEnabled(appContext))
+    val smartAlarmEnabled: StateFlow<Boolean> = _smartAlarmEnabled.asStateFlow()
+    private val _smartAlarmMinutes = MutableStateFlow(NoopPrefs.smartAlarmMinutes(appContext))
+    val smartAlarmMinutes: StateFlow<Int> = _smartAlarmMinutes.asStateFlow()
+
     // MARK: - Today's cached metrics
 
     private val _today = MutableStateFlow<DailyMetric?>(null)
@@ -516,11 +526,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun getBattery() = ble.refreshBattery()
 
     // --- Smart alarm (persisted; arms the strap's firmware alarm). Port of macOS BehaviorStore +
-    // AppModel.applySmartAlarm. The previous Android UI was a non-persisted mock-up (issue #51). ---
-    private val _smartAlarmEnabled = MutableStateFlow(NoopPrefs.smartAlarmEnabled(appContext))
-    val smartAlarmEnabled: StateFlow<Boolean> = _smartAlarmEnabled.asStateFlow()
-    private val _smartAlarmMinutes = MutableStateFlow(NoopPrefs.smartAlarmMinutes(appContext))
-    val smartAlarmMinutes: StateFlow<Int> = _smartAlarmMinutes.asStateFlow()
+    // AppModel.applySmartAlarm. The previous Android UI was a non-persisted mock-up (issue #51).
+    // NOTE: the _smartAlarm* state fields are declared ABOVE the init block (next to _illnessWatchEnabled)
+    // so the init bond-collector can't read them before they're initialized (#84). ---
 
     fun setSmartAlarmEnabled(enabled: Boolean) {
         _smartAlarmEnabled.value = enabled

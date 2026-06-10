@@ -104,6 +104,26 @@ fun LiveScreen(viewModel: AppViewModel) {
             )
         }
 
+        // Strap wiped its Bluetooth bond (firmware reset / official WHOOP app re-bond): show the forget+
+        // re-pair steps in-app instead of looping a dead reconnect — parity with the macOS v1.73 banner.
+        live.reconnectGuide?.let { guide ->
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Palette.surfaceRaised, RoundedCornerShape(12.dp))
+                    .border(1.dp, Palette.statusWarning.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                Text(
+                    "Can't connect — your strap's pairing was reset",
+                    style = NoopType.subhead,
+                    color = Palette.textPrimary,
+                )
+                Text(guide, style = NoopType.footnote, color = Palette.textSecondary)
+            }
+        }
+
         // Honest sync outcome for a cloud-free app. While offloading, say so plainly — the brief
         // "· syncing" pill suffix is easy to miss (#91/#93). Otherwise: a non-silent error if the
         // last offload stalled, else a relative "history synced N ago". (PR #85; sync-visibility v1.70)

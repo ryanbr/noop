@@ -11,7 +11,7 @@ options:
   developmentLanguage: en
 settings:
   base:
-    MARKETING_VERSION: "1.73"
+    MARKETING_VERSION: "1.74"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
     # Emit localizable strings so Xcode auto-extracts every LocalizedStringKey into the

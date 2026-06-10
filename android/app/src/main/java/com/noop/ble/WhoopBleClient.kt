@@ -118,6 +118,11 @@ data class LiveState(
     /** Set when an offload ended abnormally (strap went quiet mid-sync / idle-watchdog fired), so a
      *  stalled history download isn't silent. Cleared on the next successful HISTORY_COMPLETE. (PR #85) */
     val lastSyncError: String? = null,
+    /** Set when a connect attempt fails because the strap wiped its Bluetooth bond — a firmware reset,
+     *  or the official WHOOP app re-bonding it. The OS still holds a now-stale bond, so retrying the
+     *  direct connect just re-fails. Carries an actionable forget+re-pair guide; cleared on the next
+     *  successful connect. Parity with macOS LiveState.reconnectGuide (5/MG firmware reset, 2026-06). */
+    val reconnectGuide: String? = null,
 )
 
 /**
@@ -912,6 +917,12 @@ class WhoopBleClient(
      *  deliberately NOT in reset() (it must survive into handleDisconnect's stale-bond fallback). */
     private var bondedDirectAttempt = false
 
+    /** Consecutive OS-bonded direct-connect attempts that died before reaching a real bond. Two in a
+     *  row = the strap genuinely wiped its pairing (firmware reset / official WHOOP app re-bond), not a
+     *  one-off transient drop — gates the in-app reconnect guide so a single flaky disconnect doesn't
+     *  nag the user. Reset to 0 on any genuine bond. (5/MG firmware reset parity, 2026-06) */
+    private var staleDirectFailures = 0
+
     /** Guards the once-per-connect service-discovery kick. Discovery is deferred behind an MTU request
      *  (and a fallback timeout), so this ensures it fires EXACTLY once whichever path wins. AtomicBoolean
      *  (not @Volatile): on API 26/27 the GATT callbacks land on binder-pool threads, so onMtuChanged and
@@ -977,7 +988,7 @@ class WhoopBleClient(
                 BluetoothProfile.STATE_CONNECTED -> {
                     // Port of didConnect: mark connected, negotiate a larger ATT MTU, THEN discover.
                     handler.removeCallbacks(scanTimeoutRunnable)
-                    _state.value = _state.value.copy(connected = true, scanning = false, statusNote = null, encryptedBond = false)
+                    _state.value = _state.value.copy(connected = true, scanning = false, statusNote = null, encryptedBond = false, reconnectGuide = null)
                     serviceDiscoveryKicked.set(false)
                     // Request the larger MTU BEFORE discovery/subscribe so the offload isn't capped at
                     // 20-byte notifications (the official app does this in its GATT init). Discovery is
@@ -1073,6 +1084,7 @@ class WhoopBleClient(
                 // realtime HR with puffin framing. Mirrors the macOS post-bond flow.
                 didBond = true
                 bondedDirectAttempt = false   // fast-path connect reached a real session (#78 fork)
+                staleDirectFailures = 0       // genuine bond — clear the wiped-bond counter (#84 parity)
                 _state.value = _state.value.copy(bonded = true, encryptedBond = true)   // genuine bond (#69)
                 log("WHOOP 5/MG: CLIENT_HELLO acked — link established; subscribing notify chars (experimental).")
                 g.getService(WHOOP5_SERVICE)?.let { svc ->
@@ -2106,8 +2118,25 @@ class WhoopBleClient(
 
         if (!intentionalDisconnect) {
             if (staleDirectBond) {
-                log("Disconnected (status=$status) before the bonded fast-path reached a session — falling back to a scan")
+                staleDirectFailures++
+                log("Disconnected (status=$status) before the bonded fast-path reached a session — stale OS bond (attempt $staleDirectFailures); falling back to a scan")
                 lastDevice = null
+                // Two consecutive wiped-bond failures = the strap really reset its pairing (firmware
+                // update / official WHOOP app re-bond), not a one-off transient drop. Surface the same
+                // forget+re-pair guide the Mac shows (v1.73). We KEEP scanning so a fresh re-pair is
+                // picked up automatically and the guide clears on the next successful connect.
+                if (staleDirectFailures >= 2) {
+                    _state.value = _state.value.copy(
+                        reconnectGuide = """
+                        Your strap's Bluetooth pairing was reset — usually by a WHOOP firmware update, or the official WHOOP app reconnecting. NOOP works fine on the new firmware; you just need to re-pair:
+
+                        1. Quit the official WHOOP app (or turn off Bluetooth on that phone).
+                        2. Open Settings → Bluetooth, find your WHOOP, and Forget / Unpair it.
+                        3. Tap the band repeatedly until its LEDs flash blue (pairing mode).
+                        4. Come back here and tap Connect.
+                        """.trimIndent()
+                    )
+                }
                 handler.postDelayed({
                     if (!intentionalDisconnect) connect(selectedModel)
                 }, RECONNECT_DELAY_MS)
