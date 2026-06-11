@@ -182,4 +182,30 @@ final class Whoop5HistoricalTests: XCTestCase {
         XCTAssertEqual(parsed.crcOK, true)
         XCTAssertEqual(parsed.cmdName?.hasPrefix("HISTORICAL_DATA_RESULT"), true)
     }
+
+    // Real v18 frames from a SECOND device (Galaxy S24 Ultra capture, 2026-06-11) — a different
+    // strap/firmware than the 2026-06-08 device the offsets were first read from. The decisive part:
+    // each frame's heart rate was cross-checked against THAT SAME device's own live REALTIME_DATA at
+    // the identical unix second (57 and 63 bpm matched exactly, 53/53 over the overlap), so these are
+    // ground-truth, not self-referential. This pins that the v18 layout GENERALISES, not overfits.
+    private let secondDeviceHR57 =
+        "aa01740001003fb12f128093c47c006dbc296a00600039000000000000000000006137020b610000e1e04c063d8fce36bf7b08233f8fea993e38a50000000000000000000019012101920b5002010c020c0100000000000000000000000000000000000000000005010085808080000000a5538ec000000016d0680d"
+    private let secondDeviceHR63 =
+        "aa01740001003fb12f128034d67c000ece296a0a77003f01fc0300000000000000203a0302e30000ff00f8093c1f8534bcc3a5473f4819243f85a6000000000000000000001b012601e80b5003010c020c00000000000000000000000000000000000000000000050100ced7241c0000006ead8cc00000008775b70c"
+
+    func testHistoricalV18GeneralisesToSecondDevice() {
+        for (hex, expectHR, expectUnix) in [(secondDeviceHR57, 57, 1781120109), (secondDeviceHR63, 63, 1781124622)] {
+            let p = parseFrame(bytes(hex), family: .whoop5).parsed
+            XCTAssertEqual(p["hist_version"]?.intValue, 18)
+            XCTAssertEqual(p["unix"]?.intValue, expectUnix)
+            XCTAssertEqual(p["heart_rate"]?.intValue, expectHR, "HR must match the device's own live HR at this second")
+            // Gravity vector reads ~1 g on a worn strap regardless of firmware revision.
+            if let gx = p["gravity_x"]?.doubleValue, let gy = p["gravity_y"]?.doubleValue, let gz = p["gravity_z"]?.doubleValue {
+                let mag = (gx * gx + gy * gy + gz * gz).squareRoot()
+                XCTAssert((0.8...1.2).contains(mag), "|gravity| \(mag) out of range")
+            } else {
+                XCTFail("gravity did not decode")
+            }
+        }
+    }
 }

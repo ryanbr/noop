@@ -82,4 +82,30 @@ class Whoop5HistoricalDecodeTest {
         val gz = p["gravity_z"] as Double
         assertEquals(1.0, sqrt(gx * gx + gy * gy + gz * gz), 0.05)
     }
+
+    // A SECOND device (Galaxy S24 Ultra capture, 2026-06-11). Each HR was cross-checked against the
+    // SAME device's own live REALTIME_DATA at the identical unix second (57 & 63 bpm matched exactly,
+    // 53/53 over the overlap) — ground truth, not self-referential. Pins that v18 GENERALISES.
+    private val secondDeviceHR57 =
+        "aa01740001003fb12f128093c47c006dbc296a00600039000000000000000000006137020b610000e1e04c063d8fce36bf7b08233f8fea993e38a50000000000000000000019012101920b5002010c020c0100000000000000000000000000000000000000000005010085808080000000a5538ec000000016d0680d"
+    private val secondDeviceHR63 =
+        "aa01740001003fb12f128034d67c000ece296a0a77003f01fc0300000000000000203a0302e30000ff00f8093c1f8534bcc3a5473f4819243f85a6000000000000000000001b012601e80b5003010c020c00000000000000000000000000000000000000000000050100ced7241c0000006ead8cc00000008775b70c"
+
+    @Test
+    fun decodesV18FromASecondDevice() {
+        for ((hex, expectHR, expectUnix) in listOf(
+            Triple(secondDeviceHR57, 57, 1781120109),
+            Triple(secondDeviceHR63, 63, 1781124622),
+        )) {
+            val p = decodeHistorical(bytes(hex), DeviceFamily.WHOOP5)
+            assertNotNull(p); p!!
+            assertEquals(18, p["hist_version"])
+            assertEquals(expectUnix, p["unix"])
+            assertEquals(expectHR, p["heart_rate"]) // == the device's own live HR at this second
+            val gx = p["gravity_x"] as Double
+            val gy = p["gravity_y"] as Double
+            val gz = p["gravity_z"] as Double
+            assertEquals(1.0, sqrt(gx * gx + gy * gy + gz * gz), 0.2)
+        }
+    }
 }
