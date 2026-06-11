@@ -1,0 +1,64 @@
+# Compile-only verification for the macOS and iOS app targets.
+#
+# Why this exists: the iOS app is a build-from-source community port (no App Store —
+# NOOP stays anonymous), so it isn't exercised on a device by the maintainer. This job
+# compiles both app targets on every relevant change so a shared-code change can't
+# silently break iOS (or regress macOS). It is anonymity-safe: CODE_SIGNING_ALLOWED=NO,
+# no secrets, no signing identity, no artifacts uploaded — it only checks that it builds.
+# (The shipped macOS .app is still produced and anonymized by hand; this is a compile gate.)
+name: App build (macOS + iOS)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'Strand/**'
+      - 'StrandiOS/**'
+      - 'StrandiOSShared/**'
+      - 'StrandiOSWidgets/**'
+      - 'Packages/**'
+      - 'project.yml'
+      - '.github/workflows/app-build.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'Strand/**'
+      - 'StrandiOS/**'
+      - 'StrandiOSShared/**'
+      - 'StrandiOSWidgets/**'
+      - 'Packages/**'
+      - 'project.yml'
+      - '.github/workflows/app-build.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: app-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - scheme: Strand
+            destination: 'platform=macOS'
+          - scheme: NOOPiOS
+            destination: 'generic/platform=iOS Simulator'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build ${{ matrix.scheme }}
+        run: >-
+          xcodebuild -scheme '${{ matrix.scheme }}' -configuration Debug
+          -destination '${{ matrix.destination }}'
+          CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+          build

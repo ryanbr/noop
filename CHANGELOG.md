@@ -17,6 +17,21 @@ approximate; downloads are on the [Releases](https://github.com/NoopApp/noop/rel
 
 ---
 
+## 1.94 — Manual workouts on WHOOP 5.0/MG get their calories and strain back
+
+- **Fixed (Mac and Android):** a workout you start yourself now fills in its calories, average heart
+  rate and strain even on a WHOOP 5.0/MG. The live heart-rate stream on 5/MG is sparse, so a manual
+  session was often saved showing ~1 kcal and no strain — now, once your strap offloads the heart rate
+  it banked during the session, NOOP re-scores that workout from the fuller data (conservatively:
+  well-scored workouts are left untouched, and a still-sparse window is a no-op). (#137)
+- **Developer (iOS):** the experimental iOS app target is now folded into `main` and builds against
+  current code (app shell, WidgetKit + Live Activity, two-way HealthKit, App Intents), with a CI job
+  compiling both the macOS and iOS targets on every change. iOS remains **build-from-source only** —
+  there is no App Store / TestFlight build, because that would require a non-anonymous Apple Developer
+  identity. Build it yourself in Xcode if you want to run it (see `docs/IOS.md`). (#42)
+
+---
+
 ## 1.93 — Tidy your journal — remove and hide questions
 
 - **New (Mac and Android):** the Journal now has an **Edit mode** (tap **Edit** on the Journal card) to

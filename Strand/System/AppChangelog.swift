@@ -7,7 +7,7 @@ enum AppChangelog {
 
     /// Bump this when you add a release below. The "What's New" sheet shows automatically when the
     /// stored last-seen version is behind this. (Decoupled from the bundle version on purpose.)
-    static let currentVersion = "1.93"
+    static let currentVersion = "1.94"
 
     struct Release: Identifiable {
         let version: String
@@ -19,6 +19,13 @@ enum AppChangelog {
 
     /// Newest first.
     static let releases: [Release] = [
+        Release(
+            version: "1.94",
+            title: "Manual workouts on WHOOP 5.0/MG get their calories and strain back",
+            date: "June 2026",
+            items: [
+                "Fixed (Mac and Android): a workout you start yourself now fills in its calories, average heart rate and strain even on a WHOOP 5.0/MG. The live heart-rate stream on 5/MG is sparse, so a manual session was often saved showing ~1 kcal and no strain — now, once your strap offloads the heart rate it banked during the session, NOOP re-scores that workout from the fuller data. Well-scored workouts are left untouched. (#137)",
+            ]),
         Release(
             version: "1.93",
             title: "Tidy your journal — remove and hide questions",
