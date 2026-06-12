@@ -1,4 +1,5 @@
 import SwiftUI
+import MarkdownUI
 import StrandDesign
 
 /// Coach — the one feature in NOOP that talks to the network.
@@ -349,12 +350,13 @@ struct CoachView: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel("You said: \(message.text)")
         case .assistant:
+            // LLM replies arrive as Markdown (bold, lists, headings, tables) —
+            // rendered with the chat-bubble-sized Strand theme. User bubbles stay
+            // verbatim `Text` so typed `*`/`#` never turn into surprise formatting.
             HStack {
-                Text(message.text)
-                    .font(StrandFont.body)
-                    .foregroundStyle(StrandPalette.textPrimary)
+                Markdown(message.text)
+                    .markdownTheme(.strand)
                     .textSelection(.enabled)
-                    .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)

@@ -339,7 +339,12 @@ private fun ChatBubble(msg: ChatMsg) {
                     if (isUser) "You" else "Coach",
                     color = if (isUser) Palette.accentHover else Palette.textTertiary,
                 )
-                Text(msg.text, style = NoopType.body, color = Palette.textPrimary)
+                if (isUser) {
+                    Text(msg.text, style = NoopType.body, color = Palette.textPrimary)
+                } else {
+                    // Render the Coach's Markdown (bold/lists/headings) instead of raw symbols (#149).
+                    CoachMarkdown(msg.text, color = Palette.textPrimary)
+                }
             }
         }
     }

@@ -423,7 +423,10 @@ class AiCoach(private val repo: WhoopRepository) {
                 "biggest recovery lever. Always cite the user's ACTUAL numbers, give a concrete plan " +
                 "(today and the week), and be specific, punchy and motivating. If no data is " +
                 "provided, coach generally and invite them to enable data access. You are NOT a " +
-                "doctor — never diagnose; suggest a professional for genuine health concerns."
+                "doctor — never diagnose; suggest a professional for genuine health concerns. " +
+                "Format replies in simple Markdown, chat-sized: short paragraphs, **bold** for key " +
+                "numbers, bullet or numbered lists for plans, and ### headings only when structure " +
+                "genuinely helps. No tables or code blocks."
 
         /** Used in place of the metrics context when the user has not granted data access. */
         const val NO_CONSENT_NOTE =

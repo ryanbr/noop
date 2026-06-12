@@ -27,6 +27,11 @@ settings:
       # Distribution builds must produce a universal binary, not just the host arch.
       ONLY_ACTIVE_ARCH: NO
 packages:
+  # Renders the Coach's LLM replies (GitHub-flavored Markdown — bold, lists,
+  # headings, tables). Pinned exactly for reproducible community builds.
+  MarkdownUI:
+    url: https://github.com/gonzalezreal/swift-markdown-ui
+    exactVersion: 2.4.1
   WhoopProtocol:
     path: Packages/WhoopProtocol
   WhoopStore:
@@ -90,6 +95,7 @@ targets:
       - package: StrandAnalytics
       - package: StrandImport
       - package: StrandDesign
+      - package: MarkdownUI
   StrandTests:
     type: bundle.unit-test
     platform: macOS
@@ -184,6 +190,7 @@ targets:
       - package: StrandAnalytics
       - package: StrandImport
       - package: StrandDesign
+      - package: MarkdownUI
       - target: NOOPiOSWidgets
 
   # WidgetKit + Live Activity extension — the iOS analogue of the macOS menu-bar

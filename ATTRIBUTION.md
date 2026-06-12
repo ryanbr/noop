@@ -19,6 +19,8 @@ NOOP builds on prior community reverse-engineering and interoperability work:
 
 ## Other
 - **GRDB.swift** (`groue/GRDB.swift`) — SQLite persistence (via Swift Package Manager).
+- **MarkdownUI** (`gonzalezreal/swift-markdown-ui`) — renders the AI Coach's Markdown
+  replies (via Swift Package Manager).
 
 NOOP contains no WHOOP proprietary code, binaries, firmware, logos, or assets, and
 performs no DRM circumvention. It operates only with the user's own device and data.

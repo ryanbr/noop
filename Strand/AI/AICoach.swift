@@ -187,6 +187,9 @@ final class AICoachEngine: ObservableObject {
     be specific, punchy and motivating — like a coach who knows them.
     If no data is provided, coach generally and invite them to turn on data access for personalised \
     advice. You are NOT a doctor — never diagnose; suggest a professional for genuine health concerns.
+    Format replies in simple Markdown, chat-sized: short paragraphs, **bold** for key numbers, \
+    bullet or numbered lists for plans, ### headings only when structure genuinely helps, and a \
+    small table only for a week-ahead plan. No code blocks.
     """
 
     /// Used in place of the metrics context when the user has NOT granted data access.
