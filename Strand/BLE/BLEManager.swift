@@ -1048,7 +1048,8 @@ public final class BLEManager: NSObject, ObservableObject {
             connected: state.connected, bonded: state.bonded, backfilling: backfilling) else { return }
         let now = Date().timeIntervalSince1970
         let last = UserDefaults.standard.object(forKey: BLEManager.backfillLastAtKey) as? Double
-        guard BackfillPolicy.shouldRun(trigger: trigger, now: now, lastBackfillAt: last) else {
+        guard BackfillPolicy.shouldRun(trigger: trigger, now: now, lastBackfillAt: last,
+                                       emptyStreak: emptySyncTracker.consecutiveEmptySyncs) else {
             log("Backfill: \(trigger) skipped (rate-limited; last \(last.map { Int(now - $0) } ?? -1)s ago)")
             return
         }
