@@ -18,6 +18,15 @@
       "screenshotURLs": [],
       "versions": [
         {
+          "version": "2.11.1",
+          "buildVersion": "56",
+          "date": "2026-06-14",
+          "localizedDescription": "Fix: daily metrics now bucket by your local timezone instead of UTC, so the dashboard no longer freezes partway through the day for non-UTC users (#277).",
+          "downloadURL": "https://github.com/NoopApp/noop/releases/download/v2.11.1/NOOP-v2.11.1-ios.ipa",
+          "size": 6107605,
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "2.11.0",
           "buildVersion": "55",
           "date": "2026-06-13",
@@ -226,12 +235,12 @@
           "NSHealthUpdateUsageDescription": "NOOP writes the metrics it computes from your strap back into Apple Health, on-device and only when you allow it."
         }
       },
-      "version": "2.11.0",
-      "buildVersion": "55",
-      "versionDate": "2026-06-13",
-      "versionDescription": "Smart wake alarm, live workout mode, editable Today, Effort 0-21 toggle, smoother hypnogram, and Hevy/Liftosaur lifting import.",
-      "downloadURL": "https://github.com/NoopApp/noop/releases/download/v2.11.0/NOOP-v2.11.0-ios.ipa",
-      "size": 6107528,
+      "version": "2.11.1",
+      "buildVersion": "56",
+      "versionDate": "2026-06-14",
+      "versionDescription": "Fix: daily metrics now bucket by your local timezone instead of UTC, so the dashboard no longer freezes partway through the day for non-UTC users (#277).",
+      "downloadURL": "https://github.com/NoopApp/noop/releases/download/v2.11.1/NOOP-v2.11.1-ios.ipa",
+      "size": 6107605,
       "minOSVersion": "17.0"
     }
   ],
