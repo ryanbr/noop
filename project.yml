@@ -11,7 +11,7 @@ options:
   developmentLanguage: en
 settings:
   base:
-    MARKETING_VERSION: "2.13.0"
+    MARKETING_VERSION: "2.14.0"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
     # Emit localizable strings so Xcode auto-extracts every LocalizedStringKey into the
@@ -58,7 +58,7 @@ targets:
         CFBundleName: NOOP
         CFBundleDisplayName: NOOP
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
-        CFBundleVersion: "103"
+        CFBundleVersion: "104"
         LSMinimumSystemVersion: "13.0"
         LSApplicationCategoryType: public.app-category.healthcare-fitness
         NSBluetoothAlwaysUsageDescription: "NOOP connects directly to your WHOOP strap over Bluetooth to read heart rate, R-R intervals, battery, and sensor data locally on your Mac. Nothing leaves your device."
@@ -194,7 +194,7 @@ targets:
           - group.com.noopapp.noop
     settings:
       base:
-        CURRENT_PROJECT_VERSION: "58"
+        CURRENT_PROJECT_VERSION: "59"
         PRODUCT_BUNDLE_IDENTIFIER: com.noopapp.noop
         PRODUCT_NAME: NOOP
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

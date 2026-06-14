@@ -25,7 +25,7 @@ object AppChangelog {
      * Bump this when you add a release below. The "What's New" sheet shows automatically when the
      * stored last-seen version is behind this. (Decoupled from the bundle version on purpose.)
      */
-    const val CURRENT_VERSION = "2.13.0"
+    const val CURRENT_VERSION = "2.14.0"
 
     data class Release(
         val version: String,
@@ -36,6 +36,14 @@ object AppChangelog {
 
     /** Newest first. */
     val releases: List<Release> = listOf(
+        Release(
+            version = "2.14.0",
+            title = "A beautiful new look",
+            date = "June 2026",
+            items = listOf(
+                "NOOP has a **gorgeous new design** — deeper, calmer, more premium. A dark blue-black canvas, **layered ring gauges** for your Charge, Effort and Rest scores with glowing accents, **frosted tinted cards**, and a refreshed Today. Same data, same on-device privacy — it just looks the way it always should have. More screens get the full treatment over the coming updates.",
+            ),
+        ),
         Release(
             version = "2.13.0",
             title = "A WHOOP-style Today chart, clearer sleep times — and a big iPhone update",

@@ -19,42 +19,51 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// MARK: - Palette (ported verbatim from StrandDesign/Palette.swift §9.1)
+// MARK: - Palette — the "Bevel" re-skin (mirrors StrandDesign/Palette.swift)
 //
-// Dark-only, instrument-grade. Hex values are exact per the spec — do not substitute.
-// Mirrors the macOS StrandPalette enum so the Android port shares one visual language.
+// A premium dark theme built on a deep BLUE-BLACK canvas (NOT pure black) with
+// per-domain accent "colour worlds" (Charge = green, Effort = amber, Rest = indigo,
+// Stress = teal). NOOP green stays the dominant brand anchor.
+//
+// PUBLIC API IS FROZEN: every token NAME below is depended on by screens across the
+// app, so the names never change — only the VALUES were re-themed to Bevel. New
+// Bevel tokens (domain worlds, gradient pairs, glows, scenic background colours,
+// card fills) are ADDED at the end of the object; nothing existing was removed or
+// renamed. Hex values mirror the macOS/iOS StrandPalette so all three platforms
+// share one visual language.
 
 object Palette {
 
-    // Surfaces (§9.1)
-    val surfaceBase = Color(0xFF060A08)    // near-black, faint green
-    val surfaceRaised = Color(0xFF0D1512)  // dark green-black cards
-    val surfaceOverlay = Color(0xFF121D18) // raised / popovers / sheets
-    val surfaceInset = Color(0xFF0A100D)   // wells / chart insets
-    val hairline = Color(0xFF1B2620)       // soft green-grey 1px border
-    val hairlineStrong = Color(0xFF27362E) // hover / emphasis border
+    // Surfaces — deep blue-black canvas, tinted frosted cards (NOT pure black).
+    val surfaceBase = Color(0xFF080A11)    // deep blue-black canvas
+    val surfaceRaised = Color(0xFF141826)  // frosted card fill
+    val surfaceOverlay = Color(0xFF1A1F30) // popovers / sheets / tooltips
+    val surfaceInset = Color(0xFF0E1019)   // wells / chart insets / segmented track
+    val hairline = Color(0xFF262B3C)       // soft blue-grey 1px border (≈ white 6%)
+    val hairlineStrong = Color(0xFF363D52) // hover / emphasis border
 
-    // Text (§9.1)
-    val textPrimary = Color(0xFFF4F7F5)
-    val textSecondary = Color(0xFF8B9690)
-    val textTertiary = Color(0xFF6F7A74)
+    // Text — cool off-white scale on the blue-black.
+    val textPrimary = Color(0xFFF2F4FA)
+    val textSecondary = Color(0xFFA6ADC0)
+    val textTertiary = Color(0xFF737A8E)
 
-    // Glow (§9.1)
-    val glowAmbient = Color(0xFF1B2A3A)
+    // Glow — ambient bloom behind heroes / charts.
+    val glowAmbient = Color(0xFF1C2A4A)
 
-    // Accent — chrome, not data (§9.1)
-    val accent = Color(0xFF18C98B)       // health green
-    val accentHover = Color(0xFF2FE0A0)
-    val accentMuted = Color(0xFF10271F)  // dark-green tint (selected rows)
-    val focusRing = Color(0xFF18C98B)
+    // Accent — NOOP green brand anchor (chrome + the Charge world).
+    val accent = Color(0xFF2BCF8E)       // brand health green
+    val accentHover = Color(0xFF4DEBA8)
+    val accentMuted = Color(0xFF12281F)  // dark-green tint (selected rows)
+    val focusRing = Color(0xFF2BCF8E)
     const val disabledOpacity = 0.45f
 
-    // Recovery gradient — traffic light (low red → high green).
-    val recovery000 = Color(0xFFFF4F73) // depleted — pink-red
-    val recovery030 = Color(0xFFF5A623) // low — amber
-    val recovery055 = Color(0xFFE8C24B) // moderate — gold
-    val recovery078 = Color(0xFF18C98B) // primed — health green
-    val recovery100 = Color(0xFF2FE6A8) // peak — bright green
+    // Recovery / Charge gradient — the green "Charge" colour world.
+    // 0.00 coral → 0.30 amber → 0.55 gold → 0.78 green → 1.00 mint.
+    val recovery000 = Color(0xFFFF5C7A) // depleted — coral
+    val recovery030 = Color(0xFFFFB23E) // low — amber
+    val recovery055 = Color(0xFFE8D14B) // moderate — gold
+    val recovery078 = Color(0xFF1D9E75) // primed — deep green
+    val recovery100 = Color(0xFF5DFFB0) // peak — bright mint
 
     /** Ordered gradient stops (position 0..1 → color) for the recovery scale. */
     val recoveryStops: List<Pair<Float, Color>> = listOf(
@@ -65,11 +74,12 @@ object Palette {
         1.00f to recovery100,
     )
 
-    // Strain ramp — ember → magenta (§9.1)
-    val strain000 = Color(0xFFE8B04B) // ember / warm gold
-    val strain033 = Color(0xFFE8743B) // orange
-    val strain066 = Color(0xFFE0476B) // rose-red
-    val strain100 = Color(0xFFC13AC1) // magenta
+    // Strain / Effort ramp — the amber "Effort" colour world.
+    // Deep ember → warm gold → bright amber → hot amber peak.
+    val strain000 = Color(0xFFB9740F) // deep ember
+    val strain033 = Color(0xFFE89020) // warm gold
+    val strain066 = Color(0xFFFFA836) // bright amber
+    val strain100 = Color(0xFFFFC861) // hot amber peak
 
     val strainStops: List<Pair<Float, Color>> = listOf(
         0.00f to strain000,
@@ -78,32 +88,78 @@ object Palette {
         1.00f to strain100,
     )
 
-    // Sleep stages (§9.1)
-    val sleepAwake = Color(0xFFE0476B) // rose
-    val sleepLight = Color(0xFF5C6FB1) // periwinkle
-    val sleepDeep = Color(0xFF2C3A7A)  // deep indigo
-    val sleepREM = Color(0xFF5BE0C7)   // mint
+    // Sleep stages — the indigo / periwinkle "Rest" colour world.
+    val sleepAwake = Color(0xFFFF6F8B) // rose (out of bed)
+    val sleepLight = Color(0xFF8E97E0) // periwinkle
+    val sleepDeep = Color(0xFF5A63C7)  // indigo
+    val sleepREM = Color(0xFFB4BDFF)   // pale periwinkle (glows)
 
-    // HR zones (§9.1)
-    val zone1 = Color(0xFF4FA9C9)
-    val zone2 = Color(0xFF5BD3A0)
-    val zone3 = Color(0xFFE8C24B)
-    val zone4 = Color(0xFFE8743B)
-    val zone5 = Color(0xFFE0476B)
+    // HR zones — cool→warm ramp tuned to the Bevel worlds.
+    val zone1 = Color(0xFF5AA8E0) // easy — blue
+    val zone2 = Color(0xFF3ED1A0) // green
+    val zone3 = Color(0xFFE8D14B) // gold
+    val zone4 = Color(0xFFFFA836) // amber
+    val zone5 = Color(0xFFFF6F8B) // max — rose
 
     /** HR zones indexed 1..5; index 0 mirrors zone1 for convenience. */
     val hrZones: List<Color> = listOf(zone1, zone1, zone2, zone3, zone4, zone5)
 
-    // Status (§9.1) — never reused as recovery colors.
-    val statusPositive = Color(0xFF18C98B)
-    val statusWarning = Color(0xFFF5A623)
-    val statusCritical = Color(0xFFFF4F73)
+    // Status — never reused as recovery colors.
+    val statusPositive = Color(0xFF2BCF8E)
+    val statusWarning = Color(0xFFFFB23E)
+    val statusCritical = Color(0xFFFF5C7A)
 
-    // Per-metric accents — Apple-Health bars / HRV / energy / risk.
-    val metricCyan = Color(0xFF2FC7FF)   // Apple Health bars
-    val metricPurple = Color(0xFFA879FF) // HRV / strain-style data
-    val metricAmber = Color(0xFFF5A623)  // calories / moderate
-    val metricRose = Color(0xFFFF4F73)   // risk / high strain / low recovery
+    // Per-metric accents — HRV / SpO₂ / energy / risk, on-brand for Bevel.
+    val metricCyan = Color(0xFF46C8FF)   // SpO₂ / steps / Apple Health
+    val metricPurple = Color(0xFFB4BDFF) // HRV (shares the Rest world)
+    val metricAmber = Color(0xFFFFC861)  // calories (shares the Effort world)
+    val metricRose = Color(0xFFFF6F8B)   // risk / heart rate / low recovery
+
+    // MARK: - Bevel domain "colour worlds" (NEW)
+    //
+    // Each daily score owns a two-stop accent gradient (deep → bright) plus a glow.
+    // These drive the layered gauges, frosted-card tints and scenic heroes. Charge
+    // re-uses the brand green; Effort the amber ramp; Rest the indigo/periwinkle.
+
+    // Charge (recovery) — green world.
+    val chargeColor = Color(0xFF2BCF8E)
+    val chargeDeep = Color(0xFF1D9E75)
+    val chargeBright = Color(0xFF5DFFB0)
+    val chargeGlow = Color(0xFF2BCF8E)
+
+    // Effort (strain) — amber world.
+    val effortColor = Color(0xFFFFA836)
+    val effortDeep = Color(0xFFB9740F)
+    val effortBright = Color(0xFFFFC861)
+    val effortGlow = Color(0xFFFFA836)
+
+    // Rest (sleep) — indigo / periwinkle world.
+    val restColor = Color(0xFF7E88E0)
+    val restDeep = Color(0xFF5A63C7)
+    val restBright = Color(0xFFB4BDFF)
+    val restGlow = Color(0xFF8E97E0)
+
+    // Stress — teal world (used by StressScreen's accents).
+    val stressColor = Color(0xFF3FB8B0)
+    val stressDeep = Color(0xFF1F7E78)
+    val stressBright = Color(0xFF6FE0D6)
+    val stressGlow = Color(0xFF3FB8B0)
+
+    /** Deep → bright accent pairs (gauge stroke + diagonal card wash) per domain. */
+    val chargeGradientStops: List<Pair<Float, Color>> = listOf(0.0f to chargeDeep, 1.0f to chargeBright)
+    val effortGradientStops: List<Pair<Float, Color>> = listOf(0.0f to effortDeep, 1.0f to effortBright)
+    val restGradientStops: List<Pair<Float, Color>> = listOf(0.0f to restDeep, 1.0f to restBright)
+    val stressGradientStops: List<Pair<Float, Color>> = listOf(0.0f to stressDeep, 1.0f to stressBright)
+
+    // MARK: Scenic background (NEW) — detail-screen hero gradient + starfield.
+    // Radial canvas: warm-lit center → deep edge. Used by ScenicHeroBackground.
+    val scenicCenter = Color(0xFF0B0D14)
+    val scenicEdge = Color(0xFF07080D)
+    val scenicStar = Color(0xFFC9D2F0)
+
+    /** Frosted-card tint endpoints (a subtle dark fill the accent wash sits over). */
+    val cardFillTop = Color(0xFF161A26)
+    val cardFillBottom = Color(0xFF101219)
 
     // MARK: - Sampling helpers (mirror StrandPalette.sample / recoveryColor)
 
@@ -164,6 +220,77 @@ object Palette {
         Brush.horizontalGradient(*strainStops.toTypedArray())
 }
 
+// MARK: - DomainTheme (NEW — Bevel per-domain colour worlds)
+//
+// Maps a daily-score domain (Charge / Effort / Rest / Stress) to its accent
+// "colour world": a primary colour, a deep→bright gradient for gauge strokes and
+// card washes, and a glow colour for blooms / end-cap halos. Every Bevel surface
+// (layered gauge, frosted card tint, scenic hero) reads its colours from here so a
+// screen only has to name its domain. Mirrors StrandDesign/DomainTheme.swift.
+
+enum class DomainTheme {
+    Charge,
+    Effort,
+    Rest,
+    Stress;
+
+    /** The dominant accent colour for the world. */
+    val color: Color
+        get() = when (this) {
+            Charge -> Palette.chargeColor
+            Effort -> Palette.effortColor
+            Rest -> Palette.restColor
+            Stress -> Palette.stressColor
+        }
+
+    /** The deep (low) end of the world's accent ramp. */
+    val deep: Color
+        get() = when (this) {
+            Charge -> Palette.chargeDeep
+            Effort -> Palette.effortDeep
+            Rest -> Palette.restDeep
+            Stress -> Palette.stressDeep
+        }
+
+    /** The bright (high) end of the world's accent ramp. */
+    val bright: Color
+        get() = when (this) {
+            Charge -> Palette.chargeBright
+            Effort -> Palette.effortBright
+            Rest -> Palette.restBright
+            Stress -> Palette.stressBright
+        }
+
+    /** The world's glow colour for blooms and gauge end-caps. */
+    val glow: Color
+        get() = when (this) {
+            Charge -> Palette.chargeGlow
+            Effort -> Palette.effortGlow
+            Rest -> Palette.restGlow
+            Stress -> Palette.stressGlow
+        }
+
+    /** Deep → bright gradient stops for gauge strokes and the diagonal card wash. */
+    val gradientStops: List<Pair<Float, Color>>
+        get() = when (this) {
+            Charge -> Palette.chargeGradientStops
+            Effort -> Palette.effortGradientStops
+            Rest -> Palette.restGradientStops
+            Stress -> Palette.stressGradientStops
+        }
+
+    /** The data gradient the world samples values along (Charge/Rest/Stress = recovery
+     *  scale, Effort = strain ramp), used by sparklines and value-tinted strokes. */
+    val dataStops: List<Pair<Float, Color>>
+        get() = when (this) {
+            Effort -> Palette.strainStops
+            else -> Palette.recoveryStops
+        }
+
+    /** A short upper-case label for the world (CHARGE / EFFORT / REST / STRESS). */
+    val label: String get() = name
+}
+
 // MARK: - Motion (ported from StrandDesign/Motion.swift §9.6)
 //
 // Physiological motion — breathe / pulse / flow, no cartoon bounce.
@@ -211,7 +338,7 @@ object Metrics {
     val space16 = 16.dp
     val space18 = 18.dp
     val space24 = 24.dp
-    val cardRadius = 16.dp
+    val cardRadius = 18.dp   // Bevel continuous radius (18–22dp)
     val cornerXs = 2.dp
     val cornerSm = 12.dp
     val cornerBadge = 6.dp

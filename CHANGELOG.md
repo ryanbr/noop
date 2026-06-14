@@ -17,6 +17,16 @@ approximate; downloads are on the [Releases](https://github.com/NoopApp/noop/rel
 
 ---
 
+## 2.14.0 — A beautiful new look
+
+- **New design.** NOOP has a gorgeous new look — deeper, calmer, more premium. A dark blue-black canvas,
+  **layered ring gauges** for your Charge, Effort and Rest scores with glowing accents, **frosted tinted
+  cards**, and a refreshed Today, across Mac, iPhone and Android. Same data and the same on-device
+  privacy — it just looks the way it always should have. More screens get the full treatment over the
+  coming updates.
+
+---
+
 ## 2.13.0 — A big iPhone update, plus a WHOOP-style Today chart for everyone
 
 - **New:** a **WHOOP-style Overview chart** on Today — the 24-hour heart-rate line now carries a sleep

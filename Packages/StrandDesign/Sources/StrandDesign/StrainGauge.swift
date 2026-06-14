@@ -54,22 +54,29 @@ public struct StrainGauge: View {
         }
     }
 
-    private let arcSpanDegrees: Double = 240
-    private var startAngle: Angle { .degrees(150) }
-    private var endAngle: Angle { .degrees(150 + arcSpanDegrees) }
-
+    // The 240° open-gauge geometry + bloom now live in the shared `BevelGauge`.
     @State private var animatedFraction: Double = 0
     @State private var bloomPulse = false
 
     private var fraction: Double { min(max(strain / 21.0, 0), 1) }
     private var tipColor: Color { StrandPalette.strainColor(strain) }
-    private var bloomOpacity: Double { 0.16 + 0.34 * fraction }
-    private var bloomRadius: CGFloat { lineWidth * (0.8 + 1.2 * fraction) }
 
     public var body: some View {
         ZStack {
-            ring
-            if showsLabel { centerLabel }
+            BevelGauge(
+                fraction: fraction,
+                stops: StrandPalette.strainStops,
+                tipColor: tipColor,
+                numberText: strainString,
+                captionText: showsLabel ? "of 21" : nil,
+                stateText: showsLabel ? strainWord : nil,
+                supporting: supporting,
+                diameter: diameter,
+                lineWidth: lineWidth,
+                showsLabel: showsLabel,
+                animatedFraction: animatedFraction,
+                bloomActive: bloomPulse
+            )
             if showsHover, let pt = hoverPoint {
                 PositionedTooltip(
                     anchor: pt,
@@ -106,89 +113,8 @@ public struct StrainGauge: View {
         }
     }
 
-    private var ring: some View {
-        ZStack {
-            arc(to: animatedFraction)
-                .stroke(
-                    AngularGradient(
-                        gradient: StrandPalette.strainGradient,
-                        center: .center,
-                        startAngle: startAngle,
-                        endAngle: endAngle
-                    ),
-                    style: StrokeStyle(lineWidth: lineWidth * 1.05, lineCap: .round)
-                )
-                .blur(radius: bloomRadius)
-                .opacity(bloomOpacity * (bloomPulse ? 1.0 : 0.8))
-                .animation(StrandMotion.breathe(reduced: reduceMotion), value: bloomPulse)
-                .blendMode(.plusLighter)
-
-            arc(to: 1.0)
-                .stroke(StrandPalette.hairline.opacity(0.55),
-                        style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-
-            arc(to: animatedFraction)
-                .stroke(
-                    AngularGradient(
-                        gradient: StrandPalette.strainGradient,
-                        center: .center,
-                        startAngle: startAngle,
-                        endAngle: endAngle
-                    ),
-                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
-                )
-
-            if animatedFraction > 0.001 { bead }
-        }
-    }
-
-    private var bead: some View {
-        GeometryReader { geo in
-            let radius = (min(geo.size.width, geo.size.height) - lineWidth) / 2
-            let center = CGPoint(x: geo.size.width / 2, y: geo.size.height / 2)
-            let tipAngle = startAngle.radians + (arcSpanDegrees * .pi / 180) * animatedFraction
-            let pt = CGPoint(x: center.x + radius * cos(tipAngle),
-                             y: center.y + radius * sin(tipAngle))
-            ZStack {
-                Circle().fill(tipColor)
-                    .frame(width: lineWidth * 2.2, height: lineWidth * 2.2)
-                    .blur(radius: lineWidth * 0.85).opacity(0.7).blendMode(.plusLighter)
-                Circle().fill(Color.white)
-                    .frame(width: lineWidth * 0.58, height: lineWidth * 0.58)
-                    .overlay(Circle().fill(tipColor).opacity(0.35))
-            }
-            .position(pt)
-        }
-    }
-
-    private var centerLabel: some View {
-        VStack(spacing: 2) {
-            Text(strainString)
-                .font(StrandFont.display(diameter * 0.26))
-                .foregroundStyle(StrandPalette.textPrimary)
-                .contentTransition(.numericText())
-            Text("STRAIN")
-                .font(StrandFont.overline)
-                .tracking(StrandFont.overlineTracking)
-                .foregroundStyle(tipColor)
-            if let supporting {
-                Text(supporting)
-                    .font(StrandFont.footnote)
-                    .foregroundStyle(StrandPalette.textSecondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: diameter * 0.78)
-                    .padding(.top, 4)
-            }
-        }
-    }
-
     private var strainString: String {
         String(format: "%.1f", strain)
-    }
-
-    private func arc(to fraction: Double) -> RecoveryArc {
-        RecoveryArc(startAngle: startAngle, spanDegrees: arcSpanDegrees,
-                    fraction: fraction, lineWidth: lineWidth)
     }
 }
 

@@ -6,26 +6,29 @@ import SwiftUI
 // the uniform, instrument-grade look from the reference. Do not invent ad-hoc cards.
 
 public enum NoopMetrics {
-    public static let cardRadius: CGFloat = 16
+    public static let cardRadius: CGFloat = 18   // Bevel continuous radius (18–22pt)
     public static let cardPadding: CGFloat = 16
     public static let gap: CGFloat = 12          // gap between cards
     public static let sectionGap: CGFloat = 28   // gap between sections
     public static let screenPadding: CGFloat = 24
-    public static let tileHeight: CGFloat = 104  // every metric tile is this tall
+    public static let tileHeight: CGFloat = 108  // every metric tile is this tall
     public static let chartHeight: CGFloat = 220
 }
 
 // MARK: - Surface
 
-/// The one card surface. All cards use this — same radius, border, fill.
+/// The one card surface — now the Bevel frosted card. PUBLIC API is unchanged
+/// (padding + content); an optional `tint` was ADDED (defaulted) so callers can opt
+/// into a per-domain accent wash without breaking existing call sites.
 public struct NoopCard<Content: View>: View {
     private let padding: CGFloat
+    private let tint: Color?
     @ViewBuilder private let content: () -> Content
     #if os(macOS)
     @State private var hover = false
     #endif
-    public init(padding: CGFloat = NoopMetrics.cardPadding, @ViewBuilder content: @escaping () -> Content) {
-        self.padding = padding; self.content = content
+    public init(padding: CGFloat = NoopMetrics.cardPadding, tint: Color? = nil, @ViewBuilder content: @escaping () -> Content) {
+        self.padding = padding; self.tint = tint; self.content = content
     }
     public var body: some View {
         content()
@@ -40,22 +43,20 @@ public struct NoopCard<Content: View>: View {
         #endif
     }
 
-    // Touch can't hover, so iOS renders only the static resting surface — no shadow layer,
-    // no hover @State, no .onHover tracking, no .animation node. That trims the modifier
-    // count on every card, which multiplies across long scrolling lists. macOS keeps the
-    // full hover chrome (and the #104 animation scoping) unchanged.
+    // Touch can't hover, so iOS renders only the static resting frosted surface — no
+    // hover @State, no .onHover tracking, no .animation node. That trims the modifier
+    // count on every card, which multiplies across long scrolling lists. macOS adds the
+    // hover emphasis border on top (with the #104 animation scoping) unchanged.
     @ViewBuilder private var cardSurface: some View {
         let shape = RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous)
         #if os(macOS)
-        shape
-            .fill(StrandPalette.surfaceRaised)
-            .overlay(shape.strokeBorder(hover ? StrandPalette.hairlineStrong : StrandPalette.hairline, lineWidth: 1))
-            .shadow(color: .black.opacity(hover ? 0.25 : 0), radius: 10, y: 4)
+        FrostedCardSurface(tint: tint, cornerRadius: NoopMetrics.cardRadius)
+            .overlay(
+                shape.strokeBorder(StrandPalette.hairlineStrong, lineWidth: 1).opacity(hover ? 1 : 0)
+            )
             .animation(.easeOut(duration: 0.16), value: hover)
         #else
-        shape
-            .fill(StrandPalette.surfaceRaised)
-            .overlay(shape.strokeBorder(StrandPalette.hairline, lineWidth: 1))
+        FrostedCardSurface(tint: tint, cornerRadius: NoopMetrics.cardRadius)
         #endif
     }
 }
@@ -101,27 +102,62 @@ public struct StatTile: View {
     }
 
     public var body: some View {
-        NoopCard(padding: 14) {
+        // The tile borrows its accent as a faint card wash, so each metric tile reads as
+        // part of its colour world while staying legible on the deep blue-black.
+        NoopCard(padding: 14, tint: accent) {
             VStack(alignment: .leading, spacing: 0) {
                 Text(label).strandOverline()
                 Spacer(minLength: 4)
-                Text(value).font(StrandFont.number(26)).foregroundStyle(accent).lineLimit(1).minimumScaleFactor(0.6)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(value).font(StrandFont.number(26)).foregroundStyle(accent).lineLimit(1).minimumScaleFactor(0.6)
+                    Spacer(minLength: 0)
+                    // Trend chip — the delta as a tinted pill with a direction arrow.
+                    if let delta { TrendChip(text: delta, color: deltaColor) }
+                }
                 if let sparkline, sparkline.count > 1 {
-                    Sparkline(values: sparkline).frame(height: 22).padding(.top, 4)
+                    Sparkline(values: sparkline, gradient: Gradient(colors: [sparkColor.opacity(0.5), sparkColor]))
+                        .frame(height: 22).padding(.top, 4)
                         .accessibilityHidden(true)
                 }
-                HStack(spacing: 6) {
-                    if let caption { Text(caption).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary).lineLimit(1) }
-                    Spacer(minLength: 0)
-                    if let delta { Text(delta).font(StrandFont.captionNumber).foregroundStyle(deltaColor) }
+                if let caption {
+                    Text(caption).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary).lineLimit(1)
+                        .padding(.top, 2)
                 }
-                .padding(.top, 2)
             }
         }
         .frame(height: NoopMetrics.tileHeight)
         // One VoiceOver stop per tile (label, value, caption, delta) instead of up
         // to four fragmented stops; the decorative sparkline is hidden above.
         .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - Trend chip — a small tinted delta pill with a direction arrow.
+
+/// A compact trend pill: an up/down/flat arrow + the delta text, tinted to `color`.
+/// Inferred direction comes from a leading +/− in the text (else flat). Sits in the
+/// corner of a StatTile or beside a metric value.
+public struct TrendChip: View {
+    let text: String
+    var color: Color = StrandPalette.textTertiary
+    public init(text: String, color: Color = StrandPalette.textTertiary) {
+        self.text = text; self.color = color
+    }
+    private var symbol: String {
+        let t = text.trimmingCharacters(in: .whitespaces)
+        if t.hasPrefix("+") || t.hasPrefix("▲") || t.lowercased().hasPrefix("up") { return "arrow.up.right" }
+        if t.hasPrefix("-") || t.hasPrefix("−") || t.hasPrefix("▼") || t.lowercased().hasPrefix("down") { return "arrow.down.right" }
+        return "minus"
+    }
+    public var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: symbol).font(.system(size: 8, weight: .bold))
+            Text(text).font(StrandFont.captionNumber)
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, 6).padding(.vertical, 2)
+        .background(color.opacity(0.14), in: Capsule(style: .continuous))
+        .accessibilityHidden(true)
     }
 }
 
@@ -132,19 +168,20 @@ public struct ChartCard<ChartBody: View, Footer: View>: View {
     var subtitle: String? = nil
     var trailing: String? = nil
     var height: CGFloat = NoopMetrics.chartHeight
+    var tint: Color? = nil
     @ViewBuilder let chart: () -> ChartBody
     @ViewBuilder let footer: () -> Footer
 
     public init(title: LocalizedStringKey, subtitle: String? = nil, trailing: String? = nil,
-                height: CGFloat = NoopMetrics.chartHeight,
+                height: CGFloat = NoopMetrics.chartHeight, tint: Color? = nil,
                 @ViewBuilder chart: @escaping () -> ChartBody,
                 @ViewBuilder footer: @escaping () -> Footer = { EmptyView() }) {
         self.title = title; self.subtitle = subtitle; self.trailing = trailing
-        self.height = height; self.chart = chart; self.footer = footer
+        self.height = height; self.tint = tint; self.chart = chart; self.footer = footer
     }
 
     public var body: some View {
-        NoopCard {
+        NoopCard(tint: tint) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -187,14 +224,17 @@ public struct ChartFooter: View {
 public struct InsightCard: View {
     let category: LocalizedStringKey, status: LocalizedStringKey, detail: LocalizedStringKey
     var statusColor: Color = StrandPalette.accent
-    public init(category: LocalizedStringKey, status: LocalizedStringKey, detail: LocalizedStringKey, statusColor: Color = StrandPalette.accent) {
-        self.category = category; self.status = status; self.detail = detail; self.statusColor = statusColor
+    var tint: Color? = nil
+    public init(category: LocalizedStringKey, status: LocalizedStringKey, detail: LocalizedStringKey, statusColor: Color = StrandPalette.accent, tint: Color? = nil) {
+        self.category = category; self.status = status; self.detail = detail; self.statusColor = statusColor; self.tint = tint
     }
     public var body: some View {
-        NoopCard(padding: 18) {
+        // Defaults the card wash to the status colour so the coaching card sits in the
+        // same colour world as the score it summarises (e.g. green for Charge).
+        NoopCard(padding: 18, tint: tint ?? statusColor) {
             VStack(alignment: .leading, spacing: 8) {
                 Text(category).strandOverline()
-                Text(status).font(StrandFont.title1).foregroundStyle(statusColor)
+                Text(status).font(StrandFont.rounded(28, weight: .bold)).foregroundStyle(statusColor)
                 Text(detail).font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -221,7 +261,11 @@ public struct SegmentedPillControl<T: Hashable>: View {
                         .foregroundStyle(sel ? StrandPalette.surfaceBase : StrandPalette.textSecondary)
                         .frame(minWidth: 32)
                         .padding(.vertical, 6).padding(.horizontal, 11)
-                        .background(Capsule(style: .continuous).fill(sel ? StrandPalette.accent : Color.clear))
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(sel ? AnyShapeStyle(LinearGradient(colors: [StrandPalette.accentHover, StrandPalette.accent], startPoint: .top, endPoint: .bottom)) : AnyShapeStyle(Color.clear))
+                                .shadow(color: sel ? StrandPalette.accent.opacity(0.4) : .clear, radius: sel ? 6 : 0, y: 1)
+                        )
                         // On iOS guarantee the ≥44pt touch target (height only — width is
                         // already ≥54pt) without bloating the denser Mac control, then make
                         // the whole area tappable so the transparent margin counts as a hit.
@@ -247,10 +291,10 @@ public struct SourceBadge: View {
     let text: LocalizedStringKey; var tint: Color = StrandPalette.accent
     public init(_ text: LocalizedStringKey, tint: Color = StrandPalette.accent) { self.text = text; self.tint = tint }
     public var body: some View {
-        Text(text).textCase(.uppercase).font(.system(size: 10, weight: .semibold)).tracking(0.5)
-            .padding(.horizontal, 8).padding(.vertical, 3)
-            .background(tint.opacity(0.14), in: Capsule())
+        Text(text).textCase(.uppercase).font(.system(size: 10, weight: .semibold, design: .rounded)).tracking(0.5)
+            .padding(.horizontal, 9).padding(.vertical, 3)
+            .background(tint.opacity(0.16), in: Capsule(style: .continuous))
             .foregroundStyle(tint)
-            .overlay(Capsule().strokeBorder(tint.opacity(0.30), lineWidth: 1))
+            .overlay(Capsule(style: .continuous).strokeBorder(tint.opacity(0.34), lineWidth: 1))
     }
 }

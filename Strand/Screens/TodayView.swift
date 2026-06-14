@@ -422,7 +422,8 @@ struct TodayView: View {
         }
     }
 
-    // MARK: (a) HERO — RecoveryRing + Synthesis, filling the width equally.
+    // MARK: (a) HERO — three ring scores (Charge / Effort / Rest) over a scenic backdrop,
+    // then the green-tinted Synthesis coaching card. Bevel layout.
 
     @ViewBuilder
     private var heroSection: some View {
@@ -431,63 +432,110 @@ struct TodayView: View {
         VStack(alignment: .leading, spacing: NoopMetrics.gap) {
             SectionHeader(synthesisTitle, overline: "At a glance",
                           trailing: greetingWord)
-            HStack(alignment: .top, spacing: NoopMetrics.gap) {
-                // Left: the signature ring in a card. When recovery is nil the ring's own center
-                // label (which would read "0 · DEPLETED") and hover are hidden and an honest
-                // overlay takes over: "Calibrating · N of 4 nights" while the baseline seeds,
-                // else "No Data". Mirrors Android TodayScreen.TodayRecoveryRing (7b5f212).
-                NoopCard {
+
+            // The three daily scores as layered ring gauges, side by side, each in its own
+            // colour world, floated over a scenic Charge-tinted backdrop. The grid reflows to a
+            // single column on a narrow (iPhone) width so the rings never crush.
+            scoreHeroRow(d: d, score: score)
+
+            // The plain-English read-out — a green-tinted Synthesis coaching card under the rings.
+            InsightCard(
+                category: "Synthesis",
+                status: calibrationStatus ?? "\(synthesisWord(score))",
+                detail: calibrationDetail ?? "\(synthesisDetail(d))",
+                statusColor: score.map { StrandPalette.recoveryColor($0) } ?? StrandPalette.textTertiary,
+                tint: StrandPalette.chargeColor
+            )
+        }
+    }
+
+    /// The three score rings (Charge / Effort / Rest) over a scenic hero background.
+    @ViewBuilder
+    private func scoreHeroRow(d: DailyMetric?, score: Double?) -> some View {
+        let cols = [GridItem(.adaptive(minimum: 150), spacing: NoopMetrics.gap)]
+        ZStack {
+            ScenicHeroBackground(domain: .charge)
+                .clipShape(RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous))
+            LazyVGrid(columns: cols, spacing: NoopMetrics.gap) {
+                // CHARGE — recovery 0–100. Honest empty / calibrating overlay when nil.
+                heroScoreCell(domain: .charge, section: .charge) {
                     ZStack {
                         RecoveryRing(
-                            score: score ?? 0,
-                            supporting: ringSupporting(d),
-                            diameter: 168,
-                            showsLabel: score != nil,
-                            showsHover: score != nil
+                            score: score ?? 0, diameter: 132,
+                            lineWidth: 13,
+                            showsLabel: score != nil, showsHover: score != nil
                         )
-                        if score == nil {
-                            VStack(spacing: 4) {
-                                if let n = recoveryCalibration {
-                                    Text("Calibrating")
-                                        .font(StrandFont.title2)
-                                        .foregroundStyle(StrandPalette.textTertiary)
-                                    Text("\(n) of \(Baselines.minNightsSeed) nights")
-                                        .font(StrandFont.footnote)
-                                        .foregroundStyle(StrandPalette.textSecondary)
-                                } else {
-                                    Text("No data")
-                                        .font(StrandFont.title2)
-                                        .foregroundStyle(StrandPalette.textTertiary)
-                                    Text(ringSupporting(d))
-                                        .font(StrandFont.footnote)
-                                        .foregroundStyle(StrandPalette.textSecondary)
-                                }
-                            }
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    // ⓘ — opens the scoring guide at Charge.
-                    .overlay(alignment: .topTrailing) {
-                        scoreInfoButton(.charge)
+                        if score == nil { ringEmptyOverlay(d: d) }
                     }
                 }
-                // Both hero cards stretch to the taller one's height so their bottoms line up — the
-                // text read-out card was shorter than the ring card, leaving them visually mismatched
-                // in Today's Synthesis (#186).
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                // EFFORT — strain on the 0–21 gauge.
+                heroScoreCell(domain: .effort, section: .effort) {
+                    ZStack {
+                        StrainGauge(
+                            strain: effortGaugeValue(d) ?? 0, diameter: 132,
+                            lineWidth: 13,
+                            showsLabel: d?.strain != nil, showsHover: d?.strain != nil
+                        )
+                        if d?.strain == nil { ringNoData() }
+                    }
+                }
+                // REST — sleep composite 0–100, reusing the recovery ring's scale.
+                heroScoreCell(domain: .rest, section: .rest) {
+                    ZStack {
+                        RecoveryRing(
+                            score: restScore ?? 0, diameter: 132,
+                            lineWidth: 13,
+                            showsLabel: restScore != nil, showsHover: restScore != nil,
+                            valueFormat: { "Rest \(Int($0.rounded()))" }
+                        )
+                        if restScore == nil { ringNoData() }
+                    }
+                }
+            }
+            .padding(NoopMetrics.gap)
+        }
+    }
 
-                // Right: the plain-English read-out, equal width and height. Both hero cards share
-                // the same .center frame alignment so they sit in lockstep — the read-out card used
-                // .leading while the ring used .center, leaving the pair subtly misaligned (#234).
-                InsightCard(
-                    category: "Charge",
-                    status: calibrationStatus ?? "\(synthesisWord(score))",
-                    detail: calibrationDetail ?? "\(synthesisDetail(d))",
-                    statusColor: score.map { StrandPalette.recoveryColor($0) } ?? StrandPalette.textTertiary
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+    /// One score-ring cell: a frosted tinted card carrying the ring + a domain label + the ⓘ.
+    @ViewBuilder
+    private func heroScoreCell<RingBody: View>(domain: DomainTheme, section: ScoreSection,
+                                               @ViewBuilder ring: @escaping () -> RingBody) -> some View {
+        NoopCard(padding: 12, tint: domain.color) {
+            VStack(spacing: 8) {
+                Text(domain.rawValue.capitalized)
+                    .font(StrandFont.overline)
+                    .tracking(StrandFont.overlineTracking)
+                    .textCase(.uppercase)
+                    .foregroundStyle(domain.color)
+                ring().frame(maxWidth: .infinity)
+            }
+            .frame(maxWidth: .infinity)
+            .overlay(alignment: .topTrailing) { scoreInfoButton(section) }
+        }
+    }
+
+    /// Strain value to feed the Effort gauge (0–21 scale). The stored `strain` is on NOOP's
+    /// 0–100 Effort axis, so map it back down to the gauge's 0–21 span for the arc + number.
+    private func effortGaugeValue(_ d: DailyMetric?) -> Double? {
+        d?.strain.map { ($0 / 100.0) * 21.0 }
+    }
+
+    /// Honest overlay shown over the Charge ring when recovery is nil: calibrating count or No data.
+    @ViewBuilder
+    private func ringEmptyOverlay(d: DailyMetric?) -> some View {
+        VStack(spacing: 3) {
+            if let n = recoveryCalibration {
+                Text("Calibrating").font(StrandFont.headline).foregroundStyle(StrandPalette.textTertiary)
+                Text("\(n) of \(Baselines.minNightsSeed)").font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
+            } else {
+                ringNoData()
             }
         }
+    }
+
+    @ViewBuilder
+    private func ringNoData() -> some View {
+        Text("No data").font(StrandFont.headline).foregroundStyle(StrandPalette.textTertiary)
     }
 
     // MARK: HEART RATE — today's continuous HR, off the strap's own ~1Hz history.
@@ -505,7 +553,8 @@ struct TodayView: View {
                 ChartCard(
                     title: "Beats per minute",
                     subtitle: selectedDayOffset == 0 ? "5-minute average · since midnight" : "5-minute average · selected day",
-                    trailing: v.last.map { "\(Int($0.rounded())) bpm" }
+                    trailing: v.last.map { "\(Int($0.rounded())) bpm" },
+                    tint: StrandPalette.metricRose
                 ) {
                     OverviewHRChart(
                         points: hrPoints,

@@ -48,27 +48,31 @@ public struct RecoveryRing: View {
     @State private var hoverPoint: CGPoint? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    // 240° open gauge: gap centered at the bottom.
-    // Sweep from 150° to 390° (== 30°), i.e. start lower-left, end lower-right.
-    private let arcSpanDegrees: Double = 240
-    private var startAngle: Angle { .degrees(150) }   // lower-left
-    private var endAngle: Angle { .degrees(150 + arcSpanDegrees) } // 390° == 30°
-
-    // Animated fill fraction so changing `score` draws the arc in.
+    // Animated fill fraction so changing `score` draws the arc in. The 240° open-gauge
+    // geometry + bloom now live in the shared `BevelGauge` this delegates to.
     @State private var animatedFraction: Double = 0
     @State private var bloomPulse: Bool = false
 
     private var fraction: Double { min(max(score / 100.0, 0), 1) }
     private var tipColor: Color { StrandPalette.recoveryColor(score) }
     private var stateWord: String { StrandPalette.recoveryState(score) }
-    /// Bloom intensity 0.18...0.55 scaled by score.
-    private var bloomOpacity: Double { 0.18 + 0.37 * fraction }
-    private var bloomRadius: CGFloat { lineWidth * (0.9 + 1.4 * fraction) }
 
     public var body: some View {
         ZStack {
-            ring
-            if showsLabel { centerLabel }
+            BevelGauge(
+                fraction: fraction,
+                stops: StrandPalette.recoveryStops,
+                tipColor: tipColor,
+                numberText: numberString,
+                captionText: showsLabel ? "of 100" : nil,
+                stateText: showsLabel ? stateWord : nil,
+                supporting: supporting,
+                diameter: diameter,
+                lineWidth: lineWidth,
+                showsLabel: showsLabel,
+                animatedFraction: animatedFraction,
+                bloomActive: bloomPulse
+            )
             if showsHover, let pt = hoverPoint {
                 PositionedTooltip(
                     anchor: pt,
@@ -106,118 +110,8 @@ public struct RecoveryRing: View {
         }
     }
 
-    // MARK: Ring assembly
-
-    private var ring: some View {
-        ZStack {
-            // Outer bloom: a blurred copy of the filled arc, opacity scaled by score,
-            // gently breathing for life.
-            arcShape(to: animatedFraction)
-                .stroke(
-                    AngularGradient(
-                        gradient: StrandPalette.recoveryGradient,
-                        center: .center,
-                        startAngle: startAngle,
-                        endAngle: endAngle
-                    ),
-                    style: StrokeStyle(lineWidth: lineWidth * 1.05, lineCap: .round)
-                )
-                .blur(radius: bloomRadius)
-                .opacity(bloomOpacity * (bloomPulse ? 1.0 : 0.78))
-                .animation(StrandMotion.breathe(reduced: reduceMotion), value: bloomPulse)
-                .blendMode(.plusLighter)
-
-            // Faint full-span track (remainder).
-            arcShape(to: 1.0)
-                .stroke(
-                    StrandPalette.hairline.opacity(0.55),
-                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
-                )
-
-            // The filled gradient arc.
-            arcShape(to: animatedFraction)
-                .stroke(
-                    AngularGradient(
-                        gradient: StrandPalette.recoveryGradient,
-                        center: .center,
-                        startAngle: startAngle,
-                        endAngle: endAngle
-                    ),
-                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
-                )
-
-            // Luminous leading bead at the fill tip.
-            if animatedFraction > 0.001 {
-                bead
-            }
-        }
-    }
-
-    // MARK: Leading bead
-
-    private var bead: some View {
-        GeometryReader { geo in
-            let radius = (min(geo.size.width, geo.size.height) - lineWidth) / 2
-            let center = CGPoint(x: geo.size.width / 2, y: geo.size.height / 2)
-            let tipAngle = startAngle.radians + (arcSpanDegrees * .pi / 180) * animatedFraction
-            let pt = CGPoint(
-                x: center.x + radius * cos(tipAngle),
-                y: center.y + radius * sin(tipAngle)
-            )
-            ZStack {
-                // soft halo
-                Circle()
-                    .fill(tipColor)
-                    .frame(width: lineWidth * 2.4, height: lineWidth * 2.4)
-                    .blur(radius: lineWidth * 0.9)
-                    .opacity(0.7)
-                    .blendMode(.plusLighter)
-                // bright core
-                Circle()
-                    .fill(Color.white)
-                    .frame(width: lineWidth * 0.62, height: lineWidth * 0.62)
-                    .overlay(Circle().fill(tipColor).opacity(0.35))
-            }
-            .position(pt)
-        }
-    }
-
-    // MARK: Center read-out
-
-    private var centerLabel: some View {
-        VStack(spacing: 2) {
-            Text(numberString)
-                .font(StrandFont.display(diameter * 0.30))
-                .foregroundStyle(StrandPalette.textPrimary)
-                .contentTransition(.numericText())
-            Text(stateWord)
-                .font(StrandFont.overline)
-                .tracking(StrandFont.overlineTracking)
-                .foregroundStyle(tipColor)
-            if let supporting {
-                Text(supporting)
-                    .font(StrandFont.footnote)
-                    .foregroundStyle(StrandPalette.textSecondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: diameter * 0.78)
-                    .padding(.top, 4)
-            }
-        }
-    }
-
     private var numberString: String {
         String(Int(score.rounded()))
-    }
-
-    // MARK: Arc shape
-
-    private func arcShape(to fraction: Double) -> RecoveryArc {
-        RecoveryArc(
-            startAngle: startAngle,
-            spanDegrees: arcSpanDegrees,
-            fraction: fraction,
-            lineWidth: lineWidth
-        )
     }
 }
 

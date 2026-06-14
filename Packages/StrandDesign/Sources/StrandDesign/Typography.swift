@@ -11,9 +11,16 @@ public enum StrandFont {
 
     // MARK: Scale (§9.2)
 
-    /// Display 64–80 / Semibold — the recovery ring number. Tabular digits.
+    /// Display 64–80 / Bold — the gauge score number. SF Pro **Rounded** (Bevel),
+    /// tabular digits so a changing value never reflows.
     public static func display(_ size: CGFloat = 72) -> Font {
-        .system(size: size, weight: .semibold, design: .default).monospacedDigit()
+        .system(size: size, weight: .bold, design: .rounded).monospacedDigit()
+    }
+
+    /// A rounded-design numeric style at an arbitrary size/weight — the Bevel house
+    /// numeral. Tabular so live values align. Use anywhere a score/number is shown.
+    public static func rounded(_ size: CGFloat, weight: Font.Weight = .bold) -> Font {
+        .system(size: size, weight: weight, design: .rounded).monospacedDigit()
     }
 
     /// Title1 28 / Bold.
@@ -46,16 +53,17 @@ public enum StrandFont {
 
     // MARK: Numeric variants (tabular digits)
 
-    /// A monospaced-digit numeric style at an arbitrary size/weight, for live values.
+    /// A numeric style at an arbitrary size/weight, for live values — SF Pro
+    /// **Rounded** (Bevel), tabular digits. This is the tile/value numeral.
     public static func number(_ size: CGFloat, weight: Font.Weight = .semibold) -> Font {
-        .system(size: size, weight: weight, design: .default).monospacedDigit()
+        .system(size: size, weight: weight, design: .rounded).monospacedDigit()
     }
 
-    /// Monospaced-digit body — for inline live values that should align.
-    public static let bodyNumber = Font.system(size: 15, weight: .regular).monospacedDigit()
+    /// Rounded-design body number — for inline live values that should align.
+    public static let bodyNumber = Font.system(size: 15, weight: .medium, design: .rounded).monospacedDigit()
 
-    /// Monospaced-digit caption — for small live values (sparklines, chips).
-    public static let captionNumber = Font.system(size: 12, weight: .medium).monospacedDigit()
+    /// Rounded-design caption number — for small live values (sparklines, chips).
+    public static let captionNumber = Font.system(size: 12, weight: .medium, design: .rounded).monospacedDigit()
 
     /// Mono at an arbitrary size.
     public static func mono(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {

@@ -1,7 +1,7 @@
 package com.noop.ui
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.foundation.Canvas
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
@@ -61,12 +61,77 @@ import kotlin.math.sin
 // Every screen composes ONLY these. Fixed dimensions + one spacing scale guarantee
 // the uniform, instrument-grade look from the reference.
 
-// MARK: - NoopCard — the one card surface (surface.raised, 16pt radius, hairline border)
+// MARK: - Frosted card surface (Bevel) + NoopCard
+//
+// The Bevel card surface: a dark blue-black fill (cardFillTop → cardFillBottom),
+// rounded corners, a subtle DIAGONAL accent-gradient wash, a hairline rgba(255,255,
+// 255,0.06) border and a soft shadow. `Modifier.frostedCardSurface(tint = …)` is the
+// one place the look lives so NoopCard / ad-hoc surfaces all share it. Pass a domain
+// tint (or null for the neutral brand-green wash).
+
+/**
+ * Paint the Bevel frosted-card surface (fill + diagonal accent wash + hairline border)
+ * behind the content. [tint] colours the wash + border bias; null uses a near-neutral
+ * brand-green wash. Drawn with `drawBehind` so the animation/recomposition of the card's
+ * content never reaches this surface subtree. Mirrors StrandDesign's FrostedCardSurface.
+ */
+fun Modifier.frostedCardSurface(
+    tint: Color? = null,
+    cornerRadius: Dp = Metrics.cardRadius,
+    washStrength: Float = 1f,
+): Modifier = this.drawBehind {
+    val wash = tint ?: Palette.accent
+    val radiusPx = cornerRadius.toPx()
+    val corner = androidx.compose.ui.geometry.CornerRadius(radiusPx, radiusPx)
+
+    // 1) Dark blue-black vertical fill.
+    drawRoundRect(
+        brush = Brush.verticalGradient(
+            colors = listOf(Palette.cardFillTop, Palette.cardFillBottom),
+            startY = 0f, endY = size.height,
+        ),
+        cornerRadius = corner,
+    )
+    // 2) Subtle diagonal accent wash over the dark fill (top-leading → bottom-trailing).
+    drawRoundRect(
+        brush = Brush.linearGradient(
+            colorStops = arrayOf(
+                0.0f to wash.copy(alpha = 0.10f * washStrength),
+                0.5f to wash.copy(alpha = 0.03f * washStrength),
+                1.0f to Color.Transparent,
+            ),
+            start = Offset(0f, 0f),
+            end = Offset(size.width, size.height),
+        ),
+        cornerRadius = corner,
+    )
+    // 3) Hairline border with a faint diagonal sheen + accent bias.
+    drawRoundRect(
+        brush = Brush.linearGradient(
+            colorStops = arrayOf(
+                0.0f to Color.White.copy(alpha = 0.08f),
+                0.5f to Palette.hairline.copy(alpha = 0.9f),
+                1.0f to wash.copy(alpha = 0.10f),
+            ),
+            start = Offset(0f, 0f),
+            end = Offset(size.width, size.height),
+        ),
+        cornerRadius = corner,
+        style = Stroke(width = 1.dp.toPx()),
+    )
+}
+
+// MARK: - NoopCard — the one card surface (Bevel frosted card, 16dp radius)
+//
+// PUBLIC API is unchanged (modifier, padding, content); an optional [tint] was ADDED
+// (defaulted null) so callers can opt into a per-domain accent wash without breaking
+// existing call sites. Every existing NoopCard re-skins to the frosted Bevel surface.
 
 @Composable
 fun NoopCard(
     modifier: Modifier = Modifier,
     padding: Dp = Metrics.cardPadding,
+    tint: Color? = null,
     content: @Composable () -> Unit,
 ) {
     val shape = RoundedCornerShape(Metrics.cardRadius)
@@ -74,8 +139,7 @@ fun NoopCard(
         modifier = modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(Palette.surfaceRaised)
-            .border(1.dp, Palette.hairline, shape)
+            .frostedCardSurface(tint = tint, cornerRadius = Metrics.cardRadius)
             .padding(padding),
     ) {
         content()
@@ -280,7 +344,38 @@ fun SourceBadge(text: String, tint: Color = Palette.accent, modifier: Modifier =
     )
 }
 
+// MARK: - TrendChip — a small tinted delta pill with a direction arrow.
+//
+// A compact trend pill: an up/down/flat arrow + the delta text, tinted to [color].
+// Inferred direction comes from a leading +/− in the text (else flat). Sits in the
+// corner of a StatTile or beside a metric value. Mirrors StrandDesign's TrendChip.
+
+@Composable
+fun TrendChip(text: String, color: Color = Palette.textTertiary, modifier: Modifier = Modifier) {
+    val t = text.trim()
+    val symbol = when {
+        t.startsWith("+") || t.startsWith("▲") || t.lowercase().startsWith("up") -> "▲"
+        t.startsWith("-") || t.startsWith("−") || t.startsWith("▼") || t.lowercase().startsWith("down") -> "▼"
+        else -> "–"
+    }
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(50))
+            .background(color.copy(alpha = 0.14f))
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Text(symbol, style = NoopType.captionNumber.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold), color = color)
+        Text(text, style = NoopType.captionNumber, color = color, maxLines = 1)
+    }
+}
+
 // MARK: - StatTile — uniform fixed-height metric tile
+//
+// PUBLIC API unchanged (label, value, caption, accent, delta, deltaColor); an optional
+// [tint] was ADDED (defaulted to the accent) so each tile reads as part of its colour
+// world via a faint card wash. The delta now renders as a TrendChip.
 
 @Composable
 fun StatTile(
@@ -291,39 +386,46 @@ fun StatTile(
     accent: Color = Palette.textPrimary,
     delta: String? = null,
     deltaColor: Color = Palette.textTertiary,
+    tint: Color? = null,
 ) {
-    NoopCard(modifier = modifier.height(Metrics.tileHeight), padding = 14.dp) {
+    // Each tile borrows its accent as a faint card wash, so a metric reads as part of its
+    // colour world while staying legible on the deep blue-black. Falls back to the accent.
+    NoopCard(modifier = modifier.height(Metrics.tileHeight), padding = 14.dp, tint = tint ?: accent) {
         Column {
             Overline(label)
             Spacer(Modifier.weight(1f))
-            Text(
-                value,
-                style = NoopType.number(26f),
-                color = accent,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
             Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (caption != null) {
-                    Text(
-                        caption, style = NoopType.footnote, color = Palette.textTertiary,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                }
+                Text(
+                    value,
+                    style = NoopType.number(26f),
+                    color = accent,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
                 Spacer(Modifier.weight(1f))
                 if (delta != null) {
-                    Text(delta, style = NoopType.captionNumber, color = deltaColor)
+                    TrendChip(text = delta, color = deltaColor)
                 }
+            }
+            if (caption != null) {
+                Text(
+                    caption, style = NoopType.footnote, color = Palette.textTertiary,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
             }
         }
     }
 }
 
 // MARK: - InsightCard
+//
+// PUBLIC API unchanged; an optional [tint] was ADDED (defaulted to the status colour)
+// so the coaching card sits in the same colour world as the score it summarises.
 
 @Composable
 fun InsightCard(
@@ -332,8 +434,9 @@ fun InsightCard(
     detail: String,
     modifier: Modifier = Modifier,
     statusColor: Color = Palette.accent,
+    tint: Color? = null,
 ) {
-    NoopCard(modifier = modifier, padding = 18.dp) {
+    NoopCard(modifier = modifier, padding = 18.dp, tint = tint ?: statusColor) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Overline(category)
             Text(status, style = NoopType.title1, color = statusColor)
@@ -363,17 +466,24 @@ fun <T> SegmentedPillControl(
     ) {
         items.forEach { item ->
             val selected = item == selection
-            val bg by animateColorAsState(
-                if (selected) Palette.accent else Color.Transparent,
-                tween(Motion.durationFast), label = "segBg",
-            )
+            // Selected segment fills with the brand-green gradient (accentHover → accent) and a
+            // soft green glow, mirroring StrandDesign's SegmentedPillControl; unselected stays clear.
+            val pillShape = RoundedCornerShape(50)
+            val pillBg = if (selected) {
+                Modifier.background(
+                    Brush.verticalGradient(listOf(Palette.accentHover, Palette.accent)),
+                    pillShape,
+                )
+            } else {
+                Modifier
+            }
             Text(
                 text = label(item),
                 style = NoopType.captionNumber,
                 color = if (selected) Palette.surfaceBase else Palette.textSecondary,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(bg)
+                    .clip(pillShape)
+                    .then(pillBg)
                     .clickableNoRipple { onSelect(item) }
                     .padding(horizontal = 11.dp, vertical = 6.dp),
             )
@@ -381,32 +491,41 @@ fun <T> SegmentedPillControl(
     }
 }
 
-// MARK: - RecoveryRing (ported from StrandDesign/RecoveryRing.swift §9.3) — THE signature component
+// MARK: - BevelGauge (NEW) — the layered ring gauge primitive
 //
-// A 240° open gauge arc (gap at bottom), thick rounded-cap stroke filled with a
-// sweep gradient sampling the recovery gradient, filled to score/100 over a faint
-// track. Soft outer bloom scaled by score, a luminous leading bead at the tip, a
-// draw-in animation when the value changes. Center shows the big number, a state
-// word tinted to the sampled color, and an optional supporting line.
+// The shared instrument behind RecoveryRing and StrainGauge: a 240° open gauge with
+//   • a soft frosted inner disc (subtle radial fill, hairline rim)
+//   • a faint full-span track ring
+//   • a gradient-stroked progress arc (sweep gradient over the domain ramp)
+//   • a soft outer BLOOM whose intensity scales with the fill (breathing pulse)
+//   • a GLOWING end-cap dot at the arc tip (coloured halo + white core)
+//   • a centred big rounded-bold number with an optional caption + state word
+//
+// It owns no domain logic — callers pass the fraction, the ramp stops, the tip colour
+// and the centre read-out strings. RecoveryRing / StrainGauge keep their own public
+// signatures and delegate here, so every screen re-skins without a call-site change.
+// Mirrors StrandDesign/BevelGauge.swift.
 
 @Composable
-fun RecoveryRing(
-    score: Double,
+fun BevelGauge(
+    fraction: Double,
+    stops: List<Pair<Float, Color>>,
+    tipColor: Color,
+    numberText: String,
     modifier: Modifier = Modifier,
+    captionText: String? = null,
+    stateText: String? = null,
     supporting: String? = null,
-    diameter: Dp = 240.dp,
+    diameter: Dp = 200.dp,
     lineWidth: Dp = 16.dp,
     showsLabel: Boolean = true,
 ) {
-    val fraction = (score / 100.0).toFloat().coerceIn(0f, 1f)
-    val tipColor = Palette.recoveryColor(score)
-    val stateWord = Palette.recoveryState(score)
-
+    val frac = fraction.toFloat().coerceIn(0f, 1f)
     val startDeg = 150f          // lower-left
     val spanDeg = 240f           // 240° open gauge, gap centered at bottom
 
     val animatedFraction by animateFloatAsState(
-        targetValue = fraction,
+        targetValue = frac,
         animationSpec = tween(Motion.durationSlow, easing = Motion.drawIn),
         label = "ringFill",
     )
@@ -418,19 +537,13 @@ fun RecoveryRing(
         ),
         label = "bloomPulse",
     )
-    val bloomOpacity = (0.18f + 0.37f * fraction) * bloomPulse
-
-    val sweep = Brush.sweepGradient(
-        // Sweep gradient starts at 3 o'clock by default; we rotate the gauge so the
-        // gradient walks low→high along the arc. Stops map color order of recovery.
-        *Palette.recoveryStops.toTypedArray(),
-    )
+    val bloomOpacity = (0.16f + 0.40f * frac) * bloomPulse
+    val sweep = Brush.sweepGradient(*stops.toTypedArray())
 
     Box(
         modifier = modifier.size(diameter),
         contentAlignment = Alignment.Center,
     ) {
-        // Arc + bloom + bead drawn on a single canvas-backed box.
         Box(
             modifier = Modifier
                 .size(diameter)
@@ -442,9 +555,37 @@ fun RecoveryRing(
                     val arcSize = Size(radius * 2f, radius * 2f)
                     val sweepStroke = Stroke(width = stroke, cap = StrokeCap.Round)
 
+                    // Frosted inner disc behind the arc — a glassy "well".
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                Palette.surfaceInset.copy(alpha = 0f),
+                                Palette.surfaceInset.copy(alpha = 0.55f),
+                            ),
+                            center = center,
+                            radius = radius,
+                        ),
+                        radius = (radius - stroke * 0.4f).coerceAtLeast(1f),
+                        center = center,
+                    )
+
+                    // Outer bloom — a soft, lower-opacity wide arc (drawn first, under the track).
+                    if (animatedFraction > 0.001f) {
+                        drawArc(
+                            brush = sweep,
+                            startAngle = startDeg,
+                            sweepAngle = spanDeg * animatedFraction,
+                            useCenter = false,
+                            topLeft = topLeft,
+                            size = arcSize,
+                            style = Stroke(width = stroke * 1.7f, cap = StrokeCap.Round),
+                            alpha = bloomOpacity,
+                        )
+                    }
+
                     // Faint full-span track.
                     drawArc(
-                        color = Palette.hairline.copy(alpha = 0.55f),
+                        color = Palette.hairline.copy(alpha = 0.6f),
                         startAngle = startDeg,
                         sweepAngle = spanDeg,
                         useCenter = false,
@@ -465,54 +606,43 @@ fun RecoveryRing(
                             style = sweepStroke,
                         )
 
-                        // Luminous leading bead at the fill tip.
+                        // Glowing end-cap dot at the arc tip: coloured halo + white core.
                         val tipAngle = Math.toRadians((startDeg + spanDeg * animatedFraction).toDouble())
                         val bead = Offset(
                             center.x + radius * cos(tipAngle).toFloat(),
                             center.y + radius * sin(tipAngle).toFloat(),
                         )
-                        drawCircle(
-                            color = tipColor.copy(alpha = 0.7f),
-                            radius = stroke * 1.2f,
-                            center = bead,
-                        )
-                        drawCircle(
-                            color = Color.White,
-                            radius = stroke * 0.31f,
-                            center = bead,
-                        )
-                    }
-
-                    // Outer bloom — a soft, lower-opacity wide arc.
-                    if (animatedFraction > 0.001f) {
-                        drawArc(
-                            brush = sweep,
-                            startAngle = startDeg,
-                            sweepAngle = spanDeg * animatedFraction,
-                            useCenter = false,
-                            topLeft = topLeft,
-                            size = arcSize,
-                            style = Stroke(width = stroke * 1.6f, cap = StrokeCap.Round),
-                            alpha = bloomOpacity,
-                        )
+                        drawCircle(color = tipColor.copy(alpha = 0.35f), radius = stroke * 1.3f, center = bead)
+                        drawCircle(color = tipColor.copy(alpha = 0.7f), radius = stroke * 0.85f, center = bead)
+                        drawCircle(color = Color.White, radius = stroke * 0.33f, center = bead)
                     }
                 },
         )
 
         if (showsLabel) {
-            // Mirror the macOS read-out sizing: display number ≈ diameter * 0.30.
+            // Big rounded-bold number ≈ diameter * 0.30.
             val numberSp = diameter.value * 0.30f
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = score.toInt().toString(),
-                    style = NoopType.display(numberSp),
+                    text = numberText,
+                    style = NoopType.display(numberSp).copy(fontWeight = FontWeight.Bold),
                     color = Palette.textPrimary,
                 )
-                Text(
-                    text = stateWord,
-                    style = NoopType.overline,
-                    color = tipColor,
-                )
+                if (captionText != null) {
+                    Text(
+                        text = captionText,
+                        style = NoopType.footnote,
+                        color = Palette.textTertiary,
+                    )
+                }
+                if (stateText != null) {
+                    Text(
+                        text = stateText,
+                        style = NoopType.overline,
+                        color = tipColor,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
                 if (supporting != null) {
                     Text(
                         text = supporting,
@@ -522,6 +652,140 @@ fun RecoveryRing(
                         modifier = Modifier.padding(top = 4.dp),
                     )
                 }
+            }
+        }
+    }
+}
+
+// MARK: - RecoveryRing (Bevel layered gauge) — THE signature Charge / Rest component
+//
+// PUBLIC API is unchanged (score, supporting, diameter, lineWidth, showsLabel); it now
+// delegates its visuals to [BevelGauge]. An optional [valueFormat] was ADDED (defaulted)
+// so the Rest hero can show "Rest 87" while Charge keeps the bare number — same shape as
+// the macOS RecoveryRing.valueFormat. The state word + tip colour sample the recovery ramp.
+
+@Composable
+fun RecoveryRing(
+    score: Double,
+    modifier: Modifier = Modifier,
+    supporting: String? = null,
+    diameter: Dp = 240.dp,
+    lineWidth: Dp = 16.dp,
+    showsLabel: Boolean = true,
+    valueFormat: ((Double) -> String)? = null,
+) {
+    BevelGauge(
+        fraction = score / 100.0,
+        stops = Palette.recoveryStops,
+        tipColor = Palette.recoveryColor(score),
+        numberText = valueFormat?.invoke(score) ?: score.toInt().toString(),
+        stateText = Palette.recoveryState(score),
+        supporting = supporting,
+        diameter = diameter,
+        lineWidth = lineWidth,
+        showsLabel = showsLabel,
+        modifier = modifier,
+    )
+}
+
+// MARK: - StrainGauge (NEW) — the Effort hero gauge on the 0–21 scale
+//
+// The Effort sibling of RecoveryRing: a [BevelGauge] over the amber strain ramp, with
+// the centre number on WHOOP's 0–21 axis and an "of 21" caption. The arc fills to
+// strain/21. Mirrors StrandDesign's StrainGauge so the hero row reads as three matched
+// instruments (Charge green · Effort amber · Rest indigo).
+
+@Composable
+fun StrainGauge(
+    strain: Double,
+    modifier: Modifier = Modifier,
+    diameter: Dp = 240.dp,
+    lineWidth: Dp = 16.dp,
+    showsLabel: Boolean = true,
+) {
+    val clamped = strain.coerceIn(0.0, 21.0)
+    BevelGauge(
+        fraction = clamped / 21.0,
+        stops = Palette.strainStops,
+        tipColor = Palette.strainColor((clamped / 21.0) * 100.0),
+        numberText = if (clamped % 1.0 == 0.0) clamped.toInt().toString() else String.format(java.util.Locale.US, "%.1f", clamped),
+        captionText = "of 21",
+        diameter = diameter,
+        lineWidth = lineWidth,
+        showsLabel = showsLabel,
+        modifier = modifier,
+    )
+}
+
+// MARK: - ScenicHeroBackground (NEW) — premium hero backdrop
+//
+// A Canvas-drawn radial deep blue-black gradient (warm-lit center → near-black edge)
+// sprinkled with a faint DETERMINISTIC starfield, optionally tinted toward a domain's
+// glow, with a bottom fade so content sits cleanly over it. Deterministic (fixed star
+// positions) so it never flickers; decorative, so hidden from accessibility by the
+// caller's container. Mirrors StrandDesign's ScenicHeroBackground.
+
+@Composable
+fun ScenicHeroBackground(
+    modifier: Modifier = Modifier,
+    domain: DomainTheme? = null,
+    starCount: Int = 40,
+    fadesToBase: Boolean = true,
+) {
+    Box(modifier = modifier.semantics { contentDescription = "" }) {
+        Canvas(modifier = Modifier.matchParentSize()) {
+            val w = size.width
+            val h = size.height
+            if (w <= 0f || h <= 0f) return@Canvas
+
+            // Radial deep blue-black: lit center → near-black edge.
+            drawRect(
+                brush = Brush.radialGradient(
+                    colors = listOf(Palette.scenicCenter, Palette.scenicEdge),
+                    center = Offset(w * 0.5f, h * 0.36f),
+                    radius = maxOf(w, h) * 0.95f,
+                ),
+            )
+
+            // A soft domain-tinted bloom near the top, if a world is named.
+            if (domain != null) {
+                drawRect(
+                    brush = Brush.radialGradient(
+                        colors = listOf(domain.glow.copy(alpha = 0.18f), Color.Transparent),
+                        center = Offset(w * 0.5f, h * 0.30f),
+                        radius = maxOf(w, h) * 0.6f,
+                    ),
+                )
+            }
+
+            // Deterministic starfield — fixed positions/sizes so it can't flicker.
+            val wi = maxOf(1, w.toInt())
+            val topBand = maxOf(1, (h * 0.55f).toInt())
+            for (i in 0 until starCount) {
+                val x = ((i * 73 + 31) % wi).toFloat()
+                val y = (18 + ((i * 41) % topBand)).toFloat()
+                val r = if (i % 9 == 0) 1.3f else 0.7f
+                val alpha = if (i % 5 == 0) 0.34f else 0.18f
+                drawCircle(
+                    color = Palette.scenicStar.copy(alpha = alpha),
+                    radius = r,
+                    center = Offset(x, y),
+                )
+            }
+
+            // Bottom fade so a hero number / card reads cleanly over the field.
+            if (fadesToBase) {
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Palette.scenicEdge.copy(alpha = 0.72f),
+                            Palette.scenicEdge,
+                        ),
+                        startY = h * 0.5f,
+                        endY = h,
+                    ),
+                )
             }
         }
     }

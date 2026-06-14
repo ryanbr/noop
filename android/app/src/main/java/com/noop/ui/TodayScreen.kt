@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -329,10 +330,12 @@ fun TodayScreen(viewModel: AppViewModel, onSupport: () -> Unit = {}) {
 
         if (alert != null) IllnessBanner(alert!!)
 
-        // HERO — ring + synthesis read-out, with a subtle always-on support affordance.
+        // HERO — three Charge / Effort / Rest ring scores over a scenic backdrop, then the
+        // green-tinted Synthesis coaching card. Bevel layout. The support affordance stays in
+        // the section header.
         Row(verticalAlignment = Alignment.Top) {
             Box(modifier = Modifier.weight(1f)) {
-                SectionHeader(synthesisTitle, overline = dayLabel, trailing = greetingWord())
+                SectionHeader(synthesisTitle, overline = "At a glance", trailing = greetingWord())
             }
             IconButton(
                 onClick = onSupport,
@@ -341,35 +344,33 @@ fun TodayScreen(viewModel: AppViewModel, onSupport: () -> Unit = {}) {
                 Icon(
                     Icons.Filled.Favorite,
                     contentDescription = "Support NOOP",
-                    tint = Palette.textTertiary,
+                    tint = Palette.metricRose,
                     modifier = Modifier.size(Metrics.iconSmall),
                 )
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(Metrics.gap)) {
-            NoopCard(modifier = Modifier.weight(1f)) {
-                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    TodayRecoveryRing(displayMetric, recoveryCalibration)
-                    // ⓘ — opens the scoring guide at the Charge section.
-                    ScoreInfoButton(
-                        section = ScoreSection.CHARGE,
-                        onClick = { openGuide(ScoreSection.CHARGE) },
-                        modifier = Modifier.align(Alignment.TopEnd),
-                    )
-                }
-            }
-            InsightCard(
-                modifier = Modifier.weight(1f),
-                category = "Charge",
-                status = if (recoveryCalibration != null) "Calibrating" else synthesisWord(displayMetric?.recovery),
-                detail = if (recoveryCalibration != null) {
-                    "Learning your baseline — $recoveryCalibration of ${Baselines.minNightsSeed} nights."
-                } else {
-                    synthesisDetail(displayMetric)
-                },
-                statusColor = displayMetric?.recovery?.let { Palette.recoveryColor(it) } ?: Palette.textTertiary,
-            )
-        }
+
+        // The three daily scores as layered ring gauges over a scenic Charge-tinted backdrop.
+        ScoreHeroRow(
+            day = displayMetric,
+            restScore = restScoreForDay,
+            recoveryCalibration = recoveryCalibration,
+            onScoreInfo = openGuide,
+        )
+
+        // The plain-English read-out — a green-tinted Synthesis coaching card under the rings.
+        InsightCard(
+            modifier = Modifier.fillMaxWidth(),
+            category = "Synthesis",
+            status = if (recoveryCalibration != null) "Calibrating" else synthesisWord(displayMetric?.recovery),
+            detail = if (recoveryCalibration != null) {
+                "Learning your baseline — $recoveryCalibration of ${Baselines.minNightsSeed} nights."
+            } else {
+                synthesisDetail(displayMetric)
+            },
+            statusColor = displayMetric?.recovery?.let { Palette.recoveryColor(it) } ?: Palette.textTertiary,
+            tint = Palette.chargeColor,
+        )
 
         // READINESS — on-device training-readiness synthesis (HRV / resting-HR / load).
         // Mirrors the macOS readinessSection: rendered only once there's enough history.
@@ -530,38 +531,146 @@ private fun DaySelectorBar(selectedOffset: Int, onSelect: (Int) -> Unit) {
     DayNavBar(selectedOffset = selectedOffset, onSelect = onSelect)
 }
 
+// MARK: - Score hero row (Bevel) — three Charge / Effort / Rest ring gauges over a scenic backdrop
+//
+// The three daily scores as layered [BevelGauge]s, side by side, each in its own colour world,
+// floated over a Charge-tinted [ScenicHeroBackground]. Each cell is a frosted tinted card carrying
+// the gauge, a domain label and the per-score ⓘ. Honest empty / calibrating overlays when a score is
+// null. Mirrors the macOS TodayView.scoreHeroRow. Data wiring is unchanged — presentation only.
+
 @Composable
-private fun TodayRecoveryRing(day: DailyMetric?, calibratingNights: Int? = null) {
-    val hasRecovery = day?.recovery != null
-    Box(contentAlignment = Alignment.Center) {
-        RecoveryRing(
-            score = day?.recovery ?: 0.0,
-            supporting = if (hasRecovery) ringSupporting(day) else null,
-            diameter = 168.dp,
-            lineWidth = 13.dp,
-            showsLabel = hasRecovery,
-        )
-        if (!hasRecovery) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = if (calibratingNights != null) "Calibrating" else NO_DATA,
-                    style = NoopType.title2,
-                    color = Palette.textTertiary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = calibratingNights?.let { "$it of ${Baselines.minNightsSeed} nights" }
-                        ?: ringSupporting(day),
-                    style = NoopType.footnote,
-                    color = Palette.textSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = Metrics.space4),
-                )
+private fun ScoreHeroRow(
+    day: DailyMetric?,
+    restScore: Double?,
+    recoveryCalibration: Int?,
+    onScoreInfo: (ScoreSection) -> Unit,
+) {
+    val recovery = day?.recovery
+    val strain = day?.strain
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Metrics.cardRadius)),
+    ) {
+        ScenicHeroBackground(modifier = Modifier.matchParentSize(), domain = DomainTheme.Charge)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(Metrics.gap),
+            horizontalArrangement = Arrangement.spacedBy(Metrics.gap),
+        ) {
+            // CHARGE — recovery 0–100. Honest empty / calibrating overlay when null. The ring
+            // diameter is supplied by the cell so three gauges always fit a phone width.
+            HeroScoreCell(
+                modifier = Modifier.weight(1f),
+                domain = DomainTheme.Charge,
+                onInfo = { onScoreInfo(ScoreSection.CHARGE) },
+            ) { ringDiameter ->
+                Box(contentAlignment = Alignment.Center) {
+                    RecoveryRing(
+                        score = recovery ?: 0.0,
+                        diameter = ringDiameter,
+                        lineWidth = ringDiameter * 0.10f,
+                        showsLabel = recovery != null,
+                    )
+                    if (recovery == null) RingEmptyOverlay(recoveryCalibration)
+                }
+            }
+            // EFFORT — strain on the 0–21 gauge. The stored strain is on NOOP's 0–100 Effort axis,
+            // so map it back down to the gauge's 0–21 span for the arc + number.
+            HeroScoreCell(
+                modifier = Modifier.weight(1f),
+                domain = DomainTheme.Effort,
+                onInfo = { onScoreInfo(ScoreSection.EFFORT) },
+            ) { ringDiameter ->
+                Box(contentAlignment = Alignment.Center) {
+                    StrainGauge(
+                        strain = strain?.let { (it / 100.0) * 21.0 } ?: 0.0,
+                        diameter = ringDiameter,
+                        lineWidth = ringDiameter * 0.10f,
+                        showsLabel = strain != null,
+                    )
+                    if (strain == null) RingNoData()
+                }
+            }
+            // REST — sleep composite 0–100, reusing the recovery ring's scale.
+            HeroScoreCell(
+                modifier = Modifier.weight(1f),
+                domain = DomainTheme.Rest,
+                onInfo = { onScoreInfo(ScoreSection.REST) },
+            ) { ringDiameter ->
+                Box(contentAlignment = Alignment.Center) {
+                    RecoveryRing(
+                        score = restScore ?: 0.0,
+                        diameter = ringDiameter,
+                        lineWidth = ringDiameter * 0.10f,
+                        showsLabel = restScore != null,
+                    )
+                    if (restScore == null) RingNoData()
+                }
             }
         }
     }
+}
+
+/**
+ * One score-ring cell: a frosted tinted card carrying the ring + a domain label + the ⓘ. The cell
+ * measures its own width (via [BoxWithConstraints]) and passes the ring a diameter that fits, so the
+ * three gauges never overflow on a narrow phone (the macOS adaptive grid reflows to a column instead).
+ */
+@Composable
+private fun HeroScoreCell(
+    domain: DomainTheme,
+    onInfo: () -> Unit,
+    modifier: Modifier = Modifier,
+    ring: @Composable (ringDiameter: androidx.compose.ui.unit.Dp) -> Unit,
+) {
+    NoopCard(modifier = modifier, padding = Metrics.space12, tint = domain.color) {
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            // Fill most of the cell's inner width (a little inset so the ring doesn't touch the
+            // card edge), capped so a wide tablet column doesn't blow the ring up.
+            val ringDiameter = (maxWidth - 4.dp).coerceIn(56.dp, 120.dp)
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(Metrics.space8),
+            ) {
+                Text(
+                    text = domain.label,
+                    style = NoopType.overline,
+                    color = domain.color,
+                )
+                ring(ringDiameter)
+            }
+            ScoreInfoButton(
+                section = null,
+                onClick = onInfo,
+                compact = true,
+                modifier = Modifier.align(Alignment.TopEnd),
+            )
+        }
+    }
+}
+
+/** Honest overlay shown over the Charge ring when recovery is null: calibrating count or No data. */
+@Composable
+private fun RingEmptyOverlay(calibratingNights: Int?) {
+    if (calibratingNights != null) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("Calibrating", style = NoopType.headline, color = Palette.textTertiary, maxLines = 1)
+            Text(
+                "$calibratingNights of ${Baselines.minNightsSeed}",
+                style = NoopType.footnote,
+                color = Palette.textSecondary,
+                maxLines = 1,
+            )
+        }
+    } else {
+        RingNoData()
+    }
+}
+
+@Composable
+private fun RingNoData() {
+    Text(NO_DATA, style = NoopType.headline, color = Palette.textTertiary, maxLines = 1)
 }
 
 /**
@@ -1048,6 +1157,17 @@ private fun OverviewHRChart(
                         cap = StrokeCap.Round,
                         pathEffect = dash,
                     )
+                }
+
+                // Glowing endpoint at the latest HR sample (right edge) — a Bevel chart end-cap:
+                // a soft rose halo + white core sitting on the line's final point.
+                if (n >= 2) {
+                    val lastX = size.width
+                    val lastY = yForBpm(bpm.last())
+                    val end = Offset(lastX.coerceIn(0f, size.width), lastY)
+                    drawCircle(color = Palette.metricRose.copy(alpha = 0.30f), radius = 9f, center = end)
+                    drawCircle(color = Palette.metricRose.copy(alpha = 0.65f), radius = 5.5f, center = end)
+                    drawCircle(color = Color.White, radius = 2.4f, center = end)
                 }
             }
 
@@ -1558,12 +1678,6 @@ private fun synthesisDetail(d: DailyMetric?): String {
         if (mins / 60.0 >= 7) " and sleep was consistent" else " but sleep ran short"
     } ?: ""
     return "$recPart$sleepPart."
-}
-
-private fun ringSupporting(d: DailyMetric?): String {
-    val hrv = d?.avgHrv?.let { "${it.roundToInt()} ms" } ?: NO_DATA
-    val rhr = d?.restingHr?.toString() ?: NO_DATA
-    return "HRV $hrv · RHR $rhr"
 }
 
 private fun sleepValue(d: DailyMetric?): String {

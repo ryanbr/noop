@@ -101,7 +101,7 @@ public struct DayNavBar: View {
             .padding(12)
     }
 
-    private var blockShape: RoundedRectangle { RoundedRectangle(cornerRadius: 12, style: .continuous) }
+    private var blockShape: RoundedRectangle { RoundedRectangle(cornerRadius: 14, style: .continuous) }
 
     private static let dayFmt: DateFormatter = {
         let f = DateFormatter(); f.dateFormat = "EEE d MMM"; f.locale = Locale(identifier: "en_US_POSIX"); return f

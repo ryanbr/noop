@@ -113,8 +113,13 @@ struct RootView: View {
 
     private var brand: some View {
         HStack(spacing: 8) {
+            // Wordmark with a soft green brand glow + a leading accent dot — the Bevel chrome nod.
+            Circle()
+                .fill(StrandPalette.accent)
+                .frame(width: 8, height: 8)
+                .shadow(color: StrandPalette.accent.opacity(0.8), radius: 4)
             Text("NOOP")
-                .font(.system(size: 20, weight: .bold))
+                .font(.system(size: 20, weight: .bold, design: .rounded))
                 .foregroundStyle(StrandPalette.textPrimary)
             Spacer()
         }
