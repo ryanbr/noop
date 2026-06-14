@@ -18,6 +18,15 @@
       "screenshotURLs": [],
       "versions": [
         {
+          "version": "2.18.1",
+          "buildVersion": "70",
+          "date": "2026-06-14",
+          "localizedDescription": "Toggle the live-HR Dynamic Island",
+          "downloadURL": "https://github.com/NoopApp/noop/releases/download/v2.18.1/NOOP-v2.18.1-ios.ipa",
+          "size": 6594761,
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "2.18.0",
           "buildVersion": "69",
           "date": "2026-06-14",
@@ -352,12 +361,12 @@
           "NSHealthUpdateUsageDescription": "NOOP writes the metrics it computes from your strap back into Apple Health, on-device and only when you allow it."
         }
       },
-      "version": "2.18.0",
-      "buildVersion": "69",
+      "version": "2.18.1",
+      "buildVersion": "70",
       "versionDate": "2026-06-14",
-      "versionDescription": "Export raw sensor data (CSV)",
-      "downloadURL": "https://github.com/NoopApp/noop/releases/download/v2.18.0/NOOP-v2.18.0-ios.ipa",
-      "size": 6594330,
+      "versionDescription": "Toggle the live-HR Dynamic Island",
+      "downloadURL": "https://github.com/NoopApp/noop/releases/download/v2.18.1/NOOP-v2.18.1-ios.ipa",
+      "size": 6594761,
       "minOSVersion": "17.0"
     }
   ],
