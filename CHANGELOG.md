@@ -17,6 +17,13 @@ approximate; downloads are on the [Releases](https://github.com/NoopApp/noop/rel
 
 ---
 
+## 2.15.1 — Last Workouts tile fix
+
+- **Fixed (Android):** the **Last Workouts** tiles on Today no longer truncate the workout
+  duration to "1…" — the duration now gets the room it needs alongside the calorie chip. Thanks @nhe (#319).
+
+---
+
 ## 2.15.0 — The new look everywhere, plus sleep, Effort & Bluetooth fixes
 
 - **The new look, everywhere.** Every screen now wears NOOP's premium dark design — scenic

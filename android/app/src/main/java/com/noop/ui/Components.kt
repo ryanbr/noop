@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -398,16 +399,19 @@ fun StatTile(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                // Value takes priority width so a wider value (e.g. a workout duration "1h 52m")
+                // isn't squeezed to "1…" by the trailing chip — the chip keeps its intrinsic size at
+                // the end and the value ellipsizes only as a last resort (#319).
                 Text(
                     value,
                     style = NoopType.number(26f),
                     color = accent,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
+                    modifier = Modifier.weight(1f),
                 )
-                Spacer(Modifier.weight(1f))
                 if (delta != null) {
+                    Spacer(Modifier.width(8.dp))
                     TrendChip(text = delta, color = deltaColor)
                 }
             }
