@@ -239,6 +239,25 @@ public final class BLEManager: NSObject, ObservableObject {
     // MARK: CoreBluetooth
     private var central: CBCentralManager!
     private var peripheral: CBPeripheral?
+    /// Multi-WHOOP: when non-nil, the scan/discover path connects ONLY to the peripheral whose
+    /// `identifier == preferredPeripheralUUID` and ignores every other discovered WHOOP. When nil
+    /// (the only state a single-WHOOP user is ever in) the discover path is byte-for-byte unchanged —
+    /// it connects to the FIRST WHOOP discovered. Set by the app via `setPreferredPeripheral(_:)` to
+    /// the active device's persisted `peripheralId`. Purely additive; nothing reads it on the nil path.
+    private var preferredPeripheralUUID: UUID?
+    /// Multi-WHOOP Add-a-WHOOP wizard: while true, `didDiscover` POPULATES `discoveredWhoops` instead
+    /// of auto-connecting — an explicit, separate "present the nearby straps" mode the wizard turns on
+    /// (`scanForWhoops()`) then off (`stopWhoopScan()`). Default false leaves the auto-connect path
+    /// untouched. Must never overlap the normal connect flow (the wizard owns the central while true).
+    private var isPresentingScan = false
+    /// The CBPeripheral.identifier.uuidString of the WHOOP we most recently CONNECTED to (`didConnect`).
+    /// Published so the app/AppModel can persist it onto the active registry device
+    /// (`registry.setPeripheralId`) — letting "my-whoop" adopt its strap's id on first connect and a
+    /// specific WHOOP confirm its identity. BLEManager stays decoupled: it never writes the registry.
+    @Published public private(set) var connectedPeripheralUUID: String?
+    /// Multi-WHOOP Add-a-WHOOP wizard surface: straps seen while `isPresentingScan` is true, WITHOUT
+    /// auto-connecting. Cleared at the start of each `scanForWhoops()`. Empty/unused on the default path.
+    @Published public private(set) var discoveredWhoops: [(uuid: String, name: String, rssi: Int)] = []
     /// Peripheral captured during `willRestoreState`; cleared in `didConnect`.
     /// Non-nil signals that `centralManagerDidUpdateState` should reconnect this
     /// specific peripheral rather than starting a fresh scan.
@@ -478,6 +497,52 @@ public final class BLEManager: NSObject, ObservableObject {
         state.connected = false
         state.bonded = false
         state.encryptedBond = false
+    }
+
+    // MARK: Multi-WHOOP (additive — inert on the single-WHOOP path)
+
+    /// Pin connections to ONE specific strap by its CBPeripheral.identifier.uuidString. The app sets
+    /// this to the active device's persisted `peripheralId` when it has one; pass nil to clear it
+    /// (back to "connect to the first WHOOP discovered" — the single-WHOOP default). An unparseable
+    /// string clears the pin rather than wedging the scan. Only `didDiscover` reads it; setting it
+    /// does NOT start/stop/redirect an in-flight connection on its own.
+    public func setPreferredPeripheral(_ uuidString: String?) {
+        guard let uuidString, let uuid = UUID(uuidString: uuidString) else {
+            preferredPeripheralUUID = nil
+            return
+        }
+        preferredPeripheralUUID = uuid
+    }
+
+    /// Add-a-WHOOP wizard: scan the selected family's WHOOP service and surface every nearby strap in
+    /// `discoveredWhoops` WITHOUT auto-connecting. Turns on the `isPresentingScan` flag that diverts
+    /// `didDiscover` to collect-not-connect, and uses duplicate-allowing scanning so RSSI refreshes.
+    /// The wizard MUST call `stopWhoopScan()` before any normal connect resumes — this mode owns the
+    /// central while active. No-op-to-the-connect-path: it never touches `peripheral`/bond state.
+    public func scanForWhoops() {
+        guard central.state == .poweredOn else {
+            log("Add-a-WHOOP scan: Bluetooth not powered on (state=\(central.state.rawValue))")
+            return
+        }
+        cancelScanFallback()            // no family-rotation timer should fire during a present-scan
+        isPresentingScan = true
+        discoveredWhoops = []           // fresh list each time the wizard opens the scan
+        central.stopScan()
+        // Allow duplicates so the wizard's RSSI/signal readout updates as straps move.
+        central.scanForPeripherals(
+            withServices: [selectedModel.scanService],
+            options: [CBCentralManagerScanOptionAllowDuplicatesKey: true]
+        )
+        log("Add-a-WHOOP scan: presenting nearby \(selectedModel.displayName) straps")
+    }
+
+    /// End the Add-a-WHOOP present-scan: stop scanning and clear `isPresentingScan` so `didDiscover`
+    /// returns to its normal auto-connect behaviour. Safe to call when not presenting (idempotent).
+    public func stopWhoopScan() {
+        guard isPresentingScan else { return }
+        isPresentingScan = false
+        central.stopScan()
+        log("Add-a-WHOOP scan: stopped")
     }
 
     /// Apply the raw-outbox retention policy (24h synced window / 50MB unsynced cap).
@@ -1447,6 +1512,27 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
                                advertisementData: [String: Any],
                                rssi RSSI: NSNumber) {
         let name = (advertisementData[CBAdvertisementDataLocalNameKey] as? String) ?? peripheral.name ?? "unknown"
+        // Multi-WHOOP present-scan (Add-a-WHOOP wizard): collect the strap, do NOT auto-connect, and
+        // return before touching the connect flow. Only reachable when the wizard explicitly turned on
+        // `isPresentingScan` via scanForWhoops(); on the default path (false) this branch is skipped
+        // entirely and the auto-connect code below runs exactly as before.
+        if isPresentingScan {
+            let uuid = peripheral.identifier.uuidString
+            if let i = discoveredWhoops.firstIndex(where: { $0.uuid == uuid }) {
+                discoveredWhoops[i] = (uuid: uuid, name: name, rssi: RSSI.intValue)   // refresh RSSI
+            } else {
+                discoveredWhoops.append((uuid: uuid, name: name, rssi: RSSI.intValue))
+            }
+            return
+        }
+        // Multi-WHOOP preferred-peripheral filter: when the app has pinned a specific strap, ignore any
+        // OTHER discovered WHOOP and keep scanning. When `preferredPeripheralUUID == nil` (the single-
+        // WHOOP default) this guard is skipped and the original "connect to the first discovered" path
+        // below is byte-for-byte unchanged.
+        if let preferred = preferredPeripheralUUID, peripheral.identifier != preferred {
+            log("Discovered \(name) (\(peripheral.identifier)) — not the preferred strap; ignoring")
+            return
+        }
         cancelScanFallback()
         // Persist the family that actually advertised so the next scan starts on the right service —
         // this is what makes a one-time rotation stick after a stale-preference reconnect. (PR#195)
@@ -1461,6 +1547,10 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         cancelScanFallback()
         restoredPeripheral = nil
         preparePeripheral(peripheral)
+        // Multi-WHOOP: publish the strap's stable BLE identity so the app can persist it onto the active
+        // registry device (it observes this and calls registry.setPeripheralId). Additive observation
+        // only — BLEManager stays decoupled from the store and the connect flow below is unchanged.
+        connectedPeripheralUUID = peripheral.identifier.uuidString
         state.connected = true
         state.encryptedBond = false   // re-proved per connection at the genuine-bond site (#69)
         state.reconnectGuide = nil    // a connect succeeded — the stale-bond guide (if shown) is resolved
