@@ -44,9 +44,7 @@ def cnt(state):
         p+=1
     return n
 _,b=req(f"{API}/commits?limit=1"); last=json.loads(b)[0]["commit"]["author"]["date"][:10]
-write("docs/stats/downloads.json","downloads",f"{total:,}","C8902F")
 write("docs/stats/release.json","latest",latest["tag_name"],"E8B84B")
-write("docs/stats/thisrelease.json","this release",f"{this_rel:,}","C8902F")
 write("docs/stats/released.json","released",(latest.get("published_at") or "")[:10],"6B737B")
 write("docs/stats/stars.json","stars",repo.get("stars_count",0),"E8B84B")
 write("docs/stats/forks.json","forks",repo.get("forks_count",0),"6B737B")
