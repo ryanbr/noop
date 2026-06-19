@@ -619,12 +619,18 @@ private struct FitnessAgeSection: View {
 
     /// Reveal the readiness checklist (the "ⓘ How accurate is this?" disclosure under a shown value).
     @State private var showReadiness = false
-    /// Present the full metric trend (the existing MetricDetailView for "fitness_age") in a sheet —
-    /// these shared screens aren't hosted in a per-screen NavigationStack, so a sheet is the in-app
-    /// drill-down idiom here (mirrors StressView opening Breathe in a sheet).
-    @State private var showTrend = false
-    /// Present Settings (the profile card) in a sheet so a required-missing input can be filled in place.
-    @State private var showSettings = false
+
+    /// The two drill-downs this section can present, as ONE enum-driven sheet — two stacked
+    /// `.sheet` modifiers race on macOS (only one wins) and neither carried a fixed frame, so a
+    /// single item-driven sheet (mirrors WorkoutsView / FusedRecordView) is the reliable idiom.
+    /// - `.trend`: the full metric trend (existing MetricDetailView for "fitness_age"). These shared
+    ///   screens aren't hosted in a per-screen NavigationStack, so a sheet is the in-app drill-down.
+    /// - `.settings`: Settings (the profile card) so a required-missing input can be filled in place.
+    private enum FitnessSheet: String, Identifiable {
+        case trend, settings
+        var id: String { rawValue }
+    }
+    @State private var fitnessSheet: FitnessSheet?
 
     /// The catalog descriptor backing the trend sheet + accent.
     private var fitnessAgeMetric: MetricDescriptor? { MetricCatalog.all.first { $0.key == "fitness_age" } }
@@ -650,13 +656,18 @@ private struct FitnessAgeSection: View {
                           trailing: fitnessAge != nil ? "vs age \(profile.age)" : nil)
             content
         }
-        .sheet(isPresented: $showTrend) {
-            if let metric = fitnessAgeMetric {
-                NavigationStack { MetricDetailView(metric: metric) }
+        .sheet(item: $fitnessSheet) { which in
+            NavigationStack {
+                switch which {
+                case .trend:
+                    if let m = fitnessAgeMetric { MetricDetailView(metric: m) }
+                case .settings:
+                    SettingsView()
+                }
             }
-        }
-        .sheet(isPresented: $showSettings) {
-            NavigationStack { SettingsView() }
+            #if os(macOS)
+            .frame(width: 900, height: 820)
+            #endif
         }
         .task(id: repo.refreshSeq) { await load() }
     }
@@ -667,7 +678,7 @@ private struct FitnessAgeSection: View {
             if showReadiness {
                 ReadinessChecklistCard(readiness: readiness,
                                        lead: nil,
-                                       onFix: { showSettings = true })
+                                       onFix: { fitnessSheet = .settings })
                     .transition(.opacity)
             }
         } else if loaded {
@@ -677,7 +688,7 @@ private struct FitnessAgeSection: View {
                 lead: readiness.canCompute
                     ? "A few more days and we can show your Fitness Age."
                     : "A few more days of wear — plus the basics below — and we can show your Fitness Age.",
-                onFix: { showSettings = true })
+                onFix: { fitnessSheet = .settings })
         } else {
             // Brief read of the weekly value; honest placeholder rather than an empty gap.
             ComingSoon(what: "Reading your Fitness Age…", symbol: "figure.run")
@@ -694,7 +705,7 @@ private struct FitnessAgeSection: View {
         let younger = delta >= 0
         return VStack(alignment: .leading, spacing: 14) {
             // Tap the hero body to open the full "fitness_age" trend.
-            Button { showTrend = true } label: {
+            Button { fitnessSheet = .trend } label: {
                 HStack(alignment: .center, spacing: 18) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Fitness Age").strandOverline()

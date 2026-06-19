@@ -406,7 +406,7 @@ struct RhythmView: View {
                 StatTile(label: "EXTRA / SKIPPED",
                          value: percent(headlineWindow?.ectopicFraction),
                          caption: "of beats",
-                         accent: StrandPalette.metricRose)
+                         accent: StrandPalette.restColor)
                 StatTile(label: "BEATS READ",
                          value: headlineWindow.map { "\($0.nBeats)" } ?? "—",
                          caption: "clean intervals",
@@ -479,7 +479,7 @@ struct RhythmView: View {
         let readable = night?.readableWindows ?? windows.filter { $0.label != .unreadable }.count
         switch headlineWindow?.confidence ?? .calibrating {
         case .solid:       return "Solid"
-        case .building:    return readable <= 1 ? "Building — one short window" : "Building"
+        case .building:    return readable <= 1 ? "Building — 1 window" : "Building"
         case .calibrating: return "Calibrating"
         }
     }

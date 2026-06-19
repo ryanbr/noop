@@ -138,20 +138,18 @@ private fun MoversSection(
     ranked: List<RankedEffect>,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.weight(1f)) {
-                SectionHeader(
-                    "What moves your ${outcome.outcomeName.lowercase(Locale.US)}",
-                    overline = "Ranked · your data",
-                )
-            }
-            SegmentedPillControl(
-                items = InsightsOutcome.entries.toList(),
-                selection = outcome,
-                label = { it.label },
-                onSelect = onOutcome,
-            )
-        }
+        // Header then the outcome selector on its own row below it — on a ~360dp phone the pill
+        // control can't share a row with the weighted header without compressing (matches macOS).
+        SectionHeader(
+            "What moves your ${outcome.outcomeName.lowercase(Locale.US)}",
+            overline = "Ranked · your data",
+        )
+        SegmentedPillControl(
+            items = InsightsOutcome.entries.toList(),
+            selection = outcome,
+            label = { it.label },
+            onSelect = onOutcome,
+        )
 
         if (ranked.isEmpty()) {
             NoopCard {
@@ -345,15 +343,15 @@ private fun DamageForecast(
     val stepLabel = if (previewDose <= 1) "no extra" else "$previewDose${card.dosePlusSuffix(previewDose)}"
 
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Overline(card.forecastOverline, modifier = Modifier.weight(1f))
-            SegmentedPillControl(
-                items = card.doseChoices,
-                selection = previewDose,
-                label = { card.doseChoiceLabel(it) },
-                onSelect = onPreviewDose,
-            )
-        }
+        // Overline then the dose stepper on its own row — the choices (0…max+) overflow a ~360dp
+        // phone if they share a row with the overline (matches the macOS fix).
+        Overline(card.forecastOverline, modifier = Modifier.fillMaxWidth())
+        SegmentedPillControl(
+            items = card.doseChoices,
+            selection = previewDose,
+            label = { card.doseChoiceLabel(it) },
+            onSelect = onPreviewDose,
+        )
 
         Text(
             forecastSentence(card, previewDose, delta, stepLabel),

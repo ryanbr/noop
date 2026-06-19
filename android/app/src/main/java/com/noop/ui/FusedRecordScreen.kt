@@ -9,9 +9,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
@@ -241,8 +244,13 @@ private fun FusedMetricRow(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(row.label, style = NoopType.headline, color = Palette.textPrimary)
-            Spacer(Modifier.weight(1f))
+            Text(
+                row.label,
+                style = NoopType.headline,
+                color = Palette.textPrimary,
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.width(8.dp))
             AutoSizeValue(
                 FusionFormat.value(point.value, point.metric),
                 style = NoopType.number(20f),
@@ -339,7 +347,12 @@ private fun ConflictCompareDialog(row: FusedRow, onDismiss: () -> Unit) {
     val point = row.point
     Dialog(onDismissRequest = onDismiss) {
         NoopCard(padding = Metrics.cardPadding) {
-            Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 560.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(Metrics.gap),
+            ) {
                 SectionHeader(title = row.label, overline = "Sources differ")
                 Text(
                     "Your bands report different numbers. Here's every source, and the one NOOP is using.",

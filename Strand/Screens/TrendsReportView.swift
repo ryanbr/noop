@@ -506,7 +506,7 @@ struct TrendsReportSheet: View {
             .padding(24)
         }
         .background(StrandPalette.surfaceBase)
-        .frame(minWidth: 420, minHeight: 560)
+        .frame(width: 460, height: 640)
         #if os(iOS)
         .noopSheetPresentation(largeFirst: true)
         #endif

@@ -304,7 +304,7 @@ private fun ConfidencePill(headline: RhythmScreener.WindowResult?, readable: Int
             StatePill("Solid", tone = StrandTone.Accent)
         RhythmConfidence.BUILDING ->
             StatePill(
-                if ((readable ?: 0) <= 1) "Building — one short window" else "Building",
+                if ((readable ?: 0) <= 1) "Building — 1 window" else "Building",
                 tone = StrandTone.Warning,
             )
         RhythmConfidence.CALIBRATING ->
@@ -431,7 +431,7 @@ private fun StatsCard(headline: RhythmScreener.WindowResult?) {
         Row(horizontalArrangement = Arrangement.spacedBy(Metrics.gap)) {
             StatTile(
                 label = "Extra / skipped", value = percent(headline?.ectopicFraction),
-                caption = "of beats", accent = Palette.metricRose,
+                caption = "of beats", accent = Palette.restColor,
                 modifier = Modifier.weight(1f),
             )
             StatTile(

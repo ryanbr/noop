@@ -127,8 +127,11 @@ struct MarkerEditorView: View {
     }
 
     private var catalogList: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(filteredCatalog.enumerated()), id: \.element.key) { idx, def in
+        // A ScrollView (capped at 280pt) so all ~30 markers are reachable — a bare VStack
+        // under .frame(maxHeight: 280) clipped everything past the first handful with no scroll.
+        ScrollView {
+            VStack(spacing: 0) {
+                ForEach(Array(filteredCatalog.enumerated()), id: \.element.key) { idx, def in
                 Button {
                     choose(def)
                 } label: {
@@ -149,18 +152,19 @@ struct MarkerEditorView: View {
                     .padding(.vertical, 9)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("\(def.displayName), \(def.canonicalUnit)")
-                if idx < filteredCatalog.count - 1 {
-                    Divider().overlay(StrandPalette.hairline)
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(def.displayName), \(def.canonicalUnit)")
+                    if idx < filteredCatalog.count - 1 {
+                        Divider().overlay(StrandPalette.hairline)
+                    }
                 }
-            }
-            if filteredCatalog.isEmpty {
-                Text("No match. Add it as a custom marker below.")
-                    .font(StrandFont.footnote)
-                    .foregroundStyle(StrandPalette.textTertiary)
-                    .padding(.vertical, 8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                if filteredCatalog.isEmpty {
+                    Text("No match. Add it as a custom marker below.")
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                        .padding(.vertical, 8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
         }
         .frame(maxHeight: 280)

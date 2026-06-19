@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -133,7 +135,13 @@ fun CycleAwarenessCard(
 
             // Headline phase + cycle-day RANGE.
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(cyclePhaseTitle(result.phase), style = NoopType.title2, color = Palette.textPrimary)
+                Text(
+                    cyclePhaseTitle(result.phase),
+                    style = NoopType.title2,
+                    color = Palette.textPrimary,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                Spacer(Modifier.weight(1f))
                 cycleDayText(result)?.let {
                     Text(it, style = NoopType.bodyNumber, color = Palette.textSecondary)
                 }
@@ -305,6 +313,7 @@ fun HeadsUpCard(result: IllnessSignalEngine.Result) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun WhyRow(label: String, values: List<String>, tint: Color) {
     Row(
@@ -313,9 +322,13 @@ private fun WhyRow(label: String, values: List<String>, tint: Color) {
         modifier = Modifier.semantics { contentDescription = "$label: ${values.joinToString(", ")}" },
     ) {
         Overline(label)
-        // Small counts here — a wrapping flow is overkill; a spaced row reads fine and the
-        // engine caps fired signals at four.
-        values.forEach { WhyChip(it, tint) }
+        // Chips wrap to the next line rather than overflowing the card on a long confounder list.
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            values.forEach { WhyChip(it, tint) }
+        }
     }
 }
 

@@ -272,7 +272,6 @@ private struct BreathingContent: View {
                     .animation(.easeInOut(duration: 0.2), value: running)
 
                 pacePills
-                    .frame(maxWidth: .infinity, alignment: .center)
             }
         }
     }
@@ -284,7 +283,11 @@ private struct BreathingContent: View {
     }
 
     private var pacePills: some View {
-        SegmentedPillControl(availablePaces, selection: $pace) { $0.label }
+        // Up to four pills (incl. locked Resonance) overflow a narrow iPhone — let a
+        // horizontal scroll govern the width rather than truncating inside a fixed frame.
+        ScrollView(.horizontal, showsIndicators: false) {
+            SegmentedPillControl(availablePaces, selection: $pace) { $0.label }
+        }
     }
 
     private var phaseWord: String {

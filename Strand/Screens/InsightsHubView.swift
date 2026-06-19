@@ -58,13 +58,13 @@ struct InsightsHubView: View {
 
     private var moversSection: some View {
         VStack(alignment: .leading, spacing: NoopMetrics.gap) {
-            HStack(alignment: .center) {
-                SectionHeader("What moves your \(outcome.outcomeName.lowercased())",
-                              overline: "Ranked · your data")
-                Spacer()
-                SegmentedPillControl(InsightsHubViewModel.Outcome.allCases, selection: $outcome) { $0.label }
-                    .accessibilityLabel("Outcome metric")
-            }
+            // Header and the 4-segment outcome control each get their own row — one HStack
+            // crushed the pill control on narrow widths and truncated the segment labels.
+            SectionHeader("What moves your \(outcome.outcomeName.lowercased())",
+                          overline: "Ranked · your data")
+            SegmentedPillControl(InsightsHubViewModel.Outcome.allCases, selection: $outcome) { $0.label }
+                .accessibilityLabel("Outcome metric")
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             if model.ranked.isEmpty {
                 NoopCard {
@@ -314,6 +314,7 @@ private struct DoseResponseCardView: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(domain.color)
                     .frame(width: 20)
+                    .accessibilityHidden(true)
                 Text(card.title)
                     .font(StrandFont.headline)
                     .foregroundStyle(StrandPalette.textPrimary)
@@ -334,12 +335,13 @@ private struct DoseResponseCardView: View {
         let stepLabel = previewDose <= 1 ? "no extra" : "\(previewDose)\(card.dosePlusSuffix(previewDose))"
 
         VStack(alignment: .leading, spacing: NoopMetrics.gap) {
-            HStack {
-                Text(card.forecastOverline).strandOverline()
-                Spacer()
-                SegmentedPillControl(card.doseChoices, selection: $previewDose) { card.doseChoiceLabel($0) }
-                    .accessibilityLabel("Preview dose")
-            }
+            // Overline and the dose stepper each get their own row — sharing one HStack
+            // compressed the 0/1/2/3+ stepper and truncated its segments on narrow widths.
+            Text(card.forecastOverline).strandOverline()
+                .frame(maxWidth: .infinity, alignment: .leading)
+            SegmentedPillControl(card.doseChoices, selection: $previewDose) { card.doseChoiceLabel($0) }
+                .accessibilityLabel("Preview dose")
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             Text(forecastSentence(delta: delta, projected: projected, stepLabel: stepLabel))
                 .font(StrandFont.subhead)

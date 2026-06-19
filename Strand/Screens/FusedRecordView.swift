@@ -120,6 +120,8 @@ struct FusedRecordView: View {
             ConflictCompareSheet(row: row)
                 #if os(iOS)
                 .noopSheetPresentation(largeFirst: false)
+                #else
+                .frame(width: 480, height: 600)
                 #endif
         }
     }

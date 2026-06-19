@@ -131,6 +131,9 @@ struct StressView: View {
         // in-app and passive (no alert / notification), inheriting the app environment.
         .sheet(isPresented: $showBreathe) {
             NavigationStack { BreathingView() }
+                #if os(macOS)
+                .frame(width: 520, height: 760)
+                #endif
         }
     }
 

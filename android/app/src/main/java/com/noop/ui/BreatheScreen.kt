@@ -65,18 +65,43 @@ import kotlin.math.roundToInt
 
 // MARK: - Pace presets (ported from BreathingView.Pace)
 
-private enum class Pace(
-    val label: String,
-    val inhale: Double,
-    val exhale: Double,
-    val tagline: String,
-) {
-    Relax("Relax 4-6", 4.0, 6.0, "Long exhale · downshift to rest"),
-    Coherence("Coherence 5.5", 5.5, 5.5, "Equal breath · ~5.5 br/min coherence"),
-    Box("Box 4-4", 4.0, 4.0, "Square breath · steady focus");
+private enum class Pace(val label: String) {
+    Relax("Relax 4-6"),
+    Coherence("Coherence 5.5"),
+    Box("Box 4-4"),
+    Resonance("Resonance");   // the user's locked pace (br/min) — only offered once a pace is locked
 
-    val cycle: Double get() = inhale + exhale
-    val bpm: Double get() = 60.0 / cycle
+    /** Inhale seconds — for [Resonance] it derives from the locked bpm at a 40:60 inhale:exhale split
+     *  (mirrors macOS Pace.inhale(lockedBpm:)). */
+    fun inhale(lockedBpm: Double? = null): Double = when (this) {
+        Relax -> 4.0
+        Coherence -> 5.5
+        Box -> 4.0
+        Resonance -> {
+            val cycle = 60.0 / (lockedBpm ?: ResonanceEngine.FALLBACK_BPM)
+            cycle * BreathPacer.DEFAULT_INHALE_FRACTION
+        }
+    }
+
+    fun exhale(lockedBpm: Double? = null): Double = when (this) {
+        Relax -> 6.0
+        Coherence -> 5.5
+        Box -> 4.0
+        Resonance -> {
+            val cycle = 60.0 / (lockedBpm ?: ResonanceEngine.FALLBACK_BPM)
+            cycle * (1 - BreathPacer.DEFAULT_INHALE_FRACTION)
+        }
+    }
+
+    fun cycle(lockedBpm: Double? = null): Double = inhale(lockedBpm) + exhale(lockedBpm)
+    fun bpm(lockedBpm: Double? = null): Double = 60.0 / cycle(lockedBpm)
+
+    fun tagline(lockedBpm: Double? = null): String = when (this) {
+        Relax -> "Long exhale · downshift to rest"
+        Coherence -> "Equal breath · ~5.5 br/min coherence"
+        Box -> "Square breath · steady focus"
+        Resonance -> String.format(Locale.US, "Your locked pace · %.1f br/min", lockedBpm ?: ResonanceEngine.FALLBACK_BPM)
+    }
 }
 
 private enum class Phase { Inhale, Exhale }
@@ -147,7 +172,7 @@ fun BreatheScreen(viewModel: AppViewModel) {
 
     // Orb expansion 0..1; driven by an eased animation per breath phase.
     val orbTarget = if (running && phase == Phase.Inhale) 1f else 0f
-    val phaseDurationMs = ((if (phase == Phase.Inhale) pace.inhale else pace.exhale) * 1000).toInt()
+    val phaseDurationMs = ((if (phase == Phase.Inhale) pace.inhale(lockedBpm) else pace.exhale(lockedBpm)) * 1000).toInt()
     val orbProgress by animateFloatAsState(
         targetValue = orbTarget,
         animationSpec = tween(if (running) phaseDurationMs else 800, easing = Motion.easeInOut),
@@ -195,11 +220,11 @@ fun BreatheScreen(viewModel: AppViewModel) {
             // Inhale: cue, then hold for the inhale duration.
             phase = Phase.Inhale
             viewModel.buzz(loops = 1)
-            delay((pace.inhale * 1000).toLong())
+            delay((pace.inhale(lockedBpm) * 1000).toLong())
             // Exhale: cue, then hold for the exhale duration.
             phase = Phase.Exhale
             viewModel.buzz(loops = 2)
-            delay((pace.exhale * 1000).toLong())
+            delay((pace.exhale(lockedBpm) * 1000).toLong())
             breathCount += 1
         }
     }
@@ -284,7 +309,7 @@ fun BreatheScreen(viewModel: AppViewModel) {
                     Overline(pace.label)
                     Spacer(Modifier.weight(1f))
                     Text(
-                        String.format(Locale.US, "%.1f br/min", pace.bpm),
+                        String.format(Locale.US, "%.1f br/min", pace.bpm(lockedBpm)),
                         style = NoopType.captionNumber, color = Palette.textSecondary,
                     )
                 }
@@ -307,13 +332,20 @@ fun BreatheScreen(viewModel: AppViewModel) {
                 }
 
                 Text(
-                    text = if (running) phaseWord(phase) else pace.tagline,
+                    text = if (running) phaseWord(phase) else pace.tagline(lockedBpm),
                     style = NoopType.subhead,
                     color = if (running) Palette.restBright else Palette.textSecondary,
                 )
 
+                // The locked-resonance pill only appears once a pace has been locked (mirrors macOS
+                // availablePaces) so a locked pace is selectable here.
+                val availablePaces = if (lockedBpm != null) {
+                    listOf(Pace.Relax, Pace.Coherence, Pace.Box, Pace.Resonance)
+                } else {
+                    listOf(Pace.Relax, Pace.Coherence, Pace.Box)
+                }
                 SegmentedPillControl(
-                    items = Pace.entries.toList(),
+                    items = availablePaces,
                     selection = pace,
                     label = { it.label },
                     onSelect = { pace = it },
@@ -425,10 +457,10 @@ fun BreatheScreen(viewModel: AppViewModel) {
             ReadoutTile(
                 modifier = Modifier.weight(1f),
                 label = "Pace",
-                value = String.format(Locale.US, "%.1f", pace.bpm),
+                value = String.format(Locale.US, "%.1f", pace.bpm(lockedBpm)),
                 unit = "br/min",
-                accent = Palette.accent,
-                caption = String.format(Locale.US, "%.0f / %.0fs", pace.inhale, pace.exhale),
+                accent = Palette.restBright,
+                caption = String.format(Locale.US, "%.0f / %.0fs", pace.inhale(lockedBpm), pace.exhale(lockedBpm)),
             )
         }
 
@@ -553,7 +585,7 @@ private fun CoherenceCard(rmssd: Double?) {
                         .clip(RoundedCornerShape(50))
                         .background(
                             Brush.horizontalGradient(
-                                listOf(Palette.accent.copy(alpha = 0.7f), Palette.accentHover),
+                                listOf(Palette.restDeep, Palette.restBright),
                             ),
                         ),
                 )

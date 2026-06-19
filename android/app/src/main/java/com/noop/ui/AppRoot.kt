@@ -448,6 +448,8 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                     HealthScreen(
                         vm = viewModel,
                         onVitalClick = { nav.navigate("vital_detail/$it") },
+                        onOpenLabBook = { nav.navigateTopLevel(Destination.LabBook.route) },
+                        onOpenFusedRecord = { nav.navigateTopLevel(Destination.FusedRecord.route) },
                     )
                 }
                 composable(Destination.VitalSigns.route) {

@@ -153,7 +153,7 @@ struct WorkoutsView: View {
             #if os(iOS)
             .noopSheetPresentation(largeFirst: true)
             #else
-            .frame(minWidth: 560, minHeight: 640)
+            .frame(width: 620, height: 720)
             #endif
         }
         // #459: the in-exercise view, presented when Start Workout is tapped here (same screen LiveView

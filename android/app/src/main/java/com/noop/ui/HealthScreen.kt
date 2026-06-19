@@ -13,8 +13,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.CompareArrows
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -41,6 +47,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
@@ -81,7 +88,12 @@ import kotlin.math.roundToInt
 // aggregates, so the "Vital Signs" grid is sourced from today's DailyMetric.
 
 @Composable
-fun HealthScreen(vm: AppViewModel, onVitalClick: (String) -> Unit = {}) {
+fun HealthScreen(
+    vm: AppViewModel,
+    onVitalClick: (String) -> Unit = {},
+    onOpenLabBook: () -> Unit = {},
+    onOpenFusedRecord: () -> Unit = {},
+) {
     val context = LocalContext.current
     val profile = remember { ProfileStore.from(context.applicationContext) }
     val live by vm.live.collectAsStateWithLifecycle()
@@ -144,6 +156,88 @@ fun HealthScreen(vm: AppViewModel, onVitalClick: (String) -> Unit = {}) {
             // labelled progress bars in the shared stage/zone bar style, mirroring Today's section.
             Spacer(Modifier.height(Metrics.selectorTopUp))
             HealthContributorsSection(today)
+            // RECORDS & SOURCES (Swift parity) — deep-link rows into the local Lab Book and the
+            // "Your Data, Fused" record, so both are discoverable from Health, not just the drawer.
+            Spacer(Modifier.height(Metrics.selectorTopUp))
+            RecordsAndSourcesSection(
+                onOpenLabBook = onOpenLabBook,
+                onOpenFusedRecord = onOpenFusedRecord,
+            )
+        }
+    }
+}
+
+// MARK: - Records & sources (Swift parity) — discoverable deep-links into the on-device records
+//
+// Mirrors the Swift Health screen's "Records & sources" section: two clickable rows that route into
+// the Lab Book (your own bloods / BP / body numbers) and the fused multi-source record ("Your Data,
+// Fused"). Both live entirely on this phone, so the overline says so. Plain navigation rows in the
+// house NoopCard style with an icon, a title/subtitle and a trailing chevron, each carrying a single
+// combined contentDescription for screen readers.
+
+@Composable
+private fun RecordsAndSourcesSection(
+    onOpenLabBook: () -> Unit,
+    onOpenFusedRecord: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
+        SectionHeader("Records & sources", overline = "On this phone")
+        RecordRow(
+            icon = Icons.Filled.MenuBook,
+            tint = Palette.metricCyan,
+            title = "Lab Book",
+            subtitle = "Your bloods, BP and body numbers — kept private here.",
+            onClick = onOpenLabBook,
+        )
+        RecordRow(
+            icon = Icons.AutoMirrored.Filled.CompareArrows,
+            tint = Palette.accent,
+            title = "Your Data, Fused",
+            subtitle = "The best-sourced number per metric, across your bands.",
+            onClick = onOpenFusedRecord,
+        )
+    }
+}
+
+/** One navigation row in the Records & sources section: a tinted glyph, a title + subtitle, and a
+ *  trailing chevron, wrapped in a clickable NoopCard with a combined accessibility label. */
+@Composable
+private fun RecordRow(
+    icon: ImageVector,
+    tint: Color,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    NoopCard(
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = "$title. $subtitle" },
+        padding = Metrics.space16,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Metrics.space12),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(Metrics.cornerSm))
+                    .background(tint.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Metrics.space2)) {
+                Text(title, style = NoopType.headline, color = Palette.textPrimary)
+                Text(subtitle, style = NoopType.footnote, color = Palette.textTertiary)
+            }
+            Icon(
+                Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = Palette.textTertiary,
+                modifier = Modifier.size(18.dp),
+            )
         }
     }
 }
