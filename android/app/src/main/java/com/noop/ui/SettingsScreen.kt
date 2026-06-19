@@ -321,6 +321,17 @@ fun SettingsScreen(vm: AppViewModel) {
     // "Debug logging" — mirror the strap log to logcat (adb). Default OFF so normal users don't.
     var debugLogging by remember { mutableStateOf(NoopPrefs.debugLogging(context)) }
 
+    // --- v5 Health & wellness toggle group. All SharedPreferences-backed (not reactive), so each Switch
+    // drives a local mirror that writes straight through to the same keys the v5 engine readers use.
+    // Illness watch routes through the ViewModel so the banner recomputes live; the rest are pref writes
+    // the engines pick up on the next analytics pass / offload. All opt-in / safe-default per spec.
+    var illnessWatch by remember { mutableStateOf(NoopPrefs.illnessWatch(context)) }
+    var cycleTracking by remember { mutableStateOf(NoopPrefs.cycleTracking(context)) }
+    var stressCheckIn by remember { mutableStateOf(BiofeedbackPrefs.checkInEnabled(context)) }
+    var stressAutoNudge by remember { mutableStateOf(BiofeedbackPrefs.autoNudge(context)) }
+    var rhythmEnabled by remember { mutableStateOf(RhythmConsent.isEnabled(context)) }
+    var coachSignals by remember { mutableStateOf(NoopPrefs.coachSignals(context)) }
+
     // Scheduled debug export (#510) — the daily auto-export toggle + time-of-day. The settings object is
     // its own SharedPreferences store; SharedPreferences isn't reactive, so the Switch + TimeChip mirror
     // into local state and write straight through, then (re)schedule via DebugExportScheduler.
@@ -1310,7 +1321,85 @@ fun SettingsScreen(vm: AppViewModel) {
         // card (its own NoopCard + range picker + CTA), so it drops in without a SettingsSection wrapper.
         TrendsReportExportSection(vm)
 
-        // --- Backup & restore ---
+        // --- Health & wellness (v5 opt-in toggles) ---
+        SettingsSection(
+            icon = Icons.Filled.Science,
+            title = "Health & wellness",
+            blurb = "Optional, on-device wellness signals. Each is off by default, computed only on this phone from data you already have, and never a medical diagnosis.",
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                ToggleRow(
+                    title = "Illness heads-up",
+                    detail = "Watches your resting heart rate, HRV and skin temperature for the pattern that often shows up before you feel unwell, and surfaces a gentle heads-up. An observation about your own numbers — not a diagnosis.",
+                    checked = illnessWatch,
+                    onCheckedChange = {
+                        illnessWatch = it
+                        vm.setIllnessWatchEnabled(it)
+                    },
+                )
+                RowDivider()
+                ToggleRow(
+                    title = "Cycle awareness",
+                    detail = "Reads a coarse menstrual-cycle phase from your nightly skin-temperature shift, on this device only. Awareness only — not contraception, not a fertility predictor, not a medical service.",
+                    checked = cycleTracking,
+                    onCheckedChange = {
+                        cycleTracking = it
+                        vm.setCycleTrackingEnabled(it)
+                    },
+                )
+                RowDivider()
+                ToggleRow(
+                    title = "Stress check-ins (haptic)",
+                    detail = "Lets NOOP notice a fresh HRV dip while you're still and offer a minute to breathe. \"Stress\" here is an autonomic proxy from your own baseline — never a diagnosis. The strap gives one light confirming buzz; no push notification.",
+                    checked = stressCheckIn,
+                    onCheckedChange = {
+                        stressCheckIn = it
+                        BiofeedbackPrefs.setCheckInEnabled(context, it)
+                        // Turning the master off also disarms the auto-nudge sub-toggle so it can't fire.
+                        if (!it) { stressAutoNudge = false; BiofeedbackPrefs.setAutoNudge(context, false) }
+                    },
+                )
+                if (stressCheckIn) {
+                    ToggleRow(
+                        title = "Offer a breath automatically",
+                        detail = "When a dip is detected, surface the check-in card on its own (rate-limited, quiet-hours aware). Off keeps it manual.",
+                        checked = stressAutoNudge,
+                        onCheckedChange = {
+                            stressAutoNudge = it
+                            BiofeedbackPrefs.setAutoNudge(context, it)
+                        },
+                    )
+                }
+                RowDivider()
+                ToggleRow(
+                    title = "Rhythm (experimental)",
+                    detail = "An experimental picture of your beat-to-beat timing — a Poincaré scatter and plain regularity stats from quiet resting windows. Not an ECG and not a diagnosis; you'll read a short disclaimer and accept before it turns on.",
+                    checked = rhythmEnabled,
+                    onCheckedChange = {
+                        // Enabling here just un-gates the experimental item; the screen itself still shows
+                        // its consent clickwrap on first open (and re-prompts on a version bump). Disabling
+                        // clears the flag so the screen returns to its gate.
+                        rhythmEnabled = it
+                        if (it) {
+                            NoopPrefs.of(context).edit().putBoolean(RhythmConsent.KEY_ENABLED, true).apply()
+                        } else {
+                            NoopPrefs.of(context).edit().putBoolean(RhythmConsent.KEY_ENABLED, false).apply()
+                        }
+                    },
+                )
+                RowDivider()
+                ToggleRow(
+                    title = "Share on-device signals with the Coach",
+                    detail = "When the opt-in Coach is set up with your own key, also include a short summary of your strongest on-device patterns and Lab Book markers in its context. Summary only — no raw data leaves your phone. Requires the Coach's own data consent first.",
+                    checked = coachSignals,
+                    onCheckedChange = {
+                        coachSignals = it
+                        NoopPrefs.setCoachSignals(context, it)
+                    },
+                )
+            }
+        }
+
         SettingsSection(
             icon = Icons.Filled.Storage,
             title = "Backup & restore",
@@ -1833,6 +1922,43 @@ private fun SettingsSection(
             Text(blurb, style = NoopType.subhead, color = Palette.textSecondary)
             content()
         }
+    }
+}
+
+// MARK: - Labelled toggle row (title + detail + trailing Switch)
+
+/**
+ * A title + explanatory detail on the left with a trailing [Switch], matching the in-section toggle idiom
+ * the Strap/Health Connect sections already use. Used by the v5 Health & wellness group so every opt-in
+ * reads consistently. The switch colours mirror the rest of Settings (gold track when on).
+ */
+@Composable
+private fun ToggleRow(
+    title: String,
+    detail: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = NoopType.subhead, color = Palette.textPrimary)
+            Text(detail, style = NoopType.footnote, color = Palette.textTertiary)
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Palette.surfaceBase,
+                checkedTrackColor = Palette.accent,
+                uncheckedThumbColor = Palette.textSecondary,
+                uncheckedTrackColor = Palette.surfaceInset,
+                uncheckedBorderColor = Palette.hairline,
+            ),
+        )
     }
 }
 

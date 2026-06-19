@@ -42,11 +42,15 @@ import com.noop.protocol.Whoop5Config
 import com.noop.protocol.extractStreams
 import com.noop.analytics.IntelligenceEngine
 import com.noop.analytics.SedentaryDetector
+import com.noop.analytics.StressOnsetDetector
 import com.noop.analytics.UserProfile
+import com.noop.analytics.WorkoutDetector
 import com.noop.ingest.HealthConnectWriter
+import com.noop.ui.BiofeedbackPrefs
 import com.noop.ui.InactivityPrefs
 import com.noop.ui.NoopPrefs
 import com.noop.ui.ProfileStore
+import com.noop.ui.StressNudgeCenter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -1542,6 +1546,61 @@ class WhoopBleClient(
                 }
             } catch (t: Throwable) {
                 log("Inactivity: check failed (${t.message})")
+            }
+        }
+    }
+
+    /**
+     * L3 closed-loop stress check-in (v5 haptic-biofeedback). On the same natural offload completion that
+     * drives [maybeBuzzInactivity], run the shipped, unit-tested [StressOnsetDetector] over the live R-R
+     * buffer: a FRESH, non-metabolic HRV dip while still fires a single confirming buzz + a passive in-app
+     * card via [StressNudgeCenter.present]. NEVER a push, NEVER a diagnosis — "stress" is an autonomic
+     * proxy vs the user's OWN baseline. All gating + de-dup is in the engine; we only supply honest inputs
+     * (the rolling R-R, the live HR, recent motion, the worn flag) and persist the engine's [nextState] so
+     * a replayed window can't re-fire. Master/sub toggles + quiet hours come from [BiofeedbackPrefs].
+     *
+     * See docs/superpowers/specs/2026-06-19-v5-haptic-biofeedback-design.md (L3).
+     */
+    private fun maybeNudgeStress() {
+        val config = BiofeedbackPrefs.stressConfig(context)
+        // Cheap master gate before any DB work — inert when the feature/auto-nudge is off.
+        if (!config.enabled || !config.autoNudge) return
+        ioScope.launch {
+            try {
+                val nowSec = System.currentTimeMillis() / 1000L
+                // Recent wrist-motion (g): the smoothed activity intensity over the freshly-arrived
+                // gravity window, the same primitive SedentaryDetector reuses. Null when there's no
+                // recent gravity — the engine then leans on the resting-HR band gate (spec Q3).
+                val from = nowSec - INACTIVITY_LOOKBACK_S
+                val grav = runCatching { repository.gravitySamples(deviceId, from, nowSec) }.getOrDefault(emptyList())
+                val recentMotionG = WorkoutDetector.activitySeries(grav).lastOrNull()?.intensity
+
+                val live = _state.value
+                val decision = StressOnsetDetector.evaluate(
+                    rrBuffer = live.rrRecent,
+                    currentHR = live.heartRate?.toDouble(),
+                    recentMotionG = recentMotionG,
+                    // We never offer the cue over a manual Breathe/L1/L2 session; the BLE layer doesn't
+                    // track that, so leave it false — the in-app card is also suppressed by its own UI.
+                    sessionActive = false,
+                    state = BiofeedbackPrefs.loadStressState(context),
+                    config = config,
+                    nowSec = nowSec,
+                    tzOffsetSec = InactivityPrefs.tzOffsetSec(nowSec),
+                )
+                // Persist the advanced de-dup/EMA state every run so a replayed window can't re-fire.
+                BiofeedbackPrefs.saveStressState(context, decision.nextState)
+
+                if (decision.shouldNudge) {
+                    handler.post { buzz(decision.buzzLoops) }
+                    StressNudgeCenter.present(
+                        fastRMSSD = decision.fastRMSSD,
+                        baselineRMSSD = decision.baselineRMSSD,
+                    )
+                    log("Stress check-in: nudged on a fresh non-metabolic HRV dip.")
+                }
+            } catch (t: Throwable) {
+                log("Stress check-in: check failed (${t.message})")
             }
         }
     }
@@ -3227,7 +3286,12 @@ class WhoopBleClient(
         log("Backfill: session ended — reason=$reason")
         // Inactivity reminder (#419): read-only hook on the natural offload completion (no cadence
         // change). Only on a true HISTORY_COMPLETE — a timeout/disconnect didn't bring a fresh window.
-        if (reason == "HISTORY_COMPLETE") maybeBuzzInactivity()
+        if (reason == "HISTORY_COMPLETE") {
+            maybeBuzzInactivity()
+            // L3 stress check-in (v5): same read-only hook — fire the StressOnsetDetector over the live
+            // R-R buffer. Self-gates on the BiofeedbackPrefs master/auto toggles (inert when off).
+            maybeNudgeStress()
+        }
         // Success-side summary (#150 forensics): we logged failures (decoded-to-0) but never successes,
         // so a strap log couldn't tell a banking strap from a broken one. Emit the per-session persistence
         // tally whenever anything actually landed — the win-rate signal a log previously lacked. Mirrors

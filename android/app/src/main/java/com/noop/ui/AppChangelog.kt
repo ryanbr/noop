@@ -25,7 +25,7 @@ object AppChangelog {
      * Bump this when you add a release below. The "What's New" sheet shows automatically when the
      * stored last-seen version is behind this. (Decoupled from the bundle version on purpose.)
      */
-    const val CURRENT_VERSION = "4.9.1"
+    const val CURRENT_VERSION = "5.0.0"
 
     data class Release(
         val version: String,
@@ -36,6 +36,21 @@ object AppChangelog {
 
     /** Newest first. */
     val releases: List<Release> = listOf(
+        Release(
+            version = "5.0.0",
+            title = "v5 — the raw-signal release: NOOP reads the signal, on your device, free",
+            date = "June 2026",
+            items = listOf(
+                "**The big idea.** Everyone else shows you a score their cloud computed, behind a subscription. NOOP reads your strap's raw signals — beat-to-beat timing, red/IR PPG, motion, skin temperature — and does all the maths on your own device, free and offline. And it's the only one that can actually breathe you back down. Seven new things below, plus a tidier home: everything now lives under five places — **Today · What Moves You · Health · Devices & Sources · Settings**.",
+                "**Haptic biofeedback — the strap that breathes you down.** Your wrist motor can now pace your breathing with the screen off. Find your personal calm pace (open **Breathe → Resonance → Find your resonance pace**, pick the ~13-min or ~7-min sweep), then breathe to the buzz. Mid-stress, tap **Calm me · 3 min** for a felt metronome just below your heart rate. Optional passive check-ins: **Settings → Automations → Stress check-ins (haptic)** (off by default).",
+                "**What Moves You.** A ranked, lag-aware read of what actually moves *your* recovery — from your own journal and outcomes, not population averages. Log alcohol or late caffeine with an amount and NOOP fits a personal dose-response curve, then in the evening tells you what one more drink tends to cost tomorrow's Charge. Open **What Moves You** (the wand in the sidebar / Insights).",
+                "**Skin-temperature suite.** Three features off the one signal WHOOP already streams: cycle-phase **awareness** (opt-in, on-device, never contraception or a fertility predictor), a **Body clock** jet-lag/shift helper, and a smarter illness **Heads-up** that cross-checks your journal so a night out doesn't cry wolf. Find them in **Health → Skin temperature**; turn cycle awareness on there, illness watch under **Settings → Automations**.",
+                "**Your Data, Fused.** If you wear more than one band, NOOP now shows one honest record — best source wins per metric, with the source named on every number and conflicts flagged, never silently averaged. Open **Your Data, Fused** from **Health** or Data Sources. A single WHOOP just shows a clean plain record.",
+                "**Lab Book — your own private logbook.** Type in your bloods, blood pressure, scan values or doctor's-visit notes (or import a CSV), see each marker's trend, and line a marker up against a wearable signal with **Compare with a signal**. It's a notebook, not a medical service — NOOP stores and lines up the numbers *you* enter, never tests, reads or diagnoses them, and it all stays on your device. Open **Health → Lab Book**.",
+                "**Rhythm (experimental).** A picture of your beat-to-beat timing — a Poincaré scatter with plain descriptive stats. It's a visualisation, not a verdict: not an ECG, not a diagnosis, can't detect any heart condition. Off by default behind a consent screen: **Settings → Rhythm → Turn on Rhythm**.",
+                "**A smarter, still-private AI Coach.** The opt-in bring-your-own-key Coach can now optionally reason over your on-device patterns and Lab Book markers — summaries only, nothing raw ever leaves your device. Turn it on in **Coach** with **Also share my patterns & Lab Book** (off by default; your key, your choice of provider).",
+            ),
+        ),
         Release(
             version = "4.9.1",
             title = "More realistic calories + import & chart fixes",

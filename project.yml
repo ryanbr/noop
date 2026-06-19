@@ -11,11 +11,11 @@ options:
   developmentLanguage: en
 settings:
   base:
-    MARKETING_VERSION: "4.9.1"
+    MARKETING_VERSION: "5.0.0"
     # iOS build number (CFBundleVersion). GLOBAL so the iOS app AND its widget extension inherit the
     # SAME value — they must match or iOS warns "extension version must match parent app" (#416).
     # macOS sets its own CFBundleVersion on the Strand target and is unaffected by this.
-    CURRENT_PROJECT_VERSION: "126"
+    CURRENT_PROJECT_VERSION: "127"
     SWIFT_VERSION: "5.0"
     # Emit localizable strings so Xcode auto-extracts every LocalizedStringKey into the
     # String Catalog on build (the English (US) base entries).
@@ -72,7 +72,7 @@ targets:
         CFBundleName: NOOP
         CFBundleDisplayName: NOOP
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
-        CFBundleVersion: "157"
+        CFBundleVersion: "158"
         LSMinimumSystemVersion: "13.0"
         LSApplicationCategoryType: public.app-category.healthcare-fitness
         NSBluetoothAlwaysUsageDescription: "NOOP connects directly to your WHOOP strap over Bluetooth to read heart rate, R-R intervals, battery, and sensor data locally on your Mac. Nothing leaves your device."

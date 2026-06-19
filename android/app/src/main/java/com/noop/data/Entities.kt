@@ -263,6 +263,47 @@ data class MetricSeriesRow(
 )
 
 /**
+ * Lab Book marker reading (Health Records pillar). Swift `labMarker` (Database.swift v17 /
+ * LabMarkerStore.swift). The richer source-of-truth behind the daily `metricSeries` projection:
+ * one row per dated reading the USER entered themselves — a day can hold several readings, each
+ * carries a precise `takenAt` instant and `unit`, and notes / qualitative (`valueText`) results
+ * don't fit a REAL-only `metricSeries` cell.
+ *
+ * `id` is the client-generated stable primary key (edit/delete by id, backup round-trips); the
+ * natural key (deviceId, markerKey, takenAt, source) is a UNIQUE index so a re-import of the same
+ * reading is idempotent (`OnConflictStrategy.REPLACE` on that index, matching the Swift
+ * `ON CONFLICT(deviceId, markerKey, takenAt, source) DO UPDATE`). `value` is nullable (a
+ * qualitative entry stores only `valueText`); `day` is the pre-derived yyyy-MM-dd projection key.
+ *
+ * NON-CLINICAL: holds ONLY user-entered values + an OPTIONAL user-entered `referenceText` (their
+ * own report's range, verbatim). No reference-range tables, no normality judgement. Added by
+ * MIGRATION_10_11.
+ */
+@Entity(
+    tableName = "labMarker",
+    indices = [
+        Index(name = "idx_labMarker_natural", value = ["deviceId", "markerKey", "takenAt", "source"], unique = true),
+        Index(name = "idx_labMarker_device_marker_takenAt", value = ["deviceId", "markerKey", "takenAt"]),
+        Index(name = "idx_labMarker_device_category", value = ["deviceId", "category"]),
+    ],
+)
+data class LabMarkerRow(
+    @androidx.room.PrimaryKey
+    val id: String,
+    val deviceId: String,
+    val markerKey: String,
+    val category: String,
+    val day: String,          // yyyy-MM-dd (projection key)
+    val takenAt: Long,        // epoch seconds (precise instant)
+    val value: Double? = null, // nullable: qualitative entries store only valueText
+    val valueText: String? = null,
+    val unit: String,
+    val source: String,
+    val note: String? = null,
+    val referenceText: String? = null, // user-entered range, shown verbatim; NOOP ships none
+)
+
+/**
  * Cached journal answer (logged behaviour). Swift `journal` (v8 — JournalWorkoutAppleCache.swift).
  * Natural key (deviceId, day, question) where day is "YYYY-MM-DD". `answeredYes` is stored as an
  * INTEGER 0/1 in SQLite; exposed as Boolean here (Room maps Boolean -> INTEGER), matching the

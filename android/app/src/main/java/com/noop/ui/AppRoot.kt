@@ -70,11 +70,13 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import com.noop.analytics.FusionSource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -133,6 +135,7 @@ private enum class Destination(
 
     // Group: Insight
     Coach("coach", "Coach", Icons.Filled.AutoAwesome),
+    InsightsHub("insights_hub", "What Moves You", Icons.Filled.Insights),
     Insights("insights", "Insights", Icons.Filled.Insights),
     Explore("explore", "Explore", Icons.Filled.Explore),
     Compare("compare", "Compare", Icons.AutoMirrored.Filled.CompareArrows),
@@ -141,6 +144,8 @@ private enum class Destination(
     Health("health", "Health", Icons.Filled.MonitorHeart),
     VitalSigns("vital_signs", "Vital Signs", Icons.Filled.HealthAndSafety),
     VitalSignsDetail("vital_detail/{key}", "Vital Signs", Icons.Filled.HealthAndSafety),
+    LabBook("lab_book", "Lab Book", Icons.Filled.HealthAndSafety),
+    Rhythm("rhythm", "Rhythm", Icons.Filled.MonitorHeart),
     AppleHealth("apple_health", "Apple Health", Icons.Filled.HealthAndSafety),
 
     // Group: System
@@ -148,6 +153,7 @@ private enum class Destination(
     SmartAlarm("smart_alarm", "Smart Alarm", Icons.Filled.Alarm),
     Devices("devices", "Devices", Icons.Filled.Sensors),
     DataSources("data_sources", "Data Sources", Icons.Filled.Storage),
+    FusedRecord("fused_record", "Your Data, Fused", Icons.AutoMirrored.Filled.CompareArrows),
     Notifications("notifications", "Notifications", Icons.Filled.Notifications),
     Support("support", "Support", Icons.Filled.Tune),
     Settings("settings", "Settings", Icons.Filled.Settings);
@@ -172,12 +178,16 @@ private val drawerGroups: List<DrawerGroup> = listOf(
     DrawerGroup("Charge", listOf(Destination.Sleep, Destination.Breathe, Destination.Stress)),
     DrawerGroup("Activity", listOf(Destination.Workouts, Destination.Trends)),
     DrawerGroup("Insight", listOf(
-        Destination.Coach, Destination.Insights, Destination.Explore, Destination.Compare,
+        Destination.Coach, Destination.InsightsHub, Destination.Insights,
+        Destination.Explore, Destination.Compare,
     )),
-    DrawerGroup("Health", listOf(Destination.Health, Destination.VitalSigns, Destination.AppleHealth)),
+    DrawerGroup("Health", listOf(
+        Destination.Health, Destination.VitalSigns, Destination.LabBook,
+        Destination.Rhythm, Destination.AppleHealth,
+    )),
     DrawerGroup("System", listOf(
         Destination.Automations, Destination.SmartAlarm, Destination.Devices, Destination.DataSources,
-        Destination.Notifications, Destination.Support, Destination.Settings,
+        Destination.FusedRecord, Destination.Notifications, Destination.Support, Destination.Settings,
     )),
 )
 
@@ -452,6 +462,16 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                         key = backStackEntry.arguments?.getString("key").orEmpty(),
                     )
                 }
+                // --- v5 pillar screens (Wave 3 wiring) ---
+                composable(Destination.InsightsHub.route) { InsightsHubScreen(viewModel) }
+                composable(Destination.LabBook.route) { LabBookScreen(viewModel) }
+                composable(Destination.Rhythm.route) {
+                    // EXPERIMENTAL: self-gates on its own consent clickwrap (default OFF). The night
+                    // summary + per-window Poincaré results land with the rhythm capture pipeline; until
+                    // then it renders its honest "no clear reading yet" empty state behind the gate.
+                    RhythmScreen(night = null, windows = emptyList())
+                }
+                composable(Destination.FusedRecord.route) { FusedRecordRoute(viewModel) }
                 composable(Destination.AppleHealth.route) { AppleHealthScreen(viewModel) }
                 composable(Destination.Devices.route) { DevicesScreen(viewModel) }
                 composable(Destination.DataSources.route) { DataSourcesScreen(viewModel) }
@@ -642,6 +662,22 @@ private fun NavHostController.navigateTopLevel(route: String) {
         launchSingleTop = true
         restoreState = true
     }
+}
+
+/**
+ * Loader for the v5 "Your Data, Fused" screen: assembles today's [FusedRecord] off the repository via
+ * [AppViewModel.fusedRecordForToday] (the pure FusionResolver per metric) and hands the pure
+ * [FusedRecordScreen] its read-model. Keeps the screen itself I/O-free + previewable. Re-loads on entry.
+ */
+@Composable
+private fun FusedRecordRoute(viewModel: AppViewModel) {
+    var record by remember {
+        mutableStateOf(FusedRecord(rows = emptyList(), dayOwner = null as FusionSource?, contributingSourceCount = 0))
+    }
+    LaunchedEffect(Unit) {
+        record = runCatching { viewModel.fusedRecordForToday() }.getOrDefault(record)
+    }
+    FusedRecordScreen(record = record)
 }
 
 /**

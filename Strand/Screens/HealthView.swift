@@ -65,6 +65,13 @@ struct HealthView: View {
                     // The static vitals grid is its own view depending only on `repo`,
                     // so it is unaffected by live HR ticks.
                     VitalsSection()
+                    // v5 skin-temperature suite: the illness "heads-up", body clock, and (opt-in) cycle
+                    // awareness, each driven by a pure StrandAnalytics engine result the analytics pass
+                    // computed and AppModel publishes. Its own view depending on `model` + `repo`.
+                    SkinTempSection()
+                    // v5 deep-links: the records logbook + the multi-device fused record, reachable
+                    // from their honest Health home as drill-in rows (not their own destinations).
+                    HealthHubLinksSection()
                 }
             }
         }
@@ -1066,6 +1073,106 @@ private struct VitalsSection: View {
     }
 }
 
+// MARK: - Skin-temperature suite (v5: illness heads-up · body clock · cycle awareness)
+
+/// The v5 skin-temperature section: the confounder-suppressed illness "heads-up", the body-clock
+/// estimate, and the OPT-IN cycle awareness card — each rendered from a pure StrandAnalytics engine
+/// result the analytics pass computed and `AppModel` publishes. Honest throughout: the heads-up only
+/// shows when the engine returns a non-quiet level; cycle awareness shows the opt-in card until the user
+/// turns it on (default OFF); the body clock shows nil-state copy until it can read a rhythm.
+private struct SkinTempSection: View {
+    @EnvironmentObject var model: AppModel
+    @EnvironmentObject var repo: Repository
+
+    /// The cycle-awareness opt-in (default OFF). The same key AppModel reads, so a flip is consistent.
+    @AppStorage(AppModel.cycleAwarenessKey) private var cycleEnabled = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: NoopMetrics.gap) {
+            SectionHeader("Skin temperature", overline: "From your nightly sensor")
+
+            // 1. Illness heads-up — only when the engine returned something worth surfacing.
+            if let illness = model.illnessSignal, illness.level != .quiet {
+                HeadsUpCard(result: illness)
+            }
+
+            // 2. Body clock — shows nil-state copy via the engine's own confidence handling.
+            if let phase = model.circadianPhase {
+                BodyClockCard(estimate: phase)
+            }
+
+            // 3. Cycle awareness — opt-in. The opt-in card until enabled; the awareness card after.
+            if cycleEnabled, let cycle = model.cyclePhase {
+                CycleAwarenessCard(result: cycle, curve: model.cycleCurve)
+            } else if !cycleEnabled {
+                CycleAwarenessOptInCard(onEnable: {
+                    cycleEnabled = true
+                    model.cycleAwarenessEnabled = true
+                    Task { await model.refreshV5Signals() }
+                })
+            }
+
+            // Honest empty state when the suite has nothing to show yet. (When cycle is OFF the opt-in
+            // card always renders, so the section is never blank; this covers the cycle-ON-but-thin case.)
+            if cycleEnabled && model.illnessSignal == nil && model.circadianPhase == nil && model.cyclePhase == nil {
+                ComingSoon(what: "Wear the strap overnight and these read from your nightly skin temperature.",
+                           symbol: "thermometer.medium")
+            }
+        }
+    }
+}
+
+// MARK: - Health hub deep-links (Lab Book · Your Data, Fused)
+
+/// Two drill-in rows that give the records logbook (Lab Book) and the multi-device fused record their
+/// honest Health home without making either its own top-level destination — they route via `NavRouter`
+/// (the macOS sidebar selects the item; iOS presents the pillar sheet).
+private struct HealthHubLinksSection: View {
+    @EnvironmentObject var router: NavRouter
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: NoopMetrics.gap) {
+            SectionHeader("Records & sources", overline: "On \(Platform.deviceNounPhrase)")
+            linkRow(title: "Lab Book",
+                    subtitle: "Keep your bloods, BP and body numbers — private, on \(Platform.deviceNounPhrase).",
+                    symbol: "books.vertical.fill", tint: StrandPalette.metricCyan) { router.openLabBook() }
+            linkRow(title: "Your Data, Fused",
+                    subtitle: "The best-sourced number per metric across every band you use.",
+                    symbol: "square.stack.3d.up.fill", tint: StrandPalette.accent) { router.openFusedRecord() }
+        }
+    }
+
+    private func linkRow(title: String, subtitle: String, symbol: String, tint: Color,
+                         action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            NoopCard {
+                HStack(spacing: 12) {
+                    Image(systemName: symbol)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(tint)
+                        .frame(width: 30, height: 30)
+                        .background(tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title).font(StrandFont.headline).foregroundStyle(StrandPalette.textPrimary)
+                        Text(subtitle)
+                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(StrandPalette.textTertiary)
+                        .accessibilityHidden(true)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title). \(subtitle)")
+    }
+}
+
 // MARK: - Preview
 
 #if DEBUG
@@ -1094,6 +1201,7 @@ private struct VitalsSection: View {
         .environmentObject(live)
         .environmentObject(ProfileStore())
         .environmentObject(AppModel())
+        .environmentObject(NavRouter())
         .frame(width: 900, height: 760)
         .preferredColorScheme(.dark)
 }

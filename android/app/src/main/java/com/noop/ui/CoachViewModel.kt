@@ -247,6 +247,9 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
                     model = _model.value,
                     consent = _consent.value,
                     customBaseUrl = _customBaseUrl.value,
+                    // v5: only include the on-device-signals summary when BOTH the data consent is on AND
+                    // the second opt-in is set (summary-only, no raw egress — see AiCoach.buildSignalsContext).
+                    includeSignals = _consent.value && NoopPrefs.coachSignals(appCtx),
                 )
                 _messages.value = _messages.value + ChatMsg(role = "assistant", text = reply)
             } catch (e: Exception) {

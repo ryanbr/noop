@@ -310,6 +310,50 @@ extension WhoopStore {
         migrator.registerMigration("v16-paired-device-peripheral") { db in
             try db.execute(sql: "ALTER TABLE pairedDevice ADD COLUMN peripheralId TEXT")
         }
+
+        // v17 (Lab Book): the Health Records "marker" store — one row per dated reading the USER
+        // entered themselves (spec 2026-06-19-v5-health-records-design.md §"New"). This is the richer
+        // source-of-truth behind the daily `metricSeries` projection: a single day can hold several
+        // readings, each carries a precise `takenAt` instant and `unit`, and notes / qualitative
+        // (`valueText`) results don't fit a REAL-only `metricSeries` cell. Additive only — a NEW table,
+        // no existing row touched, so an old reader is unaffected.
+        //
+        // NON-CLINICAL: holds ONLY user-entered values + an OPTIONAL user-entered `referenceText`
+        // (their own report's range, shown back verbatim). NOOP ships no reference-range tables and
+        // never asserts normality.
+        //
+        // `id` is a client-generated stable identifier (so a single reading can be edited/deleted by id
+        // and a backup round-trips). The natural key (deviceId, markerKey, takenAt, source) is enforced
+        // by a UNIQUE index so re-importing the same reading is idempotent. `value` is nullable (a
+        // qualitative entry stores only `valueText`); `day` is the pre-derived yyyy-MM-dd key for the
+        // projection. The (deviceId, markerKey, takenAt) index serves per-marker history reads in order.
+        migrator.registerMigration("v17-lab-book") { db in
+            try db.create(table: "labMarker") { t in
+                t.column("id", .text).primaryKey()
+                t.column("deviceId", .text).notNull()
+                t.column("markerKey", .text).notNull()
+                t.column("category", .text).notNull()
+                t.column("day", .text).notNull()              // yyyy-MM-dd (projection key)
+                t.column("takenAt", .integer).notNull()       // epoch seconds (precise instant)
+                t.column("value", .double)                    // nullable: qualitative entries use valueText
+                t.column("valueText", .text)
+                t.column("unit", .text).notNull()
+                t.column("source", .text).notNull()
+                t.column("note", .text)
+                t.column("referenceText", .text)              // user-entered range, verbatim
+            }
+            // Idempotent re-import: one reading per (deviceId, markerKey, takenAt, source).
+            try db.create(index: "idx_labMarker_natural",
+                          on: "labMarker",
+                          columns: ["deviceId", "markerKey", "takenAt", "source"],
+                          unique: true)
+            // Per-marker history reads scan (deviceId, markerKey) then walk takenAt in order.
+            try db.create(index: "idx_labMarker_device_marker_takenAt",
+                          on: "labMarker", columns: ["deviceId", "markerKey", "takenAt"])
+            // Per-category grouping for the Lab Book screen.
+            try db.create(index: "idx_labMarker_device_category",
+                          on: "labMarker", columns: ["deviceId", "category"])
+        }
         return migrator
     }
 }

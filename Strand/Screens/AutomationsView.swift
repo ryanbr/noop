@@ -7,6 +7,13 @@ struct AutomationsView: View {
     @EnvironmentObject var model: AppModel
     @EnvironmentObject var behavior: BehaviorStore
     @EnvironmentObject var live: LiveState
+    /// Deep-link into the experimental Rhythm visualization (it self-gates on its own consent).
+    @EnvironmentObject var router: NavRouter
+
+    /// v5 cycle-awareness opt-in (default OFF — the most sensitive health category, manual-first).
+    @AppStorage(AppModel.cycleAwarenessKey) private var cycleAwareness = false
+    /// v5 Rhythm experimental gate (the screen still shows its own consent clickwrap when opened).
+    @AppStorage(RhythmConsent.enabledKey) private var rhythmEnabled = false
     /// Inactivity reminder (#419) — UI-local store, persisted in UserDefaults. The buzz itself fires
     /// from the BLE offload path (BLEManager.maybeBuzzInactivity → the shipped SedentaryDetector); this
     /// screen only edits the prefs the engine reads.
@@ -21,6 +28,7 @@ struct AutomationsView: View {
             alarmCard
             inactivityCard
             illnessCard
+            healthInsightsCard
             batteryCard
         }
     }
@@ -117,7 +125,7 @@ struct AutomationsView: View {
     private var coachingCard: some View {
         Section2(icon: "bolt.heart.fill", title: "Haptic coaching",
                  blurb: "Train by feel — the strap buzzes so you don't have to watch a screen.",
-                 active: behavior.zoneCoaching || behavior.stressNudge) {
+                 active: behavior.zoneCoaching || behavior.stressNudge || behavior.stressCheckIn) {
             VStack(spacing: 0) {
                 ToggleRow(label: "HR-zone coaching",
                           help: "Buzz when you hit your top zone (ease off) and again when you recover. Uses your max HR from Settings.",
@@ -126,6 +134,26 @@ struct AutomationsView: View {
                 ToggleRow(label: "Resting stress nudge (experimental)",
                           help: "A gentle buzz when your HRV drops while your heart rate is calm — a cue to take a paced breath. Rate-limited to once every 15 minutes; off by default.",
                           isOn: $behavior.stressNudge)
+                rowDivider
+                // v5 L3 closed-loop check-in (master + sub toggles). Default OFF, manual-first. The keys
+                // mirror BiofeedbackPrefs, which the central detector (AppModel.evaluateStress) reads.
+                ToggleRow(label: "Stress check-ins (haptic)",
+                          help: "When a fresh, non-exercise HRV dip is detected while you're still, NOOP offers a one-minute guided breath — a single confirming buzz and a dismissible card. Never an alarm, never a diagnosis.",
+                          isOn: $behavior.stressCheckIn)
+                if behavior.stressCheckIn {
+                    rowDivider
+                    ToggleRow(label: "Auto-nudge",
+                              help: "Let the check-in fire on its own. Off keeps it manual — you start a breath from Breathe yourself.",
+                              isOn: $behavior.stressAutoNudge)
+                    rowDivider
+                    ToggleRow(label: "Respect quiet hours",
+                              help: "Suppress auto-nudges overnight (10pm–7am).",
+                              isOn: $behavior.stressQuietHours)
+                    rowDivider
+                    ToggleRow(label: "Use my resonance pace",
+                              help: "Breathe at the pace your last \u{201C}find my pace\u{201D} sweep locked in, if you have one — otherwise a calm 5.5 breaths/min.",
+                              isOn: $behavior.stressUseResonancePace)
+                }
             }
         }
     }
@@ -269,6 +297,40 @@ struct AutomationsView: View {
                     model.reevaluateIllness()
                     if behavior.illnessWatch { IllnessNotifier.requestAuthorization() }
                 }
+        }
+    }
+
+    // MARK: - Health insights (v5: cycle awareness opt-in · experimental Rhythm)
+
+    private var healthInsightsCard: some View {
+        Section2(icon: "thermometer.medium", title: "Health insights",
+                 blurb: "Optional, on-device reads from your nightly signals. Each is off by default — for awareness only, never a diagnosis.",
+                 active: cycleAwareness || rhythmEnabled) {
+            VStack(spacing: 0) {
+                ToggleRow(label: "Cycle awareness",
+                          help: "Reads a coarse menstrual-cycle phase from your nightly skin temperature, entirely on \(Platform.deviceNounPhrase). Awareness only — not contraception, not a fertility predictor, not a medical service. The card appears in Health.",
+                          isOn: $cycleAwareness)
+                    .onChangeCompat(of: cycleAwareness) { on in
+                        model.cycleAwarenessEnabled = on
+                        Task { await model.refreshV5Signals() }
+                    }
+                rowDivider
+                ToggleRow(label: "Rhythm visualization (experimental)",
+                          help: "An experimental picture of your beat-to-beat heart timing. Not an ECG and not a diagnosis. You'll read and accept an experimental note before it shows anything.",
+                          isOn: $rhythmEnabled)
+                if rhythmEnabled {
+                    rowDivider
+                    HStack {
+                        Text("Open Rhythm").font(StrandFont.body).foregroundStyle(StrandPalette.textPrimary)
+                        Spacer()
+                        Button {
+                            router.openRhythm()
+                        } label: { Label("Open", systemImage: "waveform.path") }
+                        .buttonStyle(.bordered).tint(StrandPalette.accent)
+                    }
+                    .frame(minHeight: 42).padding(.vertical, 4)
+                }
+            }
         }
     }
 

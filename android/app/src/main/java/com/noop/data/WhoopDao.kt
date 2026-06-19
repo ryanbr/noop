@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
@@ -288,6 +289,102 @@ interface WhoopDao : DeviceRegistryDao {
     /** Distinct metric keys present for a device, sorted ascending (Swift metricKeys, v9). */
     @Query("SELECT DISTINCT key FROM metricSeries WHERE deviceId = :deviceId ORDER BY key ASC")
     suspend fun metricKeys(deviceId: String): List<String>
+
+    /** Delete one projected day for a key (used when a Lab Book reading's last numeric value
+     *  for a (markerKey, day) cell is removed). Swift LabMarkerStore.reprojectCells delete branch. */
+    @Query("DELETE FROM metricSeries WHERE deviceId = :deviceId AND day = :day AND key = :key")
+    suspend fun deleteMetricSeriesPoint(deviceId: String, day: String, key: String)
+
+    // MARK: - Lab Book markers (Swift labMarker, v17 / LabMarkerStore.swift)
+    //
+    // The book is `labMarker` (one row per dated reading the user entered themselves); the daily
+    // `metricSeries` projection under source [LAB_BOOK_SOURCE_ID] is HOW the book talks to the rest
+    // of the app. [upsertLabMarkers] / [deleteLabMarker] keep the two in lockstep in a single
+    // transaction, byte-identical to the Swift LabMarkerStore.
+
+    /** Raw upsert of marker rows by the natural key (UNIQUE index idx_labMarker_natural): a
+     *  re-import of the same (deviceId, markerKey, takenAt, source) REPLACEs in place rather than
+     *  duplicating, mirroring the Swift `ON CONFLICT(deviceId, markerKey, takenAt, source) DO UPDATE`.
+     *  Prefer [upsertLabMarkers] (which also re-projects); this primitive backs it. */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertLabMarkersRaw(rows: List<LabMarkerRow>)
+
+    /** All readings in a category, oldest first (by takenAt). */
+    @Query("SELECT * FROM labMarker WHERE deviceId = :deviceId AND category = :category ORDER BY takenAt ASC")
+    suspend fun labMarkersByCategory(deviceId: String, category: String): List<LabMarkerRow>
+
+    /** Full reading history for one marker, oldest first (by takenAt). */
+    @Query("SELECT * FROM labMarker WHERE deviceId = :deviceId AND markerKey = :markerKey ORDER BY takenAt ASC")
+    suspend fun labMarkersByKey(deviceId: String, markerKey: String): List<LabMarkerRow>
+
+    /** Distinct marker keys present for a device, sorted ascending. */
+    @Query("SELECT DISTINCT markerKey FROM labMarker WHERE deviceId = :deviceId ORDER BY markerKey ASC")
+    suspend fun markerKeysPresent(deviceId: String): List<String>
+
+    /** One reading by id, or null. Backs the delete-then-reproject flow. */
+    @Query("SELECT * FROM labMarker WHERE id = :id")
+    suspend fun labMarkerById(id: String): LabMarkerRow?
+
+    /** Latest NUMERIC value for a (markerKey, day) cell (greatest takenAt with value not null),
+     *  or null if the cell has no numeric reading. The latest-per-day projection rule. */
+    @Query(
+        "SELECT value FROM labMarker " +
+            "WHERE deviceId = :deviceId AND markerKey = :markerKey AND day = :day AND value IS NOT NULL " +
+            "ORDER BY takenAt DESC LIMIT 1"
+    )
+    suspend fun latestNumericForCell(deviceId: String, markerKey: String, day: String): Double?
+
+    @Query("DELETE FROM labMarker WHERE id = :id")
+    suspend fun deleteLabMarkerRaw(id: String)
+
+    /**
+     * Upsert marker rows, then re-project each affected (markerKey, day) cell into `metricSeries`
+     * under [LAB_BOOK_SOURCE_ID]. Idempotent by natural key; LATEST-numeric-per-day wins in the
+     * projection (qualitative valueText-only readings never project a REAL cell). Atomic — the
+     * marker write and the projection can't diverge. Byte-identical to Swift
+     * WhoopStore.upsertLabMarkers.
+     */
+    @Transaction
+    suspend fun upsertLabMarkers(rows: List<LabMarkerRow>) {
+        if (rows.isEmpty()) return
+        insertLabMarkersRaw(rows)
+        // Distinct touched cells, in a deterministic order.
+        val cells = rows.map { Triple(it.deviceId, it.markerKey, it.day) }.toSet()
+        for ((deviceId, markerKey, day) in cells) {
+            reprojectCell(deviceId, markerKey, day)
+        }
+    }
+
+    /**
+     * Delete one reading by id; if it was the last numeric reading for its (markerKey, day) cell the
+     * projected day is removed, otherwise the projection is recomputed from the remainder. Returns
+     * true if a row was deleted. Byte-identical to Swift WhoopStore.deleteLabMarker.
+     */
+    @Transaction
+    suspend fun deleteLabMarker(id: String): Boolean {
+        val row = labMarkerById(id) ?: return false
+        deleteLabMarkerRaw(id)
+        reprojectCell(row.deviceId, row.markerKey, row.day)
+        return true
+    }
+
+    /** Recompute the `metricSeries` projection (under [LAB_BOOK_SOURCE_ID]) for one cell from the
+     *  CURRENT labMarker rows: latest-numeric-per-day wins; no numeric reading → drop the day. */
+    @Transaction
+    suspend fun reprojectCell(deviceId: String, markerKey: String, day: String) {
+        val latest = latestNumericForCell(deviceId, markerKey, day)
+        if (latest != null) {
+            upsertMetricSeries(listOf(MetricSeriesRow(LAB_BOOK_SOURCE_ID, day, markerKey, latest)))
+        } else {
+            deleteMetricSeriesPoint(LAB_BOOK_SOURCE_ID, day, markerKey)
+        }
+    }
+
+    companion object {
+        /** The constant device-id the daily marker projection is written under, so Compare/Explore/
+         *  Coach see markers as a single-source series (Swift WhoopStore.labBookSourceId). */
+        const val LAB_BOOK_SOURCE_ID = "lab-book"
+    }
 
     // MARK: - One-time #34 refile: separate legacy Health Connect data from the Apple Health bucket.
     // Only an Apple Health EXPORT writes metricSeries, so metricSeries-count==0 means the apple-health

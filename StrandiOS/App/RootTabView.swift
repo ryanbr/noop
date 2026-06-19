@@ -15,6 +15,9 @@ struct RootTabView: View {
     @State private var quickAction: QuickAction?
     /// Presents the Devices manager (pair / switch bands) when a screen asks the shell to open it.
     @State private var showDevices = false
+    /// A routed v5 pillar screen (Insights hub / Lab Book / fused record / Rhythm) presented as a sheet
+    /// when a hub row deep-links to it via NavRouter. nil = closed.
+    @State private var routedPillar: NavRouter.Destination?
     /// Drives the FAB press-state (gentle scale, dimmed gold shadow) — design-system feedback.
     @State private var fabPressed = false
     /// Selected tab — bound so tab switches can crossfade (README §Motion: ~240ms opacity swap
@@ -69,11 +72,48 @@ struct RootTabView: View {
         .sheet(isPresented: $showDevices) {
             devicesScreen
         }
-        // Honour a router request to open Devices, then clear it so the same tap can fire again later.
+        // v5 pillar deep-links (Insights hub / Lab Book / fused record / Rhythm) present as a sheet in
+        // their own nav stack — the same idiom the quick-action + Devices screens use on iPhone.
+        .sheet(item: $routedPillar) { dest in
+            pillarScreen(dest)
+        }
+        // Honour a router request: Devices keeps its dedicated sheet; the v5 pillars route through the
+        // shared pillar sheet. Cleared so the same tap can fire again later.
         .onChange(of: router.requestedDestination) { _, dest in
-            if dest == .devices {
+            switch dest {
+            case .devices:
                 showDevices = true
                 router.requestedDestination = nil
+            case .insightsHub, .labBook, .fusedRecord, .rhythm:
+                routedPillar = dest
+                router.requestedDestination = nil
+            case nil:
+                break
+            }
+        }
+    }
+
+    /// A routed v5 pillar screen wrapped in its own nav stack + Done button (mirrors `quickScreen`).
+    @ViewBuilder
+    private func pillarScreen(_ dest: NavRouter.Destination) -> some View {
+        NavigationStack {
+            Group {
+                switch dest {
+                case .insightsHub: InsightsHubView()
+                case .labBook: LabBookView()
+                case .fusedRecord: FusedRecordHost()
+                case .rhythm: RhythmHost(onClose: { routedPillar = nil })
+                case .devices: DevicesView()
+                }
+            }
+            .background(StrandPalette.surfaceBase.ignoresSafeArea())
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(StrandPalette.surfaceBase, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { routedPillar = nil }
+                        .foregroundStyle(StrandPalette.accent)
+                }
             }
         }
     }
@@ -186,6 +226,7 @@ struct RootTabView: View {
         NavigationStack {
             List {
                 Section("Insights") {
+                    link("What Moves You", "wand.and.sparkles") { InsightsHubView() }
                     link("Intelligence", "brain.head.profile") { IntelligenceView() }
                     link("Coach", "sparkles") { CoachView() }
                     link("Insights", "lightbulb.fill") { InsightsView() }
@@ -196,11 +237,15 @@ struct RootTabView: View {
                     link("Live", "waveform.path.ecg") { LiveView() }
                     link("Workouts", "figure.run") { WorkoutsView() }
                     link("Health", "heart.text.square.fill") { HealthView() }
+                    link("Lab Book", "books.vertical.fill") { LabBookView() }
                     link("Stress", "bolt.heart.fill") { StressView() }
                     link("Breathe", "wind") { BreathingView() }
                     link("Intervals", "timer") { IntervalTimerView() }
+                    // Experimental beat-to-beat regularity visualization — self-gates on its own consent.
+                    link("Rhythm", "waveform.path") { RhythmHost() }
                 }
                 Section("Data") {
+                    link("Your Data, Fused", "square.stack.3d.up.fill") { FusedRecordHost() }
                     link("Apple Health", "heart.fill") { AppleHealthView() }
                     link("Mi Band", "figure.walk.motion") { XiaomiBandView() }
                     link("Data Sources", "externaldrive.fill") { DataSourcesView() }

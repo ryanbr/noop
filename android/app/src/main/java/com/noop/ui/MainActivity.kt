@@ -317,6 +317,30 @@ object NoopPrefs {
         of(context).edit().putBoolean(KEY_ILLNESS_WATCH, enabled).apply()
     }
 
+    /** Cycle awareness (v5): read a coarse menstrual-cycle PHASE from the nightly skin-temperature
+     *  shift. OPT-IN, default OFF (manual-first ethos) — the Health hub's Cycle card only renders once
+     *  this is on. Awareness only; never contraception / fertility / diagnosis. */
+    const val KEY_CYCLE_TRACKING = "noop.cycleTracking"
+
+    fun cycleTracking(context: Context): Boolean =
+        of(context).getBoolean(KEY_CYCLE_TRACKING, false)
+
+    fun setCycleTracking(context: Context, enabled: Boolean) {
+        of(context).edit().putBoolean(KEY_CYCLE_TRACKING, enabled).apply()
+    }
+
+    /** Coach on-device signals (v5): when ON, the opt-in BYO-key Coach's grounding context may include a
+     *  SUMMARY-ONLY line of on-device correlations + Lab Book markers (no raw egress). A SECOND opt-in on
+     *  top of the existing "let the coach use my data" consent. Default OFF — keeps the anonymity posture. */
+    const val KEY_COACH_SIGNALS = "noop.coachSignals"
+
+    fun coachSignals(context: Context): Boolean =
+        of(context).getBoolean(KEY_COACH_SIGNALS, false)
+
+    fun setCoachSignals(context: Context, enabled: Boolean) {
+        of(context).edit().putBoolean(KEY_COACH_SIGNALS, enabled).apply()
+    }
+
     /** Last local day (ISO yyyy-MM-dd) an illness notification was posted — the once-a-day gate,
      *  persisted so the app-open and background-service call sites can't double-post. */
     const val KEY_ILLNESS_LAST_NOTIFIED_DAY = "noop.illnessLastNotifiedDay"

@@ -4,6 +4,7 @@ import StrandDesign
 enum NavItem: String, CaseIterable, Identifiable, Hashable {
     case today = "Today"
     case intelligence = "Intelligence"
+    case insightsHub = "What Moves You"
     case coach = "Coach"
     case live = "Live"
     case breathe = "Breathe"
@@ -16,9 +17,12 @@ enum NavItem: String, CaseIterable, Identifiable, Hashable {
     case workouts = "Workouts"
     case health = "Health"
     case stress = "Stress"
+    case labBook = "Lab Book"
+    case rhythm = "Rhythm"
     case appleHealth = "Apple Health"
     case xiaomi = "Mi Band"
     case dataSources = "Data Sources"
+    case fusedRecord = "Your Data, Fused"
     case devices = "Devices"
     case notifications = "Notifications"
     case automation = "Automations"
@@ -34,6 +38,7 @@ enum NavItem: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .today: return "Today"
         case .intelligence: return "Intelligence"
+        case .insightsHub: return "What Moves You"
         case .coach: return "Coach"
         case .live: return "Live"
         case .breathe: return "Breathe"
@@ -46,9 +51,12 @@ enum NavItem: String, CaseIterable, Identifiable, Hashable {
         case .workouts: return "Workouts"
         case .health: return "Health"
         case .stress: return "Stress"
+        case .labBook: return "Lab Book"
+        case .rhythm: return "Rhythm"
         case .appleHealth: return "Apple Health"
         case .xiaomi: return "Mi Band"
         case .dataSources: return "Data Sources"
+        case .fusedRecord: return "Your Data, Fused"
         case .devices: return "Devices"
         case .notifications: return "Notifications"
         case .automation: return "Automations"
@@ -62,6 +70,7 @@ enum NavItem: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .today: return "circle.hexagongrid.fill"
         case .intelligence: return "brain.head.profile"
+        case .insightsHub: return "wand.and.sparkles"
         case .coach: return "sparkles"
         case .live: return "waveform.path.ecg"
         case .breathe: return "lungs.fill"
@@ -74,9 +83,12 @@ enum NavItem: String, CaseIterable, Identifiable, Hashable {
         case .workouts: return "figure.run"
         case .health: return "heart.text.square.fill"
         case .stress: return "gauge.with.dots.needle.50percent"
+        case .labBook: return "books.vertical.fill"
+        case .rhythm: return "waveform.path"
         case .appleHealth: return "heart.fill"
         case .xiaomi: return "figure.walk.motion"
         case .dataSources: return "square.and.arrow.down.fill"
+        case .fusedRecord: return "square.stack.3d.up.fill"
         case .devices: return "badge.plus.radiowaves.right"
         case .notifications: return "bell.badge.fill"
         case .automation: return "wand.and.stars"
@@ -132,6 +144,10 @@ struct RootView: View {
         .onChangeCompat(of: router.requestedDestination) { dest in
             switch dest {
             case .devices: selection = .devices
+            case .insightsHub: selection = .insightsHub
+            case .labBook: selection = .labBook
+            case .fusedRecord: selection = .fusedRecord
+            case .rhythm: selection = .rhythm
             case nil: break
             }
             if dest != nil { router.requestedDestination = nil }
@@ -159,6 +175,7 @@ struct RootView: View {
         switch selection ?? .today {
         case .today: TodayView()
         case .intelligence: IntelligenceView()
+        case .insightsHub: InsightsHubView()
         case .coach: CoachView()
         case .live: LiveView()
         case .breathe: BreathingView()
@@ -171,9 +188,12 @@ struct RootView: View {
         case .workouts: WorkoutsView()
         case .health: HealthView()
         case .stress: StressView()
+        case .labBook: LabBookView()
+        case .rhythm: RhythmHost()
         case .appleHealth: AppleHealthView()
         case .xiaomi: XiaomiBandView()
         case .dataSources: DataSourcesView()
+        case .fusedRecord: FusedRecordHost()
         case .devices: DevicesView()
         case .notifications: NotificationSettingsView()
         case .automation: AutomationsView()

@@ -88,10 +88,34 @@ final class AppModel: ObservableObject {
     }
     /// Illness/strain early-warning (recent RHR up + HRV down + skin-temp up vs baseline). nil = clear.
     @Published var healthAlert: String?
+
+    // MARK: - v5 pillar snapshot (engines run in the analytics pass; the views read these)
+    //
+    // The Insights / skin-temp Health-hub cards take pure engine RESULTS by value. The analytics pass
+    // (IntelligenceEngine.analyzeRecent → refreshV5Signals) computes them once from the stores and
+    // publishes them here; AppModel exposes them so HealthView / InsightsHubView read a snapshot rather
+    // than re-deriving. All opt-in / honest-nil — a nil result means "not enough data / not enabled".
+    @Published var illnessSignal: IllnessSignalEngine.Result?
+    /// Cycle-phase awareness (only computed when the user has opted in; else nil). Awareness only.
+    @Published var cyclePhase: CyclePhaseEngine.Result?
+    /// The nightly fused-index curve (oldest→newest) feeding the cycle card's sparkline.
+    @Published var cycleCurve: [Double] = []
+    /// Body-clock phase estimate (circadian). nil until a usable activity profile exists.
+    @Published var circadianPhase: CircadianEngine.PhaseEstimate?
+
+    /// The L3 passive-nudge surface (haptic biofeedback "stress check-in"). The detector fires onto this
+    /// from `evaluateStress`; both app roots inject it into the environment so the Breathe screen's card
+    /// (and any host) surfaces the pending nudge. Owned here so the central hook can reach it. (v5 L3)
+    let stressNudgeCenter = StressNudgeCenter()
+
     private var lastDoubleTapAt: Date = .distantPast
     private var lastCoachZone: Int = -1
-    // Stress-nudge state: rolling R-R buffer + a slow HRV baseline + a rate limiter.
+    // L3 stress-onset detector state: a rolling R-R buffer + the replay-safe detector state (persisted
+    // via BiofeedbackPrefs so a relaunch can't re-fire), carried verbatim between evaluations.
     private var rrBuf: [Int] = []
+    private var stressState = BiofeedbackPrefs.loadStressState()
+    // Legacy experimental stress-nudge state (the older `behavior.stressNudge` buzz path) — a slow HRV
+    // baseline + a rate limiter, kept so that toggle still works independently of the L3 check-in.
     private var hrvBaseline: Double = 0
     private var lastStressBuzzAt: Date = .distantPast
 
@@ -237,6 +261,9 @@ final class AppModel: ObservableObject {
             await self.intelligence.runEffortRescoreIfNeeded()
             while !Task.isCancelled {
                 await self.intelligence.analyzeRecent()
+                // v5: recompute the skin-temp suite snapshots (cycle phase + body clock) from the
+                // freshly-scored history so the Health hub cards read a ready result.
+                await self.refreshV5Signals()
                 try? await Task.sleep(nanoseconds: 900_000_000_000)  // 15 min, matches the offload cadence
             }
         }
@@ -285,6 +312,7 @@ final class AppModel: ObservableObject {
         // 15 minutes to appear on a strap-only (no-import) dashboard. analyzeRecent no-ops if a tick is
         // already running and refreshes the dashboard itself once the new scores persist. (PR #218)
         await intelligence.analyzeRecent()
+        await refreshV5Signals()
     }
 
     /// Fold a fresh reading into the smoothing window and republish a stable bpm.
@@ -385,27 +413,61 @@ final class AppModel: ObservableObject {
         bpm = nil
     }
 
-    /// Experimental resting stress nudge: track RMSSD vs a slow baseline; when HRV drops well below
-    /// baseline while HR is calm (not exercising), buzz once — rate-limited to once / 15 min. Off by
-    /// default; conservative so it rarely false-fires.
+    /// Stress evaluation, two independent layers (each opt-in, each off by default):
+    ///   • the legacy experimental `behavior.stressNudge` buzz (a fresh HRV dip → one confirming buzz);
+    ///   • the v5 L3 closed-loop check-in — the unit-tested `StressOnsetDetector` decides, at the moment
+    ///     it matters, whether to offer a 60-s guided breath. On a fresh, non-metabolic HRV dip while the
+    ///     user is still it fires a single confirming buzz AND posts a passive nudge to `stressNudgeCenter`
+    ///     (the dismissible Stress check-in card surfaces it). The detector carries its own replay-safe
+    ///     state (de-dup + slow baseline + rate limit), persisted via `BiofeedbackPrefs` so a relaunch
+    ///     can't re-fire. Honest / non-clinical: "stress" is an autonomic proxy vs the user's own
+    ///     baseline, never a diagnosis.
     private func evaluateStress() {
-        guard behavior.stressNudge, live.bonded, live.worn else { return }
         let fresh = live.rr.filter { $0 > 300 && $0 < 2000 }   // plausible R-R (30–200 bpm)
         guard !fresh.isEmpty else { return }
         rrBuf.append(contentsOf: fresh)
-        if rrBuf.count > 60 { rrBuf.removeFirst(rrBuf.count - 60) }
-        guard rrBuf.count >= 20 else { return }
-        let rmssd = AppModel.rmssd(rrBuf)
-        guard rmssd > 0 else { return }
-        hrvBaseline = hrvBaseline == 0 ? rmssd : hrvBaseline * 0.98 + rmssd * 0.02   // slow EMA
-        guard let hr = bpm, hr >= 55, hr <= 100 else { return }   // resting band — not a workout
-        let now = Date()
-        if rmssd < hrvBaseline * 0.6, now.timeIntervalSince(lastStressBuzzAt) > 900 {
-            lastStressBuzzAt = now
-            buzz(loops: 1)
-            live.append(log: "Stress nudge — take a paced breath")
+        if rrBuf.count > 120 { rrBuf.removeFirst(rrBuf.count - 120) }
+
+        // ── Legacy experimental nudge (behavior.stressNudge) — unchanged behaviour, kept separate.
+        if behavior.stressNudge, live.bonded, live.worn, rrBuf.count >= 20 {
+            let rmssd = AppModel.rmssd(Array(rrBuf.suffix(60)))
+            if rmssd > 0 {
+                hrvBaseline = hrvBaseline == 0 ? rmssd : hrvBaseline * 0.98 + rmssd * 0.02   // slow EMA
+                if let hr = bpm, hr >= 55, hr <= 100 {            // resting band — not a workout
+                    let now = Date()
+                    if rmssd < hrvBaseline * 0.6, now.timeIntervalSince(lastStressBuzzAt) > 900 {
+                        lastStressBuzzAt = now
+                        buzz(loops: 1)
+                        live.append(log: "Stress nudge — take a paced breath")
+                    }
+                }
+            }
         }
+
+        // ── v5 L3 closed-loop check-in (StressOnsetDetector). Inert unless the master toggle is on; the
+        // engine itself owns every gate (auto-nudge, exercise gate, quiet hours, rate limit, edge).
+        let cfg = BiofeedbackPrefs.stressConfig()
+        guard cfg.enabled, live.bonded, live.worn else { return }
+        let decision = StressOnsetDetector.evaluate(
+            rrBuffer: rrBuf,
+            currentHR: bpm.map(Double.init),
+            recentMotionG: nil,   // wrist gravity is offloaded + lags live; the resting-HR band is the gate
+            sessionActive: stressNudgeCenter.pending != nil,   // never stack a fresh nudge over a live one
+            state: stressState,
+            config: cfg,
+            nowSec: Int(Date().timeIntervalSince1970),
+            tzOffsetSec: TimeZone.current.secondsFromGMT())
+        stressState = decision.nextState
+        BiofeedbackPrefs.saveStressState(decision.nextState)
+        guard decision.shouldNudge else { return }
+        if canBuzz { buzz(loops: UInt8(clamping: decision.buzzLoops)) }
+        stressNudgeCenter.present(fastRMSSD: decision.fastRMSSD, baselineRMSSD: decision.baselineRMSSD)
+        live.append(log: "Stress check-in — HRV dipped while still")
     }
+
+    /// Whether the encrypted channel is up so a confirming buzz can actually fire (the command
+    /// characteristic is gated on bond; an un-encrypted live-HR-only link can't buzz).
+    private var canBuzz: Bool { live.bonded && live.encryptedBond }
 
     static func rmssd(_ rr: [Int]) -> Double {
         guard rr.count >= 2 else { return 0 }
@@ -618,37 +680,97 @@ final class AppModel: ObservableObject {
         else if zone <= 1, lastCoachZone > 1 { buzz(loops: 1) }     // recovered
     }
 
-    /// Illness/strain early-warning: compare the last ~2 days against a ~28-day baseline (ending 3
-    /// days ago) for resting HR, HRV, skin-temp deviation and respiration. Two or more anomalies →
-    /// a banner. The classic early-illness signature (RHR↑ + HRV↓ + skin-temp↑). On-device only.
+    /// Illness/strain early-warning (v5): the confounder-suppressed `IllnessSignalEngine`. For the last
+    /// ~2 days vs a ~28-day personal baseline it z-scores resting HR, skin-temp deviation, HRV (negated)
+    /// and respiration ORIENTED illness-ward, then the engine applies its minimum-corroboration gate,
+    /// composite score, and — the differentiating part — same-day journal confounder suppression
+    /// (alcohol / a hard-or-late workout / etc.) so a night out doesn't cry wolf. The journal context is
+    /// read asynchronously, so this kicks a Task; the published `illnessSignal` + the `healthAlert`
+    /// banner both come from the engine's single decision. On-device only, APPROXIMATE — not a diagnosis.
     private func evaluateIllness(_ days: [DailyMetric]) {
+        guard behavior.illnessWatch, days.count >= 14 else {
+            healthAlert = nil; illnessSignal = nil; return
+        }
+        Task { [weak self] in
+            guard let self else { return }
+            // Confounder tags from the recent journal (within the last ~2 days). Read once, off the
+            // engine's hot path — the engine only needs presence flags, not the rows.
+            let recentDays = Set(days.suffix(2).map(\.day))
+            let journal = await self.repo.journalEntries(days: 7)
+            var ctxAlcohol = false, ctxHardWorkout = false, ctxAlreadyUnwell = false
+            for e in journal where e.answeredYes && recentDays.contains(e.day) {
+                let q = e.question.lowercased()
+                if q.contains("alcohol") || q.contains("drink") { ctxAlcohol = true }
+                if q.contains("workout") || q.contains("train") || q.contains("exercise") { ctxHardWorkout = true }
+                if q.contains("sick") || q.contains("ill") || q.contains("unwell") { ctxAlreadyUnwell = true }
+            }
+            self.applyIllnessSignal(days, alcohol: ctxAlcohol, hardOrLateWorkout: ctxHardWorkout,
+                                    alreadyUnwell: ctxAlreadyUnwell)
+        }
+    }
+
+    /// Run the `IllnessSignalEngine` from the day history + the journal-derived confounder context, then
+    /// publish the result + the legacy `healthAlert` banner string (kept for the existing banner surface).
+    private func applyIllnessSignal(_ days: [DailyMetric], alcohol: Bool,
+                                    hardOrLateWorkout: Bool, alreadyUnwell: Bool) {
         let previous = healthAlert
-        guard behavior.illnessWatch, days.count >= 14 else { healthAlert = nil; return }
         let recent = Array(days.suffix(2))
         let base = Array(days.suffix(31).dropLast(3))    // ~28 days ending 3 days ago
         func mean(_ vals: [Double]) -> Double? { vals.isEmpty ? nil : vals.reduce(0, +) / Double(vals.count) }
         func rm(_ kp: (DailyMetric) -> Double?) -> Double? { mean(recent.compactMap(kp)) }
-        func bm(_ kp: (DailyMetric) -> Double?) -> Double? { mean(base.compactMap(kp)) }
 
-        var flags: [String] = []
-        if let r = rm({ $0.restingHr.map(Double.init) }), let b = bm({ $0.restingHr.map(Double.init) }), r >= b + 5 {
-            flags.append("resting HR +\(Int((r - b).rounded())) bpm")
+        // Build each signal's illness-ward z against the personal baseline (Baselines.deviation). The
+        // baseline is folded over the full pre-recent history; a trusted baseline (≥14 nights) is the
+        // engine's gate for actually raising. Skin-temp is already a stored DEVIATION (°C), so it's
+        // z-scored against a zero-centred personal spread; the others z-score the raw column.
+        func signal(_ kp: (DailyMetric) -> Double?, cfgKey: String, illnessUp: Bool) -> (IllnessSignalEngine.SignalReading, Bool)? {
+            guard let cfg = Baselines.metricCfg[cfgKey], let recentMean = rm(kp) else { return nil }
+            let state = Baselines.foldHistory(base.map(kp), cfg: cfg)
+            guard state.usable else { return (IllnessSignalEngine.SignalReading(zIllnessward: 0, present: false), false) }
+            let dev = Baselines.deviation(recentMean, state: state)
+            let z = illnessUp ? dev.z : -dev.z   // HRV drop is illness-ward → negate
+            return (IllnessSignalEngine.SignalReading(zIllnessward: z), state.trusted)
         }
-        if let r = rm({ $0.avgHrv }), let b = bm({ $0.avgHrv }), b > 0, r <= b * 0.80 {
-            flags.append("HRV −\(Int(((1 - r / b) * 100).rounded()))%")
+
+        let rhr = signal({ $0.restingHr.map(Double.init) }, cfgKey: "resting_hr", illnessUp: true)
+        let hrv = signal({ $0.avgHrv }, cfgKey: "hrv", illnessUp: false)
+        let resp = signal({ $0.respRateBpm }, cfgKey: "resp", illnessUp: true)
+        // Skin-temp deviation: a stored °C delta. Build a small zero-centred state from its own recent
+        // spread so a +0.6 °C reads as a meaningful z without needing a separate baseline column.
+        var skin: (IllnessSignalEngine.SignalReading, Bool)? = nil
+        if let recentSkin = rm({ $0.skinTempDevC }) {
+            let z = recentSkin / 0.3     // ~0.3 °C ≈ one personal spread (matches skin_temp floorSpread)
+            skin = (IllnessSignalEngine.SignalReading(zIllnessward: z), true)
         }
-        if let r = rm({ $0.skinTempDevC }), r >= 0.6 {
-            flags.append("skin temp +\(String(format: "%.1f", r))°C")
+
+        let inputs = IllnessSignalEngine.Inputs(
+            restingHR: rhr?.0, skinTemp: skin?.0, hrv: hrv?.0, respiration: resp?.0)
+        // baselineTrusted: require the HRV/RHR baselines to be trusted before the engine may raise.
+        let trusted = (rhr?.1 ?? false) || (hrv?.1 ?? false)
+        let context = IllnessSignalEngine.Context(
+            alcohol: alcohol, hardOrLateWorkout: hardOrLateWorkout,
+            alreadyUnwell: alreadyUnwell, baselineTrusted: trusted)
+
+        // Caller-rendered phrases for the signals that fire (the engine surfaces only the firing ones).
+        var labels: [String: String] = [:]
+        if let r = rm({ $0.restingHr.map(Double.init) }), let b = mean(base.compactMap { $0.restingHr.map(Double.init) }), r > b {
+            labels["restingHR"] = "RHR +\(Int((r - b).rounded()))"
         }
-        if let r = rm({ $0.respRateBpm }), let b = bm({ $0.respRateBpm }), r >= b + 1.5 {
-            flags.append("respiration up")
+        if let r = rm({ $0.avgHrv }), let b = mean(base.compactMap { $0.avgHrv }), b > 0, r < b {
+            labels["hrv"] = "HRV −\(Int(((1 - r / b) * 100).rounded()))%"
         }
-        healthAlert = flags.count >= 2
-            ? "Your body looks strained — " + flags.joined(separator: ", ") + ". Consider taking it easy."
-            : nil
-        // Banner transition (clear → raised): surface it as a system notification so the
-        // early-warning reaches the user when the window is closed (menu bar keeps us alive).
-        // IllnessNotifier rate-limits to once per local day.
+        if let r = rm({ $0.skinTempDevC }), r > 0 {
+            labels["skinTemp"] = "skin temp +\(String(format: "%.1f", r)) °C"
+        }
+        if let r = rm({ $0.respRateBpm }), let b = mean(base.compactMap { $0.respRateBpm }), r > b {
+            labels["respiration"] = "respiration up"
+        }
+
+        let result = IllnessSignalEngine.evaluate(inputs, context: context, firedLabels: labels)
+        illnessSignal = result
+        // The amber banner string reflects the raised / already-unwell levels only (the calmer levels
+        // surface in the Health hub's Heads-Up card, never as a scary banner).
+        healthAlert = (result.level == .raised || result.level == .alreadyUnwell) ? result.copy : nil
         if let alert = healthAlert, previous == nil {
             IllnessNotifier.post(alert)
         }
@@ -659,6 +781,181 @@ final class AppModel: ObservableObject {
     /// for the next refresh.
     func reevaluateIllness() {
         evaluateIllness(repo.days)
+    }
+
+    // MARK: - v5 skin-temp suite engines (cycle phase + body clock)
+    //
+    // Run in the analytics pass (IntelligenceEngine calls this after it persists the night's scores) so
+    // the Health hub's skin-temp cards read a ready snapshot. Both are pure StrandAnalytics engines fed
+    // from the merged daily history; cycle awareness is gated behind the opt-in flag (default OFF) and
+    // never computes — let alone surfaces — until the user turns it on.
+
+    /// UserDefaults key for the cycle-awareness opt-in (default OFF — the most sensitive health category,
+    /// manual-first). The Settings toggle + the card's opt-in CTA both write this single key.
+    static let cycleAwarenessKey = "noopCycleAwareness"
+    var cycleAwarenessEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: Self.cycleAwarenessKey) }
+        set { UserDefaults.standard.set(newValue, forKey: Self.cycleAwarenessKey) }
+    }
+
+    /// Recompute the v5 skin-temp suite snapshots (cycle phase + body clock) from the current history.
+    /// Called from the analytics pass and when the cycle opt-in flips. Honest-nil throughout: cycle is
+    /// nil unless opted in; circadian is nil unless a usable activity profile exists.
+    func refreshV5Signals() async {
+        await computeCyclePhase()
+        await computeCircadianPhase()
+    }
+
+    /// Cycle-phase awareness from the nightly skin-temperature shift (+ luteal RHR rise / HRV drop). Each
+    /// night is z-scored against the personal baseline, then `CyclePhaseEngine.classify` reads the run.
+    /// Gated behind the opt-in flag; clears the published result the moment it's turned off.
+    private func computeCyclePhase() async {
+        guard cycleAwarenessEnabled else { cyclePhase = nil; cycleCurve = []; return }
+        let days = repo.days
+        guard let tempCfg = Baselines.metricCfg["skin_temp"],
+              let rhrCfg = Baselines.metricCfg["resting_hr"],
+              let hrvCfg = Baselines.metricCfg["hrv"] else { return }
+
+        // The nightly absolute skin-temp mean isn't in repo.days (only the °C DEVIATION is), so z-score
+        // the deviation against its own folded spread — a zero-centred personal baseline. RHR + HRV
+        // z-score their raw columns. Oldest→newest.
+        let sorted = days.sorted { $0.day < $1.day }
+        let skinState = Baselines.foldHistory(sorted.map { $0.skinTempDevC }, cfg: tempCfg)
+        let rhrState = Baselines.foldHistory(sorted.map { $0.restingHr.map(Double.init) }, cfg: rhrCfg)
+        let hrvState = Baselines.foldHistory(sorted.map { $0.avgHrv }, cfg: hrvCfg)
+
+        var nights: [CyclePhaseEngine.Night] = []
+        var curve: [Double] = []
+        for d in sorted {
+            let tempZ = d.skinTempDevC.map { skinState.usable ? Baselines.deviation($0, state: skinState).z : $0 / 0.3 }
+            let rhrZ = (rhrState.usable ? d.restingHr.map { Baselines.deviation(Double($0), state: rhrState).z } : nil)
+            let hrvZ = (hrvState.usable ? d.avgHrv.map { Baselines.deviation($0, state: hrvState).z } : nil)
+            nights.append(CyclePhaseEngine.Night(day: d.day, tempZ: tempZ, rhrZ: rhrZ, hrvZ: hrvZ))
+            if let fused = CyclePhaseEngine.fusedIndex(tempZ: tempZ, rhrZ: rhrZ, hrvZ: hrvZ) { curve.append(fused) }
+        }
+        cyclePhase = CyclePhaseEngine.classify(nights, baselineUsable: skinState.usable)
+        cycleCurve = curve
+    }
+
+    /// Body-clock phase estimate. Builds a coarse per-hour activity profile from the last ~14 days of
+    /// downsampled HR buckets (HR amplitude is a usable rest/activity rhythm proxy when raw motion isn't
+    /// to hand), then fits the cosinor. nil when there isn't enough to read.
+    private func computeCircadianPhase() async {
+        let now = Int(Date().timeIntervalSince1970)
+        let from = now - 14 * 86_400
+        let buckets = await repo.hrBuckets(from: from, to: now, bucketSeconds: 3_600)
+        guard buckets.count >= 24 else { circadianPhase = nil; return }
+        let tz = TimeZone.current.secondsFromGMT()
+        // Pool HR by LOCAL hour-of-day → mean bpm per hour as the activity proxy (higher HR ≈ more active).
+        var sums = [Double](repeating: 0, count: 24)
+        var counts = [Int](repeating: 0, count: 24)
+        var daySet = Set<Int>()
+        for b in buckets {
+            let local = b.ts + tz
+            let hour = (local % 86_400 + 86_400) % 86_400 / 3_600
+            sums[hour] += b.bpm; counts[hour] += 1
+            daySet.insert(local / 86_400)
+        }
+        let bins: [CircadianEngine.ActivityBin] = (0..<24).compactMap { h in
+            counts[h] > 0 ? CircadianEngine.ActivityBin(hour: Double(h), activity: sums[h] / Double(counts[h])) : nil
+        }
+        guard bins.count >= 6 else { circadianPhase = nil; return }
+        // Habitual wake from the most recent night's banked wake, falling back to a 07:00 default.
+        let wakeHour = habitualWakeHour() ?? 7.0
+        circadianPhase = CircadianEngine.estimatePhase(
+            bins: bins, daysObserved: daySet.count, habitualWakeHour: wakeHour)
+    }
+
+    /// A coarse habitual wake hour (local) from the most recent banked sleep session's end time, for the
+    /// circadian schedule-offset comparison. nil when no sleep is banked.
+    private func habitualWakeHour() -> Double? {
+        guard let last = repo.sleeps.last else { return nil }
+        let tz = TimeZone.current.secondsFromGMT()
+        let local = (last.endTs + tz) % 86_400
+        return Double((local + 86_400) % 86_400) / 3_600.0
+    }
+
+    // MARK: - v5 local multi-device fusion adapter
+    //
+    // Assemble today's per-source values per metric and run `FusionResolver` so the "Your Data, Fused"
+    // screen (FusedRecordView) can show the best-sourced number + provenance + agreement. This does NOT
+    // touch the core resolvedSeries waterfall — it's an additive read that reuses the rows the store
+    // already holds, exactly the seam the view's header documents.
+
+    /// Build today's fused record (best signal per metric across every source, with agreement). Reads each
+    /// declared-fusable metric's latest per-source daily value, runs the pure `FusionResolver`, and maps
+    /// the result into the view's `FusedRecord`. Honest single-source degradation falls out of the engine
+    /// (a one-WHOOP user gets `.single` agreement and `contributingSourceCount == 1`).
+    func buildTodayFusedRecord() async -> FusedRecord {
+        guard let store = await repo.storeHandle() else {
+            return FusedRecord(rows: [], dayOwner: nil, contributingSourceCount: 0)
+        }
+        // The metrics surfaced, in importance-first display order, with a label + accent.
+        let specs: [(key: String, label: String, accent: String?)] = [
+            ("rhr", "Resting HR", nil),
+            ("hrv", "HRV", nil),
+            ("sleep_total_min", "Sleep", nil),
+            ("steps", "Steps", nil),
+            ("skin_temp", "Skin temp", nil),
+            ("spo2", "Blood oxygen", nil),
+        ]
+        // Every source that could carry a value, mapped to its stored device id. (FusionSource.rawValue
+        // IS the canonical source id, but the strap's real id is `deviceId`/`computed` — map explicitly.)
+        let sources: [(FusionSource, String)] = [
+            (.whoopImport, deviceId),
+            (.noopComputed, deviceId + "-noop"),
+            (.appleHealth, appleDeviceId),
+            (.xiaomiBand, FusionSource.xiaomiBand.rawValue),
+        ]
+
+        let now = Date()
+        let fromDay = Repository.dayString(now.addingTimeInterval(-3 * 86_400))
+        let toDay = Repository.dayString(now.addingTimeInterval(86_400))
+
+        // Read each source's daily rows once, then pick the freshest per metric for the latest day.
+        var rowsBySource: [FusionSource: DailyMetric] = [:]
+        for (src, id) in sources {
+            let rows = (try? await store.dailyMetrics(deviceId: id, from: fromDay, to: toDay)) ?? []
+            if let latest = rows.sorted(by: { $0.day < $1.day }).last { rowsBySource[src] = latest }
+        }
+        guard !rowsBySource.isEmpty else {
+            return FusedRecord(rows: [], dayOwner: nil, contributingSourceCount: 0)
+        }
+
+        var fusedRows: [FusedRow] = []
+        var contributingSources = Set<FusionSource>()
+        for spec in specs {
+            var inputs: [FusionInput] = []
+            for (src, daily) in rowsBySource {
+                if let v = Self.fusionColumn(key: spec.key, day: daily) {
+                    inputs.append(FusionInput(source: src, value: v))
+                    contributingSources.insert(src)
+                }
+            }
+            guard let point = FusionResolver.resolve(metricKey: spec.key, inputs: inputs) else { continue }
+            fusedRows.append(FusedRow(point: point, label: spec.label, accentHex: spec.accent))
+        }
+
+        // The day-owner = the highest-priority source that actually contributed (the scores' single owner).
+        let owner = contributingSources.min(by: {
+            MetricArbitrationPolicy.sourcePriority($0) < MetricArbitrationPolicy.sourcePriority($1)
+        })
+        return FusedRecord(rows: fusedRows, dayOwner: owner,
+                           contributingSourceCount: contributingSources.count)
+    }
+
+    /// The DailyMetric column a fusion metric key maps to (mirrors Repository.dailyColumn for the keys
+    /// the fused record surfaces). nil when the source row doesn't carry that metric.
+    private static func fusionColumn(key: String, day d: DailyMetric) -> Double? {
+        switch key {
+        case "rhr":             return d.restingHr.map(Double.init)
+        case "hrv":             return d.avgHrv
+        case "sleep_total_min": return d.totalSleepMin
+        case "steps":           return d.steps.map(Double.init)
+        case "skin_temp":       return d.skinTempDevC
+        case "spo2":            return d.spo2Pct
+        default:                return nil
+        }
     }
 
     /// Import a Whoop CSV export (.zip or folder) → on-device store, then refresh the dashboard.

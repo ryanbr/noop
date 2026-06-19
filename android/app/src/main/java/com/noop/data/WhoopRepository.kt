@@ -274,6 +274,14 @@ class WhoopRepository(private val dao: WhoopDao) {
     suspend fun upsertWorkouts(rows: List<WorkoutRow>) = dao.upsertWorkouts(rows)
     suspend fun upsertAppleDaily(rows: List<AppleDaily>) = dao.upsertAppleDaily(rows)
 
+    // MARK: - Lab Book markers (Swift labMarker, v17). Writing also projects the daily series into
+    // metricSeries under WhoopDao.LAB_BOOK_SOURCE_ID, so Compare/Explore/Coach see markers unchanged.
+    suspend fun upsertLabMarkers(rows: List<LabMarkerRow>) = dao.upsertLabMarkers(rows)
+    suspend fun deleteLabMarker(id: String): Boolean = dao.deleteLabMarker(id)
+    suspend fun labMarkersByKey(deviceId: String, markerKey: String) = dao.labMarkersByKey(deviceId, markerKey)
+    suspend fun labMarkersByCategory(deviceId: String, category: String) = dao.labMarkersByCategory(deviceId, category)
+    suspend fun markerKeysPresent(deviceId: String) = dao.markerKeysPresent(deviceId)
+
     // MARK: - Reads
 
     suspend fun hrSamples(deviceId: String, from: Long, to: Long, limit: Int = DEFAULT_LIMIT) =

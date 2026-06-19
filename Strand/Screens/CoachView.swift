@@ -41,6 +41,9 @@ struct CoachView: View {
             if coach.isConfigured {
                 connectedHeader
                 consentBar
+                // v5: a SECOND opt-in, only meaningful once data access is on — folds a summary of the
+                // new on-device signals (your strongest patterns + Lab Book) into the coach context.
+                if coach.dataConsent { onDeviceSignalsBar }
                 transcript
                 if let error = coach.errorText, !error.isEmpty {
                     errorBanner(error)
@@ -90,6 +93,31 @@ struct CoachView: View {
                 Toggle("", isOn: $coach.dataConsent)
                     .labelsHidden().toggleStyle(.switch).tint(StrandPalette.accent)
                     .accessibilityLabel("Let the coach use my data")
+            }
+        }
+    }
+
+    /// The v5 second opt-in: include a SUMMARY of the new on-device signals (strongest n-of-1 patterns +
+    /// Lab Book markers). Summary-only — never raw readings — so the no-raw-egress posture holds.
+    private var onDeviceSignalsBar: some View {
+        NoopCard(padding: 14, tint: StrandPalette.chargeColor) {
+            HStack(spacing: 10) {
+                Image(systemName: coach.includeOnDeviceSignals ? "checklist.checked" : "checklist")
+                    .foregroundStyle(coach.includeOnDeviceSignals ? StrandPalette.accent : StrandPalette.textTertiary)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Also share my patterns & Lab Book")
+                        .font(StrandFont.subhead).foregroundStyle(StrandPalette.textPrimary)
+                    Text(coach.includeOnDeviceSignals
+                         ? "On — a short summary of your strongest patterns and logged health numbers is added. Summaries only, never raw readings."
+                         : "Off — only your core metrics are shared, not your patterns or Lab Book.")
+                        .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Toggle("", isOn: $coach.includeOnDeviceSignals)
+                    .labelsHidden().toggleStyle(.switch).tint(StrandPalette.accent)
+                    .accessibilityLabel("Also share my patterns and Lab Book with the coach")
             }
         }
     }

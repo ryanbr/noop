@@ -51,6 +51,9 @@ struct StrandiOSApp: App {
                 .environmentObject(model.coach)
                 .environmentObject(health)
                 .environmentObject(router)
+                // v5 L3: the shared stress check-in nudge surface, so the Breathe screen's passive
+                // card observes the SAME instance the central detector (AppModel.evaluateStress) posts to.
+                .environment(\.stressNudgeCenter, model.stressNudgeCenter)
                 .preferredColorScheme(AppearanceMode.resolve(appearanceRaw).colorScheme)
                 .chartStyle(chartStyleRaw)
                 // Dynamic Type now scales the prose/label roles (StrandFont). Cap the upper end so the

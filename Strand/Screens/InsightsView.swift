@@ -28,6 +28,8 @@ import WhoopStore
 
 struct InsightsView: View {
     @EnvironmentObject var repo: Repository
+    /// Deep-link into the v5 "What moves you" hub (the n-of-1 ranked-effect + dose-response surface).
+    @EnvironmentObject var router: NavRouter
 
     // MARK: Selected outcome (segmented)
 
@@ -160,6 +162,10 @@ struct InsightsView: View {
                 ComingSoon(what: "Reading your journal and outcomes…")
             } else {
                 VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
+                    // v5: a single row into the "What moves you" hub — the lag-aware ranked-effect feed
+                    // + alcohol/caffeine dose-response. Reachable as its own destination too; this is the
+                    // honest in-Insights entry point.
+                    whatMovesYouLink
                     // Native logging — always reachable: the account-free way into Insights.
                     JournalLogCard(importedQuestions: importedQuestions,
                                    answers: dayAnswers,
@@ -192,6 +198,36 @@ struct InsightsView: View {
         // (behaviours / outcomeByKey change only at load, which calls
         //  recomputeRanked() directly, so keying on `outcome` is sufficient.)
         .onChangeCompat(of: outcome) { _ in recomputeRanked() }
+    }
+
+    /// The deep-link row into the v5 "What moves you" hub.
+    private var whatMovesYouLink: some View {
+        Button { router.openInsightsHub() } label: {
+            NoopCard(tint: StrandPalette.chargeColor) {
+                HStack(spacing: 12) {
+                    Image(systemName: "wand.and.sparkles")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(StrandPalette.accent)
+                        .frame(width: 30, height: 30)
+                        .background(StrandPalette.accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("What moves you").font(StrandFont.headline).foregroundStyle(StrandPalette.textPrimary)
+                        Text("Ranked, lag-aware: which of your habits actually move your Charge — plus your personal alcohol/caffeine dose-response.")
+                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(StrandPalette.textTertiary)
+                        .accessibilityHidden(true)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("What moves you. Ranked patterns in your own data, and your dose-response.")
     }
 
     // MARK: - Load
@@ -1245,6 +1281,7 @@ private func insightsPreviewRepo() -> Repository {
 #Preview("Insights") {
     InsightsView()
         .environmentObject(insightsPreviewRepo())
+        .environmentObject(NavRouter())
         .frame(width: 920, height: 900)
         .preferredColorScheme(.dark)
 }

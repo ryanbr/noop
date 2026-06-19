@@ -17,6 +17,103 @@ approximate; downloads are on the [Releases](https://noop.fans/NoopApp/noop/rele
 
 ---
 
+## 5.0.0 — v5: the raw-signal release (all platforms)
+
+**The biggest release in NOOP's history.** Everyone else shows you a score their cloud computed, behind a
+subscription. NOOP reads your strap's *raw signals* — beat-to-beat R-R timing, red/IR PPG, 3-axis motion,
+skin temperature — and does all the maths **on your own device, free and offline**. v5 turns NOOP into a
+raw-signal platform: it reasons from those signals, computes everything locally, and is the only one of
+these apps that can *act on your body* through the strap's haptic motor. Seven new pillars, plus a tidier
+home — every screen now lives under **five places: Today · What Moves You (Insights) · Health · Devices &
+Sources · Settings**, so nothing is buried. Nothing about your data or your history changed; it just has a
+coherent home and a lot more to show you. Everything below is on-device, opt-in, and honest about its
+limits.
+
+- **Haptic biofeedback — "the strap that breathes you down."** The flagship. NOOP can now *act* on your
+  nervous system, not just measure it. Your wrist motor paces your breathing with the screen off, and you
+  get a measured outcome.
+  - **Resonance breathing.** Find your personal calm pace (the breathing rate, roughly 4.5–7 breaths/min,
+    that gives your heart its biggest healthy swing): **Breathe → Resonance → "Find your resonance pace"**,
+    then pick the **Full sweep (~13 min)** or **Quick sweep (~7 min)**. NOOP paces you through candidate
+    paces, reads which one your body responds to most, and locks it. After that, the Breathe session uses
+    your locked pace, and you get the usual "+X% vs start · peak Y ms" outcome.
+  - **"Calm me · 3 min."** On a stressed moment (the Stress screen / the check-in card), tap **Calm me ·
+    3 min** for a felt metronome that buzzes a few beats below your live heart rate so your heart can drift
+    down toward it. Honest about it: if your HR doesn't fall, it says so — no fake win.
+  - **Passive stress check-ins (haptic).** Optional, **off by default**: **Settings → Automations → "Stress
+    check-ins (haptic)"**. When your HRV dips while you're *still* (not exercising), NOOP offers a one-minute
+    breathing cue with a single confirming buzz and a dismissible card — never an alarm, never a diagnosis.
+    All three layers are PPG-derived estimates, relaxation guidance, not a medical treatment.
+- **What Moves You — your personal n-of-1 insights.** Competitors show population averages ("alcohol
+  typically lowers recovery"). NOOP computes the effect **on your own data**. A ranked, **lag-aware** feed
+  ("what actually moves *your* Charge", with a "next morning / same day" chip and a confidence pill — Solid
+  / Building / Calibrating) replaces the old behaviour list. Log **alcohol** or **late caffeine** with an
+  *amount* and NOOP fits a personal **dose-response** curve (shrinking toward typical patterns until you've
+  logged enough nights, then becoming truly yours). In the evening, the **damage forecast** on Today tells
+  you what one more drink tends to cost tomorrow's Charge, with an honest range. Everything is framed as
+  "patterns in your own data" — association, never cause. Open **What Moves You** (the wand entry in the
+  sidebar / Insights).
+- **Skin-temperature suite — three features off one underused signal.** WHOOP already streams skin
+  temperature every night; NOOP already banks it. v5 reasons from it three ways, **all on-device, free**:
+  - **Cycle awareness (opt-in).** A coarse menstrual-cycle phase (Follicular / Peri-ovulatory / Luteal) read
+    from your nightly skin temperature, corroborated by your resting-HR and HRV pattern. Turn it on in
+    **Health → Skin temperature → "Turn on cycle awareness"**. It is **awareness only — not contraception,
+    not a fertility predictor, not a medical service** — and a period estimate is always a *window*, never a
+    hard date. This is the kind of data a cloud product can't promise stays private; NOOP's can, because it
+    physically never leaves your device.
+  - **Body clock.** A jet-lag / shift-work helper that estimates your body-clock phase from your nightly
+    temperature low and your rest-activity rhythm ("about 25 min later than your schedule") and gives a
+    light + sleep-timing plan for a trip or new shift. Light and sleep timing only — never supplements.
+  - **Heads-up (illness early-warning).** The old illness banner cried wolf after a night out. The new one
+    scores resting-HR, HRV, skin-temp and respiration anomalies *and cross-checks your journal* — if you
+    logged alcohol, a sauna, stress or travel, it downgrades and tells you why ("Probably not illness — you
+    logged a few drinks"). It always shows the *why* and what it ruled out, and never names a condition:
+    "On-device estimate — not a diagnosis." Toggle under **Settings → Automations → "Illness
+    early-warning"**.
+- **Your Data, Fused — one honest record across your bands.** If you wear more than one device — a WHOOP
+  plus a Mi Band, plus Apple Health / Health Connect — NOOP now fuses them into one record **on your
+  device**, picking the best source per metric (the band that *counts* steps beats the strap's estimate; the
+  better stager wins for sleep), naming the source on every number, and **flagging disagreement instead of
+  silently averaging it** ("Sleep 7h 12m · from WHOOP · ⚠ Apple Health says 6h 40m — tap to compare"). It
+  never claims a number is "correct" — only best-sourced and fully transparent. A single-WHOOP setup just
+  shows a clean plain record. Open **Your Data, Fused** from **Health** or Data Sources. The privacy-first
+  inverse of a cloud aggregator: nothing leaves the device.
+- **Lab Book — your own private health logbook.** A place to keep the numbers you already own — bloods,
+  blood pressure, scan values, body measurements, doctor's-visit notes — typed in by hand or imported from a
+  CSV, and lined up against your wearable signals. Each marker shows its trend; **"Compare with a signal"**
+  lines a marker (say LDL) up against resting HR, HRV, sleep or Charge over a 7/14/30-day window, with the
+  same restrained "tends to" language used elsewhere. The framing is load-bearing and non-negotiable: **Lab
+  Book is a private notebook, not a medical service.** NOOP *stores and lines up the numbers you enter
+  yourself* — it does **not** test you, read your results, decide whether a value is "normal/high/low", or
+  diagnose anything; any reference range shown is exactly what you typed from your own report. Your records
+  **never leave your device**; because NOOP is an independent app you run yourself (not a healthcare
+  provider) it is **not "HIPAA-covered"** — the protection is that the data is local-only and yours. Always
+  rely on your doctor or pharmacist to interpret results. Open **Health → Lab Book**.
+- **Rhythm (experimental) — a picture of your beat-to-beat timing.** On *every* strap (4.0 and 5/MG), NOOP
+  can draw a **Poincaré scatter** of your beat-to-beat intervals with plain descriptive stats (SD1, SD2,
+  the SD1:SD2 ratio) and a calm categorical read — *Rhythm — steady* / *Some occasional extra or skipped
+  beats* / *Your rhythm varied more than usual*. **It is a visualisation, not a verdict: not an ECG, not a
+  diagnosis, not a medical device, and it cannot detect, rule out or monitor any heart condition.** Variation
+  in beat timing is normal and often completely benign. It's **off by default** behind a consent screen you
+  must read and tick: **Settings → Rhythm → "Turn on Rhythm"**. No alarms, no red, no condition names — by
+  design.
+- **A smarter, still-private AI Coach.** The opt-in **bring-your-own-key** Coach can now optionally reason
+  over your on-device patterns (recovery drivers, your discovered correlations) and your Lab Book markers —
+  and tell you *which* of your numbers it read. The privacy line holds exactly as before: nothing leaves
+  until you've added your own key, switched consent on, and asked a question; only a **compact text summary**
+  of computed values is sent to the provider *you* chose — never your raw R-R, PPG or motion. Turn the
+  deeper context on with **"Also share my patterns & Lab Book"** in Coach (off by default). As always, the
+  Coach is the only place NOOP touches AI, it's your key and your choice of provider, and the app stays
+  offline everywhere else.
+
+**Honest, as ever.** WHOOP 4.0 is the supported path; deeper 5/MG metrics are still being figured out.
+Skin-temp estimates, resonance detection, the haptic-paced wake, and Rhythm are explicitly experimental and
+build over a week or two of wear. Nothing here is medical; nothing is a diagnosis; nothing leaves your
+device. Internal data keys are unchanged, so years of history and every import keep working. Engines are
+unit-tested with Swift↔Kotlin parity locked across macOS, iOS and Android.
+
+---
+
 ## 4.9.1 — More realistic calories + import, chart & sideload fixes
 
 - **More realistic daily calories (all platforms).** The all-day energy estimate read high — it

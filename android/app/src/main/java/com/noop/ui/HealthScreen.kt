@@ -49,6 +49,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.noop.analytics.Baselines
+import com.noop.analytics.IllnessSignalEngine
+import com.noop.analytics.V5HealthSignals
 import com.noop.analytics.FitnessAgeEngine
 import com.noop.analytics.VitalityEngine
 import com.noop.analytics.FitnessAgeReadiness
@@ -87,6 +89,10 @@ fun HealthScreen(vm: AppViewModel, onVitalClick: (String) -> Unit = {}) {
     val today by vm.today.collectAsStateWithLifecycle()
     // Full merged daily history — feeds the personal-baseline banding of the vitals grid.
     val days by vm.recentDays.collectAsStateWithLifecycle()
+    // v5 skin-temp suite engine results (Cycle / Body clock / Illness heads-up), recomputed each
+    // analytics pass and published by the ViewModel. Cycle awareness gates on its opt-in pref.
+    val v5Signals by vm.v5Signals.collectAsStateWithLifecycle()
+    val cycleEnabled by vm.cycleTrackingEnabled.collectAsStateWithLifecycle()
     val hrMax = profile.hrMax
 
     // Health Monitor shows live HR too, so it must keep the realtime stream on while it's visible —
@@ -125,11 +131,66 @@ fun HealthScreen(vm: AppViewModel, onVitalClick: (String) -> Unit = {}) {
             Spacer(Modifier.height(Metrics.selectorTopUp))
             FitnessAgeSection(vm = vm, days = days, profile = profile)
             VitalitySection(vm = vm, days = days, profile = profile)
+            // SKIN TEMPERATURE (v5 pillar) — Cycle awareness (opt-in), Body clock + an illness heads-up,
+            // each from a pure engine RESULT the ViewModel publishes. A section of Health, never its own
+            // destination (umbrella §2.4). Non-clinical observations about your own numbers.
+            Spacer(Modifier.height(Metrics.selectorTopUp))
+            SkinTempSuiteSection(
+                signals = v5Signals,
+                cycleEnabled = cycleEnabled,
+                onEnableCycle = { vm.setCycleTrackingEnabled(true) },
+            )
             // CONTRIBUTORS (README screen #5, recovery detail) — the signals behind recovery as
             // labelled progress bars in the shared stage/zone bar style, mirroring Today's section.
             Spacer(Modifier.height(Metrics.selectorTopUp))
             HealthContributorsSection(today)
         }
+    }
+}
+
+// MARK: - Skin-temperature suite (v5 pillar) — a Health section
+//
+// Composes the locked SkinTempCardsScreen cards from the engine RESULTS the ViewModel publishes:
+//   • Cycle awareness — OPT-IN (default OFF). Shows the opt-in card until enabled, then the result card.
+//   • Body clock — rendered only when the engine returned a phase estimate (the activity-bin input pipe
+//     is a future source; until then it's silently absent rather than a faked card).
+//   • Illness heads-up — rendered only when the engine returned a non-quiet level, mirroring the existing
+//     amber-alert treatment; never a diagnosis.
+// Every card carries its own privacy + non-clinical copy; the section header keeps the umbrella framing.
+
+@Composable
+private fun SkinTempSuiteSection(
+    signals: V5HealthSignals.Snapshot?,
+    cycleEnabled: Boolean,
+    onEnableCycle: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
+        SectionHeader("Skin Temperature", overline = "From your nightly readings")
+
+        // Illness heads-up first when it has something to say (it's the most time-sensitive card).
+        signals?.illness?.let { illness ->
+            if (illness.level != IllnessSignalEngine.Level.QUIET) {
+                HeadsUpCard(result = illness)
+            }
+        }
+
+        // Cycle awareness: the opt-in card until enabled, then the live result.
+        if (!cycleEnabled) {
+            CycleAwarenessOptInCard(onEnable = onEnableCycle)
+        } else {
+            signals?.cycle?.let { CycleAwarenessCard(result = it) }
+        }
+
+        // Body clock: only when the engine produced an estimate (no faked card while the input pipe is empty).
+        signals?.bodyClock?.let { BodyClockCard(estimate = it) }
+
+        Text(
+            "Cycle phase, body-clock and illness heads-up are approximations computed on your device from " +
+                "your own nightly temperature, heart rate and HRV — observations about your own numbers, " +
+                "never a diagnosis. They never leave this phone.",
+            style = NoopType.footnote,
+            color = Palette.textTertiary,
+        )
     }
 }
 

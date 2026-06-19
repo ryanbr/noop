@@ -15,10 +15,17 @@ import Combine
 // roots (`StrandApp`, `StrandiOSApp`) as an `@EnvironmentObject`.
 @MainActor
 final class NavRouter: ObservableObject {
-    /// A top-level destination a screen can ask the shell to open. Deliberately minimal — only the
-    /// destinations something actually links to today live here (the Devices manager so far).
-    enum Destination: String, Equatable {
+    /// A top-level destination a screen can ask the shell to open. Deliberately minimal — the Devices
+    /// manager plus the v5 pillar screens the new in-hub rows deep-link to (Insights hub, Lab Book,
+    /// the fused record, the experimental Rhythm visualization).
+    enum Destination: String, Equatable, Identifiable {
         case devices
+        case insightsHub
+        case labBook
+        case fusedRecord
+        case rhythm
+
+        var id: String { rawValue }
     }
 
     /// The destination a screen has asked the shell to open, or nil once handled. Published so the
@@ -27,4 +34,12 @@ final class NavRouter: ObservableObject {
 
     /// Ask the shell to open the Devices manager (pair / switch bands). The shell decides how.
     func openDevices() { requestedDestination = .devices }
+    /// Open the v5 Insights hub (the n-of-1 "what moves your Charge" surface).
+    func openInsightsHub() { requestedDestination = .insightsHub }
+    /// Open the Lab Book (private health-records logbook).
+    func openLabBook() { requestedDestination = .labBook }
+    /// Open the "Your Data, Fused" multi-device record.
+    func openFusedRecord() { requestedDestination = .fusedRecord }
+    /// Open the experimental Rhythm visualization (self-gates on its own consent).
+    func openRhythm() { requestedDestination = .rhythm }
 }

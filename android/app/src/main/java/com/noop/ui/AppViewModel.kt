@@ -9,8 +9,10 @@ import com.noop.alarm.SmartAlarmStore
 import com.noop.alarm.WindDownScheduler
 import com.noop.alarm.WindDownStore
 import com.noop.analytics.HrZones
+import com.noop.analytics.IllnessSignalEngine
 import com.noop.analytics.IllnessWatch
 import com.noop.analytics.IntelligenceEngine
+import com.noop.analytics.V5HealthSignals
 import com.noop.analytics.RegistryDayOwnerSource
 import com.noop.analytics.RouteMath
 import com.noop.analytics.Sport
@@ -217,6 +219,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Whether the illness early-warning runs (banner + notification). */
     val illnessWatchEnabled: StateFlow<Boolean> = _illnessWatchEnabled.asStateFlow()
 
+    // Cycle awareness (v5 skin-temp suite) — OPT-IN, default OFF (manual-first). Declared BEFORE init for
+    // the same reason as _illnessWatchEnabled: the recentDays collector reads it on its synchronous first
+    // (cached) emission. Gates whether CyclePhaseEngine actually classifies in the v5 analytics pass.
+    private val _cycleTrackingEnabled = MutableStateFlow(NoopPrefs.cycleTracking(appContext))
+    /** Whether cycle-phase awareness is enabled (reads a coarse phase from nightly skin temperature). */
+    val cycleTrackingEnabled: StateFlow<Boolean> = _cycleTrackingEnabled.asStateFlow()
+
+    // The v5 Health-hub skin-temp-suite engine snapshot (Cycle / Body clock / Illness heads-up), recomputed
+    // from the cached merged days each analytics pass and published for HealthScreen's skin-temp section.
+    // Declared BEFORE init for the same first-emission-ordering reason as the toggles above.
+    private val _v5Signals = MutableStateFlow<V5HealthSignals.Snapshot?>(null)
+    /** Published engine RESULTS for the Health hub's skin-temp suite (null until the first pass runs). */
+    val v5Signals: StateFlow<V5HealthSignals.Snapshot?> = _v5Signals.asStateFlow()
+
     // Battery alerts (low ≤15% + charge-complete 100%). Opt-OUT, default ON; the actual firing
     // happens in BatteryAlertNotifier off the live-state stream — this flag just gates it (#368).
     private val _batteryAlertsEnabled = MutableStateFlow(NoopPrefs.batteryAlerts(appContext))
@@ -369,6 +385,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 // persisted day gate dedupes against the background-service call site.
                 if (previousAlert == null) {
                     _healthAlert.value?.let { IllnessAlertNotifier.onEvaluated(appContext, it) }
+                }
+                // v5 skin-temp suite: run the Cycle / Body-clock / Illness-heads-up engines over the same
+                // cached history and publish their RESULTS for the Health hub. The richer IllnessSignalEngine
+                // here is the v5 replacement for AppModel.evaluateIllness's body (the macOS Result analogue);
+                // it COEXISTS with the legacy IllnessWatch banner string above (which the notifier consumes),
+                // so the contract the notification path relies on is untouched. Best-effort — never let a
+                // signals hiccup kill the collector.
+                runCatching {
+                    _v5Signals.value = V5HealthSignals.evaluate(
+                        days = days,
+                        cycleOptedIn = _cycleTrackingEnabled.value,
+                        journalContext = illnessJournalContext(days),
+                    )
                 }
                 // Keep the home-screen widget fresh while the app is open — covers users who turned
                 // the background service off (the service is the widget's heartbeat otherwise).
@@ -1046,6 +1075,42 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // Recompute now — the recentDays collector only fires on data changes.
         _healthAlert.value = if (enabled) IllnessWatch.evaluate(recentDays.value) else null
     }
+
+    /** Flip cycle awareness (v5 skin-temp suite). Persists and recomputes the v5 signals immediately so
+     *  the Health hub's Cycle card flips between its opt-in card and the live result without a data change. */
+    fun setCycleTrackingEnabled(enabled: Boolean) {
+        _cycleTrackingEnabled.value = enabled
+        NoopPrefs.setCycleTracking(appContext, enabled)
+        val days = recentDays.value
+        runCatching {
+            _v5Signals.value = V5HealthSignals.evaluate(
+                days = days,
+                cycleOptedIn = enabled,
+                journalContext = illnessJournalContext(days),
+            )
+        }
+    }
+
+    /**
+     * Same-day confounder context for [IllnessSignalEngine] from the day's journal — alcohol / hard-or-late
+     * workout / "feeling unwell" suppress an anomaly so a hangover or a late session never reads as illness.
+     * Lightweight: derived from the latest day's exercise count + the cached "unwell" flag we can see here.
+     * (A fuller journal-tag read lands with the Mind pillar; this keeps the v5 pass honest without new I/O.)
+     */
+    private fun illnessJournalContext(days: List<DailyMetric>): IllnessSignalEngine.Context {
+        val latest = days.lastOrNull()
+        val hardOrLate = (latest?.exerciseCount ?: 0) >= 2
+        return IllnessSignalEngine.Context(
+            hardOrLateWorkout = hardOrLate,
+            alreadyUnwell = false,
+        )
+    }
+
+    /** Build today's fused multi-device record for [FusedRecordScreen] (v5 Local Multi-Device Fusion).
+     *  Reads each source's banked row for the logical day and runs the pure FusionResolver per metric;
+     *  no core-waterfall change. Suspend so the screen calls it from a LaunchedEffect. */
+    suspend fun fusedRecordForToday(): FusedRecord =
+        FusionDayAdapter.buildFor(repository, logicalDayKeyNow())
 
     /** Toggle strap low/full battery notifications (#368). The notifier reads NoopPrefs on each
      *  live-state update, so persisting is all that's needed — no stream to re-arm. */

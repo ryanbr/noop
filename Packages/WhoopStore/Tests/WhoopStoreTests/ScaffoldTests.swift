@@ -11,6 +11,6 @@ final class ScaffoldTests: XCTestCase {
     }
 
     func testLibraryVersionMarkerPresent() {
-        XCTAssertEqual(WhoopStoreInfo.schemaVersion, 16)
+        XCTAssertEqual(WhoopStoreInfo.schemaVersion, 17)
     }
 }

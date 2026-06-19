@@ -1,7 +1,12 @@
 package com.noop.ai
 
 import android.content.Context
+import com.noop.analytics.EffectRanker
+import com.noop.analytics.LabMarkerCategory
+import com.noop.analytics.MarkerCatalog
 import com.noop.data.DailyMetric
+import com.noop.data.JournalEntry
+import com.noop.data.LabMarkerRow
 import com.noop.data.WhoopRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -32,6 +37,10 @@ class AiCoach(private val repo: WhoopRepository) {
      *  coalesce every screen uses — so on-device "-noop" scores are visible too (#124). */
     private val deviceId = "my-whoop"
 
+    /** The source id native (in-app) journal answers are stored under (matches the UI's
+     *  JOURNAL_DEVICE_ID); used for the opt-in on-device-signals context only. */
+    private val journalDeviceId = "noop-journal"
+
     private val http: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
@@ -56,6 +65,7 @@ class AiCoach(private val repo: WhoopRepository) {
         model: String,
         consent: Boolean = false,
         customBaseUrl: String = "",
+        includeSignals: Boolean = false,
     ): String = withContext(Dispatchers.IO) {
         // Local (Custom) servers usually need no key; the cloud providers always do. The guarded read
         // returns the stored key ONLY if it belongs to THIS provider (or is a legacy cloud key) — so a
@@ -77,7 +87,12 @@ class AiCoach(private val repo: WhoopRepository) {
             // Merged read, NOT raw days(): a live-strap user's scores live under "my-whoop-noop"
             // and a raw read misses them — the coach then claimed it had no data. (#124)
             val days = runCatching { repo.daysMerged(deviceId) }.getOrDefault(emptyList())
-            injectContext(history, buildContext(days))
+            // v5: a SECOND opt-in (on top of `consent`) may append a SUMMARY-ONLY line of the user's
+            // strongest on-device patterns + Lab Book markers. Summary text only — no raw rows, no
+            // per-day series — so the anonymity / no-raw-egress posture holds. Best-effort; never blocks.
+            val signals = if (includeSignals) runCatching { buildSignalsContext() }.getOrNull() else null
+            val full = if (signals.isNullOrBlank()) buildContext(days) else buildContext(days) + "\n\n" + signals
+            injectContext(history, full)
         } else {
             injectContext(history, NO_CONSENT_NOTE)
         }
@@ -236,6 +251,72 @@ class AiCoach(private val repo: WhoopRepository) {
         }
 
         return sb.toString().trim()
+    }
+
+    /**
+     * SUMMARY-ONLY on-device signals context (v5): the user's strongest associations (from the same
+     * [EffectRanker] the Insights hub surfaces) and a one-line-per-marker Lab Book snapshot. Sent only
+     * behind the second opt-in. Deliberately compact + textual — no raw per-day series, no identifiers —
+     * so nothing beyond a plain English summary leaves the device. Returns null/blank when there's
+     * nothing to say (the coach then just uses the standard metrics context).
+     */
+    private suspend fun buildSignalsContext(): String? {
+        val sb = StringBuilder()
+
+        // --- Strongest associations on the user's own logged days (recovery as the outcome) ---
+        val behaviours = runCatching { journalBehaviours() }.getOrDefault(emptyMap())
+        val days = runCatching { repo.daysMerged(deviceId) }.getOrDefault(emptyList())
+        if (behaviours.isNotEmpty() && days.isNotEmpty()) {
+            val recoveryByDay = days.mapNotNull { d -> d.recovery?.let { d.day to it } }.toMap()
+            val ranked = runCatching { EffectRanker.rank(behaviours, recoveryByDay, "Charge") }
+                .getOrDefault(emptyList())
+                .take(3)
+            if (ranked.isNotEmpty()) {
+                sb.append("ON-DEVICE PATTERNS (associations in the user's own logged days — not causes, ")
+                sb.append("not diagnoses; weaker confidence means fewer days so far):\n")
+                for (r in ranked) {
+                    sb.append("  • ${r.behavior}: ${r.sentence()} [${r.confidence.name.lowercase()}]\n")
+                }
+            }
+        }
+
+        // --- Lab Book snapshot: the latest reading per marker the user has entered ---
+        val latestByMarker = runCatching { latestLabMarkers() }.getOrDefault(emptyList())
+        if (latestByMarker.isNotEmpty()) {
+            if (sb.isNotEmpty()) sb.append("\n")
+            sb.append("LAB BOOK (numbers the user entered themselves from their own reports; NOOP does not ")
+            sb.append("test or interpret them — never assert whether a value is normal/high/low):\n")
+            for (row in latestByMarker) {
+                val name = MarkerCatalog.definition(row.markerKey)?.displayName
+                    ?: row.markerKey.replace("_", " ").replaceFirstChar { it.uppercase() }
+                val value = row.value?.let { fmt1(it) + " " + row.unit } ?: (row.valueText ?: "—")
+                sb.append("  • $name: $value\n")
+            }
+        }
+
+        return sb.toString().trim().takeIf { it.isNotEmpty() }
+    }
+
+    /** Behaviour → set of "yyyy-MM-dd" days it was logged "yes" (imported ∪ native), for EffectRanker. */
+    private suspend fun journalBehaviours(): Map<String, Set<String>> {
+        val imported = repo.journal(deviceId, "0000-01-01", "9999-12-31")
+        val native = repo.journal(journalDeviceId, "0000-01-01", "9999-12-31")
+        val byKey = LinkedHashMap<Pair<String, String>, JournalEntry>()
+        for (e in imported) byKey[e.day to e.question] = e
+        for (e in native) byKey[e.day to e.question] = e   // native wins on a collision
+        val out = HashMap<String, MutableSet<String>>()
+        for (e in byKey.values) if (e.answeredYes) out.getOrPut(e.question) { mutableSetOf() }.add(e.day)
+        return out.mapValues { it.value.toSet() }
+    }
+
+    /** The latest reading per Lab Book marker key (stored under the strap deviceId). */
+    private suspend fun latestLabMarkers(): List<LabMarkerRow> {
+        val all = ArrayList<LabMarkerRow>()
+        for (category in LabMarkerCategory.entries) {
+            all += runCatching { repo.labMarkersByCategory(deviceId, category.raw) }.getOrDefault(emptyList())
+        }
+        return all.groupBy { it.markerKey }.values.map { rows -> rows.maxByOrNull { it.takenAt }!! }
+            .sortedBy { it.markerKey }
     }
 
     /**

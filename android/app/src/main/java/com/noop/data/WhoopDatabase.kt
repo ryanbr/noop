@@ -44,8 +44,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PpgHrSample::class,
         PairedDeviceRow::class,
         DayOwnershipRow::class,
+        LabMarkerRow::class,
     ],
-    version = 10,
+    version = 11,
     exportSchema = false,
 )
 abstract class WhoopDatabase : RoomDatabase() {
@@ -241,6 +242,56 @@ abstract class WhoopDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v10 -> v11: ADDITIVE — adds the `labMarker` table (Health Records "Lab Book" pillar), the
+         * Android port of the Swift Database.swift v17 migration. One row per dated reading the USER
+         * entered themselves; the daily `metricSeries` projection under source `lab-book` is how the
+         * book talks to the rest of the app. CREATE TABLE + indexes only (no existing data touched),
+         * so already-offloaded raw streams survive.
+         *
+         * NON-CLINICAL: the table holds ONLY user-entered values + an OPTIONAL user-entered
+         * `referenceText` (their own report's range). No reference-range tables, no normality verdict.
+         *
+         * The SQL MUST match Room's generated schema for [LabMarkerRow] exactly:
+         *  - PRIMARY KEY is the single TEXT `id`.
+         *  - `value`, `valueText`, `note`, `referenceText` are the only nullable columns (Kotlin `?`,
+         *    no NOT NULL); every other column is NOT NULL with NO SQL DEFAULT (a Kotlin construction
+         *    default never reaches the schema).
+         *  - Three indexes, byte-for-byte the Swift v17 indexes: a UNIQUE natural-key index plus two
+         *    non-unique lookup indexes, with the exact names Room derives from the @Index annotations.
+         * Like the others this is the no-destructive-fallback path: a mismatch throws loudly rather
+         * than silently wiping non-resendable strap history.
+         *
+         * The SQL is exposed as the [LAB_MARKER_MIGRATION_SQL] constants (below) so a plain-JVM unit
+         * test ([com.noop.data.LabMarkerMigrationTest]) can pin this shape WITHOUT needing Robolectric
+         * or a fake SupportSQLiteDatabase. Edit the constants and the migration changes in lockstep.
+         */
+        internal val LAB_MARKER_CREATE_SQL =
+            "CREATE TABLE IF NOT EXISTS `labMarker` (`id` TEXT NOT NULL, " +
+                "`deviceId` TEXT NOT NULL, `markerKey` TEXT NOT NULL, " +
+                "`category` TEXT NOT NULL, `day` TEXT NOT NULL, `takenAt` INTEGER NOT NULL, " +
+                "`value` REAL, `valueText` TEXT, `unit` TEXT NOT NULL, `source` TEXT NOT NULL, " +
+                "`note` TEXT, `referenceText` TEXT, PRIMARY KEY(`id`))"
+
+        internal val LAB_MARKER_INDEX_SQL = listOf(
+            "CREATE UNIQUE INDEX IF NOT EXISTS `idx_labMarker_natural` " +
+                "ON `labMarker` (`deviceId`, `markerKey`, `takenAt`, `source`)",
+            "CREATE INDEX IF NOT EXISTS `idx_labMarker_device_marker_takenAt` " +
+                "ON `labMarker` (`deviceId`, `markerKey`, `takenAt`)",
+            "CREATE INDEX IF NOT EXISTS `idx_labMarker_device_category` " +
+                "ON `labMarker` (`deviceId`, `category`)",
+        )
+
+        /** All statements the migration runs, in order — the table then its indexes. */
+        internal val LAB_MARKER_MIGRATION_SQL: List<String> =
+            listOf(LAB_MARKER_CREATE_SQL) + LAB_MARKER_INDEX_SQL
+
+        internal val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                for (stmt in LAB_MARKER_MIGRATION_SQL) db.execSQL(stmt)
+            }
+        }
+
         private fun build(appContext: Context): WhoopDatabase =
             Room.databaseBuilder(appContext, WhoopDatabase::class.java, DB_NAME)
                 // Real additive migration — NO destructive fallback (see the class doc): with
@@ -249,6 +300,7 @@ abstract class WhoopDatabase : RoomDatabase() {
                 .addMigrations(
                     MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
                     MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10,
+                    MIGRATION_10_11,
                 )
                 .build()
     }

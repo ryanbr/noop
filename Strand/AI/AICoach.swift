@@ -2,6 +2,8 @@ import Foundation
 import Combine
 import Security
 import WhoopStore
+import StrandAnalytics
+import StrandImport
 
 // MARK: - AI Coach (the one networked feature — strictly opt-in, bring-your-own-key)
 //
@@ -173,6 +175,13 @@ final class AICoachEngine: ObservableObject {
     @Published var customConnected: Bool {
         didSet { UserDefaults.standard.set(customConnected, forKey: Self.customConnectedKey) }
     }
+    /// SECOND opt-in (v5): also fold a SUMMARY of the new on-device signals — your strongest n-of-1
+    /// correlations and your Lab Book markers — into the coach context. OFF by default and gated behind
+    /// `dataConsent` too, so it never adds anything without both consents. Summary-only: a few one-line
+    /// sentences, NEVER raw readings — the anonymity / no-raw-egress posture is preserved.
+    @Published var includeOnDeviceSignals: Bool {
+        didSet { UserDefaults.standard.set(includeOnDeviceSignals, forKey: Self.onDeviceSignalsKey) }
+    }
 
     private let repo: Repository
     private let session: URLSession
@@ -181,6 +190,7 @@ final class AICoachEngine: ObservableObject {
     private static let modelKey = "ai.model"
     private static let consentKey = "ai.dataConsent"
     private static let customConnectedKey = "ai.customConnected"
+    private static let onDeviceSignalsKey = "ai.includeOnDeviceSignals"
 
     /// The system prompt that frames every request. Anonymous — frames the assistant only as a coach.
     private let systemPrompt = """
@@ -236,6 +246,7 @@ final class AICoachEngine: ObservableObject {
         self.dataConsent = UserDefaults.standard.bool(forKey: Self.consentKey)
         self.customBaseURL = UserDefaults.standard.string(forKey: AIProvider.customBaseURLKey) ?? ""
         self.customConnected = UserDefaults.standard.bool(forKey: Self.customConnectedKey)
+        self.includeOnDeviceSignals = UserDefaults.standard.bool(forKey: Self.onDeviceSignalsKey)
     }
 
     // MARK: Key management
@@ -408,11 +419,63 @@ final class AICoachEngine: ObservableObject {
         }
     }
 
-    /// Full data context = the metrics summary + recent workouts. Used when the user has consented.
+    /// Full data context = the metrics summary + recent workouts (+ an OPT-IN on-device-signals summary
+    /// when the second consent is on). Used when the user has granted data access.
     func buildFullContext() async -> String {
         var ctx = buildContext()
         ctx += "\n\n" + (await recentWorkoutsBlock())
+        if includeOnDeviceSignals {
+            let block = await onDeviceSignalsBlock()
+            if !block.isEmpty { ctx += "\n\n" + block }
+        }
         return ctx
+    }
+
+    /// A SUMMARY-ONLY block of the new on-device signals — the user's strongest n-of-1 correlations
+    /// (lag-aware EffectRanker) and a one-line roll-up of their Lab Book markers. Plain sentences, never
+    /// raw readings: this rides the same text channel as the metrics summary, so the no-raw-egress posture
+    /// holds. Gated by the caller on the second opt-in; returns "" when there's nothing worth adding.
+    func onDeviceSignalsBlock() async -> String {
+        var lines: [String] = []
+
+        // 1. Strongest behaviour→outcome associations (EffectRanker over the journal × Charge).
+        let entries = await repo.journalEntries()
+        var byBehaviour: [String: Set<String>] = [:]
+        for e in entries where e.answeredYes { byBehaviour[e.question, default: []].insert(e.day) }
+        if !byBehaviour.isEmpty {
+            let outcomeByDay = Dictionary(
+                repo.days.compactMap { d in d.recovery.map { (d.day, $0) } },
+                uniquingKeysWith: { _, last in last })
+            let ranked = EffectRanker.rank(behaviors: byBehaviour, outcomeByDay: outcomeByDay, outcome: "Charge")
+                .filter { $0.effect.significant }
+                .prefix(3)
+            if !ranked.isEmpty {
+                lines.append("STRONGEST PERSONAL PATTERNS (the user's own data — association, not cause):")
+                for r in ranked { lines.append("  • " + r.sentence()) }
+            }
+        }
+
+        // 2. Lab Book markers roll-up (count + latest of a few, never the full history).
+        if let store = await repo.storeHandle() {
+            var markerSummaries: [String] = []
+            for category in LabMarkerCategory.allCases {
+                let rows = (try? await store.labMarkers(deviceId: repo.deviceId, category: category.rawValue)) ?? []
+                let byKey = Dictionary(grouping: rows, by: { $0.markerKey })
+                for (key, kRows) in byKey {
+                    guard let latest = kRows.sorted(by: { $0.takenAt < $1.takenAt }).last else { continue }
+                    let name = MarkerCatalog.definition(for: key)?.displayName ?? key
+                    let value = latest.value.map { "\(LabBookFormat.value($0, key: key)) \(latest.unit)" } ?? latest.valueText ?? "—"
+                    markerSummaries.append("\(name) \(value)")
+                }
+            }
+            if !markerSummaries.isEmpty {
+                lines.append("")
+                lines.append("LAB BOOK (the user's own logged health numbers — not medical advice; do not interpret as clinical findings):")
+                lines.append("  " + markerSummaries.prefix(8).joined(separator: ", "))
+            }
+        }
+
+        return lines.joined(separator: "\n")
     }
 
     /// Dispatch to the user's chosen provider client.
