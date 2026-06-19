@@ -160,25 +160,28 @@ private enum class Destination(
     }
 }
 
-/** Sidebar groups, mirroring the macOS section ordering. */
+/** More-page groups, mirroring the iOS More tab exactly: Insights · Body · Data · App. */
 private data class DrawerGroup(val header: String, val items: List<Destination>)
 
+// Mirrors the iOS RootTabView `moreTab` grouping + order one-for-one. Today / Trends / Sleep are NOT
+// listed (they're bottom-bar tabs, exactly as on iOS). Android-only screens (Vital Signs, Smart Alarm,
+// Notifications, Devices) are slotted into the matching iOS group.
 private val drawerGroups: List<DrawerGroup> = listOf(
-    DrawerGroup("Overview", listOf(Destination.Today, Destination.Intelligence)),
-    DrawerGroup("Live", listOf(Destination.Live, Destination.Intervals)),
-    DrawerGroup("Charge", listOf(Destination.Sleep, Destination.Breathe, Destination.Stress)),
-    DrawerGroup("Activity", listOf(Destination.Workouts, Destination.Trends)),
-    DrawerGroup("Insight", listOf(
-        Destination.Coach, Destination.InsightsHub, Destination.Insights,
-        Destination.Explore, Destination.Compare,
+    DrawerGroup("Insights", listOf(
+        Destination.InsightsHub, Destination.Intelligence, Destination.Coach,
+        Destination.Insights, Destination.Explore, Destination.Compare,
     )),
-    DrawerGroup("Health", listOf(
-        Destination.Health, Destination.VitalSigns, Destination.LabBook,
-        Destination.Rhythm, Destination.AppleHealth,
+    DrawerGroup("Body", listOf(
+        Destination.Live, Destination.Workouts, Destination.Health, Destination.VitalSigns,
+        Destination.LabBook, Destination.Stress, Destination.Breathe, Destination.Intervals,
+        Destination.Rhythm,
     )),
-    DrawerGroup("System", listOf(
-        Destination.Automations, Destination.SmartAlarm, Destination.Devices, Destination.DataSources,
-        Destination.FusedRecord, Destination.Notifications, Destination.Support, Destination.Settings,
+    DrawerGroup("Data", listOf(
+        Destination.FusedRecord, Destination.AppleHealth, Destination.DataSources, Destination.Devices,
+    )),
+    DrawerGroup("App", listOf(
+        Destination.Automations, Destination.SmartAlarm, Destination.Notifications,
+        Destination.Settings, Destination.Support,
     )),
 )
 
