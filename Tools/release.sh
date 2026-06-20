@@ -45,6 +45,42 @@ GH_TOKEN_FILE="$HOME/.config/noop/gh_token"
 [ -f "$GH_TOKEN_FILE" ] || { echo "missing $GH_TOKEN_FILE" >&2; exit 1; }
 command -v gh >/dev/null 2>&1 || { echo "gh CLI not found on PATH" >&2; exit 1; }
 
+# ── Cadence guard (anti-suspension safeguard — see docs/SAFEGUARDS.md) ────────
+# GitHub once auto-flagged this account for activity that looked bot-like — a
+# rapid BURST of releases (its Acceptable Use Policy bars "excessive automated
+# bulk activity"). Releases should be BATCHED, not drip-shipped one tiny fix at
+# a time. This refuses to publish if we've already cut several today, or one was
+# just published, UNLESS you deliberately override — so a burst is always a
+# conscious choice, never an accident. Tunable: CADENCE_LIMIT, CADENCE_MIN_GAP_MIN.
+CADENCE_LIMIT="${CADENCE_LIMIT:-3}"                 # releases/day before the gate trips
+CADENCE_MIN_GAP_MIN="${CADENCE_MIN_GAP_MIN:-20}"    # minutes that must pass since the last
+if [ "${ALLOW_RAPID_RELEASE:-0}" != "1" ]; then
+  _rel_json="$(GH_TOKEN="$(cat "$GH_TOKEN_FILE")" gh api "repos/$GH_REPO/releases?per_page=20" 2>/dev/null || echo '[]')"
+  _today="$(date -u +%Y-%m-%d)"
+  _count_today="$(printf '%s' "$_rel_json" | python3 -c "import sys,json
+try: d=json.load(sys.stdin)
+except Exception: d=[]
+print(sum(1 for r in d if str(r.get('created_at','')).startswith('$_today') and not r.get('draft')))" 2>/dev/null || echo 0)"
+  _gap_min="$(printf '%s' "$_rel_json" | python3 -c "import sys,json,datetime
+try: d=json.load(sys.stdin)
+except Exception: d=[]
+pub=[r['created_at'] for r in d if r.get('created_at') and not r.get('draft')]
+if not pub: print(99999)
+else:
+  last=max(datetime.datetime.strptime(p,'%Y-%m-%dT%H:%M:%SZ') for p in pub)
+  print(int((datetime.datetime.utcnow()-last).total_seconds()//60))" 2>/dev/null || echo 99999)"
+  if [ "${_count_today:-0}" -ge "$CADENCE_LIMIT" ] || [ "${_gap_min:-99999}" -lt "$CADENCE_MIN_GAP_MIN" ]; then
+    echo "────────────────────────────────────────────────────────────────────" >&2
+    echo "⛔ CADENCE GUARD — refusing to publish $TAG." >&2
+    echo "   ${_count_today} release(s) already today; last one ${_gap_min} min ago." >&2
+    echo "   Rapid release bursts are what tripped GitHub's abuse filter before." >&2
+    echo "   BATCH the fixes into one release and space them out. If this release" >&2
+    echo "   is genuinely warranted right now, re-run with:  ALLOW_RAPID_RELEASE=1" >&2
+    echo "────────────────────────────────────────────────────────────────────" >&2
+    exit 2
+  fi
+fi
+
 # collect the assets that actually exist on disk (warn, don't die, on a miss).
 # ${ARR[@]+"${ARR[@]}"} guards against the empty-array "unbound variable" trap
 # in macOS's stock bash 3.2 under `set -u`.
