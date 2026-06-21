@@ -69,6 +69,13 @@ final class PpgBeatsTests: XCTestCase {
         return (sumSq / Double(rr.count - 1)).squareRoot()
     }
 
+    /// Range filter mirroring `HRVAnalyzer.cleanRR`'s first stage (keep 300–2000 ms). RMSSD is the RMS of
+    /// SUCCESSIVE DIFFERENCES, so a single missed/extra edge beat — which turns one R-R into a ~2× outlier
+    /// — would explode raw RMSSD and make the feasibility test fail for a reason the production path
+    /// (which range-filters + ectopic-rejects first) never hits. Applying it here measures the detector,
+    /// not an un-cleaned edge artifact.
+    private func rangeFiltered(_ rr: [Double]) -> [Double] { rr.filter { $0 >= 300 && $0 <= 2000 } }
+
     // MARK: - 1. Sub-sample refinement recovers a known parabola vertex
 
     func testRefinePeakRecoversFractionalVertex() {
@@ -102,7 +109,7 @@ final class PpgBeatsTests: XCTestCase {
         let dur = (bts.last ?? 1) + 0.6
         let rr = PpgBeats.deriveRR(records: records(synthPPG(beatTimesSec: bts, durationSec: dur)))
         XCTAssertGreaterThanOrEqual(rr.count, 30, "need enough beats to estimate RMSSD")
-        let recovered = rmssd(rr)
+        let recovered = rmssd(rangeFiltered(rr))     // mirror the production cleaning's range stage
         // The measurement: how close can 24 Hz + parabolic refinement get to a ~30 ms RMSSD? If this gap
         // is large even on CLEAN synthetic data, that quantifies the contributor's "no RMSSD" claim.
         XCTAssertEqual(recovered, injected, accuracy: 15.0,
