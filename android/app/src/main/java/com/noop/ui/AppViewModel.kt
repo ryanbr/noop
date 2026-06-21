@@ -546,8 +546,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             // ~96×/day. `syncedRowCount()` is a handful of cheap COUNT(*)s; MIN_VALUE forces the first pass.
             var lastAnalyzedRowCount = Long.MIN_VALUE
             while (isActive) {
-                val rowCount = repository.syncedRowCount()
-                if (rowCount != lastAnalyzedRowCount) {
+                // Guard the fingerprint read like analyzeRecent itself: a transient DB error must NOT kill
+                // the loop, and a null (read failed) falls through to run — never skip on uncertainty.
+                // CancellationException is rethrown so loop cancellation still works (#125).
+                val rowCount = runCatching { repository.syncedRowCount() }
+                    .onFailure { if (it is kotlin.coroutines.cancellation.CancellationException) throw it }
+                    .getOrNull()
+                if (rowCount == null || rowCount != lastAnalyzedRowCount) {
                     val analyzed = runCatching {
                     IntelligenceEngine.analyzeRecent(
                         repo = repository,
@@ -587,8 +592,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     // own cancellation — rethrow it so onCleared() actually stops the loop. (#125)
                     }.onFailure { if (it is kotlin.coroutines.cancellation.CancellationException) throw it }
                         .isSuccess
-                    // Advance the marker only on a successful pass so a failure retries next interval.
-                    if (analyzed) lastAnalyzedRowCount = rowCount
+                    // Advance the marker only on a successful pass with a real fingerprint, so a failure
+                    // (or a failed fingerprint read) retries next interval rather than sticking on null.
+                    if (analyzed && rowCount != null) lastAnalyzedRowCount = rowCount
                 }
                 // Opt-in writeback stays per-tick, OUTSIDE the change-gate: HealthConnectWriter.write is
                 // already incremental (frontier-based) so it's cheap on idle ticks, and it must still
