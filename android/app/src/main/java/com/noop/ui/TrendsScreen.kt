@@ -86,11 +86,21 @@ fun TrendsScreen(vm: AppViewModel) {
     val hrv = remember(days, range) { resolveMetric(days, range) { it.avgHrv } }
     val rhr = remember(days, range) { resolveMetric(days, range) { it.restingHr?.toDouble() } }
     val strain = remember(days, range) { resolveMetric(days, range) { it.strain } }
-    // Rest = sleep efficiency over the window, on the same 0–100 score scale as Charge, so the trio
-    // reads as one pip language. Efficiency arrives as either a 0–1 fraction (engine) or a 0–100
-    // percentage (import) depending on source — normalise to 0–100 the way Sleep/Compare do.
-    val rest = remember(days, range) {
-        resolveMetric(days, range) { d -> d.efficiency?.let { if (it <= 1.0) it * 100.0 else it } }
+    // Rest = the sleep_performance COMPOSITE (0–100) — the SAME metric the Today Rest score/tile and the
+    // Sleep Rest-detail plot (#614 follow-up), NOT raw efficiency, which is a different number under the
+    // same "Rest" label and made the Trends Rest graph disagree with the Today Rest score (#732).
+    // sleep_performance is a metricSeries (imported-wins resolved), not a DailyMetric column, so fetch the
+    // resolved series and key it by day for the existing windowing/widening below. Mirrors the source
+    // TodayScreen's restScore reads, so the two screens now plot the same number.
+    var sleepPerfByDay by remember { mutableStateOf<Map<String, Double>>(emptyMap()) }
+    LaunchedEffect(days) {
+        sleepPerfByDay = runCatching {
+            vm.repo.resolvedSeries("sleep_performance", "my-whoop", "0000-00-00", "9999-99-99")
+                .values.associate { it.first to it.second }
+        }.getOrDefault(emptyMap())
+    }
+    val rest = remember(days, range, sleepPerfByDay) {
+        resolveMetric(days, range) { d -> sleepPerfByDay[d.day] }
     }
     val recAvg = recovery.values.averageOrNull()
 

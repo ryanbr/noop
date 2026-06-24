@@ -48,6 +48,13 @@ struct TrendsView: View {
     // own range picker; this just presents it with the loaded history.
     @State private var showingReport = false
 
+    /// Rest's per-day series, keyed by YYYY-MM-DD. Rest is the sleep_performance COMPOSITE (matching the
+    /// Today Rest score + the Sleep Rest-detail, #614 follow-up) — NOT raw efficiency, which read different
+    /// under the same "Rest" label and made the Trends Rest graph disagree with the Today Rest score (#732).
+    /// sleep_performance is a metricSeries, not a DailyMetric field, so load it once (mirroring TodayView's
+    /// restScore source) and key by day for `resolve` below.
+    @State private var sleepPerfByDay: [String: Double] = [:]
+
     // Effort display scale (#268) — routes the Effort small-multiple's numbers + unit. Display-only.
     @AppStorage(UnitPrefs.effortScaleKey) private var effortScaleRaw = EffortScale.hundred.rawValue
     private var effortScale: EffortScale { UnitPrefs.resolveEffortScale(effortScaleRaw) }
@@ -215,9 +222,9 @@ struct TrendsView: View {
                 let hrv = resolve { $0.avgHrv }
                 let rhr = resolve { $0.restingHr.map(Double.init) }
                 let strain = resolve { $0.strain }
-                // Rest = sleep efficiency over the window, on the same 0–100 score scale as Charge,
-                // so the trio reads as one pip language (efficiency is a 0–1 fraction → ×100).
-                let rest = resolve { $0.efficiency.map { $0 * 100 } }
+                // Rest = the sleep_performance composite — the same number the Today Rest score shows
+                // (#732); see sleepPerfByDay. resolve() still does the windowing/widening.
+                let rest = resolve { sleepPerfByDay[$0.day] }
                 VStack(alignment: .leading, spacing: NoopMetrics.sectionSpacing) {
                     // The main card list ripples in once on appear (Reduce-Motion safe).
                     Group {
@@ -245,13 +252,22 @@ struct TrendsView: View {
         .sheet(isPresented: $showingReport) {
             TrendsReportSheet(days: repo.days)
         }
+        // #732 — load the resolved sleep_performance series so Rest plots the SAME composite the Today
+        // Rest score uses (not raw efficiency). Mirrors TodayView's restScore read. Keyed on the day
+        // count so a newly-banked/-scored night refreshes Rest reactively, like the other metrics that
+        // read `repo.days` directly (and like the Android LaunchedEffect(days) twin).
+        .task(id: repo.days.count) {
+            let s = await repo.exploreSeries(key: "sleep_performance", source: "my-whoop")
+            sleepPerfByDay = Dictionary(s.map { ($0.day, $0.value) }, uniquingKeysWith: { _, last in last })
+        }
     }
 
     // MARK: Week in Review — the Charge / Effort / Rest trio in pip language
 
     /// The three daily scores as NOOP pip rows over the resolved window: Charge (recovery, 0–100),
-    /// Effort (strain, shown on the WHOOP 0–21 scale per the unit toggle) and Rest (sleep efficiency,
-    /// 0–100). Each value ticks up via `CountUpText`; the segmented `PipBar` cascades on appear. Self-
+    /// Effort (strain, shown on the WHOOP 0–21 scale per the unit toggle) and Rest (sleep_performance
+    /// composite, 0–100 — the same metric the Today Rest score shows, #732). Each value ticks up via
+    /// `CountUpText`; the segmented `PipBar` cascades on appear. Self-
     /// hides when none of the three carry a window mean, so an empty history shows nothing here.
     @ViewBuilder
     private func weekInReview(charge: ResolvedMetric, effort: ResolvedMetric, rest: ResolvedMetric) -> some View {
