@@ -89,11 +89,12 @@ struct AutoWorkoutCard: View {
         .accessibilityElement(children: .contain)
     }
 
-    /// "Looks like a workout around 14:05–14:32 (avg HR 148, 27 min). Save it?"
+    /// "Looks like a workout [yesterday ]around 14:05–14:32 (avg HR 148, 27 min). Save it?"
     private func promptText(_ w: DetectedWorkout) -> String {
-        let start = Self.timeFmt.string(from: Date(timeIntervalSince1970: TimeInterval(w.startSec)))
+        let startDate = Date(timeIntervalSince1970: TimeInterval(w.startSec))
+        let start = Self.timeFmt.string(from: startDate)
         let end = Self.timeFmt.string(from: Date(timeIntervalSince1970: TimeInterval(w.endSec)))
-        return "Looks like a workout around \(start)–\(end) (avg HR \(w.avgBpm), \(w.durationMin) min). Save it?"
+        return "Looks like a workout \(Self.dayLabel(startDate))around \(start)–\(end) (avg HR \(w.avgBpm), \(w.durationMin) min). Save it?"
     }
 
     private func reload() async {
@@ -126,6 +127,24 @@ struct AutoWorkoutCard: View {
         f.locale = .current
         f.timeStyle = .short
         f.dateStyle = .none
+        return f
+    }()
+
+    /// A relative LOCAL-day prefix for the prompt (#719): "" when the workout started today, "yesterday "
+    /// when yesterday, otherwise "on <date> " — so a time-only prompt can no longer read last night as today.
+    private static func dayLabel(_ date: Date) -> String {
+        let cal = Calendar.current
+        if cal.isDateInToday(date) { return "" }
+        if cal.isDateInYesterday(date) { return "yesterday " }
+        return "on \(dateFmt.string(from: date)) "
+    }
+
+    /// Localized medium date ("Jun 23, 2026") for a workout older than yesterday.
+    private static let dateFmt: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = .current
+        f.dateStyle = .medium
+        f.timeStyle = .none
         return f
     }()
 }
