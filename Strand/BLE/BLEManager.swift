@@ -2254,14 +2254,33 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
                                         timedOut: connTimedOut && !intentionalDisconnect) {
             log("Bond-loop (#617): \(postBondLoop.consecutiveBondTimeouts) bond-then-timeout cycles — surfacing the re-pair guide")
             if state.reconnectGuide == nil {
+                // Platform-tailored: a WHOOP 4.0's LE "just-works" bond often ISN'T listed in System
+                // Settings → Bluetooth, so "Forget it there" is a dead end (#746) — the stale key lives in
+                // the OS Bluetooth stack. Give the real escalation per platform, plus the strap-side re-pair
+                // fallback. NOOP has now PAUSED auto-reconnect (above), so "reconnect when ready" is honest.
+                #if os(macOS)
                 state.reconnectGuide = """
-                Your strap keeps connecting and then dropping a second later. This is almost always a stale Bluetooth pairing — usually after a WHOOP firmware update, or the official WHOOP app holding the strap. NOOP works fine once it's re-paired:
+                Your strap keeps connecting and then dropping a second later — a bond-loop, almost always a stale Bluetooth pairing held by this Mac. NOOP has paused reconnecting to save battery; it works fine once the pairing is cleared:
 
-                1. Quit the official WHOOP app (or turn off Bluetooth on that phone).
+                1. Quit the official WHOOP app (and turn off Bluetooth on any phone still holding the strap).
                 2. Open System Settings → Bluetooth and Forget your WHOOP if it's listed.
-                3. Tap the strap repeatedly until its LEDs flash blue (pairing mode).
-                4. Come back here and reconnect.
+                3. If it's NOT listed (common on a WHOOP 4.0), macOS itself is holding the stale pairing — reset it: open Terminal and run  sudo pkill bluetoothd  (it relaunches on its own), or just restart your Mac.
+                4. Tap the strap repeatedly until its LEDs flash blue (pairing mode), then tap Connect here.
+
+                Still looping after that? Re-pair the strap once in the official WHOOP app to reset the strap's own side, then tap Connect here.
                 """
+                #else
+                state.reconnectGuide = """
+                Your strap keeps connecting and then dropping a second later — a bond-loop, almost always a stale Bluetooth pairing. NOOP has paused reconnecting to save battery; it works fine once it's re-paired:
+
+                1. Quit the official WHOOP app (and turn off Bluetooth on any other phone still holding the strap).
+                2. Open Settings → Bluetooth, tap your WHOOP if it's listed, and Forget This Device.
+                3. If it's NOT listed, restart your phone (or Settings → General → Transfer or Reset → Reset → Reset Network Settings) to clear the stale pairing.
+                4. Tap the strap repeatedly until its LEDs flash blue (pairing mode), then tap Connect here.
+
+                Still looping after that? Re-pair the strap once in the official WHOOP app to reset the strap's own side, then tap Connect here.
+                """
+                #endif
             }
         }
         bondedAt = nil   // cleared after the bond-loop detector above read it (#617)
@@ -2319,10 +2338,22 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         puffinRecorder.flush()   // persist any buffered puffin capture frames before reconnect
         Task { @MainActor in await collector?.flushStandardHR() }   // persist any buffered 0x2A37 HR
         if !intentionalDisconnect {
-            log("Disconnected\(error.map { " — \($0.localizedDescription)" } ?? ""); rescanning in 3s")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
-                guard let self, !self.intentionalDisconnect else { return }
-                self.connect()
+            if postBondLoop.tripped {
+                // #746: the #617 bond-loop is confirmed (≥2 bond-then-quick-timeout cycles). Auto-rescanning
+                // is futile here — it just re-bonds and drops every ~4 s, draining the battery, while the
+                // re-pair guide (already surfaced above) tells the user to STOP and clear the stale OS
+                // pairing. PAUSE the automatic reconnect and wait for an explicit user reconnect (Scan /
+                // Connect); a stabilized link then clears the streak via the didConnect timer (#724), and a
+                // still-looping retry simply re-pauses. This finishes the intent the detector's own doc
+                // already states ("surfaces the guide instead of looping"). The targeted-connect path that
+                // was re-firing every 3 s is exactly what this stops.
+                log("Disconnected\(error.map { " — \($0.localizedDescription)" } ?? ""); bond-loop tripped (#617) — auto-reconnect paused; tap Connect after re-pairing (see the guide)")
+            } else {
+                log("Disconnected\(error.map { " — \($0.localizedDescription)" } ?? ""); rescanning in 3s")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+                    guard let self, !self.intentionalDisconnect else { return }
+                    self.connect()
+                }
             }
         } else {
             log("Disconnected (intentional)")

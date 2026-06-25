@@ -4141,12 +4141,13 @@ class WhoopBleClient(
             if (_state.value.reconnectGuide == null) {
                 _state.value = _state.value.copy(
                     reconnectGuide = """
-                    Your strap keeps connecting and then dropping a second later. This is almost always a stale Bluetooth pairing — usually after a WHOOP firmware update, or the official WHOOP app holding the strap. NOOP works fine once it's re-paired:
+                    Your strap keeps connecting and then dropping a second later — a bond-loop, almost always a stale Bluetooth pairing. NOOP has paused reconnecting to save battery; it works fine once it's re-paired:
 
-                    1. Quit the official WHOOP app (or turn off Bluetooth on that phone).
+                    1. Quit the official WHOOP app (and turn off Bluetooth on any other phone still holding the strap).
                     2. Open Settings → Bluetooth, find your WHOOP, and Forget / Unpair it.
-                    3. Tap the band repeatedly until its LEDs flash blue (pairing mode).
-                    4. Come back here and tap Connect.
+                    3. Tap the band repeatedly until its LEDs flash blue (pairing mode), then tap Connect here.
+
+                    Still looping after that? Re-pair the strap once in the official WHOOP app to reset the strap's own side, then tap Connect here.
                     """.trimIndent()
                 )
             }
@@ -4203,6 +4204,16 @@ class WhoopBleClient(
                 handler.postDelayed({
                     if (!intentionalDisconnect) connect(selectedModel)
                 }, RECONNECT_DELAY_MS)
+                return
+            }
+            if (postBondLoop.tripped) {
+                // #746: the #617 bond-loop is confirmed — auto-reconnecting just re-bonds and drops every
+                // few seconds, draining the battery, while the re-pair guide (already surfaced above) tells
+                // the user to STOP and clear the stale OS pairing. PAUSE the auto-reconnect; an explicit user
+                // Connect resumes (and a stabilized link clears the streak). Twin of macOS BLEManager. NOTE:
+                // the staleDirectBond path above deliberately KEEPS scanning — it's WAITING for a re-pair —
+                // whereas this is the active-loop case, which must stop instead. (#617/#746)
+                log("Disconnected (status=$status); bond-loop tripped (#617) — auto-reconnect paused; tap Connect after re-pairing (see the guide)")
                 return
             }
             val dev = lastDevice
