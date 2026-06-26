@@ -1,15 +1,19 @@
 import SwiftUI
 import StrandDesign
 
-/// Smart alarm (#207) — the iOS/macOS surface.
+/// Smart alarm (#207) — the iOS/macOS surface, and the single home for every alarm setting (#766).
 ///
-/// HONEST by design: a sideloaded, backgrounded app on iOS can't fire a dependable LOUD wake alarm
-/// (that needs the critical-alert entitlement, which a non-App-Store build doesn't have), so this
-/// platform deliberately does NOT offer a wake alarm. The dependable phone wake lives on Android,
-/// which has the exact-alarm primitive. Here we offer the cross-platform WIND-DOWN nudge — a gentle
-/// evening reminder — and we say plainly why there's no wake alarm, rather than promising one we
-/// can't keep.
+/// HONEST by design: a sideloaded, backgrounded app on iOS can't fire a dependable LOUD PHONE wake alarm
+/// (that needs the critical-alert entitlement, which a non-App-Store build doesn't have), so this platform
+/// deliberately does NOT offer a phone wake alarm. The dependable phone wake lives on Android, which has
+/// the exact-alarm primitive. What we DO offer here: the strap's own firmware alarm (an on-wrist buzz that
+/// works offline) and the cross-platform WIND-DOWN nudge. The strap firmware alarm moved here from the
+/// Automations screen (#766) so both alarms live in one place rather than reading as duplicate entries.
 struct SmartAlarmView: View {
+    // #766: the strap firmware alarm reads/writes these via the shared BehaviorStore; AppModel.applySmartAlarm()
+    // re-arms the strap on change. Injected app-wide in StrandApp, exactly as AutomationsView consumes them.
+    @EnvironmentObject var model: AppModel
+    @EnvironmentObject var behavior: BehaviorStore
     @State private var windDownOn = WindDownNudge.isEnabled
     /// Earliest wake time the nudge is derived from (minutes since midnight). Seeded from the store.
     @State private var wakeMinutes = WindDownNudge.wakeMinutes
@@ -24,10 +28,11 @@ struct SmartAlarmView: View {
 
     var body: some View {
         ScreenScaffold(title: "Smart alarm",
-                       subtitle: "A gentle evening wind-down nudge to help you reach your wake time rested.") {
+                       subtitle: "Your strap's offline wake buzz and a gentle evening wind-down nudge, in one place.") {
             VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
                 windowHero
                 honestyCard
+                strapAlarmCard
                 windDownCard
             }
         }
@@ -84,15 +89,135 @@ struct SmartAlarmView: View {
                     .foregroundStyle(StrandPalette.statusWarning)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("No wake alarm on this device")
+                    Text("No phone wake alarm on this device")
                         .font(StrandFont.headline)
                         .foregroundStyle(StrandPalette.textPrimary)
-                    Text("A sideloaded app can't sound a reliable wake alarm in the background on iOS — that needs a critical-alert permission this build doesn't have. Use your phone's built-in Clock alarm to wake. NOOP's smart wake (light-sleep detection) is available on the Android app.")
+                    Text("A sideloaded app can't sound a reliable wake alarm in the background on iOS — that needs a critical-alert permission this build doesn't have. The strap's own firmware alarm below can buzz your wrist instead, or use your phone's built-in Clock alarm. NOOP's smart wake (light-sleep detection) is available on the Android app.")
                         .font(StrandFont.footnote)
                         .foregroundStyle(StrandPalette.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
+        }
+    }
+
+    // MARK: - Strap firmware alarm (#51), relocated here from AutomationsView (#766)
+
+    /// The strap's OWN firmware alarm: arms the strap to buzz the wrist at a fixed wake time, fully offline
+    /// (works with NOOP closed / Bluetooth asleep). Since iOS has no phone wake alarm (see honestyCard), this
+    /// is the only wake mechanism on this platform. Content mirrors the card that used to live in Automations,
+    /// re-skinned to this screen's StrandCard idiom; the BehaviorStore wiring + applySmartAlarm() are unchanged.
+    private var strapAlarmCard: some View {
+        StrandCard(padding: 20, tint: behavior.smartAlarmEnabled ? StrandPalette.accent : nil) {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "alarm.fill")
+                            .foregroundStyle(StrandPalette.accent)
+                            .accessibilityHidden(true)
+                        Text("Strap firmware alarm")
+                            .font(StrandFont.headline)
+                            .foregroundStyle(StrandPalette.textPrimary)
+                    }
+                    Text("Wake to a buzz from the strap's own firmware alarm, even if NOOP is closed. Still experimental on WHOOP 4.0, so keep a backup alarm until you've confirmed it wakes you.")
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                HStack(alignment: .center, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Enable strap alarm")
+                            .font(StrandFont.body)
+                            .foregroundStyle(StrandPalette.textPrimary)
+                        Text("Arms the strap to buzz at your wake time.")
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textTertiary)
+                    }
+                    Spacer()
+                    Toggle("", isOn: $behavior.smartAlarmEnabled)
+                        .labelsHidden().toggleStyle(.switch).tint(StrandPalette.accent)
+                        .accessibilityLabel("Enable strap alarm")
+                }
+                .frame(minHeight: 42)
+
+                if behavior.smartAlarmEnabled {
+                    Divider().overlay(StrandPalette.hairline)
+                    HStack {
+                        Text("Wake at").font(StrandFont.body).foregroundStyle(StrandPalette.textPrimary)
+                        Spacer()
+                        DatePicker("", selection: strapAlarmTimeBinding, displayedComponents: .hourAndMinute)
+                            .labelsHidden().datePickerStyle(.compact)
+                            .accessibilityLabel("Strap alarm wake time")
+                    }
+                    Divider().overlay(StrandPalette.hairline)
+                    strapAlarmWeekdayPicker
+                    Text("Armed on the strap itself, so it can buzz at your wake time even if your phone is asleep or NOOP is closed. We send the same alarm command the official app sends, but a strap-driven wake-up hasn't been confirmed on our side yet, so please keep a backup alarm for now.")
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .onChangeCompat(of: behavior.smartAlarmEnabled) { _ in model.applySmartAlarm() }
+            .onChangeCompat(of: behavior.smartAlarmMinutes) { _ in model.applySmartAlarm() }
+            .onChangeCompat(of: behavior.smartAlarmWeekdays) { _ in model.applySmartAlarm() }
+        }
+    }
+
+    /// Which days the strap alarm fires on. Reuses the shared, unit-tested selection logic on AutomationsView
+    /// (empty set = every day); the day initials/names + ordering are this view's own.
+    private var strapAlarmWeekdayPicker: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                ForEach(Self.weekdayOrder, id: \.self) { dow in
+                    let selected = AutomationsView.weekdayIsSelected(dow, in: behavior.smartAlarmWeekdays)
+                    Text(Self.weekdayInitial(dow))
+                        .font(StrandFont.caption)
+                        .foregroundStyle(selected ? StrandPalette.surfaceBase : StrandPalette.textSecondary)
+                        .frame(width: 30, height: 30)
+                        .background(selected ? StrandPalette.accent : StrandPalette.surfaceInset, in: Circle())
+                        .contentShape(Circle())
+                        .onTapGesture { behavior.smartAlarmWeekdays = AutomationsView.toggledWeekday(dow, in: behavior.smartAlarmWeekdays) }
+                        .accessibilityLabel(Self.weekdayName(dow))
+                        .accessibilityAddTraits(selected ? .isSelected : [])
+                }
+            }
+            Text(AutomationsView.weekdaySummary(behavior.smartAlarmWeekdays))
+                .font(StrandFont.caption)
+                .foregroundStyle(StrandPalette.textTertiary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 6)
+    }
+
+    /// Bridges the strap alarm's minutes-since-midnight store to a DatePicker's Date.
+    private var strapAlarmTimeBinding: Binding<Date> {
+        Binding(
+            get: {
+                var c = DateComponents()
+                c.hour = behavior.smartAlarmMinutes / 60
+                c.minute = behavior.smartAlarmMinutes % 60
+                return Calendar.current.date(from: c) ?? Date()
+            },
+            set: { date in
+                let c = Calendar.current.dateComponents([.hour, .minute], from: date)
+                behavior.smartAlarmMinutes = (c.hour ?? 7) * 60 + (c.minute ?? 0)
+            }
+        )
+    }
+
+    /// Single-letter weekday initial for the picker circles (Sun…Sat = 1…7).
+    private static func weekdayInitial(_ dow: Int) -> String {
+        switch dow {
+        case 1: return "S"
+        case 2: return "M"
+        case 3: return "T"
+        case 4: return "W"
+        case 5: return "T"
+        case 6: return "F"
+        case 7: return "S"
+        default: return "?"
         }
     }
 
