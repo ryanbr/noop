@@ -5,17 +5,19 @@ final class TestCentreLayoutTests: XCTestCase {
 
     // MARK: - Section 1 projection (priority order + requires5MG filter)
 
-    /// Phase 1 ships sleep (high) and battery (med); neither requires 5/MG, so a WHOOP 4.0 owner
-    /// sees both, sleep first (high before med).
+    /// The registered modes project in priority order (high before med); none requires 5/MG, so a
+    /// WHOOP 4.0 owner sees all of them, the high-priority profiles first.
     func testPhase1OrderHighThenMed() {
         let rows = TestCentreLayout.visibleModes(is5MG: false)
-        XCTAssertEqual(rows.map { $0.domain }, [.sleep, .battery])
+        XCTAssertEqual(rows.map { $0.domain },
+                       [.sleep, .connection, .workouts, .display, .dataImport, .steps, .battery, .recovery, .hrv])
     }
 
-    /// A 5/MG owner sees the same two Phase 1 modes (neither is gated), same order.
+    /// A 5/MG owner sees the same modes (none is gated), same order.
     func testFiveMGOwnerSeesSame() {
         let rows = TestCentreLayout.visibleModes(is5MG: true)
-        XCTAssertEqual(rows.map { $0.domain }, [.sleep, .battery])
+        XCTAssertEqual(rows.map { $0.domain },
+                       [.sleep, .connection, .workouts, .display, .dataImport, .steps, .battery, .recovery, .hrv])
     }
 
     /// The filter drops a requires5MG mode for a 4.0 owner. Synthesised input proves the rule

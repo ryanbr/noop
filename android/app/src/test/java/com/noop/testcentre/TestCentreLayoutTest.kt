@@ -11,13 +11,21 @@ class TestCentreLayoutTest {
     @Test
     fun phase1_order_highThenMed() {
         val rows = TestCentreLayout.visibleModes(is5MG = false)
-        assertEquals(listOf(TestDomain.SLEEP, TestDomain.BATTERY), rows.map { it.domain })
+        assertEquals(
+            listOf(TestDomain.SLEEP, TestDomain.CONNECTION, TestDomain.WORKOUTS, TestDomain.DISPLAY,
+                TestDomain.IMPORT, TestDomain.STEPS, TestDomain.BATTERY, TestDomain.RECOVERY, TestDomain.HRV),
+            rows.map { it.domain },
+        )
     }
 
     @Test
     fun fiveMGOwner_seesSame() {
         val rows = TestCentreLayout.visibleModes(is5MG = true)
-        assertEquals(listOf(TestDomain.SLEEP, TestDomain.BATTERY), rows.map { it.domain })
+        assertEquals(
+            listOf(TestDomain.SLEEP, TestDomain.CONNECTION, TestDomain.WORKOUTS, TestDomain.DISPLAY,
+                TestDomain.IMPORT, TestDomain.STEPS, TestDomain.BATTERY, TestDomain.RECOVERY, TestDomain.HRV),
+            rows.map { it.domain },
+        )
     }
 
     @Test
