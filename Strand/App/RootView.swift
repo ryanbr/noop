@@ -22,6 +22,7 @@ enum NavItem: String, CaseIterable, Identifiable, Hashable {
     case appleHealth = "Apple Health"
     case xiaomi = "Mi Band"
     case dataSources = "Data Sources"
+    case backupSync = "Backup & Sync"
     case fusedRecord = "Your Data, Fused"
     case devices = "Devices"
     case notifications = "Notifications"
@@ -56,6 +57,7 @@ enum NavItem: String, CaseIterable, Identifiable, Hashable {
         case .appleHealth: return "Apple Health"
         case .xiaomi: return "Mi Band"
         case .dataSources: return "Data Sources"
+        case .backupSync: return "Backup & Sync"
         case .fusedRecord: return "Your Data, Fused"
         case .devices: return "Devices"
         case .notifications: return "Notifications"
@@ -91,6 +93,7 @@ enum NavItem: String, CaseIterable, Identifiable, Hashable {
         case .appleHealth: return "heart.fill"
         case .xiaomi: return "figure.walk.motion"
         case .dataSources: return "square.and.arrow.down.fill"
+        case .backupSync: return "cloud.fill"
         case .fusedRecord: return "square.stack.3d.up.fill"
         case .devices: return "badge.plus.radiowaves.right"
         case .notifications: return "bell.badge.fill"
@@ -148,7 +151,12 @@ struct RootView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(StrandPalette.surfaceBase.ignoresSafeArea())
         }
-        .task { await repo.refresh() }
+        .task {
+            await repo.refresh()
+            // Backup & Sync (Phase 1): on-launch catch-up — back up to the chosen folder if auto is on
+            // and it's been ≥ a day (Apple has no reliable unattended background write; this is the schedule).
+            await FolderBackup.catchUpIfDue(checkpoint: { await repo.checkpointForBackup() })
+        }
         // Honour a cross-screen request to open a top-level destination (e.g. Live's "Manage devices"),
         // then clear it so the same tap can fire again later. Devices maps to the `.devices` sidebar item.
         .onChangeCompat(of: router.requestedDestination) { dest in
@@ -204,6 +212,7 @@ struct RootView: View {
         case .appleHealth: AppleHealthView()
         case .xiaomi: XiaomiBandView()
         case .dataSources: DataSourcesView()
+        case .backupSync: BackupSyncView()
         case .fusedRecord: FusedRecordHost()
         case .devices: DevicesView()
         case .notifications: NotificationSettingsView()

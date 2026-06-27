@@ -30,6 +30,18 @@ enum DocumentPicker {
         }
     }
 
+    /// Present a folder picker (Backup & Sync). NOT `asCopy` — we keep the security-scoped folder URL so
+    /// the caller can bookmark it and write snapshots into it later. Returns the chosen folder, or `nil`.
+    @MainActor
+    static func pickFolder() async -> URL? {
+        await present { coordinator in
+            let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.folder])
+            picker.delegate = coordinator
+            picker.allowsMultipleSelection = false
+            return picker
+        }
+    }
+
     // MARK: - Presentation plumbing
 
     @MainActor

@@ -105,6 +105,31 @@ enum DataBackup {
         #endif
     }
 
+    /// (Backup & Sync) Write a `.noopbak` to a SPECIFIC url with NO save panel — the folder/auto path.
+    /// Checkpoints the WAL (so the single .sqlite is whole) then writes the deflate ZIP via the same
+    /// `writeBackupZip` the interactive export uses, so folder/auto backups are byte-identical to manual
+    /// ones. The CALLER owns any security-scoped access to `dest` (start/stop around this call).
+    static func writeBackup(checkpoint: @escaping () async -> Bool, to dest: URL) async -> BackupResult {
+        let dbPath: String
+        do { dbPath = try StorePaths.defaultDatabasePath() }
+        catch { return .failure("Couldn't locate the NOOP database. \(error.localizedDescription)") }
+        let dbURL = URL(fileURLWithPath: dbPath)
+        guard FileManager.default.fileExists(atPath: dbPath) else {
+            return .failure("There's no NOOP data to export yet.")
+        }
+        guard await checkpoint() else {
+            return .failure("Couldn't safely export right now — recent changes are still in the write-ahead log.")
+        }
+        do {
+            let fm = FileManager.default
+            if fm.fileExists(atPath: dest.path) { try fm.removeItem(at: dest) }
+            try writeBackupZip(dbURL: dbURL, to: dest)
+            return .exported(dest)
+        } catch {
+            return .failure("Export failed: \(error.localizedDescription)")
+        }
+    }
+
     /// Write the live SQLite at `dbURL` into a fresh single-entry deflate ZIP at `dest`, under the
     /// canonical entry name `noop-backup.sqlite`. The entry name and deflate compression match the
     /// Android exporter byte-for-byte at the container level, so a `.noopbak` produced on either

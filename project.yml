@@ -92,6 +92,10 @@ targets:
         com.apple.security.app-sandbox: true
         com.apple.security.device.bluetooth: true
         com.apple.security.files.user-selected.read-write: true
+        # Backup & Sync (Phase 1): persist a security-scoped bookmark to the user's chosen backup folder
+        # so scheduled/auto backups can write to it across launches (a no-op on the unsigned ad-hoc build,
+        # which applies no entitlements; required for a signed/sandboxed build).
+        com.apple.security.files.bookmarks.app-scope: true
         # Outbound client access — used ONLY by the opt-in, consent-gated, BYOK AI Coach.
         # The ad-hoc distributed build applies NO entitlements (unsigned build + ad-hoc
         # re-sign), so this matters only for a SIGNED/sandboxed build (where the sandbox

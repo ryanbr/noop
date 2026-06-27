@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Spa
@@ -149,6 +150,7 @@ private enum class Destination(
     SmartAlarm("smart_alarm", "Alarms", Icons.Filled.Alarm),
     Devices("devices", "Devices", Icons.Filled.Sensors),
     DataSources("data_sources", "Data Sources", Icons.Filled.Storage),
+    BackupSync("backup_sync", "Backup & Sync", Icons.Filled.CloudSync),
     FusedRecord("fused_record", "Your Data, Fused", Icons.AutoMirrored.Filled.CompareArrows),
     Notifications("notifications", "Notifications", Icons.Filled.Notifications),
     Support("support", "Support", Icons.Filled.Tune),
@@ -187,7 +189,7 @@ private val drawerGroups: List<DrawerGroup> = listOf(
         Destination.Rhythm,
     )),
     DrawerGroup("Data", listOf(
-        Destination.FusedRecord, Destination.AppleHealth, Destination.DataSources, Destination.Devices,
+        Destination.FusedRecord, Destination.AppleHealth, Destination.DataSources, Destination.BackupSync, Destination.Devices,
     )),
     DrawerGroup("App", listOf(
         Destination.Automations, Destination.SmartAlarm, Destination.Notifications,
@@ -339,6 +341,7 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                 composable(Destination.AppleHealth.route) { AppleHealthScreen(viewModel) }
                 composable(Destination.Devices.route) { DevicesScreen(viewModel) }
                 composable(Destination.DataSources.route) { DataSourcesScreen(viewModel) }
+                composable(Destination.BackupSync.route) { BackupSyncScreen() }
                 composable(Destination.Notifications.route) { NotificationsSettingsScreen(viewModel) }
                 composable(Destination.Settings.route) {
                     SettingsScreen(viewModel, onOpenTestCentre = { nav.navigate(Destination.TestCentre.route) })
