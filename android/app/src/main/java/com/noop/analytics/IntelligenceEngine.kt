@@ -551,8 +551,14 @@ object IntelligenceEngine {
             // day (the project's log-failures-not-successes blind spot) and lets us settle the "Rest repeats
             // across days" question with data. Gated by the existing strap-log export. Mirrors the Swift line.
             val tsmLog = daily.totalSleepMin?.let { Math.round(it).toString() } ?: "nil"
+            // (#777) Awake = in-bed − asleep, derived from the now gap-inclusive efficiency (in-bed includes
+            // the out-of-bed time between bridged fragments). Surfaced so the next report shows whether a
+            // mid-night get-up is finally counted, instead of awake being invisible in the log.
+            val eff = daily.efficiency
+            val tsm = daily.totalSleepMin
+            val awakeLog = if (tsm != null && eff != null && eff > 0.0) Math.round(tsm / eff - tsm).toString() else "nil"
             diag(
-                "sleep day=${daily.day} totalSleepMin=$tsmLog " +
+                "sleep day=${daily.day} totalSleepMin=$tsmLog awakeMin=$awakeLog " +
                     "matched=${res.sleepSessions.size} " +
                     "source=${daySourceToken(daily.day, importedWhoopDays, appleHealthDays)}",
             )

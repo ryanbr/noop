@@ -578,7 +578,14 @@ final class IntelligenceEngine: ObservableObject {
             // day (the project's log-failures-not-successes blind spot) and lets us settle the "Rest repeats
             // across days" question with data rather than a guess. Gated by the existing strap-log export.
             let tsmLog = daily.totalSleepMin.map { String(Int($0.rounded())) } ?? "nil"
-            diagnosticSink?("sleep day=\(daily.day) totalSleepMin=\(tsmLog) "
+            // (#777) Awake = in-bed − asleep, derived from the now gap-inclusive efficiency (in-bed includes
+            // the out-of-bed time between bridged fragments). Surfaced so the next report shows whether a
+            // mid-night get-up is finally counted, instead of awake being invisible in the log.
+            let awakeLog: String = {
+                guard let tsm = daily.totalSleepMin, let eff = daily.efficiency, eff > 0 else { return "nil" }
+                return String(Int((tsm / eff - tsm).rounded()))
+            }()
+            diagnosticSink?("sleep day=\(daily.day) totalSleepMin=\(tsmLog) awakeMin=\(awakeLog) "
                             + "matched=\(night.cachedSleep.count) source=\(source.logToken)")
             dailies.append(daily.with(recovery: recovery, skinTempDevC: skinDev))
             if let rest = AnalyticsEngine.Rest.composite(daily: daily) {

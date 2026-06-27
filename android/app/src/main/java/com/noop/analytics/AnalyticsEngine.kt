@@ -249,7 +249,7 @@ object AnalyticsEngine {
         for (s in mainGroup) {
             val m = SleepStager.hypnogramMetrics(s)
             val inBed = (s.end - s.start).toDouble()
-            inBedS += inBed                       // SUM each fragment's in-bed (excludes the wake gap)
+            inBedS += inBed                       // SUM each fragment's in-bed span
             effWeighted += s.efficiency * inBed   // in-bed-weighted efficiency across the group
             deepS += m.deepMin * 60.0
             remS += m.remMin * 60.0
@@ -257,6 +257,11 @@ object AnalyticsEngine {
             tstS += m.tstS
             disturbances += m.disturbances
         }
+        // (#777) Count the out-of-bed time BETWEEN bridged fragments as awake in-bed: the sleeper was up
+        // (e.g. a 20-min walk) but it's one night, so the gap is WASO. Adding it to in-bed (not to asleep)
+        // raises awake (= in-bed − asleep) and lowers efficiency, instead of vanishing the time entirely.
+        val gapWakeS = SleepStageTotals.interFragmentWakeSeconds(mainGroup.map { it.start to it.end }).toDouble()
+        inBedS += gapWakeS
         val efficiency = if (inBedS > 0) effWeighted / inBedS else 0.0
 
         // #525 NOTE: the sleep-DURATION figures above are main-night-only (the headline "your night"),

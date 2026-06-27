@@ -55,7 +55,7 @@ public enum SleepStageTotals {
         public let deepMin: Double, remMin: Double, lightMin: Double
     }
 
-    public static func dailyAggregate(_ stagesJSONs: [String?]) -> DailySleep? {
+    public static func dailyAggregate(_ stagesJSONs: [String?], extraAwakeSec: Double = 0.0) -> DailySleep? {
         var total = Minutes()
         var any = false
         for j in stagesJSONs {
@@ -66,8 +66,28 @@ public enum SleepStageTotals {
             }
         }
         guard any, total.inBed > 0 else { return nil }
+        // (#777) `extraAwakeSec` = inter-fragment out-of-bed WASO from a bridged main-night group (0 for the
+        // single-block / legacy callers). Counts as awake in-bed: raises awake, lowers efficiency.
+        total.awake += extraAwakeSec / 60.0
         return DailySleep(totalSleepMin: total.asleep, efficiency: total.asleep / total.inBed,
                           deepMin: total.deep, remMin: total.rem, lightMin: total.light)
+    }
+
+    /// (#777) Total inter-fragment WAKE seconds within a bridged main-night GROUP: the time the sleeper was
+    /// out of bed between consecutive fragments of ONE night. Each fragment's `stagesJSON` carries only its
+    /// own in-bed span, so previously this gap was excluded from awake AND in-bed entirely — a 20-minute
+    /// get-up-and-walk showed as ~0 awake (#777). The fragments are bridged (gap < `gapBridgeMaxMin`) so each
+    /// gap is a mid-night awakening, NOT a separate session/nap. Pass the group's [start, end] spans in any
+    /// order; only positive (non-overlapping) gaps between time-ordered spans are summed. Pure for tests.
+    public static func interFragmentWakeSeconds(_ spans: [(start: Int, end: Int)]) -> Int {
+        guard spans.count >= 2 else { return 0 }
+        let sorted = spans.sorted { $0.start < $1.start }
+        var gap = 0
+        for i in 1..<sorted.count {
+            let g = sorted[i].start - sorted[i - 1].end
+            if g > 0 { gap += g }
+        }
+        return gap
     }
 
     // MARK: - Canonical main-night selection (#525 / #547 — learned-timing scored pick)
@@ -454,8 +474,21 @@ public enum SleepStageTotals {
             // is one night, not the longer fragment only). Naps outside the group remain their own rows.
             let group = mainNightGroupIndicesByStages(blocks, onsetByStart: onsetByStart, offsetSec: offsetSec,
                                                       habitualMidsleepSec: habitualMidsleepSec)
-            if let group, let agg = dailyAggregate(group.map { blocks[$0].stagesJSON }) {
-                return (agg, applied)
+            if let group {
+                // (#777) The bridged group is ONE night; the out-of-bed time between its fragments is WASO.
+                // Each fragment's effective span is [onset, onset + decoded in-bed]; sum the positive gaps and
+                // feed them in as extra awake so this seam matches `analyzeDay` (which adds the same gap to
+                // in-bed).
+                let spans: [(start: Int, end: Int)] = group.map { i in
+                    let b = blocks[i]
+                    let onset = onsetByStart[b.startTs] ?? b.startTs
+                    let inBedSec = Int((minutes(fromStagesJSON: b.stagesJSON)?.inBed ?? 0) * 60.0)
+                    return (start: onset, end: onset + inBedSec)
+                }
+                let gapSec = Double(interFragmentWakeSeconds(spans))
+                if let agg = dailyAggregate(group.map { blocks[$0].stagesJSON }, extraAwakeSec: gapSec) {
+                    return (agg, applied)
+                }
             }
             return nil
         }

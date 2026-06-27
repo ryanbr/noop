@@ -1438,6 +1438,11 @@ struct SleepView: View {
             if let m = motionByStart[frag.startTs] { motion.append(contentsOf: m) }
         }
         guard stages.asleep > 0 else { return nil }
+        // (#777) Count the out-of-bed time BETWEEN the night's fragments as awake, so a mid-night get-up
+        // (e.g. a 20-min walk) shows on the stage bar too — matching analyzeDay's in-bed gap. effectiveStartTs
+        // honours a bedtime edit so the gaps line up with the displayed fragment spans.
+        let gapSec = SleepStageTotals.interFragmentWakeSeconds(group.map { (start: $0.effectiveStartTs, end: $0.endTs) })
+        stages.awake += Double(gapSec) / 60.0
         let eff = stages.total > 0 ? stages.asleep / stages.total : nil
         let synth = CachedSleepSession(startTs: onset, endTs: wake, efficiency: eff,
                                        restingHr: nil, avgHrv: nil, stagesJSON: nil)

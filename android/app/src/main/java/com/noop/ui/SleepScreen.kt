@@ -2405,7 +2405,12 @@ private fun sumGroupStages(group: List<SleepSession>): StageMins? {
         val s = parseSessionStages(frag.stagesJSON) ?: continue
         aw += s.awake; li += s.light; dp += s.deep; rm += s.rem; any = true
     }
-    return if (any) StageMins(aw, li, dp, rm) else null
+    if (!any) return null
+    // (#777) Count the out-of-bed time BETWEEN the night's fragments as awake, so a mid-night get-up
+    // (e.g. a 20-min walk) shows on the stage bar too — matching analyzeDay's in-bed gap. effectiveStartTs
+    // honours a bedtime edit so the gaps line up with the displayed fragment spans.
+    val gapMin = SleepStageTotals.interFragmentWakeSeconds(group.map { it.effectiveStartTs to it.endTs }) / 60.0
+    return StageMins(aw + gapMin, li, dp, rm)
 }
 
 /** The device's current UTC offset (seconds east), evaluated per pick, fed to the selector's `offsetSec`

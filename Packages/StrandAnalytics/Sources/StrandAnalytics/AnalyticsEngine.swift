@@ -283,7 +283,7 @@ public enum AnalyticsEngine {
         for s in mainGroup {
             let m = SleepStager.hypnogramMetrics(s)
             let inBed = Double(s.end - s.start)
-            inBedS += inBed                       // SUM each fragment's in-bed (excludes the wake gap)
+            inBedS += inBed                       // SUM each fragment's in-bed span
             effWeighted += s.efficiency * inBed   // in-bed-weighted efficiency across the group
             deepS += m.deepMin * 60.0
             remS += m.remMin * 60.0
@@ -291,6 +291,11 @@ public enum AnalyticsEngine {
             tstS += m.tstS
             disturbances += m.disturbances
         }
+        // (#777) Count the out-of-bed time BETWEEN bridged fragments as awake in-bed: the sleeper was up
+        // (e.g. a 20-min walk) but it's one night, so the gap is WASO. Adding it to in-bed (not to asleep)
+        // raises awake (= in-bed − asleep) and lowers efficiency, instead of vanishing the time entirely.
+        let gapWakeS = Double(SleepStageTotals.interFragmentWakeSeconds(mainGroup.map { (start: $0.start, end: $0.end) }))
+        inBedS += gapWakeS
         let efficiency = inBedS > 0 ? effWeighted / inBedS : 0.0
 
         // ── Rest composite (Charge/Effort/Rest) ───────────────────────────────

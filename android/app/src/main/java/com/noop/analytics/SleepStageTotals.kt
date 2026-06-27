@@ -360,7 +360,7 @@ object SleepStageTotals {
 
     /** The night's daily sleep aggregate over these blocks' `stagesJSON`, or null if none decode.
      *  Mirrors Swift `dailyAggregate`. */
-    fun dailyAggregate(stagesJSONs: List<String?>): DailySleep? {
+    fun dailyAggregate(stagesJSONs: List<String?>, extraAwakeSec: Double = 0.0): DailySleep? {
         val total = Minutes()
         var any = false
         for (j in stagesJSONs) {
@@ -372,6 +372,9 @@ object SleepStageTotals {
             any = true
         }
         if (!any || total.inBed <= 0.0) return null
+        // (#777) [extraAwakeSec] = inter-fragment out-of-bed WASO from a bridged main-night group (0 for the
+        // single-block/legacy callers). Counts as awake in-bed: raises awake, lowers efficiency.
+        total.awake += extraAwakeSec / 60.0
         return DailySleep(
             totalSleepMin = total.asleep,
             efficiency = total.asleep / total.inBed,
@@ -379,6 +382,24 @@ object SleepStageTotals {
             remMin = total.rem,
             lightMin = total.light,
         )
+    }
+
+    /** (#777) Total inter-fragment WAKE seconds within a bridged main-night GROUP: the time the sleeper was
+     *  out of bed between consecutive fragments of ONE night. Each fragment's `stagesJSON` carries only its
+     *  own in-bed span, so previously this gap was excluded from awake AND in-bed entirely — a 20-minute
+     *  get-up-and-walk showed as ~0 awake (#777). The fragments are bridged (gap < [gapBridgeMaxMin]) so each
+     *  gap is a mid-night awakening, NOT a separate session/nap. Pass the group's [start, end] spans in any
+     *  order; only positive (non-overlapping) gaps between time-ordered spans are summed. Pure for tests.
+     *  Mirrors Swift `interFragmentWakeSeconds`. */
+    fun interFragmentWakeSeconds(spans: List<Pair<Long, Long>>): Long {
+        if (spans.size < 2) return 0L
+        val sorted = spans.sortedBy { it.first }
+        var gap = 0L
+        for (i in 1 until sorted.size) {
+            val g = sorted[i].first - sorted[i - 1].second
+            if (g > 0) gap += g
+        }
+        return gap
     }
 
     /** Result of [dailyAggregateHonoringEdits]: the aggregate plus whether an edit actually applied. */
@@ -456,7 +477,17 @@ object SleepStageTotals {
             // night `analyzeDay` does. Naps outside the group remain their own rows. Mirrors Swift.
             val group = mainNightGroupIndicesByStages(blocks, onsetByStart, offsetSec, habitualMidsleepSec)
                 ?: return null
-            val agg = dailyAggregate(group.map { blocks[it].second }) ?: return null
+            // (#777) The bridged group is ONE night; the out-of-bed time between its fragments is WASO. Each
+            // fragment's effective span is [onset, onset + decoded in-bed]; sum the positive gaps and feed
+            // them in as extra awake so this seam matches `analyzeDay` (which adds the same gap to in-bed).
+            val spans = group.map { i ->
+                val b = blocks[i]
+                val onset = onsetByStart[b.first] ?: b.first
+                val inBedSec = ((minutes(b.second)?.inBed ?: 0.0) * 60.0).toLong()
+                onset to (onset + inBedSec)
+            }
+            val gapSec = interFragmentWakeSeconds(spans).toDouble()
+            val agg = dailyAggregate(group.map { blocks[it].second }, gapSec) ?: return null
             return HonoredAggregate(agg, applied)
         }
         val agg = dailyAggregate(blocks.map { it.second }) ?: return null
