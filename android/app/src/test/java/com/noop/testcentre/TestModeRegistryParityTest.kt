@@ -123,8 +123,7 @@ class TestModeRegistryParityTest {
             TestModeRegistry.mode(TestDomain.DISPLAY)?.captures,
         )
         assertEquals(
-            listOf("parserVersion", "fileMeta", "perStageRows", "rejectCounts", "firstFailingRow",
-                "dedupMerge", "dayDeltas", "failingFileSample"),
+            listOf("parserVersion", "fileMeta", "perStageRows", "rejectCounts", "dayDeltas"),
             TestModeRegistry.mode(TestDomain.IMPORT)?.captures,
         )
         assertEquals(

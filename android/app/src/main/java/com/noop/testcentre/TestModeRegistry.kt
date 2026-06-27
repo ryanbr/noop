@@ -115,8 +115,11 @@ object TestModeRegistry {
         domain = TestDomain.IMPORT, title = "Import & Data Ingest",
         blurb = "Turn this on if a file import dropped rows or came in wrong.",
         icon = "ic_import", priority = TestPriority.HIGH,
-        captures = listOf("parserVersion", "fileMeta", "perStageRows", "rejectCounts", "firstFailingRow",
-            "dedupMerge", "dayDeltas", "failingFileSample"),
+        // Only the captures a production import actually emits (parser identity, file meta, per-stage rows,
+        // reject counts, day deltas). firstFailingRow / failingFileSample / dedupMerge were advertised but
+        // no emitter on either platform produces them, so they are dropped from BOTH registries (parity)
+        // rather than over-promising the mode.
+        captures = listOf("parserVersion", "fileMeta", "perStageRows", "rejectCounts", "dayDeltas"),
         questionnaire = listOf(
             Question("appFormatExpected", "Which app/format, and what did you expect to import?", Question.Kind.TEXT),
         ),

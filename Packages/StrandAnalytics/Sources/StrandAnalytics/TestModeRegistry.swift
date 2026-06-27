@@ -123,8 +123,12 @@ public enum TestModeRegistry {
         domain: .dataImport, title: "Import & Data Ingest",
         blurb: "Turn this on if a file import dropped rows or came in wrong.",
         icon: "square.and.arrow.down", priority: .high,
-        captures: ["parserVersion", "fileMeta", "perStageRows", "rejectCounts", "firstFailingRow",
-                   "dedupMerge", "dayDeltas", "failingFileSample"],
+        // Only the captures a production import actually emits: parser identity, file meta, per-stage
+        // rows, reject counts and day deltas. firstFailingRow / failingFileSample / dedupMerge were
+        // advertised but no emitter on either platform produces them (the import emit runs after the full
+        // parse, not at the parser reject seam), so they were dropped from BOTH registries to keep the
+        // mode honest and the platforms in parity rather than over-promising.
+        captures: ["parserVersion", "fileMeta", "perStageRows", "rejectCounts", "dayDeltas"],
         questionnaire: [
             Question(id: "appFormatExpected", prompt: "Which app/format, and what did you expect to import?", kind: .text),
         ],

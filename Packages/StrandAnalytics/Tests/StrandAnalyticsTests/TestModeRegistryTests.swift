@@ -100,8 +100,7 @@ final class TestModeRegistryTests: XCTestCase {
             "screenshot", "deviceMetrics", "frameTimeTrace", "memoryHighWater",
         ])
         XCTAssertEqual(TestModeRegistry.mode(.dataImport)?.captures, [
-            "parserVersion", "fileMeta", "perStageRows", "rejectCounts", "firstFailingRow",
-            "dedupMerge", "dayDeltas", "failingFileSample",
+            "parserVersion", "fileMeta", "perStageRows", "rejectCounts", "dayDeltas",
         ])
         XCTAssertEqual(TestModeRegistry.mode(.steps)?.captures, [
             "motionVolume", "stepCalibration", "phoneReferenceCount", "rawStepCounter",
