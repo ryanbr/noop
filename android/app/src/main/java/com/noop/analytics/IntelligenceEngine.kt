@@ -404,7 +404,10 @@ object IntelligenceEngine {
             // wrap-aware deltas + dropped deltas), tagged .steps. Only when the mode is on (the sink is
             // non-null), so the default path emits zero .steps lines. The trace recomputes the SAME
             // wrap-aware sum analyzeDay just ran over the SAME `daySteps`, so the steps total is unchanged.
-            if (stepsTraceSink != null) {
+            // #807: only a counter strap (WHOOP 5/MG) banks step samples — a WHOOP 4.0 has none, so without
+            // this guard the trace spams "counterSamples=0 (need >=2 for a delta)" every day, reads as broken,
+            // and buries the motion-volume calibration trace (below) that actually explains a 4.0's steps.
+            if (stepsTraceSink != null && daySteps.isNotEmpty()) {
                 for (line in StepsEstimateEngineTrace.rawCounterTrace(
                     daySteps = daySteps, dayKey = day, tzOffsetSeconds = tzOffsetSeconds,
                     ticksPerStep = profile.stepTicksPerStep,
