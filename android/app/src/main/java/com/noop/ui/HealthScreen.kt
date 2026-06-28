@@ -165,7 +165,9 @@ fun HealthScreen(
                 SkinTempSuiteSection(
                     signals = v5Signals,
                     cycleEnabled = cycleEnabled,
+                    sex = profile.sex,
                     onEnableCycle = { vm.setCycleTrackingEnabled(true) },
+                    onDisableCycle = { vm.setCycleTrackingEnabled(false) },
                 )
             }
             // CONTRIBUTORS (README screen #5, recovery detail) — the signals behind recovery as
@@ -376,7 +378,9 @@ private fun RecordRow(
 private fun SkinTempSuiteSection(
     signals: V5HealthSignals.Snapshot?,
     cycleEnabled: Boolean,
+    sex: String,
     onEnableCycle: () -> Unit,
+    onDisableCycle: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
         SectionHeader("Skin Temperature", overline = "From your nightly readings")
@@ -388,11 +392,17 @@ private fun SkinTempSuiteSection(
             }
         }
 
-        // Cycle awareness: the opt-in card until enabled, then the live result.
-        if (!cycleEnabled) {
-            CycleAwarenessOptInCard(onEnable = onEnableCycle)
-        } else {
-            signals?.cycle?.let { CycleAwarenessCard(result = it) }
+        // Cycle awareness: the opt-in card until enabled, then the live result. #801: never surfaced for a
+        // male profile (phase tracking would just sit at "Learning your pattern"), and the result card carries
+        // its OWN off-control so on and off live in the same place (on was one-way here, off only Automations).
+        // (`|| cycleEnabled`: a male profile can never turn it ON — the opt-in is hidden — but one already on
+        // still sees the card so it can be turned OFF. Once off, it's hidden again.)
+        if (sex != "male" || cycleEnabled) {
+            if (!cycleEnabled) {
+                CycleAwarenessOptInCard(onEnable = onEnableCycle)
+            } else {
+                signals?.cycle?.let { CycleAwarenessCard(result = it, onDisable = onDisableCycle) }
+            }
         }
 
         // Body clock: only when the engine produced an estimate (no faked card while the input pipe is empty).

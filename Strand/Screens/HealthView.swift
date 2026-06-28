@@ -1135,14 +1135,26 @@ private struct SkinTempSection: View {
             }
 
             // 3. Cycle awareness — opt-in. The opt-in card until enabled; the awareness card after.
-            if cycleEnabled, let cycle = model.cyclePhase {
-                CycleAwarenessCard(result: cycle, curve: model.cycleCurve)
-            } else if !cycleEnabled {
-                CycleAwarenessOptInCard(onEnable: {
-                    cycleEnabled = true
-                    model.cycleAwarenessEnabled = true
-                    Task { await model.refreshV5Signals() }
-                })
+            // #801: never surfaced for a male profile (menstrual-cycle tracking would just sit at
+            // "Learning your pattern" forever), and the awareness card carries its OWN off-control so on
+            // and off live in the same place (previously on was one-way here, off only under Automations).
+            // (`|| cycleEnabled`: a male profile can never turn it ON — the opt-in is hidden — but one that
+            // was already on, e.g. before this gate or via legacy data, still sees the card so it can be
+            // turned OFF here. Once off, it's hidden again.)
+            if model.profile.sex != "male" || cycleEnabled {
+                if cycleEnabled, let cycle = model.cyclePhase {
+                    CycleAwarenessCard(result: cycle, curve: model.cycleCurve, onDisable: {
+                        cycleEnabled = false
+                        model.cycleAwarenessEnabled = false
+                        Task { await model.refreshV5Signals() }
+                    })
+                } else if !cycleEnabled {
+                    CycleAwarenessOptInCard(onEnable: {
+                        cycleEnabled = true
+                        model.cycleAwarenessEnabled = true
+                        Task { await model.refreshV5Signals() }
+                    })
+                }
             }
 
             // Honest empty state when the suite has nothing to show yet. (When cycle is OFF the opt-in

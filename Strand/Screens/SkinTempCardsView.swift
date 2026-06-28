@@ -67,6 +67,9 @@ struct CycleAwarenessCard: View {
     var onLogPeriod: (() -> Void)? = nil
     /// Called when the user opens the cycle detail screen. nil makes the card non-navigating.
     var onOpenDetail: (() -> Void)? = nil
+    /// Called when the user turns Cycle awareness OFF (#801: on and off live in the same place, instead of
+    /// on-here-one-way + off-only-in-Automations). nil hides the control.
+    var onDisable: (() -> Void)? = nil
 
     // Cycle awareness reads in the calm, NON-VALENCED Rest indigo world (mirroring Mind): a
     // phase is just information, never framed good/bad. No red, ever.
@@ -170,6 +173,11 @@ struct CycleAwarenessCard: View {
             if let onOpenDetail {
                 Button("View detail", action: onOpenDetail)
                     .buttonStyle(.noopGhost)
+            }
+            if let onDisable {
+                Button("Turn off", action: onDisable)
+                    .buttonStyle(.noopGhost)
+                    .accessibilityHint("Turns Cycle awareness off. You can turn it back on here anytime.")
             }
         }
     }

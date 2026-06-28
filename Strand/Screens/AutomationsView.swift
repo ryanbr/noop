@@ -317,14 +317,19 @@ struct AutomationsView: View {
                  blurb: "Optional, on-device reads from your nightly signals. Each is off by default — for awareness only, never a diagnosis.",
                  active: cycleAwareness || rhythmEnabled) {
             VStack(spacing: 0) {
-                ToggleRow(label: "Cycle awareness",
-                          help: "Reads a coarse menstrual-cycle phase from your nightly skin temperature, entirely on \(Platform.deviceNounPhrase). Awareness only — not contraception, not a fertility predictor, not a medical service. The card appears in Health.",
-                          isOn: $cycleAwareness)
-                    .onChangeCompat(of: cycleAwareness) { on in
-                        model.cycleAwarenessEnabled = on
-                        Task { await model.refreshV5Signals() }
-                    }
-                rowDivider
+                // #801: Cycle awareness isn't offered on a male profile (it would just sit at "Learning your
+                // pattern"). Hidden when off for a male profile so it can't be enabled here; still shown if it
+                // happens to be on, so it can be turned off.
+                if model.profile.sex != "male" || cycleAwareness {
+                    ToggleRow(label: "Cycle awareness",
+                              help: "Reads a coarse menstrual-cycle phase from your nightly skin temperature, entirely on \(Platform.deviceNounPhrase). Awareness only — not contraception, not a fertility predictor, not a medical service. The card appears in Health.",
+                              isOn: $cycleAwareness)
+                        .onChangeCompat(of: cycleAwareness) { on in
+                            model.cycleAwarenessEnabled = on
+                            Task { await model.refreshV5Signals() }
+                        }
+                    rowDivider
+                }
                 ToggleRow(label: "Rhythm visualization (experimental)",
                           help: "An experimental picture of your beat-to-beat heart timing. Not an ECG and not a diagnosis. You'll read and accept an experimental note before it shows anything.",
                           isOn: $rhythmEnabled)
