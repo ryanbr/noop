@@ -218,7 +218,8 @@ final class AnalyticsEngineTests: XCTestCase {
         let newEnd = detected.startTs + (detected.endTs - detected.startTs) / 2
         let reshaped = SleepWindowReclip.reclip(stagesJSON: detected.stagesJSON,
                                                 sessionStart: detected.startTs,
-                                                oldEnd: detected.endTs, newEnd: newEnd)
+                                                oldEnd: detected.endTs,
+                                                newStart: detected.startTs, newEnd: newEnd)
         XCTAssertNotNil(reshaped, "the detected segment stages must reshape to the new window")
 
         // The override — keyed by the stager's OWN detected startTs — must fire and roughly halve sleep.

@@ -227,7 +227,7 @@ class WhoopRepository(private val dao: WhoopDao) {
      *  preserved via [SleepSession.copy]. */
     suspend fun updateSleepSessionTimes(session: SleepSession, newStartTs: Long, newEndTs: Long) {
         val reclipped = com.noop.analytics.SleepWindowReclip.reclip(
-            session.stagesJSON, session.effectiveStartTs, session.endTs, newEndTs,
+            session.stagesJSON, session.effectiveStartTs, session.endTs, newStartTs, newEndTs,
         )
         dao.upsertSleepSessions(
             listOf(session.copy(

@@ -60,6 +60,26 @@ class WearableExportImporterTest {
     }
 
     @Test
+    fun importedNightRespReachesDailyRow() {
+        // #17: the night's resp rate (Oura `average_breath`) lives on the SESSION; it must also fold onto
+        // the day's rollup so the imported day carries respRateBpm (which feeds NOOP's Charge), not null.
+        val json = """
+            {
+              "sleep": [
+                { "day": "2026-06-07", "bedtime_start": "2026-06-06T23:00:00+00:00",
+                  "bedtime_end": "2026-06-07T06:00:00+00:00", "total_sleep_duration": 25200,
+                  "average_breath": 15.3 } ]
+            }
+        """
+        val p = WearableExportImporter.parseOura(mapOf("oura.json" to bytes(json)))
+        val s = p.sleeps.first { it.respRateBpm != null }
+        assertEquals(15.3, s.respRateBpm!!, 1e-6)        // the session still carries it
+        val d = p.days.first { it.day == "2026-06-07" }
+        assertEquals("the night's resp must fold onto the day rollup, not stay null",
+            15.3, d.respRateBpm!!, 1e-6)
+    }
+
+    @Test
     fun ouraAcceptsDataWrapperAndDetectsByContent() {
         val json = """
             { "sleep": { "data": [
@@ -310,6 +330,25 @@ class WearableExportImporterTest {
         assertEquals(9100, d.steps)
         assertEquals(7300.5, d.distanceM!!, 1e-6)
         assertEquals(31, d.avgStress)
+    }
+
+    @Test
+    fun garminImportedNightRespReachesDailyRow() {
+        // #17 parity: Garmin's `averageRespirationValue` on the night must reach the day's resp rollup.
+        val startMs = 1_780_272_000_000L            // 2026-06-01 00:00:00 UTC
+        val endMs = startMs + 7 * 3600 * 1000
+        val sleepData = """
+            [ { "calendarDate": "2026-06-01", "sleepStartTimestampGMT": $startMs,
+                "sleepEndTimestampGMT": $endMs,
+                "deepSleepSeconds": 4800, "lightSleepSeconds": 14400, "remSleepSeconds": 5400,
+                "averageRespirationValue": 13.7 } ]
+        """
+        val p = WearableExportImporter.parseGarmin(
+            mapOf("di_connect/di_connect_wellness/2026_sleepdata.json" to bytes(sleepData)),
+        )
+        val d = p.days.first { it.day == "2026-06-01" }
+        assertEquals("the Garmin night's resp must fold onto the day rollup",
+            13.7, d.respRateBpm!!, 1e-6)
     }
 
     // ---------------- Date formatter caching (PR #583) ----------------

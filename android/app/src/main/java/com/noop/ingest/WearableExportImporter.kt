@@ -145,7 +145,7 @@ object WearableExportImporter {
 
     internal class DayAcc(val day: String) {
         var steps: Int? = null; var distanceM: Double? = null; var activeKcal: Double? = null; var totalKcal: Double? = null
-        var restingHr: Int? = null; var avgHrvMs: Double? = null; var skinTempDevC: Double? = null
+        var restingHr: Int? = null; var avgHrvMs: Double? = null; var respRateBpm: Double? = null; var skinTempDevC: Double? = null
         var spo2Pct: Double? = null; var avgStress: Int? = null; var vo2max: Double? = null
         var totalSleepMin: Double? = null; var deepMin: Double? = null; var lightMin: Double? = null
         var remMin: Double? = null; var awakeMin: Double? = null; var efficiencyPct: Double? = null
@@ -156,7 +156,7 @@ object WearableExportImporter {
         val startTs: Long, val endTs: Long,
         val deepMin: Double?, val lightMin: Double?, val remMin: Double?, val awakeMin: Double?,
         val totalSleepMin: Double?, val efficiencyPct: Double?,
-        val avgHr: Int?, val lowestHr: Int?, val avgHrvMs: Double?,
+        val avgHr: Int?, val lowestHr: Int?, val avgHrvMs: Double?, val respRateBpm: Double?,
         val sleepScore: Int?, val stagesJson: String?,
     )
 
@@ -240,6 +240,7 @@ object WearableExportImporter {
                     d.awakeMin = d.awakeMin ?: session.awakeMin
                     d.efficiencyPct = d.efficiencyPct ?: session.efficiencyPct
                     d.avgHrvMs = d.avgHrvMs ?: session.avgHrvMs
+                    d.respRateBpm = d.respRateBpm ?: session.respRateBpm   // night resp → day rollup (#17)
                     if (d.restingHr == null) d.restingHr = session.lowestHr
                 }
             }
@@ -347,6 +348,9 @@ object WearableExportImporter {
                     ?: cells.double("lowest_resting_heart_rate", "lowest_heart_rate")
                 if (rhr != null && rhr > 0 && d.restingHr == null) d.restingHr = rhr.toInt()
                 cells.double("average_hrv", "hrv")?.takeIf { it > 0 }?.let { d.avgHrvMs = d.avgHrvMs ?: it }
+                // Oura's CSV resp column (`respiratory_rate` / `average_breath`) → the day rollup (#17).
+                val resp = cells.double("respiratory_rate", "average_breath")?.takeIf { it > 0 }
+                resp?.let { d.respRateBpm = d.respRateBpm ?: it }
                 cells.double("temperature_deviation", "skin_temperature_deviation")?.let { d.skinTempDevC = d.skinTempDevC ?: it }
                 // SpO2: the real `dailyspo2` CSV column is `spo2_percentage` (the average %); keep the older
                 // flat aliases too for a combined-summary CSV (#862).
@@ -387,7 +391,7 @@ object WearableExportImporter {
                             totalSleepMin = total, efficiencyPct = d.efficiencyPct,
                             avgHr = null,
                             lowestHr = rhr?.takeIf { it > 0 }?.toInt(),
-                            avgHrvMs = d.avgHrvMs,
+                            avgHrvMs = d.avgHrvMs, respRateBpm = resp,
                             sleepScore = null, stagesJson = null,
                         ),
                     )
@@ -427,7 +431,8 @@ object WearableExportImporter {
             remMin = min("rem_sleep_duration"), awakeMin = min("awake_time"),
             totalSleepMin = min("total_sleep_duration"), efficiencyPct = s.posDbl("efficiency"),
             avgHr = s.posInt("average_heart_rate"), lowestHr = s.posInt("lowest_heart_rate"),
-            avgHrvMs = s.posDbl("average_hrv"), sleepScore = null, stagesJson = null,
+            avgHrvMs = s.posDbl("average_hrv"), respRateBpm = s.posDbl("average_breath"),
+            sleepScore = null, stagesJson = null,
         )
     }
 
@@ -523,7 +528,7 @@ object WearableExportImporter {
             startTs = start, endTs = end,
             deepMin = deep, lightMin = light, remMin = rem, awakeMin = awakeMin,
             totalSleepMin = asleep, efficiencyPct = log.posDbl("efficiency"),
-            avgHr = null, lowestHr = null, avgHrvMs = null, sleepScore = null,
+            avgHr = null, lowestHr = null, avgHrvMs = null, respRateBpm = null, sleepScore = null,
             stagesJson = if (stages.length() > 0) stages.toString() else null,
         )
     }
@@ -560,6 +565,7 @@ object WearableExportImporter {
                     d.remMin = d.remMin ?: session.remMin
                     d.awakeMin = d.awakeMin ?: session.awakeMin
                     d.sleepScore = d.sleepScore ?: session.sleepScore
+                    d.respRateBpm = d.respRateBpm ?: session.respRateBpm   // night resp → day rollup (#17)
                     if (d.restingHr == null) d.restingHr = session.lowestHr
                 }
             } else {
@@ -608,6 +614,7 @@ object WearableExportImporter {
             totalSleepMin = if (total > 0) total else null, efficiencyPct = null,
             avgHr = null, lowestHr = s.posInt("restingHeartRate"),
             avgHrvMs = s.posDbl("avgOvernightHrv") ?: s.posDbl("averageHrvValue"),
+            respRateBpm = s.posDbl("averageRespirationValue") ?: s.posDbl("averageRespiration"),
             sleepScore = score, stagesJson = null,
         )
     }
@@ -635,6 +642,7 @@ object WearableExportImporter {
                 efficiency = d.efficiencyPct ?: sleepEfficiency(d.totalSleepMin, d.awakeMin),
                 deepMin = d.deepMin, remMin = d.remMin, lightMin = d.lightMin,
                 restingHr = d.restingHr, avgHrv = d.avgHrvMs,
+                respRateBpm = d.respRateBpm,   // imported night resp now reaches the day rollup (#17)
                 recovery = null,          // NEVER the brand's readiness score
                 strain = null,
                 spo2Pct = d.spo2Pct, skinTempDevC = d.skinTempDevC,

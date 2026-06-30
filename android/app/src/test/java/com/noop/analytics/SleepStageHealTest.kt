@@ -60,7 +60,7 @@ class SleepStageHealTest {
         // SleepWindowReclip path — a stored short "light" block extended to the corrected wake, which
         // appends a trailing fabricated "wake" segment. This is EXACTLY what the heal must replace.
         val storedDetected = encoded(start, start + 3 * 60 * 60, "light") // a 3h detected block
-        val fabricated = SleepWindowReclip.reclip(storedDetected, start, start + 3 * 60 * 60, end)!!
+        val fabricated = SleepWindowReclip.reclip(storedDetected, start, start + 3 * 60 * 60, start, end)!!
 
         val real = SleepStageHealer.restageFromSamples(start, end, grav, hr, emptyList(), emptyList())
         assertNotNull("dense raw over the locked window must re-derive real stages", real)

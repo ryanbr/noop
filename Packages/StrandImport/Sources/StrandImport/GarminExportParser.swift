@@ -40,6 +40,7 @@ enum GarminExportParser {
                     row.remMin = row.remMin ?? session.remMin
                     row.awakeMin = row.awakeMin ?? session.awakeMin
                     row.sleepScore = row.sleepScore ?? session.sleepScore
+                    row.respRateBpm = row.respRateBpm ?? session.respRateBpm   // night resp → day rollup (#17)
                     if row.restingHr == nil { row.restingHr = session.lowestHr }
                     byDay[key] = row
                 }

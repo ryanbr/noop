@@ -839,7 +839,7 @@ final class Repository: ObservableObject {
         // `analyzeRecent` (see `selfHealEditedStages`), which re-derives the real stages once raw lands.
         let stagesJSON = await restageFromRaw(start: newStartTs, end: newEndTs)
             ?? SleepWindowReclip.reclip(stagesJSON: storedStagesJSON, sessionStart: detectedStartTs,
-                                        oldEnd: oldEndTs, newEnd: newEndTs)
+                                        oldEnd: oldEndTs, newStart: newStartTs, newEnd: newEndTs)
         // Apply to the source that actually OWNS this block. Try the computed source first; only fall
         // back to the imported source when no computed row matched , so we never edit a coincidental
         // same-startTs row in the other namespace (which the old unconditional double-write could do).

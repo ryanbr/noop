@@ -68,6 +68,42 @@ final class WearableExportImporterTests: XCTestCase {
         XCTAssertEqual(d.readinessScore, 81)
     }
 
+    func testImportedNightRespReachesDailyRow() {
+        // #17: the night's resp rate (Oura `average_breath`) lives on the SESSION; it must also fold onto
+        // the day's rollup so the imported day carries respRateBpm (which feeds NOOP's Charge), not nil.
+        let json = """
+        {
+          "sleep": [
+            { "day": "2026-06-07", "bedtime_start": "2026-06-06T23:00:00+00:00",
+              "bedtime_end": "2026-06-07T06:00:00+00:00", "total_sleep_duration": 25200,
+              "average_breath": 15.3 } ]
+        }
+        """
+        let r = WearableExportImporter.parse(brand: .oura, files: ["oura.json": bytes(json)])
+        let s = r.sleeps.first { $0.respRateBpm != nil }
+        XCTAssertEqual(s?.respRateBpm, 15.3)                      // the session still carries it
+        let d = r.days.first { $0.day == "2026-06-07" }!
+        XCTAssertEqual(try XCTUnwrap(d.respRateBpm), 15.3, accuracy: 1e-6,
+                       "the night's resp must fold onto the day rollup, not stay nil")
+    }
+
+    func testGarminImportedNightRespReachesDailyRow() {
+        // #17 parity: Garmin's `averageRespirationValue` on the night must reach the day's resp rollup.
+        let sleepStartMs = 1_780_272_000_000.0
+        let sleepEndMs = sleepStartMs + 7 * 3600 * 1000
+        let sleepData = """
+        [ { "calendarDate": "2026-06-01", "sleepStartTimestampGMT": \(Int(sleepStartMs)),
+            "sleepEndTimestampGMT": \(Int(sleepEndMs)),
+            "deepSleepSeconds": 4800, "lightSleepSeconds": 14400, "remSleepSeconds": 5400,
+            "averageRespirationValue": 13.7 } ]
+        """
+        let files = ["di_connect/di_connect_wellness/2026_sleepdata.json": bytes(sleepData)]
+        let r = WearableExportImporter.parse(brand: .garmin, files: files)
+        let d = r.days.first { $0.day == "2026-06-01" }!
+        XCTAssertEqual(try XCTUnwrap(d.respRateBpm), 13.7, accuracy: 1e-6,
+                       "the Garmin night's resp must fold onto the day rollup")
+    }
+
     func testOuraAcceptsDataWrapperAndDetectsBrandByContent() {
         let json = """
         { "sleep": { "data": [

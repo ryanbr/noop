@@ -376,7 +376,7 @@ fun SleepScreen(
                     // reclip logic runs again in WhoopRepository for the durable DB copy).
                     sleeps = sleeps.map {
                         if (it.deviceId == s.deviceId && it.startTs == s.startTs) {
-                            val reclipped = SleepWindowReclip.reclip(it.stagesJSON, it.effectiveStartTs, it.endTs, end)
+                            val reclipped = SleepWindowReclip.reclip(it.stagesJSON, it.effectiveStartTs, it.endTs, start, end)
                             it.copy(startTsAdjusted = start, endTs = end, userEdited = true,
                                     stagesJSON = reclipped ?: it.stagesJSON)
                         } else {

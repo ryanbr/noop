@@ -66,6 +66,7 @@ enum OuraExportParser {
                 row.awakeMin = row.awakeMin ?? session.awakeMin
                 row.efficiencyPct = row.efficiencyPct ?? session.efficiencyPct
                 row.avgHrvMs = row.avgHrvMs ?? session.avgHrvMs
+                row.respRateBpm = row.respRateBpm ?? session.respRateBpm   // night resp → day rollup (#17)
                 // Oura's lowest sleeping HR is the closest thing to a resting HR when readiness lacks one.
                 if row.restingHr == nil { row.restingHr = session.lowestHr }
                 byDay[key] = row
@@ -139,6 +140,7 @@ enum OuraExportParser {
             row.efficiencyPct = row.efficiencyPct ?? d.efficiencyPct
             row.restingHr = row.restingHr ?? d.restingHr
             row.avgHrvMs = row.avgHrvMs ?? d.avgHrvMs
+            row.respRateBpm = row.respRateBpm ?? d.respRateBpm
             row.skinTempDevC = row.skinTempDevC ?? d.skinTempDevC
             row.spo2Pct = row.spo2Pct ?? d.spo2Pct
             row.vo2max = row.vo2max ?? d.vo2max
@@ -245,6 +247,10 @@ enum OuraExportParser {
                     ?? cells.double("lowest_resting_heart_rate", "lowest_heart_rate")
                 if let rhr = restingHr, rhr > 0 { row.restingHr = row.restingHr ?? Int(rhr) }
                 if let hrv = cells.double("average_hrv", "hrv"), hrv > 0 { row.avgHrvMs = row.avgHrvMs ?? hrv }
+                // Oura's CSV resp column (`respiratory_rate` / `average_breath`) → the day rollup (#17).
+                if let resp = cells.double("respiratory_rate", "average_breath"), resp > 0 {
+                    row.respRateBpm = row.respRateBpm ?? resp
+                }
                 if let temp = cells.double("temperature_deviation", "skin_temperature_deviation") {
                     row.skinTempDevC = row.skinTempDevC ?? temp
                 }

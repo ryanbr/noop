@@ -572,6 +572,7 @@ public struct WearableDailyRow: Sendable, Equatable {
     // Heart / recovery inputs
     public var restingHr: Int?
     public var avgHrvMs: Double?
+    public var respRateBpm: Double?   // night respiration (breaths/min) folded from the session, so it reaches the day rollup (#17)
     public var skinTempDevC: Double?  // Oura "temperature_deviation" (°C from baseline)
     public var spo2Pct: Double?
     public var avgStress: Int?        // Garmin daily average stress (0..100), reference
