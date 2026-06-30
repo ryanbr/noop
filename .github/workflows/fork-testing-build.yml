@@ -1,0 +1,124 @@
+# Fork-only: ONE on-demand testing build that publishes ALL three platforms into ONE release.
+#
+# A `meta` job creates a single dated prerelease, then the android / macOS / iOS jobs each attach
+# their artifact to that SAME tag — so every release has app-full-debug.apk + NOOP-macos.zip +
+# NOOP-ios-unsigned.ipa together. Replaces the older split fork-testing-apk.yml + fork-testing-apple.yml.
+# Unsigned/debug, no secrets. Trigger from the Actions tab. (Built from noop-staging via --ref.)
+name: Testing build (fork)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: testing-build
+  cancel-in-progress: true
+
+jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.m.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: m
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="testing-latest"
+          DATE=$(date -u +%Y-%m-%d)
+          VER=$(grep -m1 'MARKETING_VERSION' project.yml | sed -E 's/.*"([^"]+)".*/\1/')
+          SHA="${GITHUB_SHA:0:7}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          # ROLLING release: recreate the single tag so stale assets/notes never linger — one stable URL,
+          # always the newest build, zero cleanup. (To KEEP a specific build, cut a one-off tag by hand.)
+          gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || true
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --prerelease --target "${{ github.sha }}" \
+            --title "NOOP Staging — base ${VER} · ${DATE} · ${SHA}" \
+            --notes "Rolling **latest** testing build — refreshed in place, so this tag is always the newest. NOOP main + ryanbr's open PRs + vetted community PRs, built with the **NOOP Staging** identity (installs **beside** the official app, separate data).
+
+          - **Android** — \`app-full-debug.apk\` — install on your phone (allow \"install unknown apps\"). \`com.noop.whoop.debug\`.
+          - **macOS** — \`NOOP-macos.zip\` — unzip, then **right-click → Open** (unsigned; Gatekeeper warns once).
+          - **iOS** — \`NOOP-ios-unsigned.ipa\` — sideload via **AltStore / Sideloadly** (re-signs on-device); embedded watch app stripped.
+
+          Base app version ${VER} · built ${DATE} · \`${SHA}\`."
+
+  android:
+    needs: meta
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/wrapper-validation@v4
+      - uses: gradle/actions/setup-gradle@v4
+      # NOTE: the debug APK is signed with the committed android/fork-debug.keystore via an explicit
+      # storeFile in the debug signingConfig (build.gradle.kts, injected by rebuild-staging.sh). We do NOT
+      # copy it to ~/.android/debug.keystore — the runner ignores that path (ANDROID_USER_HOME points off
+      # $HOME) and would sign with a fresh random key, breaking sideloaded updates ("App not installed").
+      - name: Build debug APK
+        run: ./gradlew assembleFullDebug
+      - name: Attach APK to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ needs.meta.outputs.tag }}" app/build/outputs/apk/full/debug/*.apk --repo "$GITHUB_REPOSITORY" --clobber
+
+  macos:
+    needs: meta
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: xcodegen generate
+      - name: Build NOOP.app (macOS, unsigned)
+        run: >-
+          xcodebuild -scheme Strand -configuration Debug -destination 'platform=macOS'
+          -derivedDataPath build/dd
+          CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+          build
+      - name: Package + attach
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APP=$(find build/dd/Build/Products -maxdepth 3 -name '*.app' -type d | head -1)
+          test -n "$APP" || { echo ".app not found"; exit 1; }
+          ditto -c -k --keepParent "$APP" NOOP-macos.zip
+          gh release upload "${{ needs.meta.outputs.tag }}" NOOP-macos.zip --repo "$GITHUB_REPOSITORY" --clobber
+
+  ios:
+    needs: meta
+    # iOS 26 Liquid Glass (glassEffect) needs the iOS 26 SDK → Xcode 26 → macos-26.
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: xcodegen generate
+      - name: Build NOOPiOS for device (unsigned)
+        run: >-
+          xcodebuild -scheme NOOPiOS -configuration Debug -destination 'generic/platform=iOS'
+          -derivedDataPath build/dd
+          CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+          build
+      - name: Package unsigned .ipa (strip the embedded watch app) + attach
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APP=$(find build/dd/Build/Products/Debug-iphoneos -maxdepth 1 -name '*.app' -type d | head -1)
+          test -n "$APP" || { echo ".app (iphoneos) not found"; exit 1; }
+          rm -rf "$APP/Watch"
+          rm -rf Payload && mkdir Payload && cp -R "$APP" Payload/
+          zip -qr NOOP-ios-unsigned.ipa Payload
+          gh release upload "${{ needs.meta.outputs.tag }}" NOOP-ios-unsigned.ipa --repo "$GITHUB_REPOSITORY" --clobber
