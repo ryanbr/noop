@@ -1733,6 +1733,15 @@ public final class BLEManager: NSObject, ObservableObject {
         guard selectedModel.deviceFamily == .whoop4 || state.bonded else { return }   // can't reach the strap yet
         realtimeArmed = want
         send(.toggleRealtimeHR, payload: [want ? 0x01 : 0x00])
+        // WHOOP 4 only: the heavy R10/R11 type-43 raw flood is the battery-hungry part, and the keep-alive
+        // re-arms it every tick while wanted — so on the DISARM edge stop it explicitly (exactly as
+        // stopRealtime does) instead of waiting for it to lapse. Without this, an OVERNIGHT window-close (or
+        // a continuous-capture turn-off) with no Live screen would leave the flood running all day, sinking
+        // the battery saving. Android needs no equivalent: it never arms R10/R11 (stopped once at connect),
+        // so its continuous stream is the lightweight TOGGLE alone.
+        if !want, selectedModel.deviceFamily == .whoop4 {
+            send(.sendR10R11Realtime, payload: [0x00])
+        }
     }
 
     /// EXPERIMENTAL R22 telemetry (#174): give the user (and us) live proof of what the strap is doing.

@@ -3463,6 +3463,9 @@ class WhoopBleClient(
         realtimeArmed = want
         // Both families arm/disarm via TOGGLE_REALTIME_HR; send() frames it correctly per family (puffin
         // for 5/MG). A screen re-entry blanks its own smoothing window in the view-model, not here.
+        // NB: unlike the Swift twin, Android needs NO explicit R10/R11 stop on the disarm edge — it never
+        // ARMS the heavy R10/R11 raw flood (it's stopped once in runConnectHandshake and never re-armed), so
+        // the TOGGLE alone is the whole realtime stream continuous capture keeps. Do not add a stop here.
         send(CommandNumber.TOGGLE_REALTIME_HR, byteArrayOf(if (want) 1.toByte() else 0.toByte()))
     }
 
