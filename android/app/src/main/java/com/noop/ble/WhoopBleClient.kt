@@ -70,6 +70,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Immutable snapshot of the live connection + biometric state.
@@ -908,14 +909,19 @@ class WhoopBleClient(
     /** Injectable indirection over [gatt]'s raw GATT calls (see [GattOps]). Rebuilt whenever [gatt] is
      *  (re)assigned in [connectToDevice], cleared in the teardown path alongside `gatt = null`. */
     private var gattOps: GattOps? = null
-    private var cmdCharacteristic: BluetoothGattCharacteristic? = null
+    /** @Volatile: set on the GATT binder thread at service discovery, but read in send() on the main
+     *  thread (user actions) — the barrier makes a main-thread send see the current characteristic. */
+    @Volatile private var cmdCharacteristic: BluetoothGattCharacteristic? = null
 
     /** Frame reassembler for the fragmented custom notify chars (port of Reassembler). Reassigned per
      *  connection with the detected family — WHOOP5/MG frames use a different length encoding. */
     private var reassembler = Reassembler()
 
-    /** Rolling command sequence byte; `seq = seq &+ 1` before each send (Swift `seq: UInt8`). */
-    private var seq: Int = 0
+    /** Rolling command sequence byte; incremented before each send. ATOMIC because `send()` is called from
+     *  BOTH the GATT binder thread (the connect handshake, offload acks, the bond frame) and the main thread
+     *  (user actions — buzz/alarm/rename): a non-atomic `seq++` there let two sends emit the SAME seq byte.
+     *  The wire value is `incrementAndGet() and 0xFF` (0..255, wraps). iOS is @MainActor so needs no atomic. */
+    private val seq = AtomicInteger(0)
 
     /** True once the confirmed-write bond ACK lands (Swift `didBond`). */
     private var didBond = false
@@ -942,7 +948,9 @@ class WhoopBleClient(
     val lastDeviceAddress: String? get() = lastDevice?.address
     /// The family actually discovered on the connected peripheral. Drives family-aware frame
     /// parsing and gates the WHOOP4-only bond/handshake. Set in onServicesDiscovered.
-    private var connectedFamily = DeviceFamily.WHOOP4
+    /// @Volatile: written on the binder thread at service discovery, read in send() on main (user
+    /// actions) to pick the frame family — a stale read would frame a command for the wrong generation.
+    @Volatile private var connectedFamily = DeviceFamily.WHOOP4
 
     /** True while a scan is active, so we never start a second scan (Android scanner is stateful). */
     private var scanning = false
@@ -1327,7 +1335,10 @@ class WhoopBleClient(
      */
     private data class PendingWrite(val frame: ByteArray, val withResponse: Boolean)
     private val writeQueue = ConcurrentLinkedQueue<PendingWrite>()
-    private var writeInFlight = false
+    // @Volatile: read on the main looper in drainWriteQueue but CLEARED from the GATT binder thread in the
+    // write-completion callbacks — the barrier guarantees the main-thread drain sees the flag flip promptly
+    // (else a queued write could stall until the next drain trigger).
+    @Volatile private var writeInFlight = false
     /** A frame being retried after a transient BUSY rejection. Held here rather than re-added to the
      *  queue so it keeps its place AHEAD of later commands — command order matters (e.g. SET_CLOCK
      *  before GET_CLOCK). Only ever touched on the main looper inside [drainWriteQueue]. */
@@ -1341,10 +1352,15 @@ class WhoopBleClient(
 
     /** Descriptor-write queue: enabling notifications is also a one-at-a-time GATT operation. */
     private val cccdQueue = ConcurrentLinkedQueue<BluetoothGattCharacteristic>()
-    private var cccdInFlight = false
+    // @Volatile: the CCCD-write twin of [writeInFlight] — read on the main looper in drainCccdQueue but
+    // CLEARED from the GATT binder thread in onDescriptorWrite, so the barrier stops a subscription write
+    // from stalling on a stale flag (which would leave a notify channel un-enabled → no live data).
+    @Volatile private var cccdInFlight = false
     /** Bounded retries for a transiently-BUSY CCCD write, so a single rejected subscribe doesn't
-     *  permanently kill a stream (HR/battery/events). Reset per connection in [reset]. */
-    private var cccdRetries = 0
+     *  permanently kill a stream (HR/battery/events). Reset per connection in [reset]. @Volatile: like
+     *  [cccdInFlight], it's reset on the binder thread in onDescriptorWrite but incremented/read on main
+     *  in drainCccdQueue — a stale budget could make a subscribe give up early. */
+    @Volatile private var cccdRetries = 0
     /** The BUSY-retry kick for [drainCccdQueue], a NAMED runnable so teardown can cancel a pending
      *  subscribe-retry that would otherwise re-enter a dead descriptor write (#314). It re-drains using
      *  the CURRENT [gatt]; if the link is already torn down ([gatt] is null) the drain is a no-op. */
@@ -1766,15 +1782,15 @@ class WhoopBleClient(
             val puffinCmd = if (isHaptics) 0x13 else cmd.rawValue
             val puffinPayload = if (isHaptics)
                 byteArrayOf(0x01, 47, 152.toByte(), 0, 0, 0, 0, 0, 0, 0, 0, 0) else payload
-            seq = (seq + 1) and 0xFF
-            val frame = Framing.puffinCommandFrame(cmd = puffinCmd, seq = seq, payload = puffinPayload)
+            val s = seq.incrementAndGet() and 0xFF
+            val frame = Framing.puffinCommandFrame(cmd = puffinCmd, seq = s, payload = puffinPayload)
             enqueueWrite(PendingWrite(frame, withResponse))
             val cmdNote = if (isHaptics) " cmd=0x13" else ""
             log("→ ${cmd.name} payload=${puffinPayload.toHex()} (puffin$cmdNote)")
             return
         }
-        seq = (seq + 1) and 0xFF
-        val frame = Framing.buildCommand(cmd, payload, seq)
+        val s = seq.incrementAndGet() and 0xFF
+        val frame = Framing.buildCommand(cmd, payload, s)
         enqueueWrite(PendingWrite(frame, withResponse))
         log("→ ${cmd.name} payload=${payload.toHex()}")
     }
@@ -3640,8 +3656,8 @@ class WhoopBleClient(
     @SuppressLint("MissingPermission")
     private fun writeBondFrame(g: BluetoothGatt, ch: BluetoothGattCharacteristic) {
         val ops = gattOps ?: return
-        seq = (seq + 1) and 0xFF
-        val bondFrame = Framing.buildCommand(CommandNumber.GET_BATTERY_LEVEL, byteArrayOf(0), seq)
+        val s = seq.incrementAndGet() and 0xFF
+        val bondFrame = Framing.buildCommand(CommandNumber.GET_BATTERY_LEVEL, byteArrayOf(0), s)
         log("Bonding: confirmed write GET_BATTERY_LEVEL to 61080002")
         writeInFlight = true   // hold the slot until onCharacteristicWrite fires (with response).
         // safeGatt: a throw means the binder died (#314) — teardown, return false, fall into the
@@ -4505,7 +4521,7 @@ class WhoopBleClient(
     private fun reset() {
         didBond = false
         connectHandshakeDone = false
-        seq = 0
+        seq.set(0)
         writeQueue.clear()
         cccdQueue.clear()
         writeInFlight = false
