@@ -15,7 +15,7 @@ import ZIPFoundation
 /// `-wal`/`-shm` WAL sidecars while the store is open). Export checkpoints the WAL (so the
 /// single file is whole), then wraps the SQLite in a ZIP written as `.noopbak`, alongside a
 /// small `settings.json` entry (#1000) carrying the whitelisted profile/display settings (see
-/// `BackupSettings`) so a restore also brings back weight/height/units, not just the rows.
+/// `BackupSettings`) so a restore also brings back the optional name, weight/height/units, not just rows.
 /// ZIP deflate typically cuts a 100 MB+ SQLite backup to 10–20 MB. The format is a standard
 /// ZIP — users can rename `.noopbak` → `.zip` and extract the SQLite manually on any OS.
 ///
@@ -143,7 +143,7 @@ enum DataBackup {
 
     /// Write the live SQLite at `dbURL` into a fresh deflate ZIP at `dest`: the DB under the canonical
     /// entry name `noop-backup.sqlite`, plus (#1000) an optional second entry `settings.json` carrying
-    /// the whitelisted profile/display settings, so a restore brings back weight/height/units and not
+    /// the whitelisted profile/display settings, so a restore brings back name/weight/height/units and not
     /// just the rows. Entry names, entry ORDER (DB first — older importers stop at the first `.sqlite`
     /// entry) and deflate compression match the Android exporter byte-for-byte at the container level,
     /// so a `.noopbak` produced on either platform imports on the other. `settingsJSON == nil` writes
@@ -406,7 +406,7 @@ enum DataBackup {
                 restoreSidecar(from: source, toMainPath: dbPath, suffix: "-shm")
             }
 
-            // #1000: re-apply the backup's whitelisted profile/display settings (weight, height, age,
+            // #1000: re-apply the backup's whitelisted profile/display settings (name, weight, height, age,
             // sex, HR-max override, unit prefs) — but only NOW, after the DB swap landed. A failed or
             // rolled-back restore returns above and never touches settings. Legacy single-entry ZIPs
             // and plain-SQLite backups have no `settings.json` (extractedDir nil / entry absent) and

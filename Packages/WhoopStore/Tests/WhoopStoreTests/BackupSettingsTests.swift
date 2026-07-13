@@ -11,6 +11,7 @@ final class BackupSettingsTests: XCTestCase {
 
     func testEncodeDecodeRoundTripsEveryWhitelistedKey() throws {
         let values: [String: Any] = [
+            "profile.name": "Alex",
             "profile.age": 34,
             "profile.sex": "female",
             "profile.weightKg": 62.5,
@@ -24,6 +25,7 @@ final class BackupSettingsTests: XCTestCase {
         let data = try XCTUnwrap(BackupSettings.encode(values))
         let back = BackupSettings.decode(data)
 
+        XCTAssertEqual(back["profile.name"] as? String, "Alex")
         XCTAssertEqual(back["profile.age"] as? Int, 34)
         XCTAssertEqual(back["profile.sex"] as? String, "female")
         XCTAssertEqual(back["profile.weightKg"] as? Double, 62.5)
@@ -103,11 +105,13 @@ final class BackupSettingsTests: XCTestCase {
     func testSnapshotOmitsUnsetKeysAndMapsHrMaxOverride() throws {
         let defaults = try freshDefaults()
         defaults.set(29, forKey: "profile.age")
+        defaults.set("Alex", forKey: "profile.name")
         defaults.set(82.5, forKey: "profile.weightKg")
         defaults.set(198, forKey: "profile.hrMaxOverride") // storage key, not the canonical name
         defaults.set("imperial", forKey: "units.system")
 
         let snap = BackupSettings.snapshot(from: defaults)
+        XCTAssertEqual(snap["profile.name"] as? String, "Alex")
         XCTAssertEqual(snap["profile.age"] as? Int, 29)
         XCTAssertEqual(snap["profile.weightKg"] as? Double, 82.5)
         XCTAssertEqual(snap["profile.hrMax"] as? Int, 198, "hrMaxOverride surfaces under the canonical key")
@@ -121,11 +125,13 @@ final class BackupSettingsTests: XCTestCase {
         defaults.set(175.0, forKey: "profile.heightCm") // pre-existing target value, not in payload
 
         BackupSettings.apply([
+            "profile.name": "Sam",
             "profile.age": 41,
             "profile.hrMax": 187,
             "units.temperature": "fahrenheit",
         ], to: defaults)
 
+        XCTAssertEqual(defaults.string(forKey: "profile.name"), "Sam")
         XCTAssertEqual(defaults.object(forKey: "profile.age") as? Int, 41)
         XCTAssertEqual(defaults.object(forKey: "profile.hrMaxOverride") as? Int, 187,
                        "Canonical profile.hrMax lands on the profile.hrMaxOverride storage key")
@@ -166,6 +172,7 @@ final class BackupSettingsTests: XCTestCase {
         // Device A: user-set values → snapshot → encode (what export writes into the zip).
         let deviceA = try freshDefaults()
         deviceA.set(52, forKey: "profile.age")
+        deviceA.set("Taylor", forKey: "profile.name")
         deviceA.set("nonbinary", forKey: "profile.sex")
         deviceA.set(90.25, forKey: "profile.weightKg")
         deviceA.set(0, forKey: "profile.hrMaxOverride") // explicit "auto" is still a value
@@ -175,6 +182,7 @@ final class BackupSettingsTests: XCTestCase {
         let deviceB = try freshDefaults()
         BackupSettings.apply(BackupSettings.decode(payload), to: deviceB)
 
+        XCTAssertEqual(deviceB.string(forKey: "profile.name"), "Taylor")
         XCTAssertEqual(deviceB.object(forKey: "profile.age") as? Int, 52)
         XCTAssertEqual(deviceB.string(forKey: "profile.sex"), "nonbinary")
         XCTAssertEqual(deviceB.object(forKey: "profile.weightKg") as? Double, 90.25)

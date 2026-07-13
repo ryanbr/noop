@@ -371,6 +371,19 @@ struct SettingsView: View {
             blurb: "These power your heart-rate zones, calorie estimates and recovery baselines. Keep them accurate."
         ) {
             VStack(spacing: 0) {
+                FormRow(label: "Name") {
+                    TextField("Optional", text: $profile.preferredName)
+                        .textFieldStyle(.plain)
+                        .font(StrandFont.body)
+                        .foregroundStyle(StrandPalette.textPrimary)
+                        .multilineTextAlignment(.trailing)
+                        .lineLimit(1)
+                        .accessibilityLabel(String(
+                            format: String(localized: "%@, %@"),
+                            String(localized: "Name"), String(localized: "Optional")
+                        ))
+                }
+                rowDivider
                 FormRow(label: "Date of birth") {
                     HStack(spacing: 12) {
                         Text("\(profile.age)")

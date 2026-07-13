@@ -2,10 +2,27 @@ import Foundation
 import Combine
 import SwiftUI
 
-/// User profile (age/sex/body metrics/HR-max) persisted in UserDefaults.
+/// User profile (optional preferred name, age/sex/body metrics/HR-max) persisted in UserDefaults.
 /// Powers HR zones, calories and recovery baselines.
 @MainActor
 final class ProfileStore: ObservableObject {
+    /// Optional name used only to personalise the Today greeting. Empty means the user opted out.
+    /// The short cap keeps the one-line header usable with Dynamic Type and survives backup restores.
+    @Published var preferredName: String {
+        didSet {
+            let bounded = String(preferredName.prefix(Self.preferredNameMaxLength))
+            if bounded != preferredName {
+                preferredName = bounded
+                return
+            }
+            if let normalized = Self.normalizedPreferredName(bounded) {
+                d.set(normalized, forKey: K.preferredName)
+            } else {
+                d.removeObject(forKey: K.preferredName)
+            }
+        }
+    }
+
     /// Canonical source of truth for age (#146): a date of birth, so age advances on its own instead
     /// of silently going stale until the user remembers to bump a number. `age` is derived from this.
     @Published var dateOfBirth: Date {
@@ -63,6 +80,7 @@ final class ProfileStore: ObservableObject {
 
     private let d = UserDefaults.standard
     private enum K {
+        static let preferredName = "profile.name"
         static let dateOfBirth = "profile.dateOfBirth"
         /// Pre-#146 age key. No longer the source of truth; kept mirrored from `dateOfBirth` so the
         /// cross-platform `.noopbak` whitelist keeps round-tripping an Int age unchanged.
@@ -80,6 +98,7 @@ final class ProfileStore: ObservableObject {
     }
 
     init() {
+        preferredName = Self.normalizedPreferredName(d.string(forKey: K.preferredName) ?? "") ?? ""
         // #146 age migration. `dateOfBirth` is authoritative whenever it exists, so age advances on
         // its own. A pre-#146 install — or a `.noopbak` restore, which writes only the legacy Int age
         // and clears any stale DOB (see `BackupSettings.apply`) — has no DOB yet, so derive one from
@@ -113,6 +132,23 @@ final class ProfileStore: ObservableObject {
         stepsCalibrationManual = d.object(forKey: K.stepsManualFlag) as? Bool ?? false
         stepsManualCoefficient = max(0, d.object(forKey: K.stepsManualCoeff) as? Double ?? 0)
         avatarImageData = d.data(forKey: K.avatar)
+    }
+
+    /// The trimmed name used in a greeting, or nil when the user left the optional field empty.
+    var greetingName: String? { Self.normalizedPreferredName(preferredName) }
+
+    nonisolated static let preferredNameMaxLength = 40
+
+    /// Pure normalisation shared by the UI and tests. Internal whitespace is preserved so real names
+    /// are not rewritten; only surrounding whitespace and an empty opt-out are normalised.
+    nonisolated static func normalizedPreferredName(_ value: String) -> String? {
+        let bounded = boundedPreferredName(value)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return bounded.isEmpty ? nil : bounded
+    }
+
+    private nonisolated static func boundedPreferredName(_ value: String) -> String {
+        String(value.prefix(preferredNameMaxLength))
     }
 
     // MARK: - Profile picture
