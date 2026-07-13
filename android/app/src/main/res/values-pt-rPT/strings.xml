@@ -1851,4 +1851,13 @@
     <string name="onboarding_theme_follow_system">É utilizada a definição de tema claro ou escuro do teu telemóvel.</string>
     <string name="onboarding_theme_light_description">Destaques em azul-escuro sobre um fundo claro e acolhedor.</string>
     <string name="onboarding_theme_dark_description">Destaques em azul-escuro sobre um fundo azul-acinzentado escuro.</string>
+
+    <!-- Saudação do Hoje + nome preferido opcional. -->
+    <string name="profile_preferred_name">Nome</string>
+    <string name="profile_name_placeholder">Opcional</string>
+    <string name="profile_name_accessibility">Nome, opcional</string>
+    <string name="today_greeting_morning">Bom dia</string>
+    <string name="today_greeting_afternoon">Boa tarde</string>
+    <string name="today_greeting_evening">Boa noite</string>
+    <string name="today_greeting_with_name">%1$s, %2$s</string>
 </resources>

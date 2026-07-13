@@ -29,6 +29,7 @@ class BackupSettingsCodecTest {
 
     @Test fun encodeDecodeRoundTripsEveryWhitelistedKey() {
         val values = mapOf(
+            "profile.name" to "Alex",
             "profile.age" to 34,
             "profile.sex" to "female",
             "profile.weightKg" to 62.5,
@@ -42,6 +43,7 @@ class BackupSettingsCodecTest {
         val json = requireNotNull(BackupSettingsCodec.encode(values))
         val back = BackupSettingsCodec.decode(json)
 
+        assertEquals("Alex", back["profile.name"])
         assertEquals(34, back["profile.age"])
         assertEquals("female", back["profile.sex"])
         assertEquals(62.5, back["profile.weightKg"])
@@ -56,8 +58,9 @@ class BackupSettingsCodecTest {
 
     @Test fun crossPlatformShapedJsonDecodes() {
         // What the Apple exporter writes (JSONSerialization, sorted keys, integral doubles possible).
-        val appleJson = """{"profile.age":34.0,"profile.hrMax":191,"profile.sex":"male","profile.weightKg":80,"units.system":"metric"}"""
+        val appleJson = """{"profile.age":34.0,"profile.hrMax":191,"profile.name":"Sam","profile.sex":"male","profile.weightKg":80,"units.system":"metric"}"""
         val back = BackupSettingsCodec.decode(appleJson)
+        assertEquals("Sam", back["profile.name"])
         assertEquals("Integral JSON numbers must land as Int for int-kind keys", 34, back["profile.age"])
         assertEquals(191, back["profile.hrMax"])
         assertEquals("A bare JSON int must land as Double for double-kind keys", 80.0, back["profile.weightKg"])

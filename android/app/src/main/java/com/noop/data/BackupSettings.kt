@@ -11,7 +11,7 @@ import org.json.JSONObject
  * `BackupSettings` in Packages/WhoopStore.
  *
  * A `.noopbak` is a ZIP whose first entry is the SQLite database. That round-trips every row, but the
- * user's profile (age / sex / weight / height / HR-max override) and display preferences live in
+ * user's profile (optional name / age / sex / weight / height / HR-max override) and display preferences live in
  * SharedPreferences (UserDefaults on Apple), so a restore onto a fresh device silently reset them —
  * the "restore doesn't bring back settings/weight/height" half of #1000. This adds a SECOND, optional
  * ZIP entry — `settings.json`, a flat JSON object — carrying exactly one WHITELISTED set of keys.
@@ -38,13 +38,15 @@ object BackupSettingsCodec {
      * THE whitelist — the only keys `settings.json` may carry, keyed by their CANONICAL
      * (platform-neutral) names. Mirrors the Apple `BackupSettings.whitelist` exactly.
      *
-     * Profile: the body metrics that power HR zones / calories / recovery baselines, plus the manual
-     * HR-max override (`profile.hrMax`, 0 = auto/Tanaka). Display: the metric/imperial system, the
+     * Profile: the optional Today-greeting name, the body metrics that power HR zones / calories /
+     * recovery baselines, plus the manual HR-max override (`profile.hrMax`, 0 = auto/Tanaka). Display:
+     * the metric/imperial system, the
      * separate temperature override ("" = match the system), and the Effort axis (#268). Deliberately
      * EXCLUDED: step calibration (per-strap, not per-person), the steps-engine fitted outputs
      * (derived), and every noop.* toggle that is device- or install-specific.
      */
     val WHITELIST: Map<String, Kind> = linkedMapOf(
+        "profile.name" to Kind.STRING,
         "profile.age" to Kind.INT,
         "profile.sex" to Kind.STRING,
         "profile.weightKg" to Kind.DOUBLE,

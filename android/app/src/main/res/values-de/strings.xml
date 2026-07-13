@@ -1872,4 +1872,12 @@
     <string name="onboarding_theme_follow_system">Die Hell-/Dunkel-Einstellung deines Smartphones wird übernommen.</string>
     <string name="onboarding_theme_light_description">Tiefblaue Akzente auf einem warmen, hellen Hintergrund.</string>
     <string name="onboarding_theme_dark_description">Tiefblaue Akzente auf einem dunklen, blaugrauen Hintergrund.</string>
+    <!-- Optional profile name used to personalize the Today greeting. -->
+    <string name="profile_preferred_name">Name</string>
+    <string name="profile_name_placeholder">Optional</string>
+    <string name="profile_name_accessibility">Name, optional</string>
+    <string name="today_greeting_morning">Guten Morgen</string>
+    <string name="today_greeting_afternoon">Guten Nachmittag</string>
+    <string name="today_greeting_evening">Guten Abend</string>
+    <string name="today_greeting_with_name">%1$s, %2$s</string>
 </resources>

@@ -146,14 +146,28 @@ import kotlin.math.roundToInt
 // MARK: - Profile store (SharedPreferences-backed; the macOS ProfileStore equivalent)
 
 /**
- * The user's body profile — age / sex / weight / height plus an optional manual
- * HR-max override. Persisted to SharedPreferences so the values survive restarts
+ * The user's profile — optional preferred name, age / sex / weight / height plus an optional
+ * manual HR-max override. Persisted to SharedPreferences so the values survive restarts
  * and other screens (HealthScreen, Coach zones) can read the same source of truth.
  *
  * Mirrors the macOS `ProfileStore` fields and ranges exactly. `hrMaxOverride == 0`
  * means "auto" — fall back to the Tanaka estimate from [age].
  */
 class ProfileStore(private val prefs: SharedPreferences) {
+
+    /** Optional name used only to personalise the Today greeting. Blank means the user opted out. */
+    var preferredName: String
+        get() = prefs.getString(KEY_NAME, "")
+            ?.take(PREFERRED_NAME_MAX_LENGTH)
+            .orEmpty()
+        set(v) {
+            val bounded = v.take(PREFERRED_NAME_MAX_LENGTH)
+            if (bounded.isBlank()) prefs.edit().remove(KEY_NAME).apply()
+            else prefs.edit().putString(KEY_NAME, bounded).apply()
+        }
+
+    /** Trimmed greeting name, or null for the optional blank state. */
+    val greetingName: String? get() = preferredName.trim().ifEmpty { null }
 
     /**
      * Current age in whole years (#146), DERIVED from [dateOfBirthMillis] so it advances on its own
@@ -278,6 +292,7 @@ class ProfileStore(private val prefs: SharedPreferences) {
     /** The user-SET profile fields, keyed canonically, for the backup exporter. */
     fun backupSnapshot(): Map<String, Any> {
         val out = LinkedHashMap<String, Any>()
+        if (prefs.contains(KEY_NAME)) greetingName?.let { out["profile.name"] = it }
         // #146: age is now derived from a DOB; export the current derived Int under the legacy
         // `profile.age` key (the whitelist carries an Int, not a Date). A never-touched profile
         // (neither key set) still stays out of the snapshot.
@@ -299,6 +314,7 @@ class ProfileStore(private val prefs: SharedPreferences) {
         // #146: a restore carries only an Int age. Route it through setAge so the restored age
         // re-anchors this device's DOB (clearing any stale local DOB) and then advances on its own —
         // the deterministic twin of the Apple side clearing `profile.dateOfBirth` on apply.
+        (values["profile.name"] as? String)?.let { preferredName = it }
         (values["profile.age"] as? Number)?.let { setAge(it.toInt()) }
         (values["profile.sex"] as? String)?.let { sex = it }
         (values["profile.weightKg"] as? Number)?.let { weightKg = it.toDouble() }
@@ -309,6 +325,7 @@ class ProfileStore(private val prefs: SharedPreferences) {
 
     companion object {
         private const val PREFS = "noop_profile"
+        private const val KEY_NAME = "preferred_name"
         /** Date of birth as epoch millis — the #146 source of truth for [age]. */
         private const val KEY_DOB = "date_of_birth"
         /** Pre-#146 age key, now kept mirrored from the DOB so the `.noopbak` whitelist (Int age)
@@ -335,6 +352,7 @@ class ProfileStore(private val prefs: SharedPreferences) {
         private const val WAIST_MAX = 200.0
         private const val STEP_SCALE_MIN = 0.5
         private const val STEP_SCALE_MAX = 30.0
+        private const val PREFERRED_NAME_MAX_LENGTH = 40
 
         /**
          * Variable step for the calibration stepper so high values stay reachable: fine near the
@@ -775,6 +793,36 @@ fun SettingsScreen(
             blurb = "These power your heart-rate zones, calorie estimates and recovery baselines. Keep them accurate.",
         ) {
             Column {
+                FormRow(label = uiString(R.string.profile_preferred_name)) {
+                    OutlinedTextField(
+                        value = profile.preferredName,
+                        onValueChange = { mutate { profile.preferredName = it } },
+                        singleLine = true,
+                        placeholder = {
+                            Text(
+                                uiString(R.string.profile_name_placeholder),
+                                style = NoopType.body,
+                                color = Palette.textTertiary,
+                            )
+                        },
+                        textStyle = NoopType.body,
+                        modifier = Modifier
+                            .fillMaxWidth(0.58f)
+                            .semantics {
+                                contentDescription = uiString(R.string.profile_name_accessibility)
+                            },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Palette.textPrimary,
+                            unfocusedTextColor = Palette.textPrimary,
+                            focusedBorderColor = Palette.accent,
+                            unfocusedBorderColor = Palette.hairline,
+                            cursorColor = Palette.accent,
+                            focusedContainerColor = Palette.surfaceInset,
+                            unfocusedContainerColor = Palette.surfaceInset,
+                        ),
+                    )
+                }
+                RowDivider()
                 FormRow(label = uiString(R.string.l10n_settings_screen_age_ff9f1ff3)) {
                     StepperField(
                         value = profile.age.toString(),
