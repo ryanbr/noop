@@ -23,8 +23,12 @@ final class RD1LogDomainTests: XCTestCase {
         days.append(d(29, hrv: 50, rhr: 52))   // today: a typical night
 
         let hrv = ReadinessEngine.evaluate(days: days).signals.first { $0.key == "hrv" }
-        // Log domain baselines against the geometric mean (51). Raw-ms z would report "50 vs 54 ms".
-        XCTAssertEqual(hrv?.evidence, "50 vs 51 ms")
+        // Log domain baselines against a GEOMETRIC center (49 ms), well below the arithmetic mean (54)
+        // a raw-ms z would report. Under RD2 the center is the recency-weighted, Winsor-clamped EWMA
+        // (Baselines spine, reject off): the 8 recent 85 ms nights nudge it up from the 42 ms cluster
+        // but Winsorization caps their pull, so it lands at 49 — still geometric, not the tail-inflated
+        // arithmetic 54.
+        XCTAssertEqual(hrv?.evidence, "50 vs 49 ms")
         // 50 sits at the typical night → neutral, read against a representative (not tail-inflated) baseline.
         XCTAssertEqual(hrv?.flag, .neutral)
     }

@@ -213,12 +213,25 @@ public enum Baselines {
                                halfLifeB: 14.0, halfLifeS: 21.0),
         "strain": MetricCfg(minVal: 0.0, maxVal: 100.0, floorSpread: 5.0,
                             halfLifeB: 14.0, halfLifeS: 21.0),
+
+        // Readiness HRV baseline, folded in the LOG domain with hard-outlier rejection OFF (RD2 · the
+        // window-fold spine mode — see Baselines.update's `rejectHardOutliers`). ReadinessEngine
+        // z-scores lnRMSSD (RD1: HRV is right-skewed), so these bounds/floor are in LN(ms) units — NOT
+        // the raw-ms "hrv" config above (which the RecoveryScorer folds linearly, untouched).
+        // minVal/maxVal = ln(8)/ln(250), the plausible HRV band in ln. floorSpread 0.08 (ln) sits just
+        // below a real wearer's own ln-HRV night-to-night spread (~0.10, measured on real WHOOP nights),
+        // so personal spread drives the z while an ultra-stable baseline is floored against saturation.
+        "readiness_hrv_ln": MetricCfg(minVal: 2.079, maxVal: 5.521, floorSpread: 0.08,
+                                      halfLifeB: 14.0, halfLifeS: 21.0),
     ]
 
     /// Convenience accessors for the standard configs.
     public static var hrvCfg: MetricCfg { metricCfg["hrv"]! }
     public static var restingHRCfg: MetricCfg { metricCfg["resting_hr"]! }
     public static var respCfg: MetricCfg { metricCfg["resp"]! }
+    /// Readiness HRV baseline config — folded in the LOG domain (ln ms) with hard-outlier rejection
+    /// OFF. See the `readiness_hrv_ln` comment above; distinct from the raw-ms `hrvCfg`.
+    public static var readinessHRVLnCfg: MetricCfg { metricCfg["readiness_hrv_ln"]! }
     /// Baseline config for the RecoveryScorer Activity-Balance / previous-day-Effort term.
     public static var strainCfg: MetricCfg { metricCfg["strain"]! }
 
@@ -272,7 +285,8 @@ public enum Baselines {
     /// - `value == nil` or out-of-range: skip-and-hold (carry forward).
     /// - hard outlier (> HARD_OUTLIER_K × spread): seen but not folded.
     /// - otherwise: Winsorized EWMA center + EWMA-abs-dev spread update.
-    public static func update(_ state: BaselineState?, value: Double?, cfg: MetricCfg) -> BaselineState {
+    public static func update(_ state: BaselineState?, value: Double?, cfg: MetricCfg,
+                              rejectHardOutliers: Bool = true) -> BaselineState {
         let lb = lambda(halfLife: cfg.halfLifeB)
         let ls = lambda(halfLife: cfg.halfLifeS)
 
@@ -313,7 +327,17 @@ public enum Baselines {
         // Suspending this during early life is the core anti-anchoring fix — a high seed with a
         // floor-tight spread would otherwise reject the user's real, lower readings as "outliers"
         // (a true 54ms vs an anchored ~90ms baseline is >5× the floor spread).
-        if state.nValid >= minNightsSeed && !isYoung {
+        //
+        // `rejectHardOutliers` (default true) can turn this OFF for a TRAILING-WINDOW re-fold — where
+        // the same 30-night window is re-folded every call and a *recent sustained* shift lands at the
+        // window's end (past the young grace period), so rejection would discard a real new normal as a
+        // string of "outliers" (readiness's device-swap / supplement-onset failure mode). With it off,
+        // the Winsorization below STILL damps a single freak night (clamped to ±winsorK·spread rather
+        // than folded raw) — but a sustained shift is followed instead of rejected, because each night
+        // nudges the center and widens the spread until the new level is no longer an outlier. This is
+        // exactly the incremental-fold (reject on, RecoveryScorer) vs window-fold (reject off, Readiness)
+        // distinction; validated on real HRV history (see ReadinessEngine's RD2 note).
+        if rejectHardOutliers && state.nValid >= minNightsSeed && !isYoung {
             let dev = abs(value - state.baseline)
             if dev > hardOutlierK * state.spread {
                 return BaselineState(baseline: state.baseline, spread: state.spread,
@@ -351,9 +375,10 @@ public enum Baselines {
 
     /// Replay an ordered sequence of nightly values (oldest first) to build state.
     /// `nil` entries are treated as missing nights (skip-and-hold).
-    public static func foldHistory(_ values: [Double?], cfg: MetricCfg) -> BaselineState {
+    public static func foldHistory(_ values: [Double?], cfg: MetricCfg,
+                                   rejectHardOutliers: Bool = true) -> BaselineState {
         var state: BaselineState? = nil
-        for v in values { state = update(state, value: v, cfg: cfg) }
+        for v in values { state = update(state, value: v, cfg: cfg, rejectHardOutliers: rejectHardOutliers) }
         if let s = state { return s }
         let seed = (cfg.minVal + cfg.maxVal) / 2.0
         return BaselineState(baseline: seed, spread: cfg.floorSpread, nValid: 0,
