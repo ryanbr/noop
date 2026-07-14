@@ -22,6 +22,14 @@ class DaytimeStressTest {
         return (0 until n).map { HrSample(deviceId = "t", ts = base + it, bpm = bpm) }
     }
 
+    /** R-R for one hour with a controllable beat-to-beat jitter (drives RMSSD). */
+    private fun hourRrVariable(hour: Int, rrMs: Int, jitter: Int, n: Int = 60): List<RrInterval> {
+        val base = hour.toLong() * 3_600L
+        return (0 until n).map {
+            RrInterval(deviceId = "t", ts = base + it * 50L, rrMs = rrMs + if (it % 2 == 0) jitter else -jitter)
+        }
+    }
+
     @Test
     fun sleepHoursInTheWindow_doNotShiftTheWakingTimeline() {
         // Regression (#357): the calm reference is built from the WAKING hours that are actually
@@ -195,6 +203,179 @@ class DaytimeStressTest {
         assertEquals(
             "a masked exertion hour leaked into the calm reference and moved an unrelated hour's score",
             before!!, after!!, 1e-9,
+        )
+    }
+
+    // MARK: - Additivity: the `mode` parameter is opt-in, day-relative stays the default
+
+    @Test
+    fun dayRelativeDefaultIsByteIdenticalToExplicitMode() {
+        // The additive `mode` parameter defaults to DayRelative. Confirms the implicit call
+        // (every pre-existing call site, unmodified) and the explicit DayRelative case produce a
+        // BYTE-IDENTICAL Result — every field, not just the pre-existing ones — proving the new
+        // mode is purely additive and never a silent behaviour change.
+        val hr = ArrayList<HrSample>()
+        for (h in listOf(8, 9, 10)) hr += hourHr(h, 58)
+        hr += hourHr(13, 120)
+        hr += hourHr(14, 125)
+        hr += hourHr(15, 130)
+        val rr = ArrayList<RrInterval>()
+        rr += hourRrVariable(9, 900, 40)
+        rr += hourRrVariable(14, 900, 5)
+
+        val implicit = DaytimeStress.analyze(hr, rr, tzOffsetSeconds = 3_600L)
+        val explicit = DaytimeStress.analyze(hr, rr, tzOffsetSeconds = 3_600L,
+            mode = DaytimeStress.ScoringMode.DayRelative)
+        assertEquals(
+            "omitting `mode` must be byte-identical to passing DayRelative explicitly",
+            implicit, explicit,
+        )
+    }
+
+    @Test
+    fun highStressMinutesCountsAllHighBandHoursNotJustTheTrailingRun() {
+        // An isolated morning spike, then a calm run ending the day: sustainedHigh only cares about
+        // the TRAILING run (and must be false here, since the day ends calm), but highStressMinutes
+        // is a day-wide tally and must still count the earlier spike hour — proving it is computed
+        // independently, not derived from sustainedRun.
+        val hr = ArrayList<HrSample>()
+        hr += hourHr(7, 130)   // isolated high spike
+        hr += hourHr(8, 60)
+        hr += hourHr(9, 60)
+        hr += hourHr(10, 60)
+        hr += hourHr(11, 60)   // trailing hour is calm -> NOT sustained
+        val r = DaytimeStress.analyze(hr, emptyList())
+
+        assertFalse("the trailing hour is calm, so sustained-high must not fire", r.sustainedHigh)
+        val expectedHighHours = r.scored.count { it.level!! >= DaytimeStress.highBandFloor }
+        assertTrue("the isolated morning spike should read as high band", expectedHighHours > 0)
+        assertEquals(expectedHighHours * (DaytimeStress.bucketSeconds / 60L).toInt(), r.highStressMinutes)
+        assertFalse("day-relative mode never sets the baseline-relative fallback flag", r.hrOnlyFallback)
+    }
+
+    // MARK: - Baseline-relative mode (Oura-style, vs a PERSONAL rolling baseline)
+    //
+    // Fixtures below use a 65 bpm personal HR baseline (matching the ~65 bpm pooled
+    // 10th-percentile figure from the validated 26-day Oura-reference correlation — see
+    // DaytimeStress.baselineRelativeHighMarginBPM) and elevations measured from it in terms of that
+    // validated ~15 bpm margin, so the expected band crossings are exact, not approximate.
+
+    @Test
+    fun marginToSigmaLandsExactlyOnBand() {
+        // The validated 15 bpm margin over baseline must land EXACTLY on highBandFloor (2.0) on the
+        // shared squash curve — the core identity baseline-relative scoring relies on.
+        val sd = DaytimeStress.marginToSigma(DaytimeStress.baselineRelativeHighMarginBPM, DaytimeStress.highBandFloor)
+        assertEquals(
+            DaytimeStress.highBandFloor,
+            DaytimeStress.squash(DaytimeStress.baselineRelativeHighMarginBPM / sd),
+            1e-9,
+        )
+    }
+
+    @Test
+    fun baselineRelativeModeRecoversMultipleInjectedElevations() {
+        // Personal daytime-HR baseline: 20 constant "days" at 65 bpm converges the EWMA center to
+        // exactly 65 (spread is folded but NOT used for the HR high-band threshold).
+        val hrBaseline = Baselines.foldHistory(List(20) { 65.0 }, Baselines.daytimeHRCfg)
+        assertEquals(65.0, hrBaseline.baseline, 1e-6)
+
+        // FOUR distinct injected HR elevations across the SAME day's waking hours — the repo's
+        // derived-signal rule requires recovering MULTIPLE injected values, not a single high-vs-low
+        // pair. 65 (at baseline), 72 (+7, mild), 80 (+15, exactly the validated margin), 95 (+30).
+        val levels = listOf(8 to 65, 10 to 72, 13 to 80, 16 to 95)
+        val hr = ArrayList<HrSample>()
+        for ((h, bpm) in levels) hr += hourHr(h, bpm)
+
+        val r = DaytimeStress.analyze(hr, emptyList(),
+            mode = DaytimeStress.ScoringMode.BaselineRelative(hrBaseline, null))
+        val scores = levels.map { pair -> r.scored.first { it.hour == pair.first }.level!! }
+
+        // Strictly increasing with the injected elevation — all four levels recovered, in order.
+        for (i in 1 until scores.size) {
+            assertTrue(
+                "hour ${levels[i].first} (${levels[i].second} bpm) should score higher than hour " +
+                    "${levels[i - 1].first} (${levels[i - 1].second} bpm)",
+                scores[i] > scores[i - 1],
+            )
+        }
+        // The at-baseline hour reads at the 1.5 midpoint; +15 bpm (the validated margin) lands
+        // exactly on highBandFloor; the most-elevated hour clears well past it.
+        assertEquals(1.5, scores[0], 0.05)
+        assertEquals(
+            "the validated +15 bpm margin should land exactly on highBandFloor",
+            DaytimeStress.highBandFloor, scores[2], 0.01,
+        )
+        assertTrue(scores.last() > DaytimeStress.highBandFloor)
+        assertTrue("rmssd = null must flag the HR-only fallback", r.hrOnlyFallback)
+    }
+
+    @Test
+    fun baselineRelativeCalmDayAtPersonalBaselineReadsLowNotHigh() {
+        val hrBaseline = Baselines.foldHistory(List(20) { 65.0 }, Baselines.daytimeHRCfg)
+        val hr = ArrayList<HrSample>()
+        for (h in listOf(8, 10, 13, 16)) hr += hourHr(h, 65)   // every hour sits exactly at baseline
+        val r = DaytimeStress.analyze(hr, emptyList(),
+            mode = DaytimeStress.ScoringMode.BaselineRelative(hrBaseline, null))
+
+        for (p in r.scored) {
+            assertEquals("a day flat at the personal baseline should read ~1.5, not elevated",
+                1.5, p.level!!, 0.05)
+        }
+        assertEquals(0, r.highStressMinutes)
+        assertFalse(r.sustainedHigh)
+    }
+
+    @Test
+    fun baselineRelativeElevatedDayProducesHighStressMinutes() {
+        val hrBaseline = Baselines.foldHistory(List(20) { 65.0 }, Baselines.daytimeHRCfg)
+        val hr = ArrayList<HrSample>()
+        for (h in 8..16) hr += hourHr(h, 95)   // +30 bpm — twice the validated high-band margin
+        val r = DaytimeStress.analyze(hr, emptyList(),
+            mode = DaytimeStress.ScoringMode.BaselineRelative(hrBaseline, null))
+
+        assertTrue(r.highStressMinutes > 0)
+        assertEquals(
+            r.scored.count { it.level!! >= DaytimeStress.highBandFloor } * (DaytimeStress.bucketSeconds / 60L).toInt(),
+            r.highStressMinutes,
+        )
+        for (p in r.scored) assertTrue(p.level!! >= DaytimeStress.highBandFloor)
+    }
+
+    @Test
+    fun baselineRelativeNilRMSSDFallsBackToHROnlyAndFlagsDegraded() {
+        // An imported, Oura-era day: no personal RMSSD baseline exists yet (rmssd = null) and no R-R
+        // stream is available either. The read must still complete honestly, never crash.
+        val hrBaseline = Baselines.foldHistory(List(20) { 65.0 }, Baselines.daytimeHRCfg)
+        val hr = ArrayList<HrSample>()
+        for (h in listOf(9, 14)) hr += hourHr(h, 80)   // right at the validated +15 bpm margin
+        val r = DaytimeStress.analyze(hr, emptyList(),
+            mode = DaytimeStress.ScoringMode.BaselineRelative(hrBaseline, null))
+
+        assertTrue(r.hrOnlyFallback)
+        assertFalse("HR-only scoring must still produce a timeline", r.scored.isEmpty())
+        for (p in r.scored) assertNotNull(p.level)
+    }
+
+    @Test
+    fun baselineRelativeUsesRMSSDBaselineWhenAvailable() {
+        // Personal baselines: HR steady at 65 bpm, RMSSD steady at 40 ms (both spread-floored).
+        val hrBaseline = Baselines.foldHistory(List(20) { 65.0 }, Baselines.daytimeHRCfg)
+        val rmssdBaseline = Baselines.foldHistory(List(20) { 40.0 }, Baselines.daytimeRMSSDCfg)
+
+        val hr = ArrayList<HrSample>()
+        val rr = ArrayList<RrInterval>()
+        for (h in listOf(9, 14)) hr += hourHr(h, 65)     // HR AT baseline in both hours — isolates RMSSD
+        rr += hourRrVariable(9, 900, 40)                  // normal variability
+        rr += hourRrVariable(14, 900, 2)                  // suppressed HRV -> more stressed
+
+        val r = DaytimeStress.analyze(hr, rr,
+            mode = DaytimeStress.ScoringMode.BaselineRelative(hrBaseline, rmssdBaseline))
+        assertFalse("an RMSSD baseline was supplied — no fallback", r.hrOnlyFallback)
+        val normal = r.scored.first { it.hour == 9 }.level!!
+        val suppressed = r.scored.first { it.hour == 14 }.level!!
+        assertTrue(
+            "suppressed RMSSD vs. the personal baseline should read MORE stressed than normal variability",
+            suppressed > normal,
         )
     }
 }

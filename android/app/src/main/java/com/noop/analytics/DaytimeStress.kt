@@ -4,6 +4,7 @@ import com.noop.data.GravitySample
 import com.noop.data.HrSample
 import com.noop.data.RrInterval
 import kotlin.math.exp
+import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
@@ -84,6 +85,69 @@ object DaytimeStress {
      */
     const val postActivityShadowBpm: Double = 8.0
 
+    /**
+     * VALIDATED (26-day Oura-reference correlation, HR-only): a personal daytime-HR elevation
+     * of ~15 bpm over a POOLED/ROLLING baseline — the 10th-percentile daytime HR pooled across
+     * days, ~65 bpm in the reference set — is where elevated HR starts reading as
+     * Oura-comparable "high" stress (r≈0.6 against Oura's own stress signal). A PER-DAY
+     * (day-relative) baseline scored WORSE in the same comparison (r 0.43–0.53): an all-day
+     * elevated day pulls its own floor up and masks the stress, which is exactly why
+     * [ScoringMode.BaselineRelative] leans on [Baselines]' cross-day rolling EWMA instead of a
+     * day-local reference. TUNING SEAM: this is HR-only; HR+HRV (WHOOP-era, RMSSD included) is
+     * expected to beat this r≈0.6 ceiling — re-validate this margin once that comparison exists.
+     * See [marginToSigma] for how it's translated onto the shared 0–3 squash curve.
+     */
+    const val baselineRelativeHighMarginBPM: Double = 15.0
+
+    // MARK: - Scoring mode
+
+    /**
+     * WHERE each hour's "calm" reference point + spread come from. Every other step —
+     * bucketing, the waking-hour filter, the squash curve, sustained-high, high-stress-minutes
+     * — is identical between modes; only the reference differs.
+     *
+     * Relationship to the rest of the Stress screen: the DAILY 0–3 score already compares last
+     * night's NIGHTLY resting-HR/HRV to a plain trailing 30-day mean/SD (a once-a-day number
+     * from SLEEP vitals). The Advanced HRV card ([StressIndex], [HrvFreqDomain]) is a today-only
+     * descriptive lens with no baseline at all. [BaselineRelative] is neither: it's an HOURLY
+     * breakdown of TODAY from DAYTIME/waking-hours HR+RMSSD against a PERSONAL cross-day rolling
+     * baseline. Daytime HR runs warmer than nocturnal resting HR (posture, thermic effect), so it
+     * needs its OWN baseline (`daytime_hr`/`daytime_rmssd`) rather than reusing the nightly
+     * `resting_hr`/`hrv` configs — reusing the nightly ones would systematically over-read stress.
+     * The three surfaces are complementary lenses on the same underlying autonomic signal, not
+     * competing implementations of one baseline.
+     */
+    sealed interface ScoringMode {
+        /**
+         * DEFAULT — unchanged from before this mode existed. Each hour is z-scored against
+         * THIS DAY's own calm-hour reference: the lower quartile of the day's own waking-hour
+         * mean HR, the upper quartile of its own waking-hour RMSSD. No personal history needed —
+         * the day is its own baseline. Byte-identical output to the pre-existing single-mode
+         * `analyze` for the same hr/rr/tzOffsetSeconds.
+         */
+        object DayRelative : ScoringMode
+
+        /**
+         * Oura-style — each hour is z-scored against the PERSONAL rolling baseline for daytime
+         * HR (and, when available, daytime RMSSD): the SAME Winsorized-EWMA machinery
+         * ([Baselines.update] / [Baselines.foldHistory]) that backs the nightly HRV / resting-HR
+         * baselines elsewhere, using [Baselines.daytimeHRCfg] / [Baselines.daytimeRMSSDCfg].
+         *
+         * The HR reference point is [hr]'s baseline, but the HIGH-band threshold does NOT scale
+         * with this person's own day-to-day spread — see [baselineRelativeHighMarginBPM]: the
+         * validated model is a roughly FIXED bpm margin over the personal floor, not a
+         * variability-scaled one.
+         *
+         * [rmssd] is null when no personal RMSSD baseline exists yet — e.g. an imported, Oura-era
+         * day with no R-R stream. The stressor then honestly falls back to HR-only scoring for the
+         * whole read and flags [Result.hrOnlyFallback]; this mirrors the per-hour graceful-null
+         * already in [rawScore], just at the whole-baseline grain. The RMSSD term (when present)
+         * DOES still scale by [rmssd]'s spread via [Baselines.sigma] — only the HR term has a
+         * validated fixed-margin figure so far.
+         */
+        data class BaselineRelative(val hr: BaselineState, val rmssd: BaselineState?) : ScoringMode
+    }
+
     // MARK: - Output
 
     /**
@@ -132,6 +196,23 @@ object DaytimeStress {
          * gravity was supplied or nothing was masked; 0 for [EMPTY].
          */
         val activityMaskedHours: Int = 0,
+        /**
+         * ADDITIVE — total minutes across SCORED waking hours at/above [highBandFloor], the
+         * Oura-comparable "time in high stress" figure. Each scored hour is one [bucketSeconds]
+         * bucket, so this is `(# high-band scored hours) * bucketSeconds / 60`. Compare against
+         * Oura's `stress_high_s / 60` — NOOP's timeline is hourly-grain vs Oura's ~5-minute grain,
+         * so treat this as a coarse approximation, not a precise match. 0 for [EMPTY] and for any
+         * day with no scored hours.
+         */
+        val highStressMinutes: Int = 0,
+        /**
+         * ADDITIVE — true when [ScoringMode.BaselineRelative] mode was requested but had no
+         * personal RMSSD baseline to score against (e.g. an imported Oura-era day with no R-R
+         * history), so the whole read honestly fell back to HR-only scoring. Always false in
+         * [ScoringMode.DayRelative] mode (there, a missing RMSSD is already handled per-hour by
+         * [rawScore], not flagged day-wide) and false for [EMPTY].
+         */
+        val hrOnlyFallback: Boolean = false,
     ) {
         /** The scored hours only (level non-null), in time order. */
         val scored: List<HourPoint> get() = hours.filter { it.level != null }
@@ -139,7 +220,8 @@ object DaytimeStress {
         companion object {
             /** Empty read — used when the day had no usable intraday HR at all. */
             val EMPTY = Result(emptyList(), sustainedHigh = false, sustainedRun = 0,
-                dayMean = null, peak = null, activityMaskedHours = 0)
+                dayMean = null, peak = null, activityMaskedHours = 0,
+                highStressMinutes = 0, hrOnlyFallback = false)
         }
     }
 
@@ -177,8 +259,23 @@ object DaytimeStress {
      * Logistic squash of the raw z-sum onto 0–3 (baseline 0 → 1.5). Identical to
      * StressMath.squash, so an hourly point shares the daily score's scale and bands.
      */
-    private fun squash(raw: Double): Double =
+    internal fun squash(raw: Double): Double =
         (3.0 / (1.0 + exp(-raw))).coerceIn(0.0, 3.0)
+
+    /**
+     * Solve for the z-score spread `sd` such that a raw elevation of exactly [marginBPM] (or any
+     * unit — this is unit-agnostic) squashes to exactly [band] on the shared 0–3 curve:
+     * `band = 3 / (1 + e^(−marginBPM/sd))`. Used to translate [baselineRelativeHighMarginBPM]'s
+     * validated bpm figure into the `sd` the shared [squash] curve expects, so "baseline + margin"
+     * lands exactly on [band] by construction rather than by a second, separate threshold check.
+     * Defensive fallback (never divides by zero/negative-log) if [band] is ever configured at or
+     * outside the curve's open range (0, 3).
+     */
+    internal fun marginToSigma(marginBPM: Double, band: Double): Double {
+        val ratio = 3.0 / band - 1.0
+        if (ratio <= 0.0 || marginBPM <= 0.0) return max(marginBPM, 1e-9)
+        return marginBPM / (-ln(ratio))
+    }
 
     // MARK: - Public API
 
@@ -192,6 +289,9 @@ object DaytimeStress {
      *   present, ambulatory hours are masked out of the score (see the motion-gate constants).
      * @param tzOffsetSeconds seconds east of UTC, for placing each bucket on the LOCAL clock
      *   (so "waking hours" and the hour labels are local). Defaults to UTC.
+     * @param mode [ScoringMode.DayRelative] (DEFAULT — unchanged existing behaviour) or
+     *   [ScoringMode.BaselineRelative] (Oura-style, vs a personal rolling baseline). ADDITIVE and
+     *   opt-in: existing callers that don't pass `mode` keep the exact prior behaviour.
      *
      * Returns [Result.EMPTY] when there isn't a single hour with enough HR to score.
      */
@@ -200,6 +300,7 @@ object DaytimeStress {
         rr: List<RrInterval>,
         gravity: List<GravitySample> = emptyList(),
         tzOffsetSeconds: Long = 0L,
+        mode: ScoringMode = ScoringMode.DayRelative,
     ): Result {
         if (hr.isEmpty()) return Result.EMPTY
 
@@ -255,28 +356,72 @@ object DaytimeStress {
         fun isAmbulatory(bucket: Long): Boolean =
             (activeFracByBucket[bucket] ?: 0.0) >= activityMaskFraction
 
-        // 3) The day's OWN quiet reference: centre on the CALM end (the lower quartile of
-        //    hourly mean HR, the upper quartile of hourly RMSSD), and spread from the
-        //    across-hour SD. This makes a flat day read ~baseline and a spiky day surface its
-        //    tense hours — without any cross-day history. Falls back to the plain mean when
-        //    there are too few scored hours for a quartile.
-        //
-        //    Built from the WAKING hours only — the same hours scored in step 4. Sleep is the
-        //    calmest, lowest-HR / highest-HRV stretch of the day, and the analysis window
-        //    always begins at local midnight, so the current day routinely carries several
-        //    hours of it. Letting those night hours into the reference drags the "calm" anchor
-        //    far beneath every waking hour, inflating an ordinary calm day toward HIGH and
-        //    falsely tripping the sustained-high Breathe nudge.
-        //    Ambulatory hours are excluded from the day's OWN calm reference too: an exertion hour's
-        //    elevated HR / suppressed HRV must not pull the calm anchor up or inflate the across-hour
-        //    spread the z-scores divide by.
-        val referenceAggs = aggs.filter { isWakingHour(it.bucket) && !isAmbulatory(it.bucket) }
-        val hrMeans = referenceAggs.mapNotNull { it.meanHr }
-        val rmssdVals = referenceAggs.mapNotNull { it.rmssd }
-        val refHr = calmReference(hrMeans, calmIsLow = true)         // calm HR is LOW
-        val refRmssd = calmReference(rmssdVals, calmIsLow = false)   // calm HRV is HIGH
-        val sdHr = std(hrMeans, mean(hrMeans))
-        val sdRmssd = std(rmssdVals, mean(rmssdVals))
+        // 3) The reference point + spread for each signal — WHERE they come from depends on
+        //    `mode`. Every other step (bucketing above incl. the motion gate, the waking-hour
+        //    filter, the squash curve, sustained-high, high-stress-minutes below) is identical
+        //    between modes; only the reference differs.
+        val refHr: Double?
+        val sdHr: Double
+        val refRmssd: Double?
+        val sdRmssd: Double
+        val hrOnlyFallback: Boolean
+        when (mode) {
+            is ScoringMode.DayRelative -> {
+                // The day's OWN quiet reference: centre on the CALM end (the lower quartile of
+                // hourly mean HR, the upper quartile of hourly RMSSD), and spread from the
+                // across-hour SD. This makes a flat day read ~baseline and a spiky day surface its
+                // tense hours — without any cross-day history. Falls back to the plain mean when
+                // there are too few scored hours for a quartile.
+                //
+                // Built from the WAKING hours only — the same hours scored in step 4. Sleep is the
+                // calmest, lowest-HR / highest-HRV stretch of the day, and the analysis window
+                // always begins at local midnight, so the current day routinely carries several
+                // hours of it. Letting those night hours into the reference drags the "calm" anchor
+                // far beneath every waking hour, inflating an ordinary calm day toward HIGH and
+                // falsely tripping the sustained-high Breathe nudge.
+                // Ambulatory hours are excluded from the day's OWN calm reference too (the motion
+                // gate): an exertion hour's elevated HR / suppressed HRV must not pull the calm
+                // anchor up or inflate the across-hour spread the z-scores divide by.
+                val referenceAggs = aggs.filter { isWakingHour(it.bucket) && !isAmbulatory(it.bucket) }
+                val hrMeans = referenceAggs.mapNotNull { it.meanHr }
+                val rmssdVals = referenceAggs.mapNotNull { it.rmssd }
+                refHr = calmReference(hrMeans, calmIsLow = true)         // calm HR is LOW
+                refRmssd = calmReference(rmssdVals, calmIsLow = false)   // calm HRV is HIGH
+                sdHr = std(hrMeans, mean(hrMeans))
+                sdRmssd = std(rmssdVals, mean(rmssdVals))
+                hrOnlyFallback = false
+            }
+            is ScoringMode.BaselineRelative -> {
+                // The PERSONAL cross-day baseline, folded by the caller from past daytime
+                // aggregates via Baselines.update/foldHistory (see the ScoringMode doc).
+                // Ambulatory hours are still masked out of the SCORE in step 4 (the motion gate),
+                // but the reference itself is external, so it needs no ambulatory exclusion here.
+                refHr = mode.hr.baseline
+                // VALIDATED tuning, not Baselines.sigma(mode.hr): the correlation study behind
+                // baselineRelativeHighMarginBPM found a roughly FIXED bpm margin over the personal
+                // floor — not one scaled by this person's own day-to-day spread — best matched
+                // Oura's stress signal. marginToSigma solves for the sd that makes exactly
+                // refHr + baselineRelativeHighMarginBPM land on highBandFloor on the shared squash
+                // curve, so the validated margin IS the "high" cutoff by construction.
+                sdHr = marginToSigma(baselineRelativeHighMarginBPM, highBandFloor)
+                val rmssdBaseline = mode.rmssd
+                if (rmssdBaseline != null) {
+                    refRmssd = rmssdBaseline.baseline
+                    // No independently validated RMSSD margin yet (see the constant's doc) — this
+                    // term still scales by the person's own spread via the shared σ conversion.
+                    sdRmssd = Baselines.sigma(rmssdBaseline)
+                    hrOnlyFallback = false
+                } else {
+                    // No personal RMSSD baseline exists (e.g. an Oura-era day with no R-R history to
+                    // fold one from). rawScore already treats a null meanRmssd as "skip this term",
+                    // so passing null here gracefully degrades to HR-only scoring — flagged honestly
+                    // in the output rather than silently.
+                    refRmssd = null
+                    sdRmssd = 0.0
+                    hrOnlyFallback = true
+                }
+            }
+        }
 
         // 4) Score each waking-hour bucket on the shared 0–3 curve.
         val points = ArrayList<HourPoint>(aggs.size)
@@ -308,10 +453,13 @@ object DaytimeStress {
         val scored = points.mapNotNull { p -> p.level?.let { p to it } }
         if (scored.isEmpty()) {
             // No scorable waking hour — still return the (unscored) timeline so the UI can
-            // show "not enough data" rather than nothing.
+            // show "not enough data" rather than nothing. hrOnlyFallback is a MODE property
+            // (whether a personal RMSSD baseline existed to score against), so it's still worth
+            // reporting even though nothing ended up scored.
             return if (points.isEmpty()) Result.EMPTY
             else Result(points, sustainedHigh = false, sustainedRun = 0, dayMean = null, peak = null,
-                activityMaskedHours = activityMaskedHours)
+                activityMaskedHours = activityMaskedHours,
+                highStressMinutes = 0, hrOnlyFallback = hrOnlyFallback)
         }
 
         // 5) Sustained-high flag: walk back from the latest SCORED hour while each is HIGH.
@@ -324,7 +472,14 @@ object DaytimeStress {
         val dayMean = mean(scored.map { it.second })
         val peak = scored.maxByOrNull { it.second }?.first
 
-        return Result(points, sustained, run, dayMean, peak, activityMaskedHours)
+        // 6) Oura-comparable "time in high stress": each scored hour at/above highBandFloor is one
+        //    full bucketSeconds bucket, converted to minutes. Uses the SAME threshold the
+        //    sustained-high check above already uses, so all stay in lockstep by construction.
+        val highStressMinutes = scored.count { it.second >= highBandFloor } * (bucketSeconds / 60L).toInt()
+
+        return Result(points, sustained, run, dayMean, peak,
+            activityMaskedHours = activityMaskedHours,
+            highStressMinutes = highStressMinutes, hrOnlyFallback = hrOnlyFallback)
     }
 
     // MARK: - Helpers
