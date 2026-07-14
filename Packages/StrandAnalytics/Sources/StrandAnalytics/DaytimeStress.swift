@@ -82,6 +82,22 @@ public enum DaytimeStress {
     /// `marginToSigma` for how it's translated onto the shared 0–3 squash curve.
     public static let baselineRelativeHighMarginBPM: Double = 15.0
 
+    /// Gate for whether the personal daytime-RMSSD baseline feeds the live 0–3 score. `false`:
+    /// `.baselineRelative` scores HR-only, exactly the channel the r≈0.6 margin above was validated
+    /// on. The RMSSD half of the pipeline — `dayDaytimeAggregate`, `foldDaytimeBaselines`, the
+    /// `daytime_rmssd` config, and `rawScore`'s HRV term — is built and unit-tested, but stays OUT
+    /// of the live score until it has its OWN Oura-reference validation pass.
+    ///
+    /// WHY OFF (validated against real WHOOP data, 2026-07): daytime RMSSD off the wrist is
+    /// artifact-dominated — hourly values swing ~40→430 ms as posture / motion / talking break the
+    /// R-R stream, an order of magnitude noisier than the overnight recumbent HRV the nightly
+    /// baselines use. `rawScore` sums the HRV z EQUAL-WEIGHT with the HR z, so an artifact hour can
+    /// swing the combined score by ±3 (the full band) on noise alone. Enabling it before it is shown
+    /// to IMPROVE the correlation risks pushing the combined score BELOW the HR-only r≈0.6 ceiling —
+    /// the exact regression `baselineRelativeHighMarginBPM`'s comment warns against. Flip to `true`
+    /// only once daytime HR+RMSSD is validated to beat HR-only on an Oura-style stress reference.
+    public static let daytimeRMSSDScoringEnabled: Bool = false
+
     // MARK: - Scoring mode
 
     /// WHERE each hour's "calm" reference point + spread come from. Every other step —

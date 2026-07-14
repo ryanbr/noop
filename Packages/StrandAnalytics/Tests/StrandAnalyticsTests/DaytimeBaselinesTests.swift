@@ -187,11 +187,14 @@ final class DaytimeBaselinesTests: XCTestCase {
             DaytimeStress.DaytimeDayStreams(hr: flatDayHR($0, bpm: 65),
                                             rr: flatDayRR($0, rrMs: 900, jitter: 40), tzOffsetSeconds: 0)
         }
-        let mode = DaytimeStress.scoringMode(history: history)
-        guard case let .baselineRelative(_, rmssd) = mode else {
-            return XCTFail("expected baseline-relative with an RMSSD baseline")
-        }
-        XCTAssertNotNil(rmssd, "20 days of daytime R-R should yield a usable RMSSD baseline")
+        // Build the RMSSD-active mode DIRECTLY from the fold, bypassing the `scoringMode` gate that
+        // holds RMSSD out of LIVE scoring until validated (`DaytimeStress.daytimeRMSSDScoringEnabled`
+        // is false). This test pins the anti-stacking guarantee of the RMSSD-active scoring path
+        // itself, so it must exercise that path regardless of the production gate. `scoringMode`'s
+        // own gating is covered by `testScoringModeHoldsRMSSDOutOfLiveScoreWhileGated` below.
+        let baselines = DaytimeStress.foldDaytimeBaselines(days: history)
+        XCTAssertNotNil(baselines.rmssd, "20 days of daytime R-R should yield a usable RMSSD baseline")
+        let mode = DaytimeStress.ScoringMode.baselineRelative(hr: baselines.hr, rmssd: baselines.rmssd)
 
         // Today: HR at the floor, HRV at the SAME typical variability as history.
         let today = flatDayHR(0, bpm: 65)
@@ -202,6 +205,30 @@ final class DaytimeBaselinesTests: XCTestCase {
         for p in r.scored {
             XCTAssertLessThan(p.level!, DaytimeStress.highBandFloor,
                 "a normal hour with an RMSSD baseline must not stack into the HIGH band")
+        }
+    }
+
+    func testScoringModeHoldsRMSSDOutOfLiveScoreWhileGated() {
+        // The live-scoring gate: even with a full daytime-RR history that folds a USABLE RMSSD
+        // baseline, `scoringMode` (the production entry point) keeps RMSSD OUT of the mode while
+        // `DaytimeStress.daytimeRMSSDScoringEnabled` is false — so production scores HR-only, the
+        // validated r≈0.6 channel. The fold still produces the usable baseline (the machinery is
+        // live + tested); only its arrival at the score is gated. Flip the flag → this expectation
+        // inverts, which is the intended tripwire for when RMSSD is validated on.
+        let history = (0..<20).map {
+            DaytimeStress.DaytimeDayStreams(hr: flatDayHR($0, bpm: 65),
+                                            rr: flatDayRR($0, rrMs: 900, jitter: 40), tzOffsetSeconds: 0)
+        }
+        XCTAssertNotNil(DaytimeStress.foldDaytimeBaselines(days: history).rmssd,
+                        "precondition: the history must fold a usable RMSSD baseline")
+        guard case let .baselineRelative(hr, rmssd) = DaytimeStress.scoringMode(history: history) else {
+            return XCTFail("usable HR history must still select .baselineRelative")
+        }
+        XCTAssertTrue(hr.usable, "HR baseline still drives the mode")
+        if DaytimeStress.daytimeRMSSDScoringEnabled {
+            XCTAssertNotNil(rmssd, "flag on: the usable RMSSD baseline should reach live scoring")
+        } else {
+            XCTAssertNil(rmssd, "flag off: RMSSD is held out of the live score despite a usable baseline")
         }
     }
 }

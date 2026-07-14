@@ -140,6 +140,10 @@ public extension DaytimeStress {
     static func scoringMode(history days: [DaytimeDayStreams]) -> ScoringMode {
         let baselines = foldDaytimeBaselines(days: days)
         guard baselines.hr.usable else { return .dayRelative }
-        return .baselineRelative(hr: baselines.hr, rmssd: baselines.rmssd)
+        // RMSSD stays out of the LIVE score until it has its own validation pass — see
+        // `DaytimeStress.daytimeRMSSDScoringEnabled`. The baseline is still folded above (so the
+        // machinery + tests exercise the real path); it just doesn't reach scoring while gated off.
+        let rmssd = DaytimeStress.daytimeRMSSDScoringEnabled ? baselines.rmssd : nil
+        return .baselineRelative(hr: baselines.hr, rmssd: rmssd)
     }
 }
