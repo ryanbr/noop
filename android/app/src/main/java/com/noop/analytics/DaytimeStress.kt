@@ -99,6 +99,25 @@ object DaytimeStress {
      */
     const val baselineRelativeHighMarginBPM: Double = 15.0
 
+    /**
+     * Gate for whether the personal daytime-RMSSD baseline feeds the live 0–3 score. `false`:
+     * [ScoringMode.BaselineRelative] scores HR-only, exactly the channel the r≈0.6 margin above was
+     * validated on. The RMSSD half of the pipeline — [DaytimeBaselines.dayDaytimeAggregate],
+     * [DaytimeBaselines.foldDaytimeBaselines], the `daytime_rmssd` config, and [rawScore]'s HRV
+     * term — is built and unit-tested, but stays OUT of the live score until it has its OWN
+     * Oura-reference validation pass.
+     *
+     * WHY OFF (validated against real WHOOP data, 2026-07): daytime RMSSD off the wrist is
+     * artifact-dominated — hourly values swing ~40→430 ms as posture / motion / talking break the
+     * R-R stream, an order of magnitude noisier than the overnight recumbent HRV the nightly
+     * baselines use. [rawScore] sums the HRV z EQUAL-WEIGHT with the HR z, so an artifact hour can
+     * swing the combined score by ±3 (the full band) on noise alone. Enabling it before it is shown
+     * to IMPROVE the correlation risks pushing the combined score BELOW the HR-only r≈0.6 ceiling —
+     * the exact regression [baselineRelativeHighMarginBPM]'s comment warns against. Flip to `true`
+     * only once daytime HR+RMSSD is validated to beat HR-only on an Oura-style stress reference.
+     */
+    const val daytimeRMSSDScoringEnabled: Boolean = false
+
     // MARK: - Scoring mode
 
     /**
@@ -227,7 +246,7 @@ object DaytimeStress {
 
     // MARK: - Shared stress math (identical formula to the daily StressModel)
 
-    private fun mean(xs: List<Double>): Double? =
+    internal fun mean(xs: List<Double>): Double? =
         if (xs.isEmpty()) null else xs.sum() / xs.size
 
     /** Population standard deviation; 0 when there's no spread. (Matches StressMath.std.) */
@@ -488,7 +507,7 @@ object DaytimeStress {
      * Floor-division that is correct for negative numerators (so a local time just before
      * the UTC epoch still buckets to the hour below, not toward zero).
      */
-    private fun floorDiv(a: Long, b: Long): Long {
+    internal fun floorDiv(a: Long, b: Long): Long {
         val q = a / b
         val r = a % b
         return if (r != 0L && (r < 0L) != (b < 0L)) q - 1 else q
@@ -499,7 +518,7 @@ object DaytimeStress {
      * (06:00–22:00). The single source of truth for "waking" — used both to build the calm
      * reference and to pick the hours to score, so the two can never drift apart.
      */
-    private fun isWakingHour(bucket: Long): Boolean {
+    internal fun isWakingHour(bucket: Long): Boolean {
         val hourOfDay = (floorDiv(bucket, bucketSeconds) % 24).toInt()
         return hourOfDay >= wakingStartHour && hourOfDay < wakingEndHour
     }
@@ -517,7 +536,7 @@ object DaytimeStress {
     }
 
     /** Linear-interpolated quantile of an already-sorted, non-empty list. */
-    private fun quantile(sorted: List<Double>, q: Double): Double {
+    internal fun quantile(sorted: List<Double>, q: Double): Double {
         val n = sorted.size
         if (n == 0) return 0.0   // defensive: callers guard emptiness; never index []
         if (n == 1) return sorted[0]
