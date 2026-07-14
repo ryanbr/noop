@@ -328,4 +328,26 @@ final class BaselinesTests: XCTestCase {
         let hardDay = Baselines.deviation(85.0, state: s)
         XCTAssertGreaterThan(hardDay.z, 0, "a much-harder-than-normal day must read ABOVE the effort baseline")
     }
+
+    // MARK: - sigma() + daytime configs (DaytimeStress baseline-relative mode)
+
+    /// `sigma(_:)` is a pure extraction of `deviation()`'s internal conversion — must match it
+    /// exactly and stay internally consistent (deviation at baseline + sigma is z == 1.0).
+    func testSigmaMatchesDeviationsInternalConversion() {
+        let s = Baselines.foldHistory(Array(repeating: 50.0, count: 14), cfg: Baselines.hrvCfg)
+        let sigma = Baselines.sigma(s)
+        XCTAssertEqual(sigma, max(1.253 * s.spread, 1e-9), accuracy: 1e-9)
+        let dev = Baselines.deviation(s.baseline + sigma, state: s)
+        XCTAssertEqual(dev.z, 1.0, accuracy: 1e-6)
+    }
+
+    /// The new daytime_hr / daytime_rmssd configs exist, are reachable via both the dictionary
+    /// and the convenience accessor, and are distinct from the nightly resting_hr/hrv configs
+    /// they sit alongside (different bounds/floor — daytime HR runs warmer than nocturnal RHR).
+    func testDaytimeConfigsExistAndAreDistinctFromNightlyConfigs() {
+        XCTAssertEqual(Baselines.metricCfg["daytime_hr"], Baselines.daytimeHRCfg)
+        XCTAssertEqual(Baselines.metricCfg["daytime_rmssd"], Baselines.daytimeRMSSDCfg)
+        XCTAssertNotEqual(Baselines.daytimeHRCfg, Baselines.restingHRCfg)
+        XCTAssertNotEqual(Baselines.daytimeRMSSDCfg, Baselines.hrvCfg)
+    }
 }

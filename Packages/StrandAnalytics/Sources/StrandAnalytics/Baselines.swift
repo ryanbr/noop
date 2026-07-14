@@ -223,6 +223,24 @@ public enum Baselines {
         // so personal spread drives the z while an ultra-stable baseline is floored against saturation.
         "readiness_hrv_ln": MetricCfg(minVal: 2.079, maxVal: 5.521, floorSpread: 0.08,
                                       halfLifeB: 14.0, halfLifeS: 21.0),
+
+        // Daytime/waking-hours configs (DaytimeStress baseline-relative mode, added alongside
+        // the day-relative default). Distinct from "resting_hr"/"hrv" above, which each fold ONE
+        // NIGHTLY value (sleep). These fold ONE DAYTIME aggregate per day (e.g. that day's own
+        // calm-hour HR / RMSSD reference — see DaytimeStress.calmReference) into a cross-day
+        // PERSONAL baseline, so a caller can hand the resulting BaselineState to
+        // `DaytimeStress.analyze(mode: .baselineRelative(hr:rmssd:))` and z-score each waking
+        // hour against "how MY days usually run" rather than "how today's own calm hours ran".
+        // TUNING SEAM: minVal/maxVal/floorSpread/half-life below are a documented first pass —
+        // daytime HR/RMSSD are not yet validated against Oura's own baseline windows. A
+        // validation pass against real Oura export data may refine these. floorSpread is wider
+        // than the nightly "hrv" config for RMSSD: daytime RMSSD carries more incidental noise
+        // (posture changes, talking, movement between "calm" hours) than overnight recumbent
+        // HRV, so its floor tolerates more day-to-day spread before flagging a real deviation.
+        "daytime_hr": MetricCfg(minVal: 35.0, maxVal: 160.0, floorSpread: 3.0,
+                                halfLifeB: 14.0, halfLifeS: 21.0),
+        "daytime_rmssd": MetricCfg(minVal: 5.0, maxVal: 250.0, floorSpread: 7.0,
+                                   halfLifeB: 14.0, halfLifeS: 21.0),
     ]
 
     /// Convenience accessors for the standard configs.
@@ -234,6 +252,10 @@ public enum Baselines {
     public static var readinessHRVLnCfg: MetricCfg { metricCfg["readiness_hrv_ln"]! }
     /// Baseline config for the RecoveryScorer Activity-Balance / previous-day-Effort term.
     public static var strainCfg: MetricCfg { metricCfg["strain"]! }
+    /// Personal daytime/waking HR baseline config — see the `daytime_hr` comment above.
+    public static var daytimeHRCfg: MetricCfg { metricCfg["daytime_hr"]! }
+    /// Personal daytime/waking RMSSD baseline config — see the `daytime_rmssd` comment above.
+    public static var daytimeRMSSDCfg: MetricCfg { metricCfg["daytime_rmssd"]! }
 
     /// Convert a half-life in nights to an EWMA smoothing factor.
     static func lambda(halfLife: Double) -> Double {
@@ -545,12 +567,20 @@ public enum Baselines {
 
     // MARK: - Deviation
 
+    /// Convert a state's EWMA-abs-dev spread to an approximate Gaussian σ: 1.253 × spread,
+    /// floored so a caller never divides by ~0. 1.253 is E[|X−μ|] = σ·√(2/π) inverted
+    /// (E[|X−μ|] ≈ σ/1.253 for a Gaussian). Shared by `deviation()` below and by any other
+    /// z-scoring caller (e.g. `DaytimeStress`'s baseline-relative mode) so the conversion has
+    /// exactly one definition.
+    public static func sigma(_ state: BaselineState) -> Double {
+        max(1.253 * state.spread, 1e-9)
+    }
+
     /// Compute z / delta / ratio / in-normal-range for a value vs a baseline.
-    /// z uses (value − baseline) / (1.253 × spread); 1.253 converts EWMA-abs-dev
-    /// to an approximate Gaussian σ (E[|X−μ|] = σ·√(2/π) ≈ σ/1.253).
+    /// z uses (value − baseline) / sigma(state); see `sigma(_:)` for the 1.253 conversion.
     public static func deviation(_ value: Double, state: BaselineState) -> Deviation {
-        let sigma = max(1.253 * state.spread, 1e-9)
-        let z = (value - state.baseline) / sigma
+        let sig = sigma(state)
+        let z = (value - state.baseline) / sig
         let delta = value - state.baseline
         let ratio = state.baseline != 0 ? (value / state.baseline - 1.0) : 0.0
         return Deviation(z: z, delta: delta, ratio: ratio, inNormalRange: abs(z) <= 1.0)
