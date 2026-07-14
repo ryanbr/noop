@@ -327,18 +327,33 @@ final class DaytimeStressTests: XCTestCase {
     }
 
     // MARK: - Baseline-relative mode (Oura-style, vs a PERSONAL rolling baseline)
+    //
+    // Fixtures below use a 65 bpm personal HR baseline (matching the ~65 bpm pooled
+    // 10th-percentile figure from the validated 26-day Oura-reference correlation — see
+    // `DaytimeStress.baselineRelativeHighMarginBPM`) and elevations measured from it in terms of
+    // that validated ~15 bpm margin, so the expected band crossings are exact, not approximate.
+
+    func testMarginToSigmaLandsExactlyOnBand() {
+        // The validated 15 bpm margin over baseline must land EXACTLY on highBandFloor (2.0) on
+        // the shared squash curve — the core identity `.baselineRelative` scoring relies on.
+        let sd = DaytimeStress.marginToSigma(marginBPM: DaytimeStress.baselineRelativeHighMarginBPM,
+                                             atBand: DaytimeStress.highBandFloor)
+        XCTAssertEqual(DaytimeStress.squash(DaytimeStress.baselineRelativeHighMarginBPM / sd),
+                      DaytimeStress.highBandFloor, accuracy: 1e-9)
+    }
 
     func testBaselineRelativeModeRecoversMultipleInjectedElevations() {
-        // Personal daytime-HR baseline: 20 constant "days" at 60 bpm converges the EWMA center
-        // to exactly 60 with spread pinned at the daytime_hr floor (no cross-day variability).
-        let hrBaseline = Baselines.foldHistory(Array(repeating: 60.0, count: 20), cfg: Baselines.daytimeHRCfg)
-        XCTAssertEqual(hrBaseline.baseline, 60.0, accuracy: 1e-6)
-        XCTAssertEqual(hrBaseline.spread, Baselines.daytimeHRCfg.floorSpread, accuracy: 1e-9)
+        // Personal daytime-HR baseline: 20 constant "days" at 65 bpm converges the EWMA center
+        // to exactly 65 (spread is folded but NOT used for the HR high-band threshold — see
+        // baselineRelativeHighMarginBPM).
+        let hrBaseline = Baselines.foldHistory(Array(repeating: 65.0, count: 20), cfg: Baselines.daytimeHRCfg)
+        XCTAssertEqual(hrBaseline.baseline, 65.0, accuracy: 1e-6)
 
         // FOUR distinct injected HR elevations across the SAME day's waking hours — the repo's
         // derived-signal rule (CLAUDE.md "validate against the artifact, not one match") requires
-        // recovering MULTIPLE injected values, not a single high-vs-low pair.
-        let levels: [(hour: Int, bpm: Int)] = [(8, 60), (10, 64), (13, 68), (16, 72)]
+        // recovering MULTIPLE injected values, not a single high-vs-low pair. 65 (at baseline),
+        // 72 (+7, mild), 80 (+15, exactly the validated margin), 95 (+30, well past it).
+        let levels: [(hour: Int, bpm: Int)] = [(8, 65), (10, 72), (13, 80), (16, 95)]
         var hr: [HRSample] = []
         for (h, bpm) in levels { hr += hourHR(h, bpm: bpm) }
 
@@ -350,16 +365,19 @@ final class DaytimeStressTests: XCTestCase {
             XCTAssertGreaterThan(scores[i], scores[i - 1],
                 "hour \(levels[i].hour) (\(levels[i].bpm) bpm) should score higher than hour \(levels[i - 1].hour) (\(levels[i - 1].bpm) bpm)")
         }
-        // The at-baseline hour reads at the 1.5 midpoint; the most-elevated hour clears HIGH.
+        // The at-baseline hour reads at the 1.5 midpoint; +15 bpm (the validated margin) lands
+        // exactly on highBandFloor; the most-elevated hour clears well past it.
         XCTAssertEqual(scores[0], 1.5, accuracy: 0.05)
-        XCTAssertGreaterThanOrEqual(scores.last!, DaytimeStress.highBandFloor)
+        XCTAssertEqual(scores[2], DaytimeStress.highBandFloor, accuracy: 0.01,
+            "the validated +15 bpm margin should land exactly on highBandFloor")
+        XCTAssertGreaterThan(scores.last!, DaytimeStress.highBandFloor)
         XCTAssertTrue(r.hrOnlyFallback, "rmssd: nil must flag the HR-only fallback")
     }
 
     func testBaselineRelativeCalmDayAtPersonalBaselineReadsLowNotHigh() {
-        let hrBaseline = Baselines.foldHistory(Array(repeating: 60.0, count: 20), cfg: Baselines.daytimeHRCfg)
+        let hrBaseline = Baselines.foldHistory(Array(repeating: 65.0, count: 20), cfg: Baselines.daytimeHRCfg)
         var hr: [HRSample] = []
-        for h in [8, 10, 13, 16] { hr += hourHR(h, bpm: 60) }   // every hour sits exactly at baseline
+        for h in [8, 10, 13, 16] { hr += hourHR(h, bpm: 65) }   // every hour sits exactly at baseline
         let r = DaytimeStress.analyze(hr: hr, rr: [], mode: .baselineRelative(hr: hrBaseline, rmssd: nil))
 
         for p in r.scored {
@@ -371,9 +389,9 @@ final class DaytimeStressTests: XCTestCase {
     }
 
     func testBaselineRelativeElevatedDayProducesHighStressMinutes() {
-        let hrBaseline = Baselines.foldHistory(Array(repeating: 60.0, count: 20), cfg: Baselines.daytimeHRCfg)
+        let hrBaseline = Baselines.foldHistory(Array(repeating: 65.0, count: 20), cfg: Baselines.daytimeHRCfg)
         var hr: [HRSample] = []
-        for h in 8...16 { hr += hourHR(h, bpm: 95) }   // every waking hour well above the personal baseline
+        for h in 8...16 { hr += hourHR(h, bpm: 95) }   // +30 bpm — twice the validated high-band margin
         let r = DaytimeStress.analyze(hr: hr, rr: [], mode: .baselineRelative(hr: hrBaseline, rmssd: nil))
 
         XCTAssertGreaterThan(r.highStressMinutes, 0)
@@ -385,9 +403,9 @@ final class DaytimeStressTests: XCTestCase {
     func testBaselineRelativeNilRMSSDFallsBackToHROnlyAndFlagsDegraded() {
         // An imported, Oura-era day: no personal RMSSD baseline exists yet (rmssd: nil) and no
         // R-R stream is available either. The read must still complete honestly, never crash.
-        let hrBaseline = Baselines.foldHistory(Array(repeating: 60.0, count: 20), cfg: Baselines.daytimeHRCfg)
+        let hrBaseline = Baselines.foldHistory(Array(repeating: 65.0, count: 20), cfg: Baselines.daytimeHRCfg)
         var hr: [HRSample] = []
-        for h in [9, 14] { hr += hourHR(h, bpm: 80) }
+        for h in [9, 14] { hr += hourHR(h, bpm: 80) }   // right at the validated +15 bpm margin
         let r = DaytimeStress.analyze(hr: hr, rr: [], mode: .baselineRelative(hr: hrBaseline, rmssd: nil))
 
         XCTAssertTrue(r.hrOnlyFallback)

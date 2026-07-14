@@ -70,11 +70,35 @@ public enum DaytimeStress {
     /// away. Range ≥ 0.
     public static let postActivityShadowBPM: Double = 8.0
 
+    /// VALIDATED (26-day Oura-reference correlation, HR-only): a personal daytime-HR elevation
+    /// of ~15 bpm over a POOLED/ROLLING baseline — the 10th-percentile daytime HR pooled across
+    /// days, ~65 bpm in the reference set — is where elevated HR starts reading as
+    /// Oura-comparable "high" stress (r≈0.6 against Oura's own stress signal). A PER-DAY
+    /// (day-relative) baseline scored WORSE in the same comparison (r 0.43–0.53): an all-day
+    /// elevated day pulls its own floor up and masks the stress, which is exactly why
+    /// `.baselineRelative` leans on `Baselines`' cross-day rolling EWMA instead of a day-local
+    /// reference. TUNING SEAM: this is HR-only; HR+HRV (WHOOP-era, RMSSD included) is expected
+    /// to beat this r≈0.6 ceiling — re-validate this margin once that comparison exists. See
+    /// `marginToSigma` for how it's translated onto the shared 0–3 squash curve.
+    public static let baselineRelativeHighMarginBPM: Double = 15.0
+
     // MARK: - Scoring mode
 
     /// WHERE each hour's "calm" reference point + spread come from. Every other step —
     /// bucketing, the waking-hour filter, the squash curve, sustained-high, high-stress-minutes
     /// — is identical between modes; only the reference differs.
+    ///
+    /// Relationship to the rest of the Stress screen (StressView.swift): the DAILY 0–3 score
+    /// (`StressModel`) already compares last night's NIGHTLY resting-HR/HRV to a plain trailing
+    /// 30-day mean/SD, computed locally in StressView (not via `Baselines`) — that's a
+    /// once-a-day number from SLEEP vitals. The Advanced HRV card (`StressIndex`,
+    /// `HRVFreqDomain`) is a today-only descriptive lens with no baseline at all. `.baselineRelative`
+    /// is neither: it's an HOURLY breakdown of TODAY from DAYTIME/waking-hours HR+RMSSD against a
+    /// PERSONAL cross-day rolling baseline. Daytime HR runs warmer than nocturnal resting HR
+    /// (posture, thermic effect), so it needs its OWN baseline (`daytime_hr`/`daytime_rmssd`,
+    /// below) rather than reusing the nightly `resting_hr`/`hrv` configs — reusing the nightly
+    /// ones would systematically over-read stress. The three surfaces are complementary lenses
+    /// on the same underlying autonomic signal, not competing implementations of one baseline.
     public enum ScoringMode: Equatable, Sendable {
         /// DEFAULT — unchanged from before this mode existed. Each hour is z-scored against
         /// THIS DAY's own calm-hour reference (`calmReference`): the lower quartile of the
@@ -89,14 +113,23 @@ public enum DaytimeStress {
         /// resting-HR baselines elsewhere in the app, using `Baselines.metricCfg["daytime_hr"]`
         /// / `["daytime_rmssd"]` (see `Baselines.daytimeHRCfg` / `daytimeRMSSDCfg`). A caller
         /// builds `hr` (and, when it has the history, `rmssd`) by folding this person's past
-        /// daytime aggregates — e.g. day N's `calmReference` output — the same way the nightly
+        /// daytime aggregates — VALIDATED as each day's 10th-percentile daytime HR (a pooled
+        /// "how low does my HR run when I'm calm and awake" floor), the same way the nightly
         /// baselines are folded from past nights.
+        ///
+        /// The HR reference point is `hr.baseline`, but the HIGH-band threshold does NOT scale
+        /// with this person's own day-to-day `hr.spread` — see `baselineRelativeHighMarginBPM`:
+        /// the validated model is a roughly FIXED bpm margin over the personal floor, not a
+        /// variability-scaled one. `hr.spread` still rides along on the passed-in state for
+        /// other consumers; this mode simply doesn't read it for the HR term.
         ///
         /// `rmssd` is `nil` when no personal RMSSD baseline exists yet — e.g. an imported,
         /// Oura-era day with no R-R stream, so there is no history to fold one from. The
         /// stressor then honestly falls back to HR-only scoring for the whole read and flags
         /// `Result.hrOnlyFallback`; this mirrors the per-hour graceful-nil already in
-        /// `rawScore`, just at the whole-baseline grain instead of the single-hour grain.
+        /// `rawScore`, just at the whole-baseline grain instead of the single-hour grain. The
+        /// RMSSD term (when present) DOES still scale by `rmssd.spread` via `Baselines.sigma` —
+        /// only the HR term has a validated fixed-margin figure so far.
         case baselineRelative(hr: BaselineState, rmssd: BaselineState?)
     }
 
@@ -221,6 +254,19 @@ public enum DaytimeStress {
     static func squash(_ raw: Double) -> Double {
         let s = 3.0 / (1.0 + exp(-raw))
         return min(max(s, 0), 3)
+    }
+
+    /// Solve for the z-score spread `sd` such that a raw elevation of exactly `marginBPM` (or any
+    /// unit — this is unit-agnostic) squashes to exactly `band` on the shared 0–3 curve:
+    /// `band = 3 / (1 + e^(−marginBPM/sd))`. Used to translate `baselineRelativeHighMarginBPM`'s
+    /// validated bpm figure into the `sd` the shared `squash` curve expects, so "baseline +
+    /// margin" lands exactly on `band` by construction rather than by a second, separate
+    /// threshold check. Defensive fallback (never divides by zero/negative-log) if `band` is
+    /// ever configured at or outside the curve's open range (0, 3).
+    static func marginToSigma(marginBPM: Double, atBand band: Double) -> Double {
+        let ratio = 3.0 / band - 1.0
+        guard ratio > 0, marginBPM > 0 else { return max(marginBPM, 1e-9) }
+        return marginBPM / (-log(ratio))
     }
 
     // MARK: - Public API
@@ -383,13 +429,20 @@ public enum DaytimeStress {
         case .baselineRelative(let hrBaseline, let rmssdBaseline):
             // The PERSONAL cross-day baseline, folded by the caller from past daytime
             // aggregates via `Baselines.update`/`foldHistory` (see the `ScoringMode` doc).
-            // `sigma` is the SAME abs-dev-to-Gaussian-σ conversion `Baselines.deviation` uses.
             // Ambulatory hours are still masked out of the SCORE in step 4 (the motion gate),
             // but the reference itself is external, so it needs no ambulatory exclusion here.
             refHR = hrBaseline.baseline
-            sdHR = Baselines.sigma(hrBaseline)
+            // VALIDATED tuning, not `Baselines.sigma(hrBaseline)`: the correlation study behind
+            // `baselineRelativeHighMarginBPM` found a roughly FIXED bpm margin over the personal
+            // floor — not one scaled by this person's own day-to-day spread — best matched
+            // Oura's stress signal. `marginToSigma` solves for the sd that makes exactly
+            // `refHR + baselineRelativeHighMarginBPM` land on `highBandFloor` on the shared
+            // squash curve, so the validated margin IS the "high" cutoff by construction.
+            sdHR = Self.marginToSigma(marginBPM: baselineRelativeHighMarginBPM, atBand: highBandFloor)
             if let rmssdBaseline {
                 refRMSSD = rmssdBaseline.baseline
+                // No independently validated RMSSD margin yet (see the constant's doc) — this
+                // term still scales by the person's own spread via the shared σ conversion.
                 sdRMSSD = Baselines.sigma(rmssdBaseline)
                 hrOnlyFallback = false
             } else {

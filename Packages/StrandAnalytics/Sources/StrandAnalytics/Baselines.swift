@@ -226,17 +226,21 @@ public enum Baselines {
 
         // Daytime/waking-hours configs (DaytimeStress baseline-relative mode, added alongside
         // the day-relative default). Distinct from "resting_hr"/"hrv" above, which each fold ONE
-        // NIGHTLY value (sleep). These fold ONE DAYTIME aggregate per day (e.g. that day's own
-        // calm-hour HR / RMSSD reference — see DaytimeStress.calmReference) into a cross-day
+        // NIGHTLY value (sleep). These fold ONE DAYTIME aggregate per day into a cross-day
         // PERSONAL baseline, so a caller can hand the resulting BaselineState to
         // `DaytimeStress.analyze(mode: .baselineRelative(hr:rmssd:))` and z-score each waking
         // hour against "how MY days usually run" rather than "how today's own calm hours ran".
-        // TUNING SEAM: minVal/maxVal/floorSpread/half-life below are a documented first pass —
-        // daytime HR/RMSSD are not yet validated against Oura's own baseline windows. A
-        // validation pass against real Oura export data may refine these. floorSpread is wider
-        // than the nightly "hrv" config for RMSSD: daytime RMSSD carries more incidental noise
-        // (posture changes, talking, movement between "calm" hours) than overnight recumbent
-        // HRV, so its floor tolerates more day-to-day spread before flagging a real deviation.
+        //
+        // VALIDATED (26-day Oura-reference correlation, HR-only, r≈0.6): the per-day value to
+        // fold for "daytime_hr" is that day's 10th-percentile daytime HR (~65 bpm pooled across
+        // the reference set) — NOT the day-relative calmReference's 25th-percentile quartile.
+        // The "high stress" cutoff itself is a validated fixed bpm margin over this baseline,
+        // NOT this config's floorSpread — see DaytimeStress.baselineRelativeHighMarginBPM.
+        // TUNING SEAM: minVal/maxVal/half-life below (and all of "daytime_rmssd" — RMSSD wasn't
+        // part of the validated HR-only comparison) are a documented first pass, refinable once
+        // an HR+HRV comparison exists. floorSpread is wider than the nightly "hrv" config for
+        // RMSSD: daytime RMSSD carries more incidental noise (posture changes, talking, movement
+        // between "calm" hours) than overnight recumbent HRV.
         "daytime_hr": MetricCfg(minVal: 35.0, maxVal: 160.0, floorSpread: 3.0,
                                 halfLifeB: 14.0, halfLifeS: 21.0),
         "daytime_rmssd": MetricCfg(minVal: 5.0, maxVal: 250.0, floorSpread: 7.0,
