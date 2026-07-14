@@ -40,6 +40,10 @@ struct StressView: View {
     /// from the day's banked HR + R-R via the SAME 0–3 proxy the daily score uses. Nil
     /// until the async read completes; `.empty` when the day has no usable intraday HR.
     @State private var daytime: DaytimeStress.Result?
+    /// Whether TODAY's intraday timeline is scored against the PERSONAL cross-day daytime baseline
+    /// (`.baselineRelative`, once enough worn history exists) instead of the day's own calm hours
+    /// (`.dayRelative`). Drives only the explanatory copy — the 0–3 scale + bands are identical either way.
+    @State private var daytimeUsesPersonalBaseline = false
     /// Drives the Breathe sheet presented from the sustained-stress suggestion.
     @State private var showBreathe = false
 
@@ -117,7 +121,14 @@ struct StressView: View {
         let gravity = (try? await repo.storeHandle()?.gravitySamples(
             deviceId: repo.deviceId, from: from, to: to, limit: 200_000)) ?? []
 
-        daytime = DaytimeStress.analyze(hr: hr, rr: rr, gravity: gravity, tzOffsetSeconds: tz)
+        // Score today's hours against the PERSONAL cross-day daytime baseline when enough worn history
+        // exists (Oura-style `.baselineRelative`, validated r≈0.6), else the day's own calm hours
+        // (`.dayRelative`, the unchanged default). The mode is resolved only AFTER the HR-count guard
+        // above, so the trailing-history reads are never paid on a day with no scorable timeline.
+        let mode = await daytimeScoringMode(startOfToday: startOfDay)
+        if case .baselineRelative = mode { daytimeUsesPersonalBaseline = true }
+        else { daytimeUsesPersonalBaseline = false }
+        daytime = DaytimeStress.analyze(hr: hr, rr: rr, gravity: gravity, tzOffsetSeconds: tz, mode: mode)
 
         // ADDITIVE advanced readouts, computed on-demand from the SAME `rr` (no extra fetch, no
         // DB / schema change, and no effect on the 0..3 score above). Each engine returns nil when
@@ -125,6 +136,43 @@ struct StressView: View {
         // in which case its row is simply hidden.
         stressIndex = StressIndex.components(rr: rr)
         freqHRV = HRVFreqDomain.freqDomain(rr: rr)
+    }
+
+    /// Trailing local days folded into the personal daytime baselines the `.baselineRelative` mode
+    /// scores against. 30 mirrors the app's other rolling baselines (nightly resting-HR / HRV) and the
+    /// illness engine's ~28-day base.
+    private static let baselineHistoryDays = 30
+
+    /// Build the personal daytime baselines from the trailing `baselineHistoryDays` local days (TODAY
+    /// EXCLUDED — it's the day being scored, not part of its own baseline) and return the scoring mode
+    /// for today's intraday read: `.baselineRelative` once there's enough real worn daytime-HR history
+    /// for a usable baseline, else `.dayRelative` (the unchanged default). The only behavioural change
+    /// vs. before is that a user with a few worn days now scores today's hours against their own
+    /// cross-day floor instead of the day's own calm hours; a cold-start / sparse-history user is
+    /// byte-identical to before (`DaytimeStress.scoringMode` is the single degradation gate).
+    ///
+    /// PERF: reads each past day's raw HR (and, only when that day was worn, R-R) once, bounded per day,
+    /// off the main actor via `repo` — riding the same async `load()` the today-timeline already runs on.
+    /// Unworn days are skipped without an R-R read. The `DaytimeStress` analyze memo is untouched; the
+    /// fold itself is O(days).
+    private func daytimeScoringMode(startOfToday: Date) async -> DaytimeStress.ScoringMode {
+        let cal = Calendar.current
+        var days: [DaytimeStress.DaytimeDayStreams] = []
+        days.reserveCapacity(Self.baselineHistoryDays)
+        // Oldest → newest so the EWMA fold replays the history in order.
+        for back in stride(from: Self.baselineHistoryDays, through: 1, by: -1) {
+            guard let dayStart = cal.date(byAdding: .day, value: -back, to: startOfToday),
+                  let dayEnd = cal.date(byAdding: .day, value: 1, to: dayStart) else { continue }
+            let from = Int(dayStart.timeIntervalSince1970)
+            let to = Int(dayEnd.timeIntervalSince1970) - 1
+            let dayTz = TimeZone.current.secondsFromGMT(for: dayStart)
+            let dayHR = await repo.hrSamples(from: from, to: to, limit: 200_000)
+            guard !dayHR.isEmpty else { continue }   // unworn day — no floor to learn, skip the R-R read
+            let dayRR = (try? await repo.storeHandle()?.rrIntervals(
+                deviceId: repo.deviceId, from: from, to: to, limit: 200_000)) ?? []
+            days.append(.init(hr: dayHR, rr: dayRR, tzOffsetSeconds: dayTz))
+        }
+        return DaytimeStress.scoringMode(history: days)
     }
 
     /// Recompute the cached `StressModel` only when (repo.days, storedSeries)
@@ -238,7 +286,7 @@ struct StressView: View {
                     // bar split by how many waking hours sat in each band, with durations.
                     StressTotalsBar(totals: StressTotals(hours: day.hours))
 
-                    Text("The line is each waking hour's 0-3 proxy, scored against your own calm hours today. The bar below splits your day into calm, moderate and high stress time.")
+                    Text(daytimeTimelineCaption)
                         .font(StrandFont.footnote)
                         .foregroundStyle(StrandPalette.textTertiary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -255,6 +303,16 @@ struct StressView: View {
         let n = day.scored.count
         guard let mean = day.dayMean else { return String(localized: "\(n)h") }
         return String(localized: "avg \(String(format: "%.1f", mean)) · \(n)h")
+    }
+
+    /// The timeline's explanatory line, honest about WHICH reference each hour was scored against —
+    /// the personal cross-day baseline (`.baselineRelative`) or the day's own calm hours (`.dayRelative`).
+    /// Explicit `LocalizedStringKey` so BOTH variants stay in the string catalog (a ternary inside
+    /// `Text(_:)` would resolve to the verbatim, non-localized `String` overload).
+    private var daytimeTimelineCaption: LocalizedStringKey {
+        daytimeUsesPersonalBaseline
+            ? "The line is each waking hour's 0-3 proxy, scored against your personal daytime baseline (how your own days usually run). The bar below splits your day into calm, moderate and high stress time."
+            : "The line is each waking hour's 0-3 proxy, scored against your own calm hours today. The bar below splits your day into calm, moderate and high stress time."
     }
 
     /// A passive, in-app nudge to run a Breathe session after a sustained high-stress run.
