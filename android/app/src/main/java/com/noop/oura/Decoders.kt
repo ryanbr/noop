@@ -243,21 +243,24 @@ object OuraDecoders {
     // MARK: - HRV / RMSSD (0x5D; s6.9)
 
     /**
-     * Decode the 0x5D hrv_event: samples each carrying a time_ms field + two int8 fields (b1, b2).
-     * Per OURA_PROTOCOL.md s6.9 the per-sample stride is time(2 LE) + b1(1) + b2(1) = 4 bytes.
-     * Returns null on a short body. NOOP consumes this as the ring's OWN RMSSD-derived HRV tag.
+     * Decode the 0x5D hrv_event: a run of (u8 avg HR bpm, u8 avg RMSSD ms) pairs, ONE per 5-min bucket
+     * (per open_oura decode_hrv / OURA_PROTOCOL.md s6.9). The previous layout read a 4-byte
+     * (u16 time, int8, int8) stride — a mis-framing that garbled the first (hr,rmssd) byte-pair into a
+     * bogus time_ms, sign-flipped the RMSSD byte, and only its b1 accidentally landed on a real HR byte.
+     * Both bytes are UNSIGNED (no scaling). Returns null on an empty or ODD-length body (no partial pair).
+     * Validated overnight: the hr byte tracks sleeping HR (~52 bpm, matching the #511 IBI-derived median).
+     * Twin of Swift decodeHRV.
      */
     fun decodeHRV(rec: OuraRecord): List<OuraHRV>? {
         val b = rec.payload
-        if (b.size < 4) return null
+        if (b.size < 2 || b.size % 2 != 0) return null   // N complete (hr, rmssd) pairs
         val out = ArrayList<OuraHRV>()
         var i = 0
-        while (i + 4 <= b.size) {
-            val timeMs = u16le(b, i)
-            val v1 = i8(b[i + 2])
-            val v2 = i8(b[i + 3])
-            out.add(OuraHRV(ringTimestamp = rec.ringTimestamp, timeMs = timeMs, b1 = v1, b2 = v2))
-            i += 4
+        var index = 0
+        while (i + 2 <= b.size) {
+            out.add(OuraHRV(ringTimestamp = rec.ringTimestamp, index = index, hrBpm = b[i], rmssdMs = b[i + 1]))
+            i += 2
+            index += 1
         }
         return if (out.isEmpty()) null else out
     }

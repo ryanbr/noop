@@ -31,23 +31,22 @@ final class OuraStreamMappingTests: XCTestCase {
         XCTAssertTrue(s.hr.isEmpty)
     }
 
-    // MARK: - HRV 0x5D -> events[OURA_HRV] with RAW, units-neutral payload (no fabricated rmssd_ms)
+    // MARK: - HRV 0x5D -> events[OURA_HRV] with honest hr_bpm / rmssd_ms (layout pinned)
 
-    func testHRVMapsToEventWithRawNeutralPayload() {
+    func testHRVMapsToEventWithHrAndRmssd() {
         let s = OuraStreamMapping.streams(from: [
-            .hrv(OuraHRV(ringTimestamp: 100, timeMs: 5000, b1: 47, b2: 3)),
+            .hrv(OuraHRV(ringTimestamp: 100, index: 0, hrBpm: 52, rmssdMs: 47)),
         ], at: ts)
         XCTAssertEqual(s.events.count, 1)
         let ev = s.events[0]
         XCTAssertEqual(ev.kind, OuraStreamMapping.hrvEventKind)
         XCTAssertEqual(ev.kind, "OURA_HRV")
         XCTAssertEqual(ev.ts, ts)
-        // HONEST: the ring's OWN raw tag fields only; the b1/b2 byte -> ms scale is not Tier-A, so we
-        // NEVER surface a fabricated rmssd_ms. Keys + values match the Kotlin twin exactly.
-        XCTAssertNil(ev.payload["rmssd_ms"], "must not fabricate rmssd_ms")
-        XCTAssertEqual(ev.payload["time_ms"], .int(5000))
-        XCTAssertEqual(ev.payload["b1"], .int(47))
-        XCTAssertEqual(ev.payload["b2"], .int(3))
+        // The byte->unit scaling is now pinned (u8 bpm, u8 ms), so the fields are honestly labelled.
+        // Keys + values match the Kotlin twin exactly.
+        XCTAssertEqual(ev.payload["pair_index"], .int(0))
+        XCTAssertEqual(ev.payload["hr_bpm"], .int(52))
+        XCTAssertEqual(ev.payload["rmssd_ms"], .int(47))
     }
 
     // MARK: - Motion 0x47 -> events[OURA_MOTION]
@@ -282,7 +281,7 @@ final class OuraStreamMappingTests: XCTestCase {
         let s = OuraStreamMapping.streams(from: [
             .hr(OuraHR(ringTimestamp: 1, bpm: 55, ibiMs: 1090)),
             .ibi(OuraIBI(ringTimestamp: 1, ibiMs: 1090)),
-            .hrv(OuraHRV(ringTimestamp: 1, timeMs: 0, b1: 40, b2: 1)),
+            .hrv(OuraHRV(ringTimestamp: 1, index: 0, hrBpm: 40, rmssdMs: 1)),
             .spo2(OuraSpO2(ringTimestamp: 1, value: 965)),
             .temp(OuraTemp(ringTimestamp: 1, celsius: 34.0)),
             .sleepPhase(OuraSleepPhase(ringTimestamp: 1, index: 0, stage: .light)),

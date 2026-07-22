@@ -140,7 +140,7 @@ func describe(_ e: OuraEvent) -> String {
     switch e {
     case .hr(let v): return "HR bpm=\(v.bpm) ibi=\(v.ibiMs)ms rt=\(v.ringTimestamp)"
     case .ibi(let v): return "IBI \(v.ibiMs)ms amp=\(v.amplitude.map(String.init) ?? "-") rt=\(v.ringTimestamp)"
-    case .hrv(let v): return "HRV t=\(v.timeMs) b1=\(v.b1) b2=\(v.b2) rt=\(v.ringTimestamp)"
+    case .hrv(let v): return "HRV idx=\(v.index) hr=\(v.hrBpm)bpm rmssd=\(v.rmssdMs)ms rt=\(v.ringTimestamp)"
     case .spo2(let v): return "SPO2 \(v.value) (\(v.unit)) rt=\(v.ringTimestamp)"
     case .temp(let v): return "TEMP \(v.celsius)C rt=\(v.ringTimestamp)"
     case .battery(let v): return "BATTERY \(v.percent)% mv=\(v.voltageMv.map(String.init) ?? "-")"

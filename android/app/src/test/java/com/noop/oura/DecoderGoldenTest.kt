@@ -80,10 +80,23 @@ class DecoderGoldenTest {
 
     @Test
     fun testHRV0x5D() {
-        // time 5000, b1=10, b2=-5
-        val rec = record("5d080200010088130afb")
+        // (u8 hr, u8 rmssd) pairs — real overnight bytes: 32 84 32 83 -> (50,132),(50,131).
+        // hr=50 bpm is sleeping HR (validates the layout; matches the #511 IBI-derived median).
+        val rec = record("5d080200010032843283")
         val hrv = OuraDecoders.decodeHRV(rec)
-        assertEquals(listOf(OuraHRV(ringTimestamp = rt, timeMs = 5000, b1 = 10, b2 = -5)), hrv)
+        assertEquals(
+            listOf(
+                OuraHRV(ringTimestamp = rt, index = 0, hrBpm = 50, rmssdMs = 132),
+                OuraHRV(ringTimestamp = rt, index = 1, hrBpm = 50, rmssdMs = 131),
+            ),
+            hrv,
+        )
+    }
+
+    @Test
+    fun testHRV0x5DOddLengthIsNull() {
+        // A partial trailing pair (odd body length) must decode to null, never a half-sample.
+        assertNull(OuraDecoders.decodeHRV(record("5d0702000100328432")))
     }
 
     // MARK: - 0x6F SpO2 per-sample (base from high nibble << 7, then u8, 0xFF terminator)

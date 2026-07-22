@@ -70,10 +70,19 @@ final class DecoderGoldenTests: XCTestCase {
     // MARK: - 0x5D HRV / RMSSD
 
     func testHRV0x5D() {
-        // time 5000, b1=10, b2=-5
-        let rec = record("5d080200010088130afb")
+        // (u8 hr, u8 rmssd) pairs — real overnight bytes: 32 84 32 83 -> (50,132),(50,131).
+        // hr=50 bpm is sleeping HR (validates the layout; matches the #511 IBI-derived median).
+        let rec = record("5d080200010032843283")
         let hrv = OuraDecoders.decodeHRV(rec)
-        XCTAssertEqual(hrv, [OuraHRV(ringTimestamp: rt, timeMs: 5000, b1: 10, b2: -5)])
+        XCTAssertEqual(hrv, [
+            OuraHRV(ringTimestamp: rt, index: 0, hrBpm: 50, rmssdMs: 132),
+            OuraHRV(ringTimestamp: rt, index: 1, hrBpm: 50, rmssdMs: 131),
+        ])
+    }
+
+    func testHRV0x5DOddLengthIsNil() {
+        // A partial trailing pair (odd body length) must decode to nil, never a half-sample.
+        XCTAssertNil(OuraDecoders.decodeHRV(record("5d0702000100328432")))
     }
 
     // MARK: - 0x6F SpO2 per-sample (byte6 high nibble is a base/status field, DISCARDED; samples are

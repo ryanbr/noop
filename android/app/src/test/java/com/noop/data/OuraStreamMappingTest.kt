@@ -46,9 +46,9 @@ class OuraStreamMappingTest {
     }
 
     @Test
-    fun hrvBecomesOuraHrvEventWithRawFieldsNotRmssd() {
+    fun hrvBecomesOuraHrvEventWithHrAndRmssd() {
         val s = OuraStreamMapping.streams(
-            listOf(OuraEvent.Hrv(OuraHRV(ringTimestamp = 5, timeMs = 1000, b1 = 7, b2 = -3))),
+            listOf(OuraEvent.Hrv(OuraHRV(ringTimestamp = 5, index = 0, hrBpm = 52, rmssdMs = 47))),
             anchor,
         )
         assertEquals(1, s.events.size)
@@ -56,11 +56,10 @@ class OuraStreamMappingTest {
         assertEquals(OuraStreamMapping.EVENT_HRV, ev.kind)
         assertEquals("OURA_HRV", ev.kind)
         assertEquals(base + 5, ev.ts)
-        // HONEST: the ring's OWN raw tag fields only; NEVER a fabricated rmssd_ms.
-        assertEquals(1000, ev.payload["time_ms"])
-        assertEquals(7, ev.payload["b1"])
-        assertEquals(-3, ev.payload["b2"])
-        assertTrue("must not fabricate rmssd_ms", !ev.payload.containsKey("rmssd_ms"))
+        // Layout pinned (u8 bpm, u8 ms) → honestly labelled fields; keys/values match the Swift twin.
+        assertEquals(0, ev.payload["pair_index"])
+        assertEquals(52, ev.payload["hr_bpm"])
+        assertEquals(47, ev.payload["rmssd_ms"])
     }
 
     @Test

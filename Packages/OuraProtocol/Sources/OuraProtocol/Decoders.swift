@@ -208,20 +208,24 @@ public enum OuraDecoders {
 
     // MARK: - HRV / RMSSD (0x5D; s6.9)
 
-    /// Decode the 0x5D hrv_event: samples each carrying a time_ms field + two int8 fields (b1, b2).
-    /// Per OURA_PROTOCOL.md s6.9 the per-sample stride is time(2 LE) + b1(1) + b2(1) = 4 bytes.
-    /// Returns nil on a short body. NOOP consumes this as the ring's OWN RMSSD-derived HRV tag.
+    /// Decode the 0x5D hrv_event: a run of `(u8 avg HR bpm, u8 avg RMSSD ms)` pairs, ONE per 5-min bucket
+    /// (per open_oura `decode_hrv` / OURA_PROTOCOL.md s6.9). The previous layout read a 4-byte
+    /// `(u16 time, int8, int8)` stride — a mis-framing: it garbled the first (hr,rmssd) byte-pair into a
+    /// bogus `time_ms`, sign-flipped the RMSSD byte, and only its `b1` accidentally landed on a real HR
+    /// byte. Both bytes are UNSIGNED (no scaling). Returns nil on an empty or ODD-length body (a partial
+    /// pair is never emitted). Validated against a real overnight: the hr byte tracks sleeping HR (~52 bpm,
+    /// matching the #511 IBI-derived median).
     public static func decodeHRV(_ rec: OuraRecord) -> [OuraHRV]? {
         let b = rec.payload
-        guard b.count >= 4 else { return nil }
+        guard b.count >= 2, b.count % 2 == 0 else { return nil }   // N complete (hr, rmssd) pairs
         var out: [OuraHRV] = []
         var i = 0
-        while i + 4 <= b.count {
-            let timeMs = u16le(b, i)
-            let v1 = Int(Int8(bitPattern: b[i + 2]))
-            let v2 = Int(Int8(bitPattern: b[i + 3]))
-            out.append(OuraHRV(ringTimestamp: rec.ringTimestamp, timeMs: timeMs, b1: v1, b2: v2))
-            i += 4
+        var index = 0
+        while i + 2 <= b.count {
+            out.append(OuraHRV(ringTimestamp: rec.ringTimestamp, index: index,
+                               hrBpm: Int(b[i]), rmssdMs: Int(b[i + 1])))
+            i += 2
+            index += 1
         }
         return out.isEmpty ? nil : out
     }

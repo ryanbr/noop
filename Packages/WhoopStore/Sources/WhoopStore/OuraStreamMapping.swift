@@ -75,18 +75,17 @@ public enum OuraStreamMapping {
                 out.rr.append(RRInterval(ts: ts, rrMs: v.ibiMs, srcChannel: rrChannel(v.channel)))
 
             case .hrv(let v):
-                // The ring's own 0x5D tag, carried RAW for diagnostics/parity. The two int8 fields
-                // (b1/b2) plus the sample's relative time offset are surfaced under units-neutral keys.
-                // We do NOT mint an `rmssd_ms` here: the int8 b1/b2 byte -> millisecond scaling is NOT
-                // Tier-A (OURA_PROTOCOL.md s6.9 leaves it unpinned), so labelling a raw byte as a
-                // millisecond RMSSD would fabricate units (honest-data invariant). NOOP's own scoring
-                // RMSSD is reconstructed from the IBI stream (`rr`), never from this open tag. Keys and
-                // values are IDENTICAL to the Kotlin twin (OuraStreamMapping.kt) so both platforms emit
-                // byte-for-byte the same OURA_HRV payload.
+                // The ring's OWN 0x5D 5-min bucket: average HR (bpm) + average RMSSD (ms), both u8, no
+                // scaling (layout pinned to open_oura's (u8 hr, u8 rmssd) pairs — the byte->unit scaling
+                // that was "unpinned" is now known, so these are honestly labelled, not raw bytes).
+                // `pair_index` is the bucket's position in the record (buckets ~5 min apart). This is the
+                // ring's open summary tag, NOT Oura's readiness score; NOOP's own scoring RMSSD still comes
+                // from the IBI stream (`rr`). Keys/values are IDENTICAL to the Kotlin twin so both platforms
+                // emit byte-for-byte the same OURA_HRV payload.
                 out.events.append(WhoopEvent(ts: ts, kind: hrvEventKind, payload: [
-                    "time_ms": .int(v.timeMs),
-                    "b1": .int(v.b1),
-                    "b2": .int(v.b2),
+                    "pair_index": .int(v.index),
+                    "hr_bpm": .int(v.hrBpm),
+                    "rmssd_ms": .int(v.rmssdMs),
                 ]))
 
             case .spo2(let v):

@@ -67,16 +67,21 @@ public struct OuraHR: Equatable, Sendable, Codable {
     }
 }
 
-/// One decoded HRV (RMSSD-derived) sample from the ring's own 0x5D tag (OURA_PROTOCOL.md s6.9).
-/// NOOP also reconstructs RMSSD itself from the IBI streams for its own scoring; this is the ring's
-/// open HRV tag, NOT Oura's encrypted readiness score.
+/// One decoded 5-minute HRV bucket from the ring's own 0x5D tag (OURA_PROTOCOL.md s6.9): the ring's
+/// OWN average HR and RMSSD for that bucket. The 0x5D body is a run of `(u8 avg HR bpm, u8 avg RMSSD ms)`
+/// pairs, one per 5 min; `index` is the pair's position in the record. This is the ring's open HRV tag,
+/// NOT Oura's encrypted readiness score. NOOP also reconstructs RMSSD from the IBI streams for its own
+/// scoring; this tag is the ring's own summary (validated overnight — the hr byte tracks sleeping HR).
 public struct OuraHRV: Equatable, Sendable, Codable {
     public let ringTimestamp: UInt32
-    public let timeMs: Int
-    public let b1: Int
-    public let b2: Int
-    public init(ringTimestamp: UInt32, timeMs: Int, b1: Int, b2: Int) {
-        self.ringTimestamp = ringTimestamp; self.timeMs = timeMs; self.b1 = b1; self.b2 = b2
+    /// 0-based pair index within the record; buckets are ~5 min apart (consumer applies the offset).
+    public let index: Int
+    /// The ring's average HR for the 5-min bucket, in bpm (u8, no scaling).
+    public let hrBpm: Int
+    /// The ring's average RMSSD for the 5-min bucket, in ms (u8, no scaling).
+    public let rmssdMs: Int
+    public init(ringTimestamp: UInt32, index: Int, hrBpm: Int, rmssdMs: Int) {
+        self.ringTimestamp = ringTimestamp; self.index = index; self.hrBpm = hrBpm; self.rmssdMs = rmssdMs
     }
 }
 

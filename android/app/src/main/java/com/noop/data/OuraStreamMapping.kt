@@ -74,17 +74,19 @@ object OuraStreamMapping {
                 }
 
                 is OuraEvent.Hrv -> {
-                    // The ring's OWN open HRV tag, recorded raw for diagnostics/parity. NOT Oura's
-                    // readiness score, and NOT used as NOOP's RMSSD (that comes from `rr`).
+                    // The ring's OWN 0x5D 5-min bucket: avg HR (bpm) + avg RMSSD (ms), both u8, no scaling
+                    // (layout pinned to open_oura's (u8 hr, u8 rmssd) pairs — honestly labelled now). NOT
+                    // Oura's readiness score, and NOT used as NOOP's RMSSD (that comes from `rr`). Keys/values
+                    // IDENTICAL to the Swift twin so both platforms emit the same OURA_HRV payload.
                     val ts = anchor(ev.value.ringTimestamp) ?: continue
                     out.events.add(
                         WhoopEvent(
                             ts = ts,
                             kind = EVENT_HRV,
                             payload = linkedMapOf(
-                                "time_ms" to ev.value.timeMs,
-                                "b1" to ev.value.b1,
-                                "b2" to ev.value.b2,
+                                "pair_index" to ev.value.index,
+                                "hr_bpm" to ev.value.hrBpm,
+                                "rmssd_ms" to ev.value.rmssdMs,
                             ),
                         ),
                     )
