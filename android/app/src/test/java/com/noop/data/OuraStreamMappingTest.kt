@@ -55,11 +55,35 @@ class OuraStreamMappingTest {
         val ev = s.events.first()
         assertEquals(OuraStreamMapping.EVENT_HRV, ev.kind)
         assertEquals("OURA_HRV", ev.kind)
+        // Bucket 0 sits at the record time; later buckets walk back 5 min each (see next test).
         assertEquals(base + 5, ev.ts)
         // Layout pinned (u8 bpm, u8 ms) → honestly labelled fields; keys/values match the Swift twin.
         assertEquals(0, ev.payload["pair_index"])
         assertEquals(52, ev.payload["hr_bpm"])
         assertEquals(47, ev.payload["rmssd_ms"])
+    }
+
+    // Each 5-min bucket must land on its OWN timestamp: the event key is (deviceId, ts, kind), so pairs
+    // sharing the record ts would collide on insert and only one survive. Buckets walk backward from the
+    // record time at the 5-min cadence, so bucket `index` sits 300 s * index before the anchored time —
+    // distinct rows, ordered oldest-last, none dropped. Twin of the Swift OuraStreamMapping test.
+    @Test
+    fun hrvMultiBucketGetsDistinctFiveMinTimestamps() {
+        val s = OuraStreamMapping.streams(
+            listOf(
+                OuraEvent.Hrv(OuraHRV(ringTimestamp = 5, index = 0, hrBpm = 52, rmssdMs = 47)),
+                OuraEvent.Hrv(OuraHRV(ringTimestamp = 5, index = 1, hrBpm = 54, rmssdMs = 44)),
+                OuraEvent.Hrv(OuraHRV(ringTimestamp = 5, index = 2, hrBpm = 55, rmssdMs = 41)),
+            ),
+            anchor,
+        )
+        assertEquals(3, s.events.size)
+        // Distinct, 300 s apart, stepping back from the record time.
+        assertEquals(listOf(base + 5, base + 5 - 300, base + 5 - 600), s.events.map { it.ts })
+        assertEquals(3, s.events.map { it.ts }.toSet().size)
+        assertEquals(listOf(0, 1, 2), s.events.map { it.payload["pair_index"] })
+        assertEquals(listOf(52, 54, 55), s.events.map { it.payload["hr_bpm"] })
+        assertEquals(listOf(47, 44, 41), s.events.map { it.payload["rmssd_ms"] })
     }
 
     @Test

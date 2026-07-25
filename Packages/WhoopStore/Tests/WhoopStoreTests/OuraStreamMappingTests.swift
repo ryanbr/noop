@@ -41,6 +41,7 @@ final class OuraStreamMappingTests: XCTestCase {
         let ev = s.events[0]
         XCTAssertEqual(ev.kind, OuraStreamMapping.hrvEventKind)
         XCTAssertEqual(ev.kind, "OURA_HRV")
+        // Bucket 0 sits at the record time; later buckets walk back 5 min each (see below).
         XCTAssertEqual(ev.ts, ts)
         // The byte->unit scaling is now pinned (u8 bpm, u8 ms), so the fields are honestly labelled.
         // Keys + values match the Kotlin twin exactly.
@@ -81,6 +82,27 @@ final class OuraStreamMappingTests: XCTestCase {
         XCTAssertEqual(ev.payload["motion_seconds"], .int(0))
         XCTAssertNil(ev.payload["low_intensity"], "absent intensity must not be faked")
         XCTAssertNil(ev.payload["high_intensity"], "absent intensity must not be faked")
+    }
+
+    // MARK: - HRV 0x5D -> events (per-bucket 5-min timestamps)
+
+    // Each 5-min bucket must land on its OWN timestamp: the event key is (deviceId, ts, kind), so pairs
+    // sharing the record `ts` would collide on insert and only one survive. Buckets walk backward from the
+    // record time at the 5-min cadence, so bucket `index` sits 300 s * index before `ts` — distinct rows,
+    // ordered oldest-last, none dropped. Twin of the Kotlin OuraStreamMapping test.
+    func testHRVMultiBucketGetsDistinctFiveMinTimestamps() {
+        let s = OuraStreamMapping.streams(from: [
+            .hrv(OuraHRV(ringTimestamp: 100, index: 0, hrBpm: 52, rmssdMs: 47)),
+            .hrv(OuraHRV(ringTimestamp: 100, index: 1, hrBpm: 54, rmssdMs: 44)),
+            .hrv(OuraHRV(ringTimestamp: 100, index: 2, hrBpm: 55, rmssdMs: 41)),
+        ], at: ts)
+        XCTAssertEqual(s.events.count, 3)
+        // Distinct, 300 s apart, stepping back from the record time.
+        XCTAssertEqual(s.events.map { $0.ts }, [ts, ts - 300, ts - 600])
+        XCTAssertEqual(Set(s.events.map { $0.ts }).count, 3)
+        XCTAssertEqual(s.events.map { $0.payload["pair_index"] }, [.int(0), .int(1), .int(2)])
+        XCTAssertEqual(s.events.map { $0.payload["hr_bpm"] }, [.int(52), .int(54), .int(55)])
+        XCTAssertEqual(s.events.map { $0.payload["rmssd_ms"] }, [.int(47), .int(44), .int(41)])
     }
 
     // MARK: - SpO2 -> spo2:[SpO2Sample]

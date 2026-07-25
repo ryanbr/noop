@@ -24,9 +24,12 @@ import OuraProtocol
 /// Tier-B (UNVERIFIED) events are dropped: only Tier-A decoded signals map into `Streams`, so an
 /// unverified summary can never silently feed scoring.
 public enum OuraStreamMapping {
-    /// WhoopEvent.kind for the ring's own HRV 0x5D tag. The payload carries the RAW decoded fields
-    /// (`time_ms`/`b1`/`b2`) only, never a fabricated `rmssd_ms` (the b1/b2 byte -> ms scale is not
-    /// Tier-A; see OURA_PROTOCOL.md s6.9). Must match the Kotlin twin (OuraStreamMapping.kt) exactly.
+    /// WhoopEvent.kind for the ring's own HRV 0x5D tag. The payload carries the honestly-labelled decoded
+    /// fields `pair_index` / `hr_bpm` / `rmssd_ms` — the 0x5D body is a run of `(u8 avg HR bpm, u8 avg
+    /// RMSSD ms)` pairs, one per 5-min bucket (layout pinned to open_oura, OURA_PROTOCOL.md s6.9). This is
+    /// the ring's OWN summary tag, NOT Oura's readiness score, and NOT NOOP's scoring RMSSD (that is
+    /// reconstructed from `rr`). Each bucket is stamped at its own 5-min offset (see `.hrv` below) so the
+    /// per-bucket series survives the (deviceId, ts, kind) event key. Must match the Kotlin twin exactly.
     public static let hrvEventKind = "OURA_HRV"
     /// WhoopEvent.kind for a decoded sleep-phase code (2-bit: awake/light/deep/rem).
     public static let sleepPhaseEventKind = "OURA_SLEEP_PHASE"
@@ -41,7 +44,7 @@ public enum OuraStreamMapping {
     /// (unix seconds). Pure → unit-testable. Section-4 table:
     ///   - `.hr`         (0x55 live-HR push)            → `hr:[HRSample]`
     ///   - `.ibi`        (0x44/0x60 IBI)                → `rr:[RRInterval]`
-    ///   - `.hrv`        (0x5D HRV tag, raw int8 b1/b2)  → `events:[WhoopEvent(kind: OURA_HRV)]`
+    ///   - `.hrv`        (0x5D HRV tag, u8 hr/rmssd pairs) → `events:[WhoopEvent(kind: OURA_HRV)]` (one row per 5-min bucket)
     ///   - `.spo2`       (0x6F/0x70/0x77)              → `spo2:[SpO2Sample]`, carrying the decoder's own
     ///     `unit` tag. NOT all one quantity: 0x6F/0x70 are firmware-computed PERCENTAGES (tagged `"raw"`,
     ///     a legacy channel label — see `OuraDecoders.decodeSpO2PerSample`), while 0x77 is a genuine raw
@@ -78,11 +81,20 @@ public enum OuraStreamMapping {
                 // The ring's OWN 0x5D 5-min bucket: average HR (bpm) + average RMSSD (ms), both u8, no
                 // scaling (layout pinned to open_oura's (u8 hr, u8 rmssd) pairs — the byte->unit scaling
                 // that was "unpinned" is now known, so these are honestly labelled, not raw bytes).
-                // `pair_index` is the bucket's position in the record (buckets ~5 min apart). This is the
-                // ring's open summary tag, NOT Oura's readiness score; NOOP's own scoring RMSSD still comes
-                // from the IBI stream (`rr`). Keys/values are IDENTICAL to the Kotlin twin so both platforms
-                // emit byte-for-byte the same OURA_HRV payload.
-                out.events.append(WhoopEvent(ts: ts, kind: hrvEventKind, payload: [
+                // `pair_index` is the bucket's position in the record. This is the ring's open summary
+                // tag, NOT Oura's readiness score; NOOP's own scoring RMSSD still comes from the IBI
+                // stream (`rr`). Keys/values are IDENTICAL to the Kotlin twin so both platforms emit
+                // byte-for-byte the same OURA_HRV payload.
+                //
+                // Each bucket gets its OWN timestamp so it lands on a distinct event row. The event PK is
+                // (deviceId, ts, kind), so N pairs sharing the record `ts` would collide on insert and only
+                // one survive — silently dropping the rest of the ring's per-5-min series. The buckets walk
+                // backward from the record time at the documented 5-min cadence (the `OuraHRV.index`
+                // contract in OuraEvents; per-sample times step back from the event time, OURA_PROTOCOL.md
+                // s6): bucket `index` sits `300 * index` seconds before `ts`. This is derived from the known
+                // cadence + record anchor, not a guessed time.
+                let bucketTs = ts - v.index * 300
+                out.events.append(WhoopEvent(ts: bucketTs, kind: hrvEventKind, payload: [
                     "pair_index": .int(v.index),
                     "hr_bpm": .int(v.hrBpm),
                     "rmssd_ms": .int(v.rmssdMs),
