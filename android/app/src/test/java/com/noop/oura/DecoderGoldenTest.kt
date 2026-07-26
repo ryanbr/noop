@@ -335,12 +335,14 @@ class DecoderGoldenTest {
         assertEquals(3, OuraSleepStage.AWAKE.raw)
     }
 
-    // MARK: - 0x6B motion period (2-bit MOTION_STATE codes; 2 header bytes skipped)
+    // MARK: - 0x6B motion period (2-bit MOTION_STATE codes; 1 header byte, codes from byte1)
 
     @Test
     fun testMotionPeriod0x6B() {
-        // 2 header bytes 0x00 0x00, code byte 0x1B = 00 01 10 11 -> noMotion, restless, tossing, active.
-        val rec = record("6b070200010000001b")
+        // header 0x13: period_type 0, count(bits[5:4]) = 1 code in the FINAL byte, seq 0x3.
+        // byte1 0x1B = 00 01 10 11 -> noMotion, restless, tossing, active (a full middle byte, 4 codes).
+        // byte2 0xC0 = 11 00 00 00 -> LAST byte, truncated to count=1 -> just active (padding not read).
+        val rec = record("6b0702000100131bc0")
         val m = OuraDecoders.decodeMotionPeriod(rec)
         assertEquals(
             listOf(
@@ -348,8 +350,20 @@ class DecoderGoldenTest {
                 OuraMotion(ringTimestamp = rt, index = 1, state = OuraMotionState.RESTLESS),
                 OuraMotion(ringTimestamp = rt, index = 2, state = OuraMotionState.TOSSING),
                 OuraMotion(ringTimestamp = rt, index = 3, state = OuraMotionState.ACTIVE),
+                OuraMotion(ringTimestamp = rt, index = 4, state = OuraMotionState.ACTIVE),
             ),
             m,
+        )
+    }
+
+    @Test
+    fun testMotionPeriod0x6BShortSingleCodeRecord() {
+        // Real short capture `1ea0`: header 0x1E -> count = 1; byte1 0xA0 = 10 00 00 00 truncated to
+        // count=1 -> a single TOSSING code. The earlier decoder (codes from byte2) produced NOTHING here.
+        val rec = record("6b06020001001ea0")
+        assertEquals(
+            listOf(OuraMotion(ringTimestamp = rt, index = 0, state = OuraMotionState.TOSSING)),
+            OuraDecoders.decodeMotionPeriod(rec),
         )
     }
 

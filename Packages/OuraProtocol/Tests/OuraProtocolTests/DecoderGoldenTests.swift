@@ -295,18 +295,31 @@ final class DecoderGoldenTests: XCTestCase {
         XCTAssertEqual(phases?.contains { $0.unwritten }, false)
     }
 
-    // MARK: - 0x6B motion period (2-bit MOTION_STATE codes; 2 header bytes skipped)
+    // MARK: - 0x6B motion period (2-bit MOTION_STATE codes; 1 header byte, codes from byte1)
 
     func testMotionPeriod0x6B() {
-        // 2 header bytes 0x00 0x00, code byte 0x1B = 00 01 10 11 -> noMotion, restless, tossing, active.
-        let rec = record("6b070200010000001b")
+        // header 0x13 = 0001_0011: period_type 0, count(bits[5:4]) = 1 code in the FINAL byte, seq 0x3.
+        // byte1 0x1B = 00 01 10 11 -> noMotion, restless, tossing, active (a full middle byte, 4 codes).
+        // byte2 0xC0 = 11 00 00 00 -> LAST byte, truncated to count=1 -> just active. The 0.. padding is
+        // NOT read (the earlier decoder would have emitted 3 phantom noMotion codes here).
+        let rec = record("6b0702000100131bc0")
         let m = OuraDecoders.decodeMotionPeriod(rec)
         XCTAssertEqual(m, [
             OuraMotion(ringTimestamp: rt, index: 0, state: .noMotion),
             OuraMotion(ringTimestamp: rt, index: 1, state: .restless),
             OuraMotion(ringTimestamp: rt, index: 2, state: .tossing),
             OuraMotion(ringTimestamp: rt, index: 3, state: .active),
+            OuraMotion(ringTimestamp: rt, index: 4, state: .active),
         ])
+    }
+
+    func testMotionPeriod0x6BShortSingleCodeRecord() {
+        // Real short capture `1ea0`: header 0x1E = 0001_1110 -> count = 1, seq 0xE; byte1 0xA0 = 10 00 00 00
+        // truncated to count=1 -> a single TOSSING code. The earlier decoder (codes from byte2) produced
+        // NOTHING for this 2-byte payload; the corrected one recovers the one real code.
+        let rec = record("6b06020001001ea0")
+        XCTAssertEqual(OuraDecoders.decodeMotionPeriod(rec),
+                       [OuraMotion(ringTimestamp: rt, index: 0, state: .tossing)])
     }
 
     // MARK: - 0x47 motion events (averaged accel vector)

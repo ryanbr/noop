@@ -601,27 +601,35 @@ object OuraDecoders {
     // MARK: - Motion period, 2-bit MOTION_STATE codes (0x6B; s6.13)
 
     /**
-     * Decode the 0x6B motion_period: 12-bit period header, byte6 bits[5:4]=leading-symbol count, then
-     * 2-bit MOTION_STATE codes, 4 per byte (MSB-first). 0=NO_MOTION,1=RESTLESS,2=TOSSING,3=ACTIVE.
-     * Per OURA_PROTOCOL.md s6.13. Returns null on a short body. The first two bytes carry the period
-     * header; codes follow from byte index 2.
+     * Decode the 0x6B motion_period: a compact run of 2-bit MOTION_STATE codes. Byte-for-byte port of
+     * the native parse_api_motion_period (clean-room fact citation; OURA_PROTOCOL.md s6.13), the SAME
+     * shape as the validated decodeSleepPhase (one header byte, then 2-bit codes from byte 1):
+     *   byte0 = header — bits[7:6] period_type; bits[5:4] = `count` of valid codes in the FINAL byte;
+     *           bits[3:0] = a rolling mod-16 sequence counter (record ordering / dedup, not a state).
+     *   byte1… = 2-bit codes, 4 per byte, MSB-first; every byte carries 4 codes EXCEPT the last, which
+     *           carries only `count` (so a short "period" can hold a single code).
+     * 0=NO_MOTION, 1=RESTLESS, 2=TOSSING, 3=ACTIVE. Returns null on a body too short to hold the header
+     * plus one code byte (< 2), or when no codes result. The header's low-nibble sequence counter is what
+     * pins this layout: in a real capture it increments and wraps mod-16 across consecutive records,
+     * proving byte0 is a header and codes begin at byte1 — NOT the earlier reading (byte0/1 a 12-bit
+     * period, codes from byte2). Byte-identical twin of Swift.
      */
     fun decodeMotionPeriod(rec: OuraRecord): List<OuraMotion>? {
         val b = rec.payload
-        if (b.size < 3) return null
+        if (b.size < 2) return null
+        val count = (b[0] shr 4) and 0x03   // valid codes in the FINAL byte (bits[5:4] of the header)
         val out = ArrayList<OuraMotion>()
         var index = 0
-        for (k in 2 until b.size) {
+        for (k in 1 until b.size) {
+            val n = if (k == b.size - 1) count else 4   // last byte carries `count` codes; others carry 4
             val byte = b[k]
-            var shift = 6
-            while (shift >= 0) {
-                val code = (byte shr shift) and 0x03
+            for (j in 0 until n) {
+                val code = (byte shr (6 - 2 * j)) and 0x03
                 val state = OuraMotionState.fromRaw(code)
                 if (state != null) {
                     out.add(OuraMotion(ringTimestamp = rec.ringTimestamp, index = index, state = state))
                     index += 1
                 }
-                shift -= 2
             }
         }
         return if (out.isEmpty()) null else out
