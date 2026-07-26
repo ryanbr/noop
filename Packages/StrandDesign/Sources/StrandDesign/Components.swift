@@ -25,6 +25,18 @@ public enum NoopMetrics {
     public static let sourceBadgeHeight: CGFloat = 18
     public static let hypnogramBandMinThickness: CGFloat = 14  // floor so short stages read as bars, not ticks
     public static let tabBarClearance: CGFloat = 76  // iOS: extra bottom scroll room so the last card clears the floating tab bar
+    /// Canonical diameter for compact circular controls in dense header chrome.
+    public static let compactControlSize: CGFloat = 36
+    /// Expanded width of the compact charge-to-sync status capsule.
+    public static let syncIndicatorExpandedWidth: CGFloat = 94
+    /// Optical space between the sync ring and its transient label.
+    public static let syncIndicatorLabelSpacing: CGFloat = 5
+    /// Inset for the animated sync arc inside a compact circular control.
+    public static let syncIndicatorArcInset: CGFloat = 5.5
+    /// Width of the soft fade where long header text passes beneath trailing controls.
+    public static let headerTextFadeWidth: CGFloat = 48
+    /// Maximum trailing footprint reserved for an expanded transient header control.
+    public static let headerControlReserveWidth: CGFloat = 168
 
     // MARK: Standardised spacing scale (the ONE source of truth for margins)
     //

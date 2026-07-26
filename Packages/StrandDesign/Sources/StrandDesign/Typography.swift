@@ -61,6 +61,9 @@ public enum StrandFont {
     /// Footnote 11. Scales with Dynamic Type.
     public static let footnote = Font.system(.footnote, design: .rounded, weight: .regular)
 
+    /// Compact semibold status copy for constrained header chrome.
+    public static let compactStatus = helveticaScaled(10.5, weight: .semibold, relativeTo: .caption2)
+
     /// Overline 11 / Bold, +1.4 tracking (apply `.tracking(1.4)` at use site;
     /// `overlineText(_:)` does it for you). Sparing ALL-CAPS labels. Scales with Dynamic Type.
     public static let overline = Font.system(.caption2, design: .rounded, weight: .semibold)

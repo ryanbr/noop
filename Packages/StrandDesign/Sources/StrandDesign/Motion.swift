@@ -63,6 +63,32 @@ public enum StrandMotion {
 
     /// Standard fade.
     public static let fade = Animation.easeInOut(duration: durationStandard)
+
+    // MARK: Compact charge-to-sync indicator
+
+    /// Responsive capsule geometry for the compact charge-to-sync indicator.
+    public static let syncIndicatorMorph = Animation.spring(
+        response: 0.60,
+        dampingFraction: 0.94,
+        blendDuration: 0.14
+    )
+
+    /// Coordinated charge-number, arc, and colour transition.
+    public static let syncIndicatorVisual = Animation.easeInOut(duration: 0.58)
+
+    /// Transient label fades after the capsule has settled.
+    public static let syncIndicatorLabelIn = Animation.easeOut(duration: 0.26)
+    public static let syncIndicatorLabelOut = Animation.easeInOut(duration: 0.26)
+
+    public static let syncIndicatorFrameInterval = 1.0 / 60.0
+    public static let syncIndicatorSpinPeriod = 1.25
+    public static let syncIndicatorArcBreathPeriod = 1.2
+
+    public static let syncIndicatorSignalDebounceNanoseconds: UInt64 = 3_000_000_000
+    public static let syncIndicatorLabelDelayNanoseconds: UInt64 = 650_000_000
+    public static let syncIndicatorLabelVisibilityNanoseconds: UInt64 = 1_900_000_000
+    public static let syncIndicatorCollapseDelayNanoseconds: UInt64 = 240_000_000
+    public static let syncIndicatorSettleNanoseconds: UInt64 = 640_000_000
 }
 
 #if DEBUG

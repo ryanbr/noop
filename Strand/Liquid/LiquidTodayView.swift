@@ -124,8 +124,8 @@ struct LiquidTodayView: View {
 
     /// Mock Vitality purple (#9b7bff) has no exact StrandPalette token in this theme.
     private let liquidPurple = Color(.sRGB, red: 0x9b / 255, green: 0x7b / 255, blue: 0xff / 255, opacity: 1)
-    /// The liquid heart pink (matches LiquidThread's default + the mockup #ff6b81).
-    private let liquidHeart = Color(.sRGB, red: 1, green: 107 / 255, blue: 129 / 255, opacity: 1)
+    /// The liquid heart pink shared with the sync indicator and LiquidThread.
+    private let liquidHeart = StrandPalette.liquidHeart
     /// Hero / session-start chrome uses theme-aware `NoopPanelSurface` (design-system surfaces that
     /// flip with Light/Dark). Upstream #1160/#1161 moved the classic RoundedRectangle hero onto
     /// `StrandPalette.heroFill` / `heroBorder` for the same theme-aware goal; #1068 keeps the panel
@@ -453,7 +453,7 @@ struct LiquidTodayView: View {
 
     private var scene: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top) {
+            ZStack(alignment: .topTrailing) {
                 Button { showDayPicker = true } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(dayTitle)
@@ -466,6 +466,7 @@ struct LiquidTodayView: View {
                             .shadow(color: .black.opacity(0.35), radius: 8, y: 1)
                     }
                     .contentShape(Rectangle())
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("\(dayTitle). Tap to pick a day, swipe to change day.")
@@ -478,11 +479,16 @@ struct LiquidTodayView: View {
                         .frame(minWidth: 320, minHeight: 360)
                         .liquidPopoverAdaptation()
                 }
-                Spacer(minLength: 8)
-                HStack(spacing: 8) {
+                // Long names fade beneath the trailing controls while an expanded transient control
+                // participates in layout and pushes its preceding siblings left.
+                .headerTrailingControlFadeMask()
+                HStack(spacing: NoopMetrics.space2) {
                     // Profile pic (the one set in Settings) → opens Settings, matching the classic Today.
                     Button { showSettings = true } label: {
-                        Color.clear.frame(width: headerClusterControl, height: headerClusterControl)
+                        Color.clear.frame(
+                            width: NoopMetrics.compactControlSize,
+                            height: NoopMetrics.compactControlSize
+                        )
                     }
                     .nativeLiquidGlassHeaderButton()
                     .overlay {
@@ -497,17 +503,21 @@ struct LiquidTodayView: View {
                     .nativeLiquidGlassPhotoFinish()
                     .accessibilityLabel("Profile and settings")
                     LiquidAddButton()
-                    LiquidBatteryButton()
+                    LiquidBatteryButton(refreshing: refreshing)
                     // One entry point for section order/visibility and both nested card editors.
                     Button { customizationDestination = .today } label: {
                         Image(systemName: "slider.horizontal.3")
                             .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(StrandPalette.textPrimary)
-                            .frame(width: headerClusterControl, height: headerClusterControl)
+                            .frame(
+                                width: NoopMetrics.compactControlSize,
+                                height: NoopMetrics.compactControlSize
+                            )
                     }
                     .nativeLiquidGlassHeaderButton()
                     .accessibilityLabel("Customize Today")
                 }
+                .zIndex(1)
             }
             // Subtle NOOP wordmark in the sky between header and hero. Perfectly centred (a letter row has
             // no trailing tracking gap the way `Text(...).tracking()` does), with a tap easter egg.
@@ -1777,11 +1787,6 @@ private struct LiquidRefreshIndicator: View {
     }
 }
 
-/// The uniform diameter of the round Today-header controls — profile avatar, quick-add (+), strap battery
-/// ring and Customize — so they sit level in the liquid cluster. Single source of truth (mirrors the
-/// Android `HeaderClusterControl`); the syncing vessel is a separate affordance and keeps its own size.
-private let headerClusterControl: CGFloat = 36
-
 private struct LiquidAddButton: View {
     @EnvironmentObject var router: NavRouter
     var body: some View {
@@ -1789,7 +1794,10 @@ private struct LiquidAddButton: View {
             Image(systemName: "plus")
                 .font(.system(size: 16, weight: .bold))
                 .foregroundStyle(StrandPalette.textPrimary)
-                .frame(width: headerClusterControl, height: headerClusterControl)
+                .frame(
+                    width: NoopMetrics.compactControlSize,
+                    height: NoopMetrics.compactControlSize
+                )
         }
         .nativeLiquidGlassHeaderButton()
         .accessibilityLabel("Quick actions")
@@ -2079,69 +2087,93 @@ extension LiquidTodayView {
     }
 }
 
-/// Strap-battery ring. Owns LiveState. Tap → Devices.
+/// Strap-battery ring. At sync start it briefly expands within the trailing control row, then settles into
+/// an in-place spinner; the layered header keeps either state from moving the Today content. Tap → Devices.
 private struct LiquidBatteryButton: View {
     @EnvironmentObject var live: LiveState
     @EnvironmentObject var router: NavRouter
-    private var display: LiquidTodayView.StrapBatteryDisplay {
-        .resolve(connected: live.connected, batteryPct: live.batteryPct, charging: live.charging)
+    let refreshing: Bool
+
+    /// backfilling briefly drops between history chunks. Show immediately, then wait out those gaps so
+    /// the indicator does not flash back to the battery reading during one logical sync.
+    @State private var syncing = false
+    @State private var hideTask: Task<Void, Never>?
+
+    private var syncingRaw: Bool {
+        refreshing || live.backfilling
     }
+
+    private var batteryDisplay: LiquidTodayView.StrapBatteryDisplay {
+        .resolve(
+            connected: live.connected,
+            batteryPct: live.batteryPct,
+            charging: live.charging
+        )
+    }
+
+    private var indicatorState: ChargeSyncIndicator.BatteryState {
+        switch batteryDisplay {
+        case .offline:
+            return .offline
+        case .pending(let charging):
+            return .pending(charging: charging)
+        case .charge(let percent, let charging):
+            return .charge(percent: percent, charging: charging)
+        }
+    }
+
     var body: some View {
         Button { router.openDevices() } label: {
-            ZStack {
-                switch display {
-                case .charge(let pct, let charging):
-                    Circle()
-                        .trim(from: 0, to: max(0.02, min(1, pct / 100)))
-                        .stroke(ringColor(pct), style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                        .padding(2.5)
-                    Text("\(Int(pct.rounded()))")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(StrandPalette.textPrimary)
-                    if charging {
-                        // #972: the default Today never surfaced charging state — only the % ring. A small
-                        // bolt over the ring gives the same signal as the "· Charging" text on Mac/Android.
-                        Image(systemName: "bolt.fill")
-                            .font(.system(size: 7, weight: .bold))
-                            .foregroundStyle(StrandPalette.chargeColor)
-                            .offset(y: -10)
-                    }
-                case .pending(let charging):
-                    // Connected, no % yet. If the BATTERY_LEVEL event has told us we're charging, SAY so —
-                    // that is the one thing we actually know, and it is the wearer's live question.
-                    Image(systemName: charging ? "bolt.fill" : "ellipsis")
-                        .font(.system(size: charging ? 11 : 9, weight: .bold))
-                        .foregroundStyle(charging ? StrandPalette.chargeColor : StrandPalette.textTertiary)
-                case .offline:
-                    Image(systemName: "bolt.slash")
-                        .font(.system(size: 11))
-                        .foregroundStyle(StrandPalette.textTertiary)
-                }
-            }
-            .frame(width: headerClusterControl, height: headerClusterControl)
+            ChargeSyncIndicator(
+                batteryState: indicatorState,
+                syncing: syncing
+            )
         }
         .nativeLiquidGlassHeaderButton()
         .accessibilityLabel(batteryAccessibility)
+        .onAppear { handleSyncSignal(syncingRaw) }
+        .onChangeCompat(of: syncingRaw) { handleSyncSignal($0) }
+        .onDisappear { hideTask?.cancel() }
     }
+
+    private func handleSyncSignal(_ raw: Bool) {
+        hideTask?.cancel()
+        if raw {
+            syncing = true
+        } else {
+            guard syncing else { return }
+            hideTask = Task { @MainActor in
+                try? await Task.sleep(
+                    nanoseconds: StrandMotion.syncIndicatorSignalDebounceNanoseconds
+                )
+                guard !Task.isCancelled else { return }
+                syncing = false
+            }
+        }
+    }
+
     /// Never "Strap battery" alone for a no-reading state — that was indistinguishable from a real one.
     private var batteryAccessibility: String {
-        switch display {
+        if syncing {
+            let n = live.syncChunksThisSession
+            return n > 0
+                ? String(localized: "Syncing strap history, chunk \(n)")
+                : String(localized: "Syncing strap history")
+        }
+
+        switch batteryDisplay {
         case .offline:
             return String(localized: "Strap battery, strap not connected")
         case .pending(let charging):
             return charging
                 ? String(localized: "Strap battery charging, no reading yet")
                 : String(localized: "Strap battery, no reading yet")
-        case .charge(let pct, let charging):
-            let n = Int(pct.rounded())
+        case .charge(let percent, let charging):
+            let n = Int(percent.rounded())
             return charging
                 ? String(localized: "Strap battery \(n) percent, charging")
                 : String(localized: "Strap battery \(n) percent")
         }
-    }
-    private func ringColor(_ p: Double) -> Color {
-        p < 15 ? StrandPalette.statusCritical : p < 35 ? StrandPalette.statusWarning : StrandPalette.chargeColor
     }
 }
 
@@ -2181,7 +2213,7 @@ private extension View {
 /// it has pulled, and when one last completed. It does NOT yet say "~15h behind" — that needs the
 /// persisted data frontier (max HR ts) compared against `strapRange.newestUnix`, and the frontier is a
 /// Repository read that LiveState does not carry. That remains open in B1. Kept here in the Data Sources
-/// card as the detailed view; the Devices screen now owns the larger at-a-glance sync card.
+/// card as the detailed view; `LiquidBatteryButton` above is the header's ambient at-a-glance signal.
 private struct LiquidSyncStatusRow: View {
     @EnvironmentObject var live: LiveState
     var body: some View {

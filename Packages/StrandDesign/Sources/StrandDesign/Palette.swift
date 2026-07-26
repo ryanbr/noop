@@ -118,6 +118,10 @@ public enum StrandPalette {
     public static var focusRing: Color { accentChoice.focusRing }
     /// Opacity for dimmed/disabled sections (shared so screens don't invent their own value).
     public static let disabledOpacity: Double = 0.45
+    /// Liquid-scene activity tint shared by heart-rate feedback and transient sync chrome.
+    public static let liquidHeart = Color(light: "#D94C64", dark: "#FF6B81")
+    /// Dark instrument surface used by compact controls over the liquid scene.
+    public static let liquidControlSurface = Color(hex: "#0A0B10")
 
     // MARK: - Chart style (data-viz colour mode) — Titanium (brand) or Classic (throwback)
     //
