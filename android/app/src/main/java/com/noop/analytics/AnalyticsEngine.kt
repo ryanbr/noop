@@ -130,6 +130,51 @@ object AnalyticsEngine {
     }
 
     /**
+     * Inverse of [encodeStages]: decode a stored `stagesJSON` back to a list of [StageSegment]. Only the
+     * on-device SEGMENT-ARRAY shape (`[{start,end,stage}]`) decodes; the imported minute-dict shape
+     * (`{light,deep,rem,awake}`) is not a segment timeline and yields an empty list. Mirrors Swift
+     * `AnalyticsEngine.decodeStages`. (#804)
+     */
+    fun decodeStages(json: String?): List<StageSegment> {
+        if (json == null) return emptyList()
+        return try {
+            val arr = org.json.JSONArray(json)
+            val out = ArrayList<StageSegment>(arr.length())
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                if (!o.has("start") || !o.has("end")) continue
+                val stage = o.optString("stage", "")
+                if (stage.isEmpty()) continue
+                out.add(StageSegment(o.getLong("start"), o.getLong("end"), stage))
+            }
+            out
+        } catch (_: Throwable) {
+            emptyList()
+        }
+    }
+
+    /**
+     * Reconstruct the [DetectedSleep] the analyzer stages from a persisted, device-PROVIDED [SleepSession]
+     * row — e.g. an Oura ring's own SleepNet hypnogram (#773), whose `stagesJSON` uses the same
+     * deep/light/rem/wake vocabulary the stager reads. Uses the effective (edit-aware) onset, preserves the
+     * stored efficiency (deriving it from the decoded stage minutes only when the row stored none), and
+     * passes restingHr/avgHrv through as stored — null for a ring night, which [analyzeDay] then re-derives
+     * from that day's hr/rr. Returns null when the row has no decodable stage timeline, so a non-hypnogram
+     * (minute-dict) row is never injected. Mirrors Swift `sleepSession(fromProvided:)`. (#804 Fix A)
+     */
+    fun sleepSessionFromProvided(c: com.noop.data.SleepSession): DetectedSleep? {
+        val stages = decodeStages(c.stagesJSON)
+        if (stages.isEmpty()) return null
+        val efficiency = c.efficiency
+            ?: SleepStageTotals.minutes(c.stagesJSON)?.let { if (it.inBed > 0) it.asleep / it.inBed else null }
+            ?: 0.0
+        return DetectedSleep(
+            start = c.effectiveStartTs, end = c.endTs, efficiency = efficiency,
+            stages = stages, restingHR = c.restingHr, avgHRV = c.avgHrv,
+        )
+    }
+
+    /**
      * Analyze one day's streams into a [DayResult].
      *
      * @param day the calendar day (UTC) this metric is for; a sleep session is
@@ -232,6 +277,15 @@ object AnalyticsEngine {
         // flag. Default false keeps every pure-function caller/test byte-identical; IntelligenceEngine
         // threads PuffinExperiment.from(context).motionAwareWake. Mirrors Swift.
         useMotionAwareWake: Boolean = false,
+        // Caller-supplied, already-staged sessions to fold in ALONGSIDE the motion detector's — the day
+        // owner's OWN device-provided hypnogram (an Oura ring's SleepNet night, #773), reconstructed via
+        // [sleepSessionFromProvided]. The fix for #804: a ring sends no gravity vector, so detectSleep stages
+        // nothing and the night scored blank even though the ring's hypnogram was persisted + shown on the
+        // timeline. Provided sessions are PRE-staged: they bypass detectSleep AND wake refinement. Where a
+        // provided session overlaps a detected one the PROVIDED session wins; a non-overlapping detected nap
+        // survives. Each provided session's nightly restingHR/avgHRV is re-derived here from this day's hr/rr
+        // when the stored row carried none. Default empty (every WHOOP / pure caller) = motion-only path.
+        providedSleep: List<DetectedSleep> = emptyList(),
         // Sleep & Rest test-mode trace sink (E11). null = byte-identical default. When non-null the gate
         // trace from detectSleep and the Rest sub-score line are forwarded line-by-line. Mirrors Swift.
         traceSink: ((String) -> Unit)? = null,
@@ -262,10 +316,31 @@ object AnalyticsEngine {
         // night-window stream the caller passed for the rest of this analysis; the pass self-gates on its
         // observed density, so an empty/sparse `steps` (e.g. a WHOOP 4.0, which never emits a step sample
         // at all) is a no-op regardless of `useMotionAwareWake`.
-        val allSessions = if (useMotionAwareWake) {
+        val refinedSessions = if (useMotionAwareWake) {
             detectedSessions.map { WakeMotionRefinement.refine(it, gravity, steps) }
         } else {
             detectedSessions
+        }
+        // #804 Fix A: fold in the caller's device-provided hypnogram (see [providedSleep]). Empty = the
+        // byte-identical motion-only path. Otherwise enrich each provided session's nightly restingHR/avgHRV
+        // from THIS day's hr/rr over its window (the stored ring row carries neither), using the SAME helpers
+        // detectSleep populates a session with, then keep only the detected sessions that DON'T overlap a
+        // provided one (provided is authoritative where they collide; a separate nap survives).
+        val allSessions: List<DetectedSleep> = if (providedSleep.isEmpty()) {
+            refinedSessions
+        } else {
+            val rrSorted = rr.sortedBy { it.ts }
+            val enrichedProvided = providedSleep.map { s ->
+                if (s.restingHR != null && s.avgHRV != null) s
+                else s.copy(
+                    restingHR = s.restingHR ?: SleepStager.sessionRestingHR(s.start, s.end, hr),
+                    avgHRV = s.avgHRV ?: SleepStager.sessionAvgHRV(s.start, s.end, rrSorted),
+                )
+            }
+            val keptDetected = refinedSessions.filter { d ->
+                enrichedProvided.none { it.start < d.end && d.start < it.end }
+            }
+            keptDetected + enrichedProvided
         }
         // Sessions attributed to `day` = those whose end falls on `day` (LOCAL day, #277). `day` is
         // the caller's local-day key; attribute by the same offset so the bucket and the key agree.

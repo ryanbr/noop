@@ -686,6 +686,23 @@ final class IntelligenceEngine: ObservableObject {
                 // HRV mode (#141): a per-day collector for the nightly per-window RMSSD + summary; nil = default.
                 var hrvTrace: [String] = []
                 let hrvTraceSink: ((String) -> Void)? = hrvTraceActive ? { hrvTrace.append($0) } : nil
+                // #804 Fix A: when this day's owner is a device that sends NO usable gravity vector — so the
+                // motion detector can't stage the night and it scored blank — AND it has persisted its OWN
+                // hypnogram under its device namespace (an Oura ring's SleepNet night, #773), hand that
+                // hypnogram to analyzeDay so the night scores. Gated on absent gravity (`grav.count < 2` — a
+                // ring streams zero; a WHOOP always streams a gravity vector, sparse-but-present on a 4.0) plus
+                // a non-canonical-WHOOP-import owner, so WHOOP straps and the "my-whoop" import namespace are
+                // untouched; analyzeDay still lets a DETECTED session win where the two overlap. Reconstruct the
+                // pure SleepSession from each stored CachedSleepSession (a minute-dict import row decodes to
+                // nothing and is skipped, so only real stage timelines are injected).
+                let providedSleep: [SleepSession]
+                if owner != Repository.whoopSource, grav.count < 2 {
+                    let persisted = (try? await store.sleepSessions(deviceId: owner, from: from, to: to,
+                                                                    limit: 4000)) ?? []
+                    providedSleep = persisted.compactMap { AnalyticsEngine.sleepSession(fromProvided: $0) }
+                } else {
+                    providedSleep = []
+                }
                 let res = AnalyticsEngine.analyzeDay(day: day, hr: hr, rr: rr, resp: resp, gravity: grav,
                                                      steps: steps, dayHr: dayHr, daySteps: daySteps,
                                                      dayGravity: dayGrav,
@@ -703,6 +720,9 @@ final class IntelligenceEngine: ObservableObject {
                                                      // #364 follow-up: same threading for the motion-aware wake
                                                      // refinement post-pass.
                                                      useMotionAwareWake: useMotionAwareWake,
+                                                     // #804 Fix A: the owner's own device-provided hypnogram
+                                                     // (empty for WHOOP / non-ring days → default path).
+                                                     providedSleep: providedSleep,
                                                      traceSink: traceSink,
                                                      hrvTraceSink: hrvTraceSink,
                                                      // Per-window HRV detail ONLY for the most-recent night

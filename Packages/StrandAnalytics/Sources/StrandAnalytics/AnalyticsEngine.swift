@@ -212,6 +212,37 @@ public enum AnalyticsEngine {
         return String(data: data, encoding: .utf8)
     }
 
+    /// Inverse of `encodeStages`: decode a stored `stagesJSON` back to `[StageSegment]`. Only the on-device
+    /// SEGMENT-ARRAY shape (`[{start,end,stage}]`) decodes; the imported minute-dict shape
+    /// (`{light,deep,rem,awake}`) is not a segment timeline and yields `[]` (key-order-independent). (#804)
+    public static func decodeStages(_ json: String?) -> [StageSegment] {
+        guard let json, let data = json.data(using: .utf8),
+              let stages = try? JSONDecoder().decode([StageSegment].self, from: data) else { return [] }
+        return stages
+    }
+
+    /// Reconstruct the pure `SleepSession` the analyzer stages from a persisted, device-PROVIDED
+    /// `CachedSleepSession` — e.g. an Oura ring's own SleepNet hypnogram (#773), whose `stagesJSON` uses the
+    /// same `deep/light/rem/wake` vocabulary `hypnogramMetrics` reads. Uses the effective (edit-aware) onset,
+    /// preserves the stored efficiency (deriving it from the decoded stage minutes only when the row stored
+    /// none), and passes `restingHR`/`avgHRV` through as stored — nil for a ring night, which `analyzeDay`
+    /// then re-derives from that day's hr/rr over this window. Returns nil when the row has no decodable
+    /// stage timeline, so a non-hypnogram (minute-dict) row is never injected. (#804 Fix A)
+    public static func sleepSession(fromProvided c: CachedSleepSession) -> SleepSession? {
+        let stages = decodeStages(c.stagesJSON)
+        guard !stages.isEmpty else { return nil }
+        let efficiency: Double
+        if let e = c.efficiency {
+            efficiency = e
+        } else if let m = SleepStageTotals.minutes(fromStagesJSON: c.stagesJSON), m.inBed > 0 {
+            efficiency = m.asleep / m.inBed
+        } else {
+            efficiency = 0
+        }
+        return SleepSession(start: c.effectiveStartTs, end: c.endTs, efficiency: efficiency,
+                            stages: stages, restingHR: c.restingHr, avgHRV: c.avgHrv)
+    }
+
     /// Analyze one day's streams into a `DayResult`.
     ///
     /// - Parameters:
@@ -336,6 +367,22 @@ public enum AnalyticsEngine {
                                   // caller/test byte-identical; IntelligenceEngine threads
                                   // `PuffinExperiment.motionAwareWakeEnabled`.
                                   useMotionAwareWake: Bool = false,
+                                  // Caller-supplied, already-staged sleep sessions to fold in ALONGSIDE the
+                                  // motion detector's — the day owner's OWN device-provided hypnogram (an
+                                  // Oura ring's SleepNet night, #773), reconstructed from its persisted
+                                  // `CachedSleepSession` via `sleepSession(fromProvided:)`. This is the fix
+                                  // for #804: a ring sends no gravity vector, so `detectSleep` stages nothing
+                                  // and the night scored blank (totalSleepMin/eff/avgHrv nil) even though the
+                                  // ring's hypnogram was persisted and shown on the timeline. Provided
+                                  // sessions are PRE-staged: they bypass detectSleep AND wake refinement.
+                                  // Where a provided session overlaps a detected one the PROVIDED session
+                                  // wins (authoritative device staging over motion inference); non-overlapping
+                                  // detected sessions (a nap the ring didn't report) are kept. Each provided
+                                  // session's nightly restingHR/avgHRV is (re)derived HERE from this day's
+                                  // hr/rr over its window when the stored row carried none, so the daily
+                                  // RHR/HRV light up. Default `[]` (every WHOOP / pure-function caller) keeps
+                                  // the byte-identical motion-only path.
+                                  providedSleep: [SleepSession] = [],
                                   // Sleep PROVENANCE for the per-day sleep trace (CAPTURE-C / #799). The
                                   // measured BLE path is `.measured` (the default); the caller passes
                                   // `.imported(...)` when a previously-imported sleep row WON the daily merge,
@@ -383,9 +430,31 @@ public enum AnalyticsEngine {
         // night-window stream the caller passed for the rest of this analysis; the pass self-gates on its
         // observed density, so an empty/sparse `steps` (e.g. a WHOOP 4.0, which never emits StepSample at
         // all) is a no-op regardless of `useMotionAwareWake`.
-        let allSessions = useMotionAwareWake
+        let refinedSessions = useMotionAwareWake
             ? detectedSessions.map { WakeMotionRefinement.refine($0, grav: gravity, steps: steps) }
             : detectedSessions
+        // #804 Fix A: fold in the caller's device-provided hypnogram (see `providedSleep`). Empty = the
+        // byte-identical motion-only path. Otherwise enrich each provided session's nightly restingHR/avgHRV
+        // from THIS day's hr/rr over its window (the stored ring row carries neither), using the SAME helpers
+        // detectSleep populates a session with, then keep only the detected sessions that DON'T overlap a
+        // provided one (provided is authoritative where they collide; a separate nap survives).
+        let allSessions: [SleepSession]
+        if providedSleep.isEmpty {
+            allSessions = refinedSessions
+        } else {
+            let rrSorted = rr.sortedByTsStable()
+            let enrichedProvided: [SleepSession] = providedSleep.map { s in
+                guard s.restingHR == nil || s.avgHRV == nil else { return s }
+                let rhr = s.restingHR ?? SleepStager.sessionRestingHR(start: s.start, end: s.end, hr: hr)
+                let hrv = s.avgHRV ?? SleepStager.sessionAvgHRV(start: s.start, end: s.end, rr: rrSorted)
+                return SleepSession(start: s.start, end: s.end, efficiency: s.efficiency,
+                                    stages: s.stages, restingHR: rhr, avgHRV: hrv)
+            }
+            let keptDetected = refinedSessions.filter { d in
+                !enrichedProvided.contains { $0.start < d.end && d.start < $0.end }
+            }
+            allSessions = keptDetected + enrichedProvided
+        }
         // Sessions attributed to `day` = those whose end falls on `day` (LOCAL day, #277). `day` is
         // the caller's local-day key; attribute by the same offset so the bucket and the key agree.
         let matched = allSessions.filter { tsInDay($0.end) }

@@ -554,6 +554,20 @@ object IntelligenceEngine {
                 bandSleepState = bandSleepStateSamples(repo, computedId, from, to)
             }
 
+            // #804 Fix A: when this day's owner sends NO usable gravity vector — so the motion detector can't
+            // stage the night and it scored blank — AND it persisted its OWN hypnogram under its device
+            // namespace (an Oura ring's SleepNet night, #773), hand that hypnogram to analyzeDay so the night
+            // scores. Gated on absent gravity (`grav.size < 2` — a ring streams zero; a WHOOP always streams a
+            // gravity vector) plus a non-canonical-WHOOP-import owner, so WHOOP straps and the "my-whoop"
+            // import namespace are untouched; analyzeDay still lets a DETECTED session win where they overlap.
+            val providedSleep: List<DetectedSleep> =
+                if (owner != importedDeviceId && grav.size < 2) {
+                    repo.sleepSessions(owner, from, to, 4000)
+                        .mapNotNull { AnalyticsEngine.sleepSessionFromProvided(it) }
+                } else {
+                    emptyList()
+                }
+
             val res = AnalyticsEngine.analyzeDay(
                 day = day,
                 hr = hr,
@@ -585,6 +599,8 @@ object IntelligenceEngine {
                 useSleepStagerV2 = useExperimentalSleepV2,
                 // #364 follow-up: same threading for the motion-aware wake refinement post-pass.
                 useMotionAwareWake = useMotionAwareWake,
+                // #804 Fix A: the owner's own device-provided hypnogram (empty for WHOOP/non-ring days).
+                providedSleep = providedSleep,
                 // Sleep & Rest test mode (Test Centre E5): thread the trace sink straight through. null (the
                 // default) keeps analyzeDay's byte-identical untraced path; when the caller passed a non-null
                 // sink (mode on), detectSleep's gate trace + the Rest sub-score line route to the .sleep-tagged
