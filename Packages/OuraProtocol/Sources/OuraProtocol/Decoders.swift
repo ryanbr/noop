@@ -531,13 +531,17 @@ public enum OuraDecoders {
 
     // MARK: - Motion period, 2-bit MOTION_STATE codes (0x6B; s6.13)
 
-    /// Decode the 0x6B motion_period: a compact run of 2-bit MOTION_STATE codes. Layout is a byte-for-byte
-    /// port of the native `parse_api_motion_period` (clean-room fact citation; OURA_PROTOCOL.md s6.13),
-    /// the SAME shape as the validated `decodeSleepPhase` (one header byte, then 2-bit codes from byte 1):
+    /// Decode the 0x6B motion_period: a compact run of 2-bit MOTION_STATE codes. Layout cross-checked
+    /// against the native `parse_api_motion_period` (attribution, not a port — re-derived from a real
+    /// capture; OURA_PROTOCOL.md s6.13), the SAME shape as the validated `decodeSleepPhase` (one header
+    /// byte, then 2-bit codes from byte 1):
     ///   byte0 = header — bits[7:6] period_type; bits[5:4] = `count` of valid codes in the FINAL byte;
     ///           bits[3:0] = a rolling mod-16 sequence counter (record ordering / dedup, not a state).
     ///   byte1… = 2-bit codes, 4 per byte, MSB-first ([7:6][5:4][3:2][1:0]); every byte carries 4 codes
-    ///           EXCEPT the last, which carries only `count` (so a short "period" can hold a single code).
+    ///           EXCEPT the last, which carries `count` — where `count == 0` means 4 (a full final byte):
+    ///           the field is only 2 bits but the byte holds up to 4 codes, so 4 has to wrap to 0. In a real
+    ///           capture all 81 `count == 0` records have a NON-ZERO final byte (0xc0/0x80/0x40 — real
+    ///           codes), never 0x00, confirming 0 ⇒ 4 rather than 0 ⇒ empty.
     /// 0=NO_MOTION, 1=RESTLESS, 2=TOSSING, 3=ACTIVE. Returns nil on a body too short to hold the header
     /// plus one code byte (< 2), or when no codes result.
     ///
@@ -548,11 +552,12 @@ public enum OuraDecoders {
     public static func decodeMotionPeriod(_ rec: OuraRecord) -> [OuraMotion]? {
         let b = rec.payload
         guard b.count >= 2 else { return nil }
-        let count = Int((b[0] >> 4) & 0x03)   // valid codes in the FINAL byte (bits[5:4] of the header)
+        let countField = Int((b[0] >> 4) & 0x03)     // bits[5:4] of the header: codes in the FINAL byte
+        let lastCount = countField == 0 ? 4 : countField   // 0 encodes a full (4-code) final byte
         var out: [OuraMotion] = []
         var index = 0
         for k in 1..<b.count {
-            let n = (k == b.count - 1) ? count : 4   // last byte carries `count` codes; others carry 4
+            let n = (k == b.count - 1) ? lastCount : 4   // last byte carries `lastCount` codes; others 4
             let byte = b[k]
             for j in 0..<n {
                 let code = Int((byte >> UInt8(6 - 2 * j)) & 0x03)

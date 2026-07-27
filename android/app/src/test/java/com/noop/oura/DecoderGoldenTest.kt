@@ -367,6 +367,23 @@ class DecoderGoldenTest {
         )
     }
 
+    @Test
+    fun testMotionPeriod0x6BCountZeroMeansFullFinalByte() {
+        // Header 0x0D: count FIELD 0 encodes a FULL final byte (4 codes), not 0 — the 2-bit field can't hold
+        // 4, so 4 wraps to 0 (all 81 count==0 records in the capture have a non-zero final byte). byte1 0xC0
+        // = 11 00 00 00 -> active, noMotion, noMotion, noMotion. `count==0 ? 0` returned null; `? 4` recovers.
+        val rec = record("6b06020001000dc0")
+        assertEquals(
+            listOf(
+                OuraMotion(ringTimestamp = rt, index = 0, state = OuraMotionState.ACTIVE),
+                OuraMotion(ringTimestamp = rt, index = 1, state = OuraMotionState.NO_MOTION),
+                OuraMotion(ringTimestamp = rt, index = 2, state = OuraMotionState.NO_MOTION),
+                OuraMotion(ringTimestamp = rt, index = 3, state = OuraMotionState.NO_MOTION),
+            ),
+            OuraDecoders.decodeMotionPeriod(rec),
+        )
+    }
+
     // MARK: - 0x47 motion events (averaged accel vector)
 
     @Test

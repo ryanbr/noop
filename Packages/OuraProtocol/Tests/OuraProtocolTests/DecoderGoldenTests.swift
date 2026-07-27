@@ -322,6 +322,20 @@ final class DecoderGoldenTests: XCTestCase {
                        [OuraMotion(ringTimestamp: rt, index: 0, state: .tossing)])
     }
 
+    func testMotionPeriod0x6BCountZeroMeansFullFinalByte() {
+        // Real short capture `05c0`: header 0x05 -> count FIELD 0, which encodes a FULL final byte (4 codes),
+        // NOT 0 — the 2-bit field can't hold 4, so 4 wraps to 0 (all 81 count==0 records in the capture have
+        // a non-zero final byte, never 0x00). byte1 0xC0 = 11 00 00 00 -> active, noMotion, noMotion,
+        // noMotion. The `count==0 ? 0` reading returned NIL for this record; `count==0 ? 4` recovers 4 codes.
+        let rec = record("6b06020001000dc0")   // header 0x0D: count field 0 (0x0D>>4 & 3 == 0), seq 0xD
+        XCTAssertEqual(OuraDecoders.decodeMotionPeriod(rec), [
+            OuraMotion(ringTimestamp: rt, index: 0, state: .active),
+            OuraMotion(ringTimestamp: rt, index: 1, state: .noMotion),
+            OuraMotion(ringTimestamp: rt, index: 2, state: .noMotion),
+            OuraMotion(ringTimestamp: rt, index: 3, state: .noMotion),
+        ])
+    }
+
     // MARK: - 0x47 motion events (averaged accel vector)
 
     func testMotionEvents0x47() {

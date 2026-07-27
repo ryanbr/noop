@@ -601,13 +601,16 @@ object OuraDecoders {
     // MARK: - Motion period, 2-bit MOTION_STATE codes (0x6B; s6.13)
 
     /**
-     * Decode the 0x6B motion_period: a compact run of 2-bit MOTION_STATE codes. Byte-for-byte port of
-     * the native parse_api_motion_period (clean-room fact citation; OURA_PROTOCOL.md s6.13), the SAME
-     * shape as the validated decodeSleepPhase (one header byte, then 2-bit codes from byte 1):
+     * Decode the 0x6B motion_period: a compact run of 2-bit MOTION_STATE codes. Layout cross-checked
+     * against the native parse_api_motion_period (attribution, not a port — re-derived from a real capture;
+     * OURA_PROTOCOL.md s6.13), the SAME shape as the validated decodeSleepPhase (one header byte, then 2-bit
+     * codes from byte 1):
      *   byte0 = header — bits[7:6] period_type; bits[5:4] = `count` of valid codes in the FINAL byte;
      *           bits[3:0] = a rolling mod-16 sequence counter (record ordering / dedup, not a state).
      *   byte1… = 2-bit codes, 4 per byte, MSB-first; every byte carries 4 codes EXCEPT the last, which
-     *           carries only `count` (so a short "period" can hold a single code).
+     *           carries `count` — where `count == 0` means 4 (a full final byte): the field is 2 bits but the
+     *           byte holds up to 4 codes, so 4 wraps to 0. In a real capture all 81 `count == 0` records have
+     *           a NON-ZERO final byte (0xc0/0x80/0x40), never 0x00, confirming 0 ⇒ 4 not 0 ⇒ empty.
      * 0=NO_MOTION, 1=RESTLESS, 2=TOSSING, 3=ACTIVE. Returns null on a body too short to hold the header
      * plus one code byte (< 2), or when no codes result. The header's low-nibble sequence counter is what
      * pins this layout: in a real capture it increments and wraps mod-16 across consecutive records,
@@ -617,11 +620,12 @@ object OuraDecoders {
     fun decodeMotionPeriod(rec: OuraRecord): List<OuraMotion>? {
         val b = rec.payload
         if (b.size < 2) return null
-        val count = (b[0] shr 4) and 0x03   // valid codes in the FINAL byte (bits[5:4] of the header)
+        val countField = (b[0] shr 4) and 0x03      // bits[5:4] of the header: codes in the FINAL byte
+        val lastCount = if (countField == 0) 4 else countField   // 0 encodes a full (4-code) final byte
         val out = ArrayList<OuraMotion>()
         var index = 0
         for (k in 1 until b.size) {
-            val n = if (k == b.size - 1) count else 4   // last byte carries `count` codes; others carry 4
+            val n = if (k == b.size - 1) lastCount else 4   // last byte carries `lastCount` codes; others 4
             val byte = b[k]
             for (j in 0 until n) {
                 val code = (byte shr (6 - 2 * j)) and 0x03
