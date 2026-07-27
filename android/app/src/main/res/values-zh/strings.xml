@@ -1132,6 +1132,7 @@
     <string name="l10n_app_changelog_honest_labelling_for_whoop_5_mg_8c650225">诚实且准确地标注 WHOOP 5/MG 的深层数据诊断信息</string>
     <string name="l10n_app_changelog_hotfix_making_a_heart_rate_strap_09f87c0a">热修复 - 激活心率带时不再导致应用崩溃</string>
     <string name="l10n_app_changelog_hr_from_the_optical_waveform_an_b8874b42">从光学传感器波形直接提取心率、早晨日期自动更迭优化、更清晰的条款说明</string>
+    <string name="l10n_app_changelog_hrv_accuracy_fix_oura_sleep_and_4ed31e39">修复 HRV 准确性、完善 Oura 睡眠和运动数据、丰富 5/MG 解码，并支持停止同步</string>
     <string name="l10n_app_changelog_hrv_that_reads_true_and_a_2b09fa43">还原真实 HRV 数据，以及更整洁的运动列表</string>
     <string name="l10n_app_changelog_import_fixes_both_sources_all_data_92cfed50">导入修复 - 覆盖全部数据源与所有数据类型</string>
     <string name="l10n_app_changelog_import_polish_mac_whoop_5_optical_5067d90c">导入功能体验打磨 (Mac 版) + WHOOP 5 光学传感器数据解析</string>
