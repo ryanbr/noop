@@ -1671,6 +1671,7 @@
     <string name="timeline_metric_skin_temp">皮肤体温</string>
     <string name="timeline_metric_respiration">呼吸</string>
     <string name="timeline_metric_motion">体动幅度</string>
+    <string name="timeline_metric_movement">体动</string>
     <string name="timeline_metric_band_sleep_state">手环端睡眠状态</string>
     <string name="explore_category_charge">充能(Charge)</string>
     <string name="explore_category_effort">负荷(Effort)</string>
