@@ -415,6 +415,11 @@ object HrvAnalyzer {
      * Tolerance (seconds) allowed between a beat's wall-clock gap and its own R-R value before the beat
      * is counted as not time-accurate. Whole-second `ts` against a sub-second interval means an honest
      * stream still rounds, so this is deliberately loose. Twin of Swift `beatAccuracyToleranceS`.
+     *
+     * Shared with the RSA respiration gate (#882/#883), which asks the SAME question of the same stream
+     * and calls [beatAccurateFraction] / [beatValuesAreTrustworthy] directly rather than keeping its own
+     * copy. One boundary, drawn once, in one place, for both — which is what makes a threshold change
+     * here move respiration and SDNN together instead of letting them drift apart.
      */
     const val BEAT_ACCURACY_TOLERANCE_S: Double = 0.5
 
