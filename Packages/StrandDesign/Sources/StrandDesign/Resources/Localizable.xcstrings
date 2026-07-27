@@ -1551,6 +1551,12 @@
             "value": "Synchronisation"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sincronizzazione"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -1561,6 +1567,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Синхронизация"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同步中"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同步中"
           }
         }
       }
