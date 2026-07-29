@@ -1375,6 +1375,15 @@ class OuraLiveSource(
             if (descriptor.uuid != CCCD) return@guardedCallback
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 log("Oura: notifications enabled (CCCD write status=$status) - beginning auth")
+                // #771: GetProductInfo (serial + hardware pages) is pre-auth readable (OURA_PROTOCOL.md s3.1)
+                // - ask for it BEFORE the auth handshake, not just once streaming (as it was until now). This
+                // way an Advanced/"I already have my key" pairing that supplies a WRONG key, or a connection
+                // that drops before ever reaching Streaming, still gets a chance to resolve the ring's stable
+                // oura-<serial> id instead of being stranded on the rotating oura-<MAC> id (see
+                // AddDeviceWizard.finishAddOura). handleNotification's product-info peek is phase-independent,
+                // so this is a pure timing change - no new response handling needed.
+                write(OuraCommands.getProductSerial())
+                write(OuraCommands.getProductHardware())
                 // Notifications are live: tell the driver we are Ready. It returns the enable-notify +
                 // get-nonce commands (or drives the honest needs-pairing path when there is no app key).
                 advance(OuraTransition.Ready)
@@ -1473,13 +1482,11 @@ class OuraLiveSource(
                     // subscription-gated OFF for an offline ring. NEVER an enable/set-mode write.
                     write(OuraCommands.spo2ReadStatus())
                     write(OuraCommands.realStepsReadStatus())
-                    // Read-only capture (#771/#772): the ring's GetProductInfo serial + hardware pages are
-                    // pre-auth readable. The SERIAL is a STABLE per-ring identity (Android mints the id from
-                    // the MAC today, but the serial is the platform-neutral identity Swift needs too, #771),
-                    // and the HARDWARE id (e.g. "BLB_03") maps to the generation, confirming it from the ring
-                    // instead of stray digits in the advertised name (#772). Here we only ASK and LOG the raw
-                    // replies to capture their byte layout; nothing is decoded, minted into an id, or persisted
-                    // yet (capture-first). Same read-only class as the SpO2 / real-steps reads above.
+                    // Belt-and-suspenders resend of GetProductInfo (#771/#772): the primary ask now happens
+                    // pre-auth in onDescriptorWrite, so the serial/hardware id is normally already resolved
+                    // by the time we get here. Re-asking once streaming costs nothing (handleNotification's
+                    // peek dedupes by content via `loggedProductInfo`) and covers a ring that didn't answer
+                    // the pre-auth read.
                     write(OuraCommands.getProductSerial())
                     write(OuraCommands.getProductHardware())
                 }
@@ -1613,12 +1620,13 @@ class OuraLiveSource(
         // and feed all other bytes to the TLV reassembler.
         val nonSecure = ArrayList<Int>()
         for (frame in OuraFraming.parseOuterFrames(bytes)) {
-            // #771/#772 capture: log each DISTINCT GetProductInfo reply (serial + hardware pages) raw, once
-            // per op+body per session. Peek only — like the 0x11 summary / 0x0D battery below, a product-info
-            // op is below the event-tag range (>= 0x41), so letting it fall through to the reassembler is a
-            // harmless unknown-tag no-op; nothing here decodes it into a stable id (#771) or a generation
-            // (#772) yet. get_serial and get_hardware both answer under op 0x19, so dedupe by content (not op)
-            // or the second is swallowed. Rendered hex AND ASCII, since both are strings (e.g. "BLB_03").
+            // #771/#772: handle each DISTINCT GetProductInfo reply (serial + hardware pages), once per
+            // op+body per session. Peek only — like the 0x11 summary / 0x0D battery below, a product-info op
+            // is below the event-tag range (>= 0x41), so letting it fall through to the reassembler is a
+            // harmless unknown-tag no-op. This runs regardless of the driver's current phase (asked pre-auth
+            // now, see onDescriptorWrite), which is what lets a stable id resolve even if auth later fails.
+            // get_serial and get_hardware both answer under op 0x19, so dedupe by content (not op) or the
+            // second is swallowed. Rendered hex AND ASCII, since both are strings (e.g. "BLB_03").
             if (frame.op in PRODUCT_INFO_RESPONSE_OPS) {
                 val hex = frame.body.joinToString(" ") { "%02x".format(it) }
                 if (loggedProductInfo.add("${frame.op}:$hex")) {

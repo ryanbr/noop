@@ -1634,14 +1634,11 @@ public final class OuraLiveSource: NSObject, ObservableObject {
                 // of the same ring byte-for-byte (worklog analysis/2026-08-25-noop-ring-hci-realsteps-
                 // confirmation.txt). NEVER an enable/set-mode write - purely the 0x20 read verb.
                 write([OuraCommands.spo2ReadStatus(), OuraCommands.realStepsReadStatus()])
-                // Read-only capture (#771/#772): the ring's GetProductInfo serial + hardware pages are
-                // pre-auth readable. The SERIAL is a STABLE per-ring identity — unlike the CoreBluetooth UUID,
-                // which rotates on re-pair and orphans the ring's history (#771) — and the HARDWARE id
-                // (e.g. "BLB_03") maps to the generation, confirming it from the ring instead of stray digits
-                // in the advertised name (#772). Here we only ASK and LOG the raw replies to capture their
-                // byte layout; nothing is decoded, minted into an id, or persisted yet (capture-first, so a
-                // real fixture backs the decode before it drives identity/generation). Same read-only class as
-                // the SpO2 / real-steps status reads above; never a set/enable write.
+                // Belt-and-suspenders resend of GetProductInfo (#771/#772): the primary ask now happens
+                // pre-auth in didUpdateNotificationStateFor, so the serial/hardware id is normally already
+                // resolved by the time we get here. Re-asking once streaming costs nothing (the
+                // didUpdateValueFor peek dedupes by content via `loggedProductInfo`) and covers a ring that
+                // didn't answer the pre-auth read.
                 write([OuraCommands.getProductSerial(), OuraCommands.getProductHardware()])
             }
         default:
@@ -2688,6 +2685,14 @@ extension OuraLiveSource: @preconcurrency CBPeripheralDelegate {
             return
         }
         log("Oura: notifications enabled (isNotifying=\(characteristic.isNotifying)) - beginning auth")
+        // #771: GetProductInfo (serial + hardware pages) is pre-auth readable (OURA_PROTOCOL.md s3.1) -
+        // ask for it BEFORE the auth handshake, not just once streaming (as it was until now). This way an
+        // Advanced/"I already have my key" pairing that supplies a WRONG key, or a connection that drops
+        // before ever reaching .streaming, still gets a chance to resolve the ring's stable oura-<serial>
+        // id instead of being stranded on the rotating oura-<CBUUID> id (see AddDeviceWizard.buildOuraDevice).
+        // The reply is handled by didUpdateValueFor's product-info peek, which is phase-independent, so this
+        // is a pure timing change - no new response handling needed.
+        write([OuraCommands.getProductSerial(), OuraCommands.getProductHardware()])
         // Notifications are live: tell the driver we're ready. It returns the auth-nonce request (or, with
         // no key, drives the honest needs-pairing path).
         advance(.ready)
@@ -2756,11 +2761,12 @@ extension OuraLiveSource: @preconcurrency CBPeripheralDelegate {
            let battery = OuraDecoders.decodeBattery(batteryFrame.body) {
             ingest([.battery(battery)])
         }
-        // #771/#772 capture: log the GetProductInfo reply (serial + hardware pages) raw, once per op per
+        // #771/#772: handle the GetProductInfo reply (serial + hardware pages), once per distinct op+body per
         // session. Peek only — like the 0x11 summary / 0x0D battery above, a product-info op is below the
-        // event-tag range (≥ 0x41) so it round-trips through the TLV decoder as a harmless unknown-tag no-op;
-        // nothing here decodes it into a stable id (#771) or a generation (#772) yet — that waits on this
-        // fixture. Rendered as hex AND ASCII, since the serial / hardware id are strings (e.g. "BLB_03").
+        // event-tag range (≥ 0x41) so it round-trips through the TLV decoder as a harmless unknown-tag no-op.
+        // This runs regardless of the driver's current phase (asked pre-auth now, see
+        // didUpdateNotificationStateFor), which is what lets a stable id resolve even if auth later fails.
+        // Rendered as hex AND ASCII, since the serial / hardware id are strings (e.g. "BLB_03").
         for frame in frames where Self.productInfoResponseOps.contains(frame.op) {
             let hex = frame.body.map { String(format: "%02x", $0) }.joined(separator: " ")
             guard loggedProductInfo.insert("\(frame.op):\(hex)").inserted else { continue }
