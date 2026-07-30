@@ -463,12 +463,7 @@ struct SettingsView: View {
                 rowDivider
                 FormRow(label: "Max heart rate") {
                     VStack(alignment: .trailing, spacing: 6) {
-                        HStack(spacing: 8) {
-                            hrMaxField
-                            Text("bpm")
-                                .font(StrandFont.caption)
-                                .foregroundStyle(StrandPalette.textTertiary)
-                        }
+                        hrMaxField
                         Text(profile.hrMaxOverride > 0
                              ? "Manual override"
                              : "Auto · \(profile.hrMax) bpm (Tanaka)")
@@ -592,20 +587,23 @@ struct SettingsView: View {
     private func measureField(value: Binding<Double>, unit: String,
                               range: ClosedRange<Double>, step: Double,
                               format: String, accessibility: String) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: NoopMetrics.space2) {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(String(format: format, value.wrappedValue))
                     .font(StrandFont.bodyNumber)
                     .foregroundStyle(StrandPalette.textPrimary)
-                    .frame(minWidth: 48, alignment: .trailing)
+                    .frame(width: 48, alignment: .center)
                 Text(unit)
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textTertiary)
+                    .fixedSize()
             }
+            .fixedSize()
             Stepper(accessibility, value: value, in: range, step: step)
                 .labelsHidden()
                 .accessibilityLabel(accessibility)
         }
+        .fixedSize()
     }
 
     /// Imperial weight entry: shows pounds, steps in 1-lb increments, and writes the kg equivalent back
@@ -615,20 +613,23 @@ struct SettingsView: View {
             get: { UnitFormatter.kgToPounds(weightKg.wrappedValue) },
             set: { weightKg.wrappedValue = $0 / UnitFormatter.poundsPerKilogram }
         )
-        return HStack(spacing: 10) {
+        return HStack(spacing: NoopMetrics.space2) {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(String(format: "%.0f", lb.wrappedValue))
                     .font(StrandFont.bodyNumber)
                     .foregroundStyle(StrandPalette.textPrimary)
-                    .frame(minWidth: 48, alignment: .trailing)
+                    .frame(width: 48, alignment: .center)
                 Text("lb")
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textTertiary)
+                    .fixedSize()
             }
+            .fixedSize()
             Stepper("Weight in pounds", value: lb, in: 66...551, step: 1)
                 .labelsHidden()
                 .accessibilityLabel("Weight, \(Int(lb.wrappedValue.rounded())) pounds")
         }
+        .fixedSize()
     }
 
     /// Imperial height entry: shows feet′ inches″, steps in whole inches, and writes the cm equivalent
@@ -639,15 +640,16 @@ struct SettingsView: View {
             set: { heightCm.wrappedValue = $0 * UnitFormatter.centimetersPerInch }
         )
         let parts = UnitFormatter.cmToFeetInches(heightCm.wrappedValue)
-        return HStack(spacing: 10) {
+        return HStack(spacing: NoopMetrics.space2) {
             Text("\(parts.feet)′ \(parts.inches)″")
                 .font(StrandFont.bodyNumber)
                 .foregroundStyle(StrandPalette.textPrimary)
-                .frame(minWidth: 56, alignment: .trailing)
+                .frame(width: 64, alignment: .center)
             Stepper("Height in inches", value: inches, in: 47...91, step: 1)
                 .labelsHidden()
                 .accessibilityLabel("Height, \(parts.feet) feet \(parts.inches) inches")
         }
+        .fixedSize()
     }
 
     /// Metric waist entry: 0 = unset (shows a muted "Not set" rather than a misleading 0 cm). Steps in
@@ -655,18 +657,20 @@ struct SettingsView: View {
     /// crawl up from the range floor. Mirrors `measureField` but tolerant of the optional empty state.
     private func waistCentimetresField(waistCm: Binding<Double>) -> some View {
         let set = waistCm.wrappedValue > 0
-        return HStack(spacing: 10) {
+        return HStack(spacing: NoopMetrics.space2) {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(set ? String(format: "%.0f", waistCm.wrappedValue) : String(localized: "Not set"))
                     .font(StrandFont.bodyNumber)
                     .foregroundStyle(set ? StrandPalette.textPrimary : StrandPalette.textTertiary)
-                    .frame(minWidth: 48, alignment: .trailing)
+                    .frame(minWidth: 48, alignment: .center)
                 if set {
                     Text("cm")
                         .font(StrandFont.caption)
                         .foregroundStyle(StrandPalette.textTertiary)
+                        .fixedSize()
                 }
             }
+            .fixedSize()
             Stepper("Waist in centimetres") {
                 waistCm.wrappedValue = min(160, (set ? waistCm.wrappedValue : 79) + 1)
             } onDecrement: {
@@ -677,6 +681,7 @@ struct SettingsView: View {
                 .labelsHidden()
                 .accessibilityLabel(set ? "Waist, \(Int(waistCm.wrappedValue.rounded())) centimetres" : "Waist not set")
         }
+        .fixedSize()
     }
 
     /// Imperial waist entry: 0 = unset (muted "Not set"); otherwise shows whole inches and stores the cm
@@ -685,18 +690,20 @@ struct SettingsView: View {
     private func waistInchesField(waistCm: Binding<Double>) -> some View {
         let set = waistCm.wrappedValue > 0
         let inches = set ? UnitFormatter.cmToInches(waistCm.wrappedValue).rounded() : 0
-        return HStack(spacing: 10) {
+        return HStack(spacing: NoopMetrics.space2) {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(set ? "\(Int(inches))" : "Not set")
                     .font(StrandFont.bodyNumber)
                     .foregroundStyle(set ? StrandPalette.textPrimary : StrandPalette.textTertiary)
-                    .frame(minWidth: 48, alignment: .trailing)
+                    .frame(minWidth: 48, alignment: .center)
                 if set {
                     Text("in")
                         .font(StrandFont.caption)
                         .foregroundStyle(StrandPalette.textTertiary)
+                        .fixedSize()
                 }
             }
+            .fixedSize()
             Stepper("Waist in inches") {
                 let nextIn = (set ? inches : 30) + 1
                 waistCm.wrappedValue = min(160, nextIn * UnitFormatter.centimetersPerInch)
@@ -708,22 +715,31 @@ struct SettingsView: View {
                 .labelsHidden()
                 .accessibilityLabel(set ? "Waist, \(Int(inches)) inches" : "Waist not set")
         }
+        .fixedSize()
     }
 
     /// HR-max override: 0 = auto. Shown as a compact tabular value with a stepper.
     private var hrMaxField: some View {
-        HStack(spacing: 10) {
-            Text(profile.hrMaxOverride > 0 ? "\(profile.hrMaxOverride)" : "Auto")
-                .font(StrandFont.bodyNumber)
-                .foregroundStyle(profile.hrMaxOverride > 0
-                                 ? StrandPalette.textPrimary
-                                 : StrandPalette.textTertiary)
-                .frame(minWidth: 44, alignment: .trailing)
+        HStack(spacing: NoopMetrics.space2) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(profile.hrMaxOverride > 0 ? "\(profile.hrMaxOverride)" : "Auto")
+                    .font(StrandFont.bodyNumber)
+                    .foregroundStyle(profile.hrMaxOverride > 0
+                                     ? StrandPalette.textPrimary
+                                     : StrandPalette.textTertiary)
+                    .frame(width: 44, alignment: .center)
+                Text("bpm")
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .fixedSize()
+            }
+            .fixedSize()
             Stepper("Max heart rate override",
                     value: $profile.hrMaxOverride, in: 0...230, step: 1)
                 .labelsHidden()
                 .accessibilityLabel("Max heart rate override, \(profile.hrMaxOverride == 0 ? "automatic" : "\(profile.hrMaxOverride) bpm")")
         }
+        .fixedSize()
     }
 
     // MARK: - Units
@@ -3389,6 +3405,7 @@ private struct FormRow<Control: View>: View {
                 .foregroundStyle(StrandPalette.textPrimary)
                 .frame(maxWidth: .infinity, alignment: .leading)
             control()
+                .layoutPriority(1)
         }
         .frame(minHeight: 32)
     }
