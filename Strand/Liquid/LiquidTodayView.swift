@@ -301,7 +301,7 @@ struct LiquidTodayView: View {
                     dataSourcesSection
                     Color.clear.frame(height: 90) // floating tab-bar clearance
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, NoopMetrics.screenHPadding)
                 .padding(.top, 30) // sit the title lower into the sky, not jammed under the status bar
             }
             #if os(macOS)
