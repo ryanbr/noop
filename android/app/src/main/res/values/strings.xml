@@ -102,6 +102,13 @@
          hardcoded English throughout. Direct Compose copy and data-driven MetricSpec/TimelineMetric
          labels now live in resources; German wording follows the Apple catalogs where available. -->
     <string name="trends_subtitle">The thread of you over time.</string>
+    <string name="trends_trailing">Trailing</string>
+    <string name="trends_trailing_days">Trailing %1$d days</string>
+    <string name="trends_all_history">All history</string>
+    <plurals name="trends_n_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
     <string name="trends_charge">Charge</string>
     <string name="trends_effort">Effort</string>
     <string name="trends_rest">Rest</string>

@@ -1596,6 +1596,13 @@
     <string name="terms_checkbox">He leído y acepto estos términos, y uso NOOP con mi propio dispositivo y mis propios datos, bajo mi propio riesgo.</string>
     <string name="terms_accept">Aceptar y continuar</string>
     <string name="trends_subtitle">El hilo de ti a lo largo del tiempo.</string>
+    <string name="trends_trailing">Últimos</string>
+    <string name="trends_trailing_days">Últimos %1$d días</string>
+    <string name="trends_all_history">Todo el historial</string>
+    <plurals name="trends_n_days">
+        <item quantity="one">%1$d día</item>
+        <item quantity="other">%1$d días</item>
+    </plurals>
     <string name="trends_charge">Carga</string>
     <string name="trends_effort">Esfuerzo</string>
     <string name="trends_rest">Descanso</string>

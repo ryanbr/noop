@@ -80,6 +80,12 @@
     <string name="terms_checkbox">我已阅读并接受上述条款，我正在使用我个人的设备和数据，风险由我自己承担。</string>
     <string name="terms_accept">接受并继续</string>
     <string name="trends_subtitle">时间长河中，你身体的轨迹。</string>
+    <string name="trends_trailing">近</string>
+    <string name="trends_trailing_days">近 %1$d 天</string>
+    <string name="trends_all_history">全部历史</string>
+    <plurals name="trends_n_days">
+        <item quantity="other">%1$d 天</item>
+    </plurals>
     <string name="trends_charge">充能</string>
     <string name="trends_effort">负荷</string>
     <string name="trends_rest">恢复</string>

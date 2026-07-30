@@ -38,6 +38,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -146,6 +147,9 @@ fun TrendsScreen(vm: AppViewModel) {
         resolveMetric(days, range) { d -> sleepPerfByDay[d.day] }
     }
     val recAvg = recovery.values.averageOrNull()
+    val rangeSubtitle = range.days?.let { dayCount ->
+        stringResource(R.string.trends_trailing_days, dayCount)
+    } ?: stringResource(R.string.trends_all_history)
 
     LazyScreenScaffold(
         title = stringResource(R.string.nav_trends),
@@ -210,7 +214,7 @@ fun TrendsScreen(vm: AppViewModel) {
                         onSelect = { range = it },
                     )
                     Spacer(Modifier.weight(1f))
-                    Overline(range.subtitle, color = Palette.textTertiary)
+                    TrendsRangeCaption(range = range, fullSubtitle = rangeSubtitle)
                 }
                 Text(
                     recovery.caption,
@@ -228,7 +232,7 @@ fun TrendsScreen(vm: AppViewModel) {
                 title = stringResource(R.string.trends_charge),
                 // The range bar above already prints the authoritative reading-count caption;
                 // the hero only names its window so the count isn't doubled in one card height.
-                subtitle = range.subtitle,
+                subtitle = rangeSubtitle,
                 trailing = recAvg?.let { "${it.roundToInt()}" },
                 // LIQUID hero: the translucent-black frosted wrapper + a small count-up Charge vessel accent
                 // in the header (the screen's one headline single value — the window-average Charge). The
@@ -521,12 +525,32 @@ private enum class TrendsRange(val days: Int?, val label: String, val longName: 
     Year(365, "1Y", "year"),
     All(null, "ALL", "all history");
 
-    /** "Trailing 90 days" / "All history" , the card/range subtitle. */
-    val subtitle: String get() = days?.let { "Trailing $it days" } ?: "All history"
-
     /** This range plus every LARGER range, ascending , the auto-expand search order. */
     val widening: List<TrendsRange>
         get() = entries.dropWhile { it != this }
+}
+
+@Composable
+private fun TrendsRangeCaption(range: TrendsRange, fullSubtitle: String) {
+    val days = range.days
+    if (days == null) {
+        Overline(fullSubtitle, color = Palette.textTertiary)
+    } else {
+        // Keep both lines leading-aligned while the row's weighted spacer pins this
+        // intrinsic-width column to the shared trailing content edge.
+        Column(
+            modifier = Modifier.clearAndSetSemantics {
+                contentDescription = fullSubtitle
+            },
+            horizontalAlignment = Alignment.Start,
+        ) {
+            Overline(stringResource(R.string.trends_trailing), color = Palette.textTertiary)
+            Overline(
+                pluralStringResource(R.plurals.trends_n_days, days, days),
+                color = Palette.textTertiary,
+            )
+        }
+    }
 }
 
 // MARK: - Resolved metric (mirrors TrendsView.ResolvedMetric / resolve)

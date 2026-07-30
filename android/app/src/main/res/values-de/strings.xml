@@ -93,6 +93,13 @@
     <!-- Trends / Explore / Deep Timeline , see the English values/strings.xml comment for scope.
          Wording matches the existing iOS/macOS German catalog entries where one exists. -->
     <string name="trends_subtitle">Der rote Faden deiner Zeit.</string>
+    <string name="trends_trailing">Letzte</string>
+    <string name="trends_trailing_days">Letzte %1$d Tage</string>
+    <string name="trends_all_history">Gesamter Verlauf</string>
+    <plurals name="trends_n_days">
+        <item quantity="one">%1$d Tag</item>
+        <item quantity="other">%1$d Tage</item>
+    </plurals>
     <string name="trends_charge">Ladung</string>
     <string name="trends_effort">Anstrengung</string>
     <string name="trends_rest">Ruhe</string>
