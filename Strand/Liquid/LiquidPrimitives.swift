@@ -133,7 +133,11 @@ enum LiquidRender {
         let outline = Path(roundedRect: CGRect(x: 0.5, y: 0.5, width: w - 1, height: h - 1), cornerRadius: r)
         var ctx = base
         ctx.fill(outline, with: .color(NoopVisualStyle.inset))
-        ctx.stroke(outline, with: .color(NoopVisualStyle.border.opacity(0.72)), lineWidth: 1)
+        ctx.stroke(
+            outline,
+            with: .color(NoopVisualStyle.border.opacity(0.72)),
+            lineWidth: NoopMetrics.hairlineWidth
+        )
 
         var clip = ctx
         clip.clip(to: outline)

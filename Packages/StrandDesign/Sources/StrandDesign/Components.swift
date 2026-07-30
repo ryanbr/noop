@@ -29,6 +29,8 @@ public enum NoopMetrics {
     // inset and margin lines up to the same grid. Note `cardPadding` (16) above is
     // the same value as `space4` — kept as a named alias for the existing call sites.
     public static let space1:  CGFloat = 4
+    /// Optical separation for paired labels; structural layout still follows the 4-point ramp.
+    public static let spaceHalf: CGFloat = 2
     public static let space2:  CGFloat = 8
     public static let space3:  CGFloat = 12
     public static let space4:  CGFloat = 16
@@ -50,6 +52,17 @@ public enum NoopMetrics {
     public static let rowSpacing: CGFloat = 10
     /// Standard interactive-control height (buttons, fields, segmented controls).
     public static let controlHeight: CGFloat = 48
+    /// Standard one-pixel edge used by cards and compact controls.
+    public static let hairlineWidth: CGFloat = 1
+    /// Profile form dimensions shared by avatar and numeric controls.
+    public static let profileAvatarDiameter: CGFloat = 44
+    public static let formValueColumnWidth: CGFloat = 48
+    public static let formWideValueColumnWidth: CGFloat = 64
+    /// Compact metadata and explanatory-footer heights.
+    public static let compactMetadataMinHeight: CGFloat = 24
+    public static let compactHintMinHeight: CGFloat = 18
+    /// Canonical thickness for compact horizontal indicator tracks.
+    public static let indicatorTrackHeight: CGFloat = 8
     /// Fully-rounded corner radius — pills, chips, capsule buttons.
     public static let pillRadius: CGFloat = NoopVisualStyle.pillRadius
     /// Minimum desktop size for a navigation-based customization sheet.

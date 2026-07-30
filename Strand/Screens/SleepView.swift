@@ -793,7 +793,7 @@ struct SleepView: View {
                                    intervals: [SleepInterval], night: Night) -> some View {
         NoopCard(tint: StrandPalette.restColor) {
             VStack(alignment: .leading, spacing: NoopMetrics.space3) {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: NoopMetrics.spaceHalf) {
                     Text("Stage breakdown").strandOverline()
                     Text(subtitle)
                         .font(StrandFont.footnote)
@@ -980,7 +980,7 @@ struct SleepView: View {
                     // This is a compact metadata footer inside an already surfaced card. A forced
                     // 44-point label made the WHOOP / Why row look vertically padded despite having
                     // only one line of content.
-                    .frame(minHeight: 24)
+                    .frame(minHeight: NoopMetrics.compactMetadataMinHeight)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(LiquidPressStyle())
@@ -1233,7 +1233,7 @@ struct SleepView: View {
             // range; otherwise a quiet hint that the rows are tappable. It grows only when a
             // selected-stage comparison needs a second line, avoiding a permanent empty footer.
             stageInsight(s)
-                .frame(minHeight: 18, alignment: .topLeading)
+                .frame(minHeight: NoopMetrics.compactHintMinHeight, alignment: .topLeading)
                 .padding(.horizontal, 2)
         }
     }
@@ -1903,7 +1903,7 @@ struct SleepView: View {
             let sign = $0 >= 0 ? "+" : "−"
             return "\(sign)\(String(format: "%.1f h", abs($0)))"
         }
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: NoopMetrics.spaceHalf) {
             Text("Trend")
                 .textCase(.uppercase)
                 .font(StrandFont.footnote)

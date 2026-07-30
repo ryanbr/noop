@@ -185,7 +185,7 @@ struct WeeklyDigestContent: View {
             NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius,
                              elevated: true)
             HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: NoopMetrics.spaceHalf) {
                     Text("Week in review").strandOverline()
                     Text(weekRangeLabel)
                         .font(StrandFont.title2)

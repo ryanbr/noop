@@ -195,7 +195,7 @@ struct TrendsView: View {
                 guard let better = higherIsBetter else { return StrandPalette.textTertiary }
                 return (d > 0) == better ? StrandPalette.statusPositive : StrandPalette.metricRose
             }()
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: NoopMetrics.spaceHalf) {
                 // Match the neighbouring ChartFooter columns so the delta is self-describing instead
                 // of appearing as an unlabeled pill at the edge of the statistics row.
                 Text("Trend")
@@ -221,7 +221,7 @@ struct TrendsView: View {
     @ViewBuilder
     private var rangeCaption: some View {
         if let days = range.days {
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: .zero) {
                 Text("Trailing")
                     .strandOverline()
                     .lineLimit(1)
@@ -773,7 +773,7 @@ struct TrendsView: View {
                 .fixedSize()
             LinearGradient(gradient: StrandPalette.recoveryGradient, startPoint: .leading, endPoint: .trailing)
                 .frame(maxWidth: .infinity)
-                .frame(height: 8)
+                .frame(height: NoopMetrics.indicatorTrackHeight)
                 .clipShape(Capsule())
                 .accessibilityHidden(true)
             Text("Peaked")

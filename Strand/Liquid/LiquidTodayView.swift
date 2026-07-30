@@ -517,7 +517,10 @@ struct LiquidTodayView: View {
                     .foregroundStyle(StrandPalette.textSecondary)
                     .padding(.horizontal, 8).padding(.vertical, 2.5)
                     .background(Capsule().fill(StrandPalette.surfaceInset.opacity(0.72))
-                        .overlay(Capsule().strokeBorder(StrandPalette.hairline, lineWidth: 1)))
+                        .overlay(Capsule().strokeBorder(
+                            StrandPalette.hairline,
+                            lineWidth: NoopMetrics.hairlineWidth
+                        )))
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(StrandPalette.textTertiary)
