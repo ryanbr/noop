@@ -190,11 +190,22 @@ struct TrendsView: View {
     private func changeChip(_ pts: [TrendPoint], higherIsBetter: Bool?, fmt: @escaping (Double) -> String) -> some View {
         if let d = periodChange(pts), abs(d) > 0.0001 {
             let sign = d >= 0 ? "+" : "−"
+            let deltaText = "\(sign)\(fmt(abs(d)))"
             let color: Color = {
                 guard let better = higherIsBetter else { return StrandPalette.textTertiary }
                 return (d > 0) == better ? StrandPalette.statusPositive : StrandPalette.metricRose
             }()
-            TrendChip(text: "\(sign)\(fmt(abs(d)))", color: color)
+            VStack(alignment: .leading, spacing: 2) {
+                // Match the neighbouring ChartFooter columns so the delta is self-describing instead
+                // of appearing as an unlabeled pill at the edge of the statistics row.
+                Text("Trend")
+                    .textCase(.uppercase)
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                TrendChip(text: deltaText, color: color)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(verbatim: "\(String(localized: "Trend")): \(deltaText)"))
         }
     }
 
