@@ -522,12 +522,28 @@ struct TrendsView: View {
         let cap = recovery.caption
         let isWide = recovery.widened
         return VStack(alignment: .leading, spacing: NoopMetrics.space2) {
-            HStack {
-                SegmentedPillControl(
-                    Range.allCases,
-                    selection: $range,
-                    fillsAvailableWidth: true
-                ) { $0.label }
+            HStack(spacing: NoopMetrics.space2) {
+                // Six ranges plus the trailing-window caption need to share a compact iPhone row.
+                // Let the segmented control collapse to equal-width cells instead of squeezing the
+                // caption narrower than one word (which wrapped the final G in TRAILING by itself).
+                SegmentedPillControl(Range.allCases, selection: $range,
+                                     adaptsToAvailableWidth: true) { $0.label }
+                Spacer(minLength: 0)
+                if range.days == nil {
+                    Text(rangeSubtitle)
+                        .strandOverline()
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                } else {
+                    // A deliberate two-line column: TRAILING / 90 DAYS. Reserving a word-wide
+                    // column keeps 7, 30 and 90 from producing character-by-character wraps.
+                    Text(rangeSubtitle)
+                        .strandOverline()
+                        .lineLimit(2)
+                        .multilineTextAlignment(.trailing)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(width: 86, alignment: .trailing)
+                }
             }
             Text(cap)
                 .font(StrandFont.footnote)
