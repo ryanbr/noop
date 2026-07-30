@@ -47,7 +47,17 @@ GLOBS = ("android/**/*.kt", "Strand/**/*.swift", "Packages/**/*.swift", "NOOPWat
 # after it is conventional and correct, so it must not be reported.
 FILE_LEVEL_PREFIXES = ("package ", "import ", "@file:")
 
-SKIP_PARTS = ("/build/", "/.build/", "/DerivedData/")
+# Build output, plus CODE GENERATOR output. `/Generated/` is the same kind of exclusion as the three
+# build directories, not a baseline raise: this lint exists to catch a HAND-EDITING failure mode —
+# "editing by INSERTION rather than in place" — and a generator never edits, it re-emits. The one
+# directory this currently matches, Strand/CloudSync/Generated/, is `rm -rf`'d and rewritten by
+# `Rust/build-ios.sh` on every build; its header reads "Do not edit by hand" and it already carries
+# `// swiftlint:disable all`, so a fix applied there is deleted by the next regeneration and the
+# finding returns. Two of uniffi's emissions defeat a fix outright: it puts a blank line between a
+# `/** */` block and the `public enum` it documents (4 sites), and it inlines a parameter's doc INSIDE
+# the argument list (`public init(/** … */restored: Bool, …)`), which this file's scanner mis-walks —
+# that block is correctly bound to its parameter, so there is nothing there to repair.
+SKIP_PARTS = ("/build/", "/.build/", "/DerivedData/", "/Generated/")
 
 
 def _is_doc_open(line: str) -> bool:
