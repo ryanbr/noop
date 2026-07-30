@@ -296,14 +296,13 @@ struct SettingsView: View {
                        topBackground: liquidScaffoldSky()) {
             VStack(alignment: .leading, spacing: NoopMetrics.sectionSpacing) {
                 // Everyday sections stay expanded (S3): the ones a first-run user actually needs.
-                profilePhotoCard.staggeredAppear(index: 0)
-                profileCard.staggeredAppear(index: 1)
-                unitsCard.staggeredAppear(index: 2)
-                appearanceCard.staggeredAppear(index: 3)
-                strapCard.staggeredAppear(index: 4)
-                powerSavingCard.staggeredAppear(index: 5)
-                streakCard.staggeredAppear(index: 6)
-                featuresCard.staggeredAppear(index: 7)
+                profileCard.staggeredAppear(index: 0)
+                unitsCard.staggeredAppear(index: 1)
+                appearanceCard.staggeredAppear(index: 2)
+                strapCard.staggeredAppear(index: 3)
+                powerSavingCard.staggeredAppear(index: 4)
+                streakCard.staggeredAppear(index: 5)
+                featuresCard.staggeredAppear(index: 6)
 
                 // Lower-frequency sections collapse behind a single default-closed disclosure so the
                 // screen opens at ~6 sections instead of 11. Nothing is removed; every section here
@@ -379,56 +378,6 @@ struct SettingsView: View {
         #endif
     }
 
-    // MARK: - Profile photo (optional, on-device)
-
-    /// Set / change / remove an optional profile picture. PhotosUI's `PhotosPicker` works on both
-    /// iOS 16+ and macOS 13+ (NOOP's floor), so the same control serves both platforms — no
-    /// availability gating needed. The photo is stored only on this device (NOOP is fully offline).
-    private var profilePhotoCard: some View {
-        // #153: resolve the whole blurb through `String(localized:)` first, then hand SwiftUI the plain
-        // String via `LocalizedStringKey(_:)`. Interpolating `Platform.deviceNounPhrase` (itself an
-        // already-resolved localized String) straight into the `blurb:` `LocalizedStringKey` literal
-        // confused SwiftUI's text-measurement pass — the blurb rendered with zero trailing margin and
-        // clipped to the card edge instead of wrapping inside the card padding. The localization key is
-        // unchanged (`…Stored only on %@…`), so the existing translations still apply.
-        let blurbText = String(localized: "Optional. Add a photo for the avatar in the top-left. Stored only on \(Platform.deviceNounPhrase). NOOP is offline, so it's never uploaded.")
-        return SettingsSection(
-            icon: "person.crop.circle",
-            title: "Profile photo",
-            blurb: LocalizedStringKey(blurbText)
-        ) {
-            HStack(spacing: 16) {
-                ProfileAvatarView(imageData: profile.avatarImageData, size: 64)
-                    .accessibilityLabel(profile.hasAvatar ? "Your profile photo" : "No profile photo set")
-
-                VStack(alignment: .leading, spacing: NoopMetrics.space2) {
-                    PhotosPicker(selection: $avatarPickerItem, matching: .images) {
-                        Text(profile.hasAvatar ? "Change photo" : "Choose photo")
-                    }
-                    .buttonStyle(NoopButtonStyle(.secondary, fullWidth: true))
-
-                    if profile.hasAvatar {
-                        Button("Remove photo") { profile.clearAvatar() }
-                            .buttonStyle(NoopButtonStyle(.tertiary, fullWidth: true))
-                            .accessibilityHint("Reverts to the default profile icon")
-                    }
-                }
-            }
-        }
-        // Load the picked photo's bytes, then hand them to the store (which downscales + persists).
-        // Clearing the selection afterwards lets the user re-pick the same photo if they want.
-        .onChange(of: avatarPickerItem) { newItem in
-            guard let newItem else { return }
-            Task {
-                let data = try? await newItem.loadTransferable(type: Data.self)
-                await MainActor.run {
-                    if let data { profile.setAvatar(data) }
-                    avatarPickerItem = nil
-                }
-            }
-        }
-    }
-
     // MARK: - Profile
 
     private var profileCard: some View {
@@ -438,6 +387,8 @@ struct SettingsView: View {
             blurb: "These power your heart-rate zones, calorie estimates and recovery baselines. Keep them accurate."
         ) {
             VStack(spacing: 0) {
+                profilePhotoRow
+                rowDivider
                 FormRow(label: "Date of birth") {
                     HStack(spacing: 12) {
                         Text("\(profile.age)")
@@ -578,6 +529,51 @@ struct SettingsView: View {
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// Compact profile-photo control kept inside the Profile card so the optional avatar does not
+    /// consume a second top-level settings section. PhotosUI works on both supported platforms.
+    private var profilePhotoRow: some View {
+        let hasAvatar = profile.hasAvatar
+        return VStack(alignment: .leading, spacing: NoopMetrics.space2) {
+            HStack(spacing: NoopMetrics.space3) {
+                ProfileAvatarView(imageData: profile.avatarImageData, size: 44)
+                    .accessibilityLabel(hasAvatar ? "Your profile photo" : "No profile photo set")
+
+                PhotosPicker(selection: $avatarPickerItem, matching: .images) {
+                    Text(hasAvatar ? "Change photo" : "Choose photo")
+                }
+                .buttonStyle(NoopButtonStyle(.secondary, fullWidth: true))
+
+                if hasAvatar {
+                    Button {
+                        profile.clearAvatar()
+                    } label: {
+                        Image(systemName: "trash")
+                    }
+                    .buttonStyle(NoopButtonStyle(.tertiary))
+                    .accessibilityLabel("Remove photo")
+                    .accessibilityHint("Reverts to the default profile icon")
+                }
+            }
+
+            Text("Optional. Add a photo for your avatar. It stays on \(Platform.deviceNounPhrase) and is never uploaded.")
+                .font(StrandFont.footnote)
+                .foregroundStyle(StrandPalette.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        // Load the picked photo's bytes, then hand them to the store (which downscales + persists).
+        // Clearing the selection afterwards lets the user re-pick the same photo if they want.
+        .onChange(of: avatarPickerItem) { newItem in
+            guard let newItem else { return }
+            Task {
+                let data = try? await newItem.loadTransferable(type: Data.self)
+                await MainActor.run {
+                    if let data { profile.setAvatar(data) }
+                    avatarPickerItem = nil
+                }
             }
         }
     }
