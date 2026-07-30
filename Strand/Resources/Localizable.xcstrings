@@ -38693,6 +38693,58 @@
         }
       }
     },
+    "Charge scale, depleted to peaked": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ladeskala, von erschöpft bis zum Höchststand"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escala de carga, de agotado a su punto máximo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Échelle de charge, du niveau épuisé au sommet"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scala della carica, da esaurito al picco"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escala de carga, de esgotado até ao máximo"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Шкала заряда: от истощения до пика"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "能量刻度，从已耗尽到已达峰值"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "能量刻度，從已耗盡到已達峰值"
+          }
+        }
+      }
+    },
     "Charge trend": {
       "localizations": {
         "de": {
@@ -102748,6 +102800,58 @@
           "stringUnit": {
             "state": "translated",
             "value": "可選。為左上角的頭像新增一張照片。僅儲存在 %@ 上，NOOP 是離線的，因此絕不會上傳。"
+          }
+        }
+      }
+    },
+    "Optional. Add a photo for your avatar. It stays on %@ and is never uploaded.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Optional. Füge ein Foto für deinen Avatar hinzu. Es bleibt auf %@ und wird nie hochgeladen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opcional. Añade una foto para tu avatar. Permanece en %@ y nunca se sube."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Facultatif. Ajoutez une photo pour votre avatar. Elle reste sur %@ et n’est jamais mise en ligne."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Facoltativo. Aggiungi una foto per il tuo avatar. Rimane su %@ e non viene mai caricata."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opcional. Adiciona uma fotografia para o teu avatar. Fica em %@ e nunca é carregada."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Необязательно. Добавьте фото для аватара. Оно останется на %@ и никогда не будет загружено."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可选。为头像添加照片。照片仅保留在 %@ 上，绝不会上传。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可選。為頭像新增照片。照片只會保留在 %@ 上，絕不會上傳。"
           }
         }
       }
