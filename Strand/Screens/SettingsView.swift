@@ -975,7 +975,7 @@ struct SettingsView: View {
                 }
                 #endif
 
-                Divider().overlay(StrandPalette.hairline).padding(.vertical, 4)
+                rowDivider
                 // MARK: Reduce motion in NOOP — pose every looping animation still and stop the tilt
                 // sensor, WITHOUT requiring system Low Power Mode. Off by default; system Reduce Motion
                 // and Low Power Mode already force the same behaviour, this is the third, in-app signal.
@@ -992,6 +992,7 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
+                rowDivider
                 // MARK: Day-cycle background — the time-of-day scene behind Today (#698). On by default.
                 // Off swaps it for the plain dark canvas for people who find the moving scene distracting.
                 Toggle(isOn: $showDayCycleBackground) {
@@ -1109,7 +1110,7 @@ struct SettingsView: View {
                     .disabled(!live.connected && !live.bonded)
                 }
 
-                Divider().overlay(StrandPalette.hairline)
+                rowDivider
                 // MARK: Strap log — a Settings shortcut so people don't have to hunt for it on the Live
                 // screen (#507: couldn't find it on Mac; #509: same on iPhone). Same text as the Live card.
                 HStack(spacing: 12) {
@@ -1132,7 +1133,7 @@ struct SettingsView: View {
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Divider().overlay(StrandPalette.hairline)
+                rowDivider
 
                 // MARK: Continuous HRV capture — keep the dense beat-to-beat (R-R) stream armed 24/7.
                 Toggle(isOn: $continuousHrvEnabled) {
@@ -1203,12 +1204,12 @@ struct SettingsView: View {
 
                 // MARK: Strap name — rename the WHOOP 4.0's BLE advertising name (Harvard command set).
                 if live.connected && selectedWhoopModelRaw == WhoopModel.whoop4.rawValue {
-                    Divider().overlay(StrandPalette.hairline)
+                    rowDivider
                     strapNameControl
                 }
 
                 #if os(iOS)
-                Divider().overlay(StrandPalette.hairline)
+                rowDivider
                 // MARK: Live Activity — show live HR on the Lock Screen + Dynamic Island (#336).
                 Toggle(isOn: $liveActivityEnabled) {
                     Text("Live heart rate in Dynamic Island")
@@ -1248,7 +1249,7 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 if powerSavingEnabled {
-                    Divider().overlay(StrandPalette.hairline)
+                    rowDivider
                     HStack {
                         Text("Kick in at (strap battery)")
                             .font(StrandFont.subhead)
@@ -1265,7 +1266,7 @@ struct SettingsView: View {
                     )
                     .tint(StrandPalette.accent)
 
-                    Divider().overlay(StrandPalette.hairline)
+                    rowDivider
                     // HRV pause: a sub-option, ON by default when the master is on (stored inverted).
                     Toggle(isOn: Binding(get: { !pauseHrvDisabled }, set: { pauseHrvDisabled = !$0 })) {
                         Text("Pause HRV capture")
@@ -1443,7 +1444,7 @@ struct SettingsView: View {
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Divider().overlay(StrandPalette.hairline)
+                rowDivider
 
                 Toggle(isOn: $autoDetectWorkoutsEnabled) {
                     Text("Auto-detect workouts")
@@ -1459,7 +1460,7 @@ struct SettingsView: View {
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Divider().overlay(StrandPalette.hairline)
+                rowDivider
 
                 Toggle(isOn: $journalReminderEnabled) {
                     Text("Journal reminder")
@@ -1475,7 +1476,7 @@ struct SettingsView: View {
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Divider().overlay(StrandPalette.hairline)
+                rowDivider
 
                 Toggle(isOn: $workoutKeepScreenOn) {
                     Text("Keep screen on during a workout")
@@ -1583,7 +1584,7 @@ struct SettingsView: View {
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Divider().overlay(StrandPalette.hairline)
+                rowDivider
 
                 // MARK: Motion-aware wake refinement (#364 follow-up) — default OFF.
                 Toggle(isOn: $motionAwareWakeEnabled) {
@@ -1675,7 +1676,7 @@ struct SettingsView: View {
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Divider().overlay(StrandPalette.hairline)
+                rowDivider
 
                 // MARK: R22 deep-data unlock — the one probe that writes to the strap.
                 Toggle(isOn: $deepDataEnabled) {
@@ -1768,7 +1769,7 @@ struct SettingsView: View {
                     }
                 }
 
-                Divider().overlay(StrandPalette.hairline)
+                rowDivider
 
                 // MARK: Broadcast HR — make the strap a standard BLE HR sensor (Garmin/Zwift/gym).
                 Toggle(isOn: $broadcastHrEnabled) {
@@ -1922,7 +1923,7 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 if puffinCapture {
-                    Divider().overlay(StrandPalette.hairline)
+                    rowDivider
                     Text("Optical block experiment")
                         .font(StrandFont.subhead)
                         .foregroundStyle(StrandPalette.textPrimary)
