@@ -1869,15 +1869,56 @@ struct SleepView: View {
                     }
                 },
                 footer: {
-                    ChartFooter([
-                        ("Avg",    avg.map { String(format: "%.1f h", $0) } ?? "—"),
-                        ("Min",    pts.map(\.value).min().map { String(format: "%.1f h", $0) } ?? "—"),
-                        ("Max",    pts.map(\.value).max().map { String(format: "%.1f h", $0) } ?? "—"),
-                        ("Nights", "\(pts.count)"),
-                    ])
+                    HStack {
+                        ChartFooter([
+                            ("Avg",    avg.map { String(format: "%.1f h", $0) } ?? "—"),
+                            ("Min",    pts.map(\.value).min().map { String(format: "%.1f h", $0) } ?? "—"),
+                            ("Max",    pts.map(\.value).max().map { String(format: "%.1f h", $0) } ?? "—"),
+                            ("Nights", "\(pts.count)"),
+                        ])
+                        durationTrendStat(pts)
+                    }
                 }
             )
         }
+    }
+
+    /// Recent-half mean minus earlier-half mean, matching the Trends screen's directional comparison.
+    /// Direction is neutral here: more sleep is not automatically better, so the chip conveys movement
+    /// without assigning a positive/warning colour.
+    private func durationTrendChange(_ points: [TrendPoint]) -> Double? {
+        guard points.count >= 4 else { return nil }
+        let midpoint = points.count / 2
+        let earlier = points.prefix(midpoint).map(\.value)
+        let recent = points.suffix(points.count - midpoint).map(\.value)
+        guard !earlier.isEmpty, !recent.isEmpty else { return nil }
+        return recent.reduce(0, +) / Double(recent.count)
+            - earlier.reduce(0, +) / Double(earlier.count)
+    }
+
+    @ViewBuilder
+    private func durationTrendStat(_ points: [TrendPoint]) -> some View {
+        let delta = durationTrendChange(points)
+        let deltaText = delta.map {
+            let sign = $0 >= 0 ? "+" : "−"
+            return "\(sign)\(String(format: "%.1f h", abs($0)))"
+        }
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Trend")
+                .textCase(.uppercase)
+                .font(StrandFont.footnote)
+                .foregroundStyle(StrandPalette.textTertiary)
+            if let deltaText {
+                TrendChip(text: deltaText, color: StrandPalette.textTertiary)
+            } else {
+                Text("—")
+                    .font(StrandFont.captionNumber)
+                    .foregroundStyle(StrandPalette.textSecondary)
+            }
+        }
+        .fixedSize(horizontal: true, vertical: false)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: "\(String(localized: "Trend")): \(deltaText ?? "—")"))
     }
 
     // MARK: - Memoization plumbing
