@@ -1029,7 +1029,12 @@ public final class BLEManager: NSObject, ObservableObject {
            !activeId.isEmpty {
             self.deviceId = activeId
         }
-        try? await store.upsertDevice(id: deviceId, mac: nil, name: "WHOOP 4.0")
+        // Look up the active device's real brand/model instead of a hardcoded string — this predated
+        // multi-device support and mislabeled every non-"WHOOP 4.0" device (a WHOOP 5.0/MG strap, an Oura
+        // ring, …) with the same literal "WHOOP 4.0". `device.name` has no production reader today (only
+        // the `deviceRowForTest` helper), so this is dormant, but still wrong data on disk.
+        let registeredName = (try? registry.all())?.first(where: { $0.id == deviceId })?.displayName
+        try? await store.upsertDevice(id: deviceId, mac: nil, name: registeredName)
         // Research toggle — OFF by default. When disabled the app is decoded-only and never
         // persists raw frames. Flip "enableRawCapture" in UserDefaults to capture raw again.
         let enableRawCapture = UserDefaults.standard.bool(forKey: "enableRawCapture")
