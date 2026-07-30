@@ -528,7 +528,6 @@ struct TrendsView: View {
                 // caption narrower than one word (which wrapped the final G in TRAILING by itself).
                 SegmentedPillControl(Range.allCases, selection: $range,
                                      adaptsToAvailableWidth: true) { $0.label }
-                Spacer(minLength: 0)
                 if range.days == nil {
                     Text(rangeSubtitle)
                         .strandOverline()
@@ -540,9 +539,9 @@ struct TrendsView: View {
                     Text(rangeSubtitle)
                         .strandOverline()
                         .lineLimit(2)
-                        .multilineTextAlignment(.trailing)
+                        .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
-                        .frame(width: 86, alignment: .trailing)
+                        .frame(width: 76, alignment: .leading)
                 }
             }
             Text(cap)
