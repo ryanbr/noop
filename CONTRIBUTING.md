@@ -80,7 +80,10 @@ generated output (`Strand.xcodeproj/`) or any secrets, keystores, or `local.prop
 2. Fill in the [PR template](.github/PULL_REQUEST_TEMPLATE.md).
 3. For anything on the BLE path, state what you tested **on real hardware** and on
    which strap. A green build is not proof a command behaves correctly.
-4. For analytics changes, add a test and cite the method.
+4. For analytics changes, add a test and cite the method. If the change alters a
+   scoring output, follow [`docs/VALIDATION_PROTOCOL.md`](docs/VALIDATION_PROTOCOL.md)
+   and paste its checklist into the PR — a scoring change with no held-out number
+   may ship behind a flag, but may not be described as an improvement.
 5. For UI changes, use `StrandDesign` tokens only — no hardcoded colors, fonts,
    or spacing.
 

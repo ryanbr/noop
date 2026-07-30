@@ -557,6 +557,11 @@ Schema lives in `Packages/WhoopStore/Sources/WhoopStore/Database.swift` as a **v
   commits/PRs where practical.
 - **Show your verification.** For anything on the BLE path, state what you tested on real hardware.
   For analytics, cite the method and add a test. For UI, confirm it uses only `StrandDesign` tokens.
+- **Scoring changes follow the validation protocol.** Any change to a scored output — sleep stages,
+  recovery, strain, HRV — is governed by [`VALIDATION_PROTOCOL.md`](VALIDATION_PROTOCOL.md): the
+  prediction is pre-registered before measuring, the self-comparison audit gates the reference set,
+  every number ships with the command that regenerates it, and the headline figure comes from a
+  temporal held-out window. Paste its checklist into the PR.
 - **Anonymous, project-voice.** Documentation and comments are written in a neutral, third-person
   project voice. Keep upstream credits (`my-whoop`, `goose`, `GRDB.swift`, `ZIPFoundation`) intact.
 - **No proprietary material.** Don't add WHOOP firmware, decompiled app code, logos, or assets, and
