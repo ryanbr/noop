@@ -727,13 +727,23 @@ struct TrendsView: View {
 
     private var legend: some View {
         HStack(spacing: NoopMetrics.space2) {
-            Text("Depleted").font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+            Text("Depleted")
+                .font(StrandFont.footnote)
+                .foregroundStyle(StrandPalette.textTertiary)
+                .fixedSize()
             LinearGradient(gradient: StrandPalette.recoveryGradient, startPoint: .leading, endPoint: .trailing)
-                .frame(width: 120, height: 8)
+                .frame(maxWidth: .infinity)
+                .frame(height: 8)
                 .clipShape(Capsule())
-            Text("Peaked").font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
-            Spacer()
+                .accessibilityHidden(true)
+            Text("Peaked")
+                .font(StrandFont.footnote)
+                .foregroundStyle(StrandPalette.textTertiary)
+                .fixedSize()
         }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Charge scale, depleted to peaked")
     }
 
     // MARK: Shared bits
