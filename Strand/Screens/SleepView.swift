@@ -735,13 +735,7 @@ struct SleepView: View {
                 // stage; the others grey out. Replaces the 4-level hypnogram, whose staircase turned
                 // fragmented on-device staging into an unreadable comb. No separate footer — the
                 // rows ARE the legend.
-                ChartCard(
-                    title: "Stage breakdown",
-                    subtitle: subtitle,
-                    height: 524,
-                    tint: StrandPalette.restColor,
-                    chart: { stageTimeline(s, intervals: intervals, night: night) }
-                )
+                stageTimelineCard(s, subtitle: subtitle, intervals: intervals, night: night)
             } else {
                 ChartCard(
                     title: "Stage breakdown",
@@ -789,6 +783,24 @@ struct SleepView: View {
             nightHR = await repo.hrBuckets(from: night.session.startTs,
                                            to: night.session.endTs,
                                            bucketSeconds: 60)
+        }
+    }
+
+    /// The detailed timeline has a variable-height insight footer, so forcing it into a fixed-height
+    /// chart slot left a visibly empty shelf below the hint. This keeps the standard card header and
+    /// surface while allowing the timeline to size to the content it actually has.
+    private func stageTimelineCard(_ stages: Stages, subtitle: String,
+                                   intervals: [SleepInterval], night: Night) -> some View {
+        NoopCard(tint: StrandPalette.restColor) {
+            VStack(alignment: .leading, spacing: NoopMetrics.space3) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Stage breakdown").strandOverline()
+                    Text(subtitle)
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                }
+                stageTimeline(stages, intervals: intervals, night: night)
+            }
         }
     }
 
@@ -965,7 +977,10 @@ struct SleepView: View {
                     }
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.restColor)
-                    .frame(minHeight: 44)
+                    // This is a compact metadata footer inside an already surfaced card. A forced
+                    // 44-point label made the WHOOP / Why row look vertically padded despite having
+                    // only one line of content.
+                    .frame(minHeight: 24)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(LiquidPressStyle())
@@ -1215,10 +1230,10 @@ struct SleepView: View {
             .padding(.horizontal, 10)
             .accessibilityHidden(true)
             // WHOOP's per-stage insight: with a stage selected, tonight vs the 30-day typical
-            // range; otherwise a quiet hint that the rows are tappable. Fixed-height slot so
-            // selecting a stage never reflows the card.
+            // range; otherwise a quiet hint that the rows are tappable. It grows only when a
+            // selected-stage comparison needs a second line, avoiding a permanent empty footer.
             stageInsight(s)
-                .frame(height: 30, alignment: .topLeading)
+                .frame(minHeight: 18, alignment: .topLeading)
                 .padding(.horizontal, 2)
         }
     }
