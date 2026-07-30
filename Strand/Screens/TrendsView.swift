@@ -215,6 +215,31 @@ struct TrendsView: View {
         return String(localized: "Trailing \(n) days")
     }
 
+    /// The compact selector caption is intentionally split into two intrinsic-width lines.
+    /// Its leading edges line up while the surrounding spacer pins the widest line to the
+    /// screen's shared trailing content edge.
+    @ViewBuilder
+    private var rangeCaption: some View {
+        if let days = range.days {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Trailing")
+                    .strandOverline()
+                    .lineLimit(1)
+                Text("\(days) days")
+                    .strandOverline()
+                    .lineLimit(1)
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(rangeSubtitle)
+        } else {
+            Text(rangeSubtitle)
+                .strandOverline()
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+        }
+    }
+
     private func name(for r: Range) -> String {
         switch r {
         case .week:    return String(localized: "week")
@@ -542,21 +567,7 @@ struct TrendsView: View {
                 // Keep the caption's two lines internally leading-aligned, but anchor the whole
                 // caption column to the page's trailing edge.
                 Spacer(minLength: NoopMetrics.space2)
-                if range.days == nil {
-                    Text(rangeSubtitle)
-                        .strandOverline()
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
-                } else {
-                    // A deliberate two-line column: TRAILING / 90 DAYS. Reserving a word-wide
-                    // column keeps 7, 30 and 90 from producing character-by-character wraps.
-                    Text(rangeSubtitle)
-                        .strandOverline()
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(width: 76, alignment: .leading)
-                }
+                rangeCaption
             }
             Text(cap)
                 .font(StrandFont.footnote)
