@@ -539,6 +539,9 @@ struct TrendsView: View {
                 // caption narrower than one word (which wrapped the final G in TRAILING by itself).
                 SegmentedPillControl(Range.allCases, selection: $range,
                                      adaptsToAvailableWidth: true) { $0.label }
+                // Keep the caption's two lines internally leading-aligned, but anchor the whole
+                // caption column to the page's trailing edge.
+                Spacer(minLength: NoopMetrics.space2)
                 if range.days == nil {
                     Text(rangeSubtitle)
                         .strandOverline()
