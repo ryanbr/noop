@@ -127,6 +127,12 @@ enum Variants {
     /// The rebuild reproduces every TRUTH-side figure exactly (26 773 scored epochs, deep 14.76 % of night,
     /// truth first-REM 88.5 min) but lands the prediction side elsewhere — more REM, arriving earlier.
     ///
+    /// Those percentages are the MEAN OF PER-SUBJECT PERCENTAGES, which is the convention the old figures
+    /// were reported in; pooled over all 26 773 epochs the same truth deep fraction is 13.76 % and the same
+    /// predicted deep fraction is 18.94 %. `main.swift` prints both tables, labelled, for exactly this
+    /// reason — a stage fraction quoted without its convention is a number two people will disagree about
+    /// while both being right. Section 6's variant table, and every `bias pp` in it, is pooled.
+    ///
     /// One mechanism explains that whole pattern, and it is dated rather than mysterious: PR #930 replaced a
     /// hard `c < 0.12 ? 3.0 : 0.0` step in the SESSION-FRACTION domain with a graded penalty measured in
     /// MINUTES from sleep onset. Averaged over the epochs it covers, the graded guard is the weaker one, so

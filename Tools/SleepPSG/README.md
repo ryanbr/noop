@@ -100,6 +100,22 @@ improved kappa on all three of its benchmarks and was reverted 48 hours later fo
 from 6 % to 23 % awake — *"kappa doesn't guard stage-fraction calibration."* A harness that reported only
 kappa could not have seen that regression, and this one is built so it cannot repeat the mistake.
 
+**Two conventions, both printed, and a percentage here is meaningless without naming which.** Every stage
+fraction in this tool divides by **all scored epochs of the night, wake included** — that part never varies.
+What varies is how the 31 subjects are combined:
+
+| convention | what it is | deep, shipped recipe |
+|---|---|---|
+| **pooled over all scored epochs** | one denominator of 26 773 epochs for the whole cohort; a long night carries more weight than a short one | predicted **18.94 %**, truth **13.76 %**, bias **+5.18 pp** |
+| **mean of per-subject percentages** | each subject's own % of their own night, then averaged over 31 subjects; every subject counts once | predicted **19.24 %**, truth **14.76 %**, bias **+4.48 pp** |
+
+Section 3 prints both tables, one above the other, each labelled. They are the same epochs and the same
+denominator *within* a night; the ~1 pp gap between them is the weighting across subjects, nothing else.
+The pooled convention is what a cohort-level "% of night" means and is the one section 6's variant table
+and every bias column use. The per-subject mean is what a clinician comparing individuals would use, and it
+is the one the self-check below is stated in, because it is the convention the previous harness reported.
+**Quote either, never both interchangeably, and always say which.**
+
 `SleepStagerV2` fits nothing to data — every coefficient is fixed a priori — so there is no train/test split
 to make for the recipe itself. The leave-one-subject-out machinery exists for the fitted comparison models
 in section 5, which do need it.
@@ -133,7 +149,8 @@ avoid.
 Each row is the shipped recipe with **one** named change: PR #987's awake-transition row, and each of PR
 #348's seven components measured alone, plus all seven together. Reported with kappa **and** the stage-
 fraction biases, because a component is an improvement only if it wins the first without wrecking the
-second.
+second. **Every percentage and every `bias pp` in this table is pooled over all 26 773 scored epochs** —
+so the incumbent's deep bias reads +5.18 pp here, not the +4.48 pp the per-subject mean gives.
 
 The last row is not a candidate. `pre-#930 REM guard (provenance)` runs the REM-latency guard as it stood
 before PR #930 — a hard `c < 0.12 ? 3.0 : 0.0` step in the session-fraction domain — and exists to explain
@@ -148,18 +165,25 @@ harness reported on this same dataset, so anyone can see at a glance whether the
 instrument. **Nothing here is tuned to those numbers**, and where they disagree the disagreement is
 reported rather than closed.
 
-Every **truth-side** figure reproduces exactly: 31 subjects, **26 773** PSG-scored epochs, deep **14.76 %**
-of night, truth median first-REM latency **88.5 min**. Predicted deep lands at **19.24 %** against a
-reported 19.25 %, and four-class kappa at **0.356** against a reported 0.349.
+**Every percentage in this section is the mean of per-subject percentages**, because that is the convention
+the previous harness reported in; the pooled figures for the same quantities are ~1 pp away and are printed
+directly above it in section 3. The tool labels both tables, and the self-check block repeats the
+convention in its own header so a figure copied out of it carries its denominator with it.
 
-The prediction side of REM does not match: more REM (27.0 % vs 20.8 %), REM F1 0.569 vs 0.515, and a first
-REM period arriving much earlier (median 91.5 min vs 142.0).
+Every **truth-side** figure reproduces exactly: 31 subjects, **26 773** PSG-scored epochs, deep **14.76 %**
+of each subject's own night averaged over the 31 (pooled: 13.76 %), truth median first-REM latency
+**88.5 min**. Predicted deep lands at **19.24 %** on the same convention against a reported 19.25 %
+(pooled: 18.94 %), and four-class kappa at **0.356** against a reported 0.349.
+
+The prediction side of REM does not match: more REM (**26.96 %** per-subject mean, against a reported
+20.8 %), REM F1 0.569 vs 0.515, and a first REM period arriving much earlier (median 91.5 min vs 142.0).
 
 **The obvious explanation was tested and is wrong.** PR #930 replaced a fraction-domain `c < 0.12 ? 3.0 : 0`
 step with a graded penalty measured in minutes from sleep onset, and the old figures were reported while
 #930 was the candidate — so the incumbent they describe is the recipe *before* it. That predicts exactly
 this pattern. The `pre-#930` variant runs that guard, and it moves nothing: kappa 0.356 → 0.356, REM F1
-0.569 → 0.569, REM 27.02 % → 26.97 %. On 8-hour lab nights the guard barely binds either way. The
+0.569 → 0.569, REM 27.02 % → 26.97 % (pooled — section 6's table, like every variant row, is pooled).
+On 8-hour lab nights the guard barely binds either way. The
 hypothesis is falsified, and it is recorded here rather than deleted because the variant is what falsified
 it.
 
@@ -167,7 +191,8 @@ What the residual is remains **unresolved**, and the tool is not tuned to close 
 future explanation, both from the table above:
 
 - It cannot be the session window. `clock` drives the deep prior and the REM ramp alike; predicted deep
-  reproduces to 0.01 pp, so `clock` is the same quantity in both harnesses.
+  reproduces to 0.01 pp (19.24 % measured against 19.25 % reported, per-subject mean), so `clock` is the
+  same quantity in both harnesses.
 - It is REM-specific and it is not the latency guard, which the variant just ruled out.
 
 One suggestive coincidence, offered as an observation and not a conclusion: the previously reported "REM
