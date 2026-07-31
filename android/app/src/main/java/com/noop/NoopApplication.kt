@@ -12,6 +12,7 @@ import com.noop.data.DeviceRegistry
 import com.noop.data.WhoopDatabase
 import com.noop.data.WhoopRepository
 import com.noop.ui.NoopPrefs
+import com.noop.ui.AppLanguagePrefs
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -30,7 +31,7 @@ import kotlinx.coroutines.runBlocking
 class NoopApplication : Application() {
 
     override fun attachBaseContext(base: Context) {
-        super.attachBaseContext(base)
+        super.attachBaseContext(AppLanguagePrefs.wrap(base))
         // UI resource lookup is intentionally available before onCreate: data-driven presentation
         // helpers (release notes, metric catalogs) can resolve a resource without becoming
         // @Composable or retaining an Activity. The Application is process-scoped, so this does not

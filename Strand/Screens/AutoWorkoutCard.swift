@@ -133,7 +133,7 @@ struct AutoWorkoutCard: View {
     /// HH:mm in the user's locale/timezone.
     private static let timeFmt: DateFormatter = {
         let f = DateFormatter()
-        f.locale = .current
+        f.locale = AppLanguage.activeLocale
         f.timeStyle = .short
         f.dateStyle = .none
         return f
@@ -142,7 +142,7 @@ struct AutoWorkoutCard: View {
     /// Localized medium date ("Jun 23, 2026") for a bout older than yesterday.
     private static let dateFmt: DateFormatter = {
         let f = DateFormatter()
-        f.locale = .current
+        f.locale = AppLanguage.activeLocale
         f.dateStyle = .medium
         f.timeStyle = .none
         return f

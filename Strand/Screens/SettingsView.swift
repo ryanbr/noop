@@ -108,6 +108,9 @@ struct SettingsView: View {
     @AppStorage("appIcon.alt") private var useNavyIcon = false
     // Light/Dark/System theme. Read by both app roots' .preferredColorScheme; default follows the OS.
     @AppStorage(AppearanceMode.storageKey) private var appearanceRaw = AppearanceMode.system.rawValue
+    // App-owned copy language. Apple binds a bundle localization at process launch, so this writes the
+    // standard AppleLanguages override and takes effect after the user reopens NOOP.
+    @AppStorage(AppLanguage.storageKey) private var appLanguageRaw = AppLanguage.system.rawValue
     // Chart colour style: Titanium (brand) or Classic (throwback red→green). Re-colours gauges + charts.
     @AppStorage(ChartStyle.storageKey) private var chartStyleRaw = ChartStyle.titanium.rawValue
     // Day-cycle scene backdrop behind Today (#698). Default ON. Off swaps the scene for a plain dark
@@ -755,6 +758,25 @@ struct SettingsView: View {
             blurb: "Choose Light, Dark, or follow your system. Dark is the signature near-black; Light keeps the same clean look on a bright canvas."
         ) {
             VStack(spacing: 0) {
+                FormRow(label: "Language") {
+                    Picker("Language", selection: $appLanguageRaw) {
+                        ForEach(AppLanguage.allCases) { language in
+                            Text(language == .system ? String(localized: "System default") : language.autonym)
+                                .tag(language.rawValue)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .tint(StrandPalette.accent)
+                    .accessibilityLabel("Language")
+                    .onChangeCompat(of: appLanguageRaw) { AppLanguage.apply($0) }
+                }
+                Text("Language changes take effect after you reopen NOOP.")
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 6)
+                rowDivider
                 FormRow(label: "Theme") {
                     Picker("Theme", selection: $appearanceRaw) {
                         ForEach(AppearanceMode.allCases) { mode in

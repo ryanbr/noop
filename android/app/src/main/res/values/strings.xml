@@ -1911,4 +1911,14 @@
     <string name="l10n_app_changelog_widgets_stop_inventing_numbers_naps_count_4f7491bb">Widgets stop inventing numbers, naps count toward sleep debt, and the Android status chips speak your language</string>
     <string name="l10n_sleep_screen_may_be_incomplete_7230dc27">May be incomplete</string>
     <string name="l10n_sleep_screen_little_motion_was_recorded_over_f061b7e4">Little motion was recorded overnight, so this night may be under-detected and the sleep total can read short. Make sure the strap fully synced.</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_choose_language">Choose language</string>
+    <string name="settings_language_system">System default</string>
+    <string name="settings_appearance_detail">Choose Light, Dark, or follow your system. Dark is the signature near-black; Light keeps the same clean look on a bright canvas.</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_chart_default">Default</string>
+    <string name="settings_chart_classic">Classic</string>
+    <string name="settings_trend_line">Line</string>
+    <string name="settings_trend_bars">Bars</string>
 </resources>

@@ -1,8 +1,10 @@
 package com.noop.ui
 
+import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
@@ -574,6 +576,9 @@ fun SettingsScreen(
 
     // Theme (System / Light / Dark) — drives NoopTheme; AppearancePrefs mirrors it in snapshot state.
     var themeMode by remember { mutableStateOf(AppearancePrefs.mode) }
+    // App language owns the process resource locale; changing it recreates this Activity below so every
+    // composable and non-composable resource lookup switches together.
+    var appLanguage by remember { mutableStateOf(AppLanguagePrefs.selected(context)) }
     // Chart colours (Titanium / Classic) — re-colours gauges + charts; ChartStylePrefs mirrors it live.
     var chartStyle by remember { mutableStateOf(ChartStylePrefs.style) }
     // Trend charts (Line / Bar) — flips the Trends tab between the gradient line and value-ramp bars.
@@ -1036,13 +1041,42 @@ fun SettingsScreen(
         SettingsCard(
             icon = Icons.Filled.Brightness6,
             title = uiString(R.string.l10n_settings_screen_appearance_41def7a0),
-            blurb = "Choose Light, Dark, or follow your system. Dark is the signature near-black; Light keeps the same clean look on a bright canvas.",
+            blurb = uiString(R.string.settings_appearance_detail),
         ) {
+            val languages = AppLanguage.entries
+            val languageLabels = languages.map {
+                if (it == AppLanguage.SYSTEM) uiString(R.string.settings_language_system)
+                else it.autonym
+            }
+            SettingsFormRow(label = uiString(R.string.settings_language)) {
+                WheelPickerField(
+                    value = languageLabels[languages.indexOf(appLanguage)],
+                    accessibility = uiString(R.string.settings_language),
+                    options = languageLabels,
+                    selectedIndex = languages.indexOf(appLanguage),
+                    dialogTitle = uiString(R.string.settings_choose_language),
+                    onSelected = { index ->
+                        val selected = languages[index]
+                        if (selected != appLanguage) {
+                            appLanguage = selected
+                            AppLanguagePrefs.set(context, selected)
+                            context.hostingActivity()?.recreate()
+                        }
+                    },
+                )
+            }
+            SettingsRowDivider()
             SettingsFormRow(label = uiString(R.string.l10n_settings_screen_theme_a797e309)) {
                 SegmentedPillControl(
                     items = listOf(AppearanceMode.SYSTEM, AppearanceMode.LIGHT, AppearanceMode.DARK),
                     selection = themeMode,
-                    label = { it.label },
+                    label = {
+                        when (it) {
+                            AppearanceMode.SYSTEM -> uiString(R.string.settings_language_system)
+                            AppearanceMode.LIGHT -> uiString(R.string.settings_theme_light)
+                            AppearanceMode.DARK -> uiString(R.string.settings_theme_dark)
+                        }
+                    },
                     onSelect = { mode ->
                         themeMode = mode
                         AppearancePrefs.set(context, mode)
@@ -1057,7 +1091,10 @@ fun SettingsScreen(
                 SegmentedPillControl(
                     items = listOf(ChartStyle.TITANIUM, ChartStyle.CLASSIC),
                     selection = chartStyle,
-                    label = { it.label },
+                    label = {
+                        if (it == ChartStyle.CLASSIC) uiString(R.string.settings_chart_classic)
+                        else uiString(R.string.settings_chart_default)
+                    },
                     onSelect = { style ->
                         chartStyle = style
                         ChartStylePrefs.set(context, style)
@@ -1071,7 +1108,10 @@ fun SettingsScreen(
                 SegmentedPillControl(
                     items = listOf(TrendChartStyle.LINE, TrendChartStyle.BAR),
                     selection = trendChartStyle,
-                    label = { if (it == TrendChartStyle.BAR) "Bars" else "Line" },
+                    label = {
+                        if (it == TrendChartStyle.BAR) uiString(R.string.settings_trend_bars)
+                        else uiString(R.string.settings_trend_line)
+                    },
                     onSelect = { style ->
                         trendChartStyle = style
                         UnitPrefs.setTrendChartStyle(context, style)
@@ -3074,4 +3114,14 @@ private fun setAppIcon(context: Context, navy: Boolean) {
         else PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
         PackageManager.DONT_KILL_APP,
     )
+}
+
+/** Compose may provide a themed ContextWrapper rather than the Activity directly. */
+private fun Context.hostingActivity(): Activity? {
+    var current: Context = this
+    while (current is ContextWrapper) {
+        if (current is Activity) return current
+        current = current.baseContext
+    }
+    return current as? Activity
 }

@@ -1900,4 +1900,14 @@
     <string name="l10n_app_changelog_widgets_stop_inventing_numbers_naps_count_4f7491bb">Widgets erfinden keine Zahlen mehr, Nickerchen zählen für die Schlafschuld, und die Android-Statusanzeigen sprechen deine Sprache</string>
     <string name="l10n_sleep_screen_may_be_incomplete_7230dc27">Möglicherweise unvollständig</string>
     <string name="l10n_sleep_screen_little_motion_was_recorded_over_f061b7e4">Über Nacht wurde wenig Bewegung aufgezeichnet, daher wurde diese Nacht möglicherweise nicht vollständig erfasst und die Schlafdauer kann zu kurz erscheinen. Stelle sicher, dass das Band vollständig synchronisiert wurde.</string>
+    <string name="settings_language">Sprache</string>
+    <string name="settings_choose_language">Sprache auswählen</string>
+    <string name="settings_language_system">Systemstandard</string>
+    <string name="settings_appearance_detail">Wähle Hell, Dunkel oder folge deinem System. Dunkel ist das charakteristische Fast-Schwarz; Hell behält denselben klaren Look auf heller Fläche.</string>
+    <string name="settings_theme_light">Hell</string>
+    <string name="settings_theme_dark">Dunkel</string>
+    <string name="settings_chart_default">Standard</string>
+    <string name="settings_chart_classic">Klassisch</string>
+    <string name="settings_trend_line">Linie</string>
+    <string name="settings_trend_bars">Balken</string>
 </resources>

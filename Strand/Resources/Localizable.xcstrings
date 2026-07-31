@@ -173095,6 +173095,45 @@
         }
       }
     },
+    "Language": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Sprache" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Language" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Idioma" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Langue" } },
+        "it": { "stringUnit": { "state": "translated", "value": "Lingua" } },
+        "pt-PT": { "stringUnit": { "state": "translated", "value": "Idioma" } },
+        "ru": { "stringUnit": { "state": "translated", "value": "Язык" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "语言" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "語言" } }
+      }
+    },
+    "Language changes take effect after you reopen NOOP.": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Sprachänderungen werden wirksam, nachdem du NOOP erneut geöffnet hast." } },
+        "en": { "stringUnit": { "state": "translated", "value": "Language changes take effect after you reopen NOOP." } },
+        "es": { "stringUnit": { "state": "translated", "value": "Los cambios de idioma se aplican cuando vuelvas a abrir NOOP." } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Les changements de langue prennent effet après la réouverture de NOOP." } },
+        "it": { "stringUnit": { "state": "translated", "value": "Le modifiche della lingua vengono applicate dopo aver riaperto NOOP." } },
+        "pt-PT": { "stringUnit": { "state": "translated", "value": "As alterações de idioma são aplicadas depois de reabrires o NOOP." } },
+        "ru": { "stringUnit": { "state": "translated", "value": "Изменения языка вступят в силу после повторного запуска NOOP." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "重新打开 NOOP 后，语言更改将会生效。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "重新開啟 NOOP 後，語言變更將會生效。" } }
+      }
+    },
+    "System default": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Systemstandard" } },
+        "en": { "stringUnit": { "state": "translated", "value": "System default" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Predeterminado del sistema" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Réglage système" } },
+        "it": { "stringUnit": { "state": "translated", "value": "Predefinita di sistema" } },
+        "pt-PT": { "stringUnit": { "state": "translated", "value": "Predefinição do sistema" } },
+        "ru": { "stringUnit": { "state": "translated", "value": "Системный" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "跟随系统" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "跟隨系統" } }
+      }
+    },
     "✓": {
       "localizations": {
         "de": {

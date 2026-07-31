@@ -534,13 +534,13 @@ struct WorkoutDetailView: View {
     }()
     private static let timeFmt: DateFormatter = {
         let f = DateFormatter()
-        f.locale = Locale.current
+        f.locale = AppLanguage.activeLocale
         f.setLocalizedDateFormatFromTemplate("jmm")
         return f
     }()
     private static let tooltipTime: DateFormatter = {
         let f = DateFormatter()
-        f.locale = Locale.current
+        f.locale = AppLanguage.activeLocale
         f.setLocalizedDateFormatFromTemplate("jmm")
         return f
     }()

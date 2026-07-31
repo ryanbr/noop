@@ -109,7 +109,7 @@ struct SleepMark: Equatable, Sendable {
     /// matching the Sleep screen's Asleep/Woke row.
     private static let clockFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.locale = Locale.current
+        f.locale = AppLanguage.activeLocale
         f.setLocalizedDateFormatFromTemplate("jmm")
         return f
     }()
