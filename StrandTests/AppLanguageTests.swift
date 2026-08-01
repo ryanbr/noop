@@ -6,6 +6,11 @@ final class AppLanguageTests: XCTestCase {
         XCTAssertEqual(AppLanguage.resolve("unsupported"), .system)
     }
 
+    func testChineseCatalogTagIsSupported() {
+        XCTAssertEqual(AppLanguage.resolve("zh"), .chinese)
+        XCTAssertEqual(AppLanguage.chinese.autonym, "中文")
+    }
+
     func testExplicitLanguageWritesAndSystemRemovesAppleOverride() throws {
         let suiteName = "AppLanguageTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))

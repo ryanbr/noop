@@ -11,6 +11,12 @@ class AppLanguageTest {
     }
 
     @Test
+    fun chineseCatalogTagIsSupported() {
+        assertEquals(AppLanguage.CHINESE, AppLanguage.fromStorage("zh"))
+        assertEquals("中文", AppLanguage.CHINESE.autonym)
+    }
+
+    @Test
     fun everyExplicitLanguageRoundTripsItsStableTag() {
         AppLanguage.entries.filter { it != AppLanguage.SYSTEM }.forEach { language ->
             assertEquals(language, AppLanguage.fromStorage(language.storageValue))

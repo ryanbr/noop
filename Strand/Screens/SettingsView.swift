@@ -775,7 +775,7 @@ struct SettingsView: View {
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 6)
+                    .padding(.top, NoopMetrics.space1)
                 rowDivider
                 FormRow(label: "Theme") {
                     Picker("Theme", selection: $appearanceRaw) {

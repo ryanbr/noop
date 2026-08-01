@@ -6,14 +6,20 @@ import android.content.res.Resources
 import android.os.LocaleList
 import java.util.Locale
 
-/** App-owned UI language. Units, time zone, and other regional preferences remain independent. */
+/**
+ * App-owned UI language. Units and time zone remain independent, while locale-sensitive display
+ * formatting follows this selection through [Locale.setDefault]. Adding a language here therefore
+ * requires auditing default-locale parsers and formatters, especially persistent day keys: storage
+ * formats must pin their locale and chronology before supporting different numeral or calendar systems.
+ */
 enum class AppLanguage(val storageValue: String?, val autonym: String) {
     SYSTEM(null, ""),
     ENGLISH("en", "English"),
     GERMAN("de", "Deutsch"),
     SPANISH("es", "Español"),
     FRENCH("fr", "Français"),
-    PORTUGUESE("pt-PT", "Português");
+    PORTUGUESE("pt-PT", "Português"),
+    CHINESE("zh", "中文");
 
     companion object {
         fun fromStorage(raw: String?): AppLanguage =
