@@ -52,21 +52,25 @@ struct NOOPWidgetView: View {
         }
     }
 
-    // MARK: - Colours (match Today tile tints)
+    // MARK: - Colours (match Today's GlowRing domain constants)
 
     private var chargeColor: Color {
-        guard snap.recovery != nil else { return StrandPalette.textTertiary }
-        return StrandPalette.chargeColor
+        snap.recovery != nil ? StrandPalette.chargeColor : StrandPalette.textTertiary
     }
 
+    /// Fixed domain accent — same as `TodayView.effortRing` (`StrandPalette.effortColor`), not the
+    /// value-sampled `effortTint` ramp the old footer bolt used.
     private var effortColor: Color {
-        guard let e = snap.effort else { return StrandPalette.textTertiary }
-        return StrandPalette.effortTint(fraction: Double(e) / 100)
+        snap.effort != nil ? StrandPalette.effortColor : StrandPalette.textTertiary
     }
 
     private var restColor: Color {
-        guard let r = snap.rest else { return StrandPalette.textTertiary }
-        return StrandPalette.restColor
+        snap.rest != nil ? StrandPalette.restColor : StrandPalette.textTertiary
+    }
+
+    /// Effort centre/accessory text: pre-formatted #313 display when present, else whole-number 0–100.
+    private var effortText: String? {
+        snap.effortDisplay ?? snap.effort.map(String.init)
     }
 
     private var inlineText: String {
@@ -103,18 +107,18 @@ struct NOOPWidgetView: View {
                 }
             }
             HStack(alignment: .top, spacing: 0) {
-                accessoryScore("Charge", value: snap.recovery, tint: chargeColor, suffix: "%")
-                accessoryScore("Effort", value: snap.effort, tint: effortColor)
-                accessoryScore("Rest", value: snap.rest, tint: restColor, suffix: "%")
+                accessoryScore("Charge", text: snap.recovery.map { "\($0)%" }, tint: chargeColor)
+                accessoryScore("Effort", text: effortText, tint: effortColor)
+                accessoryScore("Rest", text: snap.rest.map { "\($0)%" }, tint: restColor)
             }
         }
     }
 
-    private func accessoryScore(_ label: String, value: Int?, tint: Color, suffix: String = "") -> some View {
+    private func accessoryScore(_ label: String, text: String?, tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(value.map { "\($0)\(suffix)" } ?? "–")
+            Text(text ?? "–")
                 .font(.system(size: 16, weight: .semibold, design: .rounded))
-                .foregroundStyle(value == nil ? StrandPalette.textTertiary : tint)
+                .foregroundStyle(text == nil ? StrandPalette.textTertiary : tint)
                 .minimumScaleFactor(0.7)
             Text(label)
                 .font(.system(size: 9))
@@ -125,12 +129,13 @@ struct NOOPWidgetView: View {
 
     // MARK: - Home Screen: systemSmall
 
-    /// Compact three-ring hero: Charge · Effort · Rest. HR + battery stay on a thin footer so the
-    /// rings own the card (the old big Charge-% layout hid Effort/Rest entirely on small).
+    /// Compact three-ring hero. Diameter is capped so three hard-framed circles fit the narrowest
+    /// systemSmall content width (SE ~128pt after padding) without overlapping — see review on #1022.
     private var small: some View {
         VStack(spacing: 6) {
             headerRow
-            scoreRings(diameter: 52, lineWidth: 5, labelFont: .system(size: 9, weight: .medium))
+            // 40pt × 3 = 120 ≤ 128 (SE) / 138 (15 Pro) content widths after 10pt padding.
+            scoreRings(diameter: 40, lineWidth: 4, labelFont: .system(size: 9, weight: .medium))
             Spacer(minLength: 0)
             vitalsFooter(compact: true)
         }
@@ -189,28 +194,35 @@ struct NOOPWidgetView: View {
     private func scoreRings(diameter: CGFloat, lineWidth: CGFloat, labelFont: Font) -> some View {
         HStack(alignment: .top, spacing: 0) {
             WidgetScoreRing(
-                value: snap.recovery,
+                text: snap.recovery.map(String.init),
+                fraction: snap.recovery.map { Double($0) / 100 },
                 label: "Charge",
                 color: chargeColor,
                 diameter: diameter,
                 lineWidth: lineWidth,
-                labelFont: labelFont
+                labelFont: labelFont,
+                accessibilityOutOf: 100
             )
             WidgetScoreRing(
-                value: snap.effort,
+                text: effortText,
+                // Fill is always the stored 0–100 axis so WHOOP 0–21 and native 0–100 agree on arc length.
+                fraction: snap.effort.map { Double($0) / 100 },
                 label: "Effort",
                 color: effortColor,
                 diameter: diameter,
                 lineWidth: lineWidth,
-                labelFont: labelFont
+                labelFont: labelFont,
+                accessibilityOutOf: (snap.effortWhoop == true) ? 21 : 100
             )
             WidgetScoreRing(
-                value: snap.rest,
+                text: snap.rest.map(String.init),
+                fraction: snap.rest.map { Double($0) / 100 },
                 label: "Rest",
                 color: restColor,
                 diameter: diameter,
                 lineWidth: lineWidth,
-                labelFont: labelFont
+                labelFont: labelFont,
+                accessibilityOutOf: 100
             )
         }
         .frame(maxWidth: .infinity)
@@ -255,16 +267,20 @@ struct NOOPWidgetView: View {
 /// Deliberately avoids `GlowRing`'s draw-in `@State` animation — WidgetKit timelines don't reliably
 /// fire `onAppear`, so an animated ring can freeze empty (0 fill) until the next timeline rebuild.
 private struct WidgetScoreRing: View {
-    let value: Int?
+    /// Centre read-out already formatted (whole number, or one-decimal WHOOP Effort).
+    let text: String?
+    /// Arc fill 0…1; nil draws the empty track only (unscored).
+    let fraction: Double?
     let label: String
     let color: Color
     let diameter: CGFloat
     let lineWidth: CGFloat
     let labelFont: Font
+    let accessibilityOutOf: Int
 
-    private var fraction: CGFloat {
-        guard let value else { return 0 }
-        return CGFloat(min(max(Double(value) / 100.0, 0), 1))
+    private var clampedFraction: CGFloat {
+        guard let fraction else { return 0 }
+        return CGFloat(min(max(fraction, 0), 1))
     }
 
     var body: some View {
@@ -273,15 +289,16 @@ private struct WidgetScoreRing: View {
                 Circle()
                     .stroke(StrandPalette.textPrimary.opacity(0.10),
                             style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                if value != nil {
+                if fraction != nil {
                     Circle()
-                        .trim(from: 0, to: max(0.0001, fraction))
+                        // A genuine zero still draws a round-cap bead so scored-0 reads as data, not absence.
+                        .trim(from: 0, to: max(0.0001, clampedFraction))
                         .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                         .rotationEffect(.degrees(-90))
                 }
-                Text(value.map(String.init) ?? "–")
+                Text(text ?? "–")
                     .font(StrandFont.rounded(diameter * 0.34, weight: .bold))
-                    .foregroundStyle(value == nil ? StrandPalette.textTertiary : StrandPalette.textPrimary)
+                    .foregroundStyle(text == nil ? StrandPalette.textTertiary : StrandPalette.textPrimary)
                     .monospacedDigit()
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
@@ -297,7 +314,7 @@ private struct WidgetScoreRing: View {
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(label))
-        .accessibilityValue(Text(value.map { "\($0) out of 100" } ?? "unavailable"))
+        .accessibilityValue(Text(text.map { "\($0) out of \(accessibilityOutOf)" } ?? "unavailable"))
     }
 }
 

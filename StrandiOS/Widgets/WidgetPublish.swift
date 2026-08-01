@@ -45,19 +45,33 @@ extension WidgetSnapshot {
             let anchorIsToday = day.day == Repository.localDayKey(now)
             restScore = restByDay[day.day] ?? (anchorIsToday ? restSeries.last?.value : nil)
         }
+        // #313: honour the user's Effort scale at publish time. The widget extension cannot read the
+        // app's plain `@AppStorage(UnitPrefs.effortScaleKey)` (it is not in the App Group), so we
+        // pre-format the display string here and keep the 0–100 int for the ring fill (the fill
+        // fraction is scale-independent: 38/100 == 8.0/21).
+        let effortScale = UnitPrefs.resolveEffortScale(
+            UserDefaults.standard.string(forKey: UnitPrefs.effortScaleKey) ?? ""
+        )
+        let strain = day?.strain
+        let effortDisplay: String? = strain.map { stored in
+            if effortScale == .whoop {
+                return String(format: "%.1f", UnitFormatter.effortValue(stored, scale: .whoop))
+            }
+            return "\(Int(stored.rounded()))"
+        }
         let snap = WidgetSnapshot(
             recovery: day?.recovery.map { Int($0.rounded()) },
             bpm: model.bpm ?? model.live.heartRate,
             batteryPct: model.live.batteryPct.map { Int($0.rounded()) },
             bonded: model.live.bonded,
             updated: Date(),
-            // Effort is stored on NOOP's 0–100 axis (the same value the Today Effort tile reads), so it
-            // publishes as a whole number without the WHOOP-0–21 toggle the main app applies — the widget
-            // extension can't reach UnitFormatter/UnitPrefs, and 0–100 is the default scale.
-            effort: day?.strain.map { Int($0.rounded()) },
+            // Stored 0–100 axis for ring fill; display string carries the #313 scale.
+            effort: strain.map { Int($0.rounded()) },
             rest: restScore.map { Int($0.rounded()) },
             hrv: day?.avgHrv.map { Int($0.rounded()) },
-            restingHr: day?.restingHr
+            restingHr: day?.restingHr,
+            effortDisplay: effortDisplay,
+            effortWhoop: effortScale == .whoop
         )
         snap.save()
         WidgetCenter.shared.reloadAllTimelines()
