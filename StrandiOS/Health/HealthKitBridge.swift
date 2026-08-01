@@ -545,6 +545,33 @@ final class HealthKitBridge: ObservableObject {
         }
     }
 
+    /// Write-back only, for when fresh strap data lands (#1021).
+    ///
+    /// `sync` is the two-way pass and runs on foreground entry, which is the wrong moment: the same
+    /// scenePhase block kicks the strap offload, so the write raced the data it was meant to publish and
+    /// last night's sleep only reached Health on the NEXT app open. `AppModel.refreshAfterCompletedBackfill`
+    /// is the real "new data landed" signal - the same one #980 already publishes the widget from - and it
+    /// also fires for a backfill that completes while the app is backgrounded.
+    ///
+    /// Deliberately not `sync()`: that would re-read 30 days out of Health and re-run the hydration /
+    /// caffeine imports on every offload, to write the same rows. The Android twin is the same shape -
+    /// `WhoopBleClient` calls `HealthConnectWriter.write` after the backfill, not a full re-sync.
+    ///
+    /// `lastSync` is left alone: it marks the last full two-way pass, and a write-only run advancing it
+    /// would misreport when NOOP last READ from Health.
+    func writeBackAfterNewData() async {
+        guard auth == .authorized, !syncing else { return }
+        syncing = true
+        defer { syncing = false }
+        guard let store = await repo.storeHandle() else { return }
+        do {
+            try await writeBack(whoopStore: store)
+            lastError = nil
+        } catch {
+            lastError = String(localized: "Apple Health sync failed: \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - Write back (NOOP → Health)
 
     /// Write NOOP's strap-derived data into Apple Health: sleep sessions with full stage segments,

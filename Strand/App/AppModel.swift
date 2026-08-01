@@ -531,6 +531,14 @@ final class AppModel: ObservableObject {
         await intelligence.analyzeRecent()
     }
 
+    #if os(iOS)
+    /// Push freshly-offloaded data to Apple Health, set by `StrandiOSApp` (#1021).
+    ///
+    /// A closure rather than a direct reference because `HealthKitBridge` owns iOS-only HealthKit state
+    /// while this type is shared with macOS, and the bridge is a `@StateObject` the app scene owns.
+    var healthWriteBack: (() async -> Void)?
+    #endif
+
     private func refreshAfterCompletedBackfill() async {
         live.append(log: "Backfill: refreshing dashboard cache from completed sync")
         await repo.refresh(days: 120)
@@ -548,6 +556,11 @@ final class AppModel: ObservableObject {
         // widget kept showing yesterday's numbers. Publishing here, on the real "new data landed"
         // signal, pushes the fresh snapshot to the home-screen widget without needing a foreground.
         await WidgetSnapshot.publish(from: self)
+        // #1021: same reasoning as the widget publish above, for Apple Health. The only automatic
+        // write-back ran on scenePhase == .active, in the same block that KICKS this offload - so it
+        // raced the data it was meant to publish and last night's sleep reached Health an app-open late.
+        // Set by StrandiOSApp; nil on macOS and in tests, where there is no bridge.
+        await healthWriteBack?()
         #endif
     }
 
