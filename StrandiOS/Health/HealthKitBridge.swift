@@ -224,8 +224,13 @@ final class HealthKitBridge: ObservableObject {
             // share status, so declining any checkbox just skips that feature.
             // Raw request, NOT requestAuthorization(): that method reclassifies a thrown error as
             // `.denied`, which must never demote a bridge that just resumed a valid legacy grant.
+            //
+            // FOREGROUND only, for the same reason `requestNewReadTypesIfNeeded` is: this resume is now
+            // also called from the offload write-back (#1021), which runs in processes that were never
+            // foregrounded. Asking there would spend the one request we get where no sheet can be
+            // presented. The status read above is unaffected, so a legacy grant still resumes.
             let newTypesPending = writeTypes.contains { store.authorizationStatus(for: $0) == .notDetermined }
-            if newTypesPending {
+            if newTypesPending, UIApplication.shared.applicationState == .active {
                 Task { try? await store.requestAuthorization(toShare: writeTypes, read: readTypes) }
             }
         }
@@ -559,7 +564,18 @@ final class HealthKitBridge: ObservableObject {
     ///
     /// `lastSync` is left alone: it marks the last full two-way pass, and a write-only run advancing it
     /// would misreport when NOOP last READ from Health.
+    ///
+    /// Shares the `syncing` flag with `sync()` on purpose: two write-backs must never interleave, because
+    /// the vitals dedup deletes our prior samples for a key before saving the fresh batch. The cost is
+    /// that a foreground `sync()` arriving during a background write skips that one read pass and picks
+    /// up on the next open - a few seconds' window, and nothing is lost.
     func writeBackAfterNewData() async {
+        // A backfill routinely completes in a process that was never foregrounded (a background offload,
+        // or a BLE relaunch) - the case this exists for. `auth` is still `.unknown` there, because the
+        // only resume runs on scenePhase == .active, so without this the guard below would silently drop
+        // exactly the writes this is meant to deliver. Idempotent, and never prompts: it reads share
+        // status, and its re-request for new types is foreground-gated.
+        refreshAuthIfPreviouslyGranted()
         guard auth == .authorized, !syncing else { return }
         syncing = true
         defer { syncing = false }
