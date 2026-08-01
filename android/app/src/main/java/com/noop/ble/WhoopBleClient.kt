@@ -539,6 +539,25 @@ class WhoopBleClient(
         }
 
         /**
+         * The throughput summary for one offload burst (#1007), pure so it is testable without a BLE stack.
+         *
+         * #477 and #533 ship two levers that should shorten the offload — CONNECTION_PRIORITY_HIGH for the
+         * burst, and LE 2M around it — and both default OFF, gated on validation against a real strap. That
+         * validation never happened, and this is why: nothing measured the thing they change. The figures in
+         * #1007 had to be counted by hand out of a raw capture ("3193 frames / 90 s"), which is not something
+         * a reporter can be asked to do twice.
+         *
+         * Frames rather than records: [offloadFramesThisSession] counts genuine offload frames (47/48/49/50),
+         * which is what the levers actually move, and is the same numerator #1007 measured. A non-positive
+         * elapsed yields the count WITHOUT a rate rather than a fabricated one. Locale-fixed so a decimal
+         * comma cannot follow the phone language into a log someone pastes into an issue.
+         */
+        fun offloadThroughputLine(frames: Int, elapsedMs: Long): String =
+            if (elapsedMs <= 0L) "$frames frame(s)"
+            else "%d frame(s) in %.1fs (%.1f frame/s)".format(
+                java.util.Locale.US, frames, elapsedMs / 1000.0, frames * 1000.0 / elapsedMs)
+
+        /**
          * The `reason=` token for a connection-down trace line (#1020), pure so the composition is
          * unit-testable without a BLE stack.
          *
@@ -2212,6 +2231,9 @@ class WhoopBleClient(
     /** Genuine offload frames seen this session — zero at timeout means the strap never answered
      *  the history request at all (5/MG retry trigger, #78 fork). Main-looper only. */
     private var offloadFramesThisSession = 0
+    /** Wall time (ms) this offload burst began, for the #1007 throughput line. 0 before the first burst;
+     *  only read inside [exitBackfilling], which cannot run unless [enterBackfilling] stamped it. */
+    private var backfillStartedAtMs = 0L
     /** #174 deep-packet cooldown: wall time (ms) of the most recent offload frame OR HISTORY_COMPLETE.
      *  A type-0x2F arriving just after a backfill ends (backfilling already flipped false) is a TRAILING
      *  historical frame, not the live R22 stream, so it must not be counted as a "live deep packet".
@@ -6335,6 +6357,9 @@ class WhoopBleClient(
         decodedChunksThisSession = 0
         consoleChunksThisSession = 0
         offloadFramesThisSession = 0
+        // #1007: wall time the burst began, for the throughput line at exit. Its own field rather than
+        // reusing lastBackfillAtMs, which is the BackfillPolicy floor and measures from the last KICK.
+        backfillStartedAtMs = System.currentTimeMillis()
         historicalKickSent = false
         _state.update { it.copy(backfilling = true, syncChunksThisSession = 0) }
         refreshConnectionPriority()   // #477: escalate to HIGH for the offload burst (faster sync). No-op unless enabled.
@@ -6562,6 +6587,12 @@ class WhoopBleClient(
         // setFastLinkPhy's on→off edge calls it AFTER the flag is already false. So the default path still
         // issues ZERO BLE ops.
         if (fastLinkPhyEnabled) releasePreferredPhy()
+        // #1007: what the burst actually achieved. Emitted unconditionally (one line per offload, not per
+        // frame) so an ordinary exported strap log carries it — behind the test-mode gate it would need a
+        // reporter to find Test Centre first, which is the friction that left #477/#533 unvalidated.
+        val offloadElapsedMs =
+            if (backfillStartedAtMs > 0L) System.currentTimeMillis() - backfillStartedAtMs else -1L
+        log("Backfill: ${offloadThroughputLine(offloadFramesThisSession, offloadElapsedMs)} ($reason)")
         // #174: a backfill just ended. Start (or extend) the deep-packet cooldown from this instant so
         // any type-0x2F records the strap flushes in the seconds after the session aren't miscounted as
         // the live R22 stream — they're the offload's tail.
