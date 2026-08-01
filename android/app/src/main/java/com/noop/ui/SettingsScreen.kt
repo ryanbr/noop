@@ -428,6 +428,10 @@ fun SettingsScreen(
     // caller, so these buttons no longer freeze the UI — but nothing else stopped a second tap mid-export
     // either. A big raw capture is exactly when someone taps twice, firing two zips / two chooser
     // intents. Same disable-while-busy + spinner shape as backupBusy above, one flag per button.
+    // Each clears in a `finally`, not after the call: they only cleared correctly before because every
+    // LogExport entry point happens to wrap its body in runCatching. The guard should not depend on a
+    // callee's error handling - a throw would strand the button disabled behind a spinner that never
+    // stops, with no way back short of leaving the screen.
     var strapLogBusy by remember { mutableStateOf(false) }
     var whoop5CaptureBusy by remember { mutableStateOf(false) }
     var rawAndLogBusy by remember { mutableStateOf(false) }
@@ -1653,23 +1657,17 @@ fun SettingsScreen(
                     onClick = {
                         strapLogBusy = true
                         scope.launch {
-                            LogExport.shareStrapLog(context, vm.ble.exportLogText())
-                            strapLogBusy = false
+                            // try/finally: the flag must clear on any exit, not just the happy path (#961 follow-up).
+                            try {
+                                LogExport.shareStrapLog(context, vm.ble.exportLogText())
+                            } finally {
+                                strapLogBusy = false
+                            }
                         }
                     },
                 )
                 if (strapLogBusy) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        CircularProgressIndicator(
-                            color = Palette.accent,
-                            strokeWidth = 2.dp,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Text(uiString(R.string.l10n_settings_screen_working_13b7bfca), style = NoopType.footnote, color = Palette.textSecondary)
-                    }
+                    NoopBusyRow()
                 }
 
                 // "WHOOP 4.0 vs 5.0/MG — what each can read and why" (FI-2 / #490). Shown to BOTH model
@@ -2076,23 +2074,17 @@ fun SettingsScreen(
                     onClick = {
                         whoop5CaptureBusy = true
                         scope.launch {
-                            LogExport.shareWhoop5Capture(context, live.whoop5Detected)
-                            whoop5CaptureBusy = false
+                            // try/finally: the flag must clear on any exit, not just the happy path (#961 follow-up).
+                            try {
+                                LogExport.shareWhoop5Capture(context, live.whoop5Detected)
+                            } finally {
+                                whoop5CaptureBusy = false
+                            }
                         }
                     },
                 )
                 if (whoop5CaptureBusy) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        CircularProgressIndicator(
-                            color = Palette.accent,
-                            strokeWidth = 2.dp,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Text(uiString(R.string.l10n_settings_screen_working_13b7bfca), style = NoopType.footnote, color = Palette.textSecondary)
-                    }
+                    NoopBusyRow()
                 }
 
                 // One-tap "matched pair" export (#510): hands a reporter BOTH the raw capture file and
@@ -2107,23 +2099,17 @@ fun SettingsScreen(
                     onClick = {
                         rawAndLogBusy = true
                         scope.launch {
-                            LogExport.shareRawAndLog(context, vm.ble.exportLogText(), live.whoop5Detected)
-                            rawAndLogBusy = false
+                            // try/finally: the flag must clear on any exit, not just the happy path (#961 follow-up).
+                            try {
+                                LogExport.shareRawAndLog(context, vm.ble.exportLogText(), live.whoop5Detected)
+                            } finally {
+                                rawAndLogBusy = false
+                            }
                         }
                     },
                 )
                 if (rawAndLogBusy) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        CircularProgressIndicator(
-                            color = Palette.accent,
-                            strokeWidth = 2.dp,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Text(uiString(R.string.l10n_settings_screen_working_13b7bfca), style = NoopType.footnote, color = Palette.textSecondary)
-                    }
+                    NoopBusyRow()
                 }
             }
         }
@@ -2586,17 +2572,7 @@ fun SettingsScreen(
                 }
 
                 if (backupBusy) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        CircularProgressIndicator(
-                            color = Palette.accent,
-                            strokeWidth = 2.dp,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Text(uiString(R.string.l10n_settings_screen_working_13b7bfca), style = NoopType.footnote, color = Palette.textSecondary)
-                    }
+                    NoopBusyRow()
                 }
 
                 NoteRow(

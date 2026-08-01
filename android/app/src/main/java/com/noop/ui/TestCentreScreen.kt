@@ -21,7 +21,6 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Switch
@@ -196,17 +195,21 @@ fun TestCentreScreen(vm: AppViewModel) {
                     reportShareBusy = true
                     p.gate.confirm()
                     scope.launch {
-                        TestReportFlow.run(
-                            context = context,
-                            profile = p.profile,
-                            title = p.title,
-                            version = BuildConfig.VERSION_NAME,
-                            platform = "Android",
-                            osVersion = android.os.Build.VERSION.RELEASE ?: "?",
-                            gate = p.gate,
-                            entries = p.entries,
-                        )
-                        reportShareBusy = false
+                        // try/finally: the flag must clear on any exit, not just the happy path (#961 follow-up).
+                        try {
+                            TestReportFlow.run(
+                                context = context,
+                                profile = p.profile,
+                                title = p.title,
+                                version = BuildConfig.VERSION_NAME,
+                                platform = "Android",
+                                osVersion = android.os.Build.VERSION.RELEASE ?: "?",
+                                gate = p.gate,
+                                entries = p.entries,
+                            )
+                        } finally {
+                            reportShareBusy = false
+                        }
                     }
                     pendingReport = null
                 }
@@ -364,23 +367,17 @@ private fun DiagnosticToolsCard(vm: AppViewModel) {
                 onClick = {
                     strapLogBusy = true
                     scope.launch {
-                        LogExport.shareStrapLog(context, vm.ble.exportLogText())
-                        strapLogBusy = false
+                        // try/finally: the flag must clear on any exit, not just the happy path (#961 follow-up).
+                        try {
+                            LogExport.shareStrapLog(context, vm.ble.exportLogText())
+                        } finally {
+                            strapLogBusy = false
+                        }
                     }
                 },
             )
             if (strapLogBusy) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    CircularProgressIndicator(
-                        color = Palette.accent,
-                        strokeWidth = 2.dp,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Text(uiString(R.string.l10n_settings_screen_working_13b7bfca), style = NoopType.footnote, color = Palette.textSecondary)
-                }
+                NoopBusyRow()
             }
             // Recalibrate Charge baseline, the same Baselines.recalibrateRecoveryBaselines call.
             NoopButton(

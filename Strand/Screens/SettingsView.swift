@@ -1866,10 +1866,13 @@ struct SettingsView: View {
         let stamp = FileExport.timestamp()
         rawAndLogBusy = true
         Task {
+            // `defer` so the flag is cleared on ANY exit (#961 follow-up), including cancellation. It
+            // cleared correctly before, but only because `exportPair` is non-throwing — the guard should
+            // not depend on that. Otherwise the button stays disabled behind a spinner that never stops.
+            defer { rawAndLogBusy = false }
             await FileExport.exportPair(
                 file: capture, fileSuggestedName: "noop-raw-capture-\(stamp).json",
                 text: live.exportableLogText(), textSuggestedName: "noop-strap-log-\(stamp).txt")
-            rawAndLogBusy = false
         }
     }
 
