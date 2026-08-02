@@ -119,4 +119,35 @@ public struct WidgetSnapshot: Codable, Equatable {
               let data = try? JSONEncoder().encode(self) else { return }
         defaults.set(data, forKey: WidgetSnapshot.storageKey)
     }
+
+    /// Whether publishing `next` would change anything the widget actually renders. `updated` is
+    /// deliberately excluded: no widget family displays it, and treating a fresh timestamp as content
+    /// would defeat deduplication because every otherwise-identical build creates a new date.
+    ///
+    /// Shared by the full score publish and the live-only fast path so a redundant foreground, repository,
+    /// battery, or connection signal does not rewrite App-Group defaults and ask WidgetKit to rebuild an
+    /// identical timeline. nil means the app has never published, so the first snapshot always writes.
+    static func renderedContentChanged(from previous: WidgetSnapshot?, to next: WidgetSnapshot) -> Bool {
+        guard let previous else { return true }
+        return previous.recovery != next.recovery
+            || previous.bpm != next.bpm
+            || previous.batteryPct != next.batteryPct
+            || previous.bonded != next.bonded
+            || previous.effort != next.effort
+            || previous.rest != next.rest
+            || previous.hrv != next.hrv
+            || previous.restingHr != next.restingHr
+            || previous.effortDisplay != next.effortDisplay
+            || previous.effortWhoop != next.effortWhoop
+    }
+
+    /// A live-only update may reuse score fields only within the same local calendar day. At rollover,
+    /// the full publisher must resolve `Repository.widgetAnchor` again so yesterday's Charge/Rest cannot
+    /// be carried forward indefinitely by a stream of HR updates. Calendar is injectable for deterministic
+    /// tests; production uses the user's current calendar and time zone.
+    static func liveUpdateRequiresFullBuild(previous: WidgetSnapshot?, now: Date,
+                                            calendar: Calendar = .current) -> Bool {
+        guard let previous else { return true }
+        return !calendar.isDate(previous.updated, inSameDayAs: now)
+    }
 }

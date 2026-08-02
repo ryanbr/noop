@@ -73,17 +73,53 @@ extension WidgetSnapshot {
             effortDisplay: effortDisplay,
             effortWhoop: effortScale == .whoop
         )
-        snap.save()
-        WidgetCenter.shared.reloadAllTimelines()
+        saveAndReloadIfChanged(snap)
+    }
+
+    /// Publish fields that come directly from the live BLE state without re-reading the Rest metric
+    /// series. HR is admitted once a minute and battery arrives about every eight minutes; routing those
+    /// hooks through the full `publish` path used to query up to 4,000 days of Rest history every time even
+    /// though none of the score fields could have changed. Reusing the last full snapshot keeps every score
+    /// byte-identical and changes only the three live fields. A cold start with no snapshot falls back to a
+    /// full build so this fast path can never publish an incomplete first glance. The first live update
+    /// after a local-day rollover also takes the full path so the score anchor advances with Today.
+    @MainActor
+    static func publishLive(from model: AppModel) async {
+        let now = Date()
+        guard var snap = load(), !liveUpdateRequiresFullBuild(previous: snap, now: now) else {
+            await publish(from: model)
+            return
+        }
+        snap.bpm = model.bpm ?? model.live.heartRate
+        snap.batteryPct = model.live.batteryPct.map { Int($0.rounded()) }
+        snap.bonded = model.live.bonded
+        snap.updated = now
+        saveAndReloadIfChanged(snap)
+    }
+
+    /// Persist and ask WidgetKit for a new timeline only when a rendered field changed. The snapshot's
+    /// timestamp is metadata only (no widget family displays it), so an otherwise-identical publish is a
+    /// true no-op rather than an App-Group write plus an extension reload.
+    @MainActor
+    private static func saveAndReloadIfChanged(_ snap: WidgetSnapshot) {
+        let previous = load()
+        if renderedContentChanged(from: previous, to: snap) {
+            snap.save()
+            WidgetCenter.shared.reloadAllTimelines()
+        } else if liveUpdateRequiresFullBuild(previous: previous, now: snap.updated) {
+            // The rollover's visible values can legitimately match yesterday's. Persist the fresh day
+            // stamp once without spending a redundant WidgetKit reload, so later live ticks stay fast.
+            snap.save()
+        }
     }
 
     /// #114/#169: HR is the ONE high-frequency widget-publish trigger — `model.bpm` moves every few
     /// seconds during activity, unlike battery (~8 min) or connection flips (rare). Left ungated, the
-    /// `model.$bpm` hook re-ran `publish`'s `exploreSeries` read + `reloadAllTimelines()` on every tick.
-    /// This caps HR-DRIVEN publishes to one per `interval`, mirroring Android's `PushGate` 60 s
-    /// `HR_REFRESH_MS` cadence. Only the bpm hook consults it; the low-frequency score/battery/connection/
-    /// scenePhase publish sites stay ungated, exactly as before. `@MainActor` (the hook already runs there),
-    /// so the shared timestamp needs no locking.
+    /// `model.$bpm` hook rewrote the shared snapshot + called `reloadAllTimelines()` on every tick (and,
+    /// before the live-only fast path, also re-read the full Rest series). This caps HR-DRIVEN publishes
+    /// to one per `interval`, mirroring Android's `PushGate` 60 s `HR_REFRESH_MS` cadence. Only the bpm
+    /// hook consults it; the low-frequency score/battery/connection/scenePhase publish sites stay ungated,
+    /// exactly as before. `@MainActor` (the hook already runs there), so the timestamp needs no locking.
     @MainActor
     enum HRPublishThrottle {
         static let interval: TimeInterval = 60
