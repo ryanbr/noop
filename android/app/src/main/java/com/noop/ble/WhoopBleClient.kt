@@ -573,8 +573,8 @@ class WhoopBleClient(
         }
 
         /** Pure battery-adaptive gate (#477), unit-testable without a BLE stack. Keyed on the STRAP's
-         *  battery (WHOOP/Oura/Fitbit): the lever is ARMED by [thresholdPct] > 0 (the Settings slider is
-         *  10–30; 0 disables it) and engages while the strap is DISCHARGING at/below [thresholdPct]. The
+         *  battery (WHOOP/Oura/Fitbit): the lever is ARMED by [thresholdPct] > 0 and engages while the
+         *  strap is DISCHARGING at/below [thresholdPct]. The
          *  phone's own Battery Saver deliberately does NOT trigger it — power saving is about the strap's
          *  charge, not the phone's. A charging strap never throttles. The threshold is its own hysteresis
          *  (battery % moves slowly, so a boundary crossing flips at most once per point). */
@@ -1669,7 +1669,20 @@ class WhoopBleClient(
      *  [setConnectionPriorityManagement]. */
     @Volatile private var connectionPriorityEnabled: Boolean = false
     /** Battery-% at/below which the LOW_POWER idle throttle engages while discharging; 0 = never (safe
-     *  half only). The Settings picker offers 10/15/20/25/30. */
+     *  half only).
+     *
+     *  NOT REACHABLE TODAY, and this doc used to claim a Settings picker that was never built. The only
+     *  caller passes a hard-coded 0 (`AppViewModel.applyPowerSaving`), so the idle throttle is dormant
+     *  for everyone regardless of any setting. #477's validation plan needs it enabled on a real strap,
+     *  which nobody can currently do — see #1005, where the idle link is the addressable share and there
+     *  is no lever to reach it. Wiring a control is a separate change; do not describe one until it
+     *  exists.
+     *
+     *  Note it would ALSO need [connectionPriorityEnabled], i.e. the Fast history sync toggle, since
+     *  [refreshConnectionPriority] early-returns without it. A control for this alone would do nothing.
+     *
+     *  Contrast [lowBatteryOffloadPct] below, which IS wired: the Power saving master drives it from the
+     *  PHONE's battery. That one is reachable; this one is not. */
     @Volatile private var idleThrottleBatteryPct: Int = 0
 
     /** #533: also escalate to HIGH for the LIVE-HR stream, not just the offload burst. DEFAULT OFF, and
