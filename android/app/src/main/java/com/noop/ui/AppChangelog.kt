@@ -2564,22 +2564,22 @@ object AppChangelog {
         Expectation(
             icon = Icons.Outlined.Science,
             title = uiString(R.string.l10n_app_changelog_independent_and_experimental_f9b65317),
-            body = "NOOP is a personal, open project - not the WHOOP app, and not affiliated with WHOOP. It reads a strap you own, on your own device. Treat it as a capable work-in-progress rather than a finished product.",
+            body = uiString(R.string.onboarding_expectation_independent_body),
         ),
         Expectation(
             icon = Icons.Outlined.VerifiedUser,
             title = uiString(R.string.l10n_app_changelog_whoop_4_0_is_the_supported_16893d9d),
-            body = "WHOOP 4.0 is tested and works end to end. WHOOP 5.0/MG is newer: live heart rate works today, but deeper metrics (recovery, strain, sleep) for 5/MG are still being figured out. NOOP always tells you what's live versus still building.",
+            body = uiString(R.string.onboarding_expectation_whoop_support_body),
         ),
         Expectation(
             icon = Icons.Outlined.HourglassEmpty,
             title = uiString(R.string.l10n_app_changelog_your_scores_build_over_a_few_41388c54),
-            body = "Live heart rate is instant. Recovery, strain and sleep sharpen as NOOP learns your baseline over your first nights of wear. Want your history now? Import your WHOOP export in Data Sources and it backfills in about a minute.",
+            body = uiString(R.string.onboarding_expectation_scores_body),
         ),
         Expectation(
             icon = Icons.Outlined.Shield,
             title = uiString(R.string.l10n_app_changelog_everything_stays_on_your_device_575125e9),
-            body = "No account, no cloud, no sync. NOOP talks only to your strap and keeps everything local. Your data is yours alone.",
+            body = uiString(R.string.onboarding_expectation_local_body),
         ),
     )
 }
