@@ -1874,4 +1874,13 @@
     <string name="onboarding_theme_follow_system">Die Hell-/Dunkel-Einstellung deines Smartphones wird übernommen.</string>
     <string name="onboarding_theme_light_description">Tiefblaue Akzente auf einem warmen, hellen Hintergrund.</string>
     <string name="onboarding_theme_dark_description">Tiefblaue Akzente auf einem dunklen, blaugrauen Hintergrund.</string>
+    <string name="recording_chip_title_recording">Aufnahme</string>
+    <string name="recording_chip_title_last_synced">Zuletzt vor %1$d Min. synchronisiert</string>
+    <string name="recording_chip_title_not_recording">Keine Aufzeichnung</string>
+    <string name="recording_chip_title_connected">Verbunden</string>
+    <string name="recording_chip_detail_recording">Dein Strap ist verbunden und speichert Daten.</string>
+    <string name="recording_chip_detail_last_synced">Verbinde neu, um das Neueste zu laden.</string>
+    <string name="recording_chip_detail_not_recording">Strap nicht verbunden. Tippe zum Verbinden.</string>
+    <string name="recording_chip_detail_history_experimental">Verlaufssynchronisierung ist auf 5.0 experimentell.</string>
+    <string name="recording_chip_detail_connected_no_data">Noch keine Live-Herzfrequenz und kein synchronisierter Verlauf in dieser Sitzung.</string>
 </resources>

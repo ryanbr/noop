@@ -1787,4 +1787,13 @@
     <string name="onboarding_theme_follow_system">跟随手机的浅色或深色设置。</string>
     <string name="onboarding_theme_light_description">深蓝色点缀搭配温暖的浅色背景。</string>
     <string name="onboarding_theme_dark_description">深蓝色点缀搭配深色蓝灰背景。</string>
+    <string name="recording_chip_title_recording">录制中</string>
+    <string name="recording_chip_title_last_synced">上次同步于 %1$d 分钟前</string>
+    <string name="recording_chip_title_not_recording">未在录制</string>
+    <string name="recording_chip_title_connected">已连接</string>
+    <string name="recording_chip_detail_recording">你的手环已连接并正在保存数据。</string>
+    <string name="recording_chip_detail_last_synced">重新连接以拉取最新内容。</string>
+    <string name="recording_chip_detail_not_recording">手环未连接。点击以连接。</string>
+    <string name="recording_chip_detail_history_experimental">历史同步在 5.0 上属实验性。</string>
+    <string name="recording_chip_detail_connected_no_data">本次连接尚无实时心率或已同步的历史记录。</string>
 </resources>

@@ -1853,4 +1853,13 @@
     <string name="onboarding_theme_follow_system">É utilizada a definição de tema claro ou escuro do teu telemóvel.</string>
     <string name="onboarding_theme_light_description">Destaques em azul-escuro sobre um fundo claro e acolhedor.</string>
     <string name="onboarding_theme_dark_description">Destaques em azul-escuro sobre um fundo azul-acinzentado escuro.</string>
+    <string name="recording_chip_title_recording">Gravação</string>
+    <string name="recording_chip_title_last_synced">Última sincronização há %1$dm</string>
+    <string name="recording_chip_title_not_recording">Não está a gravar</string>
+    <string name="recording_chip_title_connected">Ligado</string>
+    <string name="recording_chip_detail_recording">A tua bracelete está conectada e a guardar dados.</string>
+    <string name="recording_chip_detail_last_synced">Volte a ligar para obter o mais recente.</string>
+    <string name="recording_chip_detail_not_recording">Correia não ligada. Toque para ligar.</string>
+    <string name="recording_chip_detail_history_experimental">A sincronização do histórico é experimental na versão 5.0.</string>
+    <string name="recording_chip_detail_connected_no_data">Ainda não há frequência cardíaca em direto nem histórico sincronizado nesta sessão.</string>
 </resources>

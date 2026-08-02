@@ -1859,4 +1859,13 @@
     <string name="onboarding_theme_follow_system">Se usa el ajuste claro u oscuro de tu teléfono.</string>
     <string name="onboarding_theme_light_description">Acentos azul oscuro sobre un fondo cálido y claro.</string>
     <string name="onboarding_theme_dark_description">Acentos azul oscuro sobre un fondo azul grisáceo oscuro.</string>
+    <string name="recording_chip_title_recording">Grabando</string>
+    <string name="recording_chip_title_last_synced">Sincronizado hace %1$dm</string>
+    <string name="recording_chip_title_not_recording">Sin grabar</string>
+    <string name="recording_chip_title_connected">Conectado</string>
+    <string name="recording_chip_detail_recording">Tu pulsera está conectada y guardando datos.</string>
+    <string name="recording_chip_detail_last_synced">Reconecta para extraer lo más reciente.</string>
+    <string name="recording_chip_detail_not_recording">Pulsera no conectada. Toca para conectar.</string>
+    <string name="recording_chip_detail_history_experimental">La sincronización del historial es experimental en la 5.0.</string>
+    <string name="recording_chip_detail_connected_no_data">Aún no hay frecuencia cardíaca en vivo ni historial sincronizado en esta sesión.</string>
 </resources>

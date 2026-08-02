@@ -1885,4 +1885,13 @@
     <string name="onboarding_theme_follow_system">Following your phone\'s light/dark setting.</string>
     <string name="onboarding_theme_light_description">Deep blue accent on warm paper.</string>
     <string name="onboarding_theme_dark_description">Deep blue accent on a dark blue-grey canvas.</string>
+    <string name="recording_chip_title_recording">Recording</string>
+    <string name="recording_chip_title_last_synced">Last synced %1$dm ago</string>
+    <string name="recording_chip_title_not_recording">Not recording</string>
+    <string name="recording_chip_title_connected">Connected</string>
+    <string name="recording_chip_detail_recording">Your strap is connected and saving data.</string>
+    <string name="recording_chip_detail_last_synced">Reconnect to pull the latest.</string>
+    <string name="recording_chip_detail_not_recording">Strap not connected. Tap to connect.</string>
+    <string name="recording_chip_detail_history_experimental">History sync is experimental on 5.0.</string>
+    <string name="recording_chip_detail_connected_no_data">No live heart rate or synced history yet this session.</string>
 </resources>

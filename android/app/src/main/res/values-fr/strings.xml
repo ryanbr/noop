@@ -1859,4 +1859,13 @@
     <string name="onboarding_theme_follow_system">Le réglage clair ou sombre de votre téléphone est utilisé.</string>
     <string name="onboarding_theme_light_description">Des accents bleu profond sur un fond clair et chaleureux.</string>
     <string name="onboarding_theme_dark_description">Des accents bleu profond sur un fond bleu-gris sombre.</string>
+    <string name="recording_chip_title_recording">Enregistrement</string>
+    <string name="recording_chip_title_last_synced">Synchronisé il y a %1$d min</string>
+    <string name="recording_chip_title_not_recording">Pas d\'enregistrement</string>
+    <string name="recording_chip_title_connected">Connecté</string>
+    <string name="recording_chip_detail_recording">Votre bracelet est connecté et enregistre les données.</string>
+    <string name="recording_chip_detail_last_synced">Reconnectez-vous pour récupérer les dernières données.</string>
+    <string name="recording_chip_detail_not_recording">Bracelet non connecté. Touchez pour vous connecter.</string>
+    <string name="recording_chip_detail_history_experimental">La synchronisation de l\'historique est expérimentale sur 5.0.</string>
+    <string name="recording_chip_detail_connected_no_data">Aucune fréquence cardiaque en direct ni historique synchronisé durant cette session.</string>
 </resources>

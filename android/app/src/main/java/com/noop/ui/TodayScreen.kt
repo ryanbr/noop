@@ -4162,12 +4162,50 @@ private fun ScoreStateNote(state: ScoreState, restartCause: String? = null) {
 
 // ── COMPONENT 3, recording status ───────────────────────────────────────────────────────────────────
 
+/** The chip's status word, LOCALIZED.
+ *
+ *  [RecordingState.title] stays the English parity contract — it is asserted verbatim against the Swift
+ *  twin in `TodayExplainabilityTest` and must not become resource-backed, which would drag a `Context`
+ *  into a pure mapper and break those tests. So the resource lookup lives HERE, at the render site,
+ *  exactly like the Swift side: `RecordingState.label` is a `LocalizedStringKey`, so its literals are
+ *  catalogue KEYS that SwiftUI resolves. Kotlin's are plain `String`, so rendering `state.title`
+ *  directly shipped English to every locale — the chip read "Not recording. Strap not connected."
+ *  on a German phone while the iPhone read "Strap nicht verbunden. Tippe zum Verbinden."
+ *
+ *  Invisible to `i18n_audit`: the literals sit in a sealed-class getter, not a Compose call argument,
+ *  so the scanner never saw them. Translations here are the Swift catalogue's own, copied 1:1.
+ */
+@Composable
+private fun recordingTitle(state: RecordingState): String = when (state) {
+    RecordingState.Recording -> uiString(R.string.recording_chip_title_recording)
+    is RecordingState.LastSynced -> uiString(R.string.recording_chip_title_last_synced, state.minutesAgo)
+    RecordingState.NotRecording -> uiString(R.string.recording_chip_title_not_recording)
+    // Both connected states share the same word, as they do on Swift.
+    RecordingState.HistoryExperimental, RecordingState.ConnectedNoData ->
+        uiString(R.string.recording_chip_title_connected)
+}
+
+/** The chip's one-line detail, LOCALIZED. Same split as [recordingTitle]. */
+@Composable
+private fun recordingDetail(state: RecordingState): String = when (state) {
+    RecordingState.Recording -> uiString(R.string.recording_chip_detail_recording)
+    is RecordingState.LastSynced -> uiString(R.string.recording_chip_detail_last_synced)
+    RecordingState.NotRecording -> uiString(R.string.recording_chip_detail_not_recording)
+    RecordingState.HistoryExperimental -> uiString(R.string.recording_chip_detail_history_experimental)
+    RecordingState.ConnectedNoData -> uiString(R.string.recording_chip_detail_connected_no_data)
+}
+
 /** The Today/Live recording chip: a tinted StatePill with the status word (a pulsing dot while live),
  *  plus the one-line what-it-means below. Honest, never claims "Recording" without a live stream.
  *  Tapping a not-recording chip routes to connect (Settings). Mirrors the iOS RecordingStatusChip. */
 @Composable
 private fun RecordingStatusChip(state: RecordingState, onConnect: () -> Unit) {
     val clickable = state is RecordingState.NotRecording || state is RecordingState.LastSynced
+    // Resolved BEFORE the Row: `semantics { }` is not a composable scope, so uiString cannot be called
+    // inside it. Reading them once also keeps the pill, the detail line and the a11y label on one string.
+    val title = recordingTitle(state)
+    val detail = recordingDetail(state)
+    val chipA11y = uiString(R.string.l10n_today_screen_state_title_state_detail_f5380609, title, detail)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -4182,18 +4220,18 @@ private fun RecordingStatusChip(state: RecordingState, onConnect: () -> Unit) {
                     Modifier
                 },
             )
-            .semantics { contentDescription = uiString(R.string.l10n_today_screen_state_title_state_detail_f5380609, state.title, state.detail) },
+            .semantics { contentDescription = chipA11y },
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         StatePill(
-            title = state.title,
+            title = title,
             tone = state.tone,
             showsDot = true,
             pulsing = state is RecordingState.Recording,
         )
         Text(
-            state.detail,
+            detail,
             style = NoopType.footnote,
             color = Palette.textTertiary,
             modifier = Modifier.weight(1f),
