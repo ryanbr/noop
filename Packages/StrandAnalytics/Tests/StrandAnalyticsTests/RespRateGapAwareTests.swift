@@ -1,5 +1,6 @@
 import XCTest
 @testable import StrandAnalytics
+import WhoopProtocol   // RRInterval
 
 /// #977 — the RSA respiratory-rate path must not splice across dropped beats.
 ///
