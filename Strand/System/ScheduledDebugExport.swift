@@ -135,6 +135,11 @@ enum ScheduledDebugExport {
 
     static var isEnabled: Bool { UserDefaults.standard.bool(forKey: K.enabled) }
 
+    /// A delivered BGAppRefresh request is single-shot and should schedule its successor only while the
+    /// user still has scheduled exports enabled. Keeping this policy outside the iOS-only block makes the
+    /// disable-versus-delivery race testable on every platform.
+    static func backgroundTaskShouldResubmit(enabled: Bool) -> Bool { enabled }
+
     /// Time-of-day to export, minutes since local midnight. Clamped to a valid minute. Default 07:00.
     static var timeMinutes: Int {
         let v = UserDefaults.standard.object(forKey: K.time) as? Int ?? defaultTimeMinutes
@@ -294,9 +299,14 @@ enum ScheduledDebugExport {
     /// uncalled: `submitBackgroundRequest()` fails gracefully and the macOS path + "Run now" still work.
     static func register() {
         BGTaskScheduler.shared.register(forTaskWithIdentifier: bgTaskIdentifier, using: nil) { task in
-            // Write the drop, then immediately request the next one (BGAppRefresh is single-shot).
-            if isEnabled { catchUpIfDue() }
-            submitBackgroundRequest()
+            // BGAppRefresh is single-shot. A request can already be delivering when Settings disables
+            // the feature, after `cancel` has lost the race. Do not let that stale delivery resurrect a
+            // daily background wake the user explicitly turned off.
+            let enabled = isEnabled
+            if backgroundTaskShouldResubmit(enabled: enabled) {
+                catchUpIfDue()
+                submitBackgroundRequest()
+            }
             task.setTaskCompleted(success: true)
         }
     }

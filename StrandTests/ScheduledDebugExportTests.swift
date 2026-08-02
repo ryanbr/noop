@@ -55,4 +55,9 @@ final class ScheduledDebugExportTests: XCTestCase {
         // The default (14) must be one of the choices the picker actually offers.
         XCTAssertTrue(ScheduledDebugExport.keepOptions.contains(14))
     }
+
+    func testBackgroundTaskResubmitsOnlyWhileEnabled() {
+        XCTAssertTrue(ScheduledDebugExport.backgroundTaskShouldResubmit(enabled: true))
+        XCTAssertFalse(ScheduledDebugExport.backgroundTaskShouldResubmit(enabled: false))
+    }
 }
