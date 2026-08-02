@@ -2155,9 +2155,12 @@ private struct LiquidBatteryButton: View {
     /// Never "Strap battery" alone for a no-reading state — that was indistinguishable from a real one.
     private var batteryAccessibility: String {
         if syncing {
+            // `syncChunksThisSession` is a COUNT, not an index, so it reads "3 chunks" — the phrasing the
+            // Android twin and `SyncStatusChip` already use. Reusing that exact key also means this
+            // read-out inherits its existing translations rather than adding an untranslated variant.
             let n = live.syncChunksThisSession
             return n > 0
-                ? String(localized: "Syncing strap history, chunk \(n)")
+                ? String(localized: "Syncing strap history, \(n) chunks")
                 : String(localized: "Syncing strap history")
         }
 
