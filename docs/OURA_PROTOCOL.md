@@ -437,15 +437,44 @@ like its sibling banked streams (`.hrv`/`.temp`/`.spo2`/`.sleepPhase`) — the f
   (`API_SPO2_EVENT`) and `0x70` (`API_SPO2_SMOOTHED_EVENT`) as firmware-computed percentages, distinct
   from the raw ratio path in §6.5.1 below. This corroborates NOOP's own read (the decoder's `#968` note:
   samples are DIRECT percentages, ~95–96, and adding the scaled base produced impossible ~223 % values).
-- **⚠️ OPEN: 47 % of NOOP's decoded `0x6F` samples exceed 100 %.** On a real Gen 3 capture (2026-08-01,
-  22,516 samples) the channel spans **81–106** with a smooth distribution peaking at **103–104**. Those
-  values are genuinely `0x6F` (confirmed via the sidecar's `unit` tag; only 208 `dc_raw` rows land in the
-  same band), so this is not cross-channel contamination. But real SpO2 cannot exceed 100 %, and
-  open_oura clamps its own computed SpO2 to **[85, 100]**. A smooth distribution centred ~6 points high
-  reads as an **un-modelled offset or scale in the `0x6F` decode**, not as sensor overshoot — subtracting
-  ~6 would map 81–106 onto ~75–100, a physiologically ordinary SpO2 spread. NOT yet corrected: no ground
-  truth pins the offset, and inventing one would fabricate a calibration. The Deep Timeline plots the
-  value un-clamped (gate 50–110) so the discrepancy stays visible rather than being flattened at 100.
+- **⚠️ OPEN: ~51 % of decoded `0x6F` samples exceed 100 %, and this is NOT a decode bug.** Measured over
+  **9,076 records / 117,816 samples** from three real Gen 3 captures (2026-07-30 → 08-02), against **922
+  nights** of the same wearer's Oura Cloud export (`dailyspo2.csv`) as ground truth:
+
+  | | Oura Cloud (truth) | decoded `0x6F` |
+  |---|---|---|
+  | mean | 97.59 | **99.98** |
+  | median | 97.68 | **101** |
+  | max | 99.4 | **107** |
+  | samples > 100 | **0** | **51 %** |
+
+  - **Two independent decoders agree byte-for-byte.** NOOP (break at the first `0xFF`) and open_oura's
+    `decode_spo2` (strip only a TRAILING `0xFF` sentinel, keep the rest) produce **identical** output on
+    this corpus — same count, mean, median and max — because there is **not one mid-payload `0xFF` in
+    9,076 records** (27 bodies end in the sentinel). So the header-byte-then-percentages reading is
+    agreed, and the >100 values come from the ring, not from either implementation.
+  - **The decode's SHAPE is right; only its LEVEL is wrong.** The series is smooth and physiological:
+    within-record range median **1**, consecutive |Δ| median **0** / p95 **1** — a real slow-moving SpO2
+    trace, not noise or a mis-framed field.
+  - **The `[7:4]` "SpO2 base" nibble does NOT explain it.** [ringverse] describes byte 6's high nibble as
+    a base; empirically it does not correlate with the record's own level (**r = +0.10**; low nibble
+    +0.02). Skipping byte 0 is correct — an earlier attempt to ADD `base << 7` produced impossible ~223 %
+    readings.
+  - **No simple correction reconciles it.** An additive −2.39 or multiplicative ×0.976 (either would
+    centre the mean) still leaves values above the physical ceiling.
+  - **A clamp is part of the answer but not all of it.** Applying the **[85, 100]** clamp open_oura
+    documents for the `0x8b` path brings the mean to 98.44 — within **0.85** of truth — which is why the
+    Cloud never shows >100. But it pins **58 %** of samples at exactly 100, which no real night does, and
+    no offset+clamp pair reproduces both statistics (−2 matches the mean but not the median; −4 the median
+    but not the mean).
+  - **Conclusion: the wire→percentage transform is UNKNOWN.** A clamp is clearly applied downstream; some
+    additional level shift also appears to be. NOT corrected here — no same-night ground truth pins it,
+    and choosing an offset would fabricate a calibration. **`0x6F` data appears unexplored:**
+    [open_oura-spo2] states plainly that they *"don't capture those, and that R→% math lives in
+    firmware"*, so this corpus may be the first look at the tag's real distribution.
+  - **How to settle it:** an Oura Cloud export whose date range OVERLAPS a BLE capture. The comparison
+    above is distribution-level across *non-overlapping* periods (per-sample values vs nightly averages,
+    different nights); a same-night per-day comparison would separate offset from clamp definitively.
 
 ### 6.5.1 SpO2 ratio-of-ratios - `0x8b` `spo2_r_pi_event` — **NOT OBSERVED in NOOP captures**
 - Carries the raw **ratio-of-ratios `r`** plus a **perfusion index `pi`** (quality parameter). This is the
