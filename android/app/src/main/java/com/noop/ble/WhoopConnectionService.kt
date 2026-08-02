@@ -65,23 +65,79 @@ import kotlin.math.roundToInt
  * the menu-bar extra, so closing the window leaves the strap connected.
  */
 /**
- * One tick of the ongoing-notification/widget stream. Carries TWO day rows on purpose (#911):
- * [todayRow] is the naive/unscored today row the notification's Recovery line reads (honest-null until
- * tonight is scored), while [anchorRow] is the widget-only carried anchor (today when scored, else the
- * freshest prior scored day) so the widget describes the same day as Today without the notification ever
- * showing a carried figure as if it were live.
+ * One tick of the ongoing-notification/widget stream. [dayState] is memoized separately from the
+ * ~1 Hz [LiveState] so daily analytics are not recomputed for every heart-rate sample.
  */
 private data class NotifyTick(
     val state: LiveState,
-    val todayRow: DailyMetric?,
-    val anchorRow: DailyMetric?,
+    val dayState: NotifyDayState,
+)
+
+/**
+ * Daily values consumed by the foreground-service collector. Carries TWO recovery projections on
+ * purpose (#911): [todayRecovery] is the honest-null notification value, while [widgetRecovery] is
+ * the carried widget anchor. [days] stays by reference for the battery night-guard, which reads it
+ * only when the strap's battery percentage changes.
+ */
+internal data class NotifyDayState(
+    val todayRecovery: Double?,
+    val widgetRecovery: Int?,
+    val widgetRest: Int?,
+    val widgetEffort: Int?,
     val illness: String?,
-    /** The whole merged day list, carried by REFERENCE only. The battery night-guard needs recent
-     *  nightly sleep durations, and this tick is the only place the collector can see them; deriving
-     *  the list here instead would run a map over ~800 rows on every live-HR emission for a value the
-     *  guard reads once per ~8-minute battery reading. */
     val days: List<DailyMetric>,
 )
+
+/**
+ * Memoizes daily-row selection and Illness Watch evaluation across live-state emissions.
+ *
+ * `combine` reuses the exact immutable day-list instance until the Room flow emits again, while BLE
+ * state can emit about once per second. Identity is therefore the cheap generation token: a new list,
+ * a logical/local-day rollover, or an Illness Watch preference change refreshes the projection. This
+ * preserves the old behavior at midnight/04:00 and when the opt-out changes without rescanning up to
+ * 800 day rows or allocating Illness Watch slices for every heart-rate sample.
+ */
+internal class NotifyDayStateCache(
+    private val illnessEvaluator: (List<DailyMetric>) -> String? = IllnessWatch::evaluate,
+) {
+    private var cachedDays: List<DailyMetric>? = null
+    private var cachedLogicalKey: String? = null
+    private var cachedLocalKey: String? = null
+    private var cachedIllnessEnabled: Boolean? = null
+    private var cachedState: NotifyDayState? = null
+
+    fun resolve(
+        days: List<DailyMetric>,
+        logicalKey: String,
+        localKey: String,
+        illnessEnabled: Boolean,
+    ): NotifyDayState {
+        cachedState?.let { state ->
+            if (days === cachedDays && logicalKey == cachedLogicalKey && localKey == cachedLocalKey &&
+                illnessEnabled == cachedIllnessEnabled
+            ) {
+                return state
+            }
+        }
+
+        val todayRow = com.noop.ui.resolveTodayRow(days, logicalKey, localKey)
+        val anchorRow = com.noop.ui.widgetAnchorRow(days, logicalKey, localKey)
+        val state = NotifyDayState(
+            todayRecovery = todayRow?.recovery,
+            widgetRecovery = anchorRow?.recovery?.roundToInt(),
+            widgetRest = anchorRow?.let { RestScorer.restFromDaily(it)?.roundToInt() },
+            widgetEffort = anchorRow?.strain?.roundToInt(),
+            illness = if (illnessEnabled) illnessEvaluator(days) else null,
+            days = days,
+        )
+        cachedDays = days
+        cachedLogicalKey = logicalKey
+        cachedLocalKey = localKey
+        cachedIllnessEnabled = illnessEnabled
+        cachedState = state
+        return state
+    }
+}
 
 class WhoopConnectionService : Service() {
 
@@ -91,6 +147,9 @@ class WhoopConnectionService : Service() {
     /** The single live-state→notification collector. Re-`start`s land here repeatedly (on every
      *  connect, plus any OS restart), so we cancel the old one before launching a new one. */
     private var notifyJob: Job? = null
+
+    /** Daily analytics projection shared across the notification's ~1 Hz live-state ticks. */
+    private val notifyDayStateCache = NotifyDayStateCache()
 
     /** Watches [GpsSession] and runs the platform location stream while a GPS workout is active. This
      *  is what makes route tracking survive the screen turning off (#215): the collection lives on the
@@ -242,17 +301,17 @@ class WhoopConnectionService : Service() {
                 //    guard). ONLY the widget uses this, so the 2x2 widget shows the same day as Today rather
                 //    than blanking in the small hours before tonight is scored. This keeps the service
                 //    symmetric with AppViewModel, where only the widget push reads the anchor.
-                val todayRow = com.noop.ui.resolveTodayRow(days, logicalKey, localKey)
-                val anchorRow = com.noop.ui.widgetAnchorRow(days, logicalKey, localKey)
                 NotifyTick(
                     state = state,
-                    todayRow = todayRow,
-                    anchorRow = anchorRow,
-                    // Illness watch in the background (gated on the opt-out pref): the FGS is the
-                    // only long-lived collector, so this is what makes the early-warning reach a
-                    // user who hasn't opened the app today.
-                    illness = if (NoopPrefs.illnessWatch(this@WhoopConnectionService)) IllnessWatch.evaluate(days) else null,
-                    days = days,
+                    dayState = notifyDayStateCache.resolve(
+                        days = days,
+                        logicalKey = logicalKey,
+                        localKey = localKey,
+                        // The preference remains part of the per-tick cache key, so toggling the opt-out
+                        // still takes effect on the next live-state emission without re-running the
+                        // evaluation while the value is unchanged.
+                        illnessEnabled = NoopPrefs.illnessWatch(this@WhoopConnectionService),
+                    ),
                 )
             }.catch { /* belt-and-braces: a frozen notification beats a dead process */ }
                 // conflate + collect, NOT collectLatest (#82): the widget push suspends in Glance
@@ -260,16 +319,16 @@ class WhoopConnectionService : Service() {
                 // every push mid-flight and the widget starved on stale data the moment HR started
                 // streaming. Conflation still processes only the latest value — just without the axe.
                 .conflate()
-                .collect { (state, todayRow, anchorRow, illness, days) ->
+                .collect { (state, dayState) ->
                 // Honest-null: the notification's Recovery line reads the NAIVE today row, never the
                 // carried anchor, so it stays blank until tonight's recovery actually lands (#911).
-                postNotification(state, todayRow?.recovery)
+                postNotification(state, dayState.todayRecovery)
                 // Banner transition (clear → raised) → real system notification; the notifier's
                 // persisted day gate dedupes against the app-open (AppViewModel) call site.
-                if (lastIllnessAlert == null && illness != null) {
-                    IllnessAlertNotifier.onEvaluated(this@WhoopConnectionService, illness)
+                if (lastIllnessAlert == null && dayState.illness != null) {
+                    IllnessAlertNotifier.onEvaluated(this@WhoopConnectionService, dayState.illness)
                 }
-                lastIllnessAlert = illness
+                lastIllnessAlert = dayState.illness
                 // Evaluated only when (SoC, charging) actually MOVES — see [lastBatteryAlertKey]. Both policies
                 // are once-per-crossing and persisted, so re-running them on an unchanged pair can only repeat
                 // work that already decided nothing.
@@ -331,7 +390,7 @@ class WhoopConnectionService : Service() {
                             nowSecOfDay = localSecOfDayNow(),
                             habitualMidsleepSec = habitualMidsleepCache,
                             typicalSleepHours = BatteryEstimator.typicalSleepHours(
-                                days.mapNotNull { d -> d.totalSleepMin?.let { it / 60.0 } },
+                                dayState.days.mapNotNull { d -> d.totalSleepMin?.let { it / 60.0 } },
                             ),
                             usableRemainingHours = estimate?.let { BatteryEstimator.usableRemainingHours(it) },
                             charging = state.charging,
@@ -345,12 +404,12 @@ class WhoopConnectionService : Service() {
                     WidgetSnapshotStore.push(
                         this@WhoopConnectionService,
                         WidgetSnapshot(
-                            recoveryPct = anchorRow?.recovery?.roundToInt(),
+                            recoveryPct = dayState.widgetRecovery,
                             // Rest = the sleep_performance composite from the anchor row's banked stage
                             // figures (pure, honest-null until last night is scored); Effort = the 0-100
                             // strain. Widget-only carry, so it shows the same day as Today. (#516/#911)
-                            restPct = anchorRow?.let { RestScorer.restFromDaily(it)?.roundToInt() },
-                            effortPct = anchorRow?.strain?.roundToInt(),
+                            restPct = dayState.widgetRest,
+                            effortPct = dayState.widgetEffort,
                             heartRate = state.heartRate,
                             batteryPct = state.batteryPct?.roundToInt(),
                             connected = state.connected,
