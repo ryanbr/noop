@@ -1681,8 +1681,9 @@ class WhoopBleClient(
      *  Note it would ALSO need [connectionPriorityEnabled], i.e. the Fast history sync toggle, since
      *  [refreshConnectionPriority] early-returns without it. A control for this alone would do nothing.
      *
-     *  Contrast [lowBatteryOffloadPct] below, which IS wired: the Power saving master drives it from the
-     *  PHONE's battery. That one is reachable; this one is not. */
+     *  Contrast [lowBatteryOffloadPct] below, which IS wired: the Power saving master drives it. Both key
+     *  on the STRAP's battery — see [batteryPctAndCharging] — so neither is a lever a user can pull
+     *  because their PHONE is draining. That is the gap #1005 runs into. */
     @Volatile private var idleThrottleBatteryPct: Int = 0
 
     /** #533: also escalate to HIGH for the LIVE-HR stream, not just the offload burst. DEFAULT OFF, and
