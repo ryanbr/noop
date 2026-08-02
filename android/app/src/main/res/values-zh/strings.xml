@@ -1785,4 +1785,13 @@
     <string name="onboarding_theme_follow_system">跟随手机的浅色或深色设置。</string>
     <string name="onboarding_theme_light_description">深蓝色点缀搭配温暖的浅色背景。</string>
     <string name="onboarding_theme_dark_description">深蓝色点缀搭配深色蓝灰背景。</string>
+
+    <!-- Today 问候语与可选的称呼。问候语与名字之间使用全角逗号。 -->
+    <string name="profile_preferred_name">姓名</string>
+    <string name="profile_name_placeholder">可选</string>
+    <string name="profile_name_accessibility">姓名，可选</string>
+    <string name="today_greeting_morning">早上好</string>
+    <string name="today_greeting_afternoon">下午好</string>
+    <string name="today_greeting_evening">晚上好</string>
+    <string name="today_greeting_with_name">%1$s，%2$s</string>
 </resources>

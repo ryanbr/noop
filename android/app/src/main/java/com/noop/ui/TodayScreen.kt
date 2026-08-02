@@ -1144,7 +1144,13 @@ fun TodayScreen(
         // the Updates inbox is relocated into the "+" quick-actions sheet (AppRoot), so the feature stays one
         // tap away without sitting in the Today header. Staggered in as the first section (index 0).
         val dayTitle = when (selectedDayOffset) {
-            0 -> "Today"
+            0 -> personalizedGreeting(
+                greeting = greetingWord(),
+                preferredName = profileStore.greetingName,
+                formatWithName = { greeting, name ->
+                    uiString(R.string.today_greeting_with_name, greeting, name)
+                },
+            )
             1 -> "Yesterday"
             else -> {
                 val keyDate = runCatching { LocalDate.parse(selectedDayKey) }.getOrNull() ?: selectedDay
@@ -2076,7 +2082,7 @@ private fun LiquidTodayHeader(
                 style = NoopType.number(28f, weight = FontWeight.Bold)
                     .copy(shadow = Shadow(color = Color.Black.copy(alpha = 0.4f), offset = Offset(0f, 1f), blurRadius = 10f)),
                 color = Color.White,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
@@ -2606,7 +2612,7 @@ private fun HeroScoreVessel(
 /**
  * The plain-English Synthesis card, the Charge-tinted [InsightCard] read-out under the ring hero, with a
  * WHITE headline (the key iOS Design-Reset change, `statusColor: textPrimary`, not the recovery/charge
- * colour), carrying the greeting + the SOLID / CALIBRATING data-confidence pill in its top-right. Mirrors
+ * colour), carrying the Today label + the SOLID / CALIBRATING data-confidence pill in its top-right. Mirrors
  * the iOS Synthesis InsightCard (which moved here when the big RecoveryRing hero that owned the pill went).
  */
 @Composable
@@ -2629,7 +2635,7 @@ private fun SynthesisHeroCard(
     val readDay = carriedDay ?: day
     val recovery = readDay?.recovery
     Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
-        // The greeting + SOLID/CALIBRATING data-confidence pill ride in their OWN header row ABOVE the
+        // The Today label + SOLID/CALIBRATING data-confidence pills ride in their OWN header row ABOVE the
         // card, not as a top-end overlay over it (#527). The old overlay sat over the card's "SYNTHESIS"
         // overline + big status word and, on a narrow phone, collided with them, and squeezing the
         // status into the leftover width force-broke a single word ("Calibrating" → "Calibrati/ng").
@@ -2640,9 +2646,9 @@ private fun SynthesisHeroCard(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // The greeting yields/ellipsises first; the pill keeps its full width (#527).
+            // The time greeting moved into the large day title; its former position now carries "Today".
             Text(
-                greetingWord(),
+                uiString(R.string.nav_today),
                 style = NoopType.subhead,
                 color = Palette.textSecondary,
                 maxLines = 1,
@@ -5864,10 +5870,19 @@ private fun rememberTrendWindow(
 private fun greetingWord(): String {
     val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
     return when {
-        h < 12 -> "Good morning"
-        h < 17 -> "Good afternoon"
-        else -> "Good evening"
+        h < 12 -> uiString(R.string.today_greeting_morning)
+        h < 17 -> uiString(R.string.today_greeting_afternoon)
+        else -> uiString(R.string.today_greeting_evening)
     }
+}
+
+internal fun personalizedGreeting(
+    greeting: String,
+    preferredName: String?,
+    formatWithName: (String, String) -> String,
+): String {
+    val name = preferredName?.trim().orEmpty()
+    return if (name.isEmpty()) greeting else formatWithName(greeting, name)
 }
 
 private fun synthesisWord(score: Double?): String {

@@ -3,7 +3,7 @@ import Foundation
 /// The `settings.json` payload inside a `.noopbak` backup (#1000).
 ///
 /// A `.noopbak` is a ZIP whose first entry is the SQLite database. That round-trips every row, but the
-/// user's profile (age / sex / weight / height / HR-max override) and display preferences live in
+/// user's profile (optional name / age / sex / weight / height / HR-max override) and display preferences live in
 /// UserDefaults (SharedPreferences on Android), so a restore onto a fresh device silently reset them —
 /// the "restore doesn't bring back settings/weight/height" half of #1000. This adds a SECOND, optional
 /// ZIP entry — `settings.json`, a flat JSON object — carrying exactly one WHITELISTED set of keys.
@@ -33,14 +33,16 @@ public enum BackupSettings {
     /// THE whitelist — the only keys `settings.json` may carry, keyed by their CANONICAL
     /// (platform-neutral) names. Mirrored exactly by Android's `BackupSettingsCodec.WHITELIST`.
     ///
-    /// Profile: the body metrics that power HR zones / calories / recovery baselines, plus the manual
-    /// HR-max override (`profile.hrMax`, 0 = auto/Tanaka). Display: the metric/imperial system, the
+    /// Profile: the optional Today-greeting name, the body metrics that power HR zones / calories /
+    /// recovery baselines, plus the manual HR-max override (`profile.hrMax`, 0 = auto/Tanaka). Display:
+    /// the metric/imperial system, the
     /// separate temperature override ("" = match the system), and the Effort axis (#268) — the three
     /// display prefs that exist with identical semantics on both platforms. Deliberately EXCLUDED:
     /// step calibration (per-strap, not per-person), the avatar blob (bulky, and not "settings"),
     /// steps-engine fitted outputs (derived), and every noop.* toggle that is device- or
     /// install-specific.
     public static let whitelist: [String: Kind] = [
+        "profile.name": .string,
         "profile.age": .int,
         "profile.sex": .string,
         "profile.weightKg": .double,
@@ -56,6 +58,7 @@ public enum BackupSettings {
     /// `profile.hrMax`, which UserDefaults stores as `profile.hrMaxOverride` (see `ProfileStore.K`).
     /// Android maps the same canonical keys onto its own SharedPreferences names.
     public static let appleDefaultsKey: [String: String] = [
+        "profile.name": "profile.name",
         "profile.age": "profile.age",
         "profile.sex": "profile.sex",
         "profile.weightKg": "profile.weightKg",

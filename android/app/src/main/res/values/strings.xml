@@ -1883,4 +1883,12 @@
     <string name="onboarding_theme_follow_system">Following your phone\'s light/dark setting.</string>
     <string name="onboarding_theme_light_description">Deep blue accent on warm paper.</string>
     <string name="onboarding_theme_dark_description">Deep blue accent on a dark blue-grey canvas.</string>
+    <!-- Optional profile name used to personalize the Today greeting. -->
+    <string name="profile_preferred_name">Name</string>
+    <string name="profile_name_placeholder">Optional</string>
+    <string name="profile_name_accessibility">Name, optional</string>
+    <string name="today_greeting_morning">Good morning</string>
+    <string name="today_greeting_afternoon">Good afternoon</string>
+    <string name="today_greeting_evening">Good evening</string>
+    <string name="today_greeting_with_name">%1$s, %2$s</string>
 </resources>

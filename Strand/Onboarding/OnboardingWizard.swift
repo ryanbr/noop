@@ -745,6 +745,23 @@ private struct ProfileStep: View {
             VStack(spacing: 16) {
                 StrandCard {
                     VStack(spacing: 18) {
+                        HStack {
+                            Text("Name").strandOverline()
+                            Spacer()
+                            TextField("Optional", text: $profile.preferredName)
+                                .textFieldStyle(.plain)
+                                .font(StrandFont.body)
+                                .foregroundStyle(StrandPalette.textPrimary)
+                                .multilineTextAlignment(.trailing)
+                                .lineLimit(1)
+                                .accessibilityLabel(String(
+                                    format: String(localized: "%@, %@"),
+                                    String(localized: "Name"), String(localized: "Optional")
+                                ))
+                        }
+
+                        Divider().overlay(StrandPalette.hairline)
+
                         // #146: capture a date of birth so age advances on its own instead of going stale.
                         DatePicker(selection: $profile.dateOfBirth,
                                    in: ProfileStore.dateOfBirthRange,

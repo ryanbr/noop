@@ -20,6 +20,33 @@ import org.junit.Test
  */
 class ProfileStoreAgeMigrationTest {
 
+    @Test fun optionalPreferredNameTrimsForGreetingAndRoundTripsThroughBackup() {
+        val prefs = FakeSharedPreferences()
+        val profile = ProfileStore(prefs)
+
+        assertNull(profile.greetingName)
+        profile.preferredName = "  Alex  "
+        assertEquals("Alex", profile.greetingName)
+        assertEquals("Alex", profile.backupSnapshot()["profile.name"])
+
+        profile.preferredName = "   "
+        assertNull(profile.greetingName)
+        assertNull(profile.backupSnapshot()["profile.name"])
+    }
+
+    @Test fun restoredBackupWithoutNameKeepsOptionalNameEmpty() {
+        val profile = ProfileStore(FakeSharedPreferences())
+        profile.applyBackup(mapOf("profile.age" to 41))
+        assertNull(profile.greetingName)
+    }
+
+    @Test fun personalizedGreetingAddsCommaOnlyWhenNameExists() {
+        val formatWithName = { greeting: String, name: String -> "$greeting, $name" }
+        assertEquals("Good morning", personalizedGreeting("Good morning", null, formatWithName))
+        assertEquals("Good morning", personalizedGreeting("Good morning", "   ", formatWithName))
+        assertEquals("Good morning, Alex", personalizedGreeting("Good morning", " Alex ", formatWithName))
+    }
+
     @Test
     fun freshInstall_defaultsTo30_andPersistsADob() {
         val prefs = FakeSharedPreferences()

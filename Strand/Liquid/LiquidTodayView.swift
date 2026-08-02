@@ -4,7 +4,7 @@
 //  This is the FULL Today, re-created faithfully from the locked mockup
 //  (scratchpad/liquid-metal-home.html): sky title + record/add/battery controls,
 //  the three scores as liquid vessels with a card-level source badge, the live heart-rate
-//  thread, the five "your cards" as liquid chips, a greeting + readiness pills,
+//  thread, the five "your cards" as liquid chips, a personalised greeting + readiness pills,
 //  Synthesis, Recovery Vitals, a Key Metrics grid (incl. steps), Last Workouts
 //  and Data Sources. Every value binds to the SAME real data the classic
 //  TodayView reads (accessors verified against TodayView.swift), and every tap
@@ -160,14 +160,14 @@ struct LiquidTodayView: View {
         Self.maxDayOffset(earliestDayKey: repo.freshness.earliestDay,
                           todayKey: Repository.logicalDayKey(Date()))
     }
-    /// The big header title: Today / Yesterday / weekday for older days.
+    /// The big header title: a personalised greeting for today, then Yesterday / weekday for older days.
     private var dayTitle: String {
         switch selectedDayOffset {
-        // #1013: these must localize — the header showed English "Today"/"Yesterday"/weekday even when the
-        // system UI (tab bar etc.) was another language. "Today"/"Yesterday" go through String(localized:)
-        // (matching the classic TodayView.dayNavLabel), and the weekday name is formatted in the user's
-        // locale, not the en_US_POSIX one used only for machine day-keys.
-        case 0: return String(localized: "Today")
+        // #1013: these must localize — the header previously showed English labels even when the system UI
+        // used another language. Today's header composes localized greeting parts, "Yesterday" goes through
+        // String(localized:), and weekday names use the user's locale rather than the en_US_POSIX locale used
+        // only for machine day-keys.
+        case 0: return todayGreeting
         case 1: return String(localized: "Yesterday")
         default:
             return selectedLogicalDay.formatted(.dateTime.weekday(.wide).locale(Locale.autoupdatingCurrent))
@@ -276,7 +276,7 @@ struct LiquidTodayView: View {
                     Color.clear.frame(height: 90) // floating tab-bar clearance
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 30) // sit the title lower into the sky, not jammed under the status bar
+                .padding(.top, NoopMetrics.space4)
             }
             #if os(macOS)
             // Keep the phone-shaped column readable + centred on the wide mac detail pane. The sky is a
@@ -409,6 +409,8 @@ struct LiquidTodayView: View {
                         Text(dayTitle)
                             .font(StrandFont.rounded(28))
                             .foregroundStyle(.white)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.8)
                             .shadow(color: .black.opacity(0.4), radius: 10, y: 1)
                         Text(dateLine)
                             .font(StrandFont.caption)
@@ -462,7 +464,7 @@ struct LiquidTodayView: View {
             // section block below. The wordmark's bottom pad (10) + the section VStack's 12 spacing keeps
             // the default hero-under-wordmark gap at the original 22.
             LiquidWordmark()
-                .padding(.top, 30)
+                .padding(.top, NoopMetrics.space4)
                 .padding(.bottom, 10)
         }
     }
@@ -697,7 +699,7 @@ struct LiquidTodayView: View {
         .buttonStyle(LiquidPressStyle())
     }
 
-    // MARK: - Synthesis (greeting + readiness pills + one-liner)
+    // MARK: - Synthesis (Today label + readiness pills + one-liner)
 
     /// Liquid parity with classic `effortZeroNote`: the "no cardio load yet" line shown in the synthesis
     /// card when today's Effort is ~0, so a calm day explains itself instead of a bare 0. Reuses classic's
@@ -710,7 +712,9 @@ struct LiquidTodayView: View {
     private var synthesisSection: some View {
         VStack(spacing: 8) {
             HStack {
-                Text(greeting).font(StrandFont.rounded(19)).foregroundStyle(StrandPalette.textPrimary)
+                Text(String(localized: "Today"))
+                    .font(StrandFont.rounded(19))
+                    .foregroundStyle(StrandPalette.textPrimary)
                     .lineLimit(1).minimumScaleFactor(0.6)   // yield to the pills rather than push them to wrap
                 Spacer(minLength: 8)
                 HStack(spacing: 8) {
@@ -1285,11 +1289,16 @@ struct LiquidTodayView: View {
         }
     }
 
-    private var greeting: String {
+    private var timeGreeting: String {
         let h = Calendar.current.component(.hour, from: Date())
         return h < 12 ? String(localized: "Good morning")
             : h < 17 ? String(localized: "Good afternoon")
             : String(localized: "Good evening")
+    }
+
+    private var todayGreeting: String {
+        guard let name = profile.greetingName else { return timeGreeting }
+        return String(format: String(localized: "%@, %@"), timeGreeting, name)
     }
 
     // Measured strap count ?: imported Apple Health count ?: motion estimate — the same precedence the

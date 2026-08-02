@@ -1857,4 +1857,12 @@
     <string name="onboarding_theme_follow_system">Se usa el ajuste claro u oscuro de tu teléfono.</string>
     <string name="onboarding_theme_light_description">Acentos azul oscuro sobre un fondo cálido y claro.</string>
     <string name="onboarding_theme_dark_description">Acentos azul oscuro sobre un fondo azul grisáceo oscuro.</string>
+    <!-- Optional profile name used to personalize the Today greeting. -->
+    <string name="profile_preferred_name">Nombre</string>
+    <string name="profile_name_placeholder">Opcional</string>
+    <string name="profile_name_accessibility">Nombre, opcional</string>
+    <string name="today_greeting_morning">Buenos días</string>
+    <string name="today_greeting_afternoon">Buenas tardes</string>
+    <string name="today_greeting_evening">Buenas noches</string>
+    <string name="today_greeting_with_name">%1$s, %2$s</string>
 </resources>

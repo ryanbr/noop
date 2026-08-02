@@ -50,6 +50,8 @@ import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -687,6 +689,36 @@ private fun ProfileStep() {
     ) {
         NoopCard(padding = 18.dp) {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                ProfileFieldRow(label = uiString(R.string.profile_preferred_name)) {
+                    OutlinedTextField(
+                        value = profile.preferredName,
+                        onValueChange = { mutate { profile.preferredName = it } },
+                        singleLine = true,
+                        placeholder = {
+                            Text(
+                                uiString(R.string.profile_name_placeholder),
+                                style = NoopType.body,
+                                color = Palette.textTertiary,
+                            )
+                        },
+                        textStyle = NoopType.body,
+                        modifier = Modifier
+                            .fillMaxWidth(0.58f)
+                            .semantics {
+                                contentDescription = uiString(R.string.profile_name_accessibility)
+                            },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Palette.textPrimary,
+                            unfocusedTextColor = Palette.textPrimary,
+                            focusedBorderColor = Palette.accent,
+                            unfocusedBorderColor = Palette.hairline,
+                            cursorColor = Palette.accent,
+                            focusedContainerColor = Palette.surfaceInset,
+                            unfocusedContainerColor = Palette.surfaceInset,
+                        ),
+                    )
+                }
+                ThinDivider()
                 ProfileFieldRow(label = uiString(R.string.l10n_onboarding_screen_age_ff9f1ff3)) {
                     WheelPickerField(
                         value = "${profile.age}",
