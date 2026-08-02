@@ -19,16 +19,12 @@ on:
       - 'Packages/**'
       - 'project.yml'
       - '.github/workflows/app-build.yml'
-  push:
-    branches: [main]
-    paths:
-      - 'Strand/**'
-      - 'StrandiOS/**'
-      - 'StrandiOSShared/**'
-      - 'StrandiOSWidgets/**'
-      - 'Packages/**'
-      - 'project.yml'
-      - '.github/workflows/app-build.yml'
+  # No `push: main` leg. Every change reaches main through a PR, which the trigger above already
+  # gates, so a push run rebuilt content that had just been built - on macOS runners, which GitHub
+  # bills at 10x Linux for a two-runner matrix (macos-15 for the universal macOS leg, macos-26 for
+  # the iOS 26 SDK). A RELEASE pushes straight to main with no PR, but fork-release.yml builds both
+  # Strand and NOOPiOS itself, so that path keeps its own compile gate. The gap this leaves is a
+  # direct non-release push to main; `workflow_dispatch` below covers checking one on demand.
   workflow_dispatch:
 
 concurrency:
