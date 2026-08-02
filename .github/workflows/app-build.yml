@@ -70,16 +70,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          # refs/pull/<n>/merge is GitHub's own main+PR merge commit — the same thing the old `ci/`
-          # branch dance produced, without a push. Blank input leaves the default checkout alone.
-          ref: ${{ inputs.pr && format('refs/pull/{0}/merge', inputs.pr) || '' }}
+          # The PR's HEAD, then merge current main below. NOT refs/pull/<n>/merge: GitHub freezes that
+          # ref at the last time the PR merged CLEANLY, so for a conflicting or simply stale PR it is a
+          # merge against an old main and it still resolves. Probing #931 through it would have compiled
+          # main as of 30 July, 30+ commits behind, and reported SUCCESS - a false green, and worse than
+          # the branch it replaced. Merging here is always against main as it is right now.
+          ref: ${{ inputs.pr && format('refs/pull/{0}/head', inputs.pr) || '' }}
+          fetch-depth: ${{ inputs.pr && 0 || 1 }}
+
+      - name: Merge current main
+        if: inputs.pr != ''
+        run: |
+          git fetch --no-tags origin main
+          echo "PR #${{ inputs.pr }} head: $(git log --oneline -1 HEAD)"
+          echo "merging into:  $(git log --oneline -1 FETCH_HEAD)"
+          git -c user.name=ci -c user.email=ci@local merge --no-edit FETCH_HEAD
 
       - name: Say what is being built
         run: |
           if [ -n "${{ inputs.pr }}" ]; then
-            echo "Building PR #${{ inputs.pr }} as merged into main (refs/pull/${{ inputs.pr }}/merge)"
+            echo "Built: PR #${{ inputs.pr }} merged into current main"
           else
-            echo "Building ${GITHUB_REF_NAME} as-is"
+            echo "Built: ${GITHUB_REF_NAME} as-is"
           fi
           git log --oneline -1
 
