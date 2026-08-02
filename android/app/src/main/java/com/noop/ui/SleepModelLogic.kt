@@ -101,6 +101,9 @@ internal fun buildSleepModel(
     // single-block day → the session/DailyMetric path below is unchanged.
     heroStages: StageMins? = null,
     heroSegments: List<PersistedSegment>? = null,
+    // Actual asleep minutes from blocks outside each day's canonical main-night group. They repay
+    // debt without changing DailyMetric.totalSleepMin, which remains the Rest/headline main-night figure.
+    napSleepMinByDay: Map<String, Double> = emptyMap(),
 ): SleepModel? {
     val effectiveDay = selectedDay ?: days.lastOrNull()?.day ?: return null
     // The HERO night = the selected day's stage-bearing row. The TILE / debt / need / trend
@@ -192,7 +195,8 @@ internal fun buildSleepModel(
     val sleepDebt = run {
         val series = days.mapNotNull { d ->
             imported.debtMin[d.day]   // minutes, export-verbatim
-                ?: d.totalSleepMin?.takeIf { it > 0.0 && needMin > 0.0 }
+                ?: SleepDebt.creditedSleepMin(d.totalSleepMin, napSleepMinByDay[d.day] ?: 0.0)
+                    ?.takeIf { needMin > 0.0 }
                     ?.let { max(0.0, needMin - it) }   // APPROXIMATE fallback
         }
         Metric(series.lastOrNull(), mean(series), series)
@@ -204,7 +208,7 @@ internal fun buildSleepModel(
     val trendHours = trendRows.mapNotNull { it.totalSleepMin?.let { minutes -> minutes / 60.0 } }
     val trendNeedHours = trendRows.map { row -> ((imported.needMin[row.day] ?: needMin) / 60.0) }
     val trendDebtHours = trendRows.map { row ->
-        val sleptMin = row.totalSleepMin ?: 0.0
+        val sleptMin = SleepDebt.creditedSleepMin(row.totalSleepMin, napSleepMinByDay[row.day] ?: 0.0) ?: 0.0
         val neededMin = imported.needMin[row.day] ?: needMin
         ((imported.debtMin[row.day] ?: max(0.0, neededMin - sleptMin)) / 60.0)
     }
@@ -227,10 +231,12 @@ internal fun buildSleepModel(
     // most-recent 14 counted nights and skips no-data nights), using the SAME personal need the
     // tiles use (`needMin`, ≥ 7.5 h — the per-user override over the 8 h default). Full history,
     // not the browsed-night window: the ledger is a "Last 14 nights" at-a-glance summary that
-    // matches the debt TILE (both now read asleep totals over `days`), and mirrors iOS's
-    // debtLedger over repo.days. (#242, #5)
+    // matches the debt TILE (both read main-night totals plus separately decoded nap credit),
+    // and mirrors iOS's debtLedger over repo.days. (#242, #5)
     val sleepDebtLedger = SleepDebt.ledger(
-        series = days.map { it.day to it.totalSleepMin },
+        series = days.map { d ->
+            d.day to SleepDebt.creditedSleepMin(d.totalSleepMin, napSleepMinByDay[d.day] ?: 0.0)
+        },
         needHours = needMin / 60.0,
     )
 
@@ -269,11 +275,13 @@ internal fun buildSleepModel(
 internal fun fallbackSleepModel(
     days: List<DailyMetric>,
     imported: ImportedSleepSeries = ImportedSleepSeries(),
+    napSleepMinByDay: Map<String, Double> = emptyMap(),
 ): SleepModel? {
     val anchorDay = days.lastOrNull {
         (it.deepMin ?: 0.0) + (it.remMin ?: 0.0) + (it.lightMin ?: 0.0) > 0.0
     }?.day ?: return null
-    return buildSleepModel(days, null, imported, selectedDay = anchorDay)
+    return buildSleepModel(days, null, imported, selectedDay = anchorDay,
+        napSleepMinByDay = napSleepMinByDay)
 }
 
 /** Build a metric from a per-day transform, keeping only finite values. */

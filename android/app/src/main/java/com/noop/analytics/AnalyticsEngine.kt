@@ -273,13 +273,14 @@ object AnalyticsEngine {
 
         // ── The day's MAIN night (#525) ───────────────────────────────────────
         // A day can hold an overnight AND a daytime nap (both end on `day`, so both are in `matched`).
-        // The sleep-DURATION figures (total sleep / stage minutes / efficiency / disturbances, hence the
-        // Rest composite, the debt ledger, and the dashboard card) describe the MAIN night — the SAME
-        // block the Sleep tab's hero shows (longest, preferring an overnight-anchored onset). They must
-        // NOT silently sum the nap in, or the "your night" number disagrees across screens (the #525
-        // report). Naps stay their OWN session rows in `sleepSessions`, where the Sleep tab lists and
-        // labels them separately. [SleepStageTotals.mainNightIndex] is the single shared selector so the
-        // analytics rollup and the Sleep tab resolve to the identical block.
+        // The canonical sleep-DURATION figures (total sleep / stage minutes / efficiency / disturbances,
+        // hence the Rest composite and dashboard card) describe the MAIN night — the SAME block the Sleep
+        // tab's hero shows (longest, preferring an overnight-anchored onset). They must NOT silently sum the
+        // nap in, or the "your night" number disagrees across screens (the #525 report). Naps stay their OWN
+        // session rows in `sleepSessions`, where the Sleep tab lists and labels them separately. The Sleep
+        // tab's debt calculation deliberately adds those rows' actual asleep minutes as repayment credit;
+        // it does not mutate this canonical main-night aggregate. [SleepStageTotals.mainNightIndex] is the
+        // single shared selector so the analytics rollup and Sleep tab classify the same blocks.
         // Pick by the LEARNED-TIMING score, threading the user's learned habitual midsleep so a
         // late/shift sleeper's real night out-scores a daytime nap (null = cold-start overnight band).
         // BIPHASIC GAP-BRIDGE (#561): a main sleep briefly interrupted by a short wake (a fragment the
@@ -289,8 +290,9 @@ object AnalyticsEngine {
         // fragments in the winning group. The AASM aggregate below then SUMS the group's stages — in-bed is
         // the SUM of each fragment's own in-bed span (the inter-fragment wake gap is NOT part of any fragment,
         // so it is excluded and we do NOT invent WASO for it). A day with no bridgeable gap collapses to the
-        // single block the bare [mainNightIndex] would pick. Intelligence / the Ledger / the Sleep tab all
-        // read this SAME group, so #525 does not regress. Mirrors Swift. (#525 / #561)
+        // single block the bare [mainNightIndex] would pick. Intelligence and the Sleep headline read this
+        // SAME group; the debt ledger starts with it and separately credits naps, so #525 does not regress.
+        // Mirrors Swift. (#525 / #561)
         val mainGroupIdx = SleepStageTotals.mainNightGroupIndices(
             matched.map { SleepStageTotals.NightBlock(it.start, it.end) },
             tzOffsetSeconds, habitualMidsleepSec,

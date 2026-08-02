@@ -1830,6 +1830,7 @@ struct SleepView: View {
         } else {
             return nil
         }
+        let napSleepMinByDay = self.napSleepMinutesByDay
         return SleepModel(
             night: night,
             intervals: night.intervals,
@@ -1841,22 +1842,27 @@ struct SleepView: View {
             hoursVsNeeded: hoursVsNeededSeries,
             restorative: restorativeSeries,
             respiratory: respiratorySeries,
-            sleepDebt: sleepDebtSeries,
+            sleepDebt: sleepDebtSeries(napSleepMinByDay: napSleepMinByDay),
             typicalTotalMin: typicalTotalMin,
             typicalDeepMin: typicalStageMin(\.deepMin),
             typicalRemMin: typicalStageMin(\.remMin),
             typicalLightMin: typicalStageMin(\.lightMin),
             trendPoints: durationTrendPoints,
-            sleepDebtLedger: debtLedger)
+            sleepDebtLedger: debtLedger(napSleepMinByDay: napSleepMinByDay))
     }
 
     /// The rolling 14-night sleep-debt ledger from the cached daily metrics. Uses the
     /// SAME personal sleep need the tiles use (`sleepNeedMin`, ≥ 7.5 h, the per-user
-    /// override over the 8 h default), measured against each night's `totalSleepMin`.
+    /// override over the 8 h default), measured against each main night's `totalSleepMin`
+    /// plus actual asleep minutes from separately-recorded naps.
     /// Skips nights with no sleep (the analytics function does the skip). (#242)
-    private var debtLedger: SleepDebtLedger {
+    private func debtLedger(napSleepMinByDay: [String: Double]) -> SleepDebtLedger {
         SleepDebt.ledger(
-            series: repo.days.map { (day: $0.day, totalSleepMin: $0.totalSleepMin) },
+            series: repo.days.map { day in
+                (day: day.day, totalSleepMin: SleepDebt.creditedSleepMin(
+                    mainSleepMin: day.totalSleepMin,
+                    napSleepMin: napSleepMinByDay[day.day] ?? 0))
+            },
             needHours: sleepNeedMin / 60.0)
     }
 
@@ -1928,6 +1934,22 @@ struct SleepView: View {
             sessions.map { SleepStageTotals.NightBlock(start: $0.effectiveStartTs, end: $0.endTs) },
             offsetSec: tzOffsetSec, habitualMidsleepSec: habitualMidsleepSec) else { return [] }
         return idx.map { sessions[$0] }.sorted { $0.effectiveStartTs < $1.effectiveStartTs }
+    }
+
+    /// Actual asleep minutes in blocks outside a day's canonical main-night group. The Repository's
+    /// all-session union has already removed cross-namespace duplicates; this helper only applies the
+    /// same main-vs-nap classification the hero uses and decodes persisted stages. A stage-less nap
+    /// contributes nothing rather than substituting its in-bed window. Mirrors Android
+    /// `napSleepMinutesByDay`.
+    static func napSleepMinutes(_ sessions: [CachedSleepSession],
+                                habitualMidsleepSec: Int? = nil) -> Double {
+        let mainStarts = Set(mainNightGroup(sessions, habitualMidsleepSec: habitualMidsleepSec)
+            .map { $0.startTs })
+        return sessions
+            .filter { !mainStarts.contains($0.startTs) }
+            .reduce(0) { total, nap in
+                total + decodedAsleepMinutes(nap.stagesJSON, effectiveStartTs: nap.effectiveStartTs)
+            }
     }
 
     /// The day's main-night bridged SPAN (onset → wake), the same window `mainNightGroup` bridges into
@@ -2320,16 +2342,31 @@ struct SleepView: View {
     }
 
     /// Sleep debt (minutes): the imported sleep_debt_min when the export carried it; else
-    /// the APPROXIMATE per-night need − asleep, floored at 0 (no "credit").
-    private var sleepDebtSeries: Metric {
+    /// the APPROXIMATE per-night need − (main sleep + nap sleep), floored at 0.
+    private func sleepDebtSeries(napSleepMinByDay: [String: Double]) -> Metric {
         let imported = repo.importedSleep
         let need = sleepNeedMin
         let series = repo.days.compactMap { d -> Double? in
             if let debt = imported[d.day]?.debtMin { return debt }   // minutes, export-verbatim
-            guard let asleep = d.totalSleepMin, asleep > 0, need > 0 else { return nil }
+            guard let asleep = SleepDebt.creditedSleepMin(
+                mainSleepMin: d.totalSleepMin,
+                napSleepMin: napSleepMinByDay[d.day] ?? 0), need > 0 else { return nil }
             return Swift.max(0, need - asleep)   // APPROXIMATE fallback
         }
         return (series.last, mean(series), series)
+    }
+
+    /// Per-local-wake-day nap credit derived from the same un-deduplicated session list and
+    /// main-night selector the hero/naps card use. `DailyMetric.totalSleepMin` stays main-night-only;
+    /// this separate map is consumed only by the local debt tile and ledger.
+    private var napSleepMinutesByDay: [String: Double] {
+        var result: [String: Double] = [:]
+        for blocks in navDays {
+            guard let endTs = blocks.first?.endTs else { continue }
+            let day = Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval(endTs)))
+            result[day] = Self.napSleepMinutes(blocks, habitualMidsleepSec: habitualMidsleepSec)
+        }
+        return result
     }
 
     /// The personal sleep need (minutes): mean asleep, but never below a 7.5h floor so
