@@ -76,7 +76,10 @@ jobs:
           # main as of 30 July, 30+ commits behind, and reported SUCCESS - a false green, and worse than
           # the branch it replaced. Merging here is always against main as it is right now.
           ref: ${{ inputs.pr && format('refs/pull/{0}/head', inputs.pr) || '' }}
-          fetch-depth: ${{ inputs.pr && 0 || 1 }}
+          # QUOTED '0': GitHub expressions treat the number 0 as FALSY, so `inputs.pr && 0 || 1`
+          # silently yields 1 and leaves the clone shallow - the merge below then dies with
+          # "refusing to merge unrelated histories" (exit 128) for EVERY pr, mergeable or not.
+          fetch-depth: ${{ inputs.pr && '0' || '1' }}
 
       - name: Merge current main
         if: inputs.pr != ''
