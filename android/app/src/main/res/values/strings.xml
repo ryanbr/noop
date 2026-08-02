@@ -1894,4 +1894,15 @@
     <string name="recording_chip_detail_not_recording">Strap not connected. Tap to connect.</string>
     <string name="recording_chip_detail_history_experimental">History sync is experimental on 5.0.</string>
     <string name="recording_chip_detail_connected_no_data">No live heart rate or synced history yet this session.</string>
+    <string name="score_state_title_calibrating">Calibrating</string>
+    <string name="score_state_title_needs_strap">Needs the strap</string>
+    <string name="score_state_title_last_night">Last night · %1$s</string>
+    <string name="score_state_title_latest_sleep">Latest sleep · %1$s</string>
+    <string name="score_state_detail_needs_strap">No data for today. Was your strap worn and connected overnight?</string>
+    <string name="score_state_detail_carried_fresh">Tonight\'s lands after you sleep with the strap on.</string>
+    <string name="score_state_detail_carried_stale">This is your last scored session. Wear the strap overnight for a fresh score.</string>
+    <plurals name="score_state_detail_calibrating">
+        <item quantity="one">Building your baseline. About %1$d more night until your scores are personal.</item>
+        <item quantity="other">Building your baseline. About %1$d more nights until your scores are personal.</item>
+    </plurals>
 </resources>

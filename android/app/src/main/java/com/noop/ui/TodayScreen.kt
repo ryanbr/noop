@@ -1241,6 +1241,12 @@ fun TodayScreen(
             // hero. So on Android it's dismissible-into-the-inbox (restorable) like the calibrating note: a
             // small × tucks it into Updates so it isn't a fixed fixture between the header and the hero.
             if (selectedDayOffset == 0 && scoreState is ScoreState.CarriedLastNight && !carriedSleepDismissed) {
+                // Resolved HERE, not in the onClick below: dismissTodayCard runs from a non-composable
+                // lambda, and what it stores is what the Updates inbox later shows. Passing the raw
+                // `scoreState.title`/`.detail` filed the dismissed card in English while the card itself
+                // rendered localized — the same strings reaching a second sink. (#612)
+                val carriedTitle = scoreStateTitle(scoreState)
+                val carriedDetail = scoreStateDetail(scoreState)
                 Box(modifier = Modifier.fillMaxWidth()) {
                     ScoreStateNote(scoreState)
                     if (updateStore != null) {
@@ -1249,8 +1255,8 @@ fun TodayScreen(
                             onClick = {
                                 dismissTodayCard(
                                     CARD_CARRIED_SLEEP,
-                                    scoreState.title,
-                                    scoreState.detail,
+                                    carriedTitle,
+                                    carriedDetail,
                                 )
                             },
                         )
@@ -4113,6 +4119,39 @@ private fun ContributorBar(label: String, readout: String, fraction: Double?, co
 
 // ── COMPONENT 2, explained score states ─────────────────────────────────────────────────────────────
 
+/** The score-state title, LOCALIZED — same split as [recordingTitle] and for the same reason:
+ *  [ScoreState.title] is the English parity contract asserted verbatim against Swift in
+ *  `TodayExplainabilityTest`, so the resource lookup lives here rather than in the pure mapper. */
+@Composable
+private fun scoreStateTitle(state: ScoreState): String = when (state) {
+    is ScoreState.Scored -> ""
+    is ScoreState.Calibrating -> uiString(R.string.score_state_title_calibrating)
+    is ScoreState.CarriedLastNight ->
+        if (state.stale) uiString(R.string.score_state_title_latest_sleep, state.dateLabel)
+        else uiString(R.string.score_state_title_last_night, state.dateLabel)
+    ScoreState.NeedsStrap -> uiString(R.string.score_state_title_needs_strap)
+}
+
+/** The score-state detail line, LOCALIZED.
+ *
+ *  The calibrating countdown becomes a real `<plurals>`. Kotlin picked the noun with
+ *  `if (nightsRemaining == 1) "night" else "nights"`, which bakes in English's TWO categories — the
+ *  exact hand-rolling [uiPlural]'s doc warns about. `getQuantityString` applies the LOCALE's own rules
+ *  instead. (Swift splits the same sentence into two catalogue keys, so it shares the assumption; both
+ *  values here come from those keys. The one-forms carry `%1$d` where the Swift copy spelled the number
+ *  out — pt-PT said "mais uma noite" — because `i18n_audit` requires every quantity form of a plural to
+ *  share its siblings' placeholders, the check that catches a `%1$d` dropped from just one form.) */
+@Composable
+private fun scoreStateDetail(state: ScoreState): String = when (state) {
+    is ScoreState.Scored -> ""
+    is ScoreState.Calibrating ->
+        uiPlural(R.plurals.score_state_detail_calibrating, state.nightsRemaining, state.nightsRemaining)
+    is ScoreState.CarriedLastNight ->
+        if (state.stale) uiString(R.string.score_state_detail_carried_stale)
+        else uiString(R.string.score_state_detail_carried_fresh)
+    ScoreState.NeedsStrap -> uiString(R.string.score_state_detail_needs_strap)
+}
+
 /** The honest score-state note shown in the Today flow when there is no own number to render, the
  *  state title + one what-to-do line, no fabricated value. [ScoreState.Scored] renders nothing (the
  *  tiles carry the real number). The whole card is the spec's "never a bare blank". Mirrors the iOS
@@ -4130,11 +4169,16 @@ private fun ScoreStateNote(state: ScoreState, restartCause: String? = null) {
         ScoreState.NeedsStrap -> Palette.statusWarning
         else -> Palette.textTertiary
     }
+    // Resolved before the Row: `semantics { }` is not a composable scope, so uiString/uiPlural cannot be
+    // called inside it, and reading them once keeps the card and its a11y label on one string.
+    val title = scoreStateTitle(state)
+    val detail = scoreStateDetail(state)
+    val noteA11y = uiString(R.string.l10n_today_screen_state_title_state_detail_f5380609, title, detail)
     NoopCard {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .semantics { contentDescription = uiString(R.string.l10n_today_screen_state_title_state_detail_f5380609, state.title, state.detail) },
+                .semantics { contentDescription = noteA11y },
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.Top,
         ) {
@@ -4147,8 +4191,8 @@ private fun ScoreStateNote(state: ScoreState, restartCause: String? = null) {
                     .size(Metrics.iconSmall),
             )
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(state.title, style = NoopType.headline, color = Palette.textPrimary)
-                Text(state.detail, style = NoopType.subhead, color = Palette.textSecondary)
+                Text(title, style = NoopType.headline, color = Palette.textPrimary)
+                Text(detail, style = NoopType.subhead, color = Palette.textSecondary)
                 // #731: when the countdown restarted because the user tapped "Recalibrate
                 // baseline", say so - otherwise the natural response to a fresh countdown is to
                 // tap it again, resetting it once more. null (no line) if never recalibrated.

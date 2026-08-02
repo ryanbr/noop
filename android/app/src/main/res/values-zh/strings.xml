@@ -1796,4 +1796,15 @@
     <string name="recording_chip_detail_not_recording">手环未连接。点击以连接。</string>
     <string name="recording_chip_detail_history_experimental">历史同步在 5.0 上属实验性。</string>
     <string name="recording_chip_detail_connected_no_data">本次连接尚无实时心率或已同步的历史记录。</string>
+    <string name="score_state_title_calibrating">校准中</string>
+    <string name="score_state_title_needs_strap">需要手环</string>
+    <string name="score_state_title_last_night">昨晚 · %1$s</string>
+    <string name="score_state_title_latest_sleep">最近睡眠 · %1$s</string>
+    <string name="score_state_detail_needs_strap">今天没有数据。你的手环整晚都佩戴并保持连接了吗？</string>
+    <string name="score_state_detail_carried_fresh">今晚的会在你佩戴手环入睡后出现。</string>
+    <string name="score_state_detail_carried_stale">这是你上一次已评分的会话。佩戴手环过夜以获得新的评分。</string>
+    <plurals name="score_state_detail_calibrating">
+        <item quantity="one">正在建立你的基线。大约还需 %1$d 晚，你的分数就会个性化。</item>
+        <item quantity="other">正在建立你的基线。大约还需 %1$d 晚，你的分数就会个性化。</item>
+    </plurals>
 </resources>

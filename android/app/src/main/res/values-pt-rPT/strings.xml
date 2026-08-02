@@ -1862,4 +1862,15 @@
     <string name="recording_chip_detail_not_recording">Correia não ligada. Toque para ligar.</string>
     <string name="recording_chip_detail_history_experimental">A sincronização do histórico é experimental na versão 5.0.</string>
     <string name="recording_chip_detail_connected_no_data">Ainda não há frequência cardíaca em direto nem histórico sincronizado nesta sessão.</string>
+    <string name="score_state_title_calibrating">A calibrar</string>
+    <string name="score_state_title_needs_strap">Precisa da pega</string>
+    <string name="score_state_title_last_night">Ontem à noite · %1$s</string>
+    <string name="score_state_title_latest_sleep">Último sono · %1$s</string>
+    <string name="score_state_detail_needs_strap">Não há dados para hoje. A tua bracelete foi usada e ligada durante a noite?</string>
+    <string name="score_state_detail_carried_fresh">A noite de hoje chega depois de ter dormido com a pega.</string>
+    <string name="score_state_detail_carried_stale">Esta é a tua última sessão pontuada. Usa a bracelete durante a noite para obteres uma nova pontuação.</string>
+    <plurals name="score_state_detail_calibrating">
+        <item quantity="one">A construir a tua linha de base. Cerca de mais %1$d noite até que a tua pontuação seja pessoal.</item>
+        <item quantity="other">A construir a tua linha de base. Cerca de %1$d mais noites até que a tua pontuação seja pessoal.</item>
+    </plurals>
 </resources>

@@ -1883,4 +1883,15 @@
     <string name="recording_chip_detail_not_recording">Strap nicht verbunden. Tippe zum Verbinden.</string>
     <string name="recording_chip_detail_history_experimental">Verlaufssynchronisierung ist auf 5.0 experimentell.</string>
     <string name="recording_chip_detail_connected_no_data">Noch keine Live-Herzfrequenz und kein synchronisierter Verlauf in dieser Sitzung.</string>
+    <string name="score_state_title_calibrating">Kalibrierung</string>
+    <string name="score_state_title_needs_strap">Strap erforderlich</string>
+    <string name="score_state_title_last_night">Letzte Nacht · %1$s</string>
+    <string name="score_state_title_latest_sleep">Letzter Schlaf · %1$s</string>
+    <string name="score_state_detail_needs_strap">Keine Daten für heute. War dein Strap über Nacht getragen und verbunden?</string>
+    <string name="score_state_detail_carried_fresh">Der Wert für heute Nacht kommt, nachdem du mit dem Strap geschlafen hast.</string>
+    <string name="score_state_detail_carried_stale">Das ist deine letzte bewertete Sitzung. Trage den Strap über Nacht für einen frischen Wert.</string>
+    <plurals name="score_state_detail_calibrating">
+        <item quantity="one">Deine Basislinie wird aufgebaut. Noch etwa %1$d Nacht, bis deine Werte persönlich sind.</item>
+        <item quantity="other">Deine Basislinie wird aufgebaut. Noch etwa %1$d Nächte, bis deine Werte persönlich sind.</item>
+    </plurals>
 </resources>

@@ -1868,4 +1868,15 @@
     <string name="recording_chip_detail_not_recording">Bracelet non connecté. Touchez pour vous connecter.</string>
     <string name="recording_chip_detail_history_experimental">La synchronisation de l\'historique est expérimentale sur 5.0.</string>
     <string name="recording_chip_detail_connected_no_data">Aucune fréquence cardiaque en direct ni historique synchronisé durant cette session.</string>
+    <string name="score_state_title_calibrating">Calibration en cours</string>
+    <string name="score_state_title_needs_strap">Nécessite le bracelet</string>
+    <string name="score_state_title_last_night">La nuit dernière · %1$s</string>
+    <string name="score_state_title_latest_sleep">Dernier sommeil · %1$s</string>
+    <string name="score_state_detail_needs_strap">Pas de données pour aujourd\'hui. Votre bracelet était-il porté et connecté pendant la nuit ?</string>
+    <string name="score_state_detail_carried_fresh">Celui de ce soir arrive après avoir dormi avec le bracelet.</string>
+    <string name="score_state_detail_carried_stale">Voici votre dernière séance notée. Portez le bracelet pendant la nuit pour obtenir un nouveau score.</string>
+    <plurals name="score_state_detail_calibrating">
+        <item quantity="one">Construction de votre référence. Encore environ %1$d nuit avant que vos scores soient personnels.</item>
+        <item quantity="other">Construction de votre référence. Encore environ %1$d nuits avant que vos scores soient personnels.</item>
+    </plurals>
 </resources>
