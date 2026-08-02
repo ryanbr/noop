@@ -1737,10 +1737,10 @@
     </plurals>
 
     <!-- Alertas de bateria escalados (cruzamento crítico de carga + guarda noturna antes de deitar). -->
-    <string name="battery_critical_title">Carregue já a sua WHOOP</string>
-    <string name="battery_critical_body">Restam %1$d%%. A bracelete deixa de gravar perto dos 10%% – não vai captar esta noite se não a carregar.</string>
+    <string name="battery_critical_title">Carrega já o teu WHOOP</string>
+    <string name="battery_critical_body">Restam %1$d%%. A bracelete deixa de gravar perto dos 10%% – não vai captar esta noite se não a carregares.</string>
     <string name="battery_bedtime_title">Não dura a noite</string>
-    <string name="battery_bedtime_body">Restam %1$s de gravação, mas esta noite precisa de cerca de %2$s. Carregue antes de se deitar.</string>
+    <string name="battery_bedtime_body">Restam %1$s de gravação, mas esta noite precisa de cerca de %2$s. Carrega antes de te deitares.</string>
 
     <!-- #867: the three older battery notifications, previously raw Kotlin literals in
          BatteryAlertNotifier and therefore English in every locale. Wording and translations are the
@@ -1748,7 +1748,7 @@
     <string name="battery_runtime_title">Bateria fraca da correia</string>
     <string name="battery_runtime_body">Autonomia restante no teu WHOOP: %1$s. Recarrega-o esta noite.</string>
     <string name="battery_low_title">Bateria fraca</string>
-    <string name="battery_low_body">Recarregue o teu WHOOP antes desta noite.</string>
+    <string name="battery_low_body">Recarrega o teu WHOOP antes desta noite.</string>
     <string name="battery_full_title">Correia totalmente carregada</string>
     <string name="battery_full_body">O teu WHOOP está a 100%.</string>
 

@@ -1743,10 +1743,10 @@
     </plurals>
 
     <!-- Alertas de batería escaladas (cruce crítico de carga + guardia nocturna antes de dormir). -->
-    <string name="battery_critical_title">Cargue su WHOOP ahora</string>
-    <string name="battery_critical_body">Queda %1$d%%. La correa deja de registrar cerca del 10%% — no captará esta noche si no la carga.</string>
+    <string name="battery_critical_title">Carga tu WHOOP ahora</string>
+    <string name="battery_critical_body">Queda %1$d%%. La correa deja de registrar cerca del 10%% — no captará esta noche si no la cargas.</string>
     <string name="battery_bedtime_title">No aguantará la noche</string>
-    <string name="battery_bedtime_body">Queda %1$s de registro, pero esta noche necesita alrededor de %2$s. Cárguela antes de acostarse.</string>
+    <string name="battery_bedtime_body">Queda %1$s de registro, pero esta noche necesita alrededor de %2$s. Carga tu WHOOP antes de acostarte.</string>
 
     <!-- #867: the three older battery notifications, previously raw Kotlin literals in
          BatteryAlertNotifier and therefore English in every locale. Wording and translations are the
