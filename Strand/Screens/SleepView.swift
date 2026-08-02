@@ -1850,14 +1850,29 @@ struct SleepView: View {
             sleepDebtLedger: debtLedger)
     }
 
-    /// The rolling 14-night sleep-debt ledger from the cached daily metrics. Uses the
-    /// SAME personal sleep need the tiles use (`sleepNeedMin`, ≥ 7.5 h, the per-user
-    /// override over the 8 h default), measured against each night's `totalSleepMin`.
-    /// Skips nights with no sleep (the analytics function does the skip). (#242)
+    /// The defensible per-user sleep NEED (hours) BOTH debt surfaces (this ledger card and the
+    /// "Sleep Debt" tile) measure against — the population-anchored, age-floored, upper-quartile
+    /// `personalizedNeedHours`, the SAME estimator Intelligence uses. Deliberately NOT the
+    /// self-referential `sleepNeedMin` (mean total sleep): the mean drifts DOWN toward a chronic
+    /// under-sleeper's own deficit and quietly erases their debt, whereas the upper-quartile
+    /// estimate floored at the ~8 h adult target only adjusts UP for genuine long sleepers. Age
+    /// isn't plumbed to this screen, so it floors at the adult target (age: nil) — wiring the
+    /// profile age through would only raise it for under-18s. One need, both debt surfaces. (#242)
+    private var personalSleepNeedHours: Double {
+        AnalyticsEngine.Rest.personalizedNeedHours(
+            nightlyHours: repo.days.compactMap { $0.totalSleepMin.map { $0 / 60.0 } },
+            age: nil)
+    }
+
+    /// The rolling sleep-debt ledger from the cached daily metrics, measured against the
+    /// defensible `personalSleepNeedHours`. The recency-weighted, capped, asymmetric running
+    /// balance (recent nights weigh more, |balance| bounded, oversleep repays less than a short
+    /// night accrues) lives in `SleepDebt.ledger`; here we only supply the series + need. Skips
+    /// nights with no sleep (the analytics function does the skip). (#242)
     private var debtLedger: SleepDebtLedger {
         SleepDebt.ledger(
             series: repo.days.map { (day: $0.day, totalSleepMin: $0.totalSleepMin) },
-            needHours: sleepNeedMin / 60.0)
+            needHours: personalSleepNeedHours)
     }
 
     // MARK: - Derived model
@@ -2319,11 +2334,14 @@ struct SleepView: View {
         metric { $0.respRateBpm }
     }
 
-    /// Sleep debt (minutes): the imported sleep_debt_min when the export carried it; else
-    /// the APPROXIMATE per-night need − asleep, floored at 0 (no "credit").
+    /// Sleep debt (minutes): the imported sleep_debt_min when the export carried it; else the
+    /// APPROXIMATE per-night deficit (need − asleep), floored at 0 (no "credit"). Measured against
+    /// the SAME defensible `personalSleepNeedHours` the ledger card uses, so this per-night tile
+    /// and the running-balance card agree on what "need" means — one need across both debt
+    /// surfaces, rather than the self-referential `sleepNeedMin` mean this used to use. (#242)
     private var sleepDebtSeries: Metric {
         let imported = repo.importedSleep
-        let need = sleepNeedMin
+        let need = personalSleepNeedHours * 60.0
         let series = repo.days.compactMap { d -> Double? in
             if let debt = imported[d.day]?.debtMin { return debt }   // minutes, export-verbatim
             guard let asleep = d.totalSleepMin, asleep > 0, need > 0 else { return nil }

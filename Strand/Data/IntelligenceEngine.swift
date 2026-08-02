@@ -471,10 +471,20 @@ final class IntelligenceEngine: ObservableObject {
         // Returns nil under `habitualMinDays` of history → cold-start: every `analyzeDay`/`sleepEditedDaily`
         // call below stays on the overnight-band bonus. The same value threads into both seams so analytics
         // and the Sleep tab resolve to the identical block. (#547)
-        let habitualMidsleepSec = await Self.computeHabitualMidsleep(
+        let (habitualMidsleepSec, nightlyHours) = await Self.computeHabitualSleep(
             store: store, importedId: deviceId, computedId: deviceId + "-noop",
             windowStart: nowLocalMidnight - maxDays * 86_400 - 30 * 3_600,
             windowEnd: now, offsetSec: tzOffset)
+        // Wave 0 (SL1/T1): personal sleep REGULARITY + population-anchored NEED, computed ONCE from the
+        // trailing per-night durations and threaded to every analyzeDay below (mirrors the midsleep
+        // learner just above — one personal trait per run, applied to the whole re-scored history so
+        // Rest stops running on a flat neutral-0.5 consistency and a fixed 8 h need). Recent 28-night
+        // window for regularity (a recent-behaviour signal); full history for the need's upper-quartile
+        // "unrestricted nights" estimate. Both degrade honestly on thin history (consistency → nil →
+        // neutral term; need → population default), so cold-start is unchanged.
+        let sleepConsistency = VitalityEngine.sleepConsistency(nightlyHours: Array(nightlyHours.suffix(28)))
+        let sleepNeedHours = AnalyticsEngine.Rest.personalizedNeedHours(nightlyHours: nightlyHours,
+                                                                        age: profile.age)
 
         // ── FIX 1 (main-actor jank): run the ENTIRE per-day enumeration OFF the main actor ───────────
         // Every `await store.…` read inside this loop has its continuation RESUME on the main actor
@@ -695,6 +705,8 @@ final class IntelligenceEngine: ObservableObject {
                                                      spo2: spo2,                   // #93
                                                      profile: up, baselines: baselines1, maxHROverride: maxHR,
                                                      tzOffsetSeconds: tzOffset, wristOff: wristOff,
+                                                     sleepNeedHours: sleepNeedHours,
+                                                     sleepConsistency: sleepConsistency,
                                                      habitualMidsleepSec: habitualMidsleepSec,
                                                      bandSleepState: bandSleepState,
                                                      // #690: thread the V2 toggle into the NORMAL staging path so
@@ -1846,10 +1858,15 @@ final class IntelligenceEngine: ObservableObject {
         return samples
     }
 
-    private static func computeHabitualMidsleep(
+    /// Habitual midsleep (local seconds) AND the trailing per-night sleep DURATIONS (hours,
+    /// chronological) from the stored sessions over the window — the longest block per LOCAL day, so
+    /// naps drop out. One read serves both the main-night midsleep learner (#547) and the personal
+    /// sleep-need + regularity that thread into `analyzeDay` (Wave 0 · SL1/T1). The midsleep result is
+    /// byte-identical to before; the nightly-hours output is the Swift-side extension.
+    private static func computeHabitualSleep(
         store: WhoopStore, importedId: String, computedId: String,
         windowStart: Int, windowEnd: Int, offsetSec: Int
-    ) async -> Int? {
+    ) async -> (midsleepSec: Int?, nightlyHours: [Double]) {
         let imported = (try? await store.sleepSessions(deviceId: importedId, from: windowStart,
                                                        to: windowEnd, limit: 4000)) ?? []
         let computed = (try? await store.sleepSessions(deviceId: computedId, from: windowStart,
@@ -1861,14 +1878,30 @@ final class IntelligenceEngine: ObservableObject {
         // covers an imported night and its computed twin (the longest capture wins, exactly what the
         // per-day length rule chose anyway).
         let merged = SleepSessionDedup.dedupe(imported + computed).kept
+        // Longest block per LOCAL day (naps drop out), chosen by in-bed SPAN — reused for BOTH the
+        // midsleep learner and the per-night durations (Wave 0 · SL1/T1), so the two can never read a
+        // different history. For the DURATIONS we keep TST (span × efficiency), NOT the in-bed span:
+        // the need/regularity estimate must be in the same asleep-time units as the `tstSeconds` Rest
+        // scores against, or need reads systematically high (validated on real data — an in-bed span
+        // over-counts ~0.85 h vs TST). Efficiency is 0..1 (post the v26 unit-heal); a rare nil main
+        // night falls back to a typical 0.9.
+        var longestByDay: [String: (span: Int, tstHours: Double)] = [:]
         let blocks = merged.compactMap { s -> SleepStageTotals.HistoryBlock? in
             let start = s.effectiveStartTs, end = s.endTs
             guard end > start else { return nil }
             let mid = start + (end - start) / 2
             let dayKey = AnalyticsEngine.dayString(mid, offsetSec: offsetSec)
+            let span = end - start
+            if span > (longestByDay[dayKey]?.span ?? 0) {
+                let eff = s.efficiency.flatMap { (0.0 < $0 && $0 <= 1.0) ? $0 : nil } ?? 0.9
+                longestByDay[dayKey] = (span, Double(span) / 3600.0 * eff)
+            }
             return SleepStageTotals.HistoryBlock(start: start, end: end, dayKey: dayKey)
         }
-        return SleepStageTotals.habitualMidsleepSec(blocks, offsetSec: offsetSec)
+        let midsleep = SleepStageTotals.habitualMidsleepSec(blocks, offsetSec: offsetSec)
+        // Chronological (day-key string sort == date order) so a recent-window suffix is well-defined.
+        let nightlyHours = longestByDay.keys.sorted().compactMap { longestByDay[$0]?.tstHours }
+        return (midsleep, nightlyHours)
     }
 
     /// Floor a unix-seconds timestamp to 00:00:00 of its UTC calendar day. Mirrors the Android

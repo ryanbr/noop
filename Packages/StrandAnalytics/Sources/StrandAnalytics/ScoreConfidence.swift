@@ -34,6 +34,15 @@ public enum ScoreConfidence: String, Equatable, Sendable, Codable {
         return b.trusted ? .solid : .building
     }
 
+    /// Readiness confidence from the HRV/RHR baseline density backing the read (readiness is HRV-led).
+    /// - calibrating: no read (insufficient history — the readiness level is `.insufficient`).
+    /// - solid:       a read exists AND the full baseline window is present.
+    /// - building:    a read exists but the baseline is shorter than the full window (e.g. 7–29 of 30).
+    public static func readiness(hasRead: Bool, baselineNights: Int, fullWindow: Int) -> ScoreConfidence {
+        guard hasRead else { return .calibrating }
+        return baselineNights >= fullWindow ? .solid : .building
+    }
+
     /// Effort (strain) confidence.
     /// - calibrating: no score (no usable HR window) → absent.
     /// - solid:       a score exists AND the HR window is dense (≥ solidReadings samples).
