@@ -2231,8 +2231,11 @@ class WhoopBleClient(
     /** Genuine offload frames seen this session — zero at timeout means the strap never answered
      *  the history request at all (5/MG retry trigger, #78 fork). Main-looper only. */
     private var offloadFramesThisSession = 0
-    /** Wall time (ms) this offload burst began, for the #1007 throughput line. 0 before the first burst;
-     *  only read inside [exitBackfilling], which cannot run unless [enterBackfilling] stamped it. */
+    /** Wall time (ms) this offload burst began, for the #1007 throughput line. Stamped by
+     *  [enterBackfilling] and NEVER cleared, so it holds the PREVIOUS burst's start between bursts - both
+     *  readers pair it with `backfilling`, which is only true when [enterBackfilling] has re-stamped it.
+     *  Read in [exitBackfilling] for a classified exit, and in [reset] for a burst a disconnect cut short -
+     *  the same two paths that already own [offloadFramesThisSession], so this adds no new thread. */
     private var backfillStartedAtMs = 0L
     /** #174 deep-packet cooldown: wall time (ms) of the most recent offload frame OR HISTORY_COMPLETE.
      *  A type-0x2F arriving just after a backfill ends (backfilling already flipped false) is a TRAILING
