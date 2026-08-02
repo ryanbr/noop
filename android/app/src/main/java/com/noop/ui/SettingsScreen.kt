@@ -585,6 +585,9 @@ fun SettingsScreen(
     // Trend charts (Line / Bar) — flips the Trends tab between the gradient line and value-ramp bars.
     // Display-only; SharedPreferences isn't reactive, so mirror into local state and persist on select.
     var trendChartStyle by remember { mutableStateOf(UnitPrefs.trendChartStyle(context)) }
+    // In-app quiet motion (#941), default OFF. The process-wide preference observer in NoopMotion makes
+    // this take effect on every currently composed looping surface as soon as the switch is flipped.
+    var quietMotion by remember { mutableStateOf(NoopPrefs.quietMotion(context)) }
     // HRV window (#141) — whole-night vs deep-sleep (WHOOP-style). NOT display-only: it changes the computed
     // avgHrv, so a switch clears the analyze watermark to force a re-score + re-baseline on the next pass.
     var hrvWindow by remember { mutableStateOf(UnitPrefs.hrvWindow(context)) }
@@ -1084,6 +1087,17 @@ fun SettingsScreen(
                     },
                 )
             }
+            RowDivider()
+            ToggleRow(
+                title = uiString(R.string.l10n_settings_screen_reduce_motion_in_noop_59a6180d),
+                detail = uiString(R.string.l10n_settings_screen_holds_the_liquid_gauges_the_sky_41872b57),
+                checked = quietMotion,
+                onCheckedChange = {
+                    quietMotion = it
+                    NoopPrefs.setQuietMotion(context, it)
+                },
+            )
+            RowDivider()
 
             // Day-cycle background (#698): the time-of-day scene behind Today. On by default. Off swaps it
             // for a plain dark canvas for people who find the moving scene distracting. Takes effect next
