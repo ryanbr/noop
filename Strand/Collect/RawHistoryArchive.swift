@@ -65,6 +65,11 @@ struct RawHistoryArchive {
         }
         self.maxBytes = maxBytes
         self.perVersionFloor = perVersionFloor
+        #if os(iOS)
+        // Migrate an archive created by an older build while launch is normally foreground/unlocked.
+        // The write path repeats this before every append so a first background write is covered too.
+        try? prepareStorageForBackgroundAccess()
+        #endif
     }
 
     /// The archive file URL (does not create anything).
@@ -97,6 +102,11 @@ struct RawHistoryArchive {
     func archive(_ frames: [[UInt8]], trim: UInt32, family: DeviceFamily) -> Result {
         guard !frames.isEmpty else { return .written(count: 0) }
         let url = fileURL
+        do {
+            try prepareStorageForBackgroundAccess()
+        } catch {
+            return .failed
+        }
         let capturedAtMs = Date().timeIntervalSince1970 * 1000
         // Build the new JSONL lines (each newline-terminated). The version that drives floor-aware
         // retention (#344) is re-derived per line from the stored frame inside `evictLines`.
@@ -138,8 +148,8 @@ struct RawHistoryArchive {
         let kept = RawHistoryArchive.evictLines(existing + newLines, maxBytes: maxBytes, floor: perVersionFloor)
         let data = Data(kept.joined().utf8)
         do {
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             try data.write(to: url, options: .atomic)   // atomic rewrite; durable before the ack
+            applyBackgroundProtectionToArchive()
             return .written(count: frames.count)
         } catch {
             return .failed
@@ -148,7 +158,7 @@ struct RawHistoryArchive {
 
     /// Append `data` to `url`, fsyncing before returning so it is durable BEFORE the trim ack.
     private func appendDurably(_ data: Data, to url: URL) throws {
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try prepareStorageForBackgroundAccess()
         if FileManager.default.fileExists(atPath: url.path) {
             let handle = try FileHandle(forWritingTo: url)
             defer { try? handle.close() }
@@ -157,7 +167,38 @@ struct RawHistoryArchive {
             try handle.synchronize()   // durable BEFORE the ack — the point of the archive
         } else {
             try data.write(to: url, options: .atomic)
+            applyBackgroundProtectionToArchive()
         }
+    }
+
+    /// Make the reject archive readable after the first unlock, matching the primary SQLite store's
+    /// policy in `StorePaths`. Background BLE can be woken while the phone is locked; the default iOS
+    /// complete protection would otherwise make this mandatory pre-ack write fail and force the strap
+    /// to resend the same history chunk. Apply the policy to both the directory (future files inherit it)
+    /// and any existing archive from an older build. Other platforms only need directory creation.
+    private func prepareStorageForBackgroundAccess() throws {
+        let fm = FileManager.default
+        try fm.createDirectory(at: directory, withIntermediateDirectories: true)
+        #if os(iOS)
+        let protection: [FileAttributeKey: Any] = [
+            .protectionKey: FileProtectionType.completeUntilFirstUserAuthentication,
+        ]
+        try? fm.setAttributes(protection, ofItemAtPath: directory.path)
+        if fm.fileExists(atPath: fileURL.path) {
+            try? fm.setAttributes(protection, ofItemAtPath: fileURL.path)
+        }
+        #endif
+    }
+
+    /// Atomic replacement creates a new inode, so explicitly re-apply the file policy after every new
+    /// file/rewrite instead of relying only on directory inheritance.
+    private func applyBackgroundProtectionToArchive() {
+        #if os(iOS)
+        try? FileManager.default.setAttributes(
+            [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+            ofItemAtPath: fileURL.path
+        )
+        #endif
     }
 
     /// The `VersionKey` of one archived JSONL line, re-derived from its stored frame + family; `nil`

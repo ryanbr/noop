@@ -98,4 +98,26 @@ final class RawHistoryArchiveReplayTests: XCTestCase {
             // expected — bootstrapStore's catch leaves the gate un-advanced.
         }
     }
+
+    #if os(iOS)
+    /// #649: locked/background BLE must be able to append rejects before acknowledging the strap trim.
+    func testArchiveAndDirectoryUseBackgroundReadableProtection() throws {
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("noop-protection-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let archive = RawHistoryArchive(directory: dir)
+        let frame: [UInt8] = [0xAA, 0x01, 0x00, 0x00, 47, 25, 0x01]
+        guard case .written(count: 1) = archive.archive([frame], trim: 1, family: .whoop4) else {
+            return XCTFail("archive write should succeed")
+        }
+
+        let fm = FileManager.default
+        let expected = FileProtectionType.completeUntilFirstUserAuthentication
+        let directoryProtection = try fm.attributesOfItem(atPath: dir.path)[.protectionKey]
+        let fileProtection = try fm.attributesOfItem(atPath: archive.fileURL.path)[.protectionKey]
+        XCTAssertEqual(directoryProtection as? FileProtectionType, expected)
+        XCTAssertEqual(fileProtection as? FileProtectionType, expected)
+    }
+    #endif
 }
