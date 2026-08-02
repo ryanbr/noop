@@ -472,9 +472,21 @@ like its sibling banked streams (`.hrv`/`.temp`/`.spo2`/`.sleepPhase`) — the f
     and choosing an offset would fabricate a calibration. **`0x6F` data appears unexplored:**
     [open_oura-spo2] states plainly that they *"don't capture those, and that R→% math lives in
     firmware"*, so this corpus may be the first look at the tag's real distribution.
-  - **How to settle it:** an Oura Cloud export whose date range OVERLAPS a BLE capture. The comparison
-    above is distribution-level across *non-overlapping* periods (per-sample values vs nightly averages,
-    different nights); a same-night per-day comparison would separate offset from clamp definitively.
+  - **⚠️ WHY THIS MAY STAY OPEN — the obvious test is structurally blocked.** Separating offset from clamp
+    needs a same-night comparison, i.e. an Oura Cloud export overlapping a BLE capture. **That cannot be
+    produced concurrently:** the ring bonds to ONE client at a time, so while NOOP is paired the Oura app
+    is not syncing, and the Cloud has no data for exactly the nights NOOP captured. Confirmed on this
+    setup — the store's `spo2Sample` rows span 2026-07-28 → 08-02 while the Cloud export ends 2026-07-07:
+    **zero overlapping days**. The comparison above is therefore distribution-level across
+    *non-overlapping* periods (per-sample values vs nightly averages, different nights), which is why it
+    can bound the discrepancy but not decompose it.
+  - **Paths that could still settle it**, in increasing cost: (a) **re-pair to the Oura app after a NOOP
+    capture window** — the ring buffers days of history and NOOP's drain does not consume it (the resume
+    cursor is client-side), so the app may upload the very nights NOOP already has, creating the overlap
+    retrospectively; costs a re-pair and risks identity/key churn (§3.7). (b) A **reference pulse
+    oximeter worn during sleep** alongside the ring — definitive, but `0x6F` only flows at rest so a
+    daytime spot-check will not produce comparable samples. (c) A **second ring**, one bonded to each
+    client. Until one of these happens the transform stays UNKNOWN and is documented, not guessed.
 
 ### 6.5.1 SpO2 ratio-of-ratios - `0x8b` `spo2_r_pi_event` — **NOT OBSERVED in NOOP captures**
 - Carries the raw **ratio-of-ratios `r`** plus a **perfusion index `pi`** (quality parameter). This is the
