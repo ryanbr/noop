@@ -1502,15 +1502,24 @@ public enum SleepStager {
     /// does not equal a chest-band / capnography rate.
     ///
     /// Pipeline (per matched in-bed session [start, end], unix SECONDS):
-    ///   1. Restrict RR rows to ts in [start, end]; range-filter the RR values
-    ///      (HRVAnalyzer.rangeFilter) to drop dropouts/ectopics.
+    ///   1. Restrict RR ROWS to ts in [start, end] and apply the same range test
+    ///      HRVAnalyzer.rangeFilter applies, keeping the rows so `ts` survives (#977).
     ///   2. Reconstruct beat times by cumulatively summing the kept RR intervals
-    ///      from the first in-bed beat, yielding an (irregular) tachogram.
+    ///      from the first in-bed beat, yielding an (irregular) tachogram, and note
+    ///      where the wall clock outran the beats (#977) — the cumulative sum cannot
+    ///      represent a dropout, so those points are splices, not elapsed time.
     ///   3. Resample the tachogram onto a uniform ~4 Hz grid by linear interpolation.
     ///   4. Detrend: subtract a centered moving mean (rsaDetrendWindowS).
-    ///   5. Per ~5-min window: findPeaks (min distance rsaMinPeakDistanceS) on the
-    ///      detrended grid, keep peak-to-peak intervals in the 6–24 bpm band, rate =
-    ///      60 / median(intervals). Take the median across windows.
+    ///   5. Per ~5-min window, SKIPPING any window containing a splice: findPeaks
+    ///      (min distance rsaMinPeakDistanceS) on the detrended grid, keep peak-to-peak
+    ///      intervals in the 6–24 bpm band, rate = 60 / median(intervals). Take the
+    ///      median across windows.
+    ///
+    /// Known bound on the splice skip (#977): step 4's centered mean spans ±rsaDetrendWindowS/2, so a
+    /// splice just inside one window's edge leaves ~4 s of contaminated samples at the neighbouring
+    /// window's edge. That window is KEPT deliberately — discarding five minutes to avoid four seconds
+    /// costs far more data than it saves, and both medians (over intervals, then over windows) dilute a
+    /// single spurious peak among a five-minute window's worth.
     /// Returns NaN when too few intervals survive (honest no-data).
     static func respRateFromRR(_ rr: [RRInterval], start: Int, end: Int) -> Double {
         let nan = Double.nan
@@ -1537,6 +1546,12 @@ public enum SleepStager {
         // together and the tachogram gets a discontinuity the peak-picker reads as breathing. Record the
         // beat-time of each splice here; step 5 drops the windows containing one. Beat times are NOT
         // shifted by the gap: within a run the relative timing is right, and that is all a kept window uses.
+        //
+        // This fires on a beat REJECTED just above too, not only one lost before storage: the range
+        // test drops out-of-range intervals, so `ts` steps across them exactly as it does across a
+        // dropout. That is the intent - both genuinely splice the tachogram, which is the same reason
+        // #204/#195 made RMSSD skip differences across a removed beat - but it does mean a night with
+        // heavy ectopic rejection now loses windows it used to keep.
         var beatTimes = [Double](repeating: 0, count: filtered.count)
         var spliceAtS: [Double] = []
         var acc = 0.0
