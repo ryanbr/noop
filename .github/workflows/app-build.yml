@@ -25,10 +25,24 @@ on:
   # the iOS 26 SDK). A RELEASE pushes straight to main with no PR, but fork-release.yml builds both
   # Strand and NOOPiOS itself, so that path keeps its own compile gate. The gap this leaves is a
   # direct non-release push to main; `workflow_dispatch` below covers checking one on demand.
+  # `pr:` builds a PR's MERGE RESULT without pushing anything. Checking "does this PR compile once
+  # merged?" used to mean creating a throwaway `ci/` branch holding main+PR and dispatching at it —
+  # which left a "Compare & pull request" banner behind for every probe, because GitHub keys that
+  # banner off the PUSH EVENT and it outlives the branch the cleanup job deletes. GitHub already
+  # maintains exactly the ref we were hand-building, at refs/pull/<n>/merge, so no branch is needed.
+  #
+  # Leave it blank to build whatever ref you dispatched against, unchanged.
   workflow_dispatch:
+    inputs:
+      pr:
+        description: "PR number to build as merged into main (blank = build this ref as-is)"
+        required: false
+        default: ""
 
 concurrency:
-  group: app-build-${{ github.ref }}
+  # Keyed on the PR when one is given, so two probes of the SAME pr supersede each other while probes
+  # of different PRs (all dispatched from main) do not cancel one another.
+  group: app-build-${{ inputs.pr && format('pr-{0}', inputs.pr) || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -55,6 +69,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          # refs/pull/<n>/merge is GitHub's own main+PR merge commit — the same thing the old `ci/`
+          # branch dance produced, without a push. Blank input leaves the default checkout alone.
+          ref: ${{ inputs.pr && format('refs/pull/{0}/merge', inputs.pr) || '' }}
+
+      - name: Say what is being built
+        run: |
+          if [ -n "${{ inputs.pr }}" ]; then
+            echo "Building PR #${{ inputs.pr }} as merged into main (refs/pull/${{ inputs.pr }}/merge)"
+          else
+            echo "Building ${GITHUB_REF_NAME} as-is"
+          fi
+          git log --oneline -1
 
       - name: Install XcodeGen
         run: brew install xcodegen
