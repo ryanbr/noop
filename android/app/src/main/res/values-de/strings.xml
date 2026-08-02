@@ -38,12 +38,32 @@
     <string name="nav_support">Support</string>
     <string name="nav_settings">Einstellungen</string>
     <string name="nav_test_centre">Testcenter</string>
-    <string name="nav_more">Mehr</string>
 
-    <string name="more_group_insights">Einblicke</string>
-    <string name="more_group_body">Körper</string>
-    <string name="more_group_data">Daten</string>
-    <string name="more_group_app">App</string>
+    <string name="quick_launch_favourites">Favoriten</string>
+    <string name="quick_launch_insights">Einblicke</string>
+    <string name="quick_launch_body">Körper</string>
+    <string name="quick_launch_data">Daten</string>
+    <string name="quick_launch_app">App</string>
+    <string name="quick_launch_journal">Journal</string>
+    <string name="quick_launch_your_data">Deine Daten</string>
+    <string name="quick_launch_add">Hinzufügen</string>
+    <string name="quick_launch_change">Ändern</string>
+    <string name="quick_launch_cancel">Abbrechen</string>
+    <string name="quick_launch_done">Fertig</string>
+    <string name="quick_launch_reset">Zurücksetzen</string>
+    <string name="quick_launch_open_menu">Schnellzugriff öffnen</string>
+    <string name="quick_launch_close_menu">Schnellzugriff schließen</string>
+    <string name="quick_launch_edit_favourites">Favoriten bearbeiten</string>
+    <plurals name="quick_launch_slots">
+        <item quantity="one">%1$d von %2$d Plätzen · zum Anordnen ziehen</item>
+        <item quantity="other">%1$d von %2$d Plätzen · zum Anordnen ziehen</item>
+    </plurals>
+    <string name="quick_launch_empty_slot">Leerer Favoritenplatz</string>
+    <string name="quick_launch_remove_from_favourites">%1$s aus den Favoriten entfernen</string>
+    <string name="quick_launch_move_earlier">An die vorherige Position verschieben</string>
+    <string name="quick_launch_move_later">An die nächste Position verschieben</string>
+    <string name="quick_launch_add_to_favourites">%1$s zu den Favoriten hinzufügen</string>
+    <string name="quick_launch_reset_description">Standardfavoriten wiederherstellen</string>
 
     <string name="action_live_hr">Live-HF</string>
     <string name="action_start_workout">Workout starten</string>

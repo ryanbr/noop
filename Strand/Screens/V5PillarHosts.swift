@@ -11,7 +11,7 @@ import WhoopProtocol
 // already holds, run the pure engine, and hand the result down. Self-contained: each takes the
 // Repository / AppModel via the environment, exactly like every other screen.
 //
-// Mounted as reachable nav destinations by RootView (macOS sidebar) + RootTabView (iOS More list)
+// Mounted as reachable destinations by RootView (macOS sidebar) + RootTabView (iOS quick launch)
 // and reachable via NavRouter deep-links from the Health / Devices&Sources hubs.
 
 // MARK: - Fused record host ("Your Data, Fused")

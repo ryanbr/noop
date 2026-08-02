@@ -180,6 +180,12 @@ object NoopMotion {
      *  subsequent item waits `index * staggerMs`. Mirrors the iOS 0.04s. */
     const val staggerMs: Int = 40
 
+    /** The restrained favourites edit jiggle; only active while editing and disabled by Reduce Motion. */
+    const val favouriteJiggleMs: Int = 145
+    const val favouriteJiggleDegrees: Float = 1.1f
+    const val favouriteDragLiftScale: Float = 1.04f
+    const val favouriteDragZIndex: Float = 2f
+
     /** The pre-reveal vertical offset (dp) for a staggered/appear item (rises UP into place). */
     val riseOffset: Dp = 8.dp
 

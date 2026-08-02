@@ -40,14 +40,34 @@
     <string name="nav_support">Support</string>
     <string name="nav_settings">Settings</string>
     <string name="nav_test_centre">Test Centre</string>
-    <string name="nav_more">More</string>
 
-    <!-- More-page section headers (DISPLAY only; the stored expand/collapse key stays the English
-         literal in MoreSectionPrefs so persistence and iOS parity are unaffected). -->
-    <string name="more_group_insights">Insights</string>
-    <string name="more_group_body">Body</string>
-    <string name="more_group_data">Data</string>
-    <string name="more_group_app">App</string>
+    <!-- Quick Launch: the More tab replacement. Favourites remain in fixed slots so empty positions
+         and drag ordering survive relaunch; these strings cover visible labels and TalkBack actions. -->
+    <string name="quick_launch_favourites">Favourites</string>
+    <string name="quick_launch_insights">Insights</string>
+    <string name="quick_launch_body">Body</string>
+    <string name="quick_launch_data">Data</string>
+    <string name="quick_launch_app">App</string>
+    <string name="quick_launch_journal">Journal</string>
+    <string name="quick_launch_your_data">Your Data</string>
+    <string name="quick_launch_add">Add</string>
+    <string name="quick_launch_change">Change</string>
+    <string name="quick_launch_cancel">Cancel</string>
+    <string name="quick_launch_done">Done</string>
+    <string name="quick_launch_reset">Reset</string>
+    <string name="quick_launch_open_menu">Open Quick Launch</string>
+    <string name="quick_launch_close_menu">Close Quick Launch</string>
+    <string name="quick_launch_edit_favourites">Edit favourites</string>
+    <plurals name="quick_launch_slots">
+        <item quantity="one">%1$d of %2$d slots · drag to arrange</item>
+        <item quantity="other">%1$d of %2$d slots · drag to arrange</item>
+    </plurals>
+    <string name="quick_launch_empty_slot">Empty favourite slot</string>
+    <string name="quick_launch_remove_from_favourites">Remove %1$s from favourites</string>
+    <string name="quick_launch_move_earlier">Move to the previous position</string>
+    <string name="quick_launch_move_later">Move to the next position</string>
+    <string name="quick_launch_add_to_favourites">Add %1$s to favourites</string>
+    <string name="quick_launch_reset_description">Restore the default favourites</string>
 
     <!-- Quick actions on the centre action button. -->
     <string name="action_live_hr">Live HR</string>

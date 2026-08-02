@@ -71,6 +71,9 @@ public enum StrandFont {
     /// Caption 12. Scales with Dynamic Type.
     public static let caption = helveticaScaled(12, weight: .regular, relativeTo: .caption)
 
+    /// Caption2 10 — the smallest label role (e.g. launch-tile captions). Scales with Dynamic Type.
+    public static let caption2 = helveticaScaled(10, weight: .regular, relativeTo: .caption2)
+
     /// Footnote 11. Scales with Dynamic Type.
     public static let footnote = helveticaScaled(11, weight: .regular, relativeTo: .footnote)
 
@@ -106,6 +109,12 @@ public enum StrandFont {
     /// Mono at an arbitrary size.
     public static func mono(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
         .system(size: size, weight: weight, design: .monospaced)
+    }
+
+    /// SF Symbol sizing for icon-only chrome. Geometry comes from `NoopMetrics`; this helper keeps
+    /// screen files from constructing ad-hoc system fonts while preserving the native symbol face.
+    public static func symbol(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        .system(size: size, weight: weight)
     }
 
     /// The recommended tracking for overline text (wide ALL-CAPS labels, ≈ 0.13em).

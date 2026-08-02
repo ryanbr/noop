@@ -506,14 +506,29 @@ targets: [
 - `StrandPalette` — every semantic color token: surfaces
   (`surfaceBase`/`surfaceRaised`/`surfaceOverlay`/`surfaceInset`), `hairline`,
   text (`textPrimary`/`textSecondary`/`textTertiary`), `accent`, the recovery
-  gradient stops (`recoveryStops`), and recovery/strain color sampling. A
-  `Color(hex:)` initializer supports `RRGGBB` / `RRGGBBAA`.
+  gradient stops (`recoveryStops`), floating-glass rim/tint/elevation tokens,
+  and recovery/strain color sampling. A `Color(hex:)` initializer supports
+  `RRGGBB` / `RRGGBBAA`.
 - `StrandFont` — the full type scale with tabular digits: `display(_:)`,
-  `title1`/`title2`, `headline`, `body`, `subhead`, `caption`, `footnote`,
-  `overline`, `mono(_:weight:)`, `number(_:weight:)`.
+  `title1`/`title2`, `headline`, `body`, `subhead`, `caption`, `caption2`, `footnote`,
+  `overline`, `mono(_:weight:)`, `number(_:weight:)`, and
+  `symbol(_:weight:)` for token-sized SF Symbols.
 - `StrandMotion` — spring/animation presets: `interactive`, `gentle`, `hero`,
-  `drawIn`, `breathe`, `pulse`, `fade`, and the `durationFast`/`durationStandard`/
-  `durationSlow` constants.
+  `drawIn`, `breathe`, `pulse`, `fade`, `calm`, `calmQuick`, `panel`, `tap`,
+  `quick`, `lift`, and `jiggle(halfCycle:delay:)`, plus the
+  `durationFast`/`durationStandard`/`durationSlow` constants. Reduced-motion
+  overloads return `nil` for transitions that should become instantaneous.
+- `NoopMetrics` — the canonical spacing and sizing scale. The nested
+  `NoopMetrics.LaunchChrome` namespace owns all geometry for the iOS floating
+  tab bar and quick-launch panel, including compact visual sizes and the
+  remove badge's separate interaction target.
+
+**Surface modifiers**
+
+- `noopLiquidGlassSurface(in:)` — the canonical iOS floating-navigation material,
+  including the iOS 26 Liquid Glass effect, pre-iOS-26 material fallback, tint,
+  rim, and elevation. The split tab bar and quick-launch panel use this same
+  modifier so their appearance stays identical.
 
 **Components** (all public `View`s)
 

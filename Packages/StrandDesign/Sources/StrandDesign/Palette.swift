@@ -104,6 +104,25 @@ public enum StrandPalette {
     /// Opacity for dimmed/disabled sections (shared so screens don't invent their own value).
     public static let disabledOpacity: Double = 0.45
 
+    /// Vivid system red for destructive/remove affordances (e.g. the iOS home-screen "−" badge).
+    /// A deliberate system colour: the muted brand `statusCritical` reads wrong on the small round
+    /// badge, so this keeps the conventional delete red while staying a named token, not a raw `.red`.
+    public static let destructive = Color.red
+
+    // MARK: Glass & elevation — the floating iOS shell (split tab bar + quick-launch panel)
+    //
+    // The frosted shell chrome layers a faint scrim + a top-lit rim + an elevation shadow over the
+    // `.glassEffect`/`.ultraThinMaterial` base so it reads as tinted glass, not a flat slab, even over
+    // dead-flat surface colour. These are deliberately theme-independent white/black opacities (the
+    // glass look is tuned the same in both schemes), centralised here so no screen re-invents them.
+    /// Faint scrim inside a glass shape so it reads as tinted glass rather than a solid lozenge.
+    public static let glassTint      = Color.white.opacity(0.06)
+    /// Top-lit rim gradient stops for a soft glass edge (highlight at top → shade at bottom).
+    public static let glassRimHigh   = Color.white.opacity(0.22)
+    public static let glassRimLow    = Color.white.opacity(0.04)
+    /// Elevation shadow colour for a floating glass surface (real lift, no dark halo on flat canvas).
+    public static let shadowElevated = Color.black.opacity(0.22)
+
     // MARK: - Chart style (data-viz colour mode) — Titanium (brand) or Classic (throwback)
     //
     // Set from `@AppStorage(ChartStyle.storageKey)` at the app root. The DATA-RAMP accessors below

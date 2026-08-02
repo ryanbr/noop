@@ -27,6 +27,9 @@ public enum StrandMotion {
     /// Standard transition (card appear, fades).
     public static let durationStandard: Double = 0.30
 
+    /// Deliberate sheet presentation / navigation settle.
+    public static let durationSheet: Double = 0.42
+
     /// Slow / draw-in (ring arc, waveform ignite).
     public static let durationSlow: Double = 0.9
 
@@ -63,6 +66,73 @@ public enum StrandMotion {
 
     /// Standard fade.
     public static let fade = Animation.easeInOut(duration: durationStandard)
+
+    // MARK: Shell transitions (iOS split tab bar + quick-launch panel)
+
+    /// Delay between dismissing one system sheet and presenting its replacement.
+    public static let sheetSwapDelay: Double = 0.05
+
+    /// Delay before the edit-mode chrome and tile state overlap their exits.
+    public static let editExitLeadDelay: Double = 0.04
+
+    /// Completion point for the overlapping edit-mode exit.
+    public static let editExitCompletionDelay: Double = 0.22
+
+    /// Completion point for an `interactive` drag settle.
+    public static let interactiveSettleDelay: Double = 0.28
+
+    /// The design-system "calm" easing — the global tab crossfade / panel curve.
+    /// cubic-bezier(0.22, 1, 0.36, 1) at the standard tab-swap duration.
+    public static let calm = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)
+
+    /// `calm`, suppressed under Reduce Motion (returns `nil` so the change applies instantly).
+    public static func calm(reduced: Bool) -> Animation? { reduced ? nil : calm }
+
+    /// Calm easing at the fast duration — chrome/label swaps that shouldn't linger.
+    public static let calmQuick = Animation.timingCurve(0.22, 1, 0.36, 1, duration: durationFast)
+
+    /// `calmQuick`, suppressed under Reduce Motion.
+    public static func calmQuick(reduced: Bool) -> Animation? { reduced ? nil : calmQuick }
+
+    /// Quick-launch panel open/close — also the interactive pull-down finish, so opening,
+    /// button-dismiss, and pull-to-dismiss share one measured curve. The native glass transition needs
+    /// enough time for its lensing to read, without spring overshoot extending the material past content.
+    public static let panel = Animation.easeInOut(duration: durationStandard)
+
+    /// `panel`, suppressed under Reduce Motion.
+    public static func panel(reduced: Bool) -> Animation? { reduced ? nil : panel }
+
+    /// System-sheet presentation on the same calm curve, at its deliberate presentation duration.
+    public static let sheet = Animation.timingCurve(0.22, 1, 0.36, 1, duration: durationSheet)
+
+    /// `sheet`, suppressed under Reduce Motion.
+    public static func sheet(reduced: Bool) -> Animation? { reduced ? nil : sheet }
+
+    /// Brief tap/selection fade (grid-tile launch, drop-target highlight).
+    public static let tap = Animation.easeInOut(duration: 0.15)
+
+    /// `tap`, suppressed under Reduce Motion.
+    public static func tap(reduced: Bool) -> Animation? { reduced ? nil : tap }
+
+    /// Quick chrome fade-out (edit-mode exit, remove-badge appearance).
+    public static let quick = Animation.easeOut(duration: durationFast)
+
+    /// `quick`, suppressed under Reduce Motion.
+    public static func quick(reduced: Bool) -> Animation? { reduced ? nil : quick }
+
+    /// Lifting a dragged tile off the grid — snappier than `interactive`.
+    public static let lift = Animation.interactiveSpring(response: 0.18, dampingFraction: 0.78)
+
+    /// `lift`, suppressed under Reduce Motion.
+    public static func lift(reduced: Bool) -> Animation? { reduced ? nil : lift }
+
+    /// One half-cycle of the home-screen-style edit jiggle. The per-item duration and delay remain
+    /// inputs so neighbouring tiles drift naturally, while the animation construction stays canonical.
+    public static func jiggle(halfCycle: Double, delay: Double) -> Animation {
+        .easeInOut(duration: halfCycle)
+            .repeatForever(autoreverses: true)
+            .delay(delay)
+    }
 }
 
 #if DEBUG

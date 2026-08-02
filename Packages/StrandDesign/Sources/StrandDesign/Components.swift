@@ -55,6 +55,56 @@ public enum NoopMetrics {
     /// Minimum desktop size for a navigation-based customization sheet.
     public static let editorSheetMinWidth: CGFloat = 440
     public static let editorSheetMinHeight: CGFloat = 600
+
+    // MARK: Floating glass shell (iOS split tab bar + quick-launch panel)
+
+    /// Feature-specific geometry for the iOS floating navigation shell. Keeping it nested under
+    /// `NoopMetrics` preserves a focused namespace without letting screen files invent local sizes.
+    public enum LaunchChrome {
+        // Split tab bar
+        public static let shellInset: CGFloat = 22
+        public static let pillVInset: CGFloat = 9
+        public static let pillTabGap: CGFloat = 2
+        public static let tabIcon: CGFloat = 18
+        public static let tabIconLabelGap: CGFloat = 3
+        public static let actionIcon: CGFloat = 16
+        public static let toggleDiameter: CGFloat = 54
+
+        // Quick-launch tiles
+        public static let tileIcon: CGFloat = 19
+        public static let tileCircle: CGFloat = 52
+        public static let tileVGap: CGFloat = 6
+        /// Baseline two-line caption height. Call sites scale this with `@ScaledMetric`.
+        public static let tileLabelHeight: CGFloat = 26
+        public static let tileFootprint: CGFloat = 84
+        public static let gridHeight: CGFloat = 288
+        public static let gridTopInset: CGFloat = 6
+        public static let dragMinimumDistance: CGFloat = 6
+
+        // Quick-launch chrome
+        /// Compact visual height at the default text size. Call sites scale it with Dynamic Type.
+        public static let headerHeight: CGFloat = 32
+        public static let chipMinWidth: CGFloat = 68
+        public static let badgeInset: CGFloat = 2
+        public static let badgeOffset: CGFloat = 6
+        /// Invisible circular hit region around the visually compact remove badge. This is larger
+        /// than the symbol without swallowing the neighbouring icon-circle drag surface.
+        public static let removeBadgeHitTarget: CGFloat = 30
+        public static let dotGap: CGFloat = 5
+        public static let dotWidth: CGFloat = 6
+        public static let dotActiveWidth: CGFloat = 16
+
+        // Add-to-favourites picker rows
+        public static let rowIcon: CGFloat = 17
+        public static let rowIconColumn: CGFloat = 26
+        public static let rowHInset: CGFloat = 14
+        public static let rowHeight: CGFloat = 46
+
+        // Shared glass edge and elevation
+        public static let rimWidth: CGFloat = 0.75
+        public static let elevationRadius: CGFloat = 18
+        public static let elevationY: CGFloat = 8
+    }
 }
 
 // MARK: - Screen padding
@@ -82,7 +132,63 @@ public extension View {
             .presentationDragIndicator(.visible)
             .presentationDetents(largeFirst ? [.large] : [.medium, .large])
     }
+
+    /// Native Liquid Glass on iOS 26 and the same material fallback on earlier supported releases.
+    @ViewBuilder
+    func noopLiquidGlass(in shape: some Shape) -> some View {
+        if #available(iOS 26.0, *) {
+            self.glassEffect(.regular, in: shape)
+        } else {
+            self.background(.ultraThinMaterial, in: shape)
+        }
+    }
+
+    /// The canonical floating navigation surface. The split tab bar and quick-launch panel both use
+    /// this exact modifier so their material, rim, tint, and elevation cannot drift apart.
+    @ViewBuilder
+    func noopLiquidGlassSurface(in shape: some InsettableShape) -> some View {
+        self
+            .noopLiquidGlass(in: shape)
+            .background(StrandPalette.glassTint, in: shape)
+            .overlay(
+                shape.strokeBorder(
+                    LinearGradient(
+                        colors: [StrandPalette.glassRimHigh, StrandPalette.glassRimLow],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: NoopMetrics.LaunchChrome.rimWidth
+                )
+            )
+            .shadow(
+                color: StrandPalette.shadowElevated,
+                radius: NoopMetrics.LaunchChrome.elevationRadius,
+                x: 0,
+                y: NoopMetrics.LaunchChrome.elevationY
+            )
+    }
 }
+
+#if DEBUG
+private struct NoopLiquidGlassSurfacePreview: View {
+    var body: some View {
+        Text(String(localized: "Floating glass", bundle: .module))
+            .font(StrandFont.body)
+            .foregroundStyle(StrandPalette.textPrimary)
+            .padding(NoopMetrics.cardPadding)
+            .noopLiquidGlassSurface(
+                in: RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous)
+            )
+            .padding(NoopMetrics.screenPadding)
+            .background(StrandPalette.surfaceBase)
+            .preferredColorScheme(.dark)
+    }
+}
+
+#Preview("Floating liquid-glass surface") {
+    NoopLiquidGlassSurfacePreview()
+}
+#endif
 #endif
 
 // MARK: - Surface

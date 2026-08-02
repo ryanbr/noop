@@ -259,7 +259,7 @@ struct RootView: View {
                 // which macOS renders as a system search field in the sidebar's toolbar area with
                 // focus, clear and Escape handling for free (macOS 12+, safely under our 13.0
                 // target), so no hand-rolled TextField and no custom chrome. macOS-only BY DESIGN,
-                // not a parity gap: iOS ships RootTabView, where the tab bar plus the More list
+                // not a parity gap: iOS ships RootTabView, where the tab bar plus quick-launch panel
                 // already puts every destination within a couple of taps, so there is no iOS
                 // equivalent to add.
                 .searchable(text: $searchQuery, placement: .sidebar, prompt: "Search")

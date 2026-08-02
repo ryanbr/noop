@@ -1,6 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <!-- Quick Launch -->
+    <string name="quick_launch_favourites">Favoritos</string>
+    <string name="quick_launch_insights">Análisis</string>
+    <string name="quick_launch_body">Cuerpo</string>
+    <string name="quick_launch_data">Datos</string>
+    <string name="quick_launch_app">App</string>
+    <string name="quick_launch_journal">Diario</string>
+    <string name="quick_launch_your_data">Tus datos</string>
+    <string name="quick_launch_add">Añadir</string>
+    <string name="quick_launch_change">Cambiar</string>
+    <string name="quick_launch_cancel">Cancelar</string>
+    <string name="quick_launch_done">Listo</string>
+    <string name="quick_launch_reset">Restablecer</string>
+    <string name="quick_launch_open_menu">Abrir acceso rápido</string>
+    <string name="quick_launch_close_menu">Cerrar acceso rápido</string>
+    <string name="quick_launch_edit_favourites">Editar favoritos</string>
+    <plurals name="quick_launch_slots">
+        <item quantity="one">%1$d de %2$d espacios · arrastra para ordenar</item>
+        <item quantity="other">%1$d de %2$d espacios · arrastra para ordenar</item>
+    </plurals>
+    <string name="quick_launch_empty_slot">Espacio de favorito vacío</string>
+    <string name="quick_launch_remove_from_favourites">Quitar %1$s de favoritos</string>
+    <string name="quick_launch_move_earlier">Mover a la posición anterior</string>
+    <string name="quick_launch_move_later">Mover a la posición siguiente</string>
+    <string name="quick_launch_add_to_favourites">Añadir %1$s a favoritos</string>
+    <string name="quick_launch_reset_description">Restablecer los favoritos predeterminados</string>
+
     <!-- #453 generated Compose literal migration -->
     <string name="l10n_add_device_wizard_0123456789abcdef0123456789abcdef_b1775a78">0123456789abcdef0123456789abcdef</string>
     <string name="l10n_add_device_wizard_a_whoop_strap_bonds_to_a_d39bdf4a">Una correa WHOOP se une a un solo dispositivo. Mientras esté conectado a NOOP, no fluirá</string>
@@ -1547,11 +1574,6 @@
     <string name="nav_support">Soporte</string>
     <string name="nav_settings">Ajustes</string>
     <string name="nav_test_centre">Centro de pruebas</string>
-    <string name="nav_more">Más</string>
-    <string name="more_group_insights">Análisis</string>
-    <string name="more_group_body">Cuerpo</string>
-    <string name="more_group_data">Datos</string>
-    <string name="more_group_app">App</string>
     <string name="action_live_hr">FC en vivo</string>
     <string name="action_start_workout">Iniciar entrenamiento</string>
     <string name="action_log_journal">Registrar diario</string>

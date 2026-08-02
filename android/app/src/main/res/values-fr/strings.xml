@@ -1,6 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <!-- Quick Launch -->
+    <string name="quick_launch_favourites">Favoris</string>
+    <string name="quick_launch_insights">Perspectives</string>
+    <string name="quick_launch_body">Corps</string>
+    <string name="quick_launch_data">Données</string>
+    <string name="quick_launch_app">App</string>
+    <string name="quick_launch_journal">Journal</string>
+    <string name="quick_launch_your_data">Vos données</string>
+    <string name="quick_launch_add">Ajouter</string>
+    <string name="quick_launch_change">Modifier</string>
+    <string name="quick_launch_cancel">Annuler</string>
+    <string name="quick_launch_done">Terminé</string>
+    <string name="quick_launch_reset">Réinitialiser</string>
+    <string name="quick_launch_open_menu">Ouvrir l’accès rapide</string>
+    <string name="quick_launch_close_menu">Fermer l’accès rapide</string>
+    <string name="quick_launch_edit_favourites">Modifier les favoris</string>
+    <plurals name="quick_launch_slots">
+        <item quantity="one">%1$d emplacement sur %2$d · faites glisser pour réorganiser</item>
+        <item quantity="other">%1$d emplacements sur %2$d · faites glisser pour réorganiser</item>
+    </plurals>
+    <string name="quick_launch_empty_slot">Emplacement de favori vide</string>
+    <string name="quick_launch_remove_from_favourites">Retirer %1$s des favoris</string>
+    <string name="quick_launch_move_earlier">Déplacer vers la position précédente</string>
+    <string name="quick_launch_move_later">Déplacer vers la position suivante</string>
+    <string name="quick_launch_add_to_favourites">Ajouter %1$s aux favoris</string>
+    <string name="quick_launch_reset_description">Rétablir les favoris par défaut</string>
+
     <!-- #453 generated Compose literal migration -->
     <string name="l10n_add_device_wizard_0123456789abcdef0123456789abcdef_b1775a78">0123456789abcdef0123456789abcdef</string>
     <string name="l10n_add_device_wizard_a_whoop_strap_bonds_to_a_d39bdf4a">Un bracelet WHOOP se lie à un seul appareil. Alors qu\'il est connecté à NOOP il ne va pas diffuser </string>
@@ -1547,11 +1574,6 @@
     <string name="nav_support">Assistance</string>
     <string name="nav_settings">Paramètres</string>
     <string name="nav_test_centre">Centre de test</string>
-    <string name="nav_more">Plus</string>
-    <string name="more_group_insights">Perspectives</string>
-    <string name="more_group_body">Corps</string>
-    <string name="more_group_data">Données</string>
-    <string name="more_group_app">App</string>
     <string name="action_live_hr">FC en direct</string>
     <string name="action_start_workout">Démarrer l\'entraînement</string>
     <string name="action_log_journal">Enregistrer le journal</string>

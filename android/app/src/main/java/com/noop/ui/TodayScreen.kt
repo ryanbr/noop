@@ -240,10 +240,7 @@ private data class TodayLiveSnapshot(
 @Composable
 fun TodayScreen(
     viewModel: AppViewModel,
-    onQuickActions: () -> Unit = {},
     updateStore: UpdateStore? = null,
-    onOpenUpdates: () -> Unit = {},
-    onOpenSettings: () -> Unit = {},
     onOpenHydration: () -> Unit = {},
     // #706/#684: the "Your cards" dashboard rows are tappable on iOS but only Hydration navigated on Android.
     // These push each card's detail (Stress card -> Stress; Sleep -> Sleep), matching the iOS pinnedCardRow
@@ -264,8 +261,8 @@ fun TodayScreen(
     // to a no-op so the call site stays compiling; AppRoot binds it to openActiveWorkout() + nav.navigate(Live).
     onOpenActiveWorkout: () -> Unit = {},
     // The liquid header battery ring taps through to Devices (iOS parity: the battery ring → router.openDevices()).
-    // Defaulted to fall back to Settings so the call site stays compiling; AppRoot binds it to the Devices route.
-    onOpenDevices: () -> Unit = onOpenSettings,
+    // Defaulted to a no-op; AppRoot binds it to the Devices route.
+    onOpenDevices: () -> Unit = {},
     // The #627 journal-reminder card links straight to the journal (Insights). Defaulted to a no-op so
     // the call site stays compiling; AppRoot binds it to nav.navigateTopLevel(Insights), same as Sleep.
     onOpenJournal: () -> Unit = {},
@@ -1138,11 +1135,10 @@ fun TodayScreen(
         // iOS liquid Today element-for-element (NOT the old numeric-date + recording-light + bell header):
         //   LEFT  — a tappable title block: the big rounded-bold day title ("Today" / "Yesterday" / the
         //           weekday) over a human date line ("Friday, 3 July"). Tap opens the day picker.
-        //   RIGHT — exactly the iOS four controls, in order: a filled HEART (→ Support), the PROFILE
-        //           AVATAR (→ Settings), a "+" ADD button (→ quick actions), and the strap BATTERY RING.
+        //   RIGHT — sync status and the connected-state strap battery control.
         // The recording-status light and the notifications BELL are GONE from the header (iOS has neither);
-        // the Updates inbox is relocated into the "+" quick-actions sheet (AppRoot), so the feature stays one
-        // tap away without sitting in the Today header. Staggered in as the first section (index 0).
+        // Quick Launch owns the secondary destinations, so Today keeps only live status controls.
+        // Staggered in as the first section (index 0).
         val dayTitle = when (selectedDayOffset) {
             0 -> "Today"
             1 -> "Yesterday"
@@ -1178,8 +1174,6 @@ fun TodayScreen(
                 lastSyncAt = liveSnap.lastSyncAt,
                 historySyncExperimental = liveSnap.historySyncExperimental,
                 onPickDay = { offset -> selectedDayOffset = offset },
-                onQuickActions = onQuickActions,
-                onOpenSettings = onOpenSettings,
                 onOpenDevices = onOpenDevices,
             )
             // WORDMARK (iOS LiquidWordmark parity): a subtle centred "N O O P" @ ~50% opacity, with a
@@ -1691,12 +1685,6 @@ fun TodayScreen(
 }
 
 /**
- * The accent quick-action "+" in the Today header's top-right. Moved off the bottom bar (now four clean
- * tabs) to balance the header and open the existing quick-action sheet. A small CONTAINED accent disc,  * the accented primary among an otherwise-neutral icon set, ~36dp, no float and no glow: a flat reset-blue
- * accent fill with a hairline rim, the "+" glyph in crisp white. Mirrors the iOS quick-action + (a glyph on
- * Circle().fill(StrandPalette.accent)).
- */
-/**
  * Today "workout in progress" indicator (iOS parity: ActiveWorkoutIndicatorCard). A metricRose-tinted card
  * with a decorative live dot + "WORKOUT IN PROGRESS" overline, a live H:MM:SS clock, the sport label, and a
  * "Return to workout" button. The whole card is tappable; [onReturn] routes to Live and re-opens the
@@ -1886,35 +1874,6 @@ private fun TodayCardDismissButton(onClick: () -> Unit, modifier: Modifier = Mod
     }
 }
 
-@Composable
-private fun QuickActionDisc(onClick: () -> Unit) {
-    val interaction = remember { MutableInteractionSource() }
-    Box(
-        modifier = Modifier
-            // 34dp to sit level with the heart / avatar / battery ring in the liquid header cluster.
-            .size(34.dp)
-            .liquidPress(interaction)
-            .clip(CircleShape)
-            // A translucent-white disc so the + reads on the day-of-sky like the rest of the liquid cluster,
-            // with a crisp white glyph. Mirrors iOS LiquidAddButton (a "plus" on Circle().fill(.white@0.16)).
-            .background(Color.White.copy(alpha = 0.16f))
-            .clickable(
-                interactionSource = interaction,
-                indication = null,
-                onClick = onClick,
-            )
-            .semantics { contentDescription = uiString(R.string.l10n_today_screen_quick_actions_e47e8042) },
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            Icons.Filled.Add,
-            contentDescription = null,
-            tint = Color.White,
-            modifier = Modifier.size(16.dp),
-        )
-    }
-}
-
 // MARK: - Scoring-guide affordances (ⓘ + first-run card)
 
 /**
@@ -1994,10 +1953,9 @@ private fun ScoringGuideIntroCard(onOpen: () -> Unit, onDismiss: () -> Unit) {
 //
 // A STRUCTURAL rebuild to mirror the iOS liquid Today header element-for-element (NOT the old numeric-date +
 // recording-light + bell header). LEFT: a tappable title block — the big rounded-bold day title over a human
-// date line ("Friday, 3 July"), tap opens the day picker. RIGHT: exactly the iOS four controls, in order —
-// a filled HEART (→ Support), the PROFILE AVATAR (→ Settings), a "+" ADD button (→ quick actions), and the
-// strap BATTERY RING (→ Devices). Each ~34dp, spacing ~8dp. There is no recording light and no bell here;
-// iOS's Today header has neither, and the Updates inbox is relocated into the "+" quick-actions sheet.
+// date line ("Friday, 3 July"), tap opens the day picker. RIGHT: sync and strap battery.
+// Settings remains one tap away in the default Quick Launch favourites, so a second settings shortcut
+// would waste scarce header space and diverge from iOS.
 
 @Composable
 private fun LiquidTodayHeader(
@@ -2011,8 +1969,6 @@ private fun LiquidTodayHeader(
     lastSyncAt: Long? = null,
     historySyncExperimental: Boolean = false,
     onPickDay: (Int) -> Unit,
-    onQuickActions: () -> Unit,
-    onOpenSettings: () -> Unit,
     onOpenDevices: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -2088,7 +2044,7 @@ private fun LiquidTodayHeader(
             )
         }
 
-        // RIGHT: the controls, in order — [sync chip] · avatar · + · battery ring. Each ~34dp, 8dp apart.
+        // RIGHT: sync chip · battery ring. Each ~34dp, 8dp apart.
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -2100,25 +2056,7 @@ private fun LiquidTodayHeader(
                 backfilling = backfilling, chunks = syncChunksThisSession,
                 lastSyncAt = lastSyncAt, historySyncExperimental = historySyncExperimental,
             )
-            // (a) Profile avatar (the photo set in Settings, or the NOOP loop mark) → Settings. Mirrors iOS.
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .clip(CircleShape)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onOpenSettings,
-                    )
-                    .semantics { contentDescription = uiString(R.string.l10n_today_screen_profile_and_settings_9b3d12f2) },
-                contentAlignment = Alignment.Center,
-            ) {
-                ProfileAvatar(size = 34.dp)
-            }
-            // (b) Quick-add (+), the accented primary. Mirrors iOS's LiquidAddButton (a glyph on a translucent
-            // disc → the quick-actions menu). Sized 34dp to match the rest of the liquid cluster.
-            QuickActionDisc(onClick = onQuickActions)
-            // (c) Strap battery ring showing the % (iOS LiquidBatteryButton). Tap → Devices.
+            // Strap battery ring showing the % (iOS LiquidBatteryButton). Tap → Devices.
             LiquidBatteryRing(batteryPct = batteryPct, onClick = onOpenDevices)
         }
     }

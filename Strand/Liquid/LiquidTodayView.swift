@@ -51,7 +51,10 @@ struct LiquidTodayView: View {
     // sheets / expanders
     @State private var guideSection: ScoreSection?
     @State private var customizationDestination: TodayCustomizationDestination?
+    #if os(macOS)
+    // iOS reaches Settings through the quick-launch panel instead (see `scene`'s header).
     @State private var showSettings = false
+    #endif
     @State private var synthesisExpanded = false
     @State private var showLiveSession = false
 
@@ -335,6 +338,7 @@ struct LiquidTodayView: View {
                 dashboardCardsRaw: $dashboardCardsRaw
             )
         }
+        #if os(macOS)
         .sheet(isPresented: $showSettings) {
             NavigationStack {
                 SettingsView()
@@ -342,6 +346,7 @@ struct LiquidTodayView: View {
                     .liquidSheetDoneChrome { showSettings = false }
             }
         }
+        #endif
         // Live Session (silent guardian, beta): the in-session screen owns the whole display — full
         // screen on iOS (nothing should compete with the ring mid-workout), a sheet on macOS where
         // fullScreenCover doesn't exist.
@@ -430,14 +435,20 @@ struct LiquidTodayView: View {
                 }
                 Spacer(minLength: 8)
                 HStack(spacing: 8) {
+                    #if os(macOS)
                     // Profile pic (the one set in Settings) → opens Settings, matching the classic Today.
+                    // iOS drops this: Settings is one tap away in the quick-launch panel's App page, and
+                    // the header reads cleaner with just the two live controls (2026-07).
                     Button { showSettings = true } label: {
                         ProfileAvatarView(imageData: profile.avatarImageData, size: 34)
                             .frame(width: 34, height: 34)
                     }
                     .buttonStyle(LiquidPressStyle())
                     .accessibilityLabel("Profile and settings")
+                    #endif
+                    #if os(macOS)
                     LiquidAddButton()
+                    #endif
                     // #245: the Liquid header shipped with no sync indication at all (B1) — add it next to
                     // the battery button, matching the issue's own ask ("near the battery percentage") and
                     // the layout Android already uses (its SyncStatusChip sits in the same row as the

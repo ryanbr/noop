@@ -1785,4 +1785,33 @@
     <string name="onboarding_theme_follow_system">跟随手机的浅色或深色设置。</string>
     <string name="onboarding_theme_light_description">深蓝色点缀搭配温暖的浅色背景。</string>
     <string name="onboarding_theme_dark_description">深蓝色点缀搭配深色蓝灰背景。</string>
+    <!-- Quick Launch: the More tab replacement. Visible labels + TalkBack actions. 收藏 is the
+         favourites term used throughout; 快速启动 is the panel's name. -->
+    <string name="quick_launch_favourites">收藏</string>
+    <string name="quick_launch_insights">深度洞察</string>
+    <string name="quick_launch_body">身体</string>
+    <string name="quick_launch_data">数据</string>
+    <string name="quick_launch_app">应用</string>
+    <string name="quick_launch_journal">日记</string>
+    <string name="quick_launch_your_data">你的数据</string>
+    <string name="quick_launch_add">添加</string>
+    <string name="quick_launch_change">更换</string>
+    <string name="quick_launch_cancel">取消</string>
+    <string name="quick_launch_done">完成</string>
+    <string name="quick_launch_reset">重置</string>
+    <string name="quick_launch_open_menu">打开快速启动</string>
+    <string name="quick_launch_close_menu">关闭快速启动</string>
+    <string name="quick_launch_edit_favourites">编辑收藏</string>
+    <string name="quick_launch_empty_slot">空的收藏位</string>
+    <string name="quick_launch_remove_from_favourites">将 %1$s 从收藏中移除</string>
+    <string name="quick_launch_move_earlier">移到上一个位置</string>
+    <string name="quick_launch_move_later">移到下一个位置</string>
+    <string name="quick_launch_add_to_favourites">将 %1$s 添加到收藏</string>
+    <string name="quick_launch_reset_description">恢复默认收藏</string>
+
+    <!-- Chinese has a single CLDR plural category, so only `other` is declared; Android uses it for
+         every count. -->
+    <plurals name="quick_launch_slots">
+        <item quantity="other">%1$d/%2$d 个位置 · 拖动排序</item>
+    </plurals>
 </resources>

@@ -235,8 +235,8 @@ struct MetricExplorerView: View {
         NavigationStack { exploreScaffold }
             .task(id: repo.refreshSeq) { await probeEmptiness(refreshSeq: repo.refreshSeq) }
         #else
-        // iOS: Explore is pushed INSIDE the More tab's NavigationStack. A nested NavigationStack made
-        // tapping a metric bounce straight back to the More list (#199) — so use the ambient stack; the
+        // iOS: Explore is hosted inside the quick-launch sheet's NavigationStack. A nested NavigationStack
+        // made tapping a metric bounce back to its index (#199), so use the ambient stack; the
         // rows push their detail with a direct closure-based NavigationLink (#38).
         exploreScaffold
             .task(id: repo.refreshSeq) { await probeEmptiness(refreshSeq: repo.refreshSeq) }

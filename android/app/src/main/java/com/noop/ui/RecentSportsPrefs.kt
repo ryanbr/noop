@@ -11,7 +11,7 @@ import android.content.SharedPreferences
 //
 // Stored as a single comma-joined string of sport names in SharedPreferences, most-recent-first,
 // capped at three, deduplicated case-insensitively — the same mechanism as the other display prefs
-// (KeyMetricPrefs / MoreSectionPrefs). Mirrors the macOS/iOS RecentSportsPrefs.swift (UserDefaults
+// (KeyMetricPrefs / QuickLaunchPrefs). Mirrors the macOS/iOS RecentSportsPrefs.swift (UserDefaults
 // "workout.recentSports"). Display-only: no WorkoutRow, analytics value or migration changes, so like
 // the other layout prefs it stays OUT of the .noopbak settings whitelist.
 

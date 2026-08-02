@@ -420,6 +420,38 @@ object Metrics {
     val legendLineHeight = 3.dp
     val progressHeight = 10.dp
     val editorListMaxHeight = 390.dp
+
+    // Quick Launch — shared by the modal panel, its 3x3 grids and the split glass navigation bar.
+    // Centralising this feature geometry keeps its screen files free of one-off spacing and sizing.
+    val quickLaunchPanelRadius = cardRadius
+    const val quickLaunchGlassAlpha = 0.80f
+    val quickLaunchGlassTonalElevation = space2
+    val quickLaunchGlassShadowElevation = space4
+    val quickLaunchPanelHorizontalInset = space18
+    val quickLaunchPanelBottomClearance = 68.dp
+    val quickLaunchBottomBarFontExpansion = 16.dp
+    val quickLaunchPanelMaxWidth = 520.dp
+    val quickLaunchIconCircle = 52.dp
+    val quickLaunchIconGlyph = 19.dp
+    val quickLaunchTileMaxWidth = 112.dp
+    val quickLaunchGridMinHeight = 288.dp
+    val quickLaunchGridFontExpansion = 78.dp
+    val quickLaunchGridHorizontalPadding = space8
+    val quickLaunchLabelGap = space6
+    val quickLaunchPageDot = 6.dp
+    val quickLaunchPageDotActiveWidth = 16.dp
+    val quickLaunchDragHandleWidth = 36.dp
+    val quickLaunchDragHandleHeight = 4.dp
+    val quickLaunchDismissDragDistance = 76.dp
+    val quickLaunchHeaderChipMinWidth = 68.dp
+    const val quickLaunchStackedHeaderFontScale = 1.3f
+    val quickLaunchBottomBarVerticalPadding = space8
+    val quickLaunchBottomBarButton = 54.dp
+    val quickLaunchRemoveTarget = 30.dp
+    val quickLaunchRemoveGlyph = 19.dp
+    val quickLaunchPlaceholderStroke = 1.5.dp
+    val quickLaunchPlaceholderDash = 4.dp
+    val quickLaunchPlaceholderGap = 3.dp
 }
 
 // MARK: - Typography (ported from StrandDesign/Typography.swift §9.2)

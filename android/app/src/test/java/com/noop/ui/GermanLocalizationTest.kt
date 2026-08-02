@@ -12,7 +12,7 @@ import java.io.File
  * `values/strings.xml` and the `values-de/strings.xml` off the source tree and pins the contract
  * the localization layer must keep:
  *
- *  - every nav / action string the app externalized has a German translation (no missing key falls
+ *  - every UI string the app externalized has a German translation (no missing key falls
  *    back to English silently);
  *  - no German value is blank (an empty <string> renders as nothing on screen);
  *  - the German nav labels are actually translated where they should be (a spot-check on a few terms
@@ -27,7 +27,7 @@ import java.io.File
 class GermanLocalizationTest {
 
     private fun resFile(rel: String): File? {
-        val userDir = File(System.getProperty("user.dir"))
+        val userDir = File(System.getProperty("user.dir") ?: return null)
         // Gradle runs unit tests with the module dir (android/app) or the repo root as user.dir.
         return listOf(
             File(userDir, "src/main/res/$rel"),
@@ -70,7 +70,7 @@ class GermanLocalizationTest {
         val en = parseStrings(enFile!!)
         val de = parseStrings(deFile!!)
 
-        // The keys the app externalized (nav + more-group + quick actions) MUST all be translated.
+        // Every externalized UI string MUST be translated.
         // widget_* is UI copy too; app_name is the brand and is intentionally English-only.
         val mustTranslate = en.keys.filter { it != "app_name" }
         val missing = mustTranslate.filter { it !in de }
@@ -97,7 +97,7 @@ class GermanLocalizationTest {
             "nav_today" to "Heute",
             "nav_sleep" to "Schlaf",
             "nav_settings" to "Einstellungen",
-            "nav_more" to "Mehr",
+            "quick_launch_favourites" to "Favoriten",
             "nav_health" to "Gesundheit",
         )
         for ((key, expected) in differs) {

@@ -31,6 +31,7 @@ enum TabRoute: Hashable {
     case workouts
     case dataSources
     case stress
+    case coach
     case sleep
     case health
     case hydration
@@ -67,6 +68,7 @@ extension View {
             case .workouts: WorkoutsView()
             case .dataSources: DataSourcesView()
             case .stress: StressView()
+            case .coach: CoachView()
             case .sleep: SleepView()
             case .health: HealthView()
             case .hydration: HydrationView()

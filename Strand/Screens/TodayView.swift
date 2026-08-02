@@ -1089,7 +1089,7 @@ struct TodayView: View {
     /// Compact WHOOP-style top bar: a profile/settings button (left), the centred ‹ Today › day-nav
     /// (bold, tappable to jump to a date), and the strap-battery badge (right).
     /// Apple-style large-title header: a tappable "Today ⌄" + full date on the left (taps to change day),
-    /// then updates / quick-add / and an OBVIOUS menu avatar (opens Settings) on the right.
+    /// then updates and an obvious menu avatar (opens Settings) on the right.
     @ViewBuilder private var todayTopBar: some View {
         HStack(alignment: .center, spacing: 10) {
             Button { showDayPicker = true } label: {
@@ -1127,7 +1127,7 @@ struct TodayView: View {
             // nothing only on a cold start. Owns its LiveState observation so a tick refreshes only it.
             SyncStatusChip()
 
-            // Uniform 36pt circular icon set: recording-status light, updates bell, quick-add (+), menu.
+            // Uniform 36pt circular icon set: recording-status light, updates bell, menu.
             HStack(spacing: 8) {
                 // Recording status, a colour-coded light (green recording / amber synced / red not
                 // recording), replacing the old full-width banner. Taps to Devices to connect. Its OWN
@@ -1160,18 +1160,6 @@ struct TodayView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Updates")
-                // Quick-action + (the accented primary, gold, same 36 size as the rest).
-                Button { router.requestQuickActions() } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 17, weight: .bold))
-                        .foregroundStyle(StrandPalette.goldDeepText)
-                        .frame(width: 36, height: 36)
-                        .background(Circle().fill(StrandPalette.accent))
-                        .contentShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Quick actions")
-                .accessibilityHint("Start a workout, log your journal, or breathe")
                 // Menu (Settings), the avatar, same 36 size.
                 Button { showSettings = true } label: {
                     ProfileAvatarView(imageData: profile.avatarImageData, size: 36)
@@ -1198,7 +1186,7 @@ struct TodayView: View {
     }
 
     /// Settings presented as a sheet from the top-bar profile button (sheets inherit the app
-    /// environment on iOS, so SettingsView gets the same objects it has under the More tab).
+    /// environment on iOS, so SettingsView gets the same objects it has from quick launch).
     private var settingsSheet: some View {
         NavigationStack {
             SettingsView()
