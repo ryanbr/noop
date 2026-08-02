@@ -8,7 +8,7 @@ import org.junit.Test
 /**
  * #510: `fillWorkoutHrFromStrap` used to read every workout's HR window under a hardcoded "my-whoop",
  * so a workout recorded on a SECOND WHOOP (id "whoop-<mac>", its HR banked under that id) read an empty
- * window and lost its Avg HR / calories / Effort. [WhoopRepository.workoutHrDeviceId] now resolves the
+ * window and lost its Avg HR / calories / Effort. [WhoopRepository.workoutHrDeviceIds] now resolves the
  * correct read key per row; this pins that resolution and the strap-native classification it rides on.
  */
 class WorkoutHrDeviceKeyTest {
@@ -49,14 +49,41 @@ class WorkoutHrDeviceKeyTest {
     }
 
     @Test fun `manual row reads HR under the active union, not its stored placeholder id`() {
-        // #836: a manual row's stored deviceId is a retroactive-add placeholder ("my-whoop"), not the
-        // strap that was actually worn — so, like an imported row, it reads the #814 union (active
-        // strap first, canonical "my-whoop" second). Byte-parity with the Swift twin, which has always
-        // kept manual rows off the single-id path.
+        // #836: a manual row reads the #814 union (active strap first, canonical "my-whoop" second) rather
+        // than its own stored id, because that id is not reliably the recording strap. Byte-parity with the
+        // Swift twin, which has always kept manual rows off the single-id path.
         assertEquals(
             listOf("whoop-aabbcc", "my-whoop"),
             WhoopRepository.workoutHrDeviceIds("manual", "whoop-aabbcc", activeStrapId = "whoop-aabbcc"),
         )
+    }
+
+    @Test fun `manual row ignores its stored strap id when a DIFFERENT strap is active`() {
+        // The divergent case, pinned explicitly: before #1039 a manual row keyed on its stored deviceId, so
+        // this returned ["whoop-aabbcc"]. It now returns the active union instead, which is the deliberate
+        // trade — see workoutHrDeviceIds' doc. Asserting it here rather than at rowDeviceId == activeStrapId
+        // (where the old and new rules happen to agree) is the whole point: that is the only shape that can
+        // tell the two rules apart, so without it a regression to per-row keying passes the suite silently.
+        //
+        // It matters because both buildManualRow callers write source "manual" with DIFFERENT ids — the
+        // Workouts screen passes "my-whoop", AutoWorkoutNudge passes the active strap id — so a nudge-created
+        // row genuinely does carry a real recording strap that this rule declines to use.
+        assertEquals(
+            listOf("whoop-ddeeff", "my-whoop"),
+            WhoopRepository.workoutHrDeviceIds("manual", "whoop-aabbcc", activeStrapId = "whoop-ddeeff"),
+        )
+    }
+
+    @Test fun `the read key never exceeds the two ids hrWindowStats consumes`() {
+        // fillWorkoutHrFromStrap calls hrWindowStats(hrIds[0], hrIds.getOrElse(1) { hrIds[0] }, ...) — exactly
+        // two. A third id would be silently dropped, so any future widening of this key has to fail here
+        // first rather than lose a read at the call site.
+        for (source in listOf("manual", "apple-health", "activity-file", "whoop-aabbcc-noop", "my-whoop-noop")) {
+            for (active in listOf("my-whoop", "whoop-aabbcc")) {
+                val ids = WhoopRepository.workoutHrDeviceIds(source, "whoop-ddeeff", activeStrapId = active)
+                assertTrue("$source/$active produced ${ids.size} ids", ids.isNotEmpty() && ids.size <= 2)
+            }
+        }
     }
 
     @Test fun `imported row reads HR under the active strap (the worn strap), preserving the #77 fill`() {
