@@ -95,7 +95,12 @@ final class RrCoverageVerdictTests: XCTestCase {
 
     /// The verdict is only ever a function of the pair, never of which is larger — a collapse can never
     /// exceed the raw coverage in practice, but the classifier must not depend on that holding.
+    ///
+    /// #977: this expected `.plausible` before the floor existed, which was the bug rather than the
+    /// intent — half the beat-time is missing at 0.5. The property under test is unchanged and is now
+    /// shown more sharply: `collapsed` at 9.9 screams over-count and the verdict still follows
+    /// `coverage`.
     func testCollapsedAboveCoverageStillClassifiesOnCoverageFirst() {
-        XCTAssertEqual(HRVAnalyzer.classifyCoverage(coverage: 0.5, collapsed: 9.9), .plausible)
+        XCTAssertEqual(HRVAnalyzer.classifyCoverage(coverage: 0.5, collapsed: 9.9), .underCovered)
     }
 }

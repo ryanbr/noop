@@ -141,11 +141,17 @@ class RrCoverageVerdictTest {
         )
     }
 
-    /** The verdict keys on coverage first; it must not depend on collapsed <= coverage holding. */
+    /**
+     * The verdict keys on coverage first; it must not depend on collapsed <= coverage holding.
+     *
+     * #977: this expected PLAUSIBLE before the floor existed, which was the bug rather than the intent —
+     * half the beat-time is missing at 0.5. The property under test is unchanged and is now shown more
+     * sharply: `collapsed` at 9.9 screams over-count and the verdict still follows `coverage`.
+     */
     @Test
     fun collapsedAboveCoverageStillClassifiesOnCoverageFirst() {
         assertEquals(
-            HrvAnalyzer.RrCoverageVerdict.PLAUSIBLE,
+            HrvAnalyzer.RrCoverageVerdict.UNDER_COVERED,
             HrvAnalyzer.classifyCoverage(0.5, 9.9),
         )
     }
