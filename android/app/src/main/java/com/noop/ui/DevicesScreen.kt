@@ -1328,8 +1328,7 @@ private fun PickActiveDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    uiString(R.string.l10n_devices_screen_you_removed_your_active_strap_choose_2ac91d48) +
-                        "leave none active and pair one later.",
+                    uiString(R.string.l10n_devices_screen_you_removed_your_active_strap_choose_2ac91d48),
                     style = NoopType.subhead,
                     color = Palette.textSecondary,
                 )
@@ -1560,8 +1559,7 @@ private fun OuraLocalStateNote() {
     ) {
         Icon(Icons.Filled.Info, contentDescription = null, tint = Palette.statusWarning, modifier = Modifier.size(14.dp))
         Text(
-            uiString(R.string.l10n_devices_screen_paired_locally_noop_owns_this_ring_30c16190) +
-                "up in the Oura app, NOOP no longer owns it and you would re-add it to take it over.",
+            uiString(R.string.l10n_devices_screen_paired_locally_noop_owns_this_ring_30c16190),
             style = NoopType.caption,
             color = Palette.statusWarning,
         )

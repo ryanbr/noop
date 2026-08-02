@@ -138,7 +138,7 @@
     <string name="l10n_caffeine_log_had_it_8576ac66">La tuve</string>
     <string name="l10n_caffeine_log_have_your_last_caffeine_by_about_16b09033">Tenga su última cafeína por alrededor de %1$s para limpiar la mayoría de ella</string>
     <string name="l10n_caffeine_log_late_caffeine_nudge_6b2ff690">Late-caffeine nudge</string>
-    <string name="l10n_caffeine_log_log_a_coffee_tea_or_energy_982bde5b">Lograr un café, té o bebida energética y NOOP muestra una estimación aproximada de cuánto puede</string>
+    <string name="l10n_caffeine_log_log_a_coffee_tea_or_energy_982bde5b">Registra un café, un té o una bebida energética y NOOP muestra una estimación aproximada de cuánta cafeína puede seguir activa. Es una guía basada en una semivida típica de 5 a 6 horas, no una medición.</string>
     <string name="l10n_caffeine_log_logged_today_0071a46c">Registrado hoy</string>
     <string name="l10n_caffeine_log_remove_e963907d">Eliminar</string>
     <string name="l10n_coach_screen_api_key_hidden_f3cde531">Clave de API (hidden)</string>
@@ -186,7 +186,7 @@
     <string name="l10n_coupled_screen_no_sleep_tracked_last_night_cd0dd79e">No hay sueño rastreado anoche</string>
     <string name="l10n_coupled_screen_recovery_b668d988">RECOVERY</string>
     <string name="l10n_coupled_screen_sleep_performance_4611539f">SLEEP PERFORMANCE</string>
-    <string name="l10n_data_sources_screen_acts_as_a_standard_bluetooth_heart_f8d13439">Actúa como una correa de frecuencia cardíaca Bluetooth estándar. Par NOOP de su cinta de correr,</string>
+    <string name="l10n_data_sources_screen_acts_as_a_standard_bluetooth_heart_f8d13439">Actúa como una banda de frecuencia cardíaca Bluetooth estándar. Empareja NOOP desde tu cinta, bici o app para ver ahí la frecuencia cardíaca de tu pulsera.</string>
     <string name="l10n_data_sources_screen_apple_health_b19b87da">Apple Health</string>
     <string name="l10n_data_sources_screen_auto_sync_health_connect_periodically_6f3f4d92">Auto-sync Health Connect periodic</string>
     <string name="l10n_data_sources_screen_auto_sync_periodically_5f3041e8">Auto-sinc periódicamente</string>
@@ -217,7 +217,7 @@
     <string name="l10n_data_sources_screen_remove_imported_data_813e4695">Eliminar datos importados</string>
     <string name="l10n_data_sources_screen_share_back_to_health_connect_1d578f4a">Compartir de nuevo a Health Connect</string>
     <string name="l10n_data_sources_screen_share_computed_metrics_back_to_health_c11f5d70">Compartir métricas computadas volver a Health Connect</string>
-    <string name="l10n_data_sources_screen_this_permanently_deletes_everything_imported_from_f42e760e">Esto elimina permanentemente todo lo importado de Apple Health: frecuencia cardíaca, HRV,</string>
+    <string name="l10n_data_sources_screen_this_permanently_deletes_everything_imported_from_f42e760e">Esto elimina permanentemente todo lo importado desde Apple Health: frecuencia cardíaca, VFC, sueño, pasos, entrenamientos y más. Los datos en vivo de tu pulsera quedan intactos. No se puede deshacer.</string>
     <string name="l10n_data_sources_screen_whoop_history_db101974">Historia WHOOP</string>
     <string name="l10n_data_sources_screen_whoop_strap_live_ble_217f7df6">Pulsera WHOOP (BLE en vivo)</string>
     <string name="l10n_data_sources_screen_workout_file_gpx_tcx_fit_5469c068">Archivo de entrenamiento (GPX / TCX / FIT)</string>
@@ -256,7 +256,7 @@
     <string name="l10n_devices_screen_leave_none_active_b5c858cb">No dejar ninguna activa</string>
     <string name="l10n_devices_screen_name_709a2322">Nombre</string>
     <string name="l10n_devices_screen_pack_voltage_9af3c3ff">%1$.2f V</string>
-    <string name="l10n_devices_screen_paired_locally_noop_owns_this_ring_30c16190">En pareja. NOOP posee este anillo mientras mantiene la llave. Si lo vuelves a restablecer o lo estableces</string>
+    <string name="l10n_devices_screen_paired_locally_noop_owns_this_ring_30c16190">Emparejado localmente. NOOP es propietario de este anillo mientras conserva la clave. Si lo restableces de nuevo o lo configuras en la app de Oura, NOOP deja de ser propietario y tendrías que volver a añadirlo para retomar el control.</string>
     <string name="l10n_devices_screen_pick_a_new_active_strap_edd73542">Elige una nueva pulsera activa</string>
     <string name="l10n_devices_screen_rename_device_ee233604">Renombrar dispositivo</string>
     <string name="l10n_devices_screen_send_probe_read_only_36b318bc">Enviar sonda (solo lectura)</string>
@@ -265,7 +265,7 @@
     <string name="l10n_devices_screen_waiting_for_the_straps_reply_5a06e7ac">Esperando la respuesta de la banda…</string>
     <string name="l10n_devices_screen_whoop_4_0_reboot_probe_b51fb50f">WHOOP 4.0 sonda de reinicio</string>
     <string name="l10n_devices_screen_whoop_is_noop_s_primary_fully_1c9e67fd">WHOOP es la banda primaria y totalmente apoyada de NOOP. Otras correas de corazón son tempranas,</string>
-    <string name="l10n_devices_screen_you_removed_your_active_strap_choose_2ac91d48">Te quitaste la correa activa. Elija qué banda pareada proporciona sus datos en vivo, o</string>
+    <string name="l10n_devices_screen_you_removed_your_active_strap_choose_2ac91d48">Quitaste tu pulsera activa. Elige qué banda emparejada proporciona tus datos en vivo, o no dejes ninguna activa y empareja una después.</string>
     <string name="l10n_fused_record_screen_contrib_source_displayname_fusionformat_value_contrib_d182dd7f">%1$s, %2$s</string>
     <string name="l10n_fused_record_screen_done_e9b450d1">Listo</string>
     <string name="l10n_fused_record_screen_fused_on_devicenoun_nothing_leaves_it_8a1e6a3d">Fused on %1$s. Nada lo deja: sin cuenta, sin nube.</string>
@@ -310,11 +310,11 @@
     <string name="l10n_how_noop_works_screen_close_bbfa773e">Cerrar</string>
     <string name="l10n_how_noop_works_screen_got_it_5b8027fa">Entendido</string>
     <string name="l10n_how_noop_works_screen_how_noop_works_3396b27a">Cómo funciona NOOP</string>
-    <string name="l10n_how_noop_works_screen_noop_never_makes_up_a_number_da29aca5">NOOP nunca hace un número. Cuando no se puede calcular uno honestamente te dice</string>
+    <string name="l10n_how_noop_works_screen_noop_never_makes_up_a_number_da29aca5">NOOP nunca inventa un número. Cuando no puede calcularlo honestamente, te dice qué falta y qué hacer, en lugar de mostrar un valor falso.</string>
     <string name="l10n_how_noop_works_screen_noop_never_shows_you_a_number_d1db9958">NOOP nunca muestra un número que tenía que inventar. Si una puntuación no está lista,</string>
     <string name="l10n_how_noop_works_screen_section_title_section_body_efb1a999">%1$s. %2$s</string>
     <string name="l10n_how_noop_works_screen_sleep_scores_recording_where_your_numbers_1b3e981f">Sueño · puntuaciones · registro · de dónde vienen tus números</string>
-    <string name="l10n_hrv_snapshot_screen_an_hrv_reading_needs_the_live_11b70bff">Una lectura HRV necesita el flujo R-R en vivo. Abra la pantalla Live y conecte su correa,</string>
+    <string name="l10n_hrv_snapshot_screen_an_hrv_reading_needs_the_live_11b70bff">Una lectura de VFC necesita el flujo R-R en vivo. Abre la pantalla En vivo y conecta tu pulsera, luego vuelve.</string>
     <string name="l10n_hrv_snapshot_screen_beats_12aafda0">Latidos</string>
     <string name="l10n_hrv_snapshot_screen_hrvdial_4c244c45">hrvDial</string>
     <string name="l10n_hrv_snapshot_screen_mean_hr_6c9272dd">FC media</string>
@@ -367,7 +367,7 @@
     <string name="l10n_insights_screen_not_enough_overlap_between_your_journal_0ebdd7a2">No hay suficiente solapamiento entre las respuestas de su diario y</string>
     <string name="l10n_insights_screen_not_enough_overlapping_history_to_correlate_a552dbd4">Aún no hay suficiente historial solapado para correlacionar tus métricas.</string>
     <string name="l10n_insights_screen_pick_one_behaviour_you_log_one_bd34090e">Escoge un comportamiento que registras, un resultado y una ventana corta. NOOP</string>
-    <string name="l10n_insights_screen_ranked_lag_aware_which_of_your_e0e91b39">Ranked, lag-aware: cuál de tus hábitos realmente mueve tu Carga, más tu</string>
+    <string name="l10n_insights_screen_ranked_lag_aware_which_of_your_e0e91b39">Clasificado y con retardo en cuenta: qué hábitos realmente mueven tu Carga, más tu respuesta personal a la dosis de alcohol y cafeína.</string>
     <string name="l10n_insights_screen_rest_baseline_b3ac52a5">Línea base de Descanso</string>
     <string name="l10n_insights_screen_run_a_clean_personal_test_4da69781">Haz una prueba personal limpia</string>
     <string name="l10n_insights_screen_sessions_e11e37a9">Sesiones</string>
@@ -418,7 +418,7 @@
     <string name="l10n_lab_book_screen_clear_719ea396">Borrar</string>
     <string name="l10n_lab_book_screen_delete_this_reading_b5c92bda">Eliminar esta lectura</string>
     <string name="l10n_lab_book_screen_import_readings_7ad0d28f">Importar lecturas</string>
-    <string name="l10n_lab_book_screen_it_s_a_notebook_not_a_45835e98">Es un cuaderno, no un laboratorio. NOOP alinea los números que entras. No prueba,</string>
+    <string name="l10n_lab_book_screen_it_s_a_notebook_not_a_45835e98">Es un cuaderno, no un laboratorio. NOOP alinea los números que introduces. No los analiza, interpreta ni juzga. No es consejo médico.</string>
     <string name="l10n_lab_book_screen_keep_your_own_numbers_here_1ca6c8ed">Guarda tus propios números aquí</string>
     <string name="l10n_lab_book_screen_lab_book_f966c140">Cuaderno de laboratorio</string>
     <string name="l10n_lab_book_screen_lab_book_is_a_private_notebook_d07380ca">Lab Book es un cuaderno privado, no un servicio médico. NOOP almacena y alinea los números</string>
@@ -431,7 +431,7 @@
     <string name="l10n_lab_book_screen_read_the_full_lab_book_note_3a250750">Leer la nota completa del Lab Book</string>
     <string name="l10n_lab_book_screen_read_the_full_note_3fd0e4d1">Leer la nota completa</string>
     <string name="l10n_lab_book_screen_reading_your_logbook_e31992b0">Leyendo tu registro…</string>
-    <string name="l10n_lab_book_screen_these_are_your_own_numbers_shown_7667508d">Estos son tus propios números que se te muestran. NOOP no decide si hay valor</string>
+    <string name="l10n_lab_book_screen_these_are_your_own_numbers_shown_7667508d">Son tus propios números mostrados de vuelta. NOOP no decide si algún valor es normal, alto o bajo.</string>
     <string name="l10n_lab_book_screen_type_in_a_blood_pressure_reading_c276d418">Introduzca una lectura de presión arterial o un valor de colesterol de su última cita.</string>
     <string name="l10n_lab_book_screen_what_lab_book_is_and_isn_f28686df">Qué es Lab Book (y qué no)</string>
     <string name="l10n_live_screen_manage_devices_e5c277ff">Gestionar dispositivos</string>
@@ -581,7 +581,7 @@
     <string name="l10n_scoring_guide_screen_how_your_scores_work_21a0e2be">Cómo funcionan tus puntuaciones</string>
     <string name="l10n_scoring_guide_screen_noop_gives_you_three_daily_scores_36244209">NOOP le da tres puntuaciones diarias (Capítulo, Effort y Descanso), cada una en un 0-100</string>
     <string name="l10n_scoring_guide_screen_scorecardhighlight_4af6985c">puntuaciónCardHighlight</string>
-    <string name="l10n_scoring_guide_screen_these_are_independent_approximations_from_a_301457ed">Estas son aproximaciones independientes de una correa de consumo, construida sobre ciencia abierta: no</string>
+    <string name="l10n_scoring_guide_screen_these_are_independent_approximations_from_a_301457ed">Son aproximaciones independientes de una pulsera de consumo, construidas sobre ciencia abierta: no son consejo médico ni las puntuaciones oficiales de WHOOP.</string>
     <string name="l10n_scoring_guide_screen_vs_whoop_9a8126a7">VS WHOOP</string>
     <string name="l10n_settings_screen_advancedchevron_f22dfa01">avanzadoChevron</string>
     <string name="l10n_settings_screen_note_a2481d6c">· %1$s</string>
@@ -670,7 +670,7 @@
     <string name="l10n_steps_calibration_screen_how_this_works_b895a8c3">Cómo funciona esto</string>
     <string name="l10n_steps_calibration_screen_no_days_yet_where_both_noop_71d6005b">Todavía no hay días donde NOOP y su teléfono cuentan pasos. Una vez que el teléfono inicie sesión a</string>
     <string name="l10n_steps_calibration_screen_no_motion_synced_yet_65106670">Aún no hay movimiento sincronizado</string>
-    <string name="l10n_steps_calibration_screen_noop_estimates_your_steps_from_your_d569bc31">NOOP calcula sus pasos desde el movimiento de su WHOOP, calibrado al paso de su teléfono</string>
+    <string name="l10n_steps_calibration_screen_noop_estimates_your_steps_from_your_d569bc31">NOOP estima tus pasos a partir del movimiento de tu WHOOP, calibrado con el recuento de pasos de tu teléfono. Es una estimación, no un podómetro. Una WHOOP 4.0 no transmite pasos.</string>
     <string name="l10n_steps_calibration_screen_not_calibrated_yet_30abe0d0">Aún sin calibrar</string>
     <string name="l10n_steps_calibration_screen_on_the_days_your_phone_also_2f65a14c">En los días que su teléfono también cuenta pasos, NOOP aprende cuánto sus mapas de movimiento a</string>
     <string name="l10n_steps_calibration_screen_open_noop_near_your_strap_and_e08ddd6d">Abrir NOOP cerca de su correa y dejar que se ponga al día (una sincronización de historia completa puede tomar un tiempo en</string>
@@ -679,8 +679,8 @@
     <string name="l10n_steps_calibration_screen_shortday_row_day_estimated_row_estimated_f2d71597">%1$s: pasos %2$s estimados, teléfono %3$s</string>
     <string name="l10n_steps_calibration_screen_steps_per_motion_unit_a2c2ac56">pasos por unidad de movimiento</string>
     <string name="l10n_steps_calibration_screen_takes_effect_on_the_next_analytics_13205327">Surte efecto en el próximo pase de análisis (tras la próxima sincronización).</string>
-    <string name="l10n_steps_calibration_screen_these_are_the_days_where_your_ae5c9c2c">Estos son los días en que su teléfono también cuenta pasos, por lo que NOOP puede aprender cómo su teléfono</string>
-    <string name="l10n_steps_calibration_screen_these_days_are_excluded_from_the_6bedabbf">Estos días están excluidos de la estimación (la cuenta real de su teléfono se muestra en su lugar).</string>
+    <string name="l10n_steps_calibration_screen_these_are_the_days_where_your_ae5c9c2c">Estos son los días en los que tu teléfono también contó pasos, así NOOP puede aprender cómo tu movimiento se traduce en pasos. O ajusta el coeficiente manualmente abajo.</string>
+    <string name="l10n_steps_calibration_screen_these_days_are_excluded_from_the_6bedabbf">Estos días quedan excluidos de la estimación (se muestra el conteo real de tu teléfono en su lugar). Están aquí solo para que juzgues la precisión de la estimación.</string>
     <string name="l10n_steps_calibration_screen_we_re_not_seeing_any_motion_6ac8e092">Aún no estamos viendo ningún movimiento de tu correa. Los pasos son estimados de su WHOOP</string>
     <string name="l10n_steps_calibration_screen_whoop_4_0_motion_steps_a63239dc">WHOOP 4.0 · movimiento → pasos</string>
     <string name="l10n_strand_components_next_day_38f859dd">Día siguiente</string>
@@ -1430,7 +1430,7 @@
     <string name="l10n_stress_screen_on_demand_today_s_r_r_17d716e1">bajo demanda · R-R de hoy</string>
     <string name="l10n_stress_screen_on_the_0_3_autonomic_load_8a0d5107">en la escala de carga autonómica 0-3</string>
     <string name="l10n_stress_screen_the_line_traces_your_autonomic_load_804f4028">La línea traza su carga autonómica a lo largo del día de despertar, marcado</string>
-    <string name="l10n_stress_screen_these_are_extra_on_demand_hrv_9303f1de">Estos son lentes HRV extra a demanda calculadas a partir de intervalos R-R de hoy. Ellos</string>
+    <string name="l10n_stress_screen_these_are_extra_on_demand_hrv_9303f1de">Son lentes de VFC adicionales, bajo demanda, calculadas a partir de los intervalos R-R de hoy. Son informativas y no cambian la puntuación de estrés de arriba.</string>
     <string name="l10n_stress_screen_we_compare_today_s_resting_heart_a9cd0955">Comparamos la frecuencia cardíaca de reposo de hoy y el HRV a tus propios 30 días</string>
     <string name="l10n_test_centre_screen_bug_report_5a7ee5ac">Informe de error</string>
     <string name="l10n_today_screen_arrange_cfdd099c">Arreglar</string>
@@ -1456,7 +1456,7 @@
     <string name="l10n_today_screen_move_item_metric_title_down_890afe60">Mover %1$s abajo</string>
     <string name="l10n_today_screen_move_item_metric_title_up_52d2104c">Mover %1$s</string>
     <string name="l10n_today_screen_new_data_added_e59345b4">Nuevos datos añadidos</string>
-    <string name="l10n_today_screen_no_cardio_load_yet_effort_builds_e952006c">Todavía no hay carga cardio. El esfuerzo se acumula una vez que su ritmo cardíaco se sube a su esfuerzo</string>
+    <string name="l10n_today_screen_no_cardio_load_yet_effort_builds_e952006c">Aún no hay carga cardiovascular. El Esfuerzo se acumula cuando tu frecuencia cardíaca sube a tu zona de esfuerzo (alrededor del 50% de tu reserva de frecuencia cardíaca). Un día tranquilo, honestamente, marca cerca de cero.</string>
     <string name="l10n_today_screen_pct_ee63e247">%1$s%%</string>
     <string name="l10n_today_screen_profile_and_settings_9b3d12f2">Perfil y ajustes</string>
     <string name="l10n_today_screen_recovery_ea924f72">Recuperación</string>

@@ -463,8 +463,7 @@ private fun NotBondedHint() {
     ) {
         Icon(Icons.Filled.MonitorHeart, contentDescription = null, tint = Palette.statusWarning)
         Text(
-            uiString(R.string.l10n_hrv_snapshot_screen_an_hrv_reading_needs_the_live_11b70bff) +
-                "then come back.",
+            uiString(R.string.l10n_hrv_snapshot_screen_an_hrv_reading_needs_the_live_11b70bff),
             style = NoopType.footnote, color = Palette.textSecondary,
         )
     }

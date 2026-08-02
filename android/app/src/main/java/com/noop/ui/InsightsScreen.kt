@@ -576,8 +576,7 @@ private fun WhatMovesYouLink(onOpen: () -> Unit) {
                 // glyph (mirrors the iOS "WHAT MOVES YOU ›" overline). The descriptive line sits beneath.
                 Overline("What moves you ›", color = Palette.textPrimary)
                 Text(
-                    uiString(R.string.l10n_insights_screen_ranked_lag_aware_which_of_your_e0e91b39) +
-                        "personal alcohol/caffeine dose-response.",
+                    uiString(R.string.l10n_insights_screen_ranked_lag_aware_which_of_your_e0e91b39),
                     style = NoopType.footnote,
                     color = Palette.textTertiary,
                 )

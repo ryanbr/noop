@@ -1409,8 +1409,7 @@ fun TodayScreen(
                                         modifier = Modifier.size(Metrics.iconSmall),
                                     )
                                     Text(
-                                        uiString(R.string.l10n_today_screen_no_cardio_load_yet_effort_builds_e952006c) +
-                                            "zone (around 50% of your heart-rate reserve). A calm day honestly reads near zero.",
+                                        uiString(R.string.l10n_today_screen_no_cardio_load_yet_effort_builds_e952006c),
                                         style = NoopType.footnote,
                                         color = Palette.textTertiary,
                                     )
