@@ -7256,6 +7256,16 @@ class WhoopBleClient(
         disRead = false
         disSerial = null
         disHwRev = null
+        // #1007: a burst cut short by a disconnect never reaches exitBackfilling — that path is only
+        // HISTORY_COMPLETE / timeout / user-abort — so without this the throughput line simply would not
+        // appear, and its ABSENCE is ambiguous: no offload at all, or one that was interrupted? For a
+        // battery question those are opposite answers (the interrupted one spent radio for nothing).
+        // Logged here rather than by calling exitBackfilling, which would also release the connection
+        // priority and PHY and record a sync outcome — behaviour, on a path that does none of it today.
+        if (backfilling && backfillStartedAtMs > 0L) {
+            log("Backfill: ${offloadThroughputLine(offloadFramesThisSession,
+                System.currentTimeMillis() - backfillStartedAtMs)} (interrupted)")
+        }
         backfilling = false
         backfillDraining = false
         backfillFrameQueue.clear()
