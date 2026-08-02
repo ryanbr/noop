@@ -274,6 +274,28 @@ Gen 5 example `0912 020100 020103 010001 090329 665544332211`. [open_oura-r5]
 
 ### 5.3 Canonical fetch loop (NOOP, aligned with open_oura `drain_events`)
 1. SyncTime (§5.4). 2. Optionally `28 01 00` to flush flash-buffered events first. [open_ring]
+   - **⚠️ ONE CLIENT GETS THE HISTORY, AND ONLY ONE (observed, NOOP 2026-08-02).** The ring bonds to a
+     single client at a time, and in practice **whichever client drains a period's history consumes it —
+     the other gets nothing for those days**. Confirmed by a user who alternated NOOP and the official
+     Oura app: after either had synced, the other found nothing left for that window. This is a hard,
+     user-visible consequence of using NOOP with a ring whose Oura Cloud history also matters, and it
+     blocks any same-night NOOP-vs-Cloud comparison (see §6.5).
+   - **CAUSE UNVERIFIED, and NOOP may be responsible.** NOOP sends `28 01 00` at the START of every
+     history fetch (`OuraDriver`, `.startHistoryFetch`), unconditionally, even though [open_ring]
+     documents it as OPTIONAL. Two readings of "flush" are equally plausible and have OPPOSITE
+     implications:
+     - **(A) it CLEARS the flash buffer** — then NOOP is destroying data the Oura app would otherwise
+       upload, and simply not sending it would let both clients read the same history.
+     - **(B) it flushes RAM→flash** (the usual embedded meaning; the tag is also named
+       `CheckSleepAnalysis`, suggesting it finalises pending analysis) — then it is REQUIRED, and dropping
+       it would lose the most recent records instead.
+     NOOP's own captures cannot distinguish these: our drain resumes from a client-side cursor, so
+     not re-receiving old records is equally explained by "we never asked". **Do not change this on
+     theory** — it is on the connect/offload path (see the BLE safety contract) and the failure mode of
+     guessing wrong is silent data loss.
+   - **How to test it:** one session with `28 01 00` suppressed. If NOOP still receives the full backlog,
+     reading (A) is supported and the command can be dropped — which would also un-block the §6.5
+     same-night comparison. If recent records go missing, reading (B) is right and it must stay.
 3. Send `0x10` with the stored cursor, `max=255`, flags `FF FF FF FF` (open_oura's `flags=-1`).
 4. Collect the batch until the stream goes QUIET (~1.5 s of no records — open_oura's `transact()`
    window). The `0x11` summary is NOT an end-of-batch marker (§5.2); never re-request mid-stream.
@@ -480,13 +502,16 @@ like its sibling banked streams (`.hrv`/`.temp`/`.spo2`/`.sleepPhase`) — the f
     **zero overlapping days**. The comparison above is therefore distribution-level across
     *non-overlapping* periods (per-sample values vs nightly averages, different nights), which is why it
     can bound the discrepancy but not decompose it.
-  - **Paths that could still settle it**, in increasing cost: (a) **re-pair to the Oura app after a NOOP
-    capture window** — the ring buffers days of history and NOOP's drain does not consume it (the resume
-    cursor is client-side), so the app may upload the very nights NOOP already has, creating the overlap
-    retrospectively; costs a re-pair and risks identity/key churn (§3.7). (b) A **reference pulse
-    oximeter worn during sleep** alongside the ring — definitive, but `0x6F` only flows at rest so a
-    daytime spot-check will not produce comparable samples. (c) A **second ring**, one bonded to each
-    client. Until one of these happens the transform stays UNKNOWN and is documented, not guessed.
+  - **Re-pairing to the Oura app afterwards does NOT work — already refuted in practice.** Whichever
+    client drains a window CONSUMES it, so the app finds nothing left for the nights NOOP captured (and
+    vice versa). See the warning in §5.3, which records that observation and flags NOOP's unconditional
+    `28 01 00` flush as a candidate cause.
+  - **Paths that could still settle it**, in increasing cost: (a) **resolve the §5.3 flush question** — if
+    suppressing `28 01 00` leaves the history readable by BOTH clients, this comparison becomes possible
+    for free. (b) A **reference pulse oximeter worn during sleep** alongside the ring — definitive, but
+    `0x6F` only flows at rest so a daytime spot-check produces nothing comparable. (c) A **second ring**,
+    one bonded to each client. Until one of these happens the transform stays UNKNOWN and is documented,
+    not guessed.
 
 ### 6.5.1 SpO2 ratio-of-ratios - `0x8b` `spo2_r_pi_event` — **NOT OBSERVED in NOOP captures**
 - Carries the raw **ratio-of-ratios `r`** plus a **perfusion index `pi`** (quality parameter). This is the
