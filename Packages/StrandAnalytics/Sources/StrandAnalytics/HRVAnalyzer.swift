@@ -380,6 +380,12 @@ public enum HRVAnalyzer {
     /// Deliberately symmetric rather than fitted: picking a number between the reported 0.859 and the
     /// 0.89 of #803's capture would be choosing a threshold to match one corpus, which is what the
     /// ceiling's own comment warns against.
+    ///
+    /// DERIVED rather than written as 0.90 so it cannot drift if the ceiling moves. IEEE-754 makes the
+    /// result 0.8999999999999999, not exactly 0.90, because 1.10 - 1.0 is not exactly 0.10 — harmless
+    /// (a night at exactly 0.90 is still above it) and identical on both platforms, since both fold the
+    /// same double arithmetic. Symmetry with the ceiling is the property worth keeping; the last bit is
+    /// not.
     public static let coveragePlausibleFloor: Double = 1.0 - (coveragePlausibleCeiling - 1.0)
 
     /// Tolerance above 1.0 treated as "fits". R-R timestamps are whole seconds while beats are not, so a
