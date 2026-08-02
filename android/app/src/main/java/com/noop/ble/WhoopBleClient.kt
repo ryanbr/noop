@@ -2436,9 +2436,6 @@ class WhoopBleClient(
     @SuppressLint("MissingPermission")
     fun connect(model: WhoopModel = WhoopModel.WHOOP4) {
         intentionalDisconnect = false
-        // Connection test mode: stamp when this connect attempt began so onConnectionStateChange can report
-        // the connect latency. A plain timestamp, no behaviour change; only read behind the CONNECTION gate.
-        connectAttemptStartedAtMs = System.currentTimeMillis()
         // PR #588: an explicit user-driven Connect is never an out-of-range retry — clear the involuntary-
         // reconnect streak so this scan (and any reconnects it spawns) starts back at the snappy
         // LOW_LATENCY scan mode + the 3s backoff base, never inheriting a backed-off lower-power scan.
@@ -4299,6 +4296,11 @@ class WhoopBleClient(
         // connect — onScanResult (pin now null) connects to the working strap when it advertises.
         resetReconnectBackoff()   // a deliberate re-adopt, not an out-of-range retry — start fresh
         intentionalDisconnect = false
+        // #1040: the FIFTH local-teardown route, and the only one that was never stamped — so the status-22
+        // drop it causes printed `via=unknown`, which the reason doc calls out as meaning exactly this: a
+        // teardown path that exists and is not tagged. A multi-WHOOP re-adopt looks identical in the trace
+        // to a bond-watchdog bounce without it.
+        noteLocalTeardown("readopt")   // #1020
         try {
             gatt?.disconnect()   // drop the dead-pin link → handleDisconnect → rescan (pin cleared)
         } catch (t: Throwable) {
@@ -4414,6 +4416,15 @@ class WhoopBleClient(
         // Close any prior/pending GATT so a direct-reconnect attempt doesn't leak the old client.
         // close() can throw on a dead binder (#314); swallow it — we're replacing the handle anyway.
         try { gatt?.close() } catch (t: Throwable) { log("prior gatt.close() threw ${t.javaClass.simpleName} (ignored)") }
+        // Connection test mode: stamp when THIS GATT attempt began, so onConnectionStateChange reports the
+        // latency of the attempt that just succeeded. Stamped here rather than in connect() (#1040): the
+        // auto-reconnect path never calls connect(), so the mark went stale and `latencyMs` was measured
+        // from the original user-initiated connect — #1040 reported latencyMs=7847081 (2.18 h) for a link
+        // that came up 6 seconds after the previous drop, and it grows without bound the longer a reconnect
+        // loop runs. connectToDevice is the single funnel every connect passes through, so every attempt
+        // now gets a fresh mark. Latency is therefore GATT-attempt time, no longer including scan time on
+        // the first connect. A plain timestamp; only read behind the CONNECTION gate.
+        connectAttemptStartedAtMs = System.currentTimeMillis()
         // autoConnect=false → a fast, direct connect (CoreBluetooth central.connect default), used for
         // the scan-discovered first connect. autoConnect=true → the OS reconnects whenever the bonded
         // strap is reachable WITHOUT needing an advertisement (used by the dropout auto-reconnect, #61).

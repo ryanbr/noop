@@ -81,7 +81,58 @@ class ReportCompletenessParityTest {
         // the absent killer trace — `present (gate run=)` over an evidence-only match sent a maintainer
         // hunting for gate lines the report never contained.
         assertTrue("an evidence-only match must be labelled `via <evidence>`",
-            section.contains("sleep: present (via sleep day=)"))
+            section.contains("sleep: present (via \"sleep day=\")"))
+    }
+
+    @Test fun connectionIsPresentFromConnectChurnWhenTheLinkNeverReachesTheClockRead() {
+        // #1040, reproduced verbatim: CONNECTION's killer token `clockDrift ` is emitted from the strap-clock
+        // read, which a link that dies ~3 s after every connect never reaches. So the WORSE the connection
+        // bug, the more certainly its own capture reads MISSING — the report arrived with 816 reconnects, a
+        // log full of `[connection]` lines, and `INCOMPLETE: missing connection` stamped on exactly the
+        // capture we needed.
+        //
+        // No `bondState` in this fixture ON PURPOSE: that line only fires on a COMPLETED encrypted bond, so
+        // a loop whose bond never completes wouldn't emit it and the rescue would not fire.
+        val report = buildString {
+            appendLine("dayOwner day=2026-08-02 readId=whoop-D0 writeActiveId=whoop-D0 hrRows=2439 provenance=measured")
+            appendLine("[connection] connect up gen=852 latencyMs=6120 uptimeStart=1785663906")
+            appendLine("[connection] connect down (uptime ends after 3.0s)")
+            appendLine("[connection] reconnect n=816 reason=localTerminate via=bondWatchdog")
+            // NOTE: neither `clockDrift ` nor `bondState` — the link never got far enough for either.
+        }
+        val s = ReportCompleteness.statuses(report, active = setOf(TestDomain.CONNECTION))
+        assertEquals(ReportCompleteness.Status.PRESENT, s[TestDomain.CONNECTION])
+        val section = ReportCompleteness.captureCheckSection(report, active = setOf(TestDomain.CONNECTION))
+        assertTrue("a reconnect-loop capture must read complete, not INCOMPLETE",
+            section.endsWith("complete: all active traces present"))
+        assertTrue("an evidence-only match must be labelled `via <evidence>`",
+            section.contains("connection: present (via \"reconnect n=\")"))
+    }
+
+    @Test fun connectionIsPresentWhenTheLinkNEVERConnectsAtAll() {
+        // The other half of the same bug class, and the reason the token is `reconnect n=` rather than
+        // `connect up gen=`: a strap that never reaches CONNECTED emits ONLY the failedConnect branch, so a
+        // token keyed on a successful connect-up would leave "can't connect at all" reports still stamped
+        // INCOMPLETE — a connection failure invalidating its own capture, exactly what #1040 was about.
+        val report = buildString {
+            appendLine("dayOwner day=2026-08-02 readId=my-whoop writeActiveId=my-whoop hrRows=0 provenance=measured")
+            appendLine("[connection] reconnect n=42 failedConnect reason=connectionTimeout")
+            // NOTE: no `connect up gen=` — the link never came up even once.
+        }
+        val s = ReportCompleteness.statuses(report, active = setOf(TestDomain.CONNECTION))
+        assertEquals(ReportCompleteness.Status.PRESENT, s[TestDomain.CONNECTION])
+        assertTrue(ReportCompleteness.captureCheckSection(report, active = setOf(TestDomain.CONNECTION))
+            .endsWith("complete: all active traces present"))
+    }
+
+    @Test fun connectionStillPrefersTheClockDriftKillerTraceWhenItIsPresent() {
+        // The churn line is the rescue path, not a replacement: a capture that DID reach the strap-clock read
+        // must still name the deeper trace, so `via` continues to mean "the killer trace is genuinely absent".
+        val both = "clockDrift newest=2026-08-02 wall=2026-08-02 ok\nreconnect n=3 reason=connectionTimeout"
+        assertEquals("clockDrift ", ReportCompleteness.matchedToken(both, TestDomain.CONNECTION))
+        assertEquals("reconnect n=",
+            ReportCompleteness.matchedToken("reconnect n=3 reason=connectionTimeout", TestDomain.CONNECTION))
+        assertEquals(null, ReportCompleteness.matchedToken("no connection traces here", TestDomain.CONNECTION))
     }
 
     @Test fun matchedTokenPrefersTheKillerTraceOverTheEvidenceLine() {
@@ -107,8 +158,8 @@ class ReportCompletenessParityTest {
         val section = ReportCompleteness.captureCheckSection(report, active = setOf(TestDomain.SLEEP))
         assertEquals(
             "=== Capture check ===\n" +
-                "universal: present (dayOwner day=)\n" +
-                "sleep: present (gate run=)\n" +
+                "universal: present (\"dayOwner day=\")\n" +
+                "sleep: present (\"gate run=\")\n" +
                 "complete: all active traces present",
             section,
         )
@@ -117,7 +168,7 @@ class ReportCompletenessParityTest {
     /**
      * #950 — the capture check must not read its OWN output as evidence.
      *
-     * The section renders a missing domain as `<id>: MISSING (expected <killer token>)`, and that line
+     * The section renders a missing domain as `<id>: MISSING (expected \"<killer token>\")`, and that line
      * contains the killer token. meta.json's capture_check was computed over report.txt AFTER the section
      * was appended, so the re-scan found the token inside its own "expected …" text and recorded the
      * domain as present. Every missing trace flipped and `complete` went true while report.txt said
@@ -156,9 +207,9 @@ class ReportCompletenessParityTest {
         )
         assertEquals(
             "=== Capture check ===\n" +
-                "universal: present (dayOwner day=)\n" +
-                "sleep: MISSING (expected gate run=)\n" +
-                "connection: MISSING (expected clockDrift )\n" +
+                "universal: present (\"dayOwner day=\")\n" +
+                "sleep: MISSING (expected \"gate run=\")\n" +
+                "connection: MISSING (expected \"clockDrift \")\n" +
                 "INCOMPLETE: missing sleep, connection",
             section,
         )
@@ -170,7 +221,7 @@ class ReportCompletenessParityTest {
         val section = ReportCompleteness.captureCheckSection("nothing here", active = emptySet())
         assertEquals(
             "=== Capture check ===\n" +
-                "universal: MISSING (expected dayOwner day=)\n" +
+                "universal: MISSING (expected \"dayOwner day=\")\n" +
                 "complete: all active traces present",
             section,
         )
