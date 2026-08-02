@@ -123,19 +123,3 @@ jobs:
           -destination 'platform=macOS'
           CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
           test
-
-  # Fork-only housekeeping: on-demand app-build runs are dispatched from disposable `ci/<name>` branches
-  # (a PR's content pushed somewhere the workflow can run). Once the build finishes (pass OR fail —
-  # always()), delete that branch so GitHub's "Compare & pull request" banner doesn't linger after each
-  # run. Guarded to ci/-prefixed BRANCH refs only — a dispatch from main or any real branch is untouched.
-  cleanup:
-    needs: [build]
-    if: ${{ always() && github.ref_type == 'branch' && startsWith(github.ref_name, 'ci/') }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Delete the disposable CI branch
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${GITHUB_REF_NAME}" || true
