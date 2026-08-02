@@ -19,20 +19,30 @@ on:
       - 'Packages/**'
       - 'project.yml'
       - '.github/workflows/app-build.yml'
-  push:
-    branches: [main]
-    paths:
-      - 'Strand/**'
-      - 'StrandiOS/**'
-      - 'StrandiOSShared/**'
-      - 'StrandiOSWidgets/**'
-      - 'Packages/**'
-      - 'project.yml'
-      - '.github/workflows/app-build.yml'
+  # No `push: main` leg. Every change reaches main through a PR, which the trigger above already
+  # gates, so a push run rebuilt content that had just been built - on macOS runners, which GitHub
+  # bills at 10x Linux for a two-runner matrix (macos-15 for the universal macOS leg, macos-26 for
+  # the iOS 26 SDK). A RELEASE pushes straight to main with no PR, but fork-release.yml builds both
+  # Strand and NOOPiOS itself, so that path keeps its own compile gate. The gap this leaves is a
+  # direct non-release push to main; `workflow_dispatch` below covers checking one on demand.
+  # `pr:` builds a PR's MERGE RESULT without pushing anything. Checking "does this PR compile once
+  # merged?" used to mean creating a throwaway `ci/` branch holding main+PR and dispatching at it —
+  # which left a "Compare & pull request" banner behind for every probe, because GitHub keys that
+  # banner off the PUSH EVENT and it outlives the branch the cleanup job deletes. GitHub already
+  # maintains exactly the ref we were hand-building, at refs/pull/<n>/merge, so no branch is needed.
+  #
+  # Leave it blank to build whatever ref you dispatched against, unchanged.
   workflow_dispatch:
+    inputs:
+      pr:
+        description: "PR number to build as merged into main (blank = build this ref as-is)"
+        required: false
+        default: ""
 
 concurrency:
-  group: app-build-${{ github.ref }}
+  # Keyed on the PR when one is given, so two probes of the SAME pr supersede each other while probes
+  # of different PRs (all dispatched from main) do not cancel one another.
+  group: app-build-${{ inputs.pr && format('pr-{0}', inputs.pr) || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -59,6 +69,34 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          # The PR's HEAD, then merge current main below. NOT refs/pull/<n>/merge: GitHub freezes that
+          # ref at the last time the PR merged CLEANLY, so for a conflicting or simply stale PR it is a
+          # merge against an old main and it still resolves. Probing #931 through it would have compiled
+          # main as of 30 July, 30+ commits behind, and reported SUCCESS - a false green, and worse than
+          # the branch it replaced. Merging here is always against main as it is right now.
+          ref: ${{ inputs.pr && format('refs/pull/{0}/head', inputs.pr) || '' }}
+          # QUOTED '0': GitHub expressions treat the number 0 as FALSY, so `inputs.pr && 0 || 1`
+          # silently yields 1 and leaves the clone shallow - the merge below then dies with
+          # "refusing to merge unrelated histories" (exit 128) for EVERY pr, mergeable or not.
+          fetch-depth: ${{ inputs.pr && '0' || '1' }}
+
+      - name: Merge current main
+        if: inputs.pr != ''
+        run: |
+          git fetch --no-tags origin main
+          echo "PR #${{ inputs.pr }} head: $(git log --oneline -1 HEAD)"
+          echo "merging into:  $(git log --oneline -1 FETCH_HEAD)"
+          git -c user.name=ci -c user.email=ci@local merge --no-edit FETCH_HEAD
+
+      - name: Say what is being built
+        run: |
+          if [ -n "${{ inputs.pr }}" ]; then
+            echo "Built: PR #${{ inputs.pr }} merged into current main"
+          else
+            echo "Built: ${GITHUB_REF_NAME} as-is"
+          fi
+          git log --oneline -1
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -85,19 +123,3 @@ jobs:
           -destination 'platform=macOS'
           CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
           test
-
-  # Fork-only housekeeping: on-demand app-build runs are dispatched from disposable `ci/<name>` branches
-  # (a PR's content pushed somewhere the workflow can run). Once the build finishes (pass OR fail —
-  # always()), delete that branch so GitHub's "Compare & pull request" banner doesn't linger after each
-  # run. Guarded to ci/-prefixed BRANCH refs only — a dispatch from main or any real branch is untouched.
-  cleanup:
-    needs: [build]
-    if: ${{ always() && github.ref_type == 'branch' && startsWith(github.ref_name, 'ci/') }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Delete the disposable CI branch
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${GITHUB_REF_NAME}" || true

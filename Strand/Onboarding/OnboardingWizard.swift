@@ -47,6 +47,10 @@ public struct OnboardingWizard: View {
     @State private var step: Step = .welcome
     @State private var glow = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Low Power Mode / "Reduce motion in NOOP" pose these looping glows still too. Onboarding is
+    /// first-run only, but a `repeatForever` is a `repeatForever` wherever it lives.
+    @ObservedObject private var motion = NoopMotionState.shared
+    private var poseStill: Bool { motion.poseStill(reduceMotion) }
 
     public var body: some View {
         ZStack {
@@ -91,7 +95,7 @@ public struct OnboardingWizard: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(StrandPalette.surfaceBase.ignoresSafeArea())
         // Reduce Motion: leave the ambient bloom at its resting frame (no breathing).
-        .onAppear { if !reduceMotion { glow = true } }
+        .onAppear { if !poseStill { glow = true } }
         // Isolated live observation — a hidden watcher slides Scan → celebration on bond
         // without subscribing the whole wizard to per-tick updates.
         .background(BondWatcher(onBonded: handleBond))
@@ -116,7 +120,7 @@ public struct OnboardingWizard: View {
             )
             .blendMode(.plusLighter)
             .opacity(glow ? 0.4 : 0.28)
-            .animation(StrandMotion.breathe(reduced: reduceMotion), value: glow)
+            .animation(StrandMotion.breathe(reduced: poseStill), value: glow)
             .ignoresSafeArea()
 
             // A faint indigo wash from the top — instrument-grade depth.
@@ -449,6 +453,10 @@ private struct ExpectationsStep: View {
 private struct BluetoothStep: View {
     @State private var pulse = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Low Power Mode / "Reduce motion in NOOP" pose these looping glows still too. Onboarding is
+    /// first-run only, but a `repeatForever` is a `repeatForever` wherever it lives.
+    @ObservedObject private var motion = NoopMotionState.shared
+    private var poseStill: Bool { motion.poseStill(reduceMotion) }
     var body: some View {
         StepShell(title: String(localized: "A quick word before we connect"),
                   subtitle: String(localized: "\(Platform.deviceNoun) will ask for Bluetooth in a moment.")) {
@@ -482,7 +490,7 @@ private struct BluetoothStep: View {
                     .frame(maxWidth: 460)
             }
         }
-        .onAppear { if !reduceMotion { withAnimation(StrandMotion.breathe) { pulse = true } } }
+        .onAppear { if !poseStill { withAnimation(StrandMotion.breathe) { pulse = true } } }
     }
 }
 
@@ -942,6 +950,10 @@ private struct ImportStep: View {
 private struct NotificationsStep: View {
     @State private var pulse = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Low Power Mode / "Reduce motion in NOOP" pose these looping glows still too. Onboarding is
+    /// first-run only, but a `repeatForever` is a `repeatForever` wherever it lives.
+    @ObservedObject private var motion = NoopMotionState.shared
+    private var poseStill: Bool { motion.poseStill(reduceMotion) }
     var body: some View {
         StepShell(title: String(localized: "Stay in the loop"),
                   subtitle: String(localized: "NOOP can tap your wrist when your \(Platform.deviceNoun) needs you. No glance at the screen required.")) {
@@ -994,7 +1006,7 @@ private struct NotificationsStep: View {
                 #endif
             }
         }
-        .onAppear { if !reduceMotion { withAnimation(StrandMotion.breathe) { pulse = true } } }
+        .onAppear { if !poseStill { withAnimation(StrandMotion.breathe) { pulse = true } } }
     }
 }
 
@@ -1115,6 +1127,10 @@ private struct RadarSweep: View {
     @State private var angle: Double = 0
     @State private var ping = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Low Power Mode / "Reduce motion in NOOP" pose these looping glows still too. Onboarding is
+    /// first-run only, but a `repeatForever` is a `repeatForever` wherever it lives.
+    @ObservedObject private var motion = NoopMotionState.shared
+    private var poseStill: Bool { motion.poseStill(reduceMotion) }
 
     var body: some View {
         GeometryReader { geo in
@@ -1165,7 +1181,7 @@ private struct RadarSweep: View {
         .onChangeCompat(of: active) { isActive in
             if isActive { startSweep() }
         }
-        .animation(StrandMotion.breathe(reduced: reduceMotion), value: ping)
+        .animation(StrandMotion.breathe(reduced: poseStill), value: ping)
     }
 
     private func sweepWedge(size: CGFloat) -> some View {
@@ -1193,7 +1209,7 @@ private struct RadarSweep: View {
     private func startSweep() {
         // Reduce Motion: keep the wedge still (the static rings/crosshairs/blip
         // still convey "searching" / "found") instead of spinning forever.
-        guard !reduceMotion else { return }
+        guard !poseStill else { return }
         angle = 0
         withAnimation(.linear(duration: 2.4).repeatForever(autoreverses: false)) {
             angle = 360

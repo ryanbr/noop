@@ -90,6 +90,11 @@ fun TestCentreScreen(vm: AppViewModel) {
     // review dialog; confirming runs TestReportFlow.run.
     var pendingReport by remember { mutableStateOf<PendingReport?>(null) }
 
+    // #646/#651: TestReportFlow.run now awaits LogExport.exportBundle's off-main zip build instead of
+    // blocking the caller, so a re-entrancy guard is needed on the dialog's Share button — without it a
+    // fast double-tap before the dialog dismisses fires two zips / two chooser intents.
+    var reportShareBusy by remember { mutableStateOf(false) }
+
     // The Display frame monitor follows the screen: if the Display mode was already on when the screen
     // appears, (re)start it; always tear it down when the screen leaves so no Choreographer callback
     // survives a navigation away. The mode flag stays on (the user's test is still active); the monitor
@@ -184,18 +189,30 @@ fun TestCentreScreen(vm: AppViewModel) {
             modeInactive = p.modeInactive,
             onCancel = { pendingReport = null },
             onShare = {
-                p.gate.confirm()
-                TestReportFlow.run(
-                    context = context,
-                    profile = p.profile,
-                    title = p.title,
-                    version = BuildConfig.VERSION_NAME,
-                    platform = "Android",
-                    osVersion = android.os.Build.VERSION.RELEASE ?: "?",
-                    gate = p.gate,
-                    entries = p.entries,
-                )
-                pendingReport = null
+                // Guard against a fast double-tap firing TestReportFlow.run twice before the dialog
+                // dismisses (#646/#651 — run() now awaits the off-main zip build instead of blocking).
+                if (!reportShareBusy) {
+                    reportShareBusy = true
+                    p.gate.confirm()
+                    scope.launch {
+                        // try/finally: the flag must clear on any exit, not just the happy path (#961 follow-up).
+                        try {
+                            TestReportFlow.run(
+                                context = context,
+                                profile = p.profile,
+                                title = p.title,
+                                version = BuildConfig.VERSION_NAME,
+                                platform = "Android",
+                                osVersion = android.os.Build.VERSION.RELEASE ?: "?",
+                                gate = p.gate,
+                                entries = p.entries,
+                            )
+                        } finally {
+                            reportShareBusy = false
+                        }
+                    }
+                    pendingReport = null
+                }
             },
         )
     }
@@ -329,6 +346,11 @@ private fun DiagnosticToolsCard(vm: AppViewModel) {
     var showRecalibrate by remember { mutableStateOf(false) }
     // "Debug logging" moved here from Settings: dev-only, mirrors the strap log to logcat over adb.
     var debugLogging by remember { mutableStateOf(NoopPrefs.debugLogging(context)) }
+    // #646/#651: LogExport.shareStrapLog's file write now runs on Dispatchers.IO instead of blocking the
+    // caller, so nothing else stops a second tap mid-share. Same disable-while-busy + spinner shape as
+    // Settings' backupBusy pattern — this screen has its own local flag, this button being a separate
+    // instance from the Settings "Share strap log" button.
+    var strapLogBusy by remember { mutableStateOf(false) }
     SettingsSectionTC(
         icon = Icons.Filled.Info,
         title = uiString(R.string.l10n_test_centre_screen_diagnostic_tools_04ba4d3f),
@@ -341,8 +363,22 @@ private fun DiagnosticToolsCard(vm: AppViewModel) {
                 leadingIcon = Icons.Filled.Upload,
                 kind = NoopButtonKind.Secondary,
                 fullWidth = true,
-                onClick = { scope.launch { LogExport.shareStrapLog(context, vm.ble.exportLogText()) } },
+                enabled = !strapLogBusy,
+                onClick = {
+                    strapLogBusy = true
+                    scope.launch {
+                        // try/finally: the flag must clear on any exit, not just the happy path (#961 follow-up).
+                        try {
+                            LogExport.shareStrapLog(context, vm.ble.exportLogText())
+                        } finally {
+                            strapLogBusy = false
+                        }
+                    }
+                },
             )
+            if (strapLogBusy) {
+                NoopBusyRow()
+            }
             // Recalibrate Charge baseline, the same Baselines.recalibrateRecoveryBaselines call.
             NoopButton(
                 text = uiString(R.string.l10n_test_centre_screen_recalibrate_charge_baseline_52a05a26),

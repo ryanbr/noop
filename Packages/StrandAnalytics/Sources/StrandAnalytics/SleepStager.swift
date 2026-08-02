@@ -1477,6 +1477,12 @@ public enum SleepStager {
     /// Per-window length for the per-window rate estimate (seconds).
     static let rsaWindowS = 300.0
 
+    /// #977: wall-clock seconds a beat-to-beat step may exceed its own RR before the series is treated
+    /// as SPLICED there. `ts` is whole seconds, so a 1 s discrepancy is quantisation, not a gap; the
+    /// blocks that prompted this were 30-45 s. PROVISIONAL, like `coveragePlausibleCeiling` - wide
+    /// enough that only an unambiguous dropout trips it, and deliberately not tuned to a corpus.
+    static let rsaGapToleranceS = 3.0
+
     /// Physiologic breath-interval band (seconds): 0.1–0.4 Hz = 6–24 breaths/min.
     static let rsaMinBreathIntervalS = 2.5   // 24 bpm
     static let rsaMaxBreathIntervalS = 10.0  // 6 bpm
@@ -1496,15 +1502,24 @@ public enum SleepStager {
     /// does not equal a chest-band / capnography rate.
     ///
     /// Pipeline (per matched in-bed session [start, end], unix SECONDS):
-    ///   1. Restrict RR rows to ts in [start, end]; range-filter the RR values
-    ///      (HRVAnalyzer.rangeFilter) to drop dropouts/ectopics.
+    ///   1. Restrict RR ROWS to ts in [start, end] and apply the same range test
+    ///      HRVAnalyzer.rangeFilter applies, keeping the rows so `ts` survives (#977).
     ///   2. Reconstruct beat times by cumulatively summing the kept RR intervals
-    ///      from the first in-bed beat, yielding an (irregular) tachogram.
+    ///      from the first in-bed beat, yielding an (irregular) tachogram, and note
+    ///      where the wall clock outran the beats (#977) — the cumulative sum cannot
+    ///      represent a dropout, so those points are splices, not elapsed time.
     ///   3. Resample the tachogram onto a uniform ~4 Hz grid by linear interpolation.
     ///   4. Detrend: subtract a centered moving mean (rsaDetrendWindowS).
-    ///   5. Per ~5-min window: findPeaks (min distance rsaMinPeakDistanceS) on the
-    ///      detrended grid, keep peak-to-peak intervals in the 6–24 bpm band, rate =
-    ///      60 / median(intervals). Take the median across windows.
+    ///   5. Per ~5-min window, SKIPPING any window containing a splice: findPeaks
+    ///      (min distance rsaMinPeakDistanceS) on the detrended grid, keep peak-to-peak
+    ///      intervals in the 6–24 bpm band, rate = 60 / median(intervals). Take the
+    ///      median across windows.
+    ///
+    /// Known bound on the splice skip (#977): step 4's centered mean spans ±rsaDetrendWindowS/2, so a
+    /// splice just inside one window's edge leaves ~4 s of contaminated samples at the neighbouring
+    /// window's edge. That window is KEPT deliberately — discarding five minutes to avoid four seconds
+    /// costs far more data than it saves, and both medians (over intervals, then over windows) dilute a
+    /// single spurious peak among a five-minute window's worth.
     /// Returns NaN when too few intervals survive (honest no-data).
     static func respRateFromRR(_ rr: [RRInterval], start: Int, end: Int) -> Double {
         let nan = Double.nan
@@ -1513,16 +1528,38 @@ public enum SleepStager {
         // 1. In-bed RR rows in chronological order, range-filtered. STABLE sort: step 2 reconstructs
         // beat times by cumulative sum, so the order of a second's beats moves every subsequent beat
         // time and with it the RSA estimate. Kotlin's twin uses sortedBy, stable by contract. (#823)
-        let inBed = rr.filter { $0.ts >= start && $0.ts <= end }
+        //
+        // #977: the ROWS are kept, not just their values, because `ts` is the only signal that a beat is
+        // missing. Beats lost before storage never enter the array, so contiguity derived from rejection
+        // (cleanRRGapAware) cannot see them - it takes only [Double] and has no clock. Filtering the rows
+        // by the same predicate `HRVAnalyzer.rangeFilter` applies keeps the surviving VALUES identical
+        // (it is an order-preserving range test), which RespRateGapAwareTests pins.
+        let inBedRows = rr.filter { $0.ts >= start && $0.ts <= end }
             .sortedByTsStable()
-            .map { Double($0.rrMs) }
-        let filtered = HRVAnalyzer.rangeFilter(inBed)
+            .filter { Double($0.rrMs) >= HRVAnalyzer.rrMinMs && Double($0.rrMs) <= HRVAnalyzer.rrMaxMs }
+        let filtered = inBedRows.map { Double($0.rrMs) }
         if filtered.count < 30 { return nan }  // need enough beats for any RSA estimate
 
         // 2. Reconstruct beat times (seconds from session start) by cumulative sum.
+        // #977: a dropout is where the WALL CLOCK outran the beat - ts jumps 30-45 s while the RR only
+        // accounts for ~1 s. The cumulative sum cannot represent that, so it stitches the two sides
+        // together and the tachogram gets a discontinuity the peak-picker reads as breathing. Record the
+        // beat-time of each splice here; step 5 drops the windows containing one. Beat times are NOT
+        // shifted by the gap: within a run the relative timing is right, and that is all a kept window uses.
+        //
+        // This fires on a beat REJECTED just above too, not only one lost before storage: the range
+        // test drops out-of-range intervals, so `ts` steps across them exactly as it does across a
+        // dropout. That is the intent - both genuinely splice the tachogram, which is the same reason
+        // #204/#195 made RMSSD skip differences across a removed beat - but it does mean a night with
+        // heavy ectopic rejection now loses windows it used to keep.
         var beatTimes = [Double](repeating: 0, count: filtered.count)
+        var spliceAtS: [Double] = []
         var acc = 0.0
         for i in filtered.indices {
+            if i > 0 {
+                let wallStepS = Double(inBedRows[i].ts - inBedRows[i - 1].ts)
+                if wallStepS - filtered[i] / 1000.0 > rsaGapToleranceS { spliceAtS.append(acc) }
+            }
             acc += filtered[i] / 1000.0
             beatTimes[i] = acc
         }
@@ -1559,13 +1596,18 @@ public enum SleepStager {
         if standardDeviation(detrended) <= 1e-9 { return nan }  // flat → no RSA
 
         // 5. Per ~5-min window peak-pick → 60/median(breath interval); median across.
+        let spliceGrid = spliceAtS.map { Int($0 / dt) }
         let minDistSamples = max(2, Int((rsaMinPeakDistanceS * rsaResampleHz).rounded()))
         let windowSamples = max(minDistSamples * 3, Int((rsaWindowS * rsaResampleHz).rounded()))
         var perWindowRates: [Double] = []
         var w = 0
         while w < nGrid {
             let wEnd = min(nGrid, w + windowSamples)
-            if wEnd - w >= minDistSamples * 3 {
+            // #977: a window straddling a splice is measuring a discontinuity, not a breath. Dropping it
+            // costs one window; keeping it puts a fabricated interval into the median. All windows spliced
+            // leaves perWindowRates empty and the function returns NaN, which is the honest answer.
+            let spliced = spliceGrid.contains { $0 >= w && $0 < wEnd }
+            if !spliced && wEnd - w >= minDistSamples * 3 {
                 let winSeg = Array(detrended[w..<wEnd])
                 // findPeaks with height = 0.0 selects the positive RSA peaks (one per
                 // breath) on the zero-mean detrended tachogram.

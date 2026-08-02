@@ -11,13 +11,20 @@ public struct WidgetSnapshot: Codable, Equatable {
     public var updated: Date
     // Richer glance fields (#446). All OPTIONAL with nil defaults so a snapshot written by an OLDER app
     // build (which never encoded these keys) still decodes — Codable fills a missing optional with nil.
-    public var effort: Int?      // Effort / strain on NOOP's 0–100 axis
+    public var effort: Int?      // Effort / strain on NOOP's 0–100 axis (ring fill is always this / 100)
     public var rest: Int?        // Rest (sleep_performance) score, 0–100
     public var hrv: Int?         // HRV (ms), whole-number for the glance
     public var restingHr: Int?   // Resting heart rate (bpm)
+    // #313 Effort scale for the glance. Pre-formatted at publish time because the widget extension
+    // cannot read the app's plain UserDefaults `effort.scale` key (it lives outside the App Group).
+    // When nil (older snapshot), the widget falls back to whole-number `effort` on the 0–100 axis.
+    public var effortDisplay: String?
+    /// True when `effortDisplay` is on WHOOP's 0–21 axis; false/nil means 0–100. Accessibility only.
+    public var effortWhoop: Bool?
 
     public init(recovery: Int?, bpm: Int?, batteryPct: Int?, bonded: Bool, updated: Date,
-                effort: Int? = nil, rest: Int? = nil, hrv: Int? = nil, restingHr: Int? = nil) {
+                effort: Int? = nil, rest: Int? = nil, hrv: Int? = nil, restingHr: Int? = nil,
+                effortDisplay: String? = nil, effortWhoop: Bool? = nil) {
         self.recovery = recovery
         self.bpm = bpm
         self.batteryPct = batteryPct
@@ -27,6 +34,8 @@ public struct WidgetSnapshot: Codable, Equatable {
         self.rest = rest
         self.hrv = hrv
         self.restingHr = restingHr
+        self.effortDisplay = effortDisplay
+        self.effortWhoop = effortWhoop
     }
 
     /// App Group suite the app and widget both use. Injected from the `APP_GROUP_ID` build setting
@@ -53,8 +62,11 @@ public struct WidgetSnapshot: Codable, Equatable {
     }
 
     public static var placeholder: WidgetSnapshot {
+        // Gallery / pre-publish stand-in: realistic Charge · Effort · Rest on the 0–100 axis so the
+        // three-ring Home Screen layouts (and the large grid) preview with filled arcs, not dashes.
         WidgetSnapshot(recovery: 72, bpm: 58, batteryPct: 84, bonded: true, updated: Date(),
-                       effort: 8, rest: 81, hrv: 64, restingHr: 52)
+                       effort: 38, rest: 81, hrv: 64, restingHr: 52,
+                       effortDisplay: "38", effortWhoop: false)
     }
 
     /// Read the last-published snapshot from the shared suite, if any.

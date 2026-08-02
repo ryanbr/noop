@@ -198,7 +198,7 @@ fun OnboardingScreen(viewModel: AppViewModel, onFinished: () -> Unit) {
 
             OnboardingFooter(
                 canGoBack = pageIndex > 0,
-                cta = page.cta,
+                cta = uiString(page.ctaRes),
                 onBack = {
                     var target = pageIndex - 1
                     // Skip the bonded celebration going back when nothing is bonded.
@@ -218,19 +218,19 @@ fun OnboardingScreen(viewModel: AppViewModel, onFinished: () -> Unit) {
     }
 }
 
-private enum class OnboardingPage(val cta: String) {
-    Welcome("Begin"),
-    WhatItDoes("Continue"),
-    Expectations("Continue"),
-    Bluetooth("Continue"),
-    Wear("Continue"),
-    Connect("Continue"),
-    Bonded("Continue"),
-    Profile("Save & continue"),
-    Import("Continue"),
-    Notifications("Continue"),
-    Appearance("Continue"),
-    Done("Enter NOOP");
+private enum class OnboardingPage(val ctaRes: Int) {
+    Welcome(R.string.onboarding_cta_begin),
+    WhatItDoes(R.string.onboarding_cta_continue),
+    Expectations(R.string.onboarding_cta_continue),
+    Bluetooth(R.string.onboarding_cta_continue),
+    Wear(R.string.onboarding_cta_continue),
+    Connect(R.string.onboarding_cta_continue),
+    Bonded(R.string.onboarding_cta_continue),
+    Profile(R.string.onboarding_cta_save_continue),
+    Import(R.string.onboarding_cta_continue),
+    Notifications(R.string.onboarding_cta_continue),
+    Appearance(R.string.onboarding_cta_continue),
+    Done(R.string.onboarding_cta_enter);
 }
 
 // MARK: - Shell
@@ -394,26 +394,26 @@ private fun WelcomeStep() {
 private fun WhatItDoesStep() {
     StepShell(
         title = uiString(R.string.l10n_onboarding_screen_what_noop_does_b25b362d),
-        subtitle = "Three quiet promises.",
+        subtitle = uiString(R.string.onboarding_three_promises),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
             FeatureRow(
                 icon = Icons.Filled.AutoGraph,
                 tint = Palette.accent,
                 title = uiString(R.string.l10n_onboarding_screen_see_recovery_clearly_d8db34a9),
-                body = "A calm ring rolls HRV, resting heart rate and sleep into one read on whether to push or rest.",
+                body = uiString(R.string.onboarding_recovery_body),
             )
             FeatureRow(
                 icon = Icons.Filled.MonitorHeart,
                 tint = Palette.accent,
                 title = uiString(R.string.l10n_onboarding_screen_watch_your_heart_live_8c9c1267),
-                body = "Connect a WHOOP, a heart-rate strap or a gym machine and watch each beat in real time, with zones that match your profile. Already have history elsewhere? Import it from WHOOP, Apple Health, Oura, Fitbit or Garmin.",
+                body = uiString(R.string.onboarding_live_hr_body),
             )
             FeatureRow(
                 icon = Icons.Filled.Lock,
                 tint = Palette.statusPositive,
                 title = uiString(R.string.l10n_onboarding_screen_own_your_data_offline_997fe15e),
-                body = "Everything lives on this phone. No account, no sync, no cloud.",
+                body = uiString(R.string.onboarding_local_data_body),
             )
         }
     }
@@ -423,7 +423,7 @@ private fun WhatItDoesStep() {
 private fun ExpectationsStep() {
     StepShell(
         title = uiString(R.string.l10n_onboarding_screen_what_to_expect_ed98f851),
-        subtitle = "A few honest words, so nothing is a surprise.",
+        subtitle = uiString(R.string.onboarding_expectations_subtitle),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
             AppChangelog.expectations.forEach { e ->
@@ -437,7 +437,7 @@ private fun ExpectationsStep() {
 private fun BluetoothStep() {
     StepShell(
         title = uiString(R.string.l10n_onboarding_screen_a_quick_word_before_you_connect_5a29015a),
-        subtitle = "NOOP uses Bluetooth to find your strap. When you continue, allow the permission so it can scan.",
+        subtitle = uiString(R.string.onboarding_bluetooth_subtitle),
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -449,10 +449,10 @@ private fun BluetoothStep() {
                 icon = Icons.Filled.Lock,
                 tint = Palette.statusPositive,
                 title = uiString(R.string.l10n_onboarding_screen_nothing_leaves_your_phone_502d5d0c),
-                message = "NOOP talks to your strap directly over Bluetooth Low Energy. There's no server in the middle. The connection is local, and so is every reading it pulls in.",
+                message = uiString(R.string.onboarding_bluetooth_local_body),
             )
-            Checkline("When Android asks, allow Bluetooth so NOOP can scan and connect.")
-            Checkline("WHOOP 5.0/MG may need pairing mode the first time, with the official WHOOP app closed.")
+            Checkline(uiString(R.string.onboarding_bluetooth_permission))
+            Checkline(uiString(R.string.onboarding_whoop_pairing_mode))
         }
     }
 }
@@ -461,7 +461,7 @@ private fun BluetoothStep() {
 private fun WearStep() {
     StepShell(
         title = uiString(R.string.l10n_onboarding_screen_put_your_strap_on_031d4807),
-        subtitle = "The sensor needs skin contact before data starts to mean anything.",
+        subtitle = uiString(R.string.onboarding_wear_subtitle),
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -471,9 +471,9 @@ private fun WearStep() {
             IconBadge(icon = Icons.Filled.Sensors, tint = Palette.accent, size = 86)
             NoopCard(padding = 18.dp) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Checkline("Wear it snug on your wrist or bicep, sensor against skin.")
-                    Checkline("Give it a few minutes of charge if the battery is low.")
-                    Checkline("Keep it near this phone while pairing and during the first sync.")
+                    Checkline(uiString(R.string.onboarding_wear_snug))
+                    Checkline(uiString(R.string.onboarding_wear_charge))
+                    Checkline(uiString(R.string.onboarding_wear_nearby))
                 }
             }
         }
@@ -509,9 +509,9 @@ private fun ConnectStep(viewModel: AppViewModel) {
     StepShell(
         title = uiString(R.string.l10n_onboarding_screen_find_your_strap_fe460461),
         subtitle = when {
-            live.bonded -> "Bonded. You can keep going."
-            bleGranted -> "NOOP starts looking as soon as this step appears. You can keep going while it bonds."
-            else -> "Allow Bluetooth and tap Scan to find your strap, or keep going and connect later."
+            live.bonded -> uiString(R.string.onboarding_connect_bonded_subtitle)
+            bleGranted -> uiString(R.string.onboarding_connect_searching_subtitle)
+            else -> uiString(R.string.onboarding_connect_permission_subtitle)
         },
     ) {
         Column(
@@ -526,11 +526,11 @@ private fun ConnectStep(viewModel: AppViewModel) {
             )
 
             val (label, tone, pulsing) = when {
-                live.encryptedBond -> Triple("Bonded · streaming", StrandTone.Positive, true)
-                live.bonded -> Triple("Live HR · not fully paired", StrandTone.Warning, true)
-                live.connected -> Triple("Connected · pairing", StrandTone.Warning, true)
-                live.scanning -> Triple("Searching", StrandTone.Accent, true)
-                else -> Triple("Ready to scan", StrandTone.Neutral, false)
+                live.encryptedBond -> Triple(uiString(R.string.onboarding_state_bonded_streaming), StrandTone.Positive, true)
+                live.bonded -> Triple(uiString(R.string.onboarding_state_live_hr_unpaired), StrandTone.Warning, true)
+                live.connected -> Triple(uiString(R.string.onboarding_state_connected_pairing), StrandTone.Warning, true)
+                live.scanning -> Triple(uiString(R.string.onboarding_state_searching), StrandTone.Accent, true)
+                else -> Triple(uiString(R.string.onboarding_state_ready_scan), StrandTone.Neutral, false)
             }
             StatePill(label, tone = tone, pulsing = pulsing, showsDot = true)
 
@@ -577,7 +577,7 @@ private fun ConnectStep(viewModel: AppViewModel) {
                             ) {
                                 Icon(Icons.Filled.Bluetooth, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text(if (live.connected || live.scanning) "Re-scan" else "Scan again", style = NoopType.body)
+                                Text(uiString(R.string.onboarding_rescan), style = NoopType.body)
                             }
                             OutlinedButton(
                                 onClick = { viewModel.disconnect() },
@@ -596,7 +596,7 @@ private fun ConnectStep(viewModel: AppViewModel) {
                 icon = Icons.Filled.Lock,
                 tint = Palette.statusPositive,
                 title = uiString(R.string.l10n_onboarding_screen_this_can_run_while_you_finish_cd7ef783),
-                message = "If the strap is nearby, NOOP will keep the BLE link alive in the background. You can continue through profile and import while it bonds.",
+                message = uiString(R.string.onboarding_connect_background_body),
             )
 
             // WHOOP is NOOP's primary band, so onboarding leads with it — but it isn't required.
@@ -604,9 +604,7 @@ private fun ConnectStep(viewModel: AppViewModel) {
             // they can continue now and pair a heart-rate strap or import data afterwards.
             if (!live.bonded) {
                 Text(
-                    uiString(R.string.l10n_onboarding_screen_no_whoop_you_can_still_continue_ec58d88d) +
-                        "or a gym machine under Devices, or import from WHOOP, Apple Health, Oura, Fitbit, Garmin " +
-                        "and more under Data Sources. You can do either any time.",
+                    uiString(R.string.l10n_onboarding_screen_no_whoop_you_can_still_continue_ec58d88d),
                     style = NoopType.footnote,
                     color = Palette.textTertiary,
                     textAlign = TextAlign.Center,
@@ -647,8 +645,8 @@ private fun BondedStep(viewModel: AppViewModel) {
             )
             Spacer(Modifier.height(10.dp))
             Text(
-                live.batteryPct?.let { "Your strap is bonded · ${it.toInt()}% battery." }
-                    ?: "Your strap is bonded and ready to stream.",
+                live.batteryPct?.let { uiString(R.string.onboarding_strap_bonded_battery, it.toInt()) }
+                    ?: uiString(R.string.onboarding_strap_bonded_ready),
                 style = NoopType.body,
                 color = Palette.textSecondary,
                 textAlign = TextAlign.Center,
@@ -685,30 +683,30 @@ private fun ProfileStep() {
 
     StepShell(
         title = uiString(R.string.l10n_onboarding_screen_about_you_5c4698b6),
-        subtitle = "So your zones, calories and on-device scoring start from the right numbers.",
+        subtitle = uiString(R.string.onboarding_profile_subtitle),
     ) {
         NoopCard(padding = 18.dp) {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 ProfileFieldRow(label = uiString(R.string.l10n_onboarding_screen_age_ff9f1ff3)) {
                     WheelPickerField(
                         value = "${profile.age}",
-                        unit = "yrs",
-                        accessibility = "Age, ${profile.age} years",
+                        unit = uiString(R.string.onboarding_years),
+                        accessibility = uiString(R.string.onboarding_age_accessibility, profile.age),
                         options = ageOptions,
                         selectedIndex = ageSteps.indexOf(profile.age).coerceAtLeast(0),
-                        dialogTitle = "Age",
+                        dialogTitle = uiString(R.string.l10n_onboarding_screen_age_ff9f1ff3),
                         // #146: age derives from a stored date of birth; setAge re-anchors it (clamped 13..100).
                         onSelected = { mutate { profile.setAge(ageSteps[it]) } },
                     )
                 }
                 ThinDivider()
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Overline("Sex", color = Palette.textTertiary)
+                    Overline(uiString(R.string.onboarding_sex), color = Palette.textTertiary)
                     SegmentedPillControl(
                         items = ONBOARDING_SEX_OPTIONS,
                         selection = ONBOARDING_SEX_OPTIONS.firstOrNull { it.tag == profile.sex }
                             ?: ONBOARDING_SEX_OPTIONS[0],
-                        label = { it.label },
+                        label = { uiString(it.labelRes) },
                         onSelect = { mutate { profile.sex = it.tag } },
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -719,11 +717,11 @@ private fun ProfileStep() {
                 // Units. Mirror the Sex picker idiom; the stored profile stays SI either way, only the
                 // displayed labels re-format (lb / ft-in). Same key Settings → Units writes.
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Overline("Units", color = Palette.textTertiary)
+                    Overline(uiString(R.string.onboarding_units), color = Palette.textTertiary)
                     SegmentedPillControl(
                         items = listOf(UnitSystem.METRIC, UnitSystem.IMPERIAL),
                         selection = unitSystem,
-                        label = { if (it == UnitSystem.METRIC) "Metric" else "Imperial" },
+                        label = { if (it == UnitSystem.METRIC) uiString(R.string.onboarding_metric) else uiString(R.string.onboarding_imperial) },
                         onSelect = {
                             unitSystem = it
                             NoopPrefs.setUnitSystem(context, it)
@@ -736,10 +734,10 @@ private fun ProfileStep() {
                     WheelPickerField(
                         // Full re-labelled string (e.g. "74.5 kg" / "164.2 lb"); unit folded into value.
                         value = UnitFormatter.massFromKilograms(profile.weightKg, unitSystem),
-                        accessibility = "Weight",
+                        accessibility = uiString(R.string.l10n_onboarding_screen_weight_69c0b815),
                         options = weightOptions,
                         selectedIndex = weightSteps.indices.minByOrNull { kotlin.math.abs(weightSteps[it] - profile.weightKg) } ?: 0,
-                        dialogTitle = "Weight",
+                        dialogTitle = uiString(R.string.l10n_onboarding_screen_weight_69c0b815),
                         onSelected = { mutate { profile.weightKg = weightSteps[it] } },
                     )
                 }
@@ -747,10 +745,10 @@ private fun ProfileStep() {
                 ProfileFieldRow(label = uiString(R.string.l10n_onboarding_screen_height_3f608b49)) {
                     WheelPickerField(
                         value = UnitFormatter.heightFromCentimeters(profile.heightCm, unitSystem),
-                        accessibility = "Height",
+                        accessibility = uiString(R.string.l10n_onboarding_screen_height_3f608b49),
                         options = heightOptions,
                         selectedIndex = heightSteps.indices.minByOrNull { kotlin.math.abs(heightSteps[it] - profile.heightCm) } ?: 0,
-                        dialogTitle = "Height",
+                        dialogTitle = uiString(R.string.l10n_onboarding_screen_height_3f608b49),
                         onSelected = { mutate { profile.heightCm = heightSteps[it].toDouble() } },
                     )
                 }
@@ -780,13 +778,17 @@ private fun ImportStep(viewModel: AppViewModel) {
     // so a persisted busy=true would strand the buttons disabled with nothing running.
     var busy by remember { mutableStateOf(false) }
     var status by rememberSaveable { mutableStateOf<String?>(null) }
+    val importingText = uiString(R.string.onboarding_importing)
+    val importLabel = uiString(R.string.onboarding_import_label)
+    val importFailed = uiString(R.string.onboarding_failed)
+    val healthConnectDenied = uiString(R.string.onboarding_health_connect_denied)
 
     fun runImport(block: suspend () -> ImportSummary) {
         busy = true
-        status = "Importing…"
+        status = importingText
         scope.launch {
             val summary = withContext(Dispatchers.IO) {
-                runCatching { block() }.getOrElse { ImportSummary.failure("Import", it.message ?: "failed") }
+                runCatching { block() }.getOrElse { ImportSummary.failure(importLabel, it.message ?: importFailed) }
             }
             // Import & Data Ingest test mode (Test Centre): emit the parser / per-stage / day-delta trace,
             // tagged IMPORT, iff the mode is on. Gated zero-cost when off; shared with the Data Sources flow.
@@ -811,7 +813,7 @@ private fun ImportStep(viewModel: AppViewModel) {
         if (granted.any { it in HealthConnectImporter.PERMISSIONS }) {
             runImport { HealthConnectImporter.import(context, viewModel.repo, ProfileStore.from(context).heightCm) }
         } else {
-            val message = "Health Connect access not granted."
+            val message = healthConnectDenied
             status = message
             Toast.makeText(context, message, Toast.LENGTH_LONG).show()
         }
@@ -841,7 +843,7 @@ private fun ImportStep(viewModel: AppViewModel) {
 
     StepShell(
         title = uiString(R.string.l10n_onboarding_screen_bring_your_history_5b8775c9),
-        subtitle = "Optional: import now, or skip and return to Data Sources later.",
+        subtitle = uiString(R.string.onboarding_import_subtitle),
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -853,7 +855,7 @@ private fun ImportStep(viewModel: AppViewModel) {
                 icon = Icons.Filled.AutoGraph,
                 tint = Palette.accent,
                 title = uiString(R.string.l10n_onboarding_screen_history_fills_the_dashboard_immediately_9728dde5),
-                message = "A WHOOP export backfills recovery, strain, sleep and workouts. Health Connect can add steps, HR, HRV, sleep and weight from Android sources.",
+                message = uiString(R.string.onboarding_import_history_body),
             )
 
             NoopCard(padding = 16.dp) {
@@ -900,7 +902,7 @@ private fun ImportStep(viewModel: AppViewModel) {
 private fun NotificationsStep() {
     StepShell(
         title = uiString(R.string.l10n_onboarding_screen_stay_in_the_loop_f54254af),
-        subtitle = "NOOP keeps your strap connected in the background. When you continue, allow notifications so it can show that link and reach your wrist.",
+        subtitle = uiString(R.string.onboarding_notifications_subtitle),
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -912,10 +914,10 @@ private fun NotificationsStep() {
                 icon = Icons.Filled.Bluetooth,
                 tint = Palette.statusPositive,
                 title = uiString(R.string.l10n_onboarding_screen_a_quiet_ongoing_status_97bf2a44),
-                message = "NOOP holds the Bluetooth link open in the background so your data stays current. One low-priority notification shows it's connected. Nothing noisy.",
+                message = uiString(R.string.onboarding_notifications_status_body),
             )
-            Checkline("Wrist alerts (strain nudges and your smart alarm) arrive as notifications too.")
-            Checkline("When Android asks, allow notifications so NOOP can keep you informed.")
+            Checkline(uiString(R.string.onboarding_notifications_alerts))
+            Checkline(uiString(R.string.onboarding_notifications_permission))
         }
     }
 }
@@ -931,7 +933,7 @@ private fun AppearanceStep() {
 
     StepShell(
         title = uiString(R.string.l10n_onboarding_screen_make_it_yours_54135155),
-        subtitle = "NOOP follows your system by default, or pick Light or Dark. You can change this any time in Settings → Appearance.",
+        subtitle = uiString(R.string.onboarding_appearance_subtitle),
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -965,7 +967,13 @@ private fun AppearanceStep() {
                         SegmentedPillControl(
                             items = listOf(AppearanceMode.SYSTEM, AppearanceMode.LIGHT, AppearanceMode.DARK),
                             selection = mode,
-                            label = { it.label },
+                            label = { appearance ->
+                                when (appearance) {
+                                    AppearanceMode.SYSTEM -> uiString(R.string.onboarding_system)
+                                    AppearanceMode.LIGHT -> uiString(R.string.l10n_onboarding_screen_light_a36ef8ab)
+                                    AppearanceMode.DARK -> uiString(R.string.l10n_onboarding_screen_dark_ae1ef014)
+                                }
+                            },
                             onSelect = {
                                 mode = it
                                 // Persist + flip live — the rest of the onboarding (and the app) re-themes
@@ -986,9 +994,9 @@ private fun AppearanceStep() {
                         )
                         Text(
                             when (mode) {
-                                AppearanceMode.SYSTEM -> "Following your phone's light/dark setting."
-                                AppearanceMode.LIGHT -> "Deep blue accent on warm paper."
-                                AppearanceMode.DARK -> "Deep blue accent on a dark blue-grey canvas."
+                                AppearanceMode.SYSTEM -> uiString(R.string.onboarding_theme_follow_system)
+                                AppearanceMode.LIGHT -> uiString(R.string.onboarding_theme_light_description)
+                                AppearanceMode.DARK -> uiString(R.string.onboarding_theme_dark_description)
                             },
                             style = NoopType.footnote,
                             color = Palette.textTertiary,
@@ -1239,10 +1247,10 @@ private fun ThinDivider() {
     )
 }
 
-private data class OnboardingSexOption(val tag: String, val label: String)
+private data class OnboardingSexOption(val tag: String, val labelRes: Int)
 
 private val ONBOARDING_SEX_OPTIONS = listOf(
-    OnboardingSexOption("male", "Male"),
-    OnboardingSexOption("female", "Female"),
-    OnboardingSexOption("nonbinary", "Other"),
+    OnboardingSexOption("male", R.string.onboarding_male),
+    OnboardingSexOption("female", R.string.onboarding_female),
+    OnboardingSexOption("nonbinary", R.string.onboarding_other),
 )

@@ -531,6 +531,14 @@ final class AppModel: ObservableObject {
         await intelligence.analyzeRecent()
     }
 
+    #if os(iOS)
+    /// Push freshly-offloaded data to Apple Health, set by `StrandiOSApp` (#1021).
+    ///
+    /// A closure rather than a direct reference because `HealthKitBridge` owns iOS-only HealthKit state
+    /// while this type is shared with macOS, and the bridge is a `@StateObject` the app scene owns.
+    var healthWriteBack: (() async -> Void)?
+    #endif
+
     private func refreshAfterCompletedBackfill() async {
         live.append(log: "Backfill: refreshing dashboard cache from completed sync")
         await repo.refresh(days: 120)
@@ -548,6 +556,11 @@ final class AppModel: ObservableObject {
         // widget kept showing yesterday's numbers. Publishing here, on the real "new data landed"
         // signal, pushes the fresh snapshot to the home-screen widget without needing a foreground.
         await WidgetSnapshot.publish(from: self)
+        // #1021: same reasoning as the widget publish above, for Apple Health. The only automatic
+        // write-back ran on scenePhase == .active, in the same block that KICKS this offload - so it
+        // raced the data it was meant to publish and last night's sleep reached Health an app-open late.
+        // Set by StrandiOSApp; nil on macOS and in tests, where there is no bridge.
+        await healthWriteBack?()
         #endif
     }
 
@@ -860,6 +873,21 @@ final class AppModel: ObservableObject {
     func probeFeatureFlags() { ble.probeFeatureFlags() }
     func clearFeatureFlagProbe() { ble.clearFeatureFlagProbe() }
 
+    // WHOOP MG ECG ("Labrador") experimental probe. Every entry point is user-initiated and
+    // confirmation-gated in DevicesView, and BLEManager gates the sends again on the Experimental opt-in
+    // plus a positively-identified MG. Unvalidated instrumentation, never a medical measurement.
+    /// True only for a POSITIVELY identified WHOOP MG — the gate the ECG UI is offered behind.
+    var isWhoop5MG: Bool { ble.isWhoop5MG }
+    /// PERSISTENT strap write, deliberately its own action rather than part of the start flow.
+    func ecgSelectWrist(_ wrist: Whoop5Ecg.WristSelection) { ble.ecgSelectWrist(wrist) }
+    func ecgStartCapture() { ble.ecgStartCapture() }
+    /// `reportsResult: false` for the Settings-toggle path, so switching the experiment off doesn't pop
+    /// the Devices result sheet from another screen.
+    func ecgStopCapture(reportsResult: Bool = true) { ble.ecgStopCapture(reportsResult: reportsResult) }
+    func clearEcgProbe() { ble.clearEcgProbe() }
+    /// True once a start has been sent this session and no stop has completed — keeps the Stop control
+    /// reachable even after the opt-in has been switched back off.
+    var ecgMayBeRunning: Bool { ble.ecgMayBeRunning }
     // #103: READ-ONLY device-config READ probe (121/128) — asks the strap for a key's VALUE, the
     // follow-up to #761's key-NAME enumeration. Writes nothing. User-initiated, Test-Centre-gated in
     // DevicesView.

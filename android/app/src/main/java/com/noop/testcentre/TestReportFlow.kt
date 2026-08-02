@@ -41,8 +41,11 @@ object TestReportFlow {
 
     /** Share the already-redacted bundle, open the prefilled issue, toast, and prime the copy fallback.
      *  `entries` is the redacted, capped bundle the caller assembled. Review-before-share is mandatory:
-     *  nothing is shared until the gate is cleared (spec section 12). */
-    fun run(context: Context, profile: TestDomain, title: String,
+     *  nothing is shared until the gate is cleared (spec section 12).
+     *
+     *  Suspend (#646/#651): [LogExport.exportBundle] moved its zip build + write off the caller's
+     *  dispatcher, so this now awaits it rather than blocking Main on a multi-MB bundle. */
+    suspend fun run(context: Context, profile: TestDomain, title: String,
             version: String, platform: String, osVersion: String,
             gate: ReportReviewGate,
             entries: List<Pair<String, ByteArray>>) {

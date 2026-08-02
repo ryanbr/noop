@@ -53,6 +53,15 @@ This is long-standing practice, not a one-off. Worked examples already in the tr
 - **The disputed battery opcode** (`Commands.swift`, `Enums.kt`) — a decompile reads
   `GET_EXTENDED_BATTERY_INFO` as 87 where our table says 98. Both readings are recorded and the
   question is settled by probing real firmware, not by picking a source.
+- **The MG ECG ("Labrador") packet layouts** (`Whoop5Ecg.swift` / `.kt`, `docs/PROTOCOL.md` §9.1) —
+  field order, widths and enum values for `FilteredLabradorPacket` / `RawLabradorPacket`, plus the
+  `{revision, arg, padding}` command payload shape, re-derived from static analysis of the vendor's iOS
+  client. The four command NUMBERS were already in our own `CommandNumber` table from the whoomp/goose
+  work above. Everything ships as an **unvalidated candidate**: no strap has yet been asked whether it
+  honours these commands, the decode backs no metric, and the fields nobody can attest (the wrist enum's
+  raw values, the progress "timed out" sentinel, the ECG sample unit, the packet type byte) are carried
+  raw rather than named. The on-strap rhythm classifier's verdict is decoded as a byte and is never
+  presented as a finding — NOOP is not a medical device.
 
 And the line held from the other side:
 

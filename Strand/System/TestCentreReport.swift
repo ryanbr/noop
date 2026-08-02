@@ -111,16 +111,20 @@ final class TestCentreReport: ObservableObject {
         let seed = TestModeRegistry.mode(p.profile).flatMap {
             TestReportLink.whatHappensSeed(questionnaire: $0.questionnaire, answers: TestCentre.answers(p.profile))
         }
-        TestReportFlow.run(
-            profile: p.profile, title: p.title,
-            version: version, platform: platform, osVersion: osVersion,
-            gate: p.gate,
-            entries: p.gate.entries,
-            showToast: { [weak self] msg in self?.lastStatus = msg },
-            // M3: prime the clipboard AND surface the report for a visible "Copy report.txt" button so the
-            // documented mobile fallback is reachable, not just silently on the pasteboard.
-            copyToPasteboard: { [weak self] text in PlatformPasteboard.copy(text); self?.copyableReport = text },
-            whatHappensSeed: seed)
+        // Launched (#646/#651): TestReportFlow.run is now async since it awaits FileExport.exportBundle's
+        // off-main zip build.
+        Task {
+            await TestReportFlow.run(
+                profile: p.profile, title: p.title,
+                version: version, platform: platform, osVersion: osVersion,
+                gate: p.gate,
+                entries: p.gate.entries,
+                showToast: { [weak self] msg in self?.lastStatus = msg },
+                // M3: prime the clipboard AND surface the report for a visible "Copy report.txt" button so
+                // the documented mobile fallback is reachable, not just silently on the pasteboard.
+                copyToPasteboard: { [weak self] text in PlatformPasteboard.copy(text); self?.copyableReport = text },
+                whatHappensSeed: seed)
+        }
         pending = nil
     }
 

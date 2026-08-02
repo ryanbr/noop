@@ -770,6 +770,11 @@ private struct PulseDot: View {
     var size: CGFloat
     @State private var animate = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Low Power Mode / "Reduce motion in NOOP". This halo is a `repeatForever` loop that never
+    /// settles and is on screen for long stretches — a connected strap in Settings, a backfill on
+    /// every scaffolded screen — so it belongs behind the same gate as the liquid surfaces.
+    @ObservedObject private var motion = NoopMotionState.shared
+    private var poseStill: Bool { motion.poseStill(reduceMotion) }
     @Environment(\.colorScheme) private var scheme
     var body: some View {
         ZStack {
@@ -791,8 +796,8 @@ private struct PulseDot: View {
                 .shadow(color: color.opacity(0.8), radius: pulsing ? 4 : 2)
         }
         .frame(width: size, height: size)
-        .onAppear { if pulsing && !reduceMotion { animate = true } }
-        .animation(pulsing && !reduceMotion ? StrandMotion.breathe : nil, value: animate)
+        .onAppear { if pulsing && !poseStill { animate = true } }
+        .animation(pulsing && !poseStill ? StrandMotion.breathe : nil, value: animate)
         .accessibilityHidden(true)
     }
 }

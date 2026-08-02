@@ -13,6 +13,23 @@ import Foundation
 // counts, durations and ISO dates only. No em-dashes. The Kotlin twin is ConnectionReadout.kt.
 
 public enum ConnectionTrace {
+    /// The ` after <n>s` suffix on a `connect down` trace line, or empty when the session start is
+    /// unknown (#1020).
+    ///
+    /// A session's length separates the causes of a drop at a glance: a bond watchdog fires seconds in,
+    /// a keep-alive stall bounce minutes in, a radio drop anywhere. The bare `connect down (uptime ends)`
+    /// could not distinguish them, which is why a report of thousands of reconnects needed a round trip
+    /// before anyone could start on it.
+    ///
+    /// An unknown start yields NO suffix rather than `after 0.0s` — "instant drop" and "we do not know"
+    /// are different diagnoses. Locale-fixed so a decimal comma cannot follow the phone language into a
+    /// log people paste into issues. Twin of the Kotlin `ConnectionTrace.sessionHeldSuffix`.
+    public static func sessionHeldSuffix(millis: Int) -> String {
+        guard millis >= 0 else { return "" }
+        return " after " + String(format: "%.1f", locale: Locale(identifier: "en_US_POSIX"),
+                                  Double(millis) / 1000.0) + "s"
+    }
+
 
     /// The CLOCK-DRIFT summary line (#767 / #754 cluster): the strap-reported banked-record window
     /// [oldest, newest] against the wall clock, with a FUTURE-DATE flag when the strap's newest record is

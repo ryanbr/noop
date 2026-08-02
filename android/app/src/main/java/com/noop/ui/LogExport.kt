@@ -7,6 +7,8 @@ import android.widget.Toast
 import androidx.core.content.FileProvider
 import com.noop.BuildConfig
 import com.noop.ble.PuffinExperiment
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
@@ -76,13 +78,19 @@ object LogExport {
      * Zip `entries` into one `.zip` under cache/logs (the FileProvider path) and fire the share chooser,
      * returning the staged file or null. Twin of Swift `FileExport.exportBundle`. EVERY entry must already
      * be redacted by the caller; the 20 MB cap is the assembler's job before this is called.
+     *
+     * The zip build + write (`zipEntries` + `writeBytes`) runs on [Dispatchers.IO] (#646/#651) so a
+     * multi-MB bundle doesn't stall the caller's dispatcher; only the chooser intent fires back on
+     * whatever dispatcher the caller resumed on (Main, for every UI call site today).
      */
-    fun exportBundle(context: Context, entries: List<Pair<String, ByteArray>>, suggestedName: String): File? =
+    suspend fun exportBundle(context: Context, entries: List<Pair<String, ByteArray>>, suggestedName: String): File? =
         runCatching {
-            val bytes = zipEntries(entries) ?: return null
-            val dir = File(context.cacheDir, "logs").apply { mkdirs() }
-            val file = File(dir, suggestedName)
-            file.writeBytes(bytes)
+            val file = withContext(Dispatchers.IO) {
+                zipEntries(entries)?.let { bytes ->
+                    val dir = File(context.cacheDir, "logs").apply { mkdirs() }
+                    File(dir, suggestedName).also { it.writeBytes(bytes) }
+                }
+            } ?: return null
             val send = Intent(Intent.ACTION_SEND).apply {
                 type = "application/zip"
                 putExtra(Intent.EXTRA_STREAM, fileUri(context, file))
@@ -284,7 +292,9 @@ object LogExport {
 
     suspend fun shareStrapLog(context: Context, logText: String) {
         runCatching {
-            val file = writeStrapLogFile(context, logText)
+            // writeStrapLogFile does blocking file IO (#646/#651) — keep it off whatever dispatcher the
+            // caller is on (Main, for every UI call site today).
+            val file = withContext(Dispatchers.IO) { writeStrapLogFile(context, logText) }
             val send = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
                 putExtra(Intent.EXTRA_STREAM, fileUri(context, file))
@@ -320,9 +330,11 @@ object LogExport {
      * covers cache/logs) and prepends a header with an informed-consent line: the file holds raw
      * biometric frames and the strap's own console text.
      */
-    fun shareWhoop5Capture(context: Context, whoop5Connected: Boolean) {
+    suspend fun shareWhoop5Capture(context: Context, whoop5Connected: Boolean) {
         runCatching {
-            val out = writeCaptureFile(context)
+            // writeCaptureFile does blocking file IO (#646/#651) — keep it off whatever dispatcher the
+            // caller is on (Main, for every UI call site today).
+            val out = withContext(Dispatchers.IO) { writeCaptureFile(context) }
             if (out == null) {
                 Toast.makeText(context, noCaptureMsg(context, whoop5Connected, sharingLog = false), Toast.LENGTH_LONG).show()
                 return
@@ -345,16 +357,23 @@ object LogExport {
      * not loose .txt files). If there's no capture yet, falls back to just the log so the tap isn't a dead
      * end. Reuses the same file-builders the single-share paths use; both entries are already redacted by
      * their writers.
+     *
+     * Building the files AND reading them back into memory (`readBytes`) is blocking file IO (#646/#651):
+     * it runs on [Dispatchers.IO], off the caller's dispatcher (Main, from the Settings/Test Centre share
+     * buttons), so a large raw capture doesn't stall the UI. Only the "no capture" toast and the
+     * [exportBundle] call (which does its own IO hop for the zip) run back on the caller's dispatcher.
      */
     suspend fun shareRawAndLog(context: Context, logText: String, whoop5Connected: Boolean) {
         runCatching {
-            val logFile = writeStrapLogFile(context, logText)
-            val capture = writeCaptureFile(context)
-            val entries = arrayListOf("report.txt" to logFile.readBytes())
-            if (capture == null) {
+            val (entries, hasCapture) = withContext(Dispatchers.IO) {
+                val logFile = writeStrapLogFile(context, logText)
+                val capture = writeCaptureFile(context)
+                val entries = arrayListOf("report.txt" to logFile.readBytes())
+                if (capture != null) entries.add(0, "raw-capture.jsonl" to capture.readBytes())
+                entries to (capture != null)
+            }
+            if (!hasCapture) {
                 Toast.makeText(context, noCaptureMsg(context, whoop5Connected, sharingLog = true), Toast.LENGTH_LONG).show()
-            } else {
-                entries.add(0, "raw-capture.jsonl" to capture.readBytes())
             }
             val name = "noop-export-${timestamp()}.zip"
             exportBundle(context, entries, name)

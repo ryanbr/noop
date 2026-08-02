@@ -53259,6 +53259,110 @@
         }
       }
     },
+    "ECG capture (MG, experimental)…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EKG-Aufzeichnung (MG, experimentell)…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Captura de ECG (MG, experimental)…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Capture ECG (MG, expérimental)…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acquisizione ECG (MG, sperimentale)…"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Captura de ECG (MG, experimental)…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запись ЭКГ (MG, экспериментально)…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心电图采集（MG，实验性）…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心電圖擷取（MG，實驗性）…"
+          }
+        }
+      }
+    },
+    "ECG capture probe result": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ergebnis der EKG-Aufzeichnungsprobe"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resultado de la sonda de captura de ECG"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Résultat de la sonde de capture ECG"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Risultato della sonda di acquisizione ECG"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resultado da sonda de captura de ECG"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Результат пробы записи ЭКГ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心电图采集探测结果"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心電圖擷取探測結果"
+          }
+        }
+      }
+    },
     "EFFORT": {
       "localizations": {
         "de": {
@@ -74651,6 +74755,58 @@
         }
       }
     },
+    "It is also not fully confirmed. Which value means “left” and which means “right” is read off the order they appear in WHOOP's own app, not verified on a strap — so it may set the opposite wrist. You can send it again with the other choice at any time, and it changes nothing about your recorded data.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sie ist außerdem nicht vollständig bestätigt. Welcher Wert „links“ und welcher „rechts“ bedeutet, ist aus der Reihenfolge in WHOOPs eigener App abgelesen und nicht an einem Strap überprüft — es kann also das entgegengesetzte Handgelenk einstellen. Du kannst sie jederzeit erneut mit der anderen Auswahl senden, und an deinen aufgezeichneten Daten ändert das nichts."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tampoco está totalmente confirmado. Qué valor significa «izquierda» y cuál «derecha» se ha deducido del orden en que aparecen en la propia app de WHOOP, y no se ha verificado en una pulsera, así que puede ajustar la muñeca contraria. Puedes enviarlo de nuevo con la otra opción cuando quieras, y no cambia nada de tus datos registrados."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce n'est pas non plus totalement confirmé. Quelle valeur signifie « gauche » et laquelle « droite » est déduite de l'ordre dans lequel elles apparaissent dans l'application de WHOOP, sans vérification sur un bracelet — cela peut donc régler le poignet opposé. Vous pouvez le renvoyer avec l'autre choix à tout moment, et cela ne change rien à vos données enregistrées."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inoltre non è del tutto confermato. Quale valore significhi «sinistro» e quale «destro» è dedotto dall'ordine in cui compaiono nell'app di WHOOP, non verificato su una fascia — quindi potrebbe impostare il polso opposto. Puoi inviarlo di nuovo con l'altra scelta in qualsiasi momento, e non cambia nulla dei tuoi dati registrati."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Também não está totalmente confirmado. Que valor significa «esquerdo» e qual significa «direito» foi deduzido da ordem por que aparecem na própria app da WHOOP, não foi verificado numa bracelete — por isso pode definir o pulso oposto. Podes enviá-lo novamente com a outra opção a qualquer momento, e não altera nada nos teus dados registados."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Кроме того, это не полностью подтверждено. Какое значение означает «левое», а какое «правое», выведено из порядка их появления в собственном приложении WHOOP и не проверено на браслете — поэтому может быть задано противоположное запястье. Вы можете отправить это ещё раз с другим вариантом в любой момент, и на записанные данные это никак не влияет."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这一项同样未完全确认。哪个值表示「左」、哪个表示「右」，是根据它们在 WHOOP 自家 App 中出现的顺序推断的，并未在手环上验证——因此可能设置成相反的手腕。你随时可以用另一个选项重新发送，这不会改变你已记录的任何数据。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這一項同樣未完全確認。哪個值表示「左」、哪個表示「右」，是根據它們在 WHOOP 自家 App 中出現的順序推斷的，並未在手環上驗證——因此可能設定成相反的手腕。你隨時可以用另一個選項重新傳送，這不會改變你已記錄的任何資料。"
+          }
+        }
+      }
+    },
     "It is not a substitute for a professional": {
       "localizations": {
         "de": {
@@ -78863,6 +79019,58 @@
         }
       }
     },
+    "Left wrist": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Linkes Handgelenk"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Muñeca izquierda"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poignet gauche"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Polso sinistro"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pulso esquerdo"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Левое запястье"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "左手腕"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "左手腕"
+          }
+        }
+      }
+    },
     "Leftover import copies": {
       "localizations": {
         "de": {
@@ -79505,6 +79713,58 @@
           "stringUnit": {
             "state": "translated",
             "value": "Líquido Hoje (protótipo)"
+          }
+        }
+      }
+    },
+    "Listening for the strap's reply…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warte auf die Antwort des Straps…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esperando la respuesta de la pulsera…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En attente de la réponse du bracelet…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In attesa della risposta della fascia…"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aguardo a resposta da bracelete…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ожидание ответа браслета…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在等待手环的回复…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在等待手環的回覆…"
           }
         }
       }
@@ -88922,6 +89182,14 @@
           }
         }
       }
+    },
+    "NOOP is not a medical device and this is not an ECG test. Anything the strap reports here — including any heart-rhythm classification it happens to send — is unvalidated instrumentation for protocol research, not a measurement and not a diagnosis. Never use it to make a decision about your health. If you have symptoms or are worried about your heart, talk to a doctor.": {
+      "comment": "MEDICAL SAFETY COPY — needs a native speaker, not a machine translation. Deliberately left untranslated: a disclaimer that drifts in meaning is worse than one shown in English. Until a human translates it, the absent localizations make the runtime fall back to this English source text, which is correct and complete. Keep every element when translating: not a medical device, not a diagnosis, and the instruction to see a doctor.",
+      "shouldTranslate": false
+    },
+    "NOOP is not a medical device and this is not an ECG test. It asks your MG to start its ECG subsystem and logs whatever comes back — unvalidated instrumentation for protocol research, never a measurement or a diagnosis, including any heart-rhythm classification the strap happens to send. Don't use it to make a health decision; see a doctor if you have symptoms.\n\nHold the two indents on the clasp with the fingers of your other hand for the whole capture. The MG measures across your wrist AND that clasp, so until you hold it the circuit is open, the strap has nothing to record, and you would see zero packets whatever the firmware did.\n\nNobody has confirmed a strap honours these commands, so the likely outcome is that nothing happens. Everything here is reversible: “Stop” turns the streams back off. Results land in the strap log.": {
+      "comment": "MEDICAL SAFETY COPY — needs a native speaker, not a machine translation. Deliberately left untranslated: a disclaimer that drifts in meaning is worse than one shown in English. Until a human translates it, the absent localizations make the runtime fall back to this English source text, which is correct and complete. Keep every element when translating: not a medical device, not a diagnosis, and the instruction to see a doctor. The middle paragraph is a RUN INSTRUCTION, not a disclaimer: without the clasp held the electrode circuit is open and the capture returns zero packets for a reason that has nothing to do with the firmware, so a translation that loses it produces false negatives in the very reports #891 is asking people for.",
+      "shouldTranslate": false
     },
     "NOOP is not a medical device. It is for informational and personal-insight purposes only and is not intended to diagnose, treat, cure or prevent any condition. Talk to a clinician for medical advice.": {
       "localizations": {
@@ -112457,7 +112725,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Recarregue o teu WHOOP antes desta noite."
+            "value": "Recarrega o teu WHOOP antes desta noite."
           }
         },
         "ru": {
@@ -118851,6 +119119,58 @@
         }
       }
     },
+    "Right wrist": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rechtes Handgelenk"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Muñeca derecha"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poignet droit"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Polso destro"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pulso direito"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Правое запястье"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "右手腕"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "右手腕"
+          }
+        }
+      }
+    },
     "Ring key (32 hex characters)": {
       "localizations": {
         "de": {
@@ -124339,6 +124659,58 @@
           "stringUnit": {
             "state": "translated",
             "value": "設定 Apple Watch"
+          }
+        }
+      }
+    },
+    "Set which wrist you wear it on…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Festlegen, an welchem Handgelenk du ihn trägst…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Indicar en qué muñeca la llevas…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Indiquer à quel poignet vous le portez…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imposta a quale polso la indossi…"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Definir em que pulso a usas…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Указать, на каком запястье вы его носите…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置你佩戴在哪只手腕…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定你配戴在哪隻手腕…"
           }
         }
       }
@@ -130235,6 +130607,58 @@
         }
       }
     },
+    "Start ECG capture": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EKG-Aufzeichnung starten"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Iniciar captura de ECG"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Démarrer la capture ECG"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avvia acquisizione ECG"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Iniciar captura de ECG"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Начать запись ЭКГ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始心电图采集"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開始心電圖擷取"
+          }
+        }
+      }
+    },
     "Start a Breathe session": {
       "localizations": {
         "de": {
@@ -132127,6 +132551,58 @@
           "stringUnit": {
             "state": "translated",
             "value": "停止"
+          }
+        }
+      }
+    },
+    "Stop ECG capture": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EKG-Aufzeichnung stoppen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detener captura de ECG"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arrêter la capture ECG"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Interrompi acquisizione ECG"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parar captura de ECG"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Остановить запись ЭКГ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止心电图采集"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止心電圖擷取"
           }
         }
       }
@@ -138511,6 +138987,58 @@
         }
       }
     },
+    "The WHOOP MG has ECG electrodes in its clasp. This unlocks a gated, hand-run probe on the Devices screen that asks the strap to start its ECG subsystem and logs whatever comes back. MG only — a plain WHOOP 5.0 has no electrodes, and NOOP will refuse to send unless your strap identifies itself as an MG. Nobody has confirmed a strap honours these commands, so it may simply do nothing. Turn on “Record puffin frames to a file” below first if you want a complete byte-level capture to share.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der WHOOP MG hat EKG-Elektroden im Verschluss. Das schaltet auf dem Bildschirm „Geräte“ eine abgesicherte, von Hand gestartete Probe frei, die den Strap auffordert, sein EKG-Subsystem zu starten, und alles protokolliert, was zurückkommt. Nur MG — ein einfacher WHOOP 5.0 hat keine Elektroden, und NOOP sendet nur, wenn sich dein Strap als MG ausweist. Niemand hat bestätigt, dass ein Strap diese Befehle befolgt, es kann also schlicht nichts passieren. Schalte zuerst unten „Puffin-Frames in eine Datei aufzeichnen“ ein, wenn du eine vollständige Aufzeichnung auf Byte-Ebene zum Teilen möchtest."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El WHOOP MG tiene electrodos de ECG en el cierre. Esto desbloquea en la pantalla «Dispositivos» una sonda restringida y de ejecución manual que pide a la pulsera que inicie su subsistema de ECG y registra todo lo que llegue. Solo MG: una WHOOP 5.0 normal no tiene electrodos, y NOOP se negará a enviar a menos que tu pulsera se identifique como MG. Nadie ha confirmado que una pulsera obedezca estos comandos, así que puede que simplemente no haga nada. Activa antes «Graba fotogramas puffin en un archivo», más abajo, si quieres una captura completa a nivel de bytes para compartir."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le WHOOP MG possède des électrodes ECG dans son fermoir. Cela débloque, sur l'écran « Appareils », une sonde restreinte et lancée à la main qui demande au bracelet de démarrer son sous-système ECG et journalise tout ce qui revient. MG uniquement — un WHOOP 5.0 ordinaire n'a pas d'électrodes, et NOOP refusera d'envoyer si votre bracelet ne s'identifie pas comme un MG. Personne n'a confirmé qu'un bracelet honore ces commandes, il se peut donc qu'il ne se passe rien. Activez d'abord « Enregistrer les trames puffin dans un fichier » ci-dessous si vous voulez une capture complète au niveau des octets à partager."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il WHOOP MG ha elettrodi ECG nella chiusura. Questo sblocca, nella schermata «Dispositivi», una sonda vincolata ed eseguita a mano che chiede alla fascia di avviare il suo sottosistema ECG e registra tutto ciò che torna indietro. Solo MG — un normale WHOOP 5.0 non ha elettrodi e NOOP si rifiuterà di inviare se la fascia non si identifica come MG. Nessuno ha confermato che una fascia rispetti questi comandi, quindi potrebbe semplicemente non fare nulla. Attiva prima «Registra i frame puffin in un file» qui sotto se vuoi un'acquisizione completa a livello di byte da condividere."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O WHOOP MG tem elétrodos de ECG no fecho. Isto desbloqueia, no ecrã «Dispositivos», uma sonda restrita e executada à mão que pede à bracelete para iniciar o seu subsistema de ECG e regista tudo o que voltar. Apenas MG — um WHOOP 5.0 normal não tem elétrodos, e o NOOP recusa enviar a menos que a tua bracelete se identifique como MG. Ninguém confirmou que uma bracelete cumpra estes comandos, por isso pode simplesmente não fazer nada. Ativa primeiro «Gravar frames de papagaios-do-mar num ficheiro», abaixo, se quiseres uma captura completa ao nível dos bytes para partilhar."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "У WHOOP MG есть электроды ЭКГ в застёжке. Это открывает на экране «Устройства» ограниченную пробу, запускаемую вручную: она просит браслет запустить подсистему ЭКГ и записывает всё, что придёт в ответ. Только MG — у обычного WHOOP 5.0 электродов нет, и NOOP откажется отправлять команды, если браслет не идентифицирует себя как MG. Никто не подтвердил, что браслет выполняет эти команды, поэтому может просто ничего не произойти. Сначала включите ниже «Записывать пакеты данных puffin в файл», если хотите получить полную побайтовую запись, которой можно поделиться."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WHOOP MG 的表扣中带有心电图电极。此选项会在「设备」界面解锁一个受限的手动探测：它请求手环启动其心电图子系统，并记录返回的所有内容。仅限 MG——普通的 WHOOP 5.0 没有电极，除非你的手环表明自己是 MG，否则 NOOP 将拒绝发送。没有人确认过手环会执行这些命令，因此可能根本不会有任何反应。如果你想获得完整的字节级采集以便分享，请先启用下方的「将 puffin 帧记录到文件」。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WHOOP MG 的錶扣中帶有心電圖電極。此選項會在「裝置」畫面解鎖一個受限的手動探測：它請求手環啟動其心電圖子系統，並記錄回傳的所有內容。僅限 MG——一般的 WHOOP 5.0 沒有電極，除非你的手環表明自己是 MG，否則 NOOP 將拒絕傳送。沒有人確認過手環會執行這些命令，因此可能根本不會有任何反應。如果你想取得完整的位元組層級擷取以便分享，請先啟用下方的「將 puffin 幀記錄到檔案」。"
+          }
+        }
+      }
+    },
     "The average above was edited. The graph, zones and Effort stay from the recorded session.": {
       "localizations": {
         "de": {
@@ -141336,6 +141864,58 @@
           "stringUnit": {
             "state": "translated",
             "value": "這一晚的效率評分很高，但深睡或 REM 極少，更可能是分期估算失誤，而非真正的修復不足。總計保持原樣；請謹慎解讀各階段佔比。"
+          }
+        }
+      }
+    },
+    "This one is different from the other ECG controls: it is a setting written to the strap, and it stays there after you disconnect until you change it again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese unterscheidet sich von den anderen EKG-Steuerungen: Sie ist eine Einstellung, die auf den Strap geschrieben wird, und sie bleibt dort auch nach dem Trennen, bis du sie wieder änderst."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este es distinto de los demás controles de ECG: es un ajuste que se escribe en la pulsera y permanece allí después de desconectarte, hasta que vuelvas a cambiarlo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Celui-ci est différent des autres commandes ECG : c'est un réglage écrit sur le bracelet, et il y reste après la déconnexion, jusqu'à ce que vous le changiez à nouveau."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questo è diverso dagli altri controlli ECG: è un'impostazione scritta sulla fascia e vi rimane dopo la disconnessione, finché non la cambi di nuovo."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este é diferente dos outros controlos de ECG: é uma definição escrita na bracelete e permanece lá depois de te desligares, até a voltares a alterar."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Этот отличается от остальных элементов управления ЭКГ: это настройка, которая записывается в браслет и остаётся там после отключения, пока вы не измените её снова."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这一项与其他心电图控制不同：它是写入手环的设置，断开连接后仍会保留，直到你再次更改。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這一項與其他心電圖控制不同：它是寫入手環的設定，中斷連線後仍會保留，直到你再次變更。"
           }
         }
       }
@@ -146244,6 +146824,10 @@
         }
       }
     },
+    "Unvalidated instrumentation, not a medical measurement and not a diagnosis.": {
+      "comment": "MEDICAL SAFETY COPY — needs a native speaker, not a machine translation. Deliberately left untranslated: a disclaimer that drifts in meaning is worse than one shown in English. Until a human translates it, the absent localizations make the runtime fall back to this English source text, which is correct and complete. Keep every element when translating: not a medical device, not a diagnosis, and the instruction to see a doctor.",
+      "shouldTranslate": false
+    },
     "Updated weekly": {
       "localizations": {
         "de": {
@@ -148900,6 +149484,58 @@
           "stringUnit": {
             "state": "translated",
             "value": "WHOOP 匯出檔案"
+          }
+        }
+      }
+    },
+    "WHOOP MG ECG capture (experimental)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WHOOP MG EKG-Aufzeichnung (experimentell)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Captura de ECG de WHOOP MG (experimental)"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Capture ECG WHOOP MG (expérimental)"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acquisizione ECG WHOOP MG (sperimentale)"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Captura de ECG do WHOOP MG (experimental)"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запись ЭКГ WHOOP MG (экспериментально)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WHOOP MG 心电图采集（实验性）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WHOOP MG 心電圖擷取（實驗性）"
           }
         }
       }
@@ -154148,6 +154784,58 @@
           "stringUnit": {
             "state": "translated",
             "value": "哪一個手環？"
+          }
+        }
+      }
+    },
+    "Which wrist do you wear it on?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An welchem Handgelenk trägst du ihn?"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿En qué muñeca la llevas?"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "À quel poignet le portez-vous ?"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A quale polso la indossi?"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Em que pulso a usas?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "На каком запястье вы его носите?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你佩戴在哪只手腕？"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你配戴在哪隻手腕？"
           }
         }
       }
@@ -173041,6 +173729,110 @@
           "stringUnit": {
             "state": "translated",
             "value": "✓"
+          }
+        }
+      }
+    },
+    "Reduce motion in NOOP": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bewegung in NOOP reduzieren"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reducir movimiento en NOOP"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réduire les animations dans NOOP"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Riduci movimento in NOOP"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reduzir movimento no NOOP"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Уменьшить анимацию в NOOP"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "减少 NOOP 中的动态效果"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "減少 NOOP 中的動態效果"
+          }
+        }
+      }
+    },
+    "Holds the liquid gauges, the sky and the tilt response still, and turns off the motion sensor that drives them. Saves battery. Low Power Mode and the system Reduce Motion setting already do this.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hält die Flüssigkeitsanzeigen, den Himmel und die Neigungsreaktion still und schaltet den Bewegungssensor ab, der sie antreibt. Spart Akku. Der Stromsparmodus und die Systemeinstellung „Bewegung reduzieren“ tun dies bereits."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mantiene quietos los medidores líquidos, el cielo y la respuesta a la inclinación, y apaga el sensor de movimiento que los impulsa. Ahorra batería. El modo de bajo consumo y el ajuste del sistema «Reducir movimiento» ya hacen esto."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fige les jauges liquides, le ciel et la réaction à l’inclinaison, et coupe le capteur de mouvement qui les anime. Économise la batterie. Le mode économie d’énergie et le réglage système « Réduire les animations » font déjà cela."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blocca gli indicatori liquidi, il cielo e la risposta all’inclinazione e spegne il sensore di movimento che li anima. Risparmia batteria. La modalità Risparmio energetico e l’impostazione di sistema «Riduci movimento» lo fanno già."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mantém parados os medidores líquidos, o céu e a resposta à inclinação, e desliga o sensor de movimento que os anima. Poupa bateria. O Modo de Baixo Consumo e a definição de sistema «Reduzir movimento» já fazem isto."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Останавливает жидкостные шкалы, небо и отклик на наклон и отключает датчик движения, который их питает. Экономит заряд батареи. Режим энергосбережения и системная настройка «Уменьшение движения» уже делают это."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "让液态仪表、天空和倾斜响应保持静止，并关闭驱动它们的运动传感器。省电。低电量模式和系统的“减弱动态效果”设置已经会这样做。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "讓液態儀表、天空和傾斜回應保持靜止，並關閉驅動它們的動作感測器。省電。低耗電模式和系統的「減少動態效果」設定已經會這樣做。"
           }
         }
       }

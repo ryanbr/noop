@@ -11,6 +11,7 @@
 //  that drifts and re-catches the light, a reflection that follows the tilt.
 
 import SwiftUI
+import StrandDesign   // NoopMotionState / QuietMotionPrefs — the shared quiet-motion gate
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -87,15 +88,56 @@ final class LiquidMotion {
     private var started = false
     private var refCount = 0
 
-    private init() {}
+    private init() {
+        #if os(iOS) && !targetEnvironment(macCatalyst)
+        // Stop at the app boundary. `onDisappear` is NOT called when the app is backgrounded, and
+        // NOOP declares `bluetooth-central` + `location` background modes, so it keeps RUNNING
+        // behind the lock screen while a strap is connected — which meant a decorative 60 Hz
+        // accelerometer+gyro fusion kept being delivered all day for a picture nobody could see.
+        // That is the always-on half of this cost; posing the Canvas still never touched it.
+        let nc = NotificationCenter.default
+        nc.addObserver(forName: UIApplication.didEnterBackgroundNotification,
+                       object: nil, queue: .main) { [weak self] _ in self?.stop() }
+        nc.addObserver(forName: UIApplication.willEnterForegroundNotification,
+                       object: nil, queue: .main) { [weak self] _ in self?.startIfWanted() }
+        // Live response to all three quiet signals, so flipping Low Power Mode / Reduce Motion /
+        // the in-app toggle stops the sensor immediately rather than at the next screen change.
+        nc.addObserver(forName: .NSProcessInfoPowerStateDidChange,
+                       object: nil, queue: .main) { [weak self] _ in self?.syncToPolicy() }
+        nc.addObserver(forName: UIAccessibility.reduceMotionStatusDidChangeNotification,
+                       object: nil, queue: .main) { [weak self] _ in self?.syncToPolicy() }
+        nc.addObserver(forName: UserDefaults.didChangeNotification,
+                       object: UserDefaults.standard, queue: .main) { [weak self] _ in self?.syncToPolicy() }
+        #endif
+    }
+
+    /// The three signals that mean "no decorative motion", read imperatively. Views read
+    /// `NoopMotionState` instead (it publishes, so they invalidate); this is the sensor's own read,
+    /// off the same underlying facts, so the two can never disagree.
+    static var quietNow: Bool {
+        if ProcessInfo.processInfo.isLowPowerModeEnabled { return true }
+        if UserDefaults.standard.bool(forKey: QuietMotionPrefs.enabledKey) { return true }
+        #if canImport(UIKit) && !os(watchOS)
+        if UIAccessibility.isReduceMotionEnabled { return true }
+        #endif
+        return false
+    }
 
     /// Ref-counted start/stop so the sensor only runs while a liquid screen is visible.
+    ///
+    /// The gate is checked HERE and not only at the view branch: a posed vessel renders from the
+    /// static path and never calls this, but a future call site that forgets would otherwise
+    /// re-arm a 60 Hz sensor the user has explicitly asked to be rid of.
     func acquire() {
         refCount += 1
-        guard !started else { return }
+        startIfWanted()
+    }
+
+    private func startIfWanted() {
+        guard !started, refCount > 0, !LiquidMotion.quietNow else { return }
         started = true
         #if os(iOS) && !targetEnvironment(macCatalyst)
-        guard manager.isDeviceMotionAvailable else { return }
+        guard manager.isDeviceMotionAvailable else { started = false; return }
         manager.deviceMotionUpdateInterval = 1.0 / 60.0
         manager.startDeviceMotionUpdates(to: motionQueue) { [weak self] motion, _ in
             guard let self, let m = motion else { return }
@@ -125,12 +167,24 @@ final class LiquidMotion {
 
     func release() {
         refCount = max(0, refCount - 1)
-        guard refCount == 0, started else { return }
+        guard refCount == 0 else { return }
+        stop()
+    }
+
+    /// Stop the sensor but KEEP `refCount` — the screen is still mounted, we simply don't want the
+    /// hardware running (backgrounded, or the user asked for quiet). `startIfWanted` resumes it.
+    private func stop() {
+        guard started else { return }
         started = false
         #if os(iOS) && !targetEnvironment(macCatalyst)
         manager.stopDeviceMotionUpdates()
         #endif
         tilt = 0
+    }
+
+    /// Re-evaluate after a Low Power Mode / Reduce Motion / in-app-toggle change.
+    private func syncToPolicy() {
+        if LiquidMotion.quietNow { stop() } else { startIfWanted() }
     }
 }
 
@@ -285,30 +339,3 @@ func liquidWave(_ x: Double, amp: Double, R: Double, hw: Double,
 
 /// A monotonic seconds clock for a TimelineView date.
 @inline(__always) func liquidSeconds(_ date: Date) -> Double { date.timeIntervalSinceReferenceDate }
-
-// MARK: - Low Power Mode
-
-/// Publishes Low Power Mode so the live gauges can pose still, the way they already do for
-/// Reduce Motion. There is no SwiftUI environment key for this, so the primitives observe this
-/// instead; `.NSProcessInfoPowerStateDidChange` makes the switch live, with no relaunch needed.
-///
-/// Worth doing because a continuously-animating `Canvas` is not free: measured on an iPhone 17 Pro
-/// simulator seeded with a real 746 MB store, the default Today screen sitting idle costs ~18% of a
-/// CPU core in BOTH Debug and Release, and 0.0% once the live gauges pose still. Low Power Mode is
-/// the user telling the system to stop exactly that kind of work.
-@MainActor
-final class LiquidPowerMonitor: ObservableObject {
-    static let shared = LiquidPowerMonitor()
-    @Published private(set) var isLowPower: Bool
-
-    private init() {
-        isLowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
-        NotificationCenter.default.addObserver(
-            forName: .NSProcessInfoPowerStateDidChange, object: nil, queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.isLowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
-            }
-        }
-    }
-}

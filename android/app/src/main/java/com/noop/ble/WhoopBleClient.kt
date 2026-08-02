@@ -538,9 +538,43 @@ class WhoopBleClient(
             else -> BluetoothGatt.CONNECTION_PRIORITY_BALANCED
         }
 
+        /**
+         * The throughput summary for one offload burst (#1007), pure so it is testable without a BLE stack.
+         *
+         * #477 and #533 ship two levers that should shorten the offload — CONNECTION_PRIORITY_HIGH for the
+         * burst, and LE 2M around it — and both default OFF, gated on validation against a real strap. That
+         * validation never happened, and this is why: nothing measured the thing they change. The figures in
+         * #1007 had to be counted by hand out of a raw capture ("3193 frames / 90 s"), which is not something
+         * a reporter can be asked to do twice.
+         *
+         * Frames rather than records: [offloadFramesThisSession] counts genuine offload frames (47/48/49/50),
+         * which is what the levers actually move, and is the same numerator #1007 measured. A non-positive
+         * elapsed yields the count WITHOUT a rate rather than a fabricated one. Locale-fixed so a decimal
+         * comma cannot follow the phone language into a log someone pastes into an issue.
+         */
+        fun offloadThroughputLine(frames: Int, elapsedMs: Long): String =
+            if (elapsedMs <= 0L) "$frames frame(s)"
+            else "%d frame(s) in %.1fs (%.1f frame/s)".format(
+                java.util.Locale.US, frames, elapsedMs / 1000.0, frames * 1000.0 / elapsedMs)
+
+        /**
+         * The `reason=` token for a connection-down trace line (#1020), pure so the composition is
+         * unit-testable without a BLE stack.
+         *
+         * A local teardown arrives as GATT status 22 and used to print the bare `localTerminate`, which
+         * five different paths of ours produce. [localTeardownOrigin] names which one; `unknown` when the
+         * drop was local but no path claimed it, which is itself worth seeing — it means a teardown route
+         * exists that is not tagged.
+         */
+        fun connectionDownReason(status: Int, localTeardownOrigin: String?): String = when (status) {
+            GATT_CONN_TIMEOUT -> "connectionTimeout"
+            GATT_CONN_TERMINATE_LOCAL_HOST -> "localTerminate via=${localTeardownOrigin ?: "unknown"}"
+            else -> "status$status"
+        }
+
         /** Pure battery-adaptive gate (#477), unit-testable without a BLE stack. Keyed on the STRAP's
-         *  battery (WHOOP/Oura/Fitbit): the lever is ARMED by [thresholdPct] > 0 (the Settings slider is
-         *  10–30; 0 disables it) and engages while the strap is DISCHARGING at/below [thresholdPct]. The
+         *  battery (WHOOP/Oura/Fitbit): the lever is ARMED by [thresholdPct] > 0 and engages while the
+         *  strap is DISCHARGING at/below [thresholdPct]. The
          *  phone's own Battery Saver deliberately does NOT trigger it — power saving is about the strap's
          *  charge, not the phone's. A charging strap never throttles. The threshold is its own hysteresis
          *  (battery % moves slowly, so a boundary crossing flips at most once per point). */
@@ -1635,7 +1669,21 @@ class WhoopBleClient(
      *  [setConnectionPriorityManagement]. */
     @Volatile private var connectionPriorityEnabled: Boolean = false
     /** Battery-% at/below which the LOW_POWER idle throttle engages while discharging; 0 = never (safe
-     *  half only). The Settings picker offers 10/15/20/25/30. */
+     *  half only).
+     *
+     *  NOT REACHABLE TODAY, and this doc used to claim a Settings picker that was never built. The only
+     *  caller passes a hard-coded 0 (`AppViewModel.applyPowerSaving`), so the idle throttle is dormant
+     *  for everyone regardless of any setting. #477's validation plan needs it enabled on a real strap,
+     *  which nobody can currently do — see #1005, where the idle link is the addressable share and there
+     *  is no lever to reach it. Wiring a control is a separate change; do not describe one until it
+     *  exists.
+     *
+     *  Note it would ALSO need [connectionPriorityEnabled], i.e. the Fast history sync toggle, since
+     *  [refreshConnectionPriority] early-returns without it. A control for this alone would do nothing.
+     *
+     *  Contrast [lowBatteryOffloadPct] below, which IS wired: the Power saving master drives it. Both key
+     *  on the STRAP's battery — see [batteryPctAndCharging] — so neither is a lever a user can pull
+     *  because their PHONE is draining. That is the gap #1005 runs into. */
     @Volatile private var idleThrottleBatteryPct: Int = 0
 
     /** #533: also escalate to HIGH for the LIVE-HR stream, not just the offload burst. DEFAULT OFF, and
@@ -2197,6 +2245,12 @@ class WhoopBleClient(
     /** Genuine offload frames seen this session — zero at timeout means the strap never answered
      *  the history request at all (5/MG retry trigger, #78 fork). Main-looper only. */
     private var offloadFramesThisSession = 0
+    /** Wall time (ms) this offload burst began, for the #1007 throughput line. Stamped by
+     *  [enterBackfilling] and NEVER cleared, so it holds the PREVIOUS burst's start between bursts - both
+     *  readers pair it with `backfilling`, which is only true when [enterBackfilling] has re-stamped it.
+     *  Read in [exitBackfilling] for a classified exit, and in [reset] for a burst a disconnect cut short -
+     *  the same two paths that already own [offloadFramesThisSession], so this adds no new thread. */
+    private var backfillStartedAtMs = 0L
     /** #174 deep-packet cooldown: wall time (ms) of the most recent offload frame OR HISTORY_COMPLETE.
      *  A type-0x2F arriving just after a backfill ends (backfilling already flipped false) is a TRAILING
      *  historical frame, not the live R22 stream, so it must not be counted as a "live deep packet".
@@ -2515,6 +2569,7 @@ class WhoopBleClient(
      */
     @SuppressLint("MissingPermission")
     fun disconnect() {
+        noteLocalTeardown("userDisconnect")   // #1020
         intentionalDisconnect = true
         handler.removeCallbacks(scanTimeoutRunnable)
         // #1030 (ryanbr): a user teardown supersedes any pending involuntary reconnect timer.
@@ -2668,6 +2723,7 @@ class WhoopBleClient(
      * `BLEManager.forgetDevice` (which iOS already wires from DevicesView's Remove). Runs on the main looper.
      */
     fun releaseStrap() {
+        noteLocalTeardown("releaseStrap")   // #1020
         handler.post {
             intentionalDisconnect = true     // defuse the disconnect→3s-reconnect loop's guard
             handler.removeCallbacks(scanTimeoutRunnable)
@@ -3971,6 +4027,35 @@ class WhoopBleClient(
      *  nag the user. Reset to 0 on any genuine bond. (5/MG firmware reset parity, 2026-06) */
     private var staleDirectFailures = 0
 
+    /**
+     * Which of OUR OWN paths last tore the link down, and when the current session started (#1020).
+     *
+     * A local teardown surfaces as GATT status 22 (`GATT_CONN_TERMINATE_LOCAL_HOST`), which the
+     * connection trace has always reported as the bare `reason=localTerminate`. At least five paths
+     * produce it — the bond watchdog, the keep-alive stall bounce, a user disconnect, releaseStrap, and
+     * a safeGatt teardown after a dead binder — and the log could not tell them apart. A report showing
+     * thousands of localTerminate reconnects (#1020) therefore could not be diagnosed from the log at
+     * all; the existing comment beside the reason string just guesses ("e.g. #971 bond watchdog").
+     *
+     * Set at each initiating site, cleared when a new session comes up, and printed alongside the
+     * reason. @Volatile because the setters run on the main looper and timer callbacks while
+     * handleDisconnect reads it from a GATT binder thread on API 26/27.
+     */
+    @Volatile private var lastLocalTeardown: String? = null
+
+    /** Wall clock when the current session reached STATE_CONNECTED, for the session-duration readout.
+     *  0 until the first connect; set on EVERY connect (not gated on the test mode, which is usually
+     *  switched on only after something looks wrong) and never cleared on the way down, so read it only
+     *  under a `wasConnected` guard. @Volatile for the same reason as [lastLocalTeardown]. */
+    @Volatile private var connectedAtMs = 0L
+
+    /** Record which local path is about to drop the link. Unconditional rather than gated on the test
+     *  mode, because the clear in the connect path is ungated too - gating one and not the other is what
+     *  let a previous session's origin survive. Four of the five call sites pass a literal; `safeGatt`
+     *  interpolates the failing op, but that is an exception path where a String allocation is noise
+     *  against the teardown it is about to perform. None of the five is on a per-record path. */
+    private fun noteLocalTeardown(origin: String) { lastLocalTeardown = origin }
+
     /** Consecutive involuntary reconnect attempts, feeding the capped-exponential [ReconnectBackoff]
      *  (3, 6, 12, 24, 48, 60s…). Replaces the old fixed [RECONNECT_DELAY_MS] rescan loop so a strap
      *  that's genuinely out of range stops hammering BLE — the Android twin of the iOS
@@ -4097,6 +4182,7 @@ class WhoopBleClient(
         // through to a clean teardown if it does (mirrors the keep-alive bounce). When we gave up above,
         // [handleDisconnect] takes its paused branch and schedules NO reconnect; otherwise it backoff-
         // reconnects and [armBondWatchdog] arms the NEXT (wider) window from [bondWatchdogBackoff].
+        noteLocalTeardown("bondWatchdog")   // #1020: name the origin of the localTerminate that follows
         try {
             gatt?.disconnect()   // → handleDisconnect → reset() (cancels this) → (paused | backoff reconnect)
         } catch (t: Throwable) {
@@ -4418,6 +4504,13 @@ class WhoopBleClient(
                     // Connection test mode: report the connect latency + the uptime-start marker the readout
                     // reads. Gated zero-cost (the CONNECTION bool is read before any string is built).
                     // Behaviour-neutral diagnostics only - the connect flow below is unchanged. Twin of macOS.
+                    // #1020: both stamped OUTSIDE the gate. Test Centre is usually switched on AFTER
+                    // something looks wrong, and noteLocalTeardown() writes are themselves ungated - so a
+                    // clear that only ran when the mode was already on would let a PREVIOUS session's origin
+                    // survive, printing a stale via=bondWatchdog where via=unknown is the honest answer.
+                    // Field assignments, not log lines: no cost when the mode is off.
+                    connectedAtMs = System.currentTimeMillis()
+                    lastLocalTeardown = null
                     if (testCentre.active(com.noop.testcentre.TestDomain.CONNECTION)) {
                         val nowUnix = System.currentTimeMillis() / 1000L
                         val latencyMs = connectAttemptStartedAtMs?.let { System.currentTimeMillis() - it }
@@ -5473,6 +5566,7 @@ class WhoopBleClient(
                 // Nothing for the fuse window — the live stream/link stalled. Bounce it: the auto-rescan on
                 // disconnect re-bonds and resumes streaming (the automatic version of the manual fix).
                 log("No data for ${silentMs / 1000}s — bouncing link to resume live stream")
+                noteLocalTeardown("keepAliveStall")   // #1020
                 intentionalDisconnect = false    // make sure the auto-reconnect fires
                 // disconnect() throwing on a dead binder (#314) would crash from the keep-alive timer;
                 // tear down directly so the bounce degrades to a clean disconnect.
@@ -6280,6 +6374,9 @@ class WhoopBleClient(
         decodedChunksThisSession = 0
         consoleChunksThisSession = 0
         offloadFramesThisSession = 0
+        // #1007: wall time the burst began, for the throughput line at exit. Its own field rather than
+        // reusing lastBackfillAtMs, which is the BackfillPolicy floor and measures from the last KICK.
+        backfillStartedAtMs = System.currentTimeMillis()
         historicalKickSent = false
         _state.update { it.copy(backfilling = true, syncChunksThisSession = 0) }
         refreshConnectionPriority()   // #477: escalate to HIGH for the offload burst (faster sync). No-op unless enabled.
@@ -6507,6 +6604,12 @@ class WhoopBleClient(
         // setFastLinkPhy's on→off edge calls it AFTER the flag is already false. So the default path still
         // issues ZERO BLE ops.
         if (fastLinkPhyEnabled) releasePreferredPhy()
+        // #1007: what the burst actually achieved. Emitted unconditionally (one line per offload, not per
+        // frame) so an ordinary exported strap log carries it — behind the test-mode gate it would need a
+        // reporter to find Test Centre first, which is the friction that left #477/#533 unvalidated.
+        val offloadElapsedMs =
+            if (backfillStartedAtMs > 0L) System.currentTimeMillis() - backfillStartedAtMs else -1L
+        log("Backfill: ${offloadThroughputLine(offloadFramesThisSession, offloadElapsedMs)} ($reason)")
         // #174: a backfill just ended. Start (or extend) the deep-packet cooldown from this instant so
         // any type-0x2F records the strap flushes in the seconds after the session aren't miscounted as
         // the live R22 stream — they're the offload's tail.
@@ -6846,6 +6949,7 @@ class WhoopBleClient(
             // policy (always tear down) is single-sourced in shouldTeardownOnGattThrow so it's testable.
             if (shouldTeardownOnGattThrow(t)) {
                 log("GATT op '$reason' failed (${t.javaClass.simpleName}); tearing down link")
+                noteLocalTeardown("gattThrow:$reason")   // #1020
                 teardownAfterGattFailure()
             }
             false
@@ -7049,13 +7153,14 @@ class WhoopBleClient(
             //    so the reconnect-churn count means the same thing on both platforms.
             if (wasConnected) connReconnectCount += 1
             if (testCentre.active(com.noop.testcentre.TestDomain.CONNECTION)) {
-                val reason = when (status) {
-                    GATT_CONN_TIMEOUT -> "connectionTimeout"
-                    GATT_CONN_TERMINATE_LOCAL_HOST -> "localTerminate"   // our own bounce (e.g. #971 bond watchdog)
-                    else -> "status$status"
-                }
+                // #1020: `via=` names WHICH of our own paths dropped it — bondWatchdog, keepAliveStall,
+                // userDisconnect, releaseStrap or gattThrow:<op>. Five paths produced one string before,
+                // which made a thousands-of-reconnects report undiagnosable from the log alone.
+                val reason = connectionDownReason(status, lastLocalTeardown)
                 if (wasConnected) {
-                    log("connect down (uptime ends)", com.noop.testcentre.TestDomain.CONNECTION)
+                    val heldMs = if (connectedAtMs > 0L) System.currentTimeMillis() - connectedAtMs else -1L
+                    log("connect down (uptime ends${com.noop.analytics.ConnectionTrace.sessionHeldSuffix(heldMs)})",
+                        com.noop.testcentre.TestDomain.CONNECTION)
                     log("reconnect n=$connReconnectCount reason=$reason", com.noop.testcentre.TestDomain.CONNECTION)
                 } else {
                     log("reconnect n=$connReconnectCount failedConnect reason=$reason", com.noop.testcentre.TestDomain.CONNECTION)
@@ -7168,6 +7273,16 @@ class WhoopBleClient(
         disRead = false
         disSerial = null
         disHwRev = null
+        // #1007: a burst cut short by a disconnect never reaches exitBackfilling — that path is only
+        // HISTORY_COMPLETE / timeout / user-abort — so without this the throughput line simply would not
+        // appear, and its ABSENCE is ambiguous: no offload at all, or one that was interrupted? For a
+        // battery question those are opposite answers (the interrupted one spent radio for nothing).
+        // Logged here rather than by calling exitBackfilling, which would also release the connection
+        // priority and PHY and record a sync outcome — behaviour, on a path that does none of it today.
+        if (backfilling && backfillStartedAtMs > 0L) {
+            log("Backfill: ${offloadThroughputLine(offloadFramesThisSession,
+                System.currentTimeMillis() - backfillStartedAtMs)} (interrupted)")
+        }
         backfilling = false
         backfillDraining = false
         backfillFrameQueue.clear()

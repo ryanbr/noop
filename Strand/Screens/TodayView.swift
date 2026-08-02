@@ -4591,6 +4591,13 @@ private struct RecordingStatusLight: View {
     /// Drives the syncing pulse; toggled in `.task` while an offload runs (never during body eval).
     @State private var pulsing = false
 
+    /// This `repeatForever` ring had NO motion gate of any kind — it pulsed under system Reduce
+    /// Motion too, which was already a bug (the Android twin's ConnectionDot had the same one, fixed
+    /// in #911). It also ran precisely while the strap was offloading history, i.e. while the app was
+    /// already busy. Gated on all three quiet signals now.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
+
     /// Colour for the light: green recording, amber last-synced, red not recording, accent for
     /// experimental history. Mirrors the prior `TodayView.recordingHue` semantics verbatim.
     private func hue(_ state: RecordingState) -> Color {
@@ -4637,10 +4644,12 @@ private struct RecordingStatusLight: View {
         .disabled(state == nil && !syncing)
         .accessibilityLabel(syncing ? syncingAccessibilityLabel
             : (state?.accessibilityText ?? String(localized: "Recording status, not shown for a past day")))
-        // Run the repeating pulse only while syncing; the `.task(id:)` auto-cancels when the flag flips,
-        // so there is no timer left running once the offload ends (or Today goes away).
+        // Run the repeating pulse only while syncing AND nothing is asking for quiet motion; the
+        // `.task(id:)` auto-cancels when the flag flips, so there is no timer left running once the
+        // offload ends (or Today goes away). Without the pulse the steady accent dot still says
+        // "syncing" — the information survives, only the loop stops.
         .task(id: syncing) {
-            guard syncing else { pulsing = false; return }
+            guard syncing, !motion.poseStill(reduceMotion) else { pulsing = false; return }
             withAnimation(.easeOut(duration: 1.1).repeatForever(autoreverses: false)) { pulsing = true }
         }
     }

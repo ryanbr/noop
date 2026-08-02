@@ -618,6 +618,16 @@ public final class BLEManager: NSObject, ObservableObject {
     /// Count of INVOLUNTARY reconnects this run (a drop or failed-connect that was not user-initiated),
     /// surfaced as the reconnect-churn count. Reset by an intentional disconnect.
     private var connReconnectCount = 0
+    /// When the current session reached connected, for the `connect down` duration readout (#1020).
+    /// A session's length separates the causes of a drop at a glance — a bond watchdog fires seconds
+    /// in, a stall bounce minutes in, a radio drop anywhere.
+    ///
+    /// Set on EVERY connect, not only when the connection test mode is active: the mode is usually
+    /// switched on after something already looks wrong, so a stamp taken under the gate would carry a
+    /// previous session's start. Never cleared on the way down, so read it only where a session is known
+    /// to have been held (`didDisconnectPeripheral`, which fires only for a peripheral that connected).
+    /// Android twin: `WhoopBleClient.connectedAtMs`.
+    private var connSessionStartedAt: Date?
     /// #126 false-alarm guard: tracks CONSECUTIVE console-only completed syncs so the "clock has lost
     /// sync" banner only fires on sustained emptiness, not a single transient empty cycle on a healthy strap.
     private var emptySyncTracker = EmptySyncTracker()
@@ -787,6 +797,17 @@ public final class BLEManager: NSObject, ObservableObject {
     /// Backfill ACKs can arrive hundreds or thousands of times in one offload. Keep the strap log
     /// readable and avoid forcing SwiftUI to auto-scroll on every ACK row.
     private var historicalAckLogCounter = 0
+
+    // WHOOP MG ECG ("Labrador") probe run state. All main-queue only, like every other probe here.
+    /// The commands sent this run and what each came back with.
+    private var ecgProbeSteps: [Whoop5EcgProbe.Step] = []
+    /// Structural-triage hits: the empirical search for the packet TYPE these records arrive under.
+    private var ecgProbeCandidates: [String] = []
+    private var ecgProbePacketsSeen = 0
+    /// Non-nil while the listen window is open; drives `ecgProbeArmed`.
+    private var ecgProbeDeadline: Date?
+    /// Supersedes a previous run's pending verdict timer when the user taps again.
+    private var ecgProbeRunToken = 0
     private var clockRequested = false
     /// #700: retry count for GET_CLOCK when no correlation establishes before backfill. Capped at 3.
     private var clockRetries = 0
@@ -855,6 +876,19 @@ public final class BLEManager: NSObject, ObservableObject {
     /// True when the selected/connected strap is a WHOOP 4.0. Read-only window onto the private
     /// `selectedModel`, used to gate the 4.0-only reboot probe (Test Centre → Connection) in the UI.
     var isWhoop4: Bool { selectedModel.deviceFamily == .whoop4 }
+
+    /// The 5-generation hardware variant resolved from the strap's Device Information Service (#520).
+    /// `.unknown` until a DIS string lands — and `.unknown` is NOT MG, so an MG-only capability stays
+    /// off until the hardware actually attests to itself.
+    var whoop5Variant: Whoop5Variant {
+        guard selectedModel.deviceFamily == .whoop5 else { return .unknown }
+        return Whoop5Variant.from(serial: disSerial, hardwareRevision: disHwRev)
+    }
+
+    /// True only for a POSITIVELY identified WHOOP MG — the one variant with ECG electrodes. Gates the
+    /// experimental ECG probe in both the UI and the command allowlist. A plain 5.0 (no electrodes), a
+    /// 4.0, or an unidentified strap all read false.
+    var isWhoop5MG: Bool { whoop5Variant.isMG }
 
     /// Stable device id; matches the server's existing device for sync parity. Overridable.
     /// Seeded from the init argument, then refined once in bootstrapStore() to the device registry's
@@ -1473,6 +1507,14 @@ public final class BLEManager: NSObject, ObservableObject {
             log("send(\(command.label)) ignored — \(reason)")
             return
         }
+        // The MG ECG family is 5/MG-only by construction, and the WHOOP 4.0 branch further down has no
+        // allowlist of its own — so without this a caller bug could frame an ECG opcode for a 4.0, which
+        // has neither the electrodes nor this command space. Dropping it HERE keeps the invariant inside
+        // send(), rather than resting entirely on every caller remembering to check.
+        if isEcgCommand(command), selectedModel.deviceFamily != .whoop5 {
+            log("send(\(command.label)) skipped — MG ECG commands are WHOOP 5/MG only")
+            return
+        }
         // WHOOP 5.0/MG uses puffin (CRC16) command framing, not the WHOOP4 frame. The realtime-HR toggle
         // is hardware-confirmed (issue #17 — a 5/MG owner saw live HR over a public build), which proves
         // the strap does act on puffin-framed commands. We now also send haptics (buzz) and the
@@ -1557,7 +1599,14 @@ public final class BLEManager: NSObject, ObservableObject {
                 // SET_DEVICE_CONFIG (the Broadcast-HR flag) is allowed ONLY while that opt-in is on —
                 // it writes one persistent device-config value so the strap advertises standard HR.
                 // Reversible; driven only by setBroadcastHr(_:). (#181)
-                || (command == .setDeviceConfig && PuffinExperiment.broadcastHrEnabled) else {
+                || (command == .setDeviceConfig && PuffinExperiment.broadcastHrEnabled)
+                // The WHOOP MG ECG ("Labrador") family — allowed ONLY when BOTH gates hold: the
+                // Experimental opt-in is on AND the strap has POSITIVELY attested itself an MG over the
+                // Device Information Service. A plain 5.0 has no electrodes and an unidentified strap
+                // proves nothing, so `.unknown` keeps these dropped. Every one is user-initiated and
+                // confirmation-gated at the call site; none is ever sent automatically. (See
+                // `Whoop5Ecg` for the payloads and the safety rationale.)
+                || (isEcgCommand(command) && ecgCommandsAllowed && isWhoop5MG) else {
                 log("send(\(command.label)) skipped — no WHOOP 5/MG framing for this command yet")
                 return
             }
@@ -3036,6 +3085,263 @@ public final class BLEManager: NSObject, ObservableObject {
         if let payHex { UserDefaults.standard.set(payHex, forKey: BLEManager.bodyLocationPrevPayloadKey) }
     }
 
+    // MARK: - WHOOP MG ECG ("Labrador") experimental probe
+    //
+    // A gated, user-initiated attempt to switch on an MG strap's ECG subsystem, plus the instrumentation
+    // that answers the one gating question the client cannot: whether the strap's firmware refuses the
+    // feature. NOTHING here runs automatically, and every send passes the double gate in `send()`
+    // (Experimental opt-in AND an attested MG). See `Whoop5Ecg` / `Whoop5EcgProbe`.
+    //
+    // This is NOT a medical feature. The strap's on-board classifier byte is logged RAW (a number, not
+    // the token name) precisely so no log line reads like a diagnosis, and the user-facing report says so
+    // in words. See DISCLAIMER.md.
+
+    /// Sentinel shown while a probe run is in flight (twin of the #592/#690 constants).
+    public static let ecgProbeWaiting = "__waiting__"
+    /// How long the probe listens for ECG-shaped packets before rendering its verdict.
+    private static let ecgProbeWindow: TimeInterval = 30
+    /// Cap on recorded candidate-frame lines, so a chatty stream can't grow the report without bound.
+    private static let ecgProbeMaxCandidates = 12
+    /// Cap on recorded steps. A run sends at most three, so the headroom is for UNSOLICITED replies —
+    /// which are inbound-driven and therefore need the same bound as the candidate list.
+    private static let ecgProbeMaxSteps = 12
+    /// How many candidate frames get their full raw hex dumped to the strap log (they are large).
+    private static let ecgProbeRawDumpLimit = 2
+
+    /// The four ECG opcodes, in ONE place — the allowlist clause and the response matcher must never
+    /// disagree about which commands belong to this family.
+    func isEcgCommand(_ command: WhoopCommand) -> Bool {
+        command == .selectWrist || command == .toggleLabradorDataGeneration
+            || command == .toggleLabradorRawSave || command == .toggleLabradorFiltered
+    }
+
+    /// True while a probe run is listening. Guards the per-frame triage so it costs nothing otherwise.
+    private var ecgProbeArmed: Bool { ecgProbeDeadline != nil }
+
+    /// Set for the duration of `ecgStopCapture()` only, so the OFF path is reachable even after the
+    /// Experimental opt-in has been switched back off.
+    ///
+    /// Turning a feature off must never be gated behind the switch that turned it on: without this, a
+    /// user who flipped the toggle off while the strap was streaming would have no way to tell the strap
+    /// to stop. The override widens the allowlist for exactly three commands carrying exactly the OFF
+    /// values (`stop`/0), for the length of one synchronous call — it can never send an ON value.
+    private var ecgStopOverride = false
+
+    /// True when the ECG opcodes are allowed through the 5/MG allowlist right now.
+    var ecgCommandsAllowed: Bool { PuffinExperiment.ecgEnabled || ecgStopOverride }
+
+    /// Latched by `ecgStartCapture()`, cleared by a completed `ecgStopCapture()`.
+    ///
+    /// Keeps the Devices "Stop" control reachable after the Experimental opt-in has been switched off:
+    /// without it, turning the toggle off while DISCONNECTED silently no-ops (the stop needs a live MG
+    /// link) and then the menu entry vanishes with the opt-in, leaving no route to stop a strap that may
+    /// still be streaming. Deliberately NOT persisted — the claim that the strap forgets these toggles
+    /// across a disconnect is unverified, so this survives only as long as the process, and the honest
+    /// remedy after a relaunch is to re-enable the opt-in and hit Stop.
+    private(set) var ecgMayBeRunning = false
+
+    /// The conditions an ECG action needs, checked BEFORE a run is opened so a rejected action leaves no
+    /// "waiting…" sheet sitting for the length of the listen window. `send()` re-checks independently —
+    /// this is the friendly early-out, not the safety gate.
+    ///
+    /// `requiresOptIn: false` is the OFF path, which stays available once the toggle is off.
+    private func ecgGatesAllow(requiresOptIn: Bool = true) -> Bool {
+        guard !requiresOptIn || PuffinExperiment.ecgEnabled else {
+            log("ECG probe: ignored — the Experimental ECG opt-in is off")
+            return false
+        }
+        guard isWhoop5MG else {
+            log("ECG probe: ignored — strap is not a positively identified WHOOP MG (variant=\(whoop5Variant.label))")
+            return false
+        }
+        guard state.connected else {
+            log("ECG probe: ignored — not connected")
+            return false
+        }
+        return true
+    }
+
+    /// Send one ECG command and register it as a step whose outcome starts at `.noReply`; a matching
+    /// COMMAND_RESPONSE overwrites it.
+    private func sendEcgCommand(_ command: WhoopCommand, arg: UInt8) {
+        let label = "\(command.label)(\(command.rawValue))"
+        // Recorded AT SEND TIME, from the opcode AND the argument: the reply carries neither, so this is
+        // the only point where "could this command have produced data" is knowable. Every verdict that
+        // reads silence as evidence depends on it.
+        let requestsData = Whoop5Ecg.requestsRealtimeData(cmd: command.rawValue, arg: arg)
+        ecgProbeSteps.append(Whoop5EcgProbe.Step(label: label,
+                                                 outcome: .noReply,
+                                                 requestsRealtimeData: requestsData))
+        log("ECG probe: → \(label) payload=\(hex(Whoop5Ecg.commandPayload(arg: arg)))")
+        send(command, payload: Whoop5Ecg.commandPayload(arg: arg))
+    }
+
+    /// Write the PERSISTENT wrist selection. Deliberately its own entry point, never folded into
+    /// `ecgStartCapture()`: it is the only command in this family that changes strap state which outlives
+    /// the session, so the user chooses the wrist explicitly and confirms it on its own.
+    ///
+    /// The raw values are inferred from the client enum's ORDER, not attested — the UI says so, and
+    /// re-sending with the other wrist is the whole remedy if the inference is backwards.
+    public func ecgSelectWrist(_ wrist: Whoop5Ecg.WristSelection) {
+        guard ecgGatesAllow() else { return }
+        beginEcgProbeRun(clearingSteps: true)
+        log("ECG probe: SELECT_WRIST=\(wrist.token) (raw \(wrist.rawValue)) — PERSISTENT strap write; the "
+            + "right=0/left=1 mapping is inferred from the client enum order, not confirmed on hardware")
+        sendEcgCommand(.selectWrist, arg: wrist.rawValue)
+        scheduleEcgProbeVerdict()
+    }
+
+    /// The documented turn-on sequence MINUS `selectWrist` (which the user runs separately, above):
+    /// toggleRealtimeFilteredECG(on) → toggleSaveRawECG(on) → mainControlECGDataGeneration(start).
+    public func ecgStartCapture() {
+        guard ecgGatesAllow() else { return }
+        ecgMayBeRunning = true      // latched BEFORE the sends, so a mid-sequence drop still leaves Stop offered
+        beginEcgProbeRun(clearingSteps: true)
+        log("ECG probe: starting the ECG turn-on sequence on an MG (experimental, unvalidated instrumentation)")
+        sendEcgCommand(.toggleLabradorFiltered, arg: 1)
+        sendEcgCommand(.toggleLabradorRawSave, arg: 1)
+        sendEcgCommand(.toggleLabradorDataGeneration, arg: Whoop5Ecg.ControlSignal.start.rawValue)
+        scheduleEcgProbeVerdict()
+    }
+
+    /// The explicit OFF path: stop generation first, then drop both streams.
+    ///
+    /// `reportsResult: false` is the Settings-toggle path — it must not pop the Devices result sheet from
+    /// a different screen, and it must not queue a verdict 30 s after the user simply switched something
+    /// off. The bytes sent are identical either way.
+    public func ecgStopCapture(reportsResult: Bool = true) {
+        // requiresOptIn: false — see `ecgStopOverride`. The OFF path outlives the opt-in.
+        guard ecgGatesAllow(requiresOptIn: false) else {
+            // Do NOT clear `ecgMayBeRunning` here: the stop did not reach the strap, so whatever state it
+            // is in is unchanged and the Stop control has to stay offered.
+            if ecgMayBeRunning {
+                log("ECG probe: stop could not be sent (needs a connected MG) — the strap may still be "
+                    + "streaming, so Stop stays available on the Devices card")
+            }
+            return
+        }
+        ecgStopOverride = true
+        defer { ecgStopOverride = false }
+        if reportsResult { beginEcgProbeRun(clearingSteps: true) } else { ecgProbeSteps = [] }
+        log("ECG probe: stopping ECG data generation and both streams")
+        sendEcgCommand(.toggleLabradorDataGeneration, arg: Whoop5Ecg.ControlSignal.stop.rawValue)
+        sendEcgCommand(.toggleLabradorRawSave, arg: 0)
+        sendEcgCommand(.toggleLabradorFiltered, arg: 0)
+        ecgMayBeRunning = false
+        if reportsResult { scheduleEcgProbeVerdict() }
+    }
+
+    /// Clear the probe result (dialog dismissed).
+    public func clearEcgProbe() { state.ecgProbe = nil }
+
+    private func beginEcgProbeRun(clearingSteps: Bool) {
+        if clearingSteps {
+            ecgProbeSteps = []
+            ecgProbeCandidates = []
+            ecgProbePacketsSeen = 0
+        }
+        ecgProbeRunToken &+= 1
+        ecgProbeDeadline = Date().addingTimeInterval(BLEManager.ecgProbeWindow)
+        state.ecgProbe = BLEManager.ecgProbeWaiting
+    }
+
+    /// Render the verdict once the listen window closes. BLE callbacks and this timer both run on the
+    /// main queue, so the token check is race-free without a lock.
+    private func scheduleEcgProbeVerdict() {
+        let token = ecgProbeRunToken
+        DispatchQueue.main.asyncAfter(deadline: .now() + BLEManager.ecgProbeWindow) { [weak self] in
+            guard let self, self.ecgProbeRunToken == token else { return }
+            self.ecgProbeDeadline = nil
+            let text = Whoop5EcgProbe.report(steps: self.ecgProbeSteps,
+                                             ecgPacketsSeen: self.ecgProbePacketsSeen,
+                                             candidateFrames: self.ecgProbeCandidates,
+                                             windowSeconds: Int(BLEManager.ecgProbeWindow))
+            self.log("ECG probe:\n\(text)")
+            self.state.ecgProbe = text
+        }
+    }
+
+    /// Fold one inbound 5/MG frame into the running probe: either it is a COMMAND_RESPONSE for one of
+    /// our four opcodes (which settles that step's outcome), or it is a candidate ECG data packet.
+    ///
+    /// Called only while a run is armed, and only for non-offload live frames.
+    private func noteEcgProbeFrame(_ frame: [UInt8]) {
+        // CRC GATE FIRST (safety contract §2: "New inbound paths must do the same"). The verdict this
+        // probe produces is its entire output, and a single flipped bit at byte 12 would turn a healthy
+        // SUCCESS into "DATA REQUEST REFUSED" — the strongest claim the report can make. So no byte of
+        // an unverified frame is read here, on either branch.
+        guard verifyFrame(frame, family: .whoop5).ok else { return }
+        // Both COMMAND_RESPONSE spellings: 0x24 (36, what the #592/#690 handlers key on) and the puffin
+        // alias 38, which `canonicalTypeName` folds onto the same name. Accepting both means a strap that
+        // answers on the alias still settles its step instead of being silently triaged as a data packet.
+        let isCommandResponse = frame.count > 8
+            && (frame[8] == 0x24 || Int(frame[8]) == PuffinPacketType.puffinCommandResponse)
+        guard frame.count > 10, isCommandResponse else {
+            noteEcgProbeCandidate(frame)
+            return
+        }
+        let respCmd = frame[10]
+        guard let command = WhoopCommand(rawValue: respCmd), isEcgCommand(command) else {
+            noteEcgProbeCandidate(frame)
+            return
+        }
+        let label = "\(command.label)(\(respCmd))"
+        let outcome = Whoop5EcgProbe.outcome(frame: frame) ?? .noReply
+        let replyHex = frame.map { String(format: "%02x", $0) }.joined()
+        // Settle the FIRST step still awaiting a reply for this command, so a start-then-stop pair keeps
+        // its two outcomes distinct instead of both collapsing onto the last one.
+        if let idx = ecgProbeSteps.firstIndex(where: { $0.label == label && $0.outcome == .noReply }) {
+            // Carry the send-time flag across: the reply does not echo the argument, so re-deriving it
+            // here is impossible and dropping it would silently weaken (or, worse, strengthen) the verdict.
+            ecgProbeSteps[idx] = Whoop5EcgProbe.Step(
+                label: label,
+                outcome: outcome,
+                requestsRealtimeData: ecgProbeSteps[idx].requestsRealtimeData,
+                replyHex: replyHex)
+            log("ECG probe: ← \(label) \(outcome.token)")
+        } else if ecgProbeSteps.count < BLEManager.ecgProbeMaxSteps {
+            // An UNSOLICITED reply for one of our opcodes. Recorded, but capped for the same reason the
+            // candidate list is: each Step carries a full-frame hex string that is rendered into both the
+            // report and the strap log, and a chatty stream must not be able to grow either without bound.
+            //
+            // `requestsRealtimeData: false` — nothing here sent it, so the argument behind it is unknown,
+            // and an unknown must never be able to unlock a verdict that claims the feature is blocked.
+            ecgProbeSteps.append(Whoop5EcgProbe.Step(label: label,
+                                                     outcome: outcome,
+                                                     requestsRealtimeData: false,
+                                                     replyHex: replyHex))
+            log("ECG probe: ← \(label) \(outcome.token) (unsolicited)")
+        }
+    }
+
+    /// Structural triage for the packet TYPE the ECG records arrive under, which no table in this repo
+    /// holds. A hit is a CANDIDATE, never a confirmed mapping.
+    private func noteEcgProbeCandidate(_ frame: [UInt8]) {
+        guard frame.count >= 12, Whoop5Ecg.plausibleFilteredFrame(frame) else { return }
+        ecgProbePacketsSeen += 1
+        guard ecgProbeCandidates.count < BLEManager.ecgProbeMaxCandidates,
+              let packet = Whoop5Ecg.decodeFilteredFrame(frame) else { return }
+        let header = packet.header
+        // The classifier byte is logged as a NUMBER, never as its token name: a strap log is a shareable
+        // artefact, and no line in it should read like a clinical finding. The decoder maps the value
+        // offline; the raw byte is lossless.
+        let line = String(format: "type=0x%02x len=%d samples=%d quality=%d leadsOn=%d hr=%d hrv=%d "
+                          + "classifierRaw=%d statusRaw=%d (unvalidated instrumentation, not a diagnosis)",
+                          Int(frame[8]), frame.count, Int(header.numberOfECGSamples),
+                          Int(header.signalQualityRaw), header.heartKeyLeadsAreOn ? 1 : 0,
+                          Int(header.heartKeyHR), Int(header.heartKeyHRV),
+                          Int(header.heartKeyArrhythmiaCheckResultRaw),
+                          Int(header.heartKeyArrhythmiaCheckStatusRaw))
+        ecgProbeCandidates.append(line)
+        log("ECG probe: candidate packet \(line)")
+        // Dump the raw bytes of the FIRST few candidates so a plain strap-log export is enough to redo
+        // the decode offline — the durable frame recorder is a separate opt-in the user may not have on.
+        // Capped hard: these frames are hundreds of bytes and the log is a scrolling UI list.
+        if ecgProbeCandidates.count <= BLEManager.ecgProbeRawDumpLimit {
+            log("ECG probe: candidate raw (\(frame.count) B): \(hex(frame))")
+        }
+    }
+
     /// Shared reboot send + debug trail + watchdog, used by both the production `rebootStrap()` and the
     /// 4.0 `rebootProbe(_:)`. `probe == nil` is the normal restart; a non-nil variant is a probe attempt
     /// (its `logTag` is stamped first so the strap log correlates the attempt with what the strap did).
@@ -3399,6 +3705,9 @@ public final class BLEManager: NSObject, ObservableObject {
         let prefix = (disSerial?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased())
             .map { String($0.prefix(3)) } ?? "?"
         log("DIS: serialPrefix=\(prefix) hwRev=\(disHwRev ?? "?") -> variant=\(variant.label)")
+        // Publish it so an MG-only capability can gate on attested hardware. Still diagnostic for every
+        // existing consumer — nothing about framing or decode reads this.
+        state.whoop5Variant = variant.label
     }
 
     private func requestNotify(_ c: CBCharacteristic, on p: CBPeripheral, reason: String) {
@@ -3918,6 +4227,11 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         }
         lastDataAt = Date()
         log("Connected — discovering services")
+        // #1020: stamped OUTSIDE the gate below. Test Centre is usually switched on AFTER something looks
+        // wrong, so a stamp taken only when the mode happened to be on at connect time would either be
+        // missing or, worse, still hold a PREVIOUS session's start - reporting a duration that spans the
+        // gap between them. A field assignment, not a log line, so it costs nothing when the mode is off.
+        connSessionStartedAt = Date()
         // Connection test mode: report the connect latency + the uptime-start marker the readout reads.
         // Gated zero-cost: the .connection bool is read before any string is built, so this is a no-op
         // when the mode is off. Behaviour-neutral diagnostics only - the connect flow above is unchanged.
@@ -4020,6 +4334,18 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         // …and abandon a walk the link interrupted, which also re-closes the 117/118 send() allowlist.
         featureFlagReport = nil
         featureFlagAwaiting = nil
+        state.ecgProbe = nil          // MG ECG: drop a stale probe result on disconnect
+        // Close any open ECG listen window. The strap forgets the ECG toggles across a disconnect, and a
+        // half-finished run must not fold its steps into the next one or render a verdict for a link that
+        // is already gone.
+        ecgProbeDeadline = nil
+        ecgProbeRunToken &+= 1
+        ecgProbeSteps = []
+        ecgProbeCandidates = []
+        ecgProbePacketsSeen = 0
+        // The DIS strings belong to the link that just dropped; a stale variant must not keep an MG-only
+        // capability unlocked for whatever connects next.
+        state.whoop5Variant = nil
         state.deviceConfigProbe = nil     // #103: drop a stale probe result on disconnect
         // …and abandon a plan the link interrupted, re-closing the 121/128 send() allowlist.
         deviceConfigReport = nil
@@ -4103,7 +4429,11 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
             if TestCentre.active(.connection) {
                 let reason = (error as? CBError)?.code == .connectionTimeout
                     ? "connectionTimeout" : connErrorToken(error)
-                state.append(log: "connect down (uptime ends)", domain: .connection)
+                // #1020: the session's length separates the causes of a drop at a glance. Same suffix the
+                // Android twin emits, so the shared ConnectionReadout parser sees one format.
+                let held = ConnectionTrace.sessionHeldSuffix(
+                    millis: connSessionStartedAt.map { Int(Date().timeIntervalSince($0) * 1000) } ?? -1)
+                state.append(log: "connect down (uptime ends\(held))", domain: .connection)
                 state.append(log: "reconnect n=\(connReconnectCount) reason=\(reason)", domain: .connection)
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
@@ -4952,6 +5282,10 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                     // #695: a 5/MG GET_DATA_RANGE COMMAND_RESPONSE (puffin envelope: type @8, cmd @10). Feeds
                     // the SAME newest/oldest window + backfill gate + diagnostics as the 4.0 path above — this
                     // reply was previously ignored on 5/MG (the 4.0 handler keyed on frame[6]). cmdOff = 10.
+                    // MG ECG (Labrador) probe: settle each command's outcome and hunt for the packet type
+                    // the ECG records arrive under. `ecgProbeArmed` is false outside a user-initiated
+                    // run, so this costs one Bool read on every other frame.
+                    if ecgProbeArmed { noteEcgProbeFrame(frame) }
                     if frame.count > 10, frame[8] == 0x24, frame[10] == WhoopCommand.getDataRange.rawValue {
                         // feedsSync: false — #695 diagnostic-only on 5/MG: log the dump/backlog/newest/oldest so
                         // a strap log validates the decode, but DON'T feed strapNewestTs/backfill/state yet.

@@ -11,7 +11,8 @@ import SwiftUI
 //    very low opacity; stars are tiny crisp dots. Beauty = restraint, spacing, type, motion.
 //  - TOKENS first (`StrandPalette`). The only literal hexes are the few subtle atmosphere
 //    tints the spec calls for (warm peach lift, indigo wash, etc.) — kept deliberately faint.
-//  - Reduce Motion pins every drifting element still (no looping translation).
+//  - Reduce Motion — and Low Power Mode, and the in-app "Reduce motion in NOOP" toggle —
+//    pin every drifting element still (no looping translation, and the frame loop is `paused:`).
 //  - Light mode is even MORE restrained: warm-paper tints, fewer/softer elements.
 //  - CPU-light: drift runs off a single `TimelineView(.animation)` tick that the system
 //    pauses when the view is off-screen; no per-frame allocation, no timers we own.
@@ -52,14 +53,19 @@ public struct TimeOfDayBackground: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
+    /// Low Power Mode and the in-app "Reduce motion in NOOP" toggle, neither of which has a SwiftUI
+    /// environment key. The Android twin (`TimeOfDayBackground.kt`) has consulted battery saver since
+    /// #911; this side was left reading Reduce Motion alone.
+    @ObservedObject private var motion = NoopMotionState.shared
 
     public init(dayPart: DayPart, animated: Bool = true) {
         self.dayPart = dayPart
         self.animated = animated
     }
 
-    /// Whether drifting elements should actually move (caller opted in AND Reduce Motion is off).
-    private var drift: Bool { animated && !reduceMotion }
+    /// Whether drifting elements should actually move: the caller opted in AND nothing is asking
+    /// for quiet (system Reduce Motion, Low Power Mode, or the in-app toggle).
+    private var drift: Bool { animated && !motion.poseStill(reduceMotion) }
 
     public var body: some View {
         GeometryReader { geo in
