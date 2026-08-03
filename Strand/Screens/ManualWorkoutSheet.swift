@@ -121,7 +121,7 @@ struct ManualWorkoutSheet: View {
         // "recents vanish" was really the panel being clipped along with its off-screen anchor.
         .noopSheetPresentation(largeFirst: true)
         #endif
-        .background(StrandPalette.surfaceOverlay)
+        .background(NoopChromeSurface())
         // Lets the user dismiss the decimal pad (which has no return key) and reach Cancel/Add. No-op on macOS.
         .keyboardDoneToolbar($focusedField)
     }
@@ -487,7 +487,7 @@ struct StartWorkoutSheet: View {
         .frame(maxWidth: .infinity)
         .noopSheetPresentation(largeFirst: false)
         #endif
-        .background(StrandPalette.surfaceOverlay)
+        .background(NoopChromeSurface())
     }
 
     /// One tappable sport row — shared by the #297 Recent block and the full catalogue list.

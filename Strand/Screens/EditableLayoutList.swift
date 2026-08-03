@@ -164,7 +164,7 @@ private struct EditableLayoutRow: View {
             .accessibilityLabel(visibilityLabel)
         }
         .contentShape(Rectangle())
-        .listRowBackground(StrandPalette.surfaceRaised)
+        .listRowBackground(NoopChromeSurface())
     }
 
     private var visibilityLabel: String {

@@ -1009,7 +1009,7 @@ struct SleepView: View {
         }
         .padding(NoopMetrics.cardInnerPadding)
         .frame(width: 260)
-        .background(StrandPalette.surfaceOverlay)
+        .background(NoopPanelSurface(cornerRadius: NoopVisualStyle.compactRadius, elevated: true))
         .accessibilityElement(children: .combine)
     }
 
@@ -2499,7 +2499,7 @@ struct SleepView: View {
             .font(StrandFont.subhead)
             .foregroundStyle(StrandPalette.textTertiary)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            .background(StrandPalette.surfaceInset, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(NoopPanelSurface(tint: StrandPalette.restColor, cornerRadius: 12))
     }
 
     /// Hero chart slot for a NAVIGATED session with no decodable stages — honest about the
@@ -2509,7 +2509,7 @@ struct SleepView: View {
             .font(StrandFont.footnote)
             .foregroundStyle(StrandPalette.textTertiary)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            .background(StrandPalette.surfaceInset, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(NoopPanelSurface(tint: StrandPalette.restColor, cornerRadius: 12))
     }
 
     // MARK: - Formatting helpers
@@ -3199,7 +3199,7 @@ private struct SleepTimeEditor: View {
         }
         .padding(NoopMetrics.screenPadding)
         .frame(minWidth: 360)
-        .background(StrandPalette.surfaceOverlay)
+        .background(NoopChromeSurface())
         // #940 guard 1: a time-only roll that lands the bed in the future, or at/after the night's
         // wake, almost always means the PREVIOUS evening (23:00 "yesterday", not tonight). Snap the
         // date back a day so the picker visibly shows the night the user meant. Pure rule + tests:

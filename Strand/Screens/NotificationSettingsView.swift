@@ -92,8 +92,7 @@ struct NotificationSettingsView: View {
         }
         .padding(NoopMetrics.space3)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(StrandPalette.surfaceInset,
-                    in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(NoopPanelSurface(tint: StrandPalette.accent, cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
             .stroke(StrandPalette.accent.opacity(0.22), lineWidth: 1))
     }

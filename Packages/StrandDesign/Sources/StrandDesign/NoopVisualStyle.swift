@@ -97,6 +97,25 @@ public struct NoopPanelSurface: View {
     }
 }
 
+/// Shared edge-to-edge chrome for sheet and split-view headers. Unlike a card it has no
+/// rounded outline or elevation, but it uses the same top-lit surface ramp and divider token.
+public struct NoopChromeSurface: View {
+    public init() {}
+
+    public var body: some View {
+        LinearGradient(
+            colors: [NoopVisualStyle.surfaceTop, NoopVisualStyle.surfaceBottom],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(NoopVisualStyle.divider)
+                .frame(height: 0.5)
+        }
+    }
+}
+
 public extension View {
     func noopPanel(
         tint: Color? = nil,

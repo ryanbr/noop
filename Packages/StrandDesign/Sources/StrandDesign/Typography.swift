@@ -1,4 +1,9 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 // MARK: - Strand Typography (§9.2)
 //
@@ -64,7 +69,21 @@ public enum StrandFont {
     /// (relativeTo `.caption2`), just smaller. Passing 11 returns exactly `.overline`. Lets a caller
     /// shrink an ALL-CAPS label to fit a small container without losing accessibility text-scaling.
     public static func overlineScaled(_ size: CGFloat) -> Font {
-        roundedSystem(size, weight: .semibold)
+        #if canImport(UIKit)
+        let base = UIFont.systemFont(ofSize: size, weight: .semibold)
+        let descriptor = base.fontDescriptor.withDesign(.rounded) ?? base.fontDescriptor
+        let rounded = UIFont(descriptor: descriptor, size: size)
+        return Font(UIFontMetrics(forTextStyle: .caption2).scaledFont(for: rounded))
+        #elseif canImport(AppKit)
+        let base = NSFont.systemFont(ofSize: size, weight: .semibold)
+        guard let descriptor = base.fontDescriptor.withDesign(.rounded),
+              let rounded = NSFont(descriptor: descriptor, size: size) else {
+            return Font(base)
+        }
+        return Font(rounded)
+        #else
+        return roundedSystem(size, weight: .semibold)
+        #endif
     }
 
     /// Mono 13 (SF Mono) — raw / log views. Tabular by nature.

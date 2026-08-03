@@ -613,7 +613,7 @@ private struct QuickActionSheet: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(
-            StrandPalette.surfaceOverlay
+            NoopChromeSurface()
                 .overlay(alignment: .top) {
                     // Gold hairline top edge per the bottom-sheet spec.
                     Rectangle()
@@ -643,8 +643,7 @@ private struct QuickActionSheet: View {
             }
             .padding(.vertical, 10)
             .padding(.horizontal, 12)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(StrandPalette.surfaceRaised))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(StrandPalette.hairline, lineWidth: 1))
+            .background(NoopPanelSurface(cornerRadius: 14))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -714,7 +713,7 @@ private struct FloatingTabBar: View {
             }
             .foregroundStyle(active ? StrandPalette.textPrimary : StrandPalette.textSecondary)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
+            .padding(.vertical, 3)
             .background(active ? NoopVisualStyle.inset : .clear, in: Capsule())
             .contentShape(Rectangle())
         }

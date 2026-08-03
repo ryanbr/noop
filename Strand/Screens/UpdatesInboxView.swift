@@ -21,7 +21,7 @@ struct UpdatesInboxView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-                .background(StrandPalette.surfaceRaised)
+                .background(NoopChromeSurface())
             Divider().overlay(StrandPalette.hairline)
             content
             if !updateStore.items.isEmpty {

@@ -707,8 +707,7 @@ struct InsightsView: View {
         }
         .padding(NoopMetrics.space3)
         .frame(maxWidth: .infinity, minHeight: 82, alignment: .topLeading)
-        .background(StrandPalette.surfaceInset, in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(StrandPalette.hairline, lineWidth: 1))
+        .background(NoopPanelSurface(cornerRadius: 8))
     }
 
     private func experimentMeasure(_ label: LocalizedStringKey,
@@ -733,8 +732,7 @@ struct InsightsView: View {
         }
         .padding(NoopMetrics.space3)
         .frame(maxWidth: .infinity, minHeight: 92, alignment: .topLeading)
-        .background(StrandPalette.surfaceInset, in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(StrandPalette.hairline, lineWidth: 1))
+        .background(NoopPanelSurface(tint: tint, cornerRadius: 8))
     }
 
     /// Behaviours the user actually has data for: distinct logged journal questions

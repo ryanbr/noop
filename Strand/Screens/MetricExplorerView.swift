@@ -858,8 +858,11 @@ struct MetricDetailView: View {
                 }
             }
         .padding(NoopMetrics.cardPadding)
-        .background(ScenicHeroBackground(domain: domain))
-        .clipShape(RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous))
+        .background {
+            NoopPanelSurface(tint: domain.color,
+                             cornerRadius: NoopMetrics.cardRadius,
+                             elevated: true)
+        }
         // The hero shows the LATEST available point (range-independent), so the vessel fills once on
         // appear (0 → its fraction) and settles — like TodayView's rings.
         .onAppear {
