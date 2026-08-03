@@ -111,12 +111,9 @@ Migrations are registered in `Packages/WhoopStore/Sources/WhoopStore/Database.sw
 | **v30-rr-ord** | Adds the nullable `rrInterval.ord` column — emission order within a `ts` — and makes it lead the read sort (#823/#830). Additive; pre-existing rows keep `ord` NULL. |
 
 > This table is a selection, not the full list — it covers the migrations the tables above refer to.
-> The registered set is the authority. Two things to know before citing a version number:
-> migrations are keyed by their **identifier string**, not by the number in it, so renaming one
-> re-runs it against an already-migrated database; and the numeric prefixes are not unique
-> (`v26-cloud-tombstone`/`v26-efficiency-heal`, `v27-apple-step-hour`/`v27-ppg-waveform`,
-> `v28-phone-timezone`/`v28-raw-imu`, `v29-daily-avg-sdnn`/`v29-score-input-provenance` are four
-> live collisions). Cite `v30-rr-ord`, not "v30".
+> The registered set is the authority. Migrations are keyed by their **identifier string**, not by
+> the number in it, so renaming one re-runs it against an already-migrated database. Cite the
+> identifier in full — `v30-rr-ord`, not "v30".
 
 ### The vestigial `synced` column
 
@@ -216,8 +213,10 @@ Two properties of `ord` a consumer has to know:
   `ON CONFLICT DO NOTHING` keeps whichever row landed first, so that second also falls back to
   magnitude order. The historical offload path delivers a second atomically and is unaffected.
 
-`ord` is a sort key only — it is not in either platform's read projection, and no consumer reads its
-value.
+`ord` is a sort key only. The two platforms differ in whether they carry it back: Swift selects
+`ts, rrMs`, so `ord` is excluded, while `WhoopDao.rrIntervals` is `SELECT *` and Room materialises it
+into every returned `RrInterval` (`Entities.kt`, `val ord: Int? = null`). No consumer reads its value
+on either platform.
 
 ### `event` *(v1)* — strap events
 
