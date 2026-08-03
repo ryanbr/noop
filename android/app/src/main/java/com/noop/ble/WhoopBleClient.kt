@@ -249,7 +249,8 @@ data class LiveState(
  * Lifecycle, mirroring the verified Swift flow:
  *   1. [connect]  — scan by the WHOOP4 custom-service UUID (BLEManager.connect → scanForPeripherals).
  *   2. onScanResult — stop scan, `connectGatt` (centralManager didDiscover → central.connect).
- *   3. onConnectionStateChange(CONNECTED) — `discoverServices` (didConnect → discoverServices).
+ *   3. onConnectionStateChange(CONNECTED) — request MTU, allow the GATT operation to settle, then
+ *      `discoverServices` (didConnect → discoverServices).
  *   4. onServicesDiscovered — for the custom service: capture the cmd-write char and fire THE BOND
  *      (one confirmed write of GET_BATTERY_LEVEL); subscribe to the three custom notify chars + the
  *      standard HR and battery chars (didDiscoverCharacteristicsFor).
@@ -713,9 +714,9 @@ class WhoopBleClient(
          *  is what the official app requests (and the common BLE max), letting a full type-47 record
          *  ride one packet. Benefits both families' offload. (PR #85, iHateSubscriptions) */
         private const val GATT_MTU = 247
-        /** Proceed to service discovery even if onMtuChanged never fires (some stacks ignore
-         *  requestMtu); keeps connect from stalling behind the MTU exchange. */
-        private const val MTU_FALLBACK_MS = 1_500L
+        /** Fixed delay between the MTU attempt and service discovery. onMtuChanged can come from the
+         *  connection itself or requestMtu, with no provenance bit, so it cannot safely end this wait. */
+        private const val MTU_DISCOVERY_SETTLE_MS = 1_500L
         /** BASE bonded-handshake watchdog window (#50): if no genuine bond lands within this of service
          *  discovery starting, bounce the link rather than sit forever in "finishing secure handshake"
          *  (OnePlus Nord 2 wedged the post-discovery bond/CCCD phase, which had no timeout). 7s comfortably
@@ -773,6 +774,17 @@ class WhoopBleClient(
             alreadyPausedForBondLoop: Boolean,
         ): Boolean = wasConnected && !didBond && !intentionalDisconnect && !staleDirectBond &&
             status != GATT_CONN_TERMINATE_LOCAL_HOST && !alreadyPausedForBondLoop
+
+        /** Pure guard for a delayed service-discovery kick. The operation belongs only to the exact
+         *  connection that scheduled it, and a temporarily-missing GATT wrapper must not consume the
+         *  once-only claim. Kept pure because local JVM tests cannot instantiate BluetoothGatt. */
+        internal fun serviceDiscoveryAttemptAllowed(
+            expectedGeneration: Int,
+            currentGeneration: Int,
+            isCurrentGatt: Boolean,
+            connected: Boolean,
+            hasGattOps: Boolean,
+        ): Boolean = expectedGeneration == currentGeneration && isCurrentGatt && connected && hasGattOps
 
         /** Consecutive bond refusals on the pinned strap before handing the pin off to a different,
          *  live-bonding strap (#52). 3 (not 1): a single "insufficient" can be a transient just-works
@@ -4138,11 +4150,11 @@ class WhoopBleClient(
      *  ViewModel can call it; a thin wrapper over the private [clearPairingHint]. */
     fun clearPairingHintForUserConnect() = clearPairingHint()
 
-    /** Bonded-handshake watchdog (#50): every other connect phase has a timeout (scan; MTU fallback;
+    /** Bonded-handshake watchdog (#50): every other connect phase has a timeout (scan; MTU settle delay;
      *  keep-alive) but the post-discovery bond/CCCD handshake had none — so a WHOOP 4.0 that wedges
      *  in "finishing secure handshake" (OnePlus Nord 2, #50) never bounced, and keep-alive recovery
      *  bails before [didBond]. This bonded-INDEPENDENT watchdog bounces the link if no genuine bond
-     *  lands within its window, mirroring the MTU fallback. #971: the window ESCALATES per consecutive
+     *  lands within its window, mirroring the MTU settle delay. #971: the window ESCALATES per consecutive
      *  bounce ([bondWatchdogBackoff]) so a slow-but-healthy bond gets more time, and after a capped number
      *  of bounces we stop bouncing (see [onBondWatchdog]). Armed when service discovery starts; cancelled
      *  on bond and in reset/teardown. */
@@ -4384,27 +4396,34 @@ class WhoopBleClient(
         }
     }
 
-    /** Guards the once-per-connect service-discovery kick. Discovery is deferred behind an MTU request
-     *  (and a fallback timeout), so this ensures it fires EXACTLY once whichever path wins. AtomicBoolean
-     *  (not @Volatile): on API 26/27 the GATT callbacks land on binder-pool threads, so onMtuChanged and
-     *  the fallback can race — compareAndSet makes the once-only claim atomic. (PR #85) */
+    /** Guards the once-per-connect service-discovery kick. AtomicBoolean (not @Volatile): callbacks can
+     *  land on binder-pool threads on API 26/27, so a stale timer and teardown can race. */
     private val serviceDiscoveryKicked = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /** Named so reset can cancel it; an anonymous delayed kick can otherwise act on a later GATT. */
+    @Volatile private var serviceDiscoveryRunnable: Runnable? = null
 
     /** Last MTU value reported by onMtuChanged and when (System.currentTimeMillis), to dedupe a
      *  spurious double callback. The OnePlus Nord 2 BT stack fires onMtuChanged TWICE in quick
-     *  succession with the SAME mtu/status (#50): the second one re-enters service discovery / corrupts
-     *  GATT state, so every subsequent CCCD descriptor write returns BUSY forever and the WHOOP 4.0 bond
-     *  never completes (stuck "finishing the secure handshake"). A same-value MTU re-callback is always
-     *  spurious on any device, so this dedup is safe to apply unconditionally — not OnePlus-gated. */
+     *  succession with the SAME mtu/status (#50). Before discovery was decoupled from this callback,
+     *  the duplicate could re-enter discovery and leave every later CCCD write BUSY. Keep the dedup for
+     *  stable telemetry and to avoid repeating any future callback-side work. */
     private var lastMtuValue = -1
     private var lastMtuAtMs = 0L
 
-    /** Start service discovery exactly once per connection, whichever path (onMtuChanged or the
-     *  fallback timeout) reaches here first. Idempotent via [serviceDiscoveryKicked]. */
+    /** Start service discovery exactly once for the captured connection. */
     @SuppressLint("MissingPermission")
-    private fun kickServiceDiscovery(g: BluetoothGatt, reason: String) {
+    private fun kickServiceDiscovery(g: BluetoothGatt, expectedGeneration: Int, reason: String) {
+        val ops = gattOps
+        if (!serviceDiscoveryAttemptAllowed(
+                expectedGeneration = expectedGeneration,
+                currentGeneration = connectGeneration,
+                isCurrentGatt = gatt === g,
+                connected = _state.value.connected,
+                hasGattOps = ops != null,
+            )
+        ) return
         if (!serviceDiscoveryKicked.compareAndSet(false, true)) return
-        val ops = gattOps ?: return
         log("Discovering services ($reason)")
         // Arm the bonded-independent handshake watchdog (#50): from here the post-discovery bond/CCCD
         // phase runs, and it's the one connect stage that previously had no timeout. If [didBond] is
@@ -4412,7 +4431,17 @@ class WhoopBleClient(
         // in reset/teardown. Once-per-connection because kickServiceDiscovery is idempotent.
         armBondWatchdog()
         // safeGatt: discovery on a dead binder (radio off, #314) tears down rather than crashing.
-        safeGatt("discoverServices") { ops.discoverServicesCompat() }
+        safeGatt("discoverServices") { ops!!.discoverServicesCompat() }
+    }
+
+    private fun scheduleServiceDiscovery(g: BluetoothGatt, expectedGeneration: Int, reason: String) {
+        serviceDiscoveryRunnable?.let { handler.removeCallbacks(it) }
+        val runnable = Runnable {
+            serviceDiscoveryRunnable = null
+            kickServiceDiscovery(g, expectedGeneration, reason)
+        }
+        serviceDiscoveryRunnable = runnable
+        handler.postDelayed(runnable, MTU_DISCOVERY_SETTLE_MS)
     }
 
     @SuppressLint("MissingPermission")
@@ -4548,19 +4577,26 @@ class WhoopBleClient(
                         gattOps?.let { safeGatt("readRemoteRssi") { it.readRemoteRssiCompat() } }
                     }, RSSI_READ_DELAY_MS)
                     // Request the larger MTU BEFORE discovery/subscribe so the offload isn't capped at
-                    // 20-byte notifications (the official app does this in its GATT init). Discovery is
-                    // gated on the result with a fallback timeout, so a stack that ignores requestMtu
-                    // can't stall the connect. (PR #85)
+                    // 20-byte notifications (the official app does this in its GATT init). Discovery
+                    // follows one fixed settle delay whether the request is accepted or rejected, so a
+                    // stack that ignores requestMtu cannot stall the connect. (PR #85)
                     val mtuOps = gattOps
                     val mtuOk = mtuOps != null &&
                         safeGatt("requestMtu") { mtuOps.requestMtuCompat(GATT_MTU) }
                     if (mtuOk) {
                         log("Connected — requesting MTU $GATT_MTU before discovery")
-                        handler.postDelayed({ kickServiceDiscovery(g, "mtu timeout") }, MTU_FALLBACK_MS)
                     } else if (gatt != null) {
-                        // requestMtu returned false (stack ignored it) but the link is still alive —
-                        // discover directly. If safeGatt tore down (dead binder), gatt is null: skip.
-                        kickServiceDiscovery(g, "requestMtu rejected")
+                        // False can mean an automatic connection-event MTU is still busy. Do not start
+                        // discovery immediately; use the same fixed settle delay as the accepted path.
+                        log("Connected — MTU request rejected; settling before discovery")
+                    }
+                    // Android documents onMtuChanged as both a request result AND a connection event.
+                    // There is no provenance bit, so neither the first callback nor a later duplicate
+                    // proves our request is the operation that completed. Always wait one bounded delay,
+                    // then discover once against this exact GATT/generation. If safeGatt tore
+                    // the link down above, gatt is null and there is nothing to schedule.
+                    if (gatt === g) {
+                        scheduleServiceDiscovery(g, connectGeneration, "MTU settle timeout")
                     }
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
@@ -4572,11 +4608,8 @@ class WhoopBleClient(
 
         override fun onMtuChanged(g: BluetoothGatt, mtu: Int, status: Int) {
             // Dedupe the OnePlus double-MTU GATT bug (#50): the OnePlus Nord 2 stack fires onMtuChanged
-            // TWICE in quick succession with the SAME mtu/status. The second, spurious callback re-enters
-            // service discovery / corrupts GATT state, so every subsequent CCCD descriptor write returns
-            // BUSY forever and the WHOOP 4.0 bond never completes ("finishing the secure handshake"). A
-            // same-value MTU re-callback within the window is always spurious, so this is safe on every
-            // device (not OnePlus-gated).
+            // TWICE in quick succession with the SAME mtu/status. Discovery no longer starts from this
+            // callback, but duplicate telemetry is still noise and should not repeat future callback work.
             val now = System.currentTimeMillis()
             if (now - lastMtuAtMs < DUPLICATE_MTU_WINDOW_MS && mtu == lastMtuValue) {
                 log("Ignoring duplicate MTU callback (mtu=$mtu) — OnePlus/spurious")
@@ -4584,10 +4617,10 @@ class WhoopBleClient(
             }
             lastMtuValue = mtu
             lastMtuAtMs = now
-            // Whatever the strap granted (≤ requested). Log it, then discover. kickServiceDiscovery is
-            // idempotent, so a late callback after the fallback timeout already fired is a no-op. (PR #85)
+            // Whatever the strap granted (≤ requested). Telemetry only: Android can emit this callback
+            // for the connection itself as well as requestMtu, without saying which. Starting discovery
+            // here can overlap the still-running MTU operation and wedge service discovery.
             log("MTU negotiated: $mtu (status=$status)")
-            kickServiceDiscovery(g, "mtu=$mtu")
         }
 
         /** #533: what the controller and the strap ACTUALLY settled on — the request is only a preference
@@ -7278,6 +7311,8 @@ class WhoopBleClient(
         cccdInFlight = false
         cccdRetries = 0
         sessionStarted = false
+        serviceDiscoveryRunnable?.let { handler.removeCallbacks(it) }
+        serviceDiscoveryRunnable = null
         // Clear the onMtuChanged dedup (#50) so the first MTU callback of the NEXT connection — even to
         // the same strap with the same granted mtu — is never mistaken for a duplicate of the last one.
         lastMtuValue = -1
