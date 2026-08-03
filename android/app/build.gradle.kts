@@ -208,6 +208,8 @@ val syncRoomSchemaSnapshot = tasks.register<Sync>("syncRoomSchemaSnapshot") {
     // variant's KSP round writes byte-identical JSON. Depending on all of them would make a single
     // `testFullDebugUnitTest` run four KSP rounds instead of one.
     dependsOn(tasks.matching { it.name == "kspFullDebugKotlin" })
+    // Unit-test KSP can clear the snapshot after Sync has copied it; order Sync after those tasks.
+    mustRunAfter(tasks.matching { it.name.startsWith("ksp") && it.name.contains("UnitTest") })
 }
 
 tasks.withType<Test>().configureEach {
