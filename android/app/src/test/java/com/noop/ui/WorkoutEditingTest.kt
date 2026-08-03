@@ -314,6 +314,34 @@ class WorkoutEditingTest {
         assertNull(WorkoutEditing.buildManualRow("my-whoop", start, 30, "Run", null, 99_999.0, now))
     }
 
+    @Test
+    fun buildManualRow_acceptsEndExactlyAtNow_rejectsOneSecondFuture() {
+        val now = 1_700_003_600L
+        val endingNow = WorkoutEditing.buildManualRow(
+            "my-whoop", startSeconds = now - 60, durationMin = 1, sport = "Run",
+            avgHr = null, energyKcal = null, nowSeconds = now,
+        )
+        requireNotNull(endingNow)
+        assertEquals(now, endingNow.endTs)
+
+        val endingOneSecondFuture = WorkoutEditing.buildManualRow(
+            "my-whoop", startSeconds = now - 59, durationMin = 1, sport = "Run",
+            avgHr = null, energyKcal = null, nowSeconds = now,
+        )
+        assertNull(endingOneSecondFuture)
+    }
+
+    @Test
+    fun buildManualRow_rejectsEndTimestampOverflow() {
+        val now = Long.MAX_VALUE
+        assertNull(
+            WorkoutEditing.buildManualRow(
+                "my-whoop", startSeconds = Long.MAX_VALUE - 30, durationMin = 1, sport = "Run",
+                avgHr = null, energyKcal = null, nowSeconds = now,
+            ),
+        )
+    }
+
     // MARK: - preservingCaptured
 
     @Test
