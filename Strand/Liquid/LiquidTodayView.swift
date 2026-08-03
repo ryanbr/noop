@@ -112,7 +112,7 @@ struct LiquidTodayView: View {
     /// The liquid heart pink (matches LiquidThread's default + the mockup #ff6b81).
     private let liquidHeart = Color(.sRGB, red: 1, green: 107 / 255, blue: 129 / 255, opacity: 1)
     /// Hero card fill: a translucent near-black so it floats over the sky (mock rgba(13,14,20,.78)).
-    private let heroFill = Color(.sRGB, red: 13 / 255, green: 14 / 255, blue: 20 / 255, opacity: 0.80)
+    private let heroFill = NoopVisualStyle.surface
     /// "Card transparency" (0–100, default 100): fades every liquid card surface here — the hero, the
     /// session-start row, the metric tiles and the `card` helper — in lockstep with the frosted cards.
     /// Content sits above the surface so it stays readable. Mirrors Kotlin `NoopPrefs.cardOpacityPercent`.
@@ -450,7 +450,8 @@ struct LiquidTodayView: View {
                             .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(.white)
                             .frame(width: 34, height: 34)
-                            .background(Circle().fill(.white.opacity(0.16)))
+                    .background(Circle().fill(NoopVisualStyle.surfaceTop.opacity(0.94)))
+                    .overlay(Circle().strokeBorder(NoopVisualStyle.borderHighlight.opacity(0.55), lineWidth: 0.8))
                     }
                     .buttonStyle(LiquidPressStyle())
                     .accessibilityLabel("Customize Today")
@@ -494,13 +495,7 @@ struct LiquidTodayView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(heroFill)
-                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .strokeBorder(.white.opacity(0.11), lineWidth: 1))
-                    .opacity(cardOpacity)
-            )
+            .background(NoopPanelSurface(cornerRadius: 18, surfaceOpacity: cardOpacity))
         }
         .buttonStyle(LiquidPressStyle())
         .accessibilityLabel("Start a live session. Beta. Silent strap coaching against today's Charge.")
@@ -540,14 +535,7 @@ struct LiquidTodayView: View {
         }
         .padding(.vertical, NoopMetrics.space4)
         .padding(.horizontal, NoopMetrics.space3)
-        .background(
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .fill(heroFill)
-                .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .strokeBorder(.white.opacity(0.11), lineWidth: 1))
-                .shadow(color: .black.opacity(0.6), radius: 30, y: 16)
-                .opacity(cardOpacity)
-        )
+        .background(NoopPanelSurface(cornerRadius: 26, elevated: true, surfaceOpacity: cardOpacity))
     }
 
     // MARK: - Heart rate
@@ -686,13 +674,7 @@ struct LiquidTodayView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
-            .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(StrandPalette.surfaceRaised)
-                    .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .strokeBorder(StrandPalette.hairline, lineWidth: 1))
-                    .opacity(cardOpacity)
-            )
+            .background(NoopPanelSurface(tint: tint, cornerRadius: 20, surfaceOpacity: cardOpacity))
         }
         .buttonStyle(LiquidPressStyle())
     }
@@ -951,13 +933,7 @@ struct LiquidTodayView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 11)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(StrandPalette.surfaceRaised)
-                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(StrandPalette.hairline, lineWidth: 1))
-                .opacity(cardOpacity)
-        )
+        .background(NoopPanelSurface(tint: tint, cornerRadius: 16, surfaceOpacity: cardOpacity))
         // #430 parity: tap -> the metric's trend detail (the same Explore dossier its MetricRow pushes,
         // closure-based NavigationLink per #38). A metric with no catalog entry stays inert.
         return Group {
@@ -1052,13 +1028,7 @@ struct LiquidTodayView: View {
         content()
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(StrandPalette.surfaceRaised)
-                    .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .strokeBorder(StrandPalette.hairline, lineWidth: 1))
-                    .opacity(cardOpacity)
-            )
+            .background(NoopPanelSurface(cornerRadius: 22, surfaceOpacity: cardOpacity))
     }
 
     // MARK: - Data

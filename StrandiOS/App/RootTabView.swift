@@ -683,16 +683,16 @@ private struct FloatingTabBar: View {
         // a blur material has nothing to dissolve and hardens into a solid lozenge (2026-07-02:
         // "clips into a solid shape"). A faint translucent scrim INSIDE the same Capsule keeps the pill
         // reading as tinted glass, not a slab, even against dead-flat colour.
-        .background(.white.opacity(0.06), in: Capsule())
+        .background(NoopVisualStyle.surfaceTop.opacity(0.88), in: Capsule())
         // Soft top-lit rim instead of one hard hairline, so there's no crisp cut-out edge.
         .overlay(
             Capsule().strokeBorder(
-                LinearGradient(colors: [.white.opacity(0.22), .white.opacity(0.04)],
+                LinearGradient(colors: [NoopVisualStyle.borderHighlight.opacity(0.78), NoopVisualStyle.border.opacity(0.42)],
                                startPoint: .top, endPoint: .bottom),
                 lineWidth: 0.75)
         )
         // Lighter, wider shadow: real elevation without stamping a dark halo on the flat canvas.
-        .shadow(color: .black.opacity(0.22), radius: 18, x: 0, y: 8)
+        .shadow(color: .black.opacity(0.34), radius: 20, x: 0, y: 10)
         .padding(.horizontal, 22)
         .padding(.bottom, 4)
     }
@@ -712,9 +712,10 @@ private struct FloatingTabBar: View {
                 Text(item.title)
                     .font(.system(size: 10, weight: active ? .semibold : .medium))
             }
-            .foregroundStyle(active ? StrandPalette.accent : StrandPalette.textSecondary)
+            .foregroundStyle(active ? StrandPalette.textPrimary : StrandPalette.textSecondary)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 3)
+            .padding(.vertical, 6)
+            .background(active ? NoopVisualStyle.inset : .clear, in: Capsule())
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
