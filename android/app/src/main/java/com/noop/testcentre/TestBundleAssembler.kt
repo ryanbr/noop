@@ -172,11 +172,16 @@ object TestBundleAssembler {
             storage = storage ?: TestBundleMeta.Storage(dbBytes = 0, rows = emptyMap(), rawCaptureBytes = 0),
             redaction = REDACTION_VERSION,
             truncated = truncated,
-            // The same completeness guard, machine-readable. Computed over the SHIPPING report.txt (the
-            // capped, redacted one) so meta.capture_check and the report.txt section can never disagree:
-            // a non-MASTER report keeps report.txt small, and the cap only ever trims raw-capture, so the
-            // report body the guard read above is byte-identical to the one in `capped`.
-            captureCheck = ReportCompleteness.captureCheckMeta(reportText, activeDomains).let {
+            // The same completeness guard, machine-readable — over `reportBody`, the SAME text the section
+            // above was computed from, NOT the report.txt that already has that section appended.
+            //
+            // Scanning the appended text made the check poison its own evidence: a MISSING domain renders
+            // as `<id>: MISSING (expected <killer token>)`, and that line CONTAINS the killer token, so the
+            // re-scan found it and recorded "present". Every missing trace flipped, and `complete` went true
+            // while report.txt said INCOMPLETE — seen in the wild on #950, whose export claimed
+            // `workouts: present` above a report reading `workouts: MISSING (expected session event=)`.
+            // The Swift twin never had this: it evaluates once and uses that one result for both.
+            captureCheck = ReportCompleteness.captureCheckMeta(reportBody, activeDomains).let {
                 TestBundleMeta.CaptureCheck(traces = it.traces, complete = it.complete)
             },
         )

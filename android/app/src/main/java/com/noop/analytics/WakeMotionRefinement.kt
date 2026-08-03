@@ -220,7 +220,7 @@ object WakeMotionRefinement {
         gravByMinute: Map<Long, List<GravitySample>>,
         ticksByMinute: Map<Long, Int>,
     ): List<StageSegment> {
-        if (seg.stage != "wake" || seg.end - seg.start < MIN_WAKE_SEGMENT_SECONDS) return listOf(seg)
+        if (!SleepStageVocabulary.isWake(seg.stage) || seg.end - seg.start < MIN_WAKE_SEGMENT_SECONDS) return listOf(seg)
         val mins = minutes(seg.start, seg.end)
         if (mins.isEmpty()) return listOf(seg)
 

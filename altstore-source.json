@@ -20,6 +20,24 @@
       "screenshotURLs": [],
       "versions": [
         {
+          "version": "9.3.1",
+          "buildVersion": "213",
+          "date": "2026-08-02",
+          "localizedDescription": "NOOP 9.3.1. See the release notes for what changed.",
+          "downloadURL": "https://github.com/ryanbr/noop/releases/download/v9.3.1/NOOP-ios-unsigned-v9.3.1.ipa",
+          "size": 16408661,
+          "minOSVersion": "17.0"
+        },
+        {
+          "version": "9.3.0",
+          "buildVersion": "212",
+          "date": "2026-07-31",
+          "localizedDescription": "NOOP 9.3.0. See the release notes for what changed.",
+          "downloadURL": "https://github.com/ryanbr/noop/releases/download/v9.3.0/NOOP-ios-unsigned-v9.3.0.ipa",
+          "size": 16174674,
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "9.2.1",
           "buildVersion": "212",
           "date": "2026-07-28",
@@ -1327,7 +1345,8 @@
       ],
       "appPermissions": {
         "entitlements": [
-          "com.apple.developer.healthkit"
+          "com.apple.developer.healthkit",
+          "com.apple.security.application-groups"
         ],
         "privacy": {
           "NSBluetoothAlwaysUsageDescription": "NOOP connects directly to your WHOOP strap over Bluetooth to read heart rate, R-R intervals, battery, and sensor data locally on your iPhone. Nothing leaves your device.",
@@ -1335,12 +1354,12 @@
           "NSHealthUpdateUsageDescription": "NOOP writes the metrics it computes from your strap back into Apple Health, on-device and only when you allow it."
         }
       },
-      "version": "9.2.1",
-      "buildVersion": "212",
-      "versionDate": "2026-07-28",
-      "versionDescription": "NOOP 9.2.1. See the release notes for what changed.",
-      "downloadURL": "https://github.com/ryanbr/noop/releases/download/v9.2.1/NOOP-ios-unsigned-v9.2.1.ipa",
-      "size": 16055457,
+      "version": "9.3.1",
+      "buildVersion": "213",
+      "versionDate": "2026-08-02",
+      "versionDescription": "NOOP 9.3.1. See the release notes for what changed.",
+      "downloadURL": "https://github.com/ryanbr/noop/releases/download/v9.3.1/NOOP-ios-unsigned-v9.3.1.ipa",
+      "size": 16408661,
       "minOSVersion": "17.0"
     }
   ],

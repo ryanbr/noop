@@ -2,13 +2,12 @@ package com.noop.ai
 
 import android.content.Context
 import android.content.SharedPreferences
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import com.noop.data.SecurePrefs
 
 /**
  * Secure, at-rest-encrypted storage for the user's AI Coach API key.
  *
- * Backed by Jetpack Security [EncryptedSharedPreferences] — values are encrypted with a
+ * Backed by Jetpack Security `EncryptedSharedPreferences` — values are encrypted with a
  * key held in the Android Keystore (hardware-backed where available). The plaintext API
  * key is never written to disk in the clear. This is the Android counterpart to storing
  * the key in the macOS Keychain.
@@ -24,28 +23,21 @@ object AiKeyStore {
     private const val KEY_KEY_OWNER = "key_provider"
     private const val KEY_CONSENT = "data_consent"
     private const val KEY_CUSTOM_URL = "custom_base_url"
+    private const val KEY_CUSTOM_AUTH_HEADER = "custom_auth_header"
     private const val KEY_CUSTOM_CONNECTED = "custom_connected"
 
     /** Per-provider model preference key, so each provider remembers its own last model. */
     private fun modelKey(provider: AiProvider) = "model_${provider.name}"
 
     /**
-     * Open (or lazily create) the encrypted preferences file. The [MasterKey] uses the
-     * AES256_GCM key scheme and lives in the Android Keystore.
+     * The encrypted preferences file. The master key uses the AES256_GCM key scheme and lives in the
+     * Android Keystore.
+     *
+     * Delegated to [SecurePrefs] so both credential stores open their file the same way — and so the
+     * Keystore and Tink setup happens once per process rather than on every read and write, which is
+     * what it used to do.
      */
-    private fun prefs(ctx: Context): SharedPreferences {
-        val masterKey = MasterKey.Builder(ctx.applicationContext)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-
-        return EncryptedSharedPreferences.create(
-            ctx.applicationContext,
-            FILE_NAME,
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-        )
-    }
+    private fun prefs(ctx: Context): SharedPreferences = SecurePrefs.of(ctx, FILE_NAME)
 
     /**
      * Persist the API [key] (encrypted at rest). Blank keys are treated as a clear.
@@ -154,6 +146,15 @@ object AiKeyStore {
     /** Read the Custom provider's base URL, or empty string if unset. */
     fun readCustomBaseUrl(ctx: Context): String =
         prefs(ctx).getString(KEY_CUSTOM_URL, null)?.trim().orEmpty()
+
+    /** Persist which header the Custom provider should use when an API key is present. */
+    fun saveCustomAuthHeader(ctx: Context, header: CustomAiAuthHeader) {
+        prefs(ctx).edit().putString(KEY_CUSTOM_AUTH_HEADER, header.name).apply()
+    }
+
+    /** Read the Custom provider auth header. Defaults to Bearer for existing local setups. */
+    fun readCustomAuthHeader(ctx: Context): CustomAiAuthHeader =
+        CustomAiAuthHeader.fromName(prefs(ctx).getString(KEY_CUSTOM_AUTH_HEADER, null))
 
     /**
      * Persist whether the user has committed the Custom provider (entered a URL and tapped

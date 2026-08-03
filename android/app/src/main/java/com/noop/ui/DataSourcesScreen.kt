@@ -301,9 +301,15 @@ fun DataSourcesScreen(vm: AppViewModel) {
             val granted = runCatching {
                 HealthConnectImporter.client(context).permissionController.getGrantedPermissions()
             }.getOrDefault(emptySet())
-            if (granted.any { it in HealthConnectImporter.PERMISSIONS }) {
+            // `any` (not `all`) is deliberate — partial grants are supported (#150). But that alone
+            // would never ASK about a permission added in an update, so a newly-read type would come
+            // back empty forever (#949). Route through the request once when the set has grown.
+            if (granted.any { it in HealthConnectImporter.PERMISSIONS } &&
+                !HealthConnectImporter.hasUnaskedPermissions(context)
+            ) {
                 runImport { HealthConnectImporter.import(context, vm.repo, ProfileStore.from(context).heightCm) }
             } else {
+                HealthConnectImporter.markPermissionsAsked(context)
                 hcPermissionLauncher.launch(HealthConnectImporter.PERMISSIONS)
             }
         }
@@ -762,8 +768,7 @@ fun DataSourcesScreen(vm: AppViewModel) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(uiString(R.string.l10n_data_sources_screen_broadcast_hr_from_this_phone_10e5605c), style = NoopType.subhead, color = Palette.textPrimary)
                     Text(
-                        uiString(R.string.l10n_data_sources_screen_acts_as_a_standard_bluetooth_heart_f8d13439) +
-                            "bike or app to see your strap's heart rate there.",
+                        uiString(R.string.l10n_data_sources_screen_acts_as_a_standard_bluetooth_heart_f8d13439),
                         style = NoopType.footnote,
                         color = Palette.textTertiary,
                     )
@@ -846,8 +851,7 @@ fun DataSourcesScreen(vm: AppViewModel) {
             },
             text = {
                 Text(
-                    uiString(R.string.l10n_data_sources_screen_this_permanently_deletes_everything_imported_from_f42e760e) +
-                        "sleep, steps, workouts and more. Your live strap data is untouched. This can't be undone.",
+                    uiString(R.string.l10n_data_sources_screen_this_permanently_deletes_everything_imported_from_f42e760e),
                     style = NoopType.subhead,
                     color = Palette.textSecondary,
                 )

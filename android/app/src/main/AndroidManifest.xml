@@ -116,6 +116,10 @@
     <uses-permission android:name="android.permission.health.READ_BODY_FAT" />
     <uses-permission android:name="android.permission.health.READ_LEAN_BODY_MASS" />
     <uses-permission android:name="android.permission.health.READ_EXERCISE" />
+    <!-- Water logged in other apps (#949), so drinks tracked by a dedicated hydration app or a smart
+         bottle don't have to be entered twice. Read-only; NOOP never writes water back. MUST be
+         declared or Health Connect silently drops the runtime request (same trap as #412 above). -->
+    <uses-permission android:name="android.permission.health.READ_HYDRATION" />
 
     <!-- Resolve the Health Connect provider on Android 14+ (platform) and earlier (app). -->
     <queries>

@@ -66,4 +66,71 @@ final class OuraExportParserTests: XCTestCase {
         XCTAssertNil(days.first?.restingHr)
         XCTAssertEqual(days.first?.readinessScore, 74)
     }
+
+    // MARK: - Main-session day-rollup selection (file-export lane twin of OuraApiParserSleepTests)
+    //
+    // Oura can list MULTIPLE sleep sessions for one day (a short nap/fragment alongside the real night).
+    // The old per-field `??` fold let whichever session was listed FIRST claim every daily field — and
+    // could even MIX fields across two different sessions (a fragment's totalSleepMin + the real night's
+    // restingHr). The fix picks the day's `long_sleep` session (else the longer total_sleep_duration) and
+    // applies its fields as a UNIT, mirroring OuraApiParser's `dayWinner`.
+
+    /// A fragment listed BEFORE the main sleep for the same day must not win the rollup: the long_sleep
+    /// session outranks the short_sleep fragment regardless of array order.
+    func testFragmentBeforeMainSessionMainSessionWins() {
+        let json = """
+        { "sleep": [
+            { "day": "2026-02-01", "type": "short_sleep",
+              "bedtime_start": "2026-02-01T13:00:00+00:00", "bedtime_end": "2026-02-01T13:20:00+00:00",
+              "total_sleep_duration": 900, "lowest_heart_rate": 90 },
+            { "day": "2026-02-01", "type": "long_sleep",
+              "bedtime_start": "2026-01-31T23:00:00+00:00", "bedtime_end": "2026-02-01T07:00:00+00:00",
+              "total_sleep_duration": 25200, "lowest_heart_rate": 48 }
+          ] }
+        """
+        let (days, sleeps) = OuraExportParser.parse(["export.json": bytes(json)])
+        XCTAssertEqual(sleeps.count, 2, "both sessions still appear in the sleep list")
+        let day = try! XCTUnwrap(days.first { $0.day == "2026-02-01" })
+        XCTAssertEqual(day.totalSleepMin, 420, "the main 420-min night, not the 15-min fragment")
+        XCTAssertEqual(day.restingHr, 48, "the main night's resting HR, not the fragment's 90")
+    }
+
+    /// A day with ONLY a fragment (no long_sleep for that day) keeps the fragment's data rather than
+    /// dropping the day entirely — the rank rule only prefers long_sleep when one is actually present.
+    func testFragmentOnlyDayKeepsFragment() {
+        let json = """
+        { "sleep": [
+            { "day": "2026-02-02", "type": "short_sleep",
+              "bedtime_start": "2026-02-02T13:00:00+00:00", "bedtime_end": "2026-02-02T13:20:00+00:00",
+              "total_sleep_duration": 900, "lowest_heart_rate": 90 }
+          ] }
+        """
+        let (days, sleeps) = OuraExportParser.parse(["export.json": bytes(json)])
+        XCTAssertEqual(sleeps.count, 1)
+        let day = try! XCTUnwrap(days.first { $0.day == "2026-02-02" })
+        XCTAssertEqual(day.totalSleepMin, 15)
+        XCTAssertEqual(day.restingHr, 90)
+    }
+
+    /// No field mixing: when two sessions with an equal `long_sleep` rank compete, the LONGER one wins
+    /// and supplies every field as a unit — restingHr and totalSleepMin must come from the SAME session,
+    /// never one field from each.
+    func testWinningSessionSuppliesAllFieldsAsAUnitNeverMixed() {
+        let json = """
+        { "sleep": [
+            { "day": "2026-02-03", "type": "long_sleep",
+              "bedtime_start": "2026-02-02T22:00:00+00:00", "bedtime_end": "2026-02-03T02:00:00+00:00",
+              "total_sleep_duration": 14400, "lowest_heart_rate": 70 },
+            { "day": "2026-02-03", "type": "long_sleep",
+              "bedtime_start": "2026-02-03T03:00:00+00:00", "bedtime_end": "2026-02-03T09:00:00+00:00",
+              "total_sleep_duration": 21600, "lowest_heart_rate": 47 }
+          ] }
+        """
+        let (days, _) = OuraExportParser.parse(["export.json": bytes(json)])
+        let day = try! XCTUnwrap(days.first { $0.day == "2026-02-03" })
+        // The longer (360-min) session wins the tie; its OWN restingHr (47) must land, not the shorter
+        // session's 70 and not a mix of the two.
+        XCTAssertEqual(day.totalSleepMin, 360)
+        XCTAssertEqual(day.restingHr, 47)
+    }
 }

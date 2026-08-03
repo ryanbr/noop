@@ -157,8 +157,12 @@ final class QuietMotionCoverageTests: XCTestCase {
                       "Low Power Mode must stay live without a relaunch")
         XCTAssertTrue(src.contains("UserDefaults.didChangeNotification"),
                       "the in-app toggle must stay live — @AppStorage writes straight to UserDefaults")
+        // The key string is the cross-platform contract — it travels in .noopbak by key, not by symbol
+        // name — so it is pinned here even though Android has not adopted it yet (#941). Pinning it now is
+        // the point: whoever writes the Kotlin side must match this string exactly, and a later edit here
+        // would silently break a round-trip that by then has real users.
         XCTAssertEqual(QuietMotionPrefs.enabledKey, "noop.quietMotion",
-                       "the key is the cross-platform contract with Kotlin NoopPrefs.quietMotion")
+                       "the key Android must adopt verbatim when the third signal lands (#941)")
     }
 
     /// Posing the picture still while the sensor keeps running saves nothing. `onDisappear` is not

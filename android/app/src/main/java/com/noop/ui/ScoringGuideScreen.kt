@@ -451,8 +451,7 @@ private fun ConfidenceCard() {
 @Composable
 private fun FooterNote() {
     Text(
-        uiString(R.string.l10n_scoring_guide_screen_these_are_independent_approximations_from_a_301457ed) +
-            "medical advice, and not WHOOP's official scores.",
+        uiString(R.string.l10n_scoring_guide_screen_these_are_independent_approximations_from_a_301457ed),
         style = NoopType.footnote,
         color = Palette.textTertiary,
         modifier = Modifier

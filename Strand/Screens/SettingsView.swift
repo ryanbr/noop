@@ -51,6 +51,11 @@ struct SettingsView: View {
     /// BLE sensor for Garmin/Zwift/gym kit. See [PuffinExperiment.broadcastHrKey]. (#181)
     @AppStorage(PuffinExperiment.broadcastHrKey) private var broadcastHrEnabled = false
 
+    /// WHOOP MG ECG ("Labrador") experiment. Unlocks the gated, user-initiated ECG probe on the Devices
+    /// card. Default off; with it off the four ECG opcodes are dropped by the command allowlist, so no
+    /// ECG byte can reach a strap. See [PuffinExperiment.ecgKey].
+    @AppStorage(PuffinExperiment.ecgKey) private var ecgEnabled = false
+
     /// Opt-in "Continuous HRV capture" (off by default) — holds the dense realtime stream armed 24/7 so
     /// the strap banks beat-to-beat R-R for better overnight HRV/recovery/sleep, at a battery cost.
     /// See [PuffinExperiment.keepRealtimeForDataKey].
@@ -58,9 +63,14 @@ struct SettingsView: View {
 
     /// #927 "Overnight only" refinement of Continuous HRV capture (off by default): arm the stream only
     /// inside the nightly quiet-hours window instead of 24/7. Composed with the base toggle (base on +
-    /// this off = ALWAYS, the pre-#927 behaviour) so existing users see no change and need no migration.
-    /// See [PuffinExperiment.continuousHrvOvernightOnlyKey].
-    @AppStorage(PuffinExperiment.continuousHrvOvernightOnlyKey) private var continuousHrvOvernightOnly = false
+    /// this off = ALWAYS, the pre-#927 behaviour); existing installs are pinned to OFF by
+    /// `PuffinExperiment.migrateContinuousHrvOvernightDefault()` at launch, so they still see no change.
+    ///
+    /// The `@AppStorage` default MUST match `PuffinExperiment.continuousHrvOvernightOnlyEnabled` (#1008).
+    /// They read the same key by different routes, so a mismatch shows the toggle OFF on a fresh install
+    /// while capture is actually overnight-only — and a user "correcting" that would write an explicit
+    /// false and get the 24/7 behaviour they were trying to avoid.
+    @AppStorage(PuffinExperiment.continuousHrvOvernightOnlyKey) private var continuousHrvOvernightOnly = true
 
     // #477 Power saving (parity with Android). Battery-adaptive sync cadence + an HRV-pause sub-option.
     @AppStorage(PuffinExperiment.powerSavingKey) private var powerSavingEnabled = false
@@ -109,8 +119,8 @@ struct SettingsView: View {
     // Card-surface opacity percent (100 = solid). Reactive — moving the slider live-updates every card.
     @AppStorage(CardAppearancePrefs.opacityKey) private var cardOpacityPercent = CardAppearancePrefs.defaultPercent
     // "Reduce motion in NOOP" (default OFF): pose every looping animation still and stop the decorative
-    // tilt sensor, without needing system Low Power Mode or system Reduce Motion. Mirrors Kotlin
-    // NoopPrefs.quietMotion.
+    // tilt sensor, without needing system Low Power Mode or system Reduce Motion. Apple-only so far —
+    // Android has no such toggle yet and its gate reads two signals, not three (#941).
     @AppStorage(QuietMotionPrefs.enabledKey) private var quietMotion = false
     // Hydration tracker (opt-in, MVP). Default OFF — when off the hydration dashboard card + detail are
     // hidden. Mirrors the Android pref so the toggle reads the same on both platforms.
@@ -159,6 +169,12 @@ struct SettingsView: View {
     /// macOS can "Reveal in Finder" after a share, mirroring the puffin-capture export.
     @State private var rawCsvBusy = false
     @State private var lastRawCsvURL: URL?
+
+    /// #646/#651: the "Export raw + log" button's zip build now runs off the main actor, so a second tap
+    /// mid-export would fire a second `exportPair` — two staged zips, two save panels / stacked share
+    /// sheets (see the `present(activityItems:)` #455 comment). Same disable-while-busy guard as
+    /// `rawCsvBusy` above.
+    @State private var rawAndLogBusy = false
 
     /// Passive WHOOP 5/MG optical experiment: the picker writes local timestamp markers into the
     /// durable deep-buffer JSONL. It never calls a BLE write path.
@@ -1557,23 +1573,31 @@ struct SettingsView: View {
                             .foregroundStyle(StrandPalette.textTertiary)
                     }
 
-                    // #174: the disable run's per-key result. Shown verbatim because the interesting part is
-                    // the read-back table, not a green tick — a write that acked SUCCESS but did not move
-                    // the stored value renders here as "unchanged", which is the case worth seeing.
-                    if let report = live.r22DisableReport {
-                        if report == BLEManager.deviceConfigProbeWaiting {
-                            Label("Clearing R22 flags and reading each one back\u{2026}", systemImage: "ellipsis")
-                                .font(StrandFont.caption)
-                                .foregroundStyle(StrandPalette.textSecondary)
-                        } else {
-                            Text(report)
-                                .font(StrandFont.caption.monospaced())
-                                .foregroundStyle(StrandPalette.textSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .textSelection(.enabled)
-                            NoopButton("Dismiss disable report", systemImage: "xmark", kind: .secondary) {
-                                model.ble.clearR22DisableReport()
-                            }
+                }
+
+                // #174: the disable run's per-key result. Shown verbatim because the interesting part is
+                // the read-back table, not a green tick — a write that acked SUCCESS but did not move
+                // the stored value renders here as "unchanged", which is the case worth seeing.
+                //
+                // OUTSIDE the `if deepDataEnabled` block on purpose. The commonest way to reach a disable
+                // run is flipping the switch OFF and confirming, which means the pref is already false while
+                // the run is walking its plan — so nesting this inside that block hid the progress line and
+                // the whole read-back table for exactly the run a user is most likely to start. The report
+                // is about what is on the STRAP, which outlives the app's opt-in: it stays legible (and
+                // dismissable) whatever the switch says.
+                if let report = live.r22DisableReport {
+                    if report == BLEManager.deviceConfigProbeWaiting {
+                        Label("Clearing R22 flags and reading each one back\u{2026}", systemImage: "ellipsis")
+                            .font(StrandFont.caption)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                    } else {
+                        Text(report)
+                            .font(StrandFont.caption.monospaced())
+                            .foregroundStyle(StrandPalette.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
+                        NoopButton("Dismiss disable report", systemImage: "xmark", kind: .secondary) {
+                            model.ble.clearR22DisableReport()
                         }
                     }
                 }
@@ -1602,6 +1626,42 @@ struct SettingsView: View {
                             .foregroundStyle(StrandPalette.statusWarning)
                             .accessibilityHidden(true)
                         Text("Broadcast HR is ON. Your strap is advertising its heart rate continuously, which keeps its radio hot and drains the battery faster. Turn it off when you're not using it with another device.")
+                            .font(StrandFont.caption)
+                            .foregroundStyle(StrandPalette.statusWarning)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityElement(children: .combine)
+                }
+
+                Divider().overlay(StrandPalette.hairline)
+
+                // MARK: WHOOP MG ECG (Labrador) — MG-only, writes ECG control commands. NOT medical.
+                Toggle(isOn: $ecgEnabled) {
+                    Text("WHOOP MG ECG capture (experimental)")
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textPrimary)
+                }
+                .toggleStyle(.switch)
+                .tint(StrandPalette.accent)
+                // Turning the switch off also tells the strap to stop, so a stream can't be left running
+                // by a user who simply flips the toggle back. `ecgStopCapture` is deliberately reachable
+                // with the opt-in already off (see BLEManager.ecgStopOverride). When the strap isn't a
+                // connected MG the send can't happen — the Devices "Stop" control then stays offered via
+                // `ecgMayBeRunning` so there is still a route once the link is back.
+                // `reportsResult: false`: switching a setting off must not pop the Devices result sheet.
+                .onChangeCompat(of: ecgEnabled) { on in if !on { model.ecgStopCapture(reportsResult: false) } }
+                Text("The WHOOP MG has ECG electrodes in its clasp. This unlocks a gated, hand-run probe on the Devices screen that asks the strap to start its ECG subsystem and logs whatever comes back. MG only — a plain WHOOP 5.0 has no electrodes, and NOOP will refuse to send unless your strap identifies itself as an MG. Nobody has confirmed a strap honours these commands, so it may simply do nothing. Turn on “Record puffin frames to a file” below first if you want a complete byte-level capture to share.")
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if ecgEnabled {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(StrandPalette.statusWarning)
+                            .accessibilityHidden(true)
+                        Text("NOOP is not a medical device and this is not an ECG test. Anything the strap reports here — including any heart-rhythm classification it happens to send — is unvalidated instrumentation for protocol research, not a measurement and not a diagnosis. Never use it to make a decision about your health. If you have symptoms or are worried about your heart, talk to a doctor.")
                             .font(StrandFont.caption)
                             .foregroundStyle(StrandPalette.statusWarning)
                             .fixedSize(horizontal: false, vertical: true)
@@ -1668,9 +1728,20 @@ struct SettingsView: View {
                     // One-tap "matched pair" export (#510): hands a reporter BOTH the raw capture file
                     // and the strap log together (timestamped, same minute) so a protocol-mapping issue
                     // arrives with the frames AND the context that produced them.
-                    NoopButton("Export raw + log", systemImage: "square.and.arrow.up.on.square", kind: .secondary) {
+                    Button {
                         exportRawAndLog()
+                    } label: {
+                        if rawAndLogBusy {
+                            HStack(spacing: NoopMetrics.space1 + 2) {
+                                ProgressView().controlSize(.small)
+                                Text("Exporting…")
+                            }
+                        } else {
+                            Label("Export raw + log", systemImage: "square.and.arrow.up.on.square")
+                        }
                     }
+                    .buttonStyle(NoopButtonStyle(.secondary))
+                    .disabled(rawAndLogBusy)
                     Text("Saves the raw capture and the strap log together as a matched pair. Attach both to a protocol-mapping issue.")
                         .font(StrandFont.caption)
                         .foregroundStyle(StrandPalette.textTertiary)
@@ -1840,6 +1911,11 @@ struct SettingsView: View {
     /// both stamped with the same `yyMMdd-HHmm` minute so they're obviously a pair. Reuses the existing
     /// export utilities — `FileExport.exportPair` shares both files in one iOS share sheet, and saves
     /// each via its own NSSavePanel on macOS (no new file plumbing).
+    ///
+    /// #646/#651: `exportPair` is now async (its file read + zip build run off the main actor), so this
+    /// launches it in a `Task` — the button action itself stays synchronous from the caller's perspective.
+    /// `rawAndLogBusy` disables the button for the duration: without it a second tap mid-export fires a
+    /// second `exportPair` (two staged zips, two save panels / stacked share sheets).
     private func exportRawAndLog() {
         model.ble.flushPuffinCaptures()
         guard let capture = live.puffinCaptureURL else {
@@ -1849,9 +1925,16 @@ struct SettingsView: View {
             return
         }
         let stamp = FileExport.timestamp()
-        FileExport.exportPair(
-            file: capture, fileSuggestedName: "noop-raw-capture-\(stamp).json",
-            text: live.exportableLogText(), textSuggestedName: "noop-strap-log-\(stamp).txt")
+        rawAndLogBusy = true
+        Task {
+            // `defer` so the flag is cleared on ANY exit (#961 follow-up), including cancellation. It
+            // cleared correctly before, but only because `exportPair` is non-throwing — the guard should
+            // not depend on that. Otherwise the button stays disabled behind a spinner that never stops.
+            defer { rawAndLogBusy = false }
+            await FileExport.exportPair(
+                file: capture, fileSuggestedName: "noop-raw-capture-\(stamp).json",
+                text: live.exportableLogText(), textSuggestedName: "noop-strap-log-\(stamp).txt")
+        }
     }
 
     #if os(macOS)
@@ -1919,6 +2002,21 @@ struct SettingsView: View {
                     Text("Importing overwrites everything currently on \(Platform.deviceNounPhrase). Your old data is kept in a side file just in case. NOOP needs a relaunch for an import to take effect. Export CSV writes a WHOOP-format zip of your days, sleeps, workouts and journal that re-imports into NOOP on Mac, iPhone, or Android. On-device computed rows are marked APPROXIMATE in its Source column; the full backup stays the lossless restore path.")
                         .font(StrandFont.footnote)
                         .foregroundStyle(StrandPalette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                // #644: .noopbak is a plain ZIP, not an encrypted container — anyone who gets the file
+                // can open it in any archive tool. Say so plainly next to the Export button, rather than
+                // let people assume the file itself is protected once it leaves the device (e.g. dropped
+                // into a cloud-synced folder).
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(StrandPalette.statusWarning)
+                        .font(.system(size: 13))
+                        .accessibilityHidden(true)
+                    Text("This is a plain, unencrypted archive — anyone who gets the file can open it with any zip tool. Store it somewhere you trust.")
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.statusWarning)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 

@@ -116,9 +116,19 @@ public struct CaffeineIntake: Codable, Equatable, Identifiable, Sendable {
     public let at: Date
     /// Amount in mg, if the user gave one. nil = "logged it, didn't say how much" — we never invent a number.
     public let mg: Double?
+    /// The Apple Health sample this came from, or nil when the user logged it here (#949).
+    ///
+    /// Optional so old stored JSON — which has no such field — still decodes, with every existing intake
+    /// correctly reading back as hand-logged. It carries the HealthKit sample UUID, which is what lets a
+    /// re-import recognise a drink it already knows rather than logging a second copy of it.
+    public let externalId: String?
 
-    public init(id: UUID = UUID(), at: Date, mg: Double? = nil) {
-        self.id = id; self.at = at; self.mg = mg
+    /// True when this came from Apple Health rather than from a tap in NOOP. Imported intakes are not
+    /// editable here — the app that logged the drink owns it.
+    public var isImported: Bool { externalId != nil }
+
+    public init(id: UUID = UUID(), at: Date, mg: Double? = nil, externalId: String? = nil) {
+        self.id = id; self.at = at; self.mg = mg; self.externalId = externalId
     }
 }
 
@@ -178,6 +188,14 @@ public struct CaffeineActiveEstimate: Equatable, Sendable {
 @MainActor
 public final class CaffeineLogStore: ObservableObject {
 
+    /// The process-wide store (#949).
+    ///
+    /// The card used to own its own instance, which was fine while every write came from the card
+    /// itself. The Apple Health import writes from outside it, and two instances over one UserDefaults
+    /// key would mean the card kept publishing its stale in-memory array until it was rebuilt — the
+    /// imported intakes would be on disk and invisible. One instance, one source of truth.
+    public static let shared = CaffeineLogStore()
+
     /// Logged intakes, newest first. Persisted as JSON under one UserDefaults key.
     @Published public private(set) var intakes: [CaffeineIntake] { didSet { save() } }
 
@@ -210,14 +228,39 @@ public final class CaffeineLogStore: ObservableObject {
         intakes = ([CaffeineIntake(at: date, mg: cleanMg)] + intakes).sorted { $0.at > $1.at }
     }
 
+    /// Replace every IMPORTED intake with `imported`, leaving hand-logged ones untouched (#949).
+    ///
+    /// Wholesale replacement rather than a merge, for the same reason the imported hydration row is
+    /// replaced rather than added to: the health store hands back the full window each time, so writing
+    /// it whole makes a re-import idempotent, and a drink deleted in the source app disappears here on
+    /// the next sync instead of being stranded. Retention pruning still happens on load.
+    public func replaceImported(_ imported: [CaffeineIntake]) {
+        let manual = intakes.filter { !$0.isImported }
+        let next = (manual + imported).sorted { $0.at > $1.at }
+        // Skip the write when nothing actually changed — `intakes` has a didSet that persists, and this
+        // runs on every sync, so an unconditional assignment would rewrite the JSON (and republish to
+        // every observing view) even on the overwhelmingly common no-op sync.
+        if next != intakes { intakes = next }
+    }
+
     /// Remove a logged intake (the user mis-logged / wants to clear it).
+    ///
+    /// Imported intakes are deliberately NOT removable: the next sync re-reads the same window from
+    /// Apple Health and would bring it straight back, so honouring the tap would be a lie. The UI does
+    /// not offer the control; this guard means a caller that tries anyway gets a no-op rather than an
+    /// entry that silently reappears.
     public func remove(_ id: UUID) {
+        guard let hit = intakes.first(where: { $0.id == id }), !hit.isImported else { return }
         intakes = intakes.filter { $0.id != id }
     }
 
-    /// Clear every logged intake.
+    /// Clear every HAND-LOGGED intake.
+    ///
+    /// Imported ones survive for the same reason `remove` refuses them (#949) — clearing them here would
+    /// only last until the next sync re-read the window, so the list would silently repopulate and the
+    /// button would look broken.
     public func clearAll() {
-        intakes = []
+        intakes = intakes.filter { $0.isImported }
     }
 
     /// The current "still active" estimate, computed from the logged intakes at `now()`.

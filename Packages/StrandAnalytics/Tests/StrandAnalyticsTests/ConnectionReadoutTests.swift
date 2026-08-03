@@ -93,6 +93,17 @@ final class ConnectionReadoutTests: XCTestCase {
         XCTAssertEqual(ConnectionReadout.uptimeLabel(taggedTail: tail, nowUnix: 5000), "not connected")
     }
 
+    /// #1020: the emitter appends a session duration, so the line the parser actually receives is no
+    /// longer the bare one above. Pinned because the two are edited independently — the suffix was added
+    /// on the strength of this match being a `contains`, and nothing was asserting that.
+    func testUptimeLabelDownWithASessionDuration() {
+        let tail = [
+            "[connection] connect up gen=1 latencyMs=420 uptimeStart=1000",
+            "[connection] connect down (uptime ends after 6.8s)",
+        ]
+        XCTAssertEqual(ConnectionReadout.uptimeLabel(taggedTail: tail, nowUnix: 5000), "not connected")
+    }
+
     func testUptimeLabelEmptyTail() {
         XCTAssertEqual(ConnectionReadout.uptimeLabel(taggedTail: [], nowUnix: 5000), "not connected")
     }

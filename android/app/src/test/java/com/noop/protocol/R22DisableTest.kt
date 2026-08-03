@@ -2,6 +2,7 @@ package com.noop.protocol
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -75,87 +76,173 @@ class R22DisableTest {
 
     @Test
     fun gateAdmitsOnlyOpcode120() {
-        val payload = byteArrayOf(0x01) + Whoop5Config.payloadBody("enable_r22_packets", 0x30)
+        val off = byteArrayOf(0x01) + Whoop5Config.payloadBody("enable_r22_packets", 0x30)
+        // Derived, never hardcoded: enable_r22_packets' enable value is '2', not '1' — the per-key values
+        // are exactly what this gate is about, so a literal here would be testing the wrong byte.
+        val onValue = FeatureFlagWriteGate.enableValue("enable_r22_packets")!!
+        val on = byteArrayOf(0x01) + Whoop5Config.payloadBody("enable_r22_packets", onValue)
         for (opcode in 0..255) {
             assertEquals(
-                "opcode $opcode admission",
+                "enable-direction opcode $opcode admission",
                 opcode == 120,
-                FeatureFlagWriteGate.admitsSend(opcode, payload, deepDataOptIn = true),
+                FeatureFlagWriteGate.admitsEnableWrite(opcode, on, deepDataOptIn = true),
+            )
+            assertEquals(
+                "disable-direction opcode $opcode admission",
+                opcode == 120,
+                FeatureFlagWriteGate.admitsDisableWrite(opcode, off, disableRunInFlight = true),
             )
         }
     }
 
     @Test
     fun gateRefusesDeviceConfigWriteVerb() {
-        val payload = byteArrayOf(0x01) + Whoop5Config.payloadBody("enable_r22_packets", 0x30)
+        val off = byteArrayOf(0x01) + Whoop5Config.payloadBody("enable_r22_packets", 0x30)
+        val onValue = FeatureFlagWriteGate.enableValue("enable_r22_packets")!!
+        val on = byteArrayOf(0x01) + Whoop5Config.payloadBody("enable_r22_packets", onValue)
         assertFalse(
             "119 keeps its own Broadcast-HR clause and must never be reachable from here",
-            FeatureFlagWriteGate.admitsSend(119, payload, deepDataOptIn = true),
+            FeatureFlagWriteGate.admitsEnableWrite(119, on, deepDataOptIn = true),
+        )
+        assertFalse(
+            "119 must be unreachable from the disable direction too",
+            FeatureFlagWriteGate.admitsDisableWrite(119, off, disableRunInFlight = true),
         )
     }
 
     @Test
-    fun gateRefusesEverythingWithoutTheOptIn() {
+    fun enableDirectionRefusesEverythingWithoutTheOptIn() {
         for (flag in Whoop5Config.enableR22Sequence) {
             for (value in listOf(flag.value, Whoop5Config.FEATURE_FLAG_OFF_VALUE)) {
                 val payload = byteArrayOf(0x01) + Whoop5Config.payloadBody(flag.name, value)
                 assertFalse(
                     "${flag.name}=$value must be refused with the opt-in off",
-                    FeatureFlagWriteGate.admitsSend(120, payload, deepDataOptIn = false),
+                    FeatureFlagWriteGate.admitsEnableWrite(120, payload, deepDataOptIn = false),
                 )
             }
         }
     }
 
     @Test
-    fun gateAdmitsEveryR22KeyForBothItsEnableValueAndOff() {
+    fun disableDirectionRefusesEverythingWithoutARunInFlight() {
         for (flag in Whoop5Config.enableR22Sequence) {
             for (value in listOf(flag.value, Whoop5Config.FEATURE_FLAG_OFF_VALUE)) {
                 val payload = byteArrayOf(0x01) + Whoop5Config.payloadBody(flag.name, value)
-                assertTrue(
-                    "${flag.name}=$value must be admitted",
-                    FeatureFlagWriteGate.admitsSend(120, payload, deepDataOptIn = true),
+                assertFalse(
+                    "${flag.name}=$value must be refused with no disable run walking its plan",
+                    FeatureFlagWriteGate.admitsDisableWrite(120, payload, disableRunInFlight = false),
                 )
             }
+        }
+    }
+
+    @Test
+    fun enableDirectionAdmitsEveryR22KeyAtItsOwnEnableValue() {
+        for (flag in Whoop5Config.enableR22Sequence) {
+            val payload = byteArrayOf(0x01) + Whoop5Config.payloadBody(flag.name, flag.value)
+            assertTrue(
+                "${flag.name}=${flag.value} must be admitted",
+                FeatureFlagWriteGate.admitsEnableWrite(120, payload, deepDataOptIn = true),
+            )
+        }
+    }
+
+    @Test
+    fun disableDirectionAdmitsEveryR22KeyAtTheOffValue() {
+        for (flag in Whoop5Config.enableR22Sequence) {
+            val payload = byteArrayOf(0x01) + Whoop5Config.payloadBody(flag.name, Whoop5Config.FEATURE_FLAG_OFF_VALUE)
+            assertTrue(
+                "${flag.name}='0' must be admitted while a run is in flight",
+                FeatureFlagWriteGate.admitsDisableWrite(120, payload, disableRunInFlight = true),
+            )
+        }
+    }
+
+    /**
+     * **The regression test for the defect this split fixes.** The Settings switch writes the preference
+     * false BEFORE it raises the confirmation dialog, so every off-value write reaches the send path with
+     * `deepDataOptIn == false` and the single old predicate refused all sixteen — the user tapped "Clear
+     * flags on strap" and nothing left the app. The disable direction must be admitted on the run alone.
+     */
+    @Test
+    fun offValueWritesAreAdmittedWithTheOptInOffWhileARunIsInFlight() {
+        for (flag in Whoop5Config.enableR22Sequence) {
+            val payload = byteArrayOf(0x01) + Whoop5Config.payloadBody(flag.name, Whoop5Config.FEATURE_FLAG_OFF_VALUE)
+            assertTrue(
+                "${flag.name}='0' must be admitted by the run gate — the opt-in is already false here",
+                FeatureFlagWriteGate.admitsDisableWrite(120, payload, disableRunInFlight = true),
+            )
+            assertFalse(
+                "and the enable direction must not be what admits it",
+                FeatureFlagWriteGate.admitsEnableWrite(120, payload, deepDataOptIn = false),
+            )
+        }
+    }
+
+    /** The two directions are disjoint on value, which is what makes "an off value on the wire means a
+     *  disable run is in flight" an exact invariant rather than an approximate one. */
+    @Test
+    fun theTwoDirectionsAreDisjointOnValue() {
+        for (flag in Whoop5Config.enableR22Sequence) {
+            val on = byteArrayOf(0x01) + Whoop5Config.payloadBody(flag.name, flag.value)
+            val off = byteArrayOf(0x01) + Whoop5Config.payloadBody(flag.name, Whoop5Config.FEATURE_FLAG_OFF_VALUE)
+            assertFalse(
+                "${flag.name}: the enable direction must not admit the off value",
+                FeatureFlagWriteGate.admitsEnableWrite(120, off, deepDataOptIn = true),
+            )
+            assertFalse(
+                "${flag.name}: the disable direction must not admit the enable value",
+                FeatureFlagWriteGate.admitsDisableWrite(120, on, disableRunInFlight = true),
+            )
         }
     }
 
     /** The tightening this gate exists for: before it, opcode 120 was admitted on the opt-in alone, so ANY
-     *  feature-flag key with ANY value could travel. Both halves of that are now closed. */
+     *  feature-flag key with ANY value could travel. Both halves are closed, in both directions. */
     @Test
     fun gateRefusesUnknownKeysAndUnknownValues() {
         for (key in listOf("general_ab_test", "enable_pdaf_walk_det", "enable_maverick_model", "enable_r22_v7_packets")) {
-            val payload = byteArrayOf(0x01) + Whoop5Config.payloadBody(key, 0x30)
-            assertFalse("$key is not an R22 key", FeatureFlagWriteGate.admitsSend(120, payload, deepDataOptIn = true))
+            val off = byteArrayOf(0x01) + Whoop5Config.payloadBody(key, 0x30)
+            val on = byteArrayOf(0x01) + Whoop5Config.payloadBody(key, 0x31)
+            assertFalse(
+                "$key is not an R22 key and must be refused even at the off value",
+                FeatureFlagWriteGate.admitsDisableWrite(120, off, disableRunInFlight = true),
+            )
+            assertFalse("$key is not an R22 key", FeatureFlagWriteGate.admitsEnableWrite(120, on, deepDataOptIn = true))
         }
         for (value in listOf(0x00, 0x29, 0x33, 0x39, 0x41, 0xFF)) {
             val payload = byteArrayOf(0x01) + Whoop5Config.payloadBody("enable_r22_packets", value)
             assertFalse(
-                "value 0x%02x is neither the enable nor the off value".format(value),
-                FeatureFlagWriteGate.admitsSend(120, payload, deepDataOptIn = true),
+                "value 0x%02x is not the enable value".format(value),
+                FeatureFlagWriteGate.admitsEnableWrite(120, payload, deepDataOptIn = true),
+            )
+            assertFalse(
+                "value 0x%02x is not the off value".format(value),
+                FeatureFlagWriteGate.admitsDisableWrite(120, payload, disableRunInFlight = true),
             )
         }
         // enable_r22_v4_packets' enable value is '1', so '2' must be refused for THAT key specifically.
         val wrongForV4 = byteArrayOf(0x01) + Whoop5Config.payloadBody("enable_r22_v4_packets", 0x32)
         assertFalse(
             "the admitted value is per-key, not a shared pair",
-            FeatureFlagWriteGate.admitsSend(120, wrongForV4, deepDataOptIn = true),
+            FeatureFlagWriteGate.admitsEnableWrite(120, wrongForV4, deepDataOptIn = true),
         )
     }
 
     @Test
     fun gateRefusesMalformedBodies() {
         val good = Whoop5Config.payloadBody("enable_r22_packets", 0x30)
-        assertFalse(FeatureFlagWriteGate.admitsSend(120, byteArrayOf(0x02) + good, deepDataOptIn = true))
-        assertFalse(FeatureFlagWriteGate.admitsSend(120, byteArrayOf(0x01) + good.copyOfRange(0, good.size - 1), deepDataOptIn = true))
-        assertFalse(FeatureFlagWriteGate.admitsSend(120, ByteArray(0), deepDataOptIn = true))
+        fun refusedBothWays(payload: ByteArray, why: String) {
+            assertFalse(why, FeatureFlagWriteGate.admitsEnableWrite(120, payload, deepDataOptIn = true))
+            assertFalse(why, FeatureFlagWriteGate.admitsDisableWrite(120, payload, disableRunInFlight = true))
+        }
+        refusedBothWays(byteArrayOf(0x02) + good, "wrong inner b3 byte")
+        refusedBothWays(byteArrayOf(0x01) + good.copyOfRange(0, good.size - 1), "truncated")
+        refusedBothWays(ByteArray(0), "empty")
         val dirty = good.copyOf(); dirty[25] = 0x41
-        assertFalse(
-            "a name field whose padding is not NUL is not a name field",
-            FeatureFlagWriteGate.admitsSend(120, byteArrayOf(0x01) + dirty, deepDataOptIn = true),
-        )
+        refusedBothWays(byteArrayOf(0x01) + dirty, "a name field whose padding is not NUL is not a name field")
         val binary = good.copyOf(); binary[3] = 0x01
-        assertFalse(FeatureFlagWriteGate.admitsSend(120, byteArrayOf(0x01) + binary, deepDataOptIn = true))
+        refusedBothWays(byteArrayOf(0x01) + binary, "binary in the name field")
     }
 
     @Test
@@ -335,6 +422,44 @@ class R22DisableTest {
         assertTrue(Whoop5Config.enableR22Sequence.any { it.name == R22DisableReport.PROBE_KEY })
     }
 
+    // Fail-closed when the probe key is absent --------------------------------------------------
+
+    /**
+     * A key list without the probe key used to plan a blanket sixteen-write and set probePassed = true.
+     * That is fail-open on the one write path whose entire safety argument is the probe: it would write an
+     * INFERRED value to every persistent flag without ever testing it on one, and record a passed gate for
+     * a probe that never ran. It must refuse instead.
+     */
+    @Test
+    fun aKeyListWithoutTheProbeKeyRefusesToWriteAnything() {
+        val r = R22DisableReport(listOf("enable_r22_packets", "enable_r22_v4_packets", "enable_r22_v5_packets"))
+        assertNull("no step may be planned without the probe key", r.nextStep())
+        assertFalse("probePassed must not record a probe that never ran", r.probePassed)
+        assertEquals(R22DisableReport.Verdict.PROBE_UNAVAILABLE, r.verdict)
+        for (key in r.keys) {
+            assertEquals("$key must be reported as skipped, not written", R22DisableReport.KeyOutcome.SKIPPED, r.outcomes[key])
+        }
+        assertTrue("the report must say nothing was sent", r.render().contains("REFUSED"))
+        assertNull(r.nextStep())
+    }
+
+    /** An empty key list is the degenerate case of the same thing. */
+    @Test
+    fun anEmptyKeyListRefusesToWriteAnything() {
+        val r = R22DisableReport(emptyList())
+        assertNull(r.nextStep())
+        assertFalse(r.probePassed)
+        assertEquals(R22DisableReport.Verdict.PROBE_UNAVAILABLE, r.verdict)
+    }
+
+    /** The shipped call sites are unaffected: the default key list contains the probe key. */
+    @Test
+    fun theDefaultKeyListStillPlansTheProbe() {
+        val r = R22DisableReport()
+        assertEquals(R22DisableReport.Stage.PROBE_WRITE, r.nextStep()?.stage)
+        assertNotEquals(R22DisableReport.Verdict.PROBE_UNAVAILABLE, r.verdict)
+    }
+
     /** Cross-platform parity: the Swift and Kotlin reports must render the same verdict labels, or a
      *  shared strap log reads differently on the two platforms. */
     @Test
@@ -343,6 +468,7 @@ class R22DisableTest {
         assertEquals("partial", R22DisableReport.Verdict.PARTIAL.label)
         assertEquals("offValueRejected", R22DisableReport.Verdict.OFF_VALUE_REJECTED.label)
         assertEquals("probeInconclusive", R22DisableReport.Verdict.PROBE_INCONCLUSIVE.label)
+        assertEquals("probeUnavailable", R22DisableReport.Verdict.PROBE_UNAVAILABLE.label)
         assertEquals("abandoned", R22DisableReport.Verdict.ABANDONED.label)
         assertEquals("cleared", R22DisableReport.KeyOutcome.CLEARED.label)
         assertEquals("unset", R22DisableReport.KeyOutcome.UNSET.label)

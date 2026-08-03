@@ -403,12 +403,12 @@ fun StatePill(
 @Composable
 fun SourceBadge(text: String, tint: Color = Palette.accent, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(50)
-    Text(
-        text = text.uppercase(),
-        style = NoopType.overline.copy(fontSize = 10.sp, letterSpacing = 0.5.sp),
-        color = tint,
-        maxLines = 1,                          // #74: e.g. "ON-DEVICE" stays on one line, never wraps the hero
-        overflow = TextOverflow.Ellipsis,
+    Box(
+        // The pill itself. The label used to BE this node, with `heightIn` pinning it to 18.dp — and a
+        // 10.sp line box is ~13.dp, so the ~5.dp of slack all fell below the text and pushed it upward.
+        // SwiftUI's twin uses `.frame(height:)`, which centres by default, so the two platforms drew the
+        // same badge differently. A Box that owns the height and centres its content matches iOS and
+        // keeps the label centred at any font scale.
         modifier = modifier
             // Preserve the canonical compact height at the default font scale, but grow instead of clipping
             // when Android's font scaling makes the single-line label taller.
@@ -417,7 +417,16 @@ fun SourceBadge(text: String, tint: Color = Palette.accent, modifier: Modifier =
             .background(tint.copy(alpha = 0.14f))
             .border(1.dp, tint.copy(alpha = 0.30f), shape)
             .padding(horizontal = Metrics.space8),
-    )
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text.uppercase(),
+            style = NoopType.overline.copy(fontSize = 10.sp, letterSpacing = 0.5.sp),
+            color = tint,
+            maxLines = 1,                      // #74: e.g. "ON-DEVICE" stays on one line, never wraps the hero
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
 }
 
 // MARK: - TrendChip — a small tinted delta pill with a direction arrow.

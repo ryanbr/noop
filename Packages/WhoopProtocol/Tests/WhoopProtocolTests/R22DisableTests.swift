@@ -64,75 +64,134 @@ final class R22DisableTests: XCTestCase {
     // MARK: - The write gate
 
     func testGateAdmitsOnlyOpcode120() {
-        let payload = [0x01] + Whoop5Config.payloadBody(name: "enable_r22_packets", value: 0x30)
+        let off = [0x01] + Whoop5Config.payloadBody(name: "enable_r22_packets", value: 0x30)
+        // Derived, never hardcoded: enable_r22_packets' enable value is '2', not '1' — the per-key values
+        // are exactly what this gate is about, so a literal here would be testing the wrong byte.
+        let onValue = FeatureFlagWriteGate.enableValue(for: "enable_r22_packets")!
+        let on = [0x01] + Whoop5Config.payloadBody(name: "enable_r22_packets", value: onValue)
         for opcode in UInt8.min...UInt8.max {
-            let admitted = FeatureFlagWriteGate.admitsSend(opcode: opcode, payload: payload, deepDataOptIn: true)
-            XCTAssertEqual(admitted, opcode == 120, "opcode \(opcode) admission")
+            XCTAssertEqual(FeatureFlagWriteGate.admitsEnableWrite(opcode: opcode, payload: on, deepDataOptIn: true),
+                           opcode == 120, "enable-direction opcode \(opcode) admission")
+            XCTAssertEqual(FeatureFlagWriteGate.admitsDisableWrite(opcode: opcode, payload: off, disableRunInFlight: true),
+                           opcode == 120, "disable-direction opcode \(opcode) admission")
         }
     }
 
     func testGateRefusesDeviceConfigWriteVerb() {
-        let payload = [0x01] + Whoop5Config.payloadBody(name: "enable_r22_packets", value: 0x30)
-        XCTAssertFalse(FeatureFlagWriteGate.admitsSend(opcode: 119, payload: payload, deepDataOptIn: true),
+        let off = [0x01] + Whoop5Config.payloadBody(name: "enable_r22_packets", value: 0x30)
+        // Derived, never hardcoded: enable_r22_packets' enable value is '2', not '1' — the per-key values
+        // are exactly what this gate is about, so a literal here would be testing the wrong byte.
+        let onValue = FeatureFlagWriteGate.enableValue(for: "enable_r22_packets")!
+        let on = [0x01] + Whoop5Config.payloadBody(name: "enable_r22_packets", value: onValue)
+        XCTAssertFalse(FeatureFlagWriteGate.admitsEnableWrite(opcode: 119, payload: on, deepDataOptIn: true),
                        "119 keeps its own Broadcast-HR clause and must never be reachable from here")
+        XCTAssertFalse(FeatureFlagWriteGate.admitsDisableWrite(opcode: 119, payload: off, disableRunInFlight: true),
+                       "119 must be unreachable from the disable direction too")
     }
 
-    func testGateRefusesEverythingWithoutTheOptIn() {
+    func testEnableDirectionRefusesEverythingWithoutTheOptIn() {
         for flag in Whoop5Config.enableR22Sequence {
             for value in [flag.value, Whoop5Config.featureFlagOffValue] {
                 let payload = [0x01] + Whoop5Config.payloadBody(name: flag.name, value: value)
-                XCTAssertFalse(FeatureFlagWriteGate.admitsSend(opcode: 120, payload: payload, deepDataOptIn: false),
+                XCTAssertFalse(FeatureFlagWriteGate.admitsEnableWrite(opcode: 120, payload: payload, deepDataOptIn: false),
                                "\(flag.name)=\(value) must be refused with the opt-in off")
             }
         }
     }
 
-    func testGateAdmitsEveryR22KeyForBothItsEnableValueAndOff() {
+    func testDisableDirectionRefusesEverythingWithoutARunInFlight() {
         for flag in Whoop5Config.enableR22Sequence {
             for value in [flag.value, Whoop5Config.featureFlagOffValue] {
                 let payload = [0x01] + Whoop5Config.payloadBody(name: flag.name, value: value)
-                XCTAssertTrue(FeatureFlagWriteGate.admitsSend(opcode: 120, payload: payload, deepDataOptIn: true),
-                              "\(flag.name)=\(value) must be admitted")
+                XCTAssertFalse(FeatureFlagWriteGate.admitsDisableWrite(opcode: 120, payload: payload, disableRunInFlight: false),
+                               "\(flag.name)=\(value) must be refused with no disable run walking its plan")
             }
         }
     }
 
+    func testEnableDirectionAdmitsEveryR22KeyAtItsOwnEnableValue() {
+        for flag in Whoop5Config.enableR22Sequence {
+            let payload = [0x01] + Whoop5Config.payloadBody(name: flag.name, value: flag.value)
+            XCTAssertTrue(FeatureFlagWriteGate.admitsEnableWrite(opcode: 120, payload: payload, deepDataOptIn: true),
+                          "\(flag.name)=\(flag.value) must be admitted")
+        }
+    }
+
+    func testDisableDirectionAdmitsEveryR22KeyAtTheOffValue() {
+        for flag in Whoop5Config.enableR22Sequence {
+            let payload = [0x01] + Whoop5Config.payloadBody(name: flag.name, value: Whoop5Config.featureFlagOffValue)
+            XCTAssertTrue(FeatureFlagWriteGate.admitsDisableWrite(opcode: 120, payload: payload, disableRunInFlight: true),
+                          "\(flag.name)='0' must be admitted while a run is in flight")
+        }
+    }
+
+    /// **The regression test for the defect this split fixes.** The Settings switch is `@AppStorage`-bound,
+    /// so flipping it OFF writes the pref false BEFORE the confirmation dialog is raised. Every off-value
+    /// write therefore reaches the send path with `deepDataOptIn == false`, and the single old predicate
+    /// refused all sixteen — the user tapped "Clear flags on strap" and nothing left the app. The disable
+    /// direction must be admitted on the run alone, with the opt-in off.
+    func testOffValueWritesAreAdmittedWithTheOptInOffWhileARunIsInFlight() {
+        for flag in Whoop5Config.enableR22Sequence {
+            let payload = [0x01] + Whoop5Config.payloadBody(name: flag.name, value: Whoop5Config.featureFlagOffValue)
+            XCTAssertTrue(FeatureFlagWriteGate.admitsDisableWrite(opcode: 120, payload: payload, disableRunInFlight: true),
+                          "\(flag.name)='0' must be admitted by the run gate — the opt-in is already false here")
+            XCTAssertFalse(FeatureFlagWriteGate.admitsEnableWrite(opcode: 120, payload: payload, deepDataOptIn: false),
+                           "and the enable direction must not be what admits it")
+        }
+    }
+
+    /// The two directions are disjoint on value, which is what makes "an off value on the wire means a
+    /// disable run is in flight" an exact invariant rather than an approximate one.
+    func testTheTwoDirectionsAreDisjointOnValue() {
+        for flag in Whoop5Config.enableR22Sequence {
+            let on = [0x01] + Whoop5Config.payloadBody(name: flag.name, value: flag.value)
+            let off = [0x01] + Whoop5Config.payloadBody(name: flag.name, value: Whoop5Config.featureFlagOffValue)
+            XCTAssertFalse(FeatureFlagWriteGate.admitsEnableWrite(opcode: 120, payload: off, deepDataOptIn: true),
+                           "\(flag.name): the enable direction must not admit the off value")
+            XCTAssertFalse(FeatureFlagWriteGate.admitsDisableWrite(opcode: 120, payload: on, disableRunInFlight: true),
+                           "\(flag.name): the disable direction must not admit the enable value")
+        }
+    }
+
     /// The tightening this gate exists for: before it, opcode 120 was admitted on the opt-in alone, so ANY
-    /// feature-flag key with ANY value could travel. Both halves of that are now closed.
+    /// feature-flag key with ANY value could travel. Both halves of that are closed, in both directions.
     func testGateRefusesUnknownKeysAndUnknownValues() {
         for key in ["general_ab_test", "enable_pdaf_walk_det", "enable_maverick_model", "enable_r22_v7_packets"] {
-            let payload = [0x01] + Whoop5Config.payloadBody(name: key, value: 0x30)
-            XCTAssertFalse(FeatureFlagWriteGate.admitsSend(opcode: 120, payload: payload, deepDataOptIn: true),
+            let off = [0x01] + Whoop5Config.payloadBody(name: key, value: 0x30)
+            let on = [0x01] + Whoop5Config.payloadBody(name: key, value: 0x31)
+            XCTAssertFalse(FeatureFlagWriteGate.admitsDisableWrite(opcode: 120, payload: off, disableRunInFlight: true),
+                           "\(key) is not an R22 key and must be refused even at the off value")
+            XCTAssertFalse(FeatureFlagWriteGate.admitsEnableWrite(opcode: 120, payload: on, deepDataOptIn: true),
                            "\(key) is not an R22 key and must be refused")
         }
         for value: UInt8 in [0x00, 0x29, 0x33, 0x39, 0x41, 0xFF] {
             let payload = [0x01] + Whoop5Config.payloadBody(name: "enable_r22_packets", value: value)
-            XCTAssertFalse(FeatureFlagWriteGate.admitsSend(opcode: 120, payload: payload, deepDataOptIn: true),
-                           "value 0x\(String(format: "%02x", value)) is neither the enable nor the off value")
+            XCTAssertFalse(FeatureFlagWriteGate.admitsEnableWrite(opcode: 120, payload: payload, deepDataOptIn: true),
+                           "value 0x\(String(format: "%02x", value)) is not the enable value")
+            XCTAssertFalse(FeatureFlagWriteGate.admitsDisableWrite(opcode: 120, payload: payload, disableRunInFlight: true),
+                           "value 0x\(String(format: "%02x", value)) is not the off value")
         }
         // enable_r22_v4_packets' enable value is '1', so '2' must be refused for THAT key specifically.
         let wrongForV4 = [0x01] + Whoop5Config.payloadBody(name: "enable_r22_v4_packets", value: 0x32)
-        XCTAssertFalse(FeatureFlagWriteGate.admitsSend(opcode: 120, payload: wrongForV4, deepDataOptIn: true),
+        XCTAssertFalse(FeatureFlagWriteGate.admitsEnableWrite(opcode: 120, payload: wrongForV4, deepDataOptIn: true),
                        "the admitted value is per-key, not a shared pair")
     }
 
     func testGateRefusesMalformedBodies() {
         let good = Whoop5Config.payloadBody(name: "enable_r22_packets", value: 0x30)
-        // Wrong inner b3 byte.
-        XCTAssertFalse(FeatureFlagWriteGate.admitsSend(opcode: 120, payload: [0x02] + good, deepDataOptIn: true))
-        // Truncated.
-        XCTAssertFalse(FeatureFlagWriteGate.admitsSend(opcode: 120, payload: [0x01] + good.dropLast(1), deepDataOptIn: true))
-        // Empty.
-        XCTAssertFalse(FeatureFlagWriteGate.admitsSend(opcode: 120, payload: [], deepDataOptIn: true))
-        // Non-NUL padding after the name.
+        func refusedBothWays(_ payload: [UInt8], _ why: String) {
+            XCTAssertFalse(FeatureFlagWriteGate.admitsEnableWrite(opcode: 120, payload: payload, deepDataOptIn: true), why)
+            XCTAssertFalse(FeatureFlagWriteGate.admitsDisableWrite(opcode: 120, payload: payload, disableRunInFlight: true), why)
+        }
+        refusedBothWays([0x02] + good, "wrong inner b3 byte")
+        refusedBothWays([0x01] + good.dropLast(1), "truncated")
+        refusedBothWays([], "empty")
         var dirty = good
         dirty[25] = 0x41
-        XCTAssertFalse(FeatureFlagWriteGate.admitsSend(opcode: 120, payload: [0x01] + dirty, deepDataOptIn: true),
-                       "a name field whose padding is not NUL is not a name field")
-        // Binary in the name field.
+        refusedBothWays([0x01] + dirty, "a name field whose padding is not NUL is not a name field")
         var binary = good
         binary[3] = 0x01
-        XCTAssertFalse(FeatureFlagWriteGate.admitsSend(opcode: 120, payload: [0x01] + binary, deepDataOptIn: true))
+        refusedBothWays([0x01] + binary, "binary in the name field")
     }
 
     func testKeyAndValueRoundTripsEveryR22Key() {
@@ -316,5 +375,40 @@ final class R22DisableTests: XCTestCase {
     func testProbeKeyIsTheOneWithAHardwareWriteDemonstration() {
         XCTAssertEqual(R22DisableReport.probeKey, "enable_sig12")
         XCTAssertTrue(Whoop5Config.enableR22Sequence.contains { $0.name == R22DisableReport.probeKey })
+    }
+
+    // MARK: - Fail-closed when the probe key is absent
+
+    /// A key list without the probe key used to plan a blanket sixteen-write and set `probePassed = true`.
+    /// That is fail-open on the one write path whose entire safety argument is the probe: it would write an
+    /// INFERRED value to every persistent flag without ever testing it on one, and record a passed gate for
+    /// a probe that never ran. It must refuse instead.
+    func testAKeyListWithoutTheProbeKeyRefusesToWriteAnything() {
+        var r = R22DisableReport(keys: ["enable_r22_packets", "enable_r22_v4_packets", "enable_r22_v5_packets"])
+        XCTAssertNil(r.nextStep(), "no step may be planned without the probe key")
+        XCTAssertFalse(r.probePassed, "probePassed must not record a probe that never ran")
+        XCTAssertEqual(r.verdict, .probeUnavailable)
+        for key in r.keys {
+            XCTAssertEqual(r.outcomes[key], .skipped, "\(key) must be reported as skipped, not written")
+        }
+        XCTAssertTrue(r.render().contains("REFUSED"), "the report must say nothing was sent")
+        // And it stays refused: a second call must not fall through to a plan either.
+        XCTAssertNil(r.nextStep())
+    }
+
+    /// An empty key list is the degenerate case of the same thing.
+    func testAnEmptyKeyListRefusesToWriteAnything() {
+        var r = R22DisableReport(keys: [])
+        XCTAssertNil(r.nextStep())
+        XCTAssertFalse(r.probePassed)
+        XCTAssertEqual(r.verdict, .probeUnavailable)
+    }
+
+    /// The shipped call sites are unaffected: the default key list contains the probe key, so the staged
+    /// run still plans its probe pair first.
+    func testTheDefaultKeyListStillPlansTheProbe() {
+        var r = R22DisableReport()
+        XCTAssertEqual(r.nextStep()?.stage, .probeWrite)
+        XCTAssertNotEqual(r.verdict, .probeUnavailable)
     }
 }

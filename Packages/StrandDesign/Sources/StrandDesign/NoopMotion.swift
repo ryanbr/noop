@@ -75,7 +75,13 @@ public enum NoopMotion {
 
 /// "Reduce motion in NOOP" (opt-in, default OFF): pose every looping animation still and stop the
 /// decorative motion sensor, without requiring system Low Power Mode or system Reduce Motion.
-/// Toggled from Settings → Appearance. Mirror in Kotlin via `NoopPrefs.quietMotion`.
+/// Toggled from Settings → Appearance.
+///
+/// **Apple-only for now — there is no Kotlin twin yet, and no parity to claim.** Android's
+/// `rememberPoseStill()` reads two signals (system Reduce Motion ‖ battery saver); this third one is
+/// tracked as #941. The KEY STRING is the cross-platform contract, so it is fixed here and Android must
+/// adopt `"noop.quietMotion"` verbatim when it lands — a `.noopbak` round-trip carries the setting by
+/// key, not by symbol name.
 public enum QuietMotionPrefs {
     /// The `@AppStorage` / `UserDefaults` key shared by the Settings toggle and `NoopMotionState`.
     public static let enabledKey = "noop.quietMotion"

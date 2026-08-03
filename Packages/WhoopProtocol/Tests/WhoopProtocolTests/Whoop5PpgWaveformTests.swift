@@ -9,7 +9,7 @@ import XCTest
 /// the concatenated waveform's autocorrelation peaks at the heart rate (lag 14 = 102.9 bpm vs a measured
 /// 101.7 bpm), trough-detection gives a 563 ms inter-beat interval (≈106 bpm), the pulse stays HR-locked
 /// even when the wrist is still, and its amplitude is not motion-driven. See
-/// `tools/linux-capture/analyze_v26_waveform.py` and `BLE_REVERSE_ENGINEERING.md` §5.
+/// `Tools/linux-capture/analyze_v26_waveform.py` and `BLE_REVERSE_ENGINEERING.md` §5.
 ///
 /// Samples are raw AC-coupled ADC counts — PPG has no absolute unit — so they are exposed verbatim with
 /// no invented scale. Real type-47 frames carry no device name / serial / token, so the fixture is real.

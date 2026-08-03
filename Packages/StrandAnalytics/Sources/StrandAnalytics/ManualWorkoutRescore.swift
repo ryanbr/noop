@@ -42,14 +42,22 @@ public enum ManualWorkoutRescore {
     /// Recompute avg/peak HR, strain and calories from `windowSamples` (the HR now stored for the
     /// workout's [start, end]). Returns nil when there are too few samples to score meaningfully — i.e.
     /// nothing better than what we already had.
-    public static func scored(windowSamples: [HRSample], profile: UserProfile, hrMax: Double) -> Scored? {
+    /// `restingHR` is the wearer's MEASURED resting HR (#950): the strain %HRR denominator needs it, and the
+    /// calories model's active-vs-resting threshold sits at resting + 30% HRR, and both used to silently fall back to a hardcoded 60 here while the
+    /// DAY total was scored against the measured value — so a fit wearer's workout was systematically
+    /// under-scored relative to the very day it sat in. nil keeps the old default (a cold start with no
+    /// measured resting yet), so existing callers are byte-identical until they thread one.
+    public static func scored(windowSamples: [HRSample], profile: UserProfile, hrMax: Double,
+                              restingHR: Double? = nil) -> Scored? {
         guard windowSamples.count >= 2 else { return nil }
         let bpms = windowSamples.map(\.bpm)
         let avg = Int((Double(bpms.reduce(0, +)) / Double(bpms.count)).rounded())
         let peak = bpms.max() ?? 0
-        let strain = StrainScorer.strain(windowSamples, maxHR: hrMax, sex: profile.sex)
+        let strain = StrainScorer.strain(windowSamples, maxHR: hrMax,
+                                         restingHR: restingHR ?? StrainScorer.defaultRestingHR,
+                                         sex: profile.sex)
         let kcalRaw = Calories.estimateBoutCalories(windowSamples, profile: profile,
-                                                    hrmax: hrMax, restingHR: nil).0
+                                                    hrmax: hrMax, restingHR: restingHR).0
         return Scored(avgHr: avg, maxHr: peak, strain: strain, kcal: kcalRaw > 0 ? kcalRaw : nil)
     }
 

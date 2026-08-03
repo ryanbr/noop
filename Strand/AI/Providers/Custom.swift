@@ -3,7 +3,7 @@ import Foundation
 /// A generic OpenAI-compatible provider pointed at a user-set base URL — e.g. a local LLM server such
 /// as Ollama, LM Studio or llama.cpp (`http://localhost:11434/v1`), or any self-hosted gateway. Speaks
 /// the OpenAI chat-completions wire format against `AIProvider.custom` endpoints. The API key is
-/// optional — local servers usually need none — so the `Authorization` header is sent only when set.
+/// optional — local servers usually need none — so the configured auth header is sent only when set.
 struct CustomClient: AIProviderClient {
 
     func send(
@@ -61,25 +61,37 @@ struct CustomClient: AIProviderClient {
         try AIProvider.guardCustomBaseURL()   // #321: reject a public cleartext Custom URL before egress
         var req = URLRequest(url: AIProvider.custom.modelsEndpoint)
         req.httpMethod = "GET"
-        if !key.isEmpty { req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization") }
+        AIProvider.applyCustomAuthHeader(key, to: &req)
 
         return parseModels(try await performRequest(req, session: session))
     }
 
-    /// Pure: unwrap an OpenAI-compatible `/models` body into ids. Unlike OpenAI we keep *all* ids —
-    /// a local server names models freely (`llama3.1`, `qwen2.5`, …). No network — unit-tested.
+    /// Pure: unwrap an OpenAI-compatible `/models` body into ids. Unlike OpenAI we keep *all* ids.
+    /// Some enterprise gateways return a catalog (`catalog[].models`) rather than `data[].id`; keep
+    /// those ids too so users do not have to type every supported model by hand.
     func parseModels(_ json: [String: Any]) -> [String] {
-        guard let list = json["data"] as? [[String: Any]] else { return [] }
-        return list.compactMap { row in
-            guard let id = row["id"] as? String, !id.isEmpty else { return nil }
-            return id
+        if let list = json["data"] as? [[String: Any]] {
+            return list.compactMap { row in
+                guard let id = row["id"] as? String, !id.isEmpty else { return nil }
+                return id
+            }
+        }
+        guard let catalog = json["catalog"] as? [[String: Any]] else { return [] }
+        var seen = Set<String>()
+        return catalog.flatMap { row -> [String] in
+            guard let models = row["models"] as? [String] else { return [] }
+            return models.filter { !$0.isEmpty }
+        }.filter { id in
+            if seen.contains(id) { return false }
+            seen.insert(id)
+            return true
         }
     }
 
     // MARK: Private
 
     /// `modernParams`: use `max_completion_tokens`, drop `temperature` — for gateways fronting
-    /// reasoning models. The `Authorization` header is omitted when `key` is empty (local servers).
+    /// reasoning models. The auth header is omitted when `key` is empty (local servers).
     private func chat(
         key: String,
         model: String,
@@ -97,7 +109,7 @@ struct CustomClient: AIProviderClient {
 
         var req = URLRequest(url: AIProvider.custom.endpoint)
         req.httpMethod = "POST"
-        if !key.isEmpty { req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization") }
+        AIProvider.applyCustomAuthHeader(key, to: &req)
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
 

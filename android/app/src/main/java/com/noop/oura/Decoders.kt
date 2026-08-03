@@ -242,9 +242,21 @@ object OuraDecoders {
     // MARK: - SpO2 per-sample (0x6F; s6.5)
 
     /**
-     * Decode the 0x6F spo2_event: byte6 bits [7:4]=SpO2 base (<<7), [3:0]=status flag; then one
+     * Decode the 0x6F spo2_event: byte6 bits [7:4]=SpO2 base/status field, [3:0]=status flag; then one
      * uint8 SpO2 value per second from byte7 onward (optional 0xFF terminator). Per OURA_PROTOCOL.md
      * s6.5. Returns null on a short body.
+     *
+     * UNIT TAG: these samples carry the default `unit = "raw"`, which is a legacy CHANNEL label, not a
+     * claim about the quantity — 0x6F is a firmware-computed PERCENTAGE (s6.5, corroborated by
+     * open_oura), unlike 0x77 which really is a raw DC channel and tags itself `"dc_raw"`. The string is
+     * deliberately left alone: it is a persisted column, no consumer branches on it, and rewriting it
+     * would split stored history across two spellings of the same channel for a cosmetic gain. Swift
+     * `OuraDecoders.decodeSpO2PerSample` matches exactly.
+     *
+     * s6.5 also records an OPEN ISSUE: ~47% of decoded 0x6F samples exceed 100%, which no ground truth
+     * yet explains, so no offset is applied here — a guessed calibration would be worse than the gap.
+     * These land in the RAW channel (`Spo2Sample.red`), never in a percentage field, so an impossible
+     * value is not surfaced as a Blood Oxygen reading.
      */
     fun decodeSpO2PerSample(rec: OuraRecord): List<OuraSpO2>? {
         val b = rec.payload

@@ -48,12 +48,67 @@ enum PuffinExperiment {
     /// only inside the nightly window (the reused quiet-hours window convention: minutes since local
     /// midnight, wrap-aware, 22:00 to 07:00 by default) instead of 24/7, roughly halving the battery
     /// cost. Composed with the base toggle so existing users need no migration: base on + this off reads
-    /// ALWAYS (the pre-#927 behaviour). Default OFF. Read by BLEManager at EVERY arm site (re-derived at
+    /// ALWAYS (the pre-#927 behaviour). Defaults ON for fresh installs, OFF once Continuous HRV has been
+    /// used (#1008) — see below. Read by BLEManager at EVERY arm site (re-derived at
     /// arm time, never precomputed; see ContinuousHrvSchedule). Mirrors the Android
     /// `NoopPrefs.KEY_CONTINUOUS_HRV_OVERNIGHT`.
     static let continuousHrvOvernightOnlyKey = "noopContinuousHrvOvernightOnly"
 
-    static var continuousHrvOvernightOnlyEnabled: Bool { UserDefaults.standard.bool(forKey: continuousHrvOvernightOnlyKey) }
+    /// Defaults to ON for anyone who has never touched Continuous HRV, and to OFF for anyone who has
+    /// (#1008). WHOOP publishes no daytime HRV figure at all — its reading is an overnight one — so a
+    /// 24/7 stream has no official-app analogue, and overnight-only roughly halves the battery cost.
+    /// Making the cheaper, WHOOP-comparable behaviour the default is the point; the expensive one stays
+    /// a deliberate choice.
+    ///
+    /// `UserDefaults.bool(forKey:)` cannot express this on its own: it returns `false` for a missing key,
+    /// which is indistinguishable from an explicit off. The unset case is therefore resolved from whether
+    /// `keepRealtimeForDataKey` exists, rather than by writing a migration — the only thing that must not
+    /// happen is silently narrowing capture for someone already relying on it. Twin of the Android
+    /// `NoopPrefs.continuousHrvOvernight`.
+    static var continuousHrvOvernightOnlyEnabled: Bool {
+        UserDefaults.standard.object(forKey: continuousHrvOvernightOnlyKey) as? Bool ?? true
+    }
+
+    /// One-time migration for the #1008 default flip. Called once at launch, BEFORE anything reads the
+    /// setting, and before the user can reach the toggle.
+    ///
+    /// The default moved from OFF to ON, so an install that predates the change has to be pinned to OFF
+    /// explicitly or it would be silently narrowed to overnight-only capture — removing daytime data the
+    /// user opted in for. "Predates the change" is read as "has ever toggled Continuous HRV", i.e. the
+    /// base key exists.
+    ///
+    /// Deciding this at READ time instead does not work, and the way it fails is worth recording: the
+    /// discriminator would be the base key, which the user's own opt-in creates — so a fresh install
+    /// would default to ON and then flip to OFF the moment they enabled Continuous HRV, the exact
+    /// opposite of the intent.
+    ///
+    /// A `@AppStorage` `onChange` hook cannot substitute for this either: `@AppStorage` writes the value
+    /// BEFORE the handler runs, so by then a first-ever toggle is indistinguishable from any other.
+    ///
+    /// Idempotent: writes only when the overnight key is absent and the base key is present.
+    /// Twin of the Android `NoopPrefs.migrateContinuousHrvOvernightDefault`.
+    static func migrateContinuousHrvOvernightDefault() {
+        let defaults = UserDefaults.standard
+        guard shouldPinLegacyOvernightDefault(
+            hasOvernightChoice: defaults.object(forKey: continuousHrvOvernightOnlyKey) != nil,
+            hasUsedContinuousHrv: defaults.object(forKey: keepRealtimeForDataKey) != nil) else { return }
+        defaults.set(false, forKey: continuousHrvOvernightOnlyKey)
+    }
+
+    /// The migration's decision, lifted out so it is testable without touching `UserDefaults`. Twin of
+    /// the Android `NoopPrefs.shouldPinLegacyOvernightDefault`.
+    ///
+    /// Pin the OLD default only for an install that has used Continuous HRV and never chose an overnight
+    /// setting. Everything else is left alone.
+    ///
+    /// Note what this is NOT keyed on: the READ. An earlier attempt resolved the default at read time
+    /// from `hasUsedContinuousHrv`, which the user's own opt-in creates — so a fresh install read ON and
+    /// then flipped to OFF the moment Continuous HRV was enabled. Running the decision once at launch is
+    /// what makes the answer stable.
+    static func shouldPinLegacyOvernightDefault(hasOvernightChoice: Bool,
+                                                hasUsedContinuousHrv: Bool) -> Bool {
+        !hasOvernightChoice && hasUsedContinuousHrv
+    }
 
     // MARK: - Power saving (#477), parity with Android NoopPrefs
 
@@ -146,6 +201,19 @@ enum PuffinExperiment {
 
     static var motionAwareWakeEnabled: Bool { UserDefaults.standard.bool(forKey: motionAwareWakeKey) }
 
+    /// Opt-in "WHOOP MG ECG (experimental)": unlock the gated, user-initiated ECG ("Labrador") probe that
+    /// asks an MG strap to start its ECG subsystem. Default OFF, and OFF is not merely the default — with
+    /// this key false the four ECG opcodes are dropped by the BLEManager allowlist, so no ECG byte can
+    /// reach a strap on a normal install. Additionally gated on a POSITIVELY identified MG
+    /// (`Whoop5Variant.mg`): a plain 5.0 has no electrodes and a 4.0 has neither the hardware nor the
+    /// transport. Every send is still user-initiated and confirmation-gated at the call site.
+    ///
+    /// NOT a medical feature. Whatever the strap returns is unvalidated instrumentation, never a
+    /// diagnosis — see the probe's report text and DISCLAIMER.md.
+    static let ecgKey = "noopWhoop5Ecg"
+
+    static var ecgEnabled: Bool { UserDefaults.standard.bool(forKey: ecgKey) }
+
     /// Every 5/MG-only probe key, in ONE place — the twin of Kotlin's `FIVE_MG_GATED_KEYS`.
     ///
     /// The capture flag deliberately appears here even though it is declared on `PuffinFrameRecorder`
@@ -157,6 +225,10 @@ enum PuffinExperiment {
         defaultsKey,                     // protocol probes
         deepDataKey,                     // R22 deep-data strap write
         broadcastHrKey,                  // broadcast-HR write
+        // MG ECG (Labrador) probe — writes ECG control commands. Swift-only for now: the Android client
+        // takes the ECG decoder but has no ECG app layer, so Kotlin's FIVE_MG_GATED_KEYS has no twin
+        // entry to add. Add one there in the same change that adds an Android probe.
+        ecgKey,
         PuffinFrameRecorder.enabledKey,  // raw frame capture — declared on PuffinFrameRecorder
     ]
 

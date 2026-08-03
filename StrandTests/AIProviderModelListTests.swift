@@ -96,4 +96,16 @@ final class AIProviderModelListTests: XCTestCase {
         let body: [String: Any] = ["models": [["name": "models/llama3.1"]]]
         XCTAssertTrue(CustomClient().parseModels(body).isEmpty)
     }
+
+    func testCustomKeepsGatewayCatalogModels() {
+        let body: [String: Any] = [
+            "service": "Gateway",
+            "catalog": [
+                ["tool": "OpenAI", "models": ["gpt-5", "gpt-5.5"]],
+                ["tool": "Other", "models": ["claude-sonnet-4-6@default", "gpt-5"]]
+            ]
+        ]
+        XCTAssertEqual(CustomClient().parseModels(body),
+                       ["gpt-5", "gpt-5.5", "claude-sonnet-4-6@default"])
+    }
 }

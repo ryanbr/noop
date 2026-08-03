@@ -2,7 +2,7 @@ import XCTest
 @testable import StrandAnalytics
 import WhoopProtocol
 
-/// Basic coverage for `SleepStagerV2` (V7 Pillar 3b, reimplemented from contributor PR #600) — the recipe
+/// Basic coverage for `SleepStagerV2` (V7 Pillar 3b, reimplemented from @sunny-noop's recipe) — the recipe
 /// that stages a normal user's nights, since `PuffinExperiment.experimentalSleepV2Enabled` is default ON
 /// (#277 promoted it over V1; #351 extended it to every strap family). These assert the drop-in CONTRACT —
 /// same `stageSession` signature + return shape as V1, segments that tile `[start, end]` with canonical
@@ -207,7 +207,7 @@ final class SleepStagerV2Tests: XCTestCase {
         XCTAssertEqual(path, ["light"])
     }
 
-    // MARK: - #690: the V2 flag drives the NORMAL detected-night staging path
+    // MARK: - 7.0.0: the V2 flag drives the NORMAL detected-night staging path
 
     /// A regular R-R stream at ~1 Hz (steady ~1000 ms beats with a small respiratory sinus oscillation),
     /// long enough for the V2 recipe to express both early deep and later REM across the night.
@@ -218,7 +218,7 @@ final class SleepStagerV2Tests: XCTestCase {
         }
     }
 
-    /// #690 (v7 regression): the "Experimental sleep staging (V2)" toggle must affect a NORMAL detected
+    /// 7.0.0 regression: the "Experimental sleep staging (V2)" toggle must affect a NORMAL detected
     /// night — not only the userEdited self-heal restage. With the flag ON, `detectSleep` stages the
     /// accepted window with V2 (deep + REM present); with the flag OFF it returns the EXACT V1 result, so
     /// the byte-identical default (and the frozen-golden tests) is preserved.

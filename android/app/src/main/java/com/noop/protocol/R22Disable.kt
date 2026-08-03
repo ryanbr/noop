@@ -12,7 +12,21 @@ package com.noop.protocol
  * discipline as `DeviceConfigReadProbe.isReadOnlyOpcode`: one pure predicate the send path itself
  * consults, so a unit test proving the predicate rejects something proves it about the real wire path.
  *
- * Pure: no Bluetooth, no I/O, no preferences. The app layer supplies the opt-in boolean.
+ * TWO predicates, not one, because the enable and disable directions have different gates as well as
+ * different values:
+ *
+ *  - [admitsEnableWrite] — opcode 120, an R22 key, that key's own ENABLE value, while the deep-data
+ *    opt-in is on.
+ *  - [admitsDisableWrite] — opcode 120, an R22 key, [Whoop5Config.FEATURE_FLAG_OFF_VALUE] only, while a
+ *    disable run is in flight.
+ *
+ * The disable direction CANNOT be gated on the opt-in: the Settings switch writes the preference false
+ * before the confirmation dialog is raised, so the pref is already false by the time the user confirms the
+ * undo — gating on it made the toggle-off path dead. The run is the gate that is actually about this
+ * operation, and it is narrower the other way too: a merely-left-on opt-in sends no off value at all.
+ * Splitting them makes the invariant exact — an off value on the wire means a run is in flight.
+ *
+ * Pure: no Bluetooth, no I/O, no preferences. The app layer supplies the gate booleans.
  */
 object FeatureFlagWriteGate {
 
@@ -39,10 +53,17 @@ object FeatureFlagWriteGate {
     fun enableValue(key: String): Int? =
         Whoop5Config.enableR22Sequence.firstOrNull { it.name == key }?.value
 
-    /** Whether [value] is one NOOP may write for [key]: that key's own enable value, or the off value. */
-    fun isWritableValue(value: Int, key: String): Boolean {
+    /** Whether [value] is the ENABLE value for [key] — the only value the enable direction may write. */
+    fun isEnableValue(value: Int, key: String): Boolean {
         val on = enableValue(key) ?: return false
-        return value == on || value == Whoop5Config.FEATURE_FLAG_OFF_VALUE
+        return value == on
+    }
+
+    /** Whether [key] is one of the sixteen AND [value] is the off value — the only pair the disable
+     *  direction may write. The key check is what stops the off value reaching an arbitrary flag. */
+    fun isOffValue(value: Int, key: String): Boolean {
+        enableValue(key) ?: return false
+        return value == Whoop5Config.FEATURE_FLAG_OFF_VALUE
     }
 
     /** One parsed SET_FF_VALUE body. */
@@ -75,15 +96,31 @@ object FeatureFlagWriteGate {
     }
 
     /**
-     * **The send allowlist itself.** True only for SET_FF_VALUE(120) carrying a well-formed body whose
-     * key is one of the sixteen and whose value is that key's enable value or the off value. Every other
-     * opcode is false — explicitly including SET_DEVICE_CONFIG_VALUE(119), which keeps its own clause.
+     * **The enable direction's send allowlist.** True only for SET_FF_VALUE(120) carrying a well-formed
+     * body whose key is one of the sixteen and whose value is that key's own enable value, while the
+     * deep-data opt-in is on. Every other opcode is false — explicitly including
+     * SET_DEVICE_CONFIG_VALUE(119), which keeps its own clause. The off value is NOT admitted here.
      */
-    fun admitsSend(opcode: Int, payload: ByteArray, deepDataOptIn: Boolean): Boolean {
+    fun admitsEnableWrite(opcode: Int, payload: ByteArray, deepDataOptIn: Boolean): Boolean {
         if (!deepDataOptIn) return false
         if (opcode != SET_FEATURE_FLAG_VALUE_CMD) return false
         val kv = keyAndValue(payload) ?: return false
-        return isWritableValue(kv.value, kv.key)
+        return isEnableValue(kv.value, kv.key)
+    }
+
+    /**
+     * **The disable direction's send allowlist.** True only for SET_FF_VALUE(120) carrying a well-formed
+     * body whose key is one of the sixteen and whose value is [Whoop5Config.FEATURE_FLAG_OFF_VALUE], while
+     * a disable run is actually in flight.
+     *
+     * [disableRunInFlight] is `r22DisableRun != null` at the call site — deliberately NOT the deep-data
+     * preference, which is already false by the time a user confirms the undo the switch itself offered.
+     */
+    fun admitsDisableWrite(opcode: Int, payload: ByteArray, disableRunInFlight: Boolean): Boolean {
+        if (!disableRunInFlight) return false
+        if (opcode != SET_FEATURE_FLAG_VALUE_CMD) return false
+        val kv = keyAndValue(payload) ?: return false
+        return isOffValue(kv.value, kv.key)
     }
 
     /** The read verb the post-write verification is allowed to send, and only that one. */
@@ -182,6 +219,10 @@ class R22DisableReport(
         /** The probe read-back produced no usable answer. Distinct from a rejection on purpose: nothing
          *  was learned about the off value, so it must not be reported as evidence against it. */
         PROBE_INCONCLUSIVE("probeInconclusive"),
+        /** The run refused to start because the key list does not contain PROBE_KEY, so the off value
+         *  could not be tested on one flag first. Nothing was sent. Distinct from PROBE_INCONCLUSIVE:
+         *  there the probe ran and answered nothing, here it could not run at all. */
+        PROBE_UNAVAILABLE("probeUnavailable"),
         ABANDONED("abandoned"),
     }
 
@@ -228,12 +269,22 @@ class R22DisableReport(
         if (plan.isEmpty() && !planBuilt) {
             planBuilt = true
             if (!keys.contains(PROBE_KEY)) {
-                // Defensive: a caller that hands over a key list without the probe key gets a plain
-                // sequential run rather than a silently skipped gate.
-                keys.forEach { plan.add(Step(FeatureFlagWriteGate.SET_FEATURE_FLAG_VALUE_CMD, it, Stage.CLEAR_WRITE)) }
-                keys.forEach { plan.add(Step(FeatureFlagWriteGate.GET_FEATURE_FLAG_VALUE_CMD, it, Stage.VERIFY_READ)) }
-                probePassed = true
-                return nextStep()
+                // FAIL CLOSED. This used to plan a blanket sequential run and set probePassed = true, which
+                // defeated the point of the design: the safety argument for writing an INFERRED value to
+                // sixteen persistent flags is that one flag is written and read back first, and a key list
+                // without the probe key cannot make that argument. Writing all sixteen unprobed is the one
+                // outcome the staging exists to prevent, and probePassed recorded a probe that never ran.
+                // Unreachable from either shipped call site (both use the default key list), but fail-open
+                // on a write path is not a defensible default whatever the current call sites do.
+                stopped = true
+                keys.forEach { outcomes[it] = KeyOutcome.SKIPPED }
+                verdict = Verdict.PROBE_UNAVAILABLE
+                trace.add(
+                    "REFUSED: the key list does not contain the probe key $PROBE_KEY, so '0' cannot be " +
+                        "tested on one flag before the other ${maxOf(0, keys.size - 1)} are written. " +
+                        "Nothing was sent."
+                )
+                return null
             }
             plan.add(Step(FeatureFlagWriteGate.SET_FEATURE_FLAG_VALUE_CMD, PROBE_KEY, Stage.PROBE_WRITE))
             plan.add(Step(FeatureFlagWriteGate.GET_FEATURE_FLAG_VALUE_CMD, PROBE_KEY, Stage.PROBE_READ))
@@ -362,6 +413,7 @@ class R22DisableReport(
                 Verdict.PARTIAL -> "$cleared of ${keys.size} R22 flags cleared — the rest did not take."
                 Verdict.OFF_VALUE_REJECTED -> "The strap refused '0' for $PROBE_KEY; the other flags were left alone."
                 Verdict.PROBE_INCONCLUSIVE -> "No usable read-back for $PROBE_KEY — nothing further was written."
+                Verdict.PROBE_UNAVAILABLE -> "Refused to run: $PROBE_KEY is not in the key list, so the off value could not be probed first. Nothing was sent."
                 Verdict.ABANDONED -> "Disable run interrupted — $cleared of ${keys.size} flags confirmed cleared."
             }
         }

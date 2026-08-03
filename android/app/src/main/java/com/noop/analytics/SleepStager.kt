@@ -938,7 +938,7 @@ object SleepStager {
         // HR dip. Default empty keeps pure-function callers/tests free of it; IntelligenceEngine passes the
         // night window's persisted band state. It can only RESCUE a real-sleep block, never fabricate. Mirrors Swift.
         bandSleepState: List<Pair<Long, Int>> = emptyList(),
-        // V7 / #690: which recipe stages an accepted night — the cardiorespiratory
+        // 7.0.0 (default ON since #277/#351): which recipe stages an accepted night — the cardiorespiratory
         // [SleepStagerV2.stageSession] when true, V1's [stageSession] when false. DETECTION is unchanged
         // (same accepted windows); only the per-epoch hypnogram differs.
         // THE TWO DEFAULTS DIFFER. This PARAMETER defaults false so pure-function callers and the
@@ -1154,7 +1154,7 @@ object SleepStager {
     internal fun efficiency(start: Long, end: Long, stages: List<StageSegment>): Double {
         val inBed = (end - start).toDouble()
         if (inBed <= 0) return 0.0
-        val wake = stages.filter { it.stage == "wake" }.sumOf { (it.end - it.start).toDouble() }
+        val wake = stages.filter { SleepStageVocabulary.isWake(it.stage) }.sumOf { (it.end - it.start).toDouble() }
         val asleep = maxOf(0.0, inBed - wake)
         return minOf(1.0, asleep / inBed)
     }
@@ -1572,6 +1572,15 @@ object SleepStager {
     /** Per-window length for the per-window rate estimate (seconds). */
     private const val rsaWindowS: Double = 300.0
 
+    /**
+     * #977: wall-clock seconds a beat-to-beat step may exceed its own RR before the series is treated
+     * as SPLICED there. `ts` is whole seconds, so a 1 s discrepancy is quantisation, not a gap; the
+     * blocks that prompted this were 30-45 s. PROVISIONAL, like COVERAGE_PLAUSIBLE_CEILING - wide
+     * enough that only an unambiguous dropout trips it, and deliberately not tuned to a corpus.
+     * Byte-parity twin of Swift `rsaGapToleranceS`.
+     */
+    private const val rsaGapToleranceS: Double = 3.0
+
     /** Physiologic breath-interval band (seconds): 0.1–0.4 Hz = 6–24 breaths/min. */
     private const val rsaMinBreathIntervalS: Double = 2.5  // 24 bpm
     private const val rsaMaxBreathIntervalS: Double = 10.0 // 6 bpm
@@ -1594,35 +1603,65 @@ object SleepStager {
      * does not equal a chest-band / capnography rate.
      *
      * Pipeline (per matched in-bed session [start, end], unix SECONDS):
-     *   1. Restrict RR rows to ts in [start, end]; range-filter the RR values
-     *      (HrvAnalyzer.rangeFilter) to drop dropouts/ectopics.
+     *   1. Restrict RR ROWS to ts in [start, end] and apply the same range test
+     *      HrvAnalyzer.rangeFilter applies, keeping the rows so `ts` survives (#977).
      *   2. Reconstruct beat times by cumulatively summing the kept RR intervals
-     *      from the first in-bed beat, yielding an (irregular) tachogram
-     *      t_k = Σ rr, value_k = rr_k (ms).
+     *      from the first in-bed beat, yielding an (irregular) tachogram, and note
+     *      where the wall clock outran the beats (#977) - the cumulative sum cannot
+     *      represent a dropout, so those points are splices, not elapsed time.
      *   3. Resample the tachogram onto a uniform ~4 Hz grid by linear interpolation.
      *   4. Detrend: subtract a centered moving mean (rsaDetrendWindowS).
-     *   5. Per ~5-min window: findPeaks (min distance rsaMinPeakDistanceS) on the
-     *      detrended grid, keep peak-to-peak intervals in the 6–24 bpm band, rate =
-     *      60 / median(intervals). Take the median across windows.
+     *   5. Per ~5-min window, SKIPPING any window containing a splice: findPeaks
+     *      (min distance rsaMinPeakDistanceS) on the detrended grid, keep peak-to-peak
+     *      intervals in the 6-24 bpm band, rate = 60 / median(intervals). Take the
+     *      median across windows.
+     *
+     * Known bound on the splice skip (#977): step 4's centered mean spans +/-rsaDetrendWindowS/2, so a
+     * splice just inside one window's edge leaves ~4 s of contaminated samples at the neighbouring
+     * window's edge. That window is KEPT deliberately - discarding five minutes to avoid four seconds
+     * costs far more data than it saves, and both medians (over intervals, then over windows) dilute a
+     * single spurious peak among a five-minute window's worth.
      * Returns NaN when too few intervals survive (honest no-data).
      */
     internal fun respRateFromRR(rr: List<RrInterval>, start: Long, end: Long): Double {
         val nan = Double.NaN
         if (end <= start) return nan
 
-        // 1. In-bed RR rows in chronological order, range-filtered.
-        val inBed = rr.asSequence()
+        // 1. In-bed RR ROWS in chronological order, range-filtered.
+        //
+        // #977: the rows are kept, not just their values, because `ts` is the only signal that a beat is
+        // missing. Beats lost before storage never enter the list, so contiguity derived from rejection
+        // (cleanRRGapAware) cannot see them - it takes only a List<Double> and has no clock. Filtering the
+        // rows by the same predicate HrvAnalyzer.rangeFilter applies keeps the surviving VALUES identical
+        // (it is an order-preserving range test), which RespRateGapAwareTest pins.
+        val inBedRows = rr.asSequence()
             .filter { it.ts in start..end }
             .sortedBy { it.ts }
-            .map { it.rrMs.toDouble() }
+            .filter { it.rrMs.toDouble() >= HrvAnalyzer.RR_MIN_MS && it.rrMs.toDouble() <= HrvAnalyzer.RR_MAX_MS }
             .toList()
-        val filtered = HrvAnalyzer.rangeFilter(inBed)
+        val filtered = inBedRows.map { it.rrMs.toDouble() }
         if (filtered.size < 30) return nan // need enough beats for any RSA estimate
 
         // 2. Reconstruct beat times (seconds from session start) by cumulative sum.
+        // #977: a dropout is where the WALL CLOCK outran the beat - ts jumps 30-45 s while the RR only
+        // accounts for ~1 s. The cumulative sum cannot represent that, so it stitches the two sides
+        // together and the tachogram gets a discontinuity the peak-picker reads as breathing. Record the
+        // beat-time of each splice; step 5 drops the windows containing one. Beat times are NOT shifted
+        // by the gap: within a run the relative timing is right, and that is all a kept window uses.
+        //
+        // This fires on a beat REJECTED just above too, not only one lost before storage: the range
+        // test drops out-of-range intervals, so `ts` steps across them exactly as it does across a
+        // dropout. That is the intent - both genuinely splice the tachogram, which is the same reason
+        // #204/#195 made RMSSD skip differences across a removed beat - but it does mean a night with
+        // heavy ectopic rejection now loses windows it used to keep.
         val beatTimes = DoubleArray(filtered.size)
+        val spliceAtS = mutableListOf<Double>()
         var acc = 0.0
         for (i in filtered.indices) {
+            if (i > 0) {
+                val wallStepS = (inBedRows[i].ts - inBedRows[i - 1].ts).toDouble()
+                if (wallStepS - filtered[i] / 1000.0 > rsaGapToleranceS) spliceAtS.add(acc)
+            }
             acc += filtered[i] / 1000.0
             beatTimes[i] = acc
         }
@@ -1663,13 +1702,18 @@ object SleepStager {
         if (standardDeviation(detrended.toList()) <= 1e-9) return nan // flat → no RSA
 
         // 5. Per ~5-min window peak-pick → 60/median(breath interval); median across.
+        val spliceGrid = spliceAtS.map { (it / dt).toInt() }
         val minDistSamples = maxOf(2, (rsaMinPeakDistanceS * rsaResampleHz).roundToInt())
         val windowSamples = maxOf(minDistSamples * 3, (rsaWindowS * rsaResampleHz).roundToInt())
         val perWindowRates = ArrayList<Double>()
         var w = 0
         while (w < nGrid) {
             val wEnd = minOf(nGrid, w + windowSamples)
-            if (wEnd - w >= minDistSamples * 3) {
+            // #977: a window straddling a splice is measuring a discontinuity, not a breath. Dropping it
+            // costs one window; keeping it puts a fabricated interval into the median. All windows spliced
+            // leaves perWindowRates empty and the function returns NaN, which is the honest answer.
+            val spliced = spliceGrid.any { it >= w && it < wEnd }
+            if (!spliced && wEnd - w >= minDistSamples * 3) {
                 val winSeg = ArrayList<Double>(wEnd - w)
                 for (k in w until wEnd) winSeg.add(detrended[k])
                 // findPeaks with height = 0.0 selects the positive RSA peaks (one per
@@ -1870,6 +1914,145 @@ object SleepStager {
         return sparse.toDouble() >= cardiacSparseEpochFrac * sleepFeats.size.toDouble()
     }
 
+    /**
+     * What one epoch's respiration says about depth — FIVE states, because "we did not measure it" is not
+     * an observation and must not be spendable as one.
+     *
+     * This used to be two booleans over a NaN RRV, and the `regular` one read
+     * `(!f.rrv.isFinite()) || (f.rrv <= rrvLo)`: a MISSING respiration reading was converted into a
+     * positive assertion that breathing was regular, which is pro-deep. On a WHOOP 5/MG that is not an
+     * edge case, it is the only code path — the v18 layout emits no `resp_rate_raw` at all (pinned by
+     * `Whoop5HistoricalDecodeTest`), so `respSample` has zero rows, every epoch's RRV is NaN, and the
+     * fabricated "regular" fires on 100% of epochs. Where a night with real respiration data has ~50% of
+     * its epochs clear the `regular` bar (it is the MEDIAN — `stageRRVLowPct` = 50), a 5/MG night has
+     * 100% clear it, on no measurement whatsoever.
+     *
+     * The five cases are the exact CROSS-PRODUCT of the two predicates this replaced, so the mapping is
+     * total and no case is decided by which bar `of` happens to test first:
+     *
+     * | pre-fix `rrvIrregular` | pre-fix `rrvRegular`     | case                |
+     * |------------------------|--------------------------|---------------------|
+     * | false                  | true (via `!isFinite()`) | [UNMEASURED]        |
+     * | false                  | true (via the low bar)   | [REGULAR]           |
+     * | true                   | false                    | [IRREGULAR]         |
+     * | false                  | false                    | [MEASURED_MID_BAND] |
+     * | true                   | true                     | [BARS_DEGENERATE]   |
+     *
+     * [UNMEASURED] and [MEASURED_MID_BAND] are deliberately DISTINCT. Both fail the regular and irregular
+     * bars, but they mean opposite things — one is "no reading", the other is a real reading that simply
+     * sits between the bars — and the classifier already treats them differently (the REM fallback fires
+     * only on a missing reading). Collapsing them would silently change the hypnogram.
+     *
+     * Mirror of the Swift `SleepStager.RespEvidence`.
+     */
+    internal enum class RespEvidence {
+        /** A finite RRV at or below the session's low bar — breathing measured as regular. */
+        REGULAR,
+
+        /** A finite RRV at or above the session's high bar — breathing measured as irregular. */
+        IRREGULAR,
+
+        /** A finite RRV between the bars: measured, but neither notably regular nor notably irregular. */
+        MEASURED_MID_BAND,
+
+        /**
+         * No usable RRV for this epoch. Either the strap has no respiration channel at all (every 5/MG),
+         * or this epoch's window had too few / too flat samples to derive one (`respRateAndRRV` returns
+         * NaN below 8 samples, on a flat signal, under 3 peaks, or under 2 in-band breath intervals).
+         */
+        UNMEASURED,
+
+        /**
+         * A finite RRV that clears BOTH bars at once — at or above the high bar AND at or below the low
+         * bar. The session's two percentile bars have collapsed onto this reading, so it satisfies each
+         * of them and the pair carries no information at this value.
+         *
+         * Reachable, not hypothetical, and for a structural reason: RRV is the population std of breath
+         * intervals measured in WHOLE SECONDS (`respRateAndRRV`, `dtS` = 1), so it is quantised onto a
+         * small discrete lattice and exact ties between epochs are ordinary. `percentile` interpolates
+         * between order statistics, so p50 and p65 coincide whenever the tie run spans them — and when
+         * only ONE sleep epoch has a finite RRV (the rest NaN, which that same function returns freely
+         * on short, flat or low-peak windows) `percentile` returns that single value for both, so the
+         * epoch that SET the bars necessarily sits on both of them.
+         *
+         * Kept as its own case because a four-state enum cannot represent it: both pre-fix booleans were
+         * true here, so whichever bar the factory tested first would silently decide the label.
+         * Behaviour is pinned to the pre-fix outcome — waived for depth (`rrvRegular` was true, see
+         * [contradictsDepth]) and clearing the REM irregular bar (`rrvIrregular` was true, see
+         * [meetsIrregularBar]) — which keeps this change a representation fix.
+         *
+         * That pre-fix outcome resolves to DEEP only because the deep rule is written before the REM
+         * rule in [classifyOne]; statement order is not a reason, and re-deciding it is a live question.
+         * It is deliberately NOT re-decided here: doing so is a scoring change on the
+         * degenerate-distribution nights, and this repo has no staged nights of that shape to validate
+         * it against (CLAUDE.md, "validate against the artifact, not one match"). The point of naming
+         * the case is that the decision is now a one-line edit in [contradictsDepth] /
+         * [meetsIrregularBar] with a test that fails loudly, instead of an invisible consequence of
+         * statement order.
+         */
+        BARS_DEGENERATE,
+        ;
+
+        /**
+         * Whether respiration CONTRADICTS depth. The deep rule reads this rather than a "regular" flag,
+         * because [UNMEASURED] is not evidence of regular breathing — it is the absence of evidence, and
+         * the rule it feeds is "respiration must not rule depth out".
+         *
+         * [UNMEASURED] is WAIVED here, not because missing respiration is reassuring, but because
+         * blocking on it would decode 0 m of deep on every 5/MG night — the exact regression #127/#129
+         * fixed for the parallel missing-RMSSD case, whose rule statement already carries the same
+         * qualifier ("with high parasympathetic tone WHEN MEASURABLE"). This makes the respiration waiver
+         * explicit and equally qualified instead of leaving it implied by a NaN short-circuit.
+         *
+         * [BARS_DEGENERATE] is waived too, matching the pre-fix `rrvRegular`; see its doc for why that is
+         * preserved rather than re-decided.
+         *
+         * KNOWN LIMITATION, deliberately not changed here: on a 5/MG BOTH waivers can fire at once
+         * (sparse R-R leaves RMSSD NaN too), and the deep rule then reduces to stillness + a low HR with
+         * no physiological corroboration at all. That is a real weakness, but it is bounded — `hrLow` is
+         * a PERCENTILE bar (`stageHRLowPct` = 25), so at most ~25% of sleep epochs can clear it however
+         * the respiration term resolves. Narrowing the waiver is a scoring change that needs validation
+         * data this repo does not have; `SleepStagerRespEvidenceTest` pins the current behaviour and
+         * quantifies the bias so that decision can be made on numbers.
+         */
+        val contradictsDepth: Boolean
+            get() = when (this) {
+                REGULAR, UNMEASURED, BARS_DEGENERATE -> false
+                IRREGULAR, MEASURED_MID_BAND -> true
+            }
+
+        /**
+         * Whether this epoch clears the session's IRREGULAR bar — the pre-fix `rrvIrregular` predicate,
+         * which the main REM rule reads. [BARS_DEGENERATE] clears it (it IS at or above the high bar)
+         * even though [contradictsDepth] also waives it; that pair of answers is precisely the pre-fix
+         * state where both booleans were true, and it is preserved deliberately.
+         */
+        val meetsIrregularBar: Boolean
+            get() = when (this) {
+                IRREGULAR, BARS_DEGENERATE -> true
+                REGULAR, MEASURED_MID_BAND, UNMEASURED -> false
+            }
+
+        companion object {
+            /**
+             * Total mapping of the two pre-fix predicates. Written as an exhaustive branch on the pair
+             * rather than an ordered `if` chain, because an ordered chain is exactly how the
+             * [BARS_DEGENERATE] case used to be decided by accident.
+             */
+            fun of(rrv: Double, lowBar: Double?, highBar: Double?): RespEvidence {
+                if (!rrv.isFinite()) return UNMEASURED
+                val atOrAboveHigh = highBar != null && rrv >= highBar
+                val atOrBelowLow = lowBar != null && rrv <= lowBar
+                return when {
+                    atOrAboveHigh && atOrBelowLow -> BARS_DEGENERATE
+                    atOrAboveHigh -> IRREGULAR
+                    atOrBelowLow -> REGULAR
+                    else -> MEASURED_MID_BAND
+                }
+            }
+        }
+    }
+
     internal fun classifyOne(
         f: EpochFeatures, hrLo: Double?, hrHi: Double?,
         rmssdHi: Double?, hrvarHi: Double?, rrvHi: Double?, rrvLo: Double?,
@@ -1897,9 +2080,7 @@ object SleepStager {
         // Dense 4.0 nights keep the full `hrHigh || hrvarHigh` signal, so their behaviour is unchanged. (#705)
         val cardiacActivatedForWake = if (cardiacSparse) hrHigh else cardiacActivated
 
-        val rrvIrregular = f.rrv.isFinite() && rrvHi != null && f.rrv >= rrvHi
-        // Missing respiration (NaN RRV) treated as "regular" (pro-deep bias).
-        val rrvRegular = (!f.rrv.isFinite()) || (rrvLo != null && f.rrv <= rrvLo)
+        val resp = RespEvidence.of(f.rrv, lowBar = rrvLo, highBar = rrvHi)
 
         val still = f.moveFrac <= stageStillMoveFrac
         val moving = f.moveFrac >= stageWakeMoveFrac
@@ -1908,12 +2089,15 @@ object SleepStager {
         // cardiac half is vetted by HR only (see `cardiacActivatedForWake`), so noisy hrVar no longer
         // over-promotes still sleep to wake. (#705)
         if (moving && (cardiacActivatedForWake || !hasHR)) return "wake"
-        // DEEP: still + low HR + regular respiration, with high parasympathetic tone when measurable.
-        if (still && parasympOK && hrLow && rrvRegular) return "deep"
-        // REM: still body + activated cardiac + irregular respiration.
-        if (still && cardiacActivated && rrvIrregular) return "rem"
-        // REM fallback when respiration unavailable: require BOTH cardiac signals.
-        if (still && hrHigh && hrvarHigh && !f.rrv.isFinite()) return "rem"
+        // DEEP: still + low HR + respiration that does not RULE OUT depth, with high parasympathetic tone
+        // when measurable. [RespEvidence.contradictsDepth] is where an unmeasured respiration is waived —
+        // see its doc for why the waiver stays and what it costs.
+        if (still && parasympOK && hrLow && !resp.contradictsDepth) return "deep"
+        // REM: still body + activated cardiac + respiration clearing the irregular bar.
+        if (still && cardiacActivated && resp.meetsIrregularBar) return "rem"
+        // REM fallback when respiration was never MEASURED (not merely mid-band): require BOTH cardiac
+        // signals. A mid-band reading is real evidence and does not earn the fallback.
+        if (still && hrHigh && hrvarHigh && resp == RespEvidence.UNMEASURED) return "rem"
         return "light"
     }
 
@@ -2043,23 +2227,24 @@ object SleepStager {
         val hrvarHigh = f.hrVar.isFinite() && hrvarHi != null && f.hrVar >= hrvarHi
         val cardiacActivated = hrHigh || hrvarHigh
         val cardiacActivatedForWake = if (cardiacSparse) hrHigh else cardiacActivated
-        val rrvIrregular = f.rrv.isFinite() && rrvHi != null && f.rrv >= rrvHi
-        val rrvRegular = (!f.rrv.isFinite()) || (rrvLo != null && f.rrv <= rrvLo)
+        // Same respiration evidence the classifier uses, from the same factory — so the diagnostic cannot
+        // drift from the rule it explains (these predicates were duplicated by hand).
+        val resp = RespEvidence.of(f.rrv, lowBar = rrvLo, highBar = rrvHi)
         val still = f.moveFrac <= stageStillMoveFrac
         val moving = f.moveFrac >= stageWakeMoveFrac
 
         // classifyOne precedence: WAKE, then DEEP, then REM (then REM fallback), else LIGHT.
         // An epoch that wins WAKE or DEEP was never a REM candidate.
         if (moving && (cardiacActivatedForWake || !hasHR)) return REMRejectReason.WON_OTHER_STAGE  // → wake
-        if (still && parasympOK && hrLow && rrvRegular) return REMRejectReason.WON_OTHER_STAGE // → deep
+        if (still && parasympOK && hrLow && !resp.contradictsDepth) return REMRejectReason.WON_OTHER_STAGE // → deep
         // From here the epoch did NOT win wake/deep; it is either REM or falls through to LIGHT.
-        if (still && cardiacActivated && rrvIrregular) return REMRejectReason.REM_ELIGIBLE
-        if (still && hrHigh && hrvarHigh && !f.rrv.isFinite()) return REMRejectReason.REM_ELIGIBLE
+        if (still && cardiacActivated && resp.meetsIrregularBar) return REMRejectReason.REM_ELIGIBLE
+        if (still && hrHigh && hrvarHigh && resp == RespEvidence.UNMEASURED) return REMRejectReason.REM_ELIGIBLE
         // Not REM → attribute to the FIRST unmet REM precondition (in REM-rule order).
         if (!still) return REMRejectReason.NOT_STILL
         if (!cardiacActivated) return REMRejectReason.NO_CARDIAC_ACTIVATION
-        if (f.rrv.isFinite()) return REMRejectReason.RESP_REGULAR  // resp present but not irregular
-        return REMRejectReason.NO_RESP_FALLBACK_BAR                 // resp absent and no-resp bar unmet
+        if (resp != RespEvidence.UNMEASURED) return REMRejectReason.RESP_REGULAR  // measured, not irregular
+        return REMRejectReason.NO_RESP_FALLBACK_BAR                 // never measured and no-resp bar unmet
     }
 
     /**
@@ -2375,7 +2560,7 @@ object SleepStager {
         var waso = 0.0
         var disturbances = 0
         for (s in segs) {
-            if (s.stage != "wake") continue
+            if (!SleepStageVocabulary.isWake(s.stage)) continue
             val w0 = maxOf(s.start.toDouble(), onset)
             val w1 = minOf(s.end.toDouble(), sptEnd)
             if (w1 > w0) {

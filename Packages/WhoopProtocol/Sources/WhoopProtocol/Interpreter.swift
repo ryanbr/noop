@@ -594,7 +594,7 @@ private func decodeWhoop5Historical(_ frame: [UInt8], fb: FieldBuilder, payloadE
 /// reference): the concatenated waveform's autocorrelation peaks at the HR (lag 14 = 102.9 bpm vs a
 /// measured 101.7 bpm), trough-detection gives a 563 ms inter-beat interval (≈106 bpm), the pulse stays
 /// HR-locked even when the wrist is still, and its amplitude is not motion-driven. (Reproduce with
-/// `tools/linux-capture/analyze_v26_waveform.py`; see docs §5.)
+/// `Tools/linux-capture/analyze_v26_waveform.py`; see docs §5.)
 ///
 /// The samples are raw AC-coupled ADC counts — PPG has no absolute unit — so they are exposed verbatim
 /// as `ppg_waveform` with NO invented scale. The bytes before [27] (header + a block index) and the

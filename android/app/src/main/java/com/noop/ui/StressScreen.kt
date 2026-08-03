@@ -448,8 +448,7 @@ private fun StressAdvancedCard(
             }
 
             Text(
-                uiString(R.string.l10n_stress_screen_these_are_extra_on_demand_hrv_9303f1de) +
-                    "are informational and do not change the stress score above.",
+                uiString(R.string.l10n_stress_screen_these_are_extra_on_demand_hrv_9303f1de),
                 style = NoopType.footnote,
                 color = Palette.textTertiary,
             )

@@ -163,8 +163,7 @@ fun CaffeineLogCard() {
         NoopCard {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    uiString(R.string.l10n_caffeine_log_log_a_coffee_tea_or_energy_982bde5b) +
-                        "still be active. It's a guide based on a typical 5 to 6 hour half-life, not a measurement.",
+                    uiString(R.string.l10n_caffeine_log_log_a_coffee_tea_or_energy_982bde5b),
                     style = NoopType.footnote,
                     color = Palette.textTertiary,
                 )

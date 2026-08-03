@@ -205,7 +205,7 @@ exposed as `DeviceFamily.whoop5ClientHello`.
 
 ### Bonding and the puffin session (hardware-verified)
 
-Confirmed against a real WHOOP 5 strap using the Linux capture tooling in `tools/linux-capture/` (a
+Confirmed against a real WHOOP 5 strap using the Linux capture tooling in `Tools/linux-capture/` (a
 `bleak`/BlueZ capture feeding the `whoop-decode` CLI). The notes below supersede the earlier
 "unverified on MG hardware" caveats for the connect path.
 
@@ -262,7 +262,7 @@ fall through to "unknown":
 > bonds, accepts the 4.0 command numbers, and performs a full historical offload, all decoding
 > CRC-valid. The 5.0 **biometric field offsets** are now mapped from real captures too — live
 > `REALTIME_DATA` (§5) and the historical type-47 record (version 18, §5) both decode HR / R-R /
-> gravity, validated against ground truth. Capture with `tools/linux-capture/whoop_capture.py
+> gravity, validated against ground truth. Capture with `Tools/linux-capture/whoop_capture.py
 > --history-only --history-ack` and decode with `whoop-decode`.
 
 ---
@@ -378,7 +378,7 @@ raw rows first, then sends `HISTORICAL_DATA_RESULT` (23) as a confirmed write ec
 
 The offload runs at a steady **~10 type-47 records per second**, and since the records are 1 Hz that is
 only **~10× real-time** (a full day ≈ 40 min, a night ≈ 30 min). This is a property of the strap
-firmware, **not** the BLE link. Measured on a real worn WHOOP 4 (`tools/linux-capture/`), the rate did
+firmware, **not** the BLE link. Measured on a real worn WHOOP 4 (`Tools/linux-capture/`), the rate did
 not move when either link parameter was forced upward:
 
 - **ATT MTU 23 → 247** — a 104-byte type-47 frame goes from 6 notification packets to 1. No change.
@@ -397,7 +397,7 @@ adding `requestConnectionPriority`/`requestMtu` to a client to speed *this* offl
 ### WHOOP 5.0 historical offload (hardware-verified)
 
 The ack is not just for resumability on WHOOP 5 — **it is what makes the offload progress at all.**
-Confirmed on a real worn WHOOP 5 (latest firmware) via `tools/linux-capture/`:
+Confirmed on a real worn WHOOP 5 (latest firmware) via `Tools/linux-capture/`:
 
 - **Without acking**, the strap re-serves the *same* early chunk forever. Across 16 deterministic
   re-requests the `trim_cursor` stayed frozen at `112193` and **zero** type-47 records arrived — only
@@ -518,7 +518,7 @@ resolves, `@82` stays a candidate.
 
 **What clears the bar is multi-device correlation, not one more capture** — the nightly candidate
 tracking the app's own SpO₂ across many nights on several straps, *including* the device where the two
-nights currently disagree. `tools/linux-capture/validate_spo2_candidate.py` is the harness for exactly
+nights currently disagree. `Tools/linux-capture/validate_spo2_candidate.py` is the harness for exactly
 that. A single asleep frame proves nothing here; the value range has been seen.
 
 **Independent corroboration (#715).** `whoop-local` reads the same byte the same way — sleep-only, and
@@ -584,7 +584,7 @@ The full v26 byte map (88 bytes; CRC32 @84):
 `decodeWhoop5HistoricalV26` exposes `ppg_waveform` (+ `ppg_sample_count`), `ppg_channel`, and `unix`. The
 samples are raw AC-coupled ADC counts — PPG has no absolute unit — so no scale is invented; the
 high-entropy `23–26` and the footer are left raw (no internal ground truth). Reproduce the proof with
-`tools/linux-capture/analyze_v26_waveform.py`; parity tests `Whoop5PpgWaveformTests.swift`.
+`Tools/linux-capture/analyze_v26_waveform.py`; parity tests `Whoop5PpgWaveformTests.swift`.
 
 ### The WHOOP 5.0 / MG type-47 records (versions 20 & 21) — bulk multi-channel sensor stream
 
@@ -741,7 +741,10 @@ as the 4.0 `event` post-hook fail closed.
 ## 6. Haptic preset discovery (GET_ALL_HAPTICS_PATTERN)
 
 The strap has a built-in table of haptic waveforms. `GET_ALL_HAPTICS_PATTERN` (command **80**) reports
-the device's preset patterns — **7 presets on the WHOOP 4.0 (Harvard)**, indexed `0–6`. They are fired
+the device's preset patterns — **7 presets on the WHOOP 4.0 (Harvard)**, indexed `0–6`. That count is
+a claim about the STRAP's own table, not about NOOP: it would be read with `GET_ALL_HAPTICS_PATTERN`
+(80), and neither platform has ever sent that command, so we have never enumerated it (#926). What the
+app exposes is four `BuzzPattern` choices, all sharing patternId 2. They are fired
 with `RUN_HAPTICS_PATTERN` (command **79**):
 
 ```text
@@ -775,7 +778,7 @@ frame. The strap acknowledges acceptance with `COMMAND_RESPONSE` (type 36) echoi
 `RUN_HAPTIC_PATTERN_MAVERICK(19)`.
 
 **Verified on real hardware (2026-06-12):** a bonded WHOOP 5 buzzed on this exact frame and returned a
-CRC-valid COMMAND_RESPONSE for every send. Frame builders live in `tools/linux-capture/whoop_frame.py`
+CRC-valid COMMAND_RESPONSE for every send. Frame builders live in `Tools/linux-capture/whoop_frame.py`
 (`build_whoop5_buzz` / `build_whoop4_buzz`, unit-tested against the captured frame) and drive the
 `whoop_buzz.py` find-my-strap tool — see the linux-capture README.
 

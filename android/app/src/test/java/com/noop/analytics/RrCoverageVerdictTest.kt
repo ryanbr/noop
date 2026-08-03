@@ -12,13 +12,68 @@ import org.junit.Test
  */
 class RrCoverageVerdictTest {
 
-    /** A night whose beat-time fits the wall clock. #803's 2026-07-15. */
+    /**
+     * #803's 2026-07-15, which this file used to call "a night whose beat-time fits the wall clock".
+     * It does not: at 0.89 an eighth of the beat-time is missing. That label was written when the
+     * classifier only looked upward, so PLAUSIBLE was the ONLY verdict this night could receive — it
+     * recorded the absence of an over-count, not the presence of a clean capture. (#977)
+     *
+     * It lands 0.01 outside the symmetric allowance, so it is also the first case worth re-examining if
+     * real coverage distributions ever say a WHOOP 4.0 night simply runs near 0.89.
+     */
     @Test
-    fun cleanNightIsPlausible() {
+    fun nineTenthsOfANightIsNotAFitAnyMore() {
         assertEquals(
-            HrvAnalyzer.RrCoverageVerdict.PLAUSIBLE,
+            HrvAnalyzer.RrCoverageVerdict.UNDER_COVERED,
             HrvAnalyzer.classifyCoverage(0.89, 0.88),
         )
+    }
+
+    /** The reported case (#977): 0.859 on one wearer's WHOOP 5 corpus, previously "nothing to explain". */
+    @Test
+    fun theReportedUnderCoveredNightIsNamed() {
+        assertEquals(
+            HrvAnalyzer.RrCoverageVerdict.UNDER_COVERED,
+            HrvAnalyzer.classifyCoverage(0.859, 0.85),
+        )
+    }
+
+    /** The floor mirrors the ceiling exactly: 1.10 above, 0.90 below. Not fitted to any corpus. */
+    @Test
+    fun floorMirrorsCeiling() {
+        assertEquals(0.90, HrvAnalyzer.COVERAGE_PLAUSIBLE_FLOOR, 1e-12)
+        assertEquals(
+            HrvAnalyzer.COVERAGE_PLAUSIBLE_CEILING - 1.0,
+            1.0 - HrvAnalyzer.COVERAGE_PLAUSIBLE_FLOOR,
+            1e-12,
+        )
+    }
+
+    /** Symmetric with the ceiling test: exactly at the floor fits, a hair under does not. */
+    @Test
+    fun floorIsInclusive() {
+        val floor = HrvAnalyzer.COVERAGE_PLAUSIBLE_FLOOR
+        assertEquals(HrvAnalyzer.RrCoverageVerdict.PLAUSIBLE, HrvAnalyzer.classifyCoverage(floor, floor))
+        assertEquals(
+            HrvAnalyzer.RrCoverageVerdict.UNDER_COVERED,
+            HrvAnalyzer.classifyCoverage(floor - 0.01, 0.5),
+        )
+    }
+
+    /** An almost entirely absent night must not read as fitting either. */
+    @Test
+    fun anAlmostEmptyNightIsUnderCovered() {
+        assertEquals(
+            HrvAnalyzer.RrCoverageVerdict.UNDER_COVERED,
+            HrvAnalyzer.classifyCoverage(0.01, 0.01),
+        )
+    }
+
+    /** A genuinely clean night still reads as one — the guard that this did not invert the bug. */
+    @Test
+    fun aCleanNightIsStillPlausible() {
+        assertEquals(HrvAnalyzer.RrCoverageVerdict.PLAUSIBLE, HrvAnalyzer.classifyCoverage(0.99, 0.98))
+        assertEquals(HrvAnalyzer.RrCoverageVerdict.PLAUSIBLE, HrvAnalyzer.classifyCoverage(1.00, 1.00))
     }
 
     /**
@@ -86,11 +141,17 @@ class RrCoverageVerdictTest {
         )
     }
 
-    /** The verdict keys on coverage first; it must not depend on collapsed <= coverage holding. */
+    /**
+     * The verdict keys on coverage first; it must not depend on collapsed <= coverage holding.
+     *
+     * #977: this expected PLAUSIBLE before the floor existed, which was the bug rather than the intent —
+     * half the beat-time is missing at 0.5. The property under test is unchanged and is now shown more
+     * sharply: `collapsed` at 9.9 screams over-count and the verdict still follows `coverage`.
+     */
     @Test
     fun collapsedAboveCoverageStillClassifiesOnCoverageFirst() {
         assertEquals(
-            HrvAnalyzer.RrCoverageVerdict.PLAUSIBLE,
+            HrvAnalyzer.RrCoverageVerdict.UNDER_COVERED,
             HrvAnalyzer.classifyCoverage(0.5, 9.9),
         )
     }

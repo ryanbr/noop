@@ -98,3 +98,13 @@ enum class AiProvider(
             entries.firstOrNull { it.name == name } ?: OPENAI
     }
 }
+
+enum class CustomAiAuthHeader(val displayName: String) {
+    BEARER("Bearer"),
+    X_API_KEY("x-api-key");
+
+    companion object {
+        fun fromName(name: String?): CustomAiAuthHeader =
+            entries.firstOrNull { it.name == name } ?: BEARER
+    }
+}

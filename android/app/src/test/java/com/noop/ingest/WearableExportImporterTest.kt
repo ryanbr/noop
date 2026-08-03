@@ -156,6 +156,76 @@ class WearableExportImporterTest {
         assertEquals(360.0, p.sleeps[0].totalSleepMin!!, 1e-6)
     }
 
+    // ---------------- Main-session day-rollup selection (Kotlin twin of OuraExportParserTests) ----------------
+    //
+    // Oura can list MULTIPLE sleep sessions for one day (a short nap/fragment alongside the real night).
+    // The old per-field `?:` fold let whichever session was listed FIRST claim every daily field — and
+    // could even MIX fields across two different sessions (a fragment's totalSleepMin + the real night's
+    // restingHr). The fix picks the day's `long_sleep` session (else the longer total_sleep_duration) and
+    // applies its fields as a UNIT.
+
+    @Test
+    fun fragmentBeforeMainSessionMainSessionWins() {
+        // A fragment listed BEFORE the main sleep for the same day must not win the rollup: long_sleep
+        // outranks the short_sleep fragment regardless of array order.
+        val json = """
+            { "sleep": [
+                { "day": "2026-02-01", "type": "short_sleep",
+                  "bedtime_start": "2026-02-01T13:00:00+00:00", "bedtime_end": "2026-02-01T13:20:00+00:00",
+                  "total_sleep_duration": 900, "lowest_heart_rate": 90 },
+                { "day": "2026-02-01", "type": "long_sleep",
+                  "bedtime_start": "2026-01-31T23:00:00+00:00", "bedtime_end": "2026-02-01T07:00:00+00:00",
+                  "total_sleep_duration": 25200, "lowest_heart_rate": 48 }
+              ] }
+        """
+        val p = WearableExportImporter.parseOura(mapOf("export.json" to bytes(json)))
+        assertEquals(2, p.sleeps.size)   // both sessions still appear in the sleep list
+        val d = p.days.first { it.day == "2026-02-01" }
+        assertEquals(420.0, d.totalSleepMin!!, 1e-6)   // the main 420-min night, not the 15-min fragment
+        assertEquals(48, d.restingHr)                   // the main night's resting HR, not the fragment's 90
+    }
+
+    @Test
+    fun fragmentOnlyDayKeepsFragment() {
+        // A day with ONLY a fragment (no long_sleep for that day) keeps the fragment's data rather than
+        // dropping the day entirely — the rank rule only prefers long_sleep when one is actually present.
+        val json = """
+            { "sleep": [
+                { "day": "2026-02-02", "type": "short_sleep",
+                  "bedtime_start": "2026-02-02T13:00:00+00:00", "bedtime_end": "2026-02-02T13:20:00+00:00",
+                  "total_sleep_duration": 900, "lowest_heart_rate": 90 }
+              ] }
+        """
+        val p = WearableExportImporter.parseOura(mapOf("export.json" to bytes(json)))
+        assertEquals(1, p.sleeps.size)
+        val d = p.days.first { it.day == "2026-02-02" }
+        assertEquals(15.0, d.totalSleepMin!!, 1e-6)
+        assertEquals(90, d.restingHr)
+    }
+
+    @Test
+    fun winningSessionSuppliesAllFieldsAsAUnitNeverMixed() {
+        // No field mixing: when two sessions with an equal `long_sleep` rank compete, the LONGER one wins
+        // and supplies every field as a unit — restingHr and totalSleepMin must come from the SAME
+        // session, never one field from each.
+        val json = """
+            { "sleep": [
+                { "day": "2026-02-03", "type": "long_sleep",
+                  "bedtime_start": "2026-02-02T22:00:00+00:00", "bedtime_end": "2026-02-03T02:00:00+00:00",
+                  "total_sleep_duration": 14400, "lowest_heart_rate": 70 },
+                { "day": "2026-02-03", "type": "long_sleep",
+                  "bedtime_start": "2026-02-03T03:00:00+00:00", "bedtime_end": "2026-02-03T09:00:00+00:00",
+                  "total_sleep_duration": 21600, "lowest_heart_rate": 47 }
+              ] }
+        """
+        val p = WearableExportImporter.parseOura(mapOf("export.json" to bytes(json)))
+        val d = p.days.first { it.day == "2026-02-03" }
+        // The longer (360-min) session wins the tie; its OWN restingHr (47) must land, not the shorter
+        // session's 70 and not a mix of the two.
+        assertEquals(360.0, d.totalSleepMin!!, 1e-6)
+        assertEquals(47, d.restingHr)
+    }
+
     // ---------------- Oura CSV (#857) ----------------
 
     @Test
@@ -275,6 +345,27 @@ class WearableExportImporterTest {
         assertEquals(6200.0, d.distanceM!!, 1e-6)        // equivalent_walking_distance (m)
         assertEquals(97.4, d.spo2Pct!!, 1e-6)            // dailyspo2 spo2_percentage
         assertEquals(44.6, d.vo2max!!, 1e-6)             // vo2max vo2_max → Fitness Age
+    }
+
+    @Test
+    fun ouraRealSchemaCsvFragmentBeforeMainSessionMainWins() {
+        // The REAL per-category `sleep.csv` (#862) can carry MULTIPLE rows for one day too (a nap/fragment
+        // alongside the real night), each with its own `type`. The fragment is listed FIRST here; the
+        // long_sleep main session must still win the day's rollup, supplying every field as a unit (no
+        // mixing the fragment's totalSleepMin with the main session's restingHr).
+        val sleepCsv = """
+            id;bedtime_end;bedtime_start;day;lowest_heart_rate;total_sleep_duration;type
+            a1;2026-06-01T13:20:00+00:00;2026-06-01T13:00:00+00:00;2026-06-01;90;900;short_sleep
+            a2;2026-06-01T06:30:00+00:00;2026-05-31T23:15:00+00:00;2026-06-01;48;25200;long_sleep
+        """
+        val files = mapOf("sleep.csv" to bytes(sleepCsv))
+        assertEquals(WearableExportImporter.Brand.OURA, WearableExportImporter.detectBrand(files))
+
+        val p = WearableExportImporter.parseOura(files)
+        assertEquals(2, p.sleeps.size)   // both sessions still appear in the sleep list
+        val d = p.days.first { it.day == "2026-06-01" }
+        assertEquals(420.0, d.totalSleepMin!!, 1e-6)   // the main 420-min night, not the 15-min fragment
+        assertEquals(48, d.restingHr)                   // the main night's resting HR, not the fragment's 90
     }
 
     @Test

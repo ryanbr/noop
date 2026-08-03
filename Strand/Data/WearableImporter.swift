@@ -1,4 +1,5 @@
 import Foundation
+import StrandAnalytics
 import WhoopStore
 import StrandImport
 
@@ -131,7 +132,7 @@ enum WearableImporter {
         var asleep = 0
         for seg in segs {
             guard let s = seg["start"] as? Int, let e = seg["end"] as? Int,
-                  let stage = seg["stage"] as? String, stage != "wake" else { continue }
+                  let stage = seg["stage"] as? String, !SleepStageVocabulary.isWake(stage) else { continue }
             asleep += max(0, e - s)
         }
         return min(100, Double(asleep) / Double(end - start) * 100)

@@ -165,6 +165,9 @@ extension WhoopStore {
     }
 
     /// Mark a batch synced (timestamp in unix seconds).
+    ///
+    /// #981 — NO production caller, and by design: see the dormancy note on `pruneRaw`'s Policy 1. Kept
+    /// because it is the natural hook for a future on-device export lane, not because anything calls it.
     public func markRawBatchSynced(batchId: String, at: Int) async throws {
         try syncWrite { db in
             try db.execute(sql: "UPDATE rawBatch SET syncedAt = ? WHERE batchId = ?",
@@ -176,9 +179,20 @@ extension WhoopStore {
 extension WhoopStore {
     /// Prune raw outbox rows. Returns the number of rawBatch rows deleted.
     ///
-    /// **Policy 1:** Delete SYNCED batches whose `syncedAt` timestamp is older than
-    /// `now - keepWindowSeconds`. Synced raw is safe to drop because the decoded streams
-    /// are persisted separately.
+    /// **Policy 1 — DORMANT in a shipping build (#981):** Delete SYNCED batches whose `syncedAt`
+    /// timestamp is older than `now - keepWindowSeconds`. Synced raw is safe to drop because the decoded
+    /// streams are persisted separately.
+    ///
+    /// It cannot fire today. `syncedAt` is only ever set by `markRawBatchSynced`, which has no production
+    /// caller — and cannot get one, because marking a batch "synced" needs somewhere to sync it to and
+    /// NOOP has no server, no account and no cloud sync by design (`CLAUDE.md`). The API and this policy
+    /// are inherited from the upstream `my-whoop` store (see `ATTRIBUTION.md`), which did have a sync
+    /// lane. Kept rather than deleted: both halves are correct and tested, and an on-device EXPORT lane
+    /// would be a legitimate server-free way to drain the outbox — at which point marking exported
+    /// batches synced and letting this reap them is exactly the right shape.
+    ///
+    /// Nothing is unbounded in the meantime: **Policy 2 is the real growth bound**, and is what the 19 GB
+    /// note below refers to.
     ///
     /// **Policy 2 (size eviction, #27):** Cap the total on-disk raw footprint at
     /// `maxUnsyncedBytes`. Walk the surviving batches newest-first (`capturedAt DESC`),

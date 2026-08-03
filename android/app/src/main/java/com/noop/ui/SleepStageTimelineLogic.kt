@@ -1,6 +1,7 @@
 package com.noop.ui
 
 import org.json.JSONArray
+import com.noop.analytics.SleepStageVocabulary
 
 /** One persisted per-epoch stage segment (wall-clock unix seconds). */
 internal data class PersistedSegment(val start: Long, val end: Long, val stage: String)
@@ -130,8 +131,10 @@ internal fun displaySmoothed(
  *  repeating the rule, so adding an alias here is all that is needed. Written as code rather than a
  *  KDoc link because the target is private in another file and would not resolve. */
 internal fun canonicalStage(name: String): String {
+    // #979: the alias rule has ONE definition — SleepStageVocabulary. This still folds toward
+    // "awake" because that is the key the stage-colour table and the minutes dictionaries use.
     val n = name.trim().lowercase()
-    return if (n == "wake") "awake" else n
+    return if (SleepStageVocabulary.isWake(n)) "awake" else n
 }
 
 /**

@@ -2,6 +2,7 @@ package com.noop.analytics
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -74,6 +75,22 @@ class SleepDebtTest {
         val l = SleepDebt.ledger(listOf("2026-06-01" to 420.0))
         assertEquals(RestScorer.defaultSleepNeedHours * 60.0, l.needMin, 1e-9)
         assertEquals(-60.0, l.balanceMin, 1e-9)
+    }
+
+    /** Main sleep stays canonical; separately-recorded nap sleep adds debt repayment credit. */
+    @Test
+    fun napMinutes_addDebtRepaymentCredit() {
+        val credited = SleepDebt.creditedSleepMin(mainSleepMin = 392.0, napSleepMin = 48.0)
+        assertEquals(440.0, credited!!, 1e-9)
+        val l = SleepDebt.ledger(listOf("2026-06-01" to credited), needHours = 8.0)
+        assertEquals(-40.0, l.balanceMin, 1e-9)
+    }
+
+    @Test
+    fun napCredit_requiresMainSleepAndIgnoresNegativeNapMinutes() {
+        assertNull(SleepDebt.creditedSleepMin(mainSleepMin = null, napSleepMin = 48.0))
+        assertNull(SleepDebt.creditedSleepMin(mainSleepMin = 0.0, napSleepMin = 48.0))
+        assertEquals(392.0, SleepDebt.creditedSleepMin(mainSleepMin = 392.0, napSleepMin = -10.0)!!, 1e-9)
     }
 
     /**

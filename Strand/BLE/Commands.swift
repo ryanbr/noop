@@ -95,6 +95,7 @@ public enum WhoopCommand: UInt8, CaseIterable {
     /// #690: read-only body-location/status probe. Documented in the WHOOP protocol; driven only by the
     /// user-triggered, Test-Centre-gated probeBodyLocationAndStatus(). Decoded to a diagnostic report only.
     case getBodyLocationAndStatus = 84
+    // ---- keep both: fork main's feature-flag enumeration probe AND the MG ECG family ----
     /// START_FF_KEY_EXCHANGE (117 / 0x75) — ask the strap how many feature flags its firmware knows.
     /// READ-ONLY: the reply carries a count, and nothing on the strap changes. Payload `[0x01]` (the
     /// inner b3 byte the SET_CONFIG family and GET_HELLO use). This is the READ half of the flag surface
@@ -108,6 +109,43 @@ public enum WhoopCommand: UInt8, CaseIterable {
     /// index, so the same frame is repeated to walk the list. Bounded by `FeatureFlagProbe.maxFlags` and
     /// by the strap's own end marker. Driven ONLY by `BLEManager.probeFeatureFlags()`. (#761)
     case sendNextFeatureFlag = 118
+
+    // MARK: WHOOP MG ECG ("Labrador") family — experimental, MG-only, opt-in
+    //
+    // All four numbers are already in this repo's protocol table (`CommandNumber` in
+    // whoop_protocol.json) from the upstream whoomp/goose work. They are SAFE and REVERSIBLE: three are
+    // data-stream toggles, and the fourth writes one persistent wrist-selection value that is re-writable
+    // at any time. NONE of them wipes data, reflashes, ship-modes, force-trims or otherwise permanently
+    // alters the strap, so the curated-safe-subset rule (docs/CONTRIBUTING.md §BLE safety contract) holds.
+    //
+    // The number→meaning mapping is a WORKING HYPOTHESIS, not confirmed: §6 of docs/PROTOCOL.md lists
+    // FIVE ECG/HeartKey names against these four codes, 139 is not contiguous with 123–125, and the
+    // table is 4.0-derived while 5/MG is known to remap some opcodes (MAVERICK answers SET_CLOCK at 146,
+    // not 10). See PROTOCOL.md §9.1 for the full caveat. That is precisely why these are probe-only and
+    // why the probe reports UNSUPPORTED as its own outcome rather than folding it into a "blocked" story.
+    //
+    // NOT hardware-confirmed on any strap — whether an MG's firmware honours them is exactly what the
+    // gated, user-initiated probe discovers. Payload for all four is `Whoop5Ecg.commandPayload(arg:)`
+    // = `[revision, arg]`. Driven only by `BLEManager.ecg*`, itself behind the MG-gated Experimental
+    // opt-in; never sent automatically, never on a plain 5.0 or a 4.0.
+
+    /// SELECT_WRIST (123 / 0x7B) — tell the strap which wrist it is worn on.
+    ///
+    /// ⚠️ This is a PERSISTENT device-config write: the value survives a disconnect, unlike the three
+    /// stream toggles below. Reversible (send it again with the other wrist), but it is kept as its own
+    /// deliberate, separately-confirmed user action and never bundled into a one-tap flow. The raw
+    /// values (right=0 / left=1) are INFERRED from the client's enum ORDER, not attested — which is
+    /// exactly why the user picks the wrist explicitly and the UI says the inference is unconfirmed.
+    case selectWrist = 123
+    /// TOGGLE_LABRADOR_DATA_GENERATION (124 / 0x7C) — the ECG subsystem's main control
+    /// (stop=0 / start=1 / restart=2). Reversible: `stop` is the documented OFF path.
+    case toggleLabradorDataGeneration = 124
+    /// TOGGLE_LABRADOR_RAW_SAVE (125 / 0x7D) — ask the strap to PERSIST raw ECG records for later
+    /// offload. A data-retention toggle; sending 0 turns it back off. It writes no setting that
+    /// outlives the session's own opt-in.
+    case toggleLabradorRawSave = 125
+    /// TOGGLE_LABRADOR_FILTERED (139 / 0x8B) — stream the filtered ECG packets live. Reversible.
+    case toggleLabradorFiltered = 139
     /// GET_DEVICE_CONFIG_VALUE (121 / 0x79) — ask for ONE device-config value by key name.
     /// READ-ONLY: nothing on the strap changes. Payload `[0x01]` + the key ASCII NUL-padded to 32 bytes,
     /// the SET side's own name field minus its value byte. This is the read half of the DEVICE-CONFIG
@@ -191,6 +229,10 @@ public enum WhoopCommand: UInt8, CaseIterable {
         case .getBodyLocationAndStatus:return "Get Body Location And Status"
         case .startFeatureFlagKeyExchange: return "Start Feature-Flag Key Exchange"
         case .sendNextFeatureFlag:   return "Send Next Feature Flag"
+        case .selectWrist:           return "Select Wrist (MG ECG, persistent)"
+        case .toggleLabradorDataGeneration: return "ECG Data Generation (MG)"
+        case .toggleLabradorRawSave: return "ECG Raw Save (MG)"
+        case .toggleLabradorFiltered:return "ECG Filtered Stream (MG)"
         case .getDeviceConfigValue:  return "Get Device Config Value"
         case .getFeatureFlagValue:   return "Get Feature Flag Value"
         case .toggleIMUMode:         return "Toggle IMU Mode"

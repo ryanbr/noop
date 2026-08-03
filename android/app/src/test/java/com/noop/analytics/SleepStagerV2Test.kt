@@ -14,7 +14,7 @@ import kotlin.math.sin
 import kotlin.math.roundToInt
 
 /**
- * Basic coverage for [SleepStagerV2] (V7 Pillar 3b, reimplemented from contributor PR #600), the Android
+ * Basic coverage for [SleepStagerV2] (V7 Pillar 3b, reimplemented from @sunny-noop's recipe), the Android
  * twin of SleepStagerV2Tests.swift — the recipe that stages a normal user's nights, since the stored
  * `experimentalSleepV2` preference is default TRUE (#277 promoted it over V1; #351 extended it to every
  * strap family). Asserts the drop-in CONTRACT — same [SleepStager.stageSession] signature + return shape,
@@ -115,10 +115,10 @@ class SleepStagerV2Test {
         assertTrue("V2 output is a segment array", v2!!.trimStart().startsWith("["))
     }
 
-    // ── #690: the V2 flag drives the NORMAL detected-night staging path ─────────────────────────────────
+    // ── 7.0.0: the V2 flag drives the NORMAL detected-night staging path ─────────────────────────────────
 
     /**
-     * #690 (v7 regression): the "Experimental sleep staging (V2)" toggle must affect a NORMAL detected
+     * 7.0.0 regression: the "Experimental sleep staging (V2)" toggle must affect a NORMAL detected
      * night — not only the userEdited self-heal restage. With the flag ON, [SleepStager.detectSleep]
      * stages the accepted window with V2 (deep + REM present); with the flag OFF it returns the EXACT V1
      * result, so the byte-identical default (and the frozen-golden tests) is preserved. Android twin of

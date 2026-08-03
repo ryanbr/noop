@@ -75,11 +75,13 @@ if [ -d "$IOSAPP" ]; then
   # complication under a free Apple ID is an Apple limitation that crashes AltStore / SideStore mid-install
   # with InvalidCompanionAppBundleIdentifier (the v7.2.0 regression). Build-from-source still ships the watch
   # ($IOSAPP, already anonymized + leak-checked, is untouched); only this staged copy is thinned. The iOS app
-  # has no runtime dependency on the watch bundle and the IPA is unsigned, so there is no signature to break.
+  # has no runtime dependency on the watch bundle. The replaceable capability-template signature is
+  # deliberately applied only after this final bundle mutation.
   if [ -d "$STAGE/Payload/NOOP.app/Watch" ]; then
     rm -rf "$STAGE/Payload/NOOP.app/Watch"
     echo "  ✓ stripped embedded watch app from the sideload IPA (free-Apple-ID install fix; #751 mp3geek)"
   fi
+  Tools/prepare-ios-sideload-app.sh "$STAGE/Payload/NOOP.app" 2>&1 | sed 's/^/  /'
   ( cd "$STAGE" && zip -qry "$OLDPWD/$DIST/NOOP-v$VER.ipa" Payload )
   [ -f "$DIST/NOOP-v$VER.ipa" ] && ok_ios=1 && echo "  ✓ dist/NOOP-v$VER.ipa ($(( $(stat -f '%z' "$DIST/NOOP-v$VER.ipa")/1024/1024 ))MB)"
 else echo "  ✗ iOS build FAILED"; grep -E 'error:' /tmp/v7a-ios.log | sed 's#.*Strand/##' | sort -u | head; fi

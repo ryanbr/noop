@@ -118,13 +118,27 @@ class DebugExportSettings(private val prefs: SharedPreferences) {
         get() = prefs.getInt(KEY_TIME, DEFAULT_TIME).coerceIn(0, MINUTES_PER_DAY - 1)
         set(v) = prefs.edit().putInt(KEY_TIME, v.coerceIn(0, MINUTES_PER_DAY - 1)).apply()
 
+    /**
+     * Retention (#642): how many scheduled-export GENERATIONS to keep on disk — a day's strap-log +
+     * raw-capture pair counts as one — before [LogExport.writeScheduledExport] prunes older ones.
+     * Mirrors [BackupSyncPrefs.keepCount] byte-for-byte (same clamp, same shape). Default keeps a
+     * month of daily drops: these are small text/JSONL files, not a whole-DB snapshot, so a longer
+     * default than [BackupSync.DEFAULT_KEEP] is reasonable — unlike a backup, an unbounded pile of
+     * these was the privacy concern in the first place, so SOME default cap always applies.
+     */
+    var keepCount: Int
+        get() = prefs.getInt(KEY_KEEP, DEFAULT_KEEP).coerceIn(1, 100)
+        set(v) = prefs.edit().putInt(KEY_KEEP, v.coerceIn(1, 100)).apply()
+
     companion object {
         private const val PREFS = "noop_debug_export"
         private const val KEY_ENABLED = "debugExport.enabled"
         private const val KEY_TIME = "debugExport.timeMinutes"
+        private const val KEY_KEEP = "debugExport.keepCount"
 
         const val MINUTES_PER_DAY = 24 * 60
         const val DEFAULT_TIME = 7 * 60   // 07:00 — a log waiting when you wake.
+        const val DEFAULT_KEEP = 14       // ~2 weeks of daily drops.
 
         fun from(context: Context): DebugExportSettings =
             DebugExportSettings(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE))

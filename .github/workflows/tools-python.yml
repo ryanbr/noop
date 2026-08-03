@@ -1,0 +1,78 @@
+# The Python test suites under Tools/, which nothing ran.
+#
+# `Tools/linux-capture` carries 212 tests across 8 files — the frame decoder, the HCI extractor, the
+# activity and sync decoders, the spot-HRV path, and the SpO2 promote gate that #103 is waiting on. Every
+# one of them only ever executed when a contributor remembered to, which meant a decoder could regress and
+# the suite that would have caught it stayed green by never being run.
+#
+# Cheap to run: pure stdlib `unittest`, no dependencies, no fixtures to fetch, ubuntu rather than macOS.
+# Path-filtered so it only fires when the suites it runs change.
+name: Tools Python CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'Tools/linux-capture/**'
+      - 'Tools/*.py'
+      - '.github/workflows/tools-python.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'Tools/linux-capture/**'
+      - 'Tools/*.py'
+      - '.github/workflows/tools-python.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: tools-python-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux-capture:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # `discover` rather than a hand-listed set, so a NEW test file is picked up without editing this
+      # workflow — the failure mode that leaves a suite unrun is exactly what this job exists to end.
+      #
+      # The count assertion is the same idea one level up: `discover` exits 0 having found NOTHING, so a
+      # wrong working-directory or a renamed pattern would turn this job green while running no tests at
+      # all. Checking a floor makes that fail loudly instead. Raise the floor when suites are added; do
+      # not lower it to make a red run pass.
+      - name: Run Tools/linux-capture tests
+        run: |
+          set -o pipefail   # GitHub's default shell is `bash -e` WITHOUT pipefail: piping into tee
+                            # would return tee's status and swallow a failing suite entirely.
+          python3 -m unittest discover -p "test_*.py" -v 2>&1 | tee "$RUNNER_TEMP/out.txt"
+          ran=$(grep -oE '^Ran [0-9]+ test' "$RUNNER_TEMP/out.txt" | grep -oE '[0-9]+')
+          echo "collected ${ran:-0} tests"
+          if [ "${ran:-0}" -lt 200 ]; then
+            echo "::error::expected at least 200 tests, collected ${ran:-0} — discovery is broken, not the suite"
+            exit 1
+          fi
+        working-directory: Tools/linux-capture
+
+      # The Tools/ suites: the i18n audit that gates every PR's translations, and the What's New
+      # generator (#878). Neither ran before — i18n-coverage.yml invokes `i18n_audit.py --ci` but never
+      # its test file. `discover`, not named modules, for the same reason as above: naming them meant the
+      # generator's tests would have been added and silently never run. Run from inside Tools/ because
+      # the suites import their modules by bare name.
+      - name: Run Tools/ tests
+        run: |
+          set -o pipefail   # see above — without this a red suite exits 0 through the pipe.
+          python3 -m unittest discover -p "test_*.py" -v 2>&1 | tee "$RUNNER_TEMP/out.txt"
+          ran=$(grep -oE '^Ran [0-9]+ test' "$RUNNER_TEMP/out.txt" | grep -oE '[0-9]+')
+          echo "collected ${ran:-0} tests"
+          if [ "${ran:-0}" -lt 45 ]; then
+            echo "::error::expected at least 45 tests, collected ${ran:-0} — discovery is broken, not the suite"
+            exit 1
+          fi
+        working-directory: Tools

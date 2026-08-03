@@ -1,10 +1,13 @@
 package com.noop.ui
 
 import com.noop.data.SleepSession
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
+import java.util.TimeZone
 
 /**
  * #736 (Android twin of SleepOnsetStubTests.swift): the Sleep tab must not draw the night's hypnogram /
@@ -14,6 +17,17 @@ import org.junit.Test
  * pencil edits. A genuine first sleep fragment of a biphasic night is NEVER mistaken for a stub (#555).
  */
 class SleepOnsetStubTest {
+
+    // The selectNight goldens below use fixed unix timestamps, but the scorer's cold-start alignment
+    // bonus reads the MACHINE timezone (uiTzOffsetSec()): on a UTC+7 host fragment B's 02:46 UTC
+    // midpoint lands outside the bonus window and fragment A outscores it, flipping the pick. Pin UTC
+    // like the other selectNight tests (ConsistencyNightSpansTest et al.) so the goldens are
+    // machine-independent.
+    private val saved: TimeZone = TimeZone.getDefault()
+
+    @Before fun setUtc() { TimeZone.setDefault(TimeZone.getTimeZone("UTC")) }
+
+    @After fun restore() { TimeZone.setDefault(saved) }
 
     private fun block(startTs: Long, endTs: Long, stagesJSON: String?): SleepSession =
         SleepSession(deviceId = "dev", startTs = startTs, endTs = endTs, stagesJSON = stagesJSON)

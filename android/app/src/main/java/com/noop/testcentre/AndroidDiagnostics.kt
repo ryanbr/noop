@@ -18,6 +18,10 @@ import android.os.PowerManager
  */
 object AndroidDiagnostics {
 
+    /** Aux rows read for one night's SpO2-candidate line (#112). Twin of the Swift
+     *  `DebugDataDiagnostics.spo2CandidateAuxLimit`. */
+    private const val SPO2_CANDIDATE_AUX_LIMIT = 200_000
+
     fun summaryLines(context: Context): List<String> = buildList {
         add("Device: ${Build.MANUFACTURER} ${Build.MODEL}")
         add("Android: ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
@@ -119,6 +123,40 @@ object AndroidDiagnostics {
             val devAnchor = if (family == com.noop.protocol.DeviceFamily.WHOOP4)
                 com.noop.protocol.Whoop4SkinTemp.deviceAnchorRaw(windowSkin.map { it.raw }) else null
             add(com.noop.analytics.AnalyticsEngine.skinTempFunnel(listOf(det), hr, skin, family, devAnchor).summary)
+
+            // #112/#103 — the 5/MG SpO2 CANDIDATE (@82), as one number a wearer can check against the
+            // figure the WHOOP app reports for the same night. The candidate cannot be promoted while two
+            // straps disagree about it, and until now the only way to read it was to scroll the Deep
+            // Timeline and eyeball it, which is not an instrument to hand a volunteer. Diagnostic only:
+            // nothing scores this and it is NOT a blood-oxygen reading. Absent on a WHOOP 4.0, which
+            // carries raw red/IR ADC and no candidate — said explicitly so a 4.0 owner is not left
+            // wondering. Twin of the Swift `DebugDataDiagnostics` line.
+            // Same explicit limit as the Swift twin's `spo2CandidateAuxLimit`, rather than Int.MAX_VALUE,
+            // so the two platforms visibly read the same window. A night is ~30k rows at 1 Hz.
+            //
+            // The aux read gets its OWN runCatching rather than riding the enclosing one. Letting it
+            // propagate would abort the whole funnels block on a failure here — the skin-temp and REM
+            // lines above would be followed by a generic "(funnels unavailable)" instead of this line
+            // saying which of the two things happened. A failed read and a night with no candidate are
+            // different facts, and this is a diagnostic. Byte-for-byte the same four outcomes, in the
+            // same order, with the same wording as the Swift `DebugDataDiagnostics` twin.
+            val auxRead = runCatching {
+                repo.v18AuxSamples(id, session.startTs, session.endTs, SPO2_CANDIDATE_AUX_LIMIT)
+            }.getOrNull()
+            val cand = auxRead?.let {
+                com.noop.analytics.AnalyticsEngine.nightlySpo2CandidateMean(listOf(det), it)
+            }
+            when {
+                auxRead == null -> add(
+                    "SpO₂ candidate @82: could not read the aux stream for this night — " +
+                        "a read failure, NOT an absence of readings.")
+                cand != null -> add(
+                    "SpO₂ candidate @82 (5/MG): mean ${cand.first} over ${cand.second} in-band readings " +
+                        "— UNVERIFIED, compare against the WHOOP app's figure for this night (#103).")
+                family == com.noop.protocol.DeviceFamily.WHOOP5 ->
+                    add("SpO₂ candidate @82 (5/MG): no in-band readings inside this night's span.")
+                else -> add("SpO₂ candidate @82: not carried by a WHOOP 4.0 (raw red/IR ADC only).")
+            }
         }.onFailure { add("(funnels unavailable: ${it.message})") }
     }
 

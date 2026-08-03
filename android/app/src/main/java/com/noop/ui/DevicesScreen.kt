@@ -801,12 +801,12 @@ private fun DeviceActionsMenu(
         DropdownMenu(expanded = open, onDismissRequest = { onOpenChange(false) }) {
             if (device.status == DeviceStatus.archived.name) {
                 if (onReAdd != null) {
-                    MenuItem("Make active", Icons.Filled.Bolt) { onOpenChange(false); onReAdd() }
+                    MenuItem(uiString(R.string.l10n_devices_screen_make_active_75690bb8), Icons.Filled.Bolt) { onOpenChange(false); onReAdd() }
                 }
-                MenuItem("Rename", Icons.Filled.Edit) { onOpenChange(false); onRename() }
+                MenuItem(uiString(R.string.l10n_devices_screen_rename_d3f4cb89), Icons.Filled.Edit) { onOpenChange(false); onRename() }
                 if (onDeleteData != null) {
                     HorizontalDivider(color = Palette.hairline)
-                    MenuItem("Delete this device's data…", Icons.Filled.Delete, destructive = true) {
+                    MenuItem(uiString(R.string.l10n_devices_screen_delete_this_device_s_data_3cae7a2a), Icons.Filled.Delete, destructive = true) {
                         onOpenChange(false); onDeleteData()
                     }
                 }
@@ -816,25 +816,25 @@ private fun DeviceActionsMenu(
                 // reconnect left stuck. Shown first as the obvious recovery action.
                 if (onConnect != null) {
                     if (isLiveConnected) {
-                        MenuItem("Disconnect", Icons.Filled.Close) { onOpenChange(false); onDisconnect?.invoke() }
+                        MenuItem(uiString(R.string.l10n_devices_screen_disconnect_ed28e068), Icons.Filled.Close) { onOpenChange(false); onDisconnect?.invoke() }
                     } else {
-                        MenuItem("Reconnect", Icons.Filled.Refresh) { onOpenChange(false); onConnect() }
+                        MenuItem(uiString(R.string.l10n_devices_screen_reconnect_6988b16a), Icons.Filled.Refresh) { onOpenChange(false); onConnect() }
                     }
                     HorizontalDivider(color = Palette.hairline)
                 }
                 if (!isActive) {
-                    MenuItem("Make active", Icons.Filled.Bolt) { onOpenChange(false); onMakeActive() }
+                    MenuItem(uiString(R.string.l10n_devices_screen_make_active_75690bb8), Icons.Filled.Bolt) { onOpenChange(false); onMakeActive() }
                 }
-                MenuItem("Rename", Icons.Filled.Edit) { onOpenChange(false); onRename() }
+                MenuItem(uiString(R.string.l10n_devices_screen_rename_d3f4cb89), Icons.Filled.Edit) { onOpenChange(false); onRename() }
                 // Restart the strap — only for the live-connected WHOOP (the reboot travels over the active
                 // BLE link). Confirmation-gated by the parent. (#166)
                 if (isLiveConnected && SourceCoordinator.isWhoop(device) && onReboot != null) {
-                    MenuItem("Restart strap…", Icons.Filled.Refresh) { onOpenChange(false); onReboot() }
+                    MenuItem(uiString(R.string.l10n_devices_screen_restart_strap_c976cd6c), Icons.Filled.Refresh) { onOpenChange(false); onReboot() }
                 }
                 // 4.0 reboot probe (RE): only present when the parent passed a closure (Test Centre →
                 // Connection on + a live WHOOP 4.0). Finds the real reboot frame the 4.0 accepts (#235).
                 if (onRebootProbe != null) {
-                    MenuItem("Reboot probe (4.0 RE)…", Icons.Filled.BugReport) { onOpenChange(false); onRebootProbe() }
+                    MenuItem(uiString(R.string.l10n_devices_screen_reboot_probe_4_0_re_828b3916), Icons.Filled.BugReport) { onOpenChange(false); onRebootProbe() }
                 }
                 // #592: read-only extended-battery opcode probe — settles the disputed GET_EXTENDED_
                 // BATTERY_INFO number (98 vs an APK decompile's 87) from a strap-log export.
@@ -858,7 +858,7 @@ private fun DeviceActionsMenu(
                 }
                 if (onRemove != null) {
                     HorizontalDivider(color = Palette.hairline)
-                    MenuItem("Remove", Icons.Filled.RemoveCircleOutline, destructive = true) {
+                    MenuItem(uiString(R.string.l10n_devices_screen_remove_e963907d), Icons.Filled.RemoveCircleOutline, destructive = true) {
                         onOpenChange(false); onRemove()
                     }
                 }
@@ -1328,8 +1328,7 @@ private fun PickActiveDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    uiString(R.string.l10n_devices_screen_you_removed_your_active_strap_choose_2ac91d48) +
-                        "leave none active and pair one later.",
+                    uiString(R.string.l10n_devices_screen_you_removed_your_active_strap_choose_2ac91d48),
                     style = NoopType.subhead,
                     color = Palette.textSecondary,
                 )
@@ -1560,8 +1559,7 @@ private fun OuraLocalStateNote() {
     ) {
         Icon(Icons.Filled.Info, contentDescription = null, tint = Palette.statusWarning, modifier = Modifier.size(14.dp))
         Text(
-            uiString(R.string.l10n_devices_screen_paired_locally_noop_owns_this_ring_30c16190) +
-                "up in the Oura app, NOOP no longer owns it and you would re-add it to take it over.",
+            uiString(R.string.l10n_devices_screen_paired_locally_noop_owns_this_ring_30c16190),
             style = NoopType.caption,
             color = Palette.statusWarning,
         )

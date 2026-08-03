@@ -46,6 +46,9 @@ struct StrandiOSApp: App {
         // `SyncReplicationTrial`.
         SyncReplicationTrial.applyAtLaunch()
         #endif
+        // #1008: pin the pre-change Overnight-only default for existing installs before
+        // anything reads it. Idempotent; a no-op on fresh installs and after the first launch.
+        PuffinExperiment.migrateContinuousHrvOvernightDefault()
         #if DEBUG
         // DEBUG-only promo-screenshot harness: when launched with `--demo-hour <Int>`, pin Today to that
         // hour's day-cycle scene + a per-hour stat frame. No-op (active stays nil) when the arg is absent.
@@ -86,11 +89,17 @@ struct StrandiOSApp: App {
         // (Keychain-or-bundle) credentials.
         #endif
         _model = StateObject(wrappedValue: model)
-        _health = StateObject(wrappedValue: HealthKitBridge(
+        let bridge = HealthKitBridge(
             repo: model.repo,
             appleDeviceId: model.appleDeviceId,
             noopDeviceId: model.deviceId
-        ))
+        )
+        _health = StateObject(wrappedValue: bridge)
+        // #1021: publish to Apple Health when an offload lands, not only on foreground entry - the
+        // scenePhase pass below starts the offload and wrote to Health in parallel with it, so a night
+        // synced on open only reached Health at the next launch. Weak so the scene owns the bridge's
+        // lifetime; the bridge no-ops unless Health was authorized.
+        model.healthWriteBack = { [weak bridge] in await bridge?.writeBackAfterNewData() }
     }
 
     var body: some Scene {

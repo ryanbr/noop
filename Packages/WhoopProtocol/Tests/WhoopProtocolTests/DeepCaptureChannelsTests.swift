@@ -281,17 +281,24 @@ final class DeepCaptureChannelsTests: XCTestCase {
         XCTAssertNotNil(s.gravity.first?.dynAccel)
     }
 
-    /// Everything with an existing durable home is banked once, not twice.
-    func testNoSlotDuplicatesAnAlreadyPersistedField() {
-        let persistedElsewhere: Set<String> = [
+    /// Nothing already reachable from a banked field is banked a second time.
+    ///
+    /// The name matters (#979). Most of these ARE stored under their own column, but two are not:
+    /// `motion_wear_quality@63` is the same byte as `activity_class` under a second name, and
+    /// `spo2_candidate_82` is a gated 70-100 view of `auxByte82`. Neither is persisted in its own
+    /// right — both are RECOVERABLE from a byte that is, which is equally good grounds for refusing
+    /// to bank them and not the same claim. The old name asserted each "already has a durable home",
+    /// which reads as "SpO2 is being stored" and is not true.
+    func testNoSlotDuplicatesAFieldAlreadyReachable() {
+        let recoverableFromABankedField: Set<String> = [
             "unix", "heart_rate", "rr_intervals", "gravity_x", "gravity_y", "gravity_z",
             "dynamic_acceleration", "skin_temp_raw", "temp_aux_1_raw", "temp_aux_2_raw",
             "step_motion_counter", "activity_class", "motion_wear_quality", "sleep_state",
             "sleep_state_byte", "spo2_candidate_82", "ppg_waveform",
         ]
         for slot in V18AuxSlot.allCases {
-            XCTAssertFalse(persistedElsewhere.contains(slot.decoderKey),
-                           "\(slot.decoderKey) already has a durable home — banking it twice is waste")
+            XCTAssertFalse(recoverableFromABankedField.contains(slot.decoderKey),
+                           "\(slot.decoderKey) is already reachable from a banked field — banking it twice is waste")
         }
     }
 }

@@ -17,14 +17,28 @@ import Foundation
 ///
 /// ## What it admits
 ///
-/// | opcode | key | value | gate |
-/// |---|---|---|---|
-/// | 120 `SET_FF_VALUE` | one of `Whoop5Config.enableR22Sequence` | the enable value for that key, or `featureFlagOffValue` | deep-data opt-in |
-/// | anything else | — | — | refused |
+/// Two predicates, not one, because the enable and the disable directions have **different gates** as well
+/// as different values:
 ///
-/// A value outside that pair is refused even for an R22 key: nothing in NOOP has a reason to write a third
-/// value, and admitting one would mean a typo could put an arbitrary byte into persistent strap config.
-/// `SET_DEVICE_CONFIG_VALUE` (119) is refused outright — it keeps its own clause for the Broadcast-HR flag.
+/// | predicate | opcode | key | value | gate |
+/// |---|---|---|---|---|
+/// | `admitsEnableWrite` | 120 `SET_FF_VALUE` | one of `Whoop5Config.enableR22Sequence` | that key's own enable value | deep-data opt-in |
+/// | `admitsDisableWrite` | 120 `SET_FF_VALUE` | one of `Whoop5Config.enableR22Sequence` | `featureFlagOffValue` only | a disable run in flight |
+/// | anything else | — | — | — | refused |
+///
+/// **Why the disable direction is gated on the run and not on the pref.** `deepDataEnabled` is bound
+/// straight to a SwiftUI `@AppStorage` switch, so it is already `false` by the time the user confirms they
+/// want the flags cleared — gating the undo on it makes the undo unreachable from the one control a user
+/// naturally reaches for. The run itself is the honest gate: it is only ever non-nil inside
+/// `disableWhoop5DeepData()`, which is user-initiated, and it closes again the moment the run ends. This is
+/// the same shape `isReadBackOpcode` + `r22DisableRun != nil` already uses for the 128 read-back.
+///
+/// Splitting the predicates also makes the invariant exact rather than approximate: **an off value on the
+/// wire means a disable run is in flight**, and an enable value on the wire means the opt-in is on. A single
+/// predicate admitting either value under either gate could not say that. A value outside the pair is
+/// refused even for an R22 key: nothing in NOOP has a reason to write a third value, and admitting one would
+/// mean a typo could put an arbitrary byte into persistent strap config. `SET_DEVICE_CONFIG_VALUE` (119) is
+/// refused outright — it keeps its own clause for the Broadcast-HR flag.
 ///
 /// Pure: no CoreBluetooth, no I/O, no preferences. The app layer supplies the opt-in boolean. The Kotlin
 /// twin is `com.noop.protocol.FeatureFlagWriteGate` — keep them byte-identical.
@@ -53,11 +67,17 @@ public enum FeatureFlagWriteGate {
         Whoop5Config.enableR22Sequence.first { $0.name == key }?.value
     }
 
-    /// Whether `value` is one NOOP is allowed to write for `key`: that key's own enable value, or the
-    /// documented off value. Anything else is refused.
-    public static func isWritableValue(_ value: UInt8, for key: String) -> Bool {
+    /// Whether `value` is the ENABLE value for `key` — the only value the enable direction may write.
+    public static func isEnableValue(_ value: UInt8, for key: String) -> Bool {
         guard let on = enableValue(for: key) else { return false }
-        return value == on || value == Whoop5Config.featureFlagOffValue
+        return value == on
+    }
+
+    /// Whether `key` is one of the sixteen AND `value` is the documented off value — the only pair the
+    /// disable direction may write. The key check is what stops the off value reaching an arbitrary flag.
+    public static func isOffValue(_ value: UInt8, for key: String) -> Bool {
+        guard enableValue(for: key) != nil else { return false }
+        return value == Whoop5Config.featureFlagOffValue
     }
 
     // MARK: - Body parsing
@@ -93,16 +113,34 @@ public enum FeatureFlagWriteGate {
 
     // MARK: - The allowlist predicate
 
-    /// **The send allowlist itself.** True only for `SET_FF_VALUE(120)` carrying a well-formed body whose
-    /// key is one of the sixteen and whose value is that key's enable value or the off value.
+    /// **The enable direction's send allowlist.** True only for `SET_FF_VALUE(120)` carrying a well-formed
+    /// body whose key is one of the sixteen and whose value is that key's own enable value, while the
+    /// deep-data opt-in is on.
     ///
     /// Every other opcode is false — explicitly including `SET_DEVICE_CONFIG_VALUE(119)`, which keeps its
-    /// own separate clause and must never be reachable from here.
-    public static func admitsSend(opcode: UInt8, payload: [UInt8], deepDataOptIn: Bool) -> Bool {
+    /// own separate clause and must never be reachable from here. The off value is NOT admitted here; it
+    /// belongs to `admitsDisableWrite` and its own gate.
+    public static func admitsEnableWrite(opcode: UInt8, payload: [UInt8], deepDataOptIn: Bool) -> Bool {
         guard deepDataOptIn else { return false }
         guard opcode == setFeatureFlagValueCmd else { return false }
         guard let (key, value) = keyAndValue(inSendPayload: payload) else { return false }
-        return isWritableValue(value, for: key)
+        return isEnableValue(value, for: key)
+    }
+
+    /// **The disable direction's send allowlist.** True only for `SET_FF_VALUE(120)` carrying a well-formed
+    /// body whose key is one of the sixteen and whose value is `featureFlagOffValue`, while a disable run is
+    /// actually in flight.
+    ///
+    /// `disableRunInFlight` is `r22DisableRun != nil` at the call site — deliberately NOT the deep-data
+    /// preference. The preference is already `false` by the time a user confirms the undo (the switch writes
+    /// it before the confirmation dialog is raised), so gating on it makes the undo unreachable from the
+    /// toggle. Gating on the run is also strictly narrower in the other direction: with the opt-in merely
+    /// left on, no off value can be sent unless a run is genuinely walking its plan.
+    public static func admitsDisableWrite(opcode: UInt8, payload: [UInt8], disableRunInFlight: Bool) -> Bool {
+        guard disableRunInFlight else { return false }
+        guard opcode == setFeatureFlagValueCmd else { return false }
+        guard let (key, value) = keyAndValue(inSendPayload: payload) else { return false }
+        return isOffValue(value, for: key)
     }
 
     /// The read verb the post-write verification is allowed to send, and only that one.
@@ -223,6 +261,10 @@ public struct R22DisableReport: Equatable, Sendable {
         /// Distinct from `offValueRejected` on purpose: nothing was learned about the off value, so this
         /// must not be reported as evidence against it.
         case probeInconclusive
+        /// The run refused to start because the key list does not contain `probeKey`, so the off value could
+        /// not be tested on one flag before the rest were written. Nothing was sent. Distinct from
+        /// `probeInconclusive`: there the probe ran and answered nothing, here it could not run at all.
+        case probeUnavailable
         /// The run was abandoned (disconnect, or the caller stopped it).
         case abandoned
     }
@@ -287,12 +329,21 @@ public struct R22DisableReport: Equatable, Sendable {
         if plan.isEmpty && !planBuilt {
             planBuilt = true
             guard keys.contains(R22DisableReport.probeKey) else {
-                // Defensive: a caller that hands over a key list without the probe key gets a plain
-                // sequential run rather than a silently skipped gate.
-                plan = keys.map { Step(opcode: FeatureFlagWriteGate.setFeatureFlagValueCmd, key: $0, stage: .clearWrite) }
-                    + keys.map { Step(opcode: FeatureFlagWriteGate.getFeatureFlagValueCmd, key: $0, stage: .verifyRead) }
-                probePassed = true
-                return nextStep()
+                // FAIL CLOSED. This used to plan a blanket sequential run and set `probePassed = true`,
+                // which defeated the entire point of the design: the safety argument for writing an
+                // INFERRED value to sixteen persistent flags is that one flag is written and read back
+                // first, and a key list without the probe key cannot make that argument. Writing all
+                // sixteen unprobed is the one outcome the staging exists to prevent, and `probePassed`
+                // recorded a probe that never ran — so a report could claim a passed gate on a run that
+                // never had one. Unreachable from either shipped call site (both use the no-arg init), but
+                // fail-open on a write path is not a defensible default whatever the current call sites do.
+                stopped = true
+                for key in keys { outcomes[key] = .skipped }
+                verdict = .probeUnavailable
+                trace.append("REFUSED: the key list does not contain the probe key "
+                             + "\(R22DisableReport.probeKey), so '0' cannot be tested on one flag before the "
+                             + "other \(max(0, keys.count - 1)) are written. Nothing was sent.")
+                return nil
             }
             plan = [
                 Step(opcode: FeatureFlagWriteGate.setFeatureFlagValueCmd,
@@ -438,6 +489,7 @@ public struct R22DisableReport: Equatable, Sendable {
         case .partial:          return "\(cleared) of \(keys.count) R22 flags cleared — the rest did not take."
         case .offValueRejected: return "The strap refused '0' for \(R22DisableReport.probeKey); the other flags were left alone."
         case .probeInconclusive: return "No usable read-back for \(R22DisableReport.probeKey) — nothing further was written."
+        case .probeUnavailable: return "Refused to run: \(R22DisableReport.probeKey) is not in the key list, so the off value could not be probed first. Nothing was sent."
         case .abandoned:        return "Disable run interrupted — \(cleared) of \(keys.count) flags confirmed cleared."
         }
     }

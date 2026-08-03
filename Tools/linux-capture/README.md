@@ -48,7 +48,7 @@ protocol details these tools exercise.
 
 ## Setup (first time)
 
-Step by step from a fresh machine. Run these from inside this directory (`tools/linux-capture/`).
+Step by step from a fresh machine. Run these from inside this directory (`Tools/linux-capture/`).
 
 ```bash
 # 1. System packages: Python venv support + BlueZ (Debian/Ubuntu/Pop!_OS)

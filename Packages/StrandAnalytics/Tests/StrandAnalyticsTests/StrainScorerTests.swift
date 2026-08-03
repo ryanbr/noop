@@ -171,4 +171,25 @@ final class StrainScorerTests: XCTestCase {
     func testFitStrainDenominatorThrowsTooFew() {
         XCTAssertThrowsError(try StrainScorer.fitStrainDenominator([(100, 10)]))
     }
+
+    /// #983 — the resting HR a workout is scored with is not cosmetic; it moves every zone boundary.
+    ///
+    /// %HRR is `(bpm - resting) / (max - resting)`, so scoring someone whose real resting is 50 as if it
+    /// were the hardcoded default of 60 shrinks the reserve AND raises the floor. At 136 bpm that is the
+    /// difference between zone 1 and zone 2 — the same session, two Efforts. The saved-workout path
+    /// used to fall back to the default while Today's Effort and the manual rescore threaded the measured
+    /// value, so the SAVED workout disagreed with its own re-score.
+    ///
+    /// Twin: `StrainRestingHrTest.restingHrChangesTheZoneASampleLandsIn`.
+    func testRestingHrChangesTheZoneASampleLandsIn() {
+        XCTAssertEqual(StrainScorer.zoneWeight(136, restingHR: 60, hrReserve: 130), 1)
+        XCTAssertEqual(StrainScorer.zoneWeight(136, restingHR: 50, hrReserve: 140), 2)
+        // ...and that carries all the way through to the score, not just the zone.
+        let window = hr(136, 1200)   // well past the >=600-sample gate this file pins above
+        let asDefault = StrainScorer.strain(window, maxHR: 190, restingHR: 60)
+        let asMeasured = StrainScorer.strain(window, maxHR: 190, restingHR: 50)
+        XCTAssertNotNil(asDefault); XCTAssertNotNil(asMeasured)
+        XCTAssertGreaterThan(asMeasured!, asDefault!,
+                             "a lower measured resting puts the same HR in a higher zone, so Effort rises")
+    }
 }

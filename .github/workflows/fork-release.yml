@@ -249,7 +249,7 @@ jobs:
           -derivedDataPath build/dd
           CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
           build
-      - name: Package unsigned .ipa (strip embedded watch app, retain widget extension) + attach
+      - name: Package sideload .ipa (strip watch, preserve app/widget capabilities) + attach
         env:
           GH_TOKEN: ${{ github.token }}
           VER: ${{ needs.bump.outputs.ver }}
@@ -263,6 +263,10 @@ jobs:
           test -d "$APP/PlugIns/NOOPWidgets.appex" || {
             echo "NOOPWidgets.appex missing from iOS build"; exit 1;
           }
+          # The device build is intentionally produced without an Apple identity. Add an ad-hoc
+          # capability template after the final bundle mutation so AltStore/SideStore can discover,
+          # provision and re-sign the App Group shared by the app and widget.
+          Tools/prepare-ios-sideload-app.sh "$APP"
           rm -rf Payload && mkdir Payload && cp -R "$APP" Payload/
           zip -qr "NOOP-ios-unsigned-v${VER}.ipa" Payload
           gh release upload "${{ needs.bump.outputs.tag }}" "NOOP-ios-unsigned-v${VER}.ipa" --repo "$GITHUB_REPOSITORY" --clobber

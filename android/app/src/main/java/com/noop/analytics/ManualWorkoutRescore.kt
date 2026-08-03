@@ -33,16 +33,30 @@ object ManualWorkoutRescore {
         (currentKcal ?: 0.0) <= UNDER_SCORED_KCAL_THRESHOLD
 
     /** Recompute avg/peak HR, strain and calories from [windowSamples] (the HR now stored for the
-     *  workout's [start, end]). Returns null when there are too few samples to score meaningfully. */
-    fun scored(windowSamples: List<HrSample>, profile: UserProfile, hrMax: Double): Scored? {
+     *  workout's [start, end]). Returns null when there are too few samples to score meaningfully.
+     *
+     *  [restingHR] is the wearer's MEASURED resting HR (#950): the strain %HRR denominator needs it, and the
+     *  calories model's active-vs-resting threshold sits at resting + 30% HRR, and both used to silently fall back to a hardcoded 60 here while
+     *  the DAY total was scored against the measured value — so a fit wearer's workout was systematically
+     *  under-scored relative to the very day it sat in. null keeps the old default (a cold start with no
+     *  measured resting yet), so existing callers are byte-identical until they thread one. */
+    fun scored(
+        windowSamples: List<HrSample>,
+        profile: UserProfile,
+        hrMax: Double,
+        restingHR: Double? = null,
+    ): Scored? {
         if (windowSamples.size < 2) return null
         val bpms = windowSamples.map { it.bpm }
         // Integer mean, matching AppViewModel.endWorkout (Android truncates; iOS rounds — each mirrors
         // its own platform's save-time formula).
         val avg = bpms.sum() / bpms.size
         val peak = bpms.maxOrNull() ?: 0
-        val strain = StrainScorer.strain(windowSamples, maxHR = hrMax, sex = profile.sex)
-        val kcalRaw = Calories.estimateBoutCalories(windowSamples, profile, hrMax, null).first
+        val strain = StrainScorer.strain(
+            windowSamples, maxHR = hrMax,
+            restingHR = restingHR ?: StrainScorer.defaultRestingHR, sex = profile.sex,
+        )
+        val kcalRaw = Calories.estimateBoutCalories(windowSamples, profile, hrMax, restingHR).first
         return Scored(avg, peak, strain, if (kcalRaw > 0) kcalRaw else null)
     }
 

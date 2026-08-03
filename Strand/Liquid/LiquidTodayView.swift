@@ -50,7 +50,7 @@ struct LiquidTodayView: View {
 
     // sheets / expanders
     @State private var guideSection: ScoreSection?
-    @State private var showCustomise = false
+    @State private var customizationDestination: TodayCustomizationDestination?
     @State private var showSettings = false
     @State private var synthesisExpanded = false
     @State private var showLiveSession = false
@@ -62,8 +62,10 @@ struct LiquidTodayView: View {
     // "today.sectionOrder" key the Android TodayLayoutPrefs uses. Reordered via the Arrange sheet (native
     // drag-to-reorder rows); every section always renders (decode inserts a missing one at its default spot).
     @AppStorage(TodayLayoutPrefs.orderKey) private var sectionOrderRaw = ""
-    @State private var showArrangeSheet = false
-    private var sectionOrder: [TodaySection] { TodayLayoutPrefs.decodeOrder(sectionOrderRaw) }
+    @AppStorage(TodayLayoutPrefs.hiddenKey) private var hiddenSectionsRaw = ""
+    private var sectionOrder: [TodaySection] {
+        TodayLayoutPrefs.visibleOrder(orderRaw: sectionOrderRaw, hiddenRaw: hiddenSectionsRaw)
+    }
     // #430 parity: the Key-Metrics grid honours the SAME editor selection/order + Detailed-tiles switch as
     // Android (byte-identical @AppStorage keys). `kSparks` holds the trailing-14-day series the detailed
     // tiles graph (keyed by metric-catalog key), filled by the loader alongside everything else.
@@ -72,7 +74,6 @@ struct LiquidTodayView: View {
     /// The detailed graphs' trailing window — 2 days / 1 week / 2 weeks (shared key with Android). The
     /// loader banks a day-keyed 14-day superset; render filters down, so a window change applies instantly.
     @AppStorage("today.keyMetricsWindowDays") private var keyMetricsWindowDays = 14
-    @State private var showKeyMetricsEditor = false
     @State private var kSparks: [String: [(String, Double)]] = [:]
     private var enabledKeyMetrics: [KeyMetric] { KeyMetricPrefs.decodeEnabled(keyMetricsRaw) }
 
@@ -354,8 +355,16 @@ struct LiquidTodayView: View {
         .sheet(item: $guideSection) { section in
             NavigationStack { ScoringGuideView(initialSection: section, onClose: { guideSection = nil }) }
         }
-        .sheet(isPresented: $showCustomise) {
-            DashboardCardsEditorSheet(selectionRaw: $dashboardCardsRaw)
+        .sheet(item: $customizationDestination) { destination in
+            TodayCustomizationSheet(
+                initialDestination: destination,
+                sectionOrderRaw: $sectionOrderRaw,
+                hiddenSectionsRaw: $hiddenSectionsRaw,
+                keyMetricsRaw: $keyMetricsRaw,
+                keyMetricsDetailed: $keyMetricsDetailed,
+                keyMetricsWindowDays: $keyMetricsWindowDays,
+                dashboardCardsRaw: $dashboardCardsRaw
+            )
         }
         .sheet(isPresented: $showSettings) {
             NavigationStack {
@@ -368,15 +377,6 @@ struct LiquidTodayView: View {
         // screen on iOS (nothing should compete with the ring mid-workout), a sheet on macOS where
         // fullScreenCover doesn't exist.
         .liveSessionCover(isPresented: $showLiveSession)
-        // #today-layout: the Arrange sheet — native drag-to-reorder rows over the same persisted order.
-        .sheet(isPresented: $showArrangeSheet) {
-            TodayArrangeSheet(orderRaw: $sectionOrderRaw)
-        }
-        // #430 parity: the Key-Metrics editor (selection + order + the Detailed-tiles switch), the same
-        // sheet the classic macOS grid uses, bound to the same persisted layout string.
-        .sheet(isPresented: $showKeyMetricsEditor) {
-            KeyMetricsEditorSheet(layoutRaw: $keyMetricsRaw)
-        }
         #if os(macOS)
         // Hide the mac window toolbar's vibrant material so the full-bleed day-of-sky reads dark + edge-to-edge
         // at the top instead of the white scroll-under-titlebar wash.
@@ -475,16 +475,16 @@ struct LiquidTodayView: View {
                     // battery ring).
                     LiquidSyncChip()
                     LiquidBatteryButton()
-                    // #today-layout: opens the Arrange sheet (drag rows to reorder the Today sections).
-                    Button { showArrangeSheet = true } label: {
-                        Image(systemName: "arrow.up.arrow.down")
+                    // One entry point for section order/visibility and both nested card editors.
+                    Button { customizationDestination = .today } label: {
+                        Image(systemName: "slider.horizontal.3")
                             .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(.white)
                             .frame(width: 34, height: 34)
                             .background(Circle().fill(.white.opacity(0.16)))
                     }
                     .buttonStyle(LiquidPressStyle())
-                    .accessibilityLabel("Arrange Today sections")
+                    .accessibilityLabel("Customize Today")
                 }
             }
             // Subtle NOOP wordmark in the sky between header and hero. Perfectly centred (a letter row has
@@ -620,7 +620,7 @@ struct LiquidTodayView: View {
                 Text("YOUR CARDS").font(StrandFont.overline).tracking(1.6)
                     .foregroundStyle(StrandPalette.textTertiary)
                 Spacer()
-                Button { showCustomise = true } label: {
+                Button { customizationDestination = .yourCards } label: {
                     // #492 item 4 parity: unify the Your Cards / Key Metrics edit affordance to "EDIT" across
                     // platforms (Android #563). Reuse the localized "Edit" key, uppercased at display, so this
                     // stays translated (BEARBEITEN / MODIFIER / …) without a new literal.
@@ -892,9 +892,10 @@ struct LiquidTodayView: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 sectionHead("KEY METRICS", trailing: trendWindowLabel)
                 // #430 parity: the SAME editor the classic grid uses — selection + order + Detailed tiles.
-                Button { showKeyMetricsEditor = true } label: {
-                    Image(systemName: "slider.horizontal.3")
-                        .font(.system(size: 12, weight: .semibold))
+                Button { customizationDestination = .keyMetrics } label: {
+                    Text(String(localized: "Edit").uppercased())
+                        .font(StrandFont.overlineScaled(11))
+                        .tracking(1.0)
                         .foregroundStyle(StrandPalette.accent)
                 }
                 .buttonStyle(.plain)
@@ -1646,52 +1647,6 @@ private struct LiquidRefreshIndicator: View {
                 }
             }
         }
-    }
-}
-
-/// Quick-actions "+" button. Tap → the shell's quick-action menu.
-/// #today-layout: the Arrange sheet — reorder the Today sections by dragging rows (SwiftUI's native
-/// `onMove`; the always-active edit mode on iOS shows the reorder handles without an Edit button). Writes
-/// straight through to the persisted order, so Today re-lays-out live behind the sheet. Reset restores the
-/// default order. Twin of the Android TodayLayoutEditorDialog over the byte-identical "today.sectionOrder".
-private struct TodayArrangeSheet: View {
-    @Binding var orderRaw: String
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        let order = TodayLayoutPrefs.decodeOrder(orderRaw)
-        NavigationStack {
-            List {
-                ForEach(order) { section in
-                    Text(section.title)
-                        .font(StrandFont.body)
-                        .foregroundStyle(StrandPalette.textPrimary)
-                }
-                .onMove { from, to in
-                    var next = order
-                    next.move(fromOffsets: from, toOffset: to)
-                    orderRaw = TodayLayoutPrefs.encode(next)
-                }
-            }
-            .navigationTitle("Arrange Today")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            // Always-active edit mode: the rows carry their reorder handles immediately — hold and drag —
-            // with no Edit-button dance. (macOS Lists drag-reorder natively with onMove.)
-            .environment(\.editMode, .constant(.active))
-            #endif
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Reset") { orderRaw = "" }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-        }
-        #if os(macOS)
-        .frame(minWidth: 340, minHeight: 420)
-        #endif
     }
 }
 

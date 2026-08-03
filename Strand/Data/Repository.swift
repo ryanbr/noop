@@ -2402,9 +2402,9 @@ final class Repository: ObservableObject {
     /// SECOND WHOOP no longer reads the active strap's empty window (which blanked its reconcile). MANUAL and
     /// IMPORTED rows carry no strap id in `source`, so they reconcile against the active strap [activeStrapId]
     /// as before; on a single-device install a detected "<base>-noop" strips to the active id, so the read is
-    /// byte-identical. (The Kotlin twin also keys MANUAL rows on their stored deviceId; the Swift read-model
-    /// `WorkoutRow` carries no deviceId, so a manual session created on a NON-active strap reconciles here
-    /// against the active strap instead — a minor, display-only divergence, never persisted.)
+    /// byte-identical. (#836: the Kotlin twin used to key MANUAL rows on their stored deviceId instead —
+    /// a minor, display-only divergence from this file — but now reads the same active union Swift always
+    /// has, so a manual session recorded on a re-added/second strap reconciles correctly on both platforms.)
     /// #856: the ids whose HR backs a workout's chart, zones and Avg HR, in read precedence.
     ///
     /// DETECTED rows return exactly ONE id — the strap that recorded the bout. Unioning here would mix

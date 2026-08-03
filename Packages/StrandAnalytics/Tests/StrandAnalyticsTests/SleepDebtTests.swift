@@ -170,6 +170,25 @@ final class SleepDebtTests: XCTestCase {
         XCTAssertEqual(l.nights.map { $0.deltaMin }, [-120, 60, -60])   // raw deltas intact
     }
 
+    // MARK: - Nap credit (upstream #1042: naps count toward debt repayment)
+
+    /// Main sleep remains the canonical nightly figure, while a separately-recorded nap
+    /// contributes its asleep minutes when the caller prepares the debt series.
+    /// (Balance expectation goes through the fork's recency-weighted ledger: single
+    /// night, full weight, so δ −40 lands as −40.)
+    func testNapMinutesAddDebtRepaymentCredit() throws {
+        let credited = try XCTUnwrap(SleepDebt.creditedSleepMin(mainSleepMin: 392, napSleepMin: 48))
+        XCTAssertEqual(credited, 440, accuracy: 1e-9)
+        let l = SleepDebt.ledger(series: [("2026-06-01", credited)], needHours: 8.0)
+        XCTAssertEqual(l.balanceMin, -40, accuracy: 1e-9)
+    }
+
+    func testNapCreditRequiresMainSleepAndIgnoresNegativeNapMinutes() {
+        XCTAssertNil(SleepDebt.creditedSleepMin(mainSleepMin: nil, napSleepMin: 48))
+        XCTAssertNil(SleepDebt.creditedSleepMin(mainSleepMin: 0, napSleepMin: 48))
+        XCTAssertEqual(SleepDebt.creditedSleepMin(mainSleepMin: 392, napSleepMin: -10), 392.0)
+    }
+
     // MARK: - Rounding parity (Kotlin mirror must match byte-for-byte)
 
     /// A deficit lands its raw delta on the ledger (no repay-halving), so a −0.05 tie rounds

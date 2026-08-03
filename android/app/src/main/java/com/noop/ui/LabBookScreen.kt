@@ -199,8 +199,7 @@ fun LabBookScreen(vm: AppViewModel) {
                     }
                 }
                 Text(
-                    uiString(R.string.l10n_lab_book_screen_it_s_a_notebook_not_a_45835e98) +
-                        "read, or judge them. Not medical advice.",
+                    uiString(R.string.l10n_lab_book_screen_it_s_a_notebook_not_a_45835e98),
                     style = NoopType.subhead,
                     color = Palette.textSecondary,
                 )
@@ -473,8 +472,7 @@ private fun MarkerDetailSheet(
             }
 
             Text(
-                uiString(R.string.l10n_lab_book_screen_these_are_your_own_numbers_shown_7667508d) +
-                    "normal, high or low.",
+                uiString(R.string.l10n_lab_book_screen_these_are_your_own_numbers_shown_7667508d),
                 style = NoopType.footnote,
                 color = Palette.textTertiary,
             )

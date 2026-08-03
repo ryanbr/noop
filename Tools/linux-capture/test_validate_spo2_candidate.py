@@ -806,3 +806,175 @@ class FeatureAbsentClassificationTests(unittest.TestCase):
         self.assertNotIn("96.00", blob)
         self.assertNotIn("cycle_start", blob.lower())
         self.assertIn("duty_mode", blob)
+
+
+# --- NOOP app store (#845/#103) --------------------------------------------------------------------
+
+def _pack_v18_aux(values: dict) -> bytes:
+    """Build a `v18AuxSample.fields` blob the way the Swift/Kotlin codecs do."""
+    bitmap = 0
+    body = b""
+    for i, (name, width) in enumerate(vs.V18_AUX_SLOTS):
+        if name in values:
+            bitmap |= 1 << i
+            body += int(values[name]).to_bytes(width, "little")
+    if bitmap == 0:
+        return b""
+    return bytes([vs.V18_AUX_FORMAT_VERSION]) + bitmap.to_bytes(4, "little") + body
+
+
+def _write_app_db(folder: str, rows, *, device: str = "strap-a", name: str = "noop.sqlite") -> str:
+    """A minimal NOOP app store: just the two tables this reader touches, same columns as the
+    GRDB migration (`Database.swift` v23)."""
+    path = os.path.join(folder, name)
+    con = sqlite3.connect(path)
+    con.execute("CREATE TABLE v18AuxSample (deviceId TEXT NOT NULL, ts INTEGER NOT NULL, "
+                "fields BLOB NOT NULL, PRIMARY KEY(deviceId, ts))")
+    con.execute("CREATE TABLE sleepStateSample (deviceId TEXT NOT NULL, ts INTEGER NOT NULL, "
+                "state INTEGER NOT NULL, rawByte INTEGER, PRIMARY KEY(deviceId, ts))")
+    for ts, raw82, state in rows:
+        con.execute("INSERT INTO v18AuxSample VALUES (?,?,?)",
+                    (device, ts, _pack_v18_aux({"aux_byte_82": raw82})))
+        con.execute("INSERT INTO sleepStateSample VALUES (?,?,?,?)", (device, ts, state, 0x20))
+    con.commit()
+    con.close()
+    return path
+
+
+class V18AuxCodecTests(unittest.TestCase):
+    """The Python reader must decode what the SHIPPED Swift codec writes, not merely round-trip
+    itself. Both fixtures below are the literal output of `V18AuxCodec.pack` run in
+    `Packages/WhoopStore` — if the wire format changes, these fail rather than silently mis-slicing
+    real rows into plausible-looking numbers."""
+
+    # V18AuxSample(ts:1700000000, recordIndex:7, rrCount:3, cardiacFlags:0x81, hrQualityFlags:0x80,
+    #   heartRateAlt:58, rrPacked:0x1234, cardiacStatus:255, stepCadence:40, statusWord:0x0550,
+    #   statusWord1:0x0331, statusWord2:0x0442, auxByte82:96, opticalBaselineA:31,
+    #   opticalBaselineB:33, opticalAmpA:128, opticalAmpB:128, unknownF32Bits:0xC0A93B1F)
+    SWIFT_FULL = bytes.fromhex("02ffff0100070000000381803a3412ff28500531034204601f2180801f3ba9c0")
+    # V18AuxSample(ts:1, auxByte82:96) — one slot present.
+    SWIFT_SPARSE = bytes.fromhex("020008000060")
+
+    def test_decodes_every_slot_the_swift_codec_packs(self):
+        self.assertEqual(vs.unpack_v18_aux(self.SWIFT_FULL), {
+            "record_index": 7, "rr_count": 3, "cardiac_flags": 0x81, "hr_quality_flags": 0x80,
+            "heart_rate_alt": 58, "rr_packed": 0x1234, "cardiac_status": 255, "step_cadence": 40,
+            "status_word": 0x0550, "status_word_1": 0x0331, "status_word_2": 0x0442,
+            "aux_byte_82": 96, "optical_baseline_a": 31, "optical_baseline_b": 33,
+            "optical_amp_a": 128, "optical_amp_b": 128, "unknown_f32_113": 0xC0A93B1F,
+        })
+
+    def test_absent_slots_are_omitted_not_zero(self):
+        # The whole point of the presence bitmap: "the strap did not report this" must not read as 0.
+        got = vs.unpack_v18_aux(self.SWIFT_SPARSE)
+        self.assertEqual(got, {"aux_byte_82": 96})
+        self.assertNotIn("optical_amp_a", got)
+
+    def test_malformed_blobs_yield_nothing_rather_than_raising(self):
+        for bad in (b"", b"\x02", bytes([1]) + b"\x00" * 4, bytes([99]) + b"\x00" * 4):
+            self.assertEqual(vs.unpack_v18_aux(bad), {})
+
+    def test_truncated_body_keeps_what_decoded(self):
+        got = vs.unpack_v18_aux(self.SWIFT_FULL[:9])
+        self.assertEqual(got["record_index"], 7)
+        self.assertNotIn("aux_byte_82", got)
+
+
+class AppDbReaderTests(unittest.TestCase):
+    def test_app_store_is_told_apart_from_a_capture_store(self):
+        with tempfile.TemporaryDirectory() as td:
+            app = _write_app_db(td, [(1700000000, 96, 2)])
+            self.assertTrue(vs.looks_like_app_db(app))
+            cap = os.path.join(td, "cap.json")
+            with open(cap, "w") as f:
+                json.dump([], f)
+            self.assertFalse(vs.looks_like_app_db(cap))
+
+    def test_reads_banked_aux_byte_and_sleep_state(self):
+        with tempfile.TemporaryDirectory() as td:
+            app = _write_app_db(td, [(1700000000 + i, 95 + i, 2) for i in range(4)])
+            recs = vs.load_app_db_records(app)
+        self.assertEqual(len(recs), 4)
+        self.assertEqual([r["spo2_candidate_82"] for r in recs], [95, 96, 97, 98])
+        self.assertTrue(all(r["sleep_state"] == vs.SLEEP_ASLEEP for r in recs))
+
+    def test_out_of_band_values_are_not_candidates(self):
+        with tempfile.TemporaryDirectory() as td:
+            app = _write_app_db(td, [(1700000000, 0, 2), (1700000001, 96, 2)])
+            recs = vs.load_app_db_records(app)
+        self.assertIsNone(recs[0]["spo2_candidate_82"])
+        self.assertEqual(recs[0]["aux_byte_82"], 0)
+        self.assertEqual(recs[1]["spo2_candidate_82"], 96)
+
+    def test_several_straps_refuse_to_pool_without_an_explicit_pick(self):
+        with tempfile.TemporaryDirectory() as td:
+            app = _write_app_db(td, [(1700000000, 96, 2)], device="strap-a")
+            con = sqlite3.connect(app)
+            con.execute("INSERT INTO v18AuxSample VALUES (?,?,?)",
+                        ("strap-b", 1700000000, _pack_v18_aux({"aux_byte_82": 90})))
+            con.commit()
+            con.close()
+            with self.assertRaises(SystemExit):
+                vs.load_app_db_records(app)
+            # ...but naming one is fine, and reads only that strap.
+            recs = vs.load_app_db_records(app, device_id="strap-b")
+        self.assertEqual([r["aux_byte_82"] for r in recs], [90])
+
+    def test_only_offset_82_is_answerable_without_the_frame(self):
+        # The app banks decoded slots, not frame bytes, so the specificity scan cannot run — and
+        # "cannot know" must be None rather than 0, or it would manufacture out-of-band samples.
+        with tempfile.TemporaryDirectory() as td:
+            app = _write_app_db(td, [(1700000000, 96, 2)])
+            rec = vs.load_app_db_records(app)[0]
+        self.assertEqual(vs.byte_at_offset(rec, vs.OFF_SPO2_CANDIDATE), 96)
+        for off in (74, 81, 83, 92):
+            self.assertIsNone(vs.byte_at_offset(rec, off))
+
+    def test_end_to_end_validate_device_against_an_app_store(self):
+        """The point of the whole path: a NOOP user with only their synced app DB can run the gate."""
+        nights, rows = [], []
+        base = _utc(2026, 3, 1, 23, 0, 0)
+        for night in range(6):
+            t0 = base + night * 86400
+            t1 = t0 + 6 * 3600
+            spo2 = 95.0 + night * 0.5
+            start = datetime.fromtimestamp(t0, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+            nights.append((start, spo2, t0, t1))
+            for k in range(40):
+                rows.append((t0 + k * 60, int(round(spo2)), vs.SLEEP_ASLEEP))
+        with tempfile.TemporaryDirectory() as td:
+            app = _write_app_db(td, rows)
+            res = vs.validate_device(app, _write_export(td, nights), device="app")
+        self.assertEqual(res["source"], "noop_app_db")
+        self.assertEqual(res["specificity_scan"], "unavailable_app_db")
+        self.assertEqual(res["paired_nights"], 6)
+        self.assertIsNotNone(res["r"])
+        self.assertGreater(res["r"], 0.9)
+        # The scan could not run, so it must not be recorded as "@82 lost".
+        self.assertTrue(res["checklist"]["offset_82_wins"])
+        self.assertIsNone(res["best_specificity_offset"])
+
+    def test_a_capture_still_runs_the_specificity_scan(self):
+        """Guard the other direction: the app path must not disable the scan for real captures."""
+        with tempfile.TemporaryDirectory() as td:
+            d = self._six_night_capture(td)
+            res = vs.validate_device(d["capture"], d["export"], device="cap")
+        self.assertEqual(res["source"], "capture")
+        self.assertEqual(res["specificity_scan"], "ran")
+
+    def _six_night_capture(self, td: str) -> dict:
+        frames, nights = [], []
+        base = _utc(2026, 3, 1, 23, 0, 0)
+        for night in range(6):
+            t0 = base + night * 86400
+            t1 = t0 + 6 * 3600
+            spo2 = 95.0 + night * 0.5
+            start = datetime.fromtimestamp(t0, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+            nights.append((start, spo2, t0, t1))
+            for k in range(40):
+                frames.append({"hex": make_v18(t0 + k * 60, aux_byte_82=int(round(spo2)),
+                                               sleep_state=vs.SLEEP_ASLEEP).hex()})
+        cap = os.path.join(td, "cap.json")
+        with open(cap, "w") as f:
+            json.dump(frames, f)
+        return {"capture": cap, "export": _write_export(td, nights)}

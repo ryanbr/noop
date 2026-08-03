@@ -27,6 +27,13 @@ object CircadianEngine {
     // ── Tuning constants (pinned by test; mirror the Swift twin exactly) ──
     const val minDaysForFit: Int = 7
     const val goodDaysForFit: Int = 14
+    /**
+     * #982 — RELATIVE, applied to mean HR (mesor ~45-75 bpm), not to a near-zero-mesor motion volume. The
+     * effective bar is `0.10 x mesor`: ~6.5 bpm at a 65 bpm mesor, ~4.5 bpm at 45. It scales WITH the
+     * mesor, so a low-resting wearer faces a LOWER absolute bar — the opposite of the concern in #982.
+     * Deliberately NOT re-tuned: every candidate value is unvalidated and nobody is currently silenced.
+     * `CircadianEngineTest` pins what it costs at each mesor. Mirrors the Swift twin exactly.
+     */
     const val minRelativeAmplitude: Double = 0.10
     const val maxShiftPerDayHours: Double = 1.0
     const val cbtMinBeforeWakeHours: Double = 2.5
@@ -34,7 +41,14 @@ object CircadianEngine {
 
     // ── Inputs ──
 
-    /** One per-hour rest-activity sample: local clock hour (0..<24, may be fractional) + motion volume. */
+    /**
+     * One per-hour rest-activity sample: local clock hour (0..<24, may be fractional) + the rhythm signal.
+     *
+     * #982 — this said "motion volume". It has never been fed that: the only production caller pools
+     * per-hour MEAN HEART RATE in bpm, and that is the right choice on this hardware (WHOOP 4.0 motion is
+     * too sparse to stage sleep at all, #345). The domain matters because [minRelativeAmplitude] gates on
+     * `amplitude / |mesor|` and HR arrives with a large DC offset motion does not have — see that constant.
+     */
     data class ActivityBin(val hour: Double, val activity: Double)
 
     // ── Cosinor ──

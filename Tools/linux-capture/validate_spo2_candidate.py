@@ -9,12 +9,29 @@ Context (see docs/WHOOP5_DEEP_DATA.md and issue #103):
 
 This tool answers the promote-or-not question as *known plaintext*:
 
-    capture.json OR a whoop_sync.py .db  +  whoop_export  ──►  mean(@82 | asleep, 70–100, in-window)
+    capture.json OR a whoop_sync.py .db OR a NOOP app store  +  whoop_export
+                                       ──►  mean(@82 | asleep, 70–100, in-window)
                                        vs CSV blood_oxygen_pct
                                        ──►  r, MAE, bias, offset-specificity, window coverage
 
 Owners can validate one strap, or batch several devices, and post **only aggregate
 stats** on #103 (never raw SpO₂ values). Stdlib only.
+
+THREE INPUT KINDS, and the third is why #103 has been stuck (#845):
+
+  • `capture.json` — hci_extract / whoop_capture output.
+  • a `whoop_sync.py` `.db` — the CAPTURE TOOLING's frame store.
+  • a **NOOP app store** — the shipped app's own SQLite (GRDB), read from `v18AuxSample`, the table
+    PR #848 added. Until this existed, only someone running linux-capture could contribute evidence,
+    so the app could not answer its own open question even though it banks the byte. An ordinary user
+    who syncs with NOOP can now run the promote gate on their own data.
+
+    The one thing an app store cannot do is the OFFSET SPECIFICITY SCAN: the app banks decoded slots,
+    not frame bytes, so there is no neighbour byte to rank @82 against. That is reported as
+    `specificity_scan: "unavailable_app_db"` and the corresponding checklist item is n/a — NOT False,
+    which would read as "@82 lost the scan" about a byte that was never ranked. A capture is still
+    required to settle specificity; the correlation, MAE, bias, duty-cycle detection and window
+    coverage all work from either.
 
 Three things the harness has to get right before a number from it means anything:
 
@@ -38,6 +55,9 @@ Usage:
 
     # Multi-device batch:
     python3 validate_spo2_candidate.py --batch devices.json
+
+    # From a NOOP app database (no linux-capture needed):
+    python3 validate_spo2_candidate.py noop.sqlite my_whoop_data/ --device strap-a
 
 devices.json example:
     [
@@ -275,6 +295,132 @@ def looks_like_sqlite(path: str) -> bool:
         return False
 
 
+# --- NOOP app database ------------------------------------------------------------------------------
+#
+# #845/#103: the app banks @82 (PR #848 added `v18AuxSample`), but until this path existed the harness
+# could only read the CAPTURE TOOLING's store — so a NOOP user could not run the promote gate on their
+# own synced data, and only someone running linux-capture could contribute evidence. That is the gap
+# #845 called "the app itself cannot currently contribute the data needed to resolve its own question".
+#
+# READ-ONLY, and opened as such: `mode=ro` plus `immutable=1` so no WAL recovery write is attempted
+# against a file pulled off a phone (the same reasoning `Tools/SleepBench` documents).
+
+# `V18AuxSlot` order and widths, mirrored from Streams.swift. Order IS the wire contract — the packed
+# body carries present slots in ascending slot order — so this list must not be reordered.
+V18_AUX_SLOTS: Sequence[Tuple[str, int]] = (
+    ("record_index", 4), ("rr_count", 1), ("cardiac_flags", 1), ("hr_quality_flags", 1),
+    ("heart_rate_alt", 1), ("rr_packed", 2), ("cardiac_status", 1), ("step_cadence", 1),
+    ("status_word", 2), ("status_word_1", 2), ("status_word_2", 2), ("aux_byte_82", 1),
+    ("optical_baseline_a", 1), ("optical_baseline_b", 1), ("optical_amp_a", 1),
+    ("optical_amp_b", 1), ("unknown_f32_113", 4),
+)
+V18_AUX_FORMAT_VERSION = 2
+V18_AUX_HEADER_BYTES = 5
+
+
+def unpack_v18_aux(blob: bytes) -> Dict[str, int]:
+    """Decode a `v18AuxSample.fields` blob. Python port of Swift `V18AuxCodec.unpack`.
+
+    Wire format (little-endian, no padding): version byte, u32 presence bitmap, then each PRESENT slot's
+    value in ascending slot order at its declared width.
+
+    Absence is first-class — a clear bit means "the strap did not report this field", never 0 — so the
+    returned dict simply omits it. A malformed, truncated or unknown-version blob yields `{}` rather than
+    raising, matching the Swift/Kotlin readers: a census over durable rows must not die on one bad row.
+    """
+    if len(blob) < V18_AUX_HEADER_BYTES or blob[0] != V18_AUX_FORMAT_VERSION:
+        return {}
+    bitmap = int.from_bytes(blob[1:5], "little")
+    out: Dict[str, int] = {}
+    i = V18_AUX_HEADER_BYTES
+    for slot, (name, width) in enumerate(V18_AUX_SLOTS):
+        if not bitmap & (1 << slot):
+            continue
+        if i + width > len(blob):
+            break        # truncated tail: keep what decoded, drop the rest
+        out[name] = int.from_bytes(blob[i:i + width], "little")
+        i += width
+    return out
+
+
+def looks_like_app_db(path: str) -> bool:
+    """True if `path` is a NOOP app store (GRDB/iOS/macOS) rather than a `whoop_sync.py` capture DB.
+
+    Discriminated on the `v18AuxSample` table, which only the app has; the capture store has `frames`
+    and the app has no `frames` table at all.
+    """
+    if not looks_like_sqlite(path):
+        return False
+    try:
+        con = sqlite3.connect(f"file:{path}?mode=ro&immutable=1", uri=True)
+    except sqlite3.Error:
+        return False
+    try:
+        row = con.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='v18AuxSample'"
+        ).fetchone()
+        return row is not None
+    except sqlite3.Error:
+        return False
+    finally:
+        con.close()
+
+
+def load_app_db_records(path: str, *, device_id: Optional[str] = None) -> List[dict]:
+    """Records from a NOOP app store, shaped like `iter_v18_records` output.
+
+    Joins `v18AuxSample` (the banked per-second slots, #848) to `sleepStateSample.state` on
+    (deviceId, ts) — the band's own sleep state, which the asleep-only gate needs.
+
+    ONE STRUCTURAL LIMITATION, and it is not a bug: the raw frame is gone. The strap trims its history
+    once NOOP acks the offload and the app banks decoded slots, not frame bytes, so the OFFSET
+    SPECIFICITY SCAN (which reads neighbour bytes @70-@100 out of `_frame`) cannot run on this path.
+    The correlation, MAE, bias, duty-cycle detection and window coverage all can. Records therefore
+    carry no `_frame` key, which the scan already treats as "skip", and `main` says so rather than
+    printing an empty scan that reads like a negative result.
+    """
+    con = sqlite3.connect(f"file:{path}?mode=ro&immutable=1", uri=True)
+    try:
+        devices = [r[0] for r in con.execute("SELECT DISTINCT deviceId FROM v18AuxSample").fetchall()]
+        if not devices:
+            raise SystemExit(f"{path}: no v18AuxSample rows — nothing banked from a 5/MG v18 offload yet")
+        if device_id is None:
+            if len(devices) > 1:
+                raise SystemExit(
+                    f"{path}: {len(devices)} devices in v18AuxSample ({', '.join(sorted(devices))}); "
+                    f"pass --app-device to pick one — pooling straps would average away the very "
+                    f"per-device difference the promote gate is testing"
+                )
+            device_id = devices[0]
+        elif device_id not in devices:
+            raise SystemExit(f"{path}: no v18AuxSample rows for deviceId={device_id!r} "
+                             f"(have: {', '.join(sorted(devices))})")
+        rows = con.execute(
+            "SELECT a.ts, a.fields, s.state FROM v18AuxSample a "
+            "LEFT JOIN sleepStateSample s ON s.deviceId = a.deviceId AND s.ts = a.ts "
+            "WHERE a.deviceId = ? ORDER BY a.ts",
+            (device_id,),
+        ).fetchall()
+    except sqlite3.Error as e:
+        raise SystemExit(f"{path}: not a readable NOOP app store ({e})")
+    finally:
+        con.close()
+
+    out: List[dict] = []
+    for ts, blob, state in rows:
+        fields = unpack_v18_aux(bytes(blob) if blob is not None else b"")
+        raw82 = fields.get("aux_byte_82")
+        rec = dict(fields)
+        rec["unix"] = ts
+        rec["sleep_state"] = state
+        rec["aux_byte_82"] = raw82 if raw82 is not None else 0
+        rec["spo2_candidate_82"] = raw82 if raw82 in INBAND else None
+        out.append(rec)
+    if not out:
+        raise SystemExit(f"{path}: no v18AuxSample rows for deviceId={device_id!r}")
+    return out
+
+
 def load_frame_records(path: str, *, device_id: int = 2) -> List[dict]:
     """Frame records as `{"hex": ...}` dicts, from EITHER a capture.json or a `whoop_sync.py` store.
 
@@ -355,6 +501,26 @@ def iter_v18_records(capture_records: Sequence[dict]) -> Iterable[dict]:
         # Neighbor bytes for specificity scan (absolute offsets).
         d["_frame"] = frame
         yield d
+
+
+def byte_at_offset(rec: dict, offset: int) -> Optional[int]:
+    """The raw byte at absolute frame `offset` for one record, or None when it is unavailable.
+
+    Frame-derived records carry `_frame` and any offset can be read from it. Records loaded from a NOOP
+    app store do NOT — the app banks decoded slots, not frame bytes — so only @82 is answerable there,
+    from the banked `aux_byte_82`. Every other offset returns None, which is what correctly confines the
+    OFFSET SPECIFICITY SCAN to captures while leaving the @82 correlation itself fully available.
+
+    Returning None (not 0) matters: 0 is a legitimate @82 reading outside the duty window, and treating
+    "cannot know" as "read zero" would manufacture out-of-band samples that silently depress coverage.
+    """
+    frame = rec.get("_frame")
+    if frame is not None:
+        return frame[offset] if len(frame) > offset else None
+    if offset == OFF_SPO2_CANDIDATE:
+        v = rec.get("aux_byte_82")
+        return v if isinstance(v, int) else None
+    return None
 
 
 # --- Duty-cycle detection --------------------------------------------------------------------------
@@ -513,11 +679,8 @@ def night_mean_at_offset(
             continue
         if require_asleep and r.get("sleep_state") != SLEEP_ASLEEP:
             continue
-        frame = r.get("_frame")
-        if frame is None or len(frame) <= offset:
-            continue
-        v = frame[offset]
-        if v not in INBAND:
+        v = byte_at_offset(r, offset)
+        if v is None or v not in INBAND:
             continue
         if duty_cycled:
             if not in_duty_window(u, duty):
@@ -550,11 +713,8 @@ def offset_variability(
             continue
         if duty_cycled and not in_duty_window(r["unix"], duty):
             continue
-        frame = r.get("_frame")
-        if frame is None or len(frame) <= offset:
-            continue
-        v = frame[offset]
-        if v in INBAND:
+        v = byte_at_offset(r, offset)
+        if v is not None and v in INBAND:
             vals.append(v)
     if not vals:
         return (0, 0.0)
@@ -590,13 +750,20 @@ def validate_device(
     device: str = "device",
     require_asleep: bool = True,
     device_id: int = 2,
+    app_device: Optional[str] = None,
     min_window_coverage: float = DEFAULT_MIN_WINDOW_COVERAGE,
     min_distinct: int = MIN_DISTINCT_INBAND,
 ) -> dict:
-    capture = load_frame_records(capture_path, device_id=device_id)
+    # A NOOP app store and a whoop_sync.py capture store are both SQLite; they are told apart by the
+    # `v18AuxSample` table rather than by extension or by a flag, so a user does not have to know which
+    # kind of file they were handed.
+    from_app_db = looks_like_app_db(capture_path)
+    if from_app_db:
+        records = load_app_db_records(capture_path, device_id=app_device)
+    else:
+        records = list(iter_v18_records(load_frame_records(capture_path, device_id=device_id)))
 
     cycles = load_cycles(export_path)
-    records = list(iter_v18_records(capture))
 
     # Measure the on/off schedule before averaging anything against it.
     duty = detect_duty_cycle(records)
@@ -681,7 +848,12 @@ def validate_device(
         ),
         "corr_ge_0_7": (r is not None and r >= 0.7),
         "mae_le_1_0": (err is not None and err <= 1.0),
-        "offset_82_wins": best_off == OFF_SPO2_CANDIDATE,
+        # From an app store the scan CANNOT run — the app banks decoded slots, so no neighbour byte
+        # exists to compare @82 against. Reporting False there would fail the gate for a reason that is
+        # about the input format, not the data, and "@82 did not win" is exactly the wrong thing to
+        # record about a strap whose byte was never ranked. n/a is the honest value; `specificity_scan`
+        # below says which of the two happened so a reader cannot mistake one for the other.
+        "offset_82_wins": True if from_app_db else best_off == OFF_SPO2_CANDIDATE,
         # A byte with a handful of distinct values cannot be a nightly SpO₂ however well it correlates.
         "value_variance": distinct_82 >= min_distinct and stdev_82 >= MIN_INBAND_STDEV,
         # n/a (True) unless a duty cycle was detected and coverage could actually be measured.
@@ -733,6 +905,12 @@ def validate_device(
 
     return {
         "device": device,
+        # Which store the records came from, and whether the specificity scan was possible on it.
+        # Both are reported rather than inferred from the numbers: "no specificity result" means
+        # something completely different in the two cases, and a batch pooling both must be able to
+        # tell them apart without re-opening the files.
+        "source": "noop_app_db" if from_app_db else "capture",
+        "specificity_scan": "unavailable_app_db" if from_app_db else "ran",
         "v18_records": len(records),
         "export_nights_with_spo2": len(cycles),
         "paired_nights": n_paired,
@@ -982,6 +1160,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     p.add_argument("--device-id", type=int, default=2,
                    help="device_id row filter when the capture is a whoop_sync.py .db "
                         "(default: 2, matching whoop_activity.py)")
+    p.add_argument("--app-device", metavar="DEVICE_ID",
+                   help="deviceId row filter when the capture is a NOOP APP store (the text strap "
+                        "id in v18AuxSample, not the integer --device-id). Optional when the store "
+                        "holds exactly one strap; required when it holds several, since pooling "
+                        "them would average away the per-device difference the gate is testing")
     p.add_argument(
         "--batch",
         metavar="devices.json",
@@ -1034,6 +1217,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     entry["export"],
                     device=entry.get("device", "device"),
                     device_id=int(entry.get("device_id", args.device_id)),
+                    app_device=entry.get("app_device", args.app_device),
                     require_asleep=require_asleep,
                     min_window_coverage=args.min_window_coverage,
                     min_distinct=args.min_distinct_values,
@@ -1048,6 +1232,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 args.export,
                 device=args.device,
                 device_id=args.device_id,
+                app_device=args.app_device,
                 require_asleep=require_asleep,
                 min_window_coverage=args.min_window_coverage,
                 min_distinct=args.min_distinct_values,

@@ -42,7 +42,10 @@ public enum OuraStreamMapping {
     ///   - `.hr`         (0x55 live-HR push)            → `hr:[HRSample]`
     ///   - `.ibi`        (0x44/0x60 IBI)                → `rr:[RRInterval]`
     ///   - `.hrv`        (0x5D HRV tag, raw int8 b1/b2)  → `events:[WhoopEvent(kind: OURA_HRV)]`
-    ///   - `.spo2`       (0x6F/0x70/0x77)              → `spo2:[SpO2Sample(raw_adc)]`
+    ///   - `.spo2`       (0x6F/0x70/0x77)              → `spo2:[SpO2Sample]`, carrying the decoder's own
+    ///     `unit` tag. NOT all one quantity: 0x6F/0x70 are firmware-computed PERCENTAGES (tagged `"raw"`,
+    ///     a legacy channel label — see `OuraDecoders.decodeSpO2PerSample`), while 0x77 is a genuine raw
+    ///     DC channel tagged `"dc_raw"`. Both land in `SpO2Sample.red`; neither is written to `spo2Pct`.
     ///   - `.temp`       (0x46/0x75)                    → `skinTemp:[SkinTempSample(raw_adc)]`
     ///   - `.sleepPhase` (0x4E/0x5A 2-bit codes)        → `events:[WhoopEvent(kind: OURA_SLEEP_PHASE)]`
     ///   - `.battery`                                   → `battery:[BatterySample]`

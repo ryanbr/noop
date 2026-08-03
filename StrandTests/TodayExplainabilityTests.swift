@@ -176,9 +176,29 @@ final class TodayExplainabilityTests: XCTestCase {
         XCTAssertEqual(s, .lastSynced(minutesAgo: 2))
     }
 
-    func testRecordingState_connectedNoLiveHR_noSync_isNotRecording() {
-        // Connected, no live HR, and nothing ever synced → "Not recording" (never a false "Recording").
+    func testRecordingState_connectedNoLiveHR_noSync_isConnectedNoData() {
+        // #612: connected, no live HR, and nothing EVER synced (a strap's first-ever pairing) must not
+        // claim "Not recording. Strap not connected." — the link genuinely IS up. Fixed from the prior
+        // `.notRecording` result, which was the exact bug #612 reported.
         let s = RecordingState.resolve(connected: true, heartRate: nil, lastSyncedAt: nil, now: 10_000)
+        XCTAssertEqual(s, .connectedNoData)
+    }
+
+    func testRecordingState_sustainedEmptyOffload_overridesAnOldLastSync() {
+        // #612: an established strap (old but known last-sync) whose recent offloads are a SUSTAINED
+        // empty streak reads "connected, no data" rather than a stale "Last synced 14d ago" that implies
+        // the last sync was just unusually long ago rather than actively failing right now.
+        let now: TimeInterval = 10_000
+        let s = RecordingState.resolve(connected: true, heartRate: nil, lastSyncedAt: now - 1_209_600,
+                                       sustainedEmptyOffload: true, now: now)
+        XCTAssertEqual(s, .connectedNoData)
+    }
+
+    func testRecordingState_sustainedEmptyOffload_withoutConnection_isNotConnectedNoData() {
+        // The `connected` gate still applies: a disconnected strap with a stale sustained-empty flag
+        // (carried over from before the drop) must not read "Connected".
+        let s = RecordingState.resolve(connected: false, heartRate: nil, lastSyncedAt: nil,
+                                       sustainedEmptyOffload: true, now: 10_000)
         XCTAssertEqual(s, .notRecording)
     }
 
@@ -238,8 +258,14 @@ final class TodayExplainabilityTests: XCTestCase {
                        "Not recording. Strap not connected. Tap to connect.")
     }
 
+    func testRecordingState_connectedNoData_copy() {
+        XCTAssertEqual(RecordingState.connectedNoData.accessibilityText,
+                       "Connected. No live heart rate or synced history yet this session.")
+    }
+
     func testRecordingState_copy_hasNoEmDash() {
-        let states: [RecordingState] = [.recording, .lastSynced(minutesAgo: 5), .notRecording]
+        let states: [RecordingState] = [.recording, .lastSynced(minutesAgo: 5), .notRecording,
+                                         .historyExperimental, .connectedNoData]
         for s in states {
             XCTAssertFalse(s.accessibilityText.contains("\u{2014}"),
                            "RecordingState \(s) must not contain an em-dash")

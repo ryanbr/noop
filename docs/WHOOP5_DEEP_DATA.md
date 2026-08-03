@@ -149,11 +149,11 @@ Until that clears the bar, SpO₂ stays import-only on the 5.0.
 
 ### Multi-device validation tool (`validate_spo2_candidate.py`)
 
-To make that bar concrete and privacy-preserving, `tools/linux-capture/validate_spo2_candidate.py`
+To make that bar concrete and privacy-preserving, `Tools/linux-capture/validate_spo2_candidate.py`
 turns one or more `(capture.json, WHOOP export)` pairs into a promote checklist:
 
 ```bash
-cd tools/linux-capture
+cd Tools/linux-capture
 python3 validate_spo2_candidate.py capture.json my_whoop_data/ --device strap-a --postable
 python3 validate_spo2_candidate.py --batch devices.json --postable
 ```
@@ -205,7 +205,7 @@ per-night values — HRV, resting HR, skin temperature, SpO₂, respiratory rate
 in the capture. Searching each record type for the byte offset + encoding that reproduces those known
 values across every night pins the field without guesswork.
 
-Three stdlib tools in [`tools/linux-capture/`](../tools/linux-capture/) do this:
+Three stdlib tools in [`Tools/linux-capture/`](../Tools/linux-capture/) do this:
 
 - **`hci_extract.py`** converts a phone HCI log (iOS `.pklg` / Android `btsnoop_hci.log`) of the
   official app into the project's `capture.json` frame format — so an official-app full-sync capture
@@ -235,7 +235,7 @@ lands in `parseFrameWhoop5` / `whoop_protocol.json`.
    same iOS-HCI approach the [judes.club write-up](https://judes.club/writing/cracking-the-whoop-5-bluetooth-protocol/)
    used. Filter to just the WHOOP peripheral and attach it to [#103](https://github.com/ryanbr/noop/issues/103).
 5. **SpO₂ multi-device check:** after you have a history capture + your data export, run
-   `python3 tools/linux-capture/validate_spo2_candidate.py capture.json export/ --device <label> --postable`
+   `python3 Tools/linux-capture/validate_spo2_candidate.py capture.json export/ --device <label> --postable`
    and paste the postable summary on [#103](https://github.com/ryanbr/noop/issues/103). Keep the capture
    and CSV private; only the aggregate r / MAE / checklist line is needed.
 

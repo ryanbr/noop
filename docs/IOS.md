@@ -3,17 +3,20 @@
 > **iOS is now a direct download (v1.96).** Grab **`NOOP-v<version>-ios.ipa`** from the
 > [Releases](https://github.com/ryanbr/noop/releases) page and install it with **AltStore** or **SideStore** — see
 > **[Install (sideload)](#install-sideload)** below. No Mac, no Xcode, no App Store, and no Apple
-> Developer account needed — **and NOOP stays anonymous**, because the `.ipa` we ship is *unsigned*
-> and **you** sign it on your own iPhone with your own free Apple ID. The app target (`NOOPiOS` +
+> Developer account needed — **and NOOP stays anonymous**, because the `.ipa` has no Apple developer
+> signature and **you** sign it on your own iPhone with your own free Apple ID. It carries only a
+> replaceable ad-hoc capability template so the sideloader can provision HealthKit and the App Group
+> shared with the widget. The app target (`NOOPiOS` +
 > `NOOPiOSWidgets`) also still builds from source in Xcode if you'd rather (**[Build from source](#build-from-source)**).
 > A CI job ([`app-build.yml`](../.github/workflows/app-build.yml)) compiles both the macOS and iOS
 > targets on every change so iOS can't silently break.
 
 ## Install (sideload)
 
-The `.ipa` is **unsigned on purpose** — that's what keeps the project anonymous. iOS won't run an
-unsigned app, so a free sideloading tool signs it **on your device, with your own free Apple ID**.
-Nothing about this touches NOOP's identity or Apple's servers on our side.
+The `.ipa` is **not signed by an Apple developer identity** — that's what keeps the project
+anonymous. Its replaceable ad-hoc signature only describes the capabilities AltStore/SideStore must
+provision; iOS won't run it until the sideloader signs it **on your device, with your own free Apple
+ID**. Nothing about this touches NOOP's identity or Apple's servers on our side.
 
 1. **Install a sideloader on your computer** — [AltStore](https://altstore.io) or
    [SideStore](https://sidestore.io) (both free). Follow their one-time setup (it installs a helper +
@@ -47,15 +50,12 @@ hunting for the `.ipa` each time.
 > - **7-day expiry.** Apps signed with a *free* Apple ID stop launching after 7 days and need
 >   re-signing. **AltStore/SideStore refresh this automatically** in the background — keep the
 >   sideloader installed and NOOP keeps working.
-> - **Some Apple-only features may be limited.** A free signing identity can't grant certain Apple
->   entitlements, so **Apple Health (HealthKit) read/write and the Live Activity / lock-screen
->   widgets may not work** on a free-signed sideload. The core app — pairing your strap, live HR,
->   recovery/strain/sleep, history, the AI Coach, everything on-device — works regardless. This is an
->   Apple signing constraint, not a NOOP limitation, and it's why a HealthKit toggle can appear to do
->   nothing on a sideloaded build. The release IPA retains `NOOPWidgets.appex`, so AltStore/Sideloadly
->   must provision one additional app extension for widgets and Live Activities; removing app extensions
->   while signing disables those surfaces. Building from source with your own Apple ID in Xcode and
->   selecting your Team for both targets grants these entitlements normally.
+> - **Apple-only features require their extensions and capabilities.** Keep the
+>   `NOOPWidgets.appex` extension enabled when AltStore/SideStore asks: it renders the Home/Lock-Screen
+>   widgets and Live Activities and shares data through the provisioned App Group. Removing app
+>   extensions while signing disables those surfaces. Other signing tools must likewise preserve and
+>   provision the requested HealthKit and App Group entitlements. Building from source with your own
+>   Apple ID in Xcode and selecting your Team for both targets configures them automatically.
 
 iOS shares the cross-platform Swift packages with macOS, so the number-crunching (recovery, strain,
 HRV, sleep) is the **same code** and produces the same results. iOS is newer and less battle-tested

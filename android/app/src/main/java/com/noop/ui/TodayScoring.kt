@@ -315,6 +315,12 @@ sealed class RecordingState {
      *  experimental on 5.0. Surfaced from `LiveState.historySyncExperimental`, overriding the resolver. */
     object HistoryExperimental : RecordingState()
 
+    /** #612, connected with no live HR AND no evidence data is actually flowing — either this is the
+     *  strap's first-ever pairing (never once synced) or a WHOOP-4/generic strap whose last several
+     *  offloads all came back empty ([LiveState.sustainedEmptyOffload]). Distinct from [NotRecording]:
+     *  the link genuinely IS up, so claiming "Strap not connected" would be false. */
+    object ConnectedNoData : RecordingState()
+
     /** The chip's status word. VERBATIM, mirror Swift exactly. */
     val title: String
         get() = when (this) {
@@ -322,6 +328,7 @@ sealed class RecordingState {
             is LastSynced -> "Last synced ${minutesAgo}m ago"
             NotRecording -> "Not recording"
             HistoryExperimental -> "Connected"
+            ConnectedNoData -> "Connected"
         }
 
     /** The chip's one-line detail. VERBATIM, mirror Swift exactly. */
@@ -331,37 +338,44 @@ sealed class RecordingState {
             is LastSynced -> "Reconnect to pull the latest."
             NotRecording -> "Strap not connected. Tap to connect."
             HistoryExperimental -> "History sync is experimental on 5.0."
+            ConnectedNoData -> "No live heart rate or synced history yet this session."
         }
 
     /** Chip hue: live recording reads positive (gold/green dot), a stale-but-recent sync reads neutral,
-     *  not-recording reads critical so a dropped link is obvious; the 5.0 experimental-history state is
-     *  connected so it reads accent, not critical. */
+     *  not-recording reads critical so a dropped link is obvious; the 5.0 experimental-history state and
+     *  the connected-no-data state are both connected so they read accent, not critical. */
     val tone: StrandTone
         get() = when (this) {
             Recording -> StrandTone.Positive
             is LastSynced -> StrandTone.Neutral
             NotRecording -> StrandTone.Critical
             HistoryExperimental -> StrandTone.Accent
+            ConnectedNoData -> StrandTone.Accent
         }
 }
 
 /**
  * Resolve the honest [RecordingState] from the live BLE state + last-sync timestamp. Pure + unit-tested.
  *   - connected AND a live HR is streaming  -> [RecordingState.Recording] (it really is saving data);
+ *   - connected, no live HR, AND (never synced OR [sustainedEmptyOffload]) -> [RecordingState.ConnectedNoData]
+ *                                              (#612 — the link IS up, so "not connected" would be false);
  *   - else a [lastSyncAtSec] this session    -> [RecordingState.LastSynced] (minutes since, clamped >= 0,
  *                                              ROUNDED UP so a 30s-old sync reads "1m ago" not "0m ago");
  *   - else                                   -> [RecordingState.NotRecording].
  * "Recording" requires BOTH a connection AND a live heart-rate sample so a bonded-but-silent link can't
  * claim it's saving data. [nowSec] is unix seconds (injected so the math is testable). Mirrors Swift
- * `recordingStateFor`.
+ * `RecordingState.resolve`.
  */
 internal fun recordingStateFor(
     connected: Boolean,
     liveHeartRate: Int?,
     lastSyncAtSec: Long?,
     nowSec: Long,
+    sustainedEmptyOffload: Boolean = false,
 ): RecordingState = when {
     connected && liveHeartRate != null -> RecordingState.Recording
+    connected && liveHeartRate == null && (lastSyncAtSec == null || sustainedEmptyOffload) ->
+        RecordingState.ConnectedNoData
     lastSyncAtSec != null -> {
         // Clamp at 0 (a sync stamped slightly in the future from strap-clock skew can't read negative)
         // then ROUND UP so a 30-second-old sync reads "1m ago", never "0m ago", matches the Swift

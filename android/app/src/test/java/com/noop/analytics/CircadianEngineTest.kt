@@ -107,4 +107,35 @@ class CircadianEngineTest {
         assertEquals("23:00", CircadianEngine.clock(-1.0))
         assertEquals("07:15", CircadianEngine.clock(7.25))
     }
+
+    // ── #982: what the RELATIVE gate costs, in bpm, at a real HR mesor ──
+
+    /**
+     * The engine is fed mean HEART RATE, not the motion volume its doc used to claim, and
+     * [CircadianEngine.minRelativeAmplitude] gates on `amplitude / |mesor|`. Against a signal carrying a
+     * ~45-75 bpm DC offset that makes the real bar an ABSOLUTE `0.10 x mesor` bpm.
+     *
+     * The pair that matters is [theSameSwingIsReadableAtALowerMesor]: the SAME 5 bpm swing is arrhythmic
+     * at a 65 bpm mesor and readable at 45, so the bar scales WITH the mesor and a low-resting wearer
+     * faces a LOWER absolute requirement. #982 raised the opposite concern. Pinned so the direction is a
+     * fact rather than an argument. Twin of the Swift `CircadianEngineTests` pair.
+     */
+    private fun confidence(mesor: Double, amp: Double): CircadianEngine.PhaseConfidence =
+        CircadianEngine.estimatePhase(
+            profile(mesor, amp, 16.0),
+            CircadianEngine.goodDaysForFit,
+            7.0,
+        )!!.confidence
+
+    @Test fun typicalMesorNeedsAboutSixAndAHalfBpmOfSwing() {
+        assertTrue(confidence(65.0, 8.0) != CircadianEngine.PhaseConfidence.UNREADABLE)   // 0.123
+        assertEquals(CircadianEngine.PhaseConfidence.UNREADABLE, confidence(65.0, 5.0))   // 0.077
+    }
+
+    @Test fun theSameSwingIsReadableAtALowerMesor() {
+        // 5 bpm: arrhythmic at 65, rhythmic at 45. The gate favours the low-resting wearer.
+        assertEquals(CircadianEngine.PhaseConfidence.UNREADABLE, confidence(65.0, 5.0))
+        assertTrue(confidence(45.0, 5.0) != CircadianEngine.PhaseConfidence.UNREADABLE)   // 0.111
+        assertEquals(CircadianEngine.PhaseConfidence.UNREADABLE, confidence(45.0, 4.0))   // 0.089
+    }
 }

@@ -1733,15 +1733,38 @@ class WhoopRepository(private val dao: WhoopDao) {
             return s == "manual" || s.endsWith("-noop")
         }
 
-        /** #510: the device id whose `hrSample` rows back a workout's Avg HR / calories / Effort recompute.
-         *  A STRAP-NATIVE row was charted from its OWN strap's trace, so read HR under that strap — strip the
-         *  computed "-noop" suffix to reach the raw hrSample id (a detected row lives under "<id>-noop", its
-         *  HR under "<id>"). An IMPORTED row has no strap HR of its own; #77 fills it from the WORN strap, i.e.
-         *  the active strap [activeStrapId]. Before this both keyed on a hardcoded "my-whoop", so a strap-native
-         *  workout on a SECOND WHOOP ("whoop-<mac>") read an empty window — its Avg HR went un-reconciled and a
-         *  null Effort un-recomputed. (This fill only sets avgHr/maxHr/strain; calories come from the detector.) */
+        /** A workout row is DETECTED when the engine scored it from a strap trace it recorded itself
+         *  (source "<id>-noop"). This is the strict subset of [isStrapNativeWorkout] whose stored deviceId is
+         *  RELIABLY the strap that recorded it. A "manual" row's is not: it holds whatever its creator passed
+         *  — the "my-whoop" placeholder from the Workouts screen, or the active strap id from the auto-workout
+         *  nudge — so manual rows read the union instead (see [workoutHrDeviceIds]). */
+        fun isDetectedWorkout(source: String): Boolean = source.lowercase().endsWith("-noop")
+
+        /** #510/#836: the device id(s) whose `hrSample` rows back a workout's Avg HR / calories / Effort
+         *  recompute. A DETECTED row was charted from its OWN strap's trace, so read HR under that strap —
+         *  strip the computed "-noop" suffix to reach the raw hrSample id (a detected row lives under
+         *  "<id>-noop", its HR under "<id>"). Everything else — a MANUAL row or an IMPORTED one — reads the
+         *  #814 UNION via [importedSourceIdsFor] (active strap ∪ canonical "my-whoop", active first), the
+         *  same window #77 fills IMPORTED rows from. Byte-identical to the Swift twin
+         *  (`Repository.workoutHrDeviceIds`), which has always kept only DETECTED on the single-id path.
+         *
+         *  Why MANUAL cannot key on its own `rowDeviceId`: [com.noop.ui.WorkoutEditing.buildManualRow]
+         *  stores whatever `deviceId` its CALLER passes, and the two callers disagree — the Workouts screen
+         *  passes the canonical "my-whoop" placeholder, while [com.noop.ui.AutoWorkoutNudge] deliberately
+         *  passes the ACTIVE strap id (mirroring iOS `saveDetectedWorkout`). Both write source "manual", so
+         *  the source string cannot tell them apart. Keying on the stored id therefore served the nudge rows
+         *  and broke the placeholder ones: a manual workout on a SECOND WHOOP ("whoop-<mac>") or any re-added
+         *  strap read the empty "my-whoop" window, leaving Avg HR un-reconciled and a null Effort
+         *  un-recomputed (#836).
+         *
+         *  The union costs a nudge-created row its exact recording strap once the ACTIVE strap changes, which
+         *  is deliberate and degrades safely in both directions: an empty window returns the row untouched
+         *  (the `stats.n < minSamples` guard below), preserving whatever Avg HR was stored, and a non-empty
+         *  one is the same wearer over the same interval — a re-added strap re-banks that history under its
+         *  fresh id. A single-WHOOP install still resolves to one id, so nothing changes there.
+         *  (This fill only sets avgHr/maxHr/strain; calories come from the detector.) */
         fun workoutHrDeviceIds(source: String, rowDeviceId: String, activeStrapId: String): List<String> =
-            if (isStrapNativeWorkout(source)) listOf(rowDeviceId.removeSuffix("-noop"))
+            if (isDetectedWorkout(source)) listOf(rowDeviceId.removeSuffix("-noop"))
             else importedSourceIdsFor(activeStrapId)
 
         /** Default row cap on range reads. Matches the Swift call sites' bounded scans. */

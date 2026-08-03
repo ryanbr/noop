@@ -531,6 +531,14 @@ final class AppModel: ObservableObject {
         await intelligence.analyzeRecent()
     }
 
+    #if os(iOS)
+    /// Push freshly-offloaded data to Apple Health, set by `StrandiOSApp` (#1021).
+    ///
+    /// A closure rather than a direct reference because `HealthKitBridge` owns iOS-only HealthKit state
+    /// while this type is shared with macOS, and the bridge is a `@StateObject` the app scene owns.
+    var healthWriteBack: (() async -> Void)?
+    #endif
+
     private func refreshAfterCompletedBackfill() async {
         live.append(log: "Backfill: refreshing dashboard cache from completed sync")
         await repo.refresh(days: 120)
@@ -548,6 +556,11 @@ final class AppModel: ObservableObject {
         // widget kept showing yesterday's numbers. Publishing here, on the real "new data landed"
         // signal, pushes the fresh snapshot to the home-screen widget without needing a foreground.
         await WidgetSnapshot.publish(from: self)
+        // #1021: same reasoning as the widget publish above, for Apple Health. The only automatic
+        // write-back ran on scenePhase == .active, in the same block that KICKS this offload - so it
+        // raced the data it was meant to publish and last night's sleep reached Health an app-open late.
+        // Set by StrandiOSApp; nil on macOS and in tests, where there is no bridge.
+        await healthWriteBack?()
         #endif
     }
 
@@ -717,14 +730,27 @@ final class AppModel: ObservableObject {
         let avg = samples.isEmpty ? nil
             : Int((Double(samples.map(\.bpm).reduce(0, +)) / Double(samples.count)).rounded())
         let peak = samples.map(\.bpm).max()
+        // #983: score the SAVED workout with the wearer's measured resting HR, not the hardcoded
+        // default of 60. %HRR is (bpm - resting) / (max - resting), so the default moves every zone
+        // boundary — at 136 bpm with maxHR 190 it is the difference between zone 1 and zone 2. Today's
+        // Effort and the manual rescore (#972) already thread this, so the stored number used to
+        // disagree with its own re-score. Read once here, at save time; the live readout during the
+        // session is a transient running estimate and deliberately left alone.
+        let restingHR = repo.today?.restingHr.map(Double.init) ?? StrainScorer.defaultRestingHR
         let strain = samples.count >= 2
-            ? StrainScorer.strain(samples, maxHR: Double(profile.hrMax), sex: profile.sex) : nil
+            ? StrainScorer.strain(samples, maxHR: Double(profile.hrMax),
+                                  restingHR: restingHR, sex: profile.sex) : nil
         // Estimate calories from the captured HR window (same Keytel/Harris–Benedict model the
         // auto-detector uses) so a manual session shows energy too, not just duration/strain. (#117)
         let up = UserProfile(weightKg: profile.weightKg, heightCm: profile.heightCm,
                              age: Double(profile.age), sex: profile.sex)
         let kcal = samples.count >= 2
-            ? Calories.estimateBoutCalories(samples, profile: up, hrmax: Double(profile.hrMax), restingHR: nil).0
+            // #983: same measured resting HR as the strain above, not nil. The calories model's
+            // active-vs-resting threshold sits at resting + 30% HRR, so the default silently shifts what
+            // counts as active — and #972 already threads it in the rescore path, so leaving it nil here
+            // meant a saved workout's kcal disagreed with its own re-score just as its Effort did.
+            ? Calories.estimateBoutCalories(samples, profile: up, hrmax: Double(profile.hrMax),
+                                            restingHR: restingHR).0
             : 0
         let startTs = Int(w.start.timeIntervalSince1970)
         let row = WorkoutRow(
@@ -847,6 +873,21 @@ final class AppModel: ObservableObject {
     func probeFeatureFlags() { ble.probeFeatureFlags() }
     func clearFeatureFlagProbe() { ble.clearFeatureFlagProbe() }
 
+    // WHOOP MG ECG ("Labrador") experimental probe. Every entry point is user-initiated and
+    // confirmation-gated in DevicesView, and BLEManager gates the sends again on the Experimental opt-in
+    // plus a positively-identified MG. Unvalidated instrumentation, never a medical measurement.
+    /// True only for a POSITIVELY identified WHOOP MG — the gate the ECG UI is offered behind.
+    var isWhoop5MG: Bool { ble.isWhoop5MG }
+    /// PERSISTENT strap write, deliberately its own action rather than part of the start flow.
+    func ecgSelectWrist(_ wrist: Whoop5Ecg.WristSelection) { ble.ecgSelectWrist(wrist) }
+    func ecgStartCapture() { ble.ecgStartCapture() }
+    /// `reportsResult: false` for the Settings-toggle path, so switching the experiment off doesn't pop
+    /// the Devices result sheet from another screen.
+    func ecgStopCapture(reportsResult: Bool = true) { ble.ecgStopCapture(reportsResult: reportsResult) }
+    func clearEcgProbe() { ble.clearEcgProbe() }
+    /// True once a start has been sent this session and no stop has completed — keeps the Stop control
+    /// reachable even after the opt-in has been switched back off.
+    var ecgMayBeRunning: Bool { ble.ecgMayBeRunning }
     // #103: READ-ONLY device-config READ probe (121/128) — asks the strap for a key's VALUE, the
     // follow-up to #761's key-NAME enumeration. Writes nothing. User-initiated, Test-Centre-gated in
     // DevicesView.
@@ -1019,11 +1060,6 @@ final class AppModel: ObservableObject {
         ble.buzzStrapOnce()
     }
 
-    /// Fire a specific preset haptic pattern (patternId 0–6 on Harvard; loops sets length).
-    /// Used by the notification-pattern picker and coaching features.
-    func buzz(pattern: UInt8, loops: UInt8 = 1) {
-        ble.send(.runHapticsPattern, payload: [pattern, loops, 0, 0, 0])
-    }
 
     /// Tell the strap to STOP an in-progress haptic pattern (#769). The biofeedback layers (Breathe /
     /// "Calm me" / resonance) schedule a stream of buzzes; cancelling the app-side DispatchWorkItems stops
