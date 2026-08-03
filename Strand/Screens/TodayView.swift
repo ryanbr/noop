@@ -1939,7 +1939,7 @@ struct TodayView: View {
                                 .foregroundStyle(StrandPalette.textTertiary)
                         }
                         .padding(14)
-                        .background(RoundedRectangle(cornerRadius: 14).fill(StrandPalette.surfaceInset))
+                        .background(NoopPanelSurface(cornerRadius: 14))
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)

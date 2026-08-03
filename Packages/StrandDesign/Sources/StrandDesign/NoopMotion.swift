@@ -383,7 +383,7 @@ private struct NoopMotionDemo: View {
                             }
                             .foregroundStyle(StrandPalette.textPrimary)
                             .padding(.horizontal, 16).padding(.vertical, 12)
-                            .background(StrandPalette.surfaceRaised, in: RoundedRectangle(cornerRadius: 14))
+                            .background(NoopPanelSurface(cornerRadius: 14))
                             .staggeredAppear(index: i)
                         }
                     }
@@ -404,7 +404,7 @@ private struct NoopMotionDemo: View {
                                 .foregroundStyle(StrandPalette.textPrimary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(16)
-                                .background(StrandPalette.surfaceRaised, in: RoundedRectangle(cornerRadius: 14))
+                                .background(NoopPanelSurface(cornerRadius: 14))
                                 .softCardTransition()
                         }
                     }

@@ -1111,15 +1111,7 @@ private struct MultiTooltip: View {
             }
         }
         .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(StrandPalette.surfaceOverlay)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(StrandPalette.hairline, lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.4), radius: 10, y: 6)
+        .background(NoopPanelSurface(cornerRadius: 10, elevated: true))
         .frame(width: tooltipWidth, alignment: .leading)
         .position(x: clampedX, y: tooltipHeight / 2 + 8)
         .allowsHitTesting(false)

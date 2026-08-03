@@ -165,13 +165,7 @@ struct LiveView: View {
         content()
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(StrandPalette.surfaceRaised)
-                    .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .strokeBorder(StrandPalette.hairline, lineWidth: 1))
-                    .opacity(cardOpacity)
-            )
+            .background(NoopPanelSurface(cornerRadius: 22, surfaceOpacity: cardOpacity))
     }
 
     // MARK: - Console header
@@ -427,7 +421,7 @@ struct LiveView: View {
             Spacer(minLength: 0)
         }
         .padding(NoopMetrics.space3)
-        .background(StrandPalette.surfaceRaised, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(NoopPanelSurface(cornerRadius: 18))
         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
             .strokeBorder(StrandPalette.statusWarning.opacity(0.5), lineWidth: 1))
         .accessibilityElement(children: .combine)
@@ -449,7 +443,7 @@ struct LiveView: View {
             Spacer(minLength: 0)
         }
         .padding(NoopMetrics.space3)
-        .background(StrandPalette.surfaceRaised, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(NoopPanelSurface(cornerRadius: 18))
         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
             .strokeBorder(StrandPalette.statusWarning.opacity(0.5), lineWidth: 1))
         .accessibilityElement(children: .combine)
@@ -486,7 +480,7 @@ struct LiveView: View {
             Spacer(minLength: 0)
         }
         .padding(NoopMetrics.space3)
-        .background(StrandPalette.surfaceRaised, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(NoopPanelSurface(tint: StrandPalette.accent, cornerRadius: 18))
         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
             .strokeBorder(StrandPalette.accent.opacity(0.4), lineWidth: 1))
         .accessibilityElement(children: .combine)
@@ -598,9 +592,7 @@ struct LiveView: View {
                     .accessibilityHidden(true)
             }
             .padding(NoopMetrics.space3)
-            .background(StrandPalette.surfaceRaised, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(StrandPalette.hairline, lineWidth: 1))
+            .background(NoopPanelSurface(cornerRadius: 18))
             .contentShape(Rectangle())
         }
         .buttonStyle(LiquidPressStyle())
@@ -942,9 +934,7 @@ private struct LivePhysiology: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(NoopMetrics.rowSpacing)
-        .background(StrandPalette.surfaceInset, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
-            .strokeBorder(StrandPalette.hairline, lineWidth: 1))
+        .background(NoopPanelSurface(cornerRadius: 14))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(label): \(value)")
     }
@@ -1172,13 +1162,7 @@ private struct LiveLogCard: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(StrandPalette.surfaceRaised)
-                .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .strokeBorder(StrandPalette.hairline, lineWidth: 1))
-                .opacity(cardOpacity)
-        )
+        .background(NoopPanelSurface(cornerRadius: 22, surfaceOpacity: cardOpacity))
     }
 
     // MARK: - Strap-log export (issue #17 — let macOS users share the log for bug reports)
@@ -1259,13 +1243,7 @@ private struct SignalTrustTile: View {
         .padding(14)
         .frame(minHeight: 112, alignment: .top)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(StrandPalette.surfaceRaised)
-                .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(StrandPalette.hairline, lineWidth: 1))
-                .opacity(cardOpacity)
-        )
+        .background(NoopPanelSurface(cornerRadius: 20, surfaceOpacity: cardOpacity))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(tile.title): \(tile.value). \(tile.detail)")
     }

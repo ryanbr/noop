@@ -134,7 +134,7 @@ struct WeeklyDigestContent: View {
     /// The three headline 0–100 scores shown as domain summaries.
     private static let scoreOrder: [WeeklyMetric] = [.charge, .effort, .rest]
 
-    /// The Bevel colour world for each weekly metric — drives the summary card tint,
+    /// The shared colour world for each weekly metric — drives the summary card tint,
     /// the gauge stroke and the secondary-signal accents.
     private func domain(for m: WeeklyMetric) -> DomainTheme {
         switch m {
@@ -163,8 +163,9 @@ struct WeeklyDigestContent: View {
 
     private var header: some View {
         ZStack(alignment: .leading) {
-            ScenicHeroBackground(domain: .charge, starCount: 26)
-                .clipShape(RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous))
+            NoopPanelSurface(tint: DomainTheme.charge.color,
+                             cornerRadius: NoopMetrics.cardRadius,
+                             elevated: true)
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Week in review").strandOverline()

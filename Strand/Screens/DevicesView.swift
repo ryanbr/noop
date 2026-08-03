@@ -121,7 +121,7 @@ private struct DevicesContent: View {
             Spacer(minLength: 0)
         }
         .padding(NoopMetrics.space3)
-        .background(StrandPalette.surfaceRaised, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(NoopPanelSurface(cornerRadius: 18))
         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
             .strokeBorder(StrandPalette.statusWarning.opacity(0.5), lineWidth: 1))
         .accessibilityElement(children: .combine)
@@ -1065,7 +1065,7 @@ private struct ExtendedBatteryProbeResultView: View {
         }
         .padding(20)
         .frame(minWidth: 340, minHeight: 260)
-        .background(StrandPalette.surfaceOverlay)
+        .background(NoopChromeSurface())
     }
 }
 
@@ -1134,7 +1134,7 @@ private struct BodyLocationProbeResultView: View {
         }
         .padding(20)
         .frame(minWidth: 340, minHeight: 260)
-        .background(StrandPalette.surfaceOverlay)
+        .background(NoopChromeSurface())
     }
 }
 
@@ -1253,7 +1253,7 @@ private struct FeatureFlagProbeResultView: View {
         }
         .padding(20)
         .frame(minWidth: 340, minHeight: 260)
-        .background(StrandPalette.surfaceOverlay)
+        .background(NoopChromeSurface())
     }
 }
 
@@ -1287,7 +1287,7 @@ private struct EcgWristSheet: View {
         }
         .padding(20)
         .frame(minWidth: 340, minHeight: 220)
-        .background(StrandPalette.surfaceOverlay)
+        .background(NoopChromeSurface())
     }
 }
 
@@ -1331,7 +1331,7 @@ private struct EcgProbeResultView: View {
         }
         .padding(20)
         .frame(minWidth: 340, minHeight: 260)
-        .background(StrandPalette.surfaceOverlay)
+        .background(NoopChromeSurface())
     }
 }
 
@@ -1402,7 +1402,7 @@ private struct DeviceConfigProbeResultView: View {
         }
         .padding(20)
         .frame(minWidth: 340, minHeight: 260)
-        .background(StrandPalette.surfaceOverlay)
+        .background(NoopChromeSurface())
     }
 }
 

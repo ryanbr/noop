@@ -586,7 +586,7 @@ struct CoachView: View {
             .accessibilityLabel("Send")
         }
         .padding(8)
-        .background(StrandPalette.surfaceOverlay, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(NoopPanelSurface(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
             .strokeBorder(StrandPalette.hairline, lineWidth: 1))
     }

@@ -82,7 +82,7 @@ struct ScoringGuideView: View {
             header
                 // Design Reset: a FLAT opaque WHOOP-grey title surface — no scenic hero, no bloom, no
                 // domain tint. The header reads as a clean raised card edge, matching the Today look.
-                .background(StrandPalette.surfaceRaised)
+                .background(NoopChromeSurface())
             Divider().overlay(StrandPalette.hairline)
             ScrollViewReader { proxy in
                 ScrollView {

@@ -760,7 +760,7 @@ struct TrendsView: View {
             .font(StrandFont.subhead)
             .foregroundStyle(StrandPalette.textTertiary)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            .background(StrandPalette.surfaceInset, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(NoopPanelSurface(cornerRadius: 12))
     }
 }
 

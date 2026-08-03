@@ -224,7 +224,7 @@ private func sampleHR() -> [Double] {
     }
     .padding(24)
     .frame(width: 380, height: 240)
-    .background(StrandPalette.surfaceRaised)
+    .background(NoopChromeSurface())
     .preferredColorScheme(.dark)
 }
 #endif

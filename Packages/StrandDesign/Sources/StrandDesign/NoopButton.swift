@@ -58,6 +58,7 @@ struct NoopButtonAppearance {
     let fill: Color?          // nil = no fill (tertiary)
     let label: Color
     let border: Color?        // nil = no hairline edge
+    let usesPanelSurface: Bool
 
     init(_ kind: NoopButtonKind) {
         switch kind {
@@ -65,18 +66,22 @@ struct NoopButtonAppearance {
             fill = StrandPalette.accent
             label = StrandPalette.goldDeepText   // designated crisp white for text on accent fills
             border = nil
+            usesPanelSurface = false
         case .secondary:
-            fill = StrandPalette.surfaceRaised
+            fill = nil
             label = StrandPalette.textPrimary
-            border = StrandPalette.hairline
+            border = nil
+            usesPanelSurface = true
         case .tertiary:
             fill = nil
             label = StrandPalette.accent
             border = nil
+            usesPanelSurface = false
         case .destructive:
             fill = StrandPalette.statusCritical
             label = StrandPalette.goldDeepText   // crisp white on the critical fill
             border = nil
+            usesPanelSurface = false
         }
     }
 }
@@ -91,6 +96,9 @@ private struct NoopButtonBackground: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: NoopButtonMetrics.cornerRadius, style: .continuous)
         ZStack {
+            if appearance.usesPanelSurface {
+                NoopPanelSurface(cornerRadius: NoopButtonMetrics.cornerRadius)
+            }
             if let fill = appearance.fill {
                 shape.fill(fill)
             }
