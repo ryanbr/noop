@@ -2319,11 +2319,8 @@ class WhoopBleClient(
 
     // --- Offload frame drain (preserves START/data/END arrival order; port of routeBackfillFrame) ---
 
-    /** Ordered queue of offload frames awaiting the serial Backfiller drain. */
-    private val backfillFrameQueue = ConcurrentLinkedQueue<ByteArray>()
-
-    @Volatile
-    private var backfillDraining = false
+    /** Ordered queue + generation-safe owner for the serial Backfiller drain. */
+    private val backfillDrain = BackfillDrainGate<ByteArray>()
 
     /** Periodic re-offload + idle-watchdog tokens (handler-posted; cancelled on disconnect). */
     private val periodicBackfillRunnable = Runnable { triggerPeriodicBackfill() }
@@ -6515,16 +6512,19 @@ class WhoopBleClient(
      * END chunk assembly is never reordered. Port of `routeBackfillFrame` + the serial drain task.
      */
     private fun routeBackfillFrame(frame: ByteArray) {
-        backfillFrameQueue.add(frame)
-        if (backfillDraining) return
-        backfillDraining = true
+        val lease = backfillDrain.enqueue(frame) ?: return
         ioScope.launch {
-            // A throw from ingest() must NEVER leave backfillDraining stuck true (that would wedge the
+            var ownsDrain = true
+            // A throw from ingest() must NEVER leave the drain stuck owned (that would wedge the
             // offload — every later frame returns early and the queue never drains). finally guarantees
-            // the flag is cleared even if a chunk handler throws. (#77/#91 hardening.)
+            // the lease is released even if a chunk handler throws. (#77/#91 hardening.)
             try {
                 while (true) {
-                    val f = backfillFrameQueue.poll() ?: break
+                    val f = backfillDrain.pollOrRelease(lease)
+                    if (f == null) {
+                        ownsDrain = false
+                        break
+                    }
                     try {
                         backfiller.ingest(f)
                     } catch (t: Throwable) {
@@ -6536,7 +6536,7 @@ class WhoopBleClient(
                     }
                 }
             } finally {
-                backfillDraining = false
+                if (ownsDrain) backfillDrain.release(lease)
             }
         }
     }
@@ -6562,7 +6562,7 @@ class WhoopBleClient(
             backfilling = false
             _state.update { it.copy(backfilling = false, syncChunksThisSession = 0) }
             handler.removeCallbacks(backfillTimeoutRunnable)
-            backfillFrameQueue.clear()
+            backfillDrain.clear()
             log("Backfill: no history frames arrived — retrying request (attempt ${whoop5HistoryAttempts + 1})")
             // Bounded mid-attempt retry (whoop5HistoryAttempts < 2): AUTO_CONTINUE so the 90s event floor
             // can't suppress it — it's continuing THIS connect's offload, not a fresh periodic kick.
@@ -6758,7 +6758,7 @@ class WhoopBleClient(
             )
         } }
         handler.removeCallbacks(backfillTimeoutRunnable)
-        backfillFrameQueue.clear()
+        backfillDrain.clear()
         closeWhoop5BackfillCapture(flushSummary = true)
         log("Backfill: session ended — reason=$reason")
         // Inactivity reminder (#419): read-only hook on the natural offload completion (no cadence
@@ -7306,8 +7306,7 @@ class WhoopBleClient(
                 System.currentTimeMillis() - backfillStartedAtMs)} (interrupted)")
         }
         backfilling = false
-        backfillDraining = false
-        backfillFrameQueue.clear()
+        backfillDrain.reset()
         strapNewestTs = null
         offloadFramesThisSession = 0
         lastOffloadFrameAtMs = 0L   // #174: don't carry a stale cooldown reference into the next session
