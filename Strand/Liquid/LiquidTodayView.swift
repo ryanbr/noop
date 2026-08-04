@@ -946,7 +946,8 @@ struct LiquidTodayView: View {
                 .foregroundStyle(StrandPalette.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
-            LiquidTube(frac: frac ?? 0, tint: tint, height: 9, animated: false)
+            LiquidTube(frac: frac ?? 0, tint: tint, height: 9, animated: false,
+                       showsHighlight: false, usesCleanFill: true)
             // #430 parity: DETAILED tiles grow the trend graph under the bar, tinted to the metric and
             // windowed to the editor's 2-day / 1-week / 2-week choice (the Android twin). A metric with no
             // windowed series keeps a clear placeholder of the same height so every tile in a detailed row

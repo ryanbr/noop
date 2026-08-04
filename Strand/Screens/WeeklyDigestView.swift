@@ -115,11 +115,28 @@ struct WeeklyDigestView: View {
 
 // MARK: - Shared content
 
+/// Compact, localized range shared by the standalone digest card and the Trends week navigator.
+func weeklyDigestRangeLabel(_ digest: WeeklyDigest) -> String {
+    "\(weeklyDigestShortDate(digest.weekStart))–\(weeklyDigestShortDate(digest.weekEnd))"
+}
+
+/// "Jun 8" from "2026-06-08", via the engine's own pure parse (no Calendar).
+private func weeklyDigestShortDate(_ ymd: String) -> String {
+    guard let (_, month, day) = WeeklyDigestEngine.parseYMD(ymd) else { return ymd }
+    let months = [String(localized: "Jan"), String(localized: "Feb"), String(localized: "Mar"),
+                  String(localized: "Apr"), String(localized: "May"), String(localized: "Jun"),
+                  String(localized: "Jul"), String(localized: "Aug"), String(localized: "Sep"),
+                  String(localized: "Oct"), String(localized: "Nov"), String(localized: "Dec")]
+    let name = (1...12).contains(month) ? months[month - 1] : "\(month)"
+    return "\(name) \(day)"
+}
+
 /// The inner content shared by the card and the full screen. `compact` trims the
 /// metric grid to the headline rows for the card; the full screen shows everything.
 struct WeeklyDigestContent: View {
     let digest: WeeklyDigest
     var compact: Bool = false
+    var showsHeader: Bool = true
 
     /// The Effort display scale (#268), so the Week-in-review Effort gauge matches the Today tile
     /// and the Trends small-multiple instead of being stuck on "of 100". Charge/Rest stay 0–100.
@@ -149,7 +166,9 @@ struct WeeklyDigestContent: View {
     var body: some View {
         VStack(alignment: .leading, spacing: NoopMetrics.gap) {
             // Headline over a subtle scenic backdrop (Charge-tinted starfield).
-            header
+            if showsHeader {
+                header
+            }
 
             // The three headline scores, each with a domain-tinted gauge and week-over-week context.
             scoreRow
@@ -220,9 +239,9 @@ struct WeeklyDigestContent: View {
                         }
                     }
                 } else {
-                    // Top alignment keeps labels and gauges level when only some metrics have
-                    // enough previous-week data to render the optional comparison chip.
-                    HStack(alignment: .top, spacing: 0) {
+                    // Center each complete metric group against the tallest group so the labels,
+                    // gauges, values and optional comparison chips sit naturally within the card.
+                    HStack(alignment: .center, spacing: 0) {
                         ForEach(Array(summaries.enumerated()), id: \.element.metric.rawValue) { index, summary in
                             scoreCard(summary: summary, presentation: .embedded)
                             if index < summaries.count - 1 {
@@ -386,18 +405,7 @@ struct WeeklyDigestContent: View {
     // MARK: - Formatting
 
     private var weekRangeLabel: String {
-        "\(shortDate(digest.weekStart))-\(shortDate(digest.weekEnd))"
-    }
-
-    /// "Jun 8" from "2026-06-08", via the engine's own pure parse (no Calendar).
-    private func shortDate(_ ymd: String) -> String {
-        guard let (_, m, d) = WeeklyDigestEngine.parseYMD(ymd) else { return ymd }
-        let months = [String(localized: "Jan"), String(localized: "Feb"), String(localized: "Mar"),
-                      String(localized: "Apr"), String(localized: "May"), String(localized: "Jun"),
-                      String(localized: "Jul"), String(localized: "Aug"), String(localized: "Sep"),
-                      String(localized: "Oct"), String(localized: "Nov"), String(localized: "Dec")]
-        let name = (1...12).contains(m) ? months[m - 1] : "\(m)"
-        return "\(name) \(d)"
+        weeklyDigestRangeLabel(digest)
     }
 
     private func meanText(_ s: WeeklyMetricSummary, effortScale: EffortScale) -> String {
@@ -583,16 +591,11 @@ private struct DigestScoreCard: View {
                 animatedFraction: animatedFraction
             )
             .frame(maxWidth: .infinity)
-            if isEmbedded && summary.thisWeek.n > 0 {
+            if isEmbedded && summary.thisWeek.n > 0 && summary.metric == .charge {
                 Text(captionText)
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .lineLimit(1)
-                    // Trends keeps the Charge scale caption but drops the redundant caption from
-                    // Effort and Rest. Opacity preserves the exact three-column geometry and gauge
-                    // alignment while accessibility remains owned by the card-level summary label.
-                    .opacity(summary.metric == .charge ? 1 : 0)
-                    .accessibilityHidden(summary.metric != .charge)
             }
             if isEmbedded && hasComparison {
                 TrendChip(text: deltaSigned, color: deltaTone)

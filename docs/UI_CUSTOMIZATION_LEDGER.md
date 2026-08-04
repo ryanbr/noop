@@ -216,6 +216,46 @@ feature rather than by file so they can be reviewed and ported independently.
   bindings, interactions, and card-level accessibility summaries.
 - **Type:** visual cleanup only.
 
+### EXP-010 — Flat Home Key Metrics progress fills
+
+- **Date:** 2026-08-04
+- **Files:** `Strand/Liquid/LiquidPrimitives.swift`, `Strand/Liquid/LiquidTodayView.swift`
+- Added a default-on `showsHighlight` presentation option to the shared `LiquidTube` renderer and disabled
+  it only for the Home Key Metrics tiles.
+- Removed the one-point white reflection strip from the top of those filled bars while preserving each
+  metric's existing tint gradient and subtle depth.
+- The dark track, bar height, capsule radius, spacing, fill edge, animation mode, fractions, calculations,
+  bindings, and every non-Key-Metrics `LiquidTube` caller remain unchanged.
+- **Type:** Home Key Metrics visual cleanup only.
+
+### EXP-011 — Clean gradient Key Metrics progress fills
+
+- **Date:** 2026-08-04
+- **Files:** `Strand/Liquid/LiquidPrimitives.swift`, `Strand/Liquid/LiquidTodayView.swift`
+- Added a default-off `usesCleanFill` renderer mode and enabled it only for Home Key Metrics.
+- Replaced those fills with a restrained horizontal dark-to-base gradient derived from each metric's
+  existing tint, keeping green, blue, orange, cyan, and other metric identities unchanged.
+- Suppressed all internal flecks/particles and their decorative animation in clean-fill mode; the prior
+  top-reflection opt-out remains enabled.
+- Preserved the dark track, height, capsule radius, dimensions, spacing, fill fraction, calculations,
+  bindings, layout, and existing progress update behavior. Other `LiquidTube` callers retain their defaults.
+- **Type:** Home Key Metrics visual cleanup only.
+
+### EXP-012 — Compact Trends weekly summary
+
+- **Date:** 2026-08-04
+- **Files:** `Strand/Screens/TrendsView.swift`, `Strand/Screens/WeeklyDigestView.swift`
+- Removed the standalone Week in Review date surface only from the Trends embedding and moved its
+  localized date range plus days-with-data count beneath the centered selected-week title.
+- Kept both week-navigation arrows and the existing selected-week digest source, offset binding,
+  range boundaries, button actions, empty-week handling, and accessibility descriptions.
+- Vertically centered the visible Charge, Effort, and Rest metric groups independently within the
+  compact shared row. Removed the invisible caption and comparison placeholders that made Effort and
+  Rest appear top-heavy, without increasing the card height. Preserved the three columns, dividers,
+  gauges, values, animations, calculations, and bindings.
+- The Today embedding and full Week in Review screen retain their existing header by default.
+- **Type:** Intentional Trends layout cleanup only.
+
 ## Verification history
 
 | Date | Scope | Result |
@@ -227,6 +267,9 @@ feature rather than by file so they can be reviewed and ported independently.
 | 2026-08-04 | Native Liquid Glass Home header buttons | `NOOPiOS` Debug physical-device build succeeded; installed and launched on the connected iPhone with `com.liammazuz.noop` and team `P2874N8GRQ`. Existing unrelated compiler warnings remained. |
 | 2026-08-04 | Refined Sleep Performance night scene | `NOOPiOS` Debug physical-device build succeeded; installed and launched on the connected iPhone. Source audit confirmed the score source, progress fraction, animation, labels, source badge, accessibility value, and interactions were unchanged. |
 | 2026-08-04 | Trends weekly-summary cleanup | `NOOPiOS` Debug physical-device build succeeded; installed and launched on the connected iPhone. `git diff --check` passed; existing unrelated compiler warnings remained. |
+| 2026-08-04 | Flat Home Key Metrics progress fills | `NOOPiOS` Debug physical-device build succeeded; installed and launched on the connected iPhone. `git diff --check` passed; existing unrelated compiler warnings remained. |
+| 2026-08-04 | Clean gradient Key Metrics progress fills | `NOOPiOS` Debug physical-device build succeeded; installed and launched on the connected iPhone. `git diff --check` passed; existing unrelated compiler warnings remained. |
+| 2026-08-04 | Compact Trends weekly summary | `NOOPiOS` Debug physical-device build succeeded; installed and launched on the connected iPhone using `com.liammazuz.noop`. Source verification confirmed the date range and day count use the selected digest and the existing week-navigation actions remain unchanged; `git diff --check` passed. Existing unrelated compiler warnings remained. |
 
 ## Required workflow for every future custom UI change
 

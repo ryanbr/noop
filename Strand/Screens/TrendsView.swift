@@ -343,14 +343,14 @@ struct TrendsView: View {
             EmptyView()
         } else {
             VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {
-                weekNavBar
+                weekNavBar(digest: digest)
                 if digest.isEmpty {
                     // This particular week had no readings — keep the chevrons above so the user can move on.
                     DataPendingNote(
                         title: "No readings this week",
                         message: "Step to another week with the arrows above to see its review.")
                 } else {
-                    WeeklyDigestContent(digest: digest, compact: true)
+                    WeeklyDigestContent(digest: digest, compact: true, showsHeader: false)
                 }
             }
         }
@@ -358,7 +358,7 @@ struct TrendsView: View {
 
     /// Prev/next week stepper. Back is clamped at the earliest week we hold; forward is clamped at this
     /// week (no future weeks). Mirrors the FullDayChartView day stepper's flat accent chevrons (#597).
-    private var weekNavBar: some View {
+    private func weekNavBar(digest: WeeklyDigest) -> some View {
         let atOldest = weekOffset <= minWeekOffset
         let atNewest = weekOffset >= 0
         return HStack(spacing: NoopMetrics.cardInnerSpacing) {
@@ -375,7 +375,15 @@ struct TrendsView: View {
                 Text(weekOffset == 0 ? String(localized: "This week") : weekOffsetLabel)
                     .font(StrandFont.headline)
                     .foregroundStyle(StrandPalette.textPrimary)
+                Text("\(weeklyDigestRangeLabel(digest)) · \(digest.daysWithData)/7 days")
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                    .accessibilityLabel("\(weeklyDigestRangeLabel(digest)), \(digest.daysWithData) of 7 days had data")
             }
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
             Spacer()
 
             Button { stepWeek(1) } label: {

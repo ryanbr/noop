@@ -54,7 +54,9 @@ enum LiquidRender {
     }
 
     /// A horizontal capsule tube filled to `frac`; tilt pushes the liquid along it.
-    static func tube(_ base: GraphicsContext, _ size: CGSize, _ sim: LiquidSim, now: Double, frac: Double, tint: Color) {
+    static func tube(_ base: GraphicsContext, _ size: CGSize, _ sim: LiquidSim, now: Double,
+                     frac: Double, tint: Color, showsHighlight: Bool = true,
+                     usesCleanFill: Bool = false) {
         let w = size.width, h = size.height, r = h / 2
         let outline = Path(roundedRect: CGRect(x: 0.5, y: 0.5, width: w - 1, height: h - 1), cornerRadius: r)
         var ctx = base
@@ -72,15 +74,28 @@ enum LiquidRender {
         p.addQuadCurve(to: CGPoint(x: edge - r * 0.3, y: h), control: CGPoint(x: edge + bulge, y: h / 2))
         p.addLine(to: CGPoint(x: 0, y: h))
         p.closeSubpath()
-        clip.fill(p, with: .linearGradient(Gradient(colors: [tint.opacity(0.84), tint.liquidDarker(0.28).opacity(0.86)]),
-                                           startPoint: CGPoint(x: 0, y: 0), endPoint: CGPoint(x: 0, y: h)))
-        clip.fill(Path(CGRect(x: 2, y: 1.2, width: max(0, edge - r * 0.6), height: 1)), with: .color(.white.opacity(0.12)))
-        for i in 0..<min(8, sim.flecks.count) {
-            let f = sim.flecks[i]
-            let spark = pow(max(0, sin(f.ph + sim.a * 5 + now * f.sp)), 10)
-            if spark < 0.08 { continue }
-            let fx = 3 + (f.x + 1.05) / 2.1 * max(1, edge - 8)
-            clip.fill(Path(CGRect(x: fx, y: h * 0.15 + f.z * h * 0.7, width: 1 + spark, height: 1 + spark)), with: .color(.white.opacity(spark * 0.6)))
+        let fillGradient = usesCleanFill
+            ? Gradient(colors: [tint.liquidDarker(0.18).opacity(0.82), tint.opacity(0.88)])
+            : Gradient(colors: [tint.opacity(0.84), tint.liquidDarker(0.28).opacity(0.86)])
+        clip.fill(p, with: .linearGradient(
+            fillGradient,
+            startPoint: CGPoint(x: 0, y: usesCleanFill ? h / 2 : 0),
+            endPoint: CGPoint(x: usesCleanFill ? w : 0, y: usesCleanFill ? h / 2 : h)
+        ))
+        if showsHighlight {
+            clip.fill(Path(CGRect(x: 2, y: 1.2, width: max(0, edge - r * 0.6), height: 1)),
+                      with: .color(.white.opacity(0.12)))
+        }
+        if !usesCleanFill {
+            for i in 0..<min(8, sim.flecks.count) {
+                let f = sim.flecks[i]
+                let spark = pow(max(0, sin(f.ph + sim.a * 5 + now * f.sp)), 10)
+                if spark < 0.08 { continue }
+                let fx = 3 + (f.x + 1.05) / 2.1 * max(1, edge - 8)
+                clip.fill(Path(CGRect(x: fx, y: h * 0.15 + f.z * h * 0.7,
+                                      width: 1 + spark, height: 1 + spark)),
+                          with: .color(.white.opacity(spark * 0.6)))
+            }
         }
     }
 
@@ -184,6 +199,8 @@ struct LiquidTube: View {
     let tint: Color
     var height: CGFloat = 14
     var animated: Bool = true
+    var showsHighlight: Bool = true
+    var usesCleanFill: Bool = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject private var motion = NoopMotionState.shared
@@ -198,7 +215,9 @@ struct LiquidTube: View {
             let now = liquidSeconds(tl.date)
             Canvas { context, size in
                 sim.step(now: now, tilt: LiquidMotion.shared.tilt, target: frac)
-                LiquidRender.tube(context, size, sim, now: now, frac: max(0, min(1, frac)), tint: tint)
+                LiquidRender.tube(context, size, sim, now: now, frac: max(0, min(1, frac)),
+                                  tint: tint, showsHighlight: showsHighlight,
+                                  usesCleanFill: usesCleanFill)
             }
         }
         .frame(height: height)
@@ -209,7 +228,8 @@ struct LiquidTube: View {
     private var staticTube: some View {
         Canvas { context, size in
             LiquidRender.tube(context, size, LiquidSim.posed(frac), now: 0,
-                              frac: max(0, min(1, frac)), tint: tint)
+                              frac: max(0, min(1, frac)), tint: tint,
+                              showsHighlight: showsHighlight, usesCleanFill: usesCleanFill)
         }
         .frame(height: height)
     }
