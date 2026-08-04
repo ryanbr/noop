@@ -351,6 +351,7 @@ struct TrendsView: View {
                         message: "Step to another week with the arrows above to see its review.")
                 } else {
                     WeeklyDigestContent(digest: digest, compact: true, showsHeader: false)
+                        .padding(.top, NoopMetrics.space1)
                 }
             }
         }

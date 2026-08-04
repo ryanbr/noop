@@ -239,9 +239,9 @@ struct WeeklyDigestContent: View {
                         }
                     }
                 } else {
-                    // Center each complete metric group against the tallest group so the labels,
-                    // gauges, values and optional comparison chips sit naturally within the card.
-                    HStack(alignment: .center, spacing: 0) {
+                    // Align from the shared label/gauge rows. Optional content below one gauge must
+                    // never shift that gauge relative to its neighbours.
+                    HStack(alignment: .top, spacing: 0) {
                         ForEach(Array(summaries.enumerated()), id: \.element.metric.rawValue) { index, summary in
                             scoreCard(summary: summary, presentation: .embedded)
                             if index < summaries.count - 1 {
@@ -513,6 +513,7 @@ private struct DigestScoreCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var animatedFraction: Double = 0
+    @State private var showScaleGuide = false
 
     /// The Effort card is the only one that follows the 0–100/0–21 toggle; the rest are fixed 0–100.
     private var isEffort: Bool { summary.metric == .effort }
@@ -553,6 +554,8 @@ private struct DigestScoreCard: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibility)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { showScaleGuide = true }
     }
 
     private var content: some View {
@@ -591,11 +594,22 @@ private struct DigestScoreCard: View {
                 animatedFraction: animatedFraction
             )
             .frame(maxWidth: .infinity)
-            if isEmbedded && summary.thisWeek.n > 0 {
-                Text(captionText)
-                    .font(StrandFont.footnote)
-                    .foregroundStyle(StrandPalette.textTertiary)
-                    .lineLimit(1)
+            .contentShape(Circle())
+            .onTapGesture { showScaleGuide = true }
+            .popover(isPresented: $showScaleGuide, arrowEdge: .bottom) {
+                VStack(spacing: NoopMetrics.space1) {
+                    Text(summary.metric.label)
+                        .font(StrandFont.subhead.weight(.semibold))
+                        .foregroundStyle(domain.color)
+                    Text(captionText)
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                }
+                .padding(NoopMetrics.cardInnerPadding)
+                .frame(minWidth: 120)
+                .background(NoopPanelSurface(cornerRadius: NoopVisualStyle.compactRadius, elevated: true))
+                .accessibilityElement(children: .combine)
+                .digestScalePopoverAdaptation()
             }
             if isEmbedded && hasComparison {
                 TrendChip(text: deltaSigned, color: deltaTone)
@@ -621,6 +635,21 @@ private struct DigestScoreCard: View {
         guard summary.weekOverWeek.current.n > 0, summary.weekOverWeek.previous.n > 0 else { return deltaText }
         let sign = summary.wowDelta > 0 ? "+" : (summary.wowDelta < 0 ? "−" : "")
         return "\(sign)\(deltaText)"
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func digestScalePopoverAdaptation() -> some View {
+        #if os(iOS)
+        if #available(iOS 16.4, *) {
+            presentationCompactAdaptation(.popover)
+        } else {
+            self
+        }
+        #else
+        self
+        #endif
     }
 }
 
