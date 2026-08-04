@@ -313,4 +313,103 @@ final class CloudSyncUploaderTelemetryTests: XCTestCase {
         XCTAssertEqual(result.bytes, 7)
     }
 }
+
+// MARK: - Liters fallback policy (pure)
+
+/// The 2026-08-03 fix: `uploaded == 0` is four states with opposite correct responses, and the
+/// escalation to `/ingest` is a counted decision, not a reflex. These tests pin the classifier and
+/// the escalation policy — pure functions over scalars, no replicator, no network, no LITERS
+/// xcframework required.
+final class LitersFallbackPolicyTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        CloudSyncUploader.resetLitersRetryStreak()
+    }
+
+    override func tearDown() {
+        CloudSyncUploader.resetLitersRetryStreak()
+        super.tearDown()
+    }
+
+    // MARK: classification
+
+    func testShippedBytesClassifyAsPushed() {
+        XCTAssertEqual(
+            CloudSyncUploader.classifyLitersPush(uploaded: 1, synced: true,
+                                                 txid: 5, remoteTxid: 5, bytesUploaded: 65_789),
+            .pushed(bytes: 65_789))
+    }
+
+    /// The healthy no-op: lineage has content and the remote matches it exactly. The old code
+    /// answered this with a ~208 MB `/ingest` that then reset the lineage (observed 2026-08-03).
+    func testVerifiedInSyncIsSuccessNotFallback() {
+        XCTAssertEqual(
+            CloudSyncUploader.classifyLitersPush(uploaded: 0, synced: true,
+                                                 txid: 27, remoteTxid: 27, bytesUploaded: 0),
+            .inSync)
+    }
+
+    /// The vacuous case observed 2026-08-03 17:16, minutes after a server-side lineage reset:
+    /// `synced=true` at `txid=0` means both sides agree on NOTHING — no content is verifiably on
+    /// the server, so this must NOT be blessed as success (that would stamp `lastUploadToken` and
+    /// make the next sync skip the upload entirely). It must not trigger `/ingest` either — the
+    /// next liters push re-baselines.
+    func testVacuousSyncAtTxidZeroIsRetryable() {
+        let outcome = CloudSyncUploader.classifyLitersPush(uploaded: 0, synced: true,
+                                                           txid: 0, remoteTxid: 0, bytesUploaded: 0)
+        guard case .retryable = outcome else {
+            return XCTFail("txid=0 vacuous sync must be retryable, got \(outcome)")
+        }
+    }
+
+    func testCapturedButUnshippedIsRetryable() {
+        let outcome = CloudSyncUploader.classifyLitersPush(uploaded: 0, synced: false,
+                                                           txid: 9, remoteTxid: 8, bytesUploaded: 0)
+        guard case .retryable = outcome else {
+            return XCTFail("captured-but-unshipped must be retryable, got \(outcome)")
+        }
+    }
+
+    func testSyncedButRemoteBehindIsRetryable() {
+        // synced flag claiming true while remoteTxid lags txid is contradictory — never trust it
+        // as delivered.
+        let outcome = CloudSyncUploader.classifyLitersPush(uploaded: 0, synced: true,
+                                                           txid: 9, remoteTxid: 7, bytesUploaded: 0)
+        guard case .retryable = outcome else {
+            return XCTFail("remote behind local must be retryable, got \(outcome)")
+        }
+    }
+
+    // MARK: escalation
+
+    /// Two retryable syncs throw-and-retry; the third runs `/ingest` anyway. Below-threshold
+    /// withholding protects the lineage from transient failures; the threshold itself keeps a
+    /// genuinely dead liters path flowing through the proven upload.
+    func testEscalationOpensAtThreshold() {
+        XCTAssertFalse(CloudSyncUploader.ingestEscalationAllowed(retryStreak: 1))
+        XCTAssertFalse(CloudSyncUploader.ingestEscalationAllowed(retryStreak: 2))
+        XCTAssertTrue(CloudSyncUploader.ingestEscalationAllowed(retryStreak: 3))
+        XCTAssertTrue(CloudSyncUploader.ingestEscalationAllowed(retryStreak: 4),
+                      "past-threshold streaks keep /ingest open — the streak only resets on a "
+                      + "liters success, so a dead liters path ships every sync, not every third")
+    }
+
+    func testStreakPersistsAndResets() {
+        XCTAssertEqual(CloudSyncUploader.litersRetryStreak(), 0)
+        XCTAssertEqual(CloudSyncUploader.bumpLitersRetryStreak(), 1)
+        XCTAssertEqual(CloudSyncUploader.bumpLitersRetryStreak(), 2)
+        XCTAssertEqual(CloudSyncUploader.litersRetryStreak(), 2,
+                       "streak reads back from UserDefaults — it must survive a process relaunch, "
+                       + "because background syncs are usually fresh processes")
+        CloudSyncUploader.resetLitersRetryStreak()
+        XCTAssertEqual(CloudSyncUploader.litersRetryStreak(), 0)
+    }
+
+    func testRetryPendingErrorNamesTheAttemptAndTheReason() {
+        let error = CloudSyncUploadError.litersRetryPending(streak: 2, reason: "push threw: 503")
+        let text = error.errorDescription ?? ""
+        XCTAssertTrue(text.contains("attempt 2"), "user-facing text must carry the attempt count")
+        XCTAssertTrue(text.contains("retry"), "must say it will retry, not read as a dead end")
+    }
+}
 #endif // CLOUD_SYNC
