@@ -12,7 +12,9 @@ larger layout/UX experiments on `ui-experimental`, so either layer can be review
 - Stable UI commits:
   - `b96b0661` — `Apply custom NOOP UI`
   - `18db457f` — `Refine NOOP visual design system`
-- Experimental edits after `18db457f` are currently intentionally uncommitted.
+- Experimental commits after `18db457f`:
+  - `c0f45441` — `Develop experimental NOOP UI`
+  - `bd94c5ee` — `Refine Trends and metric visuals`
 - Before merging, refresh the upstream reference and repeat the audit against Ryan's then-current main.
 
 ## Non-negotiable merge boundaries
@@ -270,6 +272,7 @@ feature rather than by file so they can be reviewed and ported independently.
 | 2026-08-04 | Flat Home Key Metrics progress fills | `NOOPiOS` Debug physical-device build succeeded; installed and launched on the connected iPhone. `git diff --check` passed; existing unrelated compiler warnings remained. |
 | 2026-08-04 | Clean gradient Key Metrics progress fills | `NOOPiOS` Debug physical-device build succeeded; installed and launched on the connected iPhone. `git diff --check` passed; existing unrelated compiler warnings remained. |
 | 2026-08-04 | Compact Trends weekly summary | `NOOPiOS` Debug physical-device build succeeded; installed and launched on the connected iPhone using `com.liammazuz.noop`. Source verification confirmed the date range and day count use the selected digest and the existing week-navigation actions remain unchanged; `git diff --check` passed. Existing unrelated compiler warnings remained. |
+| 2026-08-04 | Pre-PR audit against Ryan main `3b86b6ef` | Branch is 4 commits ahead and 0 behind. Full 41-file diff audited; no BLE, protocol, scoring, sleep-calculation, persistence, networking, HealthKit, data-model, permission, entitlement, or build-configuration changes found. Changes are limited to presentation, approved layout, sync-status placement, and native tab-bar chrome/reselection forwarding. |
 
 ## Required workflow for every future custom UI change
 
