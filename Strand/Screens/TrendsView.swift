@@ -361,6 +361,8 @@ struct TrendsView: View {
     private func weekNavBar(digest: WeeklyDigest) -> some View {
         let atOldest = weekOffset <= minWeekOffset
         let atNewest = weekOffset >= 0
+        let daysSummary = String(localized: "\(digest.daysWithData)/7 days")
+        let daysAccessibility = String(localized: "\(digest.daysWithData) of 7 days had data")
         return HStack(spacing: NoopMetrics.cardInnerSpacing) {
             Button { stepWeek(-1) } label: {
                 Image(systemName: "chevron.left").font(StrandFont.headline.weight(.semibold))
@@ -375,12 +377,12 @@ struct TrendsView: View {
                 Text(weekOffset == 0 ? String(localized: "This week") : weekOffsetLabel)
                     .font(StrandFont.headline)
                     .foregroundStyle(StrandPalette.textPrimary)
-                Text("\(weeklyDigestRangeLabel(digest)) · \(digest.daysWithData)/7 days")
+                Text("\(weeklyDigestRangeLabel(digest)) · \(daysSummary)")
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
-                    .accessibilityLabel("\(weeklyDigestRangeLabel(digest)), \(digest.daysWithData) of 7 days had data")
+                    .accessibilityLabel("\(weeklyDigestRangeLabel(digest)), \(daysAccessibility)")
             }
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)

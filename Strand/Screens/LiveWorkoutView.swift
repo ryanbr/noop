@@ -48,7 +48,6 @@ struct LiveWorkoutView: View {
                     AnyView(header),
                     AnyView(heroHeartRate),
                     AnyView(effortGauge),
-                    AnyView(zoneRail),
                     AnyView(statsGrid),
                 ]
                 ForEach(Array(cards.enumerated()), id: \.offset) { index, card in
@@ -107,46 +106,79 @@ struct LiveWorkoutView: View {
 
     private var header: some View {
         HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 2) {
+            Text("Workout")
+                .font(StrandFont.title1)
+                .foregroundStyle(StrandPalette.textPrimary)
+            Spacer()
+            HStack(spacing: NoopMetrics.space1) {
+                Circle()
+                    .fill(StrandPalette.metricRose)
+                    .frame(width: 7, height: 7)
                 Text("RECORDING WORKOUT")
                     .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
                     .foregroundStyle(StrandPalette.metricRose)
-                Text("Workout")
-                    .font(StrandFont.title1).foregroundStyle(StrandPalette.textPrimary)
             }
-            Spacer()
-            if let start = model.activeWorkout?.start {
-                TimelineView(.periodic(from: .now, by: 1)) { _ in
-                    Text(Self.elapsed(since: start))
-                        .font(StrandFont.number(34)).monospacedDigit()
-                        .foregroundStyle(StrandPalette.textPrimary)
-                }
-            }
+            .padding(.horizontal, NoopMetrics.space2)
+            .padding(.vertical, NoopMetrics.space1)
+            .background(NoopPanelSurface(tint: StrandPalette.metricRose, cornerRadius: 14))
+            .clipShape(Capsule())
         }
     }
 
     private var heroHeartRate: some View {
         let tint = zone >= 1 ? StrandPalette.hrZoneColor(zone) : StrandPalette.effortColor
         return NoopCard(padding: NoopMetrics.space6, tint: StrandPalette.effortColor) {
-            VStack(spacing: NoopMetrics.space2) {
-                Text("HEART RATE")
-                    .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
-                    .foregroundStyle(StrandPalette.textSecondary)
-                // The big live HR ticks up to its new reading on each beat — crisp, flat, no halo.
-                if let bpm = model.bpm {
-                    CountUpText(value: Double(bpm),
-                                format: { "\(Int($0.rounded()))" },
-                                font: StrandFont.rounded(80, weight: .semibold),
-                                color: tint)
-                } else {
-                    Text("—")
-                        .font(StrandFont.rounded(80, weight: .semibold))
-                        .foregroundStyle(tint)
+            VStack(spacing: NoopMetrics.space5) {
+                if let start = model.activeWorkout?.start {
+                    VStack(spacing: NoopMetrics.space1) {
+                        Text("TIME")
+                            .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                        TimelineView(.periodic(from: .now, by: 1)) { _ in
+                            Text(Self.elapsed(since: start))
+                                .font(StrandFont.number(48)).monospacedDigit()
+                                .foregroundStyle(StrandPalette.textPrimary)
+                                .contentTransition(.numericText())
+                        }
+                    }
                 }
-                Text("bpm").font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)
-                Text(zone >= 1 ? "Zone \(zone) · \(Self.zoneName(zone))" : "Below Zone 1")
-                    .font(StrandFont.captionNumber)
-                    .foregroundStyle(tint)
+
+                Rectangle()
+                    .fill(StrandPalette.hairline)
+                    .frame(height: 1)
+
+                HStack(alignment: .center, spacing: NoopMetrics.space4) {
+                    VStack(alignment: .leading, spacing: NoopMetrics.space1) {
+                        Text("HEART RATE")
+                            .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                        HStack(alignment: .firstTextBaseline, spacing: NoopMetrics.space1) {
+                            if let bpm = model.bpm {
+                                CountUpText(value: Double(bpm),
+                                            format: { "\(Int($0.rounded()))" },
+                                            font: StrandFont.rounded(72, weight: .semibold),
+                                            color: tint)
+                            } else {
+                                Text("—")
+                                    .font(StrandFont.rounded(72, weight: .semibold))
+                                    .foregroundStyle(tint)
+                            }
+                            Text("bpm")
+                                .font(StrandFont.subhead)
+                                .foregroundStyle(StrandPalette.textSecondary)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                    Text(zone >= 1 ? "Zone \(zone) · \(Self.zoneName(zone))" : "Below Zone 1")
+                        .font(StrandFont.captionNumber)
+                        .foregroundStyle(tint)
+                        .multilineTextAlignment(.trailing)
+                        .padding(.horizontal, NoopMetrics.space2)
+                        .padding(.vertical, NoopMetrics.space1)
+                        .background(tint.opacity(0.12), in: Capsule())
+                }
+
+                zoneRail
             }
             .frame(maxWidth: .infinity)
         }
@@ -158,18 +190,46 @@ struct LiveWorkoutView: View {
     /// read-outs (mirrors TodayView's effort hero). Display-only — the captured value stays 0–100.
     private var effortGauge: some View {
         let strain = model.activeWorkout?.liveStrain ?? 0
+        let displayEffort = UnitFormatter.effortValue(strain, scale: effortScale)
+        let maxValue = effortScale == .whoop ? 21.0 : 100.0
+        let maxLabel = UnitFormatter.effortScaleMax(effortScale)
+        let fraction = min(max(displayEffort / maxValue, 0), 1)
         return NoopCard(padding: NoopMetrics.cardInnerPadding, tint: StrandPalette.effortColor) {
-            VStack(spacing: NoopMetrics.rowSpacing) {
-                Text("EFFORT BUILDING")
-                    .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
-                    .foregroundStyle(StrandPalette.effortColor)
-                StrainGauge(
-                    strain: UnitFormatter.effortValue(strain, scale: effortScale),
-                    outOf: effortScale == .whoop ? 21 : 100,
-                    diameter: 150, lineWidth: 14, showsHover: false,
-                    valueFormat: { _ in UnitFormatter.effortDisplay(strain, scale: effortScale) }
-                )
-                .frame(maxWidth: .infinity)
+            HStack(spacing: NoopMetrics.space5) {
+                VStack(alignment: .leading, spacing: NoopMetrics.space2) {
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(StrandPalette.effortColor)
+                    Text("EFFORT BUILDING")
+                        .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
+                        .foregroundStyle(StrandPalette.effortColor)
+                    Text(StrainGauge.stateLabel(forFraction: fraction))
+                        .font(StrandFont.captionNumber)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                }
+                Spacer(minLength: 0)
+                ZStack {
+                    LiquidVessel(value: fraction, tint: StrandPalette.effortColor, animated: true)
+                    VStack(spacing: 1) {
+                        CountUpText(value: displayEffort,
+                                    format: { value in
+                                        effortScale == .whoop
+                                            ? String(format: "%.1f", value)
+                                            : "\(Int(value.rounded()))"
+                                    },
+                                    font: StrandFont.rounded(30, weight: .semibold),
+                                    color: .white)
+                        Text(String(localized: "of \(maxLabel)"))
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(.white.opacity(0.72))
+                    }
+                    .shadow(color: .black.opacity(0.5), radius: 6, y: 1)
+                    .allowsHitTesting(false)
+                }
+                .frame(width: 124, height: 124)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(UnitFormatter.effortDisplay(strain, scale: effortScale)))
+                .accessibilityValue(Text(StrainGauge.stateLabel(forFraction: fraction)))
             }
             .frame(maxWidth: .infinity)
         }
@@ -177,9 +237,12 @@ struct LiveWorkoutView: View {
 
     private var zoneRail: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("HR ZONE")
-                .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
-                .foregroundStyle(StrandPalette.textSecondary)
+            HStack {
+                Text("HR ZONE")
+                    .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                Spacer()
+            }
             HStack(spacing: 6) {
                 ForEach(1...5, id: \.self) { z in
                     let active = z == zone
@@ -210,29 +273,37 @@ struct LiveWorkoutView: View {
 
     private var statsGrid: some View {
         let w = model.activeWorkout
-        return HStack(spacing: NoopMetrics.gap) {
-            stat(String(localized: "AVG"), (w?.avgHr ?? 0) > 0 ? "\(w!.avgHr)" : "—",
-                 tint: (w?.avgHr ?? 0) > 0 ? StrandPalette.metricRose : StrandPalette.textPrimary)
-            stat(String(localized: "PEAK"), (w?.peakHr ?? 0) > 0 ? "\(w!.peakHr)" : "—",
-                 tint: (w?.peakHr ?? 0) > 0 ? StrandPalette.metricRose : StrandPalette.textPrimary)
-            stat(String(localized: "EFFORT"), UnitFormatter.effortDisplay(w?.liveStrain ?? 0, scale: effortScale),
-                 tint: StrandPalette.strainColor(w?.liveStrain ?? 0))
+        return NoopCard(padding: NoopMetrics.cardInnerPadding) {
+            HStack(spacing: 0) {
+                stat(String(localized: "AVG"), (w?.avgHr ?? 0) > 0 ? "\(w!.avgHr)" : "—",
+                     tint: (w?.avgHr ?? 0) > 0 ? StrandPalette.metricRose : StrandPalette.textPrimary)
+                statDivider
+                stat(String(localized: "PEAK"), (w?.peakHr ?? 0) > 0 ? "\(w!.peakHr)" : "—",
+                     tint: (w?.peakHr ?? 0) > 0 ? StrandPalette.metricRose : StrandPalette.textPrimary)
+                statDivider
+                stat(String(localized: "EFFORT"), UnitFormatter.effortDisplay(w?.liveStrain ?? 0, scale: effortScale),
+                     tint: StrandPalette.strainColor(w?.liveStrain ?? 0))
+            }
         }
     }
 
     private func stat(_ title: String, _ value: String, tint: Color = StrandPalette.textPrimary) -> some View {
-        NoopCard(padding: 14, tint: tint) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(title)
-                    .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
-                    .foregroundStyle(StrandPalette.textSecondary)
-                Text(value)
-                    .font(StrandFont.number(26))
-                    .foregroundStyle(tint)
-                    .lineLimit(1).minimumScaleFactor(0.6)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(spacing: NoopMetrics.space1) {
+            Text(title)
+                .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
+                .foregroundStyle(StrandPalette.textSecondary)
+            Text(value)
+                .font(StrandFont.number(28))
+                .foregroundStyle(tint)
+                .lineLimit(1).minimumScaleFactor(0.6)
         }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var statDivider: some View {
+        Rectangle()
+            .fill(StrandPalette.hairline)
+            .frame(width: 1, height: 48)
     }
 
     private var endButton: some View {
@@ -264,7 +335,7 @@ struct LiveWorkoutView: View {
 
 /// Additive readout for a connected standard fitness sensor (a footpod / bike speed-cadence sensor /
 /// power meter) feeding RSC/CSC/CPS ALONGSIDE heart rate. Only the fields the sensor actually sent
-/// render — each tile is dropped when its value is absent, and the WHOLE block (row + entrance stagger)
+/// render — each metric is dropped when its value is absent, and the WHOLE block (panel + entrance stagger)
 /// is hidden when nothing is present (`live.hasSensorMetrics`), so a plain HR-only workout looks exactly
 /// as before. Honest units: speed km/h, cadence per-minute (steps for running / rpm for cycling), power
 /// watts. Tinted with the Effort world so it reads as part of the hero, not a competing accent. Nothing
@@ -282,34 +353,34 @@ private struct SensorRowIfPresent: View {
             let speed = LiveState.formatSpeedKmh(live.sensorSpeedKmh)
             let cadence = LiveState.formatCadence(live.sensorCadence)
             let power = LiveState.formatPowerWatts(live.sensorPowerWatts)
-            VStack(alignment: .leading, spacing: 8) {
-                Text("SENSOR")
-                    .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
-                    .foregroundStyle(StrandPalette.textSecondary)
-                HStack(spacing: NoopMetrics.gap) {
-                    if let speed { stat(String(localized: "SPEED"), "\(speed) km/h", tint: StrandPalette.effortColor) }
-                    if let cadence { stat(String(localized: "CADENCE"), "\(cadence)/min", tint: StrandPalette.effortColor) }
-                    if let power { stat(String(localized: "POWER"), "\(power) W", tint: StrandPalette.effortColor) }
+            NoopCard(padding: NoopMetrics.cardInnerPadding, tint: StrandPalette.effortColor) {
+                VStack(alignment: .leading, spacing: NoopMetrics.space3) {
+                    Text("SENSOR")
+                        .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                    HStack(spacing: NoopMetrics.gap) {
+                        if let speed { stat(String(localized: "SPEED"), "\(speed) km/h", tint: StrandPalette.effortColor) }
+                        if let cadence { stat(String(localized: "CADENCE"), "\(cadence)/min", tint: StrandPalette.effortColor) }
+                        if let power { stat(String(localized: "POWER"), "\(power) W", tint: StrandPalette.effortColor) }
+                    }
                 }
             }
             .staggeredAppear(index: 5)
         }
     }
 
-    /// Same metric tile as `LiveWorkoutView.stat` (the HR stats grid) — duplicated here, unchanged, so the
-    /// leaf is self-contained and the rendered tile is identical.
+    /// Compact sensor value used inside this leaf's shared panel, keeping its high-frequency updates
+    /// isolated from the rest of the workout screen.
     private func stat(_ title: String, _ value: String, tint: Color = StrandPalette.textPrimary) -> some View {
-        NoopCard(padding: 14, tint: tint) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(title)
-                    .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
-                    .foregroundStyle(StrandPalette.textSecondary)
-                Text(value)
-                    .font(StrandFont.number(26))
-                    .foregroundStyle(tint)
-                    .lineLimit(1).minimumScaleFactor(0.6)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .leading, spacing: NoopMetrics.space1) {
+            Text(title)
+                .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
+                .foregroundStyle(StrandPalette.textSecondary)
+            Text(value)
+                .font(StrandFont.number(26))
+                .foregroundStyle(tint)
+                .lineLimit(1).minimumScaleFactor(0.6)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

@@ -262,8 +262,9 @@ feature rather than by file so they can be reviewed and ported independently.
 
 - **Date:** 2026-08-04
 - **Files:** `Strand/Liquid/LiquidTodayView.swift`
-- Removed the secondary live-status subtitle and consolidated the card header into one balanced row with
-  the metric heading on the left and the live heart icon, BPM value, and unit on the right.
+- Consolidated the card header into one balanced row with the metric heading on the left and the live
+  heart icon, BPM value, and unit on the right. The upstream state-dependent subtitle remains directly
+  beneath it for live, five-minute fallback, waiting-for-strap, and disconnected states.
 - Replaced the live dot with an SF Symbol heart driven by the same incoming `live.heartRate` change event,
   without adding a timer or continuous animation loop.
 - Added a static, clipped Canvas grid behind the existing trace using the shared hairline token.
@@ -278,11 +279,79 @@ feature rather than by file so they can be reviewed and ported independently.
 - Added a reusable `LiquidFullWidthNavigationAction` presentation using the shared panel surface,
   button geometry tokens, typography, mint accent, trailing chevron, and accessible control height.
 - Replaced the standalone Show all metrics text with the full-width action surface.
-- Removed the separate Full day affordance from the Heart Rate card; its existing whole-card
-  `NavigationLink` remains, so tapping anywhere on the card still opens the same full-day route.
+- Applied the same reusable full-width action surface to Full day inside the Heart Rate card. Its existing
+  whole-card `NavigationLink` remains, so the visible action and the surrounding card open the same route.
 - Preserved both `NavigationLink` values, the existing whole-card Heart Rate interaction, Key Metrics
   layout, chart layout/data, calculations, bindings, and BLE behavior.
 - **Type:** Dashboard action presentation only.
+
+### EXP-015 — PR review presentation restorations
+
+- **Date:** 2026-08-04
+- **Files:** `Strand/Liquid/LiquidTodayView.swift`, `Strand/Screens/TrendsView.swift`,
+  `Strand/Screens/WeeklyDigestView.swift`, `Strand/Resources/Localizable.xcstrings`
+- Localized the compact Trends days-with-data text and matching accessibility description in English,
+  German, Spanish, and French using the existing string-catalog workflow.
+- Restored the upstream Live HR subtitle states and conditions while retaining the redesigned header,
+  heart pulse, grid, chart, data sources, and update timing.
+- Restored embedded weekly-gauge scale captions for populated Effort and Rest gauges, including Effort's
+  existing selected-scale denominator, without changing scores, calculations, or gauge behavior.
+- Restored the visible Full day action with the same shared full-width component used by Show all metrics;
+  its route and the whole-card navigation behavior are unchanged.
+- The Today sync indicator was deliberately left unchanged for separate review.
+- **Type:** Localization and presentation-information restoration only.
+
+### EXP-016 — Live workout glanceable hierarchy
+
+- **Date:** 2026-08-04
+- **Files:** `Strand/Screens/LiveWorkoutView.swift`
+- Rebuilt the live-workout presentation around two dominant readings: elapsed time and live heart rate.
+  The recording state is now a compact status capsule, while the selected HR zone sits beside the live
+  reading and the complete five-zone rail plus its exact bounds remain directly below.
+- Reframed the existing Effort gauge as a compact supporting card and consolidated Avg, Peak, and Effort
+  into one evenly divided summary surface to reduce competing card chrome.
+- Consolidated optional speed, cadence, and power values into one sensor panel while preserving the
+  independently observing `SensorRowIfPresent` leaf and its conditional fields.
+- Preserved the workout timer source, live BPM and zone derivation, effort scale and calculation, sensor
+  values and units, realtime-stream lifecycle, keep-awake behavior, active-workout dismissal, End action,
+  destructive confirmation, save behavior, and every existing state dependency.
+- **Type:** Experimental live-workout layout and presentation redesign only.
+
+### EXP-017 — Home-style live Effort vessel
+
+- **Date:** 2026-08-04
+- **Files:** `Strand/Screens/LiveWorkoutView.swift`
+- Replaced only the live-workout Effort circle renderer with the same shared `LiquidVessel` visual used
+  by the Home Charge, Effort, and Rest hero scores, including its motion and Reduce Motion behavior.
+- Preserved `ActiveWorkout.liveStrain` as the source, the selected 0–100/0–21 display conversion, exact
+  fill fraction, live updates, formatted value, scale denominator, card placement, and accessibility value.
+- Restored the original dynamic Effort intensity label (`LIGHT` through `ALL-OUT`) using the exact shared
+  `StrainGauge` thresholds and translations, placing it beneath `EFFORT BUILDING`; the scale denominator
+  remains inside the vessel beneath the live number.
+- **Type:** Effort gauge rendering only; no workout behavior or calculation changes.
+
+### EXP-018 — Workouts control layout
+
+- **Date:** 2026-08-04
+- **Files:** `Strand/Screens/WorkoutsView.swift`
+- Placed Start workout and Add workout side by side as equal-width actions spanning the standard card
+  width, with the existing day-range selector on its own full-width row below.
+- Made the existing Sport and Source filter menus equal-width controls that together span that same card
+  width. Search and clear-filter behavior remain available immediately below the selectors.
+- Preserved every action, sheet, live-workout destination, range/filter binding, caption, and data path.
+- **Type:** Experimental Workouts control layout only.
+
+### EXP-019 — Inline Live HR destination affordance
+
+- **Date:** 2026-08-04
+- **Files:** `Strand/Liquid/LiquidTodayView.swift`
+- Removed the full-width Full day button from the Today live-heart-rate card and placed a compact
+  heart-rate-coloured chevron directly beside the localized Beats per minute heading instead.
+- The heading group has higher layout priority, a fixed-size chevron, and controlled text scaling so the
+  arrow stays attached to longer localized text without colliding with the changing BPM value.
+- Preserved the whole-card `TabRoute.fullDayChart` navigation link, destination, live subtitle states,
+  chart, statistics, sampling, animation, and accessibility hint.
+- **Type:** Live HR affordance presentation only; destination and behavior unchanged.
 
 ## Verification history
 
@@ -301,6 +370,8 @@ feature rather than by file so they can be reviewed and ported independently.
 | 2026-08-04 | Pre-PR audit against Ryan main `3b86b6ef` | Branch is 4 commits ahead and 0 behind. Full 41-file diff audited; no BLE, protocol, scoring, sleep-calculation, persistence, networking, HealthKit, data-model, permission, entitlement, or build-configuration changes found. Changes are limited to presentation, approved layout, sync-status placement, and native tab-bar chrome/reselection forwarding. |
 | 2026-08-04 | Live heart-rate card refinement | `NOOPiOS` Debug physical-device build succeeded; installed and launched on the connected iPhone using `com.liammazuz.noop`. Source verification confirmed the pulse reuses incoming heart-rate changes and the static grid adds no timer or continuous redraw loop; `git diff --check` passed. Existing unrelated compiler warnings remained. |
 | 2026-08-04 | Full-width metrics action | `NOOPiOS` Debug physical-device build succeeded; installed and launched on the connected iPhone using `com.liammazuz.noop`. Show all metrics uses the reusable full-width surface; the Heart Rate card retains its whole-card route with no separate Full day control. `git diff --check` passed. Existing unrelated compiler warnings remained. |
+| 2026-08-04 | PR review presentation restorations | i18n CI audit and `git diff --check` passed. A clean `NOOPiOS` Debug physical-device build succeeded, including `DevicesView`; the signed `com.liammazuz.noop` build was installed and launched on the connected iPhone. Source-path verification confirmed the upstream Live HR subtitle branches, weekly gauge captions, selected-week localization inputs, and unchanged Full day destination. |
+| 2026-08-04 | Live workout glanceable hierarchy | i18n CI audit and `git diff --check` passed. The `NOOPiOS` Debug physical-device build succeeded and the signed `com.liammazuz.noop` app was installed and launched on the connected iPhone. Diff verification confirmed all workout data sources, calculations, lifecycle hooks, sensor isolation, actions, and confirmation behavior remain unchanged. Existing unrelated compiler warnings remained. |
 
 ## Required workflow for every future custom UI change
 

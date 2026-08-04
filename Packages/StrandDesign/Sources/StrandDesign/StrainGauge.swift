@@ -60,8 +60,8 @@ public struct StrainGauge: View {
 
     /// A short load word for the strain value, mirroring the recovery state idea. Computed off the
     /// fraction (not the raw value) so the bands read the same on the 0–100 and 0–21 display scales.
-    private var strainWord: String {
-        switch fraction {
+    public static func stateLabel(forFraction fraction: Double) -> String {
+        switch min(max(fraction, 0), 1) {
         case ..<(6.0 / 21):   return String(localized: "LIGHT", bundle: .module)
         case ..<(10.0 / 21):  return String(localized: "MODERATE", bundle: .module)
         case ..<(14.0 / 21):  return String(localized: "STRENUOUS", bundle: .module)
@@ -69,6 +69,7 @@ public struct StrainGauge: View {
         default:              return String(localized: "ALL-OUT", bundle: .module)
         }
     }
+    private var strainWord: String { Self.stateLabel(forFraction: fraction) }
 
     // The 240° open-gauge geometry + bloom now live in the shared `BevelGauge`.
     @State private var animatedFraction: Double = 0
