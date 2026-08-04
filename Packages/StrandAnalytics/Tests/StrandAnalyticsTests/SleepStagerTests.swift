@@ -1082,7 +1082,8 @@ final class SleepStagerTests: XCTestCase {
         // recovered to light (and merges with the flanking light); the leading onset-latency and trailing
         // final-wake blocks are NEVER touched even though the band scored them asleep too.
         let out = SleepStager.applyBandStateWakeVeto(vetoHypnoFixture(), start: 0, end: 960,
-                                                     bandSleepState: bandAllAsleep(start: 0, end: 960))
+                                                     bandSleepState: bandAllAsleep(start: 0, end: 960),
+                                                     enabled: true)
         XCTAssertEqual(out, [
             StageSegment(start: 0,   end: 60,  stage: "wake"),
             StageSegment(start: 60,  end: 900, stage: "light"),
@@ -1097,7 +1098,8 @@ final class SleepStagerTests: XCTestCase {
         var states = [Int](repeating: 2, count: 32)
         for (k, i) in (10...15).enumerated() { states[i] = [1, 1, 3, 3, 0, 0][k] }
         let out = SleepStager.applyBandStateWakeVeto(vetoHypnoFixture(), start: 0, end: 960,
-                                                     bandSleepState: bandSamples(start: 0, states))
+                                                     bandSleepState: bandSamples(start: 0, states),
+                                                     enabled: true)
         XCTAssertEqual(out, vetoHypnoFixture(),
                        "still/up/wake band never vetoes — only the strap's explicit asleep(2) does")
     }
@@ -1108,7 +1110,8 @@ final class SleepStagerTests: XCTestCase {
         var states = [Int](repeating: 2, count: 32)
         for i in 13...15 { states[i] = 3 }
         let out = SleepStager.applyBandStateWakeVeto(vetoHypnoFixture(), start: 0, end: 960,
-                                                     bandSleepState: bandSamples(start: 0, states))
+                                                     bandSleepState: bandSamples(start: 0, states),
+                                                     enabled: true)
         XCTAssertEqual(out, [
             StageSegment(start: 0,   end: 60,  stage: "wake"),
             StageSegment(start: 60,  end: 390, stage: "light"),
@@ -1121,20 +1124,26 @@ final class SleepStagerTests: XCTestCase {
     func testBandStateWakeVetoNoOpWhenBandAbsent() {
         // No band stream (WHOOP 4.0 / unbanded window) → byte-identical hypnogram, whatever the flag.
         XCTAssertEqual(
-            SleepStager.applyBandStateWakeVeto(vetoHypnoFixture(), start: 0, end: 960, bandSleepState: []),
-            vetoHypnoFixture(), "absent band → veto is a no-op")
+            SleepStager.applyBandStateWakeVeto(vetoHypnoFixture(), start: 0, end: 960, bandSleepState: [],
+                                               enabled: true),
+            vetoHypnoFixture(), "absent band → veto is a no-op even when armed")
         // Band entirely outside the window grids to empty → also a no-op (never fabricates asleep).
         XCTAssertEqual(
             SleepStager.applyBandStateWakeVeto(vetoHypnoFixture(), start: 0, end: 960,
-                                               bandSleepState: [(ts: 100_000, state: 2)]),
+                                               bandSleepState: [(ts: 100_000, state: 2)],
+                                               enabled: true),
             vetoHypnoFixture())
     }
 
     func testBandStateWakeVetoPreservesTilingAndOnlyRemovesWake() {
-        XCTAssertTrue(SleepStager.bandStateWakeVetoEnabled, "band sleep_state veto ships default-ON")
+        XCTAssertFalse(SleepStager.bandStateWakeVetoEnabled,
+                       "band sleep_state veto ships default-OFF until PSG supports it — the harness "
+                       + "currently measures the shipped recipe UNDER-calling wake (bias −4.92 pp), "
+                       + "so converting wake→light by default would move away from truth")
         let stages = vetoHypnoFixture()
         let out = SleepStager.applyBandStateWakeVeto(stages, start: 0, end: 960,
-                                                     bandSleepState: bandAllAsleep(start: 0, end: 960))
+                                                     bandSleepState: bandAllAsleep(start: 0, end: 960),
+                                                     enabled: true)
         XCTAssertEqual(out.first?.start, 0)
         XCTAssertEqual(out.last?.end, 960)
         for i in 1..<out.count {
@@ -1144,10 +1153,15 @@ final class SleepStagerTests: XCTestCase {
         XCTAssertLessThan(wake(out), wake(stages), "the veto only ever turns wake into sleep")
     }
 
-    func testBandStateWakeVetoRaisesEfficiencyEndToEnd() {
-        // WIRING PROOF through detectSleep: a still overnight night with a mid-sleep motion+HR burst that
-        // NOOP scores as INTERIOR wake. With an all-"asleep" band threaded, that interior wake is
-        // recovered end to end — efficiency rises and no interior wake survives (only onset/final blocks).
+    func testBandStateWakeVetoDefaultOffLeavesHypnogramUnchangedEndToEnd() {
+        // WIRING PROOF through detectSleep, for the SHIPPED default (OFF until PSG supports the veto —
+        // the harness currently measures the recipe UNDER-calling wake against truth, bias −4.92 pp, so
+        // default-on would move away from it). A still overnight night with a mid-sleep motion+HR burst
+        // that NOOP scores as INTERIOR wake, plus an all-"asleep" band threaded end to end: with the
+        // flag off the band must change NOTHING — byte-identical stages, identical efficiency. This is
+        // the wiring test's inverse: it proves the band stream reaches the veto AND that the flag gates
+        // it, so flipping the default is the only change needed to re-enable (the ON-path mechanism is
+        // covered by the pure `applyBandStateWakeVeto(enabled: true)` tests above).
         let start = nightStart(2)                 // 02:00 overnight (skips the daytime nap guard)
         let dur = 6 * 3600
         var grav = stillGravity(start: start, durationS: dur)
@@ -1161,16 +1175,10 @@ final class SleepStagerTests: XCTestCase {
         let withBand = SleepStager.detectSleep(hr: hr, gravity: grav,
                                                bandSleepState: bandAllAsleep(start: start, end: start + dur))
         XCTAssertEqual(withBand.count, 1)
-        let wake: (SleepSession) -> Int = { $0.stages.filter { $0.stage == "wake" }.reduce(0) { $0 + ($1.end - $1.start) } }
-        XCTAssertLessThanOrEqual(wake(withBand[0]), wake(noBand[0]), "the @81 veto can only reduce wake")
-        XCTAssertGreaterThanOrEqual(withBand[0].efficiency, noBand[0].efficiency,
-                                    "recovering strap-disputed false wake raises efficiency")
-        // With an all-asleep band, every recovered epoch is interior, so any surviving wake is an EDGE block.
-        let segs = withBand[0].stages
-        for (i, s) in segs.enumerated() where s.stage == "wake" {
-            XCTAssertTrue(i == 0 || i == segs.count - 1,
-                          "an all-asleep band leaves no INTERIOR wake — only onset/final-wake blocks")
-        }
+        XCTAssertEqual(withBand[0].stages, noBand[0].stages,
+                       "default-off: an all-asleep band changes NOTHING — byte-identical hypnogram")
+        XCTAssertEqual(withBand[0].efficiency, noBand[0].efficiency, accuracy: 1e-9,
+                       "default-off: efficiency is untouched by the band stream")
     }
 
     // MARK: - REM-funnel diagnostic (#688)

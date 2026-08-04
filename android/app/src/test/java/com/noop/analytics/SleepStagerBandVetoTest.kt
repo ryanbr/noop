@@ -3,6 +3,7 @@ package com.noop.analytics
 import com.noop.data.GravitySample
 import com.noop.data.HrSample
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.ceil
@@ -66,7 +67,7 @@ class SleepStagerBandVetoTest {
         // final-wake blocks are NEVER touched even though the band scored them asleep too.
         val out = SleepStager.applyBandStateWakeVeto(
             vetoHypnoFixture(), start = 0, end = 960,
-            bandSleepState = bandAllAsleep(start = 0, end = 960),
+            bandSleepState = bandAllAsleep(start = 0, end = 960), enabled = true,
         )
         assertEquals(
             "interior @81-asleep wake -> light (merged); onset-latency + final-wake blocks stay wake",
@@ -89,7 +90,7 @@ class SleepStagerBandVetoTest {
         for ((k, i) in (10..15).withIndex()) states[i] = block[k]
         val out = SleepStager.applyBandStateWakeVeto(
             vetoHypnoFixture(), start = 0, end = 960,
-            bandSleepState = bandSamples(start = 0, states = states),
+            bandSleepState = bandSamples(start = 0, states = states), enabled = true,
         )
         assertEquals(
             "still/up/wake band never vetoes — only the strap's explicit asleep(2) does",
@@ -105,7 +106,7 @@ class SleepStagerBandVetoTest {
         for (i in 13..15) states[i] = 3
         val out = SleepStager.applyBandStateWakeVeto(
             vetoHypnoFixture(), start = 0, end = 960,
-            bandSleepState = bandSamples(start = 0, states = states),
+            bandSleepState = bandSamples(start = 0, states = states), enabled = true,
         )
         assertEquals(
             "only the asleep-banded sub-run of an interior wake block is recovered",
@@ -127,24 +128,29 @@ class SleepStagerBandVetoTest {
             "absent band → veto is a no-op",
             vetoHypnoFixture(),
             SleepStager.applyBandStateWakeVeto(
-                vetoHypnoFixture(), start = 0, end = 960, bandSleepState = emptyList(),
+                vetoHypnoFixture(), start = 0, end = 960, bandSleepState = emptyList(), enabled = true,
             ),
         )
         // Band entirely outside the window grids to empty → also a no-op (never fabricates asleep).
         assertEquals(
             vetoHypnoFixture(),
             SleepStager.applyBandStateWakeVeto(
-                vetoHypnoFixture(), start = 0, end = 960, bandSleepState = listOf(100_000L to 2),
+                vetoHypnoFixture(), start = 0, end = 960, bandSleepState = listOf(100_000L to 2), enabled = true,
             ),
         )
     }
 
     @Test
     fun preservesTilingAndOnlyRemovesWake() {
-        assertTrue("band sleep_state veto ships default-ON", SleepStager.bandStateWakeVetoEnabled)
+        assertFalse(
+            "band sleep_state veto ships default-OFF until PSG supports it — the harness currently " +
+                "measures the shipped recipe UNDER-calling wake (bias -4.92 pp), so converting " +
+                "wake->light by default would move away from truth",
+            SleepStager.bandStateWakeVetoEnabled,
+        )
         val stages = vetoHypnoFixture()
         val out = SleepStager.applyBandStateWakeVeto(
-            stages, start = 0, end = 960, bandSleepState = bandAllAsleep(start = 0, end = 960),
+            stages, start = 0, end = 960, bandSleepState = bandAllAsleep(start = 0, end = 960), enabled = true,
         )
         assertEquals(0L, out.first().start)
         assertEquals(960L, out.last().end)
@@ -156,10 +162,12 @@ class SleepStagerBandVetoTest {
     }
 
     @Test
-    fun raisesEfficiencyEndToEnd() {
-        // WIRING PROOF through detectSleep: a still overnight night with a mid-sleep motion+HR burst that
-        // NOOP scores as INTERIOR wake. With an all-"asleep" band threaded, that interior wake is
-        // recovered end to end — efficiency rises and no interior wake survives (only onset/final blocks).
+    fun defaultOffLeavesHypnogramUnchangedEndToEnd() {
+        // WIRING PROOF through detectSleep, for the SHIPPED default (OFF until PSG supports the veto —
+        // the harness currently measures the recipe UNDER-calling wake against truth, bias -4.92 pp, so
+        // default-on would move away from it). With the flag off an all-"asleep" band must change
+        // NOTHING end to end; the ON-path mechanism is covered by the pure enabled=true tests above.
+        // Byte-parity twin of Swift testBandStateWakeVetoDefaultOffLeavesHypnogramUnchangedEndToEnd.
         val start = startAtHour(2)                // 02:00 overnight (skips the daytime nap guard)
         val dur = 6 * 3600
         val grav = stillGravity(start, dur).toMutableList()
@@ -175,16 +183,9 @@ class SleepStagerBandVetoTest {
             bandSleepState = bandAllAsleep(start = start, end = start + dur),
         )
         assertEquals(1, withBand.size)
-        val wake = { s: DetectedSleep -> s.stages.filter { it.stage == "wake" }.sumOf { it.end - it.start } }
-        assertTrue("the band-state veto can only reduce wake", wake(withBand[0]) <= wake(noBand[0]))
-        assertTrue("recovering strap-disputed false wake raises efficiency",
-            withBand[0].efficiency >= noBand[0].efficiency)
-        // With an all-asleep band, every recovered epoch is interior, so any surviving wake is an EDGE block.
-        val segs = withBand[0].stages
-        for ((i, s) in segs.withIndex()) {
-            if (s.stage != "wake") continue
-            assertTrue("an all-asleep band leaves no INTERIOR wake — only onset/final-wake blocks",
-                i == 0 || i == segs.size - 1)
-        }
+        assertEquals("default-off: an all-asleep band changes NOTHING — byte-identical hypnogram",
+            noBand[0].stages, withBand[0].stages)
+        assertEquals("default-off: efficiency is untouched by the band stream",
+            noBand[0].efficiency, withBand[0].efficiency, 1e-9)
     }
 }

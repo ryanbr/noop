@@ -162,7 +162,7 @@ object SleepStager {
      *  is why vetoing false-wakes with it is well-founded; it stays a single flip-point + fully tested. An
      *  absent band stream (WHOOP 4.0 / unbanded window) makes the veto a no-op regardless of this flag.
      *  Mirrors Swift `bandStateWakeVetoEnabled`. (band sleep_state veto) */
-    const val bandStateWakeVetoEnabled: Boolean = true
+    const val bandStateWakeVetoEnabled: Boolean = false
 
     /** The sleep stage a band-vetoed false-wake epoch is reclassified to. [bandStateAsleep] (band sleep_state == 2) means
      *  only "asleep" — the band carries NO light/deep/REM resolution — so the veto maps it to the generic,
@@ -834,8 +834,9 @@ object SleepStager {
     internal fun applyBandStateWakeVeto(
         stages: List<StageSegment>, start: Long, end: Long,
         bandSleepState: List<Pair<Long, Int>>,
+        enabled: Boolean = bandStateWakeVetoEnabled,
     ): List<StageSegment> {
-        if (!bandStateWakeVetoEnabled || bandSleepState.isEmpty() || stages.isEmpty() || end <= start) {
+        if (!enabled || bandSleepState.isEmpty() || stages.isEmpty() || end <= start) {
             return stages
         }
         // Per-epoch band on the 30 s stagesJSON grid — byte-identical to the persisted sleepStateJSON.

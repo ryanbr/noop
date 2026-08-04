@@ -753,11 +753,15 @@ public enum SleepStager {
     // Unlike the H8 consume confirm (which only ever KEEPS a whole borderline re-onset session), this
     // operates per EPOCH on the final hypnogram and only ever turns wake INTO sleep.
 
-    /// Default-ON gate for the band sleep_state WAKE-veto. Flip to false to fall back to the byte-identical
-    /// pre-veto hypnogram. `bandStateAsleep` is WHOOP's OWN banked verdict (not a signal we re-derive), which
-    /// is why vetoing false-wakes with it is well-founded; it stays a single flip-point + fully tested. An
-    /// absent band stream (WHOOP 4.0 / unbanded window) makes the veto a no-op regardless of this flag.
-    public static let bandStateWakeVetoEnabled: Bool = true
+    /// Default-OFF gate for the band sleep_state WAKE-veto — off until PSG supports it, and the PSG
+    /// harness currently says the OPPOSITE: against the 31-subject sleep-accel truth set the shipped
+    /// recipe UNDER-calls wake (wake% 4.15 vs ~9.1 true, bias −4.92 pp, wake sensitivity 30.8%), so a
+    /// veto that converts wake→light moves the population result AWAY from truth even though it fixes
+    /// real strap-disputed false wakes on HR-inflated nights (the n=12 that motivated it). Flip to true
+    /// only with PSG evidence in hand — `sleeppsg --section variants` prints the wake%/bias row this
+    /// decision keys on. The mechanism stays fully tested behind the flag (tests pass `enabled: true`
+    /// explicitly). An absent band stream (WHOOP 4.0 / unbanded window) is a no-op regardless.
+    public static let bandStateWakeVetoEnabled: Bool = false
 
     /// The sleep stage a band-vetoed false-wake epoch is reclassified to. `bandStateAsleep` (band sleep_state == 2) means
     /// only "asleep" — the band carries NO light/deep/REM resolution — so the veto maps it to the generic,
@@ -781,8 +785,9 @@ public enum SleepStager {
     /// identical). Applies to whichever stager (V1 or V2) produced `stages`. Pure + deterministic.
     /// (band sleep_state veto)
     static func applyBandStateWakeVeto(_ stages: [StageSegment], start: Int, end: Int,
-                                       bandSleepState: [(ts: Int, state: Int)]) -> [StageSegment] {
-        guard bandStateWakeVetoEnabled, !bandSleepState.isEmpty, !stages.isEmpty, end > start else {
+                                       bandSleepState: [(ts: Int, state: Int)],
+                                       enabled: Bool = bandStateWakeVetoEnabled) -> [StageSegment] {
+        guard enabled, !bandSleepState.isEmpty, !stages.isEmpty, end > start else {
             return stages
         }
         // Per-epoch band on the 30 s stagesJSON grid — byte-identical to the persisted sleepStateJSON.
