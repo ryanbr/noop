@@ -67,6 +67,7 @@ class AiCoach(private val repo: WhoopRepository) {
         model: String,
         consent: Boolean = false,
         customBaseUrl: String = "",
+        customAuthHeader: CustomAiAuthHeader = CustomAiAuthHeader.BEARER,
         includeSignals: Boolean = false,
     ): String = withContext(Dispatchers.IO) {
         // Local (Custom) servers usually need no key; the cloud providers always do. The guarded read
@@ -125,7 +126,15 @@ class AiCoach(private val repo: WhoopRepository) {
             AiProvider.GEMINI ->
                 callGemini(provider, model, key!!, grounded, systemPrompt)
             AiProvider.CUSTOM ->
-                callOpenAiCompatible(provider, customChatUrl(customBaseUrl), model, key, grounded, systemPrompt)
+                callOpenAiCompatible(
+                    provider,
+                    customChatUrl(customBaseUrl),
+                    model,
+                    key,
+                    grounded,
+                    systemPrompt,
+                    customAuthHeader,
+                )
         }
     }
 
@@ -158,6 +167,7 @@ class AiCoach(private val repo: WhoopRepository) {
         ctx: Context,
         provider: AiProvider,
         customBaseUrl: String = "",
+        customAuthHeader: CustomAiAuthHeader = CustomAiAuthHeader.BEARER,
     ): List<String> = withContext(Dispatchers.IO) {
         // Guarded read: only a key saved for THIS provider (or a legacy cloud key) is used, never one
         // provider's key against another's models endpoint.
@@ -184,7 +194,7 @@ class AiCoach(private val repo: WhoopRepository) {
                 builder.addHeader("anthropic-version", "2023-06-01")
             }
             AiProvider.GEMINI -> builder.addHeader("x-goog-api-key", key!!)
-            AiProvider.CUSTOM -> if (!key.isNullOrBlank()) builder.addHeader("Authorization", "Bearer $key")
+            AiProvider.CUSTOM -> applyCustomAuthHeader(builder, key, customAuthHeader)
         }
 
         runCatching {
@@ -195,21 +205,7 @@ class AiCoach(private val repo: WhoopRepository) {
             // parse; every other provider is OpenAI-shaped ({"data":[{"id":"…"}]}).
             if (provider == AiProvider.GEMINI) return@runCatching parseGeminiModels(text)
 
-            val data = JSONObject(text).optJSONArray("data") ?: return@runCatching emptyList<String>()
-            val ids = ArrayList<String>(data.length())
-            for (i in 0 until data.length()) {
-                val id = data.optJSONObject(i)?.optString("id")?.trim().orEmpty()
-                if (id.isEmpty()) continue
-                val keep = when (provider) {
-                    AiProvider.OPENAI -> id.startsWith("gpt") || id.startsWith("o")
-                    // Anthropic + a local server name models freely → keep all.
-                    AiProvider.ANTHROPIC, AiProvider.CUSTOM -> true
-                    // GEMINI returned early above.
-                    AiProvider.GEMINI -> true
-                }
-                if (keep) ids.add(id)
-            }
-            ids.distinct()
+            parseOpenAiCompatibleModels(provider, text)
         }.getOrDefault(emptyList())
     }
 
@@ -382,6 +378,7 @@ class AiCoach(private val repo: WhoopRepository) {
         key: String?,
         history: List<ChatMsg>,
         systemPrompt: String,
+        customAuthHeader: CustomAiAuthHeader = CustomAiAuthHeader.BEARER,
     ): String {
         val messages = JSONArray()
         messages.put(JSONObject().put("role", "system").put("content", systemPrompt))
@@ -390,23 +387,34 @@ class AiCoach(private val repo: WhoopRepository) {
             messages.put(JSONObject().put("role", m.role).put("content", m.text))
         }
 
-        val body = JSONObject()
-            .put("model", model)
-            .put("messages", messages)
-            .put("temperature", 0.6)
-            .put("max_tokens", 900)
-            .toString()
+        val (code, text) = executeOpenAiCompatible(
+            provider = provider,
+            url = url,
+            model = model,
+            messages = messages,
+            key = key,
+            customAuthHeader = customAuthHeader,
+            modernParams = false,
+        )
+        val responseText = if (code in 200..299) {
+            text
+        } else if (code == 400 && shouldRetryOpenAiModernParams(text)) {
+            val (retryCode, retryText) = executeOpenAiCompatible(
+                provider = provider,
+                url = url,
+                model = model,
+                messages = messages,
+                key = key,
+                customAuthHeader = customAuthHeader,
+                modernParams = true,
+            )
+            if (retryCode !in 200..299) throw httpError(provider, retryCode, retryText)
+            retryText
+        } else {
+            throw httpError(provider, code, text)
+        }
 
-        val builder = Request.Builder()
-            .url(url)
-            .addHeader("Content-Type", "application/json")
-            .post(body.toRequestBody(JSON))
-        if (!key.isNullOrBlank()) builder.addHeader("Authorization", "Bearer $key")
-
-        val (code, text) = execute(builder.build())
-        if (code !in 200..299) throw httpError(provider, code, text)
-
-        val json = parse(text)
+        val json = parse(responseText)
         val firstChoice = json.optJSONArray("choices")?.optJSONObject(0)
         val content = firstChoice
             ?.optJSONObject("message")
@@ -419,6 +427,56 @@ class AiCoach(private val repo: WhoopRepository) {
         // and give NO error, keep the partial text and append the actionable notice so it isn't silent.
         val truncated = firstChoice.optString("finish_reason").lowercase() == "length"
         return if (truncated) content + TRUNCATION_NOTE else content
+    }
+
+    private fun executeOpenAiCompatible(
+        provider: AiProvider,
+        url: String,
+        model: String,
+        messages: JSONArray,
+        key: String?,
+        customAuthHeader: CustomAiAuthHeader,
+        modernParams: Boolean,
+    ): Pair<Int, String> {
+        val body = JSONObject()
+            .put("model", model)
+            .put("messages", messages)
+        if (modernParams) {
+            body.put("max_completion_tokens", 900)
+        } else {
+            body.put("temperature", 0.6)
+            body.put("max_tokens", 900)
+        }
+
+        val builder = Request.Builder()
+            .url(url)
+            .addHeader("Content-Type", "application/json")
+            .post(body.toString().toRequestBody(JSON))
+        when (provider) {
+            AiProvider.CUSTOM -> applyCustomAuthHeader(builder, key, customAuthHeader)
+            else -> if (!key.isNullOrBlank()) builder.addHeader("Authorization", "Bearer $key")
+        }
+        return execute(builder.build())
+    }
+
+    private fun applyCustomAuthHeader(
+        builder: Request.Builder,
+        key: String?,
+        customAuthHeader: CustomAiAuthHeader,
+    ) {
+        if (key.isNullOrBlank()) return
+        when (customAuthHeader) {
+            CustomAiAuthHeader.BEARER -> builder.addHeader("Authorization", "Bearer $key")
+            CustomAiAuthHeader.X_API_KEY -> builder.addHeader("x-api-key", key)
+        }
+    }
+
+    private fun shouldRetryOpenAiModernParams(text: String): Boolean {
+        val detail = runCatching { parse(text).toString() }.getOrDefault(text).lowercase()
+        return detail.contains("max_completion_tokens") ||
+            detail.contains("max_tokens") ||
+            detail.contains("temperature") ||
+            detail.contains("unsupported")
     }
 
     /** Base for the Custom provider, the user's URL with any trailing slashes trimmed. */
@@ -663,6 +721,40 @@ class AiCoach(private val repo: WhoopRepository) {
                 if (name.isEmpty()) continue
                 val id = if (name.startsWith("models/")) name.removePrefix("models/") else name
                 if (id.startsWith("gemini") && !id.contains("embedding") && !id.contains("aqa")) ids.add(id)
+            }
+            return ids.distinct()
+        }
+
+        /**
+         * Pure: unwrap OpenAI-compatible `/models` ids. Custom gateways may return either the normal
+         * `data[].id` envelope or a gateway catalog with `catalog[].models`; keep all Custom ids.
+         */
+        internal fun parseOpenAiCompatibleModels(provider: AiProvider, text: String): List<String> {
+            val json = runCatching { JSONObject(text) }.getOrNull() ?: return emptyList()
+            val data = json.optJSONArray("data")
+            if (data != null) {
+                val ids = ArrayList<String>(data.length())
+                for (i in 0 until data.length()) {
+                    val id = data.optJSONObject(i)?.optString("id")?.trim().orEmpty()
+                    if (id.isEmpty()) continue
+                    val keep = when (provider) {
+                        AiProvider.OPENAI -> id.startsWith("gpt") || id.startsWith("o")
+                        AiProvider.ANTHROPIC, AiProvider.CUSTOM -> true
+                        AiProvider.GEMINI -> true
+                    }
+                    if (keep) ids.add(id)
+                }
+                return ids.distinct()
+            }
+
+            val catalog = json.optJSONArray("catalog") ?: return emptyList()
+            val ids = ArrayList<String>()
+            for (i in 0 until catalog.length()) {
+                val models = catalog.optJSONObject(i)?.optJSONArray("models") ?: continue
+                for (j in 0 until models.length()) {
+                    val id = models.optString(j).trim()
+                    if (id.isNotEmpty()) ids.add(id)
+                }
             }
             return ids.distinct()
         }

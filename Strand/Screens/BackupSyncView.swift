@@ -75,6 +75,18 @@ struct BackupSyncView: View {
                 Text("Tip: choose a folder in iCloud Drive and your backups sync to all your Apple devices automatically, no account setup needed.")
                     .font(StrandFont.caption).foregroundStyle(StrandPalette.accent)
                     .fixedSize(horizontal: false, vertical: true)
+                // #644: these .noopbak snapshots are a plain, unencrypted ZIP — pointing this folder at
+                // a cloud sync app (per the tip above) also uploads that readable file there. Say so
+                // plainly next to the folder picker, before anyone turns auto-backup on.
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(StrandPalette.statusWarning)
+                        .font(.system(size: 12))
+                        .accessibilityHidden(true)
+                    Text("These backups are unencrypted too. If this folder syncs to Drive, Dropbox or iCloud, the readable file goes there as well — only point it at a service you trust.")
+                        .font(StrandFont.caption).foregroundStyle(StrandPalette.statusWarning)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 NoopButton(folderLabel == nil ? "Choose folder" : "Change folder",
                            systemImage: "folder", kind: .secondary) { chooseFolder() }
                     .disabled(busy)

@@ -66,9 +66,15 @@ struct LiquidSky: View {
     /// the atmosphere so the sky still reads under a full-height "sky behind cards" backdrop).
     var settleStrength: Double = 1
     @Environment(\.colorScheme) private var scheme
+    /// The call site already swaps in `LiquidSkyStatic` when motion is unwanted, but this view carried
+    /// no gate of its own — a second call site would have been silently ungated. `paused:` makes the
+    /// frame loop stand down from inside, so the gate travels with the view.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { tl in
+        TimelineView(.animation(minimumInterval: 1.0 / 20.0,
+                                paused: motion.poseStill(reduceMotion))) { tl in
             let now = liquidSeconds(tl.date)
             let h = hour ?? liveHour()
             // The sky must dissolve into the SAME canvas colour the body uses (theme-aware surfaceBase),

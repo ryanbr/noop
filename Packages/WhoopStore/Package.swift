@@ -24,7 +24,10 @@ let package = Package(
         ),
         .testTarget(
             name: "WhoopStoreTests",
-            dependencies: ["WhoopStore", "WhoopProtocol", "OuraProtocol"]
+            dependencies: ["WhoopStore", "WhoopProtocol", "OuraProtocol"],
+            // schema_oracle.json — the shared Room<->GRDB schema fixture (#775). Byte-identical twin at
+            // android/app/src/test/resources/schema_oracle.json; SchemaOracleTests asserts they match.
+            resources: [.process("Resources")]
         ),
     ]
 )

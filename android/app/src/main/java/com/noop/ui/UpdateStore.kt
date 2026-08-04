@@ -269,6 +269,10 @@ class UpdateStore private constructor(private val prefs: SharedPreferences) {
                 kind = UpdateKind.WHATS_NEW,
                 title = if (title.isEmpty()) "What's new in NOOP $version" else title,
                 message = "NOOP $version is here — tap to read what's new.",
+                // #984: this row promised "tap to read what's new" while carrying NO deep link, so the
+                // tap resolved to nothing and only marked it read. Every release since the inbox shipped
+                // has posted an entry that could not be opened.
+                deepLink = WHATS_NEW_DEEP_LINK,
             ),
         )
     }
@@ -295,6 +299,24 @@ class UpdateStore private constructor(private val prefs: SharedPreferences) {
         private const val FILE = "noop_updates"
         private const val KEY_ITEMS = "updates.items"
         private const val KEY_LAST_SEEDED = "updates.lastSeededWhatsNewVersion"
+
+        /** Deep-link key a What's New row routes to (#984). `AppRoot`'s `onDeepLink` maps it to the
+         *  changelog sheet; any key it does not know is ignored, so this must stay in step with it. */
+        const val WHATS_NEW_DEEP_LINK = "whatsNew"
+
+        /**
+         * What a tap on [item] should open, or null when the row is purely informational (#984).
+         *
+         * Pure and separate from the Compose row so the rule is unit-testable — the store's own I/O is
+         * SharedPreferences + org.json and therefore not reachable from a plain JVM test (same
+         * constraint `NapStoreTest` documents), so this is the part of the fix that CAN be pinned.
+         *
+         * The kind fallback exists for rows posted BEFORE the fix: a What's New item already sitting in
+         * someone's inbox carries no `deepLink`, and without this it would stay inert until the next
+         * release replaced it. New rows carry the key themselves.
+         */
+        fun deepLinkTarget(item: UpdateItem): String? =
+            item.deepLink ?: WHATS_NEW_DEEP_LINK.takeIf { item.kind == UpdateKind.WHATS_NEW }
 
         /** Inbox guard-rails (#521). Cap the informational ([UpdateKind.READING]/[WHATS_NEW]) backlog and
          *  collapse an identical informational post landing within this window into the existing row, so

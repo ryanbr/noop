@@ -388,13 +388,28 @@ private func decodeWhoop5Historical(_ frame: [UInt8], fb: FieldBuilder, payloadE
         }
     }
     fb.parsed["rr_intervals"] = .intArray(rrs)
-    // Bytes adjacent to the HR/R-R fields, read off real frames. @36 / 256 tracks the integer hr@22 to
-    // sub-bpm (corr 0.989 over ~258k records) — a higher-precision heart rate; the others are raw.
+    // Bytes adjacent to the HR/R-R fields, read off real frames: @36 is a FLAG byte and @37 a duplicate
+    // heart rate — not the two halves of one fixed-point HR (see below); the others are raw.
     if let v = readDType(frame, 33, "u8") {
         fb.add(33, 1, "cardiac_flags", "cardiac", value: .int(v), note: "raw byte near the HR fields")
     }
-    if let v = readDType(frame, 36, "u16") {
-        fb.add(36, 2, "hr_fixed_8_8", "hr", value: .int(v), note: "higher-precision HR: bpm = value/256")
+    // @36 was read as the low half of a u16 `hr_fixed_8_8` with bpm = value/256. Over 18,650 real v18
+    // records that model is false. Bit 4 is NEVER set (0/18,650 — a genuine 8.8 fraction sets it ~50% of
+    // the time, and it is the ONLY bit never set); 95.02% of values land in 0x80–0x8F where uniform would
+    // be 6.25%, over just 40 distinct values, sd 26.5 vs 73.9 for a uniform byte. The "corr 0.989 with
+    // hr@22" that justified the old name was circular — the u16 is literally hr@22 (carried at @37) plus
+    // this flag byte over 256, so the residual is a flat +0.504 ± 0.189. Bit 7 reads as a VALIDITY bit:
+    // with it clear (n=748) rr_count == 0 in 70.32% of records vs 19.82% with it set, and the @108/@109
+    // sentinel fires in 69.65% vs 1.32%. The remaining bits are unpinned, so the byte ships raw.
+    if let v = readDType(frame, 36, "u8") {
+        fb.add(36, 1, "hr_quality_flags", "hr", value: .int(v),
+               note: "flag byte (raw); bit7 = HR/R-R valid, bit4 never set; NOT a fixed-point HR")
+    }
+    // @37 duplicates heart_rate@22 — equal in 99.575% of records (18,523/18,602), differing only by
+    // -6…+2, and it only tracks HR while @36 bit7 is set (99.74% exact vs 94.12% when clear).
+    if let v = readDType(frame, 37, "u8") {
+        fb.add(37, 1, "heart_rate_alt", "hr", value: .int(v),
+               note: "bpm; duplicate of heart_rate@22 (99.6% exact); trust only when hr_quality_flags bit7 is set")
     }
     if let v = readDType(frame, 38, "u16") {
         fb.add(38, 2, "rr_packed", "rr", value: .int(v), note: "raw u16 near the R-R fields; meaning not pinned")
@@ -481,6 +496,13 @@ private func decodeWhoop5Historical(_ frame: [UInt8], fb: FieldBuilder, payloadE
                note: "on-wrist/validity flag (b0-1)")
         fb.add(81, 1, "wake_quality", "sleep", value: .int((sb >> 2) & 3),
                note: "quality code (b2-3); observed nonzero only in wake")
+        // The WHOLE byte, unmasked. The three fields above are the nibbles this project has interpreted;
+        // this key is the strap's own byte VERBATIM so all 8 bits survive to storage — including b6-7,
+        // which read 0 across every capture held here and therefore have no interpretation at all yet.
+        // A per-nibble store would make those bits permanently unrecoverable, because the strap trims its
+        // banked history the moment an offload is acked. Instrumentation only: nothing scores this.
+        fb.add(81, 1, "sleep_state_byte", "sleep", value: .int(sb),
+               note: "the RAW @81 flag byte, all 8 bits (b0-1 onwrist, b2-3 wake_quality, b4-5 sleep_state, b6-7 reserved)")
     }
     if let v = readDType(frame, 82, "u8") {
         fb.add(82, 1, "aux_byte_82", "status", value: .int(v),
@@ -507,28 +529,45 @@ private func decodeWhoop5Historical(_ frame: [UInt8], fb: FieldBuilder, payloadE
     // ── The @82–119 "optical/perfusion + tail" span, characterised over 18,602 real v18 records from a
     // third strap (overnight R22 live stream) + cross-checked on the two fixture devices above. The span
     // is ~85% ZERO PADDING: bytes 83–103, 110–112 and 117–119 are constant 0x00 on every record, and @104
-    // is a constant 0x01 marker (5/5 fixtures, both devices). Only four groups carry data — @106 (u16),
-    // @108/@109 (a paired channel) and the @113 float — and none is physiologically ground-truth-named
-    // (no SpO2/respiratory reference exists), so each is carried RAW with its observed behaviour, never
+    // is a constant 0x01 marker (5/5 fixtures, both devices). Only two byte PAIRS carry data — @106/@107
+    // and @108/@109 — plus the @113 float, and none is physiologically ground-truth-named (no
+    // SpO2/respiratory reference exists), so each is carried RAW with its observed behaviour, never
     // mapped to a named metric. This documents the region honestly instead of leaving 38 opaque bytes.
-    if let v = readDType(frame, 106, "u16") {
-        // An analog u16 that wanders across the night with no clean correlate to HR/motion/skin-temp, and
-        // reads 0 only when the strap is off-wrist (HR=0). Optical/ADC-baseline-like; raw, not pinned.
-        fb.add(106, 2, "optical_baseline_106", "optical", value: .int(v),
-               note: "u16 LE analog optical/ADC baseline; wanders overnight, 0 = off-wrist; raw, not pinned")
+    //
+    // @106/@107 were read as ONE u16 LE. They cannot be: across 18,599 consecutive-second pairs the HIGH
+    // byte changed while the LOW byte stayed frozen in 3,514 of them (18.89%), and the corpus holds ZERO
+    // low-byte wrap events — a real u16 cannot step its high byte without a carry. The apparent u16 deltas
+    // are exactly 256·Δ@107 + Δ@106 (they cluster at 0, ±1, ±255, ±256, ±257, ±513). These are two
+    // correlated but independent u8 channels (corr +0.73; they move in OPPOSITE directions in 5.8% of the
+    // pairs where both move), structurally parallel to the @108/@109 pair. 0 — not 128 — is the off-wrist
+    // marker: both bytes read 0 in exactly the 8 records that also carry HR == 0, while 128 occurs
+    // unremarkably while worn (@106 in 10 records, @107 in 103). Magnitudes are device-specific (102–255 /
+    // 119–247 on the R22 strap vs 20–66 / 34–81 on another), so no scale is asserted.
+    for (name, off) in [("optical_baseline_a", 106), ("optical_baseline_b", 107)] {
+        if let v = readDType(frame, off, "u8") {
+            fb.add(off, 1, name, "optical", value: .int(v),
+                   note: "u8 optical/ADC baseline channel; wanders overnight, 0 = off-wrist; raw, not pinned")
+        }
     }
-    // @108/@109 are a tightly-coupled PAIR (equal in 23.5% of records, within ±2 in ~80%). Both rise
-    // monotonically with heart rate (mean ~34 at HR 40–49 → ~58 at HR 80–89) and with motion, and both
-    // read 128 as a per-channel INVALID sentinel — observed off-wrist AND on some worn records that still
-    // carry a valid HR (the optical channel can be invalid while HR is derived elsewhere). Amplitude- or
+    // @108/@109 are a tightly-coupled PAIR (equal in 23.5% of records, within ±2 in ~80%). 128 is a
+    // RECORD-level sentinel, not a per-channel one: amp_a == 128 in 757 records and amp_b == 128 in 757 —
+    // the SAME 757, never one without the other. They do NOT rise with heart rate; that reading (mean ~34
+    // at HR 40–49 → ~58 at 80–89) was an averaging artifact of counting the 128 sentinel as a number, and
+    // with sentinels excluded the trend is flat-to-declining (32.45 → 29.52). The real monotone trend is
+    // with MOTION: ~32.7 while still (dyn_acc < 0.02 g) → 37.4 at 0.05–0.2 g. Amplitude- or
     // signal-quality-like; carried raw, NOT named SpO2/perfusion without on-device ground truth.
+    //
+    // The sentinel itself is a usable per-second SIGNAL-QUALITY flag: it fires on 4.02% of worn seconds
+    // and predicts the band's own beat-detection failure (rr_count == 0) at 79.44% vs 19.40% — a 4.09×
+    // lift that SURVIVES holding motion constant (4.11× within dyn_acc < 0.009 g), where shuffled and
+    // circular-shift nulls all sit at ~1.0×. It is the same quality condition @36 bit7 reports.
     if let a = readDType(frame, 108, "u8") {
         fb.add(108, 1, "optical_amp_a", "optical", value: .int(a),
-               note: "paired optical channel A (≈ optical_amp_b@109); rises with HR/motion; 128 = channel invalid; raw")
+               note: "paired optical channel A (≈ optical_amp_b@109); tracks motion, not HR; 128 = record-level signal-quality sentinel; raw")
     }
     if let b = readDType(frame, 109, "u8") {
         fb.add(109, 1, "optical_amp_b", "optical", value: .int(b),
-               note: "paired optical channel B (see optical_amp_a@108); 128 = channel invalid; raw")
+               note: "paired optical channel B (see optical_amp_a@108); 128 = record-level sentinel, always together with @108; raw")
     }
     if let d = readF32(frame, 113), d.isFinite {
         // A float32 at @113 (observed range ~ -5.3…0, 0 = unset); purpose unknown, carried raw.
@@ -543,7 +582,7 @@ private func decodeWhoop5Historical(_ frame: [UInt8], fb: FieldBuilder, payloadE
     // undecodable records, the raw-capture batch when that toggle is on), so a future re-decode is
     // lossless. Kept in lockstep with the Android decodeWhoop5Historical provenance note.
     if let payloadEnd = payloadEnd, 82 < payloadEnd, payloadEnd <= frame.count {
-        fb.region(82, payloadEnd, "optical/tail (mostly zero padding; see @106/@108/@109/@113)", "unknown")
+        fb.region(82, payloadEnd, "optical/tail (mostly zero padding; see @106/@107/@108/@109/@113)", "unknown")
     }
 }
 
@@ -555,7 +594,7 @@ private func decodeWhoop5Historical(_ frame: [UInt8], fb: FieldBuilder, payloadE
 /// reference): the concatenated waveform's autocorrelation peaks at the HR (lag 14 = 102.9 bpm vs a
 /// measured 101.7 bpm), trough-detection gives a 563 ms inter-beat interval (≈106 bpm), the pulse stays
 /// HR-locked even when the wrist is still, and its amplitude is not motion-driven. (Reproduce with
-/// `tools/linux-capture/analyze_v26_waveform.py`; see docs §5.)
+/// `Tools/linux-capture/analyze_v26_waveform.py`; see docs §5.)
 ///
 /// The samples are raw AC-coupled ADC counts — PPG has no absolute unit — so they are exposed verbatim
 /// as `ppg_waveform` with NO invented scale. The bytes before [27] (header + a block index) and the
@@ -732,6 +771,13 @@ private func decodeWhoop5CommandResponse(_ frame: [UInt8], fb: FieldBuilder, sch
     let name = schema.enumName("CommandNumber", respCmd)   // e.g. "GET_BATTERY_LEVEL(26)"
     let pay = Array(frame[11..<payloadEnd])
     fb.region(11, payloadEnd, "response payload", "cmd")
+    // Origin-seq echo + result code, the 4.0 offsets shifted by the usual +4 (#894). The Kotlin twin has
+    // always published both here; this decoder published neither. Bounded by `pay` so a short reply
+    // decodes nothing rather than reading the CRC32 trailer as a result.
+    if pay.count >= 1 { fb.add(11, 1, "resp_seq", "cmd", value: .int(Int(pay[0]))) }
+    if pay.count >= 2 {
+        fb.add(12, 1, "result", "cmd", value: .string(schema.enumName("CommandResult", Int(pay[1]))))
+    }
     if name.hasPrefix("GET_BATTERY_LEVEL"), pay.count >= 3 {
         // Direct percent at pay[2] (47% confirmed against the app) — the 4.0 deci-percent ÷10 is gone.
         fb.add(11 + 2, 1, "battery_pct", "battery", value: .double(Double(pay[2])), note: "%")

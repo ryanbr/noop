@@ -12,11 +12,17 @@ on:
     branches: [main]
     paths:
       - 'Packages/**'
+      - 'Tools/SleepBench/**'
+      - 'Tools/SleepPSG/**'
+      - 'Tools/Backfill/**'
       - '.github/workflows/swift-packages.yml'
   push:
     branches: [main]
     paths:
       - 'Packages/**'
+      - 'Tools/SleepBench/**'
+      - 'Tools/SleepPSG/**'
+      - 'Tools/Backfill/**'
       - '.github/workflows/swift-packages.yml'
   workflow_dispatch:
 
@@ -50,3 +56,41 @@ jobs:
       - name: Test ${{ matrix.package }}
         run: swift test
         working-directory: Packages/${{ matrix.package }}
+
+  # The Tools/ SwiftPM packages, which path-depend on Packages/ above and were built by nothing.
+  #
+  # SleepBench is the instrument the sleep work is argued with — #934's stage-fraction tables came out of
+  # it — and #935 added 13 tests that no job ran. A tool whose numbers decide whether a staging change
+  # lands has to keep compiling against the packages it measures, or it bitrots silently and the next
+  # person to reach for it finds it broken. Backfill has no tests yet, so it is build-only.
+  #
+  # SleepPSG has a second, sharper reason to be here. Its variant scores run through a knob-for-knob PORT of
+  # `SleepStagerV2`, and its test suite is what proves that port still reproduces the shipped stager
+  # label-for-label. Without this job the port drifts the first time someone edits a coefficient, and the
+  # tool keeps printing confident numbers about a recipe that no longer exists. The check needs no dataset.
+  tools:
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        tool:
+          - SleepBench
+          - SleepPSG
+          - Backfill
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Build ${{ matrix.tool }}
+        run: swift build
+        working-directory: Tools/${{ matrix.tool }}
+
+      # Only SleepBench has a test target; `swift test` on a package without one fails, so it is guarded.
+      - name: Test ${{ matrix.tool }}
+        run: |
+          if grep -q 'testTarget' Package.swift; then
+            swift test
+          else
+            echo "no test target in Tools/${{ matrix.tool }} — build-only"
+          fi
+        working-directory: Tools/${{ matrix.tool }}

@@ -8,12 +8,19 @@ import androidx.room.Index
  * Room entities mirroring the verified GRDB schema in
  * Packages/WhoopStore/Sources/WhoopStore/Database.swift (+ MetricsCache.swift).
  *
+ * That mirroring is CHECKED, not just described: `SchemaOracleTest` compares the schema Room's processor
+ * generates from these entities against the shared `schema_oracle.json`, and the Swift `SchemaOracleTests`
+ * compares GRDB's `PRAGMA table_info` against the same file. Editing an entity here — adding a column,
+ * reordering fields, changing a type or nullability — fails that test until the GRDB twin lands with it or
+ * the difference is written into the fixture's `divergenceReasons`. The notes below are a reader's summary
+ * of what the oracle enforces.
+ *
  * Natural keys mirror the Swift `ON CONFLICT(...) DO NOTHING` upserts so insert dedupe behaves identically,
  * with ONE deliberate exception noted inline:
  *   - hrSample        PK (deviceId, ts)
  *   - rrInterval      PK (deviceId, ts, rrMs, seq)  // v18: `seq` tiebreaks EQUAL same-second beats.
- *                                                   // Diverges from Swift (still deviceId, ts, rrMs) — see
- *                                                   // the RrInterval doc + PR; Swift needs the same fix.
+ *                                                   // Swift matches since WhoopStore `v24-rr-seq`; this
+ *                                                   // note used to say the fix was still pending there.
  *   - event           PK (deviceId, ts, kind)
  *   - battery         PK (deviceId, ts)
  *   - spo2Sample      PK (deviceId, ts)
@@ -167,6 +174,14 @@ data class SkinTempSample(
     val ts: Long,
     val raw: Int,
     val synced: Int = 0,
+    // The two AUXILIARY thermal channels riding the same 5/MG v18 record: `temp_aux_1_raw@69` and
+    // `temp_aux_2_raw@71`, signed i16 whose °C = value/10 (a DIFFERENT scale from [raw]'s /100). Decoded
+    // since the v18 layout was mapped and dropped at the insert boundary until MIGRATION_24_25 (Swift
+    // WhoopStore v31 parity). Nullable INTEGER, no SQL DEFAULT, so old rows and every WHOOP 4.0 record
+    // read back null — an absent channel stays absent, never a fabricated 0. Declared AFTER `synced` so
+    // the entity order matches what ALTER TABLE ADD COLUMN produces (both append at the end).
+    val aux1Raw: Int? = null,
+    val aux2Raw: Int? = null,
 )
 
 /**
@@ -205,6 +220,11 @@ data class SleepStateSampleEntity(
     val deviceId: String,
     val ts: Long,
     val state: Int,   // 0 wake / 1 still / 2 asleep / 3 up (band's own high-nibble code)
+    // The RAW @81 flag byte, all 8 bits, verbatim (MIGRATION_24_25 / Swift WhoopStore v31). [state] stays
+    // exactly `(rawByte shr 4) and 3`, so every existing #175 consumer is bit-identical; this column keeps
+    // the bits the mask throws away — b0-1 `onwrist`, b2-3 `wake_quality`, and b6-7, which have no
+    // interpretation at all yet. Nullable, no DEFAULT: null on every pre-migration row.
+    val rawByte: Int? = null,
 )
 
 /** Respiration raw-ADC sample (type-47). Swift `respSample` (v3). PK (deviceId, ts). */
@@ -225,6 +245,12 @@ data class GravitySample(
     val y: Double,
     val z: Double,
     val synced: Int = 0,
+    // The strap's OWN gravity-removed motion magnitude for the same second (`dynamic_acceleration@41`,
+    // f32 g) — added by MIGRATION_24_25 (Swift WhoopStore v31). Stored BESIDE the vector, never instead
+    // of it, and read by NOTHING: the sleep stager's motion spine still derives stillness from the 1 Hz
+    // gravity deltas. Nullable REAL, no DEFAULT, so pre-migration rows and every WHOOP 4.0 record read
+    // back null. Declared after `synced` to match the ALTER TABLE column order.
+    val dynAccel: Double? = null,
 )
 
 /**
@@ -600,3 +626,64 @@ data class LiveSessionRow(
     val easeCount: Int,
     val hrSource: String,
 )
+
+/**
+ * Every remaining 5/MG v18 per-second field the decoder produces and the extractor used to DROP
+ * (MIGRATION_24_25 / Swift WhoopStore `v31-deep-capture-channels`).
+ *
+ * `extractHistoricalStreams` names a dozen fields and silently discards the rest; the strap trims its
+ * banked history as soon as NOOP acks the offload, so a field not banked here is gone permanently and can
+ * never be censused, correlated, or validated. [fields] is a compact blob of the fifteen leftover slots
+ * (see [V18AuxCodec] for the wire format and the column-vs-blob tradeoff) rather than fifteen nullable
+ * columns on a hot per-second table.
+ *
+ * Its OWN table rather than a column on an existing row because no existing per-second table is
+ * guaranteed present: `gravitySample` needs `gravity_x` to decode, `skinTempSample` needs @73 to clear
+ * its thermal gate, `hrSample` skips bpm=0 — a v18 record can carry aux fields while every one of those
+ * gated out. [fields] is NOT NULL because a row is only written when at least one slot is present:
+ * absence is "no row", and within a row a clear bitmap bit, never a fabricated 0.
+ *
+ * The BLOB format is byte-identical to the Swift GRDB `V18AuxCodec` so a `.noopbak` round-trips. PK
+ * (deviceId, ts) and field order (deviceId, ts, fields) mirror the GRDB schema.
+ *
+ * CAPPED, not unbounded: [WhoopRepository.V18_AUX_RETENTION_ROWS] rolling rows per device, the same shape
+ * `rawImuSample` uses. This is the only NEW row growth v31 introduces — the columns added to the three
+ * existing per-second tables widen rows that were already being written.
+ *
+ * INSTRUMENTATION ONLY: nothing reads these rows.
+ *
+ * CONSUMER STATUS — deliberately none, stated here so nobody has to re-derive it. The writer is live, but
+ * every `v18AuxSamples` call site on BOTH platforms is a TEST: no analytic, no score, no gate, no UI, no
+ * export reads a row. **Do NOT "clean up" the reader as dead code** — the rows are the point, and the
+ * reader is how they become reachable once a consumer is validated. The same applies to the four named
+ * columns v31/MIGRATION_24_25 added alongside this table (`gravitySample.dynAccel`,
+ * `sleepStateSample.rawByte`, `skinTempSample.aux1Raw/aux2Raw`): they are read into their entities and no
+ * consumer touches the properties, on purpose.
+ *
+ * Why the rows still matter unread: before this migration these fields were not merely unread, they were
+ * DESTROYED — the strap trims its history the moment an offload is acked, so each one was unrecoverable.
+ * This converts permanent loss into retained-but-unread, which is the whole fix and is complete. Fifteen
+ * of the slots are unpinned bytes whose names deliberately assert nothing; wiring them to anything before
+ * a census would be exactly the overclaiming this project has already had to retract. The capture IS the
+ * deliverable. Twin of the Swift `v31-deep-capture-channels` migration note in `Database.swift`.
+ */
+@Entity(tableName = "v18AuxSample", primaryKeys = ["deviceId", "ts"])
+data class V18AuxSampleEntity(
+    val deviceId: String,
+    val ts: Long,
+    val fields: ByteArray,
+) {
+    // ByteArray needs structural equals/hashCode (the generated identity ones break round-trip asserts).
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is V18AuxSampleEntity) return false
+        return deviceId == other.deviceId && ts == other.ts && fields.contentEquals(other.fields)
+    }
+
+    override fun hashCode(): Int {
+        var result = deviceId.hashCode()
+        result = 31 * result + ts.hashCode()
+        result = 31 * result + fields.contentHashCode()
+        return result
+    }
+}

@@ -107,7 +107,7 @@ struct WorkoutDetailView: View {
 
         // HR curve over the exact session window — a finer bucket than the 24h chart so a short run
         // still reads as a curve, not a handful of points.
-        let buckets = await repo.workoutHrBuckets(from: row.startTs, to: row.endTs)
+        let buckets = await repo.workoutHrBuckets(from: row.startTs, to: row.endTs, source: row.source)
         let points = buckets.map { TrendPoint(date: Date(timeIntervalSince1970: TimeInterval($0.ts)), value: $0.bpm) }
 
         // Zones: prefer the imported per-workout percentages (a WHOOP-computed split), and only fall
@@ -123,11 +123,12 @@ struct WorkoutDetailView: View {
             }
         }
         if minutes == nil {
-            minutes = await repo.workoutZoneMinutes(from: row.startTs, to: row.endTs, age: profile.age)
+            minutes = await repo.workoutZoneMinutes(from: row.startTs, to: row.endTs, age: profile.age,
+                                                    source: row.source)
         }
 
         let hrr = await repo.workoutHeartRateRecovery(
-            from: row.startTs, to: row.endTs, maxHR: Double(profile.hrMax))
+            from: row.startTs, to: row.endTs, maxHR: Double(profile.hrMax), source: row.source)
 
         // Steps for an on-foot session (#398), computed at display time over the exact window so it
         // "fills in after sync": prefer the strap's own counter (MG/5.0) once it has offloaded the window,

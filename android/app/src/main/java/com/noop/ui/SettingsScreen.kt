@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Autorenew
@@ -57,6 +58,7 @@ import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.Vibration
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.AlertDialog
@@ -74,6 +76,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -105,6 +108,10 @@ import com.noop.analytics.Baselines
 import com.noop.analytics.Zones
 import com.noop.R
 import com.noop.ble.PuffinExperiment
+import com.noop.ble.WhoopBleClient
+// #174: the R22 card reads the flag COUNT off Whoop5Config.enableR22Sequence rather than restating it —
+// the hardcoded "15" outlived the sequence growing to 16 and declared success a flag early.
+import com.noop.protocol.Whoop5Config
 import com.noop.ble.WhoopModel
 import com.noop.data.DataBackup
 import com.noop.ingest.RawSensorExport
@@ -417,6 +424,18 @@ fun SettingsScreen(
 
     var backupBusy by remember { mutableStateOf(false) }
 
+    // #646/#651: LogExport's zip build + file read now run on Dispatchers.IO instead of blocking the
+    // caller, so these buttons no longer freeze the UI — but nothing else stopped a second tap mid-export
+    // either. A big raw capture is exactly when someone taps twice, firing two zips / two chooser
+    // intents. Same disable-while-busy + spinner shape as backupBusy above, one flag per button.
+    // Each clears in a `finally`, not after the call: they only cleared correctly before because every
+    // LogExport entry point happens to wrap its body in runCatching. The guard should not depend on a
+    // callee's error handling - a throw would strand the button disabled behind a spinner that never
+    // stops, with no way back short of leaving the screen.
+    var strapLogBusy by remember { mutableStateOf(false) }
+    var whoop5CaptureBusy by remember { mutableStateOf(false) }
+    var rawAndLogBusy by remember { mutableStateOf(false) }
+
     // Re-scan must request the runtime Bluetooth permission before scanning — without this the
     // button calls connect() directly and silently no-ops on Android 12+ when the permission was
     // denied/revoked (issue #1). Shared with Live's Connect via the one rememberRequestScan gate.
@@ -465,6 +484,17 @@ fun SettingsScreen(
     var puffinExperiments by remember(rev) { mutableStateOf(puffinExperiment.isEnabled) }
     var puffinCapture by remember(rev) { mutableStateOf(puffinExperiment.isCaptureEnabled) }
     var deepData by remember(rev) { mutableStateOf(puffinExperiment.isDeepDataEnabled) }
+
+    // #174: set when the deep-data switch is turned OFF, so the app can OFFER to clear the flags on the
+    // strap instead of silently leaving them set. The switch alone has never written anything in either
+    // direction — it gates sends — so turning it off used to change nothing on the hardware while reading
+    // like an undo. Asking is the right shape rather than writing automatically: the strap may not be
+    // connected, and a write to bonded hardware is not something a toggle should do unannounced.
+    var confirmingDeepDataDisable by remember { mutableStateOf(false) }
+    val r22DisableReport by vm.ble.r22DisableReport.collectAsState()
+    // How many flags the enable sequence actually writes. Read from the sequence rather than restated, so
+    // the card cannot drift from it again — it said "15" for the whole life of the 16-flag sequence.
+    val r22FlagCount = Whoop5Config.enableR22Sequence.size
     var broadcastHr by remember(rev) { mutableStateOf(puffinExperiment.broadcastHr) }
     // "Sleep staging (V2)" — V2 is the DEFAULT for every strap (WHOOP 4 and 5/MG); turn it OFF to fall back
     // to V1. Model-agnostic, so it lives outside the 5/MG-only card. 4.0 is unvalidated either way (#319/#347).
@@ -498,7 +528,9 @@ fun SettingsScreen(
     var continuousHrv by remember { mutableStateOf(NoopPrefs.continuousHrv(context)) }
 
     // "Overnight only" (#927): arm the continuous stream only inside the nightly quiet-hours window
-    // instead of 24/7. Default OFF so existing users keep the always-on behaviour. Local mirror.
+    // instead of 24/7. Defaults ON for fresh installs (#1008); existing installs are pinned to OFF by
+    // NoopPrefs.migrateContinuousHrvOvernightDefault() at launch, so they keep always-on. Local mirror,
+    // read through NoopPrefs so it cannot disagree with what the BLE client acts on.
     var continuousHrvOvernight by remember { mutableStateOf(NoopPrefs.continuousHrvOvernight(context)) }
 
     // #477 Power saving: battery-adaptive strap-sync cadence + optional HRV-capture pause. Local mirrors.
@@ -1621,8 +1653,22 @@ fun SettingsScreen(
                     leadingIcon = Icons.Filled.Upload,
                     kind = NoopButtonKind.Secondary,
                     fullWidth = true,
-                    onClick = { scope.launch { LogExport.shareStrapLog(context, vm.ble.exportLogText()) } },
+                    enabled = !strapLogBusy,
+                    onClick = {
+                        strapLogBusy = true
+                        scope.launch {
+                            // try/finally: the flag must clear on any exit, not just the happy path (#961 follow-up).
+                            try {
+                                LogExport.shareStrapLog(context, vm.ble.exportLogText())
+                            } finally {
+                                strapLogBusy = false
+                            }
+                        }
+                    },
                 )
+                if (strapLogBusy) {
+                    NoopBusyRow()
+                }
 
                 // "WHOOP 4.0 vs 5.0/MG — what each can read and why" (FI-2 / #490). Shown to BOTH model
                 // owners, so a 4.0 user understands their strap is fully supported (and why the firmware
@@ -1869,6 +1915,11 @@ fun SettingsScreen(
                         onCheckedChange = {
                             deepData = it
                             puffinExperiment.isDeepDataEnabled = it
+                            // #174: turning the switch OFF used to write nothing — it only hid the enable
+                            // button, so the strap kept every flag the sequence set while the UI implied it
+                            // had been undone. Now it offers the real undo. Turning it ON still writes
+                            // nothing until the button is tapped.
+                            if (!it) confirmingDeepDataDisable = true
                         },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Palette.surfaceBase,
@@ -1902,13 +1953,35 @@ fun SettingsScreen(
                         style = NoopType.caption,
                         color = Palette.textTertiary,
                     )
-                    // Live R22 telemetry (#174): proof of what the strap is doing right now.
+                    // #174: the undo. Offered whenever the flags may be set — which is any time the
+                    // opt-in has been on, not only right after a send, because the flags persist across
+                    // launches and the app has no record of what a previous install wrote. Wear is NOT
+                    // required: the on-wrist gate exists because the R22 STREAM is on-wrist only.
+                    NoopButton(
+                        text = uiString(R.string.l10n_settings_screen_turn_deep_data_back_off_r22disable),
+                        leadingIcon = Icons.Filled.Cancel,
+                        kind = NoopButtonKind.Secondary,
+                        enabled = live.encryptedBond && r22DisableReport != WhoopBleClient.WAITING_DEVICE_CONFIG_PROBE,
+                        onClick = { vm.ble.disableWhoop5DeepData() },
+                    )
+                    Text(
+                        if (!live.encryptedBond) uiString(R.string.l10n_settings_screen_r22disable_needs_bond)
+                        else uiString(R.string.l10n_settings_screen_r22disable_reason),
+                        style = NoopType.caption,
+                        color = Palette.textTertiary,
+                    )
+                    // Live R22 telemetry (#174): proof of what the strap is doing right now. The threshold
+                    // and the number are both driven off the sequence itself — they were hardcoded to 15
+                    // while the sequence carried 16, so the card declared success one flag early.
                     if (live.r22FlagsAccepted > 0) {
                         Text(
-                            if (live.r22FlagsAccepted >= 15) "✓ Strap accepted all 15 R22 flags"
-                            else "Strap accepted ${live.r22FlagsAccepted}/15 R22 flags…",
+                            if (live.r22FlagsAccepted >= r22FlagCount) {
+                                uiString(R.string.l10n_settings_screen_r22_accepted_all, r22FlagCount)
+                            } else {
+                                uiString(R.string.l10n_settings_screen_r22_accepted_partial, live.r22FlagsAccepted, r22FlagCount)
+                            },
                             style = NoopType.caption,
-                            color = if (live.r22FlagsAccepted >= 15) Palette.statusPositive else Palette.textSecondary,
+                            color = if (live.r22FlagsAccepted >= r22FlagCount) Palette.statusPositive else Palette.textSecondary,
                         )
                     }
                     if (live.deepPacketsThisSession > 0) {
@@ -1917,11 +1990,43 @@ fun SettingsScreen(
                             style = NoopType.caption,
                             color = Palette.textSecondary,
                         )
-                    } else if (live.r22FlagsAccepted >= 15) {
+                    } else if (live.r22FlagsAccepted >= r22FlagCount) {
                         Text(
                             uiString(R.string.l10n_settings_screen_flags_accepted_but_the_enable_sequence_542b2595),
                             style = NoopType.caption,
                             color = Palette.textTertiary,
+                        )
+                    }
+
+                }
+
+                // #174: the disable run's per-key result. Shown verbatim because the interesting part
+                // is the read-back table, not a green tick — a write that acked SUCCESS but did not
+                // move the stored value renders here as "unchanged", which is the case worth seeing.
+                //
+                // OUTSIDE the `if (deepData)` block on purpose. The commonest way to reach a disable run is
+                // flipping the switch OFF and confirming, which means the pref is already false while the
+                // run is walking its plan — so nesting this inside that block hid the progress line and the
+                // whole read-back table for exactly the run a user is most likely to start. The report is
+                // about what is on the STRAP, which outlives the app's opt-in.
+                val disableReport = r22DisableReport
+                if (disableReport != null) {
+                    if (disableReport == WhoopBleClient.WAITING_DEVICE_CONFIG_PROBE) {
+                        Text(
+                            uiString(R.string.l10n_settings_screen_r22disable_running),
+                            style = NoopType.caption,
+                            color = Palette.textSecondary,
+                        )
+                    } else {
+                        Text(
+                            disableReport,
+                            style = NoopType.caption.copy(fontFamily = FontFamily.Monospace),
+                            color = Palette.textSecondary,
+                        )
+                        NoopButton(
+                            text = uiString(R.string.l10n_settings_screen_r22disable_dismiss),
+                            kind = NoopButtonKind.Secondary,
+                            onClick = { vm.ble.clearR22DisableReport() },
                         )
                     }
                 }
@@ -1965,8 +2070,22 @@ fun SettingsScreen(
                     leadingIcon = Icons.Filled.Upload,
                     kind = NoopButtonKind.Secondary,
                     fullWidth = true,
-                    onClick = { LogExport.shareWhoop5Capture(context, live.whoop5Detected) },
+                    enabled = !whoop5CaptureBusy,
+                    onClick = {
+                        whoop5CaptureBusy = true
+                        scope.launch {
+                            // try/finally: the flag must clear on any exit, not just the happy path (#961 follow-up).
+                            try {
+                                LogExport.shareWhoop5Capture(context, live.whoop5Detected)
+                            } finally {
+                                whoop5CaptureBusy = false
+                            }
+                        }
+                    },
                 )
+                if (whoop5CaptureBusy) {
+                    NoopBusyRow()
+                }
 
                 // One-tap "matched pair" export (#510): hands a reporter BOTH the raw capture file and
                 // the strap log together (timestamped, same minute) so a protocol-mapping issue arrives
@@ -1976,8 +2095,22 @@ fun SettingsScreen(
                     leadingIcon = Icons.Filled.IosShare,
                     kind = NoopButtonKind.Secondary,
                     fullWidth = true,
-                    onClick = { scope.launch { LogExport.shareRawAndLog(context, vm.ble.exportLogText(), live.whoop5Detected) } },
+                    enabled = !rawAndLogBusy,
+                    onClick = {
+                        rawAndLogBusy = true
+                        scope.launch {
+                            // try/finally: the flag must clear on any exit, not just the happy path (#961 follow-up).
+                            try {
+                                LogExport.shareRawAndLog(context, vm.ble.exportLogText(), live.whoop5Detected)
+                            } finally {
+                                rawAndLogBusy = false
+                            }
+                        }
+                    },
                 )
+                if (rawAndLogBusy) {
+                    NoopBusyRow()
+                }
             }
         }
         } // end if (showFiveMGControls)
@@ -2079,7 +2212,7 @@ fun SettingsScreen(
                     leadingIcon = Icons.Filled.Upload,
                     kind = NoopButtonKind.Secondary,
                     fullWidth = true,
-                    onClick = { scope.launch { RawSensorExport.export(context, vm.repo) } },
+                    onClick = { scope.launch { RawSensorExport.export(context, vm.repo, vm.activeStrapId) } },
                 )
                 Text(
                     uiString(R.string.l10n_settings_screen_saves_the_last_24h_of_decoded_f7026f47),
@@ -2302,6 +2435,49 @@ fun SettingsScreen(
             }
         }
 
+        // #174: the switch going OFF is the moment to offer the undo. Declining leaves the flags set and
+        // says so — still an improvement on the old behaviour, where the same tap silently left them set
+        // with no indication either way.
+        if (confirmingDeepDataDisable) {
+            AlertDialog(
+                onDismissRequest = { confirmingDeepDataDisable = false },
+                containerColor = Palette.surfaceOverlay,
+                title = {
+                    Text(
+                        uiString(R.string.l10n_settings_screen_r22disable_confirm_title),
+                        style = NoopType.title2,
+                        color = Palette.textPrimary,
+                    )
+                },
+                text = {
+                    Text(
+                        uiString(R.string.l10n_settings_screen_r22disable_confirm_body),
+                        style = NoopType.subhead,
+                        color = Palette.textSecondary,
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        confirmingDeepDataDisable = false
+                        vm.ble.disableWhoop5DeepData()
+                    }) {
+                        Text(
+                            uiString(R.string.l10n_settings_screen_r22disable_confirm_action),
+                            color = Palette.accent,
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { confirmingDeepDataDisable = false }) {
+                        Text(
+                            uiString(R.string.l10n_settings_screen_r22disable_confirm_cancel),
+                            color = Palette.textSecondary,
+                        )
+                    }
+                },
+            )
+        }
+
         if (showRecalibrateConfirm) {
             AlertDialog(
                 onDismissRequest = { showRecalibrateConfirm = false },
@@ -2396,17 +2572,7 @@ fun SettingsScreen(
                 }
 
                 if (backupBusy) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        CircularProgressIndicator(
-                            color = Palette.accent,
-                            strokeWidth = 2.dp,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Text(uiString(R.string.l10n_settings_screen_working_13b7bfca), style = NoopType.footnote, color = Palette.textSecondary)
-                    }
+                    NoopBusyRow()
                 }
 
                 NoteRow(
@@ -2415,6 +2581,29 @@ fun SettingsScreen(
                     text = uiString(R.string.l10n_settings_screen_importing_overwrites_everything_currently_on_this_297b76ae) +
                         "Export CSV writes a WHOOP-format zip of your days, sleeps, workouts and journal that re-imports into NOOP on Android or Mac. On-device computed rows are marked APPROXIMATE in its Source column; the .noopbak backup stays the lossless restore path.",
                 )
+
+                // #644: .noopbak is a plain ZIP, not an encrypted container — anyone who gets the file
+                // can open it in any archive tool. Surface that plainly, right next to the Export
+                // button, rather than let people assume the file itself is protected once it leaves
+                // the device (e.g. dropped into a cloud-synced folder).
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics(mergeDescendants = true) {},
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(
+                        Icons.Filled.Warning,
+                        contentDescription = null,
+                        tint = Palette.statusWarning,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Text(
+                        uiString(R.string.l10n_settings_screen_this_is_a_plain_unencrypted_archive_b0dfe63d),
+                        style = NoopType.caption,
+                        color = Palette.statusWarning,
+                    )
+                }
             }
         }
 

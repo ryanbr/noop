@@ -99,7 +99,7 @@ public enum BodyLocationProbe {
                 sb += "Δ vs previous capture: first capture — probe again in another position to diff"
             }
         } else {
-            sb += "\nNo payload beyond the command byte (bare stub) — no body-location data on this firmware"
+            sb += "\nNo payload beyond the command byte (bare stub) — this reply carried no body-location data, which is not the same as the firmware having none (see the Verdict above)"
         }
         return (sb, payloadHex)
     }

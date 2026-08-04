@@ -91,6 +91,25 @@ interface WhoopDao : DeviceRegistryDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertRawImu(rows: List<RawImuSampleEntity>): List<Long>
 
+    /**
+     * The remaining 5/MG v18 per-second fields, one compact blob per strap-second. Idempotent by
+     * (deviceId, ts) — IGNORE keeps the FIRST-seen row, matching every other per-second stream, so a
+     * re-sync cannot duplicate or overwrite. Instrumentation only.
+     */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertV18Aux(rows: List<V18AuxSampleEntity>): List<Long>
+
+    /**
+     * Bound the v18 aux table to the newest [keep] rows for [deviceId] (rolling retention, v31). Same
+     * shape as [pruneRawImu] — this is instrumentation nothing reads yet, so it is capped rather than
+     * unbounded. Swift twin: the DELETE at the end of `WhoopStore.insert`.
+     */
+    @Query(
+        "DELETE FROM v18AuxSample WHERE deviceId = :deviceId AND ts < " +
+            "(SELECT MIN(ts) FROM (SELECT ts FROM v18AuxSample WHERE deviceId = :deviceId ORDER BY ts DESC LIMIT :keep))"
+    )
+    suspend fun pruneV18Aux(deviceId: String, keep: Int)
+
     /** Bound the raw-IMU table to the newest [keep] rows for [deviceId] (rolling retention, #423). */
     @Query(
         "DELETE FROM rawImuSample WHERE deviceId = :deviceId AND ts < " +
@@ -289,6 +308,18 @@ interface WhoopDao : DeviceRegistryDao {
     suspend fun ppgWaveformSamples(deviceId: String, from: Long, to: Long, limit: Int):
         List<PpgWaveformSampleEntity>
 
+    /**
+     * The banked 5/MG v18 auxiliary-field rows in [from, to] (ascending). Empty on a WHOOP 4.0 and for
+     * any window offloaded before the columns existed. INSTRUMENTATION: no analytic calls this — it
+     * exists so the banked bytes are reachable for a census, and so the write path has a round-trip test.
+     */
+    @Query(
+        "SELECT * FROM v18AuxSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
+            "ORDER BY ts ASC LIMIT :limit"
+    )
+    suspend fun v18AuxSamples(deviceId: String, from: Long, to: Long, limit: Int):
+        List<V18AuxSampleEntity>
+
     /** Aggregate HR over a window (one indexed (deviceId,ts) range scan — no row materialisation,
      *  no [hrSamples] LIMIT truncation). Backs the imported-workout HR fallback (#77).
      *
@@ -299,16 +330,30 @@ interface WhoopDao : DeviceRegistryDao {
      *  it: its twin reduces `store.hrSamples`, the coalescing read. Same anti-join as [hrSamples], so a
      *  measured second is never double-counted by its PPG estimate. */
     @Query(
+        // #856: up to TWO ids, :primaryId winning per second. A naive `deviceId IN (…)` would count a
+        // second banked under BOTH ids twice after a strap re-add, inflating n and skewing avg — and
+        // both numbers would stay plausible, so nothing would look wrong. GROUP BY ts with MIN(pri)
+        // keeps one row per second and takes the primary's, matching the dedup the chart already does.
+        // Passing the same id for both is byte-identical to the old single-id read.
         "SELECT COUNT(*) AS n, AVG(bpm) AS avg, MAX(bpm) AS max FROM (" +
-            "SELECT bpm FROM hrSample " +
-            "WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
+            "SELECT ts, MIN(pri), bpm FROM (" +
+            "SELECT ts, bpm, 0 AS pri FROM hrSample " +
+            "WHERE deviceId = :primaryId AND ts >= :from AND ts <= :to " +
             "UNION ALL " +
-            "SELECT p.bpm AS bpm FROM ppgHrSample p " +
-            "WHERE p.deviceId = :deviceId AND p.ts >= :from AND p.ts <= :to " +
-            "AND NOT EXISTS (SELECT 1 FROM hrSample h WHERE h.deviceId = p.deviceId AND h.ts = p.ts)" +
+            "SELECT p.ts AS ts, p.bpm AS bpm, 0 AS pri FROM ppgHrSample p " +
+            "WHERE p.deviceId = :primaryId AND p.ts >= :from AND p.ts <= :to " +
+            "AND NOT EXISTS (SELECT 1 FROM hrSample h WHERE h.deviceId = p.deviceId AND h.ts = p.ts) " +
+            "UNION ALL " +
+            "SELECT ts, bpm, 1 AS pri FROM hrSample " +
+            "WHERE deviceId = :secondaryId AND ts >= :from AND ts <= :to " +
+            "UNION ALL " +
+            "SELECT p.ts AS ts, p.bpm AS bpm, 1 AS pri FROM ppgHrSample p " +
+            "WHERE p.deviceId = :secondaryId AND p.ts >= :from AND p.ts <= :to " +
+            "AND NOT EXISTS (SELECT 1 FROM hrSample h WHERE h.deviceId = p.deviceId AND h.ts = p.ts) " +
+            ") GROUP BY ts" +
             ")"
     )
-    suspend fun hrWindowStats(deviceId: String, from: Long, to: Long): HrWindowStats
+    suspend fun hrWindowStats(primaryId: String, secondaryId: String, from: Long, to: Long): HrWindowStats
 
     @Query(
         // #823: `ord` FIRST, so same-second beats come back in EMISSION order. Ordering by rrMs made
@@ -734,12 +779,24 @@ interface WhoopDao : DeviceRegistryDao {
     /** Max HR sample ts for a device, or null if none — the biometric data frontier.
      *  COALESCEs measured `hrSample` with the v26 PPG-derived `ppgHrSample` (#156) so a PPG-only
      *  offload (a v26 WHOOP 5 night with no measured HR) still advances the frontier, matching the
-     *  Swift reader (Reads.swift latestHrSampleTs). Both persist on the same per-second ts grid. */
+     *  Swift reader (Reads.swift latestHrSampleTs). Both persist on the same per-second ts grid.
+     *
+     *  Each arm is its OWN `SELECT MAX(ts)` rather than one `MAX(ts)` over a `UNION ALL` of the two
+     *  timestamp streams. SQLite's MIN/MAX optimization only fires on a bare `SELECT MAX(col)` that can
+     *  seek the last matching index entry; wrapping the columns in a compound subquery first makes the
+     *  planner materialize it and walk EVERY index entry for the device. Measured on Apple against a
+     *  746 MB store (3.1M hrSample rows) at 4.3–5.8 s for the old shape and 0.01–0.07 s for this one
+     *  (#908); Room is SQLite, so the same plan applies here, and this reader is on paths a user waits
+     *  on — FullDayChartScreen's land-on-the-latest-day effect and DataSourcesScreen's load.
+     *
+     *  Identical answer in every case: each scalar subquery is NULL when that stream has no rows for the
+     *  device, MAX() ignores NULLs, and both-empty stays NULL. Both arms are aliased because Room
+     *  verifies queries at compile time and only the first arm's names survive a compound select. */
     @Query(
-        "SELECT MAX(ts) FROM (" +
-            "SELECT ts FROM hrSample WHERE deviceId = :deviceId " +
+        "SELECT MAX(m) FROM (" +
+            "SELECT (SELECT MAX(ts) FROM hrSample WHERE deviceId = :deviceId) AS m " +
             "UNION ALL " +
-            "SELECT ts FROM ppgHrSample WHERE deviceId = :deviceId)",
+            "SELECT (SELECT MAX(ts) FROM ppgHrSample WHERE deviceId = :deviceId) AS m)",
     )
     suspend fun latestHrSampleTs(deviceId: String): Long?
 
@@ -801,6 +858,23 @@ interface WhoopDao : DeviceRegistryDao {
 
     @Query("DELETE FROM spo2Sample WHERE ts < :minTs OR ts > :maxTs")
     suspend fun pruneSpo2ByTs(minTs: Long, maxTs: Long): Int
+
+    // The instrumentation streams landed AFTER this heal was written and were never added to it, so a
+    // bad-clock strap's garbage-ts rows survived in them while every sibling stream above was cleaned.
+    // They are keyed by the SAME `ts` from the SAME type-47 ingest path, so there is no reason to exempt
+    // them. Legacy-rows only in practice (the #547 ingest gate now rejects an implausible ts before it is
+    // banked), which is why it went unnoticed. Swift twin: TimestampHeal.rawTables.
+    @Query("DELETE FROM sleepStateSample WHERE ts < :minTs OR ts > :maxTs")
+    suspend fun pruneSleepStateByTs(minTs: Long, maxTs: Long): Int
+
+    @Query("DELETE FROM ppgWaveformSample WHERE ts < :minTs OR ts > :maxTs")
+    suspend fun prunePpgWaveformByTs(minTs: Long, maxTs: Long): Int
+
+    @Query("DELETE FROM rawImuSample WHERE ts < :minTs OR ts > :maxTs")
+    suspend fun pruneRawImuByTs(minTs: Long, maxTs: Long): Int
+
+    @Query("DELETE FROM v18AuxSample WHERE ts < :minTs OR ts > :maxTs")
+    suspend fun pruneV18AuxByTs(minTs: Long, maxTs: Long): Int
 
     @Query("DELETE FROM event WHERE ts < :minTs OR ts > :maxTs")
     suspend fun pruneEventByTs(minTs: Long, maxTs: Long): Int

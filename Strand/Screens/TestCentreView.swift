@@ -31,6 +31,9 @@ struct TestCentreView: View {
     // Section 3: scheduled daily auto-export, the same ScheduledDebugExport store the Settings card uses.
     @State private var debugExportOn = ScheduledDebugExport.isEnabled
     @State private var debugExportMinutes = ScheduledDebugExport.timeMinutes
+    // Retention (#650): how many scheduled-export generations to keep, and the manual clear confirm.
+    @State private var debugExportKeep = ScheduledDebugExport.keepCount
+    @State private var showClearExportsConfirm = false
 
     /// The strap model the user last picked, the same key SettingsView's showFiveMGControls gate reads.
     @AppStorage("selectedWhoopModel") private var selectedWhoopModelRaw = WhoopModel.whoop4.rawValue
@@ -76,6 +79,13 @@ struct TestCentreView: View {
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("This restarts the roughly 4-night build-up for Charge and your HRV baseline. Your history stays.")
+        }
+        .confirmationDialog("Clear scheduled exports?",
+                            isPresented: $showClearExportsConfirm, titleVisibility: .visible) {
+            Button("Clear", role: .destructive) { clearScheduledExports() }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This deletes every scheduled strap-log and raw-capture file NOOP has saved. This can't be undone.")
         }
         .alert(infoTitle, isPresented: $showInfo) {
             Button("OK", role: .cancel) { }
@@ -213,12 +223,31 @@ struct TestCentreView: View {
                             .labelsHidden()
                             .accessibilityLabel("Daily auto-export time")
                     }
+                    // Retention (#650): how many scheduled-export generations to keep. Wired to
+                    // ScheduledDebugExport.keepCount; the next write prunes the oldest beyond this count.
+                    HStack {
+                        Text("Keep last exports").font(StrandFont.subhead).foregroundStyle(StrandPalette.textPrimary)
+                        Spacer()
+                        Picker("Keep last exports", selection: $debugExportKeep) {
+                            ForEach(ScheduledDebugExport.keepOptions, id: \.self) { n in Text("\(n)").tag(n) }
+                        }
+                        .labelsHidden().pickerStyle(.menu).tint(StrandPalette.accent)
+                        .onChangeCompat(of: debugExportKeep) { n in ScheduledDebugExport.keepCount = n }
+                    }
+                    Text("Older scheduled exports beyond this many are pruned automatically, oldest first.")
+                        .font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
                     NoopButton("Run now", systemImage: "square.and.arrow.down.on.square", kind: .secondary) {
                         runScheduledExportNow()
                     }
                     Text("On iPhone this is best-effort (iOS decides when background tasks run). Everything stays on \(Platform.deviceNounPhrase).")
                         .font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
                         .fixedSize(horizontal: false, vertical: true)
+                }
+                // Manual clear (#650): always available, even with the toggle off, since files written
+                // while it was on can outlive that toggle flip.
+                NoopButton("Clear scheduled exports", systemImage: "trash", kind: .destructive) {
+                    showClearExportsConfirm = true
                 }
             }
         }
@@ -328,6 +357,18 @@ struct TestCentreView: View {
         }
         infoTitle = String(localized: "Charge baseline recalibrating")
         infoMessage = String(localized: "NOOP will re-learn your baseline from tonight's data onward. Your history is kept, and it takes a few nights to settle.")
+        showInfo = true
+    }
+
+    /// The manual "Clear scheduled exports" action (#650): wipes every scheduled strap-log / raw-capture
+    /// file NOOP has dropped into Documents, regardless of the retention setting, then confirms via the
+    /// same info alert the other export actions use.
+    private func clearScheduledExports() {
+        let removed = ScheduledDebugExport.clearScheduledExports()
+        infoTitle = String(localized: "Scheduled exports cleared")
+        infoMessage = removed > 0
+            ? String(localized: "Removed \(removed) file(s).")
+            : String(localized: "No scheduled exports to clear.")
         showInfo = true
     }
 

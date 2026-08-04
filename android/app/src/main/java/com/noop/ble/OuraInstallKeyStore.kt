@@ -3,13 +3,12 @@ package com.noop.ble
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Base64
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import com.noop.data.SecurePrefs
 
 /**
  * Secure, at-rest-encrypted storage for an Oura ring's 16-byte application install key.
  *
- * Backed by Jetpack Security [EncryptedSharedPreferences] - values are encrypted with a key held in
+ * Backed by Jetpack Security `EncryptedSharedPreferences` - values are encrypted with a key held in
  * the Android Keystore (hardware-backed where available), so the install key is never written to disk
  * in the clear. This is the Android counterpart to storing the key in the macOS Keychain, and the same
  * pattern the AI Coach key uses ([com.noop.ai.AiKeyStore]).
@@ -42,22 +41,14 @@ object OuraInstallKeyStore {
     private fun adoptKey(deviceId: String) = "$ADOPT_PREFIX$deviceId"
 
     /**
-     * Open (or lazily create) the encrypted preferences file. The [MasterKey] uses the AES256_GCM key
-     * scheme and lives in the Android Keystore (mirrors [com.noop.ai.AiKeyStore]).
+     * The encrypted preferences file. The master key uses the AES256_GCM key scheme and lives in the
+     * Android Keystore (mirrors [com.noop.ai.AiKeyStore]).
+     *
+     * Delegated to [SecurePrefs] so both credential stores open their file the same way — and so the
+     * Keystore and Tink setup happens once per process rather than on every read and write, which is
+     * what it used to do.
      */
-    private fun prefs(ctx: Context): SharedPreferences {
-        val masterKey = MasterKey.Builder(ctx.applicationContext)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-
-        return EncryptedSharedPreferences.create(
-            ctx.applicationContext,
-            FILE_NAME,
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-        )
-    }
+    private fun prefs(ctx: Context): SharedPreferences = SecurePrefs.of(ctx, FILE_NAME)
 
     /**
      * Persist the 16-byte install [key] (encrypted at rest) for [deviceId]. The key is supplied as

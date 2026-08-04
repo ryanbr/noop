@@ -168,11 +168,14 @@ object IntelligenceEngine {
         // are unaffected; the AppViewModel wires it to the BLE client's strap log (ble.externalLog),
         // which PII-scrubs every line at the sink. Pure-JVM (a closure), matching persistStepsCalibration.
         diag: (String) -> Unit = {},
-        // Opt-in "Experimental sleep staging (V2)" flag (Settings → Experimental · Sleep staging). The
-        // analytics layer is Context-free, so the Context-aware caller (AppViewModel / WhoopBleClient) reads
-        // it off SharedPreferences (PuffinExperiment.experimentalSleepV2) and threads it down to the sleep
-        // self-heal, which re-stages with SleepStagerV2 when true. Default false → V1 (the default, untouched
-        // path), so existing callers / tests are unaffected. (V7 Pillar 3b)
+        // "Experimental sleep staging (V2)" flag (Settings → Experimental · Sleep staging). The analytics
+        // layer is Context-free, so the Context-aware caller (AppViewModel / WhoopBleClient) reads it off
+        // SharedPreferences (PuffinExperiment.experimentalSleepV2) and threads it down to the sleep
+        // self-heal, which re-stages with SleepStagerV2 when true.
+        // The stored preference is default TRUE (getBoolean(KEY, true)) — V2 was promoted over V1 in #277
+        // and extended to every strap family in #351 — so the SHIPPED app stages with V2. This PARAMETER
+        // defaults false only so existing callers / tests are unaffected; it is not the product default.
+        // (V7 Pillar 3b)
         useExperimentalSleepV2: Boolean = false,
         // Opt-in "Motion-aware wake refinement" flag (#364 "Proposal 2" follow-up; density gate precedent
         // #345). Same Context-free threading as [useExperimentalSleepV2]: the Context-aware caller reads
@@ -298,7 +301,9 @@ object IntelligenceEngine {
         baselineEpoch: Double = 0.0,
         recoveryEpoch: Double = 0.0,
         diag: (String) -> Unit = {},
-        // Opt-in experimental staging (V2), threaded down to the sleep self-heal. Default false → V1. (3b)
+        // Experimental staging (V2), threaded down to the sleep self-heal. This PARAMETER defaults false so
+        // existing callers / tests are unaffected; the STORED PREFERENCE the app threads in is default TRUE,
+        // so the shipped app stages with V2. Not the same default — see [analyzeRecent]'s note. (3b)
         useExperimentalSleepV2: Boolean = false,
         // Opt-in motion-aware wake refinement (#364 follow-up), threaded the same way. Default false.
         useMotionAwareWake: Boolean = false,
@@ -570,7 +575,7 @@ object IntelligenceEngine {
                 wristOff = wristOff,
                 habitualMidsleepSec = habitualMidsleepSec,
                 bandSleepState = bandSleepState,
-                // #690: thread the V2 toggle into the NORMAL staging path so it affects detected nights,
+                // 7.0.0: thread the V2 toggle into the NORMAL staging path so it affects detected nights,
                 // not just the userEdited self-heal restage. The Context-aware caller (AppViewModel/
                 // WhoopBleClient) supplied it from PuffinExperiment.from(context).experimentalSleepV2.
                 // V2 is the default staging engine for EVERY strap (toggle defaults on); turn it off for V1.
@@ -1280,7 +1285,16 @@ object IntelligenceEngine {
         // #137: a manually-started workout is scored from sparse live HR at save time , near-zero
         // calories/strain on a 5/MG. Now that offloaded HR may cover the window, re-score the
         // under-sampled ones from that denser data.
-        rescoreManualWorkouts(repo, profile, importedDeviceId, maxHROverride, nowSeconds)
+        // #950: score the workout against the wearer's MEASURED resting HR, not the hardcoded 60 —
+        // the day total two lines up already uses the measured value, and the mismatch is what made a
+        // workout's Effort incomparable to its own day's. The most recent scored day that has one is the
+        // best available estimate; null (cold start) keeps the old default.
+        // FIRST, not last: `out` is NEWEST-FIRST, because the scoring loop counts backwards from today
+        // (`for (offset in 0 until maxDays)` with `dayStart = nowLocalMidnight - offset * SECONDS_PER_DAY`),
+        // so out[0] is today and the tail is the oldest day in the window. Taking the last match would have
+        // scored today's workout against a resting HR up to `maxDays` old.
+        val measuredResting = out.firstOrNull { it.rhr != null }?.rhr?.toDouble()
+        rescoreManualWorkouts(repo, profile, importedDeviceId, maxHROverride, nowSeconds, measuredResting)
 
         return out to healDropped.size
     }
@@ -1334,6 +1348,9 @@ object IntelligenceEngine {
         deviceId: String,
         maxHROverride: Double?,
         nowSeconds: Long,
+        // #950: the wearer's measured resting HR (most recent scored day), threaded into scored() so the
+        // rescore uses the same %HRR denominator as the day total. null → the scorer's default.
+        restingHR: Double? = null,
     ) {
         val since = nowSeconds - 14L * 86_400L
         val rows = runCatching { repo.workouts(deviceId, since, nowSeconds) }.getOrNull() ?: return
@@ -1347,7 +1364,7 @@ object IntelligenceEngine {
             if (!ManualWorkoutRescore.looksUnderScored(row.energyKcal) && row.strain != null) continue
             val samples = runCatching { repo.hrSamples(deviceId, row.startTs, row.endTs, 20_000) }
                 .getOrNull() ?: continue
-            val s = ManualWorkoutRescore.scored(samples, profile, hrMax) ?: continue
+            val s = ManualWorkoutRescore.scored(samples, profile, hrMax, restingHR) ?: continue
             if (!ManualWorkoutRescore.improves(s, row.energyKcal, row.strain, allowStrainOnlyFill = true)) continue
             // Never lower a summed kcal: only take the recomputed kcal when it genuinely beats the stored
             // value; a strain-only fill (merged row) keeps the existing summed energyKcal.

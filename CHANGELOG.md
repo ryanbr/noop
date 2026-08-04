@@ -17,6 +17,61 @@ approximate; downloads are on the [Releases](https://github.com/NoopApp/noop/rel
 
 ---
 
+## 9.3.0: Water and caffeine import, honest Effort, and an Oura resting-heart-rate fix (all platforms)
+
+A release about the numbers being right, on top of 9.2.1.
+
+**Scores that change**
+
+- **Effort is weighted by each sample's own gap (#963).** Strain weighted every heart-rate sample in a window by the gap in front of the *first* one, so uneven streams — a dropped connection, a sparse patch, a backfilled block — were over- or under-counted. Each sample now carries its own gap, capped at two minutes so a long silence cannot read as sustained effort. Clean days barely move; gappy days can move noticeably, in either direction.
+- **A saved workout is scored against your measured resting heart rate (#983, #950),** not a hardcoded 60 bpm. Below 60, workout Effort rises; above 60, it falls.
+- **Sleep staging forbids wake → deep and wake → REM (#348).** The single part of a larger staging proposal that still improved results once the benchmark was cleaned of contamination; the rest was withdrawn rather than shipped on a flattering number.
+- **Oura history needs a re-import (#375).** The fix below corrects the import, not rows already written.
+
+**New**
+
+- **Water imports from Apple Health and Health Connect (#949, #974, #986).** Imported water is stored in its own row and added to the manual total only for display, so a sync can never overwrite, edit or delete a hand-logged entry, and disconnecting removes only the imported side. The sync reads its window once and writes only the days that actually differ.
+- **Caffeine imports from Apple Health (#949, #985).** Each intake keeps Apple's identity, so re-syncing updates existing entries instead of duplicating them, and imported entries cannot be edited or deleted inside NOOP. Health Connect has no caffeine-only scope — caffeine is a field behind the whole nutrition permission — so this is iPhone-only.
+- **iPhone asks for the two new read permissions once (#974).** HealthKit never reports read authorisation, and permission is only ever presented for types not yet determined, so an existing install would otherwise have silently imported nothing. NOOP now records the set of types it has asked for and re-asks when that set grows, in the foreground only.
+- **The R22 deep-data unlock is reversible (#174, #932).** A matching disable sequence with a mandatory read-back, so the strap confirms its actual state rather than NOOP assuming the write landed.
+
+**Fixed**
+
+- **An Oura nap could claim the whole day (#375).** The daily rollup took whichever session the API listed first, and Oura returns naps and fragments alongside the real night with no ordering guarantee. Across a real 24-month dataset this put a 32-minute wake-dominated fragment's 92 bpm on a day whose actual night was 277 minutes at 57 bpm, and left 36 days reading as under 25 minutes of sleep. The main session is now selected explicitly.
+- **The Updates page could not scroll and its release row did nothing (#984, #989).** Every release since the inbox shipped posted a "tap to read what's new" row with no link, so tapping only marked it read — moving it into "Earlier" on a page that could not scroll, which looked like deletion. Rows already in the inbox open too.
+- **A working WHOOP 4.0 battery read logged as a failure (#900, #923).**
+- **Raw sensor export read a legacy identifier instead of the active strap (#175, #924).**
+- **Haptics offered buzz patterns the 5/MG cannot produce (#926, #973).**
+- **Blood oxygen stayed silent when the strap had in fact recorded (#938).**
+- **A live heart-rate subscription leaked (#933).**
+- **Today's editing sheets were inconsistent (#929, #940)** — now one sheet.
+- **A provenance badge label sat high in its pill on Android (#936, #999).** The label was pinned to the pill's height directly, so the slack fell below the text rather than around it; the SwiftUI twin encoded the same height and centred it. Affected every badge across nine screens.
+- **31 French translations corrected from a native-speaker review (#884, #919),** with an Android sweep for the same error classes including agreement (#921).
+- **The Android device-actions menu was untranslated (#946).**
+- **The in-app What's New title now ships translated on Android (#878, #916, #951).** The generator emitted a raw Kotlin literal, which failed the translation gate on every release — and because that gate audits the whole tree, it red-checked every open pull request on a line none of them touched.
+
+**Privacy**
+
+- **Scheduled debug exports have a retention policy on both platforms (#642, #650, #960),** including the iOS ones visible in Files.
+- **`.noopbak` backups warn that they are readable and unencrypted (#644, #962).**
+
+**Diagnostics**
+
+- **A nightly mean and sample count for the 5/MG blood-oxygen candidate (#112, #995),** so the v18 candidate byte can be checked rather than trusted. Still instrumentation, not a shipped metric.
+- **A history offload counts the packet types it drops (#891, #927)** instead of discarding them silently.
+- **Raw Oura history-notification capture to a file (#937).**
+- **The blood-oxygen promote gate can read a NOOP store (#845, #103, #942),** so the diagnostic can answer its own question.
+- **Three probes stopped overstating what they knew (#690, #761, #103, #913, #914, #918).** A body-location probe's detail line contradicted its own verdict; a feature-flag probe reported silence, and one verb's refusal, as a verdict about firmware; and an unread key list was described as a strap named "none".
+
+**Infrastructure**
+
+- **Sleep staging became measurable (#925, #935, #991).** `SleepBench` now reports stage-fraction calibration and first-REM latency rather than kappa alone, `Tools/SleepPSG` scores the shipped stager against PSG truth reproducibly, and the docs were corrected to say which stager ships — V2, not V1. This tooling is what cut #348 down to one transition rule instead of landing it whole.
+- **The REM-latency guard is measured in minutes since onset (#930, #934),** not as a fraction of the session.
+- **Tool tests that nothing was running are now run (#943),** and a capture check no longer reads its own output as evidence (#971).
+- **Documentation corrections.** The circadian model's input is heart rate, not motion (#982, #993); the raw outbox's first policy is dormant by design, and why it is kept is now written down (#981, #994); the protocol's command-response body is documented (#894, #891, #915); and issue references point at this repository rather than one that no longer exists (#939).
+
+---
+
 ## 9.1.0: Workout backfill, strap model fix, supply chain hardening, and Oura improvements (all platforms)
 
 A reliability-and-accuracy release on top of 9.0.2.
@@ -3161,7 +3216,7 @@ killed standard-0x2A37 live HR).
   rate as ground-truth — to a JSON file, with Export / Reveal actions. Read-only on the strap, off by
   default, and never touches WHOOP 4.0. This is how 5/MG owners can contribute the captures needed to
   decode recovery / strain / sleep.
-- **Dev tooling:** a headless Linux capture workbench (`tools/linux-capture/`, Python + bleak) and a
+- **Dev tooling:** a headless Linux capture workbench (`Tools/linux-capture/`, Python + bleak) and a
   `whoop-decode` CLI that decodes captures with the same `WhoopProtocol` decoder the apps ship — no
   second decoder to drift. Plus hardware-verified WHOOP 5.0 bonding/session notes in
   `docs/BLE_REVERSE_ENGINEERING.md` that confirm the v1.5 just-works-bond approach.

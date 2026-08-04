@@ -234,7 +234,21 @@ enum BodyVitalSigns {
                 metricColor: StrandPalette.metricCyan,
                 day: spo2Row?.day,
                 source: spo2Row?.source,
-                missingCaption: String(localized: "No SpO₂ import or Health value"),
+                // Two different empty states, and conflating them is what sends people to the forums. When
+                // the night HAS raw red/IR counts, the strap's Blood-O₂ sensor plainly worked — only the
+                // calibrated % is missing, because WHOOP derives it in their cloud and NOOP will not
+                // fabricate one (spo2Pct is import-only; see Spo2ReTrace). Saying "No SpO₂ import or Health
+                // value" there reads as "your sensor recorded nothing", next to a Raw SpO₂ tile showing a
+                // live number.
+                // The condition is EXACTLY the Raw SpO₂ tile's own value expression (`spo2rawRow`, below)
+                // and must stay that way: the caption's claim is "the tile beside this one is showing a
+                // number", so if the two drift, this says the sensor recorded on a night where the
+                // neighbouring tile is blank. Note `latest()` here resolves `logicalDay ?? most recent`,
+                // where Android resolves the selected day — so the ROW differs across platforms by design
+                // and the parity contract is the relationship between the two tiles, not the row.
+                missingCaption: spo2rawRow != nil
+                    ? String(localized: "Raw counts only — needs an import")
+                    : String(localized: "No SpO₂ import or Health value"),
                 sparkline: trail(spo2Points)
             ),
             BodyVitalReading(

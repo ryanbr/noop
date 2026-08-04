@@ -185,7 +185,7 @@ public enum WakeMotionRefinement {
     /// this pass only ever acts when BOTH read "hot-but-still".
     static func refineSegment(_ seg: StageSegment, gravByMinute: [Int: [GravitySample]],
                               ticksByMinute: [Int: Int]) -> [StageSegment] {
-        guard seg.stage == "wake", seg.end - seg.start >= minWakeSegmentSeconds else { return [seg] }
+        guard SleepStageVocabulary.isWake(seg.stage), seg.end - seg.start >= minWakeSegmentSeconds else { return [seg] }
         let mins = minutes(from: seg.start, to: seg.end)
         guard !mins.isEmpty else { return [seg] }
 

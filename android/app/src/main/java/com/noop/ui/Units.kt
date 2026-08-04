@@ -87,7 +87,19 @@ enum class HrvWindow(val raw: String) {
     /** RMSSD averaged over every 5-min window of the night (NOOP's long-standing value). */
     WHOLE_NIGHT("whole"),
 
-    /** RMSSD over DEEP (slow-wave) sleep windows only — comparable to WHOOP's reading. */
+    /**
+     * RMSSD over DEEP (slow-wave) sleep windows only — the window WHOOP samples.
+     *
+     * "Comparable to WHOOP" describes the METHOD, not the accuracy of the resulting number: the deep
+     * windows come from NOOP's own stager, not the strap. `Tools/SleepPSG` scores that stager against
+     * PSG truth over 31 subjects / 26 773 epochs and measures deep at 18.94 % predicted vs 13.76 %
+     * truth — a +5.18 pp bias, roughly 38 % more deep epochs than exist, at four-class kappa 0.356.
+     * An over-inclusive deep window pulls this value back toward the whole-night mean, which is the
+     * one thing the setting exists not to be.
+     *
+     * So this stays opt-in and WHOLE_NIGHT stays the default. #1008 tracks moving it, gated on that
+     * bias coming down; re-run the benchmark before changing the default rather than assuming it has.
+     */
     DEEP_SLEEP("deep");
 
     companion object {

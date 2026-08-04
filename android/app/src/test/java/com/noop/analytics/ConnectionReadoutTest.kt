@@ -98,6 +98,19 @@ class ConnectionReadoutTest {
         assertEquals("not connected", ConnectionReadout.uptimeLabel(tail, nowUnix = 5000))
     }
 
+    /**
+     * #1020: the emitter appends a session duration, so the line the parser actually receives is no
+     * longer the bare one above. Pinned because the two are edited independently - the suffix was added
+     * on the strength of this match being a `contains`, and nothing was asserting that.
+     */
+    @Test fun uptimeLabelDownWithASessionDuration() {
+        val tail = listOf(
+            "[connection] connect up gen=1 latencyMs=420 uptimeStart=1000",
+            "[connection] connect down (uptime ends after 6.8s)",
+        )
+        assertEquals("not connected", ConnectionReadout.uptimeLabel(tail, nowUnix = 5000))
+    }
+
     @Test fun uptimeLabelEmptyTail() {
         assertEquals("not connected", ConnectionReadout.uptimeLabel(emptyList(), nowUnix = 5000))
     }

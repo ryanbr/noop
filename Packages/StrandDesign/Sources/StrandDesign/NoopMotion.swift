@@ -56,6 +56,102 @@ public enum NoopMotion {
     }
 }
 
+// MARK: - Quiet Motion — the ONE gate every never-settling animation consults
+//
+// #909 taught the live gauges to pose still in Low Power Mode, but it read the flag inside
+// `Strand/Liquid` and so could only reach the liquid layer. Everything else that never settles —
+// the day-cycle atmosphere drift, the guardian breath, the connection halo — kept running, and a
+// user in Low Power Mode still paid for it. The Android half (#911) had already put its gate in
+// `com.noop.ui.NoopMotion`, one process-wide monitor read through `rememberPoseStill()`; this is
+// that same shape on Apple, moved down into StrandDesign so the design system's own surfaces can
+// reach it too (`LiquidPowerMonitor` in the app target could not).
+//
+// Three signals, OR-ed:
+//   1. `@Environment(\.accessibilityReduceMotion)` — the system-wide setting. Supplied by the call
+//      site, because only a View can read the environment.
+//   2. Low Power Mode — the OS-level "stop discretionary work" signal.
+//   3. "Reduce motion in NOOP" — an in-app preference, default OFF, for people who want the app
+//      quiet without putting the whole phone in battery saver.
+
+/// "Reduce motion in NOOP" (opt-in, default OFF): pose every looping animation still and stop the
+/// decorative motion sensor, without requiring system Low Power Mode or system Reduce Motion.
+/// Toggled from Settings → Appearance.
+///
+/// **Apple-only for now — there is no Kotlin twin yet, and no parity to claim.** Android's
+/// `rememberPoseStill()` reads two signals (system Reduce Motion ‖ battery saver); this third one is
+/// tracked as #941. The KEY STRING is the cross-platform contract, so it is fixed here and Android must
+/// adopt `"noop.quietMotion"` verbatim when it lands — a `.noopbak` round-trip carries the setting by
+/// key, not by symbol name.
+public enum QuietMotionPrefs {
+    /// The `@AppStorage` / `UserDefaults` key shared by the Settings toggle and `NoopMotionState`.
+    public static let enabledKey = "noop.quietMotion"
+}
+
+/// Publishes the two motion signals that have no SwiftUI environment key — Low Power Mode and the
+/// in-app "Reduce motion in NOOP" preference — so any view can pose its looping animation still.
+///
+/// A singleton with ONE `NotificationCenter` observer rather than a per-view `DisposableEffect`,
+/// for the reason #911 gives on the Android side: the liquid primitives alone have dozens of call
+/// sites, and registering/unregistering an observer as gauges scroll in and out of view would be
+/// churn introduced by the very change that exists to remove per-frame work.
+///
+/// Worth doing because a continuously-animating `Canvas` is not free: measured on an iPhone 17 Pro
+/// simulator seeded with a real 746 MB store, the default Today screen sitting idle costs ~18% of a
+/// CPU core in BOTH Debug and Release, and 0.0% once the live surfaces pose still.
+@MainActor
+public final class NoopMotionState: ObservableObject {
+    public static let shared = NoopMotionState()
+
+    /// System Low Power Mode / battery saver. Live: `.NSProcessInfoPowerStateDidChange` means
+    /// toggling the setting takes effect without a relaunch.
+    @Published public private(set) var isLowPower: Bool
+
+    /// The in-app "Reduce motion in NOOP" preference. Kept in step with `UserDefaults` so a
+    /// non-SwiftUI reader (the motion sensor) and the `@AppStorage` toggle never disagree.
+    @Published public private(set) var quietMotion: Bool
+
+    private init() {
+        isLowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
+        quietMotion = UserDefaults.standard.bool(forKey: QuietMotionPrefs.enabledKey)
+        NotificationCenter.default.addObserver(
+            forName: .NSProcessInfoPowerStateDidChange, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.isLowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
+            }
+        }
+        // `@AppStorage` writes straight to UserDefaults without telling us, so mirror the store.
+        // `.didChangeNotification` is the only signal that covers a write from any target.
+        NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification, object: UserDefaults.standard, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                let now = UserDefaults.standard.bool(forKey: QuietMotionPrefs.enabledKey)
+                if self?.quietMotion != now { self?.quietMotion = now }
+            }
+        }
+    }
+
+    /// The gate. `reduceMotion` comes from `@Environment(\.accessibilityReduceMotion)` at the call
+    /// site — the environment is the only place SwiftUI publishes it, and reading it imperatively
+    /// would not invalidate the view when the user changes the setting.
+    ///
+    /// ```swift
+    /// @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// @ObservedObject private var motion = NoopMotionState.shared
+    /// private var poseStill: Bool { motion.poseStill(reduceMotion) }
+    /// ```
+    @inline(__always)
+    public func poseStill(_ reduceMotion: Bool) -> Bool {
+        reduceMotion || isLowPower || quietMotion
+    }
+
+    /// The two non-environment signals on their own, for an imperative (non-View) reader that
+    /// supplies its own Reduce Motion read — e.g. the decorative motion sensor deciding whether to
+    /// start at all. Views must use `poseStill(_:)` instead so they invalidate correctly.
+    public var poseStillIgnoringReduceMotion: Bool { isLowPower || quietMotion }
+}
+
 // MARK: - CountUpText
 //
 // Animates a numeric value counting up (or down) to its latest value whenever `value`

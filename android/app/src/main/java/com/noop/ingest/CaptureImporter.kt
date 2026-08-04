@@ -24,7 +24,7 @@ import java.time.format.DateTimeParseException
 import java.time.temporal.ChronoUnit
 
 /**
- * Imports a `capture.json` produced by tools/linux-capture/whoop_sync.py `export` into the local
+ * Imports a `capture.json` produced by Tools/linux-capture/whoop_sync.py `export` into the local
  * Room store by running its raw strap frames through the SAME on-device historical decoder the live
  * BLE offload uses (extractHistoricalStreams -> WhoopRepository.insert). No new decode logic; this is
  * pure file -> frames -> decode -> store plumbing, so externally-captured history (e.g. a Linux BLE

@@ -29,6 +29,9 @@ struct HydrationView: View {
     /// #798 - today's individual logged drinks (for swipe-to-delete + tap-to-edit), and the entry being
     /// edited in the amount sheet (nil when the sheet is closed).
     @State private var entries: [HydrationEntry] = []
+    /// Water imported from Apple Health for today (#949) — part of `totalML`, surfaced separately so the
+    /// drinks card can show it as its own, non-editable line.
+    @State private var importedML: Double = 0
     @State private var editingEntry: HydrationEntry?
     /// #798 - the user's custom container size (ml), editable from the custom-size sheet. Persisted local-only.
     @AppStorage(HydrationStore.customSizeKey) private var customSizeML = HydrationGoal.cupML
@@ -183,10 +186,13 @@ struct HydrationView: View {
     // MARK: - Today's logged drinks (#798) - swipe to delete, tap to edit
 
     @ViewBuilder private var entriesSection: some View {
-        if !entries.isEmpty {
+        // Also shown when the only water today came from Apple Health (#949) — otherwise the ring would
+        // count drinks the screen never accounts for, and the day would look like it appeared from nowhere.
+        if !entries.isEmpty || importedML > 0 {
             card(padding: 18) {
                 VStack(alignment: .leading, spacing: NoopMetrics.gap) {
                     Text("Today's drinks").strandOverline()
+                    if importedML > 0 { importedRow }
                     // #842 — render rows in a plain VStack inside the page ScrollView. The previous nested,
                     // scroll-disabled List with a hardcoded `count * 44 + 8` height clipped every row past
                     // the third (real rows are taller than 44pt) and couldn't be scrolled to. Tap a row to
@@ -200,12 +206,40 @@ struct HydrationView: View {
                             }
                         }
                     }
-                    Text("Tap a drink to edit it, or use the trash to delete.")
-                        .font(StrandFont.footnote)
-                        .foregroundStyle(StrandPalette.textTertiary)
+                    if !entries.isEmpty {
+                        Text("Tap a drink to edit it, or use the trash to delete.")
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textTertiary)
+                    }
                 }
             }
         }
+    }
+
+    /// Water Apple Health already had, from a hydration app or a smart bottle (#949).
+    ///
+    /// Deliberately not tappable and with no trash: NOOP does not own these drinks, and "deleting" one
+    /// here would be a lie — the next sync re-reads the same day from Health and the figure would come
+    /// straight back. Removing it for real means removing it in the app that logged it.
+    @ViewBuilder private var importedRow: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "heart.text.square")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(StrandPalette.textSecondary)
+                .accessibilityHidden(true)
+            Text("From Apple Health")
+                .font(StrandFont.subhead)
+                .foregroundStyle(StrandPalette.textSecondary)
+            Spacer(minLength: 8)
+            Text("\(Int(importedML.rounded())) ml")
+                .font(StrandFont.subhead.weight(.semibold))
+                .foregroundStyle(StrandPalette.textPrimary)
+                .monospacedDigit()
+        }
+        .padding(.vertical, 6)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(Int(importedML.rounded())) millilitres from Apple Health. Edit it in the app that logged it.")
+        if !entries.isEmpty { Divider().opacity(0.4) }
     }
 
     /// One logged-drink row: the time it was logged + its amount (tap to edit) with a trailing trash.
@@ -381,6 +415,9 @@ struct HydrationView: View {
         totalML = await repo.hydrationTotal(day: Repository.localDayKey(Date()))
         history = await repo.hydrationHistory(days: 7)
         entries = repo.hydrationEntries()
+        // #949: `totalML` already includes this; read it separately so the drinks card can name where
+        // the difference came from instead of leaving an unexplained gap between the ring and the list.
+        importedML = await repo.hydrationImportedTotal(day: Repository.localDayKey(Date()))
     }
 }
 

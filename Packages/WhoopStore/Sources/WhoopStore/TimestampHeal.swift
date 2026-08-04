@@ -45,9 +45,17 @@ extension WhoopStore {
         return try syncWrite { db in
             // (a) Raw, ts-keyed streams. Every one of these is fed by the historical type-47 / EVENT /
             // REALTIME paths the #547 gate now guards, so the same out-of-bounds predicate cleans them.
+            // `ppgWaveformSample` / `rawImuSample` / `sleepStateSample` / `v18AuxSample` were landed after
+            // this list and never added to it, so a bad-clock strap's garbage-ts rows in those tables
+            // survived a heal that cleaned every sibling stream — the rows are keyed by the SAME `ts` from
+            // the SAME type-47 ingest path, so there is no reason for them to be exempt. This is a
+            // legacy-rows gap rather than an ongoing one (the #547 ingest gate now rejects an implausible
+            // ts before it is banked), which is exactly why it went unnoticed. Guarded by the same
+            // out-of-bounds predicate as everything else — a plausible row is never touched.
             let rawTables = ["hrSample", "rrInterval", "event", "battery",
                              "spo2Sample", "skinTempSample", "respSample",
-                             "gravitySample", "stepSample", "ppgHrSample"]
+                             "gravitySample", "stepSample", "ppgHrSample",
+                             "sleepStateSample", "ppgWaveformSample", "rawImuSample", "v18AuxSample"]
             var rawDeleted = 0
             for table in rawTables {
                 try db.execute(sql: "DELETE FROM \(table) WHERE ts < ? OR ts > ?",

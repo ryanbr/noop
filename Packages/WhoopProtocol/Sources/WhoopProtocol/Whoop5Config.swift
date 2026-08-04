@@ -16,9 +16,16 @@ import Foundation
 // then 7 bytes of zero. The command is built with the normal puffin envelope via `puffinCommandFrame`
 // (cmd 0x78, the inner b3 byte 0x01 carried as the first payload byte, exactly like CLIENT_HELLO).
 //
-// This is reversible — it only changes which data the strap chooses to emit — but it is gated behind an
-// explicit opt-in in the app, and on real hardware it can only be written from iOS/Android: macOS
-// CoreBluetooth cannot complete the authenticated SMP bond the command characteristic requires.
+// It is gated behind an explicit opt-in in the app, and on real hardware it can only be written from
+// iOS/Android: macOS CoreBluetooth cannot complete the authenticated SMP bond the command characteristic
+// requires.
+//
+// **Reversing it.** The write only changes which data the strap chooses to emit, and the same opcode that
+// sets a flag can clear it — see `disableR22Sequence` below, and `R22DisableReport` for the write +
+// mandatory read-back that proves what the strap actually stores. For the first year of this file that
+// claim was made in a comment with nothing implementing it; the value byte that spells "off" is still
+// inferred rather than observed, which is why the disable path tests it on one key before touching the
+// rest. Read `featureFlagOffValue` before relying on any of this.
 public enum Whoop5Config {
 
     /// SET_CONFIG / SET_FF_VALUE command opcode.
@@ -102,6 +109,115 @@ public enum Whoop5Config {
     /// only while the strap is on-wrist — the R22 stream is on-wrist gated.
     public static func enableSequenceFrames(firstSeq: UInt8 = 1) -> [[UInt8]] {
         enableR22Sequence.enumerated().map { idx, flag in
+            frame(flag: flag, seq: UInt8((Int(firstSeq) + idx) & 0xFF))
+        }
+    }
+
+    // MARK: - Turning it back off (#174)
+
+    /// The value byte written to clear a feature flag: ASCII `'0'` (0x30).
+    ///
+    /// **Confirmed for the sibling opcode, inferred here by shared convention.** The distinction is worth
+    /// stating precisely, because it is stronger than a guess and weaker than a measurement.
+    ///
+    /// *Confirmed, on real hardware:* `0x30` is how this firmware spells "off" for a config key. NOOP has
+    /// shipped that write since #181 — `setBroadcastHr(false)` writes `0x30` to
+    /// `whoop_live_hr_in_adv_ind_pkt` through `SET_DEVICE_CONFIG_VALUE` (119 / 0x77) and a Garmin Edge 840
+    /// stops seeing the broadcast. `enable_raw_data_w_ecg` independently *reads* `'0'` on an MG whose ECG
+    /// is not running. Both are the device-config namespace.
+    ///
+    /// *Shared convention, which is why it transfers:* the two namespaces are the same wire idiom. Both
+    /// bodies are the key name as ASCII NUL-padded to 32 bytes followed by a single ASCII-digit value byte
+    /// at offset 32, both are sent as `[0x01] + body` WITH RESPONSE, and `deviceConfigBody`'s own doc spells
+    /// the value convention out as "an ASCII digit, '1' = 0x31 / '0' = 0x30". The only differences are the
+    /// opcode (0x77 vs 0x78) and the body length (33 vs 40 bytes, the feature-flag body carrying 7 trailing
+    /// zeroes). Nothing about 0x78 makes it one-way: writes through it demonstrably land and demonstrably
+    /// change stored state — running `enableR22Sequence` moved `enable_sig12` from `'2'` (0x32) to `'1'`
+    /// (0x31), confirmed by a `GET_FF_VALUE(128)` read before and after. A key that can be written is a key
+    /// that can be rewritten.
+    ///
+    /// *Inferred, and stated plainly:* **`'0'` has never been observed in the feature-flag namespace.** Every
+    /// `GET_FF_VALUE(128)` read ever taken returned `'1'` or `'2'` — and those sixteen readings are a
+    /// round-trip of NOOP's own `enableR22Sequence` writes, so they say nothing about what the firmware does
+    /// with a value it was not handed. The two namespaces are also proven separate at the verb level: a key
+    /// asked through the wrong verb answers FAILURE. So the device-config evidence above is a strong
+    /// argument by shared convention, not a measurement of this opcode.
+    ///
+    /// *And two pieces of counter-evidence, which is why "0 = false" is not assumed anywhere in this file:*
+    /// `disable_pip_r26_packets` is written `'2'` despite being named `disable_*` — if these were plain
+    /// booleans that key would be the one written `'0'`. And `enable_sig12` was corrected `'2'` → `'1'` from
+    /// a real on-strap capture (#423), i.e. the official app picks *between* `'1'` and `'2'` per flag rather
+    /// than using one canonical "true". Whatever those two values select, it is probably not a bare boolean,
+    /// so tri-state `'0'`/`'1'`/`'2'` semantics stay UNESTABLISHED rather than assumed.
+    ///
+    /// *Which makes the read-back decisive rather than ceremonial.* A single `GET_FF_VALUE(128)` on the
+    /// written key separates the three live possibilities, and `R22DisableReport` reports which one happened
+    /// instead of averaging over them:
+    ///
+    /// | Read-back | Meaning |
+    /// |---|---|
+    /// | value `'0'` | The write landed and the key now HOLDS `'0'`. Cleared as a value — the expected success. |
+    /// | `FAILURE(0)` | The key no longer has a stored value at all. Genuinely removed; nothing predicts this. |
+    /// | value unchanged (`'2'`/`'1'`) | The write was refused or no-oped. `'0'` is not how this namespace says off. |
+    ///
+    /// Note that **enumeration cannot substitute for this read.** `'0'` is a stored value, not an absence —
+    /// six of the seven keys the device-config walk returned read `'0'` and were still enumerated — so a
+    /// cleared key stays present in a walk rather than dropping out. And the 117/118 feature-flag
+    /// enumeration carries no value field at all (its record is `[revision][index][validKey][key]`), so it
+    /// can only ever answer presence. `GET_FF_VALUE(128)` is the only verb that can verify a clear, and it
+    /// answered cleanly for all sixteen flags on a 5/MG — the older 4.0-derived caution about a stale shared
+    /// buffer contaminating its value field does not reproduce on this family.
+    ///
+    /// The path therefore writes `'0'` to ONE flag first, reads it back, and declines to touch the other
+    /// fifteen unless the strap actually stopped reporting the old value. One round-trip converts the
+    /// inference into a measurement on first run. See `R22DisableReport.probeKey` for why that key.
+    ///
+    /// What stays unverified even after a clean read-back is narrower than the byte: whether clearing the
+    /// flags makes the strap's R22 *behaviour* revert. Only wearing the strap and watching the deep records
+    /// stop answers that, and the report says so rather than claiming it.
+    public static let featureFlagOffValue: UInt8 = 0x30
+
+    /// The inverse of `enableR22Sequence`: the same sixteen keys, in the same order, each carrying
+    /// `featureFlagOffValue`.
+    ///
+    /// **Same order as the enable sequence, deliberately.** `enable_r22_packets` — the master flag — is
+    /// cleared FIRST, so a run interrupted by a disconnect leaves the strap nearer "off" than it started
+    /// rather than stranded with sub-streams cleared and the master still set. It also keeps the two
+    /// sequences trivially diffable: same names, same order, only the value byte differs.
+    ///
+    /// **On `disable_pip_r26_packets`, whose name inverts.** Fifteen of these keys read as "enable/tune X"
+    /// and one reads as "disable X", so writing the same byte to all sixteen looks wrong at a glance. It is
+    /// deliberate, and the reasoning is worth being explicit about because it is the one place a reviewer
+    /// should push back.
+    ///
+    /// This sequence is defined as *the undo of the enable sequence* — clear every flag that sequence set —
+    /// rather than as "set each flag to its semantic opposite". Those are different operations, and only
+    /// the first one is well defined here. Inverting per key would require knowing what `'1'` and `'2'`
+    /// each select, and this key is the evidence that we do not: a flag named `disable_*` written `'2'`
+    /// alongside `enable_*` flags also written `'2'` cannot be reconciled with plain-boolean semantics.
+    ///
+    /// So: writing `'0'` to `disable_pip_r26_packets` is expected to stop PIP R26 packets being suppressed
+    /// — i.e. to let them flow again, which is the pre-R22 behaviour and the correct restoration. The
+    /// polarity inversion is real, but it lives in what the key MEANS, not in which byte undoes it, and it
+    /// is called out in the report so nobody is surprised that one key's "off" is another feature's "on".
+    /// `make_hrfm_visible`, `wear_detect_bias`, `hr_ch_switching`, `ir_hw_switching` and `dorset_inhibit_wpt`
+    /// are milder versions of the same story: they tune behaviour rather than gate a stream, and clearing
+    /// them returns that tuning to whatever the firmware does with the flag unset.
+    ///
+    /// **What this does NOT do: restore a snapshot.** NOOP has never read these values *before* writing
+    /// them, so the strap's pre-NOOP state is unknown and unrecoverable. If the firmware's own default for
+    /// some key is `'1'` rather than unset, this writes a value the factory never used. The honest claim
+    /// is "clears the sixteen flags NOOP set", not "restores the strap to how it shipped". Making the
+    /// stronger claim true needs a read-before-write snapshot on the ENABLE path; see #174.
+    public static let disableR22Sequence: [Flag] = enableR22Sequence.map {
+        Flag($0.name, featureFlagOffValue)
+    }
+
+    /// Every frame in the disable sequence, sequence-numbered from `firstSeq`. Written exactly like the
+    /// enable frames — same opcode, same 40-byte body, same spacing, WITH RESPONSE — because they differ
+    /// only in the value byte.
+    public static func disableSequenceFrames(firstSeq: UInt8 = 1) -> [[UInt8]] {
+        disableR22Sequence.enumerated().map { idx, flag in
             frame(flag: flag, seq: UInt8((Int(firstSeq) + idx) & 0xFF))
         }
     }

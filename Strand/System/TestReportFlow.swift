@@ -49,6 +49,9 @@ enum TestReportFlow {
     /// TestBundleAssembler.redactEntries + capEntries + meta.json). `showToast` and `copyToPasteboard`
     /// are injected so the call site supplies the platform presenters. Review-before-share is mandatory:
     /// nothing is shared, no URL opened and no toast shown until the gate is cleared (spec section 12).
+    ///
+    /// Async (#646/#651): `FileExport.exportBundle` now stages its zip off the main actor, so this awaits
+    /// it before continuing to the toast/pasteboard steps below (same ordering as before, just non-blocking).
     @MainActor
     static func run(profile: TestDomain, title: String,
                     version: String, platform: String, osVersion: String,
@@ -59,7 +62,7 @@ enum TestReportFlow {
                     // CAPTURE-A (#812): the questionnaire-derived one-liner seeding the form's what_happens
                     // box. nil leaves that required field for the user. The report.txt tail is read from
                     // `entries` below, so a report submitted without the .zip still carries the trace.
-                    whatHappensSeed: String? = nil) {
+                    whatHappensSeed: String? = nil) async {
         // Review-before-share is mandatory: do nothing until the user has confirmed.
         guard shouldProceed(gate: gate) else { return }
         let name = Plan.bundleName(profile: profile, platform: platform, version: version)
@@ -77,11 +80,11 @@ enum TestReportFlow {
         // is dismissed) keeps the SafariVC from racing the share sheet and lets the user attach the .zip
         // they just saved. macOS opens in the default browser via NSWorkspace (no hijack there).
         #if canImport(UIKit)
-        _ = FileExport.exportBundle(entries: entries, suggestedName: name, completion: {
+        _ = await FileExport.exportBundle(entries: entries, suggestedName: name, completion: {
             if let issueURL { presentInSafari(issueURL) }
         })
         #elseif canImport(AppKit)
-        _ = FileExport.exportBundle(entries: entries, suggestedName: name)
+        _ = await FileExport.exportBundle(entries: entries, suggestedName: name)
         if let issueURL { NSWorkspace.shared.open(issueURL) }
         #endif
         showToast(Plan.attachToast(savedName: name))

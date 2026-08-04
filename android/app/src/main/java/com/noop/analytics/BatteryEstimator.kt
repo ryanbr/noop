@@ -1,6 +1,7 @@
 package com.noop.analytics
 
 import java.util.Locale
+import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
 /**
@@ -277,5 +278,207 @@ object BatteryEstimator {
         val fire = !armedOff && remainingHours <= runtimeAlertHours && charging != true
         if (fire) armedOff = true
         return RuntimeAlertDecision(fire, armedOff)
+    }
+
+    // ---- The ~10% hardware cutoff ----
+
+    /** The strap stops sampling and drops the link NEAR THIS SoC, not at 0%. Measured on a WHOOP 5.0
+     *  running R22 deep-data + high-rate IMU capture: the SoC series ran 13.1% → 10.9% over 80 min and
+     *  the last HR sample of the session landed 27 min after that 10.9% reading, with no reading below
+     *  10.9% ever banked. At that run's 1.65 %/h those 27 min are ~0.7 pp — the strap went dark at ~10%
+     *  with ~10 pp of nominal charge still showing.
+     *
+     *  This matters because [estimate] divides the FULL current SoC by the drain rate, so its
+     *  `remainingHours` is time-to-**0%** and overstates usable life by `cutoffSocPct / rate` — ~6 h for
+     *  that user. Any consumer asking "will the strap survive the next N hours" must ask
+     *  [usableRemainingHours], never `Estimate.remainingHours`.
+     *
+     *  Deliberately NOT folded into [estimate] itself: `remainingHours` feeds the Today "~X left" badge
+     *  and the shared Swift/Kotlin fixtures, so re-anchoring it there would change a displayed number
+     *  and break documented cross-platform parity in the same commit. Kept additive instead. */
+    const val cutoffSocPct = 10.0
+
+    /** Runtime left before the strap goes dark at [cutoffSocPct], derived from an estimate's
+     *  time-to-0% figure. Algebraically `(currentSoc - cutoff) / rate` where `rate = currentSoc /
+     *  remainingHours`, rearranged so the rate is never recovered explicitly — which also carries the
+     *  #99 clamp through CONSERVATIVELY: that clamp only ever lowers `remainingHours`, so the usable
+     *  figure derived from it can only be pessimistic, never optimistic. 0 at or below the cutoff. */
+    fun usableRemainingHours(remainingHours: Double, currentSoc: Double): Double {
+        if (currentSoc <= 0 || remainingHours <= 0) return 0.0
+        return maxOf(0.0, remainingHours * (currentSoc - cutoffSocPct) / currentSoc)
+    }
+
+    /** [usableRemainingHours] for a whole [Estimate] — the form callers holding the live estimate want. */
+    fun usableRemainingHours(estimate: Estimate): Double =
+        usableRemainingHours(estimate.remainingHours, estimate.currentSoc)
+
+    // ---- Critical low-battery alert (the escalation the 15% alert can't give) ----
+
+    /** SoC at which the CRITICAL "charge it now" alert fires — a second crossing below
+     *  `BatteryAlertPolicy.LOW_THRESHOLD` (15%), with its own gate.
+     *
+     *  Derived from [cutoffSocPct], not picked round. The strap goes dark at ~10%, so the ENTIRE usable
+     *  alert band is (10%, 15%]. A conventional 5% critical threshold is unreachable on this hardware —
+     *  the strap is long dead — and even 10% is a coin flip (the lowest reading ever banked on the
+     *  reference run was 10.9%, and SoC reaches this policy already rounded to an Int). 12% sits
+     *  mid-band, was reliably reported on the reference run (12.4 / 12.1 / 11.9 / 11.6 / 11.4 / 11.1,
+     *  the first of which rounds to 12), and still clears the 15% line by 3 pp, so it is a genuinely
+     *  separate crossing rather than jitter around the same threshold.
+     *
+     *  Lead time scales with how hard the user drives the strap, which is the point: at the reference
+     *  run's 1.65 %/h (R22 deep-data + high-rate IMU) 12% is ~1.2 h of warning before the cutoff; on a
+     *  stock 5.0 sipping ~0.35 %/h it is ~5.7 h. The 15% alert already carries the "plan to charge"
+     *  message — this one carries "you are about to lose data", which is worth sending even when the
+     *  runway is short. */
+    const val criticalSocPct = 12
+
+    /** Re-arm the critical gate on the same genuine recovery the 15% alert uses
+     *  (`BatteryAlertPolicy.LOW_REARM_ABOVE` = 25), so one charge re-arms both and 11↔12% jitter can't
+     *  re-fire. Its own constant so the two policies stay independently tunable. */
+    const val criticalRearmAbovePct = 25
+
+    data class CriticalAlertDecision(val fire: Boolean, val newAlerted: Boolean)
+
+    /**
+     * Crossing-with-hysteresis decision for the CRITICAL low alert, mirroring `BatteryAlertPolicy`'s
+     * shape: persisted gate in, fire decision plus next gate state out.
+     *
+     * Deliberately a SEPARATE policy with its OWN persisted flag rather than a second branch of
+     * `BatteryAlertPolicy.evaluate`, because the failure this fixes IS the latch: the 15% alert fires
+     * once and sets `lowAlerted = true` until SoC recovers to 25%, so on the reference incident the
+     * user got one warning at 15% and then total silence across the ~3 h it took to reach the cutoff.
+     * A latched `lowAlerted` must never be able to suppress this one.
+     *
+     * `charging == null` (unknown) still fires — only a confirmed `true` suppresses — matching the SoC
+     * low alert's null-tolerant rule: the strap reports its charge bit only every ~8 min.
+     * Behaviour-identical twin of the Swift `BatteryEstimator.criticalAlert`.
+     */
+    fun criticalAlert(pct: Int, charging: Boolean?, alerted: Boolean): CriticalAlertDecision {
+        var armedOff = alerted
+        if (pct >= criticalRearmAbovePct) armedOff = false
+        val fire = !armedOff && pct <= criticalSocPct && charging != true
+        if (fire) armedOff = true
+        return CriticalAlertDecision(fire, armedOff)
+    }
+
+    // ---- Bedtime night-guard ("this won't last the night") ----
+
+    /** How long before habitual bedtime the night-guard window opens. Wide enough that the strap's
+     *  ~8-minute battery cadence lands several readings inside it even with link churn, and that the
+     *  user can still act; narrow enough that the question is genuinely about TONIGHT. */
+    const val bedtimeLeadHours = 3.0
+
+    /** Safety margin added on top of "wait until bedtime + tonight's sleep". Covers the slope fit's
+     *  error and the gap between the learned habitual night and any given night running long. */
+    const val bedtimeMarginHours = 1.0
+
+    /** Floor on the number of nights behind [typicalSleepHours]. The midsleep learner's own
+     *  `SleepStageTotals.HABITUAL_MIN_DAYS` (14) already gates the whole night-guard — with no learned
+     *  midsleep there is no bedtime and [bedtimeAlert] returns silently — so this is a local
+     *  belt-and-braces bound ensuring the duration median itself is never taken off a night or two. */
+    const val bedtimeMinNights = 7
+
+    /** What tonight demands of the strap versus what it has. Returned by [bedtimeAlert] so the notifier
+     *  can word the alert from real numbers and the tests can assert the arithmetic, not just the Bool. */
+    data class NightRunway(
+        val hoursUntilBedtime: Double,
+        val sleepHours: Double,
+        /** `hoursUntilBedtime + sleepHours + bedtimeMarginHours`. */
+        val requiredHours: Double,
+        /** Cutoff-aware runtime ([usableRemainingHours]), NOT the raw time-to-0% estimate. */
+        val usableHours: Double,
+    ) {
+        /** How far short the strap falls, in hours. 0 when it makes it. */
+        val shortfallHours: Double get() = maxOf(0.0, requiredHours - usableHours)
+    }
+
+    data class BedtimeAlertDecision(
+        val fire: Boolean,
+        val newAlerted: Boolean,
+        val runway: NightRunway?,
+    )
+
+    /**
+     * Typical night length (hours) for the night-guard: the MEDIAN of the recent per-night sleep
+     * durations the app already banks — the daily rollup's total sleep (the longest block per LOCAL
+     * day, so naps drop out). Median rather than mean so one all-nighter, or one night the strap itself
+     * died at 0.4 h, can't shrink tonight's budget. null under [minNights] — cold-start stays honest
+     * rather than inventing a night length. Twin of the Swift `typicalSleepHours`.
+     */
+    fun typicalSleepHours(nightlyHours: List<Double>, minNights: Int = bedtimeMinNights): Double? {
+        val valid = nightlyHours.filter { it > 0 }
+        if (valid.size < minNights) return null
+        val sorted = valid.sorted()
+        val n = sorted.size
+        return if (n % 2 == 1) sorted[n / 2] else (sorted[n / 2 - 1] + sorted[n / 2]) / 2
+    }
+
+    /**
+     * Decide whether to tell the user, BEFORE they go to bed, that the strap won't survive the night.
+     *
+     * This is the alert the reference incident actually needed. That user's strap had already fired
+     * both the 24 h "recharge tonight" runtime alert AND the 15% SoC alert — the device's persisted
+     * flags confirm both — and both then LATCHED, so nothing spoke again through the final descent to
+     * the cutoff, and a night of biometrics was lost. This policy is independent of both gates: it
+     * asks a different question ("does the strap clear tonight specifically?") at a moment when the
+     * answer is still actionable, so an earlier generic warning can never suppress it.
+     *
+     * Bedtime is derived from the sleep model the app ALREADY learns (#547) — `habitualMidsleepSec`
+     * minus half the typical night — never from a fixed clock band, which would fire at the wrong hour
+     * for exactly the shift/late sleepers that learner exists to serve.
+     *
+     * @param nowSecOfDay          local time-of-day seconds in [0, 86400).
+     * @param habitualMidsleepSec  learned midsleep as local seconds-of-day; null at cold-start (< 14 nights).
+     * @param typicalSleepHours    from [typicalSleepHours]; null at cold-start.
+     * @param usableRemainingHours cutoff-aware runtime; null when there is no estimate at all.
+     * @param alerted              the PERSISTED once-per-night gate.
+     */
+    fun bedtimeAlert(
+        nowSecOfDay: Int,
+        habitualMidsleepSec: Int?,
+        typicalSleepHours: Double?,
+        usableRemainingHours: Double?,
+        charging: Boolean?,
+        alerted: Boolean,
+    ): BedtimeAlertDecision {
+        // Cold start: no learned midsleep or no duration history → there is NO honest bedtime to test
+        // against. Inventing one (a fixed 23:00) would fire at the wrong hour for the late/shift
+        // sleepers #547 exists for. Stay silent and leave the gate untouched; the 15% and critical SoC
+        // alerts remain the safety net.
+        val sleepHours = typicalSleepHours
+        if (habitualMidsleepSec == null || sleepHours == null || sleepHours <= 0 ||
+            habitualMidsleepSec !in 0 until secondsPerDay || nowSecOfDay !in 0 until secondsPerDay
+        ) {
+            return BedtimeAlertDecision(false, alerted, null)
+        }
+        // Bedtime = midsleep - half the typical night, CIRCULAR so a 03:30 midsleep on an 8 h night is
+        // a 23:30 bedtime rather than a negative one.
+        val bedtimeSec = floorMod(habitualMidsleepSec - (sleepHours * 1800).roundToInt(), secondsPerDay)
+        val hoursUntilBedtime = floorMod(bedtimeSec - nowSecOfDay, secondsPerDay) / 3600.0
+        // Outside the pre-bed window — including the moment bedtime passes, when `hoursUntilBedtime`
+        // wraps to ~24 — the gate RE-ARMS. That wrap is what makes this once-per-NIGHT rather than
+        // once-per-discharge: each evening's window is a fresh crossing, so unlike the 15%/24 h alerts
+        // this one can speak again tomorrow without needing a charge to re-arm it.
+        if (hoursUntilBedtime > bedtimeLeadHours) return BedtimeAlertDecision(false, false, null)
+        // No estimate at all (no banked SoC history yet) → nothing to judge; hold the gate.
+        val usable = usableRemainingHours ?: return BedtimeAlertDecision(false, alerted, null)
+        // The strap must survive the wait until bedtime AND the night itself, plus the margin.
+        // Anchoring to `hoursUntilBedtime` rather than a flat `sleepHours` is what keeps the whole lead
+        // window honest: firing 3 h before bed genuinely demands 3 h more runtime than firing at bed.
+        val required = hoursUntilBedtime + sleepHours + bedtimeMarginHours
+        val runway = NightRunway(hoursUntilBedtime, sleepHours, required, usable)
+        val fire = !alerted && usable < required && charging != true
+        // Charging suppression must NOT consume the gate: unplug still inside the window and the alert
+        // must still be able to fire (mirrors [runtimeAlert]'s contract).
+        return BedtimeAlertDecision(fire, if (fire) true else alerted, runway)
+    }
+
+    private const val secondsPerDay = 86_400
+
+    /** Floored modulo — correct for negative operands, unlike Kotlin's `%`. Bedtime arithmetic wraps
+     *  midnight in both directions. */
+    private fun floorMod(a: Int, n: Int): Int {
+        val r = a % n
+        return if (r < 0) r + n else r
     }
 }

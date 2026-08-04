@@ -5,8 +5,6 @@ import android.net.Uri
 import com.noop.data.ImportSummary
 import com.noop.data.MetricSeriesRow
 import com.noop.data.WhoopRepository
-import java.io.ByteArrayOutputStream
-import java.io.InputStream
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -284,17 +282,3 @@ object NutritionCsvImporter {
 
 // MARK: - Stream helper (file-private; WhoopCsvImporter's twin is not visible here)
 
-/** Read a whole stream, throwing if it exceeds [cap] bytes (memory guard). */
-private fun InputStream.readCapped(cap: Long): ByteArray {
-    val buffer = ByteArrayOutputStream(64 * 1024)
-    val chunk = ByteArray(64 * 1024)
-    var total = 0L
-    while (true) {
-        val n = read(chunk)
-        if (n < 0) break
-        total += n
-        if (total > cap) throw IllegalStateException("Input exceeds $cap bytes")
-        buffer.write(chunk, 0, n)
-    }
-    return buffer.toByteArray()
-}

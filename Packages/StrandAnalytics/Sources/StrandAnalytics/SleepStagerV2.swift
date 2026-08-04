@@ -5,7 +5,8 @@ import WhoopProtocol
 // percentile-band stager `SleepStager` (V1) after a 44-subject cross-subject benchmark; V1 stays available
 // behind the PuffinExperiment flag.
 //
-// Reimplemented clean from the contributor recipe in NoopApp/noop PR #600 (sunny-noop). We took only the
+// Reimplemented clean from @sunny-noop's contributor recipe (pre-fork PR #600 — NOT this repo's #600,
+// which is an iOS notification). We took only the
 // per-session STAGING engine, not the CLI runner the PR shipped with it. Session DETECTION (the in-bed
 // `[start, end]` spans) still comes entirely from V1 — this file only re-stages a window someone already
 // decided is sleep, so it is a true drop-in for `SleepStager.stageSession(start:end:grav:hr:rr:resp:)`:
@@ -21,7 +22,8 @@ import WhoopProtocol
 // Cole–Kripke actigraphy grid, V2 stages each 30 s epoch from:
 //   1. per-night z-scored cardiorespiratory emissions (HR / HR-variability / movement);
 //   2. a per-night DEEP gate on the 11-min HR-flatness percentile (the strongest deep-vs-light separator);
-//   3. a soft sleep-cycle prior (deep concentrated early; REM suppressed in the first ~12% then rising);
+//   3. a soft sleep-cycle prior (deep concentrated early as a fraction of the session; REM rising with that
+//      same fraction, minus a REM-latency guard that decays over the first 60 MINUTES after sleep onset);
 //   4. a peak-motion (jerk) wake gate, thresholded RELATIVE to the night's own quiescent jerk floor — so
 //      it self-calibrates to the strap's gravity-decode scale and the wearer's fit, not a fixed g;
 //   5. an RR-RSA respiration-regularity term (regular breathing → deep, irregular → REM);
@@ -175,11 +177,32 @@ public enum SleepStagerV2 {
 
     /// Transition matrix (rows = from, cols = to). Self-transitions dominate; deep↔rem rare; wake mostly
     /// to/from light. A priori, not fit.
+    ///
+    /// The AWAKE row encodes sleep-onset physiology directly: a sleeper does not enter N3 or REM straight
+    /// out of wakefulness — descent runs through N1/N2 — so wake→deep and wake→rem are ZERO rather than the
+    /// small non-zero values they used to carry, and the freed mass goes to the wake self-loop, which makes
+    /// a WASO episode span several epochs instead of flickering back to sleep after one. This row is the one
+    /// part of PR #348's DREAMT re-tune that survives measurement on a de-contaminated reference set; the
+    /// rest of that PR (its base priors, motion-gate multipliers, deep gate, awake dead-zone, emission
+    /// coefficients and the deep/rem/light transition rows) was reverted by #437 and stays reverted, having
+    /// measured neutral-to-negative here. See the header note on `viterbi` for why a zero is safe — and note
+    /// that ZERO is a strong prior rather than a prohibition: the viterbi floor turns it into ≈ -20.7 against
+    /// wake→light's ≈ -2.3, an ~18.4 log-unit penalty a sufficiently strong emission can still cross, so a
+    /// genuine sleep-onset REM period stays representable instead of structurally impossible.
+    ///
+    /// Measured on one wearer's 36 recorded nights, against the strap's own band `sleep_state` (an
+    /// independent reference the recipe cannot contaminate — 21 nights, 15 554 epochs): sleep/wake kappa
+    /// 0.105 → 0.118 and wake sensitivity 16.0 % → 17.6 %, with the healthy-stratum wake fraction essentially
+    /// unmoved (9.43 % → 9.96 %, i.e. no repeat of the #437 blow-out). Confirmed afterwards against
+    /// human-scored PSG hypnograms (PhysioNet sleep-accel, 31 subjects / 26 773 epochs, #991): 4-class kappa
+    /// 0.356 → 0.363, REM F1 0.569 → 0.575, wake sensitivity 30.42 % → 30.84 %, and the #437 stage-fraction
+    /// guard holds against truth as well. n = 1 wearer for the band figures; see `Tools/SleepBench` and the
+    /// PR for the full ablation and its limits.
     static let transition: [String: [String: Double]] = [
         "deep":  ["deep": 0.86, "rem": 0.007, "light": 0.126, "awake": 0.007],
         "rem":   ["deep": 0.005, "rem": 0.88, "light": 0.10, "awake": 0.015],
         "light": ["deep": 0.06, "rem": 0.06, "light": 0.85, "awake": 0.03],
-        "awake": ["deep": 0.01, "rem": 0.02, "light": 0.27, "awake": 0.70]]
+        "awake": ["deep": 0.0, "rem": 0.0, "light": 0.10, "awake": 0.90]]
 
     /// One 30 s epoch's recipe features. Optionals are "no measurement"; the z-score / percentile treat a
     /// missing value as the neutral centre so a sparse channel never blocks a stage.
@@ -193,6 +216,13 @@ public enum SleepStagerV2 {
         let respReg: Double?    // RSA spectral peakedness in the 0.15–0.40 Hz band (breathing regularity)
         let clock: Double       // time-of-night fraction in [0, 1]
         let jerkScale: Double   // night quiescent jerk floor (median per-second jerk over the session)
+        /// Elapsed MINUTES from the session window start to this epoch's centre — the minute-domain twin of
+        /// `clock` (#930). `features()` cannot know where sleep actually began, so it fills this relative to
+        /// the window start; `stageEpochs` re-bases it onto the sleep onset its own first pass found, and
+        /// falls back to this window-relative value when a night never sustains sleep. Only the REM-latency
+        /// guard reads it — the deep term and the REM ramp stay fractions of the session, which is what they
+        /// are (see `cyclePrior`).
+        let minutesSinceOnset: Double
     }
 
     // MARK: - Feature extraction
@@ -272,6 +302,7 @@ public enum SleepStagerV2 {
         struct Raw {
             let start: Int; let hr: Double?; let hrVar: Double?; let hrFlat11: Double?
             let jerks: [Double]; let gapSec: Int; let jerkMax: Double; let respReg: Double?; let clock: Double
+            let minutes: Double
         }
         var raws: [Raw] = []
         var allJerks: [Double] = []
@@ -310,7 +341,8 @@ public enum SleepStagerV2 {
 
             raws.append(Raw(start: e, hr: hrMean, hrVar: hrVar, hrFlat11: hrFlat11,
                             jerks: jerks, gapSec: max(1, gseq.count - 1), jerkMax: jerkMax,
-                            respReg: respReg, clock: Double(e + 15 - start) / span))
+                            respReg: respReg, clock: Double(e + 15 - start) / span,
+                            minutes: Double(e + 15 - start) / 60.0))
             e += 30
         }
 
@@ -333,7 +365,7 @@ public enum SleepStagerV2 {
             feats.append(Epoch(
                 start: r.start, hr: r.hr, hrVar: r.hrVar, hrFlat11: r.hrFlat11,
                 moveFrac: Double(moves) / Double(r.gapSec), jerkMax: r.jerkMax, respReg: r.respReg,
-                clock: r.clock, jerkScale: jerkScale))
+                clock: r.clock, jerkScale: jerkScale, minutesSinceOnset: r.minutes))
         }
         return feats
     }
@@ -380,20 +412,81 @@ public enum SleepStagerV2 {
 
     // MARK: - Recipe staging
 
+    // ── the REM-latency guard (#930) ──────────────────────────────────────────────────────────────────
+
+    /// Log-odds penalty applied to the REM emission AT sleep onset. Unchanged in magnitude from the
+    /// `c < 0.12 ? 3.0 : 0.0` step this replaced: e⁻³ ≈ 0.05 on the REM emission — strong suppression that
+    /// sufficient evidence still overcomes, never a veto. Kept at the incumbent value deliberately, because
+    /// the sleep-accel grid ({cliff, graded} × {fraction, minutes} × K ∈ 1…8 × threshold, 210 cells) showed
+    /// every cell tying on accuracy, so nothing in the data discriminates K — and the smallest correct change
+    /// is to fix the UNITS and the SHAPE without also retuning a magnitude no measurement can justify.
+    static let remLatencyPenalty = 3.0
+
+    /// Minutes over which `remLatencyPenalty` decays linearly to zero, measured from sleep ONSET.
+    /// Against PSG truth on sleep-accel (n = 31 subjects), a guard reaching 45 min costs 0.36 % of all real
+    /// REM (1 subject affected) and one reaching 90 min costs 6.85 % (15 subjects); 60 min sits inside that
+    /// band, and because the penalty is GRADED rather than a cliff it is already down to ≤ 0.75 log-odds
+    /// (×0.47, vs ×0.05 at onset) across 45–60 min, so a genuine sleep-onset REM period late in the window is
+    /// held back rather than suppressed. 60 min also stops clear of the ~70–100 min population first-REM
+    /// latency, so the ramp is fully spent before real REM is expected.
+    static let remLatencyMinutes = 60.0
+
+    /// The guard itself: `K` at (and before) sleep onset, decaying linearly to 0 at `M0` minutes after it.
+    /// Clamped to `[0, K]` so a PRE-onset epoch — negative elapsed time, and unbounded when detection places
+    /// the window start hours early (#271) — can never be penalised harder than the onset instant itself.
+    static func remLatencyGuard(_ minutesSinceOnset: Double) -> Double {
+        remLatencyPenalty * min(1.0, max(0.0, 1.0 - minutesSinceOnset / remLatencyMinutes))
+    }
+
     /// Soft sleep-cycle prior added to the log-emission: deep concentrated early (decays, never hard-wiped);
-    /// REM suppressed in the first ~12 % (REM latency) then rising toward morning.
-    static func cyclePrior(_ c: Double) -> [String: Double] {
+    /// REM suppressed around sleep onset (REM latency) then rising toward morning.
+    ///
+    /// PROVENANCE of the constants: `1.2`, `0.55` and the `1.0` REM slope are hand-picked a priori from sleep
+    /// physiology and population base rates, never fit to labels — as is every other coefficient in this file.
+    /// `remLatencyPenalty` / `remLatencyMinutes` carry their own derivations above.
+    ///
+    /// UNITS, and why they differ per term (#930). The deep term and the `1.0 * c` REM ramp take `c`, the
+    /// fraction of the session — correctly, because both describe *where in the night* you are, a quantity
+    /// that is inherently proportional. The REM-LATENCY guard takes `minutesSinceOnset` instead, because
+    /// first-REM latency is an absolute physiological interval and not a proportion of how long you slept: on
+    /// sleep-accel (n = 30 subjects with a scorable first REM period) true latency is uncorrelated with
+    /// session duration (Pearson r = −0.058, Spearman −0.076), and re-expressing latency as a fraction makes
+    /// it MORE variable, not less (CV 0.617 as a fraction vs 0.537 in minutes). The `c < 0.12` step this
+    /// replaced therefore scaled a fixed physiological interval by session length: across one WHOOP 5 user's
+    /// own recorded nights it ranged 7.4–84.5 min, an 11× spread, for the same wearer and the same physiology.
+    static func cyclePrior(_ c: Double, _ minutesSinceOnset: Double) -> [String: Double] {
         ["deep": 1.2 * max(0.0, 1.0 - c / 0.55),
-         "rem": 1.0 * c - (c < 0.12 ? 3.0 : 0.0),
+         "rem": 1.0 * c - remLatencyGuard(minutesSinceOnset),
          "light": 0.0, "awake": 0.0]
+    }
+
+    /// Sustained non-wake run, in 30 s epochs, that establishes sleep onset — 10 epochs = 5 minutes.
+    /// Measured against PSG onset on sleep-accel (n = 31 subjects): bias −3.8 min, MAE 7.4 min.
+    static let onsetSustainedEpochs = 10
+
+    /// Index of the first epoch that begins a run of `onsetSustainedEpochs` consecutive non-"awake" labels,
+    /// or nil when the hypnogram never sustains sleep that long (a nap shorter than the rule, or an all-wake
+    /// window). Runs are counted in epochs, not wall clock, so a coverage gap that drops an epoch cannot
+    /// silently satisfy the rule with less evidence.
+    static func sustainedSleepOnset(_ labels: [String]) -> Int? {
+        var run = 0
+        for i in labels.indices {
+            if labels[i] == "awake" { run = 0; continue }
+            run += 1
+            if run >= onsetSustainedEpochs { return i - onsetSustainedEpochs + 1 }
+        }
+        return nil
     }
 
     /// Viterbi most-likely path over the per-epoch log-emissions with the sticky transition matrix and a
     /// uniform start. Ties resolve to the earlier stage in `stageNames`.
     static func viterbi(_ emSeq: [[String: Double]]) -> [String] {
         if emSeq.isEmpty { return [] }
-        // Floor before ln so a zeroed transition entry (a legal hand-edit) can never hit ln(0) = -Inf
-        // and poison the lattice. Inert for the current matrix (no zero entries). Kept from #348.
+        // Floor before ln so a zeroed transition entry can never hit ln(0) = -Inf and poison the lattice.
+        // LOAD-BEARING, not defensive: the awake row carries wake→deep = wake→rem = 0.0, so this floor is
+        // the only thing between those two entries and -Inf. Deleting it does not remove dead code, it
+        // breaks the stager. Floored, a zero costs ln(1e-9) ≈ -20.7 against wake→light's ≈ -2.3. The floor
+        // arrived with #348 and survived #437; the zeros it now carries arrived later.
         let logT = transition.mapValues { row in row.mapValues { log(max($0, 1e-9)) } }
         var V = emSeq[0]   // uniform start
         var back: [[String: String]] = []
@@ -420,6 +513,15 @@ public enum SleepStagerV2 {
 
     /// Run the full recipe over a night's epochs and return one stage label per epoch (incl. "awake").
     /// All normalisation (z-scores, the HR-flatness percentile) is WITHIN the night.
+    ///
+    /// TWO PASSES (#930). The REM-latency guard is measured from sleep ONSET, and onset is itself a staging
+    /// output, so the recipe cannot know it while building the emissions. Pass 1 stages the night with the
+    /// guard DISABLED (`cyclePrior(c, .infinity)`) and reads the first sustained sleep run out of the result;
+    /// pass 2 adds the guard, re-based on that onset, and re-runs Viterbi. Only the guard differs between the
+    /// passes — every emission term, z-score and percentile is computed ONCE and reused — so the extra cost is
+    /// one Viterbi over an already-built lattice, not a second featurisation, and `stageSession` memoizes the
+    /// whole thing anyway. When no sustained run exists the origin falls back to the window start, which is
+    /// exactly the origin the shipped `c`-based guard used.
     static func stageEpochs(_ feats: [Epoch]) -> [String] {
         if feats.isEmpty { return [] }
 
@@ -464,11 +566,23 @@ public enum SleepStagerV2 {
                 "light": baseLogPrior["light"]!,
                 "awake": 1.0 * zmvv + awakeCardiac + baseLogPrior["awake"]!,
             ]
-            let pr = cyclePrior(f.clock)
+            // Guard DISABLED here (`.infinity` ⇒ `remLatencyGuard` = 0); pass 2 below adds it once onset is known.
+            let pr = cyclePrior(f.clock, .infinity)
             for s in stageNames { em[s]! += pr[s]! }
             if f.jerkMax > f.jerkScale * jerkFloorGateMult { em["awake"]! += motionGateBoost }
             if let rg = f.respReg { let z = zrg(rg); em["deep"]! += respWeight * z; em["rem"]! -= respWeight * z }
             seq.append(em)
+        }
+
+        // PASS 1 — stage without the REM-latency guard purely to locate sleep onset.
+        let provisional = viterbi(seq)
+        // Origin for the guard: the centre of the first sustained-sleep epoch, in the same window-relative
+        // minutes `features()` stamped on every epoch. No sustained run → 0.0, i.e. the window start.
+        let originMin = sustainedSleepOnset(provisional).map { feats[$0].minutesSinceOnset } ?? 0.0
+
+        // PASS 2 — apply the guard against minutes since THAT onset and re-run the lattice.
+        for i in feats.indices {
+            seq[i]["rem"]! -= remLatencyGuard(feats[i].minutesSinceOnset - originMin)
         }
         return viterbi(seq)
     }

@@ -14,7 +14,9 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -210,5 +212,29 @@ fun NoopButton(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+/**
+ * The "an export is running" row: spinner plus a short status word, shown under a button that is
+ * disabled while its work is in flight.
+ *
+ * Five call sites across Settings and Test Centre had this block copied verbatim, down to the 18.dp and
+ * the 2.dp stroke, so a change to how a busy export reads meant editing it five times and the copies
+ * could drift. The update-checker's inline spinner is deliberately NOT folded in here: it is a different
+ * size, sits inside its button rather than under it, and says "Checking…".
+ */
+@Composable
+fun NoopBusyRow() {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        CircularProgressIndicator(
+            color = Palette.accent,
+            strokeWidth = 2.dp,
+            modifier = Modifier.size(18.dp),
+        )
+        Text(uiString(R.string.l10n_settings_screen_working_13b7bfca), style = NoopType.footnote, color = Palette.textSecondary)
     }
 }

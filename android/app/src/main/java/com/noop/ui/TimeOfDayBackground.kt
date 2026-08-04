@@ -145,8 +145,8 @@ fun Modifier.timeOfDayBackground(
  *  Reduce Motion, so the whole layer is static. One slow loop (~80s) so the system has near-zero work. */
 @Composable
 private fun atmospherePhase(animated: Boolean): Float {
-    val reduced = rememberReduceMotion()
-    if (!animated || reduced) return 0f
+    val renderStill = rememberPoseStill()
+    if (!animated || renderStill) return 0f
     val transition = rememberInfiniteTransition(label = "atmosphere")
     val phase by transition.animateFloat(
         initialValue = 0f,

@@ -90,11 +90,27 @@ enum AIProvider: String, CaseIterable, Identifiable {
     /// UserDefaults key for the Custom provider's base URL (e.g. a local LLM server such as Ollama /
     /// LM Studio / llama.cpp: `http://localhost:11434/v1`). `AICoachEngine` exposes it for editing.
     static let customBaseURLKey = "ai.customBaseURL"
+    static let customAuthHeaderKey = "ai.customAuthHeader"
 
     /// The user-set Custom base URL, trimmed.
     static var customBaseURL: String {
         (UserDefaults.standard.string(forKey: customBaseURLKey) ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static var customAuthHeader: CustomAIAuthHeader {
+        let raw = UserDefaults.standard.string(forKey: customAuthHeaderKey)
+        return CustomAIAuthHeader(rawValue: raw ?? "") ?? .bearer
+    }
+
+    static func applyCustomAuthHeader(_ key: String, to request: inout URLRequest) {
+        guard !key.isEmpty else { return }
+        switch customAuthHeader {
+        case .bearer:
+            request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        case .xAPIKey:
+            request.setValue(key, forHTTPHeaderField: "x-api-key")
+        }
     }
 
     /// Build a Custom endpoint by appending `path` to the user's base URL (trailing slashes tolerated).
@@ -162,6 +178,20 @@ enum AIProvider: String, CaseIterable, Identifiable {
         case a == 192 && b == 168: return true           // 192.168.0.0/16
         case a == 169 && b == 254: return true           // 169.254.0.0/16 link-local
         default: return false
+        }
+    }
+}
+
+enum CustomAIAuthHeader: String, CaseIterable, Identifiable {
+    case bearer
+    case xAPIKey
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .bearer: return "Bearer"
+        case .xAPIKey: return "x-api-key"
         }
     }
 }

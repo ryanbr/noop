@@ -141,8 +141,14 @@ object RawSensorExport {
      * Build the last-24 h CSV for the strap source and fire a share sheet (text/csv). Runs the DB read
      * off the main thread; toasts a per-stream summary so the user sees what was captured (and that the
      * deeper 5/MG streams are empty until they've been unlocked). On-device only.
+     *
+     * [deviceId] is REQUIRED, deliberately. It used to default to the canonical "my-whoop", and the one
+     * caller took the default — so after a strap re-add this exported the legacy id's streams rather than
+     * the strap the user is actually wearing, silently, in the CSV people attach to bug reports. That is
+     * the #172/#175 defect exactly: a defaulted strap id that no caller overrides. Removing the default
+     * makes the compiler ask, which is stronger than remembering. (Ported from tanarchytan/noop e4f508f.)
      */
-    suspend fun export(context: Context, repo: WhoopRepository, deviceId: String = "my-whoop") {
+    suspend fun export(context: Context, repo: WhoopRepository, deviceId: String) {
         runCatching {
             val now = System.currentTimeMillis() / 1000
             val dir = File(context.cacheDir, "logs").apply { mkdirs() }

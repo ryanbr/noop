@@ -101,7 +101,7 @@ class HrBroadcaster(
      * ENTIRELY to the broadcast (WHOOP-first isolation: it never touches the WHOOP path). iOS gets this
      * free from CBPeripheralManager's state delegate.
      *
-     * Credit: ryanbr (NoopApp/noop#1029).
+     * Credit: ryanbr (pre-fork #1029 — that number is not this repo's).
      */
     private val bluetoothStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {

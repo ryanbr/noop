@@ -142,11 +142,11 @@ class MotionCorroboratedWakeTest {
     fun motionQuiescentPredicate() {
         val still = SleepStagerV2.Epoch(
             start = 0, hr = 58.0, hrVar = 1.0, hrFlat11 = 1.0, moveFrac = 0.0, jerkMax = 0.001,
-            respReg = null, clock = 0.5, jerkScale = 0.001)
+            respReg = null, clock = 0.5, jerkScale = 0.001, minutesSinceOnset = 120.0)
         assertTrue(SleepStagerV2.motionQuiescent(still))
         val moved = SleepStagerV2.Epoch(
             start = 0, hr = 58.0, hrVar = 1.0, hrFlat11 = 1.0, moveFrac = 0.3, jerkMax = 0.2,
-            respReg = null, clock = 0.5, jerkScale = 0.001)
+            respReg = null, clock = 0.5, jerkScale = 0.001, minutesSinceOnset = 120.0)
         assertFalse(SleepStagerV2.motionQuiescent(moved))
     }
 

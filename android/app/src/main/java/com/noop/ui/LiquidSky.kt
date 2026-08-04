@@ -257,12 +257,12 @@ private val liquidSettleColor: Color
  */
 @Composable
 fun LiquidSky(hour: Double? = null, modifier: Modifier = Modifier) {
-    val reduced = rememberReduceMotion()
+    val renderStill = rememberPoseStill()
     val settle = liquidSettleColor
     val h = hour ?: liquidLiveHour()
 
-    if (reduced) {
-        // No frame loop under Reduce Motion — pose the static picture once.
+    if (renderStill) {
+        // No frame loop under Reduce Motion or battery saver — pose the static picture once (#909).
         Canvas(modifier = modifier) { renderLiquidSky(hour = h, now = 0.0, settle = settle, animate = false) }
         return
     }

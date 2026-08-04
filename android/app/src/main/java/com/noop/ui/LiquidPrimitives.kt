@@ -77,9 +77,9 @@ fun LiquidVessel(
     animated: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
-    val reduced = rememberReduceMotion()
+    val renderStill = rememberPoseStill()
 
-    if (animated && !reduced) {
+    if (animated && !renderStill) {
         val view = LocalView.current
         // The mutable physics, remembered across recompositions so the slosh is continuous. Seeded at the
         // fill line (iOS `LiquidSim(target: value ?? 0)`); the target is re-supplied every frame in step().
@@ -153,10 +153,10 @@ fun LiquidTube(
     animated: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
-    val reduced = rememberReduceMotion()
+    val renderStill = rememberPoseStill()
     val clamped = frac.coerceIn(0.0, 1.0)
 
-    if (animated && !reduced) {
+    if (animated && !renderStill) {
         // iOS seeds the tube sim at target 0 (`LiquidSim(target: 0)`) and lets step() chase `frac`.
         val sim = remember { LiquidSim(target = 0.0) }
 
@@ -211,9 +211,9 @@ fun LiquidThread(
     animated: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
-    val reduced = rememberReduceMotion()
+    val renderStill = rememberPoseStill()
 
-    if (animated && !reduced) {
+    if (animated && !renderStill) {
         var seconds by remember { mutableDoubleStateOf(0.0) }
         LaunchedEffect(Unit) {
             var last = 0L

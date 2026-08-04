@@ -1,4 +1,5 @@
 import XCTest
+import StrandAnalytics
 @testable import Strand
 
 /// `BatteryNotifier.BatteryAlertPolicy` — the pure crossing-with-hysteresis logic behind the strap
@@ -124,5 +125,52 @@ final class BatteryAlertPolicyTests: XCTestCase {
         let fresh = Policy.evaluate(pct: 100, charging: nil, lowAlerted: false, fullAlerted: false)
         XCTAssertTrue(fresh.fireFull)
         XCTAssertFalse(fresh.clearFull)
+    }
+
+    // 8. The ESCALATION contract — the bug that cost a real night of biometrics. The 15% alert fires
+    //    once and then LATCHES (`lowAlerted` stays true until SoC recovers to `lowRearmAbove` = 25),
+    //    so nothing speaks again across the final descent. The reference device's persisted flags show
+    //    exactly that state: `behavior.batteryLowAlerted = true` while the strap ran 15% → the ~10%
+    //    cutoff in silence, ~3 h at its measured 1.65 %/h.
+    //
+    //    `BatteryEstimator.criticalAlert` carries its OWN gate (persisted under its own key,
+    //    `behavior.batteryCriticalAlerted`), so it must still fire across that same descent. This is
+    //    the cross-policy assertion the pure StrandAnalytics tests can't make — `BatteryAlertPolicy`
+    //    lives in the app target.
+    func testLatchedLowAlertCannotSuppressTheCriticalAlert() {
+        var lowAlerted = true          // already fired at 15% and latched
+        var criticalAlerted = false
+        var lowFires = 0, criticalFires = 0
+        var criticalFiredAt: Int? = nil
+        for pct in [15, 14, 13, 12, 11] {
+            let low = Policy.evaluate(pct: pct, charging: false,
+                                      lowAlerted: lowAlerted, fullAlerted: false)
+            if low.fireLow { lowFires += 1 }
+            lowAlerted = low.newLowAlerted
+
+            let crit = BatteryEstimator.criticalAlert(pct: pct, charging: false, alerted: criticalAlerted)
+            if crit.fire { criticalFires += 1; criticalFiredAt = pct }
+            criticalAlerted = crit.newAlerted
+        }
+        XCTAssertEqual(lowFires, 0, "the latched low alert stays silent — this is what lost the night")
+        XCTAssertEqual(criticalFires, 1, "the critical alert speaks anyway, exactly once")
+        XCTAssertEqual(criticalFiredAt, BatteryEstimator.criticalSocPct)
+    }
+
+    // 9. The two gates re-arm on the SAME genuine recovery (25%), so one charge re-arms both and the
+    //    next discharge cycle gets the full 15% → critical escalation again.
+    func testBothGatesRearmTogetherOnCharge() {
+        let low = Policy.evaluate(pct: 25, charging: nil, lowAlerted: true, fullAlerted: false)
+        XCTAssertFalse(low.newLowAlerted)
+        XCTAssertFalse(BatteryEstimator.criticalAlert(pct: 25, charging: nil, alerted: true).newAlerted)
+        XCTAssertEqual(BatteryEstimator.criticalRearmAbovePct, Policy.lowRearmAbove)
+    }
+
+    // 10. The critical line sits strictly inside the band the hardware can actually report: below the
+    //     15% alert (a genuinely separate crossing) but above the ~10% cutoff where the strap goes
+    //     dark. A regression that drops it to a conventional 5% would make it unreachable.
+    func testCriticalThresholdSitsBetweenTheLowAlertAndTheHardwareCutoff() {
+        XCTAssertLessThan(BatteryEstimator.criticalSocPct, Policy.lowThreshold)
+        XCTAssertGreaterThan(Double(BatteryEstimator.criticalSocPct), BatteryEstimator.cutoffSocPct)
     }
 }

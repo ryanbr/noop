@@ -7,6 +7,7 @@
 //  one shared tilt source. Colours come from StrandDesign tokens at the call site.
 
 import SwiftUI
+import StrandDesign   // NoopMotionState — the shared quiet-motion gate
 
 // MARK: - Renderers (pure GraphicsContext drawing)
 
@@ -221,6 +222,7 @@ struct LiquidVessel: View {
     var animated: Bool = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
     @State private var sim: LiquidSim
     @State private var splashes = 0
 
@@ -232,7 +234,7 @@ struct LiquidVessel: View {
     }
 
     var body: some View {
-        if animated && !reduceMotion { gauge } else { staticGauge }
+        if animated && !motion.poseStill(reduceMotion) { gauge } else { staticGauge }
     }
 
     private var gauge: some View {
@@ -275,10 +277,11 @@ struct LiquidTube: View {
     var animated: Bool = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
     @State private var sim = LiquidSim(target: 0)
 
     var body: some View {
-        if animated && !reduceMotion { liveTube } else { staticTube }
+        if animated && !motion.poseStill(reduceMotion) { liveTube } else { staticTube }
     }
 
     private var liveTube: some View {
@@ -311,9 +314,10 @@ struct LiquidThread: View {
     var animated: Bool = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
 
     var body: some View {
-        if animated && !reduceMotion { liveThread } else { staticThread }
+        if animated && !motion.poseStill(reduceMotion) { liveThread } else { staticThread }
     }
 
     private var liveThread: some View {

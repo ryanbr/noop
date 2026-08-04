@@ -911,6 +911,24 @@ final class Repository: ObservableObject {
         return await unionDailyMetrics(store: store, from: fromDay, to: toDay)
     }
 
+    /// #856: the same dedup over an EXPLICIT id list, so a workout's zone minutes bin the rows its own
+    /// recording strap banked rather than the day-level active ∪ canonical. Order is precedence.
+    func hrSamples(deviceIds: [String], from: Int, to: Int, limit: Int = 8000) async -> [HRSample] {
+        guard let store = await ensureStore(), !deviceIds.isEmpty else { return [] }
+        guard deviceIds.count > 1 else {
+            return (try? await store.hrSamples(deviceId: deviceIds[0], from: from, to: to,
+                                               limit: limit)) ?? []
+        }
+        var byTs: [Int: HRSample] = [:]
+        for id in deviceIds {
+            for s in (try? await store.hrSamples(deviceId: id, from: from, to: to,
+                                                 limit: limit)) ?? [] where byTs[s.ts] == nil {
+                byTs[s.ts] = s
+            }
+        }
+        return byTs.values.sorted { $0.ts < $1.ts }
+    }
+
     func hrSamples(from: Int, to: Int, limit: Int = 8000) async -> [HRSample] {
         guard let store = await ensureStore() else { return [] }
         // UNION the active strap + canonical so the HR trend renders whether the landed day's raw sits under
@@ -939,6 +957,24 @@ final class Repository: ObservableObject {
 
     /// Downsampled HR (mean bpm per `bucketSeconds`) for the strap, for a Today/24h trend chart.
     /// Aggregated in SQL so a full day never loads the raw ~1 Hz rows.
+    /// #856: the same union, over an EXPLICIT id list. Lets a workout read its own recording strap
+    /// instead of the day-level active ∪ canonical. Order is precedence: earlier ids win per bucket.
+    func hrBuckets(deviceIds: [String], from: Int, to: Int, bucketSeconds: Int = 300) async -> [HRBucket] {
+        guard let store = await ensureStore(), !deviceIds.isEmpty else { return [] }
+        guard deviceIds.count > 1 else {
+            return (try? await store.hrBuckets(deviceId: deviceIds[0], from: from, to: to,
+                                               bucketSeconds: bucketSeconds)) ?? []
+        }
+        var byStart: [Int: HRBucket] = [:]
+        for id in deviceIds {
+            for b in (try? await store.hrBuckets(deviceId: id, from: from, to: to,
+                                                 bucketSeconds: bucketSeconds)) ?? [] where byStart[b.ts] == nil {
+                byStart[b.ts] = b
+            }
+        }
+        return byStart.values.sorted { $0.ts < $1.ts }
+    }
+
     func hrBuckets(from: Int, to: Int, bucketSeconds: Int = 300) async -> [HRBucket] {
         guard let store = await ensureStore() else { return [] }
         // UNION the active strap + canonical for the trend chart. Per bucket-start the active strap wins; a
@@ -1328,10 +1364,12 @@ final class Repository: ObservableObject {
         let steps = useMotionAwareWake
             ? ((try? await store.stepSamples(deviceId: deviceId, from: lo, to: hi, limit: 200_000)) ?? [])
             : []
-        // Opt-in experimental staging (Settings → Experimental · Sleep staging): when the user has flipped
-        // the V2 flag on, re-stage with the cardiorespiratory recipe `SleepStagerV2`; otherwise the default
-        // V1 `SleepStager`. Read once here off the actor; the switch is purely which engine runs over the
-        // already-detected window , V1 stays the default and is untouched. (V7 Pillar 3b)
+        // Which staging engine re-stages this window (Settings → Experimental · Sleep staging). The flag is
+        // **default ON** (#277 promoted V2 over V1; #351 extended it to every strap family), so unless the
+        // user has explicitly turned it OFF this re-stages with the cardiorespiratory recipe `SleepStagerV2`;
+        // turning it off falls back to V1 `SleepStager`. Read once here off the actor; the switch is purely
+        // which engine runs over the already-detected window — detection is identical either way.
+        // (V7 Pillar 3b)
         let useV2 = PuffinExperiment.experimentalSleepV2Enabled
         let segs = await Task.detached(priority: .utility) {
             let staged = useV2
@@ -2223,16 +2261,19 @@ final class Repository: ObservableObject {
                     // row's `source` IS its computed strap id ("<base>-noop"), so a bout auto-detected on a 2nd
                     // WHOOP reads "<base>" instead of the active strap's empty window. Resolved on the main actor;
                     // only the resulting Sendable String crosses into the task.
-                    let hrDeviceId = Self.workoutHrDeviceId(source: rows[idx].source, activeStrapId: deviceId)
-                    group.addTask { [hrDeviceId] in
+                    let hrIds = Self.workoutHrDeviceIds(source: rows[idx].source, activeStrapId: deviceId,
+                                                        importedIds: importedReadIds)
+                    group.addTask { [hrIds] in
                         // #836: aggregate in SQLite over the WHOLE window instead of reducing up to 8000
                         // materialised rows. The old read capped at 8000, so a workout longer than ~2h13m
                         // at 1 Hz reported the mean of its FIRST 8000 samples as the session average — wrong
                         // on its own terms, and divergent from Kotlin, which aggregates the lot. This also
                         // makes the common path (no strain fill) read no rows at all, which is strictly
                         // better for the #833 freeze this function exists to avoid.
-                        guard let stats = try? await store.hrWindowStats(deviceId: hrDeviceId,
-                                                                         from: startTs, to: endTs),
+                        guard let stats = try? await store.hrWindowStats(
+                                  primaryId: hrIds[0],
+                                  secondaryId: hrIds.count > 1 ? hrIds[1] : hrIds[0],
+                                  from: startTs, to: endTs),
                               stats.n >= minSamples,
                               let mean = stats.avg, let peak = stats.max else { return nil }
                         let avg = Int(mean.rounded())
@@ -2243,7 +2284,7 @@ final class Repository: ObservableObject {
                         // cap stays here: it bounds the strain window, not the average. (Kotlin does the same.)
                         let strain: Double?
                         if wantStrain, let p = strainProfile {
-                            let samples = (try? await store.hrSamples(deviceId: hrDeviceId,
+                            let samples = (try? await store.hrSamples(deviceId: hrIds[0],
                                                                       from: startTs, to: endTs,
                                                                       limit: 8000)) ?? []
                             strain = StrainScorer.strain(samples, maxHR: p.hrMax, sex: p.sex)
@@ -2278,18 +2319,30 @@ final class Repository: ObservableObject {
         }
     }
 
-    /// #510 (Kotlin twin: `WhoopRepository.workoutHrDeviceId`). The device id whose `hrSample` rows back a
+    /// #510 (Kotlin twin: `WhoopRepository.workoutHrDeviceIds`). The device ids whose `hrSample` rows back a
     /// workout's Avg HR / Effort reconcile. A DETECTED row's own `source` IS its computed strap id
     /// ("<base>-noop"), so strip the suffix to read HR under the raw "<base>" — a bout auto-detected on a
     /// SECOND WHOOP no longer reads the active strap's empty window (which blanked its reconcile). MANUAL and
     /// IMPORTED rows carry no strap id in `source`, so they reconcile against the active strap [activeStrapId]
     /// as before; on a single-device install a detected "<base>-noop" strips to the active id, so the read is
-    /// byte-identical. (The Kotlin twin also keys MANUAL rows on their stored deviceId; the Swift read-model
-    /// `WorkoutRow` carries no deviceId, so a manual session created on a NON-active strap reconciles here
-    /// against the active strap instead — a minor, display-only divergence, never persisted.)
-    nonisolated static func workoutHrDeviceId(source: String, activeStrapId: String) -> String {
-        guard WorkoutSource.classify(source) == .detected else { return activeStrapId }
-        return source.hasSuffix("-noop") ? String(source.dropLast(5)) : source
+    /// byte-identical. (#836: the Kotlin twin used to key MANUAL rows on their stored deviceId instead —
+    /// a minor, display-only divergence from this file — but now reads the same active union Swift always
+    /// has, so a manual session recorded on a re-added/second strap reconciles correctly on both platforms.)
+    /// #856: the ids whose HR backs a workout's chart, zones and Avg HR, in read precedence.
+    ///
+    /// DETECTED rows return exactly ONE id — the strap that recorded the bout. Unioning here would mix
+    /// in HR from a strap that never recorded the session, which is what #510 fixed.
+    ///
+    /// MANUAL / IMPORTED rows carry no strap of their own, so they reconcile against "the worn strap",
+    /// which after a re-add may bank under the canonical id rather than the active one. Those get the
+    /// #814 read-spine union, active first so it wins per timestamp.
+    ///
+    /// At most two ids either way (`importedReadIds` is 1 or 2 by construction), and a single-WHOOP
+    /// install collapses to one in both branches — so every existing number is unchanged.
+    nonisolated static func workoutHrDeviceIds(source: String, activeStrapId: String,
+                                               importedIds: [String]) -> [String] {
+        guard WorkoutSource.classify(source) == .detected else { return importedIds }
+        return [source.hasSuffix("-noop") ? String(source.dropLast(5)) : source]
     }
 
     // MARK: - Workout editing (manual add/edit · relabel · dismiss · delete)
@@ -2568,11 +2621,19 @@ final class Repository: ObservableObject {
     /// Downsampled HR over a workout window for the detail HR-curve. A short session wants a finer
     /// bucket than the Today 24h chart (300 s would flatten a 30-min run to ~6 points), so the bucket
     /// scales with duration: ~120 buckets across the window, floored at 15 s and capped at 300 s.
-    func workoutHrBuckets(from: Int, to: Int) async -> [HRBucket] {
+    /// #856: reads the ids `workoutHrDeviceIds` resolves for this row, not the day-level union. A bout
+    /// detected on a SECOND WHOOP is charted from the strap that recorded it; previously this delegated
+    /// to `hrBuckets(from:to:)`, which unions active + canonical — neither of which is that strap — so
+    /// the curve and the Avg HR on the same card could describe different straps entirely.
+    /// `source` defaults to "" (⇒ the imported/manual branch, the union) so callers without a row keep
+    /// today's behaviour.
+    func workoutHrBuckets(from: Int, to: Int, source: String = "") async -> [HRBucket] {
         guard to > from else { return [] }
         let span = to - from
         let bucket = max(15, min(300, span / 120))
-        return await hrBuckets(from: from, to: to, bucketSeconds: bucket)
+        let ids = Self.workoutHrDeviceIds(source: source, activeStrapId: deviceId,
+                                          importedIds: importedReadIds)
+        return await hrBuckets(deviceIds: ids, from: from, to: to, bucketSeconds: bucket)
     }
 
     /// Raw HR samples binned into per-zone MINUTES for a workout window, using the age-derived
@@ -2581,9 +2642,15 @@ final class Repository: ObservableObject {
     /// `zonesJSON` still gets a real time-in-zone split. Returns nil when the window carries no HR (so
     /// the view shows nothing rather than five empty bars). `age <= 0` falls back to a 30 y default ,
     /// the zones are approximate either way and clearly labelled as such in the UI.
-    func workoutZoneMinutes(from: Int, to: Int, age: Int) async -> [Double]? {
+    /// #856: bins the same rows the chart plots and the Avg HR aggregates. Previously this read the
+    /// day-level union, so a bout detected on a second WHOOP had its zones computed from a strap that
+    /// never recorded it. `source` defaults to "" (⇒ the imported branch, the union) so a caller
+    /// without a row keeps today's behaviour.
+    func workoutZoneMinutes(from: Int, to: Int, age: Int, source: String = "") async -> [Double]? {
         guard to > from else { return nil }
-        let samples = await hrSamples(from: from, to: to)
+        let ids = Self.workoutHrDeviceIds(source: source, activeStrapId: deviceId,
+                                          importedIds: importedReadIds)
+        let samples = await hrSamples(deviceIds: ids, from: from, to: to)
         guard !samples.isEmpty else { return nil }
         let zoneSet = HRZones.zones(age: age > 0 ? Double(age) : 30)
         let tiz = HRZones.timeInZone(samples, zoneSet: zoneSet)
@@ -2595,11 +2662,17 @@ final class Repository: ObservableObject {
     /// post-workout minutes. This is a narrow read (at most ~10 minutes), not a whole-workout scan, and the
     /// pure engine owns every eligibility/coverage guard. Missing post-workout HR therefore returns nil
     /// instead of fabricating a recovery value. Kotlin twin: `AppViewModel.workoutHeartRateRecovery`.
-    func workoutHeartRateRecovery(from: Int, to: Int, maxHR: Double) async -> HeartRateRecovery.Result? {
+    /// #856: reads the ids this row resolves to, like the chart, zones and Avg HR. The recovery window
+    /// extends PAST the bout, but the strap that recorded it is still the one on the wrist a few
+    /// minutes later — so a detected bout reads its own strap here too rather than the day union.
+    func workoutHeartRateRecovery(from: Int, to: Int, maxHR: Double,
+                                  source: String = "") async -> HeartRateRecovery.Result? {
         guard to > from, maxHR > 0 else { return nil }
         let readFrom = max(from, to - HeartRateRecovery.eligibilityLookbackSeconds)
         let readTo = to + 5 * 60 + HeartRateRecovery.measurementToleranceSeconds
-        let samples = await hrSamples(from: readFrom, to: readTo, limit: 2_000)
+        let ids = Self.workoutHrDeviceIds(source: source, activeStrapId: deviceId,
+                                          importedIds: importedReadIds)
+        let samples = await hrSamples(deviceIds: ids, from: readFrom, to: readTo, limit: 2_000)
         return HeartRateRecovery.calculate(samples: samples, workoutStart: from, workoutEnd: to,
                                            maxHR: maxHR)
     }

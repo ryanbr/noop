@@ -48,6 +48,14 @@ jobs:
           - **iOS** — \`NOOP-ios-unsigned-v${VER}.ipa\` — sideload via **AltStore / Sideloadly** (re-signs on-device); embedded watch app stripped, widget extension retained for Home/Lock-Screen widgets and Live Activities.
 
           Base app version ${VER} · built ${DATE} · \`${SHA}\`."
+          # Belt-and-braces: a rolling tag is deleted with --cleanup-tag and recreated seconds later, and
+          # that recreate has come back as a DRAFT — the 9.2.1 staging build did, and a draft release does
+          # not create its tag, so the assets were unreachable and the `testing-latest` URL 404'd until
+          # someone noticed. Whatever the cause (the tag delete is not instant on GitHub's side), asserting
+          # the published state costs one idempotent call and cannot make things worse.
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease
+          DRAFT=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft -q .isDraft)
+          [ "$DRAFT" = "false" ] || { echo "::error::$TAG is still a draft — testers cannot download it."; exit 1; }
 
   android:
     needs: meta
@@ -146,7 +154,7 @@ jobs:
           -derivedDataPath build/dd
           CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
           build
-      - name: Package unsigned .ipa (strip embedded watch app, retain widget extension) + attach
+      - name: Package sideload .ipa (strip watch, preserve app/widget capabilities) + attach
         env:
           GH_TOKEN: ${{ github.token }}
           VER: ${{ needs.meta.outputs.ver }}
@@ -160,6 +168,9 @@ jobs:
           test -d "$APP/PlugIns/NOOPWidgets.appex" || {
             echo "NOOPWidgets.appex missing from iOS build"; exit 1;
           }
+          # Preserve the requested App Group in a replaceable ad-hoc signature so the sideloader
+          # provisions the shared container instead of treating both executables as entitlement-free.
+          Tools/prepare-ios-sideload-app.sh "$APP"
           rm -rf Payload && mkdir Payload && cp -R "$APP" Payload/
           zip -qr "NOOP-ios-unsigned-v${VER}.ipa" Payload
           gh release upload "${{ needs.meta.outputs.tag }}" "NOOP-ios-unsigned-v${VER}.ipa" --repo "$GITHUB_REPOSITORY" --clobber

@@ -15,6 +15,19 @@ struct NotificationSettingsView: View {
             VStack(alignment: .leading, spacing: NoopMetrics.sectionSpacing) {
                 masterCard
                     .staggeredAppear(index: 0)
+                // #926: on a 5/MG the buzz payload is a hardcoded 12-byte literal whose byte[11]
+                // (overallLoop) is 0, so the caller's repeat count never reaches the wire — every
+                // BuzzPattern produces the same buzz. The picker still offers all four because the choice
+                // is stored per app and DOES apply to a WHOOP 4.0, so hiding it would lose a real setting.
+                // Say so instead, the way SmartAlarmView handles its own 5/MG-unconfirmed case, rather
+                // than leaving a control that silently does nothing.
+                if model.whoop5Detected {
+                    Text("Every pattern buzzes the same on a WHOOP 5/MG — the repeat count isn't sent to that strap. Your choice is saved and applies to a WHOOP 4.0.")
+                        .font(StrandFont.caption)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .staggeredAppear(index: 0)
+                }
                 if store.activeCategories.isEmpty {
                     emptyAppsCard
                         .staggeredAppear(index: 1)

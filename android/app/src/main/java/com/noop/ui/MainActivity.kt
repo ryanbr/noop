@@ -181,8 +181,9 @@ object NoopPrefs {
 
     /** "Overnight only" refinement of Continuous HRV capture (#927): when on (with [KEY_CONTINUOUS_HRV]),
      *  the dense realtime stream is armed only inside the nightly quiet-hours window (22:00 to 07:00 by
-     *  default, wrap-aware, local wall time) instead of 24/7, roughly halving the battery cost. Default
-     *  OFF, so existing Continuous HRV users keep the always-on behaviour with no migration. Read by
+     *  default, wrap-aware, local wall time) instead of 24/7, roughly halving the battery cost. Defaults
+     *  ON for fresh installs and OFF for anyone who has already used Continuous HRV (#1008), so existing
+     *  users keep the always-on behaviour with no migration. Read by
      *  [com.noop.ble.WhoopBleClient] at every arm site (re-derived at arm time, never cached). */
     const val KEY_CONTINUOUS_HRV_OVERNIGHT = "noop.continuousHrvOvernight"
 
@@ -213,14 +214,33 @@ object NoopPrefs {
     const val KEY_ANALYZE_WATERMARK = "noop.analyzeWatermark"
 
     /** "Power saving" (#477): when on, NOOP stretches its periodic strap-sync cadence (15 → 45 min) while
-     *  the phone is discharging at/below [KEY_POWER_SAVING_BATTERY_PCT] OR the OS Battery Saver is on.
+     *  the STRAP is discharging at/below [KEY_POWER_SAVING_BATTERY_PCT].
+     *
+     *  This doc used to say "the phone is discharging … OR the OS Battery Saver is on". Both were wrong:
+     *  `WhoopBleClient.nextBackfillDelayMs` reads `batteryPctAndCharging()`, which is the connected
+     *  STRAP's battery, and nothing on that path touches PowerManager. The intent is deliberate and
+     *  documented at that function — the levers reduce what the STRAP transmits, so they extend the
+     *  strap's life — but the description here promised a phone-battery behaviour that does not exist,
+     *  which is exactly what a triager reaches for on a phone-drain report like #1005.
+     *
      *  Benign — the strap banks to flash meanwhile, so sync just batches; no data loss, no link risk.
      *  Default OFF. Drives [com.noop.ble.WhoopBleClient.setLowBatteryOffloadThrottle] via [AppViewModel]. */
     const val KEY_POWER_SAVING = "noop.powerSaving"
     /** Battery-% threshold for [KEY_POWER_SAVING] (10/15/20/25/30). Default 20. */
     const val KEY_POWER_SAVING_BATTERY_PCT = "noop.powerSavingBatteryPct"
-    /** "Pause HRV capture in Battery Saver" (#477): when on, NOOP releases the held-open background
-     *  continuous-HRV stream while the OS Battery Saver is on (a Live screen still arms it on demand).
+    /** "Pause HRV capture when the strap is low" (#477): when on, NOOP releases the held-open background
+     *  continuous-HRV stream while the STRAP is discharging at/below [KEY_POWER_SAVING_BATTERY_PCT]
+     *  (a Live screen still arms it on demand).
+     *
+     *  Named "in Battery Saver" here and described as keying on the OS Battery Saver, which it does not:
+     *  `reconcileRealtime` gates on `idleThrottleActive(strap battery, …)`. Same correction as
+     *  [KEY_POWER_SAVING] above.
+     *
+     *  The SHIPPED COPY was always right — `power_saving_hrv_pause_desc` says "while your strap's battery
+     *  is low", `power_saving_kick_in` reads "Kick in at (strap battery)", and the label is just "Pause
+     *  HRV capture" with no mention of Battery Saver. So no user was ever misled; the wrong description
+     *  lived only here, where a maintainer triaging a battery report would read it. Which is what
+     *  happened on #1005.
      *  A sub-option of [KEY_POWER_SAVING] — only effective while the master is on. Default ON (so enabling
      *  Power saving pauses capture by default; the user can turn it off). Drives
      *  [com.noop.ble.WhoopBleClient.setPauseCaptureOnPowerSave] via [AppViewModel]. */
@@ -315,10 +335,70 @@ object NoopPrefs {
         of(context).edit().putBoolean(KEY_CONTINUOUS_HRV, enabled).apply()
     }
 
-    /** Whether Continuous HRV capture arms the stream only inside the nightly window (#927). Default
-     *  false = always-on, the pre-#927 behaviour. */
+    /**
+     * Whether Continuous HRV capture arms the stream only inside the nightly window (#927).
+     *
+     * Defaults to ON for anyone who has never touched Continuous HRV, and to OFF for anyone who has
+     * (#1008). WHOOP publishes no daytime HRV figure at all — its reading is an overnight one — so a
+     * 24/7 stream has no official-app analogue, and the setting's own copy says overnight-only roughly
+     * halves the battery cost. Making the cheaper, WHOOP-comparable behaviour the one you get by
+     * default is the point; the expensive one stays a deliberate choice.
+     *
+     * The unset case is resolved from whether [KEY_CONTINUOUS_HRV] exists rather than by writing a
+     * migration, because the ONLY thing that must not happen is silently narrowing capture for someone
+     * already relying on it. Presence of that key means the user has been through this screen and
+     * experienced always-on; absence means a fresh install, which gets the new default. A user who
+     * toggled the base setting on and back off keeps always-on too — conservative on purpose, since
+     * they have seen the old behaviour.
+     */
     fun continuousHrvOvernight(context: Context): Boolean =
-        of(context).getBoolean(KEY_CONTINUOUS_HRV_OVERNIGHT, false)
+        of(context).getBoolean(KEY_CONTINUOUS_HRV_OVERNIGHT, true)
+
+    /**
+     * One-time migration for the #1008 default flip. Called once at process start, BEFORE anything reads
+     * the setting.
+     *
+     * The default moved from OFF to ON, so an install that predates the change has to be pinned to OFF
+     * explicitly or it would be silently narrowed to overnight-only capture — removing daytime data the
+     * user opted in for. "Predates the change" is read as "has ever toggled Continuous HRV", i.e. the
+     * base key exists.
+     *
+     * Deciding this at READ time instead does not work, and the way it fails is worth recording: the
+     * discriminator would be the base key, which the user's own opt-in creates — so a fresh install
+     * would default to ON, then flip to OFF the moment they enabled Continuous HRV, which is the exact
+     * opposite of the intent. The decision has to be pinned before the user can touch either setting.
+     *
+     * Idempotent: writes only when the overnight key is absent and the base key is present, so it is a
+     * no-op on every launch after the first and on every fresh install.
+     */
+    fun migrateContinuousHrvOvernightDefault(context: Context) {
+        val prefs = of(context)
+        if (shouldPinLegacyOvernightDefault(
+                hasOvernightChoice = prefs.contains(KEY_CONTINUOUS_HRV_OVERNIGHT),
+                hasUsedContinuousHrv = prefs.contains(KEY_CONTINUOUS_HRV),
+            )
+        ) {
+            prefs.edit().putBoolean(KEY_CONTINUOUS_HRV_OVERNIGHT, false).apply()
+        }
+    }
+
+    /**
+     * The migration's decision, lifted out so it is testable without a `Context`. Twin of the Swift
+     * `PuffinExperiment.shouldPinLegacyOvernightDefault`.
+     *
+     * Pin the OLD default only for an install that has used Continuous HRV and never chose an overnight
+     * setting. Everything else is left alone: an explicit choice is already recorded, or the install is
+     * fresh and should take the new default.
+     *
+     * Note what this is NOT keyed on: the READ. An earlier attempt resolved the default at read time
+     * from [hasUsedContinuousHrv], which the user's own opt-in creates — so a fresh install read ON and
+     * then flipped to OFF the moment Continuous HRV was enabled. Running the decision once at launch is
+     * what makes the answer stable, because it is taken before the user can change the inputs.
+     */
+    internal fun shouldPinLegacyOvernightDefault(
+        hasOvernightChoice: Boolean,
+        hasUsedContinuousHrv: Boolean,
+    ): Boolean = !hasOvernightChoice && hasUsedContinuousHrv
 
     fun setContinuousHrvOvernight(context: Context, enabled: Boolean) {
         of(context).edit().putBoolean(KEY_CONTINUOUS_HRV_OVERNIGHT, enabled).apply()
@@ -719,6 +799,30 @@ object NoopPrefs {
 
     fun setBatteryRuntimeAlerted(context: Context, alerted: Boolean) {
         of(context).edit().putBoolean(KEY_BATTERY_RUNTIME_ALERTED, alerted).apply()
+    }
+
+    /** Persisted gates behind the two ESCALATION alerts. Deliberately separate keys from the low /
+     *  runtime flags above: the bug those alerts fix IS the latch, so a `KEY_BATTERY_LOW_ALERTED` or
+     *  `KEY_BATTERY_RUNTIME_ALERTED` that is already true must never be able to silence them.
+     *  - CRITICAL (BatteryEstimator.criticalAlert): once per discharge cycle, re-arms above 25%.
+     *  - BEDTIME (BatteryEstimator.bedtimeAlert): once per NIGHT — it re-arms whenever the pre-bed
+     *    window is not open, so it speaks again tomorrow without needing a charge.
+     *  iOS/macOS twin keys: behavior.batteryCriticalAlerted / behavior.batteryBedtimeAlerted. */
+    const val KEY_BATTERY_CRITICAL_ALERTED = "noop.batteryCriticalAlerted"
+    const val KEY_BATTERY_BEDTIME_ALERTED = "noop.batteryBedtimeAlerted"
+
+    fun batteryCriticalAlerted(context: Context): Boolean =
+        of(context).getBoolean(KEY_BATTERY_CRITICAL_ALERTED, false)
+
+    fun setBatteryCriticalAlerted(context: Context, alerted: Boolean) {
+        of(context).edit().putBoolean(KEY_BATTERY_CRITICAL_ALERTED, alerted).apply()
+    }
+
+    fun batteryBedtimeAlerted(context: Context): Boolean =
+        of(context).getBoolean(KEY_BATTERY_BEDTIME_ALERTED, false)
+
+    fun setBatteryBedtimeAlerted(context: Context, alerted: Boolean) {
+        of(context).edit().putBoolean(KEY_BATTERY_BEDTIME_ALERTED, alerted).apply()
     }
 
     /** Scheduled report notifications (#517), opt-in, default OFF, no AI. Two independent toggles:

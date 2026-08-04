@@ -161,6 +161,18 @@ func registerPostHooks() {
         guard 7 <= payEnd else { return }
         let pay = Array(frame[7..<payEnd])
         fb.region(7, length, "response payload", "cmd")
+        // The origin-seq echo and the result code (#894). Kotlin has published both on this family since
+        // #791 and on 5/MG since the port; Swift published neither, so an Apple strap log could not say
+        // whether a command the app sent succeeded — and every probe that needed the answer re-derived
+        // this byte privately (FeatureFlagProbe.resultLabel, DeviceConfigReadProbe, BodyLocationProbe).
+        //
+        // Read from `pay`, not the raw frame, so a response too short to carry them decodes nothing
+        // rather than reporting CRC32 bytes as a result code. Same offsets and the same
+        // `"NAME(raw)"` rendering as the Kotlin twin, so the two platforms' logs are comparable.
+        if pay.count >= 1 { fb.add(7, 1, "resp_seq", "cmd", value: .int(Int(pay[0]))) }
+        if pay.count >= 2 {
+            fb.add(8, 1, "result", "cmd", value: .string(schema.enumName("CommandResult", Int(pay[1]))))
+        }
         let cmd = frame.count > 6 ? Int(frame[6]) : nil
         let name = cmd.flatMap { schema.enums["CommandNumber"]?[String($0)] }
         switch name {

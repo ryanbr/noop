@@ -268,6 +268,26 @@ final class WearableExportImporterTests: XCTestCase {
         XCTAssertEqual(d.totalSleepMin!, 420, accuracy: 1e-6)
     }
 
+    func testOuraRealSchemaCSVFragmentBeforeMainSessionMainWins() {
+        // The REAL per-category `sleep.csv` (#862) can carry MULTIPLE rows for one day too (a nap/fragment
+        // alongside the real night), each with its own `type`. The fragment is listed FIRST here; the
+        // long_sleep main session must still win the day's rollup, supplying every field as a unit (no
+        // mixing the fragment's totalSleepMin with the main session's restingHr).
+        let sleepCsv = """
+        id;bedtime_end;bedtime_start;day;lowest_heart_rate;total_sleep_duration;type
+        a1;2026-06-01T13:20:00+00:00;2026-06-01T13:00:00+00:00;2026-06-01;90;900;short_sleep
+        a2;2026-06-01T06:30:00+00:00;2026-05-31T23:15:00+00:00;2026-06-01;48;25200;long_sleep
+        """
+        let files = ["sleep.csv": bytes(sleepCsv)]
+        XCTAssertEqual(WearableExportImporter.detectBrand(files), .oura)
+
+        let r = WearableExportImporter.parse(brand: .oura, files: files)
+        XCTAssertEqual(r.sleeps.count, 2, "both sessions still appear in the sleep list")
+        let d = r.days.first { $0.day == "2026-06-01" }!
+        XCTAssertEqual(d.totalSleepMin!, 420, accuracy: 1e-6, "the main 420-min night, not the 15-min fragment")
+        XCTAssertEqual(d.restingHr, 48, "the main night's resting HR, not the fragment's 90")
+    }
+
     func testOuraNestedSpo2AndVo2FromJSON() {
         // The JSON variant carries SpO2 as a NESTED object spo2_percentage:{average} (not a flat number)
         // and vo2max under `vo2_max`. Both must be picked up, plus a `deleted` sleep skipped (#862).

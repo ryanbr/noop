@@ -48,6 +48,15 @@ enum OuraExportParser {
     static func parse(_ files: [String: Data]) -> (days: [WearableDailyRow], sleeps: [WearableSleepSession]) {
         var byDay: [String: WearableDailyRow] = [:]
         var sleeps: [WearableSleepSession] = []
+        // The (rank, totalSleepMin) of the session CURRENTLY backing each day's sleep rollup. A day can
+        // carry MULTIPLE sessions (a nap/fragment alongside the real night), and first-write-wins let
+        // whichever session the export happened to list first claim every daily field — worse, since the
+        // old fold was per-FIELD, it could MIX a fragment's totalSleepMin with the real night's restingHr.
+        // Select the day's MAIN session instead, same rule as OuraApiParser's dayWinner: Oura's primary
+        // sleep `type == "long_sleep"` always outranks any other type; among same-rank candidates, the
+        // longer total_sleep_duration wins. The winner supplies every rollup field as a UNIT — fields are
+        // never mixed across two different sessions on the same day.
+        var sleepDayWinner: [String: (rank: Int, totalMin: Double)] = [:]
 
         func day(_ key: String) -> WearableDailyRow { byDay[key] ?? WearableDailyRow(day: key) }
 
@@ -60,18 +69,27 @@ enum OuraExportParser {
                 sleeps.append(session)
                 // Fold the night onto its calendar day (Oura's "day" = the wake day).
                 let key = WearableJSON.str(s, "day") ?? WearableExportImporter.dayString(session.end)
-                var row = day(key)
-                row.totalSleepMin = row.totalSleepMin ?? session.totalSleepMin
-                row.deepMin = row.deepMin ?? session.deepMin
-                row.lightMin = row.lightMin ?? session.lightMin
-                row.remMin = row.remMin ?? session.remMin
-                row.awakeMin = row.awakeMin ?? session.awakeMin
-                row.efficiencyPct = row.efficiencyPct ?? session.efficiencyPct
-                row.avgHrvMs = row.avgHrvMs ?? session.avgHrvMs
-                row.respRateBpm = row.respRateBpm ?? session.respRateBpm   // night resp → day rollup (#17)
-                // Oura's lowest sleeping HR is the closest thing to a resting HR when readiness lacks one.
-                if row.restingHr == nil { row.restingHr = session.lowestHr }
-                byDay[key] = row
+                let isLongSleep = WearableJSON.str(s, "type")?.lowercased() == "long_sleep"
+                let candidate = (rank: isLongSleep ? 1 : 0, totalMin: session.totalSleepMin ?? 0)
+                let incumbent = sleepDayWinner[key]
+                let winsDay = incumbent.map {
+                    candidate.rank > $0.rank || (candidate.rank == $0.rank && candidate.totalMin > $0.totalMin)
+                } ?? true
+                if winsDay {
+                    sleepDayWinner[key] = candidate
+                    var row = day(key)
+                    row.totalSleepMin = session.totalSleepMin
+                    row.deepMin = session.deepMin
+                    row.lightMin = session.lightMin
+                    row.remMin = session.remMin
+                    row.awakeMin = session.awakeMin
+                    row.efficiencyPct = session.efficiencyPct
+                    row.avgHrvMs = session.avgHrvMs
+                    row.respRateBpm = session.respRateBpm   // night resp → day rollup (#17)
+                    // Oura's lowest sleeping HR is the closest thing to a resting HR when readiness lacks one.
+                    row.restingHr = session.lowestHr
+                    byDay[key] = row
+                }
             }
 
             // Daily readiness → temperature deviation + reference readiness score.
@@ -212,6 +230,11 @@ enum OuraExportParser {
     static func parseCSV(_ files: [String: Data]) -> (days: [WearableDailyRow], sleeps: [WearableSleepSession]) {
         var byDay: [String: WearableDailyRow] = [:]
         var sleeps: [WearableSleepSession] = []
+        // Same day-winner rule as the JSON path (`parse()`) / OuraApiParser: the REAL per-category CSV
+        // schema puts one row per SLEEP PERIOD (`sleep.csv`, with the same `type` column), so a day can
+        // carry a nap/fragment alongside the real night here too. Track it separately from `byDay` so the
+        // winning row's fields can replace (never mix with) a previously-folded loser's.
+        var sleepDayWinner: [String: (rank: Int, totalMin: Double)] = [:]
 
         for data in files.values {
             let table = CSVTable(data: data)
@@ -236,22 +259,41 @@ enum OuraExportParser {
                 let light = minutes("light_sleep_duration", "light_sleep")
                 let rem = minutes("rem_sleep_duration", "rem_sleep")
                 let awake = minutes("awake_time", "awake_duration", "time_awake")
-
-                row.totalSleepMin = row.totalSleepMin ?? total
-                row.deepMin = row.deepMin ?? deep
-                row.lightMin = row.lightMin ?? light
-                row.remMin = row.remMin ?? rem
-                row.awakeMin = row.awakeMin ?? awake
-                row.efficiencyPct = row.efficiencyPct
-                    ?? cells.double("sleep_efficiency", "efficiency").flatMap { $0 > 0 ? $0 : nil }
-
+                let efficiency = cells.double("sleep_efficiency", "efficiency").flatMap { $0 > 0 ? $0 : nil }
                 let restingHr = cells.double("average_resting_heart_rate", "resting_heart_rate")
                     ?? cells.double("lowest_resting_heart_rate", "lowest_heart_rate")
-                if let rhr = restingHr, rhr > 0 { row.restingHr = row.restingHr ?? Int(rhr) }
-                if let hrv = cells.double("average_hrv", "hrv"), hrv > 0 { row.avgHrvMs = row.avgHrvMs ?? hrv }
+                let hrv = cells.double("average_hrv", "hrv").flatMap { $0 > 0 ? $0 : nil }
                 // Oura's CSV resp column (`respiratory_rate` / `average_breath`) → the day rollup (#17).
-                if let resp = cells.double("respiratory_rate", "average_breath"), resp > 0 {
-                    row.respRateBpm = row.respRateBpm ?? resp
+                let resp = cells.double("respiratory_rate", "average_breath").flatMap { $0 > 0 ? $0 : nil }
+
+                // A sleep-period row carries at least one of these; none of them appears on an activity /
+                // readiness / spo2 / vo2max row (each real per-category CSV carries only its own columns),
+                // so this alone tells a session row apart from any other category without a `type` column.
+                let hasSleepFields = total != nil || deep != nil || light != nil || rem != nil
+                    || awake != nil || efficiency != nil || (restingHr.map { $0 > 0 } ?? false)
+                    || hrv != nil || resp != nil
+                if hasSleepFields {
+                    // Same rule as OuraApiParser's dayWinner / the JSON path above: `type == "long_sleep"`
+                    // outranks any other type; among same-rank candidates, the longer total_sleep_duration
+                    // wins. The winner supplies every rollup field as a UNIT — never mixed across sessions.
+                    let isLongSleep = cells.cell("type")?.lowercased() == "long_sleep"
+                    let candidate = (rank: isLongSleep ? 1 : 0, totalMin: total ?? 0)
+                    let incumbent = sleepDayWinner[key]
+                    let winsDay = incumbent.map {
+                        candidate.rank > $0.rank || (candidate.rank == $0.rank && candidate.totalMin > $0.totalMin)
+                    } ?? true
+                    if winsDay {
+                        sleepDayWinner[key] = candidate
+                        row.totalSleepMin = total
+                        row.deepMin = deep
+                        row.lightMin = light
+                        row.remMin = rem
+                        row.awakeMin = awake
+                        row.efficiencyPct = efficiency
+                        row.avgHrvMs = hrv
+                        row.respRateBpm = resp
+                        row.restingHr = restingHr.flatMap { $0 > 0 ? Int($0) : nil }
+                    }
                 }
                 if let temp = cells.double("temperature_deviation", "skin_temperature_deviation") {
                     row.skinTempDevC = row.skinTempDevC ?? temp
@@ -300,18 +342,22 @@ enum OuraExportParser {
                 byDay[key] = row
 
                 // Build a sleep session when the CSV gave a bedtime window, so the night lands on the Sleep
-                // tab too (not just the daily rollup). Oura's CSV often carries `bedtime_start/_end`.
+                // tab too (not just the daily rollup). Oura's CSV often carries `bedtime_start/_end`. Every
+                // valid session is recorded here regardless of day-winner rank — only the ROLLUP above picks
+                // a single winner. Uses THIS row's own values (not `row.efficiencyPct`/`row.avgHrvMs`, which
+                // may now hold a different, winning session's fields) so a losing session's own record is
+                // never contaminated by the day's rollup winner.
                 if let start = WhoopTime.parseISOWithOffset(cells.cell("bedtime_start", "sleep_start")),
                    let end = WhoopTime.parseISOWithOffset(cells.cell("bedtime_end", "sleep_end")),
                    end > start {
                     sleeps.append(WearableSleepSession(
                         start: start, end: end,
                         deepMin: deep, lightMin: light, remMin: rem, awakeMin: awake,
-                        totalSleepMin: total, efficiencyPct: row.efficiencyPct,
+                        totalSleepMin: total, efficiencyPct: efficiency,
                         avgHr: nil,
                         lowestHr: restingHr.flatMap { $0 > 0 ? Int($0) : nil },
-                        avgHrvMs: row.avgHrvMs,
-                        respRateBpm: cells.double("respiratory_rate", "average_breath").flatMap { $0 > 0 ? $0 : nil },
+                        avgHrvMs: hrv,
+                        respRateBpm: resp,
                         sleepScore: nil, stages: []))
                 }
             }

@@ -53,6 +53,32 @@ final class HrBroadcasterEncodeTests: XCTestCase {
         XCTAssertEqual(HrBroadcaster.measurement(bpm: 1_000_000), [0x01, 0xFF, 0xFF])
     }
 
+    // MARK: - bind(to:) is idempotent (the duplicate-notification leak)
+
+    /// `bind(to:)`'s only call site is `DataSourcesView.onAppear`, which fires on EVERY appearance — every
+    /// tab switch back to Data Sources — while the broadcaster is a `@StateObject` that outlives all of
+    /// them. Each bind used to append another sink, so a user who had visited the screen N times sent N
+    /// duplicate 0x2A37 notifications per heartbeat. Binding must therefore be idempotent.
+    func testRepeatedBindLeavesExactlyOneSubscription() {
+        let broadcaster = HrBroadcaster(log: { _ in })
+        let live = LiveState()
+        XCTAssertEqual(broadcaster.cancellables.count, 0, "nothing subscribed before the first bind")
+        broadcaster.bind(to: live)
+        XCTAssertEqual(broadcaster.cancellables.count, 1)
+        for _ in 0..<10 { broadcaster.bind(to: live) }
+        XCTAssertEqual(broadcaster.cancellables.count, 1,
+                       "eleven binds must leave ONE sink, not eleven — see DataSourcesView.onAppear")
+    }
+
+    /// Re-binding to a DIFFERENT LiveState must also leave one sink: the old screen's state should stop
+    /// feeding the broadcaster entirely, not keep a second stream alive alongside the new one.
+    func testRebindingToAnotherLiveStateReplacesTheSubscription() {
+        let broadcaster = HrBroadcaster(log: { _ in })
+        broadcaster.bind(to: LiveState())
+        broadcaster.bind(to: LiveState())
+        XCTAssertEqual(broadcaster.cancellables.count, 1)
+    }
+
     // MARK: - Round-trip against the parser (the encoder is the parser's exact inverse)
 
     func testRoundTripThroughParser() {

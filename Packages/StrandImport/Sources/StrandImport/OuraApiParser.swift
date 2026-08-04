@@ -14,11 +14,20 @@ public enum OuraApiParser {
     public static func parseSleep(_ docs: [[String: Any]]) -> (periods: [OuraSleepPeriod], days: [WearableDailyRow]) {
         var periods: [OuraSleepPeriod] = []
         var byDay: [String: WearableDailyRow] = [:]
+        // The (rank, totalSleepMin) of the session CURRENTLY backing each day's rollup. Oura does not
+        // guarantee session order within `docs`, so a later, higher-priority session must still be able
+        // to displace an earlier one that already claimed the day — see the fold below.
+        var dayWinner: [String: (rank: Int, totalMin: Double)] = [:]
 
         for s in docs {
             guard let start = WhoopTime.parseISOWithOffset(WearableJSON.str(s, "bedtime_start")),
                   let end = WhoopTime.parseISOWithOffset(WearableJSON.str(s, "bedtime_end")),
                   end > start else { continue }
+
+            // A `deleted` sleep period (Oura's `type` enum) is a night the user removed in the Oura
+            // app — skip it entirely so it neither becomes a session nor competes for the day's
+            // rollup, matching OuraExportParser's CSV-side rule (#862).
+            if WearableJSON.str(s, "type")?.lowercased() == "deleted" { continue }
 
             // Durations are SECONDS in the API → minutes.
             func minutes(_ k: String) -> Double? { WearableJSON.posDbl(s, k).map { $0 / 60.0 } }
@@ -58,19 +67,37 @@ public enum OuraApiParser {
             let hr = sampleSeries(s["heart_rate"])
             periods.append(OuraSleepPeriod(session: session, movement30s: movement, hr: hr))
 
-            // Fold the night onto its calendar day (Oura's "day" = the wake day).
+            // Fold the night onto its calendar day (Oura's "day" = the wake day). Oura can list MULTIPLE
+            // sessions for one day — a short nap/fragment alongside the real night — and first-write-wins
+            // let whichever the API happened to return first claim every daily field, including a fragment
+            // beating the true night (audited across a real 24-month dataset: 36 days where a sub-30-min
+            // fragment's near-zero totalSleepMin and skewed restingHr won over an adjacent 250-780 min main
+            // sleep, producing daily "resting HR" spikes to 90+ bpm from wake-dominated micro-sessions).
+            // Select the day's MAIN session instead: Oura marks the primary sleep `type == "long_sleep"`,
+            // which always outranks any other type; among same-rank candidates, the longer
+            // total_sleep_duration wins. The winner supplies every rollup field as a UNIT — fields are
+            // never mixed across two different sessions on the same day.
             let key = WearableJSON.str(s, "day") ?? WearableExportImporter.dayString(end)
-            var row = byDay[key] ?? WearableDailyRow(day: key)
-            row.totalSleepMin = row.totalSleepMin ?? session.totalSleepMin
-            row.deepMin = row.deepMin ?? session.deepMin
-            row.lightMin = row.lightMin ?? session.lightMin
-            row.remMin = row.remMin ?? session.remMin
-            row.awakeMin = row.awakeMin ?? session.awakeMin
-            row.efficiencyPct = row.efficiencyPct ?? session.efficiencyPct
-            row.avgHrvMs = row.avgHrvMs ?? session.avgHrvMs
-            row.respRateBpm = row.respRateBpm ?? session.respRateBpm
-            if row.restingHr == nil { row.restingHr = session.lowestHr }
-            byDay[key] = row
+            let isLongSleep = WearableJSON.str(s, "type")?.lowercased() == "long_sleep"
+            let candidate = (rank: isLongSleep ? 1 : 0, totalMin: session.totalSleepMin ?? 0)
+            let incumbent = dayWinner[key]
+            let winsDay = incumbent.map {
+                candidate.rank > $0.rank || (candidate.rank == $0.rank && candidate.totalMin > $0.totalMin)
+            } ?? true
+            if winsDay {
+                dayWinner[key] = candidate
+                var row = byDay[key] ?? WearableDailyRow(day: key)
+                row.totalSleepMin = session.totalSleepMin
+                row.deepMin = session.deepMin
+                row.lightMin = session.lightMin
+                row.remMin = session.remMin
+                row.awakeMin = session.awakeMin
+                row.efficiencyPct = session.efficiencyPct
+                row.avgHrvMs = session.avgHrvMs
+                row.respRateBpm = session.respRateBpm
+                row.restingHr = session.lowestHr
+                byDay[key] = row
+            }
         }
         return (periods, Array(byDay.values))
     }

@@ -3213,6 +3213,24 @@
 "note": null
 },
 {
+"off": 7,
+"len": 1,
+"name": "resp_seq",
+"cat": "cmd",
+"value": 0,
+"raw": "00",
+"note": null
+},
+{
+"off": 8,
+"len": 1,
+"name": "result",
+"cat": "cmd",
+"value": "FAILURE(0)",
+"raw": "00",
+"note": null
+},
+{
 "off": 15,
 "len": 4,
 "name": "crc32",
@@ -3225,7 +3243,9 @@
 "parsed": {
 "resp_cmd": "GET_BATTERY_LEVEL(26)",
 "response payload": "[8 bytes]",
-"battery_pct": 42.5
+"battery_pct": 42.5,
+"resp_seq": 0,
+"result": "FAILURE(0)"
 }
 },
 {

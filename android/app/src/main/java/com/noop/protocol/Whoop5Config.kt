@@ -88,4 +88,61 @@ object Whoop5Config {
             seq = seq,
             payload = byteArrayOf(0x01) + payloadBody(flag.name, flag.value),
         )
+
+    // Turning it back off (#174) ------------------------------------------------------------------
+
+    /**
+     * The value byte written to clear a feature flag: ASCII '0' (0x30).
+     *
+     * **Confirmed for the sibling opcode, inferred here by shared convention.**
+     *
+     * Confirmed on real hardware: 0x30 is how this firmware spells "off" for a config key. NOOP has
+     * shipped that write since #181 — Broadcast-HR off writes 0x30 to `whoop_live_hr_in_adv_ind_pkt`
+     * through SET_DEVICE_CONFIG_VALUE (119 / 0x77) and a Garmin Edge 840 stops seeing the broadcast.
+     * `enable_raw_data_w_ecg` independently READS '0' on an MG whose ECG is not running. Both are the
+     * device-config namespace.
+     *
+     * Shared convention, which is why it transfers: both bodies are the key name as ASCII NUL-padded to
+     * 32 bytes then a single ASCII-digit value byte at offset 32, both are sent as `[0x01] + body` with
+     * response. Only the opcode (0x77 vs 0x78) and the body length (33 vs 40) differ. Writes through
+     * 0x78 demonstrably land and change stored state: the enable sequence moved `enable_sig12` from '2'
+     * to '1', confirmed by a GET_FF_VALUE(128) read before and after.
+     *
+     * Inferred, stated plainly: '0' has NEVER been observed in the feature-flag namespace — every 128
+     * read ever taken returned '1' or '2', and those are a round-trip of NOOP's own writes. The two
+     * namespaces are proven separate at the verb level (a key asked through the wrong verb answers
+     * FAILURE). And `disable_pip_r26_packets` is written '2' despite being named `disable_*`, while
+     * `enable_sig12` was corrected '2'→'1' from a real capture — so the official app picks BETWEEN '1'
+     * and '2' per flag rather than using one canonical "true", and tri-state semantics stay unestablished.
+     *
+     * So [R22DisableReport] tests the byte instead of asserting it: write it to ONE flag, read it back,
+     * and only touch the rest if the strap stopped reporting the old value. Keep in lockstep with the
+     * Swift `Whoop5Config.featureFlagOffValue`.
+     */
+    const val FEATURE_FLAG_OFF_VALUE = 0x30
+
+    /**
+     * The inverse of [enableR22Sequence]: the same sixteen keys, in the same order, each carrying
+     * [FEATURE_FLAG_OFF_VALUE].
+     *
+     * Same order as the enable sequence deliberately — `enable_r22_packets`, the master flag, is cleared
+     * FIRST, so a run interrupted by a disconnect leaves the strap nearer "off" than it started rather
+     * than stranded with sub-streams cleared and the master still set.
+     *
+     * On `disable_pip_r26_packets`, whose name inverts: this sequence is the UNDO of the enable sequence,
+     * not a per-key semantic inversion. Inverting per key would require knowing what '1' and '2' each
+     * select, and that key is the evidence we do not. Writing '0' to it is expected to stop PIP R26
+     * packets being suppressed — i.e. let them flow again, which is the pre-R22 behaviour.
+     *
+     * This does NOT restore a snapshot: NOOP never read these values before first writing them, so the
+     * pre-NOOP state is unknown. The honest claim is "clears the sixteen flags NOOP set".
+     * Keep in lockstep with the Swift `Whoop5Config.disableR22Sequence`.
+     */
+    val disableR22Sequence: List<Flag> = enableR22Sequence.map { Flag(it.name, FEATURE_FLAG_OFF_VALUE) }
+
+    /** Every frame in the disable sequence, sequence-numbered from [firstSeq]. Written exactly like the
+     *  enable frames — same opcode, same 40-byte body, same spacing, with response — because they differ
+     *  only in the value byte. */
+    fun disableSequenceFrames(firstSeq: Int = 1): List<ByteArray> =
+        disableR22Sequence.mapIndexed { idx, flag -> frame(flag, (firstSeq + idx) and 0xFF) }
 }

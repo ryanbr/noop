@@ -161,6 +161,24 @@ internal fun mainSleepGroup(blocks: List<SleepSession>, habitualMidsleepSec: Lon
 }
 
 /**
+ * Actual asleep minutes in blocks outside each day's canonical main-night group. The Sleep screen's
+ * session union has already removed cross-namespace duplicates; this helper only applies the same
+ * main-vs-nap classification the hero uses and decodes the persisted stage minutes. A stage-less nap
+ * contributes nothing rather than substituting its in-bed window. Mirrors `SleepView.napSleepMinutesByDay`.
+ */
+internal fun napSleepMinutesByDay(
+    sleeps: List<SleepSession>,
+    habitualMidsleepSec: Long? = null,
+): Map<String, Double> = sleeps
+    .groupBy { localDayString(it.endTs) }
+    .mapValues { (_, blocks) ->
+        val mainStarts = mainSleepGroup(blocks, habitualMidsleepSec).mapTo(hashSetOf()) { it.startTs }
+        blocks.asSequence()
+            .filter { it.startTs !in mainStarts }
+            .sumOf { decodedAsleepMinutes(it.stagesJSON, it.effectiveStartTs) }
+    }
+
+/**
  * The day's main-night bridged SPAN (onset -> wake), the same window [mainSleepGroup] bridges into one
  * continuous night. The ONE canonical bed/wake read every glance screen (Coupled, Today's HR band) should
  * show -- never a screen-local "freshest" or "longest single block" heuristic, which can silently disagree

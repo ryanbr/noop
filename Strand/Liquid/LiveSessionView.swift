@@ -21,6 +21,10 @@ struct LiveSessionView: View {
     @EnvironmentObject private var repo: Repository
     @EnvironmentObject private var profile: ProfileStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Low Power Mode / the in-app quiet-motion toggle. The guardian breath is a `repeatForever`
+    /// animation that never settles, so it belongs behind the same gate as the liquid surfaces.
+    /// The Android twin gated `LiveSessionScreen`'s breath under battery saver in #911.
+    @ObservedObject private var motion = NoopMotionState.shared
 
     /// "Card transparency" (0–100, default 100): fades the live-session cards in lockstep with the frosted
     /// cards; content stays readable. Mirrors Kotlin `NoopPrefs.cardOpacityPercent`.
@@ -166,9 +170,10 @@ struct LiveSessionView: View {
         .accessibilityHint(Text("Long press to show or hide your heart rate."))
     }
 
-    /// Breathing is the "on track" signal: only in band, only once active, never for Reduce Motion.
+    /// Breathing is the "on track" signal: only in band, only once active, never when anything is
+    /// asking for quiet (Reduce Motion, Low Power Mode, or "Reduce motion in NOOP").
     private var isBreathing: Bool {
-        !reduceMotion
+        !motion.poseStill(reduceMotion)
             && runner.output?.status == .active
             && runner.output?.position == .inBand
     }

@@ -259,6 +259,13 @@ class Backfiller(
     var sessionDroppedImplausible = 0
 
     /**
+     * #891 diagnostic: packet types this session's offload carried that the decoder has no rows for, folded
+     * across batches. Each type is logged the FIRST time it appears — a 30k-record offload must not emit 30k
+     * lines. Reset in [begin]. Twin of Swift `Backfiller.sessionUnhandledPacketTypes`.
+     */
+    val sessionUnhandledPacketTypes = mutableMapOf<String, Int>()
+
+    /**
      * #520 diagnostic: `dynamic_acceleration` folded across every batch of this session, logged once at the
      * session boundary. Session-scoped rather than per-batch because a batch is an arbitrary slice of an
      * offload — a still-fraction only means something over a whole night's worth of records. Twin of Swift
@@ -288,6 +295,7 @@ class Backfiller(
         spo2Dumped = 0
         loggedImplausibleClock = false
         sessionDroppedImplausible = 0
+        sessionUnhandledPacketTypes.clear()   // #891: a second offload must re-log its first sighting
         sessionDynAccel = DynAccelDiag()
         // #547: the range markers belong to a connection's GET_DATA_RANGE, which the client re-sets per
         // connect; clear them so a fresh session never reuses a previous strap's window (the client
@@ -437,6 +445,24 @@ class Backfiller(
                         "implausible timestamp$span (bad strap clock — far-past or future-dated); they are " +
                         "excluded so they can't misdate history.",
                 )
+            }
+            // #891: packet types this batch carried that the decoder has no branch for. Logged the first
+            // time each type appears so a long offload stays readable. This is the only place such a record
+            // becomes visible: the `else` branch drops it and rejectedHistoricalRecords archives only
+            // type-47, so without this line an offload full of an unmapped type reports a clean sync.
+            // Mirrors the Swift Backfiller.
+            for ((typeName, n) in decoded.unhandledPacketTypes.toSortedMap()) {
+                val firstSighting = typeName !in sessionUnhandledPacketTypes
+                sessionUnhandledPacketTypes[typeName] =
+                    (sessionUnhandledPacketTypes[typeName] ?: 0) + n
+                if (firstSighting) {
+                    log(
+                        "Backfill: the strap sent $n record(s) of packet type $typeName, which this " +
+                            "decoder has no rows for — they are being dropped. If $typeName is not a name " +
+                            "you recognise, this is a firmware record type NOOP has never mapped: please " +
+                            "report it on #891 with the strap model and firmware build.",
+                    )
+                }
             }
             // #324: the strap RTC-state events (RTC_LOST / BOOT / SET_RTC) the #547 gate dropped for a bad
             // own-timestamp — the GROUND TRUTH that the clock reset. Sparse (not per-record), so log each as

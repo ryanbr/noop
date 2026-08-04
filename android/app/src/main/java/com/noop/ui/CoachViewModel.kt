@@ -8,6 +8,7 @@ import com.noop.ai.AiCoach
 import com.noop.ai.AiKeyStore
 import com.noop.ai.AiProvider
 import com.noop.ai.ChatMsg
+import com.noop.ai.CustomAiAuthHeader
 import com.noop.data.WhoopDatabase
 import com.noop.data.WhoopRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -83,6 +84,10 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
     /** Base URL for the Custom (OpenAI-compatible) provider, e.g. http://localhost:11434/v1. */
     val customBaseUrl: StateFlow<String> = _customBaseUrl.asStateFlow()
 
+    private val _customAuthHeader = MutableStateFlow(AiKeyStore.readCustomAuthHeader(app.applicationContext))
+    /** Header used by the Custom provider when an API key is present. */
+    val customAuthHeader: StateFlow<CustomAiAuthHeader> = _customAuthHeader.asStateFlow()
+
     private val _customConnected = MutableStateFlow(AiKeyStore.readCustomConnected(app.applicationContext))
     /** True once the user has committed the Custom provider (entered a URL and tapped Connect). */
     val customConnected: StateFlow<Boolean> = _customConnected.asStateFlow()
@@ -91,6 +96,11 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
     fun setCustomBaseUrl(ctx: Context, url: String) {
         _customBaseUrl.value = url
         AiKeyStore.saveCustomBaseUrl(ctx, url)
+    }
+
+    fun setCustomAuthHeader(ctx: Context, header: CustomAiAuthHeader) {
+        _customAuthHeader.value = header
+        AiKeyStore.saveCustomAuthHeader(ctx, header)
     }
 
     /** Grant or revoke data access; persisted. */
@@ -193,7 +203,7 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
         _refreshingModels.value = true
         viewModelScope.launch {
             try {
-                val live = aiCoach.fetchModels(appCtx, p, url)
+                val live = aiCoach.fetchModels(appCtx, p, url, _customAuthHeader.value)
                 if (p == _provider.value) {
                     val merged = (_availableModels.value + live).distinct()
                     _availableModels.value = merged
@@ -288,6 +298,7 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
                     model = _model.value,
                     consent = _consent.value,
                     customBaseUrl = _customBaseUrl.value,
+                    customAuthHeader = _customAuthHeader.value,
                     // v5: only include the on-device-signals summary when BOTH the data consent is on AND
                     // the second opt-in is set (summary-only, no raw egress, see AiCoach.buildSignalsContext).
                     includeSignals = _consent.value && NoopPrefs.coachSignals(appCtx),

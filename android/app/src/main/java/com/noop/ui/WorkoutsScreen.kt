@@ -201,7 +201,7 @@ fun WorkoutsScreen(vm: AppViewModel) {
     LaunchedEffect(recoveryInputKey, vm.activeStrapId, lastHistorySyncAt) {
         val built = ArrayList<WorkoutRecoveryTrendPoint>()
         for (row in recoveryRows) {
-            val result = vm.workoutHeartRateRecovery(row.startTs, row.endTs) ?: continue
+            val result = vm.workoutHeartRateRecovery(row.startTs, row.endTs, row.source, row.deviceId) ?: continue
             built += WorkoutRecoveryTrendPoint(row.startTs, result)
         }
         recoveryTrend = built
@@ -1295,7 +1295,7 @@ private fun WorkoutDetailSheet(vm: AppViewModel, row: WorkoutRow, onDismiss: () 
     // so it "fills in after sync". null for non-foot sports or when no strap counter covers the window.
     var steps by remember(row.startTs) { mutableStateOf<Int?>(null) }
     LaunchedEffect(row.startTs, row.endTs) {
-        hrCurve = vm.workoutHrBuckets(row.startTs, row.endTs).map { it.avgBpm }
+        hrCurve = vm.workoutHrBuckets(row.startTs, row.endTs, row.source, row.deviceId).map { it.avgBpm }
         steps = if (WorkoutSport.isOnFoot(row.sport)) vm.workoutSteps(row.startTs, row.endTs) else null
         val imported = parseZonePercents(row.zonesJSON)
         if (imported != null) {
@@ -1306,10 +1306,10 @@ private fun WorkoutDetailSheet(vm: AppViewModel, row: WorkoutRow, onDismiss: () 
             }
         }
         if (zoneMinutes == null) {
-            zoneMinutes = vm.workoutZoneMinutes(row.startTs, row.endTs)
+            zoneMinutes = vm.workoutZoneMinutes(row.startTs, row.endTs, row.source, row.deviceId)
             zonesFromImport = false
         }
-        heartRateRecovery = vm.workoutHeartRateRecovery(row.startTs, row.endTs)
+        heartRateRecovery = vm.workoutHeartRateRecovery(row.startTs, row.endTs, row.source, row.deviceId)
     }
 
     ModalBottomSheet(

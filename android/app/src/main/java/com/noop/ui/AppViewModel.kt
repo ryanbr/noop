@@ -937,8 +937,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         // report ships proof of what was computed per day. Mirrors the macOS sink wired to
                         // live.append(log:). (Sleep overhaul §2.5.)
                         diag = { line -> ble.externalLog(line) },
-                        // Opt-in experimental sleep staging (V2) — read off SharedPreferences here (the
-                        // analytics layer is Context-free) and thread it into the sleep self-heal. (V7 3b)
+                        // Experimental sleep staging (V2) — read off SharedPreferences here (the analytics
+                        // layer is Context-free) and thread it into the sleep self-heal. The preference is
+                        // default TRUE, so this normally passes V2. (V7 3b)
                         useExperimentalSleepV2 = PuffinExperiment.from(appContext).experimentalSleepV2,
                         // Opt-in motion-aware wake refinement (#364 follow-up) — same Context-free threading.
                         useMotionAwareWake = PuffinExperiment.from(appContext).motionAwareWake,
@@ -1348,12 +1349,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val endMs = System.currentTimeMillis()
         val avg = if (samples.isNotEmpty()) samples.sumOf { it.bpm } / samples.size else null
         val peak = if (samples.isNotEmpty()) samples.maxOf { it.bpm } else null
+        // #983: score the SAVED workout with the wearer's measured resting HR, not the hardcoded
+        // default of 60. %HRR is (bpm - resting) / (max - resting), so the default moves every zone
+        // boundary — at 136 bpm with maxHR 190 it is the difference between zone 1 and zone 2. Today's
+        // Effort and the manual rescore (#972) already thread this, so the stored number used to
+        // disagree with its own re-score. Read once here, at save time; the live readout during the
+        // session is a transient running estimate and deliberately left alone.
+        val restingHR = _today.value?.restingHr?.toDouble() ?: StrainScorer.defaultRestingHR
         val strain = if (samples.size >= 2)
-            StrainScorer.strain(samples, maxHR = profileStore.hrMax.toDouble(), sex = profileStore.sex) else null
+            StrainScorer.strain(samples, maxHR = profileStore.hrMax.toDouble(),
+                restingHR = restingHR, sex = profileStore.sex) else null
         // Estimate calories from the captured HR window (same Keytel/Harris–Benedict model the
         // auto-detector uses) so a manual session shows energy too, not just duration/strain. (#117)
         val energyKcal = if (samples.size >= 2)
-            Calories.estimateBoutCalories(samples, currentProfile(), profileStore.hrMax.toDouble(), null)
+            // #983: same measured resting HR as the strain above, not null. The calories model's
+            // active-vs-resting threshold sits at resting + 30% HRR, so the default silently shifts what
+            // counts as active — and #972 already threads it in the rescore path, so leaving it null here
+            // meant a saved workout's kcal disagreed with its own re-score just as its Effort did.
+            Calories.estimateBoutCalories(samples, currentProfile(), profileStore.hrMax.toDouble(), restingHR)
                 .first.takeIf { it > 0 }
         else null
         val row = WorkoutRow(
@@ -1544,8 +1557,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 // would re-score + persist every night's HRV over the WHOLE night, silently overwriting the
                 // deep-window value (the "deep sleep window changes nothing" bug).
                 deepHrvWindow = UnitPrefs.hrvWindow(appContext) == HrvWindow.DEEP_SLEEP,
-                // Opt-in experimental sleep staging (V2) — same flag the 15-min loop reads, so a manual
-                // re-score after an edit stages with the same engine the user chose. (V7 Pillar 3b)
+                // Experimental sleep staging (V2) — same flag the 15-min loop reads (default TRUE), so a
+                // manual re-score after an edit stages with the same engine the user chose. (V7 Pillar 3b)
                 useExperimentalSleepV2 = PuffinExperiment.from(appContext).experimentalSleepV2,
                 // Opt-in motion-aware wake refinement (#364 follow-up) — same flag the 15-min loop reads.
                 useMotionAwareWake = PuffinExperiment.from(appContext).motionAwareWake,
@@ -1651,11 +1664,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      *  HR-curve. A short session wants a finer bucket than the Today 24h chart (300 s would flatten a
      *  30-min run to ~6 points), so the bucket scales with duration: ~120 buckets across the window,
      *  floored at 15 s and capped at 300 s. Mirrors macOS Repository.workoutHrBuckets. */
-    suspend fun workoutHrBuckets(from: Long, to: Long): List<com.noop.data.HrBucket> {
+    suspend fun workoutHrBuckets(
+        from: Long,
+        to: Long,
+        source: String = "",
+        rowDeviceId: String = deviceId,
+    ): List<com.noop.data.HrBucket> {
         if (to <= from) return emptyList()
         val span = to - from
         val bucket = (span / 120).coerceIn(15L, 300L)
-        return runCatching { repository.hrBuckets(deviceId, from, to, bucket) }.getOrDefault(emptyList())
+        // #856: read the ids this row actually belongs to. A bout detected on a SECOND WHOOP charts
+        // from the strap that recorded it; an imported row gets the active ∪ canonical union, since it
+        // has no strap of its own and the worn strap may bank under either after a re-add. Previously
+        // this read the single active id, so both cases could chart the wrong data — and disagree with
+        // the Avg HR on the same card. Defaults keep any caller without a row on today's behaviour.
+        val ids = WhoopRepository.workoutHrDeviceIds(source, rowDeviceId, deviceId)
+        return runCatching { repository.hrBucketsFor(ids, from, to, bucket) }.getOrDefault(emptyList())
     }
 
     /** Per-zone MINUTES for a workout window, binning the strap's raw HR samples into the age-derived
@@ -1663,9 +1687,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      *  percentages, but from the strap's own samples so a session WITHOUT imported zones still gets a
      *  real time-in-zone split. null when the window carries no HR. age <= 0 falls back to 30 y.
      *  Mirrors macOS Repository.workoutZoneMinutes. */
-    suspend fun workoutZoneMinutes(from: Long, to: Long): List<Double>? {
+    suspend fun workoutZoneMinutes(
+        from: Long,
+        to: Long,
+        source: String = "",
+        rowDeviceId: String = deviceId,
+    ): List<Double>? {
         if (to <= from) return null
-        val samples = runCatching { repository.hrSamples(deviceId, from, to) }.getOrDefault(emptyList())
+        // #856: the same resolved ids the chart and Avg HR use. Binning a different strap's samples
+        // than the curve plots would put three different answers on one card.
+        val ids = WhoopRepository.workoutHrDeviceIds(source, rowDeviceId, deviceId)
+        val samples = runCatching { repository.hrSamplesFor(ids, from, to) }.getOrDefault(emptyList())
         if (samples.isEmpty()) return null
         val age = profileStore.age.toDouble().takeIf { it > 0 } ?: 30.0
         val zoneSet = com.noop.analytics.HrZones.zones(age = age)
@@ -1677,12 +1709,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** HRR for one workout (#516), derived from a narrow workout-end + post-workout HR read. The pure
      *  engine owns the intensity and coverage gates, so a disconnect after exercise returns null rather
      *  than an interpolated value. Mirrors macOS Repository.workoutHeartRateRecovery. */
-    suspend fun workoutHeartRateRecovery(from: Long, to: Long): com.noop.analytics.HeartRateRecovery.Result? {
+    suspend fun workoutHeartRateRecovery(
+        from: Long,
+        to: Long,
+        source: String = "",
+        rowDeviceId: String = deviceId,
+    ): com.noop.analytics.HeartRateRecovery.Result? {
         if (to <= from) return null
         val readFrom = maxOf(from, to - com.noop.analytics.HeartRateRecovery.eligibilityLookbackSeconds)
         val readTo = to + 5 * 60 + com.noop.analytics.HeartRateRecovery.measurementToleranceSeconds
+        // #856: the same resolved ids as the chart, zones and Avg HR — the fourth surface on this card.
+        // The recovery window extends PAST the bout, but the strap that recorded it is still the one on
+        // the wrist a few minutes later, so a detected bout reads its own strap here too.
+        val ids = WhoopRepository.workoutHrDeviceIds(source, rowDeviceId, deviceId)
         val samples = runCatching {
-            repository.hrSamplesUnion(activeStrapId, readFrom, readTo, limit = 2_000)
+            repository.hrSamplesFor(ids, readFrom, readTo, limit = 2_000)
         }.getOrDefault(emptyList())
         return com.noop.analytics.HeartRateRecovery.calculate(
             samples = samples,
@@ -1844,6 +1885,29 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val bodyLocationProbe = ble.bodyLocationProbe
 
     fun clearBodyLocationProbe() = ble.clearBodyLocationProbe()
+
+    /** #761: READ-ONLY feature-flag ENUMERATION probe (117 then repeated 118) — reads the flag NAMES the
+     *  strap's own firmware knows and writes nothing (no SET_FF_VALUE, no value of any kind).
+     *  User-initiated, Test-Centre-gated in DevicesScreen; the report goes to the dialog + strap log. */
+    fun probeFeatureFlags() = ble.probeFeatureFlags()
+
+    /** Stop an offload part-way through (#ABORT). Twin of Swift `AppModel`/`BLEManager.abortBackfill()`. */
+    fun abortBackfill() = ble.abortBackfill()
+
+    /** #761 probe report text (null until the walk finishes; waiting sentinel while it runs). */
+    val featureFlagProbe = ble.featureFlagProbe
+
+    fun clearFeatureFlagProbe() = ble.clearFeatureFlagProbe()
+
+    /** #103: READ-ONLY device-config READ probe (GET_DEVICE_CONFIG_VALUE/121 + GET_FF_VALUE/128) — asks
+     *  the strap for a config key's VALUE, the follow-up to #761's key-NAME enumeration. Writes nothing.
+     *  User-initiated, Test-Centre-gated in DevicesScreen; the report goes to the dialog + strap log. */
+    fun probeDeviceConfigValues() = ble.probeDeviceConfigValues()
+
+    /** #103 probe report text (null until the plan finishes; waiting sentinel while it runs). */
+    val deviceConfigProbe = ble.deviceConfigProbe
+
+    fun clearDeviceConfigProbe() = ble.clearDeviceConfigProbe()
 
     /**
      * Flip the "keep connected in the background" preference (driven by Settings). Turning it on

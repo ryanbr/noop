@@ -52,6 +52,9 @@ public enum NoopMetrics {
     public static let controlHeight: CGFloat = 48
     /// Fully-rounded corner radius — pills, chips, capsule buttons.
     public static let pillRadius: CGFloat = 999
+    /// Minimum desktop size for a navigation-based customization sheet.
+    public static let editorSheetMinWidth: CGFloat = 440
+    public static let editorSheetMinHeight: CGFloat = 600
 }
 
 // MARK: - Screen padding
@@ -468,6 +471,9 @@ public struct SourceBadge: View {
     let text: LocalizedStringKey; var tint: Color = StrandPalette.accent
     public init(_ text: LocalizedStringKey, tint: Color = StrandPalette.accent) { self.text = text; self.tint = tint }
     public var body: some View {
+        // `.frame(height:)` centres its content by default, so the label sits mid-capsule for free. Noted
+        // because the Android twin pinned the same 18 with `heightIn` applied to the label itself, which
+        // top-aligns — same number, different render. That one is matched to this, not the reverse.
         Text(text).textCase(.uppercase).font(.system(size: 10, weight: .semibold, design: .rounded)).tracking(0.5)
             .padding(.horizontal, 9).frame(height: NoopMetrics.sourceBadgeHeight)
             .background(tint.opacity(0.16), in: Capsule(style: .continuous))
@@ -658,6 +664,11 @@ private struct PulseDot: View {
     var size: CGFloat
     @State private var animate = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Low Power Mode / "Reduce motion in NOOP". This halo is a `repeatForever` loop that never
+    /// settles and is on screen for long stretches — a connected strap in Settings, a backfill on
+    /// every scaffolded screen — so it belongs behind the same gate as the liquid surfaces.
+    @ObservedObject private var motion = NoopMotionState.shared
+    private var poseStill: Bool { motion.poseStill(reduceMotion) }
     @Environment(\.colorScheme) private var scheme
     var body: some View {
         ZStack {
@@ -679,8 +690,8 @@ private struct PulseDot: View {
                 .shadow(color: color.opacity(0.8), radius: pulsing ? 4 : 2)
         }
         .frame(width: size, height: size)
-        .onAppear { if pulsing && !reduceMotion { animate = true } }
-        .animation(pulsing && !reduceMotion ? StrandMotion.breathe : nil, value: animate)
+        .onAppear { if pulsing && !poseStill { animate = true } }
+        .animation(pulsing && !poseStill ? StrandMotion.breathe : nil, value: animate)
         .accessibilityHidden(true)
     }
 }

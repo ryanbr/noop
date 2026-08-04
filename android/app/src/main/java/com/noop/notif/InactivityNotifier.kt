@@ -46,7 +46,7 @@ object InactivityNotifier {
             )
             val n = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_stat_heart)
-                .setContentTitle("Move reminder")
+                .setContentTitle(context.getString(R.string.inactivity_title))
                 .setContentText(body)
                 .setContentIntent(openApp)
                 .setAutoCancel(true)

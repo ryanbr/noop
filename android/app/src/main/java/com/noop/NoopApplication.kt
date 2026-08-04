@@ -40,6 +40,9 @@ class NoopApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // #1008: pin the pre-change Overnight-only default for existing installs before anything
+        // reads it. Idempotent; a no-op on fresh installs and on every launch after the first.
+        com.noop.ui.NoopPrefs.migrateContinuousHrvOvernightDefault(this)
         // Record any uncaught crash to a file so it rides along in the shareable strap log — a
         // device-specific crash (e.g. Insights #224/#267) is otherwise lost to an unreachable logcat.
         CrashCapture.install(this)

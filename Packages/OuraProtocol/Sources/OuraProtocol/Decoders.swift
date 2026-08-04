@@ -224,6 +224,18 @@ public enum OuraDecoders {
     /// Decode the 0x6F spo2_event: byte6 bits [7:4]=SpO2 base/status field, [3:0]=status flag; then one
     /// uint8 SpO2 value per second from byte7 onward (optional 0xFF terminator). Per OURA_PROTOCOL.md
     /// s6.5. Returns nil on a short body.
+    ///
+    /// UNIT TAG: these samples carry the default `unit: "raw"`, which is a legacy CHANNEL label, not a
+    /// claim about the quantity — 0x6F is a firmware-computed PERCENTAGE (s6.5, corroborated by
+    /// open_oura), unlike 0x77 which really is a raw DC channel and tags itself `"dc_raw"`. The string
+    /// is deliberately left alone: it is a persisted column (`Database.swift` spo2 `unit`), no consumer
+    /// branches on it (only the CLI dump and one log line read it), and rewriting it would split stored
+    /// history across two spellings of the same channel for a cosmetic gain. Kotlin matches exactly.
+    ///
+    /// s6.5 also records an OPEN ISSUE: ~47% of decoded 0x6F samples exceed 100%, which no ground truth
+    /// yet explains, so no offset is applied here — a guessed calibration would be worse than the gap.
+    /// These land in the RAW channel (`SpO2Sample.red`), never in `spo2Pct`, so an impossible value is
+    /// not surfaced as a Blood Oxygen reading.
     public static func decodeSpO2PerSample(_ rec: OuraRecord) -> [OuraSpO2]? {
         let b = rec.payload
         guard b.count >= 2 else { return nil }

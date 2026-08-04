@@ -91,20 +91,41 @@ extension WhoopStore {
     ///
     /// Same anti-join as [hrSamples]: a measured second is never double-counted by its PPG estimate.
     /// `avg`/`max` are nil when `n == 0`. Kotlin twin: `WhoopDao.hrWindowStats`.
-    public func hrWindowStats(deviceId: String, from: Int, to: Int) async throws -> HRWindowStats {
+    ///
+    /// #856: aggregates across up to TWO device ids, `primaryId` winning per second. A naive
+    /// `deviceId IN (…)` is wrong here — a second banked under both ids after a strap re-add would be
+    /// counted twice, inflating `n` and skewing `avg`, and both numbers would stay plausible so nothing
+    /// would look wrong. `GROUP BY ts` with `MIN(pri)` keeps one row per second and takes the primary's,
+    /// matching the dedup `hrBuckets` already does for the chart; SQLite's bare-column rule makes `bpm`
+    /// come from the row that supplied the `MIN`.
+    ///
+    /// Passing the same id for both is byte-identical to the old single-id read, so a single-WHOOP
+    /// install needs no special case and every existing number is unchanged.
+    public func hrWindowStats(primaryId: String, secondaryId: String,
+                              from: Int, to: Int) async throws -> HRWindowStats {
         try syncRead { db in
             guard let row = try Row.fetchOne(db, sql: """
                 SELECT COUNT(*) AS n, AVG(bpm) AS avg, MAX(bpm) AS max FROM (
-                    SELECT bpm FROM hrSample
-                    WHERE deviceId = ? AND ts >= ? AND ts <= ?
-                    UNION ALL
-                    SELECT CAST(ROUND(p.bpm) AS INTEGER) AS bpm FROM ppgHrSample p
-                    WHERE p.deviceId = ? AND p.ts >= ? AND p.ts <= ?
-                      AND NOT EXISTS (
-                        SELECT 1 FROM hrSample h
-                        WHERE h.deviceId = p.deviceId AND h.ts = p.ts)
+                    SELECT ts, MIN(pri), bpm FROM (
+                        SELECT ts, bpm, 0 AS pri FROM hrSample
+                        WHERE deviceId = ? AND ts >= ? AND ts <= ?
+                        UNION ALL
+                        SELECT p.ts, CAST(ROUND(p.bpm) AS INTEGER), 0 FROM ppgHrSample p
+                        WHERE p.deviceId = ? AND p.ts >= ? AND p.ts <= ?
+                          AND NOT EXISTS (SELECT 1 FROM hrSample h
+                                          WHERE h.deviceId = p.deviceId AND h.ts = p.ts)
+                        UNION ALL
+                        SELECT ts, bpm, 1 FROM hrSample
+                        WHERE deviceId = ? AND ts >= ? AND ts <= ?
+                        UNION ALL
+                        SELECT p.ts, CAST(ROUND(p.bpm) AS INTEGER), 1 FROM ppgHrSample p
+                        WHERE p.deviceId = ? AND p.ts >= ? AND p.ts <= ?
+                          AND NOT EXISTS (SELECT 1 FROM hrSample h
+                                          WHERE h.deviceId = p.deviceId AND h.ts = p.ts)
+                    ) GROUP BY ts
                 )
-                """, arguments: [deviceId, from, to, deviceId, from, to])
+                """, arguments: [primaryId, from, to, primaryId, from, to,
+                                 secondaryId, from, to, secondaryId, from, to])
             else { return HRWindowStats(n: 0, avg: nil, max: nil) }
             return HRWindowStats(n: row["n"], avg: row["avg"], max: row["max"])
         }
@@ -204,11 +225,15 @@ extension WhoopStore {
     public func skinTempSamples(deviceId: String, from: Int, to: Int, limit: Int) async throws -> [SkinTempSample] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """
-                SELECT ts, raw FROM skinTempSample
+                SELECT ts, raw, aux1Raw, aux2Raw FROM skinTempSample
                 WHERE deviceId = ? AND ts >= ? AND ts <= ?
                 ORDER BY ts ASC LIMIT ?
                 """, arguments: [deviceId, from, to, limit])
-                .map { SkinTempSample(ts: $0["ts"], raw: $0["raw"]) }
+                // aux1Raw/aux2Raw (v31) read back nil for any pre-v31 row and for any WHOOP 4.0 record,
+                // whose layout has no such channels. No caller reads them; they are hydrated so the
+                // carrier is a faithful view of the row rather than a lossy one.
+                .map { SkinTempSample(ts: $0["ts"], raw: $0["raw"],
+                                      aux1Raw: $0["aux1Raw"], aux2Raw: $0["aux2Raw"]) }
         }
     }
 
@@ -239,11 +264,14 @@ extension WhoopStore {
     public func gravitySamples(deviceId: String, from: Int, to: Int, limit: Int) async throws -> [GravitySample] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """
-                SELECT ts, x, y, z FROM gravitySample
+                SELECT ts, x, y, z, dynAccel FROM gravitySample
                 WHERE deviceId = ? AND ts >= ? AND ts <= ?
                 ORDER BY ts ASC LIMIT ?
                 """, arguments: [deviceId, from, to, limit])
-                .map { GravitySample(ts: $0["ts"], x: $0["x"], y: $0["y"], z: $0["z"]) }
+                // dynAccel (v31) reads back nil for any pre-v31 row and for any WHOOP 4.0 record. The
+                // sleep stager reads x/y/z only — this column is carried, never scored.
+                .map { GravitySample(ts: $0["ts"], x: $0["x"], y: $0["y"], z: $0["z"],
+                                     dynAccel: $0["dynAccel"]) }
         }
     }
 
@@ -253,13 +281,19 @@ extension WhoopStore {
     /// Coalesces measured `hrSample` with PPG-derived `ppgHrSample` (#156) so a PPG-only offload (a v26
     /// WHOOP 5 night with no measured HR) still advances the frontier. The two persist in the same
     /// offload, so this only ever moves the watchdog forward when the strap really logged + offloaded.
+    /// Each arm is its OWN `SELECT MAX(ts)` rather than one `MAX(ts)` over a `UNION ALL` of the two
+    /// timestamp streams. SQLite's MIN/MAX optimization only fires on a bare `SELECT MAX(col)` that can
+    /// seek the last matching index entry; wrapping the columns in a compound subquery first makes the
+    /// planner materialize that subquery, walking EVERY index entry for the device. On a 746 MB store
+    /// (3.1M hrSample rows) the old shape measured 4.3–5.8 s per call and this one 0.01–0.07 s — the
+    /// same answer, verified equal for every device id including one with no rows (both NULL).
     public func latestHRSampleTs(deviceId: String) async throws -> Int? {
         try syncRead { db in
             try Int.fetchOne(db, sql: """
-                SELECT MAX(ts) FROM (
-                    SELECT ts FROM hrSample WHERE deviceId = ?
+                SELECT MAX(m) FROM (
+                    SELECT (SELECT MAX(ts) FROM hrSample WHERE deviceId = ?) AS m
                     UNION ALL
-                    SELECT ts FROM ppgHrSample WHERE deviceId = ?
+                    SELECT (SELECT MAX(ts) FROM ppgHrSample WHERE deviceId = ?)
                 )
                 """, arguments: [deviceId, deviceId])
         }

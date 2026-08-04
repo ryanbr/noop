@@ -42,6 +42,28 @@ final class OuraApiParserSleepTests: XCTestCase {
         XCTAssertTrue(periods.isEmpty)
     }
 
+    func testSkipsDeletedPeriodEntirely() throws {
+        // A user-removed night (`type == "deleted"`) must neither become a session nor compete for
+        // the day's rollup — same rule as OuraExportParser's CSV side (#862). The deleted doc here
+        // would otherwise WIN the day on duration.
+        let docs: [[String: Any]] = [
+            ["id": "dead", "day": "2026-01-02", "type": "deleted",
+             "bedtime_start": "2026-01-01T22:00:00+00:00",
+             "bedtime_end": "2026-01-02T07:00:00+00:00",
+             "total_sleep_duration": 30000, "lowest_heart_rate": 44, "efficiency": 95],
+            ["id": "real", "day": "2026-01-02", "type": "long_sleep",
+             "bedtime_start": "2026-01-02T00:00:00+00:00",
+             "bedtime_end": "2026-01-02T06:00:00+00:00",
+             "total_sleep_duration": 19800, "lowest_heart_rate": 50, "efficiency": 90],
+        ]
+        let (periods, days) = OuraApiParser.parseSleep(docs)
+        XCTAssertEqual(periods.count, 1)
+        XCTAssertEqual(try XCTUnwrap(periods.first).session.lowestHr, 50)
+        XCTAssertEqual(days.count, 1)
+        XCTAssertEqual(days.first?.totalSleepMin, 330)             // 19800s ÷ 60, from the real night
+        XCTAssertEqual(days.first?.restingHr, 50)
+    }
+
     func testSampleSeriesSkipsFiniteButHugeValuesWithoutCrashing() throws {
         // Both `ts` and `bpm` in sampleSeries are Double->Int casts; a finite-but-huge value for EITHER
         // (a crafted `interval` or a crafted `items` element) must be skipped, never trap Int(...).
@@ -70,6 +92,95 @@ final class OuraApiParserSleepTests: XCTestCase {
         let (hugeItemPeriods, _) = OuraApiParser.parseSleep(hugeItemDocs)
         let hugeItemPeriod = try XCTUnwrap(hugeItemPeriods.first)
         XCTAssertEqual(hugeItemPeriod.hr.map(\.bpm), [60, 58])
+    }
+
+    // MARK: - Daily rollup main-session selection (audit: first-write-wins let a nap/fragment beat the
+    // real night on 36 real days, incl. two 90+ bpm daily restingHr spikes from a wake-dominated micro-
+    // session). The rollup must pick the `long_sleep` session regardless of doc order, never mix fields
+    // from two different sessions, and still fall back honestly when no long_sleep exists that day.
+
+    func testDailyRollupPrefersLongSleepOverEarlierFragment() throws {
+        // A 2-min fragment is listed BEFORE the real night's long_sleep session, same day. First-write-wins
+        // would let the fragment's near-zero duration and its own (spiked) restingHr win the day.
+        let docs: [[String: Any]] = [
+            [
+                "day": "2026-02-01", "type": "short_sleep",
+                "bedtime_start": "2026-02-01T04:00:00+00:00",
+                "bedtime_end": "2026-02-01T04:02:00+00:00",
+                "total_sleep_duration": 120, "lowest_heart_rate": 92,
+            ],
+            [
+                "day": "2026-02-01", "type": "long_sleep",
+                "bedtime_start": "2026-01-31T23:00:00+00:00",
+                "bedtime_end": "2026-02-01T07:00:00+00:00",
+                "total_sleep_duration": 27_000, "lowest_heart_rate": 57,
+            ],
+        ]
+        let (periods, days) = OuraApiParser.parseSleep(docs)
+        XCTAssertEqual(periods.count, 2)          // both sessions still show up as Sleep-tab periods
+        XCTAssertEqual(days.count, 1)
+        let day = try XCTUnwrap(days.first)
+        XCTAssertEqual(day.totalSleepMin, 450)    // 27000s ÷ 60 — the long_sleep's duration, not the fragment's
+        XCTAssertEqual(day.restingHr, 57)         // the long_sleep's lowestHr, not the fragment's 92
+    }
+
+    func testDailyRollupPrefersLongSleepRegardlessOfOrder() throws {
+        // Same fixture, long_sleep listed FIRST — the fix must not depend on doc order either way.
+        let docs: [[String: Any]] = [
+            [
+                "day": "2026-02-01", "type": "long_sleep",
+                "bedtime_start": "2026-01-31T23:00:00+00:00",
+                "bedtime_end": "2026-02-01T07:00:00+00:00",
+                "total_sleep_duration": 27_000, "lowest_heart_rate": 57,
+            ],
+            [
+                "day": "2026-02-01", "type": "short_sleep",
+                "bedtime_start": "2026-02-01T04:00:00+00:00",
+                "bedtime_end": "2026-02-01T04:02:00+00:00",
+                "total_sleep_duration": 120, "lowest_heart_rate": 92,
+            ],
+        ]
+        let (_, days) = OuraApiParser.parseSleep(docs)
+        let day = try XCTUnwrap(days.first)
+        XCTAssertEqual(day.totalSleepMin, 450)
+        XCTAssertEqual(day.restingHr, 57)
+    }
+
+    func testDailyRollupKeepsFragmentValuesWhenNoLongSleepThatDay() throws {
+        // A fragment-only day (a nap with no main night recorded) keeps the fragment's own values —
+        // honest, not zeroed or dropped.
+        let docs: [[String: Any]] = [[
+            "day": "2026-02-02", "type": "short_sleep",
+            "bedtime_start": "2026-02-02T13:00:00+00:00",
+            "bedtime_end": "2026-02-02T13:20:00+00:00",
+            "total_sleep_duration": 900, "lowest_heart_rate": 64,
+        ]]
+        let (_, days) = OuraApiParser.parseSleep(docs)
+        let day = try XCTUnwrap(days.first)
+        XCTAssertEqual(day.totalSleepMin, 15)     // 900s ÷ 60 — the only session that day
+        XCTAssertEqual(day.restingHr, 64)
+    }
+
+    func testDailyRollupPicksLongerOfTwoLongSleeps() throws {
+        // Equal rank (both long_sleep) → the longer total_sleep_duration wins, not doc order.
+        let docs: [[String: Any]] = [
+            [
+                "day": "2026-02-03", "type": "long_sleep",
+                "bedtime_start": "2026-02-02T22:00:00+00:00",
+                "bedtime_end": "2026-02-03T02:00:00+00:00",
+                "total_sleep_duration": 12_000, "lowest_heart_rate": 60,
+            ],
+            [
+                "day": "2026-02-03", "type": "long_sleep",
+                "bedtime_start": "2026-02-03T03:00:00+00:00",
+                "bedtime_end": "2026-02-03T07:00:00+00:00",
+                "total_sleep_duration": 13_000, "lowest_heart_rate": 55,
+            ],
+        ]
+        let (_, days) = OuraApiParser.parseSleep(docs)
+        let day = try XCTUnwrap(days.first)
+        XCTAssertEqual(day.totalSleepMin, 13_000 / 60.0)
+        XCTAssertEqual(day.restingHr, 55)
     }
 
     /// Oura's `efficiency` is a 0-100 integer percent. NOOP's own sleep pipeline stores

@@ -254,6 +254,8 @@ def _extract_literals(text: str, start: int, end: int) -> list[tuple[int, str]]:
 ANDROID_DIRS = [
     ROOT / "android/app/src/main/java/com/noop/ui",
     ROOT / "android/app/src/main/java/com/noop/widget",
+    ROOT / "android/app/src/main/java/com/noop/ble",
+    ROOT / "android/app/src/main/java/com/noop/notif",
 ]
 
 # `AlertDialog` is deliberately NOT in this list: confirmed (all 22 call sites
@@ -262,7 +264,7 @@ ANDROID_DIRS = [
 # `Snackbar(`/`TopAppBar(` do not currently appear anywhere in this codebase;
 # kept for whatever future call sites use them, since `Text(` always does
 # take its content as the first argument here.
-ANDROID_CALL_PATTERN = re.compile(r"\b(?:Text|Snackbar|TopAppBar)\s*\(")
+ANDROID_CALL_PATTERN = re.compile(r"\b(?:Text|Snackbar|TopAppBar|setContentTitle|setContentText)\s*\(")
 ANDROID_KWARG_PATTERN = re.compile(r"\b(?:title|label|text|contentDescription|placeholder)\s*=\s*")
 
 # `contentDescription = <expr>` is UI accessibility text wherever it is ASSIGNED. Unlike the general

@@ -2,6 +2,7 @@ package com.noop.ble
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -61,6 +62,10 @@ class BodyLocationProbeFormatTest {
     @Test fun bareStubIsCalledOut() {
         val (text, payHex) = WhoopBleClient.formatBodyLocationProbe(hexToBytes("aa0700fa24005446758858"), 6, false, null)
         assertTrue(text.contains("bare stub"))
+        // Twin of the Swift assertion: a bare stub is one reply, not a firmware capability.
+        assertTrue(text.contains("ambiguous"))
+        assertFalse(text.contains("no body-location data on this firmware"))
+        assertTrue(text.contains("not the same as the firmware having none"))
         assertNull(payHex)
     }
 

@@ -6,7 +6,6 @@ import com.noop.analytics.ChargeDriver
 import com.noop.analytics.RecoveryDrivers
 import com.noop.analytics.RestScorer
 import com.noop.analytics.ScoreConfidence
-import com.noop.R
 import com.noop.data.DailyMetric
 import java.time.LocalDate
 import java.time.Instant
@@ -316,6 +315,12 @@ sealed class RecordingState {
      *  experimental on 5.0. Surfaced from `LiveState.historySyncExperimental`, overriding the resolver. */
     object HistoryExperimental : RecordingState()
 
+    /** #612, connected with no live HR AND no evidence data is actually flowing — either this is the
+     *  strap's first-ever pairing (never once synced) or a WHOOP-4/generic strap whose last several
+     *  offloads all came back empty ([LiveState.sustainedEmptyOffload]). Distinct from [NotRecording]:
+     *  the link genuinely IS up, so claiming "Strap not connected" would be false. */
+    object ConnectedNoData : RecordingState()
+
     /** The chip's status word. VERBATIM, mirror Swift exactly. */
     val title: String
         get() = when (this) {
@@ -323,6 +328,7 @@ sealed class RecordingState {
             is LastSynced -> "Last synced ${minutesAgo}m ago"
             NotRecording -> "Not recording"
             HistoryExperimental -> "Connected"
+            ConnectedNoData -> "Connected"
         }
 
     /** The chip's one-line detail. VERBATIM, mirror Swift exactly. */
@@ -332,37 +338,44 @@ sealed class RecordingState {
             is LastSynced -> "Reconnect to pull the latest."
             NotRecording -> "Strap not connected. Tap to connect."
             HistoryExperimental -> "History sync is experimental on 5.0."
+            ConnectedNoData -> "No live heart rate or synced history yet this session."
         }
 
     /** Chip hue: live recording reads positive (gold/green dot), a stale-but-recent sync reads neutral,
-     *  not-recording reads critical so a dropped link is obvious; the 5.0 experimental-history state is
-     *  connected so it reads accent, not critical. */
+     *  not-recording reads critical so a dropped link is obvious; the 5.0 experimental-history state and
+     *  the connected-no-data state are both connected so they read accent, not critical. */
     val tone: StrandTone
         get() = when (this) {
             Recording -> StrandTone.Positive
             is LastSynced -> StrandTone.Neutral
             NotRecording -> StrandTone.Critical
             HistoryExperimental -> StrandTone.Accent
+            ConnectedNoData -> StrandTone.Accent
         }
 }
 
 /**
  * Resolve the honest [RecordingState] from the live BLE state + last-sync timestamp. Pure + unit-tested.
  *   - connected AND a live HR is streaming  -> [RecordingState.Recording] (it really is saving data);
+ *   - connected, no live HR, AND (never synced OR [sustainedEmptyOffload]) -> [RecordingState.ConnectedNoData]
+ *                                              (#612 — the link IS up, so "not connected" would be false);
  *   - else a [lastSyncAtSec] this session    -> [RecordingState.LastSynced] (minutes since, clamped >= 0,
  *                                              ROUNDED UP so a 30s-old sync reads "1m ago" not "0m ago");
  *   - else                                   -> [RecordingState.NotRecording].
  * "Recording" requires BOTH a connection AND a live heart-rate sample so a bonded-but-silent link can't
  * claim it's saving data. [nowSec] is unix seconds (injected so the math is testable). Mirrors Swift
- * `recordingStateFor`.
+ * `RecordingState.resolve`.
  */
 internal fun recordingStateFor(
     connected: Boolean,
     liveHeartRate: Int?,
     lastSyncAtSec: Long?,
     nowSec: Long,
+    sustainedEmptyOffload: Boolean = false,
 ): RecordingState = when {
     connected && liveHeartRate != null -> RecordingState.Recording
+    connected && liveHeartRate == null && (lastSyncAtSec == null || sustainedEmptyOffload) ->
+        RecordingState.ConnectedNoData
     lastSyncAtSec != null -> {
         // Clamp at 0 (a sync stamped slightly in the future from strap-clock skew can't read negative)
         // then ROUND UP so a 30-second-old sync reads "1m ago", never "0m ago", matches the Swift
@@ -388,15 +401,29 @@ sealed class SyncChipState {
 
     companion object {
         /** Pure + unit-tested. Mirrors Swift `SyncChipState.resolve` exactly: backfilling wins over a
-         *  known last-sync, which wins over the 5/MG experimental fallback. */
+         *  known last-sync, which wins over the 5/MG experimental fallback.
+         *
+         *  [nowSec] (unix seconds) and [nowLabel] (the already-translated "now" word) are PARAMETERS
+         *  rather than things this function reaches for, which is what keeps "pure" true. Resolving the
+         *  word in here instead cost the twin its own test: it goes through `NoopApplication`, which
+         *  throws `IllegalStateException: NoopApplication is not attached` under a plain JVM unit test —
+         *  these run without Robolectric, so no Application is ever attached. Only the `< 60s` branch of
+         *  [shortSyncAgo] wants a word, so the failure was invisible until a case landed in it. Same
+         *  injected-clock style as [recordingStateFor] just above.
+         *
+         *  Swift's twin keeps both inside its own `shortAgo` and is fine there — XCTest runs against a
+         *  real bundle, so `String(localized:)` resolves. The two SIGNATURES therefore differ on purpose;
+         *  the decision they encode does not. Don't "restore parity" by moving the lookup back in here. */
         fun resolve(
             backfilling: Boolean,
             chunks: Int,
             lastSyncAtSec: Long?,
             historySyncExperimental: Boolean,
+            nowSec: Long,
+            nowLabel: String,
         ): SyncChipState = when {
             backfilling -> Syncing(chunks)
-            lastSyncAtSec != null -> Synced(shortSyncAgo(lastSyncAtSec))
+            lastSyncAtSec != null -> Synced(shortSyncAgo(lastSyncAtSec, nowSec, nowLabel))
             historySyncExperimental -> ExperimentalLive
             else -> Hidden
         }
@@ -405,11 +432,13 @@ sealed class SyncChipState {
 
 /** Compact relative age for the header chip ("now" / "Nm" / "Nh" / "Nd") from a unix-SECONDS timestamp —
  *  deliberately terse. "now" is the only word in here (the rest is digits + a unit letter), so it's the
- *  only piece that needs a catalog entry to translate. Mirrors the iOS `SyncChipState.shortAgo`. */
-internal fun shortSyncAgo(unixSec: Long): String {
-    val secs = (System.currentTimeMillis() / 1000L - unixSec).coerceAtLeast(0)
+ *  only piece that needs a catalog entry to translate; it arrives as [nowLabel], resolved by the
+ *  composable that owns the chip, so the bucketing stays framework-free. [nowSec] is unix seconds,
+ *  injected for the same reason. Mirrors the iOS `SyncChipState.shortAgo`. */
+internal fun shortSyncAgo(unixSec: Long, nowSec: Long, nowLabel: String): String {
+    val secs = (nowSec - unixSec).coerceAtLeast(0)
     return when {
-        secs < 60 -> uiString(R.string.l10n_today_screen_sync_chip_now_c9bc849a)
+        secs < 60 -> nowLabel
         secs < 3600 -> "${secs / 60}m"
         secs < 86_400 -> "${secs / 3600}h"
         else -> "${secs / 86_400}d"

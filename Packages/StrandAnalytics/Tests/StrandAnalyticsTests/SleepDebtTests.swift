@@ -75,6 +75,21 @@ final class SleepDebtTests: XCTestCase {
         XCTAssertEqual(l.balanceMin, -60.0, accuracy: 1e-9)
     }
 
+    /// Main sleep remains the canonical nightly figure, while a separately-recorded nap
+    /// contributes its asleep minutes when the caller prepares the debt series.
+    func testNapMinutesAddDebtRepaymentCredit() throws {
+        let credited = try XCTUnwrap(SleepDebt.creditedSleepMin(mainSleepMin: 392, napSleepMin: 48))
+        XCTAssertEqual(credited, 440, accuracy: 1e-9)
+        let l = SleepDebt.ledger(series: [("2026-06-01", credited)], needHours: 8.0)
+        XCTAssertEqual(l.balanceMin, -40, accuracy: 1e-9)
+    }
+
+    func testNapCreditRequiresMainSleepAndIgnoresNegativeNapMinutes() {
+        XCTAssertNil(SleepDebt.creditedSleepMin(mainSleepMin: nil, napSleepMin: 48))
+        XCTAssertNil(SleepDebt.creditedSleepMin(mainSleepMin: 0, napSleepMin: 48))
+        XCTAssertEqual(SleepDebt.creditedSleepMin(mainSleepMin: 392, napSleepMin: -10), 392.0)
+    }
+
     /// A NEGATIVE EXACT half-tie balance rounds AWAY from zero (−0.05 → −0.1), the documented
     /// `round1` contract the Kotlin mirror must match (audit #6). needMin = 0.1, slept 0.05 →
     /// delta −0.05 exactly → balance −0.1. Kotlin's old `roundToInt()` (half toward +∞) gave

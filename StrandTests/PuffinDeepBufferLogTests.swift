@@ -79,4 +79,18 @@ final class PuffinDeepBufferLogTests: XCTestCase {
         var bogus = [UInt8](repeating: 0, count: 1244); bogus[8] = 0x2F
         XCTAssertEqual(PuffinDeepBufferLog.decodedImuField(bogus), "")
     }
+
+    /// The optical phase marker is a stable machine schema the offline analyzer depends on.
+    func testOpticalMarkerSchemaUsesStableClockAndLabelKeys() throws {
+        let line = try XCTUnwrap(PuffinDeepBufferLog.markerJSONLine(
+            phase: .offWristDark, tsMs: 1_234_567, unixTs: 1_234))
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])
+
+        XCTAssertEqual(object["kind"] as? String, "optical_phase")
+        XCTAssertEqual(object["label"] as? String, "off_wrist_dark")
+        XCTAssertEqual(object["unix_ts"] as? Int, 1_234)
+        XCTAssertEqual(object["ts_ms"] as? Int, 1_234_567)
+        XCTAssertNil(object["strap_ts"])
+        XCTAssertNil(object["hex"])
+    }
 }

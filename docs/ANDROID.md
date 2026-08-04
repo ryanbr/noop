@@ -509,7 +509,7 @@ storage; nothing is uploaded.
 ## Raw capture import (`capture.json`)
 
 **Settings → Data Sources → "Raw capture (.json)"** imports a strap offload that was captured on
-*another* device — most usefully the Linux `tools/linux-capture/whoop_sync.py` tool, whose `export`
+*another* device — most usefully the Linux `Tools/linux-capture/whoop_sync.py` tool, whose `export`
 subcommand writes exactly this format. It lets you pull a strap's history on a laptop (no phone, no
 WHOOP app) and then fold it into NOOP on the phone. Fully offline; nothing leaves the device.
 
@@ -562,7 +562,7 @@ post-import rescore via `CaptureImporter.analyzeWindowDays(firstDay, today)`:
   not calibrated `%`/`°C`; the engine does not derive daily SpO₂ / skin-temp from them, so those daily
   fields stay null on a 4.0 import.
 
-See `tools/linux-capture/README.md` for the capture/export side that produces these files.
+See `Tools/linux-capture/README.md` for the capture/export side that produces these files.
 
 ---
 

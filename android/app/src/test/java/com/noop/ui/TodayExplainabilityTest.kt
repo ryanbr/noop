@@ -137,8 +137,34 @@ class TodayExplainabilityTest {
 
     @Test
     fun recording_notClaimed_whenConnectedButNoLiveHr() {
-        // A bonded-but-silent link must not claim it's saving data — falls to last-synced / not-recording.
+        // A bonded-but-silent link must not claim it's saving data.
+        // #612: connected + no live HR + never synced (a strap's first-ever pairing) must not claim
+        // "Not recording" either — the link genuinely IS up. Fixed from the prior `NotRecording` result,
+        // which was the exact bug #612 reported.
         val state = recordingStateFor(connected = true, liveHeartRate = null, lastSyncAtSec = null, nowSec = 1_000_000)
+        assertEquals(RecordingState.ConnectedNoData, state)
+    }
+
+    @Test
+    fun connectedNoData_sustainedEmptyOffload_overridesAnOldLastSync() {
+        // #612: an established strap (old but known last-sync) whose recent offloads are a SUSTAINED
+        // empty streak reads "connected, no data" rather than a stale "Last synced 14d ago".
+        val now = 10_000L
+        val state = recordingStateFor(
+            connected = true, liveHeartRate = null, lastSyncAtSec = now - 1_209_600, nowSec = now,
+            sustainedEmptyOffload = true,
+        )
+        assertEquals(RecordingState.ConnectedNoData, state)
+    }
+
+    @Test
+    fun connectedNoData_sustainedEmptyOffload_withoutConnection_isNotConnectedNoData() {
+        // The `connected` gate still applies: a disconnected strap with a stale sustained-empty flag
+        // (carried over from before the drop) must not read "Connected".
+        val state = recordingStateFor(
+            connected = false, liveHeartRate = null, lastSyncAtSec = null, nowSec = 10_000L,
+            sustainedEmptyOffload = true,
+        )
         assertEquals(RecordingState.NotRecording, state)
     }
 

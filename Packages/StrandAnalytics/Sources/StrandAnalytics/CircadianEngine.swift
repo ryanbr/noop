@@ -27,6 +27,18 @@ public enum CircadianEngine {
     /// Days at/above which the fit reads as full-confidence.
     public static let goodDaysForFit: Int = 14
     /// A cosinor fit with amplitude below this fraction of the mesor is "arrhythmic" — too flat to phase.
+    ///
+    /// #982 — RELATIVE, applied to a signal (mean HR, see `ActivityBin`) whose mesor is ~45-75 bpm rather
+    /// than the near-zero mesor a motion volume would have. So the effective bar is an absolute amplitude
+    /// of `0.10 x mesor`: about 6.5 bpm at a 65 bpm mesor, about 4.5 bpm at 45. It scales WITH the mesor,
+    /// so a low-resting wearer faces a LOWER absolute bar, not a higher one — the opposite of the concern
+    /// raised in #982, which assumed the gate penalises the fittest.
+    ///
+    /// Deliberately NOT re-tuned to an absolute bpm floor. The shape is arguably wrong for this domain,
+    /// but every candidate value is unvalidated, nobody is currently silenced by it, and the direction of
+    /// the harm is not established (it needs a wearer whose amplitude is disproportionately small for
+    /// their mesor — an n=1 observation). `CircadianEngineTests` pins what the gate costs at each mesor so
+    /// the trade is visible to whoever does have the data to change it.
     public static let minRelativeAmplitude: Double = 0.10
     /// Max clock-shift the planner steps per day (hours) — the well-established ~1 h/day re-entrainment rate.
     public static let maxShiftPerDayHours: Double = 1.0
@@ -39,8 +51,17 @@ public enum CircadianEngine {
 
     // MARK: - Inputs
 
-    /// One per-hour rest-activity sample: the local clock hour (0..<24, may be fractional) and the motion
-    /// volume in that bin (e.g. StepsEstimateEngine.dayMotionIntensity per hour). Higher = more active.
+    /// One per-hour rest-activity sample: the local clock hour (0..<24, may be fractional) and the
+    /// rhythm signal in that bin. Higher = more active.
+    ///
+    /// #982 — this said "motion volume (e.g. StepsEstimateEngine.dayMotionIntensity per hour)". It has
+    /// never been fed that. The only production caller pools per-hour MEAN HEART RATE in bpm
+    /// (`AppModel.swift`, `sums[hour] += b.bpm`), and that is the right choice on this hardware: WHOOP 4.0
+    /// motion is too sparse to stage sleep at all (#345), while HR carries a strong circadian rhythm.
+    ///
+    /// The domain matters because `minRelativeAmplitude` gates on `amplitude / |mesor|`, and HR arrives
+    /// with a large DC offset that motion does not have — see that constant for what the gate actually
+    /// costs in bpm.
     public struct ActivityBin: Equatable, Sendable {
         public let hour: Double
         public let activity: Double

@@ -321,9 +321,18 @@ public final class ReadonlyNoopStore {
 
     public func storageStats() throws -> StorageStats {
         try dbQueue.read { db in
+            // Every durable decoded per-second table. The four below the first line were landed as
+            // instrumentation and then left OUT of this count, which is how an unbounded, unpruned table
+            // became invisible: `ppgWaveformSample` banks a ~48-byte BLOB per v26 strap-second and
+            // `v18AuxSample` ~30 bytes per v18 strap-second, neither is pruned (deliberately — this is
+            // decoded biometric history, not the transient raw outbox), and until now neither showed up in
+            // the only readout a user has for "what is the store spending space on". Growth that nothing
+            // reads still has to be growth somebody can SEE. Guarded by `tableNames.contains` so a store
+            // predating any of these migrations still reports.
             let decodedTables = [
                 "hrSample", "rrInterval", "event", "battery", "spo2Sample",
                 "skinTempSample", "respSample", "gravitySample", "ppgHrSample", "stepSample",
+                "sleepStateSample", "ppgWaveformSample", "rawImuSample", "v18AuxSample",
             ]
             var decodedRows = 0
             for table in decodedTables where tableNames.contains(table) {

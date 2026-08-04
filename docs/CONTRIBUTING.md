@@ -87,8 +87,7 @@ Strand/
 │   ├── StrandImport/           # WHOOP CSV + Apple Health importers
 │   └── StrandDesign/           # SwiftUI design system (palette, components, charts)
 ├── Tools/
-│   └── Backfill/               # `swift run backfill` — re-runs importers into the on-device DB
-├── tools/
+│   ├── Backfill/               # `swift run backfill` — re-runs importers into the on-device DB
 │   └── linux-capture/          # Headless Linux capture workbench (Python/bleak + whoop-decode)
 ├── Fixtures/                   # Sample WHOOP export used by tests
 └── android/                    # Android client — full shipped app (Kotlin/Gradle, separate module)
@@ -105,7 +104,7 @@ Strand/
 | Colors, fonts, motion, cards, charts | `Packages/StrandDesign` | No external UI deps; bridges AppKit/UIKit. |
 | CoreBluetooth, bonding, offload, live state | `Strand/BLE`, `Strand/Collect` | macOS-app layer — wraps the pure packages. |
 | A screen, sidebar item, menu-bar UI, automation | `Strand/Screens`, `Strand/App`, `Strand/System` | App layer. |
-| Capturing strap frames on Linux for protocol RE | `tools/linux-capture` | Python/bleak capture → `whoop-decode`; no Mac/CoreBluetooth. See its [README](../tools/linux-capture/README.md). |
+| Capturing strap frames on Linux for protocol RE | `Tools/linux-capture` | Python/bleak capture → `whoop-decode`; no Mac/CoreBluetooth. See its [README](../Tools/linux-capture/README.md). |
 
 **Rule of thumb:** the more "wire-level" or "math-level" a change is, the deeper into `Packages/` it
 should live, and the more it should be covered by a `swift test` suite that runs without an app, a
@@ -172,12 +171,12 @@ cd Packages/WhoopProtocol
 swift build && swift test                 # decoder + its tests, on Linux
 swift build --product whoop-decode        # the decode CLI → .build/debug/whoop-decode
 
-cd ../../tools/linux-capture
+cd ../../Tools/linux-capture
 python3 -m unittest -v                     # framing/reassembly tests (stdlib only, no bleak)
 ```
 
 Capturing from a real strap on Linux is documented in
-[`../tools/linux-capture/README.md`](../tools/linux-capture/README.md).
+[`../Tools/linux-capture/README.md`](../Tools/linux-capture/README.md).
 
 ### macOS app
 
@@ -474,6 +473,21 @@ Schema lives in `Packages/WhoopStore/Sources/WhoopStore/Database.swift` as a **v
   add metric caches (`sleepSession`, `dailyMetric`, `metricSeries`), cursors, and more. Follow the
   same shape and naming.
 - Add a `MigrationTests` case proving the migration applies cleanly on top of the prior version.
+- **Update `schema_oracle.json` in the same PR.** Room (Android) and GRDB (iOS) must agree on the
+  resulting schema, and that agreement is pinned by a shared fixture committed in two byte-identical
+  copies (`Packages/WhoopStore/Tests/WhoopStoreTests/Resources/` and `android/app/src/test/resources/`).
+  `SchemaOracleTests.swift` compares it to GRDB's `PRAGMA table_info`; `SchemaOracleTest.kt` compares it
+  to the schema Room's KSP processor exports. Both fail on a column added to one side only, a column
+  ORDER difference, a type/nullability/DEFAULT change, a primary-key change, an index change, or a new
+  unpinned table — so a migration cannot land until the twin lands with it. A divergence that is
+  deliberate must be written into the fixture's `divergenceReasons` with the reason and what closing it
+  would cost; the suites also fail on a ledger entry that has stopped being true, so the list can only
+  shrink on purpose. Extend the oracle rather than adding a parallel mechanism (same idiom as
+  `decoder_oracle.json`).
+- **GRDB migration identifiers are `v<N>[-slug]`, strictly sequential.** GRDB keys migrations by NAME
+  and applies them in registration order, so two open PRs that both add a `v31` produce two migrations
+  claiming one number (and an exact name collision makes GRDB silently skip the second body). The
+  oracle test asserts the numbers run 1…N with no gaps or repeats: renumber when you rebase.
 
 ---
 

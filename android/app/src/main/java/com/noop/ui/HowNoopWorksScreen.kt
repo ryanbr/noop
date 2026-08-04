@@ -259,8 +259,7 @@ private fun PrimerCard(section: PrimerSection) {
 @Composable
 private fun FooterNote() {
     Text(
-        uiString(R.string.l10n_how_noop_works_screen_noop_never_makes_up_a_number_da29aca5) +
-            "what's missing and what to do, rather than showing a fake value.",
+        uiString(R.string.l10n_how_noop_works_screen_noop_never_makes_up_a_number_da29aca5),
         style = NoopType.footnote,
         color = Palette.textTertiary,
         modifier = Modifier

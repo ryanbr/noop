@@ -8,7 +8,7 @@ import Foundation
 /// timeline continuous through the gaps. It is HR-only — PPG carries NO body motion, so this fills HR
 /// continuity, NOT actigraphy and NOT HRV (the contributor confirmed v26 gives no RMSSD).
 ///
-/// Mirrors `tools/linux-capture/ppg_hr.py` (PR #162, Python side): 8 s autocorrelation window, a
+/// Mirrors `Tools/linux-capture/ppg_hr.py` (PR #162, Python side): 8 s autocorrelation window, a
 /// 30–220 bpm search band (lags 6…48 at 24 Hz), linear detrend, normalised peak as confidence, and a
 /// fundamental-period preference so the harmonic peaks at 2×/3× the true period don't report half/third
 /// the real rate. Pure + Foundation-only so it is unit-testable from synthetic and captured waveforms.

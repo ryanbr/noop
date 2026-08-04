@@ -7,8 +7,6 @@ import com.noop.data.WhoopRepository
 import com.noop.data.WorkoutRow
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.ByteArrayOutputStream
-import java.io.InputStream
 import java.text.NumberFormat
 import java.time.Instant
 import java.time.LocalDate
@@ -452,17 +450,3 @@ object LiftingImporter {
 
 // MARK: - Stream helper (file-private; the twin in NutritionCsvImporter.kt is not visible here)
 
-/** Read a whole stream, throwing if it exceeds [cap] bytes (memory guard). */
-private fun InputStream.readCapped(cap: Long): ByteArray {
-    val buffer = ByteArrayOutputStream(64 * 1024)
-    val chunk = ByteArray(64 * 1024)
-    var total = 0L
-    while (true) {
-        val n = read(chunk)
-        if (n < 0) break
-        total += n
-        if (total > cap) throw IllegalStateException("Input exceeds $cap bytes")
-        buffer.write(chunk, 0, n)
-    }
-    return buffer.toByteArray()
-}

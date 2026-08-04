@@ -66,6 +66,24 @@ internal data class Vital(
         } ?: "$label: no data"
 }
 
+/**
+ * Which "no value" line the Blood O₂ tile shows, given whether that night decoded raw red/IR counts.
+ *
+ * Two different empty states, and conflating them is what sends people to the forums. When the night HAS
+ * raw counts the strap's Blood-O₂ sensor plainly worked — only the CALIBRATED % is missing, because WHOOP
+ * derives that in their cloud from the raw ADCs and NOOP will not fabricate one (`spo2Pct` is import-only;
+ * see `Spo2ReTrace`, and the #194 PPG→HR withdrawal for why). Showing "No SpO₂ import or Health value"
+ * there reads as "your sensor recorded nothing" — directly beside a Raw SpO₂ tile displaying a live
+ * number, which is exactly the contradiction that gets reported as a broken strap.
+ *
+ * Split out as a pure function purely so it is TESTABLE: `vitalsFor` resolves strings through
+ * `NoopApplication`, so nothing in this file can run in a JVM unit test. The branch is the part worth
+ * pinning; the resource lookup is not.
+ */
+internal fun spo2MissingCaptionRes(hasRawSpo2: Boolean): Int =
+    if (hasRawSpo2) R.string.l10n_health_screen_raw_counts_only_needs_an_import_d0e33552
+    else R.string.l10n_health_screen_no_spo_import_or_health_value_408f8c55
+
 internal enum class VitalCaptionMode {
     AS_OF,
     RANGE,
@@ -172,7 +190,13 @@ internal fun vitalsFor(
         ),
         Vital(
             key = "spo2", label = uiString(R.string.l10n_health_screen_blood_o_9bf5ed9b), unit = "%",
-            missingCaption = "No SpO₂ import or Health value",
+            // The condition is EXACTLY the Raw SpO₂ tile's own value expression (`d?.let(spo2RawMean)`,
+            // below) and must stay that way: the caption's claim is "the tile beside this one is
+            // showing a number", so if the two expressions drift, this says the sensor recorded on a
+            // night where the neighbouring tile is blank. The platforms pick that row differently —
+            // Android per selected day, Apple `logicalDay ?? most recent` — so the ROW is not the
+            // parity contract here; the relationship between the two tiles is.
+            missingCaption = uiString(spo2MissingCaptionRes(d?.let(spo2RawMean) != null)),
             value = d?.spo2Pct, format = { String.format("%.0f", it) },
             deltaText = deltaText(d?.spo2Pct, previous { it.spo2Pct }, decimals = 0),
             readingDay = todayKey,

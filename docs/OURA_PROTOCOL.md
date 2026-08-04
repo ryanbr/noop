@@ -6,14 +6,18 @@
 
 **Citation keys used below:**
 - **[open_ring]** - LogosIsLife/open_ring `PROTOCOL.md` (GPL-3.0; byte-for-byte verified vs ~953k records, Ring 4). Treat as the authoritative framing/layout source where repos conflict.
-- **[ringverse]** - ringverse/protocol `oura/BLE.md`, `oura/events/EVENTS.md` (no-license; Ring 4 event-tag dictionary + layouts).
+- **[ringverse]** - ringverse/protocol `oura/BLE.md`, `oura/events/EVENTS.md` (no-license; Ring 4 event-tag dictionary + layouts), and `oura/storage.md` (the official iOS app's local SQLite schema, cited only for §3.7's key-extraction recipe).
 - **[open_oura-r3]** - Th0rgal/open_oura `docs/horizon-ring3-protocol-cheatsheet.md` (no-license; Ring 3).
 - **[open_oura-r5]** - Th0rgal/open_oura `docs/ring-5-observations.md` (Ring 5).
 - **[open_oura-feat]** - Th0rgal/open_oura `docs/ring-features.md` (feature gating).
+- **[open_oura-spo2]** - Th0rgal/open_oura `docs/spo2-calibration.md` (branch `swim-sessions-and-rdata-spike`; no-license, facts cited only, no code copied). Classes `0x6F`/`0x70` as firmware-computed percentages and documents the `0x8b` ratio-of-ratios path with the app's quadratic coefficients. The coefficients are attributed there to the decompiled Oura app (`com/ouraring/oura/workitem/data/items/d.java`); they are recorded here as CITED FACTS for interoperability, not reproduced implementation - NOOP does not receive `0x8b` and implements none of it.
 - **[relue]** - relue/oura_ring_reverse `docs/.../heartbeat_replication_guide.md` and `heartbeat_complete_flow.md` (no-license; Ring 3 live-HR).
 - **[oura-rs]** - Th0rgal/open_oura `crates/oura-protocol/src/events.rs` (no-license Rust clean-room decoder; facts cited only, no code copied). Its event tags marked `"_status": "unvalidated"` are treated the same as our Tier B - plausible, not ground-truth-confirmed.
 - **[open_oura-act]** - Th0rgal/open_oura `crates/oura-cli/src/activity_model.rs` (no-license; facts cited only). The activity classifier's input assembly reads four SEPARATE event tags — `met`←`0x50`, motion←`0x47`, temp←`0x46`, `hr_bpm`←`0x80` — establishing which tag each signal comes from (notably HR from the `0x80` IBI record, not `0x50`).
 - **[ring4-ble]** - Defying/oura-ring4-ble `docs/apk-findings.md` + `docs/protocol-notes.md` (no-license; APK static-analysis + Ring-4 BLE captures, facts cited only). Confirms the framing/auth/tag set is generation-invariant (Ring 4 == Ring 3) and pins the full feature-ID table + the feature mode / subscription enums; also confirms the app derives BPM as `round(60000 / ibi_ms)`.
+- **[TechInsights]** / **[System Plus]** - public Gen 3 teardowns identifying the IMU as a **Bosch Sensortec BMI160** (`techinsights.com/ebook/oura-ring-gen-3-smart-ring`, `reverse-costing.com/teardowns/oura-ring-gen3`). Hardware identification only.
+- **[BMI160 datasheet]** - Bosch Sensortec BMI160 datasheet (BST-BMI160-DS000), public vendor documentation. Cited for the part's own `STEP_CNT` register (§2.11.36) — a capability the ring HAS and does NOT expose, not an Oura protocol fact.
+- **[Oura blog]** - Oura's public product blog (`ouraring.com/blog/activity-improvements/`), cited for Oura's own statement that "Real Steps" (March 2025) is a machine-learning model. A vendor statement about behaviour, not a layout source.
 
 > **CONFLICT NOTE (resolution rule):** The relue archive file `event_data_definition.md` describes events as **protobuf varint** records (e.g. `0x55` SLEEP_HR with field tags). This contradicts the **byte-for-byte verified TLV framing** in [open_ring] and [ringverse]. The TLV/bit-packed model from [open_ring]/[ringverse] is authoritative for our decoders; the protobuf description is treated as unverified/likely AI-fabricated and is NOT used. Where a layout is only attested by a single no-license, AI-generated doc, it is marked **(UNVERIFIED)** and our decoder must gate it behind a fixture test before trusting it.
 
@@ -151,6 +155,23 @@ ring  → phone: 2f 02 2e <status>
 ### 3.6 Pre-auth readable / gated commands
 Before app-auth, the ring answers a small set unauthenticated: firmware (`0x08`), product serial/hardware (`0x18`). Auth-required commands return `2f 02 2f 01` until authenticated: battery (`0x0c`), history events (`0x10`), feature status (`0x2f…0x20`), realtime/feature-latest. [open_oura-r3][open_oura-r5]
 
+### 3.7 Advanced pairing: using the ring's genuine app-issued `auth_key` (optional, user-recipe)
+§3.2 provisions **NOOP's own** key, which only works post-factory-reset and does not carry any of the account's server-side feature entitlements (§7.1). An alternative — entirely optional, and only usable with **your own** ring/account/iPhone — is to pair NOOP with the **same** `auth_key` the real Oura app already uses. Because that key is tied to the account, the ring keeps whatever cloud `ClientConfiguration` (SpO2, Exercise HR, real-steps, …) the real app has already unlocked for it (§7.1 documents the 2026-07-30 observation this produced).
+
+> **IMPORTANT: this requires an active Oura membership at the time you enable the feature.** SpO2 / Exercise HR / real-steps are gated behind the paid Oura subscription, not just the free app — the `ClientConfiguration` the ring inherits only unlocks them while a membership is active on the account. A 1-month membership is enough: subscribe, enable the feature(s) in the app (step 1 below), then the ring keeps that entitlement for NOOP to inherit via the Advanced-key pairing. **Untested: what happens after the membership lapses.** We don't yet know whether the ring's unlocked state persists past expiry, needs a periodic server re-check, or reverts — treat the unlock as good for the duration you tested it (one billing month), not confirmed indefinite.
+
+1. Pair the ring with the genuine Oura app first, **with an active paid membership on the account**, and enable the features you want (e.g. SpO2 — [Oura support: Blood Oxygen Sensing](https://support.ouraring.com/hc/en-us/articles/7328398760851-Blood-Oxygen-Sensing-SpO2), steps/activity — [Oura support: How Oura Measures Steps](https://support.ouraring.com/hc/en-us/articles/360025576833-How-Oura-Measures-Steps-Activity)). These toggles are account-side settings, not something NOOP can set.
+2. On the same Mac, start a **local, unencrypted** iPhone backup (Finder → device → Back Up Now). No jailbreak, no decryption bypass — this is Apple's own standard backup mechanism over your own data.
+3. Browse the backup with a third-party backup explorer (e.g. "iBackup Viewer") and locate the Oura app's container: search for `AppDomain-com.ouraring.oura`, then under it `<UUID>/assa.sqlite` (UUID is uppercase). [ringverse: `oura/storage.md`]
+4. Extract `assa.sqlite` and open it with any SQLite browser. Per [ringverse]'s `oura/storage.md`, the ring's id and key live in table `ringconfiguration`:
+   ```sql
+   SELECT id, auth_key FROM ringconfiguration;
+   ```
+5. `auth_key` comes back **Base64-encoded**; decode it to get the raw 16-byte AES key.
+6. In NOOP's Oura pairing wizard, choose **"Advanced: I already have my ring's key"** (`AddDeviceWizard.swift`) instead of the normal factory-reset flow, and paste in the decoded key.
+
+Treat this key like a password: it authenticates as the real Oura app against your account's ring. NOOP stores it locally the same way it stores its own provisioned key (Keychain on iOS / EncryptedSharedPreferences-Keystore on Android, §3.2) — nothing is transmitted anywhere. This recipe extracts a fact from **your own** device backup and a public schema doc; it does not touch, decompile, or redistribute any Oura app code.
+
 ---
 
 ## 4. Opcode Table
@@ -253,6 +274,28 @@ Gen 5 example `0912 020100 020103 010001 090329 665544332211`. [open_oura-r5]
 
 ### 5.3 Canonical fetch loop (NOOP, aligned with open_oura `drain_events`)
 1. SyncTime (§5.4). 2. Optionally `28 01 00` to flush flash-buffered events first. [open_ring]
+   - **⚠️ ONE CLIENT GETS THE HISTORY, AND ONLY ONE (observed, NOOP 2026-08-02).** The ring bonds to a
+     single client at a time, and in practice **whichever client drains a period's history consumes it —
+     the other gets nothing for those days**. Confirmed by a user who alternated NOOP and the official
+     Oura app: after either had synced, the other found nothing left for that window. This is a hard,
+     user-visible consequence of using NOOP with a ring whose Oura Cloud history also matters, and it
+     blocks any same-night NOOP-vs-Cloud comparison (see §6.5).
+   - **CAUSE UNVERIFIED, and NOOP may be responsible.** NOOP sends `28 01 00` at the START of every
+     history fetch (`OuraDriver`, `.startHistoryFetch`), unconditionally, even though [open_ring]
+     documents it as OPTIONAL. Two readings of "flush" are equally plausible and have OPPOSITE
+     implications:
+     - **(A) it CLEARS the flash buffer** — then NOOP is destroying data the Oura app would otherwise
+       upload, and simply not sending it would let both clients read the same history.
+     - **(B) it flushes RAM→flash** (the usual embedded meaning; the tag is also named
+       `CheckSleepAnalysis`, suggesting it finalises pending analysis) — then it is REQUIRED, and dropping
+       it would lose the most recent records instead.
+     NOOP's own captures cannot distinguish these: our drain resumes from a client-side cursor, so
+     not re-receiving old records is equally explained by "we never asked". **Do not change this on
+     theory** — it is on the connect/offload path (see the BLE safety contract) and the failure mode of
+     guessing wrong is silent data loss.
+   - **How to test it:** one session with `28 01 00` suppressed. If NOOP still receives the full backlog,
+     reading (A) is supported and the command can be dropped — which would also un-block the §6.5
+     same-night comparison. If recent records go missing, reading (B) is right and it must stay.
 3. Send `0x10` with the stored cursor, `max=255`, flags `FF FF FF FF` (open_oura's `flags=-1`).
 4. Collect the batch until the stream goes QUIET (~1.5 s of no records — open_oura's `transact()`
    window). The `0x11` summary is NOT an end-of-batch marker (§5.2); never re-request mid-stream.
@@ -411,6 +454,85 @@ like its sibling banked streams (`.hrv`/`.temp`/`.spo2`/`.sleepPhase`) — the f
 ### 6.5 SpO2 per-sample - `0x6F` `spo2_event` (5–18 B, 1 s spacing)
 - Byte 6: bits `[7:4]` = SpO2 base (<<7); bits `[3:0]` = status flag. [ringverse]
 - One `uint8` SpO2 value per second from byte 7 onward; optional `0xFF` terminator. [ringverse]
+- **`0x6F` is a FIRMWARE-COMPUTED PERCENTAGE, not a raw ADC** — independently documented by open_oura
+  (`docs/spo2-calibration.md`, branch `swim-sessions-and-rdata-spike`), which classes `0x6F`
+  (`API_SPO2_EVENT`) and `0x70` (`API_SPO2_SMOOTHED_EVENT`) as firmware-computed percentages, distinct
+  from the raw ratio path in §6.5.1 below. This corroborates NOOP's own read (the decoder's `#968` note:
+  samples are DIRECT percentages, ~95–96, and adding the scaled base produced impossible ~223 % values).
+- **⚠️ OPEN: ~51 % of decoded `0x6F` samples exceed 100 %, and this is NOT a decode bug.** Measured over
+  **9,076 records / 117,816 samples** from three real Gen 3 captures (2026-07-30 → 08-02), against **922
+  nights** of the same wearer's Oura Cloud export (`dailyspo2.csv`) as ground truth:
+
+  | | Oura Cloud (truth) | decoded `0x6F` |
+  |---|---|---|
+  | mean | 97.59 | **99.98** |
+  | median | 97.68 | **101** |
+  | max | 99.4 | **107** |
+  | samples > 100 | **0** | **51 %** |
+
+  - **Two independent decoders agree byte-for-byte.** NOOP (break at the first `0xFF`) and open_oura's
+    `decode_spo2` (strip only a TRAILING `0xFF` sentinel, keep the rest) produce **identical** output on
+    this corpus — same count, mean, median and max — because there is **not one mid-payload `0xFF` in
+    9,076 records** (27 bodies end in the sentinel). So the header-byte-then-percentages reading is
+    agreed, and the >100 values come from the ring, not from either implementation.
+  - **The decode's SHAPE is right; only its LEVEL is wrong.** The series is smooth and physiological:
+    within-record range median **1**, consecutive |Δ| median **0** / p95 **1** — a real slow-moving SpO2
+    trace, not noise or a mis-framed field.
+  - **The `[7:4]` "SpO2 base" nibble does NOT explain it.** [ringverse] describes byte 6's high nibble as
+    a base; empirically it does not correlate with the record's own level (**r = +0.10**; low nibble
+    +0.02). Skipping byte 0 is correct — an earlier attempt to ADD `base << 7` produced impossible ~223 %
+    readings.
+  - **No simple correction reconciles it.** An additive −2.39 or multiplicative ×0.976 (either would
+    centre the mean) still leaves values above the physical ceiling.
+  - **A clamp is part of the answer but not all of it.** Applying the **[85, 100]** clamp open_oura
+    documents for the `0x8b` path brings the mean to 98.44 — within **0.85** of truth — which is why the
+    Cloud never shows >100. But it pins **58 %** of samples at exactly 100, which no real night does, and
+    no offset+clamp pair reproduces both statistics (−2 matches the mean but not the median; −4 the median
+    but not the mean).
+  - **Conclusion: the wire→percentage transform is UNKNOWN.** A clamp is clearly applied downstream; some
+    additional level shift also appears to be. NOT corrected here — no same-night ground truth pins it,
+    and choosing an offset would fabricate a calibration. **`0x6F` data appears unexplored:**
+    [open_oura-spo2] states plainly that they *"don't capture those, and that R→% math lives in
+    firmware"*, so this corpus may be the first look at the tag's real distribution.
+  - **⚠️ WHY THIS MAY STAY OPEN — the obvious test is structurally blocked.** Separating offset from clamp
+    needs a same-night comparison, i.e. an Oura Cloud export overlapping a BLE capture. **That cannot be
+    produced concurrently:** the ring bonds to ONE client at a time, so while NOOP is paired the Oura app
+    is not syncing, and the Cloud has no data for exactly the nights NOOP captured. Confirmed on this
+    setup — the store's `spo2Sample` rows span 2026-07-28 → 08-02 while the Cloud export ends 2026-07-07:
+    **zero overlapping days**. The comparison above is therefore distribution-level across
+    *non-overlapping* periods (per-sample values vs nightly averages, different nights), which is why it
+    can bound the discrepancy but not decompose it.
+  - **Re-pairing to the Oura app afterwards does NOT work — already refuted in practice.** Whichever
+    client drains a window CONSUMES it, so the app finds nothing left for the nights NOOP captured (and
+    vice versa). See the warning in §5.3, which records that observation and flags NOOP's unconditional
+    `28 01 00` flush as a candidate cause.
+  - **Paths that could still settle it**, in increasing cost: (a) **resolve the §5.3 flush question** — if
+    suppressing `28 01 00` leaves the history readable by BOTH clients, this comparison becomes possible
+    for free. (b) A **reference pulse oximeter worn during sleep** alongside the ring — definitive, but
+    `0x6F` only flows at rest so a daytime spot-check produces nothing comparable. (c) A **second ring**,
+    one bonded to each client. Until one of these happens the transform stays UNKNOWN and is documented,
+    not guessed.
+
+### 6.5.1 SpO2 ratio-of-ratios - `0x8b` `spo2_r_pi_event` — **NOT OBSERVED in NOOP captures**
+- Carries the raw **ratio-of-ratios `r`** plus a **perfusion index `pi`** (quality parameter). This is the
+  input the official app converts to a percentage, NOT a percentage itself. [open_oura-spo2]
+- **Conversion (app-side, `libecore` `EcoreWrapper.nativeCalculateSpO2Simple`):**
+  `SpO2(%) = a·r² + b·r + c`, clamped to **[85, 100]**, with hardware-specific coefficients:
+
+  | Hardware | a | b | c |
+  |---|---|---|---|
+  | Gen4 / "Oreo" | −13.4 | −5.1 | 105.2 |
+  | "Cooper" | −12.1 | −6.9 | 106.3 |
+
+  The two sets differ by <1 % on test data, so the mapping is robust to picking the wrong one; the Ring 5
+  mapping is unconfirmed in app 7.18. A naive generic `110 − 25·r` reads ~91 % against a calibrated ~93.4 %
+  — i.e. materially worse. [open_oura-spo2]
+- **NOOP has NEVER received `0x8b`**: 0 occurrences across every capture checked (vs 5,585 × `0x6F` and
+  21,706 × `0x77` in the same files), and it is absent from `OuraEventTag`. Whether that is
+  generation-specific (the published coefficients name Gen4/Oreo and Cooper), server-flag gated like SpO2
+  itself (§7.1), or simply not emitted on this Gen 3 is **unknown**. Worth a targeted check if a properly
+  calibrated SpO2 is ever wanted — this is the only documented path to one, since `0x6F`'s own scale is
+  still open (above).
 
 ### 6.6 SpO2 smoothed/stable - `0x70` `spo2_smoothed`/`spo2_stable` ; `0x7B` `spo2_stable_event` (6 B)
 - `0x7B`: single **uint16 big-endian** at bytes 6–7. **(big-endian - exception to LE rule)** [ringverse]
@@ -426,9 +548,10 @@ like its sibling banked streams (`.hrv`/`.temp`/`.spo2`/`.sleepPhase`) — the f
 - **`0x69` `temp_period`** (6 B): single **int16 LE ÷ 100 = °C**. [ringverse]
 - **`0x75` `sleep_temp_event`** (6–18 B, 30 s spacing): values **uint16 LE ÷ 100 = °C**, timestamps walk backward from event UTC. [ringverse]
 
-### 6.9 HRV / RMSSD - `0x5D` `hrv_event` (6–16 B, 5-min spacing)
-- Samples each with `time_ms` + two int8 fields (`b1`,`b2`); timestamps walk backward from event UTC. [ringverse]
-- **NOOP note:** `0x5D` is the ring's own RMSSD-derived HRV tag; NOOP also reconstructs RMSSD/SDNN itself from the IBI streams (`0x60`/`0x80`) for our own scoring (we do not consume Oura's encrypted scores). [open_ring][ringverse]
+### 6.9 HRV / RMSSD - `0x5D` `hrv_event` (even-length body, 5-min buckets)
+- Body is a run of **`(u8 avg HR bpm, u8 avg RMSSD ms)` PAIRS**, one per 5-min bucket — HR at even byte offsets, RMSSD at odd; both **UNSIGNED, no scaling**. Decodes to nil on an empty or odd-length body. [oura-rs]
+- **DECODE CORRECTION:** earlier drafts read a 4-byte `time_ms(2 LE) + int8 + int8` stride [ringverse]; that mis-framed the first byte-pair into a bogus `time_ms`, sign-flipped the RMSSD byte, and only its `b1` accidentally landed on a real HR byte. Corrected to the pair layout above and validated against a real overnight capture: the HR byte tracks sleeping HR (~52 bpm), matching the #511 IBI-derived median.
+- **NOOP note:** `0x5D` is the ring's own summary HR+RMSSD tag; NOOP also reconstructs RMSSD/SDNN itself from the IBI streams (`0x60`/`0x80`) for its own scoring (we do not consume Oura's encrypted scores). [open_ring][oura-rs]
 
 ### 6.10 Battery - `0x0D` response (8 B body)
 - Layout: `percent, charging_progress, recommended_flag, 3 unknown bytes`. [open_oura-r3]
@@ -499,7 +622,7 @@ edit of the ring's tag.
 
 ### 6.13 Motion / activity
 - **`0x47` `motion_events`** (variable): byte6 bits`[7:5]`=field_a, `[4:0]`=field_b; bytes7–9 = three **int8 × 8** axis magnitudes; optional bytes10–11. [ringverse]
-- **`0x6B` `motion_period`** (19–31 B): 12-bit period `((b6<<8)|(b6>>6)) & 0xFFF`; byte6 bits`[5:4]`=leading-symbol count; then 2-bit codes, 4 per byte (MSB-first). MOTION_STATE enum: `0 NO_MOTION, 1 RESTLESS, 2 TOSSING, 3 ACTIVE`. [ringverse][open_ring]
+- **`0x6B` `motion_period`** (variable): byte6 = header — bits`[7:6]`=period_type, bits`[5:4]`=`count` of valid codes in the **FINAL** byte, bits`[3:0]`=a rolling mod-16 sequence counter (record ordering / dedup, not a state); byte7… = 2-bit MOTION_STATE codes, 4 per byte (MSB-first), the last byte carrying `count` codes where **`count == 0` means 4** (a full final byte — the 2-bit field can't hold 4, so 4 wraps to 0; all 81 `count == 0` records in a real capture have a non-zero final byte, never 0x00, confirming 0 ⇒ 4). MOTION_STATE enum: `0 NO_MOTION, 1 RESTLESS, 2 TOSSING, 3 ACTIVE`. Same shape as the `0x4E` sleep-phase layout (header byte, codes from byte7). The header's low-nibble sequence counter increments and wraps mod-16 across consecutive records in a real capture — pinning byte6 as a header and codes at byte7, correcting an earlier reading (byte6/7 a 12-bit period, codes from byte8) that dropped the first code byte and read phantom codes from the final byte's padding. Layout cross-checked against the native `parse_api_motion_period` (attribution, not a port — re-derived from the capture). [ringverse][open_ring]
 - **`0x50` activity_info / `0x51`,`0x52` activity_summary**: activity category + intensity (MET-class). Layout **(UNVERIFIED - partial)**; [ringverse] notes real_steps/activity_info have unresolved constants. Gate on fixtures. [ringverse]
   - **`0x50` decode formula (PR #960 investigation, live Gen 3, 2026-07-02) [oura-rs]:** byte0 = a `state` code (activity-category, meaning unconfirmed); every following byte = one MET sample, `met = byte × 0.1` for `byte < 0x80`, else `met = 12.8 + (byte − 128) × 0.2` (two-slope: 0.1-MET resolution to 12.7, 0.2 steps above). **Plausible against six real Gen 3 captures** across two sessions - a full day from steady resting (0.9–1.1 MET) through a vigorous-activity burst (7.4 MET), everything physiologically sane, nothing negative or absurd - but **NOT ground-truth-validated** against the Oura app's own MET/step numbers. Stays Tier B: NOOP decodes it (`OuraDecoders.decodeActivityInfo` → `OuraEvent.activityInfo`, both platforms) but gates it behind `allowTierB`, logs it for investigation only, and never folds it into `OuraStreamMapping`/scoring - and NEVER derives a step count from it. `0x51`/`0x52` activity_summary stay fully undecoded (raw Tier-B bytes only).
   - **`0x50` MET cross-device validation (NOOP, 2026-07-15, live Gen 3):** the MET series TRACKS real activity
@@ -516,11 +639,135 @@ edit of the ring's tag.
     `0x50` `met` as one input to its activity classifier (`activity_model.rs`). [open_oura-act]
   - **Real Steps (feature `0x0B`) server gating [open_oura-feat]:** real_steps is behind the server flag `activity/real_steps` (default **false**; `FeatureDefinitions.ActivityRealSteps`, Gen 3+), the same server-flag-off pattern as SpO2 (§7.1). This explains `0x7E`/`0x7F` never once appearing across the PR #960 live sessions - the ring isn't sending them, it is not a NOOP decode gap. `0x50` itself is an always-on base stream (not feature-gated), matching it appearing in every session.
 - **`0x7E`/`0x7F` real_steps_features 1/2** (18 B each): bit-packed step features merged across the paired events. **(UNVERIFIED - partial)** [ringverse]
+  - **Unpack formula ([oura-rs] - Th0rgal/open_oura `crates/oura-protocol/src/events.rs#L566`, clean-room
+    fact citation): 14 fields from the 14-byte body.** Fields 0 and 8 are genuine 9-bit values built as
+    `byte*2 + carry_bit`, where the carry bit is stolen from the MSB of a neighboring byte (byte 3's MSB
+    for field 0, byte 11's MSB for field 8) - the same byte then supplies field 3 / field 11 from its own
+    low 7 bits. Fields 1, 2, 9, 10 are a bare `byte<<1` (no carry completion). Fields 4-7 and 12-13 are
+    plain bytes. The source itself marks this decode `"_status": "unvalidated"`.
+  - **Wired into a decoder (both platforms, Tier B) and cross-correlated against a real capture**
+    (2026-07-30, 2661 real_steps pairs anchored against the already-anchored 0x50 MET corpus from the
+    SAME session): `fields[0]` and `fields[8]` - the two carry-completed 9-bit values - are the ONLY
+    fields with a consistent movement correlation (r≈+0.3 vs mean MET; effect size +1.5/+1.25
+    resting-vs-moving on the same capture). This is a real convergence between the bit-layout hint (these
+    two fields are structurally distinct from the other 12) and the empirical signal. Cadence is fixed:
+    300 ring-ticks (30 s) between consecutive pairs. **Superseded in part by the ground-truth test below**
+    - the movement correlation is real, but the "leading candidate for the step field" reading is WRONG.
+  - **⛔ GROUND-TRUTH TEST — NO FIELD IS A STEP COUNT (NOOP, 2026-08-01, first real ground truth).**
+    A measured **13,349 steps** (independent device, worn on the SAME wrist, 08:00–15:58 local / 06:00–13:58
+    UTC, a golf round) tested against 805 paired records in that window, with 8.5 h of that night's sleep
+    (true steps ≈ 0) as the control:
+    - **Every one of the 14 fields is large and non-zero during sleep.** `fields[0]` alone sums to 111,736
+      across the night; the smallest, `fields[3]`, sums to 38,845 asleep vs 15,095 golfing - i.e. HIGHER
+      asleep. No scaling, offset or unit conversion reconciles any field with 13,349.
+    - **No cumulative counter exists on the wire.** Every byte offset read as u8 / u16LE / u16BE / u24LE /
+      u32LE, both tags, 5,122 records: **zero** monotonic (non-decreasing) sequences. Confirms and
+      strengthens the earlier "no running total" note.
+    - **A count-of-active-windows × cadence reconstruction also fails:** thresholding `fields[0]` at
+      200/250/300/350/400 needs 39/44/48/67/212 steps·min⁻¹ sustained to reach 13,349 - every one
+      physiologically wrong for walking (real cadence ≈ 100–120), i.e. the threshold is dominated by
+      non-walking windows. Fitting a threshold AND a cadence to a single ground-truth day would be
+      manufacturing a match, not decoding one (the §194 precedent).
+    - **What the fields ARE:** exactly what the tag name says - `real_steps_FEATURES`, the *inputs* to a
+      step-detection model, not its output. That is why they are always populated: they are continuous
+      signal statistics computed every 30 s whether walking or asleep. Ranked by movement discrimination
+      (sleep vs golf, Cohen's d): `f8` **+2.37**, `f0` **+2.35** (≈15 % distribution overlap), `f6`
+      **−1.65** (inverse - a stillness feature), `f2`/`f10` +1.21, `f3`/`f11` −1.03; the remaining seven
+      are near-flat (|d| ≤ 0.75). So `f0`/`f8` are genuine movement-intensity features - useful as an
+      activity signal, useless as a count.
+    - **Conclusion: a step count is NOT recoverable from `0x7E`/`0x7F` alone.** It would require
+      reimplementing Oura's step model over these features, unvalidatable without many ground-truth days
+      across varied activity. This closes the "decode steps from real_steps" line of investigation; `0x50`
+      MET (above) already provides an activity signal with a validated cadence.
+  - **WHY there is no step count on the wire at all — the sensor side (NOOP, 2026-08-02).** Recorded so
+    this is not re-investigated:
+    - **The Gen 3 IMU is a Bosch Sensortec BMI160** (public teardowns: [TechInsights], [System Plus]). That
+      part *does* have a hardware pedometer — a 16-bit `STEP_CNT` register at `0x78`–`0x79` plus a
+      step-detector interrupt ([BMI160 datasheet] §2.11.36).
+    - **It is not transmitted.** Over a full-day capture, every tag with ≥50 records was tested at every
+      byte offset as u16LE / u16BE / u24LE / u32LE for a non-decreasing sequence. The only two hits were
+      artifacts: `0x6D` byte 2 is a constant `0xFFFF` padding field (2 distinct values across 867 records),
+      and the `0x73` hit is Exercise-HR trace data. **No monotonic counter exists in any tag** — the
+      BMI160's step count never leaves the ring.
+    - **Consistent with Oura's own description:** Oura documents "Real Steps" (shipped March 2025) as a
+      **machine-learning model** deciding "when ring movement is a step" ([Oura blog]). A stock IMU
+      pedometer assumes wrist/pocket gait and mis-fires on a finger (a gesturing hand resembles walking),
+      so the generic `STEP_CNT` is the wrong tool for a ring — plausibly why it is unused and why a trained
+      model exists instead.
+    - **So `0x7E`/`0x7F` carrying that model's INPUTS, with the count produced downstream of the ring, is
+      the coherent reading** — matching the ground-truth result above, the tag name
+      (`real_steps_features`), and the absence of any counter on the wire. Accurate steps are available
+      only from Oura's own export/API, not over BLE.
+  - **🐛 `0x7F` IS NOT THE SAME LAYOUT AS `0x7E` — its payload is offset by +2 bytes (NOOP, 2026-08-01).**
+    The pairing is exact (2561/2561 records, `0x7F` always at the `0x7E` record's `rt + 1`), and both bodies
+    are 14 B, but the FIELD LAYOUT differs. Aligning `0x7F`'s per-byte statistics onto `0x7E`'s over 5,122
+    records scores a **+2 shift** at total error 19.0 vs 58.6 for the next-best offset (a 3× separation);
+    at that shift the per-byte mean, standard deviation AND MSB-set rate all match:
+
+    | | b0 | b1 | b2 | b3 | b4 | b5 |
+    |---|---|---|---|---|---|---|
+    | `0x7E` mean / sd / MSB | 125 / 54 / 48 % | 110 / 72 / 39 % | 82 / 39 / 10 % | 94 / 71 / 50 % | 74 / 24 / 4 % | 67 / 39 / 4 % |
+    | `0x7F` **bytes 2–7** | 124 / 54 / 48 % | 114 / 72 / 42 % | 82 / 38 / 10 % | 97 / 71 / 52 % | 74 / 25 / 4 % | 67 / 38 / 4 % |
+
+    The carry-bit test is decisive: the unpack takes field 0's 9th bit from byte 3's MSB and field 8's from
+    byte 11's, and a real carry bit is ~50 % set. `0x7E` reads **49.7 % / 49.0 %** ✓. `0x7F` at the CURRENT
+    (unshifted) offsets reads **41.6 % / 17.5 %** ✗ - byte 11 at 17.5 % is plainly a data byte, not a carry
+    bit. At the +2 shift `0x7F` reads **51.6 % / 45.3 %** ✓.
+    - **What the old (unshifted) decode produced for `0x7F`'s `fields[0]`/`fields[8]`:** garbage - it stole
+      the 9th bit from the wrong byte. Measured on the same sleep-vs-golf control, `0x7F.fields[0]` decoded
+      to an **INVERTED** movement signal (d = **−1.72**, sleep 255.9 > golf 121.8); re-unpacked at +2 it
+      becomes **+2.36** (sleep 146.9, golf 321.4) - statistically identical to `0x7E`'s own +2.35
+      (147.4 / 322.8). Paired-window agreement `7E.f0` vs `7F.f0` goes from **r = −0.557** to **r = +0.790**.
+    - **Corroborated three ways**, all on the same 5,122-record capture: (a) the ground-truth sleep-vs-golf
+      contrast, mean |Δd| from `0x7E`'s reference 1.59 → **0.26** (fields 0-9: 1.62 → **0.11**); (b) an
+      INDEPENDENT contrast (same night vs the previous afternoon, no golf data), 1.27 → **0.26** (fields 0-9:
+      1.31 → **0.14**); (c) a window-free per-field distribution match over all records, where **+2 wins
+      12/12 fields** - fields 0-7 match `0x7E`'s mean AND standard deviation to ~1 %.
+    - **This retracts the "movement-correlated fields present in both [tags]" claim above** - that was read
+      off the buggy `0x7F` decode. The two tags carry the SAME feature types at DIFFERENT byte offsets, not
+      two different feature families.
+    - **CONFIDENCE TIERS for the corrected `0x7F` decode** (same evidence): **fields 0-7 validated**
+      (distribution ~1 %, Δd ≤ 0.13 on two contrasts); **field 8 likely right** (d +2.82 vs `0x7E`'s +2.33,
+      r = +0.854, but its mean is offset); **fields 9-11 uncertain** (improve but do not converge). The
+      degradation past field 7 is consistent with the block being truncated by the 14-byte record boundary.
+    - **NOOP applies the +2 offset for `0x7F`** (`OuraDecoders.realStepsFieldOffset`, both platforms), so
+      `0x7F` now yields **12 fields, not 14**: fields 12/13 would need record bytes 14/15, which do not
+      exist, and are OMITTED rather than zero-filled (a fabricated zero is indistinguishable from a real
+      one). All 12 are still emitted because the only consumer is the Tier-B research sidecar.
+    - **Open:** `0x7F`'s bytes 0–1 are high-entropy data (199/204 distinct values), NOT a low-entropy header,
+      and they do not continue `0x7E`'s bytes 12–13 (|r| ≤ 0.47). Their meaning is unknown.
+  - Still Tier B end to end: decoded only behind `allowTierB`, logged once per session + appended to a
+    diagnostic JSONL sidecar (`oura-real-steps-<id>.jsonl`, deduped by ring-time), never folded into
+    `OuraStreamMapping`/scoring - not even from fields[0]/fields[8], which the ground-truth test above now
+    shows are features, not counts. `OuraDecoders.decodeRealStepsFields` (Swift) /
+    `Decoders.decodeRealStepsFields` (Kotlin), which apply the tag-dependent block offset above.
 
 ### 6.14 Raw PPG
 - **`0x67` raw_ppg_summary** (12–13 B): start-UTC, type, scale, session header for following data. [ringverse]
 - **`0x68` raw_ppg_data** (variable, delta-encoded): needs scale/accumulator from the paired `0x67`. [ringverse]
-- **`0x81` cva_raw_ppg_data** (variable): delta + 24-bit absolute, session-stateful. Decode: byte `0x80` → next 3 bytes absolute u24; MSB-set byte → signed delta `b-0x100`; else signed 7-bit `+= b`. Reset on ring-reset ack or 60 s gap. [open_ring]
+- **`0x81` cva_raw_ppg_data** (variable): delta + 24-bit absolute, session-stateful. Decode: byte `0x80` → next 3 bytes absolute u24 (LE); MSB-set byte → signed delta `b-0x100`; else signed 7-bit delta (`b-128` when `b>=64`, else `b`). Reset on ring-reset ack or 60 s gap. [open_ring] **First live observation 2026-07-30** (668 records, 18 B each) — in the same Advanced/Auth-Key-pairing + SpO2-enabled session as the `0x03`/`0x04` unlock (§3.7), i.e. this tag is server-gated like them.
+  - **Wired into a decoder (both platforms, Tier B) and validated against a real capture** (2026-07-30, a
+    2169-record Gen 3 session, plain NOOP pairing - no Advanced-key handshake in that session's log,
+    server-gated-unlock persistence not otherwise investigated here): chaining the running total across
+    records the whole session yields a SMOOTH series (median sample-to-sample jump 33, baseline
+    ~390-400K counts) consistent with a real PPG channel, not noise - the strongest evidence yet that the
+    [open_ring] formula's core (LE u24 absolute anchor + delta walk) is right. 4-of-22745 samples show an
+    anomalous jump to ~8.39M and back within 2 anchor reads, cause not yet explained (candidates: a
+    genuine sensor artifact, or the anchor's 3-byte field not being plain LE in that instance) - left
+    unresolved, Tier B stays UNVERIFIED.
+  - **Split markers are common, not exceptional:** in the same capture, roughly a quarter of records end
+    on a `0x80` marker with fewer than 3 trailing bytes (the absolute value would span into the next BLE
+    notification). Per this codebase's one-packet-per-notification / no-cross-notification-buffering rule
+    (`Framing.swift` / `Framing.kt`), the decoder stops at the marker instead of guessing into the next
+    notification - samples already decoded earlier in the record are still returned, honestly.
+  - **"Ring-reset ack" is not a distinct documented opcode.** NOOP's decoder invalidates the running
+    total on the 0x41 `ring_start_ind` lifecycle marker (the same signal that already invalidates the UTC
+    anchor on rt regression) as the closest wire analogue - a best-current-interpretation, not a
+    wire-confirmed mapping.
+  - Still Tier B end to end: decoded only behind `allowTierB`, logged once per session + appended to a
+    diagnostic JSONL sidecar (`oura-cva-ppg-<id>.jsonl`, deduped by ring-time), never folded into
+    `OuraStreamMapping`/scoring. `OuraDecoders.decodeCvaRawPPG` (Swift) / `Decoders.decodeCvaRawPPG`
+    (Kotlin).
 
 ### 6.15 Lifecycle / state
 - **`0x41` ring_start_ind** (18 B): bytes6–10 = 40-bit device id; bytes15–19 config; triggers anchor invalidation on rt regress. [ringverse][open_ring]
@@ -540,15 +787,15 @@ edit of the ring's tag.
 | `0x00` | Background DFU | - |
 | `0x01` | Research Data (RData) | often server-blocked; returns idle status 3 [open_oura-r3] |
 | `0x02` | Daytime HR | Gen3+; **live-HR path (§5.6)** |
-| `0x03` | Exercise HR (AWHR) | Gen3+; cap version ≥ 2; data arrives as `0x73` `ehr_trace_event` / `0x74` `ehr_acm_intensity_event` [ring4-ble] — never observed in a NOOP capture (server-gated, like SpO2/steps) |
-| `0x04` | SpO2 | Gen3+; server-gated. **Confirmed OFF on a real Gen 3 ring** (2026-07-20 capture): the read-only `2f 02 20 04` feature-status probe NOOP ships (`spo2_status`, §7.4) decoded to `mode=0 status=0 state=0 subscription=0` - all-zero, i.e. the cloud never enabled SpO2 for that ring/account; it is not a NOOP decode issue. SpO2 also never arrives as a live push (unlike HR's feature `0x02`); it only ever arrives via history fetch (§5), same as skin temp. NOOP sends the diagnostic READ only; it does NOT enable/subscribe SpO2 (a live enable produces nothing during the day regardless). |
+| `0x03` | Exercise HR (AWHR) | Gen3+; cap version ≥ 2; data arrives as `0x73` `ehr_trace_event` / `0x74` `ehr_acm_intensity_event` [ring4-ble]. **Gating is per-account, not per-ring/firmware:** a 2026-07-20 capture on stock NOOP-only pairing saw zero `0x73`/`0x74` (server-gated, like SpO2/steps below); a **2026-07-30 capture on the same physical ring, paired via the ring's own Advanced/Auth Key extracted from the real Oura app (§3.7) with SpO2 subsequently enabled in that app, observed 1023×`0x73` + 220×`0x74` records** in a single session. Pairing through the genuine app-issued key inherits that account's actual cloud `ClientConfiguration` (see `0x04` below), which evidently unlocked a feature bundle beyond just SpO2. Payloads: `0x74` is 14 B / 7×uint16-LE, a monotonic ramp (`001e 0048 006f 0099 00bc 00d0 00e2` → 30,72,111,153,188,208,226) consistent with an intensity trace; `0x73` alternates 18 B/9 B record lengths. Still **UNVERIFIED layout** — decode-only, not wired into scoring. |
+| `0x04` | SpO2 | Gen3+; server-gated. **Confirmed OFF on a real Gen 3 ring** (2026-07-20 capture): the read-only `2f 02 20 04` feature-status probe NOOP ships (`spo2_status`, §7.4) decoded to `mode=0 status=0 state=0 subscription=0` - all-zero, i.e. the cloud never enabled SpO2 for that ring/account; it is not a NOOP decode issue. SpO2 also never arrives as a live push (unlike HR's feature `0x02`); it only ever arrives via history fetch (§5), same as skin temp. NOOP sends the diagnostic READ only; it does NOT enable/subscribe SpO2 (a live enable produces nothing during the day regardless). **2026-07-30, same ring, after enabling SpO2 in the real Oura app and pairing via its Advanced/Auth Key:** the same probe now reads `mode=1 (automatic) status=0 state=0 subscription=0` — `mode` flips 0→1 once the account entitlement is on, even though `status`/`state` stay 0 outside an active SpO2 session. Confirms gating tracks the Oura-cloud account config, not the ring hardware or NOOP's own commands. |
 | `0x05` | Bundling | - |
 | `0x06` | Encrypted API | (Oura's encrypted channel - NOOP does NOT use) |
 | `0x07` | Tap-to-tag | - |
 | `0x08` | Resting HR | firmware-computed, no app toggle |
 | `0x09` | App auth | the §3 handshake feature |
 | `0x0A` | BLE mode | - |
-| `0x0B` | Real steps | Gen3+; server-flag-gated (`activity/real_steps`, default false). **Confirmed OFF on a real Gen 3 ring** (2026-07-20 capture): the read-only `2f 02 20 0b` probe (`realsteps_status`, §7.4) decoded to `mode=0 status=0 state=0 subscription=0` - all-zero, matching SpO2, which is why `0x7E`/`0x7F` never appear (§6.13). |
+| `0x0B` | Real steps | Gen3+; server-flag-gated (`activity/real_steps`, default false). **Confirmed OFF on a real Gen 3 ring** (2026-07-20 capture): the read-only `2f 02 20 0b` probe (`realsteps_status`, §7.4) decoded to `mode=0 status=0 state=0 subscription=0` - all-zero, matching SpO2, which is why `0x7E`/`0x7F` never appear (§6.13). **2026-07-30, same ring, after enabling SpO2 + Advanced/Auth-Key pairing (see `0x04` above):** the probe now reads `mode=1 (automatic) status=1 state=2 subscription=0` — no longer all-zero, though `0x7E`/`0x7F` still weren't seen in that session. Same per-account gating mechanism as `0x03`/`0x04`, not a NOOP-side change. |
 | `0x0C` | Experimental | server-flag-gated |
 | `0x0D` | CVA PPG sampler | Gen3+; server-flag-gated; feeds `0x81` |
 | `0x0E` | Charging control | [ring4-ble] |

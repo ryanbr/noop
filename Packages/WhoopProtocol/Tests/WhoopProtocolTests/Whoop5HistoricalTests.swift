@@ -107,15 +107,16 @@ final class Whoop5HistoricalTests: XCTestCase {
     func testHistoricalV18ObservedFields() {
         // Fields read off this same real worn frame and justified by their observed behaviour:
         //  @11 record_index — a per-record counter (+1/record, independent of unix; seen on two straps)
-        //  @36 hr_fixed_8_8 — value/256 tracks hr@22 to sub-bpm (here 25997/256 ≈ 101.55 ≈ HR 102)
+        //  @36 hr_quality_flags — a flag byte (bit7 = valid), NOT the low half of a fixed-point HR
+        //  @37 heart_rate_alt — a duplicate of heart_rate@22
         //  @59 step_cadence — a cadence-like byte (never 0; lower when moving faster)
         //  @75 status_word — a 16-bit word that is NOT a deep-sleep marker
         //  @81 sleep_state — high nibble = band state (worn daytime frame = wake)
         //  @33/@38/@40 — raw bytes near the HR/R-R fields; @113 — a float of unknown purpose
         let p = parseFrame(bytes(historicalHex), family: .whoop5).parsed
         XCTAssertEqual(p["record_index"]?.intValue, 25443699)
-        XCTAssertEqual(p["hr_fixed_8_8"]?.intValue, 25997)
-        XCTAssertEqual((p["hr_fixed_8_8"]?.intValue ?? 0) / 256, 101)   // ≈ hr@22 (102)
+        XCTAssertEqual(p["hr_quality_flags"]?.intValue, 141)    // 0x8D
+        XCTAssertEqual(p["heart_rate_alt"]?.intValue, 101)      // ≈ hr@22 (102)
         XCTAssertEqual(p["step_cadence"]?.intValue, 170)
         XCTAssertEqual(p["status_word"]?.intValue, 1792)
         XCTAssertEqual(p["sleep_state"]?.intValue, 0)
@@ -128,32 +129,96 @@ final class Whoop5HistoricalTests: XCTestCase {
     func testHistoricalV18OpticalRegionFields() {
         // The @82–119 "optical/tail" span, reverse-engineered over 18,602 real v18 records (a third strap's
         // overnight R22 stream) and cross-checked here on the two fixture devices. It is ~85% zero padding;
-        // only @106 (u16), @108/@109 (a paired channel) and the @113 float carry data. These are carried
-        // RAW — none is named to a physiological metric (no SpO2/respiratory ground truth exists).
+        // only @106/@107 (a byte pair), @108/@109 (a second byte pair) and the @113 float carry data. These
+        // are carried RAW — none is named to a physiological metric (no SpO2/respiratory ground truth).
         let worn = parseFrame(bytes(historicalHex), family: .whoop5).parsed
-        // @106: analog optical baseline (worn nonzero; see the off-wrist case below for the 0 sentinel).
-        XCTAssertEqual(worn["optical_baseline_106"]?.intValue, 28517)
-        // @108/@109: a tightly-coupled pair (here 30/30). Both < 128 ⇒ the optical channel is valid.
+        // @106/@107: two independent u8 baseline channels (worn nonzero; 0 = off-wrist, see below).
+        XCTAssertEqual(worn["optical_baseline_a"]?.intValue, 101)
+        XCTAssertEqual(worn["optical_baseline_b"]?.intValue, 111)
+        // @108/@109: a tightly-coupled pair (here 30/30). Both < 128 ⇒ the optical read is valid.
         XCTAssertEqual(worn["optical_amp_a"]?.intValue, 30)
         XCTAssertEqual(worn["optical_amp_b"]?.intValue, 30)
 
-        // Off-wrist (HR=0): @106 collapses to 0 and BOTH channels read the 128 invalid sentinel.
+        // Off-wrist (HR=0): BOTH baseline bytes collapse to 0 — the real off-wrist marker (b106 == 0 in
+        // exactly the 8 corpus records that also carry HR == 0, and b107 == 0 in those same 8) — and both
+        // amp bytes read the 128 sentinel.
         let off = parseFrame(bytes(historicalOffWristHex), family: .whoop5).parsed
-        XCTAssertEqual(off["optical_baseline_106"]?.intValue, 0)
+        XCTAssertEqual(off["optical_baseline_a"]?.intValue, 0)
+        XCTAssertEqual(off["optical_baseline_b"]?.intValue, 0)
         XCTAssertEqual(off["optical_amp_a"]?.intValue, 128)
         XCTAssertEqual(off["optical_amp_b"]?.intValue, 128)
 
-        // Cross-device: on the SECOND strap, HR=57 decodes fine yet the optical channel is 128/128 — proof
-        // that 128 is a per-CHANNEL invalid marker independent of HR validity (HR is derived elsewhere),
-        // while HR=63 on the same strap carries a valid pair (36/28).
+        // Cross-device: on the SECOND strap, HR=57 decodes fine yet the amp pair is 128/128 — the sentinel
+        // marks a bad OPTICAL read, not an absent HR (HR is derived elsewhere); HR=63 carries a valid pair.
         let d2a = parseFrame(bytes(secondDeviceHR57), family: .whoop5).parsed
         XCTAssertEqual(d2a["heart_rate"]?.intValue, 57)
         XCTAssertEqual(d2a["optical_amp_a"]?.intValue, 128)
         XCTAssertEqual(d2a["optical_amp_b"]?.intValue, 128)
+        // …and that same worn frame reads 128 on the @107 BASELINE byte while carrying a valid HR: 128 is
+        // not a sentinel there (b106 == 128 in 10 corpus records, b107 == 128 in 103, none of them
+        // off-wrist), which is why only 0 marks off-wrist on @106/@107.
+        XCTAssertEqual(d2a["optical_baseline_b"]?.intValue, 128)
         let d2b = parseFrame(bytes(secondDeviceHR63), family: .whoop5).parsed
         XCTAssertEqual(d2b["heart_rate"]?.intValue, 63)
         XCTAssertEqual(d2b["optical_amp_a"]?.intValue, 36)
         XCTAssertEqual(d2b["optical_amp_b"]?.intValue, 28)
+    }
+
+    func testHistoricalV18Byte36IsAFlagByteNotAFixedPointHR() {
+        // @36/@37 was read as one u16 `hr_fixed_8_8` with bpm = value/256. Over 18,650 real v18 records
+        // that model is false. @36 behaves as a FLAG byte: bit 4 is NEVER set (0/18,650 — a genuine 8.8
+        // fraction sets it ~50% of the time) and is the only bit never set; 95.02% of values fall in
+        // 0x80–0x8F (uniform would be 6.25%) over just 40 distinct values, sd 26.5 vs 73.9 for a uniform
+        // byte. @37 is a DUPLICATE heart rate: it equals heart_rate@22 exactly in 99.575% of records
+        // (18,523/18,602), differing only by -6…+2. The "corr 0.989" that justified the old name is
+        // circular — the u16 is literally hr@22 plus a flag byte over 256, and the residual
+        // (value/256 - hr@22) is +0.504 ± 0.189, i.e. @36/256.
+        let worn = parseFrame(bytes(historicalHex), family: .whoop5).parsed
+        XCTAssertNil(worn["hr_fixed_8_8"], "the 8.8 fixed-point reading is retired")
+        XCTAssertEqual(worn["hr_quality_flags"]?.intValue, 141)          // 0x8D
+        XCTAssertEqual(worn["heart_rate_alt"]?.intValue, 101)           // hr@22 = 102
+        XCTAssertEqual((worn["hr_quality_flags"]?.intValue ?? 0) & 0x10, 0, "bit 4 is never set")
+        XCTAssertEqual((worn["hr_quality_flags"]?.intValue ?? 0) & 0x80, 0x80, "bit 7 = valid")
+
+        // Bit 7 is a VALIDITY bit: with it CLEAR (n=748 in the corpus) rr_count == 0 in 70.32% of records
+        // vs 19.82% with it set, and the @108/@109 sentinel fires in 69.65% vs 1.32%. Both second-device
+        // fixtures have it clear — and there @37 is NOT a heart rate (97 and 227 against hr@22 57 and 63),
+        // which the retired model would have surfaced as a 227 bpm "high-precision" reading.
+        for (hex, hr, flags, alt) in [(secondDeviceHR57, 57, 11, 97), (secondDeviceHR63, 63, 2, 227)] {
+            let p = parseFrame(bytes(hex), family: .whoop5).parsed
+            XCTAssertEqual(p["heart_rate"]?.intValue, hr)
+            XCTAssertEqual(p["hr_quality_flags"]?.intValue, flags)
+            XCTAssertEqual((p["hr_quality_flags"]?.intValue ?? 0) & 0x80, 0, "bit 7 clear ⇒ invalid")
+            XCTAssertEqual(p["heart_rate_alt"]?.intValue, alt, "not a bpm when the validity bit is clear")
+        }
+    }
+
+    func testHistoricalV18OpticalBaselineIsTwoBytesNotAU16() {
+        // @106 was read as a u16 LE. It cannot be one: across 18,599 consecutive-second pairs the HIGH byte
+        // changed while the LOW byte stayed frozen in 3,514 pairs (18.89%), and there are ZERO low-byte
+        // wrap events in the whole corpus — a real u16 cannot step its high byte without a carry. The
+        // apparent u16 deltas are just 256·Δb107 + Δb106 (they cluster at 0, ±1, ±255, ±256, ±257, ±513).
+        // @106/@107 are two correlated but independent u8 channels (corr +0.73, moving in OPPOSITE
+        // directions in 5.8% of pairs), structurally parallel to the @108/@109 pair.
+        var f = bytes(historicalHex)
+        f[107] = 0xFF
+        let m = parseFrame(f, family: .whoop5).parsed
+        XCTAssertNil(m["optical_baseline_106"], "the u16 reading is retired")
+        // Moving @107 must leave the @106 channel alone — under the u16 model this byte was worth 256.
+        XCTAssertEqual(m["optical_baseline_a"]?.intValue, 101)
+        XCTAssertEqual(m["optical_baseline_b"]?.intValue, 255)
+    }
+
+    func testHistoricalV18OpticalAmpSentinelIsRecordLevel() {
+        // The 128 sentinel on @108/@109 was noted as invalidating a single CHANNEL. It is RECORD-level:
+        // over 18,650 records amp_a == 128 in 757 and amp_b == 128 in 757 — the SAME 757 records, never
+        // one without the other. All four real fixtures agree, so the two bytes are never split.
+        for (name, hex) in [("worn", historicalHex), ("offwrist", historicalOffWristHex),
+                            ("device2_hr57", secondDeviceHR57), ("device2_hr63", secondDeviceHR63)] {
+            let p = parseFrame(bytes(hex), family: .whoop5).parsed
+            XCTAssertEqual(p["optical_amp_a"]?.intValue == 128, p["optical_amp_b"]?.intValue == 128,
+                           "\(name): the 128 sentinel must fire on both amp bytes or neither")
+        }
     }
 
     func testHistoricalV18OpticalFieldsAreNotNamedPhysiologically() {
@@ -244,7 +309,9 @@ final class Whoop5HistoricalTests: XCTestCase {
         // (0 is a real wake reading, NOT "absent"), stamped at the record's own unix (1780916150).
         let f = parseFrame(bytes(historicalHex), family: .whoop5)
         let s = extractHistoricalStreams([f], deviceClockRef: 1780916150, wallClockRef: 1780916150)
-        XCTAssertEqual(s.sleepState, [SleepStateSample(ts: 1780916150, state: 0)],
+        // v31 additionally carries the WHOLE @81 byte alongside `state`; on this fixture the byte is 0,
+        // so both the interpreted nibble and the raw byte read 0.
+        XCTAssertEqual(s.sleepState, [SleepStateSample(ts: 1780916150, state: 0, rawByte: 0)],
                        "the real worn fixture's band wake state (0) must reach the stream")
     }
 
@@ -274,7 +341,8 @@ final class Whoop5HistoricalTests: XCTestCase {
             let f = parseFrame(mutatingCRCValid(81, to: UInt8(raw)), family: .whoop5)
             XCTAssertEqual(f.crcOK, true, "the re-stamped frame must pass CRC (raw 0x\(String(raw, radix: 16)))")
             let s = extractHistoricalStreams([f], deviceClockRef: 1780916150, wallClockRef: 1780916150)
-            XCTAssertEqual(s.sleepState, [SleepStateSample(ts: 1780916150, state: expected)],
+            // v31 carries the whole byte too; `state` must still be exactly its high nibble.
+            XCTAssertEqual(s.sleepState, [SleepStateSample(ts: 1780916150, state: expected, rawByte: raw)],
                            "band code \(expected) must reach the stream (raw 0x\(String(raw, radix: 16)))")
         }
     }

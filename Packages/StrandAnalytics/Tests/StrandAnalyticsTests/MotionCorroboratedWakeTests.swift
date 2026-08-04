@@ -133,10 +133,10 @@ final class MotionCorroboratedWakeTests: XCTestCase {
     func testMotionQuiescentPredicate() {
         // A still epoch (no move, jerk at floor) is quiescent; an epoch with a jerk spike above the gate is not.
         let still = SleepStagerV2.Epoch(start: 0, hr: 58, hrVar: 1, hrFlat11: 1, moveFrac: 0.0, jerkMax: 0.001,
-                                        respReg: nil, clock: 0.5, jerkScale: 0.001)
+                                        respReg: nil, clock: 0.5, jerkScale: 0.001, minutesSinceOnset: 120)
         XCTAssertTrue(SleepStagerV2.motionQuiescent(still))
         let moved = SleepStagerV2.Epoch(start: 0, hr: 58, hrVar: 1, hrFlat11: 1, moveFrac: 0.3, jerkMax: 0.2,
-                                        respReg: nil, clock: 0.5, jerkScale: 0.001)
+                                        respReg: nil, clock: 0.5, jerkScale: 0.001, minutesSinceOnset: 120)
         XCTAssertFalse(SleepStagerV2.motionQuiescent(moved))
     }
 

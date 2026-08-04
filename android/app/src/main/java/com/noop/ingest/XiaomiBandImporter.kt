@@ -15,6 +15,7 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.zip.ZipInputStream
+import com.noop.analytics.SleepStageVocabulary
 
 /**
  * Imports a **Xiaomi Smart Band (Mi Band)** history from the Mi Fitness app's on-device
@@ -332,7 +333,7 @@ object XiaomiBandImporter {
         var asleep = 0L
         for (i in 0 until arr.length()) {
             val o = arr.optJSONObject(i) ?: continue
-            if (o.optString("stage") == "wake") continue
+            if (SleepStageVocabulary.isWake(o.optString("stage"))) continue
             asleep += (o.optLong("end") - o.optLong("start")).coerceAtLeast(0)
         }
         return minOf(100.0, asleep.toDouble() / (end - start) * 100.0)

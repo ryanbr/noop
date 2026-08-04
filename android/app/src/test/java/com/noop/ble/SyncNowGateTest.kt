@@ -1,6 +1,7 @@
 package com.noop.ble
 
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -42,5 +43,35 @@ class SyncNowGateTest {
     fun blocksSync_whenDisconnectedMidBackfill() {
         // A dropout mid-backfill: every precondition that matters is false — still a no-op.
         assertFalse(WhoopBleClient.canRequestSync(connected = false, bonded = false, backfilling = true))
+    }
+}
+
+/**
+ * #ABORT: the mirror of [WhoopBleClient.canRequestSync]. A sync may only be STOPPED while one is
+ * actually running, and — unlike starting one — stopping deliberately does not require a live link:
+ * the local teardown is the point, and a strap that never hears the opcode simply keeps streaming
+ * into a session NOOP no longer treats as active.
+ */
+class AbortSyncGateTest {
+
+    @Test
+    fun abortIsOfferedOnlyWhileAnOffloadIsRunning() {
+        assertTrue(WhoopBleClient.canAbortSync(backfilling = true))
+        assertFalse(WhoopBleClient.canAbortSync(backfilling = false))
+    }
+
+    @Test
+    fun startAndStopGatesAreMutuallyExclusive() {
+        // Whatever the link state, exactly one of "you may start a sync" and "you may stop one" holds
+        // for a bonded, connected strap — they must never both be true or both be false.
+        for (backfilling in listOf(true, false)) {
+            val canStart = WhoopBleClient.canRequestSync(
+                connected = true, bonded = true, backfilling = backfilling,
+            )
+            val canStop = WhoopBleClient.canAbortSync(backfilling = backfilling)
+            assertNotEquals(
+                "start and stop gates disagree for backfilling=$backfilling", canStart, canStop,
+            )
+        }
     }
 }

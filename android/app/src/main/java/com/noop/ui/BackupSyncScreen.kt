@@ -16,14 +16,17 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -158,6 +161,21 @@ fun BackupSyncScreen() {
                             "folder a sync app (e.g. FolderSync / Autosync) keeps in your cloud.",
                         style = NoopType.caption, color = Palette.accent,
                     )
+                    // #644: these .noopbak snapshots are a plain, unencrypted ZIP — pointing this folder
+                    // at a cloud sync app (per the tip above) also uploads that readable file there.
+                    // Say so plainly next to the folder picker, before anyone turns auto-backup on.
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(
+                            Icons.Filled.Warning,
+                            contentDescription = null,
+                            tint = Palette.statusWarning,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Text(
+                            uiString(R.string.l10n_backup_sync_screen_these_backups_are_unencrypted_too_if_53e70fe8),
+                            style = NoopType.caption, color = Palette.statusWarning,
+                        )
+                    }
                     NoopButton(
                         text = if (treeUri == null) "Choose folder" else "Change folder",
                         leadingIcon = Icons.Filled.FolderOpen,

@@ -6,15 +6,16 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
@@ -59,18 +60,40 @@ fun WhatsNewSheet(onClose: () -> Unit) {
             }
             Hairline()
 
-            Column(
+            // PERF: the changelog grows with every release — 267 entries today — so this is an
+            // ever-lengthening column. An eager Column composed EVERY release card up front on each
+            // open: ~267 cards, each a surface plus a version/date row plus one row per bullet, so on
+            // the order of a thousand text nodes measured in the frame the sheet appears. LazyColumn
+            // builds only what is on screen and prefetches the rest.
+            //
+            // The Swift twin already does this and says why (WhatsNewView's LazyVStack); this is the
+            // Android half of that fix, not a new idea. WorkoutsScreen — the other list that grows
+            // without bound — was solved separately by pagination (#797).
+            //
+            // contentPadding, NOT Modifier.padding: the old padding was applied AFTER verticalScroll,
+            // so it scrolled with the content. contentPadding preserves that exactly; a padding
+            // modifier would inset the viewport instead and move where content clips at the edges.
+            LazyColumn(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(20.dp),
+                    .fillMaxWidth(),
+                contentPadding = PaddingValues(20.dp),
                 verticalArrangement = Arrangement.spacedBy(Metrics.sectionGap),
             ) {
-                ExpectationsCard()
+                item { ExpectationsCard() }
                 // The newest release is the headline — give it the brand-green wash; the rest stay
                 // frosted-neutral so the latest stands out at a glance.
-                AppChangelog.releases.forEachIndexed { index, release ->
+                //
+                // DELIBERATELY UNKEYED. Keys exist so recomposition can track identity when a list
+                // inserts, removes or reorders; [AppChangelog.releases] is a compile-time constant
+                // that cannot change during a session, so a key buys nothing here — and LazyColumn
+                // THROWS on a duplicate key, where the previous forEachIndexed rendered duplicates
+                // without complaint. Keying by version would hand a generated file the power to crash
+                // this screen: the entries are unique today, but appchangelog-gen.py only guards the
+                // NEWEST entry, so a re-released version or a hand-edit would do it. The Swift twin's
+                // `id:` is not a precedent for adding one — SwiftUI's ForEach requires an identifier,
+                // LazyColumn does not.
+                itemsIndexed(AppChangelog.releases) { index, release ->
                     ReleaseCard(release, isLatest = index == 0)
                 }
             }

@@ -244,6 +244,38 @@ public final class LiveState: ObservableObject {
     /// #690: the body-location probe result (or the waiting sentinel), shown + copied in the Devices dialog.
     /// Cleared on disconnect and on dialog dismiss. Twin of the Android WhoopBleClient.bodyLocationProbe flow.
     @Published public var bodyLocationProbe: String? = nil
+
+    /// #761: the READ-ONLY feature-flag enumeration report — the flag NAMES the strap's own firmware lists
+    /// (`START_FF_KEY_EXCHANGE`/`SEND_NEXT_FF`), or the waiting sentinel while the walk runs. Nothing is
+    /// written to the strap to produce it. Cleared on disconnect and on dialog dismiss. Twin of the Android
+    /// WhoopBleClient.featureFlagProbe flow.
+    @Published public var featureFlagProbe: String? = nil
+
+    /// The WHOOP MG ECG ("Labrador") probe result (or the waiting sentinel), shown + copied in the Devices
+    /// dialog. Cleared on disconnect and on dialog dismiss. Instrumentation only — the text it carries is
+    /// explicitly not a medical measurement.
+    @Published public var ecgProbe: String? = nil
+
+    /// The 5-generation hardware variant resolved from the strap's Device Information Service
+    /// (`Whoop5Variant.label`: "MG" / "5.0" / "—"), nil before any DIS string has landed. Published so an
+    /// MG-only capability can gate on POSITIVELY identified hardware instead of guessing from a model
+    /// string; `.unknown` is not MG, so a feature stays off until the strap attests. Diagnostic + gating
+    /// only — it never changes how a frame is parsed (see the note on `Whoop5Variant`).
+    @Published public var whoop5Variant: String? = nil
+
+    /// #103: the READ-ONLY device-config read report — what `GET_DEVICE_CONFIG_VALUE`(121) and
+    /// `GET_FF_VALUE`(128) answer when asked for a key's VALUE (the #761 follow-up), or the waiting
+    /// sentinel while the walk runs. Nothing is written to the strap to produce it. Cleared on disconnect
+    /// and on dialog dismiss. Twin of the Android WhoopBleClient.deviceConfigProbe flow.
+    @Published public var deviceConfigProbe: String? = nil
+
+    /// #174: the R22 DISABLE report — the per-key result of writing `'0'` to the sixteen feature flags and
+    /// reading every one of them back with `GET_FF_VALUE`(128), or the waiting sentinel while the run walks.
+    /// Unlike the two probes above this one DOES write, which is exactly why it reports the value the strap
+    /// stores rather than the write's own ack. Cleared on disconnect and on dialog dismiss. Twin of the
+    /// Android WhoopBleClient.r22DisableReport flow.
+    @Published public var r22DisableReport: String? = nil
+
     /// Wrist-wear state from WRIST_ON/WRIST_OFF events. Defaults true so wear-gated features work
     /// before the first event arrives; flipped by FrameRouter on a real event.
     @Published public var worn: Bool = true
@@ -252,6 +284,12 @@ public final class LiveState: ObservableObject {
     /// offload (consecutive empty backfills). Lets the home state read "connected, history sync is
     /// experimental on 5.0" instead of a WHOOP-4-style "not recording"/sync-error. Reset on connect/disconnect.
     @Published public var historySyncExperimental: Bool = false
+
+    /// #612 — true when the WHOOP-4/generic empty-offload streak (`EmptySyncTracker`, `BLEManager`) is
+    /// currently SUSTAINED (3+ consecutive completed-but-empty offloads). Not 5/MG-specific and not
+    /// coupled to HR: a connected strap that keeps handing over nothing has this true regardless of
+    /// whether live HR is streaming. Reset on disconnect; re-derived from the next offload.
+    @Published public var sustainedEmptyOffload: Bool = false
 
     // MARK: - Standard fitness-sensor live metrics (RSC / CSC / CPS — additive, never HR)
     //

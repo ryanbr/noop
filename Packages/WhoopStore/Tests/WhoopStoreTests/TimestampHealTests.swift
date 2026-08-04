@@ -34,6 +34,35 @@ final class TimestampHealTests: XCTestCase {
         XCTAssertEqual(survivors.map(\.ts).sorted(), [good2, good1].sorted())
     }
 
+    /// The instrumentation streams landed AFTER this heal's table list and were never added to it, so a
+    /// bad-clock strap's garbage-ts rows survived in them while every sibling stream was cleaned. They are
+    /// keyed by the same `ts` from the same type-47 ingest path, so they get the same treatment.
+    func testPurgesImplausibleRowsInTheInstrumentationStreamsToo() async throws {
+        let store = try await WhoopStore.inMemory()
+        try await store.upsertDevice(id: "dev1", mac: nil, name: nil)
+        let good = now - 3600
+        let farPast = 1_250_000_000
+        let future = now + 30 * 86_400
+        for ts in [good, farPast, future] {
+            _ = try await store.insert(Streams(
+                sleepState: [SleepStateSample(ts: ts, state: 2, rawByte: 0x20)],
+                ppgWaveform: [PpgWaveformSample(ts: ts, samples: [1, 2, 3])],
+                v18Aux: [V18AuxSample(ts: ts, statusWord: 7)]), deviceId: "dev1")
+        }
+        let before = try await store.v18AuxCountForTest()
+        XCTAssertEqual(before, 3)
+
+        _ = try await store.healImplausibleTimestamps(now: now, todayLocalDayKey: todayKey)
+
+        // Only the plausible second survives, in every one of the three streams.
+        let band = try await store.sleepStateSamples(deviceId: "dev1", from: 0, to: Int.max)
+        let waveforms = try await store.ppgWaveformCountForTest()
+        let aux = try await store.v18AuxSamples(deviceId: "dev1", from: 0, to: Int.max)
+        XCTAssertEqual(band.map(\.ts), [good])
+        XCTAssertEqual(waveforms, 1)
+        XCTAssertEqual(aux.map(\.ts), [good])
+    }
+
     func testPurgesFutureAndImplausibleComputedRows() async throws {
         let store = try await WhoopStore.inMemory()
         // dailyMetric rows: a real prior day, a FUTURE day, and an absurd far-past day.

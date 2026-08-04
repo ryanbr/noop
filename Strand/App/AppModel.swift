@@ -262,6 +262,28 @@ final class AppModel: ObservableObject {
                                               charging: self.live.charging,
                                               enabled: self.behavior.batteryAlerts
                                                     && self.behavior.batteryPredictiveAlerts)
+            // ESCALATION (both independent of the two latching gates above). The 15% alert and the
+            // 24 h predictive alert each fire ONCE per discharge cycle and then latch, so a strap that
+            // keeps draining goes silent exactly when the news gets worse — measured: a user got both
+            // alerts, then nothing across the final ~3 h to the ~10% cutoff, and lost the night.
+            //
+            // 1. Critical SoC: a second, lower crossing with its own persisted gate.
+            BatteryNotifier.onCriticalBattery(pct: Int(pct.rounded()),
+                                              charging: self.live.charging,
+                                              enabled: self.behavior.batteryAlerts)
+            // 2. Bedtime night-guard: near the LEARNED habitual bedtime, does the strap actually clear
+            //    tonight? Uses the cutoff-aware runtime (the raw estimate is time-to-0%, and the strap
+            //    dies ~10% above that — ~6 h of phantom runway at this user's drain). Cold-start (no
+            //    learned midsleep / too few nights) → the policy returns silent, no fabricated bedtime.
+            //    Rides the predictive toggle: it IS a prediction.
+            BatteryNotifier.onBedtimeRunway(
+                nowSecOfDay: Self.localSecOfDayNow(),
+                habitualMidsleepSec: self.habitualMidsleepCache,
+                typicalSleepHours: BatteryEstimator.typicalSleepHours(
+                    nightlyHours: self.repo.days.compactMap { $0.totalSleepMin.map { $0 / 60.0 } }),
+                usableRemainingHours: self.live.batteryEstimate.map(BatteryEstimator.usableRemainingHours),
+                charging: self.live.charging,
+                enabled: self.behavior.batteryAlerts && self.behavior.batteryPredictiveAlerts)
         }
         // HR-zone haptic coaching watches the smoothed bpm.
         $bpm.sink { [weak self] hr in self?.coachZone(hr) }.store(in: &hrCancellables)
@@ -269,6 +291,8 @@ final class AppModel: ObservableObject {
         repo.$days.sink { [weak self] days in
             self?.evaluateIllness(days)
             self?.evaluateStrainTarget()
+            // Keep the battery night-guard's learned bedtime warm off the same signal (throttled inside).
+            self?.refreshHabitualMidsleep()
         }.store(in: &hrCancellables)
         // Re-arm the strap's firmware alarm once the connection has SETTLED — not the instant it (re)bonds.
         // A smart-alarm time changed while the strap was away never reached it , the send is gated on bond
@@ -507,6 +531,14 @@ final class AppModel: ObservableObject {
         await intelligence.analyzeRecent()
     }
 
+    #if os(iOS)
+    /// Push freshly-offloaded data to Apple Health, set by `StrandiOSApp` (#1021).
+    ///
+    /// A closure rather than a direct reference because `HealthKitBridge` owns iOS-only HealthKit state
+    /// while this type is shared with macOS, and the bridge is a `@StateObject` the app scene owns.
+    var healthWriteBack: (() async -> Void)?
+    #endif
+
     private func refreshAfterCompletedBackfill() async {
         live.append(log: "Backfill: refreshing dashboard cache from completed sync")
         await repo.refresh(days: 120)
@@ -524,6 +556,11 @@ final class AppModel: ObservableObject {
         // widget kept showing yesterday's numbers. Publishing here, on the real "new data landed"
         // signal, pushes the fresh snapshot to the home-screen widget without needing a foreground.
         await WidgetSnapshot.publish(from: self)
+        // #1021: same reasoning as the widget publish above, for Apple Health. The only automatic
+        // write-back ran on scenePhase == .active, in the same block that KICKS this offload - so it
+        // raced the data it was meant to publish and last night's sleep reached Health an app-open late.
+        // Set by StrandiOSApp; nil on macOS and in tests, where there is no bridge.
+        await healthWriteBack?()
         #endif
     }
 
@@ -693,14 +730,27 @@ final class AppModel: ObservableObject {
         let avg = samples.isEmpty ? nil
             : Int((Double(samples.map(\.bpm).reduce(0, +)) / Double(samples.count)).rounded())
         let peak = samples.map(\.bpm).max()
+        // #983: score the SAVED workout with the wearer's measured resting HR, not the hardcoded
+        // default of 60. %HRR is (bpm - resting) / (max - resting), so the default moves every zone
+        // boundary — at 136 bpm with maxHR 190 it is the difference between zone 1 and zone 2. Today's
+        // Effort and the manual rescore (#972) already thread this, so the stored number used to
+        // disagree with its own re-score. Read once here, at save time; the live readout during the
+        // session is a transient running estimate and deliberately left alone.
+        let restingHR = repo.today?.restingHr.map(Double.init) ?? StrainScorer.defaultRestingHR
         let strain = samples.count >= 2
-            ? StrainScorer.strain(samples, maxHR: Double(profile.hrMax), sex: profile.sex) : nil
+            ? StrainScorer.strain(samples, maxHR: Double(profile.hrMax),
+                                  restingHR: restingHR, sex: profile.sex) : nil
         // Estimate calories from the captured HR window (same Keytel/Harris–Benedict model the
         // auto-detector uses) so a manual session shows energy too, not just duration/strain. (#117)
         let up = UserProfile(weightKg: profile.weightKg, heightCm: profile.heightCm,
                              age: Double(profile.age), sex: profile.sex)
         let kcal = samples.count >= 2
-            ? Calories.estimateBoutCalories(samples, profile: up, hrmax: Double(profile.hrMax), restingHR: nil).0
+            // #983: same measured resting HR as the strain above, not nil. The calories model's
+            // active-vs-resting threshold sits at resting + 30% HRR, so the default silently shifts what
+            // counts as active — and #972 already threads it in the rescore path, so leaving it nil here
+            // meant a saved workout's kcal disagreed with its own re-score just as its Effort did.
+            ? Calories.estimateBoutCalories(samples, profile: up, hrmax: Double(profile.hrMax),
+                                            restingHR: restingHR).0
             : 0
         let startTs = Int(w.start.timeIntervalSince1970)
         let row = WorkoutRow(
@@ -817,6 +867,32 @@ final class AppModel: ObservableObject {
     // #690: read-only body-location/status probe (0x54). User-initiated, Test-Centre-gated in DevicesView.
     func probeBodyLocationAndStatus() { ble.probeBodyLocationAndStatus() }
     func clearBodyLocationProbe() { ble.clearBodyLocationProbe() }
+
+    // #761: READ-ONLY feature-flag ENUMERATION probe (117/118) — reads the flag NAMES the strap's firmware
+    // knows and writes nothing. User-initiated, Test-Centre-gated in DevicesView.
+    func probeFeatureFlags() { ble.probeFeatureFlags() }
+    func clearFeatureFlagProbe() { ble.clearFeatureFlagProbe() }
+
+    // WHOOP MG ECG ("Labrador") experimental probe. Every entry point is user-initiated and
+    // confirmation-gated in DevicesView, and BLEManager gates the sends again on the Experimental opt-in
+    // plus a positively-identified MG. Unvalidated instrumentation, never a medical measurement.
+    /// True only for a POSITIVELY identified WHOOP MG — the gate the ECG UI is offered behind.
+    var isWhoop5MG: Bool { ble.isWhoop5MG }
+    /// PERSISTENT strap write, deliberately its own action rather than part of the start flow.
+    func ecgSelectWrist(_ wrist: Whoop5Ecg.WristSelection) { ble.ecgSelectWrist(wrist) }
+    func ecgStartCapture() { ble.ecgStartCapture() }
+    /// `reportsResult: false` for the Settings-toggle path, so switching the experiment off doesn't pop
+    /// the Devices result sheet from another screen.
+    func ecgStopCapture(reportsResult: Bool = true) { ble.ecgStopCapture(reportsResult: reportsResult) }
+    func clearEcgProbe() { ble.clearEcgProbe() }
+    /// True once a start has been sent this session and no stop has completed — keeps the Stop control
+    /// reachable even after the opt-in has been switched back off.
+    var ecgMayBeRunning: Bool { ble.ecgMayBeRunning }
+    // #103: READ-ONLY device-config READ probe (121/128) — asks the strap for a key's VALUE, the
+    // follow-up to #761's key-NAME enumeration. Writes nothing. User-initiated, Test-Centre-gated in
+    // DevicesView.
+    func probeDeviceConfigValues() { ble.probeDeviceConfigValues() }
+    func clearDeviceConfigProbe() { ble.clearDeviceConfigProbe() }
 
     /// Drop the current strap and clear bond state so a newly-picked strap model connects fresh
     /// (lets a user with both a WHOOP 4 and a 5/MG switch between them).
@@ -984,11 +1060,6 @@ final class AppModel: ObservableObject {
         ble.buzzStrapOnce()
     }
 
-    /// Fire a specific preset haptic pattern (patternId 0–6 on Harvard; loops sets length).
-    /// Used by the notification-pattern picker and coaching features.
-    func buzz(pattern: UInt8, loops: UInt8 = 1) {
-        ble.send(.runHapticsPattern, payload: [pattern, loops, 0, 0, 0])
-    }
 
     /// Tell the strap to STOP an in-progress haptic pattern (#769). The biofeedback layers (Breathe /
     /// "Calm me" / resonance) schedule a stream of buzzes; cancelling the app-side DispatchWorkItems stops
@@ -1351,6 +1422,35 @@ final class AppModel: ObservableObject {
     /// (alcohol / a hard-or-late workout / etc.) so a night out doesn't cry wolf. The journal context is
     /// read asynchronously, so this kicks a Task; the published `illnessSignal` + the `healthAlert`
     /// banner both come from the engine's single decision. On-device only, APPROXIMATE , not a diagnosis.
+    // MARK: - Battery night-guard: learned bedtime cache
+
+    /// The learned habitual midsleep (local seconds-of-day), cached for the battery night-guard.
+    /// `repo.habitualMidsleepSec()` is an async whole-history store read, but the battery hook runs
+    /// synchronously on the BLE callback, so the value is kept warm here instead. nil = cold-start
+    /// (< `SleepStageTotals.habitualMinDays` nights) → `BatteryEstimator.bedtimeAlert` stays silent.
+    private var habitualMidsleepCache: Int? = nil
+    private var habitualMidsleepCachedAt: Date? = nil
+
+    /// Refresh the cached habitual midsleep, at most hourly. The learner reads the full sleep history
+    /// and the value moves on a timescale of WEEKS, so recomputing it on every `repo.$days` republish
+    /// (several per rollup) would be pure cost for a number that cannot have changed.
+    private func refreshHabitualMidsleep() {
+        if let at = habitualMidsleepCachedAt, Date().timeIntervalSince(at) < 3600 { return }
+        habitualMidsleepCachedAt = Date()
+        Task { [weak self] in
+            guard let self else { return }
+            self.habitualMidsleepCache = await self.repo.habitualMidsleepSec()
+        }
+    }
+
+    /// Local time-of-day in seconds [0, 86400) — the clock the night-guard's bedtime window is in.
+    /// Uses the CURRENT zone, so a traveller's window follows them rather than sticking to home time.
+    static func localSecOfDayNow(_ now: Date = Date()) -> Int {
+        let cal = Calendar.current
+        let c = cal.dateComponents([.hour, .minute, .second], from: now)
+        return (c.hour ?? 0) * 3600 + (c.minute ?? 0) * 60 + (c.second ?? 0)
+    }
+
     private func evaluateIllness(_ days: [DailyMetric]) {
         guard behavior.illnessWatch, days.count >= 14 else {
             healthAlert = nil; illnessSignal = nil; illnessDistance = nil; return

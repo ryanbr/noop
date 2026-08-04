@@ -88,7 +88,7 @@ final class ReadTests: XCTestCase {
         for t in 15..<415 { ppg.append(PpgHrSample(ts: t, bpm: 140, conf: 0.8)) }
         _ = try await store.insert(Streams(hr: hr, ppgHr: ppg), deviceId: "dev1")
 
-        let stats = try await store.hrWindowStats(deviceId: "dev1", from: 0, to: 1_000)
+        let stats = try await store.hrWindowStats(primaryId: "dev1", secondaryId: "dev1", from: 0, to: 1_000)
         XCTAssertEqual(stats.n, 415, "measured ∪ PPG, with the 5 overlapping seconds counted once")
         XCTAssertEqual(stats.max, 140)
 
@@ -107,7 +107,7 @@ final class ReadTests: XCTestCase {
             Streams(hr: (0..<10).map { HRSample(ts: $0, bpm: 100) },
                     ppgHr: (0..<10).map { PpgHrSample(ts: $0, bpm: 180, conf: 0.9) }),
             deviceId: "dev1")
-        let stats = try await store.hrWindowStats(deviceId: "dev1", from: 0, to: 1_000)
+        let stats = try await store.hrWindowStats(primaryId: "dev1", secondaryId: "dev1", from: 0, to: 1_000)
         XCTAssertEqual(stats.n, 10, "every second is measured; no PPG row may be added")
         XCTAssertEqual(try XCTUnwrap(stats.avg), 100, accuracy: 1e-9)
         XCTAssertEqual(stats.max, 100, "the PPG 180s must not become the peak")
@@ -123,7 +123,7 @@ final class ReadTests: XCTestCase {
         let hr = (0..<n).map { HRSample(ts: $0, bpm: $0 < 8_000 ? 120 : 170) }
         _ = try await store.insert(Streams(hr: hr), deviceId: "dev1")
 
-        let stats = try await store.hrWindowStats(deviceId: "dev1", from: 0, to: 20_000)
+        let stats = try await store.hrWindowStats(primaryId: "dev1", secondaryId: "dev1", from: 0, to: 20_000)
         XCTAssertEqual(stats.n, n, "the whole window, not a capped page of it")
         let trueMean = (120.0 * 8_000 + 170.0 * 2_800) / Double(n)
         XCTAssertEqual(try XCTUnwrap(stats.avg), trueMean, accuracy: 1e-9)
@@ -136,7 +136,7 @@ final class ReadTests: XCTestCase {
     func testHrWindowStatsEmptyWindowIsNil() async throws {
         let store = try await WhoopStore.inMemory()
         try await store.upsertDevice(id: "dev1", mac: nil, name: nil)
-        let stats = try await store.hrWindowStats(deviceId: "dev1", from: 0, to: 1_000)
+        let stats = try await store.hrWindowStats(primaryId: "dev1", secondaryId: "dev1", from: 0, to: 1_000)
         XCTAssertEqual(stats.n, 0)
         XCTAssertNil(stats.avg)
         XCTAssertNil(stats.max)
@@ -149,12 +149,81 @@ final class ReadTests: XCTestCase {
         try await store.upsertDevice(id: "dev1", mac: nil, name: nil)
         _ = try await store.insert(
             Streams(hr: (0..<100).map { HRSample(ts: $0, bpm: 90 + $0 % 7) }), deviceId: "dev1")
-        let stats = try await store.hrWindowStats(deviceId: "dev1", from: 0, to: 1_000)
+        let stats = try await store.hrWindowStats(primaryId: "dev1", secondaryId: "dev1", from: 0, to: 1_000)
         let measured = try await store.hrSamples(deviceId: "dev1", from: 0, to: 1_000, limit: 100_000)
         XCTAssertEqual(stats.n, measured.count)
         XCTAssertEqual(try XCTUnwrap(stats.avg),
                        Double(measured.reduce(0) { $0 + $1.bpm }) / Double(measured.count), accuracy: 1e-9)
         XCTAssertEqual(stats.max, measured.map(\.bpm).max())
+    }
+
+    // MARK: - hrWindowStats across two device ids (#856)
+
+    /// The control that matters: passing the SAME id twice must be byte-identical to the single-id
+    /// read this replaced, because that is what makes the change invisible to a single-WHOOP install.
+    func testSameIdTwiceMatchesTheSingleIdRead() async throws {
+        let store = try await WhoopStore.inMemory()
+        try await store.upsertDevice(id: "dev1", mac: nil, name: nil)
+        _ = try await store.insert(
+            Streams(hr: (0..<40).map { HRSample(ts: $0, bpm: 90 + $0 % 5) }), deviceId: "dev1")
+        let stats = try await store.hrWindowStats(primaryId: "dev1", secondaryId: "dev1",
+                                                  from: 0, to: 1_000)
+        let rows = try await store.hrSamples(deviceId: "dev1", from: 0, to: 1_000, limit: 100_000)
+        XCTAssertEqual(stats.n, rows.count)
+        XCTAssertEqual(try XCTUnwrap(stats.avg),
+                       Double(rows.reduce(0) { $0 + $1.bpm }) / Double(rows.count), accuracy: 1e-9)
+        XCTAssertEqual(stats.max, rows.map(\.bpm).max())
+    }
+
+    /// A second banked under BOTH ids is counted ONCE, with the primary's value. A naive
+    /// `deviceId IN (…)` would count it twice — inflating n and skewing avg, plausibly enough that
+    /// nothing would look wrong.
+    func testOverlappingSecondsAreCountedOnceWithPrimaryWinning() async throws {
+        let store = try await WhoopStore.inMemory()
+        try await store.upsertDevice(id: "A", mac: nil, name: nil)
+        try await store.upsertDevice(id: "B", mac: nil, name: nil)
+        _ = try await store.insert(Streams(hr: (0..<10).map { HRSample(ts: $0, bpm: 100) }), deviceId: "A")
+        _ = try await store.insert(Streams(hr: (5..<20).map { HRSample(ts: $0, bpm: 200) }), deviceId: "B")
+
+        let stats = try await store.hrWindowStats(primaryId: "A", secondaryId: "B", from: 0, to: 100)
+        // ts 0..9 from A at 100, ts 10..19 from B at 200 — the 5..9 overlap resolves to A.
+        XCTAssertEqual(stats.n, 20, "each second counted once; a naive IN(...) would give 25")
+        XCTAssertEqual(try XCTUnwrap(stats.avg), 150.0, accuracy: 1e-9)
+        XCTAssertEqual(stats.max, 200)
+    }
+
+    /// Precedence is the argument order, not the data: swapping the ids swaps which value wins the
+    /// overlap, while the count stays the same.
+    func testPrecedenceFollowsArgumentOrder() async throws {
+        let store = try await WhoopStore.inMemory()
+        try await store.upsertDevice(id: "A", mac: nil, name: nil)
+        try await store.upsertDevice(id: "B", mac: nil, name: nil)
+        _ = try await store.insert(Streams(hr: (0..<10).map { HRSample(ts: $0, bpm: 100) }), deviceId: "A")
+        _ = try await store.insert(Streams(hr: (5..<20).map { HRSample(ts: $0, bpm: 200) }), deviceId: "B")
+
+        let bFirst = try await store.hrWindowStats(primaryId: "B", secondaryId: "A", from: 0, to: 100)
+        XCTAssertEqual(bFirst.n, 20, "same rows either way")
+        // B now wins ts 5..9, so only ts 0..4 read 100.
+        XCTAssertEqual(try XCTUnwrap(bFirst.avg), (5.0 * 100 + 15.0 * 200) / 20, accuracy: 1e-9)
+    }
+
+    /// The #841 PPG anti-join still holds PER ID: a measured second is never doubled by its own
+    /// estimate, and a PPG-only second on the secondary still fills a gap the primary does not cover.
+    func testPpgAntiJoinHoldsPerIdAcrossBothLegs() async throws {
+        let store = try await WhoopStore.inMemory()
+        try await store.upsertDevice(id: "A", mac: nil, name: nil)
+        try await store.upsertDevice(id: "B", mac: nil, name: nil)
+        // A: measured 0..9 AND a PPG estimate on the same seconds — the anti-join must drop the PPG.
+        _ = try await store.insert(
+            Streams(hr: (0..<10).map { HRSample(ts: $0, bpm: 100) },
+                    ppgHr: (0..<10).map { PpgHrSample(ts: $0, bpm: 180, conf: 0.9) }), deviceId: "A")
+        // B: PPG only, on seconds A does not cover.
+        _ = try await store.insert(
+            Streams(ppgHr: (10..<15).map { PpgHrSample(ts: $0, bpm: 130, conf: 0.9) }), deviceId: "B")
+
+        let stats = try await store.hrWindowStats(primaryId: "A", secondaryId: "B", from: 0, to: 100)
+        XCTAssertEqual(stats.n, 15, "A's 10 measured (PPG suppressed) + B's 5 PPG-only")
+        XCTAssertEqual(stats.max, 130, "A's 180 PPG estimates must not survive its own measured rows")
     }
 
     func testEventsDecodePayload() async throws {

@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RemoveCircleOutline
+import androidx.compose.material.icons.filled.StopCircle
 import androidx.compose.material.icons.filled.Watch
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -115,6 +116,10 @@ fun DevicesScreen(
     val batteryProbeResult by viewModel.extendedBatteryProbe.collectAsStateWithLifecycle()
     // #690 body-location probe result — same non-null-shows-the-dialog contract.
     val bodyLocationProbeResult by viewModel.bodyLocationProbe.collectAsStateWithLifecycle()
+    // #761: the read-only feature-flag ENUMERATION report (or the waiting sentinel while it walks).
+    val featureFlagProbeResult by viewModel.featureFlagProbe.collectAsStateWithLifecycle()
+    // #103: the read-only device-config READ report (or the waiting sentinel while the plan runs).
+    val deviceConfigProbeResult by viewModel.deviceConfigProbe.collectAsStateWithLifecycle()
 
     // Liquid sky backdrop gate — the SAME "Day-cycle background" preference the liquid Today honours (#698,
     // default ON). Off falls back to the flat dark canvas, so the setting governs every liquid screen alike.
@@ -140,6 +145,8 @@ fun DevicesScreen(
     var probeTarget by remember { mutableStateOf<PairedDeviceRow?>(null) }
     var batteryProbeTarget by remember { mutableStateOf<PairedDeviceRow?>(null) }
     var bodyLocationProbeTarget by remember { mutableStateOf<PairedDeviceRow?>(null) }
+    var featureFlagProbeTarget by remember { mutableStateOf<PairedDeviceRow?>(null) }
+    var deviceConfigProbeTarget by remember { mutableStateOf<PairedDeviceRow?>(null) }
     // After removing the ACTIVE device with other devices still paired, prompt to pick a new active one.
     var pickNewActive by remember { mutableStateOf(false) }
 
@@ -266,6 +273,25 @@ fun DevicesScreen(
                     SourceCoordinator.isWhoop(device) &&
                     TestCentre.from(context).active(TestDomain.CONNECTION)
                 ) { { bodyLocationProbeTarget = device } } else null,
+                // #761 feature-flag ENUMERATION probe: read-only (names only, nothing written), both
+                // families. Same Test Centre gate.
+                onFeatureFlagProbe = if (device.status == DeviceStatus.active.name && live.connected &&
+                    SourceCoordinator.isWhoop(device) &&
+                    TestCentre.from(context).active(TestDomain.CONNECTION)
+                ) { { featureFlagProbeTarget = device } } else null,
+                // Stop an offload already in flight. Offered ONLY while one is running on this strap —
+                // not a Test Centre probe but an ordinary escape hatch, because until now a long drain
+                // could only be ended by the timeout or walking out of range. Nothing is lost: unacked
+                // records stay on the strap.
+                onAbortSync = if (device.status == DeviceStatus.active.name && live.connected &&
+                    WhoopBleClient.canAbortSync(live.backfilling) && SourceCoordinator.isWhoop(device)
+                ) { { viewModel.abortBackfill() } } else null,
+                // #103 device-config READ probe: read-only (asks for VALUES, writes none), both
+                // families. Same Test Centre gate.
+                onDeviceConfigProbe = if (device.status == DeviceStatus.active.name && live.connected &&
+                    SourceCoordinator.isWhoop(device) &&
+                    TestCentre.from(context).active(TestDomain.CONNECTION)
+                ) { { deviceConfigProbeTarget = device } } else null,
             )
         }
 
@@ -407,6 +433,33 @@ fun DevicesScreen(
             onDismiss = { viewModel.clearBodyLocationProbe() },
         )
     }
+    // #761 feature-flag ENUMERATION probe: read-only key-name listing (117 then repeated 118); no value
+    // is written to the strap.
+    featureFlagProbeTarget?.let {
+        FeatureFlagProbeDialog(
+            onSend = { viewModel.probeFeatureFlags(); featureFlagProbeTarget = null },
+            onDismiss = { featureFlagProbeTarget = null },
+        )
+    }
+    featureFlagProbeResult?.let { result ->
+        FeatureFlagProbeResultDialog(
+            text = result,
+            onDismiss = { viewModel.clearFeatureFlagProbe() },
+        )
+    }
+    // #103 device-config READ probe: read-only VALUE reads (121/128); no value is written to the strap.
+    deviceConfigProbeTarget?.let {
+        DeviceConfigProbeDialog(
+            onSend = { viewModel.probeDeviceConfigValues(); deviceConfigProbeTarget = null },
+            onDismiss = { deviceConfigProbeTarget = null },
+        )
+    }
+    deviceConfigProbeResult?.let { result ->
+        DeviceConfigProbeResultDialog(
+            text = result,
+            onDismiss = { viewModel.clearDeviceConfigProbe() },
+        )
+    }
 
     // --- Second, strongly-worded delete-data confirm (from the Removed card's secondary control) ---
     deleteDataTarget?.let { device ->
@@ -482,6 +535,13 @@ private fun DeviceCard(
     onBatteryProbe: (() -> Unit)? = null,
     // #690 body-location opcode probe (Test Centre → Connection, both WHOOP families). Read-only.
     onBodyLocationProbe: (() -> Unit)? = null,
+    /** #761 feature-flag ENUMERATION probe (Test Centre → Connection, both WHOOP families). Read-only:
+     *  it reads the flag NAMES the strap's firmware knows and writes nothing. */
+    onFeatureFlagProbe: (() -> Unit)? = null,
+    onAbortSync: (() -> Unit)? = null,
+    /** #103 device-config READ probe (Test Centre → Connection, both WHOOP families). Read-only: it asks
+     *  the strap for a config key's VALUE and writes none. */
+    onDeviceConfigProbe: (() -> Unit)? = null,
 ) {
     val profile = deviceProfile(device)
     // The per-device actions menu's open state is hoisted here so the WHOLE card is a tap target that opens
@@ -598,6 +658,9 @@ private fun DeviceCard(
                     onRebootProbe = onRebootProbe,
                     onBatteryProbe = onBatteryProbe,
                     onBodyLocationProbe = onBodyLocationProbe,
+                    onFeatureFlagProbe = onFeatureFlagProbe,
+                onAbortSync = onAbortSync,
+                    onDeviceConfigProbe = onDeviceConfigProbe,
                 )
             }
         }
@@ -718,6 +781,13 @@ private fun DeviceActionsMenu(
     onRebootProbe: (() -> Unit)? = null,
     onBatteryProbe: (() -> Unit)? = null,
     onBodyLocationProbe: (() -> Unit)? = null,
+    /** #761 feature-flag ENUMERATION probe (Test Centre → Connection, both WHOOP families). Read-only:
+     *  it reads the flag NAMES the strap's firmware knows and writes nothing. */
+    onFeatureFlagProbe: (() -> Unit)? = null,
+    onAbortSync: (() -> Unit)? = null,
+    /** #103 device-config READ probe (Test Centre → Connection, both WHOOP families). Read-only: it asks
+     *  the strap for a config key's VALUE and writes none. */
+    onDeviceConfigProbe: (() -> Unit)? = null,
 ) {
     Box {
         IconButton(
@@ -731,12 +801,12 @@ private fun DeviceActionsMenu(
         DropdownMenu(expanded = open, onDismissRequest = { onOpenChange(false) }) {
             if (device.status == DeviceStatus.archived.name) {
                 if (onReAdd != null) {
-                    MenuItem("Make active", Icons.Filled.Bolt) { onOpenChange(false); onReAdd() }
+                    MenuItem(uiString(R.string.l10n_devices_screen_make_active_75690bb8), Icons.Filled.Bolt) { onOpenChange(false); onReAdd() }
                 }
-                MenuItem("Rename", Icons.Filled.Edit) { onOpenChange(false); onRename() }
+                MenuItem(uiString(R.string.l10n_devices_screen_rename_d3f4cb89), Icons.Filled.Edit) { onOpenChange(false); onRename() }
                 if (onDeleteData != null) {
                     HorizontalDivider(color = Palette.hairline)
-                    MenuItem("Delete this device's data…", Icons.Filled.Delete, destructive = true) {
+                    MenuItem(uiString(R.string.l10n_devices_screen_delete_this_device_s_data_3cae7a2a), Icons.Filled.Delete, destructive = true) {
                         onOpenChange(false); onDeleteData()
                     }
                 }
@@ -746,25 +816,25 @@ private fun DeviceActionsMenu(
                 // reconnect left stuck. Shown first as the obvious recovery action.
                 if (onConnect != null) {
                     if (isLiveConnected) {
-                        MenuItem("Disconnect", Icons.Filled.Close) { onOpenChange(false); onDisconnect?.invoke() }
+                        MenuItem(uiString(R.string.l10n_devices_screen_disconnect_ed28e068), Icons.Filled.Close) { onOpenChange(false); onDisconnect?.invoke() }
                     } else {
-                        MenuItem("Reconnect", Icons.Filled.Refresh) { onOpenChange(false); onConnect() }
+                        MenuItem(uiString(R.string.l10n_devices_screen_reconnect_6988b16a), Icons.Filled.Refresh) { onOpenChange(false); onConnect() }
                     }
                     HorizontalDivider(color = Palette.hairline)
                 }
                 if (!isActive) {
-                    MenuItem("Make active", Icons.Filled.Bolt) { onOpenChange(false); onMakeActive() }
+                    MenuItem(uiString(R.string.l10n_devices_screen_make_active_75690bb8), Icons.Filled.Bolt) { onOpenChange(false); onMakeActive() }
                 }
-                MenuItem("Rename", Icons.Filled.Edit) { onOpenChange(false); onRename() }
+                MenuItem(uiString(R.string.l10n_devices_screen_rename_d3f4cb89), Icons.Filled.Edit) { onOpenChange(false); onRename() }
                 // Restart the strap — only for the live-connected WHOOP (the reboot travels over the active
                 // BLE link). Confirmation-gated by the parent. (#166)
                 if (isLiveConnected && SourceCoordinator.isWhoop(device) && onReboot != null) {
-                    MenuItem("Restart strap…", Icons.Filled.Refresh) { onOpenChange(false); onReboot() }
+                    MenuItem(uiString(R.string.l10n_devices_screen_restart_strap_c976cd6c), Icons.Filled.Refresh) { onOpenChange(false); onReboot() }
                 }
                 // 4.0 reboot probe (RE): only present when the parent passed a closure (Test Centre →
                 // Connection on + a live WHOOP 4.0). Finds the real reboot frame the 4.0 accepts (#235).
                 if (onRebootProbe != null) {
-                    MenuItem("Reboot probe (4.0 RE)…", Icons.Filled.BugReport) { onOpenChange(false); onRebootProbe() }
+                    MenuItem(uiString(R.string.l10n_devices_screen_reboot_probe_4_0_re_828b3916), Icons.Filled.BugReport) { onOpenChange(false); onRebootProbe() }
                 }
                 // #592: read-only extended-battery opcode probe — settles the disputed GET_EXTENDED_
                 // BATTERY_INFO number (98 vs an APK decompile's 87) from a strap-log export.
@@ -775,9 +845,20 @@ private fun DeviceActionsMenu(
                 if (onBodyLocationProbe != null) {
                     MenuItem(uiString(R.string.l10n_devices_screen_body_location_probe_690_re_7def8c39), Icons.Filled.BugReport) { onOpenChange(false); onBodyLocationProbe() }
                 }
+                // #761 feature-flag ENUMERATION probe (RE): read-only key-name listing, both families.
+                if (onAbortSync != null) {
+                    MenuItem(uiString(R.string.l10n_devices_screen_stop_sync_4a1f2b6e), Icons.Filled.StopCircle) { onOpenChange(false); onAbortSync() }
+                }
+                if (onFeatureFlagProbe != null) {
+                    MenuItem(uiString(R.string.l10n_devices_screen_feature_flag_probe_761_re_21241d68), Icons.Filled.BugReport) { onOpenChange(false); onFeatureFlagProbe() }
+                }
+                // #103 device-config READ probe (RE): read-only VALUE reads, both families.
+                if (onDeviceConfigProbe != null) {
+                    MenuItem(uiString(R.string.l10n_devices_screen_device_config_read_probe_103_re_837f46de), Icons.Filled.BugReport) { onOpenChange(false); onDeviceConfigProbe() }
+                }
                 if (onRemove != null) {
                     HorizontalDivider(color = Palette.hairline)
-                    MenuItem("Remove", Icons.Filled.RemoveCircleOutline, destructive = true) {
+                    MenuItem(uiString(R.string.l10n_devices_screen_remove_e963907d), Icons.Filled.RemoveCircleOutline, destructive = true) {
                         onOpenChange(false); onRemove()
                     }
                 }
@@ -1056,6 +1137,143 @@ private fun BodyLocationProbeResultDialog(
     )
 }
 
+/** #761 feature-flag ENUMERATION probe: a read-only walk of the strap's own flag-name list (117 then
+ *  repeated 118). Nothing is written to the strap. Gated to Test Centre → Connection + a live WHOOP at
+ *  the call site. Twin of the Swift FeatureFlagProbeSheets confirm dialog. */
+@Composable
+private fun FeatureFlagProbeDialog(
+    onSend: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.surfaceOverlay,
+        title = { Text(uiString(R.string.l10n_devices_screen_feature_flag_probe_761_re_21241d68), style = NoopType.title2, color = Palette.textPrimary) },
+        text = {
+            Text(
+                uiString(R.string.l10n_devices_screen_feature_flag_probe_explainer_58eec30f),
+                style = NoopType.subhead,
+                color = Palette.textSecondary,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onSend) {
+                Text(uiString(R.string.l10n_devices_screen_send_probe_read_only_36b318bc), style = NoopType.body, color = Palette.accent)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(uiString(R.string.l10n_devices_screen_cancel_77dfd213), style = NoopType.body, color = Palette.textSecondary)
+            }
+        },
+    )
+}
+
+/** #761 probe result: the strap's own flag-name list + the exchange trace (or a "waiting…" state), with
+ *  a Copy button. Read-only; dismiss clears the result. Twin of the Swift FeatureFlagProbeResultView. */
+@Composable
+private fun FeatureFlagProbeResultDialog(
+    text: String,
+    onDismiss: () -> Unit,
+) {
+    val clipboard = LocalClipboardManager.current
+    val waiting = text == WhoopBleClient.WAITING_FEATURE_FLAG_PROBE
+    val shown = if (waiting) uiString(R.string.l10n_devices_screen_waiting_for_the_straps_reply_5a06e7ac) else text
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.surfaceOverlay,
+        title = { Text(uiString(R.string.l10n_devices_screen_feature_flag_probe_result_761_c50ef4d4), style = NoopType.title2, color = Palette.textPrimary) },
+        text = {
+            Column(modifier = Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
+                SelectionContainer {
+                    Text(shown, style = if (waiting) NoopType.subhead else NoopType.mono, color = Palette.textSecondary)
+                }
+            }
+        },
+        confirmButton = {
+            if (!waiting) {
+                TextButton(onClick = { clipboard.setText(AnnotatedString(text)) }) {
+                    Text(uiString(R.string.l10n_devices_screen_copy_af74f7c5), style = NoopType.body, color = Palette.accent)
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(uiString(R.string.l10n_devices_screen_close_bbfa773e), style = NoopType.body, color = Palette.textSecondary)
+            }
+        },
+    )
+}
+
+/** #103 device-config READ probe: a read-only walk that asks the strap for config VALUES (121/128), one
+ *  key per round-trip. Nothing is written to the strap. Gated to Test Centre → Connection + a live WHOOP
+ *  at the call site. Twin of the Swift DeviceConfigProbeSheets confirm dialog. */
+@Composable
+private fun DeviceConfigProbeDialog(
+    onSend: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.surfaceOverlay,
+        title = { Text(uiString(R.string.l10n_devices_screen_device_config_read_probe_103_re_837f46de), style = NoopType.title2, color = Palette.textPrimary) },
+        text = {
+            Text(
+                uiString(R.string.l10n_devices_screen_device_config_probe_explainer_dd23169f),
+                style = NoopType.subhead,
+                color = Palette.textSecondary,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onSend) {
+                Text(uiString(R.string.l10n_devices_screen_send_probe_read_only_36b318bc), style = NoopType.body, color = Palette.accent)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(uiString(R.string.l10n_devices_screen_cancel_77dfd213), style = NoopType.body, color = Palette.textSecondary)
+            }
+        },
+    )
+}
+
+/** #103 probe result: the per-verb verdict, the values read, and the exchange transcript (or a
+ *  "waiting…" state), with a Copy button. Read-only; dismiss clears the result. Twin of the Swift
+ *  DeviceConfigProbeResultView. */
+@Composable
+private fun DeviceConfigProbeResultDialog(
+    text: String,
+    onDismiss: () -> Unit,
+) {
+    val clipboard = LocalClipboardManager.current
+    val waiting = text == WhoopBleClient.WAITING_DEVICE_CONFIG_PROBE
+    val shown = if (waiting) uiString(R.string.l10n_devices_screen_waiting_for_the_straps_reply_5a06e7ac) else text
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.surfaceOverlay,
+        title = { Text(uiString(R.string.l10n_devices_screen_device_config_read_probe_result_103_67d02ec9), style = NoopType.title2, color = Palette.textPrimary) },
+        text = {
+            Column(modifier = Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
+                SelectionContainer {
+                    Text(shown, style = if (waiting) NoopType.subhead else NoopType.mono, color = Palette.textSecondary)
+                }
+            }
+        },
+        confirmButton = {
+            if (!waiting) {
+                TextButton(onClick = { clipboard.setText(AnnotatedString(text)) }) {
+                    Text(uiString(R.string.l10n_devices_screen_copy_af74f7c5), style = NoopType.body, color = Palette.accent)
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(uiString(R.string.l10n_devices_screen_close_bbfa773e), style = NoopType.body, color = Palette.textSecondary)
+            }
+        },
+    )
+}
+
 @Composable
 private fun RenameDialog(
     device: PairedDeviceRow,
@@ -1110,8 +1328,7 @@ private fun PickActiveDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    uiString(R.string.l10n_devices_screen_you_removed_your_active_strap_choose_2ac91d48) +
-                        "leave none active and pair one later.",
+                    uiString(R.string.l10n_devices_screen_you_removed_your_active_strap_choose_2ac91d48),
                     style = NoopType.subhead,
                     color = Palette.textSecondary,
                 )
@@ -1342,8 +1559,7 @@ private fun OuraLocalStateNote() {
     ) {
         Icon(Icons.Filled.Info, contentDescription = null, tint = Palette.statusWarning, modifier = Modifier.size(14.dp))
         Text(
-            uiString(R.string.l10n_devices_screen_paired_locally_noop_owns_this_ring_30c16190) +
-                "up in the Oura app, NOOP no longer owns it and you would re-add it to take it over.",
+            uiString(R.string.l10n_devices_screen_paired_locally_noop_owns_this_ring_30c16190),
             style = NoopType.caption,
             color = Palette.statusWarning,
         )

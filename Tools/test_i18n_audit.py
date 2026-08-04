@@ -172,6 +172,34 @@ class ScanAndroidEndToEnd(unittest.TestCase):
         found = {lit for _p, _l, lit in ia.scan_android()}
         self.assertEqual(found, {"A", "B"})
 
+    def test_notification_builder_literals_found(self):
+        # A NotificationCompat chain is not Compose: it has no `Text(` and no
+        # `title=`/`text=` kwarg, so every pattern here missed it and the whole
+        # notification surface — including the always-on foreground-service one —
+        # shipped English in every locale unnoticed. Adding the two setters to
+        # ANDROID_CALL_PATTERN is what surfaced it (#867).
+        self.write(
+            "Notifier.kt",
+            "NotificationCompat.Builder(context, CHANNEL_ID)\n"
+            '    .setContentTitle("Strap battery low")\n'
+            '    .setContentText("Recharge your WHOOP before tonight.")\n'
+            "    .build()\n",
+        )
+        found = {lit for _p, _l, lit in ia.scan_android()}
+        self.assertEqual(found, {"Strap battery low", "Recharge your WHOOP before tonight."})
+
+    def test_notification_builder_resource_lookup_not_flagged(self):
+        # The fixed form must stay green, or the pattern above would be reverted
+        # the first time it cried wolf on a correctly-localised notifier.
+        self.write(
+            "Notifier.kt",
+            "NotificationCompat.Builder(context, CHANNEL_ID)\n"
+            "    .setContentTitle(context.getString(R.string.battery_low_title))\n"
+            "    .setContentText(body)\n",
+        )
+        found = {lit for _p, _l, lit in ia.scan_android()}
+        self.assertEqual(found, set())
+
     def test_local_val_declaration_not_scanned_as_kwarg(self):
         # `val text = when { ... }` is a local declaration, not a composable
         # kwarg — ANDROID_KWARG_PATTERN's `text=` must not treat its `when`

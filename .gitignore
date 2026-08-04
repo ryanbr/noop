@@ -101,3 +101,20 @@ Strand/Oura/OuraSecrets.xcconfig
 
 # Personal bundle id prefix (BYO; never committed)
 Config/BundleIdSecrets.xcconfig
+
+# (#979) The linux-capture workbench moved from `tools/` to `Tools/` when the two case-colliding
+# trees were merged. On a case-SENSITIVE filesystem any capture a contributor already had stays
+# behind at the old path, where that tool's own .gitignore no longer reaches it — and those files
+# carry HR and timeline, while the .db carries the strap serial, session token and MAC.
+#
+# These are DATA patterns only, never the bare directory. Git folds case in .gitignore when
+# core.ignorecase is on (which it is on macOS), so `tools/linux-capture/` would also match the REAL
+# `Tools/linux-capture/` and silently ignore every new file added there — a new test suite would
+# vanish, which is the exact failure this whole normalisation exists to prevent. Every pattern below
+# is one that Tools/linux-capture/.gitignore already applies, so folding onto the real tree is a
+# no-op there while the orphaned old path stays covered here.
+tools/linux-capture/*.json
+tools/linux-capture/*.db
+tools/linux-capture/*.db-wal
+tools/linux-capture/*.db-shm
+tools/linux-capture/captures/

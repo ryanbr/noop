@@ -80,6 +80,21 @@ object SleepDebt {
     const val ON_TARGET_BAND_MIN: Double = 30.0
 
     /**
+     * Sleep credited toward debt for one day. [mainSleepMin] remains the canonical
+     * main-night total used by Rest and the sleep headline; separately-recorded naps
+     * add repayment credit without changing that canonical figure. A day with no
+     * usable main sleep stays missing, and a malformed negative nap total is ignored.
+     *
+     * This is deliberately arithmetic rather than a physiological model: callers
+     * classify the day's main-night group and pass only asleep minutes from blocks
+     * outside that group. Mirrors Swift `SleepDebt.creditedSleepMin` value-for-value.
+     */
+    fun creditedSleepMin(mainSleepMin: Double?, napSleepMin: Double = 0.0): Double? {
+        val main = mainSleepMin?.takeIf { it > 0.0 } ?: return null
+        return main + napSleepMin.coerceAtLeast(0.0)
+    }
+
+    /**
      * Build the ledger from a chronological `List<Pair<day, totalSleepMin?>>` series.
      *
      * @param series per-night `(day, totalSleepMin)` rows in CHRONOLOGICAL order

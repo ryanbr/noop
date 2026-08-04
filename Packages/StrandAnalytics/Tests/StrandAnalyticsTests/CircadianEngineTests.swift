@@ -122,4 +122,33 @@ final class CircadianEngineTests: XCTestCase {
         XCTAssertEqual(CircadianEngine.clock(-1.0), "23:00")   // wraps
         XCTAssertEqual(CircadianEngine.clock(7.25), "07:15")
     }
+
+    // MARK: - #982: what the RELATIVE gate costs, in bpm, at a real HR mesor
+
+    /// The engine is fed mean HEART RATE, not the motion volume its doc used to claim, and
+    /// `minRelativeAmplitude` gates on `amplitude / |mesor|`. Against a signal carrying a ~45-75 bpm DC
+    /// offset that makes the real bar an ABSOLUTE `0.10 x mesor` bpm — which these pin.
+    ///
+    /// The pair that matters is the last two: the SAME 5 bpm swing is arrhythmic at a 65 bpm mesor and
+    /// readable at 45. The bar scales WITH the mesor, so a low-resting wearer faces a LOWER absolute
+    /// requirement, not a higher one. #982 raised the opposite concern — that the gate penalises the
+    /// fittest — and that only holds for someone whose amplitude is disproportionately small for their
+    /// mesor. Pinned here so the direction is a fact rather than an argument, for whoever re-tunes it.
+    private func confidence(mesor: Double, amp: Double) -> CircadianEngine.PhaseConfidence {
+        CircadianEngine.estimatePhase(bins: profile(mesor: mesor, amp: amp, acrophase: 16),
+                                      daysObserved: CircadianEngine.goodDaysForFit,
+                                      habitualWakeHour: 7)!.confidence
+    }
+
+    func testTypicalMesorNeedsAboutSixAndAHalfBpmOfSwing() {
+        XCTAssertNotEqual(confidence(mesor: 65, amp: 8), .unreadable)   // 0.123 - clears 0.10
+        XCTAssertEqual(confidence(mesor: 65, amp: 5), .unreadable)      // 0.077 - does not
+    }
+
+    func testTheSameSwingIsReadableAtALowerMesor() {
+        // 5 bpm: arrhythmic at 65, rhythmic at 45. The gate favours the low-resting wearer.
+        XCTAssertEqual(confidence(mesor: 65, amp: 5), .unreadable)
+        XCTAssertNotEqual(confidence(mesor: 45, amp: 5), .unreadable)   // 0.111
+        XCTAssertEqual(confidence(mesor: 45, amp: 4), .unreadable)      // 0.089
+    }
 }

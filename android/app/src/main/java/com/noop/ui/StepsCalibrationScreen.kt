@@ -234,8 +234,7 @@ private fun ExplainerCard() {
                 Text(uiString(R.string.l10n_steps_calibration_screen_how_this_works_b895a8c3), style = NoopType.headline, color = Palette.textPrimary)
             }
             Text(
-                uiString(R.string.l10n_steps_calibration_screen_noop_estimates_your_steps_from_your_d569bc31) +
-                    "count. It's an estimate, not a step counter. A WHOOP 4.0 doesn't transmit steps.",
+                uiString(R.string.l10n_steps_calibration_screen_noop_estimates_your_steps_from_your_d569bc31),
                 style = NoopType.subhead,
                 color = Palette.textSecondary,
             )
@@ -319,8 +318,7 @@ private fun CurrentFitCard(profile: ProfileStore, matchedDays: Int) {
                     color = Palette.accent,
                 )
                 Text(
-                    uiString(R.string.l10n_steps_calibration_screen_these_are_the_days_where_your_ae5c9c2c) +
-                        "motion maps to steps. Or set the coefficient manually below.",
+                    uiString(R.string.l10n_steps_calibration_screen_these_are_the_days_where_your_ae5c9c2c),
                     style = NoopType.footnote,
                     color = Palette.textTertiary,
                 )
@@ -373,8 +371,7 @@ private fun ComparisonCard(rows: List<StepsComparisonRow>) {
                     }
                 }
                 Text(
-                    uiString(R.string.l10n_steps_calibration_screen_these_days_are_excluded_from_the_6bedabbf) +
-                        "They're here only so you can judge the estimate's accuracy.",
+                    uiString(R.string.l10n_steps_calibration_screen_these_days_are_excluded_from_the_6bedabbf),
                     style = NoopType.caption,
                     color = Palette.textTertiary,
                 )

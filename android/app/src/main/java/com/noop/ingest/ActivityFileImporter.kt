@@ -11,8 +11,6 @@ import com.noop.data.WhoopRepository
 import com.noop.data.WorkoutRow
 import org.xmlpull.v1.XmlPullParser
 import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import java.io.InputStream
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.Locale
@@ -866,17 +864,3 @@ internal class FitDecoder(raw: ByteArray) {
     }
 }
 
-// Stream helper (file-private; the twins in other importers are not visible here).
-private fun InputStream.readCapped(cap: Long): ByteArray {
-    val buffer = ByteArrayOutputStream(64 * 1024)
-    val chunk = ByteArray(64 * 1024)
-    var total = 0L
-    while (true) {
-        val n = read(chunk)
-        if (n < 0) break
-        total += n
-        if (total > cap) throw IllegalStateException("Input exceeds $cap bytes")
-        buffer.write(chunk, 0, n)
-    }
-    return buffer.toByteArray()
-}

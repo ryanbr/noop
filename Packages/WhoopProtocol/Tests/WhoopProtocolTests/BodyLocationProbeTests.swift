@@ -64,6 +64,12 @@ final class BodyLocationProbeTests: XCTestCase {
         let (text, payHex) = BodyLocationProbe.format(frame: hexToBytes("aa0700fa24005446758858"), cmdOff: 6, isWhoop5: false, prevPayloadHex: nil)
         XCTAssertTrue(text.contains("bare stub"))
         XCTAssertNil(payHex)
+        // A bare stub is one reply, not a firmware capability. The Verdict line already calls it
+        // "ambiguous"; the detail line used to contradict it with "no body-location data on this
+        // firmware", which is the conclusion a reader would quote. Neither line may say it. (#914 class)
+        XCTAssertTrue(text.contains("ambiguous"), text)
+        XCTAssertFalse(text.contains("no body-location data on this firmware"), text)
+        XCTAssertTrue(text.contains("not the same as the firmware having none"), text)
     }
 
     /// Golden FULL-output lock: pins the exact byte-for-byte report so the Swift and Kotlin twins can't

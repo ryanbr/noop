@@ -6,17 +6,15 @@ import android.content.Context
 //
 // The Today screen's sections — the Charge/Effort/Rest hero, the Start-session entry, Synthesis, Key
 // Metrics, Workouts, Heart Rate, Recovery Vitals, Your Cards — rendered in one fixed order. This lets the
-// user REORDER them, with the default being the original order so nothing changes for anyone who never
-// rearranges. Display-only — no metric is computed or stored differently; this only decides the SEQUENCE
-// the already-built sections render in.
+// user REORDER or HIDE them, with the default being the original order so nothing changes for anyone who
+// never customizes Today. Display-only — no metric is computed or stored differently; this only decides
+// which already-built sections render and in what sequence.
 //
 // Stored as a single comma-joined string of section keys in SharedPreferences ("today.sectionOrder"), the
 // same mechanism KeyMetricPrefs/DashboardCards use. Mirrors the macOS TodayLayoutPrefs.swift +
-// @AppStorage("today.sectionOrder"). Every known section ALWAYS renders: unknown tokens are dropped, and
-// any known section missing from the saved order is INSERTED at its default-order position relative to the
-// saved sections — so a section added in a later version (e.g. the hero, which joined the reorderable set
-// after the first cut) surfaces where users expect it rather than teleporting to the bottom of an existing
-// saved order. This reorders, it never hides.
+// @AppStorage("today.sectionOrder"). Every known section stays in the order registry: unknown tokens are
+// dropped, and missing known sections are inserted at their default positions. Explicit reversible
+// visibility lives separately in "today.hiddenSections", byte-identical to the Apple-platform key.
 
 /**
  * One reorderable Today section. The [raw] is the stable persisted identifier — keep it byte-identical to
@@ -46,14 +44,14 @@ enum class TodaySection(val raw: String, val title: String) {
 }
 
 /**
- * Display-only persistence for the Today section order. Holds the sections in display order; every known
- * section always renders (a missing one is appended), so this reorders but never hides. SharedPreferences
- * isn't reactive, so Today reads this once into remembered state (like the other prefs) and re-reads on the
- * recomposition the editor's write triggers. Mirrors the macOS TodayLayoutPrefs (@AppStorage
- * "today.sectionOrder").
+ * Display-only persistence for the Today section order and explicit hidden set. Every known section remains
+ * in the order registry, while visibility is stored separately so hiding stays reversible.
+ * SharedPreferences isn't reactive, so Today reads this into remembered state and refreshes it after save.
+ * Mirrors the Apple-platform TodayLayoutPrefs.
  */
 object TodayLayoutPrefs {
     private const val KEY_ORDER = "today.sectionOrder"
+    private const val KEY_HIDDEN = "today.hiddenSections"
 
     /** Every known section in display order (saved order first, then any newly-added section appended). */
     fun order(context: Context): List<TodaySection> =
@@ -64,8 +62,19 @@ object TodayLayoutPrefs {
         NoopPrefs.of(context).edit().putString(KEY_ORDER, encode(sections)).apply()
     }
 
+    /** The explicitly hidden sections in their editor order. Empty/unset means every section is visible. */
+    fun hidden(context: Context): List<TodaySection> =
+        decodeHidden(NoopPrefs.of(context).getString(KEY_HIDDEN, null))
+
+    /** Persist the explicit reversible hidden list. */
+    fun setHidden(context: Context, sections: List<TodaySection>) {
+        NoopPrefs.of(context).edit().putString(KEY_HIDDEN, encodeHidden(sections)).apply()
+    }
+
     /** Encode an ordered list of sections into the stored comma-joined string. */
     fun encode(sections: List<TodaySection>): String = sections.joinToString(",") { it.raw }
+
+    fun encodeHidden(sections: List<TodaySection>): String = sections.joinToString(",") { it.raw }
 
     /**
      * Decode the stored string into the FULL ordered section list. An empty/unset string yields the
@@ -94,5 +103,21 @@ object TodayLayoutPrefs {
             if (insertAt == -1) saved.add(missing) else saved.add(insertAt, missing)
         }
         return saved
+    }
+
+    /**
+     * Decode only explicitly hidden sections. Unknown tokens are ignored and duplicates collapsed. Missing
+     * entries stay visible, so a section added by a future release automatically surfaces.
+     */
+    fun decodeHidden(raw: String?): List<TodaySection> {
+        val hidden = LinkedHashSet<TodaySection>()
+        raw?.split(",")?.forEach { token -> TodaySection.fromRaw(token.trim())?.let(hidden::add) }
+        return hidden.toList()
+    }
+
+    /** The full saved order filtered by the explicit hidden set. */
+    fun visibleOrder(orderRaw: String?, hiddenRaw: String?): List<TodaySection> {
+        val hidden = decodeHidden(hiddenRaw).toSet()
+        return decodeOrder(orderRaw).filterNot { it in hidden }
     }
 }

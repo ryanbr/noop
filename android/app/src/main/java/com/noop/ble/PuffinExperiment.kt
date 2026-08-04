@@ -48,9 +48,10 @@ class PuffinExperiment(private val prefs: SharedPreferences) {
 
     /** True if the user opted in to "Experimental sleep staging (V2)": detected nights are re-staged with
      *  [com.noop.analytics.SleepStagerV2] (the transparent cardiorespiratory recipe, reimplemented from
-     *  contributor PR #600) instead of the default V1 [com.noop.analytics.SleepStager]. Pure analysis switch
+     *  contributor PR #600) instead of the older V1 [com.noop.analytics.SleepStager]. Pure analysis switch
      *  — it changes ONLY which staging engine runs over an already-detected sleep window; detection, scoring
-     *  and the default V1 path are untouched. Model-agnostic (works on WHOOP 4 and 5). **Default true**:
+     *  and the V1 code path itself are untouched. Model-agnostic (works on WHOOP 4 and 5). **Default true —
+     *  V2, not V1, is what stages a normal user's nights**:
      *  V2 was promoted to the default staging engine after a 44-subject cross-subject benchmark (AAUWSS +
      *  Walch sleep-accel, leave-one-subject-out) showed V2 strictly dominates V1 (kappa 0.35 vs 0.03, deep
      *  recall 55% vs 1%) — the multi-subject validation this recipe originally lacked. V1 remains available.

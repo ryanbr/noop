@@ -7,8 +7,6 @@ import com.noop.analytics.MarkerCatalog
 import com.noop.data.ImportSummary
 import com.noop.data.LabMarkerRow
 import com.noop.data.WhoopRepository
-import java.io.ByteArrayOutputStream
-import java.io.InputStream
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
@@ -100,7 +98,7 @@ object LabMarkerCsvImport {
         deviceId: String = LAB_STRAP_DEVICE_ID,
     ): ImportSummary {
         val bytes: ByteArray = try {
-            context.contentResolver.openInputStream(uri)?.use { it.readCappedBytes(MAX_BYTES) }
+            context.contentResolver.openInputStream(uri)?.use { it.readCapped(MAX_BYTES) }
                 ?: throw IllegalStateException("Could not open input stream for $uri")
         } catch (e: Exception) {
             return ImportSummary.failure(SOURCE_LABEL, "Could not read CSV: ${e.message ?: "unknown error"}")
@@ -564,17 +562,3 @@ object LabMarkerCsvImport {
 
 // MARK: - Stream helper (file-private; the other importers' twins are not visible here)
 
-/** Read a whole stream, throwing if it exceeds [cap] bytes (memory guard). */
-private fun InputStream.readCappedBytes(cap: Long): ByteArray {
-    val buffer = ByteArrayOutputStream(64 * 1024)
-    val chunk = ByteArray(64 * 1024)
-    var total = 0L
-    while (true) {
-        val n = read(chunk)
-        if (n < 0) break
-        total += n
-        if (total > cap) throw IllegalStateException("Input exceeds $cap bytes")
-        buffer.write(chunk, 0, n)
-    }
-    return buffer.toByteArray()
-}

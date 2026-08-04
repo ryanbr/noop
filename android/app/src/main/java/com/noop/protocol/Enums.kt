@@ -23,7 +23,21 @@ enum class PacketType(val rawValue: Int) {
     METADATA(49),
     CONSOLE_LOGS(50),
     REALTIME_IMU_DATA_STREAM(51),
-    HISTORICAL_IMU_DATA_STREAM(52);
+    HISTORICAL_IMU_DATA_STREAM(52),
+    // 53-56 are decode-only NAMES, added for #891: the unhandled-packet-type census renders a type through
+    // this enum, and without them an offload carrying one would report "type53" on Android and
+    // "RELATIVE_PUFFIN_EVENTS" on Apple — the same strap, two different report lines. Nothing dispatches on
+    // them.
+    //
+    // 56 is here even though both platforms ALIAS it onto METADATA on 5/MG, because the aliasing is
+    // family-aware: Swift renders a WHOOP 4.0 frame through `schema.typeName` (no alias, so PUFFIN_METADATA)
+    // and a 5/MG frame through `canonicalTypeName` (METADATA). Leaving 56 out matched Apple on 5/MG and
+    // diverged on 4.0 — where the census would have rendered "type56" — so the name has to exist and the
+    // caller has to pick the right rendering. `Framing.typeName` still aliases it, which is the 5/MG answer.
+    RELATIVE_PUFFIN_EVENTS(53),
+    PUFFIN_EVENTS_FROM_STRAP(54),
+    RELATIVE_BATTERY_PACK_CONSOLE_LOGS(55),
+    PUFFIN_METADATA(56);
 
     companion object {
         private val byRaw = entries.associateBy { it.rawValue }
@@ -140,6 +154,12 @@ enum class CommandNumber(val rawValue: Int) {
     REPORT_VERSION_INFO(7),
     SET_CLOCK(10),
     GET_CLOCK(11),
+    // ABORT_HISTORICAL_TRANSMITS (20) — stop an offload part-way through. NON-DESTRUCTIVE and NOT a
+    // trim: the strap frees banked records when we ack a HISTORY_END, so anything unacked when the
+    // abort lands stays in flash and re-offloads next sync. Body [0x00], matching the only hands-on
+    // use of the opcode (OpenStrap Edge on a WHOOP 4.0). Mirrors Swift
+    // `WhoopCommand.abortHistoricalTransmits`.
+    ABORT_HISTORICAL_TRANSMITS(20),
     SEND_HISTORICAL_DATA(22),
     // The historical-offload trim/ack command. Sent (with response) to confirm one HISTORY_END
     // chunk so the strap may trim it; payload = [0x01] + the verbatim 8-byte HISTORY_END end_data.
@@ -206,13 +226,161 @@ enum class CommandNumber(val rawValue: Int) {
     // #690: read-only body-location/status probe. Documented in the WHOOP protocol; driven only by the
     // user-triggered, Test-Centre-gated probeBodyLocationAndStatus(). Decoded to a diagnostic report only.
     GET_BODY_LOCATION_AND_STATUS(84),
+    // START_FF_KEY_EXCHANGE (117 / 0x75) — READ-ONLY: ask the strap how many feature flags its firmware
+    // knows. The READ half of the flag surface NOOP has only ever written (SET_CONFIG/120): the protocol's
+    // own CommandNumber table names 117/118 alongside 119/120, and only the SET pair was implemented.
+    // Driven ONLY by probeFeatureFlags() (user-initiated, Test Centre → Connection gated); parsing lives in
+    // the pure com.noop.protocol.FeatureFlagProbe. Mirrors Swift WhoopCommand.startFeatureFlagKeyExchange.
+    // (#761, and #103 which it exists to answer.)
+    START_FF_KEY_EXCHANGE(117),
+    // SEND_NEXT_FF (118 / 0x76) — READ-ONLY: advance the strap's own key cursor and report one flag NAME.
+    // Names only, no values, nothing written. Its body is a CURSOR, not an index, so the same frame is
+    // repeated to walk the list; bounded by FeatureFlagProbe.MAX_FLAGS and the strap's own end marker.
+    // Mirrors Swift WhoopCommand.sendNextFeatureFlag. (#761)
+    SEND_NEXT_FF(118),
+    // GET_DEVICE_CONFIG_VALUE (121 / 0x79) — READ-ONLY: ask for ONE device-config value by key name.
+    // Body is [0x01] + the key ASCII NUL-padded to 32 bytes (the SET side's name field minus its value
+    // byte). The read half of the DEVICE-CONFIG namespace SET_DEVICE_CONFIG/119 writes, which the #761
+    // enumerate pair (117/118, feature flags only) never reached. MAY NOT BE IMPLEMENTED in firmware —
+    // establishing that is the point. Driven ONLY by probeDeviceConfigValues() (user-initiated, Test
+    // Centre → Connection gated); parsing lives in the pure com.noop.protocol.DeviceConfigReadProbe.
+    // Mirrors Swift WhoopCommand.getDeviceConfigValue. (#103, follow-up to #761.)
+    GET_DEVICE_CONFIG_VALUE(121),
+    // GET_FF_VALUE (128 / 0x80) — READ-ONLY: ask for ONE feature-flag value by key name, same body shape
+    // as 121. #761 read the flag NAMES; this reads a named flag's VALUE. MAY NOT BE IMPLEMENTED in
+    // firmware. Mirrors Swift WhoopCommand.getFeatureFlagValue. (#103)
+    GET_FF_VALUE(128),
     STOP_HAPTICS(122),
+    // SELECT_WRIST (123 / 0x7B) is left exactly where it already was. It has been in this enum since the
+    // initial commit, predates any ECG work here, and is referenced by no Kotlin caller. This branch does
+    // not add it and deliberately does not remove it either: dropping a pre-existing entry would change
+    // the curated send surface for a reason that has nothing to do with decoding ECG packets, and that is
+    // a separate decision from the one below.
     SELECT_WRIST(123);
+    //
+    // The three WHOOP MG ECG ("Labrador") TOGGLES (124 / 125 / 139) are deliberately ABSENT from this
+    // enum. This branch originally listed them here so a COMMAND_RESPONSE for one would be labelled
+    // rather than shown as a bare hex opcode — a reason #893 has since made obsolete, by giving Android
+    // a read-only `CommandNames` label table that names every opcode the schema names without making any
+    // of them constructible. Android has no ECG app layer and sends none of them, so growing the
+    // SENDER enum to buy a label would widen what the command sender can express for nothing. Apple's
+    // `WhoopCommand` carries them because Apple actually drives the gated probe. See
+    // `com.noop.protocol.Whoop5Ecg` for the decoder and `Whoop5EcgProbe` for the verdict rules.
 
     companion object {
         private val byRaw = entries.associateBy { it.rawValue }
         fun fromRaw(raw: Int): CommandNumber? = byRaw[raw]
     }
+}
+
+/**
+ * DECODE-ONLY command names, mirroring the `CommandNumber` table in the canonical protocol schema
+ * (`Packages/WhoopProtocol/…/Resources/whoop_protocol.json`).
+ *
+ * This is NOT a send surface and must never become one. [CommandNumber] above is the curated *sender*
+ * enum and deliberately omits every destructive opcode; this map is the *reader's* dictionary, so it
+ * names opcodes NOOP will never emit (FORCE_TRIM, the firmware-load family, ENTER_BLE_DFU) purely so an
+ * inbound COMMAND_RESPONSE echoing one is legible in a strap log.
+ *
+ * Nothing here widens what can be sent, but note where that guarantee actually comes from: the 4.0
+ * builder `Framing.buildCommand` takes a [CommandNumber], so the omission is enforced by the type; the
+ * 5/MG `Framing.puffinCommandFrame` takes a raw `Int`, so there it is enforced by the send allowlist in
+ * `WhoopBleClient` instead. Either way a name in this map is never an input to either builder — it is
+ * only ever an output of decoding a frame the strap sent.
+ *
+ * Why it exists: Swift labels a response by asking the schema (`Schema.enumName("CommandNumber", …)`),
+ * which knows all 80 opcodes. Kotlin labelled it from the sender enum, which knows 34 — so the same
+ * strap log rendered `TOGGLE_LABRADOR_FILTERED(139)` on Apple and `0x8B(139)` on Android, and three
+ * opcodes (77, 119, 120) printed *different names* on the two platforms because the sender enum uses
+ * its own short case names. Reports pasted from the two apps could not be compared by eye. (#891)
+ */
+object CommandNames {
+    /** Raw opcode → schema name. Keep byte-identical to the schema's `CommandNumber` table. */
+    val byRaw: Map<Int, String> = mapOf(
+        1 to "LINK_VALID",
+        2 to "GET_MAX_PROTOCOL_VERSION",
+        3 to "TOGGLE_REALTIME_HR",
+        7 to "REPORT_VERSION_INFO",
+        10 to "SET_CLOCK",
+        11 to "GET_CLOCK",
+        14 to "TOGGLE_GENERIC_HR_PROFILE",
+        16 to "TOGGLE_R7_DATA_COLLECTION",
+        19 to "RUN_HAPTIC_PATTERN_MAVERICK",
+        20 to "ABORT_HISTORICAL_TRANSMITS",
+        22 to "SEND_HISTORICAL_DATA",
+        23 to "HISTORICAL_DATA_RESULT",
+        25 to "FORCE_TRIM",
+        26 to "GET_BATTERY_LEVEL",
+        29 to "REBOOT_STRAP",
+        32 to "POWER_CYCLE_STRAP",
+        33 to "SET_READ_POINTER",
+        34 to "GET_DATA_RANGE",
+        35 to "GET_HELLO_HARVARD",
+        36 to "START_FIRMWARE_LOAD",
+        37 to "LOAD_FIRMWARE_DATA",
+        38 to "PROCESS_FIRMWARE_IMAGE",
+        39 to "SET_LED_DRIVE",
+        40 to "GET_LED_DRIVE",
+        41 to "SET_TIA_GAIN",
+        42 to "GET_TIA_GAIN",
+        43 to "SET_BIAS_OFFSET",
+        44 to "GET_BIAS_OFFSET",
+        45 to "ENTER_BLE_DFU",
+        48 to "SEND_EVENT_PACKETS",
+        52 to "SET_DP_TYPE",
+        53 to "FORCE_DP_TYPE",
+        61 to "SET_AFE_PARAMETERS",
+        62 to "GET_AFE_PARAMETERS",
+        63 to "SEND_R10_R11_REALTIME",
+        66 to "SET_ALARM_TIME",
+        67 to "GET_ALARM_TIME",
+        68 to "RUN_ALARM",
+        69 to "DISABLE_ALARM",
+        76 to "GET_ADVERTISING_NAME_HARVARD",
+        77 to "SET_ADVERTISING_NAME_HARVARD",
+        79 to "RUN_HAPTICS_PATTERN",
+        80 to "GET_ALL_HAPTICS_PATTERN",
+        81 to "START_RAW_DATA",
+        82 to "STOP_RAW_DATA",
+        83 to "VERIFY_FIRMWARE_IMAGE",
+        84 to "GET_BODY_LOCATION_AND_STATUS",
+        96 to "ENTER_HIGH_FREQ_SYNC",
+        97 to "EXIT_HIGH_FREQ_SYNC",
+        98 to "GET_EXTENDED_BATTERY_INFO",
+        99 to "RESET_FUEL_GAUGE",
+        100 to "CALIBRATE_CAPSENSE",
+        105 to "TOGGLE_IMU_MODE_HISTORICAL",
+        106 to "TOGGLE_IMU_MODE",
+        107 to "ENABLE_OPTICAL_DATA",
+        108 to "TOGGLE_OPTICAL_MODE",
+        115 to "START_DEVICE_CONFIG_KEY_EXCHANGE",
+        116 to "SEND_NEXT_DEVICE_CONFIG",
+        117 to "START_FF_KEY_EXCHANGE",
+        118 to "SEND_NEXT_FF",
+        119 to "SET_DEVICE_CONFIG_VALUE",
+        120 to "SET_FF_VALUE",
+        121 to "GET_DEVICE_CONFIG_VALUE",
+        122 to "STOP_HAPTICS",
+        123 to "SELECT_WRIST",
+        124 to "TOGGLE_LABRADOR_DATA_GENERATION",
+        125 to "TOGGLE_LABRADOR_RAW_SAVE",
+        128 to "GET_FF_VALUE",
+        131 to "SET_RESEARCH_PACKET",
+        132 to "GET_RESEARCH_PACKET",
+        139 to "TOGGLE_LABRADOR_FILTERED",
+        140 to "SET_ADVERTISING_NAME",
+        141 to "GET_ADVERTISING_NAME",
+        142 to "START_FIRMWARE_LOAD_NEW",
+        143 to "LOAD_FIRMWARE_DATA_NEW",
+        144 to "PROCESS_FIRMWARE_IMAGE_NEW",
+        145 to "GET_HELLO",
+        151 to "GET_BATTERY_PACK_INFO",
+        153 to "TOGGLE_PERSISTENT_R20",
+        154 to "TOGGLE_PERSISTENT_R21",
+    )
+
+    /** `"NAME(raw)"` for a known opcode, else `"0xHH(raw)"` — byte-identical to Swift `Schema.enumName`. */
+    fun label(v: Int): String = byRaw[v]?.let { "$it($v)" } ?: "0x%02X(%d)".format(v, v)
 }
 
 /**

@@ -60,7 +60,10 @@ public final class HrBroadcaster: NSObject, ObservableObject {
     /// first sample of a session; cleared on stop so a stale bpm can't outlive the broadcast.
     private var lastBpm: Int?
 
-    private var cancellables = Set<AnyCancellable>()
+    /// `private(set)` rather than `private` so `HrBroadcasterEncodeTests` can assert that ``bind(to:)``
+    /// leaves exactly one subscription however many times it is called — the leak it fixes is invisible
+    /// from the outside, so the count is the only thing a test can pin.
+    private(set) var cancellables = Set<AnyCancellable>()
 
     /// Diagnostic sink for the broadcast lifecycle, wired (when the composition root chooses to) to the
     /// SAME exportable strap log the WHOOP path uses, so a tester whose gym kit can't see NOOP has a
@@ -110,10 +113,19 @@ public final class HrBroadcaster: NSObject, ObservableObject {
     }
 
     /// Bind to a `LiveState` so every live HR change is broadcast automatically. Optional convenience the
-    /// app's composition root can call once; the broadcaster works equally well by polling
+    /// app's composition root can call; the broadcaster works equally well by polling
     /// ``update(heartRate:)`` directly. Observing `$heartRate` keeps this a pure CONSUMER of the existing
     /// live value — it never drives or mutates the WHOOP/central path.
+    ///
+    /// **Idempotent.** The previous subscription is cancelled before the new one is stored, so calling this
+    /// twice leaves exactly one sink. That is not hypothetical tidiness: the only call site is
+    /// `DataSourcesView.onAppear`, and `onAppear` fires on EVERY appearance — every tab switch back to Data
+    /// Sources, every push-and-pop — while the broadcaster itself is a `@StateObject` that outlives all of
+    /// them. Without this reset the sinks accumulated one per visit, and each one called
+    /// ``update(heartRate:)`` for the same sample, so a user who had visited the screen N times sent N
+    /// duplicate 0x2A37 notifications per heartbeat to every subscribed central.
     public func bind(to live: LiveState) {
+        cancellables.removeAll()
         live.$heartRate
             .removeDuplicates()
             .sink { [weak self] hr in self?.update(heartRate: hr) }

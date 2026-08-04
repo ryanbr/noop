@@ -54,9 +54,10 @@ object SleepStageHealer {
         deviceId: String,
         start: Long,
         end: Long,
-        // Opt-in experimental staging (Settings → Experimental · Sleep staging). The analytics layer is
-        // Context-free, so the flag is threaded in from the Context-aware caller (default false → V1, so
-        // existing callers / tests are unaffected). When true, stage with SleepStagerV2; else V1. (V7 3b)
+        // Experimental staging (Settings → Experimental · Sleep staging). The analytics layer is
+        // Context-free, so the flag is threaded in from the Context-aware caller. When true, stage with
+        // SleepStagerV2; else V1. This PARAMETER defaults false so existing callers / tests are unaffected
+        // — the stored preference the app threads in is default TRUE, so the shipped app gets V2. (V7 3b)
         useExperimentalSleepV2: Boolean = false,
         // Opt-in motion-aware wake refinement (#364 "Proposal 2" follow-up; density gate precedent #345).
         // Same Context-free threading as [useExperimentalSleepV2]; default false so existing callers/tests
@@ -146,8 +147,9 @@ object SleepStageHealer {
         strapDeviceId: String,
         windowStart: Long,
         windowEnd: Long,
-        // Opt-in experimental staging, threaded from IntelligenceEngine (read off SharedPreferences by the
-        // Context-aware caller). Default false → V1, so callers/tests that don't pass it are unaffected. (3b)
+        // Experimental staging, threaded from IntelligenceEngine (read off SharedPreferences by the
+        // Context-aware caller). This PARAMETER defaults false so callers/tests that don't pass it are
+        // unaffected; the stored preference is default TRUE, so the shipped app gets V2. (3b)
         useExperimentalSleepV2: Boolean = false,
         // Opt-in motion-aware wake refinement (#364 follow-up), threaded the same way. Default false.
         useMotionAwareWake: Boolean = false,

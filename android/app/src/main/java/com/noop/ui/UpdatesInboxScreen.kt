@@ -10,12 +10,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
@@ -85,6 +87,15 @@ fun UpdatesInboxScreen(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            // #984: the sheet could not scroll. `ModalBottomSheet` hands its content a plain
+            // `ColumnScope` and does NOT scroll it, so everything past the bottom of the screen was
+            // simply clipped and unreachable — the footer's Clear all / Mark all read included.
+            //
+            // It is also half of why a tapped row looked deleted: marking it read moves it out of "New"
+            // and down into "Earlier", which is rendered below, i.e. into the part that could not be
+            // reached. Safe to wrap because nothing in this screen is itself lazily scrolling; a
+            // LazyColumn nested in a verticalScroll would crash on an infinite height constraint.
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
             .padding(bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(Metrics.sectionGap),
@@ -413,7 +424,9 @@ private fun handleTap(
     onClose: () -> Unit,
 ) {
     store.markRead(item.id)
-    val key = item.deepLink ?: return
+    // #984: resolved by UpdateStore.deepLinkTarget so the rule is testable (it also covers What's New
+    // rows posted before this fix, which carry no deepLink of their own).
+    val key = UpdateStore.deepLinkTarget(item) ?: return
     onDeepLink(key)
     onClose()
 }

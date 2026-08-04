@@ -124,9 +124,13 @@ fun HydrationScreen(viewModel: AppViewModel) {
     var history by remember { mutableStateOf<List<Pair<String, Double>>>(emptyList()) }
     // A simple reload key the log taps bump so the LaunchedEffect re-reads the store.
     var reloadTick by remember { mutableStateOf(0) }
+    // #949: water imported from Health Connect. Already part of [totalMl]; read separately so the screen
+    // can name where it came from rather than leaving an unexplained jump in the day figure.
+    var importedMl by remember { mutableStateOf(0.0) }
     LaunchedEffect(reloadTick) {
         totalMl = runCatching { HydrationStore.total(viewModel.repo) }.getOrDefault(0.0)
         history = runCatching { HydrationStore.history(viewModel.repo, days = 7) }.getOrDefault(emptyList())
+        importedMl = runCatching { HydrationStore.importedTotal(viewModel.repo) }.getOrDefault(0.0)
     }
 
     // #798 - the LAST amount logged this session, so the detail can offer a one-tap "Undo" that removes
@@ -354,6 +358,28 @@ fun HydrationScreen(viewModel: AppViewModel) {
                                 color = Palette.textPrimary,
                             )
                         }
+                        // #949: name the imported share rather than folding it silently into the figure
+                        // above — otherwise the day total moves on its own after a Health Connect import
+                        // and nothing on screen accounts for it.
+                        if (importedMl > 0.0) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Spacer(Modifier.width(28.dp))
+                                Text(
+                                    uiString(R.string.l10n_hydration_screen_from_health_connect_4ad037a3),
+                                    style = NoopType.footnote,
+                                    color = Palette.textSecondary,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Text(
+                                    uiString(R.string.l10n_hydration_screen_totalml_toint_ml_522b262a, importedMl.toInt()),
+                                    style = NoopType.footnote,
+                                    color = Palette.textSecondary,
+                                )
+                            }
+                        }
                         // #798 - undo / correct affordances. "Undo last" appears once something has been logged
                         // this session and removes exactly that container from the day total. "Clear today" zeroes
                         // the day's total outright (the delete-everything correction). Both route through the
@@ -367,12 +393,19 @@ fun HydrationScreen(viewModel: AppViewModel) {
                                     modifier = Modifier.weight(1f),
                                 ) { remove(last) }
                             }
-                            NoopButton(
-                                text = uiString(R.string.l10n_hydration_screen_clear_today_1be870ea),
-                                leadingIcon = Icons.Filled.Delete,
-                                kind = NoopButtonKind.Secondary,
-                                modifier = Modifier.weight(1f),
-                            ) { remove(totalMl.toInt()) }
+                            // #949: clears only what NOOP owns. Passing the COMBINED total here would ask
+                            // the store to subtract imported water from the hand-logged row — the row it
+                            // isn't in — and the button is offered only when there is something of ours
+                            // to clear, so it never sits there doing visibly nothing on an import-only day.
+                            val manualMl = (totalMl - importedMl).toInt()
+                            if (manualMl > 0) {
+                                NoopButton(
+                                    text = uiString(R.string.l10n_hydration_screen_clear_today_1be870ea),
+                                    leadingIcon = Icons.Filled.Delete,
+                                    kind = NoopButtonKind.Secondary,
+                                    modifier = Modifier.weight(1f),
+                                ) { remove(manualMl) }
+                            }
                         }
                     }
                 }

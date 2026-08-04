@@ -23,6 +23,11 @@ import BackgroundTasks
 ///   `submit` fails gracefully and the in-app "Run now" + the macOS path still work.)
 ///
 /// Opt-in, default OFF — like every NOOP automation. Everything is on-device; nothing is sent anywhere.
+///
+/// RETENTION (#650): every write is pruned to `keepCount` generations (default 14), oldest first, and
+/// the Test Centre export card offers a manual "Clear scheduled exports" for an immediate wipe — these
+/// files sit in Documents (Files-visible) with no UI in the loop reminding anyone they exist, so a
+/// default cap and a visible clear action both matter. Mirrors Android's `LogExport` retention.
 @MainActor
 enum ScheduledDebugExport {
 
@@ -32,11 +37,95 @@ enum ScheduledDebugExport {
         static let enabled = "debugExport.enabled"          // master enable; default OFF
         static let time = "debugExport.timeMinutes"         // minutes since local midnight; default 07:00
         static let lastRun = "debugExport.lastRunDayKey"    // yyyy-MM-dd of the last completed drop (catch-up dedup)
+        static let keepCount = "debugExport.keepCount"      // retention: generations to keep (#650)
     }
 
     /// 07:00 — a log waiting when you wake (matches Android's `DEFAULT_TIME`).
     static let defaultTimeMinutes = 7 * 60
     private static let minutesPerDay = 24 * 60
+
+    // MARK: - Retention (#650: these accumulated in Documents with no cleanup and no visible cap)
+
+    /// Retention choices offered by the scheduled-export keep-count picker. Mirrors Android's
+    /// `EXPORT_KEEP_OPTIONS`. A longer range than `FolderBackup.keepOptions` (the `.noopbak` backup
+    /// picker) since a scheduled export is a small text/JSON pair, not a whole-DB snapshot.
+    static let keepOptions = [3, 7, 14, 30, 60]
+
+    private static let defaultKeepCount = 14
+
+    /// How many scheduled-export GENERATIONS (a day's log + raw-capture pair counts once) to keep
+    /// before `performExport` prunes older ones, oldest first. Mirrors `FolderBackup.keepCount`'s
+    /// shape (0-means-unset sentinel, clamp to a sane 1...100).
+    static var keepCount: Int {
+        get {
+            let v = UserDefaults.standard.integer(forKey: K.keepCount)   // 0 when never set
+            return v == 0 ? defaultKeepCount : min(max(v, 1), 100)
+        }
+        set { UserDefaults.standard.set(min(max(newValue, 1), 100), forKey: K.keepCount) }
+    }
+
+    /// Filename prefixes for the two scheduled-export file kinds this type writes into Documents (the
+    /// log `.txt` and the raw-capture `.json`). Nothing else in Documents matches either prefix, so
+    /// retention and the manual clear action only ever touch scheduled drops.
+    private static let logPrefix = "noop-strap-log-"
+    private static let rawPrefix = "noop-raw-capture-"
+
+    /// The `yyMMdd-HHmm` stamp embedded in one scheduled-export filename (log `.txt` or raw `.json`),
+    /// or nil if `name` isn't one of ours. Mirrors Android `LogExport.scheduledExportStamp`. Pure — no
+    /// file IO — so retention math is unit-testable.
+    static func exportStamp(fromFilename name: String) -> String? {
+        if name.hasPrefix(logPrefix), name.hasSuffix(".txt") {
+            return String(name.dropFirst(logPrefix.count).dropLast(4))
+        }
+        if name.hasPrefix(rawPrefix), name.hasSuffix(".json") {
+            return String(name.dropFirst(rawPrefix.count).dropLast(5))
+        }
+        return nil
+    }
+
+    /// Scheduled-export STAMPS (not filenames) to prune to keep only the `keep` newest generations — a
+    /// day's log+raw pair shares a stamp and counts once. Mirrors Android
+    /// `LogExport.scheduledExportStampsToPrune`. `yyMMdd-HHmm` is fixed-width and zero-padded, so a
+    /// plain string sort orders it correctly with no date parsing needed (same trick as the Android
+    /// twin's `yyyyMMdd-HHmmss`). Empty when already within budget.
+    static func exportStampsToPrune(_ names: [String], keep: Int) -> Set<String> {
+        let stamps = Array(Set(names.compactMap { exportStamp(fromFilename: $0) })).sorted(by: >)
+        guard stamps.count > keep else { return [] }
+        return Set(stamps.dropFirst(keep))
+    }
+
+    /// Best-effort retention: delete scheduled-export files under `docs` beyond `keep` generations,
+    /// oldest first. Called after every write in `performExport`. Failures are ignored — a transient
+    /// hiccup here must never fail the export itself.
+    private static func pruneScheduledExports(in docs: URL, keep: Int) {
+        let fm = FileManager.default
+        guard let names = try? fm.contentsOfDirectory(atPath: docs.path) else { return }
+        let toPrune = exportStampsToPrune(names, keep: keep)
+        guard !toPrune.isEmpty else { return }
+        for name in names {
+            guard let stamp = exportStamp(fromFilename: name), toPrune.contains(stamp) else { continue }
+            try? fm.removeItem(at: docs.appendingPathComponent(name))
+        }
+    }
+
+    /// Manual "Clear scheduled exports" action: delete every scheduled-export file under Documents
+    /// right now, regardless of the retention setting. Never touches an interactive save/share (those
+    /// go through `FileExport`'s save panel / share sheet, not Documents) or anything else the user or
+    /// another feature put in Documents. Returns the number of files removed.
+    @discardableResult
+    static func clearScheduledExports() -> Int {
+        guard let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+        else { return 0 }
+        let fm = FileManager.default
+        guard let names = try? fm.contentsOfDirectory(atPath: docs.path) else { return 0 }
+        var removed = 0
+        for name in names where exportStamp(fromFilename: name) != nil {
+            if (try? fm.removeItem(at: docs.appendingPathComponent(name))) != nil {
+                removed += 1
+            }
+        }
+        return removed
+    }
 
     /// iOS BGTask identifier. Derived from the running bundle id (rather than hardcoded) so it tracks
     /// BUNDLE_ID_PREFIX (see Config/BundleId.xcconfig) automatically and always matches the iOS target's
@@ -181,6 +270,10 @@ enum ScheduledDebugExport {
         if markDay {
             UserDefaults.standard.set(dayKey(Date()), forKey: K.lastRun)
         }
+        // Retention (#650): these accumulate in Documents with no UI in the loop to notice, so prune
+        // after every write (scheduled OR manual "Run now") — mirrors Android pruning on every
+        // `writeScheduledExport` call.
+        pruneScheduledExports(in: docs, keep: keepCount)
         return logURL
     }
 

@@ -17,11 +17,11 @@ configFiles:
   Release: Config/BundleId.xcconfig
 settings:
   base:
-    MARKETING_VERSION: "9.1.1"
+    MARKETING_VERSION: "9.3.1"
     # iOS build number (CFBundleVersion). GLOBAL so the iOS app AND its widget extension inherit the
     # SAME value — they must match or iOS warns "extension version must match parent app" (#416).
     # macOS sets its own CFBundleVersion on the Strand target and is unaffected by this.
-    CURRENT_PROJECT_VERSION: "210"
+    CURRENT_PROJECT_VERSION: "213"
     SWIFT_VERSION: "5.0"
     # Emit localizable strings so Xcode auto-extracts every LocalizedStringKey into the
     # String Catalog on build (the English (US) base entries).
@@ -154,6 +154,9 @@ targets:
     deploymentTarget: "13.0"
     sources:
       - StrandTests
+      # Compile the exact cross-target snapshot source into the test bundle so the AltStore App Group
+      # resolver is covered without adding this iOS/widget-only type to the macOS application module.
+      - StrandiOSShared/WidgetSnapshot.swift
     # Same wrapper as the app target, so the OURA_CLOUD_IMPORT-gated Oura tests compile exactly
     # when the app's Oura lane does (flag + creds both come from the untracked OuraSecrets.xcconfig).
     configFiles:

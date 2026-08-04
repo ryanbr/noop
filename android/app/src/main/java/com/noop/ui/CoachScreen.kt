@@ -53,6 +53,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.noop.ai.AiProvider
 import com.noop.ai.ChatMsg
+import com.noop.ai.CustomAiAuthHeader
 
 /**
  * AI Coach, the single opt-in, bring-your-own-key feature.
@@ -108,6 +109,7 @@ private fun CoachSetup(vm: CoachViewModel) {
     val availableModels by vm.availableModels.collectAsStateWithLifecycle()
     val refreshingModels by vm.refreshingModels.collectAsStateWithLifecycle()
     val customBaseUrl by vm.customBaseUrl.collectAsStateWithLifecycle()
+    val customAuthHeader by vm.customAuthHeader.collectAsStateWithLifecycle()
     var keyInput by remember { mutableStateOf("") }
     val isCustom = provider == AiProvider.CUSTOM
 
@@ -154,6 +156,21 @@ private fun CoachSetup(vm: CoachViewModel) {
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                         colors = coachFieldColors(),
                         shape = RoundedCornerShape(14.dp),
+                    )
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Overline(uiString(R.string.l10n_coach_screen_key_header_3f2a9b10))
+                    SegmentedPillControl(
+                        items = CustomAiAuthHeader.entries,
+                        selection = customAuthHeader,
+                        label = { it.displayName },
+                        onSelect = { vm.setCustomAuthHeader(context, it) },
+                    )
+                    Text(
+                        uiString(R.string.l10n_coach_screen_use_bearer_for_most_local_servers_4429ab64),
+                        style = NoopType.footnote,
+                        color = Palette.textSecondary,
                     )
                 }
             }

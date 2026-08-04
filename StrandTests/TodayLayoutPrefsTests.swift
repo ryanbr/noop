@@ -53,6 +53,33 @@ final class TodayLayoutPrefsTests: XCTestCase {
         XCTAssertEqual(TodayLayoutPrefs.decodeOrder("nope,,zzz"), TodaySection.defaultOrder)
     }
 
+    func testHiddenSectionsAreExplicitReversibleAndDeduplicated() {
+        let hidden = TodayLayoutPrefs.decodeHidden("workouts,BOGUS,workouts,journal")
+        XCTAssertEqual(hidden, [.workouts, .journal])
+        XCTAssertEqual(TodayLayoutPrefs.encodeHidden(hidden), "workouts,journal")
+    }
+
+    func testVisibleOrderFiltersHiddenWithoutChangingSavedOrder() {
+        let order = "heartRate,hero,yourCards,liveSession,synthesis,keyMetrics,workouts,recoveryVitals,journal"
+        XCTAssertEqual(
+            TodayLayoutPrefs.visibleOrder(orderRaw: order, hiddenRaw: "hero,workouts"),
+            [.heartRate, .yourCards, .liveSession, .synthesis, .keyMetrics, .recoveryVitals, .journal]
+        )
+        XCTAssertEqual(TodayLayoutPrefs.decodeOrder(order), [
+            .heartRate, .hero, .yourCards, .liveSession, .synthesis, .keyMetrics, .workouts,
+            .recoveryVitals, .journal,
+        ])
+    }
+
+    func testNewOrPreviouslyMissingSectionsDefaultToVisible() {
+        XCTAssertTrue(
+            TodayLayoutPrefs.visibleOrder(
+                orderRaw: "synthesis,keyMetrics,workouts,heartRate,recoveryVitals,yourCards",
+                hiddenRaw: "workouts"
+            ).contains(.journal)
+        )
+    }
+
     /// defaultOrder must cover EVERY case: the never-hide merge iterates it, so a case missing from the
     /// default order could otherwise be dropped from render (Android) or mis-sorted (iOS).
     func testDefaultOrderCoversEveryCase() {
@@ -68,5 +95,27 @@ final class TodayLayoutPrefsTests: XCTestCase {
             raws,
             ["hero", "liveSession", "synthesis", "keyMetrics", "workouts", "heartRate", "recoveryVitals", "yourCards", "journal"]
         )
+    }
+
+    func testEditableLayoutHidesAndRestoresWithoutDeleting() {
+        var draft = EditableLayoutDraft(
+            visible: TodaySection.defaultOrder,
+            allItems: TodaySection.defaultOrder
+        )
+
+        draft.hide(.workouts)
+        XCTAssertFalse(draft.visible.contains(.workouts))
+        XCTAssertEqual(draft.hidden, [.workouts])
+
+        draft.show(.workouts)
+        XCTAssertEqual(draft.visible.last, .workouts)
+        XCTAssertTrue(draft.hidden.isEmpty)
+        XCTAssertEqual(Set(draft.visible), Set(TodaySection.defaultOrder))
+    }
+
+    func testEditableLayoutKeepsAtLeastOneItemVisible() {
+        var draft = EditableLayoutDraft(visible: [KeyMetric.hrv], hidden: KeyMetric.defaultOrder.filter { $0 != .hrv })
+        draft.hide(.hrv)
+        XCTAssertEqual(draft.visible, [.hrv])
     }
 }

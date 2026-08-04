@@ -475,7 +475,9 @@ final class SleepStagerTests: XCTestCase {
     private func depthEpoch(rmssd: Double) -> SleepStager.EpochFeatures {
         SleepStager.EpochFeatures(index: 0, midTs: 0, count: 0, moveFrac: 0,   // still
                                   ckSleep: true, hr: 50, hrVar: 0, rmssd: rmssd, sdnn: 0,
-                                  respRate: 14, rrv: .nan,            // missing resp → regular (pro-deep)
+                                  // No respiration reading: `RespEvidence.unmeasured`, which is WAIVED for
+                                  // deep (not asserted as "regular" — see SleepStagerRespEvidenceTests).
+                                  respRate: 14, rrv: .nan,
                                   clock: 0.5)
     }
 
@@ -497,7 +499,7 @@ final class SleepStagerTests: XCTestCase {
     // epoch stays sleep. A dense 4.0 night (cardiacSparse:false) keeps the original hrHigh||hrvarHigh signal.
     private func ppgWakeEpoch() -> SleepStager.EpochFeatures {
         // moveFrac just over the wake bar (0.15), HR normal (60, below hrHi=90, above hrLo=55 so not deep),
-        // hrVar inflated above the high bar, missing R-R (sparse → resp also NaN → regular).
+        // hrVar inflated above the high bar, missing R-R (sparse → resp also NaN → unmeasured/waived).
         SleepStager.EpochFeatures(index: 0, midTs: 0, count: 0, moveFrac: 0.16,
                                   ckSleep: true, hr: 60, hrVar: 200, rmssd: .nan, sdnn: 0,
                                   respRate: 14, rrv: .nan, clock: 0.5)

@@ -107,6 +107,9 @@ public struct DeviceRegistryStore: Sendable {
         // v28-raw-imu (#423): the opt-in 5/MG raw-IMU offload capture is deviceId-keyed too — "delete all
         // of this device's data" must clear it, or the raw inertial samples survive deletion (same defect).
         "rawImuSample",
+        // v31-deep-capture-channels: the banked 5/MG v18 auxiliary fields are deviceId-keyed per-second
+        // rows like every stream above, so a "delete all of this device's data" must clear them too.
+        "v18AuxSample",
     ]
 
     /// Permanently delete every recorded sample/derived row belonging to one device, across all

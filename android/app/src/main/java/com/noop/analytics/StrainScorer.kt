@@ -164,8 +164,43 @@ object StrainScorer {
     // ---- TRIMP accumulation ----
 
     /**
+     * Longest span (minutes) a single reading may be credited with. A wear or connection dropout leaves a
+     * gap with no data in it; without a ceiling the last reading before the gap would be credited with the
+     * whole of it, so one sample in zone 5 could invent hours of effort. 2 min is 4x the sparsest real
+     * cadence we know of (the 5/MG's ~30 s, see [minSparseReadings]), so no genuine cadence is truncated.
+     */
+    const val maxSampleGapMin: Double = 2.0
+
+    /**
+     * The one Effort figure every read-out on Today must show (#1001).
+     *
+     * Effort has two sources. [stored] is the daily row, rewritten only when the heavy daily pass runs.
+     * [live] is today's in-progress recompute over the raw HR stream (local midnight → now), which exists
+     * precisely because the stored row lags — early in the day it still holds yesterday's Effort or a
+     * stale 0.0 (#402). Past days have no live value and use the row.
+     *
+     * Taking the MAX rather than preferring [live] is not a tie-break: Effort accrues over a day and must
+     * never visibly DROP. The live recompute can UNDER-read when today's HR is sparse, or when a logged
+     * workout's load is not in the raw stream — a 5/MG user who trained in the morning had a real 38.3
+     * replaced by a live 0 (#489/#506). Flooring at what is already earned is what stops that.
+     *
+     * Shared so the hero ring, the Key Metrics tile and the chart's edge badge cannot drift apart: they
+     * each resolved Effort themselves, and only the ring knew about [live], so an active morning showed
+     * 2.3 on the ring and 0.5 in the other two until the daily pass caught up (#1001).
+     */
+    fun effectiveEffort(live: Double?, stored: Double?): Double? {
+        if (live == null) return stored
+        if (stored == null) return live
+        return kotlin.math.max(live, stored)
+    }
+
+    /**
      * Infer per-sample duration (minutes) from the first two timestamps. Falls
      * back to 1 s when fewer than two samples or coincident timestamps.
+     *
+     * No production caller remains — TRIMP uses [sampleDurationsMinutes] (#950). Kept ONLY so the
+     * uniform-identity regression test can compare the new accumulation against the SHIPPED old formula
+     * rather than a reimplementation of it. Delete it if that test ever goes.
      */
     fun sampleDurationMinutes(hr: List<HrSample>): Double {
         if (hr.size < 2) return fallbackSampleMin
@@ -173,30 +208,57 @@ object StrainScorer {
         return if (deltaS > 0) deltaS / 60.0 else fallbackSampleMin
     }
 
+    /**
+     * Per-sample durations (minutes): each reading covers the gap to the NEXT one, clamped to
+     * [maxSampleGapMin]; the last reuses the gap before it.
+     *
+     * #950: TRIMP used to take ONE duration inferred from the first two timestamps and multiply the whole
+     * zone-weight sum by it. NOOP's HR stream is not uniformly spaced — live Bluetooth arrives ~1 s apart,
+     * banked 5/MG history ~30 s, and dropouts leave larger holes — so whichever gap happened to be first
+     * set the scale for the entire window. Worse, a workout window and the day that contains it start at
+     * different samples, so they picked different factors and the two Effort numbers stopped being
+     * comparable, which is what the report was about.
+     *
+     * For a UNIFORMLY spaced series every gap is the same, so this returns the old value for every sample
+     * and the resulting TRIMP is unchanged — which is why no existing test moves.
+     */
+    fun sampleDurationsMinutes(hr: List<HrSample>): List<Double> {
+        if (hr.isEmpty()) return emptyList()
+        if (hr.size == 1) return listOf(fallbackSampleMin)
+        val out = ArrayList<Double>(hr.size)
+        for (i in 0 until hr.size - 1) {
+            val deltaS = abs((hr[i + 1].ts - hr[i].ts).toDouble())
+            val min = if (deltaS > 0) deltaS / 60.0 else fallbackSampleMin
+            out.add(kotlin.math.min(min, maxSampleGapMin))
+        }
+        out.add(out.last())   // the final reading has no successor; reuse the gap before it
+        return out
+    }
+
     fun edwardsTRIMP(
         hr: List<HrSample>,
         restingHR: Double,
         hrReserve: Double,
-        sampleDurationMin: Double,
+        durations: List<Double>,
     ): Double {
-        var weighted = 0
-        for (s in hr) {
-            weighted += zoneWeight(s.bpm.toDouble(), restingHR, hrReserve)
+        var acc = 0.0
+        for (i in hr.indices) {
+            acc += zoneWeight(hr[i].bpm.toDouble(), restingHR, hrReserve) * durations[i]
         }
-        return weighted.toDouble() * sampleDurationMin
+        return acc
     }
 
     fun banisterTRIMP(
         hr: List<HrSample>,
         restingHR: Double,
         hrReserve: Double,
-        sampleDurationMin: Double,
+        durations: List<Double>,
         b: Double,
     ): Double {
         var acc = 0.0
-        for (s in hr) {
-            val x = pctHRR(s.bpm.toDouble(), restingHR, hrReserve) / 100.0
-            if (x > 0) acc += sampleDurationMin * x * banisterScale * exp(b * x)
+        for (i in hr.indices) {
+            val x = pctHRR(hr[i].bpm.toDouble(), restingHR, hrReserve) / 100.0
+            if (x > 0) acc += durations[i] * x * banisterScale * exp(b * x)
         }
         return acc
     }
@@ -272,16 +334,16 @@ object StrainScorer {
         }
         if (!enoughData || effMax <= restingHR) return null
 
-        val sampleDur = sampleDurationMinutes(hr)
+        val durations = sampleDurationsMinutes(hr)
         val hrReserve = effMax - restingHR
 
         val trimp: Double = when (method) {
             Method.BANISTER -> {
                 val b = if (sex.lowercase().startsWith("f")) banisterBWomen else banisterBMen
-                banisterTRIMP(hr, restingHR, hrReserve, sampleDur, b)
+                banisterTRIMP(hr, restingHR, hrReserve, durations, b)
             }
             Method.EDWARDS -> {
-                edwardsTRIMP(hr, restingHR, hrReserve, sampleDur)
+                edwardsTRIMP(hr, restingHR, hrReserve, durations)
             }
         }
         return trimpToStrain(trimp, denominator)

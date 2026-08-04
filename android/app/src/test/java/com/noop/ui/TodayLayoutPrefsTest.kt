@@ -96,6 +96,36 @@ class TodayLayoutPrefsTest {
         assertEquals(TodaySection.defaultOrder, TodayLayoutPrefs.decodeOrder("nope,,zzz"))
     }
 
+    @Test
+    fun hiddenSections_areExplicitReversibleAndDeduplicated() {
+        val hidden = TodayLayoutPrefs.decodeHidden("workouts,BOGUS,workouts,journal")
+        assertEquals(listOf(TodaySection.WORKOUTS, TodaySection.JOURNAL), hidden)
+        assertEquals("workouts,journal", TodayLayoutPrefs.encodeHidden(hidden))
+    }
+
+    @Test
+    fun visibleOrder_filtersHiddenWithoutChangingSavedOrder() {
+        val order = "heartRate,hero,yourCards,liveSession,synthesis,keyMetrics,workouts,recoveryVitals,journal"
+        assertEquals(
+            listOf(
+                TodaySection.HEART_RATE, TodaySection.YOUR_CARDS, TodaySection.LIVE_SESSION,
+                TodaySection.SYNTHESIS, TodaySection.KEY_METRICS, TodaySection.RECOVERY_VITALS,
+                TodaySection.JOURNAL,
+            ),
+            TodayLayoutPrefs.visibleOrder(order, "hero,workouts"),
+        )
+        assertEquals(TodaySection.entries.size, TodayLayoutPrefs.decodeOrder(order).size)
+    }
+
+    @Test
+    fun newOrPreviouslyMissingSections_defaultToVisible() {
+        val visible = TodayLayoutPrefs.visibleOrder(
+            "synthesis,keyMetrics,workouts,heartRate,recoveryVitals,yourCards",
+            "workouts",
+        )
+        assertEquals(true, TodaySection.JOURNAL in visible)
+    }
+
     /** defaultOrder must cover EVERY entry: the never-hide merge sorts by default index, so an entry
      *  missing from the default order could otherwise be dropped or mis-sorted. Twin of the Swift test. */
     @Test

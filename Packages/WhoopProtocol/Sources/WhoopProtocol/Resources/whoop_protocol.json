@@ -57,7 +57,8 @@
       "140": "SET_ADVERTISING_NAME", "141": "GET_ADVERTISING_NAME",
       "142": "START_FIRMWARE_LOAD_NEW", "143": "LOAD_FIRMWARE_DATA_NEW",
       "144": "PROCESS_FIRMWARE_IMAGE_NEW", "145": "GET_HELLO", "151": "GET_BATTERY_PACK_INFO",
-      "153": "TOGGLE_PERSISTENT_R20", "154": "TOGGLE_PERSISTENT_R21"}
+      "153": "TOGGLE_PERSISTENT_R20", "154": "TOGGLE_PERSISTENT_R21"},
+    "CommandResult": {"0": "FAILURE", "1": "SUCCESS", "2": "PENDING", "3": "UNSUPPORTED"}
   },
   "envelope": [
     {"off": 0, "len": 1, "name": "SOF", "cat": "frame"},

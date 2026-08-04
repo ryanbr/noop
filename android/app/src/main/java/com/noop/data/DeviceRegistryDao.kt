@@ -77,6 +77,7 @@ interface DeviceRegistryDao {
     @Query("DELETE FROM ppgHrSample WHERE deviceId = :deviceId") suspend fun deletePpgHrFor(deviceId: String)
     @Query("DELETE FROM ppgWaveformSample WHERE deviceId = :deviceId") suspend fun deletePpgWaveformFor(deviceId: String)
     @Query("DELETE FROM rawImuSample WHERE deviceId = :deviceId") suspend fun deleteRawImuFor(deviceId: String)   // #423
+    @Query("DELETE FROM v18AuxSample WHERE deviceId = :deviceId") suspend fun deleteV18AuxFor(deviceId: String)
     @Query("DELETE FROM event WHERE deviceId = :deviceId") suspend fun deleteEventsFor(deviceId: String)
     @Query("DELETE FROM battery WHERE deviceId = :deviceId") suspend fun deleteBatteryFor(deviceId: String)
     @Query("DELETE FROM dailyMetric WHERE deviceId = :deviceId") suspend fun deleteDailyMetricsFor(deviceId: String)
@@ -113,6 +114,7 @@ interface DeviceRegistryDao {
     @Query("UPDATE OR IGNORE ppgHrSample SET deviceId = :to WHERE deviceId = :from") suspend fun reKeyPpgHr(from: String, to: String)
     @Query("UPDATE OR IGNORE ppgWaveformSample SET deviceId = :to WHERE deviceId = :from") suspend fun reKeyPpgWaveform(from: String, to: String)
     @Query("UPDATE OR IGNORE rawImuSample SET deviceId = :to WHERE deviceId = :from") suspend fun reKeyRawImu(from: String, to: String)
+    @Query("UPDATE OR IGNORE v18AuxSample SET deviceId = :to WHERE deviceId = :from") suspend fun reKeyV18Aux(from: String, to: String)
     @Query("UPDATE OR IGNORE event SET deviceId = :to WHERE deviceId = :from") suspend fun reKeyEvents(from: String, to: String)
     @Query("UPDATE OR IGNORE battery SET deviceId = :to WHERE deviceId = :from") suspend fun reKeyBattery(from: String, to: String)
     @Query("UPDATE OR IGNORE dailyMetric SET deviceId = :to WHERE deviceId = :from") suspend fun reKeyDailyMetrics(from: String, to: String)

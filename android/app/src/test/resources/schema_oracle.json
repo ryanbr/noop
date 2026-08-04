@@ -1,0 +1,1752 @@
+{
+  "_readme": "SHARED Room<->GRDB SCHEMA ORACLE (#775). Two byte-identical copies: Packages/WhoopStore/Tests/WhoopStoreTests/Resources/schema_oracle.json and android/app/src/test/resources/schema_oracle.json. SchemaOracleTests.swift compares GRDB's PRAGMA table_info/index_list against it; SchemaOracleTest.kt compares Room's exported schema JSON against it. `columns` is the iOS/GRDB shape in GRDB column order (macOS is the reference implementation); every way Android differs is spelled out in an `android` / `iosAbsent` / `androidColumnOrder` override naming a key in `divergenceReasons`. Adding a column, reordering one, or changing a type/nullability on one platform only fails both suites until it is either fixed or written down here.",
+  "roomVersion": 25,
+  "grdbMigrations": [
+    "v1",
+    "v2",
+    "v3",
+    "v4",
+    "v5",
+    "v6",
+    "v7",
+    "v8",
+    "v9",
+    "v10",
+    "v11",
+    "v12",
+    "v13",
+    "v14",
+    "v15-device-registry",
+    "v16-paired-device-peripheral",
+    "v17-lab-book",
+    "v18-sleep-motion-state",
+    "v19-step-activity-class",
+    "v20-journal-numeric",
+    "v21-sleep-state-sample",
+    "v22-live-session",
+    "v23-daily-spo2-raw",
+    "v24-rr-seq",
+    "v25-oura-raw",
+    "v26-efficiency-heal",
+    "v27-ppg-waveform",
+    "v28-raw-imu",
+    "v29-score-input-provenance",
+    "v30-rr-ord",
+    "v31-deep-capture-channels"
+  ],
+  "divergenceReasons": {
+    "android-orphan-synced-column": "REAL COLUMN DRIFT: `synced` exists on Android only. GRDB's v10 note is explicit that stepSample gets no `synced` column ('unused; see StreamStore'), and v12's ppgHrSample never had one either; the Room entities copied the flag from the older per-second entities. Nothing reads it on Android \u2014 the per-row upload flag belongs to an upload path that does not exist there \u2014 so it is dead width, not divergent data. Removing it needs a Room table rebuild.",
+    "battery-alter-append-order": "REAL COLUMN-ORDER DRIFT (CLAUDE.md: 'column order in a Room CREATE TABLE must match the entity field order'). GRDB appended `synced` (v5) then `charging` (v6) with ALTER TABLE, which can only append; the Room entity declares `charging` before `synced`. Same columns, same types, different positions \u2014 so any positional copy (INSERT INTO battery SELECT * FROM \u2026) swaps them. Fixing it means reordering the Room entity's fields, which changes Room's identity hash and therefore needs a version bump plus a no-op migration.",
+    "grdb-boolean-affinity": "GRDB's .boolean column type is declared BOOLEAN, which SQLite gives NUMERIC affinity; Room maps Kotlin Boolean to INTEGER. For the 0/1 values both sides write, NUMERIC and INTEGER affinity store bit-identical INTEGERs, so a .noopbak round-trips. Closing it means a GRDB table rebuild.",
+    "paired-device-alter-append-order": "REAL COLUMN-ORDER DRIFT, same shape as battery. GRDB's v16-paired-device-peripheral appended `peripheralId` at the end; the Room entity declares it fifth, between `nickname` and `sourceKind`.",
+    "ppg-hr-bpm-integer-on-android": "AFFINITY DRIFT, and NOT a data consequence: ppgHrSample.bpm is declared REAL on iOS and INTEGER on Android \u2014 but only the SQLITE COLUMN differs. The ROW type is `Int` on both sides: Swift's `PpgHrSample.bpm` is `Int`, carrying the comment 'the same Int domain as the measured HRSample.bpm and the Android PpgHr.Estimate.bpm, so the stored value and type match across platforms (#219)'. Both platforms also round to whole bpm before that \u2014 Swift `(fsD * 60 / refinedLag).rounded()` then `Int(est.bpm)`, Kotlin `Math.round(fsD * 60 / refinedLag).toInt()` \u2014 and the read path (`CAST(ROUND(p.bpm) AS INTEGER)`) rounds again, a no-op on a whole number. There is one writer and one construction site on each side. So REAL holds the same whole numbers INTEGER does and NO value differs. Recorded because the DECLARED affinity genuinely diverges, and a bpm that ever became fractional would then diverge silently; closing it means a GRDB table rebuild. Deliberately NOT the decoder-oracle (#869) class \u2014 that caught a real value divergence.",
+    "room-omits-sql-default": "GRDB declares these columns NOT NULL DEFAULT 0; Room emits NOT NULL with no SQL DEFAULT, because a Kotlin constructor default never reaches the schema (only @ColumnInfo(defaultValue=) does). Both sides are NOT NULL and both always name the column on insert, so no row differs; an INSERT that omitted the column would fail on Android and get 0 on iOS. Closing it means adding @ColumnInfo(defaultValue = \"0\") plus a Room version bump, since the generated CREATE TABLE \u2014 and therefore Room's identity hash \u2014 changes.",
+    "sqlite-text-pk-nullable": "GRDB writes `id TEXT PRIMARY KEY`; SQLite's legacy quirk leaves a non-INTEGER PRIMARY KEY column NULLable, so PRAGMA reports notnull=0. Room writes `id TEXT NOT NULL, PRIMARY KEY(id)`. Every writer on both platforms supplies a non-null id, so no stored row differs. Closing it means a GRDB table rebuild.",
+    "workout-route-polyline-android-only": "REAL COLUMN DRIFT \u2014 literally the case #775 was filed about: `workout.routePolyline` (encoded GPS route) was added by Room MIGRATION_3_4 and has no GRDB twin. A .noopbak exported from Android carries a column iOS's `workout` table cannot receive."
+  },
+  "tables": {
+    "appleDaily": {
+      "platform": "both",
+      "columns": [
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "day",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "steps",
+          "affinity": "INTEGER",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "activeKcal",
+          "affinity": "REAL",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "basalKcal",
+          "affinity": "REAL",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "vo2max",
+          "affinity": "REAL",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "avgHr",
+          "affinity": "INTEGER",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "maxHr",
+          "affinity": "INTEGER",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "walkingHr",
+          "affinity": "INTEGER",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "weightKg",
+          "affinity": "REAL",
+          "notNull": false,
+          "default": null
+        }
+      ],
+      "primaryKey": [
+        "deviceId",
+        "day"
+      ],
+      "indices": []
+    },
+    "battery": {
+      "platform": "both",
+      "columns": [
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "ts",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "soc",
+          "affinity": "REAL",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "mv",
+          "affinity": "INTEGER",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "synced",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": "0",
+          "android": {
+            "default": null
+          },
+          "divergence": "room-omits-sql-default"
+        },
+        {
+          "name": "charging",
+          "affinity": "NUMERIC",
+          "notNull": false,
+          "default": null,
+          "android": {
+            "affinity": "INTEGER"
+          },
+          "divergence": "grdb-boolean-affinity"
+        }
+      ],
+      "primaryKey": [
+        "deviceId",
+        "ts"
+      ],
+      "androidColumnOrder": [
+        "deviceId",
+        "ts",
+        "soc",
+        "mv",
+        "charging",
+        "synced"
+      ],
+      "androidColumnOrderDivergence": "battery-alter-append-order",
+      "indices": []
+    },
+    "cursors": {
+      "platform": "ios_only",
+      "reason": "iOS offload/upload bookmarks (GRDB v2). Android keeps the equivalent bookmarks in SharedPreferences, not in Room.",
+      "columns": [
+        {
+          "name": "name",
+          "affinity": "TEXT",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "value",
+          "affinity": "INTEGER",
+          "notNull": false,
+          "default": null
+        }
+      ],
+      "primaryKey": [
+        "name"
+      ],
+      "indices": []
+    },
+    "dailyMetric": {
+      "platform": "both",
+      "columns": [
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "day",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "totalSleepMin",
+          "affinity": "REAL",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "efficiency",
+          "affinity": "REAL",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "deepMin",
+          "affinity": "REAL",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "remMin",
+          "affinity": "REAL",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "lightMin",
+          "affinity": "REAL",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "disturbances",
+          "affinity": "INTEGER",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "restingHr",
+          "affinity": "INTEGER",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "avgHrv",
+          "affinity": "REAL",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "recovery",
+          "affinity": "REAL",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "strain",
+          "affinity": "REAL",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "exerciseCount",
+          "affinity": "INTEGER",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "spo2Pct",
+          "affinity": "REAL",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "skinTempDevC",
+          "affinity": "REAL",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "respRateBpm",
+          "affinity": "REAL",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "steps",
+          "affinity": "INTEGER",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "activeKcalEst",
+          "affinity": "REAL",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "spo2Red",
+          "affinity": "INTEGER",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "spo2Ir",
+          "affinity": "INTEGER",
+          "notNull": false,
+          "default": null
+        }
+      ],
+      "primaryKey": [
+        "deviceId",
+        "day"
+      ],
+      "indices": []
+    },
+    "dayOwnership": {
+      "platform": "both",
+      "columns": [
+        {
+          "name": "day",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "locked",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": "0",
+          "android": {
+            "default": null
+          },
+          "divergence": "room-omits-sql-default"
+        }
+      ],
+      "primaryKey": [
+        "day"
+      ],
+      "indices": []
+    },
+    "device": {
+      "platform": "both",
+      "columns": [
+        {
+          "name": "id",
+          "affinity": "TEXT",
+          "notNull": false,
+          "default": null,
+          "android": {
+            "notNull": true
+          },
+          "divergence": "sqlite-text-pk-nullable"
+        },
+        {
+          "name": "mac",
+          "affinity": "TEXT",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "name",
+          "affinity": "TEXT",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "firstSeen",
+          "affinity": "INTEGER",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "lastSeen",
+          "affinity": "INTEGER",
+          "notNull": false,
+          "default": null
+        }
+      ],
+      "primaryKey": [
+        "id"
+      ],
+      "indices": []
+    },
+    "dismissedSleep": {
+      "platform": "android_only",
+      "reason": "Tombstone for a user-deleted sleep session (#33, Room MIGRATION_9_10). iOS has the twin delete path since #68 but stores its tombstones in UserDefaults.",
+      "columns": [
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "startTs",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "endTs",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "managementVisible",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        }
+      ],
+      "primaryKey": [
+        "deviceId",
+        "startTs"
+      ],
+      "indices": []
+    },
+    "dismissedWorkout": {
+      "platform": "android_only",
+      "reason": "Durable 'this detected bout is not a workout' marker (#107, Room MIGRATION_4_5). macOS persists the equivalent as a UserDefaults span list because its read model cannot add a column to the shared workout struct \u2014 documented on the entity, not drift.",
+      "columns": [
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "startTs",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "endTs",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        }
+      ],
+      "primaryKey": [
+        "deviceId",
+        "startTs"
+      ],
+      "indices": []
+    },
+    "event": {
+      "platform": "both",
+      "columns": [
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "ts",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "kind",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "payloadJSON",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "synced",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": "0",
+          "android": {
+            "default": null
+          },
+          "divergence": "room-omits-sql-default"
+        }
+      ],
+      "primaryKey": [
+        "deviceId",
+        "ts",
+        "kind"
+      ],
+      "indices": []
+    },
+    "gravitySample": {
+      "platform": "both",
+      "columns": [
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "ts",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "x",
+          "affinity": "REAL",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "y",
+          "affinity": "REAL",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "z",
+          "affinity": "REAL",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "synced",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": "0",
+          "android": {
+            "default": null
+          },
+          "divergence": "room-omits-sql-default"
+        },
+        {
+          "name": "dynAccel",
+          "affinity": "REAL",
+          "notNull": false,
+          "default": null
+        }
+      ],
+      "primaryKey": [
+        "deviceId",
+        "ts"
+      ],
+      "indices": []
+    },
+    "hrSample": {
+      "platform": "both",
+      "columns": [
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "ts",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "bpm",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "synced",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": "0",
+          "android": {
+            "default": null
+          },
+          "divergence": "room-omits-sql-default"
+        }
+      ],
+      "primaryKey": [
+        "deviceId",
+        "ts"
+      ],
+      "indices": []
+    },
+    "journal": {
+      "platform": "both",
+      "columns": [
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "day",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "question",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "answeredYes",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "notes",
+          "affinity": "TEXT",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "numericValue",
+          "affinity": "REAL",
+          "notNull": false,
+          "default": null
+        }
+      ],
+      "primaryKey": [
+        "deviceId",
+        "day",
+        "question"
+      ],
+      "indices": []
+    },
+    "labMarker": {
+      "platform": "both",
+      "columns": [
+        {
+          "name": "id",
+          "affinity": "TEXT",
+          "notNull": false,
+          "default": null,
+          "android": {
+            "notNull": true
+          },
+          "divergence": "sqlite-text-pk-nullable"
+        },
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "markerKey",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "category",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "day",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "takenAt",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "value",
+          "affinity": "REAL",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "valueText",
+          "affinity": "TEXT",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "unit",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "source",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "note",
+          "affinity": "TEXT",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "referenceText",
+          "affinity": "TEXT",
+          "notNull": false,
+          "default": null
+        }
+      ],
+      "primaryKey": [
+        "id"
+      ],
+      "indices": [
+        {
+          "name": "idx_labMarker_device_category",
+          "unique": false,
+          "columns": [
+            "deviceId",
+            "category"
+          ]
+        },
+        {
+          "name": "idx_labMarker_device_marker_takenAt",
+          "unique": false,
+          "columns": [
+            "deviceId",
+            "markerKey",
+            "takenAt"
+          ]
+        },
+        {
+          "name": "idx_labMarker_natural",
+          "unique": true,
+          "columns": [
+            "deviceId",
+            "markerKey",
+            "takenAt",
+            "source"
+          ]
+        }
+      ]
+    },
+    "liveSession": {
+      "platform": "both",
+      "columns": [
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "startTs",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "endTs",
+          "affinity": "INTEGER",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "chargeAtStart",
+          "affinity": "REAL",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "floorBpm",
+          "affinity": "REAL",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "ceilingBpm",
+          "affinity": "REAL",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "inBandSec",
+          "affinity": "REAL",
+          "notNull": true,
+          "default": "0",
+          "android": {
+            "default": null
+          },
+          "divergence": "room-omits-sql-default"
+        },
+        {
+          "name": "belowSec",
+          "affinity": "REAL",
+          "notNull": true,
+          "default": "0",
+          "android": {
+            "default": null
+          },
+          "divergence": "room-omits-sql-default"
+        },
+        {
+          "name": "aboveSec",
+          "affinity": "REAL",
+          "notNull": true,
+          "default": "0",
+          "android": {
+            "default": null
+          },
+          "divergence": "room-omits-sql-default"
+        },
+        {
+          "name": "pushCount",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": "0",
+          "android": {
+            "default": null
+          },
+          "divergence": "room-omits-sql-default"
+        },
+        {
+          "name": "easeCount",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": "0",
+          "android": {
+            "default": null
+          },
+          "divergence": "room-omits-sql-default"
+        },
+        {
+          "name": "hrSource",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        }
+      ],
+      "primaryKey": [
+        "deviceId",
+        "startTs"
+      ],
+      "indices": []
+    },
+    "metricSeries": {
+      "platform": "both",
+      "columns": [
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "day",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "key",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "value",
+          "affinity": "REAL",
+          "notNull": true,
+          "default": null
+        }
+      ],
+      "primaryKey": [
+        "deviceId",
+        "day",
+        "key"
+      ],
+      "indices": [
+        {
+          "name": "idx_metricSeries_device_key_day",
+          "unique": false,
+          "columns": [
+            "deviceId",
+            "key",
+            "day"
+          ]
+        }
+      ]
+    },
+    "ouraRaw": {
+      "platform": "ios_only",
+      "reason": "Verbatim Oura API page archive behind the opt-in cloud import (GRDB v25). The Oura importer is iOS/macOS-only today.",
+      "columns": [
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "endpoint",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "documentId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "day",
+          "affinity": "TEXT",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "payloadJSON",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "fetchedAt",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        }
+      ],
+      "primaryKey": [
+        "deviceId",
+        "endpoint",
+        "documentId"
+      ],
+      "indices": [
+        {
+          "name": "idx_ouraRaw_device_endpoint_day",
+          "unique": false,
+          "columns": [
+            "deviceId",
+            "endpoint",
+            "day"
+          ]
+        }
+      ]
+    },
+    "pairedDevice": {
+      "platform": "both",
+      "columns": [
+        {
+          "name": "id",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "brand",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "model",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "nickname",
+          "affinity": "TEXT",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "sourceKind",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "capabilities",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "status",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "addedAt",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "lastSeenAt",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "peripheralId",
+          "affinity": "TEXT",
+          "notNull": false,
+          "default": null
+        }
+      ],
+      "primaryKey": [
+        "id"
+      ],
+      "androidColumnOrder": [
+        "id",
+        "brand",
+        "model",
+        "nickname",
+        "peripheralId",
+        "sourceKind",
+        "capabilities",
+        "status",
+        "addedAt",
+        "lastSeenAt"
+      ],
+      "androidColumnOrderDivergence": "paired-device-alter-append-order",
+      "indices": []
+    },
+    "ppgHrSample": {
+      "platform": "both",
+      "columns": [
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "ts",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "bpm",
+          "affinity": "REAL",
+          "notNull": true,
+          "default": null,
+          "android": {
+            "affinity": "INTEGER"
+          },
+          "divergence": "ppg-hr-bpm-integer-on-android"
+        },
+        {
+          "name": "conf",
+          "affinity": "REAL",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "synced",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null,
+          "iosAbsent": true,
+          "divergence": "android-orphan-synced-column"
+        }
+      ],
+      "primaryKey": [
+        "deviceId",
+        "ts"
+      ],
+      "indices": []
+    },
+    "ppgWaveformSample": {
+      "platform": "both",
+      "columns": [
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "ts",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "samples",
+          "affinity": "BLOB",
+          "notNull": true,
+          "default": null
+        }
+      ],
+      "primaryKey": [
+        "deviceId",
+        "ts"
+      ],
+      "indices": []
+    },
+    "rawBatch": {
+      "platform": "ios_only",
+      "reason": "The raw pre-decode frame outbox (GRDB v1). Android decodes frames straight into the stream tables and keeps no raw archive, so it has no twin; nothing in a .noopbak round-trip reads it.",
+      "columns": [
+        {
+          "name": "batchId",
+          "affinity": "TEXT",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "capturedAt",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "deviceClockRef",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "wallClockRef",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "startTs",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "endTs",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "frameCount",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "byteSize",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "framesBlob",
+          "affinity": "BLOB",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "syncedAt",
+          "affinity": "INTEGER",
+          "notNull": false,
+          "default": null
+        }
+      ],
+      "primaryKey": [
+        "batchId"
+      ],
+      "indices": []
+    },
+    "rawImuSample": {
+      "platform": "both",
+      "columns": [
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "ts",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "samples",
+          "affinity": "BLOB",
+          "notNull": true,
+          "default": null
+        }
+      ],
+      "primaryKey": [
+        "deviceId",
+        "ts"
+      ],
+      "indices": []
+    },
+    "respSample": {
+      "platform": "both",
+      "columns": [
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "ts",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "raw",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "synced",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": "0",
+          "android": {
+            "default": null
+          },
+          "divergence": "room-omits-sql-default"
+        }
+      ],
+      "primaryKey": [
+        "deviceId",
+        "ts"
+      ],
+      "indices": []
+    },
+    "rrInterval": {
+      "platform": "both",
+      "columns": [
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "ts",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "rrMs",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "seq",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": "0",
+          "android": {
+            "default": null
+          },
+          "divergence": "room-omits-sql-default"
+        },
+        {
+          "name": "synced",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": "0",
+          "android": {
+            "default": null
+          },
+          "divergence": "room-omits-sql-default"
+        },
+        {
+          "name": "ord",
+          "affinity": "INTEGER",
+          "notNull": false,
+          "default": null
+        }
+      ],
+      "primaryKey": [
+        "deviceId",
+        "ts",
+        "rrMs",
+        "seq"
+      ],
+      "indices": []
+    },
+    "scoreInputProvenance": {
+      "platform": "both",
+      "columns": [
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "day",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "key",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "sourceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        }
+      ],
+      "primaryKey": [
+        "deviceId",
+        "day",
+        "key"
+      ],
+      "indices": [
+        {
+          "name": "idx_scoreInputProvenance_source",
+          "unique": false,
+          "columns": [
+            "sourceId"
+          ]
+        }
+      ]
+    },
+    "skinTempSample": {
+      "platform": "both",
+      "columns": [
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "ts",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "raw",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "synced",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": "0",
+          "android": {
+            "default": null
+          },
+          "divergence": "room-omits-sql-default"
+        },
+        {
+          "name": "aux1Raw",
+          "affinity": "INTEGER",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "aux2Raw",
+          "affinity": "INTEGER",
+          "notNull": false,
+          "default": null
+        }
+      ],
+      "primaryKey": [
+        "deviceId",
+        "ts"
+      ],
+      "indices": []
+    },
+    "sleepSession": {
+      "platform": "both",
+      "columns": [
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "startTs",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "endTs",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "efficiency",
+          "affinity": "REAL",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "restingHr",
+          "affinity": "INTEGER",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "avgHrv",
+          "affinity": "REAL",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "stagesJSON",
+          "affinity": "TEXT",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "userEdited",
+          "affinity": "NUMERIC",
+          "notNull": true,
+          "default": "0",
+          "android": {
+            "affinity": "INTEGER",
+            "default": null
+          },
+          "divergence": [
+            "room-omits-sql-default",
+            "grdb-boolean-affinity"
+          ]
+        },
+        {
+          "name": "startTsAdjusted",
+          "affinity": "INTEGER",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "motionJSON",
+          "affinity": "TEXT",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "sleepStateJSON",
+          "affinity": "TEXT",
+          "notNull": false,
+          "default": null
+        }
+      ],
+      "primaryKey": [
+        "deviceId",
+        "startTs"
+      ],
+      "indices": []
+    },
+    "sleepStateSample": {
+      "platform": "both",
+      "columns": [
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "ts",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "state",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "rawByte",
+          "affinity": "INTEGER",
+          "notNull": false,
+          "default": null
+        }
+      ],
+      "primaryKey": [
+        "deviceId",
+        "ts"
+      ],
+      "indices": []
+    },
+    "spo2Sample": {
+      "platform": "both",
+      "columns": [
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "ts",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "red",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "ir",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "synced",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": "0",
+          "android": {
+            "default": null
+          },
+          "divergence": "room-omits-sql-default"
+        }
+      ],
+      "primaryKey": [
+        "deviceId",
+        "ts"
+      ],
+      "indices": []
+    },
+    "stepSample": {
+      "platform": "both",
+      "columns": [
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "ts",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "counter",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "activityClass",
+          "affinity": "INTEGER",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "synced",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null,
+          "iosAbsent": true,
+          "divergence": "android-orphan-synced-column"
+        }
+      ],
+      "primaryKey": [
+        "deviceId",
+        "ts"
+      ],
+      "indices": []
+    },
+    "v18AuxSample": {
+      "platform": "both",
+      "columns": [
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "ts",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "fields",
+          "affinity": "BLOB",
+          "notNull": true,
+          "default": null
+        }
+      ],
+      "primaryKey": [
+        "deviceId",
+        "ts"
+      ],
+      "indices": []
+    },
+    "workout": {
+      "platform": "both",
+      "columns": [
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "startTs",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "endTs",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "sport",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "source",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "durationS",
+          "affinity": "REAL",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "energyKcal",
+          "affinity": "REAL",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "avgHr",
+          "affinity": "INTEGER",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "maxHr",
+          "affinity": "INTEGER",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "strain",
+          "affinity": "REAL",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "distanceM",
+          "affinity": "REAL",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "zonesJSON",
+          "affinity": "TEXT",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "notes",
+          "affinity": "TEXT",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "routePolyline",
+          "affinity": "TEXT",
+          "notNull": false,
+          "default": null,
+          "iosAbsent": true,
+          "divergence": "workout-route-polyline-android-only"
+        }
+      ],
+      "primaryKey": [
+        "deviceId",
+        "startTs",
+        "sport"
+      ],
+      "indices": []
+    }
+  }
+}

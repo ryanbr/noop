@@ -283,8 +283,8 @@ private fun GuardianRing(
     }
     val ringColor by animateColorAsState(target, animationSpec = tween(600), label = uiString(R.string.l10n_live_session_screen_guardianringcolor_f20ad757))
 
-    val reduced = rememberReduceMotion()
-    val breathing = !stale && settled && position == LiveSessionEngine.Position.IN_BAND && !reduced
+    val renderStill = rememberPoseStill()
+    val breathing = !stale && settled && position == LiveSessionEngine.Position.IN_BAND && !renderStill
 
     val stateLabel = when {
         stale -> "Signal lost, coaching paused"

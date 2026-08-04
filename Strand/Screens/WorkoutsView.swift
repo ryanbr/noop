@@ -304,7 +304,8 @@ struct WorkoutsView: View {
         for row in recoveryTrendRows {
             if Task.isCancelled { return }
             if let result = await repo.workoutHeartRateRecovery(
-                from: row.startTs, to: row.endTs, maxHR: Double(model.profile.hrMax)) {
+                from: row.startTs, to: row.endTs, maxHR: Double(model.profile.hrMax),
+                source: row.source) {
                 built.append(WorkoutRecoveryTrendPoint(startTs: row.startTs, result: result))
             }
         }
