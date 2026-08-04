@@ -375,8 +375,6 @@ struct TrendsView: View {
                 Text(weekOffset == 0 ? String(localized: "This week") : weekOffsetLabel)
                     .font(StrandFont.headline)
                     .foregroundStyle(StrandPalette.textPrimary)
-                Text("Week in review")
-                    .strandOverline()
             }
             Spacer()
 
@@ -412,7 +410,7 @@ struct TrendsView: View {
         let effortAvg = mean(effort.points)   // stored 0–100 internal Effort scale
         let restAvg = mean(rest.points)
         if chargeAvg != nil || effortAvg != nil || restAvg != nil {
-            NoopCard(tint: StrandPalette.chargeColor) {
+            NoopCard {
                 VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {
                     SectionHeader("Week in review", overline: "Charge · Effort · Rest")
                     if let v = chargeAvg {
@@ -514,9 +512,11 @@ struct TrendsView: View {
         let isWide = recovery.widened
         return VStack(alignment: .leading, spacing: NoopMetrics.space2) {
             HStack {
-                SegmentedPillControl(Range.allCases, selection: $range) { $0.label }
-                Spacer()
-                Text(rangeSubtitle).strandOverline()
+                SegmentedPillControl(
+                    Range.allCases,
+                    selection: $range,
+                    fillsAvailableWidth: true
+                ) { $0.label }
             }
             Text(cap)
                 .font(StrandFont.footnote)
@@ -540,7 +540,6 @@ struct TrendsView: View {
             subtitle: rangeSubtitle,
             trailing: avg.map { "\(Int($0.rounded()))" },
             height: NoopMetrics.chartHeight,
-            tint: StrandPalette.chargeColor,
             chart: {
                 if pts.count >= 2 {
                     glowChart(points: pts,
@@ -599,7 +598,7 @@ struct TrendsView: View {
                     points: hrvPts,
                     gradient: gradient(StrandPalette.metricPurple),
                     tip: StrandPalette.metricPurple,
-                    tint: StrandPalette.chargeColor,
+                    tint: nil,
                     higherIsBetter: true,
                     range: valueRange(hrvPts, fallback: 20...120),
                     fmt: { "\(Int($0.rounded()))" }
@@ -611,7 +610,7 @@ struct TrendsView: View {
                     points: rhrPts,
                     gradient: gradient(StrandPalette.metricRose),
                     tip: StrandPalette.metricRose,
-                    tint: StrandPalette.chargeColor,
+                    tint: nil,
                     higherIsBetter: false,
                     range: valueRange(rhrPts, fallback: 40...80),
                     fmt: { "\(Int($0.rounded()))" }
@@ -647,7 +646,7 @@ struct TrendsView: View {
         subtitle: String? = nil,
         gradient: Gradient,
         tip: Color,
-        tint: Color,
+        tint: Color?,
         higherIsBetter: Bool?,
         range: ClosedRange<Double>,
         fmt: @escaping (Double) -> String
@@ -699,7 +698,7 @@ struct TrendsView: View {
             return RecoveryDay(date: dt, score: d.recovery)
         }
         let title = (range == .all && repo.days.count > 365) ? String(localized: "Charge (all history)") : String(localized: "Charge (past year)")
-        return NoopCard(tint: StrandPalette.chargeColor) {
+        return NoopCard {
             VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {
                 SectionHeader("\(title)", overline: "Calendar", trailing: String(localized: "\(recoveryDays.filter { $0.score != nil }.count) days"))
                 if recoveryDays.isEmpty {
