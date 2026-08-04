@@ -32,6 +32,15 @@ final class SchemaOracleTests: XCTestCase {
         let grdbMigrations: [String]
         let divergenceReasons: [String: String]
         let tables: [String: OracleTable]
+        /// Absent upstream, where there is only the baseline lineage. See `MigrationLineage`.
+        let grdbMigrationLineages: [String: MigrationLineage]?
+        var lineages: [String: MigrationLineage] { grdbMigrationLineages ?? [:] }
+    }
+    /// A set of migration identifiers numbered independently of the baseline lineage — a fork that
+    /// reached `vN` before upstream did. Declaring one is what lets the two coexist without a renumber.
+    struct MigrationLineage: Decodable {
+        let reason: String
+        let migrations: [String]
     }
     struct OracleTable: Decodable {
         let platform: String                 // "both" | "ios_only" | "android_only"
@@ -201,23 +210,58 @@ final class SchemaOracleTests: XCTestCase {
     /// entirely, because the first already recorded that name in `grdb_migrations`.
     ///
     /// So: identifiers unique, and their `vN` prefixes exactly 1...N with no gaps and no repeats.
+    ///
+    /// The one sanctioned exception is a DECLARED lineage. A fork that numbered its own migrations
+    /// before upstream reached those numbers cannot renumber its way out — GRDB keys by identifier
+    /// string, so renaming one makes it read as un-applied on a device that already ran it and the
+    /// migrator re-runs its body against a schema that already has the table. Such a fork lists its
+    /// identifiers under `grdbMigrationLineages`; everything NOT listed is the baseline lineage and is
+    /// still held to exactly v1...vN. So the escape hatch costs a written-down reason and cannot be
+    /// taken by accident — an undeclared collision still fails, which is what catches #369 vs #475.
     func testGrdbMigrationIdentifiersAreUniqueAndSequential() throws {
+        let oracle = try loadOracle()
         let ids = WhoopStore.makeMigrator().migrations
         XCTAssertEqual(Set(ids).count, ids.count,
                        "duplicate GRDB migration identifier — GRDB would silently SKIP the second body")
 
-        var numbers: [Int] = []
-        for id in ids {
-            let digits = id.dropFirst().prefix { $0.isNumber }
-            guard id.hasPrefix("v"), let n = Int(digits) else {
-                return XCTFail("migration identifier '\(id)' is not of the form v<N>[-slug]")
-            }
-            numbers.append(n)
+        func version(of id: String) -> Int? {
+            guard id.hasPrefix("v"), let n = Int(id.dropFirst().prefix(while: \.isNumber)) else { return nil }
+            return n
         }
-        for (offset, n) in numbers.enumerated() where n != offset + 1 {
-            return XCTFail("GRDB migration '\(ids[offset])' claims v\(n) but is #\(offset + 1) in "
-                           + "registration order — two migrations claiming the same vN, or a gap, makes the "
-                           + "GRDB-name <-> Room-version mapping ambiguous. Renumber before merging.")
+        for id in ids where version(of: id) == nil {
+            return XCTFail("migration identifier '\(id)' is not of the form v<N>[-slug]")
+        }
+
+        // A declared lineage must be true (every member registered) and self-consistent (its own vN
+        // strictly increasing), so the ledger can only shrink deliberately — same rule the divergence
+        // reasons live by.
+        var claimedBy: [String: String] = [:]
+        for (name, lineage) in oracle.lineages.sorted(by: { $0.key < $1.key }) {
+            XCTAssertFalse(lineage.migrations.isEmpty, "lineage '\(name)' declares no migrations — delete it")
+            for id in lineage.migrations {
+                if let other = claimedBy.updateValue(name, forKey: id) {
+                    return XCTFail("'\(id)' is claimed by both lineage '\(other)' and '\(name)'")
+                }
+                guard ids.contains(id) else {
+                    return XCTFail("lineage '\(name)' declares '\(id)', which is not registered — a lineage "
+                                   + "entry that stopped being true must be deleted, not left to rot")
+                }
+            }
+            let numbers = lineage.migrations.compactMap(version(of:))
+            for (a, b) in zip(numbers, numbers.dropFirst()) where b <= a {
+                return XCTFail("lineage '\(name)' goes v\(a) then v\(b) — a lineage numbers its own "
+                               + "migrations, so its vN must strictly increase")
+            }
+        }
+
+        let baseline = ids.filter { claimedBy[$0] == nil }
+        for (offset, id) in baseline.enumerated() where version(of: id) != offset + 1 {
+            return XCTFail("GRDB migration '\(id)' claims v\(version(of: id)!) but is #\(offset + 1) in the "
+                           + "BASELINE lineage (registration order minus every lineage schema_oracle.json "
+                           + "declares) — two migrations claiming the same vN, or a gap, makes the "
+                           + "GRDB-name <-> Room-version mapping ambiguous. Renumber before merging, or, if "
+                           + "the identifier already shipped and renaming it would wedge a live database, "
+                           + "declare it in grdbMigrationLineages with a reason.")
         }
     }
 

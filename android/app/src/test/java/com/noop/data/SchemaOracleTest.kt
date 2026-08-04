@@ -238,24 +238,66 @@ class SchemaOracleTest {
      * migrations by NAME and applies them in registration order; Room keys by integer version, so the
      * only thing that can be compared mechanically is the RESULTING schema — which is what the tests
      * above do. Pinning the two identifier spaces is what forces them to be re-checked together.
+     *
+     * The one sanctioned exception is a DECLARED lineage. A fork that numbered its own migrations before
+     * upstream reached those numbers cannot renumber its way out — GRDB keys by identifier string, so
+     * renaming one makes it read as un-applied on a device that already ran it. Such a fork lists its
+     * identifiers under `grdbMigrationLineages`; everything NOT listed is the baseline lineage and is
+     * still held to exactly v1..vN. An UNDECLARED collision still fails, which is the #369-vs-#475 case.
+     * Mirrors `testGrdbMigrationIdentifiersAreUniqueAndSequential` in the Swift half.
      */
     @Test
     fun pinnedMigrationIdentifiersAreCoherent() {
         val oracle = loadOracle()
         val grdb = oracle.getJSONArray("grdbMigrations").strings()
         assertEquals("duplicate GRDB migration identifier in schema_oracle.json", grdb.size, grdb.toSet().size)
-        grdb.forEachIndexed { i, id ->
-            val n = id.removePrefix("v").takeWhile { it.isDigit() }.toIntOrNull()
+
+        // A declared lineage must be true (every member pinned) and self-consistent (its own vN strictly
+        // increasing), so the ledger can only shrink deliberately — same rule the divergence reasons live by.
+        val lineages = oracle.optJSONObject("grdbMigrationLineages") ?: JSONObject()
+        val claimedBy = HashMap<String, String>()
+        for (name in lineages.keys().asSequence().sorted()) {
+            val migrations = lineages.getJSONObject(name).getJSONArray("migrations").strings()
+            assertTrue("lineage '$name' declares no migrations — delete it", migrations.isNotEmpty())
+            val numbers = migrations.map { id ->
+                val other = claimedBy.put(id, name)
+                assertTrue("'$id' is claimed by both lineage '$other' and '$name'", other == null)
+                assertTrue(
+                    "lineage '$name' declares '$id', which is not in grdbMigrations — a lineage entry that " +
+                        "stopped being true must be deleted, not left to rot",
+                    grdb.contains(id),
+                )
+                val n = migrationVersion(id)
+                assertNotNull("lineage '$name' member '$id' is not of the form v<N>[-slug]", n)
+                n!!
+            }
+            numbers.zipWithNext { a, b ->
+                assertTrue(
+                    "lineage '$name' goes v$a then v$b — a lineage numbers its own migrations, so its vN " +
+                        "must strictly increase",
+                    b > a,
+                )
+            }
+        }
+
+        grdb.filterNot { claimedBy.containsKey(it) }.forEachIndexed { i, id ->
             assertEquals(
-                "GRDB migration '$id' claims v$n but is #${i + 1} in registration order — two migrations " +
-                    "claiming the same vN, or a gap, makes the GRDB-name <-> Room-version mapping ambiguous.",
+                "GRDB migration '$id' claims v${migrationVersion(id)} but is #${i + 1} in the BASELINE " +
+                    "lineage (grdbMigrations minus every lineage grdbMigrationLineages declares) — two " +
+                    "migrations claiming the same vN, or a gap, makes the GRDB-name <-> Room-version " +
+                    "mapping ambiguous. Renumber before merging, or, if the identifier already shipped and " +
+                    "renaming it would wedge a live database, declare it in grdbMigrationLineages.",
                 i + 1,
-                n,
+                migrationVersion(id),
             )
         }
         // loadRoomSchema asserts the exported version equals this; call it so the check is not vacuous.
         loadRoomSchema(oracle.getInt("roomVersion"))
     }
+
+    /** The `N` of a `v<N>[-slug]` migration identifier, or null if it is not of that form. */
+    private fun migrationVersion(id: String): Int? =
+        id.removePrefix("v").takeWhile { it.isDigit() }.toIntOrNull()
 
     /**
      * The Android and Swift copies of the oracle MUST be byte-identical, so neither platform can edit its
