@@ -86,7 +86,22 @@ public enum OuraStreamMapping {
                 // Oura reports a single SpO2 channel; `SpO2Sample` is the WHOOP-shaped two-channel raw row,
                 // so we record the decoded value on `red` and leave `ir` at 0 (no second channel). `unit`
                 // carries the decoder's own scale tag ("raw"/"dc_raw") so downstream never assumes a %.
-                out.spo2.append(SpO2Sample(ts: ts, red: v.value, ir: 0, unit: v.unit))
+                //
+                // Each sample gets its OWN second. `spo2Sample` is keyed (deviceId, ts), so the 13 samples
+                // of one 0x6F record written at the record's single `ts` collided and only the first
+                // survived — 92% of an overnight silently discarded, and unrecoverable because the ring
+                // trims its banked history once the offload is acked (#1070). The samples are one per
+                // second (measured: 13 values per packet at a 13 s median packet interval, p10 12 / p90 14,
+                // so they tile the interval at exactly 1 Hz), and they are laid BACKWARD from the record
+                // time — the record envelope marks the WRITE moment, so the LAST sample keeps the record's
+                // own `ts` and the anchor semantics are unchanged. Same derivation standard the
+                // hypnogram assembler is held to (see `.sleepPhase` below, which lays a burst's codes
+                // backward at the documented 30 s epoch from its anchored end, precisely so every code
+                // is a distinct row): a documented cadence plus a record anchor, never a guessed one.
+                // `count == 1` (0x7B, and any single-sample record) yields offset 0, i.e. exactly the
+                // previous behaviour. PARITY: the Kotlin twin computes the IDENTICAL second.
+                let sampleTs = ts - max(0, v.count - 1 - v.index)
+                out.spo2.append(SpO2Sample(ts: sampleTs, red: v.value, ir: 0, unit: v.unit))
 
             case .temp(let v):
                 // The decoder yields degrees C. The durable `SkinTempSample.raw` is an integer in the

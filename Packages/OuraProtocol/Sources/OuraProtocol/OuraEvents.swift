@@ -44,12 +44,28 @@ public struct OuraHRV: Equatable, Sendable, Codable {
 }
 
 /// One decoded SpO2 sample. `value` is the raw SpO2 reading; `unit` documents its scale.
+///
+/// A single 0x6F / 0x77 record carries MANY samples, all sharing the record's `ringTimestamp`.
+/// `index`/`count` carry the sample's position within its record so the consumer can give each one its
+/// own second — without them the position is lost at decode time and cannot be recovered downstream,
+/// which is exactly how 12 of every 13 samples were silently dropped on the `(deviceId, ts)` primary
+/// key (#1070). `ringTimestamp` is deliberately left at the RECORD's time: it is the wire anchor, and
+/// the per-sample offset is applied where the durable row is minted (`OuraStreamMapping`), the same
+/// split the hypnogram path already uses. `index` mirrors `OuraSleepPhase.index`.
+///
+/// Both default (`index: 0, count: 1` = "the only sample in its record"), so single-sample decoders
+/// like 0x7B keep the record's own second unchanged.
 public struct OuraSpO2: Equatable, Sendable, Codable {
     public let ringTimestamp: UInt32
     public let value: Int
     public let unit: String
-    public init(ringTimestamp: UInt32, value: Int, unit: String = "raw") {
+    /// 0-based position of this sample within its record; samples are 1 s apart (consumer applies it).
+    public let index: Int
+    /// Total samples decoded from the same record. `index` is always in `0..<count`.
+    public let count: Int
+    public init(ringTimestamp: UInt32, value: Int, unit: String = "raw", index: Int = 0, count: Int = 1) {
         self.ringTimestamp = ringTimestamp; self.value = value; self.unit = unit
+        self.index = index; self.count = count
     }
 }
 

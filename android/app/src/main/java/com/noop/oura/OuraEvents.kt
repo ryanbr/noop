@@ -27,8 +27,27 @@ data class OuraHR(val ringTimestamp: Long, val bpm: Int, val ibiMs: Int)
  */
 data class OuraHRV(val ringTimestamp: Long, val timeMs: Int, val b1: Int, val b2: Int)
 
-/** One decoded SpO2 sample. `value` is the raw SpO2 reading; `unit` documents its scale. */
-data class OuraSpO2(val ringTimestamp: Long, val value: Int, val unit: String = "raw")
+/**
+ * One decoded SpO2 sample. `value` is the raw SpO2 reading; `unit` documents its scale.
+ *
+ * A single 0x6F / 0x77 record carries MANY samples, all sharing the record's [ringTimestamp].
+ * [index]/[count] carry the sample's position within its record so the consumer can give each one its
+ * own second — without them the position is lost at decode time and cannot be recovered downstream,
+ * which is exactly how 12 of every 13 samples were silently dropped on the (deviceId, ts) primary key
+ * (#1070). [ringTimestamp] stays the RECORD's time (the wire anchor); the per-sample offset is applied
+ * where the durable row is minted (OuraStreamMapping). [index] mirrors OuraSleepPhase.index. Both default
+ * (0 / 1 = "the only sample in its record"), so single-sample decoders like 0x7B are unchanged.
+ * Twin of Swift OuraSpO2 — the fields, defaults and resulting seconds are IDENTICAL.
+ */
+data class OuraSpO2(
+    val ringTimestamp: Long,
+    val value: Int,
+    val unit: String = "raw",
+    /** 0-based position of this sample within its record; samples are 1 s apart. */
+    val index: Int = 0,
+    /** Total samples decoded from the same record. [index] is always in `0 until count`. */
+    val count: Int = 1,
+)
 
 /** One decoded skin-temperature sample in degrees C (value already / 100). */
 data class OuraTemp(val ringTimestamp: Long, val celsius: Double)

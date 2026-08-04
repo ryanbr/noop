@@ -269,10 +269,24 @@ object OuraDecoders {
         while (i < b.size) {
             val raw = b[i]
             if (raw == 0xFF) break                       // terminator
-            out.add(OuraSpO2(ringTimestamp = rec.ringTimestamp, value = raw))
+            // The samples are one PER SECOND, so each carries its position in the record: ringTimestamp
+            // stays the record's anchor and the consumer spreads them over their own seconds. Without the
+            // position the offset is unrecoverable downstream and 12 of every 13 samples collide away on
+            // the (deviceId, ts) primary key (#1070). Swift twin matches exactly.
+            out.add(OuraSpO2(ringTimestamp = rec.ringTimestamp, value = raw, index = out.size))
             i += 1
         }
-        return if (out.isEmpty()) null else out
+        return if (out.isEmpty()) null else stampSampleCount(out)
+    }
+
+    /**
+     * Fill in `count` (the number of samples the record yielded) on every sample of one record. The
+     * total is only known once the body has been walked, so the decoders stamp `index` inline and the
+     * count in one pass at the end. Twin of Swift `stampSampleCount`.
+     */
+    private fun stampSampleCount(samples: List<OuraSpO2>): List<OuraSpO2> {
+        val n = samples.size
+        return samples.map { it.copy(count = n) }
     }
 
     // MARK: - SpO2 stable, BIG-endian (0x7B; s6.6)
@@ -310,16 +324,18 @@ object OuraDecoders {
         }
         val out = ArrayList<OuraSpO2>()
         if (hasBase) {
-            out.add(OuraSpO2(ringTimestamp = rec.ringTimestamp, value = acc, unit = "dc_raw"))
+            out.add(OuraSpO2(ringTimestamp = rec.ringTimestamp, value = acc, unit = "dc_raw", index = 0))
         }
         while (i < b.size) {
             val v = i8(b[i])
             val mag = Math.abs(v) shl scale
             acc += if (v < 0) -mag else mag
-            out.add(OuraSpO2(ringTimestamp = rec.ringTimestamp, value = acc, unit = "dc_raw"))
+            // Same per-sample position as 0x6F (see #1070): this record is multi-sample too, and its
+            // samples reach the same (deviceId, ts)-keyed table, so they collide the same way.
+            out.add(OuraSpO2(ringTimestamp = rec.ringTimestamp, value = acc, unit = "dc_raw", index = out.size))
             i += 1
         }
-        return if (out.isEmpty()) null else out
+        return if (out.isEmpty()) null else stampSampleCount(out)
     }
 
     // MARK: - Temperature (0x46 / 0x69 / 0x75; s6.8)

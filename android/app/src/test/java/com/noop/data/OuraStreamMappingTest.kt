@@ -130,7 +130,50 @@ class OuraStreamMappingTest {
         assertEquals(1, s.spo2.size)
         assertEquals(97, s.spo2.first().red)
         assertEquals(0, s.spo2.first().ir) // unread channel, never a fabricated second reading
+        // Single-sample records (count == 1) keep the record's own second, exactly as before #1070.
         assertEquals(base + 1, s.spo2.first().ts)
+    }
+
+    // #1070: `spo2Sample` is keyed (deviceId, ts). A 0x6F record's 13 per-second samples used to be
+    // written at the record's single `ts`, so twelve collided away on insert and the night was stored at
+    // 1/13 resolution — permanently, since the ring trims its banked history once the offload is acked.
+    // Swift twin: OuraStreamMappingTests.testSpO2PerSampleRecordGetsThirteenDistinctSeconds. The seconds
+    // asserted here are IDENTICAL to the ones the Swift test asserts (parity contract).
+    @Test
+    fun spo2PerSampleRecordGetsThirteenDistinctSeconds() {
+        val n = 13
+        val events = (0 until n).map {
+            OuraEvent.Spo2(OuraSpO2(ringTimestamp = 100, value = 950 + it, unit = "raw", index = it, count = n))
+        }
+        val s = OuraStreamMapping.streams(events, anchor)
+
+        assertEquals(n, s.spo2.size)
+        // Thirteen DISTINCT seconds: nothing can collide on the primary key.
+        assertEquals(n, s.spo2.map { it.ts }.toSet().size)
+        // Laid BACKWARD at 1 s from the record anchor, so the LAST sample keeps the record's own ts.
+        val recordTs = base + 100
+        assertEquals(((recordTs - n + 1)..recordTs).toList(), s.spo2.map { it.ts })
+        assertEquals(recordTs, s.spo2.last().ts)
+        // Order is preserved, so sample i still carries sample i's value.
+        assertEquals((0 until n).map { 950 + it }, s.spo2.map { it.red })
+    }
+
+    @Test
+    fun spo2AdjacentRecordsDoNotOverlap() {
+        // Packets arrive ~13 s apart carrying 13 values, so back-laying tiles the interval exactly:
+        // consecutive records must produce a gapless, non-overlapping series.
+        val n = 13
+        fun secondsFor(ringTs: Long): List<Int> = OuraStreamMapping.streams(
+            (0 until n).map {
+                OuraEvent.Spo2(OuraSpO2(ringTimestamp = ringTs, value = 950, unit = "raw", index = it, count = n))
+            },
+            anchor,
+        ).spo2.map { it.ts }
+
+        val a = secondsFor(100)
+        val b = secondsFor(113)
+        assertTrue(a.toSet().intersect(b.toSet()).isEmpty())
+        assertEquals(((base + 100 - n + 1)..(base + 113)).toList(), a + b)
     }
 
     @Test

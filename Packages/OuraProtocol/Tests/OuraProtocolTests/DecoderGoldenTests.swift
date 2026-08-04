@@ -83,10 +83,34 @@ final class DecoderGoldenTests: XCTestCase {
         // byte6 high nibble 1 (base/status, discarded) ; samples 95,96 ; FF terminator.
         let rec = record("6f0802000100105f60ff")
         let s = OuraDecoders.decodeSpO2PerSample(rec)
+        // Every sample keeps the RECORD's ringTimestamp and carries its own position, so the consumer can
+        // give each one its own second instead of collapsing the record onto one (#1070).
         XCTAssertEqual(s, [
-            OuraSpO2(ringTimestamp: rt, value: 95),
-            OuraSpO2(ringTimestamp: rt, value: 96),
+            OuraSpO2(ringTimestamp: rt, value: 95, index: 0, count: 2),
+            OuraSpO2(ringTimestamp: rt, value: 96, index: 1, count: 2),
         ])
+    }
+
+    func testSpO2PerSample0x6FStampsPositionForEverySample() {
+        // A full 13-value record, the real Gen 3 shape: indices 0..12, count 13 on every sample, and the
+        // record's own ringTimestamp untouched. Terminator absent.
+        let body = (0..<13).map { String(format: "%02x", 90 + $0) }.joined()
+        let rec = record("6f120200010000" + body)   // len 0x12 = 4 rt + 1 status + 13 values
+        let s = OuraDecoders.decodeSpO2PerSample(rec)
+        XCTAssertEqual(s?.count, 13)
+        XCTAssertEqual(s?.map { $0.index }, Array(0..<13))
+        XCTAssertEqual(s?.map { $0.count }, Array(repeating: 13, count: 13))
+        XCTAssertTrue(s?.allSatisfy { $0.ringTimestamp == rt } ?? false)
+    }
+
+    func testSpO2DC0x77StampsPositionForEverySample() {
+        // 0x77 shares the multi-sample shape, so it stamps the same way (it is filtered before the store
+        // today, but the two decoders must stay consistent).
+        // len 0x0b = 4 rt + 1 header + 3 base + 3 deltas ; hasBase -> base is sample 0, then 3 deltas.
+        let rec = record("770b02000100400a0000" + "01ff02")
+        let s = OuraDecoders.decodeSpO2DC(rec)
+        XCTAssertEqual(s?.map { $0.index }, [0, 1, 2, 3])
+        XCTAssertEqual(s?.map { $0.count }, [4, 4, 4, 4])
     }
 
     // MARK: - 0x7B SpO2 stable (BIG-endian footgun)

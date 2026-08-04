@@ -94,7 +94,44 @@ final class OuraStreamMappingTests: XCTestCase {
         XCTAssertEqual(s.spo2.map { $0.red }, [970, 12345])
         XCTAssertEqual(s.spo2.map { $0.ir }, [0, 0])
         XCTAssertEqual(s.spo2.map { $0.unit }, ["raw", "dc_raw"])
+        // Single-sample records (count == 1) keep the record's own second, exactly as before #1070.
         XCTAssertEqual(s.spo2.map { $0.ts }, [ts, ts])
+    }
+
+    // #1070: `spo2Sample` is keyed (deviceId, ts). A 0x6F record's 13 per-second samples used to be
+    // written at the record's single `ts`, so twelve collided away on insert and the night was stored at
+    // 1/13 resolution — permanently, since the ring trims its banked history once the offload is acked.
+    func testSpO2PerSampleRecordGetsThirteenDistinctSeconds() {
+        let n = 13
+        let events = (0..<n).map {
+            OuraEvent.spo2(OuraSpO2(ringTimestamp: 100, value: 950 + $0, unit: "raw", index: $0, count: n))
+        }
+        let s = OuraStreamMapping.streams(from: events, at: ts)
+
+        XCTAssertEqual(s.spo2.count, n)
+        // Thirteen DISTINCT seconds: nothing can collide on the primary key.
+        XCTAssertEqual(Set(s.spo2.map { $0.ts }).count, n, "every sample must land on its own second")
+        // Laid BACKWARD at 1 s from the record anchor, so the LAST sample keeps the record's own ts.
+        XCTAssertEqual(s.spo2.map { $0.ts }, Array((ts - n + 1)...ts))
+        XCTAssertEqual(s.spo2.last?.ts, ts, "the record anchor is unchanged: it is the last sample")
+        // Order is preserved, so sample i still carries sample i's value.
+        XCTAssertEqual(s.spo2.map { $0.red }, (0..<n).map { 950 + $0 })
+    }
+
+    func testSpO2AdjacentRecordsDoNotOverlap() {
+        // Packets arrive ~13 s apart carrying 13 values, so back-laying tiles the interval exactly:
+        // consecutive records must produce a gapless, non-overlapping series.
+        let n = 13
+        let first = (0..<n).map {
+            OuraEvent.spo2(OuraSpO2(ringTimestamp: 100, value: 950, unit: "raw", index: $0, count: n))
+        }
+        let second = (0..<n).map {
+            OuraEvent.spo2(OuraSpO2(ringTimestamp: 113, value: 960, unit: "raw", index: $0, count: n))
+        }
+        let a = OuraStreamMapping.streams(from: first, at: ts).spo2.map { $0.ts }
+        let b = OuraStreamMapping.streams(from: second, at: ts + 13).spo2.map { $0.ts }
+        XCTAssertEqual(Set(a).intersection(Set(b)).count, 0, "adjacent records must not overlap")
+        XCTAssertEqual(a + b, Array((ts - n + 1)...(ts + 13)), "and must tile without a gap")
     }
 
     // MARK: - Temp 0x46/0x75 -> skinTemp:[SkinTempSample] (centi-degree-C, parity with Kotlin)
