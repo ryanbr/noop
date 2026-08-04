@@ -546,10 +546,7 @@ struct LiquidTodayView: View {
         VStack(spacing: 8) {
             sectionHead("HEART RATE", trailing: "Live")
             // #979: the whole-day HR trend (Deep Timeline) still exists but was buried behind Metrics →
-            // Show all → Deep Timeline. Make the live HR card a one-tap route into it, with a visible
-            // "Full day" affordance so it's discoverable again. (This comment used to claim the Deep
-            // Timeline already drew sleep + activity bands — it didn't at the time; the #979 spin-off
-            // added that parity in FullDayChartView.)
+            // Show all → Deep Timeline. The whole live HR card remains a one-tap route into it.
             NavigationLink(value: TabRoute.fullDayChart) {
                 card {
                     VStack(spacing: 10) {
@@ -557,12 +554,6 @@ struct LiquidTodayView: View {
                         // this card, never the whole Today. Shows the current bpm live with a rolling
                         // beat-by-beat trace; falls back to today's banked 5-minute trace when idle.
                         LiquidLiveHR(tint: liquidHeart, fallback: hrValues, animated: dataLoaded)
-                        HStack(spacing: 4) {
-                            Spacer()
-                            Text("Full day").font(StrandFont.caption).foregroundStyle(StrandPalette.accent)
-                            Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(StrandPalette.accent)
-                        }
                     }
                 }
             }
@@ -863,10 +854,9 @@ struct LiquidTodayView: View {
                 }
             }
             NavigationLink(value: TabRoute.metricExplorer) {
-                Text("Show all metrics").font(StrandFont.subhead).foregroundStyle(StrandPalette.accent)
-                    .frame(maxWidth: .infinity).padding(.top, 2)
+                LiquidFullWidthNavigationAction("Show all metrics")
             }
-            .buttonStyle(.plain)
+            .buttonStyle(LiquidPressStyle())
         }
     }
 
@@ -1625,6 +1615,36 @@ private struct LiquidAddButton: View {
     }
 }
 
+/// Shared quiet, full-width navigation affordance used for a secondary dashboard destination.
+/// The containing NavigationLink owns the destination and pressed interaction; this view owns one
+/// consistent token-based surface, typography, geometry, and trailing chevron.
+private struct LiquidFullWidthNavigationAction: View {
+    let title: LocalizedStringKey
+
+    init(_ title: LocalizedStringKey) {
+        self.title = title
+    }
+
+    var body: some View {
+        HStack(spacing: NoopButtonMetrics.iconSpacing) {
+            Text(title)
+                .font(StrandFont.subhead.weight(.semibold))
+            Spacer(minLength: NoopMetrics.space2)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 11, weight: .semibold))
+                .accessibilityHidden(true)
+        }
+        .foregroundStyle(StrandPalette.accent)
+        .padding(.horizontal, NoopButtonMetrics.hPadding)
+        .frame(maxWidth: .infinity)
+        .frame(height: NoopButtonMetrics.height)
+        .frame(minHeight: NoopButtonMetrics.minHitTarget)
+        .contentShape(Rectangle())
+        .background(NoopPanelSurface(cornerRadius: NoopButtonMetrics.cornerRadius))
+        .clipShape(RoundedRectangle(cornerRadius: NoopButtonMetrics.cornerRadius, style: .continuous))
+    }
+}
+
 /// The live heart-rate readout leaf. Owns LiveState so the ~1 Hz HR notifies re-render ONLY this card,
 /// never the whole Today (the isolation the classic Today depends on). Keeps its own rolling buffer of
 /// live samples, shows the current bpm live with a beat-by-beat trace, and falls back to today's banked
@@ -1646,28 +1666,25 @@ private struct LiquidLiveHR: View {
         if let last = fallback.last { return Int(last.rounded()) }
         return nil
     }
-    private var subtitle: String {
-        if isLive { return String(localized: "Live · beat by beat") }
-        if fallback.count >= 2 { return String(localized: "5-minute average · since midnight") }
-        return live.connected ? String(localized: "Waiting for the strap") : String(localized: "Strap not connected")
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("BEATS PER MINUTE").font(StrandFont.overline).tracking(1.6)
-                        .foregroundStyle(StrandPalette.textSecondary)
-                    Text(subtitle).font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
-                }
-                Spacer()
+            HStack(alignment: .center, spacing: NoopMetrics.space2) {
+                Text("BEATS PER MINUTE")
+                    .font(StrandFont.overline)
+                    .tracking(1.6)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                Spacer(minLength: NoopMetrics.space2)
                 if isLive {
-                    // A gentle heartbeat dot that pulses with each incoming sample.
-                    Circle().fill(tint).frame(width: 7, height: 7)
-                        .scaleEffect(beat ? 1.35 : 0.85)
-                        .opacity(beat ? 1 : 0.45)
+                    // Reuses the existing incoming-HR event pulse; no timer or continuous redraw loop.
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(tint)
+                        .scaleEffect(beat ? 1.18 : 0.88)
+                        .opacity(beat ? 1 : 0.62)
                         .animation(.easeOut(duration: 0.28), value: beat)
-                        .padding(.trailing, 2)
+                        .accessibilityHidden(true)
                 }
                 if let hr = bigBpm {
                     (Text("\(hr)").font(StrandFont.rounded(22)).monospacedDigit()
@@ -1678,7 +1695,12 @@ private struct LiquidLiveHR: View {
                 }
             }
             if series.count >= 2 {
-                LiquidThread(bpm: series, tint: tint, height: 92, animated: animated)
+                ZStack {
+                    LiquidHeartRateGrid()
+                    LiquidThread(bpm: series, tint: tint, height: 92, animated: animated)
+                }
+                .frame(height: 92)
+                .clipShape(RoundedRectangle(cornerRadius: NoopMetrics.space2, style: .continuous))
                 HStack {
                     stat(String(localized: "Min"), series.min())
                     Spacer()
@@ -1709,6 +1731,35 @@ private struct LiquidLiveHR: View {
             Text(v.map { String(Int($0.rounded())) } ?? "–")
                 .font(StrandFont.captionNumber).foregroundStyle(StrandPalette.textSecondary)
         }
+    }
+}
+
+/// Static technical grid behind the live trace. Canvas draws only when layout/style changes, so the
+/// incoming heart-rate samples remain the card's sole animation driver.
+private struct LiquidHeartRateGrid: View {
+    var body: some View {
+        Canvas { context, size in
+            var path = Path()
+            let columns = 8
+            let rows = 4
+
+            for column in 1..<columns {
+                let x = size.width * CGFloat(column) / CGFloat(columns)
+                path.move(to: CGPoint(x: x, y: 0))
+                path.addLine(to: CGPoint(x: x, y: size.height))
+            }
+            for row in 1..<rows {
+                let y = size.height * CGFloat(row) / CGFloat(rows)
+                path.move(to: CGPoint(x: 0, y: y))
+                path.addLine(to: CGPoint(x: size.width, y: y))
+            }
+
+            context.stroke(path,
+                           with: .color(StrandPalette.hairline.opacity(0.34)),
+                           lineWidth: 0.5)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 

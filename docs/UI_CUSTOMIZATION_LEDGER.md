@@ -258,6 +258,32 @@ feature rather than by file so they can be reviewed and ported independently.
 - The Today embedding and full Week in Review screen retain their existing header by default.
 - **Type:** Intentional Trends layout cleanup only.
 
+### EXP-013 — Live heart-rate card refinement
+
+- **Date:** 2026-08-04
+- **Files:** `Strand/Liquid/LiquidTodayView.swift`
+- Removed the secondary live-status subtitle and consolidated the card header into one balanced row with
+  the metric heading on the left and the live heart icon, BPM value, and unit on the right.
+- Replaced the live dot with an SF Symbol heart driven by the same incoming `live.heartRate` change event,
+  without adding a timer or continuous animation loop.
+- Added a static, clipped Canvas grid behind the existing trace using the shared hairline token.
+- Preserved the BPM source, sample buffer, update timing, chart renderer, smoothing/scaling behavior,
+  trace color, values, animations, min/average/max statistics, Full day route, card interaction, and BLE.
+- **Type:** Live heart-rate card presentation only.
+
+### EXP-014 — Full-width metrics action
+
+- **Date:** 2026-08-04
+- **Files:** `Strand/Liquid/LiquidTodayView.swift`
+- Added a reusable `LiquidFullWidthNavigationAction` presentation using the shared panel surface,
+  button geometry tokens, typography, mint accent, trailing chevron, and accessible control height.
+- Replaced the standalone Show all metrics text with the full-width action surface.
+- Removed the separate Full day affordance from the Heart Rate card; its existing whole-card
+  `NavigationLink` remains, so tapping anywhere on the card still opens the same full-day route.
+- Preserved both `NavigationLink` values, the existing whole-card Heart Rate interaction, Key Metrics
+  layout, chart layout/data, calculations, bindings, and BLE behavior.
+- **Type:** Dashboard action presentation only.
+
 ## Verification history
 
 | Date | Scope | Result |
@@ -273,6 +299,8 @@ feature rather than by file so they can be reviewed and ported independently.
 | 2026-08-04 | Clean gradient Key Metrics progress fills | `NOOPiOS` Debug physical-device build succeeded; installed and launched on the connected iPhone. `git diff --check` passed; existing unrelated compiler warnings remained. |
 | 2026-08-04 | Compact Trends weekly summary | `NOOPiOS` Debug physical-device build succeeded; installed and launched on the connected iPhone using `com.liammazuz.noop`. Source verification confirmed the date range and day count use the selected digest and the existing week-navigation actions remain unchanged; `git diff --check` passed. Existing unrelated compiler warnings remained. |
 | 2026-08-04 | Pre-PR audit against Ryan main `3b86b6ef` | Branch is 4 commits ahead and 0 behind. Full 41-file diff audited; no BLE, protocol, scoring, sleep-calculation, persistence, networking, HealthKit, data-model, permission, entitlement, or build-configuration changes found. Changes are limited to presentation, approved layout, sync-status placement, and native tab-bar chrome/reselection forwarding. |
+| 2026-08-04 | Live heart-rate card refinement | `NOOPiOS` Debug physical-device build succeeded; installed and launched on the connected iPhone using `com.liammazuz.noop`. Source verification confirmed the pulse reuses incoming heart-rate changes and the static grid adds no timer or continuous redraw loop; `git diff --check` passed. Existing unrelated compiler warnings remained. |
+| 2026-08-04 | Full-width metrics action | `NOOPiOS` Debug physical-device build succeeded; installed and launched on the connected iPhone using `com.liammazuz.noop`. Show all metrics uses the reusable full-width surface; the Heart Rate card retains its whole-card route with no separate Full day control. `git diff --check` passed. Existing unrelated compiler warnings remained. |
 
 ## Required workflow for every future custom UI change
 
