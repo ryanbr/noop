@@ -163,8 +163,7 @@ struct WeeklyDigestContent: View {
 
     private var header: some View {
         ZStack(alignment: .leading) {
-            NoopPanelSurface(tint: DomainTheme.charge.color,
-                             cornerRadius: NoopMetrics.cardRadius,
+            NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius,
                              elevated: true)
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -589,6 +588,11 @@ private struct DigestScoreCard: View {
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .lineLimit(1)
+                    // Trends keeps the Charge scale caption but drops the redundant caption from
+                    // Effort and Rest. Opacity preserves the exact three-column geometry and gauge
+                    // alignment while accessibility remains owned by the card-level summary label.
+                    .opacity(summary.metric == .charge ? 1 : 0)
+                    .accessibilityHidden(summary.metric != .charge)
             }
             if isEmbedded && hasComparison {
                 TrendChip(text: deltaSigned, color: deltaTone)
