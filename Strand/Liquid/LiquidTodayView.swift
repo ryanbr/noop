@@ -549,12 +549,10 @@ struct LiquidTodayView: View {
             // Show all → Deep Timeline. The whole live HR card remains a one-tap route into it.
             NavigationLink(value: TabRoute.fullDayChart) {
                 card {
-                    VStack(spacing: 10) {
-                        // Isolated leaf: it observes LiveState so the ~1 Hz HR notifies re-render ONLY
-                        // this card, never the whole Today. Shows the current bpm live with a rolling
-                        // beat-by-beat trace; falls back to today's banked 5-minute trace when idle.
-                        LiquidLiveHR(tint: liquidHeart, fallback: hrValues, animated: dataLoaded)
-                    }
+                    // Isolated leaf: it observes LiveState so the ~1 Hz HR notifies re-render ONLY
+                    // this card, never the whole Today. Shows the current bpm live with a rolling
+                    // beat-by-beat trace; falls back to today's banked 5-minute trace when idle.
+                    LiquidLiveHR(tint: liquidHeart, fallback: hrValues, animated: dataLoaded)
                 }
             }
             .buttonStyle(LiquidPressStyle())
@@ -1666,15 +1664,28 @@ private struct LiquidLiveHR: View {
         if let last = fallback.last { return Int(last.rounded()) }
         return nil
     }
+    private var subtitle: String {
+        if isLive { return String(localized: "Live · beat by beat") }
+        if fallback.count >= 2 { return String(localized: "5-minute average · since midnight") }
+        return live.connected ? String(localized: "Waiting for the strap") : String(localized: "Strap not connected")
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center, spacing: NoopMetrics.space2) {
-                Text("BEATS PER MINUTE")
-                    .font(StrandFont.overline)
-                    .tracking(1.6)
-                    .foregroundStyle(StrandPalette.textSecondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
+                HStack(spacing: NoopMetrics.space1) {
+                    Text("BEATS PER MINUTE")
+                        .font(StrandFont.overline)
+                        .tracking(1.6)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.65)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(tint)
+                        .fixedSize()
+                        .accessibilityHidden(true)
+                }
+                .layoutPriority(1)
                 Spacer(minLength: NoopMetrics.space2)
                 if isLive {
                     // Reuses the existing incoming-HR event pulse; no timer or continuous redraw loop.
@@ -1694,6 +1705,9 @@ private struct LiquidLiveHR: View {
                         .animation(.easeOut(duration: 0.25), value: hr)
                 }
             }
+            Text(subtitle)
+                .font(StrandFont.caption)
+                .foregroundStyle(StrandPalette.textTertiary)
             if series.count >= 2 {
                 ZStack {
                     LiquidHeartRateGrid()

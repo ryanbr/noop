@@ -9003,6 +9003,64 @@
         }
       }
     },
+    "%lld of 7 days had data": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Für %lld von 7 Tagen sind Daten vorhanden"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld of 7 days had data"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld de 7 días tuvieron datos"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld jours sur 7 contenaient des données"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld giorni su 7 contenevano dati"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld de 7 dias tinham dados"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld из 7 дней содержали данные"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "7 天中有 %lld 天有数据"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "7 天中有 %lld 天有資料"
+          }
+        }
+      }
+    },
     "%lld of 7 days had data this week": {
       "localizations": {
         "de": {
@@ -11600,6 +11658,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld/7 Tage"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld/7 days"
           }
         },
         "es": {

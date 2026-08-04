@@ -591,7 +591,7 @@ private struct DigestScoreCard: View {
                 animatedFraction: animatedFraction
             )
             .frame(maxWidth: .infinity)
-            if isEmbedded && summary.thisWeek.n > 0 && summary.metric == .charge {
+            if isEmbedded && summary.thisWeek.n > 0 {
                 Text(captionText)
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textTertiary)
