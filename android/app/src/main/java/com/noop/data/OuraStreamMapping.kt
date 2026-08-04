@@ -94,6 +94,16 @@ object OuraStreamMapping {
                     // LAST sample keeps the record's own `ts` and the anchor semantics are unchanged.
                     // `count == 1` (0x7B, and any single-sample record) yields offset 0, i.e. exactly the
                     // previous behaviour. PARITY: the Swift twin computes the IDENTICAL second.
+                    //
+                    // This is collision-RARE, not collision-proof. The cadence has a tight tail (p10 12 s),
+                    // and a 12 s gap between two 13-sample records makes the newer record's FIRST second
+                    // equal the older record's last, costing one sample at that boundary. Measured over the
+                    // same overnight: 204 of 1,877 adjacent pairs overlap, by exactly 1 s each, so 204 of
+                    // 24,405 samples (0.84 %) are lost — against 92.3 % before. The insert ignores the
+                    // conflict rather than replacing, so the survivor is the older record's last sample,
+                    // which is the anchor-exact one; what is dropped is the newer record's most
+                    // back-extrapolated sample. Keeping both would need sub-second timestamps, and the row
+                    // key is seconds.
                     val ts = anchor(ev.value.ringTimestamp) ?: continue
                     val sampleTs = ts - maxOf(0, ev.value.count - 1 - ev.value.index)
                     out.spo2.add(Spo2Sample(ts = sampleTs, red = ev.value.value, ir = 0, unit = ev.value.unit))

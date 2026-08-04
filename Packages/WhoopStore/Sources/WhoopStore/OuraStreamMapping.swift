@@ -100,6 +100,15 @@ public enum OuraStreamMapping {
                 // is a distinct row): a documented cadence plus a record anchor, never a guessed one.
                 // `count == 1` (0x7B, and any single-sample record) yields offset 0, i.e. exactly the
                 // previous behaviour. PARITY: the Kotlin twin computes the IDENTICAL second.
+                //
+                // This is collision-RARE, not collision-proof. The cadence has a tight tail (p10 12 s),
+                // and a 12 s gap between two 13-sample records makes the newer record's FIRST second
+                // equal the older record's last, costing one sample at that boundary. Measured over the
+                // same overnight: 204 of 1,877 adjacent pairs overlap, by exactly 1 s each, so 204 of
+                // 24,405 samples (0.84 %) are lost — against 92.3 % before. `spo2Sample` inserts
+                // `ON CONFLICT DO NOTHING`, so the survivor is the older record's last sample, which is
+                // the anchor-exact one; what is dropped is the newer record's most back-extrapolated
+                // sample. Sub-second timestamps would be needed to keep both, and the row key is seconds.
                 let sampleTs = ts - max(0, v.count - 1 - v.index)
                 out.spo2.append(SpO2Sample(ts: sampleTs, red: v.value, ir: 0, unit: v.unit))
 

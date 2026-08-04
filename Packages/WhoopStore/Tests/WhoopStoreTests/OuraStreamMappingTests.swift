@@ -118,9 +118,10 @@ final class OuraStreamMappingTests: XCTestCase {
         XCTAssertEqual(s.spo2.map { $0.red }, (0..<n).map { 950 + $0 })
     }
 
-    func testSpO2AdjacentRecordsDoNotOverlap() {
+    func testSpO2AdjacentRecordsTileAtTheNominalCadence() {
         // Packets arrive ~13 s apart carrying 13 values, so back-laying tiles the interval exactly:
-        // consecutive records must produce a gapless, non-overlapping series.
+        // at the NOMINAL cadence consecutive records produce a gapless, non-overlapping series.
+        // The tight tail is covered separately below.
         let n = 13
         let first = (0..<n).map {
             OuraEvent.spo2(OuraSpO2(ringTimestamp: 100, value: 950, unit: "raw", index: $0, count: n))
@@ -132,6 +133,25 @@ final class OuraStreamMappingTests: XCTestCase {
         let b = OuraStreamMapping.streams(from: second, at: ts + 13).spo2.map { $0.ts }
         XCTAssertEqual(Set(a).intersection(Set(b)).count, 0, "adjacent records must not overlap")
         XCTAssertEqual(a + b, Array((ts - n + 1)...(ts + 13)), "and must tile without a gap")
+    }
+
+    func testSpO2TightCadenceOverlapsByExactlyOneSecond() {
+        // The cadence has a tight tail (p10 12 s). Back-laying 13 samples from a record only 12 s after
+        // the previous one makes the newer record's FIRST second equal the older record's LAST — one
+        // sample lost at that boundary on the (deviceId, ts) key. That is bounded and expected, not a
+        // regression: measured over a real overnight it costs 0.84 % of samples, against 92.3 % before.
+        // This test pins the bound at ONE second so a future change to the lay cannot widen it silently.
+        let n = 13
+        let first = (0..<n).map {
+            OuraEvent.spo2(OuraSpO2(ringTimestamp: 100, value: 950, unit: "raw", index: $0, count: n))
+        }
+        let second = (0..<n).map {
+            OuraEvent.spo2(OuraSpO2(ringTimestamp: 112, value: 960, unit: "raw", index: $0, count: n))
+        }
+        let a = OuraStreamMapping.streams(from: first, at: ts).spo2.map { $0.ts }
+        let b = OuraStreamMapping.streams(from: second, at: ts + 12).spo2.map { $0.ts }
+        XCTAssertEqual(Set(a).intersection(Set(b)), [ts], "exactly one second overlaps, the older anchor")
+        XCTAssertEqual(Set(a).union(Set(b)).count, 2 * n - 1, "so 25 distinct seconds carry 26 samples")
     }
 
     // MARK: - Temp 0x46/0x75 -> skinTemp:[SkinTempSample] (centi-degree-C, parity with Kotlin)

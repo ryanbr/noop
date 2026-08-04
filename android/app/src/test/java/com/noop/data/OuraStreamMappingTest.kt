@@ -159,9 +159,10 @@ class OuraStreamMappingTest {
     }
 
     @Test
-    fun spo2AdjacentRecordsDoNotOverlap() {
+    fun spo2AdjacentRecordsTileAtTheNominalCadence() {
         // Packets arrive ~13 s apart carrying 13 values, so back-laying tiles the interval exactly:
-        // consecutive records must produce a gapless, non-overlapping series.
+        // at the NOMINAL cadence consecutive records produce a gapless, non-overlapping series.
+        // The tight tail is covered separately below.
         val n = 13
         fun secondsFor(ringTs: Long): List<Int> = OuraStreamMapping.streams(
             (0 until n).map {
@@ -174,6 +175,28 @@ class OuraStreamMappingTest {
         val b = secondsFor(113)
         assertTrue(a.toSet().intersect(b.toSet()).isEmpty())
         assertEquals(((base + 100 - n + 1)..(base + 113)).toList(), a + b)
+    }
+
+    @Test
+    fun spo2TightCadenceOverlapsByExactlyOneSecond() {
+        // The cadence has a tight tail (p10 12 s). Back-laying 13 samples from a record only 12 s after
+        // the previous one makes the newer record's FIRST second equal the older record's LAST — one
+        // sample lost at that boundary on the (deviceId, ts) key. That is bounded and expected, not a
+        // regression: measured over a real overnight it costs 0.84 % of samples, against 92.3 % before.
+        // Pins the bound at ONE second so a future change to the lay cannot widen it silently.
+        // PARITY: the Swift twin asserts the IDENTICAL overlap.
+        val n = 13
+        fun secondsFor(ringTs: Long): List<Int> = OuraStreamMapping.streams(
+            (0 until n).map {
+                OuraEvent.Spo2(OuraSpO2(ringTimestamp = ringTs, value = 950, unit = "raw", index = it, count = n))
+            },
+            anchor,
+        ).spo2.map { it.ts }
+
+        val a = secondsFor(100)
+        val b = secondsFor(112)
+        assertEquals(setOf(base + 100), a.toSet().intersect(b.toSet()))
+        assertEquals(2 * n - 1, a.toSet().union(b.toSet()).size)
     }
 
     @Test

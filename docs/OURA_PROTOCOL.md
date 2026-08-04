@@ -462,7 +462,14 @@ like its sibling banked streams (`.hrv`/`.temp`/`.spo2`/`.sleepPhase`) — the f
   **last** sample keeps the record's own `ts` and the record's anchor semantics are unchanged. The record
   envelope marks the WRITE moment, exactly as for the hypnogram burst (§6.12). Cadence is derived, not
   assumed: a real Gen 3 overnight gives 13 values per packet at a 13 s median packet interval (p10 12,
-  p90 14), so the samples tile the interval at exactly 1 Hz with no overlap between adjacent packets.
+  p90 14), so the samples tile the interval at exactly 1 Hz. This is collision-**rare**, not
+  collision-proof — the cadence has a tight tail, and a 12 s gap between two 13-sample records makes the
+  newer record's first second equal the older record's last, costing one sample at that boundary. On the
+  same overnight 204 of 1,877 adjacent pairs overlap, by exactly 1 s each: **204 of 24,405 samples
+  (0.84 %) lost, against 92.3 % before**. Both platforms insert ignoring the conflict (`DO NOTHING` /
+  `OnConflictStrategy.IGNORE`), so the survivor is the older record's *last* sample — the anchor-exact
+  one — and what is dropped is the newer record's most back-extrapolated sample. Keeping both would
+  require sub-second timestamps; the row key is seconds.
 - **`0x6F` is a FIRMWARE-COMPUTED PERCENTAGE, not a raw ADC** — independently documented by open_oura
   (`docs/spo2-calibration.md`, branch `swim-sessions-and-rdata-spike`), which classes `0x6F`
   (`API_SPO2_EVENT`) and `0x70` (`API_SPO2_SMOOTHED_EVENT`) as firmware-computed percentages, distinct
