@@ -251,10 +251,12 @@ feature rather than by file so they can be reviewed and ported independently.
   localized date range plus days-with-data count beneath the centered selected-week title.
 - Kept both week-navigation arrows and the existing selected-week digest source, offset binding,
   range boundaries, button actions, empty-week handling, and accessibility descriptions.
-- Vertically centered the visible Charge, Effort, and Rest metric groups independently within the
-  compact shared row. Removed the invisible caption and comparison placeholders that made Effort and
-  Rest appear top-heavy, without increasing the card height. Preserved the three columns, dividers,
-  gauges, values, animations, calculations, and bindings.
+- Top-aligns the shared label and gauge rows so Charge, Effort, and Rest stay level without reserving
+  empty caption or comparison rows beneath the gauges. This removes the unused lower-card space while
+  preserving optional visible comparison chips.
+- Moves the localized `of 100` / `of 21` scale into a compact popover opened by tapping its gauge; Effort
+  continues to follow the selected display scale. Adds a small design-token gap between the selected-week
+  header and gauge card. Values, calculations, bindings, dividers, and gauge animation remain unchanged.
 - The Today embedding and full Week in Review screen retain their existing header by default.
 - **Type:** Intentional Trends layout cleanup only.
 
