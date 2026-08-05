@@ -375,6 +375,25 @@ feature rather than by file so they can be reviewed and ported independently.
   accessibility descriptions, card geometry, and all data bindings.
 - **Type:** Appearance compatibility only; no layout, navigation, state, or behavior changes.
 
+### EXP-021 — Live workout glanceable vertical stack
+
+- **Date:** 2026-08-05
+- **Files:** `Strand/Screens/LiveWorkoutView.swift`
+- **Request:** Match the live workout screen to the provided glanceable mock by rearranging existing
+  elements only — no functional changes.
+- **Implementation:** Split the combined hero card into a vertical stack of centered TIME, HEART RATE
+  (bpm under the value), and Effort (live number with EFFORT BUILDING + intensity label beneath). Moved
+  the zone status capsule onto the HR ZONE header row beside the label, with the existing Z1–Z5 rail and
+  caption directly below. Removed the side-by-side Effort card chrome / bolt affordance and the in-vessel
+  scale denominator so the Effort block matches the mock’s centered text hierarchy. AVG / PEAK / EFFORT
+  summary, End workout control, recording badge, scenic Effort backdrop, and optional sensor row retain
+  their prior roles; sensor stagger index bumped to 6 to follow the extra layout slots.
+- **Preserved:** Workout timer (`TimelineView` from `activeWorkout.start`), live BPM and zone derivation,
+  Effort scale conversion and `StrainGauge` intensity thresholds, avg/peak/effort stats sources, realtime
+  HR arming, keep-awake behavior, End confirmation + `endWorkout` / `onClose`, sensor leaf isolation, and
+  all accessibility values for Effort.
+- **Type:** Experimental live-workout layout rearrangement only; no workout behavior or calculation changes.
+
 ## Verification history
 
 | Date | Scope | Result |
@@ -394,6 +413,7 @@ feature rather than by file so they can be reviewed and ported independently.
 | 2026-08-04 | Full-width metrics action | `NOOPiOS` Debug physical-device build succeeded; installed and launched on the connected iPhone using `com.liammazuz.noop`. Show all metrics uses the reusable full-width surface; the Heart Rate card retains its whole-card route with no separate Full day control. `git diff --check` passed. Existing unrelated compiler warnings remained. |
 | 2026-08-04 | PR review presentation restorations | i18n CI audit and `git diff --check` passed. A clean `NOOPiOS` Debug physical-device build succeeded, including `DevicesView`; the signed `com.liammazuz.noop` build was installed and launched on the connected iPhone. Source-path verification confirmed the upstream Live HR subtitle branches, weekly gauge captions, selected-week localization inputs, and unchanged Full day destination. |
 | 2026-08-04 | Live workout glanceable hierarchy | i18n CI audit and `git diff --check` passed. The `NOOPiOS` Debug physical-device build succeeded and the signed `com.liammazuz.noop` app was installed and launched on the connected iPhone. Diff verification confirmed all workout data sources, calculations, lifecycle hooks, sensor isolation, actions, and confirmation behavior remain unchanged. Existing unrelated compiler warnings remained. |
+| 2026-08-05 | Live workout glanceable vertical stack | `NOOPiOS` Debug physical-device build succeeded; signed `com.liammazuz.noop` (team `P2874N8GRQ`) installed and launched on Liam's iPhone. Source verification confirmed timer, BPM/zone, Effort scale, stats, realtime HR, keep-awake, End confirm, and sensor leaf behavior unchanged. |
 
 ## Required workflow for every future custom UI change
 

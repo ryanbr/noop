@@ -46,8 +46,10 @@ struct LiveWorkoutView: View {
             VStack(alignment: .leading, spacing: NoopMetrics.sectionSpacing) {
                 let cards: [AnyView] = [
                     AnyView(header),
-                    AnyView(heroHeartRate),
+                    AnyView(timeBlock),
+                    AnyView(heartRateBlock),
                     AnyView(effortGauge),
+                    AnyView(zoneSection),
                     AnyView(statsGrid),
                 ]
                 ForEach(Array(cards.enumerated()), id: \.offset) { index, card in
@@ -125,123 +127,98 @@ struct LiveWorkoutView: View {
         }
     }
 
-    private var heroHeartRate: some View {
-        let tint = zone >= 1 ? StrandPalette.hrZoneColor(zone) : StrandPalette.effortColor
-        return NoopCard(padding: NoopMetrics.space6, tint: StrandPalette.effortColor) {
-            VStack(spacing: NoopMetrics.space5) {
-                if let start = model.activeWorkout?.start {
-                    VStack(spacing: NoopMetrics.space1) {
-                        Text("TIME")
-                            .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
-                            .foregroundStyle(StrandPalette.textSecondary)
-                        TimelineView(.periodic(from: .now, by: 1)) { _ in
-                            Text(Self.elapsed(since: start))
-                                .font(StrandFont.number(48)).monospacedDigit()
-                                .foregroundStyle(StrandPalette.textPrimary)
-                                .contentTransition(.numericText())
-                        }
+    /// Centered elapsed-time stack — same TimelineView source as before; card chrome removed so
+    /// TIME sits as a free hero metric above heart rate.
+    private var timeBlock: some View {
+        Group {
+            if let start = model.activeWorkout?.start {
+                VStack(spacing: NoopMetrics.space1) {
+                    Text("TIME")
+                        .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                    TimelineView(.periodic(from: .now, by: 1)) { _ in
+                        Text(Self.elapsed(since: start))
+                            .font(StrandFont.number(56)).monospacedDigit()
+                            .foregroundStyle(StrandPalette.textPrimary)
+                            .contentTransition(.numericText())
                     }
                 }
-
-                Rectangle()
-                    .fill(StrandPalette.hairline)
-                    .frame(height: 1)
-
-                HStack(alignment: .center, spacing: NoopMetrics.space4) {
-                    VStack(alignment: .leading, spacing: NoopMetrics.space1) {
-                        Text("HEART RATE")
-                            .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
-                            .foregroundStyle(StrandPalette.textSecondary)
-                        HStack(alignment: .firstTextBaseline, spacing: NoopMetrics.space1) {
-                            if let bpm = model.bpm {
-                                CountUpText(value: Double(bpm),
-                                            format: { "\(Int($0.rounded()))" },
-                                            font: StrandFont.rounded(72, weight: .semibold),
-                                            color: tint)
-                            } else {
-                                Text("—")
-                                    .font(StrandFont.rounded(72, weight: .semibold))
-                                    .foregroundStyle(tint)
-                            }
-                            Text("bpm")
-                                .font(StrandFont.subhead)
-                                .foregroundStyle(StrandPalette.textSecondary)
-                        }
-                    }
-                    Spacer(minLength: 0)
-                    Text(zone >= 1 ? "Zone \(zone) · \(Self.zoneName(zone))" : "Below Zone 1")
-                        .font(StrandFont.captionNumber)
-                        .foregroundStyle(tint)
-                        .multilineTextAlignment(.trailing)
-                        .padding(.horizontal, NoopMetrics.space2)
-                        .padding(.vertical, NoopMetrics.space1)
-                        .background(tint.opacity(0.12), in: Capsule())
-                }
-
-                zoneRail
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: .infinity)
         }
     }
 
-    /// The accumulating Effort, on the same layered StrainGauge the rest of the app uses — the live
-    /// `liveStrain` is on NOOP's 0–100 Effort axis. The gauge renders on the user's selected Effort
-    /// scale (#313): 0–100 native, or rescaled to WHOOP's 0–21, matching the rest of the app's
-    /// read-outs (mirrors TodayView's effort hero). Display-only — the captured value stays 0–100.
+    /// Centered live HR stack — bpm unit sits under the value; the zone capsule moved to `zoneSection`.
+    private var heartRateBlock: some View {
+        let tint = zone >= 1 ? StrandPalette.hrZoneColor(zone) : StrandPalette.effortColor
+        return VStack(spacing: NoopMetrics.space1) {
+            Text("HEART RATE")
+                .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
+                .foregroundStyle(StrandPalette.textSecondary)
+            if let bpm = model.bpm {
+                CountUpText(value: Double(bpm),
+                            format: { "\(Int($0.rounded()))" },
+                            font: StrandFont.rounded(72, weight: .semibold),
+                            color: tint)
+            } else {
+                Text("—")
+                    .font(StrandFont.rounded(72, weight: .semibold))
+                    .foregroundStyle(tint)
+            }
+            Text("bpm")
+                .font(StrandFont.subhead)
+                .foregroundStyle(StrandPalette.textSecondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// Centered Effort stack — same `liveStrain` / Effort-scale conversion and `StrainGauge` intensity
+    /// label as before. Card chrome and side-by-side layout removed so the value sits as a free hero
+    /// metric between heart rate and the zone rail. Display-only; captured value stays 0–100.
     private var effortGauge: some View {
         let strain = model.activeWorkout?.liveStrain ?? 0
         let displayEffort = UnitFormatter.effortValue(strain, scale: effortScale)
         let maxValue = effortScale == .whoop ? 21.0 : 100.0
-        let maxLabel = UnitFormatter.effortScaleMax(effortScale)
         let fraction = min(max(displayEffort / maxValue, 0), 1)
-        return NoopCard(padding: NoopMetrics.cardInnerPadding, tint: StrandPalette.effortColor) {
-            HStack(spacing: NoopMetrics.space5) {
-                VStack(alignment: .leading, spacing: NoopMetrics.space2) {
-                    Image(systemName: "bolt.fill")
-                        .font(.system(size: 24, weight: .semibold))
-                        .foregroundStyle(StrandPalette.effortColor)
-                    Text("EFFORT BUILDING")
-                        .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
-                        .foregroundStyle(StrandPalette.effortColor)
-                    Text(StrainGauge.stateLabel(forFraction: fraction))
-                        .font(StrandFont.captionNumber)
-                        .foregroundStyle(StrandPalette.textSecondary)
-                }
-                Spacer(minLength: 0)
-                ZStack {
-                    LiquidVessel(value: fraction, tint: StrandPalette.effortColor, animated: true)
-                    VStack(spacing: 1) {
-                        CountUpText(value: displayEffort,
-                                    format: { value in
-                                        effortScale == .whoop
-                                            ? String(format: "%.1f", value)
-                                            : "\(Int(value.rounded()))"
-                                    },
-                                    font: StrandFont.rounded(30, weight: .semibold),
-                                    color: StrandPalette.textPrimary)
-                        Text(String(localized: "of \(maxLabel)"))
-                            .font(StrandFont.footnote)
-                            .foregroundStyle(StrandPalette.textSecondary)
-                    }
-                    .shadow(color: .black.opacity(0.5), radius: 6, y: 1)
-                    .allowsHitTesting(false)
-                }
-                .frame(width: 124, height: 124)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text(UnitFormatter.effortDisplay(strain, scale: effortScale)))
-                .accessibilityValue(Text(StrainGauge.stateLabel(forFraction: fraction)))
-            }
-            .frame(maxWidth: .infinity)
+        return VStack(spacing: NoopMetrics.space1) {
+            CountUpText(value: displayEffort,
+                        format: { value in
+                            effortScale == .whoop
+                                ? String(format: "%.1f", value)
+                                : "\(Int(value.rounded()))"
+                        },
+                        font: StrandFont.rounded(56, weight: .semibold),
+                        color: StrandPalette.textPrimary)
+            .accessibilityLabel(Text(UnitFormatter.effortDisplay(strain, scale: effortScale)))
+            .accessibilityValue(Text(StrainGauge.stateLabel(forFraction: fraction)))
+
+            Text("EFFORT BUILDING")
+                .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
+                .foregroundStyle(StrandPalette.effortColor)
+            Text(StrainGauge.stateLabel(forFraction: fraction))
+                .font(StrandFont.captionNumber)
+                .foregroundStyle(StrandPalette.textSecondary)
         }
+        .frame(maxWidth: .infinity)
     }
 
-    private var zoneRail: some View {
-        VStack(alignment: .leading, spacing: 8) {
+    /// Zone status capsule + rail + caption — same zone derivation and copy; capsule sits on the
+    /// HR ZONE header row instead of beside the heart-rate value.
+    private var zoneSection: some View {
+        let tint = zone >= 1 ? StrandPalette.hrZoneColor(zone) : StrandPalette.effortColor
+        return VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("HR ZONE")
                     .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
                     .foregroundStyle(StrandPalette.textSecondary)
                 Spacer()
+                Text(zone >= 1 ? "Zone \(zone) · \(Self.zoneName(zone))" : "Below Zone 1")
+                    .font(StrandFont.captionNumber)
+                    .foregroundStyle(tint)
+                    .multilineTextAlignment(.trailing)
+                    .padding(.horizontal, NoopMetrics.space2)
+                    .padding(.vertical, NoopMetrics.space1)
+                    .background(tint.opacity(0.12), in: Capsule())
             }
             HStack(spacing: 6) {
                 ForEach(1...5, id: \.self) { z in
@@ -344,7 +321,8 @@ struct LiveWorkoutView: View {
 /// This is a standalone leaf that owns its OWN `@EnvironmentObject live` (the parent `LiveWorkoutView`
 /// no longer observes `LiveState`), so an incoming sensor / R-R packet re-renders only this row, not the
 /// HR hero / effort gauge / zone rail above. The gate, layout and `staggeredAppear(index: 5)` are
-/// preserved verbatim, so the rendered output is byte-for-byte the previous inline code.
+/// preserved verbatim (index bumped to 6 after the glanceable layout split TIME / HR / Effort / zone
+/// into separate stagger slots), so the rendered output matches the previous inline code.
 private struct SensorRowIfPresent: View {
     @EnvironmentObject private var live: LiveState
 
@@ -365,7 +343,7 @@ private struct SensorRowIfPresent: View {
                     }
                 }
             }
-            .staggeredAppear(index: 5)
+            .staggeredAppear(index: 6)
         }
     }
 
