@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
@@ -18,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -159,6 +161,14 @@ private fun StartSportRow(sp: Sport, isSelected: Boolean, onPick: () -> Unit) {
             .clickable(onClick = onPick)
             .padding(vertical = 10.dp),
     ) {
+        // Per-sport glyph (shared sportIcon catalogue), so the picker reads by icon like the iOS
+        // workout selection screen and the Workouts list rows — not a bare text list.
+        Icon(
+            sportIcon(sp.name), contentDescription = null,
+            tint = if (isSelected) Palette.accent else Palette.textSecondary,
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(Modifier.width(12.dp))
         Text(
             sp.name, style = NoopType.body,
             color = if (isSelected) Palette.accent else Palette.textPrimary,
@@ -173,11 +183,11 @@ private fun StartSportRow(sp: Sport, isSelected: Boolean, onPick: () -> Unit) {
 /**
  * Start-a-workout entry for the Workouts screen (#115) — mirrors the Live screen's control so a user
  * can begin a session from either place. Shows a compact "running" banner while a workout is active
- * (the rich live card stays on Live), the "Start workout" button when a strap is bonded, or nothing
- * when there's no strap to stream from (matching Live, which only offers the start when bonded).
+ * (the rich live card stays on Live); otherwise an action row with Start (when a strap is bonded, since
+ * a live session needs the strap to stream) beside Add — or just Add when there's no strap.
  */
 @Composable
-fun WorkoutStartSection(vm: AppViewModel) {
+fun WorkoutStartSection(vm: AppViewModel, onAdd: () -> Unit) {
     val live by vm.live.collectAsStateWithLifecycle()
     val activeWorkout by vm.activeWorkout.collectAsStateWithLifecycle()
     var showSportPicker by remember { mutableStateOf(false) }
@@ -194,9 +204,12 @@ fun WorkoutStartSection(vm: AppViewModel) {
             while (true) { nowMs = System.currentTimeMillis(); delay(1000) }
         }
         val elapsedS = ((nowMs - w.startMs) / 1000).coerceAtLeast(0)
-        NoopCard {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Text(uiString(R.string.l10n_workout_start_w_sport_name_uppercase_e59bc678, w.sport.name.uppercase()), style = NoopType.overline, color = Palette.statusCritical)
+        // Recording: the live banner, with Add kept visible below so a past workout can still be logged
+        // mid-session (it used to live in the range bar).
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            NoopCard {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text(uiString(R.string.l10n_workout_start_w_sport_name_uppercase_e59bc678, w.sport.name.uppercase()), style = NoopType.overline, color = Palette.statusCritical)
                 Spacer(Modifier.width(10.dp))
                 Text(
                     String.format("%d:%02d", elapsedS / 60, elapsedS % 60),
@@ -217,17 +230,26 @@ fun WorkoutStartSection(vm: AppViewModel) {
                         containerColor = Palette.statusCritical, contentColor = Palette.surfaceBase,
                     ),
                 ) { Text(uiString(R.string.l10n_workout_start_end_a2bb9d34), style = NoopType.captionNumber) }
+                }
             }
+            AddWorkoutButton(onAdd, Modifier.fillMaxWidth())
         }
     } else if (live.bonded) {
-        Button(
-            onClick = { showSportPicker = true },
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Palette.accent, contentColor = Palette.surfaceBase,
-            ),
-        ) { Text(uiString(R.string.l10n_workout_start_start_workout_d0f3f2cd), style = NoopType.captionNumber) }
+        // Start + Add as an equal-width action row (EXP-018 parity with the iOS workoutActionRow).
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            Button(
+                onClick = { showSportPicker = true },
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Palette.accent, contentColor = Palette.surfaceBase,
+                ),
+            ) { Text(uiString(R.string.l10n_workout_start_start_workout_d0f3f2cd), style = NoopType.captionNumber) }
+            AddWorkoutButton(onAdd, Modifier.weight(1f))
+        }
+    } else {
+        // No strap to stream from: no live Start, but keep Add so a user with no imports can still log.
+        AddWorkoutButton(onAdd, Modifier.fillMaxWidth())
     }
 
     if (showSportPicker) {

@@ -135,7 +135,6 @@ fun WorkoutsScreen(vm: AppViewModel) {
     val lastHistorySyncAt by vm.lastHistorySyncAt.collectAsStateWithLifecycle()
     // Cached daily metrics — the Charge side of the post-log activity-cost note (#439).
     val recentDays by vm.recentDays.collectAsStateWithLifecycle()
-    var loaded by remember { mutableStateOf(false) }
     var range by remember { mutableStateOf(WorkoutRange.All) }
     // Pick the default range ONCE on first non-empty load; later mutations must not fight a range the
     // user chose. Mirrors macOS, which sets the default only in `.task` / first onAppear.
@@ -209,7 +208,6 @@ fun WorkoutsScreen(vm: AppViewModel) {
 
     LaunchedEffect(Unit) {
         vm.loadWorkouts()
-        loaded = true
     }
     LaunchedEffect(allRows) {
         if (!didPickDefaultRange && allRows.isNotEmpty()) {
@@ -245,13 +243,14 @@ fun WorkoutsScreen(vm: AppViewModel) {
         fullBleedBackground = showDayCycleBackground && skyBehindCards,
     ) {
         // Start (or stop) a workout right here, not only on Live — mirrors the Live control (#115).
+        // Start + Add sit side-by-side as an action row when a strap is bonded (EXP-018 parity).
         item {
-        WorkoutStartSection(vm)
+        WorkoutStartSection(vm, onAdd = { dialog = DialogTarget(null) })
         }
 
         if (allRows.isEmpty()) {
             item {
-            EmptyWorkouts(loaded, onAdd = { dialog = DialogTarget(null) })
+            EmptyWorkouts()
             }
         } else {
             // Resolve the effective range + windowed rows + per-sport groups once. #64: the pure
@@ -269,7 +268,6 @@ fun WorkoutsScreen(vm: AppViewModel) {
                 fellBack = fellBack,
                 filterActive = filter.isActive,
                 onSelect = { range = it },
-                onAdd = { dialog = DialogTarget(null) },
             )
             }
             item {
@@ -365,15 +363,14 @@ private data class WorkoutRecoveryTrendPoint(
 // MARK: - Empty / loading state
 
 @Composable
-private fun EmptyWorkouts(loaded: Boolean, onAdd: () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        DataPendingNote(
-            title = uiString(R.string.l10n_workouts_screen_no_workouts_yet_85a92042),
-            body = "No workouts yet. They come from your WHOOP and Apple Health history. " +
-                "Import in Data Sources to bring them in, or add one you tracked elsewhere.",
-        )
-        if (loaded) AddWorkoutButton(onAdd)
-    }
+private fun EmptyWorkouts() {
+    // Add lives in the action row above (WorkoutStartSection provides it in every idle state), so the
+    // empty state is just the note — no second Add button here.
+    DataPendingNote(
+        title = uiString(R.string.l10n_workouts_screen_no_workouts_yet_85a92042),
+        body = "No workouts yet. They come from your WHOOP and Apple Health history. " +
+            "Import in Data Sources to bring them in, or add one you tracked elsewhere.",
+    )
 }
 
 /**
@@ -408,13 +405,14 @@ private fun PostLogNoteBanner(text: String) {
 /** The "Add workout" pill — opens the manual add dialog. Shown on both the populated screen
  *  (in the range bar) and the empty state, so a user with no imports can still log a session. */
 @Composable
-private fun AddWorkoutButton(onAdd: () -> Unit) {
+internal fun AddWorkoutButton(onAdd: () -> Unit, modifier: Modifier = Modifier) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .clip(RoundedCornerShape(50))
             .background(Palette.accentMuted)
             .clickable(onClick = onAdd)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(Icons.Filled.Add, contentDescription = null, tint = Palette.accent, modifier = Modifier.size(16.dp))
@@ -433,12 +431,10 @@ private fun RangeBar(
     fellBack: Boolean,
     filterActive: Boolean,
     onSelect: (WorkoutRange) -> Unit,
-    onAdd: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        // Phone width can't fit the labelled Add button beside the 5-segment range pill without
-        // crushing/clipping one — stack them (button, then pill), matching the iPhone fix (#234/#339).
-        AddWorkoutButton(onAdd)
+        // Add moved up beside Start in WorkoutStartSection (glanceable action row), so the range pill
+        // now owns this row alone — no more Add-vs-5-segment-pill width fight (#234/#339).
         SegmentedPillControl(
             items = WorkoutRange.entries,
             selection = range,
@@ -531,21 +527,10 @@ private fun FilterBar(
                     )
                 }
             }
-            if (filter.isActive) {
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(50))
-                        .clickable(onClick = onClear)
-                        .padding(horizontal = 8.dp, vertical = 6.dp)
-                        .semantics { contentDescription = uiString(R.string.l10n_workouts_screen_clear_filters_41222671) },
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Filled.Close, contentDescription = null, tint = Palette.textSecondary, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(uiString(R.string.l10n_workouts_screen_clear_719ea396), style = NoopType.footnote, color = Palette.textSecondary)
-                }
-            }
         }
+        // Search row: the field with the Clear-filters chip beside it (parity — iOS moved Clear onto the
+        // search row with a 44pt hit target; here a 48dp minimum).
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         OutlinedTextField(
             value = filter.search,
             onValueChange = onSearch,
@@ -560,8 +545,24 @@ private fun FilterBar(
             placeholder = { Text(uiString(R.string.l10n_workouts_screen_search_sport_004b7928), style = NoopType.body, color = Palette.textTertiary) },
             singleLine = true,
             colors = workoutFieldColors(),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.weight(1f),
         )
+            if (filter.isActive) {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .clickable(onClick = onClear)
+                        .heightIn(min = 48.dp)
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                        .semantics { contentDescription = uiString(R.string.l10n_workouts_screen_clear_filters_41222671) },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Filled.Close, contentDescription = null, tint = Palette.textSecondary, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(uiString(R.string.l10n_workouts_screen_clear_719ea396), style = NoopType.footnote, color = Palette.textSecondary)
+                }
+            }
+        }
     }
 }
 
