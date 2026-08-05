@@ -115,6 +115,32 @@ final class HealthKitBridge: ObservableObject {
     private static let quantityWriteIds: [HKQuantityTypeIdentifier] = [
         .restingHeartRate, .heartRateVariabilitySDNN, .oxygenSaturation, .respiratoryRate
     ]
+
+    /// Whether a strap-derived nightly SpO2 is written back to HealthKit as `.oxygenSaturation`.
+    ///
+    /// FALSE, deliberately, and it is not an oversight to be tidied away.
+    ///
+    /// This export loop reads only the computed/imported NOOP device rows — Oura never passes through
+    /// it — so before `spo2Pct` was populated for WHOOP nights this branch never fired even once.
+    /// Turning the field on therefore does not "resume" an export; it STARTS one, and what it would
+    /// start writing is a number nobody has checked against a reference oximeter.
+    ///
+    /// Why that bar is higher here than for the in-app card. A value in the app is read in context,
+    /// next to its own provenance, by the person who built it. A HealthKit sample is different in
+    /// kind: it lands in the system health record under Apple's own Blood Oxygen heading, sits
+    /// alongside clinically-sourced readings with nothing distinguishing it, syncs to iCloud, and is
+    /// readable by every other app the user has authorised. Deleting it later is fiddly and does not
+    /// recall what already propagated.
+    ///
+    /// The evidence genuinely does not reach that bar yet. The decode is well supported —
+    /// distribution, run structure, sleep gating, night-to-night stability, and agreement with this
+    /// user's own Oura-era medians — but ALL of it says "this byte is a real oxygen measurement",
+    /// none of it says "97 means 97". Upstream declines to promote the same metric for the same
+    /// reason: two straps were checked against the WHOOP app and moved in OPPOSITE directions.
+    ///
+    /// Flip this to `true` once paired reference-oximeter nights exist and the bias is characterised
+    /// (and, if the bias is a fixed offset, correct for it before writing rather than here).
+    static let exportsSpo2ToHealthKit = false
     // High-res write-back shares: the continuous 1-minute HR stream, and the energy/distance samples
     // attached to written workouts. Kept out of `quantityWriteIds` so `legacyCoreWriteTypes` (the
     // auth-resume set) stays exactly what pre-update users granted.
@@ -729,7 +755,8 @@ final class HealthKitBridge: ObservableObject {
             if let sdnn = row.avgSdnn ?? row.avgHrv {
                 add(.heartRateVariabilitySDNN, .secondUnit(with: .milli), sdnn, row.day, at)
             }
-            if let spo2 = row.spo2Pct {
+            // DELIBERATELY NOT EXPORTED while `exportsSpo2ToHealthKit` is false — see the constant.
+            if HealthKitBridge.exportsSpo2ToHealthKit, let spo2 = row.spo2Pct {
                 add(.oxygenSaturation, .percent(), spo2 / 100, row.day, at)
             }
             if let rr = row.respRateBpm {
