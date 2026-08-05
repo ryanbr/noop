@@ -355,6 +355,26 @@ feature rather than by file so they can be reviewed and ported independently.
   chart, statistics, sampling, animation, and accessibility hint.
 - **Type:** Live HR affordance presentation only; destination and behavior unchanged.
 
+### EXP-020 — Adaptive Light-mode liquid surfaces
+
+- **Date:** 2026-08-05
+- **Files:** `Strand/Liquid/LiquidPrimitives.swift`, `Strand/Liquid/LiquidSky.swift`,
+  `Strand/Liquid/LiquidTodayView.swift`, `Strand/Screens/LiveWorkoutView.swift`,
+  `Strand/Screens/ScreenScaffold.swift`
+- Replaced fixed dark gauge interiors, gauge tracks, progress-bar tracks, and borders with the existing
+  adaptive NOOP surface and border tokens so these elements resolve correctly in Light and Dark modes.
+- Updated the Today hero values, labels, source badge, and Start session row to use adaptive text and
+  inset-surface tokens because their shared panel surface already adapts with the selected appearance.
+- Replaced fixed-white Today sky headings, header controls, wordmark, battery states, and Live Workout
+  effort-vessel labels with adaptive primary, secondary, and tertiary text tokens.
+- Updated the shared `ScreenScaffold` header to use adaptive title and subtitle tokens over both the
+  new light sky and the original dark sky, fixing Trends and every other sky-backed screen consistently.
+- Added a restrained light-appearance sky ramp so the shared tab background no longer begins with the
+  dark-only near-black keyframes before fading into the light canvas; Dark mode retains its original sky.
+- Preserved gauge values, progress fractions, animations, taps, session action, score-guide actions,
+  accessibility descriptions, card geometry, and all data bindings.
+- **Type:** Appearance compatibility only; no layout, navigation, state, or behavior changes.
+
 ## Verification history
 
 | Date | Scope | Result |
