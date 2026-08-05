@@ -445,7 +445,10 @@ class AiCoach(private val repo: WhoopRepository) {
             .put("model", model)
             .put("messages", messages)
         if (modernParams) {
-            body.put("max_completion_tokens", 900)
+            // #1074: same 4096 cap as the standard path below. This modern-params leg fronts REASONING
+            // models, which count hidden thinking tokens against max_completion_tokens — so 900 starved
+            // them into truncated/empty replies even more readily. A cap, not a target.
+            body.put("max_completion_tokens", 4096)
         } else {
             body.put("temperature", 0.6)
             // #1074: 900 truncated detailed coaching replies mid-sentence on cloud providers (the reporter
