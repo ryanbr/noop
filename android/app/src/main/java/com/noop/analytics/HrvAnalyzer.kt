@@ -364,6 +364,32 @@ object HrvAnalyzer {
      */
     const val COVERAGE_PLAUSIBLE_FLOOR: Double = 1.0 - (COVERAGE_PLAUSIBLE_CEILING - 1.0)
 
+    /**
+     * Whether a window's BEAT-SPREAD statistics — SDNN, and anything derived from it — can be trusted,
+     * given that window's coverage verdict. Pure. Byte-parity twin of Swift `beatSpreadIsTrustworthy`.
+     *
+     * SDNN is the standard deviation of EVERY NN interval in the window, so a capture that holds some
+     * beats twice reports a spread no heart produced. It is not a subtle bias: measured on a ring whose
+     * banked R-R covers 1.25x the wall-clock it spans, a sleeping night reads **197 ms** against a
+     * 40-100 ms physiological range, and the app had no way to refuse the number — [classifyCoverage]
+     * already knew the capture was over-counted, but nothing acted on it.
+     *
+     * Only the two OVER-COUNT verdicts gate. UNDER_COVERED and UNMEASURABLE stay trusted: neither
+     * duplicates a beat. UNMEASURABLE in particular is what a LIVE spot reading looks like — beats
+     * arriving in real time, carrying no timestamps to measure coverage with — and suppressing those
+     * would refuse honest readings, the opposite of the point.
+     *
+     * Successive-difference statistics (RMSSD, pNN50) are deliberately NOT gated here. Their dominant
+     * error on a banked stream was the lost within-second emission order (#823, root-caused in #1072),
+     * which is fixed at the write path; whether they need a gate of their own is a question for a
+     * post-fix capture to answer, not an assumption to bake in now.
+     */
+    fun beatSpreadIsTrustworthy(verdict: RrCoverageVerdict): Boolean = when (verdict) {
+        RrCoverageVerdict.SAME_SECOND_OVER_COUNT, RrCoverageVerdict.CROSS_SECOND_OVER_COUNT -> false
+        RrCoverageVerdict.PLAUSIBLE, RrCoverageVerdict.UNDER_COVERED,
+        RrCoverageVerdict.UNMEASURABLE -> true
+    }
+
     /** Classify a night from its coverage pair. Pure. Byte-parity twin of Swift `classifyCoverage`.
      *
      *  Both platforms use the NEGATED `>` form rather than `<=` so a non-finite input lands identically:

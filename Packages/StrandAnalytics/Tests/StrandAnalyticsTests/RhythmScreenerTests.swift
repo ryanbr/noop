@@ -263,4 +263,44 @@ final class RhythmScreenerTests: XCTestCase {
             }
         }
     }
+
+    // MARK: - Beat-time integrity gate
+
+    /// A window whose beats are partly held twice describes a rhythm the heart never had — and describes
+    /// it as MORE varied, because every statistic here is a spread over the interval cloud. The honest
+    /// answer is `unreadable`. Same beats, same label inputs; only the timestamps differ.
+    func testBankedOverCountedWindowIsUnreadableRatherThanVaried() {
+        let rr = Self.regularSinus()
+        // Banked: 6 beats per record, records 5 s apart — beat-time exceeds the span it is stamped into.
+        let bankedTs = (0..<rr.count).map { ($0 / 6) * 5 }
+        let banked = RhythmScreener.screenWindow(
+            RhythmScreener.WindowInput(rrMs: rr, ts: bankedTs, motionStill: true, meanHR: 60))
+        XCTAssertEqual(banked.label, .unreadable,
+                       "an over-counted capture must not be described, in either direction")
+        XCTAssertNil(banked.sd2, "SD2 is built from SDNN — it must not survive the gate")
+    }
+
+    /// The same beats, honestly stamped, still read normally: the gate keys on MEASURED over-count, not
+    /// on the presence of timestamps.
+    func testHonestlyStampedWindowStillReads() {
+        let rr = Self.regularSinus()
+        let ts = (0..<rr.count).map { $0 }
+        let r = RhythmScreener.screenWindow(
+            RhythmScreener.WindowInput(rrMs: rr, ts: ts, motionStill: true, meanHR: 60))
+        XCTAssertEqual(r.label, .steady)
+        XCTAssertNotNil(r.sd2)
+    }
+
+    /// A LIVE spot capture carries no timestamps, so coverage is unmeasurable — and unmeasurable is not
+    /// over-counted. Those readings must keep working exactly as before.
+    func testWindowWithoutTimestampsIsUnaffected() {
+        let rr = Self.regularSinus()
+        let withTs = RhythmScreener.screenWindow(
+            RhythmScreener.WindowInput(rrMs: rr, ts: (0..<rr.count).map { $0 },
+                                       motionStill: true, meanHR: 60))
+        let withoutTs = RhythmScreener.screenWindow(
+            RhythmScreener.WindowInput(rrMs: rr, motionStill: true, meanHR: 60))
+        XCTAssertEqual(withoutTs.label, withTs.label)
+        XCTAssertEqual(withoutTs.sd2, withTs.sd2)
+    }
 }

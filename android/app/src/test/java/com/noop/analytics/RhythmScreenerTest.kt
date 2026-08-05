@@ -258,4 +258,42 @@ class RhythmScreenerTest {
             }
         }
     }
+
+    // --- Beat-time integrity gate. Twin of the Swift RhythmScreenerTests gate tests. ---
+
+    /** A window whose beats are partly held twice describes a rhythm the heart never had — and describes
+     *  it as MORE varied, because every statistic here is a spread over the interval cloud. The honest
+     *  answer is unreadable. Same beats, same label inputs; only the timestamps differ. */
+    @Test fun bankedOverCountedWindow_isUnreadableRatherThanVaried() {
+        val rr = regularSinus()
+        val bankedTs = (rr.indices).map { (it / 6) * 5 }
+        val banked = RhythmScreener.screenWindow(
+            RhythmScreener.WindowInput(rrMs = rr, ts = bankedTs, motionStill = true, meanHR = 60.0))
+        assertEquals(RhythmRegularity.UNREADABLE, banked.label)
+        assertNull("SD2 is built from SDNN — it must not survive the gate", banked.sd2)
+    }
+
+    /** The same beats, honestly stamped, still read normally: the gate keys on MEASURED over-count, not
+     *  on the presence of timestamps. */
+    @Test fun honestlyStampedWindow_stillReads() {
+        val rr = regularSinus()
+        val r = RhythmScreener.screenWindow(
+            RhythmScreener.WindowInput(rrMs = rr, ts = rr.indices.toList(),
+                                       motionStill = true, meanHR = 60.0))
+        assertEquals(RhythmRegularity.STEADY, r.label)
+        assertNotNull(r.sd2)
+    }
+
+    /** A LIVE spot capture carries no timestamps, so coverage is unmeasurable — and unmeasurable is not
+     *  over-counted. Those readings must keep working exactly as before. */
+    @Test fun windowWithoutTimestamps_isUnaffected() {
+        val rr = regularSinus()
+        val withTs = RhythmScreener.screenWindow(
+            RhythmScreener.WindowInput(rrMs = rr, ts = rr.indices.toList(),
+                                       motionStill = true, meanHR = 60.0))
+        val withoutTs = RhythmScreener.screenWindow(
+            RhythmScreener.WindowInput(rrMs = rr, motionStill = true, meanHR = 60.0))
+        assertEquals(withTs.label, withoutTs.label)
+        assertEquals(withTs.sd2, withoutTs.sd2)
+    }
 }

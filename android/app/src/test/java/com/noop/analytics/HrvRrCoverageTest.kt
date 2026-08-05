@@ -1,6 +1,8 @@
 package com.noop.analytics
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -81,5 +83,40 @@ class HrvRrCoverageTest {
         val ts = listOf(100L, 100L, 101L)
         val rr = listOf(900.0, 1200.0, 1000.0)   // |1200-900| = 300 ms > 30 ms tol
         assertEquals(HrvAnalyzer.rrCoverage(ts, rr), HrvAnalyzer.collapsedCoverage(ts, rr), 1e-9)
+    }
+
+    // --- Acting on the verdict: beat-spread statistics (SDNN). Twin of Swift RrCoverageVerdictTests. ---
+
+    /** The whole point of the gate: an over-counted capture inflates SDNN directly, because SDNN is a
+     *  spread over EVERY interval and some of those intervals are the same beat twice. */
+    @Test fun beatSpreadIsTrustworthy_refusesOverCountedWindows() {
+        assertFalse(HrvAnalyzer.beatSpreadIsTrustworthy(HrvAnalyzer.RrCoverageVerdict.SAME_SECOND_OVER_COUNT))
+        assertFalse(HrvAnalyzer.beatSpreadIsTrustworthy(HrvAnalyzer.RrCoverageVerdict.CROSS_SECOND_OVER_COUNT))
+    }
+
+    /** Nothing else gates. UNDER_COVERED is a capture with holes and UNMEASURABLE is what a LIVE spot
+     *  reading looks like (real-time beats, no timestamps) — neither duplicates a beat, and refusing
+     *  them would suppress honest readings. */
+    @Test fun beatSpreadIsTrustworthy_keepsGapsAndUnmeasurable() {
+        assertTrue(HrvAnalyzer.beatSpreadIsTrustworthy(HrvAnalyzer.RrCoverageVerdict.PLAUSIBLE))
+        assertTrue(HrvAnalyzer.beatSpreadIsTrustworthy(HrvAnalyzer.RrCoverageVerdict.UNDER_COVERED))
+        assertTrue(HrvAnalyzer.beatSpreadIsTrustworthy(HrvAnalyzer.RrCoverageVerdict.UNMEASURABLE))
+    }
+
+    /** End to end on the shape that motivated this: 60 beats delivered as 10 records of 6, each record
+     *  stamping all six at its own second, records 5 s apart — 60 s of beat-time inside a 45 s span. The
+     *  same beats stamped one per second stay trusted. Verdict measured, never assumed from the device. */
+    @Test fun beatSpreadIsTrustworthy_bankedBurstsRefused_honestlySpacedKept() {
+        val rr = List(60) { 1000.0 }
+        val honestTs = (0 until 60).map { it.toLong() }
+        val honest = HrvAnalyzer.classifyCoverage(
+            HrvAnalyzer.rrCoverage(honestTs, rr), HrvAnalyzer.collapsedCoverage(honestTs, rr))
+        assertEquals(HrvAnalyzer.RrCoverageVerdict.PLAUSIBLE, honest)
+        assertTrue(HrvAnalyzer.beatSpreadIsTrustworthy(honest))
+
+        val bankedTs = (0 until 60).map { ((it / 6) * 5).toLong() }
+        val banked = HrvAnalyzer.classifyCoverage(
+            HrvAnalyzer.rrCoverage(bankedTs, rr), HrvAnalyzer.collapsedCoverage(bankedTs, rr))
+        assertFalse("verdict was $banked", HrvAnalyzer.beatSpreadIsTrustworthy(banked))
     }
 }

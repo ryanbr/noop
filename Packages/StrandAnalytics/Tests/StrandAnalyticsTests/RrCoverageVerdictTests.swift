@@ -103,4 +103,48 @@ final class RrCoverageVerdictTests: XCTestCase {
     func testCollapsedAboveCoverageStillClassifiesOnCoverageFirst() {
         XCTAssertEqual(HRVAnalyzer.classifyCoverage(coverage: 0.5, collapsed: 9.9), .underCovered)
     }
+
+    // MARK: - Acting on the verdict: beat-spread statistics (SDNN)
+
+    /// The whole point of the gate: an over-counted capture inflates SDNN directly, because SDNN is a
+    /// spread over EVERY interval and some of those intervals are the same beat twice.
+    func testOverCountedWindowsRefuseBeatSpreadStatistics() {
+        XCTAssertFalse(HRVAnalyzer.beatSpreadIsTrustworthy(.sameSecondOverCount))
+        XCTAssertFalse(HRVAnalyzer.beatSpreadIsTrustworthy(.crossSecondOverCount))
+    }
+
+    /// Nothing else gates. `underCovered` is a capture with holes and `unmeasurable` is what a LIVE spot
+    /// reading looks like (real-time beats, no timestamps to measure coverage with) — neither duplicates
+    /// a beat, and refusing them would suppress honest readings, which is the opposite of the point.
+    func testGapsAndUnmeasurableWindowsStayTrusted() {
+        XCTAssertTrue(HRVAnalyzer.beatSpreadIsTrustworthy(.plausible))
+        XCTAssertTrue(HRVAnalyzer.beatSpreadIsTrustworthy(.underCovered))
+        XCTAssertTrue(HRVAnalyzer.beatSpreadIsTrustworthy(.unmeasurable))
+    }
+
+    /// End to end on the shape that motivated this: beats banked in bursts at their record's second
+    /// (an Oura night — 6 beats per record, records ~5 s apart) cover more beat-time than wall-clock and
+    /// therefore refuse SDNN, while the SAME beats stamped at the times they really occurred stay
+    /// trusted. The verdict is measured from the data, never assumed from the device.
+    func testBankedBeatsRefuseSpreadWhileTheSameBeatsHonestlySpacedDoNot() {
+        let beat = 1000.0                       // 60 bpm
+        let rr = [Double](repeating: beat, count: 60)
+
+        // Honest: one beat per second, so beat-time ~= wall-clock (the whole-second stamps cost the
+        // final interval, which is what the ceiling's rounding allowance exists for).
+        let honestTs = (0..<60).map { $0 }
+        let honest = HRVAnalyzer.classifyCoverage(
+            coverage: HRVAnalyzer.rrCoverage(tsSec: honestTs, rrMs: rr),
+            collapsed: HRVAnalyzer.collapsedCoverage(tsSec: honestTs, rrMs: rr))
+        XCTAssertEqual(honest, .plausible)
+        XCTAssertTrue(HRVAnalyzer.beatSpreadIsTrustworthy(honest))
+
+        // Banked: the same 60 beats delivered as 10 records of 6, each record stamping all six of its
+        // beats at its own second, records 5 s apart. 60 s of beat-time inside a 45 s span.
+        let bankedTs = (0..<60).map { ($0 / 6) * 5 }
+        let banked = HRVAnalyzer.classifyCoverage(
+            coverage: HRVAnalyzer.rrCoverage(tsSec: bankedTs, rrMs: rr),
+            collapsed: HRVAnalyzer.collapsedCoverage(tsSec: bankedTs, rrMs: rr))
+        XCTAssertFalse(HRVAnalyzer.beatSpreadIsTrustworthy(banked), "verdict was \(banked)")
+    }
 }

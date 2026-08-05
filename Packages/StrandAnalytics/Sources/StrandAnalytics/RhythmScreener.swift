@@ -241,6 +241,24 @@ public enum RhythmScreener {
             return .unreadable(nBeats: clean.count, confidence: confidence(for: clean.count))
         }
 
+        // Gate 4: beat-time integrity. Every statistic below is a SPREAD over the interval cloud —
+        // SD2 is built from SDNN outright — so a window whose beats are partly held twice describes a
+        // rhythm the heart never had, and describes it as MORE varied than it was. That is the wrong
+        // direction to be wrong in for a label a person reads. `unreadable` is the honest answer: the
+        // capture cannot support the read, which is exactly what this state exists for.
+        //
+        // Timestamps are optional on `WindowInput`, and without them coverage is not measurable — the
+        // verdict is then `unmeasurable`, which stays readable (a live spot capture has no timestamps
+        // and is perfectly time-accurate). Only a MEASURED over-count gates.
+        if input.ts.count == input.rrMs.count, !input.ts.isEmpty {
+            let coverage = HRVAnalyzer.rrCoverage(tsSec: input.ts, rrMs: input.rrMs)
+            let collapsed = HRVAnalyzer.collapsedCoverage(tsSec: input.ts, rrMs: input.rrMs)
+            let verdict = HRVAnalyzer.classifyCoverage(coverage: coverage, collapsed: collapsed)
+            guard HRVAnalyzer.beatSpreadIsTrustworthy(verdict) else {
+                return .unreadable(nBeats: clean.count, confidence: confidence(for: clean.count))
+            }
+        }
+
         // Core descriptive statistics over the clean (range-filtered, ectopy-kept) series.
         let stats = computeStats(clean)
         let rrLabel = classify(stats)

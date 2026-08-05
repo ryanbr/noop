@@ -50,6 +50,11 @@ public enum HRVAnalyzer {
         /// RMSSD in milliseconds, or nil when too few valid beats.
         public let rmssd: Double?
         /// SDNN (sample SD, ddof=1) in milliseconds, or nil when too few valid beats.
+        ///
+        /// A caller holding the window's TIMESTAMPS should also refuse this value when
+        /// `beatSpreadIsTrustworthy(classifyCoverage(...))` is false: SDNN is a spread over every
+        /// interval, so an over-counted capture inflates it directly. `analyze` cannot do that itself —
+        /// it is given intervals, not times.
         public let sdnn: Double?
         /// Mean NN interval (ms) over the cleaned beats, or nil.
         public let meanNN: Double?
@@ -369,6 +374,33 @@ public enum HRVAnalyzer {
         /// evidence, NOT a clean night: reporting those as `plausible` would claim the capture was fine
         /// when nothing was measurable, which is the opposite of what this verdict exists to do.
         case unmeasurable
+    }
+
+    /// Whether a window's BEAT-SPREAD statistics — SDNN, and anything derived from it — can be trusted,
+    /// given that window's coverage verdict. Pure. Byte-parity twin of Kotlin `beatSpreadIsTrustworthy`.
+    ///
+    /// SDNN is the standard deviation of EVERY NN interval in the window, so a capture that holds some
+    /// beats twice reports a spread no heart produced. It is not a subtle bias: measured on a ring whose
+    /// banked R-R covers 1.25× the wall-clock it spans, a sleeping night reads **197 ms** against a
+    /// 40-100 ms physiological range, and the app had no way to refuse the number — `classifyCoverage`
+    /// already knew the capture was over-counted, but nothing acted on it.
+    ///
+    /// Only the two OVER-COUNT verdicts gate. `underCovered` and `unmeasurable` stay trusted: neither
+    /// duplicates a beat. `unmeasurable` in particular is what a LIVE spot reading looks like — beats
+    /// arriving in real time, carrying no timestamps to measure coverage with — and suppressing those
+    /// would refuse honest readings, the opposite of the point.
+    ///
+    /// Successive-difference statistics (RMSSD, pNN50) are deliberately NOT gated here. Their dominant
+    /// error on a banked stream was the lost within-second emission order (#823, root-caused in #1072),
+    /// which is fixed at the write path; whether they need a gate of their own is a question for a
+    /// post-fix capture to answer, not an assumption to bake in now.
+    public static func beatSpreadIsTrustworthy(_ verdict: RrCoverageVerdict) -> Bool {
+        switch verdict {
+        case .sameSecondOverCount, .crossSecondOverCount:
+            return false
+        case .plausible, .underCovered, .unmeasurable:
+            return true
+        }
     }
 
     /// Tolerance BELOW 1.0 treated as "fits", the mirror of `coveragePlausibleCeiling`. Same allowance,
