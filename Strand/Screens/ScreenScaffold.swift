@@ -47,7 +47,7 @@ struct ScreenScaffold<Content: View, Trailing: View>: View {
             column
             #if os(iOS)
             // Unified side margins matching the liquid home (16pt) so every page's cards + header line up
-            // to the same edges (2026-07-02); macOS keeps the classic 28 in the #else branch.
+            // to the same edges (2026-07-02).
             .padding(.horizontal, 16)
             .padding(.top, 24)
             // The tab bar floats over the scroll content, so the last card sat hidden behind it.
@@ -59,8 +59,14 @@ struct ScreenScaffold<Content: View, Trailing: View>: View {
                    alignment: hSizeClass == .regular ? .center : .leading)
             .frame(maxWidth: .infinity, alignment: .center)
             #else
-            .padding(28)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            // macOS: same 16/24 content rhythm as iOS so shared cards align with Liquid Today, but no
+            // tab-bar clearance (sidebar shell). Cap + centre the readable column on wide detail panes
+            // so lines stay comfortable without stretching phone chrome edge-to-edge.
+            .padding(.horizontal, 16)
+            .padding(.top, 24)
+            .padding(.bottom, 28)
+            .frame(maxWidth: 980, alignment: .center)
+            .frame(maxWidth: .infinity, alignment: .center)
             #endif
         }
         #if os(iOS)

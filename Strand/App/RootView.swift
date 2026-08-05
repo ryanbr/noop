@@ -207,6 +207,9 @@ struct RootView: View {
     /// going empty to non-empty), so clearing the search puts every group back exactly as they left
     /// it. `nil` means no search is in flight; whitespace-only input never arms one.
     @State private var preSearchExpansion: Set<String>? = nil
+    /// Today header "+" quick-action sheet (Live / Workouts / Journal / Breathe). Mirrored from the iOS
+    /// tab shell — without this listener the button sets `router.quickActionsRequested` and nothing opens.
+    @State private var showQuickActions = false
 
     /// The groups expanded at rest: every single-item group (so its lone row is visible) plus the group
     /// owning the current selection. Keeps the sidebar to "headers + the active group" as the spec asks.
@@ -323,6 +326,20 @@ struct RootView: View {
             case nil: break
             }
             if dest != nil { router.requestedDestination = nil }
+        }
+        // Today header "+" → quick-action sheet (parity with RootTabView). Then jump the sidebar to
+        // the chosen destination so the action lands on the same screens iOS presents as sheets.
+        .onChangeCompat(of: router.quickActionsRequested) { req in
+            guard req else { return }
+            showQuickActions = true
+            router.quickActionsRequested = false
+        }
+        .sheet(isPresented: $showQuickActions) {
+            MacQuickActionsSheet { item in
+                showQuickActions = false
+                selection = item
+            }
+            .frame(minWidth: 380, idealWidth: 420, minHeight: 340, idealHeight: 380)
         }
         // Whenever the selection moves (a cross-screen route, or restoring a deep destination), make sure
         // the group that owns it is expanded so the selected row is actually visible, not hidden inside a
@@ -515,6 +532,63 @@ struct BrandMark: View {
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)
+    }
+}
+
+/// macOS quick-action menu for the Today header "+". Same destinations as the iOS FAB sheet; picking
+/// one selects the matching sidebar row (desktop shells don't present those screens as nested sheets).
+private struct MacQuickActionsSheet: View {
+    let onPick: (NavItem) -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text("QUICK ACTIONS")
+                .font(StrandFont.overline)
+                .tracking(1.6)
+                .foregroundStyle(StrandPalette.textTertiary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.top, 18)
+                .padding(.bottom, 10)
+
+            VStack(spacing: 8) {
+                row("Live HR", icon: "waveform.path.ecg", tint: StrandPalette.metricRose, item: .live)
+                row("Start workout", icon: "figure.run", tint: StrandPalette.effortColor, item: .workouts)
+                row("Log journal", icon: "square.and.pencil", tint: StrandPalette.accent, item: .insights)
+                row("Breathe", icon: "wind", tint: StrandPalette.restColor, item: .breathe)
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 18)
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(StrandPalette.surfaceBase.ignoresSafeArea())
+    }
+
+    private func row(_ title: LocalizedStringKey, icon: String, tint: Color, item: NavItem) -> some View {
+        Button { onPick(item) } label: {
+            HStack(spacing: 13) {
+                Image(systemName: icon)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(tint)
+                    .frame(width: 38, height: 38)
+                    .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(StrandPalette.surfaceInset))
+                Text(title)
+                    .font(StrandFont.headline)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(StrandPalette.textTertiary)
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .background(NoopPanelSurface(cornerRadius: 14))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
     }
 }
 

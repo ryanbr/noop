@@ -273,15 +273,19 @@ struct LiquidTodayView: View {
                         }
                     }
                     dataSourcesSection
+                    #if os(iOS)
                     Color.clear.frame(height: 90) // floating tab-bar clearance
+                    #else
+                    Color.clear.frame(height: 28) // sidebar shell — modest bottom breathing room only
+                    #endif
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 30) // sit the title lower into the sky, not jammed under the status bar
             }
             #if os(macOS)
-            // Keep the phone-shaped column readable + centred on the wide mac detail pane. The sky is a
-            // ScrollView background (full-bleed), so constraining the content column here doesn't touch it.
-            .frame(maxWidth: 680)
+            // Readable desktop column: wider than the phone stack so Key Metrics / cards can breathe on
+            // a detail pane, still capped so lines do not stretch edge-to-edge. Sky stays full-bleed.
+            .frame(maxWidth: 920)
             .frame(maxWidth: .infinity)
             #endif
         }
@@ -1962,18 +1966,18 @@ private extension View {
     /// opaque photo would conceal the button style's refraction and highlight.
     @ViewBuilder
     func nativeLiquidGlassPhotoFinish() -> some View {
-        if #available(iOS 26.0, *) {
+        if #available(iOS 26.0, macOS 26.0, *) {
             self.glassEffect(.regular.interactive(), in: Circle())
         } else {
             self
         }
     }
 
-    /// Platform-owned Home-header button chrome. iOS 26 supplies the interactive Liquid Glass button
-    /// material; older supported releases keep the same circular geometry with a native system material.
+    /// Platform-owned Home-header button chrome. iOS/macOS 26 supplies the interactive Liquid Glass
+    /// button material; older supported releases keep the same circular geometry with a native system material.
     @ViewBuilder
     func nativeLiquidGlassHeaderButton() -> some View {
-        if #available(iOS 26.0, *) {
+        if #available(iOS 26.0, macOS 26.0, *) {
             self
                 .buttonStyle(.glass)
                 .buttonBorderShape(.circle)

@@ -134,6 +134,9 @@ struct LiveView: View {
             LiveWorkoutView(onClose: { showLiveWorkout = false })
                 .environmentObject(model)
                 .environmentObject(live)
+                #if os(macOS)
+                .frame(minWidth: 720, idealWidth: 840, minHeight: 760, idealHeight: 900)
+                #endif
         }
         // Pick a named sport before starting (#519) — the live workout view then opens
         // off the activeWorkout change above, so no extra navigation is needed here.

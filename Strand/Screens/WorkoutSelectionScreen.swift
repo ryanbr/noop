@@ -98,7 +98,7 @@ struct WorkoutSelectionScreen: View {
             }
         }
         #if os(macOS)
-        .frame(minWidth: 480, minHeight: 640)
+        .frame(minWidth: 640, idealWidth: 760, minHeight: 720, idealHeight: 860)
         #endif
     }
 
@@ -341,12 +341,12 @@ extension View {
 // MARK: - Native Liquid Glass chrome (selection browser)
 
 private extension View {
-    /// Circular (or capsule) interactive Liquid Glass for close / recent chips. iOS 26 uses the
+    /// Circular (or capsule) interactive Liquid Glass for close / recent chips. iOS/macOS 26 uses the
     /// platform glass button; older releases keep circular geometry with the shared material fallback
     /// already used by Home header / live-workout controls.
     @ViewBuilder
     func nativeLiquidGlassWorkoutSelectionControl(capsule: Bool = false) -> some View {
-        if #available(iOS 26.0, *) {
+        if #available(iOS 26.0, macOS 26.0, *) {
             self
                 .buttonStyle(.glass)
                 .buttonBorderShape(capsule ? .capsule : .circle)

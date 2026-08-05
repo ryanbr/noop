@@ -245,6 +245,9 @@ struct WorkoutsView: View {
                 // Inject the shared live snapshot so the in-exercise sensor readout (speed/cadence/power)
                 // resolves here too, matching how LiveView presents the same screen.
                 .environmentObject(model.live)
+                #if os(macOS)
+                .frame(minWidth: 720, idealWidth: 840, minHeight: 760, idealHeight: 900)
+                #endif
         }
         // #519: name the sport before a live session starts, then open the in-exercise view directly
         // (same direct present as the button's already-active path — no cross-view auto-present race).

@@ -479,7 +479,15 @@ private struct DeviceSyncStatusCard: View {
                 accessibility: String(localized: "Connected; strap history sync is experimental on this strap")
             )
         case .hidden:
-            EmptyView()
+            // Devices always surfaces a sync card so moving the status off Today does not look like the
+            // feature disappeared on a cold start (no completed offload yet). Resolver still returns
+            // `.hidden` for the compact header indicators that intentionally stay quiet.
+            statusCard(
+                systemImage: "arrow.triangle.2.circlepath",
+                detail: String(localized: "No strap history synced yet"),
+                tint: StrandPalette.textTertiary,
+                accessibility: String(localized: "No strap history synced yet")
+            )
         }
     }
 

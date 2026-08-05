@@ -64,6 +64,10 @@ struct LiveWorkoutView: View {
             .padding(.vertical, NoopMetrics.space6)
             .padding(.bottom, NoopMetrics.space8)
             .frame(maxWidth: .infinity, alignment: .leading)
+            #if os(macOS)
+            .frame(maxWidth: 720, alignment: .center)
+            .frame(maxWidth: .infinity, alignment: .center)
+            #endif
         }
         // Floating end / elapsed / sport-type controls sit in the bottom safe area so the scroll
         // content never owns the chrome and the timer can stay screen-centered.
@@ -395,12 +399,12 @@ struct LiveWorkoutView: View {
 // MARK: - Native Liquid Glass workout controls
 
 private extension View {
-    /// Platform-owned circular chrome for the live-workout bottom controls. iOS 26 uses the interactive
-    /// Liquid Glass button material; older supported releases keep the same circular geometry with the
-    /// same native-system material fallback the Home header buttons already use.
+    /// Platform-owned circular chrome for the live-workout bottom controls. iOS/macOS 26 uses the
+    /// interactive Liquid Glass button material; older supported releases keep the same circular
+    /// geometry with the same native-system material fallback the Home header buttons already use.
     @ViewBuilder
     func nativeLiquidGlassWorkoutControl() -> some View {
-        if #available(iOS 26.0, *) {
+        if #available(iOS 26.0, macOS 26.0, *) {
             self
                 .buttonStyle(.glass)
                 .buttonBorderShape(.circle)

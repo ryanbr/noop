@@ -44,8 +44,8 @@ final class NavRouter: ObservableObject {
     /// active shell (macOS sidebar / iOS tab) reacts and routes itself, then resets this to nil.
     @Published var requestedDestination: Destination?
 
-    /// Set when a screen's top-bar "+" asks the shell to open the quick-action sheet (the sheet lives
-    /// in the iOS shell). The shell presents it, then resets this to false.
+    /// Set when a screen's top-bar "+" asks the shell to open the quick-action sheet. Both shells
+    /// present it (iOS tab shell / macOS sidebar shell), then reset this to false.
     @Published var quickActionsRequested = false
 
     /// One-shot: `LiveView` reads this on appear to present the in-exercise screen for an already-running
