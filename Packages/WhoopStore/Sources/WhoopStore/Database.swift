@@ -789,6 +789,55 @@ extension WhoopStore {
                 t.primaryKey(["deviceId", "ts"])
             }
         }
+
+        // v34: DURABLE per-sample SpO2 percentages from the 5/MG `@82` candidate byte.
+        //
+        // THE PROBLEM THIS FIXES. The strap emits its own computed SpO2 % on `@82` of the v18 record. That
+        // byte is already banked, raw, in `v18AuxSample.fields` (v31) — but `v18AuxSample` is CAPPED at
+        // `WhoopStore.v18AuxRetentionRows` (604,800 rows/device ≈ 7 days at 1 Hz), because the aux blob
+        // costs ~30 MB/day and an uncapped 30 MB/day table is not a thing a phone can carry. So every SpO2
+        // reading rolls off after a week and is gone permanently: the strap trims its own history the
+        // moment an offload is acked, so there is no second copy anywhere.
+        //
+        // Raising the aux cap is the WRONG fix — it would buy a year of SpO2 at the price of ~11 GB of
+        // mostly-unrelated aux bytes. The right fix is a narrow sibling: the in-band SpO2 signal is only
+        // ~2,000 samples/week (a run of ~30 one-second samples once per ~1,200 s, sleep-gated), i.e.
+        // ~100k rows/year, which is trivially retainable forever. This table is that sibling. The aux
+        // capture stays capped and unchanged; this one is never pruned.
+        //
+        // WHY NOT EXTEND `spo2Sample` (v3). Wrong shape, and extending it would corrupt a live reader:
+        //   1. `spo2Sample` is `(deviceId, ts, red, ir)` — two NOT NULL raw ADC channels off the WHOOP 4.0
+        //      v24 layout. We have a computed PERCENTAGE and no red/IR at all, so every insert would have
+        //      to fabricate `red`/`ir` values that were never measured. Absence-becomes-a-fabricated-0 is
+        //      exactly the failure mode the rest of this schema is built to avoid.
+        //   2. `AnalyticsEngine.nightlySpo2RawMeans` averages `red`/`ir` over that table into
+        //      `dailyMetric.spo2Red`/`spo2Ir`. Inserting rows carrying fake zeros would silently drag
+        //      those means toward zero — a live, user-visible tile broken by a storage decision.
+        //   3. The two are different physical quantities from different device generations. A percentage
+        //      and a pair of ADC counts sharing a table would need a discriminator column and every reader
+        //      would have to remember to apply it. A separate table makes the distinction unforgeable.
+        //
+        // `pct` is the RAW in-band byte (70...100), stored verbatim. Run grouping and acquisition-ramp
+        // trimming are deliberately NOT applied here — they are read-time policies, they have already
+        // changed once on the cloud reader, and a store that baked in the old policy would have destroyed
+        // the evidence needed to change them again. The one thing applied on the way in is the
+        // `spo2CandidateInBand` demultiplex (see `Spo2PctSample`), which is not a policy: `@82` carries
+        // measurements, bit-7 status sentinels, sub-70 diagnostic codes and 0 on the same byte, and only
+        // the `70...100` band is a percentage of anything. Storing a sentinel here would be storing a
+        // number that is not the quantity the column is named for.
+        //
+        // NOT PRUNED, by design — the same "durable decoded biometric history" class as `hrSample` and
+        // `ppgWaveformSample`. The `v18AuxSample` sweep in `StreamStore.insert` deletes only
+        // `FROM v18AuxSample`, so this table is untouched by it; `Spo2PctDurableTests` pins that.
+        // PK (deviceId, ts) mirrors every other per-sample table and makes re-ingest idempotent.
+        migrator.registerMigration("v34-spo2-pct-durable") { db in
+            try db.create(table: "spo2PctSample") { t in
+                t.column("deviceId", .text).notNull()
+                t.column("ts", .integer).notNull()      // strap-second, unix seconds
+                t.column("pct", .integer).notNull()     // raw in-band @82 byte, 70...100
+                t.primaryKey(["deviceId", "ts"])
+            }
+        }
         return migrator
     }
 }

@@ -55,7 +55,12 @@ extension WhoopStore {
             let rawTables = ["hrSample", "rrInterval", "event", "battery",
                              "spo2Sample", "skinTempSample", "respSample",
                              "gravitySample", "stepSample", "ppgHrSample",
-                             "sleepStateSample", "ppgWaveformSample", "rawImuSample", "v18AuxSample"]
+                             "sleepStateSample", "ppgWaveformSample", "rawImuSample", "v18AuxSample",
+                             // v34: the durable SpO2 percentages are keyed by the SAME type-47 `ts` as
+                             // every stream above and forked from the same records, so a bad-clock strap
+                             // can garbage them identically. They are never pruned, so an unhealed
+                             // out-of-bounds row here would persist forever rather than rolling off.
+                             "spo2PctSample"]
             var rawDeleted = 0
             for table in rawTables {
                 try db.execute(sql: "DELETE FROM \(table) WHERE ts < ? OR ts > ?",

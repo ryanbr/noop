@@ -36,7 +36,8 @@
     "v28-raw-imu",
     "v29-score-input-provenance",
     "v30-rr-ord",
-    "v31-deep-capture-channels"
+    "v31-deep-capture-channels",
+    "v34-spo2-pct-durable"
   ],
   "grdbMigrationLineages": {
     "fork-ios-only": {
@@ -46,6 +47,12 @@
         "v27-apple-step-hour",
         "v28-phone-timezone",
         "v29-daily-avg-sdnn"
+      ]
+    },
+    "fork-ahead-of-upstream": {
+      "reason": "This fork numbers a migration AHEAD of upstream on purpose, which is the mirror image of the `fork-ios-only` case and needs its own entry rather than being folded into it. Local main carries migrations through v31; upstream ryanbr/noop already holds `v32-rr-src-channel` and `v33-workout-steps`, which this branch has not merged yet. Numbering this one v32 would therefore collide with an upstream identifier the very next time the fork merges upstream \u2014 and because GRDB keys migrations by identifier STRING, that collision is not a merge conflict a human sees: two different bodies claiming the same name means GRDB silently SKIPS the second, so one of the two tables is never created and the failure surfaces later as a missing-table error on a real device. Starting at v34 leaves upstream's v32/v33 free to arrive untouched. It is declared here rather than renumbered because the baseline lineage must stay exactly v1..vN, and because once this identifier has run on any device renaming it re-runs its body against a schema that already has the table.",
+      "migrations": [
+        "v34-spo2-pct-durable"
       ]
     }
   },
@@ -1682,6 +1689,35 @@
           "name": "rawByte",
           "affinity": "INTEGER",
           "notNull": false,
+          "default": null
+        }
+      ],
+      "primaryKey": [
+        "deviceId",
+        "ts"
+      ],
+      "indices": []
+    },
+    "spo2PctSample": {
+      "platform": "ios_only",
+      "reason": "Fork-only iOS table (GRDB `v34-spo2-pct-durable`): the durable per-second SpO2 percentages the WHOOP 5/MG emits on `@82` of its v18 record. The byte is already captured raw inside `v18AuxSample.fields`, but that table is CAPPED at 604,800 rows/device (~7 days at 1 Hz) because the aux blob costs ~30 MB/day, so every reading rolled off after a week and was gone permanently \u2014 the strap trims its own history the moment an offload is acked. The in-band signal is only ~2,000 samples/week (~100k rows/year), so a narrow never-pruned sibling retains it forever at trivial cost while the wide aux capture stays capped. `pct` is the RAW in-band byte (70...100); run grouping and acquisition-ramp trimming are read-time policy, not stored. No Room twin yet: the Kotlin capture/aggregate side is outstanding, and until it lands Android keeps banking the byte in its own `v18AuxSample` twin and loses it on the same 7-day roll.",
+      "columns": [
+        {
+          "name": "deviceId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "ts",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "pct",
+          "affinity": "INTEGER",
+          "notNull": true,
           "default": null
         }
       ],

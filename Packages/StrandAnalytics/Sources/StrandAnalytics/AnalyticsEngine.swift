@@ -279,6 +279,14 @@ public enum AnalyticsEngine {
                                   // calibrated blood-oxygen % (that needs WHOOP's proprietary curve).
                                   // Default empty keeps pure-function callers/tests + non-4.0 nights nil.
                                   spo2: [SpO2Sample] = [],
+                                  // Durable 5/MG `@82` SpO2 percentages for the night window (v34). The
+                                  // ramp-trimmed nightly MEDIAN is banked on `DailyMetric.spo2Pct` — the
+                                  // strap's OWN computed percentage, not a curve NOOP invented. Distinct
+                                  // from `spo2:` above, which is the WHOOP 4.0 v24 raw red/IR ADC pair and
+                                  // feeds `spo2Red`/`spo2Ir`; the two device generations report different
+                                  // physical quantities and neither substitutes for the other. Default
+                                  // empty keeps pure-function callers/tests + every non-5/MG night nil.
+                                  spo2PctSamples: [Spo2PctSample] = [],
                                   profile: UserProfile,
                                   baselines: ProfileBaselines = ProfileBaselines(),
                                   maxHROverride: Double? = nil,
@@ -620,6 +628,14 @@ public enum AnalyticsEngine {
         // as-is for the Health "Raw SpO₂" tile — NOT a calibrated blood-oxygen %. (#93)
         let nightlySpo2Raw = nightlySpo2RawMeans(matched, spo2: spo2)
 
+        // ── SpO2 percentage (5/MG @82, durable) ───────────────────────────────
+        // Ramp-trimmed nightly median of the strap's OWN computed SpO2 %, over the detected in-bed spans.
+        // Nil on a WHOOP 4.0, on any night with no in-band reading, and on every window offloaded before
+        // v34. Unlike the raw red/IR means above this IS a percentage — it is the number the strap
+        // computed, banked verbatim per-second and aggregated here, not a calibration NOOP applied to an
+        // ADC. See `nightlySpo2Pct` for the run/ramp policy and why the statistic is a median.
+        let nightlySpo2PctVal = nightlySpo2Pct(matched, samples: spo2PctSamples)
+
         // ── Recovery / "Charge" ───────────────────────────────────────────────
         var recovery: Double? = nil
         // Ordered "why is Charge what it is" rows, built from the SAME inputs as the score
@@ -733,7 +749,19 @@ public enum AnalyticsEngine {
             recovery: recovery,
             strain: strain,
             exerciseCount: workouts.count,
-            spo2Pct: nil,
+            // v34: was unconditionally nil here — the on-device engine had no percentage to bank, so the
+            // Blood Oxygen card read "No Data" on every WHOOP night while the same field rendered fine for
+            // imported Oura rows. It now carries the 5/MG's own `@82` median when the night has one, and
+            // stays nil otherwise (WHOOP 4.0, pre-v34 windows, no in-band samples) — an absent reading
+            // must stay absent rather than become a fabricated number.
+            //
+            // NOTE FOR ANYONE CHANGING THIS: `dailyMetric.spo2Pct` is not display-only. `HealthKitBridge`
+            // writes it to `HKQuantityTypeIdentifier.oxygenSaturation`, so a value banked here leaves the
+            // app and lands in the user's Apple Health blood-oxygen history alongside clinical readings.
+            // That is the right home for a device-computed SpO2 % and it is exactly where the Oura import
+            // already puts its own, but it does mean this field's bar is "the device measured this",
+            // never "this is our best guess".
+            spo2Pct: nightlySpo2PctVal?.pct,
             skinTempDevC: skinTempDevC,
             respRateBpm: respRateDaily,
             steps: stepsTotal,
@@ -1027,6 +1055,88 @@ public enum AnalyticsEngine {
         guard kept > 0 else { return nil }
         return (mean: sum / kept, samples: kept)
     }
+
+    /// Nightly SpO2 percentage from the DURABLE `@82` stream (`spo2PctSample`, v34) over the detected
+    /// in-bed `sessions` — the value banked on `DailyMetric.spo2Pct` for a 5/MG night — with the sample
+    /// count that survived the ramp trim. Nil when no reading fell inside any span.
+    ///
+    /// HOW THIS DIFFERS FROM `nightlySpo2CandidateMean`. That one is a naive mean over the raw candidate
+    /// byte read out of the capped aux table, built as a hand-checkable diagnostic. This is the scored
+    /// statistic, over the durable stream, and it corrects the two things that make the naive mean wrong.
+    ///
+    /// THE ACQUISITION RAMP. The strap does not sample SpO2 continuously: it takes a RUN of ~30 one-second
+    /// samples roughly once per ~1,200 s while asleep. The first samples of each run are the optical front
+    /// end settling, and they read LOW — so a mean over every in-band sample is biased downward by a
+    /// contamination that is entirely one-sided, and the bias grows with how much of the night is ramp
+    /// (i.e. it is worse on nights with more, shorter runs — precisely when you would least suspect it).
+    /// Runs are separated here by a gap of more than `spo2RunGapSeconds`; at 1 Hz within a run and ~1,200 s
+    /// between runs, that boundary is not a close call. The leading `spo2RampSamples` of each run are
+    /// dropped — but never more than HALF a run, so a short run contributes its settled tail instead of
+    /// vanishing and silently reweighting the night toward whichever runs happened to be long.
+    ///
+    /// WHY THE MEDIAN AND NOT A TRIMMED MEAN. Three reasons, in order of weight:
+    ///   1. It is the statistic the cloud reader already reports (the per-night 94-97 medians every
+    ///      cross-check against this data has been quoted against). A phone that shipped a trimmed mean
+    ///      would disagree with the server on the same rows for no reason anyone could see, and every
+    ///      future comparison would have to carry a caveat.
+    ///   2. Ramp removal is a heuristic, not a proof. A partially-settled sample just past the cut, or a
+    ///      motion artifact mid-run, is residual one-sided contamination that a mean absorbs in full and a
+    ///      median very largely ignores.
+    ///   3. The in-band values live in a 31-wide integer band with a hard mode at 97, so a median is
+    ///      stable and interpretable here in a way it would not be on a sparse continuous quantity.
+    /// The trim and the median are complementary, not redundant: the trim removes a KNOWN, structured,
+    /// large block of low readings that would move a median too, and the median absorbs what is left.
+    ///
+    /// READ-TIME POLICY, DELIBERATELY. None of this is applied on the way into the store — `spo2PctSample`
+    /// holds raw in-band bytes. These rules have already changed once on the cloud side, and they will
+    /// change again if a run's shape turns out to differ by firmware; keeping them here means that costs a
+    /// re-score, not a re-capture of data the strap has long since trimmed.
+    public static func nightlySpo2Pct(_ sessions: [SleepSession],
+                                      samples: [Spo2PctSample]) -> (pct: Double, samples: Int)? {
+        guard !sessions.isEmpty, !samples.isEmpty else { return nil }
+        // In-bed first, so run boundaries are computed over the samples that will actually be used. Note
+        // what that does and does not mean: a session edge splits a run only when the stretch it excludes
+        // is itself longer than `spo2RunGapSeconds` — a brief out-of-bed moment mid-run leaves the run
+        // intact and singly-trimmed. Gap size is the ONLY run signal; session boundaries are not a second
+        // one. That is deliberate, because the ramp is a property of the sensor restarting, and the sensor
+        // does not restart because the sleep detector drew a line.
+        let inBed = samples
+            .filter { s in sessions.contains(where: { $0.start <= s.ts && s.ts <= $0.end }) }
+            .sorted { $0.ts < $1.ts }
+        guard !inBed.isEmpty else { return nil }
+
+        var kept: [Int] = []
+        var runStart = 0
+        func flushRun(_ range: Range<Int>) {
+            let run = inBed[range]
+            // Never trim more than half a run: a 4-sample run keeps its last 2 rather than disappearing.
+            let drop = min(spo2RampSamples, run.count / 2)
+            kept.append(contentsOf: run.dropFirst(drop).map(\.pct))
+        }
+        for i in 1..<inBed.count where inBed[i].ts - inBed[i - 1].ts > spo2RunGapSeconds {
+            flushRun(runStart..<i)
+            runStart = i
+        }
+        flushRun(runStart..<inBed.count)
+        guard !kept.isEmpty else { return nil }
+
+        kept.sort()
+        let mid = kept.count / 2
+        let median = kept.count.isMultiple(of: 2)
+            ? Double(kept[mid - 1] + kept[mid]) / 2.0
+            : Double(kept[mid])
+        return (pct: median, samples: kept.count)
+    }
+
+    /// Gap (seconds) above which two consecutive in-band `@82` samples belong to different measurement
+    /// runs. Samples inside a run are 1 s apart and runs are ~1,200 s apart, so anything in between
+    /// separates them; 60 s sits in the middle of that gulf and tolerates a dropped second or two inside
+    /// a run without splitting it.
+    public static let spo2RunGapSeconds = 60
+
+    /// Leading samples dropped from each measurement run as the optical front end's acquisition ramp.
+    /// ~5 of a ~30-sample run. Capped at half a run by the caller so short runs still contribute.
+    public static let spo2RampSamples = 5
 
     // MARK: - Skin-temp funnel diagnostic (#752)
 

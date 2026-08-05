@@ -114,6 +114,11 @@ public struct DeviceRegistryStore: Sendable {
         // v31-deep-capture-channels: the banked 5/MG v18 auxiliary fields are deviceId-keyed per-second
         // rows like every stream above, so a "delete all of this device's data" must clear them too.
         "v18AuxSample",
+        // v34-spo2-pct-durable: the durable `@82` SpO2 percentages are deviceId-keyed per-second rows,
+        // and they OUTLIVE the aux table they are forked from (never pruned) — which makes covering them
+        // here more important, not less. A wipe that cleared `v18AuxSample` but left this behind would
+        // leave years of blood-oxygen readings on the device after the user asked for them to be gone.
+        "spo2PctSample",
     ]
 
     /// deviceId-keyed tables deliberately EXCLUDED from `deviceScopedTables` — a normal "delete this

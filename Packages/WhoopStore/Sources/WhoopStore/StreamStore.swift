@@ -350,6 +350,46 @@ extension WhoopStore {
                     v18Written += 1
                 }
             }
+            // DURABLE SpO2 (v34) — the in-band `@82` percentages, forked out of the SAME v18 aux samples
+            // banked just above into a narrow table that is never pruned. The aux blob is capped at
+            // ~7 days (see the sweep below); this is the copy that survives, and without it every reading
+            // older than a week is destroyed with no second copy anywhere (the strap trims its own history
+            // as soon as an offload is acked).
+            //
+            // READ OFF THE DECODED STRUCT, NOT THE BLOB. `s.auxByte82` is the slot value; the alternative
+            // — indexing byte 23 of the packed `fields` blob, which is what the cloud reader does — is
+            // correct ONLY while every slot ahead of `auxByte82` in `V18AuxSlot` order is present, because
+            // `V18AuxCodec` is a presence-bitmap format that omits absent slots from the body entirely.
+            // With all slots present the arithmetic happens to land on 23 (5-byte header + 4+1+1+1+1+2+1+1
+            // +2+2+2 = 18 body bytes ahead of it), which is why reading `fields[23]` yields physiologically
+            // valid values in production — but a single absent earlier slot silently shifts it onto a
+            // neighbouring byte and the read becomes garbage that still looks like a plausible percentage.
+            // `V18AuxCodecOffsetTests` pins both halves of that. Here the decoded struct is already in
+            // hand, so the fragile path is not merely avoided, it is unreachable.
+            //
+            // Separate loop rather than a branch inside the one above, so the `blob.isEmpty` skip there
+            // can never silently drop an SpO2 reading. (In practice a present `auxByte82` guarantees a
+            // non-empty blob, but coupling the two would make that a load-bearing invariant nobody stated.)
+            //
+            // Gate: `spo2CandidateInBand` only. `@82` is multiplexed — bit-7 sentinels (0x80/0x88/0x90/
+            // 0xA0/0xA8), sub-70 diagnostic codes, and 0-for-not-emitted share the byte with real
+            // percentages, and `101...127` is an empty band that keeps the two separable. Nothing else is
+            // applied: no run grouping, no acquisition-ramp trim, no smoothing. Those are read-time
+            // policies (they have already changed once on the cloud reader) and baking one in here would
+            // destroy the evidence needed to change it again.
+            //
+            // ON CONFLICT DO NOTHING keeps the FIRST value banked for a second, matching every other
+            // per-second stream's dedupe rule and making a re-offload of the same window idempotent.
+            if !streams.v18Aux.isEmpty {
+                let stmt = try db.cachedStatement(sql: """
+                    INSERT INTO spo2PctSample (deviceId, ts, pct) VALUES (?, ?, ?)
+                    ON CONFLICT(deviceId, ts) DO NOTHING
+                    """)
+                for s in streams.v18Aux {
+                    guard let v = s.auxByte82, spo2CandidateInBand.contains(v) else { continue }
+                    try stmt.execute(arguments: [deviceId, s.ts, v])
+                }
+            }
             return (hr, rr, ev, bat, spo2, skin, resp, grav)
         }
 
@@ -617,6 +657,34 @@ extension WhoopStore {
 
     public func v18AuxCountForTest() async throws -> Int {
         try syncRead { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM v18AuxSample") ?? 0 }
+    }
+
+    /// Durable in-band `@82` SpO2 percentages (v34) in `[from, to]` for one device, ascending by ts.
+    ///
+    /// Unlike `v18AuxSamples`, this reaches back over the WHOLE recorded history: `spo2PctSample` is never
+    /// pruned, while the aux table it is forked from is capped at ~7 days. Empty for a WHOOP 4.0 (no v18
+    /// aux stream) and for any window offloaded before v34 — the v31..v33 aux rows still on the device do
+    /// carry the byte, but only for whatever slice of the last seven days survives, and this reader
+    /// deliberately does NOT fall back to them: a series that silently changed source partway through
+    /// would be unusable as evidence. Backfilling those survivors is a one-shot migration's job, not a
+    /// read path's.
+    ///
+    /// Values are RAW in-band bytes. Run grouping and acquisition-ramp trimming are the CALLER's policy —
+    /// see `AnalyticsEngine.nightlySpo2Pct` for the nightly one.
+    public func spo2PctSamples(deviceId: String, from: Int, to: Int, limit: Int = 200_000) async throws
+        -> [Spo2PctSample] {
+        try syncRead { db in
+            try Row.fetchAll(db, sql: """
+                SELECT ts, pct FROM spo2PctSample
+                WHERE deviceId = ? AND ts >= ? AND ts <= ?
+                ORDER BY ts LIMIT ?
+                """, arguments: [deviceId, from, to, limit])
+                .map { Spo2PctSample(ts: $0["ts"], pct: $0["pct"]) }
+        }
+    }
+
+    public func spo2PctCountForTest() async throws -> Int {
+        try syncRead { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM spo2PctSample") ?? 0 }
     }
 
     public func ppgHrCountForTest() async throws -> Int {

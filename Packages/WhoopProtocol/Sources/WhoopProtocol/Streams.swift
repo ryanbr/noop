@@ -483,6 +483,45 @@ public struct V18AuxSample: Equatable, Codable, Sendable {
     public var isEmpty: Bool { slotValues.allSatisfy { $0 == nil } }
 }
 
+/// The in-band window for the `@82` SpO2 candidate byte: a value in `70...100` is a MEASUREMENT, and
+/// everything else on that byte is something else entirely.
+///
+/// `@82` is MULTIPLEXED and separable BY VALUE — this is the separation, established over 626,725
+/// production records:
+///   - `70...100`  a real percentage. Distribution modes at 97; per-night medians 94-97; sleep-gated;
+///                 emitted as a run of ~30 one-second samples once per ~1,200 s.
+///   - bit 7 set   status sentinel (`0x80`, `0x88`, `0x90`, `0xA0`, `0xA8` are the observed values).
+///   - `1...69`    diagnostic codes, not a saturation of anything.
+///   - `0`         the strap emitted nothing this second (awake, or between runs).
+///   - `101...127` never observed — the gap is what makes the bit-7 sentinels and the measurements
+///                 unambiguously separable without a side channel.
+///
+/// This is the SAME window `Interpreter` applies when it emits `spo2_candidate_82` (see the
+/// `(70...100).contains(v)` gate there) and the same one `AnalyticsEngine.nightlySpo2CandidateMean`
+/// applies. Named here so the three agree structurally rather than by three matching literals.
+public let spo2CandidateInBand: ClosedRange<Int> = 70...100
+
+/// One in-band `@82` SpO2 percentage, durably banked (v34).
+///
+/// WHY THIS EXISTS AS ITS OWN STREAM. The byte is carried raw in `V18AuxSample.auxByte82`, but
+/// `v18AuxSample` is a rolling capped table (`WhoopStore.v18AuxRetentionRows` = 604,800 rows/device ≈ 7
+/// days at 1 Hz) because the aux blob costs ~30 MB/day. The SpO2 signal inside it is ~2,000 samples per
+/// WEEK — roughly 100k rows/year — so pulling it into its own narrow table makes it retainable forever at
+/// trivial cost, while the wide aux capture stays capped. Without this, every SpO2 reading older than
+/// seven days is destroyed, and the strap has already trimmed its own copy.
+///
+/// LOSSLESS BY CONSTRUCTION. `pct` is the raw in-band byte, verbatim. No run grouping, no ramp trimming,
+/// no smoothing, no dedupe beyond the (deviceId, ts) primary key. Those are all READ-TIME policies — the
+/// cloud reader has already changed its run/ramp rules once, and a device store that had baked the old
+/// policy in would have destroyed the evidence needed to change them. The only thing applied on the way
+/// in is the `spo2CandidateInBand` demultiplex, which is not a policy but the definition of which values
+/// on this byte are percentages at all.
+public struct Spo2PctSample: Equatable, Codable, Sendable {
+    public let ts: Int    // wall-clock unix seconds (one per strap-second that carried a reading)
+    public let pct: Int   // the raw in-band `@82` byte, 70...100
+    public init(ts: Int, pct: Int) { self.ts = ts; self.pct = pct }
+}
+
 public struct Streams: Equatable, Codable {
     public var hr: [HRSample]
     public var rr: [RRInterval]

@@ -333,6 +333,11 @@ public final class ReadonlyNoopStore {
                 "hrSample", "rrInterval", "event", "battery", "spo2Sample",
                 "skinTempSample", "respSample", "gravitySample", "ppgHrSample", "stepSample",
                 "sleepStateSample", "ppgWaveformSample", "rawImuSample", "v18AuxSample",
+                // v34: durable `@82` SpO2 percentages. Small (~100k rows/year) but UNBOUNDED — it is the
+                // one table here deliberately exempt from every prune — so it belongs in the readout for
+                // exactly the reason the comment above gives: growth that nothing prunes still has to be
+                // growth somebody can see.
+                "spo2PctSample",
             ]
             var decodedRows = 0
             for table in decodedTables where tableNames.contains(table) {
