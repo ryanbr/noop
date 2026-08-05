@@ -116,6 +116,9 @@ object CardAppearance {
     }
 }
 
+// Crisp white label on accent and critical fills; white in both schemes (iOS goldDeepText post-reset).
+val OnAccent: Color = Color.White
+
 fun Modifier.frostedCardSurface(
     tint: Color? = null,
     cornerRadius: Dp = Metrics.cardRadius,
@@ -516,7 +519,7 @@ fun StatTile(
 ) {
     // Each tile borrows its accent as a faint card wash, so a metric reads as part of its
     // colour world while staying legible on the deep blue-black. Falls back to the accent.
-    NoopCard(modifier = modifier.height(Metrics.tileHeight), padding = 14.dp, tint = tint ?: accent) {
+    NoopCard(modifier = modifier.heightIn(min = Metrics.tileHeight), padding = 14.dp, tint = tint ?: accent) {
         Column {
             Overline(label)
             Spacer(Modifier.weight(1f))

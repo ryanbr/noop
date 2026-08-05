@@ -147,7 +147,11 @@ fun StartWorkoutSheet(vm: AppViewModel, onDismiss: () -> Unit) {
             }
         },
         dismissButton = {
-            OutlinedButton(onClick = onDismiss) { Text(uiString(R.string.l10n_workout_start_cancel_77dfd213)) }
+            NoopButton(
+                text = uiString(R.string.l10n_workout_start_cancel_77dfd213),
+                kind = NoopButtonKind.Secondary,
+                onClick = onDismiss,
+            )
         },
     )
 }

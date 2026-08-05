@@ -14,8 +14,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -122,10 +120,12 @@ fun ConnectionHelp(viewModel: AppViewModel, modifier: Modifier = Modifier) {
                 onAction = {},
             )
 
-            OutlinedButton(
+            NoopButton(
+                text = uiString(R.string.l10n_connection_help_try_connecting_now_41769900),
+                kind = NoopButtonKind.Secondary,
                 onClick = { if (permGranted) viewModel.connect() else permLauncher.launch(perms) },
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text(uiString(R.string.l10n_connection_help_try_connecting_now_41769900), style = NoopType.body) }
+                fullWidth = true,
+            )
         }
     }
 }
@@ -147,9 +147,12 @@ private fun HelpStep(
         )
         Text(body, style = NoopType.footnote, color = Palette.textSecondary)
         if (actionLabel != null) {
-            OutlinedButton(onClick = onAction, enabled = enabled) {
-                Text(actionLabel, style = NoopType.footnote)
-            }
+            NoopButton(
+                text = actionLabel,
+                kind = NoopButtonKind.Secondary,
+                enabled = enabled,
+                onClick = onAction,
+            )
         }
     }
 }

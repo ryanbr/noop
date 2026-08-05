@@ -159,7 +159,7 @@ fun UpdatesInboxScreen(
                     contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Palette.accent,
-                        contentColor = if (Palette.isLight) Color.White else Palette.goldDeepText,
+                        contentColor = OnAccent,
                         disabledContainerColor = Palette.surfaceInset,
                         disabledContentColor = Palette.textTertiary,
                     ),
@@ -263,7 +263,7 @@ private fun SwipeBackground(direction: SwipeToDismissBoxValue) {
     }
     val washColor =
         if (direction == SwipeToDismissBoxValue.Settled) Color.Transparent else Palette.accent
-    val contentColor = if (Palette.isLight) Color.White else Palette.goldDeepText
+    val contentColor = OnAccent
     Box(
         modifier = Modifier
             .fillMaxSize()

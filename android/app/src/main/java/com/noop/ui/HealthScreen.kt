@@ -998,11 +998,12 @@ private fun FitnessReadinessCard(
                                     color = Palette.accent,
                                 )
                             } else {
-                                IconButton(onClick = onRefresh, modifier = Modifier.size(28.dp)) {
+                                IconButton(onClick = onRefresh) {
                                     Icon(
                                         Icons.Filled.Refresh,
                                         contentDescription = uiString(R.string.l10n_health_screen_refresh_fitness_age_now_85fc516f),
                                         tint = Palette.accent,
+                                        modifier = Modifier.size(20.dp),
                                     )
                                 }
                             }

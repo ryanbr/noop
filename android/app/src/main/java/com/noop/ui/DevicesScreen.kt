@@ -793,7 +793,6 @@ private fun DeviceActionsMenu(
         IconButton(
             onClick = { onOpenChange(true) },
             modifier = Modifier
-                .size(32.dp)
                 .semantics { contentDescription = uiString(R.string.l10n_devices_screen_device_actions_for_displayname_device_160eb3de, displayName(device)) },
         ) {
             Icon(Icons.Filled.MoreVert, contentDescription = null, tint = Palette.textSecondary, modifier = Modifier.size(20.dp))

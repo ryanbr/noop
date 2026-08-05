@@ -172,7 +172,11 @@ fun CycleAwarenessCard(
             if (onLogPeriod != null || onOpenDetail != null || onTurnOff != null) {
                 Row(horizontalArrangement = Arrangement.spacedBy(Metrics.gap)) {
                     if (onLogPeriod != null) {
-                        OutlinedButton(onClick = onLogPeriod) { Text(uiString(R.string.l10n_skin_temp_cards_screen_log_period_start_c97241d0)) }
+                        NoopButton(
+                            text = uiString(R.string.l10n_skin_temp_cards_screen_log_period_start_c97241d0),
+                            kind = NoopButtonKind.Secondary,
+                            onClick = onLogPeriod,
+                        )
                     }
                     if (onOpenDetail != null) {
                         OutlinedButton(
@@ -182,7 +186,11 @@ fun CycleAwarenessCard(
                     }
                     // #801: symmetric off-control (turn cycle awareness off where it was turned on).
                     if (onTurnOff != null) {
-                        OutlinedButton(onClick = onTurnOff) { Text(uiString(R.string.l10n_skin_temp_cards_screen_turn_off_8807c2b3)) }
+                        NoopButton(
+                            text = uiString(R.string.l10n_skin_temp_cards_screen_turn_off_8807c2b3),
+                            kind = NoopButtonKind.Secondary,
+                            onClick = onTurnOff,
+                        )
                     }
                 }
             }
@@ -216,7 +224,11 @@ fun CycleAwarenessOptInCard(onEnable: () -> Unit) {
                 color = Palette.textSecondary,
             )
             PrivacyNote()
-            OutlinedButton(onClick = onEnable) { Text(uiString(R.string.l10n_skin_temp_cards_screen_turn_on_cycle_awareness_7c2d328f)) }
+            NoopButton(
+                text = uiString(R.string.l10n_skin_temp_cards_screen_turn_on_cycle_awareness_7c2d328f),
+                kind = NoopButtonKind.Secondary,
+                onClick = onEnable,
+            )
         }
     }
 }

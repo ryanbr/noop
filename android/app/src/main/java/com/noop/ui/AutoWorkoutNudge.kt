@@ -17,7 +17,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -203,13 +202,15 @@ fun AutoWorkoutNudgeCard(
                     ),
                 ) { Text(uiString(R.string.l10n_auto_workout_nudge_save_it_01d23661)) }
 
-                OutlinedButton(
+                NoopButton(
+                    text = uiString(R.string.l10n_auto_workout_nudge_not_a_workout_15c5f784),
+                    kind = NoopButtonKind.Secondary,
                     onClick = {
                         AutoWorkoutPrefs.dismiss(context, w)
                         handledThisSession = true
                         candidate = null
                     },
-                ) { Text(uiString(R.string.l10n_auto_workout_nudge_not_a_workout_15c5f784), color = Palette.textSecondary) }
+                )
             }
         }
     }
