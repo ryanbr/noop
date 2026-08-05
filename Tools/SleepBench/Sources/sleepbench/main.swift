@@ -91,10 +91,10 @@ func nightLabel(_ ts: Int) -> String {
 /// veto's effect can be scored on the isolated staging path as well as end-to-end.
 func bandVetoMirror(_ labels: [String], bandEpochs: [Int]) -> [String] {
     guard !bandEpochs.isEmpty, labels.count == bandEpochs.count else { return labels }
-    guard let onset = labels.firstIndex(where: { $0 != "wake" }),
-          let final = labels.lastIndex(where: { $0 != "wake" }), onset <= final else { return labels }
+    guard let onset = labels.firstIndex(where: { !isWake($0) }),
+          let final = labels.lastIndex(where: { !isWake($0) }), onset <= final else { return labels }
     var out = labels
-    for i in onset...final where out[i] == "wake" && bandEpochs[i] == SleepStager.bandStateAsleep {
+    for i in onset...final where isWake(out[i]) && bandEpochs[i] == SleepStager.bandStateAsleep {
         out[i] = "light"
     }
     return out
@@ -285,7 +285,7 @@ for (name, get) in [("V1", { (n: Night) in n.v1 }), ("V2", { (n: Night) in n.v2 
     for nt in banded {
         let pred = get(nt)
         for (i, b) in nt.band.enumerated() where i < pred.count {
-            if pred[i] == "wake" {
+            if isWake(pred[i]) {
                 wakeEpochs += 1
                 if b == SleepStager.bandStateAsleep { disputed += 1 }
             } else {
@@ -339,7 +339,7 @@ var bhr: [Double] = [], bdisp: [Double] = []
 for nt in banded.sorted(by: { $0.meanHR < $1.meanHR }) {
     var wake = 0, disp = 0
     for (i, b) in nt.band.enumerated() where i < nt.v2.count {
-        if nt.v2[i] == "wake" { wake += 1; if b == SleepStager.bandStateAsleep { disp += 1 } }
+        if isWake(nt.v2[i]) { wake += 1; if b == SleepStager.bandStateAsleep { disp += 1 } }
     }
     guard wake >= 10, !nt.meanHR.isNaN else { continue }
     let pct = Double(disp) / Double(wake) * 100
