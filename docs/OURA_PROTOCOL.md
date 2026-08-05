@@ -963,7 +963,7 @@ Tags that appear in the banked stream but NOOP does not decode. Payloads are the
 
 | tag | count | len (B) | example payload | shape hint (UNCONFIRMED) |
 |---|---|---|---|---|
-| `0x61` | 28760 | 3–8 | `1a18009c3700007c150000cb` | highest-rate tag; **NOT battery** — the `[open_oura-act]`-adjacent "`0x61` battery" label does not match here (non-percent, high-frequency) |
+| `0x61` | 28760 | 3–14 | `1a18009c3700007c150000cb` | **SOLVED as a channel, see §9.1** — a subtype-multiplexed firmware DIAGNOSTIC stream, not one message and not a physiological signal. **NOT battery** — the `[open_oura-act]`-adjacent "`0x61` battery" label does not match here (non-percent, high-frequency) |
 | `0x4a` | 8416 | 10 | `00000000000000000000` | payload observed all-zero — likely a keepalive / placeholder |
 | `0x72` | 5723 | 12 | `120027000100150018000200` | six int16-LE small values — a vector (motion / accel?) |
 | `0x6a` | 5689 | 10 | `7e00230b90140001f8b0` | mixed; a `0001f8b0` / `0001feb8` trailer recurs |
@@ -978,9 +978,67 @@ Tags that appear in the banked stream but NOOP does not decode. Payloads are the
 Full-notification hex including the `type/len/rt` header is in the capture. For the highest-rate tags,
 several full records are reproduced below (`type len rt(u32LE) | payload`) so a future RE pass sees the
 record framing and cross-sample variation directly — a single stripped example once hid a truncated
-prefix and tail fields. Note `0x61`'s payload length is **not fixed** (the `len` byte moves 0x10/0x11/0x12).
+prefix and tail fields. Note `0x61`'s payload length is **not fixed** (the `len` byte moves 0x10/0x11/0x12)
+— §9.1 explains why: the length follows the subtype.
 
 - `0x61` (highest-rate): `6110 ff756600 | 1a18009c3700007c150000cb` · `6111 00766600 | 23230000090000fd02003a0000` · `6112 f9766600 | 095b914700e9e00000fe81010005`
+  (these three are subtypes `0x1a`, `0x23`, `0x09` — one example per message, which is exactly why the
+  layout looked variable)
 - `0x72` (`len` 0x10, 6×int16-LE): `7210 499b6b00 | 120027000100150018000200` · `7210 729c6b00 | 130029000100150018000200` · `7210 9c9d6b00 | 05000e000200160019000500`
 - `0x6d` (`len` 0x11, leading `00` + 4×int16-LE negatives): `6d11 ec856600 | 00c4ffffb5ffffd2ffffeaffff` · `6d11 98976600 | 00b2fffffaffffeeffffd9ffff` · `6d11 419d6600 | 00a1fffffaffffd9fffff5ffff`
 - `0x76`: `760c c2cf7100 | 4c876b00c0667000`
+
+### 9.1 `0x61` is a subtype-multiplexed firmware diagnostic channel (2026-08-05)
+
+Measured on the **first raw-writer capture** (`oura-raw.jsonl`, iOS build `9.3.1`,
+`noop-master-iOS-v9.3.1-260805-0754`): **10,208 × `0x61`** of 84,815 records, ring-time span
+9,391,251 → 10,105,610, every frame `len == bytes − 2`.
+
+**Independently corroborated by the name:** [open_oura]'s `EVENT_TAGS` map (`tools/oura_protocol.py`,
+derived from the ring's own event-parser library) lists `0x61` as **`debug_data`** — cited as a fact,
+no code taken. The structure below is NOOP's own measurement of what that debug channel contains.
+
+**Payload byte 0 is a SUBTYPE selector; the length follows the subtype.** 22 subtypes observed. This is
+why every attempt to fit one layout failed and why the count/length column above reads as a range — the
+earlier corpus was averaging ~22 different messages together.
+
+**Proof it is a log channel: subtype `0x04` is ASCII.**
+
+```
+04 4d4f5420524920323b32    → "MOT RI 2;2"
+04 45485274733b3633        → "EHRts;63"
+04 547366733b3131          → "Tsfs;11"
+04 626c655f74783a66756c6c  → "ble_tx:full"
+```
+
+These are the same class of firmware log line `0x43` `debug_text` already carries (`DHR_state:4`,
+`PPG_cont;220`, `EHRst;1;0;1`, `CVA_state;2`), so `0x61` is a **second** diagnostics stream, keyed by
+subtype rather than free text. `EHRts;N` appears in the same capture where Exercise-HR (`0x73`/`0x74`,
+§7.1) was flowing.
+
+| sub | n | layout (UNCONFIRMED) | median rt cadence | observed range |
+|---|---|---|---|---|
+| `0x09` | 2,104 | 3 × u32-LE + 1 tail byte | 11 | f0 med 3.1 M / max 124 M |
+| `0x28` | 2,070 | flag + 6 × u16-LE | **1** | repeated identical values (`780,0,0,0,780,780`) |
+| `0x33` | 1,399 | 8 B and 14 B variants | 3 | |
+| `0x0a` | 1,066 | 3 × u32-LE | 729 | f2 always 0 |
+| `0x0d` | 1,062 | 3 × u32-LE | 729 | f1 always 0; f2 max 125,829,080 |
+| `0x0c` | 1,060 | 2 × u32-LE + 1 tail byte | 729 | f0 max 125,829,085 |
+| `0x29` | 507 | 8 B | 658 | |
+| `0x14` | 435 | 3 × **i32**-LE (signed) + tail | 4,826 | f0 ≈ 2.6×10⁸ tight; f1 med −106 |
+| `0x2d` | 152 | 13 B | | |
+| `0x04` | 63 | **ASCII** | | log lines, above |
+| `0x24` `0x26` `0x15` `0x3c` `0x1a` `0x23` `0x2a` `0x2e` `0x25` `0x2b` `0x32` `0x34` | ≤ 49 each | | | |
+
+`0x0a`/`0x0c`/`0x0d` share one ~729-tick period and are mostly-zero with a single live field — a
+periodic statistics dump with several unused slots. `0x14`'s ~4,826-tick period, near-constant
+~2.6×10⁸ field and small negative deltas look like a clock/drift record.
+
+**Consequence for NOOP: nothing to decode into data.** `0x61` is 12 % of the bank by volume and carries
+no physiological signal — it should be *dropped* from the "worth reverse-engineering" list, not promoted
+because it is the highest-rate tag.
+
+**One line is operationally useful: `ble_tx:full`** — the ring reporting its own BLE transmit buffer
+overflow. Ten occurrences in this capture (15:34:43, 15:36:25, 15:38:44, 15:57:14, and 05:48:17 — the
+final second of the drain), each logged twice. That is direct ring-side evidence of a drop, and a better
+signal for diagnosing a truncated bank or a mid-drain gap than inferring loss from missing rows.
