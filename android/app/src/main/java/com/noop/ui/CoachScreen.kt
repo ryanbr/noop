@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -246,13 +247,21 @@ private fun CoachChat(vm: CoachViewModel) {
         // Active-provider strip + reset-key affordance.
         NoopCard(padding = 14.dp, tint = Palette.chargeColor) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                StatePill(title = uiString(R.string.l10n_coach_screen_provider_displayname_model_8b39f761, provider.displayName, model), tone = StrandTone.Accent, showsDot = true)
-                Spacer(Modifier.weight(1f))
+                // The pill takes the flexible space (ellipsizing a long model id); the Disconnect keeps
+                // its intrinsic single-line width so it can never be squeezed into a vertical stack (#1074).
+                StatePill(
+                    title = uiString(R.string.l10n_coach_screen_provider_displayname_model_8b39f761, provider.displayName, model),
+                    tone = StrandTone.Accent, showsDot = true,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(8.dp))
                 val disconnectInteraction = remember { MutableInteractionSource() }
                 Text(
                     uiString(R.string.l10n_coach_screen_disconnect_ed28e068),
                     style = NoopType.caption,
                     color = Palette.textSecondary,
+                    maxLines = 1,
+                    softWrap = false,
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
                         .liquidPress(disconnectInteraction)
@@ -304,13 +313,18 @@ private fun CoachChat(vm: CoachViewModel) {
             }
         }
 
-        // Error line (red).
-        if (error != null) {
+        // Error line (red). Capture into a stable local first: `error` is a state-backed nullable, and
+        // the `semantics {}` contentDescription is a DEFERRED closure run later during the accessibility
+        // pass — by then a recomposition can have cleared `error`, so `error!!` inside the lambda would
+        // NPE (#1074). The local `errorMsg` is a fixed non-null snapshot the lambda can't null out from
+        // under it.
+        val errorMsg = error
+        if (errorMsg != null) {
             Text(
-                error!!,
+                errorMsg,
                 style = NoopType.subhead,
                 color = Palette.statusCritical,
-                modifier = Modifier.semantics { contentDescription = uiString(R.string.l10n_coach_screen_coach_error_error_ad9c8c46, error!!) },
+                modifier = Modifier.semantics { contentDescription = uiString(R.string.l10n_coach_screen_coach_error_error_ad9c8c46, errorMsg) },
             )
         }
 

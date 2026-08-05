@@ -394,7 +394,12 @@ fun StatePill(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         if (showsDot) ConnectionDot(tone = tone, pulsing = pulsing, size = 7.dp)
-        Text(title, style = NoopType.overline.copy(letterSpacing = 0.4.sp), color = tone.color)
+        // A pill is a single line: ellipsize a long title (e.g. a long custom model id) instead of
+        // wrapping it, so it can't eat a whole Row and squeeze a sibling control to nothing (#1074).
+        Text(
+            title, style = NoopType.overline.copy(letterSpacing = 0.4.sp), color = tone.color,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

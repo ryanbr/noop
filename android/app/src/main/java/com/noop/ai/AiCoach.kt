@@ -421,7 +421,10 @@ class AiCoach(private val repo: WhoopRepository) {
             ?.optString("content")
             ?.trim()
 
-        if (content.isNullOrEmpty()) throw Exception("The provider returned an empty reply. Please try again.")
+        // Empty assistant content on a 200: some OpenAI-compatible servers (notably a model set by hand
+        // that the provider doesn't offer) return the real error INSIDE a 200 body rather than a 4xx, so
+        // surface it instead of a blanket "empty reply" that hides the cause (#1074).
+        if (content.isNullOrEmpty()) throw Exception(emptyReplyMessage(responseText))
 
         // Local servers (notably Ollama) stop with finish_reason "length" at the context-window edge
         // and give NO error, keep the partial text and append the actionable notice so it isn't silent.
@@ -445,7 +448,10 @@ class AiCoach(private val repo: WhoopRepository) {
             body.put("max_completion_tokens", 900)
         } else {
             body.put("temperature", 0.6)
-            body.put("max_tokens", 900)
+            // #1074: 900 truncated detailed coaching replies mid-sentence on cloud providers (the reporter
+            // hit it on a DeepSeek "pro" model). 4096 lets a full multi-section reply complete; it is a cap,
+            // not a target, so short answers are unaffected. Matches the Gemini leg's maxOutputTokens.
+            body.put("max_tokens", 4096)
         }
 
         val builder = Request.Builder()
@@ -480,7 +486,7 @@ class AiCoach(private val repo: WhoopRepository) {
     }
 
     /** Base for the Custom provider, the user's URL with any trailing slashes trimmed. */
-    private fun customBase(url: String): String = url.trim().trimEnd('/')
+    private fun customBase(url: String): String = normalizeCustomBaseUrl(url)
 
     private fun customChatUrl(url: String): String {
         val base = customBase(url)
@@ -539,7 +545,7 @@ class AiCoach(private val repo: WhoopRepository) {
 
         val body = JSONObject()
             .put("model", model)
-            .put("max_tokens", 900)
+            .put("max_tokens", 4096)   // #1074: 900 truncated detailed replies; a cap, not a target
             .put("system", systemPrompt)
             .put("messages", messages)
             .toString()
@@ -561,7 +567,7 @@ class AiCoach(private val repo: WhoopRepository) {
             ?.optString("text")
             ?.trim()
 
-        if (content.isNullOrEmpty()) throw Exception("The provider returned an empty reply. Please try again.")
+        if (content.isNullOrEmpty()) throw Exception(emptyReplyMessage(text))
         return content
     }
 
@@ -620,7 +626,7 @@ class AiCoach(private val repo: WhoopRepository) {
             if (parts != null) for (i in 0 until parts.length()) append(parts.optJSONObject(i)?.optString("text").orEmpty())
         }.trim()
 
-        if (reply.isEmpty()) throw Exception("The provider returned an empty reply. Please try again.")
+        if (reply.isEmpty()) throw Exception(emptyReplyMessage(text))
         return reply
     }
 
@@ -706,6 +712,44 @@ class AiCoach(private val repo: WhoopRepository) {
 
     companion object {
         private val JSON = "application/json; charset=utf-8".toMediaType()
+
+        /**
+         * The user-facing message for a 200 response whose assistant content is empty (#1074). Some
+         * OpenAI-compatible servers (e.g. a hand-set model the provider doesn't offer) return the real
+         * error INSIDE a 200 body rather than as a 4xx; surface that here instead of a blanket "empty
+         * reply" so the cause is visible. Falls back to a hint about the hand-set model otherwise.
+         * Pure + `internal` so it is unit-testable without a network. Same `{"error":{"message":…}}`
+         * shape [extractApiErrorMessage] reads.
+         */
+        /**
+         * Normalise a user-entered Custom base URL: trim, drop a trailing slash, and tolerate a pasted
+         * FULL chat URL by stripping a trailing OpenAI-style chat path. So the derived `/chat/completions`
+         * and `/models` endpoints resolve whether the user pasted the API root (`https://api.deepseek.com`
+         * or `.../v1`) OR the whole chat URL (`.../v1/chat/completions`) — the latter otherwise made the
+         * model scan hit `.../chat/completions/models` and silently return nothing (#1074). Pure → tested.
+         */
+        internal fun normalizeCustomBaseUrl(url: String): String {
+            var base = url.trim().trimEnd('/')
+            for (suffix in listOf("/chat/completions", "/completions")) {
+                if (base.endsWith(suffix, ignoreCase = true)) {
+                    base = base.dropLast(suffix.length).trimEnd('/')
+                    break
+                }
+            }
+            return base
+        }
+
+        internal fun emptyReplyMessage(body: String): String {
+            val providerError = runCatching {
+                JSONObject(body).optJSONObject("error")?.optString("message")?.takeIf { it.isNotBlank() }
+            }.getOrNull()
+            return if (providerError != null) {
+                "The provider returned an error: $providerError"
+            } else {
+                "The provider returned an empty reply. If you set a custom model by hand, check that " +
+                    "the model name is one the provider actually offers."
+            }
+        }
 
         /**
          * Pure: unwrap Gemini's `{"models":[{"name":"models/…"}]}` into chat-capable ids. Strips the
@@ -803,17 +847,15 @@ class AiCoach(private val repo: WhoopRepository) {
         const val MAX_HISTORY_TURNS = 10
 
         /**
-         * Appended to a reply when the server stopped early because it ran out of context window.
-         * Local OpenAI-compatible servers (notably Ollama, which defaults to a 2048-token window and
-         * IGNORES `num_ctx` on the `/v1` endpoint) truncate silently, no error, the text just stops
-         * mid-sentence. We can't raise the window over the OpenAI wire format, so we make the cutoff
-         * visible and tell the user exactly how to fix it.
+         * Appended to a reply that stopped early with `finish_reason == "length"` — it reached the
+         * response-length cap (`max_tokens`, now 4096) or, on a local server (e.g. Ollama's default
+         * 2048-token window), the model's own limit. Either way the text just stops mid-sentence with no
+         * error, so make the cutoff visible. Kept provider-agnostic: the old note gave Ollama-specific
+         * `num_ctx` instructions that were wrong for cloud providers like the #1074 DeepSeek report.
          */
         const val TRUNCATION_NOTE =
-            "\n\n---\n*Reply cut off: the model hit its context-window limit. " +
-                "On a local server like Ollama (default 2048 tokens), raise it - create a Modelfile " +
-                "with `PARAMETER num_ctx 8192` and select that model, or set " +
-                "`OLLAMA_CONTEXT_LENGTH=8192` and relaunch Ollama - then ask again.*"
+            "\n\n---\n*Reply cut off at the response-length limit. Ask a more specific question for a " +
+                "shorter, complete answer — or, on a local server (e.g. Ollama), raise its context window.*"
 
         /**
          * Pure: sliding-window the chat. Returns everything when short; otherwise the first user turn
