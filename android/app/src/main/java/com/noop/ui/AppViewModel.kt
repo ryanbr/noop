@@ -10,7 +10,6 @@ import com.noop.alarm.SmartAlarmStore
 import com.noop.alarm.WindDownScheduler
 import com.noop.alarm.WindDownStore
 import com.noop.analytics.Baselines
-import com.noop.analytics.HrZones
 import com.noop.analytics.IllnessSignalEngine
 import com.noop.analytics.IllnessWatch
 import com.noop.analytics.IntelligenceEngine
@@ -532,6 +531,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val zoneCoachRecovery: StateFlow<Boolean> = _zoneCoachRecovery.asStateFlow()
     /** Last HR zone the coach saw (1..5, 0 = below Zone 1); -1 until the first sample. Mirrors macOS lastCoachZone. */
     private var lastZone = -1
+    /** Memoizes the HR-zone set so [coachZone] doesn't rebuild it on every live-HR sample (only on maxHR change). */
+    private val zoneSetCache = com.noop.analytics.HrZoneSetCache()
 
     // Double-tap action (parity since 4.2.8) — persisted in SharedPreferences (NoopPrefs). Default NONE,
     // manual-first. The Automations screen edits this; the live double-tap dispatch (init collector below)
@@ -2474,7 +2475,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (hr < 30) return
         val maxHR = profileStore.hrMax.toDouble()
         if (maxHR <= 0) return
-        val zone = HrZones.zones(maxHR = maxHR).zoneNumber(hr.toDouble())
+        // Memoized on maxHR: this runs every ~1 Hz live-HR sample while zone coaching is active, but the
+        // zone set only changes when the user edits their max HR — so don't rebuild it per tick.
+        val zone = zoneSetCache.zones(maxHR).zoneNumber(hr.toDouble())
         val previous = lastZone
         lastZone = zone
         val loops = zoneCoachBuzzLoops(previous, zone, _zoneCoachRecovery.value)

@@ -189,3 +189,22 @@ object HrZones {
         return maxOf(gaps[gaps.size / 2], 1.0)
     }
 }
+
+/**
+ * Single-entry memo for [HrZones.zones]. The zone set is a pure function of maxHR (the [HrZones.zoneEdges]
+ * are constant), and maxHR changes only when the user edits their profile — orders of magnitude less often
+ * than [com.noop.ui.AppViewModel.coachZone] runs, which is every ~1 Hz live-HR sample while zone coaching
+ * is active. Rebuilds the 5-zone set only when maxHR changes, so a streaming tick reuses it instead of
+ * allocating six objects a second. Not thread-safe by design: touched only from the single coachZone call
+ * on the live-state collector.
+ */
+internal class HrZoneSetCache {
+    private var maxHR = Double.NaN
+    private var set: HrZoneSet? = null
+
+    /** The `manual`-source zone set for [maxHR], rebuilt only when [maxHR] differs from the last call. */
+    fun zones(maxHR: Double): HrZoneSet {
+        set?.let { if (maxHR == this.maxHR) return it }
+        return HrZones.zones(maxHR = maxHR).also { this.maxHR = maxHR; set = it }
+    }
+}
