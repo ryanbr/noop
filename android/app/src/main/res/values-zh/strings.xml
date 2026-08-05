@@ -602,6 +602,7 @@
     <string name="l10n_live_workout_screen_avg_cdc93143">平均</string>
     <string name="l10n_live_workout_screen_cadence_68af11f0">步频/踏频</string>
     <string name="l10n_live_workout_screen_effort_8c974bc6">负荷</string>
+    <string name="l10n_live_workout_screen_of_c5e92da0">共 %1$d</string>
     <string name="l10n_live_workout_screen_end_workout_3e8d6238">结束运动</string>
     <string name="l10n_live_workout_screen_peak_c83dbbd3">峰值</string>
     <string name="l10n_live_workout_screen_power_7548ab52">功率</string>

@@ -634,6 +634,7 @@
     <string name="l10n_live_workout_screen_cadence_68af11f0">Cadence</string>
     <string name="l10n_live_workout_screen_cancel_77dfd213">Cancel</string>
     <string name="l10n_live_workout_screen_effort_8c974bc6">Effort</string>
+    <string name="l10n_live_workout_screen_of_c5e92da0">of %1$d</string>
     <string name="l10n_live_workout_screen_end_this_workout_4869c76a">End this workout?</string>
     <string name="l10n_live_workout_screen_end_workout_3e8d6238">End workout</string>
     <string name="l10n_live_workout_screen_peak_c83dbbd3">Peak</string>

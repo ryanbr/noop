@@ -616,6 +616,7 @@
     <string name="l10n_live_workout_screen_cadence_68af11f0">Cadência</string>
     <string name="l10n_live_workout_screen_cancel_77dfd213">Cancelar</string>
     <string name="l10n_live_workout_screen_effort_8c974bc6">Esforço</string>
+    <string name="l10n_live_workout_screen_of_c5e92da0">de %1$d</string>
     <string name="l10n_live_workout_screen_end_this_workout_4869c76a">Terminar este treino?</string>
     <string name="l10n_live_workout_screen_end_workout_3e8d6238">Terminar treino</string>
     <string name="l10n_live_workout_screen_peak_c83dbbd3">Pico</string>
