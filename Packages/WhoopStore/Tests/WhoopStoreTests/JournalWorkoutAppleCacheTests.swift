@@ -203,6 +203,71 @@ final class JournalWorkoutAppleCacheTests: XCTestCase {
         XCTAssertEqual(rows.count, 2, "same startTs but different sport are distinct rows")
     }
 
+    // MARK: - #1058 per-session steps: a second activity file for a day ADDS, and re-import is idempotent
+
+    func testWorkoutStepsRoundTrip() async throws {
+        let store = try await WhoopStore.inMemory()
+        let w = WorkoutRow(startTs: 1_000, endTs: 4_600, sport: "run", source: "activity-file",
+                           durationS: nil, energyKcal: nil, avgHr: nil, maxHr: nil, strain: nil,
+                           distanceM: nil, zonesJSON: nil, notes: nil, steps: 3_000)
+        try await store.upsertWorkouts([w], deviceId: "activity-file")
+        let rows = try await store.workouts(deviceId: "activity-file", from: 0, to: 100_000, limit: 100)
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows[0].steps, 3_000)
+    }
+
+    func testSumWorkoutStepsAddsAcrossSameDaySessionsAndIsIdempotent() async throws {
+        // The #1058 repro: two walks on one day. Before the fix, the second file's whole-day upsert
+        // clobbered the first's step count; now each session carries its steps and the day total is
+        // their SUM — and re-importing a file leaves that total unchanged.
+        let store = try await WhoopStore.inMemory()
+        let morning = WorkoutRow(startTs: 10_000, endTs: 12_000, sport: "walk", source: "activity-file",
+                                 durationS: nil, energyKcal: nil, avgHr: nil, maxHr: nil, strain: nil,
+                                 distanceM: nil, zonesJSON: nil, notes: nil, steps: 3_000)
+        let evening = WorkoutRow(startTs: 60_000, endTs: 63_000, sport: "walk", source: "activity-file",
+                                 durationS: nil, energyKcal: nil, avgHr: nil, maxHr: nil, strain: nil,
+                                 distanceM: nil, zonesJSON: nil, notes: nil, steps: 8_834)
+
+        try await store.upsertWorkouts([morning], deviceId: "activity-file")
+        var total = try await store.sumWorkoutSteps(deviceId: "activity-file", from: 0, to: 86_400)
+        XCTAssertEqual(total, 3_000, "one walk = its own steps")
+
+        try await store.upsertWorkouts([evening], deviceId: "activity-file")
+        total = try await store.sumWorkoutSteps(deviceId: "activity-file", from: 0, to: 86_400)
+        XCTAssertEqual(total, 11_834, "second same-day walk ADDS, not overwrites")
+
+        // Re-import the morning file (same startTs+sport) → its row is replaced, not duplicated.
+        try await store.upsertWorkouts([morning], deviceId: "activity-file")
+        total = try await store.sumWorkoutSteps(deviceId: "activity-file", from: 0, to: 86_400)
+        XCTAssertEqual(total, 11_834, "re-importing a file must not double-count")
+    }
+
+    func testSumWorkoutStepsIgnoresSteplessSessionsAndOtherDaysAndSources() async throws {
+        let store = try await WhoopStore.inMemory()
+        try await store.upsertWorkouts([
+            // a cycling session that day — no steps, must not affect the total or crash the SUM
+            WorkoutRow(startTs: 20_000, endTs: 22_000, sport: "cycle", source: "activity-file",
+                       durationS: nil, energyKcal: nil, avgHr: nil, maxHr: nil, strain: nil,
+                       distanceM: nil, zonesJSON: nil, notes: nil, steps: nil),
+            WorkoutRow(startTs: 30_000, endTs: 32_000, sport: "walk", source: "activity-file",
+                       durationS: nil, energyKcal: nil, avgHr: nil, maxHr: nil, strain: nil,
+                       distanceM: nil, zonesJSON: nil, notes: nil, steps: 5_000),
+            // next day — outside the range
+            WorkoutRow(startTs: 90_000, endTs: 92_000, sport: "walk", source: "activity-file",
+                       durationS: nil, energyKcal: nil, avgHr: nil, maxHr: nil, strain: nil,
+                       distanceM: nil, zonesJSON: nil, notes: nil, steps: 9_999),
+        ], deviceId: "activity-file")
+        // a different source with steps that day — must not bleed into the activity-file total
+        try await store.upsertWorkouts([
+            WorkoutRow(startTs: 40_000, endTs: 42_000, sport: "walk", source: "apple",
+                       durationS: nil, energyKcal: nil, avgHr: nil, maxHr: nil, strain: nil,
+                       distanceM: nil, zonesJSON: nil, notes: nil, steps: 7_777),
+        ], deviceId: "apple-health")
+
+        let total = try await store.sumWorkoutSteps(deviceId: "activity-file", from: 0, to: 86_400)
+        XCTAssertEqual(total, 5_000, "only same-source, same-day, step-bearing sessions count")
+    }
+
     func testWorkoutNullableMetricsRoundTripAsNil() async throws {
         let store = try await WhoopStore.inMemory()
         let w = WorkoutRow(startTs: 50, endTs: 60, sport: "yoga", source: "apple",

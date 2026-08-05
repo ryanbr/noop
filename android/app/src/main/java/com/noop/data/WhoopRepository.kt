@@ -1266,6 +1266,10 @@ class WhoopRepository(private val dao: WhoopDao) {
     suspend fun workoutsCount(deviceId: String, from: Long, to: Long): Int =
         dao.workoutsCount(deviceId, from, to)
 
+    /** #1058: SUM of per-session `steps` over one source's workouts with startTs in [from, to). */
+    suspend fun sumWorkoutSteps(deviceId: String, from: Long, to: Long): Int =
+        dao.sumWorkoutSteps(deviceId, from, to)
+
     /** Journal entries for the inclusive day range [from, to] (YYYY-MM-DD), oldest first. */
     suspend fun journal(deviceId: String, from: String, to: String): List<JournalEntry> =
         dao.journal(deviceId, from, to)

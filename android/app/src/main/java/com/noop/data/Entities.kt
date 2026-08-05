@@ -504,6 +504,10 @@ data class WorkoutRow(
     val zonesJSON: String? = null,
     val notes: String? = null,
     val routePolyline: String? = null, // Encoded GPS route (RouteMath polyline); null = no GPS.
+    // #1058: per-session step count (activity-file foot sports; null otherwise). The day's step total is
+    // recomputed as SUM over that day's sessions, so a second file for a day adds instead of clobbering.
+    // Declared LAST so the v27 ALTER-appended column matches this fresh-schema order. Swift `WorkoutRow.steps`.
+    val steps: Int? = null,
 )
 
 /**

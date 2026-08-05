@@ -212,6 +212,7 @@ object ActivityFileImporter {
             notes = activity.importNote(),
             routePolyline = activity.route.takeIf { it.size >= 2 }
                 ?.let { RouteMath.encode(it.map { p -> RouteMath.LatLng(p.lat, p.lon) }) },
+            steps = activity.steps,                         // #1058: per-session steps, summed into the day below
         )
 
         repo.upsertDevice(deviceId, name = "Workout files")
@@ -225,14 +226,28 @@ object ActivityFileImporter {
         if (activity.hrSamples.isNotEmpty()) {
             repo.insertHr(activity.hrSamples.map { HrSample(deviceId = deviceId, ts = it.ts, bpm = it.bpm) })
         }
+        // #1058: recompute the day's activity-file step total as the SUM over ALL that day's sessions
+        // (each now carries its own steps), so a second file for the same day ADDS to the first instead
+        // of clobbering it. Idempotent on re-import: the file's workout row (keyed on startTs+sport) is
+        // replaced, not duplicated, so the re-summed total is unchanged. Only recompute when THIS file
+        // contributed steps (a foot sport); a cycling import leaves the day's step total untouched.
+        var dayStepsWritten = false
         if (activity.steps != null && activity.steps > 0) {
-            repo.upsertDailyMetrics(
-                listOf(DailyMetric(deviceId = deviceId, day = localDayString(activity.startTs), steps = activity.steps)),
-            )
+            val zone = java.time.ZoneId.systemDefault()
+            val localDate = Instant.ofEpochSecond(activity.startTs).atZone(zone).toLocalDate()
+            val dayStart = localDate.atStartOfDay(zone).toEpochSecond()
+            val dayEnd = localDate.plusDays(1).atStartOfDay(zone).toEpochSecond()
+            val daySteps = repo.sumWorkoutSteps(deviceId, dayStart, dayEnd)
+            if (daySteps > 0) {
+                repo.upsertDailyMetrics(
+                    listOf(DailyMetric(deviceId = deviceId, day = localDayString(activity.startTs), steps = daySteps)),
+                )
+                dayStepsWritten = true
+            }
         }
 
         val counts = linkedMapOf("workouts" to 1)
-        if (activity.steps != null && activity.steps > 0) counts["dailyMetric"] = 1
+        if (dayStepsWritten) counts["dailyMetric"] = 1
         return ImportSummary(
             source = SOURCE_LABEL,
             counts = counts,

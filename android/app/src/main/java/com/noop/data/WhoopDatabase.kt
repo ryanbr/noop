@@ -52,7 +52,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         RawImuSampleEntity::class,
         V18AuxSampleEntity::class,
     ],
-    version = 26,
+    version = 27,
     // #775: ON so Room's KSP processor writes the generated schema (every table's exact `CREATE TABLE`,
     // columns in declaration order with affinity/NOT NULL/default, PK and indices) as JSON. That export
     // is what lets a plain JVM test — no device, no Robolectric — read Android's REAL schema and compare
@@ -742,6 +742,31 @@ abstract class WhoopDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v26 -> v27: ADDITIVE, adds `workout.steps` (nullable INTEGER) so an imported activity file can
+         * carry its OWN step count (#1058). Before this, activity-file steps were stored only as a
+         * whole-day `dailyMetric.steps` row keyed on (deviceId, day), so a SECOND file for the same day
+         * overwrote the first's steps instead of adding. With steps on the session, the day total is
+         * recomputed as SUM over that day's sessions — additive across files, idempotent on re-import.
+         *
+         * Additive and nullable, the MIGRATION_3_4 (`workout.routePolyline`) form: no table rebuild, no row
+         * touched, not part of the primary key. ALTER TABLE appends the column LAST, matching the entity
+         * field order (declared after `routePolyline`), so a migrated schema and a freshly-created one
+         * agree. Byte-parity with Swift WhoopStore `v33-workout-steps`.
+         *
+         * Exposed as [WORKOUT_STEPS_MIGRATION_SQL] so a plain-JVM unit test can assert its shape without an
+         * emulator, like the migrations above.
+         */
+        internal val WORKOUT_STEPS_MIGRATION_SQL: List<String> = listOf(
+            "ALTER TABLE `workout` ADD COLUMN `steps` INTEGER",
+        )
+
+        internal val MIGRATION_26_27 = object : Migration(26, 27) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                for (stmt in WORKOUT_STEPS_MIGRATION_SQL) db.execSQL(stmt)
+            }
+        }
+
         private fun build(appContext: Context): WhoopDatabase =
             Room.databaseBuilder(appContext, WhoopDatabase::class.java, DB_NAME)
                 // #1014: replace ONLY the corruption handling of the default open-helper. The
@@ -759,6 +784,7 @@ abstract class WhoopDatabase : RoomDatabase() {
                     MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18,
                     MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22,
                     MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26,
+                    MIGRATION_26_27,
                 )
                 // #1037: a FRESH install builds the schema straight at the current version and runs NO
                 // migrations, so the MIGRATION_7_8 "my-whoop" registry seed never fires and the WHOOP,

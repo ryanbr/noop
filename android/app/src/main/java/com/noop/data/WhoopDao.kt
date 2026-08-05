@@ -742,6 +742,19 @@ interface WhoopDao : DeviceRegistryDao {
     suspend fun workoutsCount(deviceId: String, from: Long, to: Long): Int
 
     /**
+     * #1058: sum per-session `steps` over one source's workouts whose startTs is in [from, to). Used to
+     * recompute an activity-file day's step total from ALL its sessions, so a second file on the same day
+     * ADDS rather than clobbers — and re-importing a file is idempotent (its row's steps are replaced, not
+     * re-added, by [upsertWorkouts]). Returns 0 when no session in the range carried steps. Byte-parity
+     * with Swift WhoopStore `sumWorkoutSteps`.
+     */
+    @Query(
+        "SELECT COALESCE(SUM(steps), 0) FROM workout " +
+            "WHERE deviceId = :deviceId AND steps IS NOT NULL AND startTs >= :from AND startTs < :to"
+    )
+    suspend fun sumWorkoutSteps(deviceId: String, from: Long, to: Long): Int
+
+    /**
      * Apple-Health daily aggregates for days in [from, to] (lexicographic compare), oldest first.
      * Port of JournalWorkoutAppleCache.swift appleDaily(deviceId:from:to:).
      */

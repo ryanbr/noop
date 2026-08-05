@@ -752,6 +752,16 @@ extension WhoopStore {
                 t.add(column: "srcChannel", .integer)
             }
         }
+        // #1058: per-session step count on a workout. Activity-file imports previously stored steps only
+        // as a whole-day DailyMetric row keyed on (deviceId, day), so a SECOND file for the same day
+        // overwrote the first's steps instead of adding. With steps on the session, the day total is
+        // recomputed as SUM over that day's sessions — additive across files, idempotent on re-import.
+        // Nullable; only foot-sport activity-file sessions populate it (a strap never writes it).
+        migrator.registerMigration("v33-workout-steps") { db in
+            try db.alter(table: "workout") { t in
+                t.add(column: "steps", .integer)
+            }
+        }
         return migrator
     }
 }
