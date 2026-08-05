@@ -1,5 +1,6 @@
 import XCTest
 @testable import Strand
+import StrandDesign
 
 /// Pins the suggestion catalogue (#714): the two new indoor presets exist, are spelled byte-for-byte
 /// the way Android persists them (the stored sport label round-trips cross-platform via CSV / export),
@@ -70,5 +71,25 @@ final class WorkoutCatalogTests: XCTestCase {
             return XCTFail("Bowling and Other must both be present")
         }
         XCTAssertLessThan(bowling, other, "Bowling extra must sit before the generic Other")
+    }
+
+    /// Iconography lockstep: every catalogue sport must resolve to a `KnownWorkoutType` with a unique
+    /// preferred glyph so the live-workout Liquid Glass control never shares icons across types.
+    func testCatalogueSportsHaveUniqueWorkoutTypeIcons() {
+        let catalogNames = WorkoutCatalog.all.map(\.name)
+        let knownNames = KnownWorkoutType.allCases.map(\.rawValue)
+        XCTAssertEqual(Set(catalogNames), Set(knownNames),
+                       "KnownWorkoutType raw values must match WorkoutCatalog.all names exactly")
+
+        var identities = Set<String>()
+        for sport in WorkoutCatalog.all {
+            guard let type = KnownWorkoutType.exact(matching: sport.name) else {
+                return XCTFail("No KnownWorkoutType for catalogue sport \(sport.name)")
+            }
+            let id = WorkoutTypeIconography.preferredIdentity(for: type)
+            XCTAssertFalse(identities.contains(id), "Duplicate icon \(id) for \(sport.name)")
+            identities.insert(id)
+        }
+        XCTAssertEqual(identities.count, WorkoutCatalog.all.count)
     }
 }

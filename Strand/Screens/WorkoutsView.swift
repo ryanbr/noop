@@ -248,7 +248,7 @@ struct WorkoutsView: View {
         }
         // #519: name the sport before a live session starts, then open the in-exercise view directly
         // (same direct present as the button's already-active path — no cross-view auto-present race).
-        .sheet(isPresented: $showStartSport) {
+        .workoutSelectionCover(isPresented: $showStartSport) {
             StartWorkoutSheet { name in
                 model.startWorkout(sport: name)
                 showLiveWorkout = true
@@ -256,7 +256,7 @@ struct WorkoutsView: View {
         }
         // #64: name the merged session when every selected row is a bare detected bout (there's no sport
         // to inherit). Reuses the "Start a workout" named-sport picker.
-        .sheet(item: $mergeSportPrompt) { target in
+        .workoutSelectionCover(item: $mergeSportPrompt) { target in
             StartWorkoutSheet(title: String(localized: "Name the merged session"),
                               subtitle: String(localized: "These sessions have no sport label yet. Pick one for the merged session."),
                               actionVerb: String(localized: "Merge")) { name in
@@ -484,27 +484,9 @@ struct WorkoutsView: View {
                 }
                 .frame(maxWidth: .infinity)
             }
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(StrandPalette.textTertiary)
-                    .accessibilityHidden(true)
-                TextField(String(localized: "Search sport"), text: $searchText)
-                    .font(StrandFont.subhead)
-                    .foregroundStyle(StrandPalette.textPrimary)
-                    .textFieldStyle(.plain)
-                    #if os(iOS)
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
-                    #endif
-                if !searchText.isEmpty {
-                    Button { searchText = "" } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 12))
-                            .foregroundStyle(StrandPalette.textTertiary)
-                    }
-                    .accessibilityLabel(String(localized: "Clear search"))
-                }
+            HStack(alignment: .center, spacing: NoopMetrics.space2) {
+                NoopLiquidGlassSearchField(text: $searchText,
+                                           prompt: String(localized: "Search sport"))
                 if filter.isActive {
                     Button {
                         withAnimation(.easeOut(duration: 0.15)) {
@@ -514,14 +496,13 @@ struct WorkoutsView: View {
                         Label(String(localized: "Clear"), systemImage: "xmark.circle.fill")
                             .font(StrandFont.footnote)
                             .foregroundStyle(StrandPalette.textSecondary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 7)
+                            .frame(minHeight: 44)
                     }
                     .accessibilityLabel(String(localized: "Clear filters"))
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(StrandPalette.surfaceInset.opacity(0.6),
-                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
     }
 

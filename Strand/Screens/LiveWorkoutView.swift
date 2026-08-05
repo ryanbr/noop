@@ -34,8 +34,8 @@ struct LiveWorkoutView: View {
     /// the moment it leaves, which is exactly the bounded usage Apple asks for. iOS-only (no-op on Mac).
     @AppStorage("workoutKeepScreenOn") private var keepScreenOn = false
 
-    /// Guards the destructive End action behind a confirm (#517) — a stray tap on the full-width button
-    /// used to end the workout instantly with no way back.
+    /// Guards the destructive End action behind a confirm (#517) — a stray tap on the compact exit
+    /// control must not end the workout instantly with no way back.
     @State private var showEndConfirm = false
 
     private var zoneSet: HRZoneSet { HRZones.zones(maxHR: Double(model.profile.hrMax)) }
@@ -59,12 +59,16 @@ struct LiveWorkoutView: View {
                 // standard fitness sensor is feeding metrics, refreshing on its own packets without
                 // re-rendering the HR hero / effort gauge above (scroll-stutter isolation).
                 SensorRowIfPresent()
-                Spacer(minLength: NoopMetrics.space3)
-                endButton
             }
             .screenPadding()
             .padding(.vertical, NoopMetrics.space6)
+            .padding(.bottom, NoopMetrics.space8)
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        // Floating end / elapsed / sport-type controls sit in the bottom safe area so the scroll
+        // content never owns the chrome and the timer can stay screen-centered.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            bottomControlRow
         }
         // A scenic Effort-tinted backdrop behind the whole in-exercise screen, fading to the base — the
         // live workout reads as an Effort-world hero, not a flat panel.
@@ -92,8 +96,8 @@ struct LiveWorkoutView: View {
             // flipped off mid-workout, this clears any hold we placed.
             ScreenIdle.keepAwake(false)
         }
-        // Confirm before ending (#517): a stray tap on "End workout" used to stop the session and
-        // discard the in-progress recording with no way back.
+        // Confirm before ending (#517): ending still requires an explicit confirm so a stray tap on the
+        // compact exit control cannot discard the in-progress recording with no way back.
         .alert("End this workout?",
                isPresented: $showEndConfirm) {
             Button("Cancel", role: .cancel) { }
@@ -108,10 +112,6 @@ struct LiveWorkoutView: View {
 
     private var header: some View {
         HStack(alignment: .center) {
-            Text("Workout")
-                .font(StrandFont.title1)
-                .foregroundStyle(StrandPalette.textPrimary)
-            Spacer()
             HStack(spacing: NoopMetrics.space1) {
                 Circle()
                     .fill(StrandPalette.metricRose)
@@ -124,7 +124,10 @@ struct LiveWorkoutView: View {
             .padding(.vertical, NoopMetrics.space1)
             .background(NoopPanelSurface(tint: StrandPalette.metricRose, cornerRadius: 14))
             .clipShape(Capsule())
+            Spacer(minLength: 0)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text("Recording workout"))
     }
 
     /// Centered elapsed-time stack — same TimelineView source as before; card chrome removed so
@@ -180,6 +183,14 @@ struct LiveWorkoutView: View {
         let displayEffort = UnitFormatter.effortValue(strain, scale: effortScale)
         let maxValue = effortScale == .whoop ? 21.0 : 100.0
         let fraction = min(max(displayEffort / maxValue, 0), 1)
+        // VoiceOver needs the selected scale maximum (0–21 / 0–100) even though the visible denominator
+        // was removed from the glanceable layout. Reuse the same localized "of %@" caption as Today /
+        // Week-in-review, and format the spoken value like the on-screen CountUpText.
+        let valueText = effortScale == .whoop
+            ? String(format: "%.1f", displayEffort)
+            : "\(Int(displayEffort.rounded()))"
+        let scaleCaption = String(localized: "of \(UnitFormatter.effortScaleMax(effortScale))")
+        let effortAccessibilityLabel = "\(String(localized: "Effort")) \(valueText) \(scaleCaption)"
         return VStack(spacing: NoopMetrics.space1) {
             CountUpText(value: displayEffort,
                         format: { value in
@@ -189,7 +200,7 @@ struct LiveWorkoutView: View {
                         },
                         font: StrandFont.rounded(56, weight: .semibold),
                         color: StrandPalette.textPrimary)
-            .accessibilityLabel(Text(UnitFormatter.effortDisplay(strain, scale: effortScale)))
+            .accessibilityLabel(effortAccessibilityLabel)
             .accessibilityValue(Text(StrainGauge.stateLabel(forFraction: fraction)))
 
             Text("EFFORT BUILDING")
@@ -283,10 +294,83 @@ struct LiveWorkoutView: View {
             .frame(width: 1, height: 48)
     }
 
-    private var endButton: some View {
-        NoopButton("End workout", systemImage: "stop.fill", kind: .destructive, fullWidth: true) {
-            showEndConfirm = true
+    // MARK: - Bottom floating controls
+
+    /// Diameter shared by the exit and workout-type Liquid Glass circles so the centered timer stays
+    /// optically balanced against equal side chrome.
+    private static let bottomControlDiameter: CGFloat = 56
+    /// Tight inset so the glass circles nest into the capsule ends (stopwatch-bar proportions).
+    private static let bottomBarInset: CGFloat = 4
+
+    /// One shared dark floating capsule: Liquid Glass exit · elapsed · Liquid Glass workout-type.
+    /// The timer is centered in the bar via ZStack; the glass circles sit in a separate HStack so
+    /// uneven label widths cannot pull the time off-center. The capsule itself is solid elevated
+    /// chrome — not Liquid Glass.
+    private var bottomControlRow: some View {
+        ZStack {
+            bottomElapsedTimer
+                .allowsHitTesting(false)
+
+            HStack(spacing: 0) {
+                endWorkoutGlassButton
+                Spacer(minLength: 0)
+                workoutTypeGlassButton
+            }
         }
+        .padding(Self.bottomBarInset)
+        .background {
+            NoopPanelSurface(cornerRadius: NoopVisualStyle.pillRadius, elevated: true)
+        }
+        .padding(.horizontal, NoopMetrics.space4)
+        .padding(.top, NoopMetrics.space2)
+        .padding(.bottom, NoopMetrics.space3)
+    }
+
+    /// Same `activeWorkout.start` + `TimelineView` source as the hero TIME block — plain primary text,
+    /// no card / glass / capsule behind it (the shared bar owns the surface).
+    private var bottomElapsedTimer: some View {
+        Group {
+            if let start = model.activeWorkout?.start {
+                TimelineView(.periodic(from: .now, by: 1)) { _ in
+                    Text(Self.elapsed(since: start))
+                        .font(StrandFont.number(40)).monospacedDigit()
+                        .foregroundStyle(StrandPalette.textPrimary)
+                        .contentTransition(.numericText())
+                }
+                .accessibilityLabel(Text("Elapsed time"))
+                .accessibilityValue(Text(Self.elapsed(since: start)))
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var endWorkoutGlassButton: some View {
+        Button { showEndConfirm = true } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(StrandPalette.textPrimary)
+                .frame(width: Self.bottomControlDiameter, height: Self.bottomControlDiameter)
+                .contentShape(Circle())
+        }
+        .nativeLiquidGlassWorkoutControl()
+        .accessibilityLabel(Text("End workout"))
+        .accessibilityHint(Text("Stops recording and saves what's captured so far"))
+    }
+
+    private var activeSportName: String {
+        model.activeWorkout?.sport ?? WorkoutCatalog.defaultSportName
+    }
+
+    private var workoutTypeGlassButton: some View {
+        Button {
+            // Placeholder — sport-type picker lands later; chrome and sizing stay put.
+        } label: {
+            WorkoutTypeIcon(workoutType: activeSportName, size: 22, weight: .semibold)
+                .frame(width: Self.bottomControlDiameter, height: Self.bottomControlDiameter)
+                .contentShape(Circle())
+        }
+        .nativeLiquidGlassWorkoutControl()
+        .accessibilityLabel(Text("\(WorkoutSource.displaySport(activeSportName)) workout"))
     }
 
     // MARK: - Helpers
@@ -304,6 +388,28 @@ struct LiveWorkoutView: View {
         case 4: return String(localized: "Threshold")
         case 5: return String(localized: "Maximum")
         default: return ""
+        }
+    }
+}
+
+// MARK: - Native Liquid Glass workout controls
+
+private extension View {
+    /// Platform-owned circular chrome for the live-workout bottom controls. iOS 26 uses the interactive
+    /// Liquid Glass button material; older supported releases keep the same circular geometry with the
+    /// same native-system material fallback the Home header buttons already use.
+    @ViewBuilder
+    func nativeLiquidGlassWorkoutControl() -> some View {
+        if #available(iOS 26.0, *) {
+            self
+                .buttonStyle(.glass)
+                .buttonBorderShape(.circle)
+                .controlSize(.large)
+        } else {
+            self
+                .buttonStyle(LiquidPressStyle())
+                .background(.ultraThinMaterial, in: Circle())
+                .overlay(Circle().strokeBorder(.white.opacity(0.16), lineWidth: 0.8))
         }
     }
 }
