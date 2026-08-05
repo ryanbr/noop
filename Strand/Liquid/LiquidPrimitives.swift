@@ -25,16 +25,16 @@ enum LiquidRender {
         var ctx = base
 
         ctx.fill(Path(ellipseIn: rect), with: .linearGradient(
-            Gradient(colors: [Color.white.opacity(0.08), Color.black.opacity(0.11)]),
+            Gradient(colors: [NoopVisualStyle.surfaceTop, NoopVisualStyle.surfaceBottom]),
             startPoint: CGPoint(x: rect.midX, y: rect.minY),
             endPoint: CGPoint(x: rect.midX, y: rect.maxY)))
         let inset = rect.insetBy(dx: diameter * 0.13, dy: diameter * 0.13)
-        ctx.fill(Path(ellipseIn: inset), with: .color(Color(.sRGB, red: 43/255, green: 45/255, blue: 54/255, opacity: 1)))
+        ctx.fill(Path(ellipseIn: inset), with: .color(NoopVisualStyle.inset))
 
         var track = Path()
         track.addArc(center: center, radius: radius, startAngle: .degrees(-90),
                      endAngle: .degrees(270), clockwise: false)
-        ctx.stroke(track, with: .color(Color.white.opacity(0.10)),
+        ctx.stroke(track, with: .color(NoopVisualStyle.border.opacity(0.72)),
                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
 
         let level = max(0, min(1, sim.level))
@@ -50,7 +50,7 @@ enum LiquidRender {
         }
 
         ctx.stroke(Path(ellipseIn: rect.insetBy(dx: 0.5, dy: 0.5)),
-                   with: .color(Color.white.opacity(0.09)), lineWidth: 1)
+                   with: .color(NoopVisualStyle.borderHighlight.opacity(0.55)), lineWidth: 1)
     }
 
     /// A horizontal capsule tube filled to `frac`; tilt pushes the liquid along it.
@@ -60,8 +60,8 @@ enum LiquidRender {
         let w = size.width, h = size.height, r = h / 2
         let outline = Path(roundedRect: CGRect(x: 0.5, y: 0.5, width: w - 1, height: h - 1), cornerRadius: r)
         var ctx = base
-        ctx.fill(outline, with: .color(Color(.sRGB, red: 14/255, green: 14/255, blue: 18/255, opacity: 1)))
-        ctx.stroke(outline, with: .color(.white.opacity(0.07)), lineWidth: 1)
+        ctx.fill(outline, with: .color(NoopVisualStyle.inset))
+        ctx.stroke(outline, with: .color(NoopVisualStyle.border.opacity(0.72)), lineWidth: 1)
 
         var clip = ctx
         clip.clip(to: outline)

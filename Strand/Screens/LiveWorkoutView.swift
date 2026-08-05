@@ -218,10 +218,10 @@ struct LiveWorkoutView: View {
                                             : "\(Int(value.rounded()))"
                                     },
                                     font: StrandFont.rounded(30, weight: .semibold),
-                                    color: .white)
+                                    color: StrandPalette.textPrimary)
                         Text(String(localized: "of \(maxLabel)"))
                             .font(StrandFont.footnote)
-                            .foregroundStyle(.white.opacity(0.72))
+                            .foregroundStyle(StrandPalette.textSecondary)
                     }
                     .shadow(color: .black.opacity(0.5), radius: 6, y: 1)
                     .allowsHitTesting(false)
