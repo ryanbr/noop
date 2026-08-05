@@ -843,9 +843,6 @@ private fun DeletedSleepWindowsCard(
 // fill is a translucent near-black (mock rgba(13,14,20,.80)) so the card floats OVER the day-of-sky and the
 // vessel + white count-up number stay crisp — the CARD does the contrast work, not a muted sky. Radius 26 +
 // a white@0.11 hairline give the frosted-glass edge. Same constants as the liquid Today heroCard.
-private val LIQUID_HERO_FILL: Color = Color(red = 13f / 255f, green = 14f / 255f, blue = 20f / 255f, alpha = 0.80f)
-private val LIQUID_HERO_RADIUS: Dp = 26.dp
-
 // MARK: - 0. REST HERO — liquid sky + sleep-performance vessel (liquid restyle)
 //
 // The Rest world's opening, restyled to the liquid pilot: a frosted translucent-black hero card floating on
@@ -866,9 +863,7 @@ private fun RestHero(score: Double?, asleepMin: Double?, source: String, overlin
                 // vessel + white count-up number stay crisp. Rounded 26 corner + a faint white hairline give
                 // the frosted-glass edge of the liquid Today heroCard (fill rgba(13,14,20,.80), stroke
                 // white@0.11). Replaces the per-hero night atmosphere (the sky now lives at screen level).
-                .clip(RoundedCornerShape(LIQUID_HERO_RADIUS))
-                .background(LIQUID_HERO_FILL.copy(alpha = LIQUID_HERO_FILL.alpha * CardAppearance.opacity))
-                .border(1.dp, Color.White.copy(alpha = 0.11f * CardAppearance.opacity), RoundedCornerShape(LIQUID_HERO_RADIUS)),
+                .liquidHeroSurface(),
         ) {
             Column(
                 modifier = Modifier.fillMaxWidth().padding(Metrics.space24),
@@ -935,7 +930,7 @@ private fun SleepHeroVessel(fraction: Double, value: Double, tint: Color, diamet
             value = value,
             format = { it.roundToInt().toString() },
             style = NoopType.number(numberSp, weight = FontWeight.Bold)
-                .copy(shadow = Shadow(color = Color.Black.copy(alpha = 0.5f), offset = Offset(0f, 1f), blurRadius = 6f)),
+                .copy(shadow = HeroTextShadow),
             color = Color.White,
             modifier = Modifier.clearAndSetSemantics {},
         )

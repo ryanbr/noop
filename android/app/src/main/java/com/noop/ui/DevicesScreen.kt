@@ -96,11 +96,7 @@ import kotlinx.coroutines.launch
 // MARK: - Liquid hero tokens (the liquid Devices restyle)
 //
 // The ACTIVE device card is the screen's hero: it floats over the day-of-sky as a translucent near-black
-// frosted card so the strap name + the live battery tube stay crisp on it. Same tokens as the liquid Today
-// hero (heroFill = rgba(13,14,20,.80), radius 26, white@0.11 hairline). Those Today constants are private to
-// TodayScreen, so the identical values are declared here. Mirrors the iOS liquid heroCard.
-private val LIQUID_HERO_FILL: Color = Color(red = 13f / 255f, green = 14f / 255f, blue = 20f / 255f, alpha = 0.80f)
-private val LIQUID_HERO_RADIUS: Dp = 26.dp
+// frosted card so the strap name + the live battery tube stay crisp on it. Mirrors the iOS liquid heroCard.
 
 @Composable
 fun DevicesScreen(
@@ -670,9 +666,7 @@ private fun DeviceCard(
         Box(
             modifier = cardModifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(LIQUID_HERO_RADIUS))
-                .background(LIQUID_HERO_FILL.copy(alpha = LIQUID_HERO_FILL.alpha * CardAppearance.opacity))
-                .border(1.dp, Color.White.copy(alpha = 0.11f * CardAppearance.opacity), RoundedCornerShape(LIQUID_HERO_RADIUS))
+                .liquidHeroSurface()
                 .padding(18.dp),
         ) {
             body()

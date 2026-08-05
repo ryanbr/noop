@@ -783,13 +783,6 @@ private fun VitalityHero(
 
 // MARK: - Liquid hero-card wrapper + hero vessel (the pilot idiom)
 //
-// The frosted translucent-black hero-card wrapper (mock rgba(13,14,20,.80), radius 26, white@0.11
-// hairline) that floats the hero over the day-of-sky so the vessel + white count-up stay crisp — the
-// card does the contrast work, not a muted sky. Byte-matched to the Today pilot's LIQUID_HERO_* values.
-private val HEALTH_HERO_FILL: Color =
-    Color(red = 13f / 255f, green = 14f / 255f, blue = 20f / 255f, alpha = 0.80f)
-private val HEALTH_HERO_RADIUS: Dp = 26.dp
-
 /** Wrap a hero's content in the frosted liquid glass surface so it floats over the sky backdrop. Applied
  *  to the HERO cards only (Fitness Age, Vitality), matching the pilot's heroCard: the content sits DIRECTLY
  *  in the translucent box (no inner NoopCard surface to double up on the glass), padded like a card. */
@@ -798,9 +791,7 @@ private fun LiquidHeroCard(content: @Composable () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(HEALTH_HERO_RADIUS))
-            .background(HEALTH_HERO_FILL)
-            .border(1.dp, Color.White.copy(alpha = 0.11f), RoundedCornerShape(HEALTH_HERO_RADIUS))
+            .liquidHeroSurface()
             .padding(Metrics.cardPadding),
     ) {
         content()
@@ -837,7 +828,7 @@ private fun HealthHeroVessel(
             value = value,
             format = format,
             style = NoopType.number(numberSp, weight = FontWeight.Bold)
-                .copy(shadow = Shadow(color = Color.Black.copy(alpha = 0.5f), offset = Offset(0f, 1f), blurRadius = 6f)),
+                .copy(shadow = HeroTextShadow),
             color = Color.White,
             modifier = Modifier.clearAndSetSemantics {},
         )

@@ -198,14 +198,6 @@ private const val CARD_CARRIED_SLEEP = "carriedSleep"
  *  and so already re-inits to 0 on every fresh launch, reaching the same offset through the same helper. */
 private var todayDidSnapToTodayThisLaunch = false
 
-// MARK: - Liquid hero tokens (the liquid Today restyle)
-//
-// The hero card the score vessels float on, ported from the iOS LiquidTodayView. `heroFill` is a
-// translucent near-black (mock rgba(13,14,20,.80)) so it floats over the day-of-sky; the vessels + white
-// count-up numbers read crisp on it. Radius 26 + a white@0.11 hairline give the frosted-glass edge.
-private val LIQUID_HERO_FILL: Color = Color(red = 13f / 255f, green = 14f / 255f, blue = 20f / 255f, alpha = 0.80f)
-private val LIQUID_HERO_RADIUS: Dp = 26.dp
-
 // The Vitality vessel purple (#9b7bff) — no exact Palette token in this theme, so a fixed brand literal
 // matching the iOS liquid Today's `liquidPurple` (Color(.sRGB, red:0x9b, green:0x7b, blue:0xff)). Used by
 // the mini "Your cards" vessel so Vitality reads the same purple as iOS.
@@ -1376,11 +1368,7 @@ fun TodayScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(
-                                        LIQUID_HERO_FILL.copy(alpha = LIQUID_HERO_FILL.alpha * CardAppearance.opacity),
-                                        RoundedCornerShape(LIQUID_HERO_RADIUS),
-                                    )
-                                    .border(1.dp, Color.White.copy(alpha = 0.11f * CardAppearance.opacity), RoundedCornerShape(LIQUID_HERO_RADIUS))
+                                    .liquidHeroSurface()
                                     .staggeredAppear(stagger),
                             ) {
                                 ScoreHeroRow(
@@ -2601,7 +2589,7 @@ private fun HeroScoreVessel(
                 value = value,
                 format = format,
                 style = NoopType.number(numberSp, weight = FontWeight.Bold)
-                    .copy(shadow = Shadow(color = Color.Black.copy(alpha = 0.5f), offset = Offset(0f, 1f), blurRadius = 6f)),
+                    .copy(shadow = HeroTextShadow),
                 color = Color.White,
                 modifier = Modifier.clearAndSetSemantics {},
             )

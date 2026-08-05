@@ -75,6 +75,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -114,6 +115,27 @@ object CardAppearance {
     fun init(context: Context) {
         opacity = (NoopPrefs.cardOpacityPercent(context) / 100f).coerceIn(0f, 1f)
     }
+}
+
+// Liquid hero mock spec: rgba(13,14,20,.80), radius 26, white@0.11 hairline.
+val LiquidHeroFill: Color =
+    Color(red = 13f / 255f, green = 14f / 255f, blue = 20f / 255f, alpha = 0.80f)
+val LiquidHeroRadius: Dp = 26.dp
+val HeroTextShadow = Shadow(
+    color = Color.Black.copy(alpha = 0.5f),
+    offset = Offset(0f, 1f),
+    blurRadius = 6f,
+)
+
+fun Modifier.liquidHeroSurface(): Modifier = composed {
+    this
+        .clip(RoundedCornerShape(LiquidHeroRadius))
+        .background(LiquidHeroFill.copy(alpha = LiquidHeroFill.alpha * CardAppearance.opacity))
+        .border(
+            1.dp,
+            Color.White.copy(alpha = 0.11f * CardAppearance.opacity),
+            RoundedCornerShape(LiquidHeroRadius),
+        )
 }
 
 fun Modifier.frostedCardSurface(

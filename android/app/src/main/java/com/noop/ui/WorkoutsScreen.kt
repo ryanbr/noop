@@ -647,13 +647,6 @@ private fun sessionSelectionKey(row: WorkoutRow): String = "${row.startTs}|${row
 
 // MARK: - Liquid hero tokens (the liquid Workouts restyle)
 //
-// The frosted card the Effort vessel floats on, mirroring the iOS/Today LiquidTodayView heroCard. `fill`
-// is a translucent near-black (mock rgba(13,14,20,.80)) so it floats over the day-of-sky; the vessel + the
-// white count-up read crisp on it. Radius 26 + a white@0.11 hairline give the frosted-glass edge. (These
-// are file-scoped to Workouts — the Today equivalents are private to that file.)
-private val LIQUID_HERO_FILL: Color = Color(red = 13f / 255f, green = 14f / 255f, blue = 20f / 255f, alpha = 0.80f)
-private val LIQUID_HERO_RADIUS: Dp = 26.dp
-
 // MARK: - Effort hero (typical-effort liquid vessel over the day-of-sky)
 //
 // The liquid restyle of the Effort hero: the typical session Effort as a filling LiquidVessel with the
@@ -687,9 +680,7 @@ private fun EffortHero(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(LIQUID_HERO_RADIUS))
-            .background(LIQUID_HERO_FILL.copy(alpha = LIQUID_HERO_FILL.alpha * CardAppearance.opacity))
-            .border(1.dp, Color.White.copy(alpha = 0.11f * CardAppearance.opacity), RoundedCornerShape(LIQUID_HERO_RADIUS))
+            .liquidHeroSurface()
             .padding(20.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -715,7 +706,7 @@ private fun EffortHero(
                             value = shownEffort,
                             format = { oneDecimal(it) },
                             style = NoopType.number(30f, weight = FontWeight.Bold)
-                                .copy(shadow = Shadow(color = Color.Black.copy(alpha = 0.5f), offset = Offset(0f, 1f), blurRadius = 6f)),
+                                .copy(shadow = HeroTextShadow),
                             color = Color.White,
                             modifier = Modifier.clearAndSetSemantics {},
                         )

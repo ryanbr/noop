@@ -241,15 +241,6 @@ private fun androidx.compose.foundation.lazy.LazyListScope.StressContent(
     item { StressMethodologyCard(model, modifier = Modifier.staggeredAppear(4)) }
 }
 
-// MARK: - Liquid hero tokens (the liquid restyle)
-//
-// The hero card the stress vessel floats on, ported from the iOS liquid heroCard. `LIQUID_HERO_FILL` is a
-// translucent near-black (mock rgba(13,14,20,.80)) so it floats over the day-of-sky; the vessel + white
-// count-up number read crisp on it. Radius 26 + a white@0.11 hairline give the frosted-glass edge. Same
-// numbers as the Today pilot's hero card.
-private val LIQUID_HERO_FILL: Color = Color(red = 13f / 255f, green = 14f / 255f, blue = 20f / 255f, alpha = 0.80f)
-private val LIQUID_HERO_RADIUS = 26.dp
-
 // MARK: - 1 · Hero — the liquid stress VESSEL (the flat PipBar is gone)
 //
 // The liquid restyle: the headline 0–3 read is now a band-tinted [LiquidVessel] filling to score/3, with
@@ -267,9 +258,7 @@ private fun StressHeroCard(model: StressModel, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(LIQUID_HERO_RADIUS))
-            .background(LIQUID_HERO_FILL.copy(alpha = LIQUID_HERO_FILL.alpha * CardAppearance.opacity))
-            .border(1.dp, Color.White.copy(alpha = 0.11f * CardAppearance.opacity), RoundedCornerShape(LIQUID_HERO_RADIUS))
+            .liquidHeroSurface()
             .padding(Metrics.cardPadding),
     ) {
         Column(
@@ -316,7 +305,7 @@ private fun StressHeroCard(model: StressModel, modifier: Modifier = Modifier) {
                         value = model.score,
                         format = { String.format(Locale.US, "%.1f", it) },
                         style = NoopType.number(30f, weight = FontWeight.Bold)
-                            .copy(shadow = Shadow(color = Color.Black.copy(alpha = 0.5f), offset = Offset(0f, 1f), blurRadius = 6f)),
+                            .copy(shadow = HeroTextShadow),
                         color = Color.White,
                         modifier = Modifier.clearAndSetSemantics {},
                     )
