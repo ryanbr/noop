@@ -72,6 +72,40 @@ class RrSourceChannelTest {
     }
 
     /**
+     * 0x44 shares 0x60's layout byte for byte, so it shares the decoder — but it is a DIFFERENT tag, and
+     * a stored beat has to be able to name which one produced it. The same bytes routed as each tag must
+     * therefore yield the same intervals under different channels: identical values, distinct labels.
+     * (Until this split both stamped IBI_AMPLITUDE, so a night in which that channel covered 1.25x its
+     * own wall-clock could not say whether one tag repeats beats across records or two tags report the
+     * same beats to each other — the question the scoring-channel choice turns on.) Twin of Swift.
+     */
+    @Test
+    fun bare0x44StampsItsOwnChannelWhileDecodingIdenticalValues() {
+        val asAmplitude = OuraDecoders.decodeIBIAmplitude(record(amp0x60))
+        val asBare = OuraDecoders.decodeIBIAmplitude(record(amp0x60), OuraIbiChannel.IBI_BARE)
+        assertEquals(asAmplitude?.map { it.ibiMs }, asBare?.map { it.ibiMs })
+        assertEquals(asAmplitude?.map { it.amplitude }, asBare?.map { it.amplitude })
+        assertEquals(List(6) { OuraIbiChannel.IBI_BARE }, asBare?.map { it.channel })
+    }
+
+    /**
+     * And the driver is what routes them: a 0x44 record reaches the app labelled IBI_BARE, a 0x60 record
+     * IBI_AMPLITUDE, from the same decoder. Both still emit every beat — a label, not a filter.
+     */
+    @Test
+    fun driverLabels0x44AndLeaves0x60Unchanged() {
+        val driver = OuraDriver(ringGen = OuraRingGen.GEN3, authKey = null)
+        val bare0x44 = "441202000100807b77757a78e4ddccd4e8d79d33"   // 0x60 golden body, 0x44 tag
+        fun channels(events: List<OuraEvent>) =
+            events.mapNotNull { (it as? OuraEvent.Ibi)?.value?.channel }
+        val fromBare = channels(driver.ingest(record(bare0x44)))
+        val fromAmp = channels(driver.ingest(record(amp0x60)))
+        assertEquals(6, fromBare.size)
+        assertEquals(setOf(OuraIbiChannel.IBI_BARE), fromBare.toSet())
+        assertEquals(setOf(OuraIbiChannel.IBI_AMPLITUDE), fromAmp.toSet())
+    }
+
+    /**
      * The end-to-end shape of the defect: two records covering the same wall-clock moment, one per
      * channel, both reaching the driver as `Ibi`. Before #1071 the resulting events were
      * indistinguishable; now the channel survives dispatch, which is what makes the two streams
@@ -151,9 +185,11 @@ class RrSourceChannelTest {
         assertEquals(1, RrSourceChannel.GREEN_QUALITY.code)
         assertEquals(2, RrSourceChannel.SPO2_IBI.code)
         assertEquals(3, RrSourceChannel.IBI_AMPLITUDE.code)
+        assertEquals(4, RrSourceChannel.IBI_BARE.code)
         assertEquals(1, OuraIbiChannel.GREEN_QUALITY.code)
         assertEquals(2, OuraIbiChannel.SPO2_IBI.code)
         assertEquals(3, OuraIbiChannel.IBI_AMPLITUDE.code)
+        assertEquals(4, OuraIbiChannel.IBI_BARE.code)
         assertEquals(RrSourceChannel.SPO2_IBI, RrSourceChannel.fromCode(2))
         assertNull("an unknown code is unknown, not a default", RrSourceChannel.fromCode(99))
         assertNull(RrSourceChannel.fromCode(null))

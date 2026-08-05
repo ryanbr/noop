@@ -304,8 +304,11 @@ public final class OuraDriver {
         case .spo2IbiAmplitude:
             return (OuraDecoders.decodeSpO2IBI(record) ?? []).map { OuraEvent.ibi($0) }
         case .ibi:
-            // The bare 0x44 IBI tag shares the bit-packed layout family; route through the same decoder.
-            return (OuraDecoders.decodeIBIAmplitude(record) ?? []).map { OuraEvent.ibi($0) }
+            // The bare 0x44 IBI tag shares the bit-packed layout family; route through the same decoder,
+            // but stamp its OWN channel — same layout is not the same tag, and a stored beat that cannot
+            // name which of the two produced it cannot answer whether they duplicate each other (#1071
+            // follow-up). Read identically to 0x60; this is a label, not a filter.
+            return (OuraDecoders.decodeIBIAmplitude(record, channel: .ibiBare) ?? []).map { OuraEvent.ibi($0) }
 
         // --- Tier A: HRV ---
         case .hrvRmssd:

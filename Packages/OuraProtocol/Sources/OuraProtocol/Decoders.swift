@@ -80,7 +80,12 @@ public enum OuraDecoders {
     /// byte-scatter layout, cross-checked against the same capture, yields a coherent ~60 bpm train
     /// (10% jump rate) that tracks the night's sleep stages and its day/night dip. Validated against
     /// the `open_oura` decompiled `parse_api_ibi_and_amplitude_event`.
-    public static func decodeIBIAmplitude(_ rec: OuraRecord) -> [OuraIBI]? {
+    /// - Parameter channel: which tag's record this is. 0x60 and 0x44 share this layout byte for byte,
+    ///   so they share the decoder — but they are different tags on the wire, and the caller states
+    ///   which one it routed here so the beat carries its true origin (#1071 follow-up). Defaults to
+    ///   0x60's channel, which is what every existing call site means.
+    public static func decodeIBIAmplitude(_ rec: OuraRecord,
+                                          channel: OuraIBIChannel = .ibiAmplitude) -> [OuraIBI]? {
         let b = rec.payload
         guard b.count >= 14 else { return nil }   // fixed 14-byte packet (body bytes 6..19)
         let b12 = Int(b[12]), b13 = Int(b[13])
@@ -99,7 +104,7 @@ public enum OuraDecoders {
             guard ibi[k] > 0 else { continue }                 // drop a zero IBI, never invent one
             let amp = (Int(b[6 + k]) >> 1) << shift            // 7-bit mantissa << exponent
             out.append(OuraIBI(ringTimestamp: rec.ringTimestamp, ibiMs: ibi[k], amplitude: amp,
-                               channel: .ibiAmplitude))
+                               channel: channel))
         }
         return out.isEmpty ? nil : out
     }

@@ -28,8 +28,18 @@ public enum OuraIBIChannel: Int, Equatable, Sendable, Codable, CaseIterable {
     /// 0x6E `spo2_ibi_and_amplitude_event` (s6.3) — the SpO2 measurement's own beat train, quantised to
     /// an 8 ms grid with NO quality gate, and only present while an SpO2 measurement is running.
     case spo2Ibi = 2
-    /// 0x60 / 0x44 `ibi_and_amplitude_event` (s6.1) — the bit-packed IBI + amplitude family.
+    /// 0x60 `ibi_and_amplitude_event` (s6.1) — the bit-packed IBI + amplitude family.
     case ibiAmplitude = 3
+    /// 0x44 `ibi_event` (s6 / s0) — the SAME bit-packed layout as 0x60 and decoded by the same routine,
+    /// but a DIFFERENT tag on the wire, so it gets its own code.
+    ///
+    /// Both tags stamped `ibiAmplitude` until now, which made them indistinguishable once stored. That
+    /// hid the question the scoring-channel choice turns on: when that channel covers 1.25x the
+    /// wall-clock it spans, is ONE tag repeating beats across its records, or are TWO tags reporting the
+    /// same beats to each other? No stored night could answer it, because the label collapsed them.
+    /// Separating the codes costs nothing and makes the next capture decisive. Labelling only — both
+    /// tags decode and are read exactly as before.
+    case ibiBare = 4
 }
 
 /// One decoded inter-beat interval (and optional amplitude), in milliseconds.

@@ -232,6 +232,7 @@ object OuraStreamMapping {
         OuraIbiChannel.GREEN_QUALITY -> RrSourceChannel.GREEN_QUALITY
         OuraIbiChannel.SPO2_IBI -> RrSourceChannel.SPO2_IBI
         OuraIbiChannel.IBI_AMPLITUDE -> RrSourceChannel.IBI_AMPLITUDE
+        OuraIbiChannel.IBI_BARE -> RrSourceChannel.IBI_BARE
         null -> null
     }
 }

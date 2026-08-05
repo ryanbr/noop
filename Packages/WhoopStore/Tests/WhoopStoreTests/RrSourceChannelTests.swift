@@ -105,6 +105,39 @@ final class RrSourceChannelTests: XCTestCase {
         XCTAssertEqual(scored.map(\.rrMs), (0..<10).map { 800 + $0 })
     }
 
+    /// The 0x44 split (#1071 follow-up) is a LABEL, not a filter: 0x60 and 0x44 share a decoder and now
+    /// carry distinct codes, and BOTH are still read for scoring exactly as the merged label was. If this
+    /// ever starts failing, the split has quietly become a behaviour change — which it must not be, or
+    /// the capture it exists to make measurable would be measuring a different night.
+    func testBare0x44RowsAreLabelledSeparatelyAndStillScored() async throws {
+        let store = try await WhoopStore.inMemory()
+        try await store.upsertDevice(id: "ring", mac: nil, name: nil)
+        var rows: [RRInterval] = []
+        for i in 0..<6 {
+            rows.append(RRInterval(ts: ts + i, rrMs: 800 + i,
+                                   srcChannel: i % 2 == 0 ? .ibiAmplitude : .ibiBare))
+        }
+        _ = try await store.insert(Streams(rr: rows), deviceId: "ring")
+
+        let stored = try await store.rrRowsWithChannelForTest(deviceId: "ring")
+        XCTAssertEqual(stored.filter { $0.srcChannel == RRSourceChannel.ibiBare.rawValue }.count, 3)
+        XCTAssertEqual(stored.filter { $0.srcChannel == RRSourceChannel.ibiAmplitude.rawValue }.count, 3,
+                       "0x60 keeps its own code — the split must not relabel it")
+
+        let scored = try await store.rrIntervals(deviceId: "ring", from: 0, to: ts + 1_000, limit: 1_000)
+        XCTAssertEqual(scored.count, 6, "both tags are still scored; only the label changed")
+        XCTAssertEqual(Set(scored.compactMap(\.srcChannel)), [.ibiAmplitude, .ibiBare])
+    }
+
+    /// The mapping carries the new code end to end, and it is the durable storage value 4.
+    func testBare0x44MapsToItsOwnDurableStorageCode() {
+        let s = OuraStreamMapping.streams(from: [
+            .ibi(OuraIBI(ringTimestamp: 100, ibiMs: 820, amplitude: 42, channel: .ibiBare)),
+        ], at: ts)
+        XCTAssertEqual(s.rr.map(\.srcChannel), [.ibiBare])
+        XCTAssertEqual(RRSourceChannel.ibiBare.rawValue, 4)
+    }
+
     /// The regression the filter could most easily cause. A WHOOP strap has ONE beat source, so its
     /// rows carry no channel — a whitelist filter would have deleted every WHOOP night from scoring.
     func testWhoopRowsCarryNoChannelAndAreNeverFiltered() async throws {

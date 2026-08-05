@@ -87,8 +87,16 @@ object OuraDecoders {
      * decoded to an 82% beat-to-beat >200ms "jump" rate (not a heartbeat train). This byte-scatter
      * layout yields a coherent ~60 bpm train (10% jump rate). Validated against open_oura. Byte-identical
      * twin of Swift's decodeIBIAmplitude.
+     *
+     * @param channel which tag's record this is. 0x60 and 0x44 share this layout byte for byte, so they
+     *   share the decoder — but they are different tags on the wire, and the caller states which one it
+     *   routed here so the beat carries its true origin (#1071 follow-up). Defaults to 0x60's channel,
+     *   which is what every existing call site means.
      */
-    fun decodeIBIAmplitude(rec: OuraRecord): List<OuraIBI>? {
+    fun decodeIBIAmplitude(
+        rec: OuraRecord,
+        channel: OuraIbiChannel = OuraIbiChannel.IBI_AMPLITUDE,
+    ): List<OuraIBI>? {
         val b = rec.payload
         if (b.size < 14) return null   // fixed 14-byte packet (body bytes 6..19)
         val b12 = b[12] and 0xFF
@@ -110,7 +118,7 @@ object OuraDecoders {
             out.add(
                 OuraIBI(
                     ringTimestamp = rec.ringTimestamp, ibiMs = ibi[k], amplitude = amp,
-                    channel = OuraIbiChannel.IBI_AMPLITUDE,
+                    channel = channel,
                 ),
             )
         }

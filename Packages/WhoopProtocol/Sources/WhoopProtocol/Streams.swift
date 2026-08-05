@@ -28,8 +28,17 @@ public enum RRSourceChannel: Int, Equatable, Codable, Sendable, CaseIterable {
     /// Oura 0x6E `spo2_ibi_and_amplitude_event` — the SpO2/red-channel beat train, on an 8 ms
     /// quantisation grid with no quality gate, and present ONLY while SpO2 measurement is running.
     case spo2Ibi = 2
-    /// Oura 0x60 / 0x44 `ibi_and_amplitude_event` — the bit-packed IBI+amplitude family.
+    /// Oura 0x60 `ibi_and_amplitude_event` — the bit-packed IBI+amplitude family.
     case ibiAmplitude = 3
+    /// Oura 0x44 `ibi_event` — the SAME bit-packed layout family as 0x60, decoded by the same routine,
+    /// but a DIFFERENT tag on the wire.
+    ///
+    /// Split out (#1071 follow-up) because both tags used to stamp `ibiAmplitude`, which made them
+    /// indistinguishable once stored: a capture showing that channel over-covering its own wall-clock
+    /// could not say whether one tag repeats beats or two tags report the same beats to each other. That
+    /// is the question the channel choice for scoring rests on, and no stored night could answer it.
+    /// Labelling only — both are read exactly as before.
+    case ibiBare = 4
 }
 
 public struct RRInterval: Equatable, Codable {

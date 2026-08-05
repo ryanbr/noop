@@ -37,8 +37,20 @@ enum class RrSourceChannel(val code: Int) {
      */
     SPO2_IBI(2),
 
-    /** Oura 0x60 / 0x44 `ibi_and_amplitude_event` — the bit-packed IBI+amplitude family. */
+    /** Oura 0x60 `ibi_and_amplitude_event` — the bit-packed IBI+amplitude family. */
     IBI_AMPLITUDE(3),
+
+    /**
+     * Oura 0x44 `ibi_event` — the SAME bit-packed layout family as 0x60, decoded by the same routine,
+     * but a DIFFERENT tag on the wire.
+     *
+     * Split out (#1071 follow-up) because both tags used to stamp [IBI_AMPLITUDE], which made them
+     * indistinguishable once stored: a capture showing that channel over-covering its own wall-clock
+     * could not say whether one tag repeats beats or two tags report the same beats to each other. That
+     * is the question the channel choice for scoring rests on, and no stored night could answer it.
+     * Labelling only — both are read exactly as before.
+     */
+    IBI_BARE(4),
     ;
 
     companion object {
