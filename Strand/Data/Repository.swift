@@ -419,6 +419,23 @@ final class Repository: ObservableObject {
         widgetAnchor(days: days, logicalKey: logicalDayKey(now), localKey: localDayKey(now))
     }
 
+    /// #1051-shaped memo for the anchor resolve on the high-frequency live surfaces. Not @Published — pure
+    /// bookkeeping, never drives the UI (like `todayHistoryWideLoadedSeq`).
+    private var widgetAnchorMemo = WidgetAnchorMemo()
+
+    /// Memoized `widgetAnchor(days: self.days)` for the Live Activity's ~1-3 Hz `onReceive` closures, which
+    /// otherwise re-derive the anchor (two `DateFormatter` formats + up to two full-history scans) on every
+    /// live-HR tick. Recomputes only when `days` changes (`refreshSeq`) or the day rolls — byte-identical to
+    /// the static overload. Call THIS from the per-tick live surfaces; tests use the pure 3-arg overload.
+    func cachedWidgetAnchor(now: Date = Date()) -> DailyMetric? {
+        widgetAnchorMemo.resolve(
+            days: days,
+            seq: refreshSeq,
+            logicalKey: Self.logicalDayKey(now),
+            localKey: Self.localDayKey(now)
+        ) { Repository.widgetAnchor(days: $0, logicalKey: $1, localKey: $2) }
+    }
+
     /// The recovery-INDEPENDENT overnight-vitals carry (the durable fix for the v8 Today rollover blank):
     /// the freshest strictly-prior day that recorded any of HRV / resting HR / respiratory, so the recovery
     /// VITALS keep reading through the post-04:00 window before tonight's sleep is scored, WITHOUT being
