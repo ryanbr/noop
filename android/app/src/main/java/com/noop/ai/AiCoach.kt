@@ -717,14 +717,6 @@ class AiCoach(private val repo: WhoopRepository) {
         private val JSON = "application/json; charset=utf-8".toMediaType()
 
         /**
-         * The user-facing message for a 200 response whose assistant content is empty (#1074). Some
-         * OpenAI-compatible servers (e.g. a hand-set model the provider doesn't offer) return the real
-         * error INSIDE a 200 body rather than as a 4xx; surface that here instead of a blanket "empty
-         * reply" so the cause is visible. Falls back to a hint about the hand-set model otherwise.
-         * Pure + `internal` so it is unit-testable without a network. Same `{"error":{"message":…}}`
-         * shape [extractApiErrorMessage] reads.
-         */
-        /**
          * Normalise a user-entered Custom base URL: trim, drop a trailing slash, and tolerate a pasted
          * FULL chat URL by stripping a trailing OpenAI-style chat path. So the derived `/chat/completions`
          * and `/models` endpoints resolve whether the user pasted the API root (`https://api.deepseek.com`
@@ -742,6 +734,14 @@ class AiCoach(private val repo: WhoopRepository) {
             return base
         }
 
+        /**
+         * The user-facing message for a 200 response whose assistant content is empty (#1074). Some
+         * OpenAI-compatible servers (e.g. a hand-set model the provider doesn't offer) return the real
+         * error INSIDE a 200 body rather than as a 4xx; surface that here instead of a blanket "empty
+         * reply" so the cause is visible. Falls back to a hint about the hand-set model otherwise.
+         * Pure + `internal` so it is unit-testable without a network. Same `{"error":{"message":…}}`
+         * shape [extractApiErrorMessage] reads.
+         */
         internal fun emptyReplyMessage(body: String): String {
             val providerError = runCatching {
                 JSONObject(body).optJSONObject("error")?.optString("message")?.takeIf { it.isNotBlank() }
