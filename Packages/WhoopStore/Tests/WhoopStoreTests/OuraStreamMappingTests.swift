@@ -225,6 +225,53 @@ final class OuraStreamMappingTests: XCTestCase {
         XCTAssertTrue(s.steps.isEmpty, "activity/MET must never fabricate a steps row")
     }
 
+    // MARK: - Batching a record's events into one insert (#1072, root cause for #823)
+
+    /// The defect's shape: the store's `ord` counter is batch-local, so a record's beats only get a
+    /// real emission order if they reach the store TOGETHER. Grouping is by the resolved second.
+    func testBatchedGroupsOneRecordsBeatsIntoASingleBatch() {
+        let beats = [812, 795, 840, 801, 833]
+        let batches = OuraStreamMapping.batched(beats.map {
+            (event: OuraEvent.ibi(OuraIBI(ringTimestamp: 100, ibiMs: $0)), ts: ts)
+        })
+        XCTAssertEqual(batches.count, 1, "one record's beats must be ONE batch, not five")
+        XCTAssertEqual(batches[0].ts, ts)
+        XCTAssertEqual(batches[0].events.count, beats.count)
+        // Emission order inside the batch is the whole point — it is what `ord` will record.
+        let rr = OuraStreamMapping.streams(from: batches[0].events, at: batches[0].ts).rr
+        XCTAssertEqual(rr.map { $0.rrMs }, beats)
+    }
+
+    /// Two records anchored to different seconds stay separate batches, in the order they arrived —
+    /// `ord` numbers beats within a second, so merging distinct seconds would mean nothing.
+    func testBatchedKeepsDistinctTimestampsSeparateAndInArrivalOrder() {
+        let batches = OuraStreamMapping.batched([
+            (event: .ibi(OuraIBI(ringTimestamp: 100, ibiMs: 800)), ts: ts + 3),
+            (event: .ibi(OuraIBI(ringTimestamp: 100, ibiMs: 810)), ts: ts + 3),
+            (event: .ibi(OuraIBI(ringTimestamp: 200, ibiMs: 900)), ts: ts),
+        ])
+        XCTAssertEqual(batches.map { $0.ts }, [ts + 3, ts],
+                       "timestamps keep first-appearance order, they are not re-sorted")
+        XCTAssertEqual(batches.map { $0.events.count }, [2, 1])
+    }
+
+    /// Same-second events that arrive interleaved with other seconds still land in one batch, and
+    /// their relative order is preserved — the store may never see a second's beats twice.
+    func testBatchedFoldsInterleavedSameSecondEventsIntoOneBatch() {
+        let batches = OuraStreamMapping.batched([
+            (event: .ibi(OuraIBI(ringTimestamp: 100, ibiMs: 800)), ts: ts),
+            (event: .ibi(OuraIBI(ringTimestamp: 200, ibiMs: 900)), ts: ts + 1),
+            (event: .ibi(OuraIBI(ringTimestamp: 100, ibiMs: 810)), ts: ts),
+        ])
+        XCTAssertEqual(batches.count, 2)
+        XCTAssertEqual(OuraStreamMapping.streams(from: batches[0].events, at: ts).rr.map { $0.rrMs },
+                       [800, 810])
+    }
+
+    func testBatchedOnEmptyInputYieldsNoBatches() {
+        XCTAssertTrue(OuraStreamMapping.batched([]).isEmpty)
+    }
+
     // MARK: - Empty batch + multi-signal batch
 
     func testEmptyBatchYieldsEmptyStreams() {

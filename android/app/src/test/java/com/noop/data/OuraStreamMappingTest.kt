@@ -235,6 +235,77 @@ class OuraStreamMappingTest {
         assertTrue(s.hr.isEmpty())
     }
 
+    // --- Batching a record's events into one persist (#1072, root cause for #823) ---
+
+    /**
+     * The defect's shape: [assignRrSeq]'s `ord` counter is batch-local, so a record's beats only get a
+     * real emission order if they reach the store TOGETHER. Grouping is by the resolved second, and the
+     * `ord` values it produces are asserted end-to-end here. Twin of the Swift
+     * `testBatchedGroupsOneRecordsBeatsIntoASingleBatch`.
+     */
+    @Test
+    fun batchedGroupsOneRecordsBeatsIntoASinglePersist() {
+        val beats = listOf(812, 795, 840, 801, 833)
+        val stamped = beats.map { ms ->
+            OuraEvent.Ibi(OuraIBI(ringTimestamp = 10, ibiMs = ms)) as OuraEvent to base + 10
+        }
+        val batches = OuraStreamMapping.batched(stamped)
+        assertEquals("one record's beats must be ONE batch, not five", 1, batches.size)
+        assertEquals(base + 10, batches[0].first)
+
+        // Through the production widening (StreamPersistence.toBatch) so the ord assertion is on the
+        // rows the DAO actually inserts.
+        val rr = StreamPersistence.toBatch(OuraStreamMapping.streams(batches[0].second) { base + 10 }).rr
+        assertEquals(beats, rr.map { it.rrMs })
+        // ord is what the whole change exists for: emission order, not 0 on every row.
+        assertEquals(listOf(0, 1, 2, 3, 4), assignRrSeq("ring", rr).map { it.ord })
+    }
+
+    /** The pre-fix shape, pinned so it cannot come back: one beat per persist can only ever write 0. */
+    @Test
+    fun onePersistPerBeatRecordsNoOrder() {
+        val ords = listOf(812, 795, 840).map { ms ->
+            assignRrSeq("ring", listOf(RrRow(base.toLong(), ms))).single().ord
+        }
+        assertEquals(listOf(0, 0, 0), ords)
+    }
+
+    /** Distinct seconds stay distinct batches, in arrival order — `ord` numbers within a second. */
+    @Test
+    fun batchedKeepsDistinctTimestampsSeparateAndInArrivalOrder() {
+        val batches = OuraStreamMapping.batched(
+            listOf(
+                OuraEvent.Ibi(OuraIBI(ringTimestamp = 13, ibiMs = 800)) as OuraEvent to base + 13,
+                OuraEvent.Ibi(OuraIBI(ringTimestamp = 13, ibiMs = 810)) as OuraEvent to base + 13,
+                OuraEvent.Ibi(OuraIBI(ringTimestamp = 10, ibiMs = 900)) as OuraEvent to base + 10,
+            ),
+        )
+        assertEquals(listOf(base + 13, base + 10), batches.map { it.first })
+        assertEquals(listOf(2, 1), batches.map { it.second.size })
+    }
+
+    /** Interleaved same-second events fold into one batch, relative order preserved. */
+    @Test
+    fun batchedFoldsInterleavedSameSecondEventsIntoOneBatch() {
+        val batches = OuraStreamMapping.batched(
+            listOf(
+                OuraEvent.Ibi(OuraIBI(ringTimestamp = 10, ibiMs = 800)) as OuraEvent to base + 10,
+                OuraEvent.Ibi(OuraIBI(ringTimestamp = 11, ibiMs = 900)) as OuraEvent to base + 11,
+                OuraEvent.Ibi(OuraIBI(ringTimestamp = 10, ibiMs = 810)) as OuraEvent to base + 10,
+            ),
+        )
+        assertEquals(2, batches.size)
+        assertEquals(
+            listOf(800, 810),
+            OuraStreamMapping.streams(batches[0].second) { base + 10 }.rr.map { it.rrMs },
+        )
+    }
+
+    @Test
+    fun batchedOnEmptyInputYieldsNoBatches() {
+        assertTrue(OuraStreamMapping.batched(emptyList()).isEmpty())
+    }
+
     @Test
     fun tierBAndActivityInfoNeverMapToAStream() {
         // HONEST-DATA INVARIANT (PR #960): Tier-B raw summaries AND the decoded-but-unvalidated 0x50

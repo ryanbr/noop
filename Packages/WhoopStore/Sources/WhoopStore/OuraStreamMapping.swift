@@ -175,6 +175,33 @@ public enum OuraStreamMapping {
         return out
     }
 
+    /// Group already-stamped events into ONE batch per timestamp, keeping the order they arrived in
+    /// (and the first-appearance order of the timestamps themselves). Pure → unit-testable.
+    ///
+    /// This exists because `StreamStore.insert`'s `seq` / `ord` counters are **batch-local by design**:
+    /// `ord` is a beat's position among the beats that share its second *within one insert*, which is
+    /// the only place emission order is still known (v30, #823). A transport that hands the store one
+    /// event per insert therefore restarts the counter on every beat and writes `ord = 0` on every row
+    /// — measured on a real database as 575,630 of 575,630 rows (#1072). With `ord` tied, the read falls
+    /// through to `(rrMs, seq)`, i.e. a second's beats come back sorted by VALUE, and RMSSD — built
+    /// entirely from successive differences — is biased down by construction.
+    ///
+    /// One record's beats all carry that record's own ring time, so grouping by the resolved timestamp
+    /// is what hands the store a record's beats together. Order is the only property callers may rely
+    /// on: events keep their relative order inside a batch, so `ord` counts in emission order.
+    public static func batched(_ stamped: [(event: OuraEvent, ts: Int)]) -> [(ts: Int, events: [OuraEvent])] {
+        var order: [Int] = []
+        var byTs: [Int: [OuraEvent]] = [:]
+        for s in stamped {
+            if byTs[s.ts] == nil {
+                order.append(s.ts)
+                byTs[s.ts] = []
+            }
+            byTs[s.ts]?.append(s.event)
+        }
+        return order.map { (ts: $0, events: byTs[$0] ?? []) }
+    }
+
     /// Translate the protocol layer's `OuraIBIChannel` to the store's `RRSourceChannel` (#1071).
     ///
     /// Two enums rather than one because `OuraProtocol` deliberately does not depend on `WhoopProtocol`

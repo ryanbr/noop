@@ -106,6 +106,54 @@ final class MigrationTests: XCTestCase {
                              "sorted order should be the badly-biased one this fix avoids")
     }
 
+    /// `ord` is BATCH-LOCAL — a beat's position among the beats sharing its second *in this insert* —
+    /// which is what let #1072 happen: a transport that inserts one beat at a time restarts the counter
+    /// on every row, so every beat is written `ord = 0` and the v30 fix silently does nothing. With
+    /// `ord` tied the read falls back to `(rrMs, seq)`, i.e. magnitude order, which is exactly the #823
+    /// symptom. This pins both shapes side by side so the store-side contract the Oura call sites now
+    /// satisfy (one record's beats = one insert) cannot regress unnoticed.
+    func testV30OrdIsBatchLocalSoOneInsertPerBeatRecordsNoOrder() async throws {
+        let store = try await WhoopStore.inMemory()
+        try await store.upsertDevice(id: "dev1", mac: nil, name: nil)
+        let emission = [812, 795, 840, 801, 833]
+        for v in emission {   // the pre-#1072 Oura shape: one insert per beat
+            _ = try await store.insert(Streams(rr: [RRInterval(ts: 400, rrMs: v)]), deviceId: "dev1")
+        }
+        let ords = try await store.rrOrdValuesForTest(deviceId: "dev1", ts: 400)
+        XCTAssertEqual(ords, [0, 0, 0, 0, 0], "a one-beat insert can only ever compute ord 0")
+        let read = try await store.rrIntervals(deviceId: "dev1", from: 0, to: 1_000, limit: 100)
+        XCTAssertEqual(read.map(\.rrMs), emission.sorted(),
+                       "tied ord falls through to (rrMs, seq) — the magnitude order #823 reports")
+
+        // The same beats delivered as ONE insert keep their emission order, `ord` counting 0,1,2,…
+        _ = try await store.insert(
+            Streams(rr: emission.map { RRInterval(ts: 500, rrMs: $0) }), deviceId: "dev1")
+        let batchedOrds = try await store.rrOrdValuesForTest(deviceId: "dev1", ts: 500)
+        XCTAssertEqual(batchedOrds, [0, 1, 2, 3, 4])
+    }
+
+    /// The second consequence of insert-per-beat, and the reason a post-fix night holds slightly MORE
+    /// rows than a pre-fix one: `seq` (v24) exists so two beats with the same interval in the same
+    /// second survive as distinct rows, and it is batch-local for the same reason `ord` is. One insert
+    /// per beat recomputed `seq = 0` for the second beat, so it collided on the primary key and was
+    /// silently dropped by `ON CONFLICT DO NOTHING`. Batched, both are stored — real beats recovered,
+    /// not duplicates invented.
+    func testEqualIntervalsInOneRecordSurviveOnlyWhenTheRecordIsOneInsert() async throws {
+        let store = try await WhoopStore.inMemory()
+        try await store.upsertDevice(id: "dev1", mac: nil, name: nil)
+        for _ in 0..<2 {   // the pre-#1072 shape
+            _ = try await store.insert(Streams(rr: [RRInterval(ts: 600, rrMs: 812)]), deviceId: "dev1")
+        }
+        let dropped = try await store.rrIntervals(deviceId: "dev1", from: 590, to: 610, limit: 100)
+        XCTAssertEqual(dropped.count, 1, "insert-per-beat silently loses the second identical beat")
+
+        _ = try await store.insert(
+            Streams(rr: [RRInterval(ts: 700, rrMs: 812), RRInterval(ts: 700, rrMs: 812)]),
+            deviceId: "dev1")
+        let kept = try await store.rrIntervals(deviceId: "dev1", from: 690, to: 710, limit: 100)
+        XCTAssertEqual(kept.count, 2, "batched, seq 0/1 keeps both beats")
+    }
+
     /// Rows written before v30 have `ord` NULL — the order was never recorded, so it cannot be
     /// backfilled. SQLite sorts NULL first in ASC, so an all-legacy second ties on `ord` and falls
     /// through to the old (rrMs, seq) order: existing data reads back exactly as it did before.

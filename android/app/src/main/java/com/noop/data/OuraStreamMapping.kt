@@ -198,6 +198,28 @@ object OuraStreamMapping {
     }
 
     /**
+     * Group already-stamped events into ONE batch per timestamp, keeping the order they arrived in (and
+     * the first-appearance order of the timestamps themselves). Pure → JVM-unit-testable. Swift twin:
+     * `OuraStreamMapping.batched(_:)`.
+     *
+     * This exists because [com.noop.data.assignRrSeq]'s `seq` / `ord` counters are **batch-local by
+     * design**: `ord` is a beat's position among the beats that share its second *within one persist*,
+     * which is the only place emission order is still known (v30, #823). A transport that hands the
+     * store one event per persist therefore restarts the counter on every beat and writes `ord = 0` on
+     * every row — measured on a real database as 575,630 of 575,630 rows (#1072). With `ord` tied the
+     * read falls through to `(rrMs, seq)`, i.e. a second's beats come back sorted by VALUE, and RMSSD —
+     * built entirely from successive differences — is biased down by construction.
+     *
+     * One record's beats all carry that record's own ring time, so grouping by the resolved timestamp is
+     * what hands the store a record's beats together. Order is the only property callers may rely on.
+     */
+    fun batched(stamped: List<Pair<OuraEvent, Int>>): List<Pair<Int, List<OuraEvent>>> {
+        val byTs = LinkedHashMap<Int, MutableList<OuraEvent>>()
+        for ((event, ts) in stamped) byTs.getOrPut(ts) { mutableListOf() }.add(event)
+        return byTs.map { (ts, events) -> ts to events.toList() }
+    }
+
+    /**
      * Translate the protocol layer's [OuraIbiChannel] to the store's [RrSourceChannel] (#1071).
      *
      * Two enums rather than one because `com.noop.oura` is the pure ring decoder and does not depend on

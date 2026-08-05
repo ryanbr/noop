@@ -1064,9 +1064,10 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     private func drainPendingAnchorEvents() {
         guard !pendingAnchorEvents.isEmpty, let driver else { return }
         let now = Int(Date().timeIntervalSince1970)
+        var stamped: [(event: OuraEvent, ts: Int)] = []
         for pending in pendingAnchorEvents {
             if let ts = driver.unixSeconds(forRingTimestamp: pending.ringTimestamp) {
-                enqueue([pending.event], ts: ts)
+                stamped.append((event: pending.event, ts: ts))
                 // A parked IBI can be a LIVE beat that arrived before the anchor (see .ibi in ingest());
                 // it must never advance the resume cursor either, or a live push could skip un-drained
                 // backlog on a force-stopped drain. Only the history-only siblings drive the cursor.
@@ -1074,8 +1075,13 @@ public final class OuraLiveSource: NSObject, ObservableObject {
                     noteStoredHistoryRingTime(pending.ringTimestamp)   // parked history sample placed → advance resume cursor
                 }
             } else {
-                enqueue([pending.event], ts: now)   // honest wall-clock fallback; NEVER advances the cursor
+                stamped.append((event: pending.event, ts: now))   // honest wall-clock fallback; NEVER advances the cursor
             }
+        }
+        // Batched by resolved second, exactly like the live path (#1072): a record's parked beats are
+        // released as ONE insert so `ord` records their emission order instead of restarting at 0 per beat.
+        for batch in OuraStreamMapping.batched(stamped) {
+            enqueue(batch.events, ts: batch.ts)
         }
         pendingAnchorEvents.removeAll()
     }
@@ -1155,6 +1161,24 @@ public final class OuraLiveSource: NSObject, ObservableObject {
                 }
             }
         }
+        // #1072 (root cause for #823): a RECORD's beats must reach the store as ONE batch. `StreamStore`'s
+        // `ord` counter is batch-local — a beat's position among the beats sharing its second WITHIN one
+        // insert is the only place emission order still exists — so enqueuing one beat at a time (what the
+        // `.ibi` arm below used to do) restarted the counter on every beat and wrote `ord = 0` on every
+        // row: 575,630 of 575,630 rows in a real database. With `ord` tied the read falls through to
+        // `(rrMs, seq)`, i.e. a second's beats come back sorted by VALUE, which minimises successive
+        // differences by construction and biases RMSSD down (#823). All of one record's beats carry that
+        // record's ring time, so grouping the anchored ones by their resolved `ts` hands the store a
+        // record at a time and `ord` becomes their real emission order. Unanchored beats still park below
+        // and are batched the same way when the 0x42 lands (`drainPendingAnchorEvents`).
+        let anchoredBeats: [(event: OuraEvent, ts: Int)] = events.compactMap { e in
+            guard case .ibi(let ibi) = e,
+                  let ts = driver.unixSeconds(forRingTimestamp: ibi.ringTimestamp) else { return nil }
+            return (event: e, ts: ts)
+        }
+        for batch in OuraStreamMapping.batched(anchoredBeats) {
+            enqueue(batch.events, ts: batch.ts)
+        }
         for e in events {
             switch e {
             case .hr(let hr):
@@ -1187,17 +1211,18 @@ public final class OuraLiveSource: NSObject, ObservableObject {
                 // A banked IBI is history data: anchor it to its REAL ring-time, exactly like the sibling
                 // banked streams (.hrv/.temp/.spo2/.sleepPhase) below — never the drain-arrival `now`.
                 // Stamping it at `now` (52b6e88d) misfiled every overnight beat to the daytime sync moment,
-                // so the sleep window ended up with zero R-R -> no restingHr/avgHrv for the night.
-                if let ts = driver.unixSeconds(forRingTimestamp: ibi.ringTimestamp) {
-                    enqueue([e], ts: ts)
-                    // NOTE: unlike the history-only siblings, do NOT noteStoredHistoryRingTime here — IBI is
-                    // the one stream that arrives both LIVE (ring-time ~now) and banked, indistinguishable
-                    // at this call site except by ring-time. Letting a live beat advance the resume cursor
-                    // could leap `maxStoredRingTime` to ~now during a force-stopped drain (300s/stall guard,
-                    // bytes_left > 0) and permanently skip the un-drained backlog. The resume cursor is still
-                    // driven correctly by the history-only siblings (hrv/temp/spo2/sleepPhase) that share the
-                    // same night window; this also matches Kotlin, which notes no stream's ring-time.
-                } else {
+                // so the sleep window ended up with zero R-R -> no restingHr/avgHrv for the night. The
+                // anchored beats were ALREADY enqueued above, as one batch per record (#1072); all this arm
+                // still owns is the live readout and parking the ones no anchor can place yet.
+                //
+                // NOTE: unlike the history-only siblings, an IBI never calls noteStoredHistoryRingTime — it
+                // is the one stream that arrives both LIVE (ring-time ~now) and banked, indistinguishable
+                // at this call site except by ring-time. Letting a live beat advance the resume cursor
+                // could leap `maxStoredRingTime` to ~now during a force-stopped drain (300s/stall guard,
+                // bytes_left > 0) and permanently skip the un-drained backlog. The resume cursor is still
+                // driven correctly by the history-only siblings (hrv/temp/spo2/sleepPhase) that share the
+                // same night window; this also matches Kotlin, which notes no stream's ring-time.
+                if driver.unixSeconds(forRingTimestamp: ibi.ringTimestamp) == nil {
                     pendingAnchorEvents.append((e, ibi.ringTimestamp))
                 }
 
