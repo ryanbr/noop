@@ -44,10 +44,11 @@ struct GeminiClient: AIProviderClient {
               let first = candidates.first,
               let content = first["content"] as? [String: Any],
               let parts = content["parts"] as? [[String: Any]] else {
-            throw AICoachError.decode
+            throw emptyReplyError(json)   // #1074: surface the provider's real error if the 200 body has one
         }
         let text = parts.compactMap { $0["text"] as? String }.joined()
-        guard !text.isEmpty else { throw AICoachError.decode }
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { throw emptyReplyError(json) }   // #1074: friendlier empty-reply hint
         return text
     }
 

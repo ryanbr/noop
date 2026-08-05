@@ -115,6 +115,7 @@ enum AICoachError: LocalizedError {
     case server(Int, String)
     case network(String)
     case decode
+    case emptyReply(String)   // #1074: verbatim provider-error / empty-reply text (byte-parity with Android emptyReplyMessage)
     case keySaveFailed
     case badCustomURL(String)
 
@@ -139,6 +140,8 @@ enum AICoachError: LocalizedError {
             return "Network problem: \(detail). The coach is the only feature that needs the internet."
         case .decode:
             return "Couldn't read the provider's reply. Try again."
+        case .emptyReply(let message):
+            return message
         }
     }
 }

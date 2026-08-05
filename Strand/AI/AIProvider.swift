@@ -92,10 +92,27 @@ enum AIProvider: String, CaseIterable, Identifiable {
     static let customBaseURLKey = "ai.customBaseURL"
     static let customAuthHeaderKey = "ai.customAuthHeader"
 
-    /// The user-set Custom base URL, trimmed.
+    /// The user-set Custom base URL, normalised. Byte-parity with Android `AiCoach.normalizeCustomBaseUrl`.
     static var customBaseURL: String {
-        (UserDefaults.standard.string(forKey: customBaseURLKey) ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        normalizeCustomBaseURL(UserDefaults.standard.string(forKey: customBaseURLKey) ?? "")
+    }
+
+    /// #1074: normalise the Custom base URL so the derived `/chat/completions` and `/models` endpoints
+    /// are always well-formed. The user may paste the base (`http://…:11434/v1`) OR the whole chat URL
+    /// (`…/v1/chat/completions`) — the latter otherwise made the model scan hit `…/chat/completions/models`
+    /// and silently return nothing. Trim, drop trailing slashes, strip one trailing OpenAI-style chat
+    /// path, drop trailing slashes again. Pure — unit-tested. Byte-identical to Android normalizeCustomBaseUrl.
+    static func normalizeCustomBaseURL(_ url: String) -> String {
+        var base = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        while base.hasSuffix("/") { base.removeLast() }
+        for suffix in ["/chat/completions", "/completions"] {
+            if base.lowercased().hasSuffix(suffix) {
+                base.removeLast(suffix.count)
+                while base.hasSuffix("/") { base.removeLast() }
+                break
+            }
+        }
+        return base
     }
 
     static var customAuthHeader: CustomAIAuthHeader {
@@ -253,4 +270,16 @@ func providerErrorMessage(from data: Data) -> String {
     if let msg = obj["message"] as? String { return msg }
 
     return ""
+}
+
+/// #1074: the error to throw when a 200 response has no assistant content. Some OpenAI-compatible
+/// servers (e.g. a hand-set model they don't offer) return the real error INSIDE the 200 body rather
+/// than a 4xx; surface it instead of a blank decode error, so the cause is visible. Byte-parity with
+/// Android `AiCoach.emptyReplyMessage`.
+func emptyReplyError(_ json: [String: Any]) -> AICoachError {
+    if let err = json["error"] as? [String: Any], let msg = err["message"] as? String, !msg.isEmpty {
+        return .emptyReply("The provider returned an error: \(msg)")
+    }
+    return .emptyReply("The provider returned an empty reply. If you set a custom model by hand, check "
+        + "that the model name is one the provider actually offers.")
 }

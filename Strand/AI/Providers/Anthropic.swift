@@ -15,7 +15,9 @@ struct AnthropicClient: AIProviderClient {
         // Anthropic: system prompt is a top-level field, not a message role.
         let body: [String: Any] = [
             "model": model,
-            "max_tokens": 900,
+            // #1074: 900 truncated detailed coaching replies mid-sentence; 4096 lets a full multi-section
+            // reply complete (a cap, not a target — the system prompt keeps it short). Matches the others.
+            "max_tokens": 4096,
             "system": systemPrompt,
             "messages": wire
         ]
@@ -30,8 +32,9 @@ struct AnthropicClient: AIProviderClient {
         let json = try await performRequest(req, session: session)
         guard let content = json["content"] as? [[String: Any]],
               let first = content.first,
-              let text = first["text"] as? String else {
-            throw AICoachError.decode
+              let text = (first["text"] as? String)?
+                  .trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
+            throw emptyReplyError(json)   // #1074: surface the provider's real error if the 200 body has one
         }
         return text
     }
