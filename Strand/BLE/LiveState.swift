@@ -306,6 +306,12 @@ public final class LiveState: ObservableObject {
     /// explicitly not a medical measurement.
     @Published public var ecgProbe: String? = nil
 
+    /// A rendered snapshot of the raw-history reject archive (`RawHistoryArchive.summaryText`), shown +
+    /// copied from the Devices dialog. Purely local: it reads an on-disk file and sends the strap
+    /// nothing. The affordance for checking, straight after an experiment, whether the record you were
+    /// hunting is actually in the archive rather than already evicted. Cleared on dialog dismiss.
+    @Published public var rawHistoryArchiveReport: String? = nil
+
     /// The 5-generation hardware variant resolved from the strap's Device Information Service
     /// (`Whoop5Variant.label`: "MG" / "5.0" / "—"), nil before any DIS string has landed. Published so an
     /// MG-only capability can gate on POSITIVELY identified hardware instead of guessing from a model

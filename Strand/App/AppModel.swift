@@ -885,6 +885,10 @@ final class AppModel: ObservableObject {
     /// the Devices result sheet from another screen.
     func ecgStopCapture(reportsResult: Bool = true) { ble.ecgStopCapture(reportsResult: reportsResult) }
     func clearEcgProbe() { ble.clearEcgProbe() }
+    /// Local, read-only: render what the raw-history reject archive currently holds. Sends nothing to
+    /// the strap — the check for whether an experiment's record actually landed and survived retention.
+    func reportRawHistoryArchive() { ble.reportRawHistoryArchive() }
+    func clearRawHistoryArchiveReport() { ble.clearRawHistoryArchiveReport() }
     /// True once a start has been sent this session and no stop has completed — keeps the Stop control
     /// reachable even after the opt-in has been switched back off.
     var ecgMayBeRunning: Bool { ble.ecgMayBeRunning }

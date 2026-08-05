@@ -1217,6 +1217,8 @@ private struct EcgProbeSheets: ViewModifier {
                 Button("Start ECG capture") { model.ecgStartCapture(); target = nil }
                 Button("Stop ECG capture") { model.ecgStopCapture(); target = nil }
                 Button("Set which wrist you wear it on…") { target = nil; wristTarget = device }
+                // Local file read, no strap traffic: did the record actually land in the raw archive?
+                Button("Check archived raw records") { model.reportRawHistoryArchive(); target = nil }
                 Button("Cancel", role: .cancel) { target = nil }
             } message: { _ in
                 Text("NOOP is not a medical device and this is not an ECG test. It asks your MG to start its ECG subsystem and logs whatever comes back — unvalidated instrumentation for protocol research, never a measurement or a diagnosis, including any heart-rhythm classification the strap happens to send. Don't use it to make a health decision; see a doctor if you have symptoms.\n\nHold the two indents on the clasp with the fingers of your other hand for the whole capture. The MG measures across your wrist AND that clasp, so until you hold it the circuit is open, the strap has nothing to record, and you would see zero packets whatever the firmware did.\n\nNobody has confirmed a strap honours these commands, so the likely outcome is that nothing happens. Everything here is reversible: “Stop” turns the streams back off. Results land in the strap log.")
@@ -1237,6 +1239,46 @@ private struct EcgProbeSheets: ViewModifier {
                 EcgProbeResultView(text: live.ecgProbe ?? "",
                                    onClose: { model.clearEcgProbe() })
             }
+            .sheet(isPresented: Binding(get: { live.rawHistoryArchiveReport != nil },
+                                        set: { if !$0 { model.clearRawHistoryArchiveReport() } })) {
+                RawHistoryArchiveReportView(text: live.rawHistoryArchiveReport ?? "",
+                                            onClose: { model.clearRawHistoryArchiveReport() })
+            }
+    }
+}
+
+/// What the on-disk raw-history reject archive currently holds, rendered by
+/// `RawHistoryArchive.summaryText`. Structurally the #592/#690/ECG result views with the medical
+/// disclaimer dropped: this reports the contents of a local file, not anything a strap said.
+///
+/// The two lines to read after an experiment are the per-version split (an "all-zero payload" count in
+/// the thousands is a placeholder flood, not data) and the newest capture timestamps, which is what you
+/// match against the electrode-contact window.
+private struct RawHistoryArchiveReportView: View {
+    let text: String
+    let onClose: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Archived raw records")
+                .font(StrandFont.title2)
+                .foregroundStyle(StrandPalette.textPrimary)
+            ScrollView {
+                Text(text)
+                    .font(StrandFont.mono)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            HStack {
+                Button("Copy") { PlatformPasteboard.copy(text) }
+                Spacer()
+                Button("Close") { onClose() }
+            }
+        }
+        .padding(20)
+        .frame(minWidth: 340, minHeight: 260)
+        .background(StrandPalette.surfaceOverlay)
     }
 }
 

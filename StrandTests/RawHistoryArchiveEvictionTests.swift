@@ -113,6 +113,123 @@ final class RawHistoryArchiveEvictionTests: XCTestCase {
         return "{\"capturedAtMs\":1,\"trim\":1,\"family\":\"\(family)\",\"frameHex\":\"\(hex)\"}\n"
     }
 
+    // MARK: - zero-payload frames lose retention priority
+
+    /// A synthetic WHOOP 5/MG type-47 record: a non-zero 21-byte header (type @8 = 47, hist_version @9),
+    /// then `payloadBytes` of payload, then a 4-byte CRC trailer.
+    ///
+    /// `payloadByte: 0` reproduces the measured `enable_raw_data_w_ecg` placeholder — the strap banks one
+    /// such record per second and every byte from offset 21 to the CRC is zero. `marker` writes a single
+    /// distinguishing byte into the payload, which is also what makes a frame informative.
+    private func whoop5Frame(version: UInt8, payloadByte: UInt8,
+                             payloadBytes: Int = 64, marker: UInt8? = nil) -> [UInt8] {
+        var f = [UInt8](repeating: 0x11, count: 21)          // non-zero header (seq/ts/const bytes)
+        f[0] = 0xAA; f[8] = 47; f[9] = version
+        var payload = [UInt8](repeating: payloadByte, count: payloadBytes)
+        if let marker { payload[0] = marker }
+        f.append(contentsOf: payload)
+        f.append(contentsOf: [0xDE, 0xAD, 0xBE, 0xEF])       // CRC32 trailer (never part of the payload)
+        return f
+    }
+
+    /// The strict test: entirely-zero payload region → yes; ONE non-zero byte anywhere → no.
+    func testZeroPayloadDetectionIsStrictAndHeaderAware() {
+        let empty = whoop5Frame(version: 22, payloadByte: 0)
+        XCTAssertTrue(RawHistoryArchive.hasZeroPayload(empty, family: .whoop5),
+                      "the header and CRC bytes are non-zero but the PAYLOAD region is all zero")
+        // A single populated byte in an otherwise-empty buffer is exactly what this archive is for.
+        var oneByte = empty
+        oneByte[21 + 40] = 0x01
+        XCTAssertFalse(RawHistoryArchive.hasZeroPayload(oneByte, family: .whoop5),
+                       "'mostly zero' must NOT count as empty — one non-zero byte makes it informative")
+        // The last payload byte, immediately before the CRC trailer, is inside the region.
+        var lastByte = empty
+        lastByte[lastByte.count - 5] = 0x01
+        XCTAssertFalse(RawHistoryArchive.hasZeroPayload(lastByte, family: .whoop5))
+        // A payload region too short to judge is never called empty.
+        XCTAssertFalse(RawHistoryArchive.hasZeroPayload(whoop5Frame(version: 22, payloadByte: 0,
+                                                                    payloadBytes: 8), family: .whoop5))
+        XCTAssertFalse(RawHistoryArchive.hasZeroPayload([0xAA, 0x01], family: .whoop5))
+    }
+
+    /// The DEFECT: with `enable_raw_data_w_ecg` armed the strap banks one all-zero record per second, so
+    /// a purely age-ordered archive evicts a real contact-window record within the half hour. An
+    /// informative frame must outrank an all-zero one of the SAME layout version, even when it is the
+    /// oldest line in the file and the empties are the newest.
+    func testZeroPayloadFramesAreEvictedBeforeInformativeOnes() {
+        let dir = tmpDir("zero"); defer { try? FileManager.default.removeItem(at: dir) }
+        let archive = RawHistoryArchive(directory: dir, maxBytes: 4_096,
+                                        perVersionFloor: 2, zeroPayloadFloor: 2)
+
+        // Three informative records land FIRST — the oldest lines in the archive. Two would survive on
+        // the per-version floor alone; the third can only survive if the empties are evicted before it.
+        let informative = (0..<3).map { whoop5Frame(version: 22, payloadByte: 0x00, marker: UInt8(0xE0 + $0)) }
+        for f in informative { _ = archive.archive([f], trim: 1, family: .whoop5) }
+        XCTAssertFalse(RawHistoryArchive.hasZeroPayload(informative[0], family: .whoop5),
+                       "precondition: a marker byte makes these frames informative")
+
+        // Then the placeholder flood: same layout version, all-zero payload, newest in the file.
+        for _ in 0..<200 { _ = archive.archive([whoop5Frame(version: 22, payloadByte: 0)],
+                                               trim: 2, family: .whoop5) }
+
+        let back = archive.readAll().map(\.frame)
+        let size = (try? FileManager.default.attributesOfItem(atPath: archive.fileURL.path))
+            .flatMap { $0[.size] as? Int } ?? 0
+        XCTAssertLessThanOrEqual(size, 4_096, "the archive must still respect its cap")
+        for (i, f) in informative.enumerated() {
+            XCTAssertTrue(back.contains(f), "informative frame #\(i) must outrank 200 empty records")
+        }
+        // …and the empties really were the thing evicted (a handful kept to date the artefact).
+        let zeros = back.filter { RawHistoryArchive.hasZeroPayload($0, family: .whoop5) }
+        XCTAssertLessThan(zeros.count, 200, "the placeholder flood must have been evicted, not the data")
+    }
+
+    /// Same ordering in the pure core, with the informative line the OLDEST of its version so no floor
+    /// can be what saves it.
+    func testEvictLinesEvictsZeroPayloadBeforeInformative() {
+        let informative = archiveLine(whoop5Frame(version: 22, payloadByte: 0, marker: 0xE7))
+        var lines = [informative]
+        for _ in 0..<200 { lines.append(archiveLine(whoop5Frame(version: 22, payloadByte: 0))) }
+        let kept = RawHistoryArchive.evictLines(lines, maxBytes: 4_096, floor: 2, zeroFloor: 2)
+        XCTAssertLessThanOrEqual(kept.reduce(0) { $0 + $1.utf8.count }, 4_096)
+        XCTAssertTrue(kept.contains(informative),
+                      "the one informative line must survive a flood of all-zero-payload lines")
+        XCTAssertLessThan(kept.count, 200, "the zero-payload surplus must actually have been evicted")
+    }
+
+    /// A version whose records are ALL empty still keeps `zeroFloor` dated samples — enough to prove the
+    /// artefact exists without letting it own the archive.
+    func testAllZeroVersionKeepsItsSmallFloor() {
+        var lines: [String] = []
+        for _ in 0..<200 { lines.append(archiveLine(whoop5Frame(version: 22, payloadByte: 0))) }
+        for i in 0..<200 { lines.append(archiveLine(whoop5Frame(version: 18, payloadByte: 0,
+                                                                marker: UInt8(i & 0xFF)))) }
+        let kept = RawHistoryArchive.evictLines(lines, maxBytes: 4_096, floor: 2, zeroFloor: 2)
+        let keptZeroVersion = kept.filter { $0.contains("2f16") }   // 0x2f = type 47, 0x16 = v22
+        XCTAssertGreaterThanOrEqual(keptZeroVersion.count, 2,
+                                    "an all-empty version must keep its small floor, not vanish")
+    }
+
+    /// One archived JSONL line for `frame`, in the exact shape `archive` writes.
+    private func archiveLine(_ frame: [UInt8], family: DeviceFamily = .whoop5) -> String {
+        let hex = frame.map { String(format: "%02x", $0) }.joined()
+        return "{\"capturedAtMs\":1,\"trim\":1,\"family\":\"\(family.rawValue)\",\"frameHex\":\"\(hex)\"}\n"
+    }
+
+    // MARK: - operator summary
+
+    /// The summary is the after-an-experiment check: it must separate informative frames from
+    /// placeholders rather than reporting one healthy-looking line count.
+    func testSummarySplitsInformativeFromZeroPayload() {
+        var lines = [archiveLine(whoop5Frame(version: 22, payloadByte: 0, marker: 0xE7))]
+        for _ in 0..<5 { lines.append(archiveLine(whoop5Frame(version: 22, payloadByte: 0))) }
+        let text = RawHistoryArchive.summaryText(lines: lines, sizeBytes: 4_096, newest: 3)
+        XCTAssertTrue(text.contains("whoop5 v22"), text)
+        XCTAssertTrue(text.contains("1 informative, 5 all-zero payload"), text)
+        XCTAssertTrue(text.contains("Newest 3 capture(s)"), text)
+        XCTAssertTrue(RawHistoryArchive.summaryText(lines: [], sizeBytes: 0).contains("EMPTY"))
+    }
+
     /// `evictLines` is the pure core: a flood of common-version lines plus two rare-version lines (the
     /// oldest), capped tight → the rare lines must survive and the result must fit the cap.
     func testEvictLinesKeepsRareVersionUnderCap() {
