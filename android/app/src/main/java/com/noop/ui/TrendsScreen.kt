@@ -238,7 +238,6 @@ fun TrendsScreen(vm: AppViewModel) {
                 headlineValue = recAvg,
                 color = Palette.chargeColor,
                 tipColor = Palette.chargeBright,
-                tint = Palette.chargeColor,
                 values = recovery.values,
                 dates = recovery.dates,
                 formatY = { "${it.roundToInt()}" },
@@ -257,8 +256,9 @@ fun TrendsScreen(vm: AppViewModel) {
             )
         }
 
-        // --- Small multiples , HRV / Resting HR / Effort. HRV/RHR are Charge sub-signals → the green
-        // card world (each line keeps its metric hue); Effort is the WHOOP blue strain world. ---
+        // --- Small multiples , HRV / Resting HR / Effort. HRV/RHR are Charge sub-signals; the card
+        // surface is neutral (EXP-004) and each line keeps its metric hue; Effort is the WHOOP blue
+        // strain world. ---
         // No trailing window label , the range bar's overline already states it.
         item {
             Column(
@@ -269,7 +269,6 @@ fun TrendsScreen(vm: AppViewModel) {
                 MetricTrendCard(
                     title = stringResource(R.string.trends_hrv_full), unit = "ms",
                     color = Palette.metricPurple,
-                    tint = Palette.chargeColor,
                     higherIsBetter = true,
                     resolved = hrv,
                     fmt = { "${it.roundToInt()}" },
@@ -277,7 +276,6 @@ fun TrendsScreen(vm: AppViewModel) {
                 MetricTrendCard(
                     title = stringResource(R.string.trends_resting_hr_full), unit = "bpm",
                     color = Palette.metricRose,
-                    tint = Palette.chargeColor,
                     higherIsBetter = false,
                     resolved = rhr,
                     fmt = { "${it.roundToInt()}" },
@@ -452,7 +450,7 @@ private fun WeekInReviewCard(
     val restAvg = rest.values.averageOrNull()
     if (chargeAvg == null && effortAvg == null && restAvg == null) return
 
-    NoopCard(modifier = modifier, tint = Palette.chargeColor) {
+    NoopCard(modifier = modifier) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SectionHeader(stringResource(R.string.trends_week_in_review), overline = stringResource(R.string.trends_charge_effort_rest))
             if (chargeAvg != null) {
@@ -973,7 +971,7 @@ private fun RecoveryHistoryCard(days: List<DailyMetric>, range: TrendsRange) {
         "Charge , past year"
     }
 
-    NoopCard(tint = Palette.chargeColor) {
+    NoopCard {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SectionHeader(title, overline = stringResource(R.string.trends_calendar), trailing = "${recovery.size} days")
             if (recovery.size >= 2) {
