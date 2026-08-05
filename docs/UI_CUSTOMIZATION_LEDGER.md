@@ -394,6 +394,123 @@ feature rather than by file so they can be reviewed and ported independently.
   all accessibility values for Effort.
 - **Type:** Experimental live-workout layout rearrangement only; no workout behavior or calculation changes.
 
+### EXP-022 — Live workout floating bottom controls
+
+- **Date:** 2026-08-05
+- **Files:** `Strand/Screens/LiveWorkoutView.swift`
+- **Request:** Replace the wide orange End workout button with a compact floating bottom control row:
+  native Liquid Glass exit, centered elapsed timer text, and a matching workout-type placeholder.
+- **Implementation:** Removed the full-width `NoopButton` end control. Added a bottom `safeAreaInset` row
+  with equal 56pt circular controls — left `xmark` ends the workout (same confirm alert + `endWorkout` /
+  `onClose`), right `figure.run` placeholder labeled “Workout type” with no action yet. Both use the
+  native iOS 26 `.buttonStyle(.glass)` / `.buttonBorderShape(.circle)` path (same pattern as Home header
+  Liquid Glass), with the existing ultra-thin-material circular fallback on older OS versions. Centered
+  elapsed time is plain `StrandPalette.textPrimary` monospaced digits from the same `activeWorkout.start`
+  `TimelineView` source as the hero TIME block, laid out in a ZStack so it stays screen-centered
+  regardless of side-control widths. No shared card/capsule behind the row.
+- **Preserved:** End confirmation, workout-ending logic, hero TIME block and all other metrics/zones/
+  stats/sensor content, realtime HR, keep-awake, and accessibility for End workout.
+- **Type:** Bottom control chrome / layout only; no workout behavior or calculation changes.
+
+### EXP-023 — Unique workout-type icons in bottom control
+
+- **Date:** 2026-08-05
+- **Files:** `Packages/StrandDesign/Sources/StrandDesign/SportIcon.swift`,
+  `Packages/StrandDesign/Tests/StrandDesignTests/WorkoutTypeIconTests.swift`,
+  `Strand/Screens/LiveWorkoutView.swift`, `StrandTests/WorkoutCatalogTests.swift`
+- **Request:** Give every catalogue workout type its own clearly recognizable monochrome icon in the
+  right Liquid Glass bottom control, via a reusable `WorkoutTypeIcon` component.
+- **Implementation:** Added `KnownWorkoutType` (raw values lockstep with `WorkoutCatalog.all`),
+  centralized `WorkoutTypeIconography` with an exhaustive unique preferred SF Symbol per type, custom
+  SwiftUI `Shape` vectors when no suitable/available system glyph exists (Padel always; other customs
+  only as OS-availability fallbacks that never borrow another type’s primary symbol), and
+  `WorkoutTypeIcon(workoutType:size:weight:)` rendering monochrome primary foreground. Wired the live
+  workout right control to `WorkoutTypeIcon` bound to `activeWorkout.sport` with accessibility
+  “{sport} workout”. `sportSymbol(_:)` now bridges through the same resolver for legacy
+  `Image(systemName:)` call sites. Uniqueness + catalogue lockstep covered by unit tests.
+- **Preserved:** Bottom control Liquid Glass chrome, diameters, placement, safe-area inset, end-workout
+  flow, and all other workout-screen content/behavior.
+- **Type:** Iconography only; no workout behavior or calculation changes.
+
+### EXP-024 — Shared floating workout control bar
+
+- **Date:** 2026-08-05
+- **Files:** `Strand/Screens/LiveWorkoutView.swift`
+- **Request:** Contain the left exit button, centered timer, and right workout-type button inside one
+  shared horizontal floating capsule matching the stopwatch-bar reference — not three free-floating
+  elements.
+- **Implementation:** Wrapped the existing ZStack (centered timer + equal Liquid Glass end controls) in
+  a single elevated `NoopPanelSurface` with pill corner radius so the bar reads as one dark solid
+  floating surface slightly lighter than the workout canvas. Tight 4pt inset nests the circular glass
+  controls into the capsule ends; small horizontal screen margins keep the bar near full width. Timer
+  stays plain primary monospaced text with no private chrome. Exit confirm / `endWorkout`,
+  `WorkoutTypeIcon`, Liquid Glass button APIs, diameters, and safe-area placement unchanged.
+- **Preserved:** End-workout confirmation and ending logic, workout-type icon mapping, hero metrics/
+  zones/stats, realtime HR, keep-awake, and all other workout-screen content.
+- **Type:** Bottom control chrome / layout only; no workout behavior or calculation changes.
+
+### EXP-025 — Recording badge as live-workout header
+
+- **Date:** 2026-08-05
+- **Files:** `Strand/Screens/LiveWorkoutView.swift`
+- **Request:** Remove the top-left “Workout” title and place the existing RECORDING WORKOUT badge in
+  that leading position instead.
+- **Implementation:** Dropped the title1 “Workout” label; the rose recording capsule now leads the
+  header row with a trailing spacer. Badge chrome, copy, and tint unchanged.
+- **Preserved:** Recording indicator semantics, all metrics/zones/stats, bottom controls, and
+  workout-ending behavior.
+- **Type:** Header presentation only; no workout behavior changes.
+
+### EXP-026 — Full-screen workout selection browser
+
+- **Date:** 2026-08-05
+- **Files:** `Strand/Screens/WorkoutSelectionScreen.swift`, `Strand/Screens/ManualWorkoutSheet.swift`,
+  `Strand/Screens/LiveView.swift`, `Strand/Screens/WorkoutsView.swift`,
+  `Packages/StrandDesign/Sources/StrandDesign/SportIcon.swift`, `docs/UI_CUSTOMIZATION_LEDGER.md`
+- **Request:** Replace the compact sport-picker sheet with a full-screen premium activity browser
+  (Liquid Glass search, recent chips, large start cards) while preserving start/merge behavior.
+- **Implementation:** Added `WorkoutSelectionScreen` with reusable `WorkoutSearchField` (native iOS 26
+  `glassEffect` capsule), `RecentWorkoutChip`, `WorkoutSelectionCard`, and `WorkoutActivityMeta` labels
+  from catalogue GPS / known-type indoor-outdoor-strength-mindfulness-cardio flags. Cards use
+  `WorkoutTypeIcon` (optional accent color) + play affordance; tap records recent + calls existing
+  `onStart` then dismisses — footer Cancel/Start row removed. `StartWorkoutSheet` kept as the public
+  entry (merge title overrides intact). Live/Workouts present via `workoutSelectionCover`
+  (`fullScreenCover` on iOS, sheet on macOS).
+- **Preserved:** `AppModel.startWorkout(sport:)`, merge naming `onStart`, `RecentSportsPrefs`,
+  `WorkoutCatalog.matching`, GPS `isDistanceSport`, dismiss/close, and workouts-history UI behind the
+  cover.
+- **Type:** Selection presentation redesign only; no workout scoring, BLE, or persistence changes.
+
+### EXP-027 — Native Liquid Glass search fields app-wide
+
+- **Date:** 2026-08-05
+- **Files:** `Packages/StrandDesign/Sources/StrandDesign/NoopLiquidGlassSearchField.swift`,
+  `Strand/Screens/WorkoutSelectionScreen.swift`, `Strand/Screens/WorkoutsView.swift`,
+  `Strand/Screens/MarkerEditorView.swift`
+- **Request:** Update all in-app search bars to the native Liquid Glass search control.
+- **Implementation:** Added shared `NoopLiquidGlassSearchField` + `nativeLiquidGlassSearchChrome()` in
+  StrandDesign (iOS/macOS/watchOS 26 `glassEffect` capsule; elevated pill fallback on older OS). Migrated
+  workout-selection search, Workouts filter search, and Marker editor search to the shared component.
+  macOS sidebar `.searchable` in `RootView` left as the platform-native NavigationSplitView search
+  placement (not a hand-rolled field).
+- **Preserved:** Search/filter predicates, clear-filter actions, marker catalog filtering, and focus/
+  dismiss behavior.
+- **Type:** Search chrome only; no query logic or data-path changes.
+
+### EXP-028 — Live workout Effort gauge scale in accessibility
+
+- **Date:** 2026-08-05
+- **Files:** `Strand/Screens/LiveWorkoutView.swift`
+- **Request:** Restore 0–21 / 0–100 scale context for VoiceOver after the glanceable Effort redesign hid
+  the visible denominator, without changing the on-screen gauge.
+- **Implementation:** Extended the Effort `CountUpText` accessibility label to
+  `Effort {value} {localized of N}` using `UnitFormatter.effortScaleMax` and the existing `"of %@"`
+  caption. Kept the intensity word on `accessibilityValue`. Value formatting matches the visible
+  CountUpText (one decimal on WHOOP 0–21, integer on 0–100).
+- **Preserved:** Visible layout, typography, colors, state label, animation, Effort calculation /
+  scale conversion / progress fraction, and existing accessibility traits (label + value only).
+- **Type:** Accessibility presentation only; no visible UI or workout-logic changes.
+
 ## Verification history
 
 | Date | Scope | Result |
@@ -414,6 +531,12 @@ feature rather than by file so they can be reviewed and ported independently.
 | 2026-08-04 | PR review presentation restorations | i18n CI audit and `git diff --check` passed. A clean `NOOPiOS` Debug physical-device build succeeded, including `DevicesView`; the signed `com.liammazuz.noop` build was installed and launched on the connected iPhone. Source-path verification confirmed the upstream Live HR subtitle branches, weekly gauge captions, selected-week localization inputs, and unchanged Full day destination. |
 | 2026-08-04 | Live workout glanceable hierarchy | i18n CI audit and `git diff --check` passed. The `NOOPiOS` Debug physical-device build succeeded and the signed `com.liammazuz.noop` app was installed and launched on the connected iPhone. Diff verification confirmed all workout data sources, calculations, lifecycle hooks, sensor isolation, actions, and confirmation behavior remain unchanged. Existing unrelated compiler warnings remained. |
 | 2026-08-05 | Live workout glanceable vertical stack | `NOOPiOS` Debug physical-device build succeeded; signed `com.liammazuz.noop` (team `P2874N8GRQ`) installed and launched on Liam's iPhone. Source verification confirmed timer, BPM/zone, Effort scale, stats, realtime HR, keep-awake, End confirm, and sensor leaf behavior unchanged. |
+| 2026-08-05 | Live workout Effort gauge accessibility scale | Accessibility-only change in `LiveWorkoutView` Effort gauge. `git diff --check` passed. Clean `NOOPiOS` Debug `generic/platform=iOS` build succeeded. i18n audit: this change added no new literals; pre-existing uncommitted EXP-022–027 search/workout a11y strings still fail the baseline gate. Visible Effort UI unchanged. |
+| 2026-08-05 | Live workout floating bottom controls | `NOOPiOS` Debug generic-iOS build succeeded (`CODE_SIGNING_ALLOWED=NO`). Source verification confirmed End confirm + `endWorkout`/`onClose` preserved, hero metrics/zones/stats unchanged, and bottom timer shares `activeWorkout.start`. |
+| 2026-08-05 | Unique workout-type icons | `swift test --filter WorkoutTypeIconTests` passed (6 tests, unique preferred + runtime identities). `NOOPiOS` Debug generic-iOS build succeeded. |
+| 2026-08-05 | Shared floating workout control bar | `NOOPiOS` Debug generic-iOS build succeeded. Source verification confirmed Liquid Glass end controls, timer centering, end-confirm, and `WorkoutTypeIcon` preserved inside one elevated pill `NoopPanelSurface`. |
+| 2026-08-05 | Full-screen workout selection browser | `NOOPiOS` Debug generic-iOS build succeeded after `xcodegen generate`. Source verification confirmed `onStart` / `RecentSportsPrefs` / catalogue matching / merge overrides preserved; footer start row removed in favor of card tap. |
+| 2026-08-05 | Native Liquid Glass search fields | `NOOPiOS` Debug generic-iOS build succeeded. Migrated workout selection, Workouts filter, and Marker editor search to shared `NoopLiquidGlassSearchField`. |
 
 ## Required workflow for every future custom UI change
 
