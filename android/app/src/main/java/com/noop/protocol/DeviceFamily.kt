@@ -100,6 +100,24 @@ enum class DeviceFamily {
             else -> WHOOP5
         }
 
+        /**
+         * Brand-aware family resolution (#1086). Returns `null` for a positively non-WHOOP brand
+         * (e.g. "Oura", "Apple") — [DeviceFamily] has only [WHOOP4]/[WHOOP5], so it cannot represent
+         * "not a WHOOP", and letting such a device fall through to [WHOOP5] is exactly the #171
+         * mistake (a family question answered by a fall-through rather than by evidence). The row
+         * already carries the answer: `PairedDevice.brand` is set from `DeviceBrandCatalog`.
+         *
+         * A null/empty brand or the legacy "WHOOP" label (written identically for 4.0 and 5/MG)
+         * carries no non-WHOOP signal, so it defers to [forRegistryModel]. Callers that need a
+         * concrete family for a non-WHOOP device (e.g. the skin-temp raw→°C scale, where a non-WHOOP
+         * reading shares the non-4.0 branch) coalesce the null to [WHOOP5], matching the prior
+         * behaviour exactly. Mirrors the Swift `DeviceFamily.forRegistryDevice`.
+         */
+        fun forRegistryDevice(model: String?, brand: String?): DeviceFamily? {
+            if (!brand.isNullOrEmpty() && !brand.equals("WHOOP", ignoreCase = true)) return null
+            return forRegistryModel(model)
+        }
+
         /** Whoop 5.0 CLIENT_HELLO bytes (16 bytes). Exposed as a named constant for test/debug use. */
         val WHOOP5_CLIENT_HELLO: ByteArray = byteArrayOf(
             0xAA.toByte(), 0x01, 0x08, 0x00, 0x00, 0x01, 0xE6.toByte(), 0x71,

@@ -50,10 +50,12 @@ class RegistryDayOwnerSource(private val registry: DeviceRegistry) : Intelligenc
     override suspend fun activeWriteId(): String? = registry.activeDeviceId()
 
     // #938: resolve the strap family that wrote [deviceId]'s rows from its registry model. The model-label
-    // → family mapping (and the WHOOP5 fallback for unknowns) lives in DeviceFamily.forRegistryModel (#171).
+    // → family mapping (and the WHOOP5 fallback for unknowns) lives in DeviceFamily.forRegistryDevice (#171, #1086).
     // Mirrors the Swift IntelligenceEngine.skinTempFamily(forOwner:devices:).
     override suspend fun skinTempFamily(deviceId: String): DeviceFamily {
-        val model = registry.all().firstOrNull { it.id == deviceId }?.model
-        return DeviceFamily.forRegistryModel(model)
+        val d = registry.all().firstOrNull { it.id == deviceId }
+        // Non-WHOOP device (null) shares the non-4.0 temp scale, so coalesce to WHOOP5 — same conversion
+        // as before; brand-awareness just stops it claiming to be a WHOOP (#1086).
+        return DeviceFamily.forRegistryDevice(d?.model, d?.brand) ?: DeviceFamily.WHOOP5
     }
 }

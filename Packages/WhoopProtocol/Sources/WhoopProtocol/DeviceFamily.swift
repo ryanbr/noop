@@ -154,6 +154,24 @@ public extension DeviceFamily {
         }
     }
 
+    /// Brand-aware family resolution (#1086). Returns `nil` for a positively non-WHOOP brand (e.g.
+    /// "Oura", "Apple") — `DeviceFamily` has only `.whoop4`/`.whoop5`, so it cannot represent "not a
+    /// WHOOP", and letting such a device fall through to `.whoop5` is exactly the #171 mistake (a family
+    /// question answered by a fall-through rather than by evidence). The row already carries the answer:
+    /// `PairedDevice.brand` is set from `DeviceBrandCatalog`.
+    ///
+    /// A nil/empty brand or the legacy "WHOOP" label (written identically for 4.0 and 5/MG) carries no
+    /// non-WHOOP signal, so it defers to `forRegistryModel`. Callers that need a concrete family for a
+    /// non-WHOOP device (e.g. the skin-temp raw→°C scale, where a non-WHOOP reading shares the non-4.0
+    /// branch) coalesce the nil to `.whoop5`, matching the prior behaviour exactly. Mirrors the Kotlin
+    /// `DeviceFamily.forRegistryDevice`.
+    static func forRegistryDevice(model: String?, brand: String?) -> DeviceFamily? {
+        if let brand, !brand.isEmpty, brand.caseInsensitiveCompare("WHOOP") != .orderedSame {
+            return nil
+        }
+        return forRegistryModel(model)
+    }
+
     /// The header-CRC algorithm this family uses. This is the single switch that the family-aware
     /// `verifyFrame`/`parseFrame` overloads branch on; the payload CRC32 is identical for both.
     var headerCRCKind: HeaderCRCKind {

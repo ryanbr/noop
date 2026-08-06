@@ -39,10 +39,54 @@ final class RegistryModelFamilyTests: XCTestCase {
         XCTAssertEqual(DeviceFamily.forRegistryModel("WHOOP"), .whoop5)
     }
 
+    /// Model-ONLY resolution is brand-blind: an Oura/Garmin model string has no WHOOP spelling, so it
+    /// lands on the `.whoop5` default. This is why a non-WHOOP device needs `forRegistryDevice` (#1086) —
+    /// the brand is the evidence the model string lacks.
     func testNilEmptyAndGarbageFallBackToWhoop5() {
         XCTAssertEqual(DeviceFamily.forRegistryModel(nil), .whoop5)
         XCTAssertEqual(DeviceFamily.forRegistryModel(""), .whoop5)
         XCTAssertEqual(DeviceFamily.forRegistryModel("Oura Ring Gen3"), .whoop5)
         XCTAssertEqual(DeviceFamily.forRegistryModel("garmin-hrm"), .whoop5)
+    }
+
+    // MARK: - Brand-aware resolution (#1086) — a non-WHOOP brand must NOT resolve to a WHOOP family
+
+    /// The core of #1086: an Oura ring carries `brand == "Oura"`, so it resolves to `nil` (not a WHOOP)
+    /// instead of silently falling through to `.whoop5`, whatever its model string. Because the brand is
+    /// tested BEFORE the model switch, every generation resolves to `nil` — no model-string enumeration
+    /// to keep in sync with new rings (Oura Ring 3/4/5 and the cloud fallback are all one code path).
+    func testNonWhoopBrandResolvesToNil() {
+        for model in ["Oura Ring 3", "Oura Ring 4", "Oura Ring 5", "Oura (cloud)"] {
+            XCTAssertNil(DeviceFamily.forRegistryDevice(model: model, brand: "Oura"),
+                         "Oura model \(model) must not resolve to a WHOOP family")
+        }
+        XCTAssertNil(DeviceFamily.forRegistryDevice(model: nil, brand: "Garmin"))
+        XCTAssertNil(DeviceFamily.forRegistryDevice(model: "Watch", brand: "Apple"))
+    }
+
+    /// A WHOOP brand still resolves by model spelling, exactly as `forRegistryModel` does.
+    func testWhoopBrandResolvesByModel() {
+        XCTAssertEqual(DeviceFamily.forRegistryDevice(model: "4.0", brand: "WHOOP"), .whoop4)
+        XCTAssertEqual(DeviceFamily.forRegistryDevice(model: "WHOOP 4.0", brand: "WHOOP"), .whoop4)
+        XCTAssertEqual(DeviceFamily.forRegistryDevice(model: "5.0 MG", brand: "WHOOP"), .whoop5)
+        XCTAssertEqual(DeviceFamily.forRegistryDevice(model: "WHOOP 5.0 / MG", brand: "WHOOP"), .whoop5)
+    }
+
+    /// A nil/empty brand carries no non-WHOOP signal (legacy rows, WHOOP straps), so it defers to the
+    /// model mapping — never `nil`.
+    func testMissingBrandDefersToModel() {
+        XCTAssertEqual(DeviceFamily.forRegistryDevice(model: "4.0", brand: nil), .whoop4)
+        XCTAssertEqual(DeviceFamily.forRegistryDevice(model: "5.0 MG", brand: ""), .whoop5)
+        XCTAssertEqual(DeviceFamily.forRegistryDevice(model: nil, brand: nil), .whoop5)
+    }
+
+    /// "No scoring change" half of #1086: every consumer coalesces a non-WHOOP `nil` to `.whoop5` (the
+    /// non-4.0 skin-temp scale), so the family a non-WHOOP row is *treated as* is identical to before the
+    /// brand-aware resolver existed. Guards the skin-temp/day-owner call sites against a scale regression.
+    func testNonWhoopCoalescesToPriorLabel() {
+        for model in ["Oura Ring 3", "Oura Ring 4", "Oura Ring 5"] {
+            XCTAssertEqual(DeviceFamily.forRegistryDevice(model: model, brand: "Oura") ?? .whoop5,
+                           DeviceFamily.forRegistryModel(model), "\(model) treated-as family must be unchanged")
+        }
     }
 }

@@ -49,9 +49,62 @@ class RegistryModelFamilyTest {
 
     @Test
     fun nullEmptyAndGarbageFallBackToWhoop5() {
+        // Model-ONLY resolution is brand-blind: an Oura/Garmin model string has no WHOOP spelling, so it
+        // lands on the WHOOP5 default. This is why a non-WHOOP device needs forRegistryDevice (#1086) —
+        // the brand is the evidence the model string lacks.
         assertEquals(DeviceFamily.WHOOP5, DeviceFamily.forRegistryModel(null))
         assertEquals(DeviceFamily.WHOOP5, DeviceFamily.forRegistryModel(""))
         assertEquals(DeviceFamily.WHOOP5, DeviceFamily.forRegistryModel("Oura Ring Gen3"))
         assertEquals(DeviceFamily.WHOOP5, DeviceFamily.forRegistryModel("garmin-hrm"))
+    }
+
+    // ── Brand-aware resolution (#1086) — a non-WHOOP brand must NOT resolve to a WHOOP family ──
+
+    /**
+     * The core of #1086: an Oura ring carries brand "Oura", so it resolves to null (not a WHOOP). The
+     * brand is tested BEFORE the model switch, so every generation resolves to null — no model-string
+     * enumeration to keep in sync with new rings (Oura Ring 3/4/5 and the cloud fallback are one path).
+     */
+    @Test
+    fun nonWhoopBrandResolvesToNull() {
+        for (model in listOf("Oura Ring 3", "Oura Ring 4", "Oura Ring 5", "Oura (cloud)")) {
+            assertEquals("Oura model $model must not resolve to a WHOOP family",
+                null, DeviceFamily.forRegistryDevice(model, "Oura"))
+        }
+        assertEquals(null, DeviceFamily.forRegistryDevice(null, "Garmin"))
+        assertEquals(null, DeviceFamily.forRegistryDevice("Watch", "Apple"))
+    }
+
+    /** A WHOOP brand still resolves by model spelling, exactly as forRegistryModel does. */
+    @Test
+    fun whoopBrandResolvesByModel() {
+        assertEquals(DeviceFamily.WHOOP4, DeviceFamily.forRegistryDevice("4.0", "WHOOP"))
+        assertEquals(DeviceFamily.WHOOP4, DeviceFamily.forRegistryDevice("WHOOP 4.0", "WHOOP"))
+        assertEquals(DeviceFamily.WHOOP5, DeviceFamily.forRegistryDevice("5.0 MG", "WHOOP"))
+        assertEquals(DeviceFamily.WHOOP5, DeviceFamily.forRegistryDevice("WHOOP 5.0 / MG", "WHOOP"))
+    }
+
+    /** A null/empty brand carries no non-WHOOP signal (legacy rows, WHOOP straps), so it defers to model. */
+    @Test
+    fun missingBrandDefersToModel() {
+        assertEquals(DeviceFamily.WHOOP4, DeviceFamily.forRegistryDevice("4.0", null))
+        assertEquals(DeviceFamily.WHOOP5, DeviceFamily.forRegistryDevice("5.0 MG", ""))
+        assertEquals(DeviceFamily.WHOOP5, DeviceFamily.forRegistryDevice(null, null))
+    }
+
+    /**
+     * "No scoring change" half of #1086: every consumer coalesces a non-WHOOP null to WHOOP5 (the
+     * non-4.0 skin-temp scale), so the family a non-WHOOP row is *treated as* is identical to before the
+     * brand-aware resolver existed. Guards the skin-temp/day-owner call sites against a scale regression.
+     */
+    @Test
+    fun nonWhoopCoalescesToPriorLabel() {
+        for (model in listOf("Oura Ring 3", "Oura Ring 4", "Oura Ring 5")) {
+            assertEquals(
+                "$model treated-as family must be unchanged",
+                DeviceFamily.forRegistryModel(model),
+                DeviceFamily.forRegistryDevice(model, "Oura") ?: DeviceFamily.WHOOP5,
+            )
+        }
     }
 }

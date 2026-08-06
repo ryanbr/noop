@@ -1605,9 +1605,12 @@ final class IntelligenceEngine: ObservableObject {
 
     /// The strap family that wrote `owner`'s skin-temp rows (#938), so the nightly funnel converts the raw
     /// register on the right scale. The model-label → family mapping (and the `.whoop5` fallback for
-    /// unknowns) lives in `DeviceFamily.forRegistryModel` (#171).
+    /// unknowns) lives in `DeviceFamily.forRegistryDevice` (#171, #1086).
     nonisolated static func skinTempFamily(forOwner owner: String, devices: [PairedDevice]) -> DeviceFamily {
-        DeviceFamily.forRegistryModel(devices.first(where: { $0.id == owner })?.model)
+        let d = devices.first(where: { $0.id == owner })
+        // Non-WHOOP owner (nil) shares the non-4.0 temp scale, so coalesce to `.whoop5` — same conversion
+        // as before; the brand-aware resolver just no longer mislabels the owner as a WHOOP (#1086).
+        return DeviceFamily.forRegistryDevice(model: d?.model, brand: d?.brand) ?? .whoop5
     }
 
     /// #137: re-score under-sampled manual workouts. A `manual` workout is scored from the live HR
