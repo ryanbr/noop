@@ -331,6 +331,11 @@ enum ScheduledDebugExport {
             guard !finished else { return }
             finished = true
             task.setTaskCompleted(success: success)
+            // Break the retain cycle set up in `register()` (task → expirationHandler closure → self →
+            // task). The handler is useless once the task is completed, so drop it here; without this the
+            // guard + task + closure leak until the system happens to release the task. Harmless to nil
+            // after completion.
+            task.expirationHandler = nil
         }
     }
 
