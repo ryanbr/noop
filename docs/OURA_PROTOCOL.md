@@ -172,6 +172,29 @@ Before app-auth, the ring answers a small set unauthenticated: firmware (`0x08`)
 
 Treat this key like a password: it authenticates as the real Oura app against your account's ring. NOOP stores it locally the same way it stores its own provisioned key (Keychain on iOS / EncryptedSharedPreferences-Keystore on Android, §3.2) — nothing is transmitted anywhere. This recipe extracts a fact from **your own** device backup and a public schema doc; it does not touch, decompile, or redistribute any Oura app code.
 
+### 3.8 macOS pairing limitation (observed, 2026-07-29)
+
+Pairing an Oura ring that has never been Bluetooth-bonded to the Mac (i.e. any ring whose only prior
+bond is with the official Oura app on a phone) reproducibly fails on macOS. `CBCentralManager.connect()`
+is issued cleanly (scanning stopped first, `central.state == .poweredOn`, a valid, in-range peripheral -
+observed RSSI as good as -55), but **no CoreBluetooth delegate callback ever arrives** - not
+`didConnect`, not `didFailToConnect`. The ring never appears in System Settings ▸ Bluetooth either
+(no partial bond record is created). Ruled out: a second central holding the ring - the same failure
+reproduces with the paired phone's Bluetooth fully off. This matches CoreBluetooth's documented
+behavior that `connect()` has no built-in timeout (an unanswered connect just stays pending forever),
+so the practical symptom is a silent, permanent hang rather than an error.
+
+This is a different (and apparently more total) failure surface than the already-known WHOOP 5.0/MG
+macOS limitation (see `docs/WHOOP5_DEEP_DATA.md`, "iOS / Android only on real hardware") - WHOOP 5/MG
+at least connects and discovers services, failing only at an authenticated characteristic write
+(`CBATTError` "Encryption is insufficient"). Oura's connect doesn't get that far at all. The exact
+CoreBluetooth/bluetoothd mechanism isn't diagnosed further than this (would need a low-level HCI/SMP
+trace), but the practical conclusion is the same as WHOOP 5/MG's: **treat Oura ring pairing as
+iOS/Android-only** until proven otherwise on macOS. This applies to the §3.7 Advanced-key flow as
+much as to the §3.2 factory-reset one - the limitation is at connect time, before any key is used.
+Not yet tested: whether a genuinely never-bonded-anywhere (factory-reset) ring behaves differently
+from the already-Oura-app-owned case tested here.
+
 ---
 
 ## 4. Opcode Table
