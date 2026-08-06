@@ -173360,6 +173360,58 @@
           }
         }
       }
+    },
+    "Your strap recorded little movement overnight (common on WHOOP 4.0), so this night may be under-detected and the sleep total can read short. Make sure the strap fully synced; the numbers are kept as-is.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dein Band hat über Nacht wenig Bewegung aufgezeichnet (häufig bei WHOOP 4.0), daher wurde diese Nacht möglicherweise nicht vollständig erfasst und die Schlafdauer kann zu kurz erscheinen. Stelle sicher, dass das Band vollständig synchronisiert wurde; die Werte bleiben unverändert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu correa registró poco movimiento durante la noche (habitual en WHOOP 4.0), por lo que esta noche puede haberse detectado de forma incompleta y el total de sueño puede parecer corto. Asegúrate de que la correa se haya sincronizado por completo; los valores se mantienen tal cual."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ton bracelet a enregistré peu de mouvement cette nuit (fréquent sur WHOOP 4.0), donc cette nuit peut être sous-détectée et le total de sommeil peut sembler court. Assure-toi que le bracelet est entièrement synchronisé ; les valeurs sont conservées telles quelles."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il tuo cinturino ha registrato pochi movimenti durante la notte (comune su WHOOP 4.0), quindi questa notte potrebbe essere rilevata in modo incompleto e il totale del sonno può sembrare breve. Assicurati che il cinturino sia completamente sincronizzato; i valori restano invariati."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A tua pulseira registou pouco movimento durante a noite (comum na WHOOP 4.0), por isso esta noite pode ter sido subdetetada e o total de sono pode parecer curto. Certifica-te de que a pulseira sincronizou totalmente; os valores são mantidos como estão."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ремешок зафиксировал мало движений за ночь (часто у WHOOP 4.0), поэтому эта ночь могла быть распознана не полностью, а общее время сна может выглядеть коротким. Убедись, что ремешок полностью синхронизировался; значения остаются без изменений."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表带在夜间记录到的动作很少（WHOOP 4.0 常见），因此这一夜可能未被完整检测，睡眠总时长可能偏短。请确保表带已完全同步；数值保持不变。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "錶帶在夜間記錄到的動作很少（WHOOP 4.0 常見），因此這一夜可能未被完整偵測，睡眠總時長可能偏短。請確保錶帶已完全同步；數值維持不變。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -853,8 +853,8 @@ struct SleepView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 2)
+        // `.combine` builds the a11y label from the badge + body Text (no separate localized string).
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Sleep may be incomplete. Your strap recorded little movement overnight, so this night may be under-detected and the total can read short. Make sure the strap fully synced.")
     }
 
     /// Honest caveat for an Oura-provided night: the stage split shown here is the ring's RAW on-device
