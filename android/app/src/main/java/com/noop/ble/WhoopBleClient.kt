@@ -4190,6 +4190,26 @@ class WhoopBleClient(
         } else {
             log("Bond handshake stuck for ${bondWatchdogBackoff.currentWindowMs() / 1000}s — bouncing link to retry " +
                 "(attempt ${bondWatchdogBackoff.consecutiveBounces}, #50/#971) " + bondWatchdogContext())
+            // #1095: a 5/MG whose CLIENT_HELLO confirmed write never ACKs (writeInFlight still true, never
+            // bonded) gets NEITHER the 5/15-refusal pairing hint NOR — until the 4-bounce give-up — the
+            // re-pair guide, so it loops for ~46s with no advice. Surface a 5/MG-tailored re-pair guide on
+            // the 2nd such SILENT bounce (the usual cause is the official app still holding the strap).
+            // Guidance STRING ONLY — the loop is unchanged (the give-up still pauses at the cap, and its own
+            // `reconnectGuide == null` check won't overwrite this). Unpairing is the right first step for any
+            // 5/MG that connects but never bonds, so surfacing it early is safe even before the capture.
+            if (connectedFamily == DeviceFamily.WHOOP5 && !didBond && writeInFlight &&
+                bondWatchdogBackoff.consecutiveBounces >= 2 && _state.value.reconnectGuide == null
+            ) {
+                log("WHOOP 5/MG: CLIENT_HELLO never acknowledged across ${bondWatchdogBackoff.consecutiveBounces} silent bounces — surfacing the re-pair guide early (#1095)")
+                _state.update { it.copy(reconnectGuide = """
+                    Your WHOOP 5.0/MG connects and reads battery, but never finishes pairing with NOOP, so no health data comes through. This is almost always the official WHOOP app still holding the strap (a 5.0 pairs with one phone at a time), or a stale Bluetooth pairing:
+
+                    1. Quit the official WHOOP app (or turn off Bluetooth on that phone).
+                    2. Open Settings → Bluetooth, find your WHOOP, and Forget / Unpair it.
+                    3. Tap the band repeatedly until its LEDs flash blue (pairing mode).
+                    4. Come back here and tap Connect.
+                    """.trimIndent()) }
+            }
         }
         // Drop the link either way: even on give-up we tear down the wedged GATT so it stops holding the
         // radio. gatt.disconnect() throwing on a dead binder (#314) must not crash from a timer — fall
