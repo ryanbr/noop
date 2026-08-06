@@ -1563,6 +1563,8 @@
     <string name="today_customize_title">Personnaliser Aujourd’hui</string>
     <string name="today_customize_action">Personnaliser</string>
     <string name="today_customize_description">Réorganisez les éléments affichés ou déplacez une section dans Masqués sans la supprimer.</string>
+    <string name="sleep_customize_title">Personnaliser le sommeil</string>
+    <string name="sleep_customize_description">Réorganisez les éléments affichés ou déplacez une section dans Masqués sans la supprimer.</string>
     <string name="today_customize_shown">AFFICHÉS</string>
     <string name="today_customize_hidden">MASQUÉS</string>
     <string name="today_customize_nothing_hidden">Aucun élément masqué</string>

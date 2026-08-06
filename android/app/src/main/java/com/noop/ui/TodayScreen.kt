@@ -3382,7 +3382,7 @@ private fun intStringGrouped(v: Double): String {
  * the same ordering behavior in every editor. SnapshotStateList callers recompose on these mutations.
  */
 @Composable
-private fun <T> EditableVisibilityRows(
+internal fun <T> EditableVisibilityRows(
     shown: MutableList<T>,
     hidden: MutableList<T>,
     itemTitle: (T) -> String,

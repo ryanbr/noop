@@ -51,6 +51,8 @@
     <string name="today_customize_title">Personalizar Hoje</string>
     <string name="today_customize_action">Personalizar</string>
     <string name="today_customize_description">Reordena o que é mostrado ou move uma secção para Ocultos sem a apagar.</string>
+    <string name="sleep_customize_title">Personalizar Sono</string>
+    <string name="sleep_customize_description">Reordena o que é mostrado ou move uma secção para Ocultos sem a apagar.</string>
     <string name="today_customize_shown">MOSTRADOS</string>
     <string name="today_customize_hidden">OCULTOS</string>
     <string name="today_customize_nothing_hidden">Nada oculto</string>

@@ -61,6 +61,8 @@
     <string name="today_customize_title">Customize Today</string>
     <string name="today_customize_action">Customize</string>
     <string name="today_customize_description">Reorder what is shown, or move a section to Hidden without deleting it.</string>
+    <string name="sleep_customize_title">Customize Sleep</string>
+    <string name="sleep_customize_description">Reorder what is shown, or move a section to Hidden without deleting it.</string>
     <string name="today_customize_shown">SHOWN</string>
     <string name="today_customize_hidden">HIDDEN</string>
     <string name="today_customize_nothing_hidden">Nothing hidden</string>

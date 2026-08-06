@@ -55,6 +55,8 @@
     <string name="today_customize_title">Heute anpassen</string>
     <string name="today_customize_action">Anpassen</string>
     <string name="today_customize_description">Ordne sichtbare Elemente neu an oder verschiebe einen Abschnitt nach „Ausgeblendet“, ohne ihn zu löschen.</string>
+    <string name="sleep_customize_title">Schlaf anpassen</string>
+    <string name="sleep_customize_description">Ordne sichtbare Elemente neu an oder verschiebe einen Abschnitt nach „Ausgeblendet“, ohne ihn zu löschen.</string>
     <string name="today_customize_shown">ANGEZEIGT</string>
     <string name="today_customize_hidden">AUSGEBLENDET</string>
     <string name="today_customize_nothing_hidden">Nichts ausgeblendet</string>

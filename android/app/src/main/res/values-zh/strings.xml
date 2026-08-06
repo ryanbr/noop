@@ -49,6 +49,8 @@
     <string name="today_customize_title">自定义“今天”</string>
     <string name="today_customize_action">自定义</string>
     <string name="today_customize_description">重新排序已显示内容，或将某个部分移至“已隐藏”而不删除。</string>
+    <string name="sleep_customize_title">自定义睡眠</string>
+    <string name="sleep_customize_description">重新排序已显示内容，或将某个部分移至“已隐藏”而不删除。</string>
     <string name="today_customize_shown">已显示</string>
     <string name="today_customize_hidden">已隐藏</string>
     <string name="today_customize_nothing_hidden">没有隐藏项目</string>
