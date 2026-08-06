@@ -724,6 +724,13 @@ struct SleepView: View {
             if stageStagingIsLowConfidence(night) {
                 stageLowConfidenceNote
             }
+            // #345 follow-up: when a night was staged on SPARSE motion coverage it can UNDER-detect — the
+            // gravity-only spine fragments and the sub-60-min pieces are dropped, so a real ~8h night can
+            // collapse to a fraction ("slept 8h, app shows 1h"). Say so honestly so the short total isn't
+            // read as fact. Distinct from the H9 note above (a plausible-duration night with an off split).
+            if stageStagingIsSparse(night) {
+                stageIncompleteNote
+            }
             // For an Oura-provided night, say plainly that this split is the ring's RAW on-device
             // classification — so the larger Awake / smaller Deep+REM here isn't misread as the polished
             // numbers the Oura app shows for the same night (the app post-processes the same stream).
@@ -782,6 +789,15 @@ struct SleepView: View {
             asleepMin: s.asleep, deepMin: s.deep, remMin: s.rem, efficiency: effPct / 100.0)
     }
 
+    /// True when this night was staged on SPARSE motion coverage — the persisted `stagingSparse` flag the
+    /// engine sets from `SleepStager.isGravitySparse` (#345). Such a night can UNDER-detect: the gravity-only
+    /// spine fragments and sub-60-min pieces are dropped, so a real night collapses to a fraction. Reads the
+    /// day's REAL stored blocks (each carries the day's value), never the synthetic merged `session`; a nil
+    /// flag (imported / pre-migration night) is never flagged. Mirror in Kotlin.
+    private func stageStagingIsSparse(_ night: Night) -> Bool {
+        night.sourceBlocks.contains { $0.stagingSparse == true }
+    }
+
     /// Pure H9 gate (unit-testable without a live view) — true when a night's staging is low-confidence:
     /// a high-efficiency night whose deep+REM share is below the restorative floor. Built on the engine's
     /// own `ScoreConfidence.rest(...)` so the UI flag and the persisted Rest confidence agree. `asleepMin`,
@@ -823,6 +839,22 @@ struct SleepView: View {
         .padding(.horizontal, 2)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Low confidence staging. This night scored high efficiency but very little deep or REM, more likely an estimate miss than a real restorative shortfall.")
+    }
+
+    /// The sparse-coverage caveat: a night staged on thin motion data can under-detect and collapse a real
+    /// night to a fraction ("slept 8h, shows 1h"). Honest + actionable — tells the user to make sure the
+    /// strap fully synced. Distinct from the H9 note (an off deep/REM split, not a short total). (#345)
+    private var stageIncompleteNote: some View {
+        HStack(alignment: .top, spacing: 8) {
+            SourceBadge("May be incomplete", tint: StrandPalette.statusWarning)
+            Text("Your strap recorded little movement overnight (common on WHOOP 4.0), so this night may be under-detected and the sleep total can read short. Make sure the strap fully synced; the numbers are kept as-is.")
+                .font(StrandFont.footnote)
+                .foregroundStyle(StrandPalette.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 2)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Sleep may be incomplete. Your strap recorded little movement overnight, so this night may be under-detected and the total can read short. Make sure the strap fully synced.")
     }
 
     /// Honest caveat for an Oura-provided night: the stage split shown here is the ring's RAW on-device

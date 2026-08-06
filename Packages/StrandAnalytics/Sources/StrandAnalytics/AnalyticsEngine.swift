@@ -737,7 +737,11 @@ public enum AnalyticsEngine {
                 efficiency: s.efficiency,
                 restingHr: s.restingHR,
                 avgHrv: s.avgHRV,
-                stagesJSON: encodeStages(s.stages))
+                stagesJSON: encodeStages(s.stages),
+                // #345 follow-up: stamp the DAY's motion-coverage verdict on every session so the Sleep
+                // tab can caption a sparse (likely under-detected) night. A NOOP-computed night is always
+                // true/false here; imported nights never reach this path and keep nil (unknown).
+                stagingSparse: gravitySparse)
         }
 
         // ── Per-session per-epoch motion (H8) ─────────────────────────────────

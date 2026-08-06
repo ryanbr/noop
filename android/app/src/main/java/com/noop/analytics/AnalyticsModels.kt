@@ -289,4 +289,12 @@ data class DayResult(
      * hypnogram. Empty on a WHOOP 4.0. Mirrors Swift `DayResult.sessionSleepStateByStart`. (#175)
      */
     val sessionSleepStateByStart: Map<Long, List<Int>> = emptyMap(),
+    /**
+     * Whether this day's on-device sleep staging ran on SPARSE motion coverage
+     * ([SleepStager.isGravitySparse], #345) — the same signal that downgrades Rest confidence. The caller
+     * stamps it onto each persisted `SleepSession.stagingSparse` so the Sleep tab can caption a possibly
+     * under-detected night ("slept 8h, shows 1h"). Transient (not persisted on DayResult itself). Mirrors
+     * the value Swift's `analyzeDay` writes directly onto its `CachedSleepSession.stagingSparse`.
+     */
+    val gravitySparse: Boolean = false,
 )

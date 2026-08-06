@@ -762,6 +762,19 @@ extension WhoopStore {
                 t.add(column: "steps", .integer)
             }
         }
+        // #345 follow-up: per-session flag recording that a night was staged on SPARSE motion coverage
+        // (`SleepStager.isGravitySparse`), so the Sleep tab can honestly caption "sleep may be incomplete"
+        // when a sparse night likely under-detected (the "slept 8h, shows 1h" reports). Additive, nullable
+        // (existing rows / imported nights read null = unknown, never flagged); not part of the primary
+        // key. The v13 (`userEdited`) / v14 (`startTsAdjusted`) form. Byte-parity with Room MIGRATION_27_28.
+        migrator.registerMigration("v34-sleep-staging-sparse") { db in
+            // `.integer` (not `.boolean`) so the affinity is INTEGER on BOTH platforms — Room maps Kotlin
+            // Boolean? to INTEGER too — and this column carries no `grdb-boolean-affinity` divergence.
+            // The value is a 0/1 flag; GRDB binds/reads the Swift `Bool?` as 0/1 over an INTEGER column.
+            try db.alter(table: "sleepSession") { t in
+                t.add(column: "stagingSparse", .integer)
+            }
+        }
         return migrator
     }
 }

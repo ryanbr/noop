@@ -357,6 +357,13 @@ data class SleepSession(
     // through the targeted DAO methods (not the @Upsert path, which never names them and so preserves them).
     val motionJSON: String? = null,
     val sleepStateJSON: String? = null,
+    // v34 (Swift WhoopStore v34-sleep-staging-sparse parity, MIGRATION_27_28). True when this night was
+    // staged on SPARSE motion coverage (SleepStager.isGravitySparse, #345) — a night that can UNDER-detect
+    // and read short ("slept 8h, shows 1h"), so the Sleep tab captions it honestly. Nullable INTEGER (Kotlin
+    // Boolean? -> INTEGER affinity, matching GRDB's `.integer` twin — no boolean-affinity divergence); old
+    // rows / imported nights read null = unknown. Declared LAST so the ALTER-appended column matches this
+    // fresh-schema order.
+    val stagingSparse: Boolean? = null,
 ) {
     /** The bed (onset) time to DISPLAY / sort / re-stage by: the user's hand-set onset when edited,
      *  else the immutable detected [startTs]. Mirrors Swift `CachedSleepSession.effectiveStartTs`. */
