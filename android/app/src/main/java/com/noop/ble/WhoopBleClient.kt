@@ -4146,6 +4146,16 @@ class WhoopBleClient(
     private val bondWatchdogRunnable = Runnable { onBondWatchdog() }
 
     @SuppressLint("MissingPermission")
+    /** #1095 diagnostic: the 5/MG bond state at a watchdog fire, so a "connects + reads battery but never
+     *  streams health data" report is legible. `writeInFlight=true` here is the smoking gun — the
+     *  CLIENT_HELLO confirmed write never got its `onCharacteristicWrite` callback, i.e. the strap went
+     *  SILENT (no ACK, and no 5/15 bond refusal that would have surfaced the pairing hint), so the watchdog
+     *  is tearing the link down blind. `family=WHOOP5 encryptedBond=false` alongside confirms the 5/MG
+     *  never authenticated. Diagnostic-only string; no behaviour change. */
+    private fun bondWatchdogContext(): String =
+        "(family=$connectedFamily writeInFlight=$writeInFlight didBond=$didBond " +
+            "encryptedBond=${_state.value.encryptedBond})"
+
     private fun onBondWatchdog() {
         // Already bonded (or torn down) — nothing wedged; the cancel sites normally beat us here, but
         // a late post on a binder-pool thread could still fire, so re-check before bouncing.
@@ -4161,7 +4171,8 @@ class WhoopBleClient(
         val gaveUp = bondWatchdogBackoff.recordBounce()
         intentionalDisconnect = false
         if (gaveUp) {
-            log("Bond handshake never completed after ${bondWatchdogBackoff.consecutiveBounces} escalating tries — pausing auto-reconnect and surfacing the re-pair guide (#971)")
+            log("Bond handshake never completed after ${bondWatchdogBackoff.consecutiveBounces} escalating tries " +
+                bondWatchdogContext() + " — pausing auto-reconnect and surfacing the re-pair guide (#971)")
             autoReconnectPausedForBondLoop = true
             bondLoopPausedAtMs = System.currentTimeMillis()   // the #78 hole-4 salvage probe covers this pause too
             if (_state.value.reconnectGuide == null) {
@@ -4177,7 +4188,8 @@ class WhoopBleClient(
                 ) }
             }
         } else {
-            log("Bond handshake stuck for ${bondWatchdogBackoff.currentWindowMs() / 1000}s — bouncing link to retry (attempt ${bondWatchdogBackoff.consecutiveBounces}, #50/#971)")
+            log("Bond handshake stuck for ${bondWatchdogBackoff.currentWindowMs() / 1000}s — bouncing link to retry " +
+                "(attempt ${bondWatchdogBackoff.consecutiveBounces}, #50/#971) " + bondWatchdogContext())
         }
         // Drop the link either way: even on give-up we tear down the wedged GATT so it stops holding the
         // radio. gatt.disconnect() throwing on a dead binder (#314) must not crash from a timer — fall
@@ -7095,7 +7107,8 @@ class WhoopBleClient(
                 alreadyPausedForBondLoop = autoReconnectPausedForBondLoop,
             ) && bondWatchdogBackoff.recordBounce()
         ) {
-            log("Strap connects and subscribes but never finishes pairing, then self-drops before the bond watchdog fires (${bondWatchdogBackoff.consecutiveBounces} cycles) — pausing auto-reconnect and surfacing the re-pair guide (#982/#971)")
+            log("Strap connects and subscribes but never finishes pairing, then self-drops before the bond watchdog fires (${bondWatchdogBackoff.consecutiveBounces} cycles) " +
+                bondWatchdogContext() + " — pausing auto-reconnect and surfacing the re-pair guide (#982/#971)")
             autoReconnectPausedForBondLoop = true
             bondLoopPausedAtMs = System.currentTimeMillis()   // the #78 hole-4 salvage probe covers this pause too
             if (_state.value.reconnectGuide == null) {
