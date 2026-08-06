@@ -390,6 +390,71 @@ object HrvAnalyzer {
         RrCoverageVerdict.UNMEASURABLE -> true
     }
 
+    /**
+     * How closely a beat's own wall-clock gap matches its own R-R value: the fraction of consecutive
+     * beats whose `ts` step is within [BEAT_ACCURACY_TOLERANCE_S] of their interval. Pure. Byte-parity
+     * twin of Swift `beatAccurateFraction`. Returns 1.0 for fewer than 2 beats — absence of evidence is
+     * not evidence of banking, and the caller's own beat-count gates handle a series that short.
+     *
+     * A BEAT-ACCURATE stream steps one interval per beat, so the gap and the value agree and the
+     * fraction is ~1.0 (WHOOP R-R, live spot readings, the synthetic fixtures). A BANKED stream stamps
+     * a whole record of intervals on one coarse timestamp, so nearly every gap is 0 s against a ~1 s
+     * value and the fraction collapses toward 0.
+     */
+    fun beatAccurateFraction(tsSec: List<Long>, rrMs: List<Double>): Double {
+        if (tsSec.size != rrMs.size || tsSec.size < 2) return 1.0
+        var accurate = 0
+        for (i in 1 until tsSec.size) {
+            val gapS = (tsSec[i] - tsSec[i - 1]).toDouble()
+            if (kotlin.math.abs(gapS - rrMs[i] / 1000.0) <= BEAT_ACCURACY_TOLERANCE_S) accurate++
+        }
+        return accurate.toDouble() / (tsSec.size - 1).toDouble()
+    }
+
+    /**
+     * Tolerance (seconds) allowed between a beat's wall-clock gap and its own R-R value before the beat
+     * is counted as not time-accurate. Whole-second `ts` against a sub-second interval means an honest
+     * stream still rounds, so this is deliberately loose. Twin of Swift `beatAccuracyToleranceS`.
+     */
+    const val BEAT_ACCURACY_TOLERANCE_S: Double = 0.5
+
+    /**
+     * Fraction of beats that must be time-accurate before BEAT-VALUE statistics are trusted.
+     *
+     * Not a tuned threshold: the two populations do not overlap anywhere near it. A beat-accurate
+     * stream measures ~100%; every banked Oura overnight measured to date sits at **2.6-6.6%**
+     * (five nights, 2026-07-29 -> 08-06). Anything in the middle is a stream we have never seen and
+     * should not be guessing about, which is what a mid-range boundary expresses.
+     * Twin of Swift `beatAccuracyMinFraction`.
+     */
+    const val BEAT_ACCURACY_MIN_FRACTION: Double = 0.5
+
+    /**
+     * Whether a window's BEAT-VALUE statistics — SDNN above all — can be trusted, given how
+     * time-accurate its beats are. Pure. Byte-parity twin of Swift `beatValuesAreTrustworthy`.
+     *
+     * This is a SEPARATE failure from [beatSpreadIsTrustworthy]'s, and neither implies the other.
+     * That one asks "is the same beat held twice?"; this one asks "is each stored interval a real
+     * beat-to-beat measurement at all?" A banked stream can be perfectly covered — the 2026-08-06
+     * Oura night measured coverage 1.03, verdict PLAUSIBLE, its records tiling the timeline at a fill
+     * ratio of 0.990 — and still report **SDNN 174 ms** against a 40-100 ms physiological range,
+     * because the ring decomposes each ~6.5 s record into 6 intervals whose SUM is right to ~1% (which
+     * is why meanNN and resting HR stay correct and WHOOP-validated) while the individual values are
+     * not beat-to-beat accurate. Measured on that night: within-5-minute SDNN of 123 ms after the
+     * shipped Malik ectopic filter, against 30-80 ms physiological, with only 94 ms of the whole-night
+     * figure attributable to genuine trend. Widening the ectopic window does not reach it (radius 2 ->
+     * 20 moves the within-window figure only 124 -> 99 ms): each interval sits within 20% of its local
+     * median, so no per-beat artifact rule can see the fault — it is in the decomposition, not in
+     * outliers.
+     *
+     * Successive-difference statistics (RMSSD, pNN50) are deliberately NOT gated here, for the same
+     * reason they are not gated by the coverage verdict: that is a question for a capture to answer.
+     */
+    fun beatValuesAreTrustworthy(beatAccurateFraction: Double): Boolean =
+        // Negated `<` so a NaN input lands on `true` — NaN means "not measured", and an unmeasured
+        // window must not be silently refused. Matches the NaN convention in [classifyCoverage].
+        !(beatAccurateFraction < BEAT_ACCURACY_MIN_FRACTION)
+
     /** Classify a night from its coverage pair. Pure. Byte-parity twin of Swift `classifyCoverage`.
      *
      *  Both platforms use the NEGATED `>` form rather than `<=` so a non-finite input lands identically:

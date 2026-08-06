@@ -147,4 +147,75 @@ final class RrCoverageVerdictTests: XCTestCase {
             collapsed: HRVAnalyzer.collapsedCoverage(tsSec: bankedTs, rrMs: rr))
         XCTAssertFalse(HRVAnalyzer.beatSpreadIsTrustworthy(banked), "verdict was \(banked)")
     }
+
+    // MARK: - The second, independent fault: beat-VALUE accuracy (P7')
+
+    /// A beat-accurate stream steps one interval per beat, so each wall-clock gap equals its own R-R
+    /// value and the fraction is 1.0. This is what WHOOP R-R and the synthetic fixtures look like.
+    func testBeatAccurateStreamMeasuresFully() {
+        let rr = [Double](repeating: 1000.0, count: 60)     // 60 bpm, one beat per second
+        let ts = (0..<60).map { $0 }
+        XCTAssertEqual(HRVAnalyzer.beatAccurateFraction(tsSec: ts, rrMs: rr), 1.0, accuracy: 1e-9)
+        XCTAssertTrue(HRVAnalyzer.beatValuesAreTrustworthy(
+            beatAccurateFraction: HRVAnalyzer.beatAccurateFraction(tsSec: ts, rrMs: rr)))
+    }
+
+    /// A BANKED stream stamps a whole record of intervals on one timestamp, so nearly every gap is 0 s
+    /// against a ~1 s value. Six beats per record: five of every six gaps are 0, so the fraction lands
+    /// far below the boundary — the shape every measured Oura night has (2.6-6.6%).
+    func testBankedStreamIsNotBeatAccurateAndRefusesBeatValues() {
+        let rr = [Double](repeating: 1000.0, count: 60)
+        let ts = (0..<60).map { ($0 / 6) * 7 }              // 10 records of 6, 7 s apart
+        let frac = HRVAnalyzer.beatAccurateFraction(tsSec: ts, rrMs: rr)
+        XCTAssertLessThan(frac, HRVAnalyzer.beatAccuracyMinFraction)
+        XCTAssertFalse(HRVAnalyzer.beatValuesAreTrustworthy(beatAccurateFraction: frac))
+    }
+
+    /// **The case that motivated P7'.** The two faults are INDEPENDENT: this stream is perfectly
+    /// covered — one interval of beat-time per second of wall clock, so `classifyCoverage` says
+    /// `plausible` and the over-count gate passes it — yet the beats are banked six to a record, so
+    /// their individual values are a decomposition of a record period rather than beat-to-beat
+    /// measurements. The 2026-08-06 Oura night is exactly this shape (coverage 1.03, `plausible`,
+    /// SDNN 174 ms) and the over-count gate alone let it through.
+    func testAPerfectlyCoveredBankedNightStillRefusesBeatValues() {
+        // 10 records of 6 beats, records 7 s apart, so the span is 9 * 7 = 63 s. Sixty intervals of
+        // 1050 ms are exactly 63 s of beat-time: coverage lands on 1.0 while five of every six gaps
+        // are still 0 s. (Coverage is measured across the first-to-last STAMP, so the beat-time has to
+        // match that span, not the record count times the record period.)
+        let rr = [Double](repeating: 63_000.0 / 60.0, count: 60)
+        let ts = (0..<60).map { ($0 / 6) * 7 }
+        let verdict = HRVAnalyzer.classifyCoverage(
+            coverage: HRVAnalyzer.rrCoverage(tsSec: ts, rrMs: rr),
+            collapsed: HRVAnalyzer.collapsedCoverage(tsSec: ts, rrMs: rr))
+        XCTAssertTrue(HRVAnalyzer.beatSpreadIsTrustworthy(verdict),
+                      "the over-count gate must PASS this — that is the point (verdict \(verdict))")
+        let frac = HRVAnalyzer.beatAccurateFraction(tsSec: ts, rrMs: rr)
+        XCTAssertFalse(HRVAnalyzer.beatValuesAreTrustworthy(beatAccurateFraction: frac),
+                       "the beat-value gate must REFUSE it (fraction \(frac))")
+    }
+
+    /// A live spot reading carries no timestamps, so there is nothing to measure and nothing to refuse:
+    /// too-short input returns 1.0 and stays trusted. Suppressing honest live readings is the exact
+    /// failure this gate must not introduce.
+    func testTooShortOrMismatchedInputStaysTrusted() {
+        XCTAssertEqual(HRVAnalyzer.beatAccurateFraction(tsSec: [], rrMs: []), 1.0)
+        XCTAssertEqual(HRVAnalyzer.beatAccurateFraction(tsSec: [5], rrMs: [1000]), 1.0)
+        // Mismatched lengths cannot be paired up; refusing on that would be guessing.
+        XCTAssertEqual(HRVAnalyzer.beatAccurateFraction(tsSec: [0, 1, 2], rrMs: [1000]), 1.0)
+        XCTAssertTrue(HRVAnalyzer.beatValuesAreTrustworthy(beatAccurateFraction: 1.0))
+    }
+
+    /// NaN means "not measured", and an unmeasured window must not be silently refused — the same
+    /// negated-comparison convention `classifyCoverage` uses so both platforms fold NaN identically.
+    func testNaNAccuracyStaysTrusted() {
+        XCTAssertTrue(HRVAnalyzer.beatValuesAreTrustworthy(beatAccurateFraction: .nan))
+    }
+
+    /// The boundary itself: exactly at the minimum is trusted, just below is not.
+    func testBoundaryIsInclusive() {
+        XCTAssertTrue(HRVAnalyzer.beatValuesAreTrustworthy(
+            beatAccurateFraction: HRVAnalyzer.beatAccuracyMinFraction))
+        XCTAssertFalse(HRVAnalyzer.beatValuesAreTrustworthy(
+            beatAccurateFraction: HRVAnalyzer.beatAccuracyMinFraction - 0.01))
+    }
 }

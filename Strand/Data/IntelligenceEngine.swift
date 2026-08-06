@@ -755,10 +755,21 @@ final class IntelligenceEngine: ObservableObject {
                     // `rrIntegrity=` field on the same line says why. RMSSD/meanNN are NOT withheld — mean
                     // rate survives an over-count, and RMSSD's dominant error was the emission order fixed
                     // at the write path (#1072).
+                    // P7' follow-up: the over-count verdict is necessary but NOT sufficient. The
+                    // 2026-08-06 Oura night measured coverage 1.03 / `plausible` — no duplication at
+                    // all, its records tiling the timeline at a fill ratio of 0.990 — and still printed
+                    // SDNN 174 ms. A BANKED stream stamps a whole record of intervals on one timestamp,
+                    // so its stored values are a decomposition of a record period, not beat-to-beat
+                    // measurements: the per-record SUM is right to ~1% (meanNN and RHR stay correct and
+                    // WHOOP-validated) while the individual intervals are not. Gate on that too.
+                    let accVal = HRVAnalyzer.beatAccurateFraction(tsSec: ts, rrMs: sleepRr)
+                    let acc = String(format: "%.2f", accVal)
                     let sdnnField = HRVAnalyzer.beatSpreadIsTrustworthy(verdict)
+                        && HRVAnalyzer.beatValuesAreTrustworthy(beatAccurateFraction: accVal)
                         ? "\(ms(h.sdnn))ms" : "withheld"
                     hrvDiag = "hrv diag day=\(res.daily.day) rmssd=\(ms(h.rmssd))ms sdnn=\(sdnnField) "
                         + "meanNN=\(ms(h.meanNN))ms rr=\(h.nInput)/\(h.nClean) rejected=\(rej)% coverage=\(cov) collapsedCov=\(colCov) dupBeats=\(dup) "
+                        + "beatAccurate=\(acc) "
                         + "rrIntegrity=\(verdict.rawValue)"
                 }
                 // ── Steps test mode: 5/MG raw-counter trace ──────────────────────────────────────────────

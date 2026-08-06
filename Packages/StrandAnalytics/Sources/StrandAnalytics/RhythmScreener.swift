@@ -257,6 +257,14 @@ public enum RhythmScreener {
             guard HRVAnalyzer.beatSpreadIsTrustworthy(verdict) else {
                 return .unreadable(nBeats: clean.count, confidence: confidence(for: clean.count))
             }
+            // Same gate, second fault: a BANKED stream stamps a whole record of intervals on one
+            // timestamp, so its stored values are a decomposition of a record period rather than
+            // beat-to-beat measurements. Coverage cannot see that — such a night can measure a
+            // textbook 1.03 — but every spread below is built from those values.
+            let accurate = HRVAnalyzer.beatAccurateFraction(tsSec: input.ts, rrMs: input.rrMs)
+            guard HRVAnalyzer.beatValuesAreTrustworthy(beatAccurateFraction: accurate) else {
+                return .unreadable(nBeats: clean.count, confidence: confidence(for: clean.count))
+            }
         }
 
         // Core descriptive statistics over the clean (range-filtered, ectopy-kept) series.

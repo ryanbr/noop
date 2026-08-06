@@ -119,4 +119,64 @@ class HrvRrCoverageTest {
             HrvAnalyzer.rrCoverage(bankedTs, rr), HrvAnalyzer.collapsedCoverage(bankedTs, rr))
         assertFalse("verdict was $banked", HrvAnalyzer.beatSpreadIsTrustworthy(banked))
     }
+
+    // --- The second, independent fault: beat-VALUE accuracy (P7'). Twin of the Swift tests. ---
+
+    /** A beat-accurate stream steps one interval per beat, so each wall-clock gap equals its own R-R
+     *  value and the fraction is 1.0. This is what WHOOP R-R and the synthetic fixtures look like. */
+    @Test fun beatAccurateFraction_isFullOnABeatAccurateStream() {
+        val rr = List(60) { 1000.0 }
+        val ts = (0 until 60).map { it.toLong() }
+        assertEquals(1.0, HrvAnalyzer.beatAccurateFraction(ts, rr), 1e-9)
+        assertTrue(HrvAnalyzer.beatValuesAreTrustworthy(HrvAnalyzer.beatAccurateFraction(ts, rr)))
+    }
+
+    /** A BANKED stream stamps a whole record of intervals on one timestamp, so nearly every gap is 0 s
+     *  against a ~1 s value. Six beats per record: five of every six gaps are 0, so the fraction lands
+     *  far below the boundary — the shape every measured Oura night has (2.6-6.6%). */
+    @Test fun beatAccurateFraction_collapsesOnABankedStream() {
+        val rr = List(60) { 1000.0 }
+        val ts = (0 until 60).map { ((it / 6) * 7).toLong() }
+        val frac = HrvAnalyzer.beatAccurateFraction(ts, rr)
+        assertTrue("fraction was $frac", frac < HrvAnalyzer.BEAT_ACCURACY_MIN_FRACTION)
+        assertFalse(HrvAnalyzer.beatValuesAreTrustworthy(frac))
+    }
+
+    /** **The case that motivated P7'.** The two faults are INDEPENDENT: this stream is perfectly
+     *  covered — 60 intervals of 1050 ms are exactly the 63 s first-to-last span, so classifyCoverage
+     *  says PLAUSIBLE and the over-count gate passes it — yet the beats are banked six to a record, so
+     *  their individual values are a decomposition of a record period, not beat-to-beat measurements.
+     *  The 2026-08-06 Oura night is exactly this shape (coverage 1.03, PLAUSIBLE, SDNN 174 ms). */
+    @Test fun aPerfectlyCoveredBankedNightStillRefusesBeatValues() {
+        val rr = List(60) { 63_000.0 / 60.0 }
+        val ts = (0 until 60).map { ((it / 6) * 7).toLong() }
+        val verdict = HrvAnalyzer.classifyCoverage(
+            HrvAnalyzer.rrCoverage(ts, rr), HrvAnalyzer.collapsedCoverage(ts, rr))
+        assertTrue("the over-count gate must PASS this — that is the point (verdict $verdict)",
+            HrvAnalyzer.beatSpreadIsTrustworthy(verdict))
+        val frac = HrvAnalyzer.beatAccurateFraction(ts, rr)
+        assertFalse("the beat-value gate must REFUSE it (fraction $frac)",
+            HrvAnalyzer.beatValuesAreTrustworthy(frac))
+    }
+
+    /** A live spot reading carries no timestamps, so there is nothing to measure and nothing to refuse:
+     *  too-short or mismatched input returns 1.0 and stays trusted. */
+    @Test fun beatAccurateFraction_tooShortOrMismatchedStaysTrusted() {
+        assertEquals(1.0, HrvAnalyzer.beatAccurateFraction(emptyList(), emptyList()), 1e-9)
+        assertEquals(1.0, HrvAnalyzer.beatAccurateFraction(listOf(5L), listOf(1000.0)), 1e-9)
+        assertEquals(1.0, HrvAnalyzer.beatAccurateFraction(listOf(0L, 1L, 2L), listOf(1000.0)), 1e-9)
+        assertTrue(HrvAnalyzer.beatValuesAreTrustworthy(1.0))
+    }
+
+    /** NaN means "not measured", and an unmeasured window must not be silently refused — the same
+     *  negated-comparison convention classifyCoverage uses so both platforms fold NaN identically. */
+    @Test fun beatValuesAreTrustworthy_nanStaysTrusted() {
+        assertTrue(HrvAnalyzer.beatValuesAreTrustworthy(Double.NaN))
+    }
+
+    /** The boundary itself: exactly at the minimum is trusted, just below is not. */
+    @Test fun beatValuesAreTrustworthy_boundaryIsInclusive() {
+        assertTrue(HrvAnalyzer.beatValuesAreTrustworthy(HrvAnalyzer.BEAT_ACCURACY_MIN_FRACTION))
+        assertFalse(HrvAnalyzer.beatValuesAreTrustworthy(HrvAnalyzer.BEAT_ACCURACY_MIN_FRACTION - 0.01))
+    }
 }

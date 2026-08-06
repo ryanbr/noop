@@ -183,6 +183,14 @@ object RhythmScreener {
             if (!HrvAnalyzer.beatSpreadIsTrustworthy(verdict)) {
                 return WindowResult.unreadable(nBeats = clean.size, confidence = confidence(clean.size))
             }
+            // Same gate, second fault: a BANKED stream stamps a whole record of intervals on one
+            // timestamp, so its stored values are a decomposition of a record period rather than
+            // beat-to-beat measurements. Coverage cannot see that — such a night can measure a
+            // textbook 1.03 — but every spread below is built from those values. Twin of the Swift gate.
+            val accurate = HrvAnalyzer.beatAccurateFraction(tsLong, input.rrMs)
+            if (!HrvAnalyzer.beatValuesAreTrustworthy(accurate)) {
+                return WindowResult.unreadable(nBeats = clean.size, confidence = confidence(clean.size))
+            }
         }
 
         // Core descriptive statistics over the clean (range-filtered, ectopy-kept) series.
