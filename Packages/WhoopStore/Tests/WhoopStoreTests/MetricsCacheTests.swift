@@ -43,6 +43,32 @@ final class MetricsCacheTests: XCTestCase {
         XCTAssertNil(rows[0].stagesJSON)
     }
 
+    /// #345: the persisted sparse-coverage flag survives write→read, REFRESHES on a recompute (excluded
+    /// wins on conflict, since it's derived from the day's motion), and stays nil for an unknown/imported
+    /// night. This is what lets the Sleep tab caption a possibly-under-detected night.
+    func testSleepSessionStagingSparseRoundTrips() async throws {
+        let store = try await WhoopStore.inMemory()
+        try await store.upsertSleepSessions([
+            CachedSleepSession(startTs: 2000, endTs: 6000, efficiency: 0.8, restingHr: 55, avgHrv: 60,
+                               stagesJSON: nil, stagingSparse: true)], deviceId: "devB")
+        var rows = try await store.sleepSessions(deviceId: "devB", from: 0, to: 100_000, limit: 100)
+        XCTAssertEqual(rows.first?.stagingSparse, true)
+
+        // A recompute refreshes it (not preserved like userEdited fields).
+        try await store.upsertSleepSessions([
+            CachedSleepSession(startTs: 2000, endTs: 6000, efficiency: 0.8, restingHr: 55, avgHrv: 60,
+                               stagesJSON: nil, stagingSparse: false)], deviceId: "devB")
+        rows = try await store.sleepSessions(deviceId: "devB", from: 0, to: 100_000, limit: 100)
+        XCTAssertEqual(rows.first?.stagingSparse, false, "recompute refreshes stagingSparse")
+
+        // An unknown/imported night (default nil) is never flagged.
+        try await store.upsertSleepSessions([
+            CachedSleepSession(startTs: 9000, endTs: 12_000, efficiency: nil, restingHr: nil,
+                               avgHrv: nil, stagesJSON: nil)], deviceId: "devB")
+        rows = try await store.sleepSessions(deviceId: "devB", from: 0, to: 100_000, limit: 100)
+        XCTAssertNil(rows.first { $0.startTs == 9000 }?.stagingSparse)
+    }
+
     func testSleepSessionRangeFilter() async throws {
         let store = try await WhoopStore.inMemory()
         try await store.upsertSleepSessions([

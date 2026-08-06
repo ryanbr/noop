@@ -1907,4 +1907,6 @@
         <item quantity="other">Building your baseline. About %1$d more nights until your scores are personal.</item>
     </plurals>
     <string name="l10n_app_changelog_widgets_stop_inventing_numbers_naps_count_4f7491bb">Widgets stop inventing numbers, naps count toward sleep debt, and the Android status chips speak your language</string>
+    <string name="l10n_sleep_screen_may_be_incomplete_7230dc27">May be incomplete</string>
+    <string name="l10n_sleep_screen_little_motion_was_recorded_over_f061b7e4">Little motion was recorded overnight, so this night may be under-detected and the sleep total can read short. Make sure the strap fully synced.</string>
 </resources>

@@ -1069,6 +1069,12 @@ private fun Hero(
             // so the larger Awake / smaller Deep+REM here isn't misread as the polished numbers the Oura app
             // shows for the same night (the app post-processes the same stream). Mirrors iOS ouraRawStagesNote.
             if (activeIsOura) OuraRawStagesNote()
+            // #345 follow-up: a night staged on SPARSE motion coverage can UNDER-detect and read short
+            // ("slept 8h, shows 1h"). Say so honestly, gated on the persisted stagingSparse flag (the day's
+            // SleepStager.isGravitySparse verdict). `session` is the REAL main block (selectNight's edit
+            // anchor), so it carries the flag; nil (imported / pre-migration) is never flagged. Mirrors iOS
+            // SleepView.stageIncompleteNote.
+            if (session?.stagingSparse == true) SleepIncompleteNote()
         }
         // Naps card (#508/#518): the day's blocks OTHER than the main night, each editable / deletable
         // with the SAME mechanism main sleep uses, plus a Main / Nap(s) / Total split so what drives the
@@ -1162,6 +1168,24 @@ private fun OuraRawStagesNote() {
             "This split is the ring's raw on-device classification read over Bluetooth, not the adjusted " +
                 "stages the Oura app shows. Expect more Awake and less Deep/REM here than in the Oura app " +
                 "for the same night.",
+            style = NoopType.caption,
+            color = Palette.textTertiary,
+        )
+    }
+}
+
+/** The sparse-coverage caveat (#345): a night staged on thin motion data can under-detect and read short
+ *  ("slept 8h, shows 1h"). Honest + actionable. Mirrors iOS SleepView.stageIncompleteNote. */
+@Composable
+private fun SleepIncompleteNote() {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.Top,
+        modifier = Modifier.padding(horizontal = 2.dp),
+    ) {
+        SourceBadge(text = uiString(R.string.l10n_sleep_screen_may_be_incomplete_7230dc27), tint = Palette.statusWarning)
+        Text(
+            uiString(R.string.l10n_sleep_screen_little_motion_was_recorded_over_f061b7e4),
             style = NoopType.caption,
             color = Palette.textTertiary,
         )

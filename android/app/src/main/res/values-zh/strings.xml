@@ -1809,4 +1809,6 @@
         <item quantity="other">正在建立你的基线。大约还需 %1$d 晚，你的分数就会个性化。</item>
     </plurals>
     <string name="l10n_app_changelog_widgets_stop_inventing_numbers_naps_count_4f7491bb">小组件不再编造数字、小睡计入睡眠债，Android 状态提示也终于会说你的语言</string>
+    <string name="l10n_sleep_screen_may_be_incomplete_7230dc27">可能不完整</string>
+    <string name="l10n_sleep_screen_little_motion_was_recorded_over_f061b7e4">夜间记录到的动作很少，因此这一夜可能未被完整检测，睡眠总时长可能偏短。请确保表带已完全同步。</string>
 </resources>
