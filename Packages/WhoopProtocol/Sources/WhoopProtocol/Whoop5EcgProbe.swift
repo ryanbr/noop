@@ -110,16 +110,35 @@ public enum Whoop5EcgProbe {
         /// read silence as evidence turn on this flag and a silently-omitted `true` is exactly the bug
         /// this field exists to prevent.
         public let requestsRealtimeData: Bool
+        /// The ARGUMENT byte this command was sent with, when it is known.
+        ///
+        /// `label` carries only the opcode, because it is also the key the inbound handler matches a
+        /// COMMAND_RESPONSE against and the reply echoes no argument — so the argument cannot live in
+        /// the label without breaking that match. It is recorded separately instead, because two runs
+        /// of the same opcode can differ only in this byte: `mainControlECGDataGeneration` takes
+        /// `stop`/`start`/`restart` (0/1/2), so a start run and a restart run render identically
+        /// without it and a future reader of a copied report cannot tell which one produced the
+        /// verdict.
+        ///
+        /// Reported as the RAW NUMBER, never a token name, for the same reason the classifier byte is:
+        /// the number is lossless and cannot drift from the bytes actually put on the wire.
+        ///
+        /// `nil` is "not known", which is the honest value for an UNSOLICITED reply — nothing here
+        /// sent it. It is display-only and feeds no verdict, so unlike `requestsRealtimeData` a
+        /// default is safe: an omission loses an annotation, never changes a claim.
+        public let sentArgument: UInt8?
         /// The reply frame as hex, when one arrived.
         public let replyHex: String?
 
         public init(label: String,
                     outcome: CommandOutcome,
                     requestsRealtimeData: Bool,
+                    sentArgument: UInt8? = nil,
                     replyHex: String? = nil) {
             self.label = label
             self.outcome = outcome
             self.requestsRealtimeData = requestsRealtimeData
+            self.sentArgument = sentArgument
             self.replyHex = replyHex
         }
 
@@ -127,6 +146,12 @@ public enum Whoop5EcgProbe {
         public var roleNote: String {
             requestsRealtimeData ? "asks for realtime ECG data"
                                  : "cannot produce ECG data (configuration or OFF)"
+        }
+
+        /// The `label`, plus the argument when it is known — what every report line leads with.
+        public var labelWithArgument: String {
+            guard let sentArgument else { return label }
+            return "\(label) arg=\(sentArgument)"
         }
     }
 
@@ -220,11 +245,11 @@ public enum Whoop5EcgProbe {
         let failures = steps.filter { $0.outcome == .failure }
         if !failures.isEmpty {
             // A refusal is only evidence about the BLOCK question when what was refused asked for data.
-            let dataFailures = failures.filter(\.requestsRealtimeData).map(\.label)
+            let dataFailures = failures.filter(\.requestsRealtimeData).map(\.labelWithArgument)
             if !dataFailures.isEmpty { return .dataRequestRefused(commands: dataFailures) }
-            return .commandRefused(commands: failures.map(\.label))
+            return .commandRefused(commands: failures.map(\.labelWithArgument))
         }
-        let unsupported = steps.filter { $0.outcome == .unsupported }.map(\.label)
+        let unsupported = steps.filter { $0.outcome == .unsupported }.map(\.labelWithArgument)
         if !unsupported.isEmpty { return .opcodeUnsupported(commands: unsupported) }
         if ecgPacketsSeen > 0 { return .ecgCandidatesArrived(packets: ecgPacketsSeen) }
         guard !steps.isEmpty else { return .noReplies }
@@ -232,9 +257,9 @@ public enum Whoop5EcgProbe {
         // Past this point the verdict INTERPRETS SILENCE, which only carries information about the ECG
         // data path when the run asked that path for something and the strap said yes.
         let requests = steps.filter(\.requestsRealtimeData)
-        guard !requests.isEmpty else { return .noDataRequested(commands: steps.map(\.label)) }
+        guard !requests.isEmpty else { return .noDataRequested(commands: steps.map(\.labelWithArgument)) }
         guard requests.contains(where: { $0.outcome == .success }) else {
-            return .dataRequestNotAccepted(commands: requests.map(\.label))
+            return .dataRequestNotAccepted(commands: requests.map(\.labelWithArgument))
         }
         if steps.allSatisfy({ $0.outcome == .success }) {
             return .acceptedButSilent(windowSeconds: windowSeconds)
@@ -261,7 +286,7 @@ public enum Whoop5EcgProbe {
             // Each step carries WHY it does or does not bear on the block question, so the verdict above
             // can be checked against its own inputs without reading the source.
             for step in steps {
-                sb += "  \(step.label): \(step.outcome.token) — \(step.roleNote)\n"
+                sb += "  \(step.labelWithArgument): \(step.outcome.token) — \(step.roleNote)\n"
             }
         }
         sb += "\nECG-shaped packets seen in \(windowSeconds)s: \(ecgPacketsSeen)\n"
@@ -287,7 +312,7 @@ public enum Whoop5EcgProbe {
             sb += "Candidate packet types (structural triage only, NOT a confirmed mapping):\n"
             for line in candidateFrames { sb += "  \(line)\n" }
         }
-        let replies = steps.compactMap { step in step.replyHex.map { "  \(step.label): \($0)" } }
+        let replies = steps.compactMap { step in step.replyHex.map { "  \(step.labelWithArgument): \($0)" } }
         if !replies.isEmpty {
             sb += "\nRaw replies:\n"
             sb += replies.joined(separator: "\n") + "\n"

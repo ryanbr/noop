@@ -1215,6 +1215,13 @@ private struct EcgProbeSheets: ViewModifier {
                                 titleVisibility: .visible,
                                 presenting: target) { device in
                 Button("Start ECG capture") { model.ecgStartCapture(); target = nil }
+                // Deliberately worded so it cannot be mistaken for the normal path: it sends the same
+                // three commands with ONE byte changed (mainControlECGDataGeneration restart=2 rather
+                // than start=1), which is the only argument in that enum no build here has ever sent.
+                // Same gates as every other entry in this dialog; "Stop" reverses it either way.
+                Button("Start ECG capture (restart variant, experimental)") {
+                    model.ecgRestartCapture(); target = nil
+                }
                 Button("Stop ECG capture") { model.ecgStopCapture(); target = nil }
                 Button("Set which wrist you wear it on…") { target = nil; wristTarget = device }
                 // Local file read, no strap traffic: did the record actually land in the raw archive?

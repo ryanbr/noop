@@ -106,17 +106,33 @@ object Whoop5EcgProbe {
      * [requestsRealtimeData] deliberately has NO default: every construction site must state it, because
      * the verdicts that read silence as evidence turn on this flag and a silently-omitted `true` is
      * exactly the bug this field exists to prevent.
+     *
+     * [sentArgument] is the ARGUMENT byte the command was sent with, when it is known. [label] carries
+     * only the opcode, because it is also the key an app layer matches a COMMAND_RESPONSE against and
+     * the reply echoes no argument — so the argument cannot live in the label without breaking that
+     * match. It is recorded separately because two runs of the same opcode can differ only in this byte:
+     * `mainControlECGDataGeneration` takes `stop`/`start`/`restart` (0/1/2), so a start run and a restart
+     * run render identically without it and a future reader of a copied report cannot tell which one
+     * produced the verdict. Reported as the RAW NUMBER, never a token name, so it cannot drift from the
+     * bytes actually put on the wire. `null` is "not known" — the honest value for an UNSOLICITED reply.
+     * It is display-only and feeds no verdict, so unlike [requestsRealtimeData] a default is safe: an
+     * omission loses an annotation, never changes a claim.
      */
     data class Step(
         val label: String,
         val outcome: CommandOutcome,
         val requestsRealtimeData: Boolean,
+        val sentArgument: Int? = null,
         val replyHex: String? = null,
     ) {
         /** How the report annotates the step, so a reader can see WHY the verdict is what it is. */
         val roleNote: String
             get() = if (requestsRealtimeData) "asks for realtime ECG data"
                     else "cannot produce ECG data (configuration or OFF)"
+
+        /** The [label], plus the argument when it is known — what every report line leads with. */
+        val labelWithArgument: String
+            get() = if (sentArgument == null) label else "$label arg=$sentArgument"
     }
 
     /** The gate verdict, kept separate from the report text so it is assertable in a test. */
@@ -221,11 +237,11 @@ object Whoop5EcgProbe {
         val failures = steps.filter { it.outcome is CommandOutcome.Failure }
         if (failures.isNotEmpty()) {
             // A refusal is only evidence about the BLOCK question when what was refused asked for data.
-            val dataFailures = failures.filter { it.requestsRealtimeData }.map { it.label }
+            val dataFailures = failures.filter { it.requestsRealtimeData }.map { it.labelWithArgument }
             if (dataFailures.isNotEmpty()) return Verdict.DataRequestRefused(dataFailures)
-            return Verdict.CommandRefused(failures.map { it.label })
+            return Verdict.CommandRefused(failures.map { it.labelWithArgument })
         }
-        val unsupported = steps.filter { it.outcome is CommandOutcome.Unsupported }.map { it.label }
+        val unsupported = steps.filter { it.outcome is CommandOutcome.Unsupported }.map { it.labelWithArgument }
         if (unsupported.isNotEmpty()) return Verdict.OpcodeUnsupported(unsupported)
         if (ecgPacketsSeen > 0) return Verdict.EcgCandidatesArrived(ecgPacketsSeen)
         if (steps.isEmpty()) return Verdict.NoReplies
@@ -233,9 +249,9 @@ object Whoop5EcgProbe {
         // Past this point the verdict INTERPRETS SILENCE, which only carries information about the ECG
         // data path when the run asked that path for something and the strap said yes.
         val requests = steps.filter { it.requestsRealtimeData }
-        if (requests.isEmpty()) return Verdict.NoDataRequested(steps.map { it.label })
+        if (requests.isEmpty()) return Verdict.NoDataRequested(steps.map { it.labelWithArgument })
         if (requests.none { it.outcome is CommandOutcome.Success }) {
-            return Verdict.DataRequestNotAccepted(requests.map { it.label })
+            return Verdict.DataRequestNotAccepted(requests.map { it.labelWithArgument })
         }
         if (steps.all { it.outcome is CommandOutcome.Success }) {
             return Verdict.AcceptedButSilent(windowSeconds)
@@ -264,7 +280,7 @@ object Whoop5EcgProbe {
         } else {
             // Each step carries WHY it does or does not bear on the block question, so the verdict above
             // can be checked against its own inputs without reading the source.
-            for (step in steps) sb.append("  ${step.label}: ${step.outcome.token} — ${step.roleNote}\n")
+            for (step in steps) sb.append("  ${step.labelWithArgument}: ${step.outcome.token} — ${step.roleNote}\n")
         }
         sb.append("\nECG-shaped packets seen in ${windowSeconds}s: $ecgPacketsSeen\n")
         if (steps.isNotEmpty() && steps.none { it.requestsRealtimeData }) {
@@ -294,7 +310,7 @@ object Whoop5EcgProbe {
             sb.append("Candidate packet types (structural triage only, NOT a confirmed mapping):\n")
             for (line in candidateFrames) sb.append("  $line\n")
         }
-        val replies = steps.mapNotNull { step -> step.replyHex?.let { "  ${step.label}: $it" } }
+        val replies = steps.mapNotNull { step -> step.replyHex?.let { "  ${step.labelWithArgument}: $it" } }
         if (replies.isNotEmpty()) {
             sb.append("\nRaw replies:\n")
             sb.append(replies.joinToString("\n") + "\n")

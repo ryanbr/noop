@@ -3203,9 +3203,13 @@ public final class BLEManager: NSObject, ObservableObject {
         // the only point where "could this command have produced data" is knowable. Every verdict that
         // reads silence as evidence depends on it.
         let requestsData = Whoop5Ecg.requestsRealtimeData(cmd: command.rawValue, arg: arg)
+        // Recorded for the same reason and at the same moment: the reply echoes no argument, and two runs
+        // of opcode 124 differ ONLY in this byte (start=1 vs restart=2). Without it a copied report cannot
+        // be told apart from the other run's.
         ecgProbeSteps.append(Whoop5EcgProbe.Step(label: label,
                                                  outcome: .noReply,
-                                                 requestsRealtimeData: requestsData))
+                                                 requestsRealtimeData: requestsData,
+                                                 sentArgument: arg))
         log("ECG probe: → \(label) payload=\(hex(Whoop5Ecg.commandPayload(arg: arg)))")
         send(command, payload: Whoop5Ecg.commandPayload(arg: arg))
     }
@@ -3235,6 +3239,50 @@ public final class BLEManager: NSObject, ObservableObject {
         sendEcgCommand(.toggleLabradorFiltered, arg: 1)
         sendEcgCommand(.toggleLabradorRawSave, arg: 1)
         sendEcgCommand(.toggleLabradorDataGeneration, arg: Whoop5Ecg.ControlSignal.start.rawValue)
+        scheduleEcgProbeVerdict()
+    }
+
+    /// The RESTART variant of the turn-on sequence: byte-for-byte `ecgStartCapture()` except that
+    /// `mainControlECGDataGeneration` carries `.restart` (2) where the normal path carries `.start` (1).
+    ///
+    /// ## Why this exists
+    ///
+    /// `Whoop5Ecg.ControlSignal` has three values — `stop`/`start`/`restart` = 0/1/2 — and only 0 and 1
+    /// have ever been put on a wire by any build in this repo. 2 is therefore the one argument in this
+    /// family that is both on the verified non-destructive opcode list (#891: 123/124/125/139) and
+    /// entirely untried, which makes it the cheapest remaining experiment: if the strap distinguishes
+    /// "start" from "restart" at all, the difference shows up in the COMMAND_RESPONSE or in whether
+    /// packets follow, and if it does not, the run costs one more 30 s window.
+    ///
+    /// ## Why the same 139/125 preamble rather than 124 alone
+    ///
+    /// **What the strap does with 2 is unknown**, and nothing in this repo narrows it: the name
+    /// `restart` is read off the client enum's ORDER, exactly like the wrist mapping, and no capture
+    /// attests it. So there is no basis for claiming that `restart` re-arms the two channel toggles
+    /// itself and no basis for claiming it needs them already on.
+    ///
+    /// Given that, the defensible choice is minimal deviation from the ONE sequence a strap has been
+    /// observed to accept — `toggleRealtimeFilteredECG(on)` → `toggleSaveRawECG(on)` →
+    /// `mainControlECGDataGeneration(…)` — changing exactly one byte. Issuing 124 alone would change TWO
+    /// things at once (the control value AND the absence of the preamble), so a null result could not be
+    /// attributed to either, and a null result is the outcome to plan for here. Both toggles are
+    /// idempotent ON writes, so re-sending them to a strap that is already streaming asks for nothing new.
+    ///
+    /// Reversal is the existing `ecgStopCapture()` — there is no restart-specific OFF path, because the
+    /// bytes this leaves behind are the bytes `ecgStartCapture()` leaves behind.
+    public func ecgRestartCapture() {
+        guard ecgGatesAllow() else { return }
+        // Latched for the same reason as in `ecgStartCapture()`: a mid-sequence drop must still leave the
+        // Stop control offered, and this sequence can leave the strap in exactly the same state.
+        ecgMayBeRunning = true
+        beginEcgProbeRun(clearingSteps: true)
+        log("ECG probe: starting the ECG turn-on sequence in its RESTART variant — "
+            + "mainControlECGDataGeneration=restart(\(Whoop5Ecg.ControlSignal.restart.rawValue)) instead of "
+            + "start(\(Whoop5Ecg.ControlSignal.start.rawValue)); the preamble is unchanged so the control "
+            + "byte is the only difference from a normal start (experimental, unvalidated instrumentation)")
+        sendEcgCommand(.toggleLabradorFiltered, arg: 1)
+        sendEcgCommand(.toggleLabradorRawSave, arg: 1)
+        sendEcgCommand(.toggleLabradorDataGeneration, arg: Whoop5Ecg.ControlSignal.restart.rawValue)
         scheduleEcgProbeVerdict()
     }
 
@@ -3348,6 +3396,7 @@ public final class BLEManager: NSObject, ObservableObject {
                 label: label,
                 outcome: outcome,
                 requestsRealtimeData: ecgProbeSteps[idx].requestsRealtimeData,
+                sentArgument: ecgProbeSteps[idx].sentArgument,
                 replyHex: replyHex)
             log("ECG probe: ← \(label) \(outcome.token)")
         } else if ecgProbeSteps.count < BLEManager.ecgProbeMaxSteps {
@@ -3357,9 +3406,11 @@ public final class BLEManager: NSObject, ObservableObject {
             //
             // `requestsRealtimeData: false` — nothing here sent it, so the argument behind it is unknown,
             // and an unknown must never be able to unlock a verdict that claims the feature is blocked.
+            // `sentArgument: nil` says the same thing in the report rather than guessing a value.
             ecgProbeSteps.append(Whoop5EcgProbe.Step(label: label,
                                                      outcome: outcome,
                                                      requestsRealtimeData: false,
+                                                     sentArgument: nil,
                                                      replyHex: replyHex))
             log("ECG probe: ← \(label) \(outcome.token) (unsolicited)")
         }

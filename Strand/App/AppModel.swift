@@ -881,6 +881,10 @@ final class AppModel: ObservableObject {
     /// PERSISTENT strap write, deliberately its own action rather than part of the start flow.
     func ecgSelectWrist(_ wrist: Whoop5Ecg.WristSelection) { ble.ecgSelectWrist(wrist) }
     func ecgStartCapture() { ble.ecgStartCapture() }
+    /// The RESTART variant of the same sequence — identical bytes except `mainControlECGDataGeneration`
+    /// carries `restart` (2) rather than `start` (1), the one value in that enum no build here has ever
+    /// sent. Same gates, same confirmation dialog, same `ecgStopCapture()` reversal.
+    func ecgRestartCapture() { ble.ecgRestartCapture() }
     /// `reportsResult: false` for the Settings-toggle path, so switching the experiment off doesn't pop
     /// the Devices result sheet from another screen.
     func ecgStopCapture(reportsResult: Bool = true) { ble.ecgStopCapture(reportsResult: reportsResult) }

@@ -484,6 +484,7 @@ final class Whoop5EcgTests: XCTestCase {
             label: "\(name)(\(cmd))",
             outcome: outcome,
             requestsRealtimeData: Whoop5Ecg.requestsRealtimeData(cmd: cmd, arg: arg),
+            sentArgument: arg,
             replyHex: replyHex)
     }
 
@@ -517,10 +518,10 @@ final class Whoop5EcgTests: XCTestCase {
         // the old precedence turned one loose match into an unhedged "not blocked".
         let failed = [sent(124, arg: 1, .failure)]
         XCTAssertEqual(Whoop5EcgProbe.verdict(steps: failed, ecgPacketsSeen: 12, windowSeconds: 30),
-                       .dataRequestRefused(commands: ["TOGGLE_LABRADOR_DATA_GENERATION(124)"]))
+                       .dataRequestRefused(commands: ["TOGGLE_LABRADOR_DATA_GENERATION(124) arg=1"]))
         let unsupported = [sent(139, arg: 1, .unsupported)]
         XCTAssertEqual(Whoop5EcgProbe.verdict(steps: unsupported, ecgPacketsSeen: 12, windowSeconds: 30),
-                       .opcodeUnsupported(commands: ["TOGGLE_LABRADOR_FILTERED(139)"]))
+                       .opcodeUnsupported(commands: ["TOGGLE_LABRADOR_FILTERED(139) arg=1"]))
         // With no contrary result code, candidates are the verdict — as candidates, not as proof.
         let ok = [sent(124, arg: 1, .success)]
         XCTAssertEqual(Whoop5EcgProbe.verdict(steps: ok, ecgPacketsSeen: 12, windowSeconds: 30),
@@ -543,7 +544,7 @@ final class Whoop5EcgTests: XCTestCase {
             sent(124, arg: Whoop5Ecg.ControlSignal.start.rawValue, .failure),
         ]
         XCTAssertEqual(Whoop5EcgProbe.verdict(steps: steps, ecgPacketsSeen: 0, windowSeconds: 30),
-                       .dataRequestRefused(commands: ["TOGGLE_LABRADOR_DATA_GENERATION(124)"]))
+                       .dataRequestRefused(commands: ["TOGGLE_LABRADOR_DATA_GENERATION(124) arg=1"]))
     }
 
     func testVerdictAllSuccessButSilentIsTheSilentNoOpCase() {
@@ -578,7 +579,7 @@ final class Whoop5EcgTests: XCTestCase {
         let steps = [sent(123, arg: Whoop5Ecg.WristSelection.left.rawValue, .success,
                           replyHex: "aa010c000100271124d77b81010100007ce76722")]
         XCTAssertEqual(Whoop5EcgProbe.verdict(steps: steps, ecgPacketsSeen: 0, windowSeconds: 30),
-                       .noDataRequested(commands: ["SELECT_WRIST(123)"]))
+                       .noDataRequested(commands: ["SELECT_WRIST(123) arg=1"]))
         let text = Whoop5EcgProbe.report(steps: steps, ecgPacketsSeen: 0,
                                          candidateFrames: [], windowSeconds: 30)
         XCTAssertTrue(text.contains("NOT A TEST"))
@@ -596,7 +597,7 @@ final class Whoop5EcgTests: XCTestCase {
         let steps = [sent(123, arg: Whoop5Ecg.WristSelection.right.rawValue, .failure,
                           replyHex: "aa010c000100271124217bcc000100000213163d")]
         XCTAssertEqual(Whoop5EcgProbe.verdict(steps: steps, ecgPacketsSeen: 0, windowSeconds: 30),
-                       .commandRefused(commands: ["SELECT_WRIST(123)"]))
+                       .commandRefused(commands: ["SELECT_WRIST(123) arg=0"]))
         let text = Whoop5EcgProbe.report(steps: steps, ecgPacketsSeen: 0,
                                          candidateFrames: [], windowSeconds: 30)
         XCTAssertTrue(text.contains("REFUSED"))
@@ -612,9 +613,9 @@ final class Whoop5EcgTests: XCTestCase {
             sent(139, arg: 0, .success),
         ]
         XCTAssertEqual(Whoop5EcgProbe.verdict(steps: steps, ecgPacketsSeen: 0, windowSeconds: 30),
-                       .noDataRequested(commands: ["TOGGLE_LABRADOR_DATA_GENERATION(124)",
-                                                   "TOGGLE_LABRADOR_RAW_SAVE(125)",
-                                                   "TOGGLE_LABRADOR_FILTERED(139)"]))
+                       .noDataRequested(commands: ["TOGGLE_LABRADOR_DATA_GENERATION(124) arg=0",
+                                                   "TOGGLE_LABRADOR_RAW_SAVE(125) arg=0",
+                                                   "TOGGLE_LABRADOR_FILTERED(139) arg=0"]))
     }
 
     func testRawSaveAloneCannotUnlockTheSilentVerdict() {
@@ -622,7 +623,7 @@ final class Whoop5EcgTests: XCTestCase {
         // so a raw-save-only run cannot be read as "accepted and then silent" (#891 hypothesis (b)).
         let steps = [sent(125, arg: 1, .success)]
         XCTAssertEqual(Whoop5EcgProbe.verdict(steps: steps, ecgPacketsSeen: 0, windowSeconds: 30),
-                       .noDataRequested(commands: ["TOGGLE_LABRADOR_RAW_SAVE(125)"]))
+                       .noDataRequested(commands: ["TOGGLE_LABRADOR_RAW_SAVE(125) arg=1"]))
     }
 
     func testAnUnacknowledgedDataRequestIsNotAcceptedButSilent() {
@@ -633,8 +634,8 @@ final class Whoop5EcgTests: XCTestCase {
             sent(124, arg: Whoop5Ecg.ControlSignal.start.rawValue, .noReply),
         ]
         XCTAssertEqual(Whoop5EcgProbe.verdict(steps: steps, ecgPacketsSeen: 0, windowSeconds: 30),
-                       .dataRequestNotAccepted(commands: ["TOGGLE_LABRADOR_FILTERED(139)",
-                                                          "TOGGLE_LABRADOR_DATA_GENERATION(124)"]))
+                       .dataRequestNotAccepted(commands: ["TOGGLE_LABRADOR_FILTERED(139) arg=1",
+                                                          "TOGGLE_LABRADOR_DATA_GENERATION(124) arg=1"]))
     }
 
     func testNoVerdictClaimsAFlagBlockWithoutADataRequest() {
@@ -701,7 +702,7 @@ final class Whoop5EcgTests: XCTestCase {
     func testVerdictUnsupportedIsReportedAsItselfNotAsABlock() {
         let steps = [sent(139, arg: 1, .unsupported)]
         XCTAssertEqual(Whoop5EcgProbe.verdict(steps: steps, ecgPacketsSeen: 0, windowSeconds: 30),
-                       .opcodeUnsupported(commands: ["TOGGLE_LABRADOR_FILTERED(139)"]))
+                       .opcodeUnsupported(commands: ["TOGGLE_LABRADOR_FILTERED(139) arg=1"]))
     }
 
     func testVerdictSilenceIsNeverCalledABlock() {
@@ -729,11 +730,47 @@ final class Whoop5EcgTests: XCTestCase {
         let text = Whoop5EcgProbe.report(steps: steps, ecgPacketsSeen: 0,
                                          candidateFrames: ["type=0x28 len=220"], windowSeconds: 30)
         XCTAssertTrue(text.contains("DATA REQUEST REFUSED"))
-        XCTAssertTrue(text.contains("SELECT_WRIST(123): SUCCESS(1)"))
-        XCTAssertTrue(text.contains("TOGGLE_LABRADOR_DATA_GENERATION(124): FAILURE(0)"))
+        XCTAssertTrue(text.contains("SELECT_WRIST(123) arg=1: SUCCESS(1)"))
+        XCTAssertTrue(text.contains("TOGGLE_LABRADOR_DATA_GENERATION(124) arg=1: FAILURE(0)"))
         XCTAssertTrue(text.contains("type=0x28 len=220"))
         XCTAssertTrue(text.contains("aabb"))
         XCTAssertTrue(text.contains("not a medical measurement or a diagnosis"))
+    }
+
+    /// A START run and a RESTART run send the SAME three opcodes and differ in exactly one byte, so
+    /// without the argument annotation their reports are character-for-character identical — and a
+    /// report is the artefact that gets copied out of the app and pasted into an issue, long after the
+    /// strap log that recorded `payload=0102` is gone. This pins that the two are distinguishable.
+    func testStartAndRestartRunsRenderDistinguishably() {
+        func run(_ control: Whoop5Ecg.ControlSignal) -> String {
+            Whoop5EcgProbe.report(
+                steps: [sent(139, arg: 1, .success),
+                        sent(125, arg: 1, .success),
+                        sent(124, arg: control.rawValue, .success)],
+                ecgPacketsSeen: 0, candidateFrames: [], windowSeconds: 30)
+        }
+        let startText = run(.start)
+        let restartText = run(.restart)
+        XCTAssertTrue(startText.contains("TOGGLE_LABRADOR_DATA_GENERATION(124) arg=1: SUCCESS(1)"))
+        XCTAssertTrue(restartText.contains("TOGGLE_LABRADOR_DATA_GENERATION(124) arg=2: SUCCESS(1)"))
+        XCTAssertNotEqual(startText, restartText)
+        // Both are still the SAME verdict: restart asks for realtime data exactly like start does, so
+        // the annotation records what was sent without changing what the run is read as.
+        XCTAssertTrue(restartText.contains("Accepted but SILENT"))
+        XCTAssertTrue(startText.contains("Accepted but SILENT"))
+    }
+
+    /// An UNSOLICITED reply has no known argument — nothing in the app sent it — and the report must say
+    /// nothing rather than invent a value.
+    func testAnUnknownArgumentIsOmittedRatherThanGuessed() {
+        let step = Whoop5EcgProbe.Step(label: "TOGGLE_LABRADOR_DATA_GENERATION(124)",
+                                       outcome: .success,
+                                       requestsRealtimeData: false)
+        XCTAssertNil(step.sentArgument)
+        XCTAssertEqual(step.labelWithArgument, "TOGGLE_LABRADOR_DATA_GENERATION(124)")
+        let text = Whoop5EcgProbe.report(steps: [step], ecgPacketsSeen: 0,
+                                         candidateFrames: [], windowSeconds: 30)
+        XCTAssertFalse(text.contains("arg="))
     }
 
     /// #896 review: nobody is told to hold the clasp. An MG measures across the wrist electrode AND the

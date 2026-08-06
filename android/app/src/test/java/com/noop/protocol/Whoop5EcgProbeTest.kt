@@ -2,6 +2,7 @@ package com.noop.protocol
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -36,6 +37,7 @@ class Whoop5EcgProbeTest {
             label = "$name($cmd)",
             outcome = outcome,
             requestsRealtimeData = Whoop5Ecg.requestsRealtimeData(cmd, arg),
+            sentArgument = arg,
             replyHex = replyHex,
         )
     }
@@ -103,11 +105,11 @@ class Whoop5EcgProbeTest {
     @Test
     fun attestedResultCodesOutrankTheShapeHeuristic() {
         assertEquals(
-            Whoop5EcgProbe.Verdict.DataRequestRefused(listOf("TOGGLE_LABRADOR_DATA_GENERATION(124)")),
+            Whoop5EcgProbe.Verdict.DataRequestRefused(listOf("TOGGLE_LABRADOR_DATA_GENERATION(124) arg=1")),
             Whoop5EcgProbe.verdict(listOf(sent(124, 1, Whoop5EcgProbe.CommandOutcome.Failure)), 12, 30),
         )
         assertEquals(
-            Whoop5EcgProbe.Verdict.OpcodeUnsupported(listOf("TOGGLE_LABRADOR_FILTERED(139)")),
+            Whoop5EcgProbe.Verdict.OpcodeUnsupported(listOf("TOGGLE_LABRADOR_FILTERED(139) arg=1")),
             Whoop5EcgProbe.verdict(listOf(sent(139, 1, Whoop5EcgProbe.CommandOutcome.Unsupported)), 12, 30),
         )
         assertEquals(
@@ -159,7 +161,7 @@ class Whoop5EcgProbeTest {
             ),
         )
         assertEquals(
-            Whoop5EcgProbe.Verdict.NoDataRequested(listOf("SELECT_WRIST(123)")),
+            Whoop5EcgProbe.Verdict.NoDataRequested(listOf("SELECT_WRIST(123) arg=1")),
             Whoop5EcgProbe.verdict(steps, 0, 30),
         )
         val text = Whoop5EcgProbe.report(steps, 0, emptyList(), 30)
@@ -183,7 +185,7 @@ class Whoop5EcgProbeTest {
             ),
         )
         assertEquals(
-            Whoop5EcgProbe.Verdict.CommandRefused(listOf("SELECT_WRIST(123)")),
+            Whoop5EcgProbe.Verdict.CommandRefused(listOf("SELECT_WRIST(123) arg=0")),
             Whoop5EcgProbe.verdict(steps, 0, 30),
         )
         val text = Whoop5EcgProbe.report(steps, 0, emptyList(), 30)
@@ -203,9 +205,9 @@ class Whoop5EcgProbeTest {
         assertEquals(
             Whoop5EcgProbe.Verdict.NoDataRequested(
                 listOf(
-                    "TOGGLE_LABRADOR_DATA_GENERATION(124)",
-                    "TOGGLE_LABRADOR_RAW_SAVE(125)",
-                    "TOGGLE_LABRADOR_FILTERED(139)",
+                    "TOGGLE_LABRADOR_DATA_GENERATION(124) arg=0",
+                    "TOGGLE_LABRADOR_RAW_SAVE(125) arg=0",
+                    "TOGGLE_LABRADOR_FILTERED(139) arg=0",
                 ),
             ),
             Whoop5EcgProbe.verdict(steps, 0, 30),
@@ -217,7 +219,7 @@ class Whoop5EcgProbeTest {
         // RAW_SAVE names flash. A realtime listen window observes nothing from it even on total success,
         // so a raw-save-only run cannot be read as "accepted and then silent" (#891 hypothesis (b)).
         assertEquals(
-            Whoop5EcgProbe.Verdict.NoDataRequested(listOf("TOGGLE_LABRADOR_RAW_SAVE(125)")),
+            Whoop5EcgProbe.Verdict.NoDataRequested(listOf("TOGGLE_LABRADOR_RAW_SAVE(125) arg=1")),
             Whoop5EcgProbe.verdict(listOf(sent(125, 1, Whoop5EcgProbe.CommandOutcome.Success)), 0, 30),
         )
     }
@@ -232,7 +234,7 @@ class Whoop5EcgProbeTest {
         )
         assertEquals(
             Whoop5EcgProbe.Verdict.DataRequestNotAccepted(
-                listOf("TOGGLE_LABRADOR_FILTERED(139)", "TOGGLE_LABRADOR_DATA_GENERATION(124)"),
+                listOf("TOGGLE_LABRADOR_FILTERED(139) arg=1", "TOGGLE_LABRADOR_DATA_GENERATION(124) arg=1"),
             ),
             Whoop5EcgProbe.verdict(steps, 0, 30),
         )
@@ -273,7 +275,7 @@ class Whoop5EcgProbeTest {
     @Test
     fun verdictUnsupportedIsReportedAsItselfNotAsABlock() {
         assertEquals(
-            Whoop5EcgProbe.Verdict.OpcodeUnsupported(listOf("TOGGLE_LABRADOR_FILTERED(139)")),
+            Whoop5EcgProbe.Verdict.OpcodeUnsupported(listOf("TOGGLE_LABRADOR_FILTERED(139) arg=1")),
             Whoop5EcgProbe.verdict(listOf(sent(139, 1, Whoop5EcgProbe.CommandOutcome.Unsupported)), 0, 30),
         )
     }
@@ -348,11 +350,54 @@ class Whoop5EcgProbeTest {
         )
         val text = Whoop5EcgProbe.report(steps, 0, listOf("type=0x28 len=220"), 30)
         assertTrue(text.contains("DATA REQUEST REFUSED"))
-        assertTrue(text.contains("SELECT_WRIST(123): SUCCESS(1)"))
-        assertTrue(text.contains("TOGGLE_LABRADOR_DATA_GENERATION(124): FAILURE(0)"))
+        assertTrue(text.contains("SELECT_WRIST(123) arg=1: SUCCESS(1)"))
+        assertTrue(text.contains("TOGGLE_LABRADOR_DATA_GENERATION(124) arg=1: FAILURE(0)"))
         assertTrue(text.contains("type=0x28 len=220"))
         assertTrue(text.contains("aabb"))
         assertTrue(text.contains("not a medical measurement or a diagnosis"))
+    }
+
+    /**
+     * Twin of Swift `testStartAndRestartRunsRenderDistinguishably`. A START run and a RESTART run send
+     * the SAME three opcodes and differ in exactly one byte, so without the argument annotation their
+     * reports are character-for-character identical — and a report is the artefact that gets copied out
+     * of an app and pasted into an issue, long after the log that recorded the payload bytes is gone.
+     */
+    @Test
+    fun startAndRestartRunsRenderDistinguishably() {
+        fun run(control: Whoop5Ecg.ControlSignal): String = Whoop5EcgProbe.report(
+            listOf(
+                sent(139, 1, Whoop5EcgProbe.CommandOutcome.Success),
+                sent(125, 1, Whoop5EcgProbe.CommandOutcome.Success),
+                sent(124, control.raw, Whoop5EcgProbe.CommandOutcome.Success),
+            ),
+            0, emptyList(), 30,
+        )
+        val startText = run(Whoop5Ecg.ControlSignal.START)
+        val restartText = run(Whoop5Ecg.ControlSignal.RESTART)
+        assertTrue(startText.contains("TOGGLE_LABRADOR_DATA_GENERATION(124) arg=1: SUCCESS(1)"))
+        assertTrue(restartText.contains("TOGGLE_LABRADOR_DATA_GENERATION(124) arg=2: SUCCESS(1)"))
+        assertNotEquals(startText, restartText)
+        // Both are still the SAME verdict: restart asks for realtime data exactly like start does, so
+        // the annotation records what was sent without changing what the run is read as.
+        assertTrue(startText.contains("Accepted but SILENT"))
+        assertTrue(restartText.contains("Accepted but SILENT"))
+    }
+
+    /**
+     * An UNSOLICITED reply has no known argument — nothing in an app layer sent it — and the report must
+     * say nothing rather than invent a value.
+     */
+    @Test
+    fun anUnknownArgumentIsOmittedRatherThanGuessed() {
+        val step = Whoop5EcgProbe.Step(
+            label = "TOGGLE_LABRADOR_DATA_GENERATION(124)",
+            outcome = Whoop5EcgProbe.CommandOutcome.Success,
+            requestsRealtimeData = false,
+        )
+        assertNull(step.sentArgument)
+        assertEquals("TOGGLE_LABRADOR_DATA_GENERATION(124)", step.labelWithArgument)
+        assertFalse(Whoop5EcgProbe.report(listOf(step), 0, emptyList(), 30).contains("arg="))
     }
 
     /**
