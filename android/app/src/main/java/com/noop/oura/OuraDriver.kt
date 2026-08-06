@@ -86,6 +86,12 @@ class OuraDriver(
      * Per OURA_PROTOCOL.md s3.2 (the 0x24 SetAuthKey is a DANGEROUS, one-time provisioning write).
      */
     val allowKeyInstall: Boolean = false,
+    /**
+     * Wall-clock "now" in unix ms, used ONLY to reject a banked sample that converts to the future
+     * (#1073). Injectable so the gate is testable without touching the system clock; defaults to the
+     * real clock, so no ingest call site has to thread it. Twin of Swift's `nowMsProvider`.
+     */
+    private val nowMsProvider: () -> Long = { System.currentTimeMillis() },
 ) {
     var phase: OuraDriverPhase = OuraDriverPhase.Idle
         private set
@@ -300,11 +306,19 @@ class OuraDriver(
         val deltaTicks = forRingTimestamp - anchorRt
         val ms = anchorMs + deltaTicks * 100   // default 100 ms/tick (s5.5); bounded input, no overflow
         // #968: a corrupt/misaligned ring timestamp (seen on a full cursor=0 history dump) can convert to
-        // an implausible epoch. Gate the RESULT to the same 2020-2035 plausible window used for anchoring
-        // (was a weak `ms <= 0`), so the caller honestly falls back to arrival time instead of banking a
-        // 1970 or far-future sample. Byte-identical to the Swift twin.
+        // an implausible epoch; return null so the caller falls back to arrival time instead of banking it.
+        //
+        // #1073: a banked SAMPLE is always in the past, so its upper bound is "now", NOT the 2020-2035
+        // anchor window. That window is the right screen for ADOPTING a clock anchor and far too generous
+        // for a sample — a corrupt ring timestamp that converts years ahead (measured on a live ring:
+        // ~1,600 R-R beats stamped 2026→2034, and still accruing) passed it cleanly and got filed into a
+        // future day, invisible to the night it belongs to. Gate a sample at `now + skew tolerance`
+        // (minutes, absorbing ring-clock skew + anchor rounding) and keep the 2020 lower bound (the #968
+        // 1970 guard). The 2020-2035 window stays in `plausibleAnchorMs`, for anchor adoption only.
+        // Byte-identical to the Swift twin.
         val seconds = ms / 1000
-        if (seconds < MIN_PLAUSIBLE_EPOCH_SECONDS || seconds > MAX_PLAUSIBLE_EPOCH_SECONDS) return null
+        val nowSeconds = nowMsProvider() / 1000
+        if (seconds < MIN_PLAUSIBLE_EPOCH_SECONDS || seconds > nowSeconds + SAMPLE_FUTURE_TOLERANCE_SECONDS) return null
         return seconds
     }
 
@@ -609,6 +623,14 @@ class OuraDriver(
          */
         private const val MIN_PLAUSIBLE_EPOCH_SECONDS = 1_577_836_800L
         private const val MAX_PLAUSIBLE_EPOCH_SECONDS = 2_051_222_400L
+
+        /**
+         * Skew allowance on the sample-side "must not be in the future" gate (#1073): a sample converting
+         * up to this many seconds past `now` is still accepted, absorbing ring-clock skew and the anchor's
+         * own rounding. Minutes, not the anchor window's years. Applies ONLY to [unixSeconds], never anchor
+         * adoption. Byte-identical to the Swift `sampleFutureToleranceSeconds`.
+         */
+        private const val SAMPLE_FUTURE_TOLERANCE_SECONDS = 300L
 
         /**
          * Resolve the 0x13 SyncTime-response device timestamp into ring TICKS, or null when no

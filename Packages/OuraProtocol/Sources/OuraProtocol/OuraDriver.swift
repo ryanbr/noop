@@ -83,12 +83,19 @@ public final class OuraDriver {
     /// injected one (so re-auth after a key install uses the new key). Per OURA_PROTOCOL.md s3.2.
     private var effectiveKey: [UInt8]? { installedKey ?? authKey }
 
+    /// Wall-clock "now" in unix ms, used ONLY to reject a banked sample that converts to the future
+    /// (#1073). Injectable so the gate is testable without touching the system clock; defaults to the
+    /// real clock, so no ingest call site has to thread it.
+    private let nowMsProvider: () -> Int64
+
     public init(ringGen: OuraRingGen, authKey: [UInt8]?, allowTierB: Bool = false,
-                allowKeyInstall: Bool = false) {
+                allowKeyInstall: Bool = false,
+                nowMsProvider: @escaping () -> Int64 = { Int64(Date().timeIntervalSince1970 * 1000) }) {
         self.ringGen = ringGen
         self.authKey = authKey
         self.allowTierB = allowTierB
         self.allowKeyInstall = allowKeyInstall
+        self.nowMsProvider = nowMsProvider
     }
 
     // MARK: - Command flow
@@ -223,11 +230,19 @@ public final class OuraDriver {
         let deltaTicks = Int64(rt) - Int64(anchorRingTime)
         let ms = anchorUtcMs + deltaTicks * 100   // default 100 ms/tick (s5.5); bounded input, no overflow
         // #968: a corrupt/misaligned ring timestamp (seen on a full cursor=0 history dump) can convert to
-        // an implausible epoch. Gate the RESULT to the same 2020-2035 plausible window used for anchoring
-        // (was a weak `ms > 0`), so the caller honestly falls back to arrival time instead of banking a
-        // 1970 or far-future sample.
+        // an implausible epoch; return nil so the caller falls back to arrival time instead of banking it.
+        //
+        // #1073: a banked SAMPLE is always in the past, so its upper bound is "now", NOT the 2020-2035
+        // anchor window. That window is the right screen for ADOPTING a clock anchor and far too generous
+        // for a sample — a corrupt ring timestamp that converts years ahead (measured on a live ring:
+        // ~1,600 R-R beats stamped 2026→2034, and still accruing) passed it cleanly and got filed into a
+        // future day, invisible to the night it belongs to. Gate a sample at `now + skew tolerance`
+        // (minutes, absorbing ring-clock skew + anchor rounding) and keep the 2020 lower bound (the #968
+        // 1970 guard). The 2020-2035 window stays in `plausibleAnchorMs`, for anchor adoption only.
         let seconds = ms / 1000
-        guard seconds >= Self.minPlausibleEpochSeconds, seconds <= Self.maxPlausibleEpochSeconds else { return nil }
+        let nowSeconds = nowMsProvider() / 1000
+        guard seconds >= Self.minPlausibleEpochSeconds,
+              seconds <= nowSeconds + Self.sampleFutureToleranceSeconds else { return nil }
         return Int(seconds)
     }
 
@@ -267,6 +282,12 @@ public final class OuraDriver {
     /// Int64 (a naive multiply on a near-Int64.max raw value traps).
     private static let minPlausibleEpochSeconds: Int64 = 1_577_836_800
     private static let maxPlausibleEpochSeconds: Int64 = 2_051_222_400
+
+    /// Skew allowance on the sample-side "must not be in the future" gate (#1073): a sample converting up
+    /// to this many seconds past `now` is still accepted, absorbing ring-clock skew and the anchor's own
+    /// rounding. Minutes, not the anchor window's years — a sample banked further ahead than this is
+    /// corrupt by construction. Applies ONLY to `unixSeconds(forRingTimestamp:)`, never anchor adoption.
+    private static let sampleFutureToleranceSeconds: Int64 = 300
 
     private static func plausibleAnchorMs(fromEpochSeconds seconds: Int64) -> Int64? {
         guard seconds >= minPlausibleEpochSeconds, seconds <= maxPlausibleEpochSeconds else { return nil }

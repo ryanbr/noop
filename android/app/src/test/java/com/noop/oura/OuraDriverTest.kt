@@ -659,4 +659,45 @@ class OuraDriverTest {
         assertTrue(OuraCommands.getBattery().bytes[0] != 0x0E)
         assertTrue(OuraCommands.getBattery().bytes[0] != 0x1A)
     }
+
+    /**
+     * #1073: a banked sample that converts to the future is rejected (the caller falls back to arrival
+     * time), while a historical sample still converts. "now" is injected so the test does not touch the
+     * wall clock. Byte-parity with Swift `testSampleConvertingToFutureIsRejected`.
+     */
+    @Test
+    fun sampleConvertingToFutureIsRejected() {
+        val anchorSeconds = 1_700_000_000L               // 2023-11-14, mid anchor window
+        val anchorRt = 1_000_000L
+        // Freeze "now" AT the anchor instant, so any sample after the anchor is "in the future".
+        val d = OuraDriver(ringGen = OuraRingGen.GEN3, authKey = key, nowMsProvider = { anchorSeconds * 1000 })
+        assertTrue(d.adoptSyncTimeAnchor(ringTimestamp = anchorRt, unixSeconds = anchorSeconds))
+
+        // Historical (10s before now) and exactly-now still convert.
+        assertEquals(anchorSeconds - 10, d.unixSeconds(forRingTimestamp = anchorRt - 100))
+        assertEquals(anchorSeconds, d.unixSeconds(forRingTimestamp = anchorRt))
+        // Inside the 300s skew tolerance (+200s) still converts.
+        assertEquals(anchorSeconds + 200, d.unixSeconds(forRingTimestamp = anchorRt + 2_000))
+        // Just past the tolerance (+301s) is rejected as future/corrupt.
+        assertNull(d.unixSeconds(forRingTimestamp = anchorRt + 3_010))
+        // The regression #1073 is about: a sample ~1 year ahead (inside the OLD 2020-2035 window, so the
+        // old gate banked it) is now rejected because it is after `now`.
+        assertNull(d.unixSeconds(forRingTimestamp = anchorRt + 315_360_000))
+    }
+
+    /**
+     * The two gates are decoupled (#1073): anchor ADOPTION still uses the full 2020-2035 window even when
+     * "now" is frozen years earlier — only per-sample conversion is bounded by now. Byte-parity with Swift
+     * `testAnchorAdoptionStillUsesFullWindowIndependentOfNow`.
+     */
+    @Test
+    fun anchorAdoptionStillUsesFullWindowIndependentOfNow() {
+        val futureAnchorSeconds = 2_020_000_000L         // 2034, inside the 2020-2035 anchor window
+        val anchorRt = 500L
+        val d = OuraDriver(ringGen = OuraRingGen.GEN3, authKey = key, nowMsProvider = { 1_700_000_000L * 1000 })
+        assertTrue("a 2034 anchor is still adopted — adoption uses the window, not now",
+            d.adoptSyncTimeAnchor(ringTimestamp = anchorRt, unixSeconds = futureAnchorSeconds))
+        assertNull("but converting a 2034 sample is rejected because it is after now (2023)",
+            d.unixSeconds(forRingTimestamp = anchorRt))
+    }
 }

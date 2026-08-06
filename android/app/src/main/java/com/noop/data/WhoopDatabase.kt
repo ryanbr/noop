@@ -52,7 +52,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         RawImuSampleEntity::class,
         V18AuxSampleEntity::class,
     ],
-    version = 28,
+    version = 29,
     // #775: ON so Room's KSP processor writes the generated schema (every table's exact `CREATE TABLE`,
     // columns in declaration order with affinity/NOT NULL/default, PK and indices) as JSON. That export
     // is what lets a plain JVM test — no device, no Robolectric — read Android's REAL schema and compare
@@ -785,6 +785,34 @@ abstract class WhoopDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v28 -> v29: ADDITIVE, adds `rrInterval.tsSuspect` (nullable INTEGER) and MARKS every stored beat
+         * whose ts is in the FUTURE (#1073). An Oura ring's history timestamp is occasionally corrupt and,
+         * before the OuraDriver gate was tightened to "now", converted to a date years ahead (measured on a
+         * live ring: ~1,600 beats stamped 2026→2034) and was banked — lost to the night it was measured in
+         * and queued to poison a future day. The ingest gate now rejects such samples; rows already stored
+         * are marked here and `WhoopDao.rrIntervals` filters them at READ.
+         *
+         * NOT a delete: real beats with a wrong timestamp, kept inspectable/recoverable (the migration rule
+         * warns against window-wide deletes). Additive nullable, the srcChannel (`MIGRATION_25_26`) form:
+         * no table rebuild, no row/key touched, ALTER appends the column LAST to match the entity field
+         * order. `strftime('%s','now')` runs once, at migration time; CAST so `ts` (INTEGER) > it is a
+         * numeric compare. New rows are gated at ingest so never land future, staying NULL. Byte-parity
+         * with Swift WhoopStore `v35-rr-future-quarantine`.
+         *
+         * Exposed as [RR_FUTURE_QUARANTINE_MIGRATION_SQL] so a plain-JVM unit test can assert its shape.
+         */
+        internal val RR_FUTURE_QUARANTINE_MIGRATION_SQL: List<String> = listOf(
+            "ALTER TABLE `rrInterval` ADD COLUMN `tsSuspect` INTEGER",
+            "UPDATE `rrInterval` SET `tsSuspect` = 1 WHERE `ts` > CAST(strftime('%s','now') AS INTEGER)",
+        )
+
+        internal val MIGRATION_28_29 = object : Migration(28, 29) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                for (stmt in RR_FUTURE_QUARANTINE_MIGRATION_SQL) db.execSQL(stmt)
+            }
+        }
+
         private fun build(appContext: Context): WhoopDatabase =
             Room.databaseBuilder(appContext, WhoopDatabase::class.java, DB_NAME)
                 // #1014: replace ONLY the corruption handling of the default open-helper. The
@@ -802,7 +830,7 @@ abstract class WhoopDatabase : RoomDatabase() {
                     MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18,
                     MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22,
                     MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26,
-                    MIGRATION_26_27, MIGRATION_27_28,
+                    MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29,
                 )
                 // #1037: a FRESH install builds the schema straight at the current version and runs NO
                 // migrations, so the MIGRATION_7_8 "my-whoop" registry seed never fires and the WHOOP,

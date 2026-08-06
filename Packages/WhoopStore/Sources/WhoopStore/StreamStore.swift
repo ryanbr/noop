@@ -689,4 +689,23 @@ extension WhoopStore {
                 """, arguments: [deviceId]).map { (rrMs: $0["rrMs"], srcChannel: $0["srcChannel"]) }
         }
     }
+
+    /// Run the `v35-rr-future-quarantine` backfill predicate with an EXPLICIT `now` (the migration itself
+    /// uses `strftime('%s','now')`; a test needs a fixed instant). Marks every stored R-R beat whose ts is
+    /// after `nowSeconds`. Test-only (#1073).
+    public func markFutureRrSuspectForTest(nowSeconds: Int) async throws {
+        try syncWrite { db in
+            try db.execute(sql: "UPDATE rrInterval SET tsSuspect = 1 WHERE ts > ?", arguments: [nowSeconds])
+        }
+    }
+
+    /// Every STORED R-R row for a device as `(ts, tsSuspect)`, bypassing the scoring read's filter — so a
+    /// test can assert which rows were quarantined AND that none were deleted. Test-only (#1073).
+    public func rrSuspectRowsForTest(deviceId: String) async throws -> [(ts: Int, tsSuspect: Int?)] {
+        try syncRead { db in
+            try Row.fetchAll(db, sql: """
+                SELECT ts, tsSuspect FROM rrInterval WHERE deviceId = ? ORDER BY ts ASC
+                """, arguments: [deviceId]).map { (ts: $0["ts"], tsSuspect: $0["tsSuspect"]) }
+        }
+    }
 }

@@ -200,6 +200,7 @@ extension WhoopStore {
                 SELECT ts, rrMs, srcChannel FROM rrInterval
                 WHERE deviceId = ? AND ts >= ? AND ts <= ?
                 AND (srcChannel IS NULL OR srcChannel <> ?)
+                AND (tsSuspect IS NULL OR tsSuspect <> 1)   -- #1073: exclude future-stamped beats
                 ORDER BY ts ASC, ord ASC, rrMs ASC, seq ASC LIMIT ?
                 """, arguments: [deviceId, from, to, RRSourceChannel.spo2Ibi.rawValue, limit])
                 .map { row in

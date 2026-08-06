@@ -775,6 +775,29 @@ extension WhoopStore {
                 t.add(column: "stagingSparse", .integer)
             }
         }
+        // v35 (#1073): quarantine R-R beats whose timestamp is in the FUTURE. An Oura ring's history
+        // timestamp is occasionally corrupt/misaligned and, before the OuraDriver gate was tightened to
+        // "now", converted to a date years ahead (measured on a live ring: ~1,600 beats stamped 2026→2034)
+        // and was banked — removed from the night it was measured in and queued to poison whichever future
+        // day it lands on. The ingest gate now rejects such samples, but rows already stored have to be
+        // taken out of scoring.
+        //
+        // NOT a delete: these are real heartbeats with a wrong timestamp, so — like the v32 srcChannel
+        // form — the column MARKS them and `Reads.rrIntervals` filters at READ, keeping them inspectable
+        // and recoverable if the ring-time offset is ever characterised (the migration rule warns against
+        // window-wide deletes). `strftime('%s','now')` runs once, at migration time; new rows are gated at
+        // ingest so never land future, and stay NULL. Additive nullable INTEGER, the v32 form: no table
+        // rebuild, no existing key touched, NOT in the primary key.
+        //
+        // Twin of Room MIGRATION_28_29.
+        migrator.registerMigration("v35-rr-future-quarantine") { db in
+            try db.alter(table: "rrInterval") { t in
+                t.add(column: "tsSuspect", .integer)
+            }
+            // CAST so the compare is numeric: `strftime` returns TEXT, and `ts` (INTEGER) > TEXT would
+            // otherwise lean on SQLite's affinity coercion rather than being explicit.
+            try db.execute(sql: "UPDATE rrInterval SET tsSuspect = 1 WHERE ts > CAST(strftime('%s','now') AS INTEGER)")
+        }
         return migrator
     }
 }

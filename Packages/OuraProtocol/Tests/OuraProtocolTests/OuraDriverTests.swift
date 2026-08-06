@@ -209,6 +209,47 @@ final class OuraDriverTests: XCTestCase {
         XCTAssertEqual(d.unixSeconds(forRingTimestamp: anchorRt + 100), Int(anchorEpochSeconds) + 10)
     }
 
+    /// #1073: a banked sample that converts to the future is rejected (the caller falls back to arrival
+    /// time), while a historical sample still converts. "now" is injected so the test does not depend on
+    /// the wall clock. The anchor is set to `now`, so a ring time far enough after it converts past now.
+    func testSampleConvertingToFutureIsRejected() {
+        let anchorEpochSeconds: Int64 = 1_700_000_000     // 2023-11-14, mid anchor window
+        let anchorRt: UInt32 = 1_000_000
+        // Freeze "now" AT the anchor instant, so any sample after the anchor is "in the future".
+        let d = OuraDriver(ringGen: .gen3, authKey: key,
+                           nowMsProvider: { anchorEpochSeconds * 1000 })
+        let payload = le8(anchorEpochSeconds) + [0x00]
+        _ = d.ingest(record: OuraRecord(type: OuraEventTag.timeSync.rawValue, ringTimestamp: anchorRt, payload: payload))
+
+        // Historical (10s before now) and exactly-now still convert.
+        XCTAssertEqual(d.unixSeconds(forRingTimestamp: anchorRt - 100), Int(anchorEpochSeconds) - 10)
+        XCTAssertEqual(d.unixSeconds(forRingTimestamp: anchorRt), Int(anchorEpochSeconds))
+        // Inside the 300s skew tolerance (+200s) still converts.
+        XCTAssertEqual(d.unixSeconds(forRingTimestamp: anchorRt + 2_000), Int(anchorEpochSeconds) + 200)
+        // Just past the tolerance (+301s) is rejected as future/corrupt.
+        XCTAssertNil(d.unixSeconds(forRingTimestamp: anchorRt + 3_010))
+        // The regression that #1073 is about: a sample ~1 year ahead (still inside the OLD 2020-2035
+        // anchor window, so the old gate banked it) is now rejected because it is after `now`.
+        XCTAssertNil(d.unixSeconds(forRingTimestamp: anchorRt + 315_360_000),
+                     "a sample a year in the future passed the old 2035 gate; the now-gate must reject it")
+    }
+
+    /// The two gates are decoupled (#1073): anchor ADOPTION still uses the full 2020-2035 window even when
+    /// "now" is frozen years earlier — only the per-sample conversion is bounded by now. A 2034 anchor is
+    /// adopted (event emitted), yet converting its own ring time returns nil because 2034 is after now.
+    func testAnchorAdoptionStillUsesFullWindowIndependentOfNow() {
+        let futureAnchorSeconds: Int64 = 2_020_000_000    // 2034, inside the 2020-2035 anchor window
+        let anchorRt: UInt32 = 500
+        let d = OuraDriver(ringGen: .gen3, authKey: key,
+                           nowMsProvider: { 1_700_000_000 * 1000 })   // now frozen at 2023
+        let payload = le8(futureAnchorSeconds) + [0x00]
+        let events = d.ingest(record: OuraRecord(type: OuraEventTag.timeSync.rawValue, ringTimestamp: anchorRt, payload: payload))
+        XCTAssertEqual(events, [.timeSync(OuraTimeSync(ringTimestamp: anchorRt, epochMs: futureAnchorSeconds, tzOffsetSeconds: 0))],
+                       "a 2034 anchor is still adopted — adoption uses the 2020-2035 window, not now")
+        XCTAssertNil(d.unixSeconds(forRingTimestamp: anchorRt),
+                     "but converting a sample stamped in 2034 is rejected because it is after now (2023)")
+    }
+
     func testRtcBeaconOnlyAnchorsWhenNoTimeSyncSeenYet() {
         let d = OuraDriver(ringGen: .gen3, authKey: key)
         let beaconRt: UInt32 = 5_000

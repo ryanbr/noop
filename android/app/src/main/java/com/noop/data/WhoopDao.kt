@@ -389,6 +389,7 @@ interface WhoopDao : DeviceRegistryDao {
         // pins the two together.
         "SELECT * FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
             "AND (srcChannel IS NULL OR srcChannel <> 2) " +
+            "AND (tsSuspect IS NULL OR tsSuspect <> 1) " +   // #1073: exclude future-stamped beats
             "ORDER BY ts ASC, ord ASC, rrMs ASC, seq ASC LIMIT :limit"
     )
     suspend fun rrIntervals(deviceId: String, from: Long, to: Long, limit: Int): List<RrInterval>
