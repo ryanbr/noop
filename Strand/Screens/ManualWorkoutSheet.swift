@@ -121,7 +121,7 @@ struct ManualWorkoutSheet: View {
         // "recents vanish" was really the panel being clipped along with its off-screen anchor.
         .noopSheetPresentation(largeFirst: true)
         #endif
-        .background(StrandPalette.surfaceOverlay)
+        .background(NoopChromeSurface())
         // Lets the user dismiss the decimal pad (which has no return key) and reach Cancel/Add. No-op on macOS.
         .keyboardDoneToolbar($focusedField)
     }
@@ -368,154 +368,6 @@ struct ManualWorkoutSheet: View {
     }
 }
 
-// MARK: - Live workout start picker
-//
-// The Apple-side entry point for LIVE tracking, mirroring Android's StartWorkoutSheet (WorkoutStart.kt):
-// pick a named sport from the shared WorkoutCatalog, then begin the session. Brings the iOS/macOS live
-// tracker to parity with Android, which has had a named-sport picker on Start since #115 — previously
-// the Apple "Start workout" buttons called `startWorkout()` with no sport and every live session saved
-// as the generic "Workout". A host presents this and forwards the chosen name to
-// `AppModel.startWorkout(sport:)`. Free-text isn't offered here (a live start is a quick tap from a
-// fixed list); an unusual sport can still be set afterwards via the manual edit sheet's free-text field.
-
-struct StartWorkoutSheet: View {
-    /// Called with the chosen sport name once the user taps the action button. The host wires this to
-    /// `model.startWorkout(sport:)` (and presents the live workout view) by default, or (#64) to name a
-    /// merged session when the title/action are overridden.
-    let onStart: (_ sport: String) -> Void
-
-    /// #64: heading + explainer + action-verb overrides so this picker doubles as the "name the merged
-    /// session" prompt. Defaults keep the "Start a workout" behaviour byte-identical.
-    private let heading: String
-    private let explainer: String
-    private let actionVerb: String
-
-    init(title: String? = nil, subtitle: String? = nil, actionVerb: String? = nil,
-         onStart: @escaping (_ sport: String) -> Void) {
-        self.onStart = onStart
-        self.heading = title ?? String(localized: "Start a workout")
-        self.explainer = subtitle
-            ?? String(localized: "Pick a sport. NOOP records HR, peak, average and effort from the live feed.")
-        self.actionVerb = actionVerb ?? String(localized: "Start")
-    }
-
-    @Environment(\.dismiss) private var dismiss
-    @State private var query = ""
-    @State private var selected = WorkoutCatalog.defaultSportName
-
-    private var filtered: [WorkoutCatalog.Sport] { WorkoutCatalog.matching(query) }
-    private var inputShape: RoundedRectangle { RoundedRectangle(cornerRadius: 10, style: .continuous) }
-
-    /// #297: the user's last selections, one tap away above the full catalogue. Only catalogue-resolvable
-    /// recents show here — a live start is catalogue-only by design (no free text), and the shared store
-    /// can hold free-typed names from the manual sheet. Hidden once the user starts searching.
-    private var recentSports: [WorkoutCatalog.Sport] {
-        RecentSportsPrefs.recent().compactMap { WorkoutCatalog.sport(named: $0) }
-    }
-
-    private var showRecentSports: Bool {
-        query.trimmingCharacters(in: .whitespaces).isEmpty && !recentSports.isEmpty
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: NoopMetrics.space4) {
-            HStack(alignment: .top, spacing: NoopMetrics.space3) {
-                Image(systemName: "figure.run")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(StrandPalette.effortColor)
-                    .frame(width: 30, height: 30)
-                    .background(StrandPalette.effortColor.opacity(0.14),
-                                in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(heading)
-                        .font(StrandFont.title2)
-                        .foregroundStyle(StrandPalette.textPrimary)
-                    Text(explainer)
-                        .font(StrandFont.subhead)
-                        .foregroundStyle(StrandPalette.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 0)
-            }
-
-            TextField("Search sport", text: $query)
-                .textFieldStyle(.plain)
-                .font(StrandFont.body)
-                .foregroundStyle(StrandPalette.textPrimary)
-                .padding(.horizontal, 12).padding(.vertical, 9)
-                .background(StrandPalette.surfaceInset, in: inputShape)
-                .overlay(inputShape.strokeBorder(StrandPalette.hairline, lineWidth: 1))
-                .accessibilityLabel("Search sport")
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    if showRecentSports {
-                        Text("Recent").strandOverline()
-                            .padding(.horizontal, 12).padding(.top, 8)
-                        ForEach(recentSports) { sp in
-                            sportRow(sp)
-                        }
-                        Text("All activities").strandOverline()
-                            .padding(.horizontal, 12).padding(.top, 8)
-                    }
-                    ForEach(filtered) { sp in
-                        sportRow(sp)
-                    }
-                }
-            }
-            .frame(maxHeight: 240)
-            .background(StrandPalette.surfaceInset, in: inputShape)
-            .overlay(inputShape.strokeBorder(StrandPalette.hairline, lineWidth: 1))
-
-            HStack(spacing: NoopMetrics.space3) {
-                NoopButton("Cancel", kind: .tertiary) { dismiss() }
-                Spacer()
-                NoopButton("\(actionVerb) \(selected)", systemImage: "figure.run", kind: .primary) {
-                    // #297: a confirmed start (or merge-name) is a real selection — fold it into the recents.
-                    RecentSportsPrefs.recordSelection(selected)
-                    onStart(selected)
-                    dismiss()
-                }
-                .accessibilityLabel("\(actionVerb) \(selected)")
-            }
-        }
-        .padding(NoopMetrics.space6)
-        #if os(macOS)
-        .frame(width: 420)
-        #else
-        .frame(maxWidth: .infinity)
-        .noopSheetPresentation(largeFirst: false)
-        #endif
-        .background(StrandPalette.surfaceOverlay)
-    }
-
-    /// One tappable sport row — shared by the #297 Recent block and the full catalogue list.
-    private func sportRow(_ sp: WorkoutCatalog.Sport) -> some View {
-        Button {
-            selected = sp.name
-        } label: {
-            HStack(spacing: 6) {
-                Text(sp.name)
-                    .font(StrandFont.body)
-                    .foregroundStyle(sp.name == selected
-                                     ? StrandPalette.accent : StrandPalette.textPrimary)
-                if sp.isDistanceSport {
-                    Text("· GPS")
-                        .font(StrandFont.footnote)
-                        .foregroundStyle(StrandPalette.textTertiary)
-                }
-                Spacer(minLength: 0)
-            }
-            .contentShape(Rectangle())
-            .padding(.horizontal, 12).padding(.vertical, 9)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Pick \(sp.name)")
-        .accessibilityAddTraits(sp.name == selected ? [.isSelected] : [])
-    }
-}
-
 #if DEBUG
 #Preview("Add") {
     ManualWorkoutSheet { _, _ in }
@@ -527,11 +379,6 @@ struct StartWorkoutSheet: View {
         startTs: Int(Date().timeIntervalSince1970) - 3600, endTs: Int(Date().timeIntervalSince1970),
         sport: "Running", source: "manual", durationS: 3600, energyKcal: 540,
         avgHr: 148, maxHr: 172, strain: 12.4, distanceM: nil, zonesJSON: nil, notes: nil)) { _, _ in }
-        .preferredColorScheme(.dark)
-}
-
-#Preview("Start") {
-    StartWorkoutSheet { _ in }
         .preferredColorScheme(.dark)
 }
 #endif

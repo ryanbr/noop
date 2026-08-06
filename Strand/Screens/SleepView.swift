@@ -377,7 +377,7 @@ struct SleepView: View {
         let night = heroNight(model)
         let score = performanceScore(for: night)
         VStack(alignment: .leading, spacing: NoopMetrics.gap) {
-            SectionHeader("Sleep performance", overline: nightRelativeLabel, trailing: String(localized: "Rest"))
+            SectionHeader("Sleep performance", overline: nightRelativeLabel)
             // A subtle night atmosphere sits behind the sleep hero ONLY (the Rest world's whisper:
             // faint indigo wash + crescent moon over the near-black canvas, no glow), clipped to the
             // card. Replaces the now-flat ScenicHeroBackground here.
@@ -391,6 +391,7 @@ struct SleepView: View {
                         ZStack {
                             LiquidVessel(value: heroFraction, tint: StrandPalette.restColor, animated: true)
                                 .frame(width: 184, height: 184)
+                                .shadow(color: StrandPalette.restGlow.opacity(0.18), radius: 12)
                             VStack(spacing: 0) {
                                 CountUpText(
                                     value: score,
@@ -407,7 +408,13 @@ struct SleepView: View {
                         }
                         Text(sleepScoreWord(score))
                             .font(StrandFont.subhead.weight(.semibold))
-                            .foregroundStyle(StrandPalette.restColor)
+                            .foregroundStyle(StrandPalette.textPrimary)
+                            .padding(.horizontal, NoopMetrics.space3)
+                            .padding(.vertical, NoopMetrics.space1)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill(NoopVisualStyle.surfaceTop.opacity(0.42))
+                            )
                     }
                     .padding(.top, NoopMetrics.space1)
                     .accessibilityElement(children: .ignore)
@@ -433,8 +440,24 @@ struct SleepView: View {
             }
             .padding(NoopMetrics.cardInnerPadding + NoopMetrics.space1)
             .frame(maxWidth: .infinity)
-            .timeOfDayBackground(.night)
+            .background(SleepPerformanceNightScene())
             .clipShape(RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [
+                                NoopVisualStyle.borderHighlight.opacity(0.46),
+                                StrandPalette.restColor.opacity(0.16),
+                                NoopVisualStyle.border.opacity(0.42)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 0.8
+                    )
+            }
+            .shadow(color: .black.opacity(0.28), radius: 16, x: 0, y: 9)
         }
     }
 
@@ -930,7 +953,7 @@ struct SleepView: View {
         }
         .padding(NoopMetrics.cardInnerPadding)
         .frame(width: 260)
-        .background(StrandPalette.surfaceOverlay)
+        .background(NoopPanelSurface(cornerRadius: NoopVisualStyle.compactRadius, elevated: true))
         .accessibilityElement(children: .combine)
     }
 
@@ -1477,7 +1500,7 @@ struct SleepView: View {
         let debt  = model.sleepDebt
 
         VStack(alignment: .leading, spacing: NoopMetrics.gap) {
-            SectionHeader("Night detail", overline: "Metrics", trailing: String(localized: "vs typical"))
+            SectionHeader("Night detail", overline: "Metrics")
 
             #if os(iOS)
             // On iOS, Sleep Debt is the actionable summary for the section, so it leads at the
@@ -1568,8 +1591,7 @@ struct SleepView: View {
     private func sleepDebtLedger(_ model: SleepModel) -> some View {
         let ledger = model.sleepDebtLedger
         VStack(alignment: .leading, spacing: NoopMetrics.gap) {
-            SectionHeader("Sleep-debt ledger", overline: "Last 14 nights",
-                          trailing: String(localized: "running balance"))
+            SectionHeader("Sleep-debt ledger", overline: "Last 14 nights")
             NoopCard(tint: StrandPalette.restColor) {
                 if ledger.nightCount == 0 {
                     Text("No nights with sleep data yet. Your ledger fills in as you wear the strap to bed.")
@@ -1655,8 +1677,7 @@ struct SleepView: View {
         // Per-stage typical means are computed ONCE in the model build (each a full pass
         // over repo.days) and read here.
         VStack(alignment: .leading, spacing: NoopMetrics.gap) {
-            SectionHeader("Stages vs typical", overline: "Last night",
-                          trailing: String(localized: "hatch = typical"))
+            SectionHeader("Stages vs typical", overline: "Last night")
             NoopCard(tint: StrandPalette.restColor) {
                 VStack(alignment: .leading, spacing: NoopMetrics.space4) {
                     stageRow(stage: String(localized: "Deep"),  last: s.deep,  typical: model.typicalDeepMin,  nightTotal: s.total, color: StrandPalette.sleepDeep)
@@ -1758,7 +1779,7 @@ struct SleepView: View {
         let pts = model.trendPoints
         let avg = model.typicalTotalMin.map { $0 / 60.0 }
         VStack(alignment: .leading, spacing: NoopMetrics.gap) {
-            SectionHeader("Asleep duration", overline: "Trend", trailing: String(localized: "Last 30 days"))
+            SectionHeader("Asleep duration", overline: "Trend")
             ChartCard(
                 title: "Hours asleep",
                 subtitle: String(localized: "Per night, trailing 30 days"),
@@ -2218,7 +2239,32 @@ struct SleepView: View {
                 .disabled(nightOffset >= lastIndex)
                 .accessibilityLabel("Previous night")
 
-                SectionHeader(title, overline: "Sleep", trailing: trailing)
+                HStack(alignment: .bottom, spacing: NoopMetrics.space3) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Sleep").strandOverline()
+                        Text(title)
+                            .font(StrandFont.title2)
+                            .foregroundStyle(StrandPalette.textPrimary)
+                    }
+                    Spacer(minLength: NoopMetrics.space2)
+                    Text(trailing)
+                        .font(StrandFont.caption.weight(.semibold))
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .padding(.horizontal, NoopMetrics.space3)
+                        .padding(.vertical, NoopMetrics.space2)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(StrandPalette.surfaceInset)
+                                .overlay {
+                                    Capsule(style: .continuous)
+                                        .stroke(StrandPalette.hairline, lineWidth: 1)
+                                }
+                        )
+                        .padding(.bottom, 1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 Button { if nightOffset > 0 { nightOffset -= 1 } } label: {
                     Image(systemName: "chevron.right")
@@ -2420,7 +2466,7 @@ struct SleepView: View {
             .font(StrandFont.subhead)
             .foregroundStyle(StrandPalette.textTertiary)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            .background(StrandPalette.surfaceInset, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(NoopPanelSurface(tint: StrandPalette.restColor, cornerRadius: 12))
     }
 
     /// Hero chart slot for a NAVIGATED session with no decodable stages — honest about the
@@ -2430,7 +2476,7 @@ struct SleepView: View {
             .font(StrandFont.footnote)
             .foregroundStyle(StrandPalette.textTertiary)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            .background(StrandPalette.surfaceInset, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(NoopPanelSurface(tint: StrandPalette.restColor, cornerRadius: 12))
     }
 
     // MARK: - Formatting helpers
@@ -2643,6 +2689,85 @@ struct SleepView: View {
     }()
 }
 
+/// Decorative-only background for the Sleep Performance hero. It intentionally owns no score, sleep,
+/// navigation, or animation state: a deterministic star field, quiet navy atmosphere, and one SF Symbol
+/// crescent replace the generic time-of-day scene without touching the hero's existing content hierarchy.
+private struct SleepPerformanceNightScene: View {
+    private struct Star {
+        let x: CGFloat
+        let y: CGFloat
+        let size: CGFloat
+        let opacity: Double
+    }
+
+    private let stars: [Star] = [
+        .init(x: 0.08, y: 0.16, size: 1.2, opacity: 0.30),
+        .init(x: 0.16, y: 0.31, size: 0.9, opacity: 0.22),
+        .init(x: 0.24, y: 0.11, size: 1.0, opacity: 0.26),
+        .init(x: 0.34, y: 0.23, size: 1.3, opacity: 0.34),
+        .init(x: 0.46, y: 0.09, size: 0.8, opacity: 0.22),
+        .init(x: 0.58, y: 0.19, size: 1.0, opacity: 0.28),
+        .init(x: 0.69, y: 0.10, size: 0.8, opacity: 0.20),
+        .init(x: 0.77, y: 0.28, size: 1.1, opacity: 0.26),
+        .init(x: 0.91, y: 0.19, size: 0.9, opacity: 0.24),
+        .init(x: 0.12, y: 0.58, size: 0.8, opacity: 0.18),
+        .init(x: 0.88, y: 0.55, size: 1.0, opacity: 0.20),
+        .init(x: 0.20, y: 0.79, size: 1.1, opacity: 0.18),
+        .init(x: 0.72, y: 0.76, size: 0.8, opacity: 0.16),
+        .init(x: 0.94, y: 0.83, size: 1.2, opacity: 0.18)
+    ]
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            LinearGradient(
+                colors: [
+                    NoopVisualStyle.inset,
+                    StrandPalette.restDeep.opacity(0.32),
+                    NoopVisualStyle.canvas,
+                    Color.black.opacity(0.90)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            RadialGradient(
+                colors: [StrandPalette.restGlow.opacity(0.13), .clear],
+                center: .center,
+                startRadius: 12,
+                endRadius: 190
+            )
+
+            Canvas { context, size in
+                for star in stars {
+                    let rect = CGRect(
+                        x: size.width * star.x,
+                        y: size.height * star.y,
+                        width: star.size,
+                        height: star.size
+                    )
+                    context.fill(Path(ellipseIn: rect),
+                                 with: .color(StrandPalette.scenicStar.opacity(star.opacity)))
+                }
+            }
+            .allowsHitTesting(false)
+
+            Image(systemName: "moon.fill")
+                .font(.system(size: 29, weight: .light))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.78), StrandPalette.restBright.opacity(0.58)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .shadow(color: StrandPalette.restGlow.opacity(0.14), radius: 8)
+                .padding(.top, NoopMetrics.cardInnerPadding)
+                .padding(.trailing, NoopMetrics.cardInnerPadding)
+                .accessibilityHidden(true)
+        }
+    }
+}
+
 // MARK: - Live-observing leaf subviews (scroll-stutter isolation)
 //
 // SleepView itself does NOT observe `LiveState` (a connected strap publishes at ~1 Hz, which would
@@ -2667,7 +2792,7 @@ private struct SleepMarkCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: NoopMetrics.gap) {
-            SectionHeader("Sleep marks", overline: "Tap to log", trailing: String(localized: "Phase 1"))
+            SectionHeader("Sleep marks", overline: "Tap to log")
             NoopCard(tint: StrandPalette.restColor) {
                 VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {
                     Text("Tap when you're heading to bed or when you wake. Each tap is logged with the time. It doesn't change tonight's detected sleep.")
@@ -3120,7 +3245,7 @@ private struct SleepTimeEditor: View {
         }
         .padding(NoopMetrics.screenPadding)
         .frame(minWidth: 360)
-        .background(StrandPalette.surfaceOverlay)
+        .background(NoopChromeSurface())
         // #940 guard 1: a time-only roll that lands the bed in the future, or at/after the night's
         // wake, almost always means the PREVIOUS evening (23:00 "yesterday", not tonight). Snap the
         // date back a day so the picker visibly shows the night the user meant. Pure rule + tests:

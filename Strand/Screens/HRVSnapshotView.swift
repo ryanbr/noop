@@ -333,7 +333,7 @@ struct HRVSnapshotView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(StrandPalette.surfaceInset, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(NoopPanelSurface(tint: accent, cornerRadius: 10))
     }
 
     // MARK: - Methodology

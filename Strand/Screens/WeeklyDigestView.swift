@@ -115,26 +115,41 @@ struct WeeklyDigestView: View {
 
 // MARK: - Shared content
 
+/// Compact, localized range shared by the standalone digest card and the Trends week navigator.
+func weeklyDigestRangeLabel(_ digest: WeeklyDigest) -> String {
+    "\(weeklyDigestShortDate(digest.weekStart))–\(weeklyDigestShortDate(digest.weekEnd))"
+}
+
+/// "Jun 8" from "2026-06-08", via the engine's own pure parse (no Calendar).
+private func weeklyDigestShortDate(_ ymd: String) -> String {
+    guard let (_, month, day) = WeeklyDigestEngine.parseYMD(ymd) else { return ymd }
+    let months = [String(localized: "Jan"), String(localized: "Feb"), String(localized: "Mar"),
+                  String(localized: "Apr"), String(localized: "May"), String(localized: "Jun"),
+                  String(localized: "Jul"), String(localized: "Aug"), String(localized: "Sep"),
+                  String(localized: "Oct"), String(localized: "Nov"), String(localized: "Dec")]
+    let name = (1...12).contains(month) ? months[month - 1] : "\(month)"
+    return "\(name) \(day)"
+}
+
 /// The inner content shared by the card and the full screen. `compact` trims the
 /// metric grid to the headline rows for the card; the full screen shows everything.
 struct WeeklyDigestContent: View {
     let digest: WeeklyDigest
     var compact: Bool = false
+    var showsHeader: Bool = true
 
     /// The Effort display scale (#268), so the Week-in-review Effort gauge matches the Today tile
     /// and the Trends small-multiple instead of being stuck on "of 100". Charge/Rest stay 0–100.
     @AppStorage(UnitPrefs.effortScaleKey) private var effortScaleRaw = EffortScale.hundred.rawValue
     private var effortScale: EffortScale { UnitPrefs.resolveEffortScale(effortScaleRaw) }
-    #if os(iOS)
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    #endif
 
     /// Display order: the two daily scores first, then the nightly signals.
     private static let order: [WeeklyMetric] = [.charge, .effort, .rest, .hrv, .rhr]
     /// The three headline 0–100 scores shown as domain summaries.
     private static let scoreOrder: [WeeklyMetric] = [.charge, .effort, .rest]
 
-    /// The Bevel colour world for each weekly metric — drives the summary card tint,
+    /// The shared colour world for each weekly metric — drives the summary card tint,
     /// the gauge stroke and the secondary-signal accents.
     private func domain(for m: WeeklyMetric) -> DomainTheme {
         switch m {
@@ -149,7 +164,9 @@ struct WeeklyDigestContent: View {
     var body: some View {
         VStack(alignment: .leading, spacing: NoopMetrics.gap) {
             // Headline over a subtle scenic backdrop (Charge-tinted starfield).
-            header
+            if showsHeader {
+                header
+            }
 
             // The three headline scores, each with a domain-tinted gauge and week-over-week context.
             scoreRow
@@ -163,8 +180,8 @@ struct WeeklyDigestContent: View {
 
     private var header: some View {
         ZStack(alignment: .leading) {
-            ScenicHeroBackground(domain: .charge, starCount: 26)
-                .clipShape(RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous))
+            NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius,
+                             elevated: true)
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Week in review").strandOverline()
@@ -186,20 +203,13 @@ struct WeeklyDigestContent: View {
 
     @ViewBuilder
     private var scoreRow: some View {
-        #if os(iOS)
         if compact {
             compactScoreRow
         } else {
             scoreGrid
         }
-        #else
-        // `compact` describes the embedded digest, not a compact desktop width.
-        // Keep macOS on its original adaptive, individually surfaced score cards.
-        scoreGrid
-        #endif
     }
 
-    #if os(iOS)
     @ViewBuilder
     private var compactScoreRow: some View {
         let summaries = Self.scoreOrder.compactMap { digest.summary($0) }
@@ -220,8 +230,8 @@ struct WeeklyDigestContent: View {
                         }
                     }
                 } else {
-                    // Top alignment keeps labels and gauges level when only some metrics have
-                    // enough previous-week data to render the optional comparison chip.
+                    // Align from the shared label/gauge rows. Optional content below one gauge must
+                    // never shift that gauge relative to its neighbours.
                     HStack(alignment: .top, spacing: 0) {
                         ForEach(Array(summaries.enumerated()), id: \.element.metric.rawValue) { index, summary in
                             scoreCard(summary: summary, presentation: .embedded)
@@ -236,7 +246,6 @@ struct WeeklyDigestContent: View {
             }
         }
     }
-    #endif
 
     private var scoreGrid: some View {
         LazyVGrid(
@@ -386,18 +395,7 @@ struct WeeklyDigestContent: View {
     // MARK: - Formatting
 
     private var weekRangeLabel: String {
-        "\(shortDate(digest.weekStart))-\(shortDate(digest.weekEnd))"
-    }
-
-    /// "Jun 8" from "2026-06-08", via the engine's own pure parse (no Calendar).
-    private func shortDate(_ ymd: String) -> String {
-        guard let (_, m, d) = WeeklyDigestEngine.parseYMD(ymd) else { return ymd }
-        let months = [String(localized: "Jan"), String(localized: "Feb"), String(localized: "Mar"),
-                      String(localized: "Apr"), String(localized: "May"), String(localized: "Jun"),
-                      String(localized: "Jul"), String(localized: "Aug"), String(localized: "Sep"),
-                      String(localized: "Oct"), String(localized: "Nov"), String(localized: "Dec")]
-        let name = (1...12).contains(m) ? months[m - 1] : "\(m)"
-        return "\(name) \(d)"
+        weeklyDigestRangeLabel(digest)
     }
 
     private func meanText(_ s: WeeklyMetricSummary, effortScale: EffortScale) -> String {
@@ -505,6 +503,7 @@ private struct DigestScoreCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var animatedFraction: Double = 0
+    @State private var showScaleGuide = false
 
     /// The Effort card is the only one that follows the 0–100/0–21 toggle; the rest are fixed 0–100.
     private var isEffort: Bool { summary.metric == .effort }
@@ -545,6 +544,8 @@ private struct DigestScoreCard: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibility)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { showScaleGuide = true }
     }
 
     private var content: some View {
@@ -583,11 +584,22 @@ private struct DigestScoreCard: View {
                 animatedFraction: animatedFraction
             )
             .frame(maxWidth: .infinity)
-            if isEmbedded && summary.thisWeek.n > 0 {
-                Text(captionText)
-                    .font(StrandFont.footnote)
-                    .foregroundStyle(StrandPalette.textTertiary)
-                    .lineLimit(1)
+            .contentShape(Circle())
+            .onTapGesture { showScaleGuide = true }
+            .popover(isPresented: $showScaleGuide, arrowEdge: .bottom) {
+                VStack(spacing: NoopMetrics.space1) {
+                    Text(summary.metric.label)
+                        .font(StrandFont.subhead.weight(.semibold))
+                        .foregroundStyle(domain.color)
+                    Text(captionText)
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                }
+                .padding(NoopMetrics.cardInnerPadding)
+                .frame(minWidth: 120)
+                .background(NoopPanelSurface(cornerRadius: NoopVisualStyle.compactRadius, elevated: true))
+                .accessibilityElement(children: .combine)
+                .digestScalePopoverAdaptation()
             }
             if isEmbedded && hasComparison {
                 TrendChip(text: deltaSigned, color: deltaTone)
@@ -613,6 +625,21 @@ private struct DigestScoreCard: View {
         guard summary.weekOverWeek.current.n > 0, summary.weekOverWeek.previous.n > 0 else { return deltaText }
         let sign = summary.wowDelta > 0 ? "+" : (summary.wowDelta < 0 ? "−" : "")
         return "\(sign)\(deltaText)"
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func digestScalePopoverAdaptation() -> some View {
+        #if os(iOS)
+        if #available(iOS 16.4, *) {
+            presentationCompactAdaptation(.popover)
+        } else {
+            self
+        }
+        #else
+        self
+        #endif
     }
 }
 

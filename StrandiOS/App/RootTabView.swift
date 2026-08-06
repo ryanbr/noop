@@ -49,18 +49,29 @@ struct RootTabView: View {
         if liquidTodayEnabled { LiquidTodayView() } else { TodayView() }
     }
 
-    init() {
-        // Plain Titanium bar: pin the background to `surfaceBase` and clear the system
-        // selection-indicator tint so there is NO gold/accent pill behind the selected
-        // icon — the gold `.tint` below colours only the selected icon + label, nothing
-        // is filled behind it. (UIKit derives a selection-indicator fill from the tint
-        // unless it's explicitly cleared.)
-        let appearance = UITabBarAppearance()
-        appearance.configureWithOpaqueBackground()
-        appearance.backgroundColor = UIColor(StrandPalette.surfaceBase)
-        appearance.selectionIndicatorTintColor = .clear
-        UITabBar.appearance().standardAppearance = appearance
-        UITabBar.appearance().scrollEdgeAppearance = appearance
+    /// Native tab selection binding. SwiftUI sends taps on the already-selected item through the
+    /// setter, which lets the system tab bar retain the app's refresh / pop-to-root / scroll-to-top
+    /// convention without placing a custom hit-testing layer over the platform bar.
+    private var nativeTabSelection: Binding<Int> {
+        Binding(
+            get: { selectedTab },
+            set: { tag in
+                if tag == selectedTab {
+                    reselectTab(tag)
+                } else {
+                    selectedTab = tag
+                }
+            }
+        )
+    }
+
+    private func reselectTab(_ tag: Int) {
+        Task { await repo.refresh() }
+        if !tabPaths[tag].isEmpty {
+            tabPaths[tag] = NavigationPath()
+        } else {
+            scrollTop[tag] += 1
+        }
     }
 
     /// The anywhere-swipe tab-switch drag (2026-07-02). Held as a property so the attachment site can
@@ -86,21 +97,16 @@ struct RootTabView: View {
     }
 
     var body: some View {
-        // The native TabView keeps every existing destination + system gesture; the signature
-        // raised gold FAB is overlaid on top, bottom-centre, floating ~20pt above the bar (a
-        // native TabView can't host a centre item that overflows the bar, so we float it).
-        ZStack(alignment: .bottom) {
-            // A custom floating bar — two frosted "glass" islands with the gold action button nested
-            // cleanly in the gap between them — replaces the native tab bar: no overlap, no glow. The
-            // native TabView still drives content + per-tab nav state; only its bar is hidden.
-            TabView(selection: $selectedTab) {
-                tab(todayTabRoot, "Today", "square.grid.2x2", path: $tabPaths[0], scrollSignal: scrollTop[0]).tag(0)
-                tab(TrendsView(), "Trends", "chart.line.uptrend.xyaxis", path: $tabPaths[1], scrollSignal: scrollTop[1]).tag(1)
-                tab(SleepView(), "Sleep", "bed.double", path: $tabPaths[2], scrollSignal: scrollTop[2]).tag(2)
-                moreTab(path: $tabPaths[3], scrollSignal: scrollTop[3]).tag(3)
-            }
-            .tint(StrandPalette.accent)
-            .toolbar(.hidden, for: .tabBar)
+        // The platform tab bar is intentionally left fully native. iOS 26 supplies Liquid Glass and
+        // its dynamic interaction with scrolling content automatically; older supported releases use
+        // the corresponding system material and safe-area behaviour from the same TabView.
+        TabView(selection: nativeTabSelection) {
+            tab(todayTabRoot, "Today", "square.grid.2x2", path: $tabPaths[0], scrollSignal: scrollTop[0]).tag(0)
+            tab(TrendsView(), "Trends", "chart.line.uptrend.xyaxis", path: $tabPaths[1], scrollSignal: scrollTop[1]).tag(1)
+            tab(SleepView(), "Sleep", "bed.double", path: $tabPaths[2], scrollSignal: scrollTop[2]).tag(2)
+            moreTab(path: $tabPaths[3], scrollSignal: scrollTop[3]).tag(3)
+        }
+        .tint(StrandPalette.accent)
             // Tab crossfade — README §Motion: ~240ms opacity swap between tab roots, global calm
             // easing cubic-bezier(0.22,1,0.36,1).
             .animation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24), value: selectedTab)
@@ -125,20 +131,6 @@ struct RootTabView: View {
             // interactive-pop itself: far worse than the bug being fixed.
             .simultaneousGesture(tabSwipeGesture,
                                  including: tabPaths[selectedTab].isEmpty ? .all : .subviews)
-
-            FloatingTabBar(selection: $selectedTab, onReselect: { tag in
-                // Re-tapping the active tab refreshes that page's data (2026-07-02) and, from a
-                // subpage, pops that tab's stack back to its root (#135) — an animated pop via the
-                // path, not a rebuild. At the root the pop is skipped, so scroll position survives
-                // and the refresh doesn't double with a re-run of the root's `.task` (#198).
-                Task { await repo.refresh() }
-                if !tabPaths[tag].isEmpty {
-                    tabPaths[tag] = NavigationPath()   // on a subpage: animated pop back to the root
-                } else {
-                    scrollTop[tag] += 1                // already at root: scroll to the top (#198 follow-up)
-                }
-            })
-        }
         .task {
             await repo.refresh()
             // Backup & Sync: on-launch catch-up (see RootView). Detached + utility priority so a
@@ -341,7 +333,6 @@ struct RootTabView: View {
         // Drive this tab's root scroll-to-top on an at-root re-tap (#198 follow-up); read by ScreenScaffold
         // / LiquidTodayView inside. Only THIS tab's token changes on its reselect, so the others don't scroll.
         .environment(\.scrollToTopSignal, scrollSignal)
-        .toolbar(.hidden, for: .tabBar)   // we draw our own FloatingTabBar
         .tabItem { Label(title, systemImage: icon) }
     }
 
@@ -404,7 +395,6 @@ struct RootTabView: View {
                     MoreRow("Settings", "gearshape.fill", .settings)
                 }
             }
-            .toolbar(.hidden, for: .tabBar)   // we draw our own FloatingTabBar
             // The rows push MoreDestination VALUES so a re-tap of the More tab can pop them off the
             // bound path (#135/#198). Each destination keeps the per-screen wrapper the rows used to
             // apply inline (surfaceBase background, inline title bar, hidden bar background):
@@ -421,7 +411,7 @@ struct RootTabView: View {
         }
         // Scroll the More index to the top on an at-root re-tap (#198 follow-up); read by its ScreenScaffold.
         .environment(\.scrollToTopSignal, scrollSignal)
-        .tabItem { Label("More", systemImage: "ellipsis.circle.fill") }
+        .tabItem { Label("More", systemImage: "ellipsis") }
     }
 
     /// One titled, COLLAPSIBLE group in the More index (S2): the app's overline (UPPERCASE) becomes a
@@ -613,7 +603,7 @@ private struct QuickActionSheet: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(
-            StrandPalette.surfaceOverlay
+            NoopChromeSurface()
                 .overlay(alignment: .top) {
                     // Gold hairline top edge per the bottom-sheet spec.
                     Rectangle()
@@ -643,98 +633,11 @@ private struct QuickActionSheet: View {
             }
             .padding(.vertical, 10)
             .padding(.horizontal, 12)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(StrandPalette.surfaceRaised))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(StrandPalette.hairline, lineWidth: 1))
+            .background(NoopPanelSurface(cornerRadius: 14))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
 }
 
-// MARK: - Floating tab bar
-
-/// The signature bottom bar: two frosted "glass" islands (Today·Trends / Sleep·More) with the gold
-/// action button nested cleanly in the gap between them — no overlap, no glow. Real iOS 26 Liquid
-/// Glass where available, a `.ultraThinMaterial` fallback below. Replaces the hidden native tab bar.
-private struct FloatingTabBar: View {
-    @Binding var selection: Int
-    /// Fires when the user taps the ALREADY-active tab (2026-07-02: re-tap should refresh).
-    var onReselect: (Int) -> Void = { _ in }
-
-    private struct Item: Identifiable { let title: LocalizedStringKey; let icon: String; let tag: Int; var id: Int { tag } }
-    private let nav = [Item(title: "Today", icon: "square.grid.2x2", tag: 0),
-                       Item(title: "Trends", icon: "chart.line.uptrend.xyaxis", tag: 1),
-                       Item(title: "Sleep", icon: "bed.double", tag: 2),
-                       Item(title: "More", icon: "ellipsis", tag: 3)]
-
-    var body: some View {
-        // One frosted glass bar, four evenly-spaced tabs. The quick-action "+" now lives in the
-        // top-right of each screen's header (balancing the profile avatar on the left).
-        HStack(spacing: 2) {
-            tabButton(nav[0])
-            tabButton(nav[1])
-            tabButton(nav[2])
-            tabButton(nav[3])
-        }
-        .padding(.vertical, 7)
-        .padding(.horizontal, 8)
-        .liquidGlass(in: Capsule())
-        // Over the liquid Today the sky ends at ~340pt, so the bar floats on flat opaque surfaceBase —
-        // a blur material has nothing to dissolve and hardens into a solid lozenge (2026-07-02:
-        // "clips into a solid shape"). A faint translucent scrim INSIDE the same Capsule keeps the pill
-        // reading as tinted glass, not a slab, even against dead-flat colour.
-        .background(.white.opacity(0.06), in: Capsule())
-        // Soft top-lit rim instead of one hard hairline, so there's no crisp cut-out edge.
-        .overlay(
-            Capsule().strokeBorder(
-                LinearGradient(colors: [.white.opacity(0.22), .white.opacity(0.04)],
-                               startPoint: .top, endPoint: .bottom),
-                lineWidth: 0.75)
-        )
-        // Lighter, wider shadow: real elevation without stamping a dark halo on the flat canvas.
-        .shadow(color: .black.opacity(0.22), radius: 18, x: 0, y: 8)
-        .padding(.horizontal, 22)
-        .padding(.bottom, 4)
-    }
-
-    private func tabButton(_ item: Item) -> some View {
-        let active = selection == item.tag
-        return Button {
-            if active {
-                onReselect(item.tag)
-            } else {
-                withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) { selection = item.tag }
-            }
-        } label: {
-            VStack(spacing: 3) {
-                Image(systemName: item.icon)
-                    .font(.system(size: 18, weight: active ? .semibold : .regular))
-                Text(item.title)
-                    .font(.system(size: 10, weight: active ? .semibold : .medium))
-            }
-            .foregroundStyle(active ? StrandPalette.accent : StrandPalette.textSecondary)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 3)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(item.title)
-        .accessibilityAddTraits(active ? [.isButton, .isSelected] : .isButton)
-    }
-
-}
-
-// MARK: - Liquid Glass (iOS 26) with a Material fallback
-
-private extension View {
-    /// Real iOS 26 Liquid Glass where available; `.ultraThinMaterial` on iOS 17–25 — a clean
-    /// blended degrade so the bar stays modern on new OSes without breaking older ones.
-    @ViewBuilder func liquidGlass(in shape: some Shape) -> some View {
-        if #available(iOS 26.0, *) {
-            self.glassEffect(.regular, in: shape)
-        } else {
-            self.background(.ultraThinMaterial, in: shape)
-        }
-    }
-}
 #endif

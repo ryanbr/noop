@@ -571,10 +571,7 @@ private struct MarkerLabel: View {
             .foregroundStyle(color)
             .padding(.horizontal, 6)
             .padding(.vertical, 3)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(StrandPalette.surfaceOverlay.opacity(0.92))
-            )
+            .background(NoopPanelSurface(cornerRadius: 6, elevated: true, surfaceOpacity: 0.92))
             .fixedSize()
             .allowsHitTesting(false)
     }
@@ -591,10 +588,7 @@ private struct SleepBandLabel: View {
         .foregroundStyle(StrandPalette.sleepLight)
         .padding(.horizontal, 6)
         .padding(.vertical, 3)
-        .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(StrandPalette.surfaceOverlay.opacity(0.92))
-        )
+        .background(NoopPanelSurface(cornerRadius: 6, elevated: true, surfaceOpacity: 0.92))
         .fixedSize()
         .allowsHitTesting(false)
     }

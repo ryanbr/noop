@@ -151,7 +151,7 @@ struct WorkoutsView: View {
                         ? "No workouts yet. They come from your WHOOP and Apple Health history. Import in Data Sources to bring them in, or add one you tracked elsewhere."
                         : "Loading your sessions…")
                     if loaded {
-                        HStack(spacing: NoopMetrics.rowSpacing) { startLiveWorkoutButton; addWorkoutButton }
+                        workoutActionRow
                     }
                 }
             } else {
@@ -166,7 +166,7 @@ struct WorkoutsView: View {
                 let groups = sportGroups(from: windowRows)
                 let zonesSummary = WorkoutZones.summary(from: windowRows)
 
-                HStack { startLiveWorkoutButton; Spacer() }
+                workoutActionRow
                 rangeBar(rows: windowRows, effectiveRange: resolved)
                 if let postLogNote { postLogBanner(postLogNote) }
                 effortHero(rows: windowRows, effectiveRange: resolved, groups: groups)
@@ -245,10 +245,13 @@ struct WorkoutsView: View {
                 // Inject the shared live snapshot so the in-exercise sensor readout (speed/cadence/power)
                 // resolves here too, matching how LiveView presents the same screen.
                 .environmentObject(model.live)
+                #if os(macOS)
+                .frame(minWidth: 720, idealWidth: 840, minHeight: 760, idealHeight: 900)
+                #endif
         }
         // #519: name the sport before a live session starts, then open the in-exercise view directly
         // (same direct present as the button's already-active path — no cross-view auto-present race).
-        .sheet(isPresented: $showStartSport) {
+        .workoutSelectionCover(isPresented: $showStartSport) {
             StartWorkoutSheet { name in
                 model.startWorkout(sport: name)
                 showLiveWorkout = true
@@ -256,7 +259,7 @@ struct WorkoutsView: View {
         }
         // #64: name the merged session when every selected row is a bare detected bout (there's no sport
         // to inherit). Reuses the "Start a workout" named-sport picker.
-        .sheet(item: $mergeSportPrompt) { target in
+        .workoutSelectionCover(item: $mergeSportPrompt) { target in
             StartWorkoutSheet(title: String(localized: "Name the merged session"),
                               subtitle: String(localized: "These sessions have no sport label yet. Pick one for the merged session."),
                               actionVerb: String(localized: "Merge")) { name in
@@ -437,24 +440,13 @@ struct WorkoutsView: View {
     private func rangeBar(rows: [WorkoutRow], effectiveRange: Range) -> some View {
         let fellBack = effectiveRange != range
         let caption = rangeCaption(rows: rows, effectiveRange: effectiveRange, fellBack: fellBack)
-        #if os(iOS)
-        let stacked = hSizeClass == .compact
-        #else
-        let stacked = false
-        #endif
         return VStack(alignment: .leading, spacing: 8) {
-            if stacked {
-                // iPhone: button on its own row, the range pill full-width below — no crushed sliver.
-                addWorkoutButton
-                SegmentedPillControl(Range.allCases, selection: $range) { $0.label }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            } else {
-                HStack(spacing: 12) {
-                    addWorkoutButton
-                    Spacer()
-                    SegmentedPillControl(Range.allCases, selection: $range) { $0.label }
-                }
-            }
+            SegmentedPillControl(
+                Range.allCases,
+                selection: $range,
+                fillsAvailableWidth: true
+            ) { $0.label }
+                .frame(maxWidth: .infinity, alignment: .leading)
             filterBar
             Text(caption)
                 .font(StrandFont.footnote)
@@ -481,6 +473,7 @@ struct WorkoutsView: View {
                         Button(s) { sportFilter = s }
                     }
                 }
+                .frame(maxWidth: .infinity)
                 filterMenu(
                     title: sourceFilter.map(Self.sourceFilterLabel) ?? String(localized: "All sources"),
                     active: sourceFilter != nil,
@@ -492,6 +485,11 @@ struct WorkoutsView: View {
                         Button(Self.sourceFilterLabel(opt)) { sourceFilter = opt }
                     }
                 }
+                .frame(maxWidth: .infinity)
+            }
+            HStack(alignment: .center, spacing: NoopMetrics.space2) {
+                NoopLiquidGlassSearchField(text: $searchText,
+                                           prompt: String(localized: "Search sport"))
                 if filter.isActive {
                     Button {
                         withAnimation(.easeOut(duration: 0.15)) {
@@ -501,37 +499,13 @@ struct WorkoutsView: View {
                         Label(String(localized: "Clear"), systemImage: "xmark.circle.fill")
                             .font(StrandFont.footnote)
                             .foregroundStyle(StrandPalette.textSecondary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 7)
+                            .frame(minHeight: 44)
                     }
                     .accessibilityLabel(String(localized: "Clear filters"))
                 }
-                Spacer(minLength: 0)
             }
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(StrandPalette.textTertiary)
-                    .accessibilityHidden(true)
-                TextField(String(localized: "Search sport"), text: $searchText)
-                    .font(StrandFont.subhead)
-                    .foregroundStyle(StrandPalette.textPrimary)
-                    .textFieldStyle(.plain)
-                    #if os(iOS)
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
-                    #endif
-                if !searchText.isEmpty {
-                    Button { searchText = "" } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 12))
-                            .foregroundStyle(StrandPalette.textTertiary)
-                    }
-                    .accessibilityLabel(String(localized: "Clear search"))
-                }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(StrandPalette.surfaceInset.opacity(0.6),
-                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
     }
 
@@ -546,16 +520,18 @@ struct WorkoutsView: View {
                 Text(title).font(StrandFont.footnote).lineLimit(1)
                 Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
             }
+            .frame(maxWidth: .infinity)
             .foregroundStyle(active ? StrandPalette.effortColor : StrandPalette.textSecondary)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(
                 (active ? StrandPalette.effortColor.opacity(0.14) : StrandPalette.surfaceInset.opacity(0.6)),
-                in: Capsule()
+                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
             )
+            .contentShape(Rectangle())
         }
         .menuStyle(.borderlessButton)
-        .fixedSize()
+        .frame(maxWidth: .infinity)
         .accessibilityLabel(a11y)
         .accessibilityValue(title)
     }
@@ -579,7 +555,7 @@ struct WorkoutsView: View {
     /// Opens the add sheet (editing == nil). Present on the populated screen and the empty state so a
     /// user with no imports can still log a session.
     private var addWorkoutButton: some View {
-        NoopButton("Add workout", systemImage: "plus", kind: .secondary) {
+        NoopButton("Add workout", systemImage: "plus", kind: .secondary, fullWidth: true) {
             sheet = WorkoutSheetTarget(editing: nil)
         }
         .accessibilityLabel("Add a workout")
@@ -591,13 +567,25 @@ struct WorkoutsView: View {
     private var startLiveWorkoutButton: some View {
         NoopButton(model.activeWorkout == nil ? "Start workout" : "View active workout",
                    systemImage: model.activeWorkout == nil ? "figure.run" : "timer",
-                   kind: .primary) {
+                   kind: .primary,
+                   fullWidth: true) {
             // No active session → pick a named sport first (#519), then the sheet's onStart begins it
             // and opens the in-exercise view. Already active → jump straight back into the live view.
             if model.activeWorkout == nil { showStartSport = true }
             else { showLiveWorkout = true }
         }
         .accessibilityLabel(model.activeWorkout == nil ? "Start a workout" : "View the active workout")
+    }
+
+    /// Equal-width primary actions share the same content width as every card below them.
+    private var workoutActionRow: some View {
+        HStack(spacing: NoopMetrics.rowSpacing) {
+            startLiveWorkoutButton
+                .frame(maxWidth: .infinity)
+            addWorkoutButton
+                .frame(maxWidth: .infinity)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     /// The latest session start (anchors every window — windows are relative to the

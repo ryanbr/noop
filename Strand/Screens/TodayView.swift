@@ -1122,12 +1122,6 @@ struct TodayView: View {
 
             Spacer(minLength: 8)
 
-            // #245: a compact sync-status chip, visible to EVERY user (not only those still building
-            // scores — the big SyncingHistoryNote below is gated on `recovery == nil`). Three states
-            // (syncing / last-synced / experimental), so the absence of active syncing reads as caught-up;
-            // nothing only on a cold start. Owns its LiveState observation so a tick refreshes only it.
-            SyncStatusChip()
-
             // Uniform 36pt circular icon set: recording-status light, updates bell, quick-add (+), menu.
             HStack(spacing: 8) {
                 // Recording status, a colour-coded light (green recording / amber synced / red not
@@ -1939,7 +1933,7 @@ struct TodayView: View {
                                 .foregroundStyle(StrandPalette.textTertiary)
                         }
                         .padding(14)
-                        .background(RoundedRectangle(cornerRadius: 14).fill(StrandPalette.surfaceInset))
+                        .background(NoopPanelSurface(cornerRadius: 14))
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -4519,9 +4513,8 @@ struct TodayDayScopedCache {
 // ~1 Hz publish re-renders only the affected dot / note / row, never the rings, scene, sparklines,
 // HR chart or cards. They render byte-for-byte what the inline code did before the extraction.
 
-/// #245: the sync-status state that both header styles render — the classic top bar's `SyncStatusChip`
-/// and the Liquid header's `LiquidSyncChip` — resolved once from `LiveState` so the two chromes can't
-/// drift on WHEN to show what. THREE states so the ABSENCE of active syncing reads as "caught up", not
+/// #245: the sync-status state used by the Devices screen's larger sync card, resolved once from
+/// `LiveState`. THREE states mean the ABSENCE of active syncing reads as "caught up", not
 /// "missing indicator" (the real #245 confusion): actively offloading → `⟳ N`; idle with a known
 /// last-sync → `✓ Xm`; a 5/MG whose history sync is experimental (live-connected, no completed offload
 /// yet) → `✓ live`. `.hidden` only on a true cold start (the building-scores note owns that case). Twin
@@ -4540,7 +4533,7 @@ enum SyncChipState: Equatable {
         return .hidden
     }
 
-    /// Compact relative age for the header chip ("now" / "Nm" / "Nh" / "Nd") — deliberately terse.
+    /// Compact relative age for the status card ("now" / "Nm" / "Nh" / "Nd") — deliberately terse.
     /// "now" is the only word in here (the rest is digits + a unit letter), so it's the only piece that
     /// needs a catalog entry to translate; localized here rather than at each of the two call sites.
     private static func shortAgo(_ ts: TimeInterval) -> String {
@@ -4551,45 +4544,6 @@ enum SyncChipState: Equatable {
         let hrs = mins / 60
         if hrs < 24 { return "\(hrs)h" }
         return "\(hrs / 24)d"
-    }
-}
-
-/// #245: a compact sync-status chip for the Today top bar, shown to EVERY user. The full-width
-/// `SyncingHistoryNote` only renders while scores are still building (`recovery == nil`), so an
-/// established user — and especially a WHOOP 5/MG owner, whose history offloads are rare — saw no sync
-/// feedback on Today, only on the Live screen. Owns its `LiveState` observation so a live tick refreshes
-/// only this chip. DRAFT (#245): final styling/wording still to be finalised.
-struct SyncStatusChip: View {
-    @EnvironmentObject private var live: LiveState
-
-    var body: some View {
-        switch SyncChipState.resolve(live: live) {
-        case .syncing(let chunks):
-            chip(system: "arrow.triangle.2.circlepath", text: "\(chunks)", tint: StrandPalette.accent,
-                 a11y: String(localized: "Syncing strap history, \(chunks) chunks"))
-        case .synced(let agoText):
-            chip(system: "checkmark", text: agoText, tint: StrandPalette.textSecondary,
-                 a11y: String(localized: "Strap history synced \(agoText) ago"))
-        case .experimentalLive:
-            chip(system: "checkmark", text: String(localized: "live"), tint: StrandPalette.textSecondary,
-                 a11y: String(localized: "Connected; strap history sync is experimental on this strap"))
-        case .hidden:
-            EmptyView()
-            // cold start — render nothing; the building-scores SyncingHistoryNote covers it.
-        }
-    }
-
-    private func chip(system: String, text: String, tint: Color, a11y: String) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: system).font(.system(size: 11, weight: .semibold))
-            Text(text).font(StrandFont.captionNumber)
-        }
-        .foregroundStyle(tint)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .background(Capsule().fill(StrandPalette.surfaceInset))
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(a11y))
     }
 }
 

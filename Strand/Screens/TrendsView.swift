@@ -343,14 +343,15 @@ struct TrendsView: View {
             EmptyView()
         } else {
             VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {
-                weekNavBar
+                weekNavBar(digest: digest)
                 if digest.isEmpty {
                     // This particular week had no readings — keep the chevrons above so the user can move on.
                     DataPendingNote(
                         title: "No readings this week",
                         message: "Step to another week with the arrows above to see its review.")
                 } else {
-                    WeeklyDigestContent(digest: digest, compact: true)
+                    WeeklyDigestContent(digest: digest, compact: true, showsHeader: false)
+                        .padding(.top, NoopMetrics.space1)
                 }
             }
         }
@@ -358,9 +359,11 @@ struct TrendsView: View {
 
     /// Prev/next week stepper. Back is clamped at the earliest week we hold; forward is clamped at this
     /// week (no future weeks). Mirrors the FullDayChartView day stepper's flat accent chevrons (#597).
-    private var weekNavBar: some View {
+    private func weekNavBar(digest: WeeklyDigest) -> some View {
         let atOldest = weekOffset <= minWeekOffset
         let atNewest = weekOffset >= 0
+        let daysSummary = String(localized: "\(digest.daysWithData)/7 days")
+        let daysAccessibility = String(localized: "\(digest.daysWithData) of 7 days had data")
         return HStack(spacing: NoopMetrics.cardInnerSpacing) {
             Button { stepWeek(-1) } label: {
                 Image(systemName: "chevron.left").font(StrandFont.headline.weight(.semibold))
@@ -375,9 +378,15 @@ struct TrendsView: View {
                 Text(weekOffset == 0 ? String(localized: "This week") : weekOffsetLabel)
                     .font(StrandFont.headline)
                     .foregroundStyle(StrandPalette.textPrimary)
-                Text("Week in review")
-                    .strandOverline()
+                Text("\(weeklyDigestRangeLabel(digest)) · \(daysSummary)")
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                    .accessibilityLabel("\(weeklyDigestRangeLabel(digest)), \(daysAccessibility)")
             }
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
             Spacer()
 
             Button { stepWeek(1) } label: {
@@ -412,7 +421,7 @@ struct TrendsView: View {
         let effortAvg = mean(effort.points)   // stored 0–100 internal Effort scale
         let restAvg = mean(rest.points)
         if chargeAvg != nil || effortAvg != nil || restAvg != nil {
-            NoopCard(tint: StrandPalette.chargeColor) {
+            NoopCard {
                 VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {
                     SectionHeader("Week in review", overline: "Charge · Effort · Rest")
                     if let v = chargeAvg {
@@ -514,9 +523,11 @@ struct TrendsView: View {
         let isWide = recovery.widened
         return VStack(alignment: .leading, spacing: NoopMetrics.space2) {
             HStack {
-                SegmentedPillControl(Range.allCases, selection: $range) { $0.label }
-                Spacer()
-                Text(rangeSubtitle).strandOverline()
+                SegmentedPillControl(
+                    Range.allCases,
+                    selection: $range,
+                    fillsAvailableWidth: true
+                ) { $0.label }
             }
             Text(cap)
                 .font(StrandFont.footnote)
@@ -540,7 +551,6 @@ struct TrendsView: View {
             subtitle: rangeSubtitle,
             trailing: avg.map { "\(Int($0.rounded()))" },
             height: NoopMetrics.chartHeight,
-            tint: StrandPalette.chargeColor,
             chart: {
                 if pts.count >= 2 {
                     glowChart(points: pts,
@@ -599,7 +609,7 @@ struct TrendsView: View {
                     points: hrvPts,
                     gradient: gradient(StrandPalette.metricPurple),
                     tip: StrandPalette.metricPurple,
-                    tint: StrandPalette.chargeColor,
+                    tint: nil,
                     higherIsBetter: true,
                     range: valueRange(hrvPts, fallback: 20...120),
                     fmt: { "\(Int($0.rounded()))" }
@@ -611,7 +621,7 @@ struct TrendsView: View {
                     points: rhrPts,
                     gradient: gradient(StrandPalette.metricRose),
                     tip: StrandPalette.metricRose,
-                    tint: StrandPalette.chargeColor,
+                    tint: nil,
                     higherIsBetter: false,
                     range: valueRange(rhrPts, fallback: 40...80),
                     fmt: { "\(Int($0.rounded()))" }
@@ -647,7 +657,7 @@ struct TrendsView: View {
         subtitle: String? = nil,
         gradient: Gradient,
         tip: Color,
-        tint: Color,
+        tint: Color?,
         higherIsBetter: Bool?,
         range: ClosedRange<Double>,
         fmt: @escaping (Double) -> String
@@ -699,7 +709,7 @@ struct TrendsView: View {
             return RecoveryDay(date: dt, score: d.recovery)
         }
         let title = (range == .all && repo.days.count > 365) ? String(localized: "Charge (all history)") : String(localized: "Charge (past year)")
-        return NoopCard(tint: StrandPalette.chargeColor) {
+        return NoopCard {
             VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {
                 SectionHeader("\(title)", overline: "Calendar", trailing: String(localized: "\(recoveryDays.filter { $0.score != nil }.count) days"))
                 if recoveryDays.isEmpty {
@@ -760,7 +770,7 @@ struct TrendsView: View {
             .font(StrandFont.subhead)
             .foregroundStyle(StrandPalette.textTertiary)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            .background(StrandPalette.surfaceInset, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(NoopPanelSurface(cornerRadius: 12))
     }
 }
 

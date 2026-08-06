@@ -112,7 +112,7 @@ struct LiquidTodayView: View {
     /// The liquid heart pink (matches LiquidThread's default + the mockup #ff6b81).
     private let liquidHeart = Color(.sRGB, red: 1, green: 107 / 255, blue: 129 / 255, opacity: 1)
     /// Hero card fill: a translucent near-black so it floats over the sky (mock rgba(13,14,20,.78)).
-    private let heroFill = Color(.sRGB, red: 13 / 255, green: 14 / 255, blue: 20 / 255, opacity: 0.80)
+    private let heroFill = NoopVisualStyle.surface
     /// "Card transparency" (0–100, default 100): fades every liquid card surface here — the hero, the
     /// session-start row, the metric tiles and the `card` helper — in lockstep with the frosted cards.
     /// Content sits above the surface so it stays readable. Mirrors Kotlin `NoopPrefs.cardOpacityPercent`.
@@ -273,15 +273,19 @@ struct LiquidTodayView: View {
                         }
                     }
                     dataSourcesSection
+                    #if os(iOS)
                     Color.clear.frame(height: 90) // floating tab-bar clearance
+                    #else
+                    Color.clear.frame(height: 28) // sidebar shell — modest bottom breathing room only
+                    #endif
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 30) // sit the title lower into the sky, not jammed under the status bar
             }
             #if os(macOS)
-            // Keep the phone-shaped column readable + centred on the wide mac detail pane. The sky is a
-            // ScrollView background (full-bleed), so constraining the content column here doesn't touch it.
-            .frame(maxWidth: 680)
+            // Readable desktop column: wider than the phone stack so Key Metrics / cards can breathe on
+            // a detail pane, still capped so lines do not stretch edge-to-edge. Sky stays full-bleed.
+            .frame(maxWidth: 920)
             .frame(maxWidth: .infinity)
             #endif
         }
@@ -408,11 +412,11 @@ struct LiquidTodayView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(dayTitle)
                             .font(StrandFont.rounded(28))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(StrandPalette.textPrimary)
                             .shadow(color: .black.opacity(0.4), radius: 10, y: 1)
                         Text(dateLine)
                             .font(StrandFont.caption)
-                            .foregroundStyle(.white.opacity(0.78))
+                            .foregroundStyle(StrandPalette.textSecondary)
                             .shadow(color: .black.opacity(0.35), radius: 8, y: 1)
                     }
                     .contentShape(Rectangle())
@@ -432,27 +436,30 @@ struct LiquidTodayView: View {
                 HStack(spacing: 8) {
                     // Profile pic (the one set in Settings) → opens Settings, matching the classic Today.
                     Button { showSettings = true } label: {
-                        ProfileAvatarView(imageData: profile.avatarImageData, size: 34)
-                            .frame(width: 34, height: 34)
+                        Color.clear.frame(width: 34, height: 34)
                     }
-                    .buttonStyle(LiquidPressStyle())
+                    .nativeLiquidGlassHeaderButton()
+                    .overlay {
+                        GeometryReader { proxy in
+                            let diameter = min(proxy.size.width, proxy.size.height)
+                            ProfileAvatarView(imageData: profile.avatarImageData, size: diameter)
+                                .frame(width: diameter, height: diameter)
+                                .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+                        }
+                        .allowsHitTesting(false)
+                    }
+                    .nativeLiquidGlassPhotoFinish()
                     .accessibilityLabel("Profile and settings")
                     LiquidAddButton()
-                    // #245: the Liquid header shipped with no sync indication at all (B1) — add it next to
-                    // the battery button, matching the issue's own ask ("near the battery percentage") and
-                    // the layout Android already uses (its SyncStatusChip sits in the same row as the
-                    // battery ring).
-                    LiquidSyncChip()
                     LiquidBatteryButton()
                     // One entry point for section order/visibility and both nested card editors.
                     Button { customizationDestination = .today } label: {
                         Image(systemName: "slider.horizontal.3")
                             .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(StrandPalette.textPrimary)
                             .frame(width: 34, height: 34)
-                            .background(Circle().fill(.white.opacity(0.16)))
                     }
-                    .buttonStyle(LiquidPressStyle())
+                    .nativeLiquidGlassHeaderButton()
                     .accessibilityLabel("Customize Today")
                 }
             }
@@ -476,31 +483,22 @@ struct LiquidTodayView: View {
                 Image(systemName: "shield.lefthalf.filled")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(StrandPalette.metricCyan)
-                // The session-start row shares the hero card's pinned-dark `heroFill`, so its text/chevron
-                // use the on-dark tokens — textPrimary/Secondary/Tertiary flip to dark ink in Light mode and
-                // went dark-on-near-black here too (#1013).
                 Text("Start session")
                     .font(StrandFont.subhead)
-                    .foregroundStyle(StrandPalette.onDarkPrimary)
+                    .foregroundStyle(StrandPalette.textPrimary)
                 Text("BETA")
                     .font(StrandFont.overlineScaled(8.5)).tracking(1.2)
-                    .foregroundStyle(StrandPalette.onDarkSecondary)
+                    .foregroundStyle(StrandPalette.textSecondary)
                     .padding(.horizontal, 8).padding(.vertical, 2.5)
-                    .background(Capsule().fill(.white.opacity(0.05))
-                        .overlay(Capsule().strokeBorder(.white.opacity(0.18), lineWidth: 1)))
+                    .background(Capsule().fill(StrandPalette.surfaceInset.opacity(0.72))
+                        .overlay(Capsule().strokeBorder(StrandPalette.hairline, lineWidth: 1)))
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(StrandPalette.onDarkTertiary)
+                    .foregroundStyle(StrandPalette.textTertiary)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(heroFill)
-                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .strokeBorder(.white.opacity(0.11), lineWidth: 1))
-                    .opacity(cardOpacity)
-            )
+            .background(NoopPanelSurface(cornerRadius: 18, surfaceOpacity: cardOpacity))
         }
         .buttonStyle(LiquidPressStyle())
         .accessibilityLabel("Start a live session. Beta. Silent strap coaching against today's Charge.")
@@ -528,7 +526,7 @@ struct LiquidTodayView: View {
                           animated: dataLoaded, onGuide: { guideSection = .rest })
                 .overlay(alignment: .top) {
                     if let sourceLabel = heroSourceLabel {
-                        SourceBadge("\(sourceLabel)", tint: StrandPalette.onDarkSecondary)
+                        SourceBadge("\(sourceLabel)", tint: StrandPalette.textSecondary)
                             // Match the badge's trailing edge to the Rest vessel and centre it on the card border.
                             .fixedSize()
                             .frame(width: HeroScoreCell.vesselDiameter, alignment: .trailing)
@@ -540,14 +538,7 @@ struct LiquidTodayView: View {
         }
         .padding(.vertical, NoopMetrics.space4)
         .padding(.horizontal, NoopMetrics.space3)
-        .background(
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .fill(heroFill)
-                .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .strokeBorder(.white.opacity(0.11), lineWidth: 1))
-                .shadow(color: .black.opacity(0.6), radius: 30, y: 16)
-                .opacity(cardOpacity)
-        )
+        .background(NoopPanelSurface(cornerRadius: 26, elevated: true, surfaceOpacity: cardOpacity))
     }
 
     // MARK: - Heart rate
@@ -556,24 +547,13 @@ struct LiquidTodayView: View {
         VStack(spacing: 8) {
             sectionHead("HEART RATE", trailing: "Live")
             // #979: the whole-day HR trend (Deep Timeline) still exists but was buried behind Metrics →
-            // Show all → Deep Timeline. Make the live HR card a one-tap route into it, with a visible
-            // "Full day" affordance so it's discoverable again. (This comment used to claim the Deep
-            // Timeline already drew sleep + activity bands — it didn't at the time; the #979 spin-off
-            // added that parity in FullDayChartView.)
+            // Show all → Deep Timeline. The whole live HR card remains a one-tap route into it.
             NavigationLink(value: TabRoute.fullDayChart) {
                 card {
-                    VStack(spacing: 10) {
-                        // Isolated leaf: it observes LiveState so the ~1 Hz HR notifies re-render ONLY
-                        // this card, never the whole Today. Shows the current bpm live with a rolling
-                        // beat-by-beat trace; falls back to today's banked 5-minute trace when idle.
-                        LiquidLiveHR(tint: liquidHeart, fallback: hrValues, animated: dataLoaded)
-                        HStack(spacing: 4) {
-                            Spacer()
-                            Text("Full day").font(StrandFont.caption).foregroundStyle(StrandPalette.accent)
-                            Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(StrandPalette.accent)
-                        }
-                    }
+                    // Isolated leaf: it observes LiveState so the ~1 Hz HR notifies re-render ONLY
+                    // this card, never the whole Today. Shows the current bpm live with a rolling
+                    // beat-by-beat trace; falls back to today's banked 5-minute trace when idle.
+                    LiquidLiveHR(tint: liquidHeart, fallback: hrValues, animated: dataLoaded)
                 }
             }
             .buttonStyle(LiquidPressStyle())
@@ -686,13 +666,7 @@ struct LiquidTodayView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
-            .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(StrandPalette.surfaceRaised)
-                    .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .strokeBorder(StrandPalette.hairline, lineWidth: 1))
-                    .opacity(cardOpacity)
-            )
+            .background(NoopPanelSurface(tint: tint, cornerRadius: 20, surfaceOpacity: cardOpacity))
         }
         .buttonStyle(LiquidPressStyle())
     }
@@ -867,16 +841,21 @@ struct LiquidTodayView: View {
             // #430 parity: the grid honours the Key-Metrics editor (selection + order, all ten metrics)
             // instead of a hard-coded six — the bespoke Sleep-hours ktile gives way to the shared REST
             // score tile, aligning the liquid grid with the classic macOS grid and Android.
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
+            LazyVGrid(
+                columns: Array(
+                    repeating: GridItem(.flexible(), spacing: NoopMetrics.gap),
+                    count: 2
+                ),
+                spacing: NoopMetrics.gap
+            ) {
                 ForEach(enabledKeyMetrics) { metric in
                     ktileFor(metric, hrv: hrv, rhr: rhr)
                 }
             }
             NavigationLink(value: TabRoute.metricExplorer) {
-                Text("Show all metrics").font(StrandFont.subhead).foregroundStyle(StrandPalette.accent)
-                    .frame(maxWidth: .infinity).padding(.top, 2)
+                LiquidFullWidthNavigationAction("Show all metrics")
             }
-            .buttonStyle(.plain)
+            .buttonStyle(LiquidPressStyle())
         }
     }
 
@@ -892,45 +871,72 @@ struct LiquidTodayView: View {
             // hero are the same number, so a carry that reached only one of them would put two answers for
             // Charge on one screen. (#543: one prior row feeds every recovery-derived read-out.) Strain below
             // stays raw, matching the Effort hero, which correctly does not carry.
-            ktile(String(localized: "Recovery"), intText(chargeDisplay.pct), "%", StrandPalette.chargeColor, frac(chargeDisplay.pct), key: "recovery")
+            ktile(String(localized: "Recovery"), icon: keyMetricIcon(metric), intText(chargeDisplay.pct), "%", StrandPalette.chargeColor, frac(chargeDisplay.pct), key: "recovery")
         case .effort:
-            ktile(String(localized: "Strain"), intText(displayDay?.strain), "%", StrandPalette.effortColor, frac(displayDay?.strain), key: "strain")
+            ktile(String(localized: "Strain"), icon: keyMetricIcon(metric), intText(displayDay?.strain), "%", StrandPalette.effortColor, frac(displayDay?.strain), key: "strain")
         case .rest:
-            ktile(String(localized: "Rest"), intText(restScore), "%", StrandPalette.restColor, frac(restScore), key: "sleep_performance")
+            ktile(String(localized: "Rest"), icon: keyMetricIcon(metric), intText(restScore), "%", StrandPalette.restColor, frac(restScore), key: "sleep_performance")
         case .hrv:
-            ktile("HRV", intText(hrv), "ms", StrandPalette.metricCyan, fracOver(hrv, 120), key: "hrv")
+            ktile("HRV", icon: keyMetricIcon(metric), intText(hrv), "ms", StrandPalette.metricCyan, fracOver(hrv, 120), key: "hrv")
         case .restingHr:
-            ktile(String(localized: "Rest HR"), intText(rhr), "bpm", StrandPalette.metricRose, fracOver(rhr, 100), key: "rhr")
+            ktile(String(localized: "Rest HR"), icon: keyMetricIcon(metric), intText(rhr), "bpm", StrandPalette.metricRose, fracOver(rhr, 100), key: "rhr")
         case .bloodOxygen:
             let spo2 = displayDay?.spo2Pct ?? vitalsDay?.spo2Pct
-            ktile(String(localized: "Blood Oxygen"), intText(spo2), "%", StrandPalette.metricCyan, fracOver(spo2, 100), key: "spo2")
+            ktile(String(localized: "Blood Oxygen"), icon: keyMetricIcon(metric), intText(spo2), "%", StrandPalette.metricCyan, fracOver(spo2, 100), key: "spo2")
         case .respiratory:
             let resp = displayDay?.respRateBpm ?? vitalsDay?.respRateBpm
-            ktile(String(localized: "Respiratory"), resp.map { String(format: "%.1f", $0) } ?? "—", "rpm", StrandPalette.accent, fracOver(resp, 24), key: "resp_rate")
+            ktile(String(localized: "Respiratory"), icon: keyMetricIcon(metric), resp.map { String(format: "%.1f", $0) } ?? "—", "rpm", StrandPalette.accent, fracOver(resp, 24), key: "resp_rate")
         case .steps:
-            ktile(String(localized: "Steps"), stepsText, "", StrandPalette.chargeColor,
+            ktile(String(localized: "Steps"), icon: keyMetricIcon(metric), stepsText, "", StrandPalette.chargeColor,
                   fracOver(stepCount, 10000), key: stepsDetailKey, detailMetric: stepsDetailMetric)
         case .weight:
-            ktile(String(localized: "Weight"), "—", "", StrandPalette.metricAmber, nil, key: "weight")
+            ktile(String(localized: "Weight"), icon: keyMetricIcon(metric), "—", "", StrandPalette.metricAmber, nil, key: "weight")
         case .calories:
             // #616: imported-first value (imported ?: activeKcalEst) + route the tap to the matching
             // detail source, so the number, its sparkline and the chart it opens all agree.
-            ktile(String(localized: "Calories"), intText(caloriesCount), "kcal", StrandPalette.metricAmber,
+            ktile(String(localized: "Calories"), icon: keyMetricIcon(metric), intText(caloriesCount), "kcal", StrandPalette.metricAmber,
                   fracOver(caloriesCount, 800), key: "energy_kcal", detailMetric: caloriesDetailMetric)
         }
     }
 
-    private func ktile(_ label: String, _ value: String, _ unit: String, _ tint: Color, _ frac: Double?,
+    private func keyMetricIcon(_ metric: KeyMetric) -> String {
+        switch metric {
+        case .charge: return "heart.fill"
+        case .effort: return "bolt.fill"
+        case .rest: return "moon.stars.fill"
+        case .hrv: return "waveform.path.ecg"
+        case .restingHr: return "heart.circle.fill"
+        case .bloodOxygen: return "drop.fill"
+        case .respiratory: return "lungs.fill"
+        case .steps: return "figure.walk"
+        case .weight: return "scalemass.fill"
+        case .calories: return "flame.fill"
+        }
+    }
+
+    private func ktile(_ label: String, icon: String, _ value: String, _ unit: String, _ tint: Color, _ frac: Double?,
                        key: String? = nil, detailMetric: MetricDescriptor? = nil) -> some View {
-        let tile = VStack(alignment: .leading, spacing: 6) {
-            Text(label.uppercased()).font(StrandFont.overlineScaled(9)).tracking(1.2)
-                .foregroundStyle(StrandPalette.textTertiary)
-            (Text(value).font(StrandFont.number(17))
-                + Text(unit.isEmpty ? "" : " \(unit)").font(StrandFont.caption))
+        let tile = VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(tint.opacity(0.72))
+                    .frame(width: 14)
+                Text(label.uppercased())
+                    .font(StrandFont.overlineScaled(10))
+                    .tracking(1.0)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+            }
+            (Text(value).font(StrandFont.number(24))
+                + Text(unit.isEmpty ? "" : (unit == "%" ? unit : " \(unit)"))
+                    .font(StrandFont.number(24)))
                 .foregroundStyle(StrandPalette.textPrimary)
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            LiquidTube(frac: frac ?? 0, tint: tint, height: 8, animated: false)
+                .minimumScaleFactor(0.75)
+            LiquidTube(frac: frac ?? 0, tint: tint, height: 9, animated: false,
+                       showsHighlight: false, usesCleanFill: true)
             // #430 parity: DETAILED tiles grow the trend graph under the bar, tinted to the metric and
             // windowed to the editor's 2-day / 1-week / 2-week choice (the Android twin). A metric with no
             // windowed series keeps a clear placeholder of the same height so every tile in a detailed row
@@ -948,16 +954,11 @@ struct LiquidTodayView: View {
                 }
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 11)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(StrandPalette.surfaceRaised)
-                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(StrandPalette.hairline, lineWidth: 1))
-                .opacity(cardOpacity)
-        )
+        .frame(minHeight: keyMetricsDetailed ? 154 : 116, alignment: .topLeading)
+        .background(NoopPanelSurface(tint: tint, cornerRadius: 18, surfaceOpacity: cardOpacity))
         // #430 parity: tap -> the metric's trend detail (the same Explore dossier its MetricRow pushes,
         // closure-based NavigationLink per #38). A metric with no catalog entry stays inert.
         return Group {
@@ -1052,13 +1053,7 @@ struct LiquidTodayView: View {
         content()
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(StrandPalette.surfaceRaised)
-                    .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .strokeBorder(StrandPalette.hairline, lineWidth: 1))
-                    .opacity(cardOpacity)
-            )
+            .background(NoopPanelSurface(cornerRadius: 22, surfaceOpacity: cardOpacity))
     }
 
     // MARK: - Data
@@ -1423,7 +1418,7 @@ private struct LiquidWordmark: View {
             ForEach(Array("NOOP".enumerated()), id: \.offset) { _, ch in
                 Text(String(ch))
                     .font(StrandFont.rounded(16, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(StrandPalette.textTertiary)
             }
         }
         .shadow(color: .black.opacity(0.25), radius: 6, y: 1)
@@ -1500,7 +1495,7 @@ private struct HeroScoreCell: View {
                         Text("–").font(StrandFont.rounded(26))
                     }
                 }
-                .foregroundStyle(.white)
+                .foregroundStyle(StrandPalette.textPrimary)
                 .shadow(color: .black.opacity(0.5), radius: 6, y: 1)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
@@ -1514,10 +1509,7 @@ private struct HeroScoreCell: View {
                         .lineLimit(1).minimumScaleFactor(0.7)
                     Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).opacity(0.6)
                 }
-                // The hero card fill is pinned dark in BOTH themes, so the CHARGE/EFFORT/REST label must use
-                // the scheme-invariant on-dark token — textSecondary flips to dark ink in Light mode and
-                // went dark-on-near-black here (#1013).
-                .foregroundStyle(StrandPalette.onDarkSecondary)
+                .foregroundStyle(StrandPalette.textSecondary)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text("\(label), \(score.map { decimals > 0 ? String(format: "%.\(decimals)f", $0) : String(Int($0.rounded())) } ?? String(localized: "no data yet")). See how it is scored."))
@@ -1611,12 +1603,41 @@ private struct LiquidAddButton: View {
         Button { router.requestQuickActions() } label: {
             Image(systemName: "plus")
                 .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(StrandPalette.textPrimary)
                 .frame(width: 34, height: 34)
-                .background(Circle().fill(.white.opacity(0.16)))
         }
-        .buttonStyle(LiquidPressStyle())
+        .nativeLiquidGlassHeaderButton()
         .accessibilityLabel("Quick actions")
+    }
+}
+
+/// Shared quiet, full-width navigation affordance used for a secondary dashboard destination.
+/// The containing NavigationLink owns the destination and pressed interaction; this view owns one
+/// consistent token-based surface, typography, geometry, and trailing chevron.
+private struct LiquidFullWidthNavigationAction: View {
+    let title: LocalizedStringKey
+
+    init(_ title: LocalizedStringKey) {
+        self.title = title
+    }
+
+    var body: some View {
+        HStack(spacing: NoopButtonMetrics.iconSpacing) {
+            Text(title)
+                .font(StrandFont.subhead.weight(.semibold))
+            Spacer(minLength: NoopMetrics.space2)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 11, weight: .semibold))
+                .accessibilityHidden(true)
+        }
+        .foregroundStyle(StrandPalette.accent)
+        .padding(.horizontal, NoopButtonMetrics.hPadding)
+        .frame(maxWidth: .infinity)
+        .frame(height: NoopButtonMetrics.height)
+        .frame(minHeight: NoopButtonMetrics.minHitTarget)
+        .contentShape(Rectangle())
+        .background(NoopPanelSurface(cornerRadius: NoopButtonMetrics.cornerRadius))
+        .clipShape(RoundedRectangle(cornerRadius: NoopButtonMetrics.cornerRadius, style: .continuous))
     }
 }
 
@@ -1646,23 +1667,33 @@ private struct LiquidLiveHR: View {
         if fallback.count >= 2 { return String(localized: "5-minute average · since midnight") }
         return live.connected ? String(localized: "Waiting for the strap") : String(localized: "Strap not connected")
     }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("BEATS PER MINUTE").font(StrandFont.overline).tracking(1.6)
+            HStack(alignment: .center, spacing: NoopMetrics.space2) {
+                HStack(spacing: NoopMetrics.space1) {
+                    Text("BEATS PER MINUTE")
+                        .font(StrandFont.overline)
+                        .tracking(1.6)
                         .foregroundStyle(StrandPalette.textSecondary)
-                    Text(subtitle).font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.65)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(tint)
+                        .fixedSize()
+                        .accessibilityHidden(true)
                 }
-                Spacer()
+                .layoutPriority(1)
+                Spacer(minLength: NoopMetrics.space2)
                 if isLive {
-                    // A gentle heartbeat dot that pulses with each incoming sample.
-                    Circle().fill(tint).frame(width: 7, height: 7)
-                        .scaleEffect(beat ? 1.35 : 0.85)
-                        .opacity(beat ? 1 : 0.45)
+                    // Reuses the existing incoming-HR event pulse; no timer or continuous redraw loop.
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(tint)
+                        .scaleEffect(beat ? 1.18 : 0.88)
+                        .opacity(beat ? 1 : 0.62)
                         .animation(.easeOut(duration: 0.28), value: beat)
-                        .padding(.trailing, 2)
+                        .accessibilityHidden(true)
                 }
                 if let hr = bigBpm {
                     (Text("\(hr)").font(StrandFont.rounded(22)).monospacedDigit()
@@ -1672,8 +1703,16 @@ private struct LiquidLiveHR: View {
                         .animation(.easeOut(duration: 0.25), value: hr)
                 }
             }
+            Text(subtitle)
+                .font(StrandFont.caption)
+                .foregroundStyle(StrandPalette.textTertiary)
             if series.count >= 2 {
-                LiquidThread(bpm: series, tint: tint, height: 92, animated: animated)
+                ZStack {
+                    LiquidHeartRateGrid()
+                    LiquidThread(bpm: series, tint: tint, height: 92, animated: animated)
+                }
+                .frame(height: 92)
+                .clipShape(RoundedRectangle(cornerRadius: NoopMetrics.space2, style: .continuous))
                 HStack {
                     stat(String(localized: "Min"), series.min())
                     Spacer()
@@ -1704,6 +1743,35 @@ private struct LiquidLiveHR: View {
             Text(v.map { String(Int($0.rounded())) } ?? "–")
                 .font(StrandFont.captionNumber).foregroundStyle(StrandPalette.textSecondary)
         }
+    }
+}
+
+/// Static technical grid behind the live trace. Canvas draws only when layout/style changes, so the
+/// incoming heart-rate samples remain the card's sole animation driver.
+private struct LiquidHeartRateGrid: View {
+    var body: some View {
+        Canvas { context, size in
+            var path = Path()
+            let columns = 8
+            let rows = 4
+
+            for column in 1..<columns {
+                let x = size.width * CGFloat(column) / CGFloat(columns)
+                path.move(to: CGPoint(x: x, y: 0))
+                path.addLine(to: CGPoint(x: x, y: size.height))
+            }
+            for row in 1..<rows {
+                let y = size.height * CGFloat(row) / CGFloat(rows)
+                path.move(to: CGPoint(x: 0, y: y))
+                path.addLine(to: CGPoint(x: size.width, y: y))
+            }
+
+            context.stroke(path,
+                           with: .color(StrandPalette.hairline.opacity(0.34)),
+                           lineWidth: 0.5)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
@@ -1836,8 +1904,6 @@ private struct LiquidBatteryButton: View {
     var body: some View {
         Button { router.openDevices() } label: {
             ZStack {
-                Circle().fill(Color(.sRGB, red: 10 / 255, green: 11 / 255, blue: 16 / 255, opacity: 0.5))
-                Circle().strokeBorder(.white.opacity(0.15), lineWidth: 1)
                 switch display {
                 case .charge(let pct, let charging):
                     Circle()
@@ -1847,7 +1913,7 @@ private struct LiquidBatteryButton: View {
                         .padding(2.5)
                     Text("\(Int(pct.rounded()))")
                         .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.9))
+                        .foregroundStyle(StrandPalette.textPrimary)
                     if charging {
                         // #972: the default Today never surfaced charging state — only the % ring. A small
                         // bolt over the ring gives the same signal as the "· Charging" text on Mac/Android.
@@ -1861,16 +1927,16 @@ private struct LiquidBatteryButton: View {
                     // that is the one thing we actually know, and it is the wearer's live question.
                     Image(systemName: charging ? "bolt.fill" : "ellipsis")
                         .font(.system(size: charging ? 11 : 9, weight: .bold))
-                        .foregroundStyle(charging ? StrandPalette.chargeColor : .white.opacity(0.5))
+                        .foregroundStyle(charging ? StrandPalette.chargeColor : StrandPalette.textTertiary)
                 case .offline:
                     Image(systemName: "bolt.slash")
                         .font(.system(size: 11))
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(StrandPalette.textTertiary)
                 }
             }
             .frame(width: 34, height: 34)
         }
-        .buttonStyle(LiquidPressStyle())
+        .nativeLiquidGlassHeaderButton()
         .accessibilityLabel(batteryAccessibility)
     }
     /// Never "Strap battery" alone for a no-reading state — that was indistinguishable from a real one.
@@ -1894,46 +1960,34 @@ private struct LiquidBatteryButton: View {
     }
 }
 
-/// #245: the always-visible sync-status chip for the Liquid header, next to `LiquidBatteryButton`.
-///
-/// B1 (docs/bugs/2026-07-15-strap-battery-backfill-observability.md): the v8 Liquid redesign shipped no
-/// backfill indication AT ALL in the header, so a multi-hour history recovery was completely invisible —
-/// the wearer could not tell a working strap mid-drain from a dead one, only `LiquidSyncStatusRow` below
-/// (buried in the collapsible Data Sources card) said anything, and only once expanded. This closes that
-/// gap using the SAME state (`SyncChipState`, shared with the classic Today's `SyncStatusChip`) so the two
-/// headers can't disagree on when syncing is happening — restyled to this header's own dark-hero icon
-/// idiom (`.white.opacity(0.16)` fill, white content, matching `LiquidAddButton`) rather than reusing
-/// `SyncStatusChip`'s light-surface chrome, which would read poorly over the photo/gradient hero.
-private struct LiquidSyncChip: View {
-    @EnvironmentObject var live: LiveState
-
-    var body: some View {
-        switch SyncChipState.resolve(live: live) {
-        case .syncing(let chunks):
-            pill(system: "arrow.triangle.2.circlepath", text: "\(chunks)",
-                 a11y: String(localized: "Syncing strap history, \(chunks) chunks"))
-        case .synced(let agoText):
-            pill(system: "checkmark", text: agoText,
-                 a11y: String(localized: "Strap history synced \(agoText) ago"))
-        case .experimentalLive:
-            pill(system: "checkmark", text: String(localized: "live"),
-                 a11y: String(localized: "Connected; strap history sync is experimental on this strap"))
-        case .hidden:
-            EmptyView()
+private extension View {
+    /// The edge-to-edge photo is overlaid after the native button style so it can fill the face. Finish
+    /// the composed control with interactive system glass as the topmost visual layer; otherwise the
+    /// opaque photo would conceal the button style's refraction and highlight.
+    @ViewBuilder
+    func nativeLiquidGlassPhotoFinish() -> some View {
+        if #available(iOS 26.0, macOS 26.0, *) {
+            self.glassEffect(.regular.interactive(), in: Circle())
+        } else {
+            self
         }
     }
 
-    private func pill(system: String, text: String, a11y: String) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: system).font(.system(size: 11, weight: .bold))
-            Text(text).font(.system(size: 12, weight: .bold))
+    /// Platform-owned Home-header button chrome. iOS/macOS 26 supplies the interactive Liquid Glass
+    /// button material; older supported releases keep the same circular geometry with a native system material.
+    @ViewBuilder
+    func nativeLiquidGlassHeaderButton() -> some View {
+        if #available(iOS 26.0, macOS 26.0, *) {
+            self
+                .buttonStyle(.glass)
+                .buttonBorderShape(.circle)
+                .controlSize(.small)
+        } else {
+            self
+                .buttonStyle(LiquidPressStyle())
+                .background(.ultraThinMaterial, in: Circle())
+                .overlay(Circle().strokeBorder(.white.opacity(0.16), lineWidth: 0.8))
         }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 10)
-        .frame(height: 34)
-        .background(Capsule().fill(.white.opacity(0.16)))
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(a11y))
     }
 }
 
@@ -1950,7 +2004,7 @@ private struct LiquidSyncChip: View {
 /// it has pulled, and when one last completed. It does NOT yet say "~15h behind" — that needs the
 /// persisted data frontier (max HR ts) compared against `strapRange.newestUnix`, and the frontier is a
 /// Repository read that LiveState does not carry. That remains open in B1. Kept here in the Data Sources
-/// card as the detailed view; `LiquidSyncChip` above is the header's ambient at-a-glance signal.
+/// card as the detailed view; the Devices screen now owns the larger at-a-glance sync card.
 private struct LiquidSyncStatusRow: View {
     @EnvironmentObject var live: LiveState
     var body: some View {

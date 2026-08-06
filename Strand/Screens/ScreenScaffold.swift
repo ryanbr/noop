@@ -47,7 +47,7 @@ struct ScreenScaffold<Content: View, Trailing: View>: View {
             column
             #if os(iOS)
             // Unified side margins matching the liquid home (16pt) so every page's cards + header line up
-            // to the same edges (2026-07-02); macOS keeps the classic 28 in the #else branch.
+            // to the same edges (2026-07-02).
             .padding(.horizontal, 16)
             .padding(.top, 24)
             // The tab bar floats over the scroll content, so the last card sat hidden behind it.
@@ -59,8 +59,14 @@ struct ScreenScaffold<Content: View, Trailing: View>: View {
                    alignment: hSizeClass == .regular ? .center : .leading)
             .frame(maxWidth: .infinity, alignment: .center)
             #else
-            .padding(28)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            // macOS: same 16/24 content rhythm as iOS so shared cards align with Liquid Today, but no
+            // tab-bar clearance (sidebar shell). Cap + centre the readable column on wide detail panes
+            // so lines stay comfortable without stretching phone chrome edge-to-edge.
+            .padding(.horizontal, 16)
+            .padding(.top, 24)
+            .padding(.bottom, 28)
+            .frame(maxWidth: 980, alignment: .center)
+            .frame(maxWidth: .infinity, alignment: .center)
             #endif
         }
         #if os(iOS)
@@ -115,23 +121,15 @@ struct ScreenScaffold<Content: View, Trailing: View>: View {
     }
 
     private var header: some View {
-        // When a `topBackground` (the day-cycle liquid sky) sits behind the header, that band is dark in
-        // BOTH themes — so the title/subtitle must use the scheme-invariant on-dark tokens. The regular
-        // text tokens flip to dark ink in Light mode and went dark-on-dark over the sky, exactly the #1013
-        // pattern the Liquid Today hero hit (osifaind's Trends-tab sibling report). Flat-canvas screens
-        // (no topBackground) keep the theme tokens so the header reads on the light/dark surfaceBase.
-        let overSky = topBackground != nil
-        let titleColor = overSky ? StrandPalette.onDarkPrimary : StrandPalette.textPrimary
-        let subtitleColor = overSky ? StrandPalette.onDarkSecondary : StrandPalette.textSecondary
-        return HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 if let title {
                     // Match the liquid home's title face (SF Rounded 28) so every page's header reads
                     // identically (2026-07-02 cohesion pass).
-                    Text(title).font(StrandFont.rounded(28)).foregroundStyle(titleColor)
+                    Text(title).font(StrandFont.rounded(28)).foregroundStyle(StrandPalette.textPrimary)
                 }
                 if let subtitle {
-                    Text(subtitle).font(StrandFont.subhead).foregroundStyle(subtitleColor)
+                    Text(subtitle).font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)
                 }
             }
             Spacer(minLength: 0)

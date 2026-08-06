@@ -149,7 +149,7 @@ public struct ConnectionDot: View {
             ConnectionDot(tone: .positive, pulsing: true)
         }
         .padding(12)
-        .background(StrandPalette.surfaceRaised, in: RoundedRectangle(cornerRadius: 12))
+        .background(NoopPanelSurface(cornerRadius: 12))
         .frame(width: 300)
     }
     .padding(28)

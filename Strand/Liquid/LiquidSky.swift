@@ -24,16 +24,31 @@ private func hx(_ hex: UInt32) -> Color {
 /// The ten keyframes mirror the real app's day-cycle scenes (SceneHeroBackground),
 /// as pure gradients rather than painted art.
 let liquidSkyKeys: [LiquidSkyStop] = [
-    .init(h: 0,    top: hx(0x05060f), mid: hx(0x0b0e22), hor: hx(0x1a1440), stars: 1,   warm: 0),
-    .init(h: 5,    top: hx(0x0a0d24), mid: hx(0x1c1a4a), hor: hx(0x4a2a6a), stars: 0.6, warm: 0),
-    .init(h: 6.5,  top: hx(0x1b1b4d), mid: hx(0x4a2f7d), hor: hx(0xb0567a), stars: 0.25, warm: 0.2),
-    .init(h: 8.5,  top: hx(0x2a4a8f), mid: hx(0x7a5aa0), hor: hx(0xf0a060), stars: 0,   warm: 0.6),
-    .init(h: 11,   top: hx(0x2a6ac8), mid: hx(0x5a9ae0), hor: hx(0xa8cef0), stars: 0,   warm: 0.95),
-    .init(h: 14,   top: hx(0x2f74d0), mid: hx(0x66a6e8), hor: hx(0xb8d8f4), stars: 0,   warm: 1),
-    .init(h: 17.5, top: hx(0x3a4a90), mid: hx(0x9a5a80), hor: hx(0xf0924a), stars: 0,   warm: 0.4),
-    .init(h: 19.5, top: hx(0x221c50), mid: hx(0x4a2a70), hor: hx(0x8a4a80), stars: 0.45, warm: 0),
-    .init(h: 22,   top: hx(0x070818), mid: hx(0x141335), hor: hx(0x2a1d55), stars: 1,   warm: 0),
-    .init(h: 24,   top: hx(0x05060f), mid: hx(0x0b0e22), hor: hx(0x1a1440), stars: 1,   warm: 0),
+    .init(h: 0,    top: hx(0x191A1F), mid: hx(0x1D1E23), hor: hx(0x22242B), stars: 0.20, warm: 0),
+    .init(h: 5,    top: hx(0x1A1B20), mid: hx(0x1D1F24), hor: hx(0x23252C), stars: 0.12, warm: 0),
+    .init(h: 6.5,  top: hx(0x1B1C21), mid: hx(0x1F2026), hor: hx(0x25272E), stars: 0.06, warm: 0),
+    .init(h: 8.5,  top: hx(0x1C1D22), mid: hx(0x202229), hor: hx(0x272A31), stars: 0, warm: 0),
+    .init(h: 11,   top: hx(0x1D1E23), mid: hx(0x21232A), hor: hx(0x292C33), stars: 0, warm: 0),
+    .init(h: 14,   top: hx(0x1D1E23), mid: hx(0x22242B), hor: hx(0x292C34), stars: 0, warm: 0),
+    .init(h: 17.5, top: hx(0x1C1D22), mid: hx(0x202229), hor: hx(0x272930), stars: 0, warm: 0),
+    .init(h: 19.5, top: hx(0x1B1C21), mid: hx(0x1F2026), hor: hx(0x24262D), stars: 0.05, warm: 0),
+    .init(h: 22,   top: hx(0x191A1F), mid: hx(0x1D1E23), hor: hx(0x22242B), stars: 0.16, warm: 0),
+    .init(h: 24,   top: hx(0x191A1F), mid: hx(0x1D1E23), hor: hx(0x22242B), stars: 0.20, warm: 0),
+]
+
+/// Light appearance keeps the same time-of-day movement without beginning from the dark-only
+/// keyframes above. The restrained blue-gray atmosphere settles naturally into the light canvas.
+private let liquidLightSkyKeys: [LiquidSkyStop] = [
+    .init(h: 0,    top: hx(0xDCE3ED), mid: hx(0xE5EAF1), hor: hx(0xEEF1F5), stars: 0.08, warm: 0),
+    .init(h: 5,    top: hx(0xDDE5EE), mid: hx(0xE7EBF1), hor: hx(0xEFF2F5), stars: 0.05, warm: 0),
+    .init(h: 6.5,  top: hx(0xE1E8EF), mid: hx(0xE9EDF2), hor: hx(0xF0F2F5), stars: 0.02, warm: 0),
+    .init(h: 8.5,  top: hx(0xE3EBF1), mid: hx(0xEAF0F3), hor: hx(0xF1F3F5), stars: 0, warm: 0),
+    .init(h: 11,   top: hx(0xE1EAF0), mid: hx(0xE9EEF2), hor: hx(0xF1F3F5), stars: 0, warm: 0),
+    .init(h: 14,   top: hx(0xDFE8EF), mid: hx(0xE8EDF2), hor: hx(0xF0F2F5), stars: 0, warm: 0),
+    .init(h: 17.5, top: hx(0xE1E7ED), mid: hx(0xE8ECF1), hor: hx(0xEFF1F4), stars: 0, warm: 0),
+    .init(h: 19.5, top: hx(0xDDE4EC), mid: hx(0xE6EAF0), hor: hx(0xEEF1F4), stars: 0.02, warm: 0),
+    .init(h: 22,   top: hx(0xDAE2EC), mid: hx(0xE4E9F0), hor: hx(0xEDF0F4), stars: 0.06, warm: 0),
+    .init(h: 24,   top: hx(0xDCE3ED), mid: hx(0xE5EAF1), hor: hx(0xEEF1F5), stars: 0.08, warm: 0),
 ]
 
 private func lerp(_ a: Double, _ b: Double, _ t: Double) -> Double { a + (b - a) * t }
@@ -42,10 +57,11 @@ private func lerpColor(_ a: Color, _ b: Color, _ t: Double) -> Color {
     return Color(.sRGB, red: lerp(x.r, y.r, t), green: lerp(x.g, y.g, t), blue: lerp(x.b, y.b, t), opacity: 1)
 }
 
-func liquidSkyAt(_ hour: Double) -> (top: Color, mid: Color, hor: Color, stars: Double, warm: Double) {
+func liquidSkyAt(_ hour: Double, light: Bool = false) -> (top: Color, mid: Color, hor: Color, stars: Double, warm: Double) {
+    let keys = light ? liquidLightSkyKeys : liquidSkyKeys
     var i = 0
-    while i < liquidSkyKeys.count - 2 && liquidSkyKeys[i + 1].h <= hour { i += 1 }
-    let a = liquidSkyKeys[i], b = liquidSkyKeys[i + 1]
+    while i < keys.count - 2 && keys[i + 1].h <= hour { i += 1 }
+    let a = keys[i], b = keys[i + 1]
     let t = max(0, min(1, (hour - a.h) / (b.h - a.h)))
     return (lerpColor(a.top, b.top, t), lerpColor(a.mid, b.mid, t), lerpColor(a.hor, b.hor, t),
             lerp(a.stars, b.stars, t), lerp(a.warm, b.warm, t))
@@ -81,12 +97,12 @@ struct LiquidSky: View {
             // so there is no hard seam where the sky meets the page — light mode made this glaring.
             let dark = scheme == .dark
             let settle = Color(.sRGB,
-                               red: dark ? 18.0 / 255.0 : 242.0 / 255.0,
-                               green: dark ? 21.0 / 255.0 : 242.0 / 255.0,
-                               blue: dark ? 24.0 / 255.0 : 247.0 / 255.0,
+                               red: dark ? 29.0 / 255.0 : 242.0 / 255.0,
+                               green: dark ? 30.0 / 255.0 : 242.0 / 255.0,
+                               blue: dark ? 35.0 / 255.0 : 247.0 / 255.0,
                                opacity: 1)
             Canvas { ctx, size in
-                render(ctx, size, hour: h, now: now, settle: settle)
+                render(ctx, size, hour: h, now: now, settle: settle, light: !dark)
             }
         }
     }
@@ -97,8 +113,8 @@ struct LiquidSky: View {
     }
 
     private func render(_ base: GraphicsContext, _ size: CGSize, hour: Double, now: Double,
-                        settle: Color) {
-        let S = liquidSkyAt(hour)
+                        settle: Color, light: Bool) {
+        let S = liquidSkyAt(hour, light: light)
         let w = size.width, h = size.height
         var ctx = base
         // the gradient IS the scene
@@ -189,12 +205,12 @@ struct LiquidSkyStatic: View {
         let h = hour ?? liveHour()
         let dark = scheme == .dark
         let settle = Color(.sRGB,
-                           red: dark ? 18.0 / 255.0 : 242.0 / 255.0,
-                           green: dark ? 21.0 / 255.0 : 242.0 / 255.0,
-                           blue: dark ? 24.0 / 255.0 : 247.0 / 255.0,
+                           red: dark ? 29.0 / 255.0 : 242.0 / 255.0,
+                           green: dark ? 30.0 / 255.0 : 242.0 / 255.0,
+                           blue: dark ? 35.0 / 255.0 : 247.0 / 255.0,
                            opacity: 1)
         Canvas { ctx, size in
-            let S = liquidSkyAt(h)
+            let S = liquidSkyAt(h, light: !dark)
             let w = size.width, hh = size.height
             ctx.fill(Path(CGRect(x: 0, y: 0, width: w, height: hh)),
                      with: .linearGradient(Gradient(stops: [
