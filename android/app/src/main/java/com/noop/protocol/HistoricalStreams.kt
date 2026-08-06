@@ -294,6 +294,40 @@ fun decodeHistorical(frame: ByteArray, family: DeviceFamily = DeviceFamily.WHOOP
 }
 
 /**
+ * The WHOOP 5/MG type-47 `hist_version` values THIS platform has a real field map for. Every other
+ * version reaches no decoder at all: [decodeWhoop5Historical] returns null and nothing but the raw bytes
+ * of the record can preserve it.
+ *
+ * This is the single source of truth for "does NOOP-Android understand this layout": the version gates in
+ * [decodeWhoop5Historical] and the v26 branch of [extractHistoricalStreams] read nothing else, and
+ * [rejectedHistoricalRecords] uses it to decide which records must be archived raw. Keeping one set means
+ * the two can never disagree — the failure mode this replaced was a record from an unmapped layout that
+ * happened to decode a plausible `unix` and `gravity_x`/`heart_rate` slipping past the archive filter, so
+ * its bytes were kept nowhere at all and the strap freed them on the very next trim ack.
+ *
+ * ⚠️ DELIBERATELY NARROWER THAN THE SWIFT `mappedWhoop5HistoricalVersions`, which is `[18, 20, 21, 26]`.
+ * Swift's `decodeWhoop5Historical` dispatches v20 (raw optical block) and v21 (raw 6-axis IMU) through
+ * `decodeWhoop5HistoricalV2021`; the Kotlin historical path has no such branch — `Whoop5RawOptical` and
+ * `Whoop5RawImu` exist here but are wired to the LIVE deep-buffer route in `WhoopBleClient`, not to the
+ * type-47 historical dispatch. Claiming 20/21 here would assert a field map Android does not have, which
+ * is precisely the "it holds by accident" class of bug this constant was introduced to close. The archive
+ * OUTCOME is unchanged either way today: an unmapped 5/MG version already decodes to null on Android and
+ * so was already archived by the decode-outcome route. Add a version here only when a decoder for it
+ * lands on this side. Pinned by `UnmappedHistoricalLayoutTest`.
+ */
+val MAPPED_WHOOP5_HISTORICAL_VERSIONS: Set<Int> = setOf(18, 26)
+
+/**
+ * True when [frame] is a WHOOP 5/MG type-47 record whose layout version has NO field map on this
+ * platform — the records that are never re-derivable from anything NOOP stores. Non-type-47 and
+ * too-short frames are false. Twin of the Swift `isUnmappedWhoop5HistoricalRecord`.
+ */
+fun isUnmappedWhoop5HistoricalRecord(frame: ByteArray): Boolean {
+    if (frame.size <= 9 || (frame[8].toInt() and 0xFF) != PacketType.HISTORICAL_DATA.rawValue) return false
+    return (frame[9].toInt() and 0xFF) !in MAPPED_WHOOP5_HISTORICAL_VERSIONS
+}
+
+/**
  * WHOOP 5.0/MG type-47 "v18" historical decode. The puffin envelope is longer, so the record starts at
  * byte 8 (type@8, version@9) and fields sit at their WHOOP5-ABSOLUTE offsets — NOT the WHOOP4 V24 layout
  * shifted by +4 (that decodes to garbage on v18). Offsets verified against real worn/off-wrist frames
@@ -307,6 +341,11 @@ fun decodeHistorical(frame: ByteArray, family: DeviceFamily = DeviceFamily.WHOOP
 private fun decodeWhoop5Historical(frame: ByteArray): Map<String, Any?>? {
     if (frame.histU8(8) != PacketType.HISTORICAL_DATA.rawValue) return null
     val version = frame.histU8(9) ?: return null
+    // One gate, one list: 18 is the only version this function maps, and v26 (handled by
+    // [decodeWhoop5HistoricalV26] from [extractHistoricalStreams]) is the only other one this platform
+    // maps at all — so [MAPPED_WHOOP5_HISTORICAL_VERSIONS] must contain exactly {18, 26}. That set is
+    // what decides whether a record gets archived raw, so the two cannot be allowed to drift;
+    // `UnmappedHistoricalLayoutTest` pins the lockstep against the decoder's actual behaviour.
     if (version != 18) return null
 
     val out = LinkedHashMap<String, Any?>()
@@ -477,10 +516,12 @@ private fun decodeWhoop5HistoricalV26(frame: ByteArray): V26Record? {
 }
 
 /**
- * The HISTORICAL_DATA (type-47) record frames in [rawFrames] that genuinely FAIL to decode — a CRC
- * failure, or an unmapped firmware layout whose v24 plausibility gate (see [decodeHistorical]) also
- * rejects it. These are exactly the record frames [extractHistoricalStreams] silently drops: their
- * biometric payload would otherwise be lost forever once the strap trims the acked history.
+ * The HISTORICAL_DATA (type-47) record frames in [rawFrames] that NOOP cannot turn into rows — a CRC
+ * failure, an unmapped firmware layout (5/MG: any `hist_version` outside
+ * [MAPPED_WHOOP5_HISTORICAL_VERSIONS]), or a mapped layout whose envelope parsed but whose v24
+ * plausibility gate (see [decodeHistorical]) rejected it. These are the record frames
+ * [extractHistoricalStreams] silently drops: their biometric payload would otherwise be lost forever once
+ * the strap trims the acked history.
  *
  * EXCLUDED (decode to zero rows BY DESIGN, never "lost" data — must NOT be counted):
  *   - CONSOLE_LOGS (type-50) frames — the strap's own diagnostics text channel. On WHOOP 4.0 the
@@ -507,6 +548,24 @@ fun rejectedHistoricalRecords(
         if (t != PacketType.HISTORICAL_DATA.rawValue) return@filter false // type-50 console / metadata / etc.
         // WHOOP 5/MG v26 = raw PPG block, deliberately not stored — known-skipped, not lost data.
         if (family == DeviceFamily.WHOOP5 && frame.histU8(9) == 26) return@filter false
+        // UNMAPPED LAYOUT (5/MG) — archive UNCONDITIONALLY, whatever it decoded.
+        //
+        // The decode-outcome test below is the wrong QUESTION for a layout NOOP has no field map for.
+        // Today it happens to give the right ANSWER, because [decodeWhoop5Historical] returns null for
+        // every version outside [MAPPED_WHOOP5_HISTORICAL_VERSIONS] — but that is an accident of the
+        // decoder's current shape, not a property of the format. One static schema field for type 47, or
+        // one partially-mapped new version, and a record that yielded a plausible `unix` plus a
+        // `heart_rate`/`gravity_x` would pass the screen and be kept NOWHERE at all, its bytes freed by
+        // the very next trim ack. That is exactly the shape a novel record type (a new firmware's rollup,
+        // an on-demand capture) can take. Deciding on the VERSION makes it structural.
+        //
+        // This cannot flood the archive with records we already understand: the mapped versions never
+        // reach here. Retention for the records that DO ([RawHistoryArchive.evictLines]) evicts
+        // entirely-zero-payload frames first, so a firmware that banks empty placeholder records at 1 Hz
+        // cannot push out the one informative frame either. Twin of the Swift `rejectedHistoricalRecords`
+        // layout clause. WHOOP 4 is untouched: its unmapped versions go through the v24 fallback below,
+        // which keeps a record only when it validates physiologically.
+        if (family == DeviceFamily.WHOOP5 && isUnmappedWhoop5HistoricalRecord(frame)) return@filter true
         // A type-47 record that [decodeHistorical] cannot turn into usable biometrics — CRC failure or
         // an unmapped layout the v24-fallback plausibility gate rejected. This is precisely what
         // [extractHistoricalStreams] drops (`decodeHistorical(...) ?: continue`), so the rejected set

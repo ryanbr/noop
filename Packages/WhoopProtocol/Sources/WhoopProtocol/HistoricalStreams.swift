@@ -65,10 +65,11 @@ public func isPlausibleHistoricalUnix(_ ts: Int, wallNow: Int,
     return ts >= oldest - SESSION_RANGE_MARGIN && ts <= newest + SESSION_RANGE_MARGIN
 }
 
-/// The HISTORICAL_DATA record frames in `rawFrames` that FAIL decode — a genuine CRC failure, or an
-/// unmapped firmware layout whose envelope parsed but yielded no usable biometrics. These are the
-/// records the strap is about to free once we ack the trim, so without an archive they are lost
-/// forever while the UI reports a clean sync (#77 / #91).
+/// The HISTORICAL_DATA record frames in `rawFrames` that NOOP cannot turn into rows — a genuine CRC
+/// failure, an unmapped firmware layout (5/MG: any `hist_version` outside
+/// `mappedWhoop5HistoricalVersions`), or a mapped layout whose envelope parsed but yielded no usable
+/// biometrics. These are the records the strap is about to free once we ack the trim, so without an
+/// archive they are lost forever while the UI reports a clean sync (#77 / #91).
 ///
 /// Console (type-50, `frame[typeIndex] == 0x32`) frames are strap-side debug-log text that decode to
 /// zero rows BY DESIGN and are never returned. 5/MG v26 (raw PPG block, hist_version 26) is also
@@ -91,6 +92,20 @@ public func rejectedHistoricalRecords(_ rawFrames: [[UInt8]], family: DeviceFami
         // different type byte, so they never pass this gate — they are excluded by construction.
         guard f.count > typeIndex, Int(f[typeIndex]) == 47 else { return false }
         if family == .whoop5, f.count > versionIndex, Int(f[versionIndex]) == 26 { return false }  // v26 PPG: has its own durable stream (ppgWaveform), not this reject archive
+        // UNMAPPED LAYOUT (5/MG) — archive UNCONDITIONALLY, whatever it decoded.
+        //
+        // The decode-outcome test below is the wrong question for a layout NOOP has no field map for.
+        // `decodeWhoop5Historical`'s unmapped branch reads no offsets, so anything that DOES appear in
+        // `parsed` for such a record came from the envelope, not from a mapped biometric — and a record
+        // that happened to yield a plausible `unix` plus a `gravity_x`/`heart_rate` used to pass the
+        // screen and be kept NOWHERE, its bytes freed by the very next trim ack. That is exactly the
+        // shape a novel record type (a new firmware's rollup, an on-demand capture) can take.
+        //
+        // This cannot flood the archive with records we already understand: v18/v20/v21/v26 are in
+        // `mappedWhoop5HistoricalVersions` and never reach here. Retention for the records that DO
+        // (`RawHistoryArchive.evictLines`) evicts entirely-zero-payload frames first, so a firmware that
+        // banks empty placeholder records at 1 Hz cannot push out the one informative frame either.
+        if family == .whoop5, isUnmappedWhoop5HistoricalRecord(f) { return true }
         let p = parseFrame(f, family: family)
         // Envelope/CRC reject: parse failed outright or the CRC32 trailer mismatched.
         if !p.ok || p.crcOK == false { return true }
