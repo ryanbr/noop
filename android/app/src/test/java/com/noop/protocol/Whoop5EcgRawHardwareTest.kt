@@ -2,19 +2,22 @@ package com.noop.protocol
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
  * The Kotlin twin of WhoopProtocolTests/Whoop5EcgRawHardwareTests.swift, against the SAME real bytes.
  *
- * The two complete 1584-byte type-47 layout-16 WHOOP MG flash records embedded here came off hardware on
- * 2026-08-06 while the clasp electrodes were held; they are byte-identical to the Swift fixtures. The
+ * The three complete 1584-byte type-47 layout-16 WHOOP MG flash records embedded here came off hardware
+ * on 2026-08-06 while the clasp electrodes were held; they are byte-identical to the Swift fixtures. The
  * cross-platform parity contract says the two decoders must agree on stored values, and a synthetic
  * fixture can only prove they agree about an assumption — these bytes prove they agree about the strap.
  *
- * Only the load-bearing assertions are mirrored: the fixed-size leads-off block, the resolved sample
- * width, and that a populated record is not discarded. The full characterisation (including the header
- * misalignment that is still open, and the 18-bit continuity argument) lives on the Swift side.
+ * Only the load-bearing assertions are mirrored: the two fixed-size containers (the leads-off block and
+ * the sample region), the resolved sample width, and that a populated record is not discarded. The full
+ * characterisation (including the header misalignment that is still open, and the 18-bit continuity
+ * argument) lives on the Swift side.
  *
  * No scale or unit is claimed for the sample values, and none is applied.
  */
@@ -95,11 +98,54 @@ class Whoop5EcgRawHardwareTest {
         "0b800589800dde8019cf8020168020a2800e2b8003ac800ba6801956801838800ebe800c68800d218009ee800e4b0a43" +
         "004300430043004300420042004200420042000000f7fff7fff7fff7fff7fff7fff6fff6fff6fff6ff000000fe104255"
 
+    /**
+     * unix 1786031625 — the capture's one PARTLY FILLED record, numberOfECGSamples == 245.
+     *
+     * The first record of the second reading: the empty record before it is at 1786031624 and the first
+     * full 500-sample one at 1786031626, so the strap began the reading part-way into this record's
+     * second and wrote 245 of the region's 500 slots. Same 1584-byte frame, same leads-off offsets.
+     */
+    private val hexPartial245 =
+        "aa0128060100cde02f10036861cd0009ae746aeb51010a000100000000ffff00f50083ae1e8259e48210008210008210" +
+        "008210008210008210008210008210008210008210008210008210008210008210008210008210008210008210008210" +
+        "008210008210008210008210008210008210008210008210008210008210008210008210008210008210008210008210" +
+        "008210008210008210008210008210008210008210008210008210008210008210008210008210008210008210008210" +
+        "00821000821000821000821000821000821000821000821000821000821000821000821000c21000c21000c21000c210" +
+        "00c21085c25696c328a5c39fc1c3cda0c3e169c3e9d9c3ecc2c3ec8bc3ec7dc3efd1c3f2d9c3f434c3f49ac3f4c6c3f5" +
+        "b0c3f6f2c3f847c3f716c3f7dac3f776c3f66ec3f67fc3f8a3c3f980c3f8cac3f79dc3f85dc3f839c3f747c3f8b7c3f8" +
+        "fac3f829c3f964c3f923c3f7cec3fa53c3f88ac3f78dc3f8c2c3f8f0c3f73fc3f763c3f867c3f7d5c3f816c3f99bc3f7" +
+        "dfc3f7f2c3f8fbc3f830c3f777c3f800c3f7b3c3f864c3f6fdc3f79ec3f882c3f77ac3f748c3f88ec3f907c3f980c3f7" +
+        "f4c3f924c3f8c8c3f856c3f802c3f823c3f903c3f90fc3f950c3fab5c3fa82c3f98ec3f91ac3f8bdc3fb13c3fb7ec3fb" +
+        "3fc3fbd5c3fa08c3faf3c3fc74c3fa42c3fa90c3fbd5c3fc54c3fc01c3fcf6c3fb4dc3fc34c3fd5ac3fcccc3fdfac3fd" +
+        "40c3fbacc3fb30c3fc65c3fbf4c3fb99c3fb7dc3fbc4c3fc6fc3fcf4c3fbadc3fbcec3fb46c3fb58c3fc58c3fb0bc3f9" +
+        "45c3fa54c3fa75c3fa37c3fab2c3fa6cc3faf0c3fab2c3fad5c3fb46c3fb1ac3fc9dc3fbd2c3faa7c3fa98c3fb85c3fd" +
+        "b0c3fc78c3fb95c3fab7c3fc94c3fe67c3fe15c3fcffc3fa3bc3fd33c3ff86c00062c001dac0013cc3ff22c3fefcc3ff" +
+        "78c3fef1c00077c00148c000a1c00088c0011dc00263c0017ec000d6c002d9c0023cc001c3c00287c00322c00340c003" +
+        "18c00460c002eec003e1c0059bc00561c00479c0056cc00640c005e2c00670c0063bc006444005d440043a4002eb4002" +
+        "a10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" +
+        "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" +
+        "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" +
+        "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" +
+        "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" +
+        "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" +
+        "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" +
+        "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" +
+        "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" +
+        "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" +
+        "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" +
+        "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" +
+        "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" +
+        "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" +
+        "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" +
+        "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a45" +
+        "004400450045004500450045004500460047000000f9fff9fffafffafffafffafffafffafffbfffcff0000009b973d34"
+
     private fun bytes(h: String): ByteArray =
         ByteArray(h.length / 2) { ((h[it * 2].digitToInt(16) shl 4) or h[it * 2 + 1].digitToInt(16)).toByte() }
 
     private val frame11 get() = bytes(hex11)
     private val frame10 get() = bytes(hex10)
+    private val framePartial get() = bytes(hexPartial245)
 
     /** 24-bit big-endian field, low 18 bits signed. Measured from these bytes; not a vendor fact. */
     private fun sample18(blob: List<Int>, i: Int): Int {
@@ -167,10 +213,67 @@ class Whoop5EcgRawHardwareTest {
             listOf(-2948, -2535, -3301, -3030, -2720, -1860, -3162, -3830, -3752, -3371, -2282, -2985),
             (0 until 12).map { sample18(packet.rawECGDataRaw, it) },
         )
-        // 17 + 1500 + 1 + 22 + 22 + 1 = 1563, with the block charged at its FIXED size.
-        val accounted = Whoop5Ecg.HEADER_LENGTH + packet.rawECGDataRaw.size + 1 +
-            Whoop5Ecg.LEADS_OFF_SLOT_COUNT * 2 + Whoop5Ecg.LEADS_OFF_SLOT_COUNT * 2 + packet.padding.size
+        // 17 + 1500 + 0 + 1 + 22 + 22 + 1 = 1563, with the block charged at its FIXED size.
+        assertEquals(0, packet.unusedSampleBytes)
+        val accounted = Whoop5Ecg.HEADER_LENGTH + packet.rawECGDataRaw.size + packet.unusedSampleBytes +
+            1 + Whoop5Ecg.LEADS_OFF_SLOT_COUNT * 2 + Whoop5Ecg.LEADS_OFF_SLOT_COUNT * 2 +
+            packet.padding.size
         assertEquals(payload.size, accounted)
+    }
+
+    /**
+     * The SAMPLE region is fixed-size too. The partly-filled record is byte-for-byte the same size as a
+     * full one, its sample data stops at frame[769] = 34 + 245 * 3, everything from there to the
+     * leads-off block is zero, and the block is at the SAME frame offsets as both full records'. Reading
+     * the region as exactly `n * bytesPerSample` landed the count byte on a zero at payload[752], read an
+     * empty block and left 766 trailing bytes — the last populated record the decoder discarded.
+     */
+    @Test
+    fun partlyFilledRecordDecodesAtTheStreamWidth() {
+        assertEquals(1584, framePartial.size)
+        assertTrue((769 until 1534).all { framePartial[it].toInt() == 0 })
+        assertEquals(10, framePartial[1534].toInt() and 0xFF)
+
+        val payload = Whoop5Ecg.innerPayload(framePartial, ecgPayloadStart)!!
+        assertEquals(1563, payload.size)
+        assertEquals(0, payload[752])
+
+        val packet = Whoop5Ecg.decodeRaw(payload, bytesPerSample = 3)!!
+        assertEquals(245, packet.header.numberOfECGSamples)
+        assertEquals(735, packet.rawECGDataRaw.size)       // only the VALID slots are carried
+        assertEquals(3, packet.bytesPerSample)
+        assertEquals(765, packet.unusedSampleBytes)
+        assertEquals(1500, packet.sampleRegionBytes)       // the region every full record carries
+        assertEquals(10, packet.numberOfLeadsOffSamples)
+        assertEquals(listOf(69, 68, 69, 69, 69, 69, 69, 69, 70, 71), packet.leadsOffIRaw)
+        assertEquals(
+            listOf(65529, 65529, 65530, 65530, 65530, 65530, 65530, 65530, 65531, 65532),
+            packet.leadsOffQRaw,
+        )
+        assertEquals(listOf(0x00), packet.padding)
+        // The blob's ends, verbatim. No encoding claim is made for this record: it is the first half
+        // second of a reading and its samples are still settling.
+        assertEquals(listOf(0x83, 0xAE, 0x1E), packet.rawECGDataRaw.take(3))
+        assertEquals(listOf(0x40, 0x02, 0xA1), packet.rawECGDataRaw.takeLast(3))
+
+        val accounted = Whoop5Ecg.HEADER_LENGTH + packet.rawECGDataRaw.size + packet.unusedSampleBytes +
+            Whoop5Ecg.LEADS_OFF_BLOCK_LENGTH + packet.padding.size
+        assertEquals(payload.size, accounted)              // 17 + 735 + 765 + 45 + 1
+    }
+
+    /**
+     * A partly-filled record does NOT determine its own sample WIDTH, and the enumerator says so rather
+     * than picking one: 245 samples inside a 1500-byte region fits 3 bytes per sample and 4 alike. The
+     * full records are where the width comes from — they resolve unaided (see the test above).
+     */
+    @Test
+    fun partlyFilledRecordReportsItsWidthAsAmbiguous() {
+        val payload = Whoop5Ecg.innerPayload(framePartial, ecgPayloadStart)!!
+        assertEquals(listOf(3, 4), Whoop5Ecg.rawBytesPerSampleCandidates(payload))
+        assertNull(Whoop5Ecg.decodeRaw(payload))
+        // 1 and 2 are ruled out by real sample bytes sitting in what they would call unused capacity.
+        assertNull(Whoop5Ecg.decodeRaw(payload, bytesPerSample = 1))
+        assertNull(Whoop5Ecg.decodeRaw(payload, bytesPerSample = 2))
     }
 
     /**

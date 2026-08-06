@@ -226,6 +226,41 @@ final class Whoop5EcgTests: XCTestCase {
         XCTAssertEqual(packet?.header.numberOfECGSamples, 4)
     }
 
+    /// The SAMPLE region is fixed-size too: `numberOfECGSamples` says how many of its slots are valid,
+    /// and the rest is zero-filled capacity that still has to be stepped over to reach the leads-off
+    /// block. Only the valid bytes are carried; the unused ones are counted (see the real record in
+    /// `Whoop5EcgRawHardwareTests`, where the count is 245 inside a 500-slot region).
+    func testRawPartlyFilledSampleRegionIsSteppedOverNotCarried() {
+        let samples: [UInt8] = [1, 2, 3, 4, 5, 6]                 // 3 valid samples × 2 bytes
+        let unused = [UInt8](repeating: 0, count: 8)              // 4 more slots the record did not fill
+        let payload = header(samples: 3) + samples + unused + leadsOffBlock(i: [5], q: [6])
+
+        let packet = Whoop5Ecg.decodeRaw(payload: payload, bytesPerSample: 2)
+        XCTAssertEqual(packet?.rawECGDataRaw, samples, "only the valid slots are carried")
+        XCTAssertEqual(packet?.unusedSampleBytes, 8)
+        XCTAssertEqual(packet?.sampleRegionBytes, 14)
+        XCTAssertEqual(packet?.bytesPerSample, 2, "still count ÷ numberOfECGSamples")
+        XCTAssertEqual(packet?.numberOfLeadsOffSamples, 1)
+        XCTAssertEqual(packet?.leadsOffIRaw, [5])
+        XCTAssertEqual(packet?.leadsOffQRaw, [6])
+        XCTAssertEqual(packet?.padding, [], "the unused capacity is region, not trailing padding")
+    }
+
+    /// The zero-fill is what makes the step-over safe. A non-zero byte between the declared samples and
+    /// the leads-off block means the block is not where this width says it is, so the decode fails closed
+    /// rather than skipping over bytes that might be data.
+    func testRawRejectsNonZeroBytesInTheUnusedSampleRegion() {
+        // The stray byte leads the unused span, so it stays inside that span at every end position the
+        // padding budget allows — a byte at the span's tail would simply become the count byte of a
+        // one-shorter record, which is a different (and legitimate) reading, not a violation.
+        let region: [UInt8] = [1, 2, 3, 4, 5, 6] + [0x09, 0, 0, 0, 0, 0, 0, 0]
+        let payload = header(samples: 3) + region + leadsOffBlock(i: [5], q: [6])
+        XCTAssertNil(Whoop5Ecg.decodeRaw(payload: payload, bytesPerSample: 2))
+        // With the same bytes declared as samples the record is fine — it is the SKIPPING that is gated.
+        let full = header(samples: 7) + region + leadsOffBlock(i: [5], q: [6])
+        XCTAssertEqual(Whoop5Ecg.decodeRaw(payload: full, bytesPerSample: 2)?.rawECGDataRaw, region)
+    }
+
     /// A zero count still carries the full fixed block — the slots are simply all unused.
     func testRawWithNoLeadsOffSamples() {
         let payload = header(samples: 2) + [0xAA, 0xBB, 0xCC, 0xDD] + leadsOffBlock(i: [], q: [])
@@ -258,9 +293,11 @@ final class Whoop5EcgTests: XCTestCase {
     /// The block holds a fixed number of slots, so a count above it cannot describe this layout and must
     /// fail closed rather than read past the block.
     func testRawRejectsLeadsOffCountAboveTheBlockCapacity() {
+        // The blob is exactly full, so the block can only be where the count byte is — this pins the
+        // capacity check itself rather than letting the end-of-record search reject the buffer earlier.
         let overCount = UInt8(Whoop5Ecg.leadsOffSlotCount + 1)
         let payload = header(samples: 2) + [0, 0, 0, 0] + [overCount]
-            + [UInt8](repeating: 0, count: Whoop5Ecg.leadsOffSlotCount * 4 + 8)
+            + [UInt8](repeating: 0, count: Whoop5Ecg.leadsOffSlotCount * 4)
         XCTAssertNil(Whoop5Ecg.decodeRaw(payload: payload, bytesPerSample: 2))
     }
 

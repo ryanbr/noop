@@ -3,7 +3,7 @@ import XCTest
 
 /// Characterisation of REAL WHOOP MG ECG flash records against this package's own decoder.
 ///
-/// Unlike `Whoop5EcgTests`, whose fixtures are all synthetic, every byte here came off hardware: two
+/// Unlike `Whoop5EcgTests`, whose fixtures are all synthetic, every byte here came off hardware: three
 /// complete 1584-byte type-47 records (layout version 16, `frame[9] == 16`) captured 2026-08-06 while
 /// the MG clasp electrodes were held, embedded verbatim as hex. Nothing in this file changes production
 /// behaviour — it pins what `Whoop5Ecg` ACTUALLY does when handed these bytes, including the places
@@ -28,12 +28,19 @@ import XCTest
 ///   • The sample blob is 3 bytes per sample, and the payload is 18 signed bits big-endian inside that
 ///     24-bit field — measured here by continuity, not assumed, and not attributed to any vendor
 ///     source. No scale or unit is claimed for the values, and none is applied.
-///   • STILL OPEN — the one populated record that does not decode is the capture's short final record
-///     (`numberOfECGSamples == 245`). Its leads-off block sits at the SAME fixed frame offset 1534 as
-///     every other record, with bytes 769...1533 zeroed, so the sample REGION is fixed-size too and the
-///     blob length is not `n * bytesPerSample` for a partly-filled record. That record is not embedded
-///     here and the width-from-length premise `rawBytesPerSampleCandidates` rests on does not hold for
-///     it; it keeps failing closed rather than being papered over.
+///   • The SAMPLE region is fixed-size too. The capture's one partly-filled record
+///     (`numberOfECGSamples == 245`, embedded here) puts its leads-off block at the SAME frame offset
+///     1534 as every other record, with bytes 769...1533 zeroed — so the blob is not `n * bytesPerSample`
+///     bytes long, it is `n` valid slots inside a region sized like everyone else's. Reading the region
+///     as exactly full landed the count byte on a zero at payload[752], read an empty leads-off block and
+///     left 766 bytes of "padding", which is why this was the last populated record still discarded.
+///     FIXED — `decodeRaw` now locates the block from the END of the payload; all 351 populated records
+///     decode at width 3.
+///   • STILL OPEN — a partly-filled record cannot determine its own sample WIDTH. 245 samples inside a
+///     1500-byte region is equally consistent with 3 bytes per sample and with 4, so
+///     `rawBytesPerSampleCandidates` reports `[3, 4]` for it and the auto-width overload declines rather
+///     than guessing. The 350 full records resolve to `[3]` unaided, and that is where the width comes
+///     from — it is a property of the stream, not of one record.
 final class Whoop5EcgRawHardwareTests: XCTestCase {
 
     // MARK: - Real captured records
@@ -116,6 +123,48 @@ final class Whoop5EcgRawHardwareTests: XCTestCase {
     004300430043004300420042004200420042000000f7fff7fff7fff7fff7fff7fff6fff6fff6fff6ff000000fe104255
     """
 
+    /// Record at unix 1786031625 — the capture's one PARTLY FILLED record, `numberOfECGSamples == 245`.
+    ///
+    /// It is the first record of the second reading: the empty record before it is at 1786031624 and the
+    /// first full 500-sample one is at 1786031626, so the strap began the reading roughly half a second
+    /// into this record's second and wrote 245 of the region's 500 slots. Same 1584-byte frame, same
+    /// layout, same leads-off offsets as both full records above.
+    private static let recordPartlyFilled245 = """
+    aa0128060100cde02f10036861cd0009ae746aeb51010a000100000000ffff00f50083ae1e8259e48210008210008210
+    008210008210008210008210008210008210008210008210008210008210008210008210008210008210008210008210
+    008210008210008210008210008210008210008210008210008210008210008210008210008210008210008210008210
+    008210008210008210008210008210008210008210008210008210008210008210008210008210008210008210008210
+    00821000821000821000821000821000821000821000821000821000821000821000821000c21000c21000c21000c210
+    00c21085c25696c328a5c39fc1c3cda0c3e169c3e9d9c3ecc2c3ec8bc3ec7dc3efd1c3f2d9c3f434c3f49ac3f4c6c3f5
+    b0c3f6f2c3f847c3f716c3f7dac3f776c3f66ec3f67fc3f8a3c3f980c3f8cac3f79dc3f85dc3f839c3f747c3f8b7c3f8
+    fac3f829c3f964c3f923c3f7cec3fa53c3f88ac3f78dc3f8c2c3f8f0c3f73fc3f763c3f867c3f7d5c3f816c3f99bc3f7
+    dfc3f7f2c3f8fbc3f830c3f777c3f800c3f7b3c3f864c3f6fdc3f79ec3f882c3f77ac3f748c3f88ec3f907c3f980c3f7
+    f4c3f924c3f8c8c3f856c3f802c3f823c3f903c3f90fc3f950c3fab5c3fa82c3f98ec3f91ac3f8bdc3fb13c3fb7ec3fb
+    3fc3fbd5c3fa08c3faf3c3fc74c3fa42c3fa90c3fbd5c3fc54c3fc01c3fcf6c3fb4dc3fc34c3fd5ac3fcccc3fdfac3fd
+    40c3fbacc3fb30c3fc65c3fbf4c3fb99c3fb7dc3fbc4c3fc6fc3fcf4c3fbadc3fbcec3fb46c3fb58c3fc58c3fb0bc3f9
+    45c3fa54c3fa75c3fa37c3fab2c3fa6cc3faf0c3fab2c3fad5c3fb46c3fb1ac3fc9dc3fbd2c3faa7c3fa98c3fb85c3fd
+    b0c3fc78c3fb95c3fab7c3fc94c3fe67c3fe15c3fcffc3fa3bc3fd33c3ff86c00062c001dac0013cc3ff22c3fefcc3ff
+    78c3fef1c00077c00148c000a1c00088c0011dc00263c0017ec000d6c002d9c0023cc001c3c00287c00322c00340c003
+    18c00460c002eec003e1c0059bc00561c00479c0056cc00640c005e2c00670c0063bc006444005d440043a4002eb4002
+    a10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+    000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+    000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+    000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+    000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+    000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+    000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+    000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+    000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+    000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+    000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+    000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+    000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+    000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+    000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+    000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a45
+    004400450045004500450045004500460047000000f9fff9fffafffafffafffafffafffafffbfffcff0000009b973d34
+    """
+
     /// The payload offset at which `EcgStatusHeader`'s `numberOfECGSamples` lands on the record's real
     /// sample count. NOT `Whoop5Ecg.puffinPayloadStart` (11): a type-47 historical record carries a
     /// layout marker at [10], a u32 record index at [11] and a u32 unix second at [15] before its body,
@@ -137,6 +186,7 @@ final class Whoop5EcgRawHardwareTests: XCTestCase {
 
     private var frame11: [UInt8] { hexToBytes(Self.recordLeadsOffCount11) }
     private var frame10: [UInt8] { hexToBytes(Self.recordLeadsOffCount10) }
+    private var framePartial: [UInt8] { hexToBytes(Self.recordPartlyFilled245) }
 
     /// The sample encoding under test: a 24-bit BIG-endian field whose top 6 bits are a tag and whose
     /// low 18 bits are a signed value.
@@ -169,7 +219,7 @@ final class Whoop5EcgRawHardwareTests: XCTestCase {
     // MARK: - The frames are real and well formed
 
     func testCapturedFramesPassBothWhoop5CRCs() {
-        for frame in [frame11, frame10] {
+        for frame in [frame11, frame10, framePartial] {
             XCTAssertEqual(frame.count, 1584)
             XCTAssertEqual(frame[8], 47, "type-47 historical record")
             XCTAssertEqual(frame[9], 16, "layout version 16")
@@ -219,6 +269,7 @@ final class Whoop5EcgRawHardwareTests: XCTestCase {
         XCTAssertEqual(packet.header.numberOfECGSamples, 500)
         XCTAssertEqual(packet.rawECGDataRaw.count, 1500)
         XCTAssertEqual(packet.bytesPerSample, 3)
+        XCTAssertEqual(packet.unusedSampleBytes, 0, "a full record fills its region exactly")
         XCTAssertEqual(packet.numberOfLeadsOffSamples, 11)
         XCTAssertEqual(packet.leadsOffIRaw, [UInt16](repeating: 67, count: 11))
         XCTAssertEqual(packet.leadsOffQRaw,
@@ -395,6 +446,102 @@ final class Whoop5EcgRawHardwareTests: XCTestCase {
         XCTAssertEqual(packet.padding, [0x00])
     }
 
+    // MARK: - The fixed-size sample region
+
+    /// The geometry, read straight off the frame with no decoder involved. This is the evidence the
+    /// end-anchored `decodeRaw` rests on: a record carrying 245 samples is byte-for-byte the same size as
+    /// a record carrying 500, its sample data stops at frame[769] = 34 + 245 * 3, everything from there
+    /// to the leads-off block is zero, and the block is at the SAME frame offsets as both full records'.
+    func testPartlyFilledRecordHasAFullSizeSampleRegion() {
+        XCTAssertEqual(framePartial.count, frame11.count)
+        XCTAssertEqual(framePartial.count, 1584)
+        // 245 samples, not 500 — and the record's own second sits between the last empty record and the
+        // first full one, so this is the reading starting part-way through a second.
+        XCTAssertEqual(UInt16(framePartial[32]) | UInt16(framePartial[33]) << 8, 245)
+        XCTAssertEqual(u32le(framePartial, 15), 1786031625)
+        XCTAssertEqual(u32le(frame11, 15), 1786031627)
+
+        XCTAssertNotEqual(framePartial[768], 0, "the last byte of sample 244")
+        XCTAssertTrue(framePartial[769..<1534].allSatisfy { $0 == 0 },
+                      "the region's unused capacity is zero-filled, not absent")
+        // Same fixed leads-off offsets as the two full records.
+        XCTAssertEqual(framePartial[1534], 10)
+        func slots(_ frame: [UInt8], _ start: Int) -> [UInt16] {
+            (0..<11).map { UInt16(frame[start + $0 * 2]) | UInt16(frame[start + $0 * 2 + 1]) << 8 }
+        }
+        XCTAssertEqual(slots(framePartial, 1535), [69, 68, 69, 69, 69, 69, 69, 69, 70, 71, 0])
+        XCTAssertEqual(slots(framePartial, 1557),
+                       [65529, 65529, 65530, 65530, 65530, 65530, 65530, 65530, 65531, 65532, 0])
+        XCTAssertEqual(framePartial[1579], 0)
+    }
+
+    /// Regression: the last populated record the decoder discarded. Reading the region as exactly
+    /// `n * bytesPerSample` put the count byte on payload[752] — a zero inside the fill — which yielded an
+    /// empty leads-off block and 766 trailing bytes against `defaultMaxPadding = 3`.
+    func testPartlyFilledRecordDecodesAtTheStreamWidth() {
+        guard let payload = Whoop5Ecg.innerPayload(framePartial, payloadStart: Self.ecgPayloadStart),
+              let packet = Whoop5Ecg.decodeRaw(payload: payload, bytesPerSample: 3) else {
+            return XCTFail("decodeRaw failed on the partly-filled record")
+        }
+        XCTAssertEqual(payload.count, 1563, "same body length as a full record")
+        XCTAssertEqual(payload[752], 0, "where the region-is-exactly-full reading looked for the count")
+
+        XCTAssertEqual(packet.header.numberOfECGSamples, 245)
+        XCTAssertEqual(packet.rawECGDataRaw.count, 735, "245 * 3 — only the VALID slots are carried")
+        XCTAssertEqual(packet.bytesPerSample, 3)
+        XCTAssertEqual(packet.unusedSampleBytes, 765)
+        XCTAssertEqual(packet.sampleRegionBytes, 1500, "the same region every full record carries")
+        XCTAssertEqual(packet.numberOfLeadsOffSamples, 10)
+        XCTAssertEqual(packet.leadsOffIRaw, [69, 68, 69, 69, 69, 69, 69, 69, 70, 71])
+        XCTAssertEqual(packet.leadsOffQRaw,
+                       [65529, 65529, 65530, 65530, 65530, 65530, 65530, 65530, 65531, 65532])
+        XCTAssertEqual(packet.padding, [0x00], "accepted on its own remainder, not a widened tolerance")
+
+        // The blob's ends, verbatim. No encoding claim is made for this record: it is the first half
+        // second of a reading, and its samples are still settling — see the tag census below.
+        XCTAssertEqual(Array(packet.rawECGDataRaw.prefix(3)), [0x83, 0xAE, 0x1E])
+        XCTAssertEqual(Array(packet.rawECGDataRaw.suffix(3)), [0x40, 0x02, 0xA1])
+
+        // Every byte of the 1563-byte body is claimed by exactly one field, with BOTH fixed-size
+        // containers charged at their full size and the counts charged at what they declare.
+        let accounted = Whoop5Ecg.headerLength
+            + packet.rawECGDataRaw.count
+            + packet.unusedSampleBytes
+            + Whoop5Ecg.leadsOffBlockLength
+            + packet.padding.count
+        XCTAssertEqual(accounted, payload.count, "17 + 735 + 765 + 45 + 1")
+    }
+
+    /// A partly-filled record does NOT determine its own sample width, and the enumerator says so rather
+    /// than picking one: 245 samples inside a 1500-byte region fits 3 bytes per sample and 4 alike. The
+    /// full records are where the width comes from — they resolve unaided.
+    func testPartlyFilledRecordReportsItsWidthAsAmbiguous() {
+        guard let payload = Whoop5Ecg.innerPayload(framePartial, payloadStart: Self.ecgPayloadStart) else {
+            return XCTFail("payload extraction failed")
+        }
+        XCTAssertEqual(Whoop5Ecg.rawBytesPerSampleCandidates(payload: payload), [3, 4])
+        XCTAssertNil(Whoop5Ecg.decodeRaw(payload: payload),
+                     "an ambiguous buffer must refuse to decode, not guess")
+        // 1 and 2 are ruled out by real sample bytes sitting in what they would call unused capacity.
+        XCTAssertNil(Whoop5Ecg.decodeRaw(payload: payload, bytesPerSample: 1))
+        XCTAssertNil(Whoop5Ecg.decodeRaw(payload: payload, bytesPerSample: 2))
+    }
+
+    /// The tags this record's samples carry, as a census rather than an interpretation. The two full
+    /// records are uniformly 0b100000; this one is not, which is the reason no encoding claim is made
+    /// for its values here — the electrode input is still settling half a second into the reading.
+    func testPartlyFilledRecordSampleTagsAreNotUniform() {
+        guard let payload = Whoop5Ecg.innerPayload(framePartial, payloadStart: Self.ecgPayloadStart),
+              let packet = Whoop5Ecg.decodeRaw(payload: payload, bytesPerSample: 3) else {
+            return XCTFail("decodeRaw failed")
+        }
+        var census = [UInt8: Int]()
+        for i in 0..<Int(packet.header.numberOfECGSamples) {
+            census[packet.rawECGDataRaw[i * 3] >> 2, default: 0] += 1
+        }
+        XCTAssertEqual(census, [48: 176, 32: 65, 16: 4])
+    }
+
     /// The count=10 record accounts for every byte too — with the leads-off block charged at its FIXED
     /// size rather than at the count.
     func testCountTenRecordAccountsForEveryByte() {
@@ -405,12 +552,14 @@ final class Whoop5EcgRawHardwareTests: XCTestCase {
         XCTAssertEqual(payload.count, 1563)
         XCTAssertEqual(packet.header.numberOfECGSamples, 500)
         XCTAssertEqual(packet.rawECGDataRaw.count, 1500)
+        XCTAssertEqual(packet.unusedSampleBytes, 0)
         let accounted = Whoop5Ecg.headerLength
             + packet.rawECGDataRaw.count
+            + packet.unusedSampleBytes
             + 1
             + Whoop5Ecg.leadsOffSlotCount * 2
             + Whoop5Ecg.leadsOffSlotCount * 2
             + packet.padding.count
-        XCTAssertEqual(accounted, payload.count, "17 + 1500 + 1 + 22 + 22 + 1")
+        XCTAssertEqual(accounted, payload.count, "17 + 1500 + 0 + 1 + 22 + 22 + 1")
     }
 }

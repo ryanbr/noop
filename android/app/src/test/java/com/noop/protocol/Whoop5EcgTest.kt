@@ -234,6 +234,45 @@ class Whoop5EcgTest {
         assertEquals(3, packet?.bytesPerSample)              // count ÷ numberOfECGSamples
     }
 
+    /**
+     * The SAMPLE region is fixed-size too: numberOfECGSamples says how many of its slots are valid, and
+     * the rest is zero-filled capacity that still has to be stepped over to reach the leads-off block.
+     * Only the valid bytes are carried; the unused ones are counted. Twin of the Swift
+     * rawPartlyFilledSampleRegionIsSteppedOverNotCarried.
+     */
+    @Test
+    fun rawPartlyFilledSampleRegionIsSteppedOverNotCarried() {
+        val samples = listOf(1, 2, 3, 4, 5, 6)               // 3 valid samples × 2 bytes
+        val unused = List(8) { 0 }                           // 4 more slots the record did not fill
+        val payload = header(samples = 3) + samples + unused + leadsOffBlock(listOf(5), listOf(6))
+
+        val packet = Whoop5Ecg.decodeRaw(payload, bytesPerSample = 2)
+        assertEquals(samples, packet?.rawECGDataRaw)
+        assertEquals(8, packet?.unusedSampleBytes)
+        assertEquals(14, packet?.sampleRegionBytes)
+        assertEquals(2, packet?.bytesPerSample)
+        assertEquals(1, packet?.numberOfLeadsOffSamples)
+        assertEquals(listOf(5), packet?.leadsOffIRaw)
+        assertEquals(listOf(6), packet?.leadsOffQRaw)
+        assertEquals(emptyList<Int>(), packet?.padding)
+    }
+
+    /**
+     * The zero-fill is what makes the step-over safe: a non-zero byte between the declared samples and
+     * the block means the block is not where this width says it is, so the decode fails closed rather
+     * than skipping over bytes that might be data. The stray byte LEADS the unused span so it stays
+     * inside that span at every end position the padding budget allows.
+     */
+    @Test
+    fun rawRejectsNonZeroBytesInTheUnusedSampleRegion() {
+        val region = listOf(1, 2, 3, 4, 5, 6) + listOf(0x09) + List(7) { 0 }
+        val payload = header(samples = 3) + region + leadsOffBlock(listOf(5), listOf(6))
+        assertNull(Whoop5Ecg.decodeRaw(payload, bytesPerSample = 2))
+        // With the same bytes declared as samples the record is fine — it is the SKIPPING that is gated.
+        val full = header(samples = 7) + region + leadsOffBlock(listOf(5), listOf(6))
+        assertEquals(region, Whoop5Ecg.decodeRaw(full, bytesPerSample = 2)?.rawECGDataRaw)
+    }
+
     /** A zero count still carries the full fixed block — the slots are simply all unused. */
     @Test
     fun rawWithNoLeadsOffSamples() {
@@ -273,8 +312,10 @@ class Whoop5EcgTest {
      */
     @Test
     fun rawRejectsLeadsOffCountAboveTheBlockCapacity() {
+        // The blob is exactly full, so the block can only be where the count byte is — this pins the
+        // capacity check itself rather than letting the end-of-record search reject the buffer earlier.
         val payload = header(samples = 2) + listOf(0, 0, 0, 0) +
-            listOf(Whoop5Ecg.LEADS_OFF_SLOT_COUNT + 1) + List(Whoop5Ecg.LEADS_OFF_SLOT_COUNT * 4 + 8) { 0 }
+            listOf(Whoop5Ecg.LEADS_OFF_SLOT_COUNT + 1) + List(Whoop5Ecg.LEADS_OFF_SLOT_COUNT * 4) { 0 }
         assertNull(Whoop5Ecg.decodeRaw(payload, bytesPerSample = 2))
     }
 

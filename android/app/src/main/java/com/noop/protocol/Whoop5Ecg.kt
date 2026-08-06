@@ -117,13 +117,26 @@ data class FilteredLabradorPacket(
  * The raw blob is opaque: its bytes-per-sample is `rawECGDataRaw.size / numberOfECGSamples`, which means
  * the blob's LENGTH is not itself on the wire (see [Whoop5Ecg.rawBytesPerSampleCandidates]).
  *
- * The leads-off block that follows is FIXED-SIZE — [Whoop5Ecg.LEADS_OFF_SLOT_COUNT] slots for I and the
- * same again for Q, with [numberOfLeadsOffSamples] selecting how many leading slots are valid.
- * [leadsOffIRaw] and [leadsOffQRaw] carry only the VALID values; unused slots are dropped.
+ * BOTH variable-length-looking regions are really FIXED-SIZE containers with a count that says how many
+ * leading slots are valid: the sample region (see [unusedSampleBytes] and [Whoop5Ecg.decodeRaw]) and the
+ * leads-off block ([Whoop5Ecg.LEADS_OFF_SLOT_COUNT] slots for I and the same again for Q, with
+ * [numberOfLeadsOffSamples] selecting how many are valid). In both, the unused slots are dropped rather
+ * than carried, so a packet's arrays only ever hold values the record says are real.
  */
 data class RawLabradorPacket(
     val header: EcgStatusHeader,
+    /**
+     * Exactly `numberOfECGSamples * bytesPerSample` bytes — the VALID part of the sample region, which on
+     * a partly-filled record is shorter than the region itself.
+     */
     val rawECGDataRaw: List<Int>,
+    /**
+     * Bytes of the fixed sample region that `numberOfECGSamples` did not fill. Zero for a full record.
+     *
+     * The strap zero-fills them, and the decoder requires that. They are counted, not carried, so
+     * `HEADER_LENGTH + rawECGDataRaw.size + unusedSampleBytes` is where the leads-off block begins.
+     */
+    val unusedSampleBytes: Int,
     val numberOfLeadsOffSamples: Int,
     val leadsOffIRaw: List<Int>,
     val leadsOffQRaw: List<Int>,
@@ -132,6 +145,10 @@ data class RawLabradorPacket(
     /** Bytes per raw sample, or null when the packet carried no samples to divide by. */
     val bytesPerSample: Int?
         get() = if (header.numberOfECGSamples > 0) rawECGDataRaw.size / header.numberOfECGSamples else null
+
+    /** The full sample region the record reserved, valid part plus unused capacity. */
+    val sampleRegionBytes: Int
+        get() = rawECGDataRaw.size + unusedSampleBytes
 }
 
 object Whoop5Ecg {
@@ -339,57 +356,100 @@ object Whoop5Ecg {
     // Decode — raw
 
     /**
+     * Bytes the raw record's leads-off block occupies: the count byte, then a full I array, then a full Q
+     * array. Fixed — see [LEADS_OFF_SLOT_COUNT].
+     */
+    const val LEADS_OFF_BLOCK_LENGTH = 1 + LEADS_OFF_SLOT_COUNT * 4
+
+    /**
      * Decode a raw packet from the inner record's PAYLOAD with an explicit sample width.
      *
      * The width has to be supplied because the raw blob's length is NOT on the wire.
+     *
+     * **The sample region is a fixed-size container, not `n * bytesPerSample` bytes.** MEASURED FROM
+     * HARDWARE, on the same capture and by the same argument as [LEADS_OFF_SLOT_COUNT]: the capture's one
+     * partly-filled record (`numberOfECGSamples == 245`, embedded in the Swift `Whoop5EcgRawHardwareTests`
+     * and its Kotlin twin) is the same 1584-byte frame as every full 500-sample record, its sample data
+     * stops after `245 * 3` bytes, the rest of the region is zeroed, and its leads-off block sits at the
+     * SAME frame offset as every other record's. So `numberOfECGSamples` says how many of the region's
+     * slots are valid in exactly the way `numberOfLeadsOffSamples` says how many leads-off slots are.
+     *
+     * That is why the block is located from the END of the payload rather than from
+     * `HEADER_LENGTH + n * bytesPerSample`: the region's LENGTH is no more on the wire than the width is,
+     * and a decoder that assumes the region is exactly full lands the count byte inside the zero fill.
+     * No region length is hardcoded; the block's own fixed size anchors it.
+     *
+     * Candidate ends are tried closest-to-the-end first, so the record claims the least padding it can —
+     * the puffin pad4 filler is minimal by construction. That ordering is a tie-break, not a proof: an
+     * all-zero tail can also validate a block placed a byte or two earlier, and the tightest placement is
+     * the one that explains the most bytes. Two things then have to hold: the region must be long enough
+     * for the declared samples, and every byte between them and the block must be ZERO. The zero-fill
+     * check is what keeps the width enumeration honest — a width that under-reads the samples leaves real
+     * sample bytes in the unused span and is rejected there.
      */
-    fun decodeRaw(payload: List<Int>, bytesPerSample: Int): RawLabradorPacket? {
-        if (bytesPerSample <= 0) return null
+    fun decodeRaw(
+        payload: List<Int>,
+        bytesPerSample: Int,
+        maxPadding: Int = DEFAULT_MAX_PADDING,
+    ): RawLabradorPacket? {
+        if (bytesPerSample <= 0 || maxPadding < 0) return null
         val header = decodeHeader(payload) ?: return null
         // `bytesPerSample` is caller-supplied and `numberOfECGSamples` comes off the wire, so the product
         // is checked rather than assumed: a Kotlin Int overflow wraps silently to a NEGATIVE index, which
         // would throw on the subscript below. A decode failure is the correct outcome, not an exception.
         val blobLength = header.numberOfECGSamples.toLong() * bytesPerSample.toLong()
         if (blobLength > Int.MAX_VALUE - HEADER_LENGTH) return null
-        val rawEnd = HEADER_LENGTH + blobLength.toInt()
-        if (rawEnd < HEADER_LENGTH || rawEnd >= payload.size) return null   // the leads-off count byte must fit
-        // Same domain check as decodeHeader: a negative count would make blockEnd negative, slip past the
-        // `blockEnd > size` bound, and throw on subList. On the wire this byte is always 0..255, and the
-        // block holds only LEADS_OFF_SLOT_COUNT slots — a count above that is not a record this layout can
-        // describe, so it fails closed rather than reading past the block.
-        val leadsOffCount = payload[rawEnd]
-        if (leadsOffCount !in 0..LEADS_OFF_SLOT_COUNT) return null
-        // Both arrays are FIXED-SIZE and always fully present — see [LEADS_OFF_SLOT_COUNT]. The count byte
-        // selects how many leading slots are VALID; it does not size the block.
-        val iStart = rawEnd + 1
-        val qStart = iStart + LEADS_OFF_SLOT_COUNT * 2
-        val blockEnd = qStart + LEADS_OFF_SLOT_COUNT * 2
-        if (blockEnd > payload.size) return null
+        val sampleEnd = HEADER_LENGTH + blobLength.toInt()
+        if (sampleEnd < HEADER_LENGTH || sampleEnd > payload.size) return null
 
-        val leadsOffI = (0 until leadsOffCount).map { payload[iStart + it * 2] or (payload[iStart + it * 2 + 1] shl 8) }
-        val leadsOffQ = (0 until leadsOffCount).map { payload[qStart + it * 2] or (payload[qStart + it * 2 + 1] shl 8) }
-        return RawLabradorPacket(
-            header = header,
-            rawECGDataRaw = payload.subList(HEADER_LENGTH, rawEnd).toList(),
-            numberOfLeadsOffSamples = leadsOffCount,
-            leadsOffIRaw = leadsOffI,
-            leadsOffQRaw = leadsOffQ,
-            padding = payload.subList(blockEnd, payload.size).toList(),
-        )
+        for (pad in 0..maxPadding) {
+            val blockEnd = payload.size - pad
+            val countIndex = blockEnd - LEADS_OFF_BLOCK_LENGTH
+            // The block must sit entirely after the declared samples. This also bounds `countIndex` from
+            // below, since `sampleEnd >= HEADER_LENGTH >= 0`.
+            if (countIndex < sampleEnd) continue
+            // Unused sample capacity is zero-filled on the wire. A non-zero byte here means the block is
+            // not at this offset — including the case where it holds samples a wider width would read.
+            if ((sampleEnd until countIndex).any { payload[it] != 0 }) continue
+            // Same domain check the Swift twin makes: on the wire this byte is 0..255, and the block holds
+            // only LEADS_OFF_SLOT_COUNT slots — a count above that is not a record this layout can
+            // describe, so it fails closed rather than reading past the block.
+            val leadsOffCount = payload[countIndex]
+            if (leadsOffCount !in 0..LEADS_OFF_SLOT_COUNT) continue
+            // Both arrays are FIXED-SIZE and always fully present — see [LEADS_OFF_SLOT_COUNT]. The count
+            // byte selects how many leading slots are VALID; it does not size the block.
+            val iStart = countIndex + 1
+            val qStart = iStart + LEADS_OFF_SLOT_COUNT * 2
+
+            val leadsOffI = (0 until leadsOffCount).map { payload[iStart + it * 2] or (payload[iStart + it * 2 + 1] shl 8) }
+            val leadsOffQ = (0 until leadsOffCount).map { payload[qStart + it * 2] or (payload[qStart + it * 2 + 1] shl 8) }
+            return RawLabradorPacket(
+                header = header,
+                rawECGDataRaw = payload.subList(HEADER_LENGTH, sampleEnd).toList(),
+                unusedSampleBytes = countIndex - sampleEnd,
+                numberOfLeadsOffSamples = leadsOffCount,
+                leadsOffIRaw = leadsOffI,
+                leadsOffQRaw = leadsOffQ,
+                padding = payload.subList(blockEnd, payload.size).toList(),
+            )
+        }
+        return null
     }
 
     /**
      * Every sample width in [widths] that yields a structurally consistent record leaving at most
      * [maxPadding] trailing bytes. A DISAMBIGUATION helper, not a claim.
+     *
+     * A PARTLY-FILLED record is genuinely ambiguous, and that is a fact about the record rather than a gap
+     * here: 245 samples inside a 1500-byte region fits 3 bytes per sample and 4 alike, so the capture's
+     * short record reports `[3, 4]` and the single-candidate [decodeRaw] below declines it. The width is a
+     * property of the STREAM — the 350 full records in the same capture resolve to `[3]` on their own.
      */
     fun rawBytesPerSampleCandidates(
         payload: List<Int>,
         widths: List<Int> = listOf(1, 2, 3, 4),
         maxPadding: Int = DEFAULT_MAX_PADDING,
-    ): List<Int> = widths.filter { width ->
-        val packet = decodeRaw(payload, width)
-        packet != null && packet.padding.size <= maxPadding
-    }
+    ): List<Int> = widths.filter { width -> decodeRaw(payload, width, maxPadding) != null }
 
     /** Decode a raw record only when the buffer admits exactly ONE width; ambiguity returns null. */
     fun decodeRaw(
@@ -398,12 +458,17 @@ object Whoop5Ecg {
         maxPadding: Int = DEFAULT_MAX_PADDING,
     ): RawLabradorPacket? {
         val candidates = rawBytesPerSampleCandidates(payload, widths, maxPadding)
-        return if (candidates.size == 1) decodeRaw(payload, candidates[0]) else null
+        return if (candidates.size == 1) decodeRaw(payload, candidates[0], maxPadding) else null
     }
 
     /** CRC-gated raw decode straight off a complete 5/MG frame, with an explicit sample width. */
-    fun decodeRawFrame(frame: ByteArray, bytesPerSample: Int, payloadStart: Int = PUFFIN_PAYLOAD_START): RawLabradorPacket? =
-        innerPayload(frame, payloadStart)?.let { decodeRaw(it, bytesPerSample) }
+    fun decodeRawFrame(
+        frame: ByteArray,
+        bytesPerSample: Int,
+        payloadStart: Int = PUFFIN_PAYLOAD_START,
+        maxPadding: Int = DEFAULT_MAX_PADDING,
+    ): RawLabradorPacket? =
+        innerPayload(frame, payloadStart)?.let { decodeRaw(it, bytesPerSample, maxPadding) }
 
     // Discovery
 
