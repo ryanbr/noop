@@ -1,6 +1,7 @@
 package com.noop.ui
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -22,51 +23,38 @@ class SleepLayoutPrefsTest {
     fun encodeDecode_roundTripsAReorderedList() {
         val reordered = listOf(
             SleepSection.NIGHT_DETAIL, SleepSection.SLEEP_MARKS, SleepSection.ASLEEP_DURATION,
-            SleepSection.STAGES, SleepSection.NAPS, SleepSection.SLEEP_DEBT,
-            SleepSection.STAGES_VS_TYPICAL,
+            SleepSection.STAGES, SleepSection.SLEEP_DEBT, SleepSection.STAGES_VS_TYPICAL,
         )
         val encoded = SleepLayoutPrefs.encode(reordered)
-        assertEquals(
-            "nightDetail,sleepMarks,asleepDuration,stages,naps,sleepDebt,stagesVsTypical",
-            encoded,
-        )
+        assertEquals("nightDetail,sleepMarks,asleepDuration,stages,sleepDebt,stagesVsTypical", encoded)
         assertEquals(reordered, SleepLayoutPrefs.decodeOrder(encoded))
     }
 
-    /** A saved order that explicitly ends on `sleepMarks` and leads with `asleepDuration` must keep those
-     *  two placements while every card missing from the save inserts at its default position (all before
-     *  asleepDuration, since each has a lower default index). */
+    /** A saved order that leads with `asleepDuration` and ends on `sleepMarks` keeps those two placements
+     *  while every card missing from the save inserts at its default position (all before asleepDuration,
+     *  since each has a lower default index). */
     @Test
     fun decode_insertsMissingCardsAtDefaultPositionRelativeToSaved_neverHides() {
-        val partial = "asleepDuration,sleepMarks"
-        val decoded = SleepLayoutPrefs.decodeOrder(partial)
+        val decoded = SleepLayoutPrefs.decodeOrder("asleepDuration,sleepMarks")
         assertEquals(SleepSection.entries.size, decoded.size)
         assertEquals(
             listOf(
-                SleepSection.STAGES, SleepSection.NAPS, SleepSection.NIGHT_DETAIL,
-                SleepSection.SLEEP_DEBT, SleepSection.STAGES_VS_TYPICAL,
-                SleepSection.ASLEEP_DURATION, SleepSection.SLEEP_MARKS,
+                SleepSection.STAGES, SleepSection.NIGHT_DETAIL, SleepSection.SLEEP_DEBT,
+                SleepSection.STAGES_VS_TYPICAL, SleepSection.ASLEEP_DURATION, SleepSection.SLEEP_MARKS,
             ),
             decoded,
         )
     }
 
+    /** Whatever the input, every card always renders — unknown tokens dropped, duplicates collapsed, and
+     *  no card is ever hidden by a partial/messy save. */
     @Test
-    fun decode_dropsUnknownTokensAndCollapsesDuplicates() {
-        val messy = "nightDetail,BOGUS,nightDetail,naps, ,naps"
-        val decoded = SleepLayoutPrefs.decodeOrder(messy)
-        assertEquals(SleepSection.entries.size, decoded.size)
-        assertEquals(
-            listOf(
-                // sleepMarks(0), stages(1) precede nightDetail(3) → insert before it in default order;
-                // the saved nightDetail→naps order is preserved; sleepDebt(4)/stagesVsTypical(5)/
-                // asleepDuration(6) all follow naps(2) but nightDetail(3) precedes them, so they append.
-                SleepSection.SLEEP_MARKS, SleepSection.STAGES, SleepSection.NIGHT_DETAIL,
-                SleepSection.NAPS, SleepSection.SLEEP_DEBT, SleepSection.STAGES_VS_TYPICAL,
-                SleepSection.ASLEEP_DURATION,
-            ),
-            decoded,
-        )
+    fun decode_alwaysReturnsEveryCard() {
+        for (input in listOf("nightDetail,BOGUS,nightDetail, ,stages", "sleepDebt", "zzz,stages,,stages")) {
+            val decoded = SleepLayoutPrefs.decodeOrder(input)
+            assertEquals(SleepSection.entries.toSet(), decoded.toSet())
+            assertEquals(SleepSection.entries.size, decoded.size)
+        }
     }
 
     @Test
@@ -76,29 +64,29 @@ class SleepLayoutPrefsTest {
 
     @Test
     fun hiddenSections_areExplicitReversibleAndDeduplicated() {
-        val hidden = SleepLayoutPrefs.decodeHidden("naps,BOGUS,naps,sleepDebt")
-        assertEquals(listOf(SleepSection.NAPS, SleepSection.SLEEP_DEBT), hidden)
-        assertEquals("naps,sleepDebt", SleepLayoutPrefs.encodeHidden(hidden))
+        val hidden = SleepLayoutPrefs.decodeHidden("stages,BOGUS,stages,sleepDebt")
+        assertEquals(listOf(SleepSection.STAGES, SleepSection.SLEEP_DEBT), hidden)
+        assertEquals("stages,sleepDebt", SleepLayoutPrefs.encodeHidden(hidden))
     }
 
     @Test
     fun visibleOrder_filtersHiddenWithoutChangingSavedOrder() {
-        val order = "nightDetail,sleepMarks,asleepDuration,stages,naps,sleepDebt,stagesVsTypical"
+        val order = "nightDetail,sleepMarks,asleepDuration,stages,sleepDebt,stagesVsTypical"
         assertEquals(
             listOf(
                 SleepSection.NIGHT_DETAIL, SleepSection.SLEEP_MARKS, SleepSection.STAGES,
-                SleepSection.SLEEP_DEBT, SleepSection.STAGES_VS_TYPICAL,
+                SleepSection.STAGES_VS_TYPICAL,
             ),
-            SleepLayoutPrefs.visibleOrder(order, "asleepDuration,naps"),
+            SleepLayoutPrefs.visibleOrder(order, "asleepDuration,sleepDebt"),
         )
         assertEquals(SleepSection.entries.size, SleepLayoutPrefs.decodeOrder(order).size)
     }
 
     @Test
     fun newOrPreviouslyMissingCards_defaultToVisible() {
-        val visible = SleepLayoutPrefs.visibleOrder("stages,nightDetail,sleepDebt", "nightDetail")
-        assertEquals(true, SleepSection.NAPS in visible)
-        assertEquals(true, SleepSection.SLEEP_MARKS in visible)
+        val visible = SleepLayoutPrefs.visibleOrder("stages,nightDetail", "nightDetail")
+        assertTrue(SleepSection.SLEEP_MARKS in visible)
+        assertTrue(SleepSection.ASLEEP_DURATION in visible)
     }
 
     /** defaultOrder must cover EVERY entry: the never-hide merge sorts by default index, so an entry
@@ -115,10 +103,7 @@ class SleepLayoutPrefsTest {
         assertEquals("raw keys must be unique (they're the persisted identity)", raws.size, raws.toSet().size)
         // Pin the exact wire strings — they cross the .noopbak boundary and must match macOS byte-for-byte.
         assertEquals(
-            listOf(
-                "sleepMarks", "stages", "naps", "nightDetail",
-                "sleepDebt", "stagesVsTypical", "asleepDuration",
-            ),
+            listOf("sleepMarks", "stages", "nightDetail", "sleepDebt", "stagesVsTypical", "asleepDuration"),
             raws,
         )
     }

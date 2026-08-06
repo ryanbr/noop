@@ -24,7 +24,6 @@ import android.content.Context
 enum class SleepSection(val raw: String, val title: String) {
     SLEEP_MARKS("sleepMarks", "Sleep marks"),
     STAGES("stages", "Stages"),
-    NAPS("naps", "Naps"),
     NIGHT_DETAIL("nightDetail", "Night detail"),
     SLEEP_DEBT("sleepDebt", "Sleep-debt ledger"),
     STAGES_VS_TYPICAL("stagesVsTypical", "Stages vs typical"),
@@ -34,10 +33,11 @@ enum class SleepSection(val raw: String, val title: String) {
         fun fromRaw(raw: String?): SleepSection? = entries.firstOrNull { it.raw == raw }
 
         /** The original, hard-coded card order — the default when the layout isn't customised. Matches the
-         *  pre-customisation render order in SleepScreen (Naps sits directly under Stages, where it was
-         *  drawn inside the stages hero before it became independently arrangeable). */
+         *  pre-customisation render order in SleepScreen below the pinned Sleep-performance hero. (Naps
+         *  rides with Stages for now — drawn inside the stages hero; making it an independently arrangeable
+         *  card is a follow-up that requires hoisting the hero's edit/delete callbacks.) */
         val defaultOrder: List<SleepSection> = listOf(
-            SLEEP_MARKS, STAGES, NAPS, NIGHT_DETAIL, SLEEP_DEBT, STAGES_VS_TYPICAL, ASLEEP_DURATION,
+            SLEEP_MARKS, STAGES, NIGHT_DETAIL, SLEEP_DEBT, STAGES_VS_TYPICAL, ASLEEP_DURATION,
         )
     }
 }

@@ -29,7 +29,6 @@ import SwiftUI
 enum SleepSection: String, CaseIterable, Identifiable {
     case sleepMarks
     case stages
-    case naps
     case nightDetail
     case sleepDebt
     case stagesVsTypical
@@ -42,7 +41,6 @@ enum SleepSection: String, CaseIterable, Identifiable {
         switch self {
         case .sleepMarks:      return String(localized: "Sleep marks")
         case .stages:          return String(localized: "Stages")
-        case .naps:            return String(localized: "Naps")
         case .nightDetail:     return String(localized: "Night detail")
         case .sleepDebt:       return String(localized: "Sleep-debt ledger")
         case .stagesVsTypical: return String(localized: "Stages vs typical")
@@ -51,10 +49,11 @@ enum SleepSection: String, CaseIterable, Identifiable {
     }
 
     /// The original, hard-coded card order — the default when the layout isn't customised. Matches the
-    /// pre-customisation render order in `SleepView` (Naps sits directly under Stages, where it was drawn
-    /// inside the stages hero before it became independently arrangeable).
+    /// pre-customisation render order in `SleepView` below the pinned Sleep-performance hero. (Naps rides
+    /// with Stages for now — it's drawn inside the stages hero; making it an independently arrangeable
+    /// card is a follow-up that requires hoisting the hero's edit/delete callbacks.)
     static let defaultOrder: [SleepSection] = [
-        .sleepMarks, .stages, .naps, .nightDetail, .sleepDebt, .stagesVsTypical, .asleepDuration,
+        .sleepMarks, .stages, .nightDetail, .sleepDebt, .stagesVsTypical, .asleepDuration,
     ]
 }
 
