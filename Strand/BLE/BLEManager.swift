@@ -3268,6 +3268,23 @@ public final class BLEManager: NSObject, ObservableObject {
     /// Clear the probe result (dialog dismissed).
     public func clearEcgProbe() { state.ecgProbe = nil }
 
+    /// Render the raw-history reject archive's current state into `state.rawHistoryArchiveReport` and the
+    /// strap log. Read-only and strap-free — it opens a local file; no command is sent, so it is not
+    /// gated on a connection, on the Experimental opt-in, or on an MG.
+    ///
+    /// This exists because "the ECG probe saw N packets" does not answer whether the RECORD survived:
+    /// the record lands in a later history offload, and retention may already have evicted it. The
+    /// summary answers that directly — counts per layout version split by informative vs all-zero
+    /// payload, and the newest captures' phone-clock timestamps to match against the contact window.
+    public func reportRawHistoryArchive() {
+        let text = rejectedHistoryArchive.summaryText()
+        state.rawHistoryArchiveReport = text
+        log("Raw history archive:\n\(text)")
+    }
+
+    /// Clear the archive report (dialog dismissed).
+    public func clearRawHistoryArchiveReport() { state.rawHistoryArchiveReport = nil }
+
     private func beginEcgProbeRun(clearingSteps: Bool) {
         if clearingSteps {
             ecgProbeSteps = []
