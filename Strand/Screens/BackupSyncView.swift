@@ -308,6 +308,16 @@ private struct RestorePickerSheet: View {
                 }
             }
         }
+        // A macOS `.sheet` sizes to its content's ideal height, and a `List` inside a `NavigationStack`
+        // reports a near-zero intrinsic height there — so without an explicit frame the sheet collapses
+        // to just the title + Cancel and clips every row, leaving the user an empty "Choose a backup"
+        // with backups that ARE in the folder (the caller only opens this sheet when the list is
+        // non-empty). Give it a real size, the same way `AddDeviceWizard`/`HealthView` frame their macOS
+        // sheets with a fixed size. iOS/iPadOS sheets already take a sensible height, so the frame is
+        // macOS-only. A longer backup list scrolls within the List; a short one leaves trailing space. (#1093)
+        #if os(macOS)
+        .frame(width: 460, height: 420)
+        #endif
     }
 
     /// The row's headline: a friendly date when we resolved one, else the filename (never the epoch date).
