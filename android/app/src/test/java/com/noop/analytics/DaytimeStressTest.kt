@@ -1,10 +1,13 @@
 package com.noop.analytics
 
+import com.noop.data.GravitySample
 import com.noop.data.HrSample
 import com.noop.data.RrInterval
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -55,6 +58,143 @@ class DaytimeStressTest {
         assertFalse(
             "a calm desk day must not read as sustained high stress",
             withSleep.sustainedHigh,
+        )
+    }
+
+    // MARK: - Motion gate (Kotlin twin of the Swift gate tests)
+
+    /**
+     * Gravity for one local hour. [activeFraction] of the records step far enough between
+     * consecutive samples to clear WorkoutDetector.motionThreshold (0.20 g L2); the rest hold still.
+     */
+    private fun hourGravity(hour: Int, activeFraction: Double, n: Int = 120): List<GravitySample> {
+        val base = hour.toLong() * 3_600L
+        val activeCount = Math.round(n * activeFraction).toInt()
+        return (0 until n).map { i ->
+            val x = if (i < activeCount && i % 2 == 0) 0.5 else 0.0
+            GravitySample(deviceId = "t", ts = base + i * 30L, x = x, y = 0.0, z = 1.0)
+        }
+    }
+
+    @Test
+    fun emptyGravityIsByteIdenticalToNoGravity() {
+        var hr = emptyList<HrSample>()
+        for (h in listOf(8, 9, 10, 11)) hr = hr + hourHr(h, 60 + (h - 8) * 5)
+        val withoutGravity = DaytimeStress.analyze(hr, emptyList())
+        val withEmptyGravity = DaytimeStress.analyze(hr, emptyList(), emptyList())
+        assertEquals(withoutGravity, withEmptyGravity)
+        assertEquals(0, withEmptyGravity.activityMaskedHours)
+        assertFalse(withEmptyGravity.hours.any { it.maskedForActivity })
+    }
+
+    @Test
+    fun ambulatoryHourIsMaskedNotScored() {
+        var hr = emptyList<HrSample>()
+        for (h in listOf(8, 9, 10)) hr = hr + hourHr(h, 60)
+        hr = hr + hourHr(11, 110)   // the walk
+
+        val unGated = DaytimeStress.analyze(hr, emptyList())
+        assertNotNull(
+            "precondition: without gravity the ambulatory hour is scored as stress",
+            unGated.scored.firstOrNull { it.hour == 11 }?.level,
+        )
+
+        var gravity = emptyList<GravitySample>()
+        for (h in listOf(8, 9, 10)) gravity = gravity + hourGravity(h, 0.0)
+        gravity = gravity + hourGravity(11, 1.0)
+
+        val gated = DaytimeStress.analyze(hr, emptyList(), gravity)
+        val masked = gated.hours.firstOrNull { it.hour == 11 }
+        assertNotNull(masked)
+        assertNull("an ambulatory hour must not be scored", masked!!.level)
+        assertTrue(
+            "the hour must report WHY it is unscored — masked, not no-data",
+            masked.maskedForActivity,
+        )
+        assertEquals(
+            "the reading itself is still reported, only the score is withheld",
+            110.0, masked.meanHr!!, 1e-9,
+        )
+        assertEquals(1, gated.activityMaskedHours)
+    }
+
+    @Test
+    fun stillHourIsStillScoredWhenGravityPresent() {
+        var hr = emptyList<HrSample>()
+        var gravity = emptyList<GravitySample>()
+        for (h in listOf(8, 9, 10, 11)) {
+            hr = hr + hourHr(h, if (h == 11) 85 else 60)
+            gravity = gravity + hourGravity(h, 0.0)
+        }
+        val r = DaytimeStress.analyze(hr, emptyList(), gravity)
+        assertEquals("a still day must have nothing masked", 0, r.activityMaskedHours)
+        assertNotNull(
+            "a stationary elevated-HR hour is exactly what the timeline SHOULD score",
+            r.scored.firstOrNull { it.hour == 11 }?.level,
+        )
+    }
+
+    @Test
+    fun lightMovementBelowFractionDoesNotMask() {
+        var hr = emptyList<HrSample>()
+        var gravity = emptyList<GravitySample>()
+        for (h in listOf(8, 9, 10, 11)) {
+            hr = hr + hourHr(h, 60)
+            gravity = gravity + hourGravity(h, if (h == 10) 0.10 else 0.0)
+        }
+        val r = DaytimeStress.analyze(hr, emptyList(), gravity)
+        assertEquals(
+            "10 % ambulatory is below activityMaskFraction (0.30) and must not mask the hour",
+            0, r.activityMaskedHours,
+        )
+    }
+
+    @Test
+    fun postActivityShadowMasksOnlyWhileHrStaysElevated() {
+        fun day(followingBpm: Int): DaytimeStress.Result {
+            var hr = emptyList<HrSample>()
+            var gravity = emptyList<GravitySample>()
+            for (h in listOf(8, 9, 10, 13)) {
+                hr = hr + hourHr(h, 60)
+                gravity = gravity + hourGravity(h, 0.0)
+            }
+            hr = hr + hourHr(11, 120)                 // the workout hour
+            gravity = gravity + hourGravity(11, 1.0)
+            hr = hr + hourHr(12, followingBpm)        // the shadow hour, now still
+            gravity = gravity + hourGravity(12, 0.0)
+            return DaytimeStress.analyze(hr, emptyList(), gravity)
+        }
+        assertTrue(
+            "an unrecovered post-exercise hour must be masked, not read as stress",
+            day(100).hours.firstOrNull { it.hour == 12 }?.maskedForActivity ?: false,
+        )
+        assertFalse(
+            "once HR is back at the calm reference the shadow must not keep masking",
+            day(60).hours.firstOrNull { it.hour == 12 }?.maskedForActivity ?: true,
+        )
+    }
+
+    @Test
+    fun maskedHoursAreExcludedFromTheCalmReference() {
+        var stillHr = emptyList<HrSample>()
+        var stillGravity = emptyList<GravitySample>()
+        for (h in listOf(8, 9, 10, 13)) {
+            stillHr = stillHr + hourHr(h, if (h == 13) 80 else 60)
+            stillGravity = stillGravity + hourGravity(h, 0.0)
+        }
+        val withoutWorkout = DaytimeStress.analyze(stillHr, emptyList(), stillGravity)
+
+        val withHr = stillHr + hourHr(11, 130)
+        val withGravity = stillGravity + hourGravity(11, 1.0)
+        val withWorkout = DaytimeStress.analyze(withHr, emptyList(), withGravity)
+
+        val before = withoutWorkout.scored.firstOrNull { it.hour == 13 }?.level
+        val after = withWorkout.scored.firstOrNull { it.hour == 13 }?.level
+        assertNotNull(before)
+        assertNotNull(after)
+        assertEquals(
+            "a masked exertion hour leaked into the calm reference and moved an unrelated hour's score",
+            before!!, after!!, 1e-9,
         )
     }
 }

@@ -1,5 +1,6 @@
 package com.noop.analytics
 
+import com.noop.data.GravitySample
 import com.noop.data.HrSample
 import com.noop.data.RrInterval
 import kotlin.math.exp
@@ -51,6 +52,38 @@ object DaytimeStress {
     const val wakingStartHour: Int = 6
     const val wakingEndHour: Int = 22
 
+    // MARK: - Motion gate
+    //
+    // Cardiac signals alone cannot separate psychological stress from EXERTION: a brisk walk and a
+    // tense meeting both raise HR and suppress HRV. Without a motion channel an ambulatory hour is
+    // scored as "stress". When the caller supplies the day's gravity (wrist accelerometer), an hour
+    // that was substantially ambulatory is MASKED (null level, [HourPoint.maskedForActivity] true)
+    // rather than scored, and it is excluded from the calm reference and the coverage totals. No
+    // gravity → no masking → byte-identical prior behaviour, so the gate only applies when motion is
+    // actually observable.
+
+    /**
+     * An hour whose gravity-derived activity is ambulatory for at least this fraction of its records
+     * is EXERTION, not stress — masked, not scored. "Ambulatory" = a per-record activity intensity
+     * above [WorkoutDetector.motionThreshold] (0.20 L2-g, the codebase's calibrated walk floor: desk
+     * ≈ 0.05–0.10 g, walking ≈ 0.2–0.4 g). 0.30 means "at least 30 % of the hour was walking or
+     * moving"; below it, a stray reach or one trip to the kitchen does not mask a desk hour. An
+     * hourly grain is coarse — this is the gate that later allows finer epochs, at which point the
+     * fraction can tighten. Range (0, 1].
+     */
+    const val activityMaskFraction: Double = 0.30
+
+    /**
+     * Post-exercise shadow: HR stays elevated for a while AFTER exertion ends, so the single hour
+     * that immediately FOLLOWS a directly-ambulatory hour is ALSO masked WHILE its mean HR is still
+     * above the calm reference by this margin (bpm). A following hour whose HR has already returned
+     * to the calm reference is scored normally, so the shadow self-limits to genuine cardiac
+     * recovery. Deliberately ONE hour deep (keyed on the directly-active hour, not chained through
+     * prior shadows) so a genuinely tense afternoon that happens to follow a workout is not masked
+     * away. Range >= 0.
+     */
+    const val postActivityShadowBpm: Double = 8.0
+
     // MARK: - Output
 
     /**
@@ -68,6 +101,13 @@ object DaytimeStress {
         val meanHr: Double?,
         /** RMSSD over the hour's clean R-R (ms), or null (too few clean beats). */
         val rmssd: Double?,
+        /**
+         * True when this hour was left unscored because it was AMBULATORY (exertion), not because it
+         * lacked HR — so a null [level] here means "masked as activity", not "no data". Lets the UI
+         * separate "you were moving" from "no reading" and keeps active hours out of the calm
+         * reference and the coverage totals. See the motion-gate constants above.
+         */
+        val maskedForActivity: Boolean = false,
     ) {
         /** True when the hour was scored (had enough HR to place on the curve). */
         val hasData: Boolean get() = level != null
@@ -85,6 +125,13 @@ object DaytimeStress {
         val dayMean: Double?,
         /** Peak scored hour (highest level), or null. */
         val peak: HourPoint?,
+        /**
+         * Count of waking hours left unscored because they were AMBULATORY (the motion gate fired),
+         * i.e. `hours.count { it.maskedForActivity }`. Lets a caller report honest coverage
+         * ("N hours excluded — you were moving") instead of a silently short timeline. 0 when no
+         * gravity was supplied or nothing was masked; 0 for [EMPTY].
+         */
+        val activityMaskedHours: Int = 0,
     ) {
         /** The scored hours only (level non-null), in time order. */
         val scored: List<HourPoint> get() = hours.filter { it.level != null }
@@ -92,7 +139,7 @@ object DaytimeStress {
         companion object {
             /** Empty read — used when the day had no usable intraday HR at all. */
             val EMPTY = Result(emptyList(), sustainedHigh = false, sustainedRun = 0,
-                dayMean = null, peak = null)
+                dayMean = null, peak = null, activityMaskedHours = 0)
         }
     }
 
@@ -140,12 +187,20 @@ object DaytimeStress {
      *
      * @param hr the day's HR samples (any order; bucketed by ts here).
      * @param rr the day's R-R intervals.
+     * @param gravity the day's gravity samples (wrist accelerometer), for the motion gate. Defaults
+     *   empty: with no gravity NOTHING is masked and the read is byte-identical to before. When
+     *   present, ambulatory hours are masked out of the score (see the motion-gate constants).
      * @param tzOffsetSeconds seconds east of UTC, for placing each bucket on the LOCAL clock
      *   (so "waking hours" and the hour labels are local). Defaults to UTC.
      *
      * Returns [Result.EMPTY] when there isn't a single hour with enough HR to score.
      */
-    fun analyze(hr: List<HrSample>, rr: List<RrInterval>, tzOffsetSeconds: Long = 0L): Result {
+    fun analyze(
+        hr: List<HrSample>,
+        rr: List<RrInterval>,
+        gravity: List<GravitySample> = emptyList(),
+        tzOffsetSeconds: Long = 0L,
+    ): Result {
         if (hr.isEmpty()) return Result.EMPTY
 
         // 1) Bucket HR + R-R into LOCAL hour-of-day buckets, keyed by the bucket start
@@ -176,6 +231,30 @@ object DaytimeStress {
             aggs.add(HourAgg(b, mHr, rrRes.rmssd))
         }
 
+        // 2b) Motion gate: bucket the day's gravity-derived activity by the SAME local hour and mark
+        //     each hour AMBULATORY when at least [activityMaskFraction] of its records clear the
+        //     calibrated walk floor ([WorkoutDetector.motionThreshold]) — reusing the exact activity
+        //     series SedentaryDetector / WorkoutDetector already trust. Empty gravity → no active
+        //     buckets → nothing masked below (byte-identical to the pre-motion behaviour).
+        val activeFracByBucket = HashMap<Long, Double>()
+        if (gravity.isNotEmpty()) {
+            val activeCounts = HashMap<Long, Int>()
+            val totalCounts = HashMap<Long, Int>()
+            for (p in WorkoutDetector.activitySeries(gravity)) {
+                val localTs = p.ts + tzOffsetSeconds
+                val bucket = floorDiv(localTs, bucketSeconds) * bucketSeconds
+                totalCounts[bucket] = (totalCounts[bucket] ?: 0) + 1
+                if (p.intensity > WorkoutDetector.motionThreshold) {
+                    activeCounts[bucket] = (activeCounts[bucket] ?: 0) + 1
+                }
+            }
+            for ((b, total) in totalCounts) {
+                if (total > 0) activeFracByBucket[b] = (activeCounts[b] ?: 0).toDouble() / total
+            }
+        }
+        fun isAmbulatory(bucket: Long): Boolean =
+            (activeFracByBucket[bucket] ?: 0.0) >= activityMaskFraction
+
         // 3) The day's OWN quiet reference: centre on the CALM end (the lower quartile of
         //    hourly mean HR, the upper quartile of hourly RMSSD), and spread from the
         //    across-hour SD. This makes a flat day read ~baseline and a spiky day surface its
@@ -188,7 +267,10 @@ object DaytimeStress {
         //    hours of it. Letting those night hours into the reference drags the "calm" anchor
         //    far beneath every waking hour, inflating an ordinary calm day toward HIGH and
         //    falsely tripping the sustained-high Breathe nudge.
-        val referenceAggs = aggs.filter { isWakingHour(it.bucket) }
+        //    Ambulatory hours are excluded from the day's OWN calm reference too: an exertion hour's
+        //    elevated HR / suppressed HRV must not pull the calm anchor up or inflate the across-hour
+        //    spread the z-scores divide by.
+        val referenceAggs = aggs.filter { isWakingHour(it.bucket) && !isAmbulatory(it.bucket) }
         val hrMeans = referenceAggs.mapNotNull { it.meanHr }
         val rmssdVals = referenceAggs.mapNotNull { it.rmssd }
         val refHr = calmReference(hrMeans, calmIsLow = true)         // calm HR is LOW
@@ -203,22 +285,33 @@ object DaytimeStress {
             val hourOfDay = (floorDiv(a.bucket, bucketSeconds) % 24).toInt()
             // The wall-clock bucket start (undo the local shift applied above).
             val wallStart = a.bucket - tzOffsetSeconds
-            // Score only when HR cleared the count gate (HR is the always-available anchor;
-            // RMSSD enriches it when beats allow).
-            val level: Double? = if (a.meanHr != null) {
+            // Motion gate: an AMBULATORY hour — or the post-exercise shadow hour whose HR has not
+            // yet recovered to the calm reference — is EXERTION, so its elevated HR is masked out of
+            // the score instead of read as stress. The shadow is gated on refHr so it self-limits to
+            // genuine cardiac recovery (a following hour already back at baseline scores normally).
+            // Only meaningful when the hour actually HAD a reading to withhold — a no-HR hour is
+            // plain no-data, not "masked".
+            val shadow = isAmbulatory(a.bucket - bucketSeconds) &&
+                a.meanHr != null && refHr != null && a.meanHr > refHr + postActivityShadowBpm
+            val masked = a.meanHr != null && (isAmbulatory(a.bucket) || shadow)
+            // Score only when HR cleared the count gate AND the hour was not motion-masked (HR is
+            // the always-available anchor; RMSSD enriches it when beats allow).
+            val level: Double? = if (a.meanHr != null && !masked) {
                 squash(rawScore(a.meanHr, refHr, sdHr, a.rmssd, refRmssd, sdRmssd))
             } else {
                 null
             }
-            points.add(HourPoint(hourOfDay, wallStart, level, a.meanHr, a.rmssd))
+            points.add(HourPoint(hourOfDay, wallStart, level, a.meanHr, a.rmssd, masked))
         }
+        val activityMaskedHours = points.count { it.maskedForActivity }
 
         val scored = points.mapNotNull { p -> p.level?.let { p to it } }
         if (scored.isEmpty()) {
             // No scorable waking hour — still return the (unscored) timeline so the UI can
             // show "not enough data" rather than nothing.
             return if (points.isEmpty()) Result.EMPTY
-            else Result(points, sustainedHigh = false, sustainedRun = 0, dayMean = null, peak = null)
+            else Result(points, sustainedHigh = false, sustainedRun = 0, dayMean = null, peak = null,
+                activityMaskedHours = activityMaskedHours)
         }
 
         // 5) Sustained-high flag: walk back from the latest SCORED hour while each is HIGH.
@@ -231,7 +324,7 @@ object DaytimeStress {
         val dayMean = mean(scored.map { it.second })
         val peak = scored.maxByOrNull { it.second }?.first
 
-        return Result(points, sustained, run, dayMean, peak)
+        return Result(points, sustained, run, dayMean, peak, activityMaskedHours)
     }
 
     // MARK: - Helpers

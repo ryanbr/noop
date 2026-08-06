@@ -111,8 +111,13 @@ struct StressView: View {
         }
         let rr = (try? await repo.storeHandle()?.rrIntervals(
             deviceId: repo.deviceId, from: from, to: to, limit: 200_000)) ?? []
+        // Wrist accelerometer for the motion gate: an ambulatory hour is EXERTION, not stress, so it
+        // is masked rather than scored (DaytimeStress). Same store read as R-R; empty on hardware or
+        // imports with no gravity, which is exactly the "no masking, prior behaviour" degradation.
+        let gravity = (try? await repo.storeHandle()?.gravitySamples(
+            deviceId: repo.deviceId, from: from, to: to, limit: 200_000)) ?? []
 
-        daytime = DaytimeStress.analyze(hr: hr, rr: rr, tzOffsetSeconds: tz)
+        daytime = DaytimeStress.analyze(hr: hr, rr: rr, gravity: gravity, tzOffsetSeconds: tz)
 
         // ADDITIVE advanced readouts, computed on-demand from the SAME `rr` (no extra fetch, no
         // DB / schema change, and no effect on the 0..3 score above). Each engine returns nil when

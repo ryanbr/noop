@@ -132,4 +132,155 @@ final class DaytimeStressTests: XCTestCase {
         let base = hour * 3_600
         return (0..<n).map { RRInterval(ts: base + $0 * 50, rrMs: rrMs + ($0 % 2 == 0 ? jitter : -jitter)) }
     }
+
+    // MARK: - Motion gate
+
+    /// Gravity for one local hour. `activeFraction` of the records step far enough between
+    /// consecutive samples to clear `WorkoutDetector.motionThreshold` (0.20 g L2); the rest hold
+    /// still. The alternating ±step keeps every active record above the floor rather than only the
+    /// first, so the produced active fraction matches `activeFraction` closely.
+    private func hourGravity(_ hour: Int, activeFraction: Double, n: Int = 120) -> [GravitySample] {
+        let base = hour * 3_600
+        let activeCount = Int((Double(n) * activeFraction).rounded())
+        return (0..<n).map { i in
+            // 0.5 g of step per axis-pair is comfortably above the 0.20 walk floor when it alternates.
+            let x = i < activeCount ? (i % 2 == 0 ? 0.5 : 0.0) : 0.0
+            return GravitySample(ts: base + i * 30, x: x, y: 0, z: 1)
+        }
+    }
+
+    func testEmptyGravityIsByteIdenticalToNoGravity() {
+        // The degradation contract: with no motion channel NOTHING is masked and the read is
+        // unchanged from the pre-gate behaviour.
+        var hr: [HRSample] = []
+        for h in [8, 9, 10, 11] { hr += hourHR(h, bpm: 60 + (h - 8) * 5) }
+        let withoutGravity = DaytimeStress.analyze(hr: hr, rr: [])
+        let withEmptyGravity = DaytimeStress.analyze(hr: hr, rr: [], gravity: [])
+        XCTAssertEqual(withoutGravity, withEmptyGravity)
+        XCTAssertEqual(withEmptyGravity.activityMaskedHours, 0)
+        XCTAssertFalse(withEmptyGravity.hours.contains { $0.maskedForActivity })
+    }
+
+    func testAmbulatoryHourIsMaskedNotScored() {
+        // Four hours; the 11:00 hour has an elevated HR AND is ambulatory. Without motion it scores
+        // as the day's most "stressed" hour — the exact false positive the gate exists to remove.
+        var hr: [HRSample] = []
+        for h in [8, 9, 10] { hr += hourHR(h, bpm: 60) }
+        hr += hourHR(11, bpm: 110)   // the walk
+
+        let unGated = DaytimeStress.analyze(hr: hr, rr: [])
+        XCTAssertNotNil(unGated.scored.first { $0.hour == 11 }?.level,
+            "precondition: without gravity the ambulatory hour is scored as stress")
+
+        var gravity: [GravitySample] = []
+        for h in [8, 9, 10] { gravity += hourGravity(h, activeFraction: 0.0) }
+        gravity += hourGravity(11, activeFraction: 1.0)
+
+        let gated = DaytimeStress.analyze(hr: hr, rr: [], gravity: gravity)
+        let masked = gated.hours.first { $0.hour == 11 }
+        XCTAssertNotNil(masked)
+        XCTAssertNil(masked?.level, "an ambulatory hour must not be scored")
+        XCTAssertTrue(masked?.maskedForActivity ?? false,
+            "the hour must report WHY it is unscored — masked, not noData")
+        XCTAssertEqual(masked?.meanHR, 110, "the reading itself is still reported, only the score is withheld")
+        XCTAssertEqual(gated.activityMaskedHours, 1)
+    }
+
+    func testStillHourIsStillScoredWhenGravityPresent() {
+        // The gate must not swallow a genuinely sedentary day just because gravity was supplied.
+        var hr: [HRSample] = []
+        var gravity: [GravitySample] = []
+        for h in [8, 9, 10, 11] {
+            hr += hourHR(h, bpm: h == 11 ? 85 : 60)
+            gravity += hourGravity(h, activeFraction: 0.0)
+        }
+        let r = DaytimeStress.analyze(hr: hr, rr: [], gravity: gravity)
+        XCTAssertEqual(r.activityMaskedHours, 0, "a still day must have nothing masked")
+        XCTAssertNotNil(r.scored.first { $0.hour == 11 }?.level,
+            "a stationary elevated-HR hour is exactly what the timeline SHOULD score")
+    }
+
+    func testLightMovementBelowFractionDoesNotMask() {
+        // A stray reach or one trip to the kitchen (under activityMaskFraction) is not exertion.
+        var hr: [HRSample] = []
+        var gravity: [GravitySample] = []
+        for h in [8, 9, 10, 11] {
+            hr += hourHR(h, bpm: 60)
+            gravity += hourGravity(h, activeFraction: h == 10 ? 0.10 : 0.0)
+        }
+        let r = DaytimeStress.analyze(hr: hr, rr: [], gravity: gravity)
+        XCTAssertEqual(r.activityMaskedHours, 0,
+            "10 % ambulatory is below activityMaskFraction (0.30) and must not mask the hour")
+    }
+
+    func testPostActivityShadowMasksOnlyWhileHRStaysElevated() {
+        // The hour AFTER exertion is masked while its HR is still above the calm reference by
+        // postActivityShadowBPM, and scored normally once it has recovered.
+        func day(followingBPM: Int) -> DaytimeStress.Result {
+            var hr: [HRSample] = []
+            var gravity: [GravitySample] = []
+            for h in [8, 9, 10, 13] {                       // still hours, set the ~60 bpm calm anchor
+                hr += hourHR(h, bpm: 60)
+                gravity += hourGravity(h, activeFraction: 0.0)
+            }
+            hr += hourHR(11, bpm: 120)                      // 11:00 — the workout hour
+            gravity += hourGravity(11, activeFraction: 1.0)
+            hr += hourHR(12, bpm: followingBPM)             // 12:00 — the shadow hour, now still
+            gravity += hourGravity(12, activeFraction: 0.0)
+            return DaytimeStress.analyze(hr: hr, rr: [], gravity: gravity)
+        }
+        // Still elevated well above the ~60 bpm calm reference → masked.
+        let hot = day(followingBPM: 100)
+        XCTAssertTrue(hot.hours.first { $0.hour == 12 }?.maskedForActivity ?? false,
+            "an unrecovered post-exercise hour must be masked, not read as stress")
+        // Back at the calm reference → the shadow self-limits and the hour is scored.
+        let recovered = day(followingBPM: 60)
+        XCTAssertFalse(recovered.hours.first { $0.hour == 12 }?.maskedForActivity ?? true,
+            "once HR is back at the calm reference the shadow must not keep masking")
+    }
+
+    func testMaskedHoursAreExcludedFromTheCalmReference() {
+        // An exertion hour must not drag the day's calm anchor upward, which would depress every
+        // other hour's score. Same still hours, with and without an added ambulatory hour.
+        var stillHR: [HRSample] = []
+        var stillGravity: [GravitySample] = []
+        for h in [8, 9, 10, 13] {
+            stillHR += hourHR(h, bpm: h == 13 ? 80 : 60)
+            stillGravity += hourGravity(h, activeFraction: 0.0)
+        }
+        let withoutWorkout = DaytimeStress.analyze(hr: stillHR, rr: [], gravity: stillGravity)
+
+        var withHR = stillHR, withGravity = stillGravity
+        withHR += hourHR(11, bpm: 130)
+        withGravity += hourGravity(11, activeFraction: 1.0)
+        let withWorkout = DaytimeStress.analyze(hr: withHR, rr: [], gravity: withGravity)
+
+        let before = withoutWorkout.scored.first { $0.hour == 13 }?.level
+        let after = withWorkout.scored.first { $0.hour == 13 }?.level
+        XCTAssertNotNil(before); XCTAssertNotNil(after)
+        XCTAssertEqual(before!, after!, accuracy: 1e-9,
+            "a masked exertion hour leaked into the calm reference and moved an unrelated hour's score")
+    }
+
+    func testDifferentGravityDoesNotReuseAMemoizedResult() {
+        // The analyze memo is keyed on the streams; two identical hr/rr days with DIFFERENT motion
+        // must not share a cached Result.
+        var hr: [HRSample] = []
+        for h in [8, 9, 10] { hr += hourHR(h, bpm: 60) }
+        hr += hourHR(11, bpm: 110)
+
+        var still: [GravitySample] = []
+        var moving: [GravitySample] = []
+        for h in [8, 9, 10] {
+            still += hourGravity(h, activeFraction: 0.0)
+            moving += hourGravity(h, activeFraction: 0.0)
+        }
+        still += hourGravity(11, activeFraction: 0.0)
+        moving += hourGravity(11, activeFraction: 1.0)
+
+        let a = DaytimeStress.analyze(hr: hr, rr: [], gravity: still)
+        let b = DaytimeStress.analyze(hr: hr, rr: [], gravity: moving)
+        XCTAssertEqual(a.activityMaskedHours, 0)
+        XCTAssertEqual(b.activityMaskedHours, 1, "the memo key ignored gravity and returned a stale Result")
+    }
 }
