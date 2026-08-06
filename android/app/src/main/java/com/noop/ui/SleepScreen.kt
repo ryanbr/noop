@@ -16,6 +16,13 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -272,6 +279,13 @@ fun SleepScreen(
     // 12 hours, invite the user to log how they felt. The shown-day is persisted so the sheet never
     // re-pops on a recomposition or a same-day re-open. (PR #260)
     var showJournalPrompt by remember { mutableStateOf(false) }
+
+    // #sleep-layout: the arrangeable analytical-card order + explicit hidden set (SleepLayoutPrefs).
+    // SharedPreferences isn't reactive, so hold it in state and refresh after the Arrange sheet saves.
+    // Mirrors TodayScreen's section-order state.
+    var sleepSectionOrder by remember { mutableStateOf(SleepLayoutPrefs.order(context)) }
+    var hiddenSections by remember { mutableStateOf(SleepLayoutPrefs.hidden(context)) }
+    var showSleepArrange by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     LaunchedEffect(sleeps) {
         // #627: the journal-reminder toggle (default ON) gates this morning sheet too, so disabling the
@@ -330,6 +344,24 @@ fun SleepScreen(
                 }
             }
         }
+    }
+
+    // #sleep-layout: the Arrange sheet — reorder / show-hide the analytical cards, persisted via
+    // SleepLayoutPrefs. Reuses Today's generic EditableVisibilityRows editor. Refresh the in-memory
+    // order/hidden state on save so the cards re-lay-out immediately (SharedPreferences isn't reactive).
+    if (showSleepArrange) {
+        SleepArrangeSheet(
+            initialOrder = sleepSectionOrder,
+            initialHidden = hiddenSections,
+            onDismiss = { showSleepArrange = false },
+            onSave = { order, hidden ->
+                SleepLayoutPrefs.setOrder(context, order)
+                SleepLayoutPrefs.setHidden(context, hidden)
+                sleepSectionOrder = order
+                hiddenSections = hidden
+                showSleepArrange = false
+            },
+        )
     }
 
     // Tapping a metric tile opens a full-history detail sheet for that one metric. (PR #260)
@@ -512,12 +544,32 @@ fun SleepScreen(
                     overline = nightRelativeLabel(nightOffset),
                 )
             }
-            item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
-            // SLEEP MARKS — tap to log "going to sleep" / "I'm awake" (#461, Phase 1). LOGGING ONLY:
-            // a mark is persisted to the `sleep_mark` series + the shareable strap log; it never
-            // changes the detected sleep. Mirrors macOS SleepView.sleepMarkCard.
+            // #sleep-layout: a compact "Arrange" affordance (the same Tune entry Today uses) opens the
+            // reorder / show-hide sheet. Pinned just above the arrangeable cards.
             item {
-            SleepMarkCard(
+                Row(Modifier.fillMaxWidth().padding(top = Metrics.selectorTopUp)) {
+                    Spacer(Modifier.weight(1f))
+                    TextButton(
+                        onClick = { showSleepArrange = true },
+                        colors = ButtonDefaults.textButtonColors(contentColor = Palette.textTertiary),
+                    ) {
+                        Icon(Icons.Filled.Tune, contentDescription = stringResource(R.string.sleep_customize_title), modifier = Modifier.size(Metrics.iconSmall))
+                        Spacer(Modifier.width(Metrics.space4))
+                        Text(stringResource(R.string.sleep_customize_title), style = NoopType.footnote)
+                    }
+                }
+            }
+            // Analytical cards render in the user's saved order (SleepLayoutPrefs), minus the hidden set.
+            // Reordered via the Arrange sheet; each card's data guards (tilesModel/model) are preserved.
+            sleepSectionOrder.filterNot { it in hiddenSections }.forEach { section ->
+              when (section) {
+                SleepSection.SLEEP_MARKS -> {
+                    item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
+                    // SLEEP MARKS — tap to log "going to sleep" / "I'm awake" (#461, Phase 1). LOGGING ONLY:
+                    // a mark is persisted to the `sleep_mark` series + the shareable strap log; it never
+                    // changes the detected sleep. Mirrors macOS SleepView.sleepMarkCard.
+                    item {
+                    SleepMarkCard(
                 onMark = { type ->
                     val mark = SleepMark.now(type)
                     // The shareable strap log is the human-readable surface in a debug export.
@@ -530,10 +582,12 @@ fun SleepScreen(
                     Toast.makeText(context, mark.confirmation(), Toast.LENGTH_SHORT).show()
                 },
             )
-            }
-            item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
-            item {
-            Hero(
+                    }
+                }
+                SleepSection.STAGES -> {
+                    item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
+                    item {
+                    Hero(
                 display = display,
                 activeIsOura = activeIsOura,
                 clock = night?.clockLabel ?: model?.clockLabel,
@@ -623,31 +677,36 @@ fun SleepScreen(
                 windowOnsetTs = night?.heroOnsetTs,
                 windowWakeTs = night?.heroWakeTs,
             )
-            }
-            // Tiles / ledger / trends read the FULL-history model (#940): they stay up when only the
-            // selected day's model failed to build, exactly as iOS keeps them while browsing.
-            if (tilesModel != null) {
-                // Bind a non-null local so the smart-cast carries cleanly into each item {} lambda
-                // (a nullable val doesn't smart-cast across a lambda boundary). Same model, same order.
-                val m = tilesModel
-                item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
-                item { MetricGrid(m, onMetricClick = { detailMetricKey = it }) }
-                item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
-                item { SleepDebtLedgerCard(m.sleepDebtLedger) }
-                // StagesVsTypical describes ONE specific night's deep/REM/light minutes under the
-                // "Selected night" header, so it must read the SELECTED day's model, never the
-                // full-history fallback: when the selected day has no stage model (the phantom newest
-                // day), showing tilesModel here would label ANOTHER day's stages as this night (#940).
-                // Hide the card in that state (iOS shows the stub's honest zeros); MetricGrid/ledger/
-                // trends above/below stay on the full-history tilesModel exactly as before.
-                if (model != null) {
-                    // Bind a non-null local so the smart-cast carries into the item {} lambda.
-                    val selectedModel = model
+                    }
+                }
+                // Tiles / ledger / trends read the FULL-history model (#940): they stay up when only the
+                // selected day's model failed to build, exactly as iOS keeps them while browsing. Each
+                // `tilesModel?.let { m -> ... }` binds a non-null local so the smart-cast carries across
+                // the item {} lambda boundary — same guard the old `if (tilesModel != null)` block used.
+                SleepSection.NIGHT_DETAIL -> tilesModel?.let { m ->
+                    item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
+                    item { MetricGrid(m, onMetricClick = { detailMetricKey = it }) }
+                }
+                SleepSection.SLEEP_DEBT -> tilesModel?.let { m ->
+                    item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
+                    item { SleepDebtLedgerCard(m.sleepDebtLedger) }
+                }
+                // StagesVsTypical reads the SELECTED day's model, never the full-history fallback: a
+                // phantom newest day with no stage model would otherwise label ANOTHER night's stages as
+                // this one (#940). Hidden in that state, exactly as before.
+                SleepSection.STAGES_VS_TYPICAL -> model?.let { selectedModel ->
                     item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
                     item { StagesVsTypical(selectedModel) }
                 }
-                item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
-                item { DurationTrend(m) }
+                SleepSection.ASLEEP_DURATION -> tilesModel?.let { m ->
+                    item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
+                    item { DurationTrend(m) }
+                }
+              }
+            }
+            // Android-only detail cards, pinned below the arrangeable region (iOS folds these into Night
+            // detail; making them arrangeable too is a #sleep-layout follow-up).
+            tilesModel?.let { m ->
                 item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
                 item { HoursVsNeededCard(m) }
                 item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
