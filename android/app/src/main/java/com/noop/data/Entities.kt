@@ -687,3 +687,42 @@ data class V18AuxSampleEntity(
         return result
     }
 }
+
+/**
+ * One in-band `@82` SpO2 percentage from a WHOOP 5/MG v18 record, banked DURABLY
+ * (MIGRATION_25_26 / Swift GRDB `v34-spo2-pct-durable`).
+ *
+ * WHY THIS EXISTS AS ITS OWN TABLE. The byte is already carried raw inside [V18AuxSampleEntity.fields]
+ * (slot [V18AuxSlot.AUX_BYTE_82]), but `v18AuxSample` is CAPPED at
+ * [WhoopRepository.V18_AUX_RETENTION_ROWS] (604,800 rows/device, ~7 days at 1 Hz) because the aux blob
+ * costs ~30 MB/day. So every SpO2 reading rolled off after a week and was gone permanently: the strap
+ * trims its own history the moment an offload is acked, so no second copy exists anywhere. Raising the
+ * aux cap is the wrong fix — it buys a year of SpO2 at the price of ~11 GB of unrelated aux bytes. The
+ * in-band signal is only ~2,000 samples/week (~100k rows/year), so this narrow sibling retains it forever
+ * at trivial cost while the wide aux capture stays capped and unchanged.
+ *
+ * WHY NOT EXTEND [Spo2Sample] (the v3 table). Wrong shape, and extending it would corrupt a live reader:
+ * `spo2Sample` is `(deviceId, ts, red, ir)`, two NOT NULL raw ADC channels off the WHOOP 4.0 v24 layout,
+ * and [com.noop.analytics.AnalyticsEngine.nightlySpo2RawMeans] averages them into `spo2Red`/`spo2Ir`.
+ * We have a computed PERCENTAGE and no red/IR at all, so every insert would have to fabricate zeros and
+ * drag those means toward zero. Two different physical quantities from two device generations.
+ *
+ * [pct] is the RAW in-band byte ([SPO2_CANDIDATE_IN_BAND], 70..100), stored verbatim. Run grouping and
+ * acquisition-ramp trimming are READ-TIME policies (see
+ * [com.noop.analytics.AnalyticsEngine.nightlySpo2Pct]) — they have already changed once on the cloud
+ * reader, and a store that baked the old policy in would have destroyed the evidence needed to change
+ * them again. The only thing applied on the way in is the [SPO2_CANDIDATE_IN_BAND] demultiplex, which is
+ * not a policy but the definition of which values on `@82` are percentages at all.
+ *
+ * NOT PRUNED, by design — the same "durable decoded biometric history" class as `hrSample` and
+ * `ppgWaveformSample`. The `v18AuxSample` rolling sweep deletes only `FROM v18AuxSample`, so this table
+ * is untouched by it. PK (deviceId, ts) and field order (deviceId, ts, pct) mirror the GRDB schema, so a
+ * `.noopbak` round-trips.
+ */
+@Entity(tableName = "spo2PctSample", primaryKeys = ["deviceId", "ts"])
+data class Spo2PctSampleEntity(
+    val deviceId: String,
+    val ts: Long,
+    /** The raw in-band `@82` byte, 70..100. Never a sentinel, never a diagnostic code, never 0. */
+    val pct: Int,
+)

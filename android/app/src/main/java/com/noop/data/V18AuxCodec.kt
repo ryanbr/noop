@@ -183,6 +183,42 @@ data class V18AuxRow(
 }
 
 /**
+ * The in-band window for the `@82` SpO2 candidate byte: a value in `70..100` is a MEASUREMENT, and
+ * everything else on that byte is something else entirely.
+ *
+ * `@82` is MULTIPLEXED and separable BY VALUE — this is the separation, established over 626,725
+ * production records:
+ *   - `70..100`   a real percentage. Distribution modes at 97; per-night medians 94-97; sleep-gated;
+ *                 emitted as a run of ~30 one-second samples once per ~1,200 s.
+ *   - bit 7 set   status sentinel (`0x80`, `0x88`, `0x90`, `0xA0`, `0xA8` are the observed values).
+ *   - `1..69`     diagnostic codes, not a saturation of anything.
+ *   - `0`         the strap emitted nothing this second (awake, or between runs).
+ *   - `101..127`  never observed — the gap is what makes the bit-7 sentinels and the measurements
+ *                 unambiguously separable without a side channel.
+ *
+ * This is the SAME window the decoder applies when it emits `spo2_candidate_82`, the same one
+ * [com.noop.analytics.AnalyticsEngine.nightlySpo2CandidateMean] applies, and the same one
+ * [WhoopRepository.insert] applies when forking [Spo2PctSampleEntity] rows out of the aux stream.
+ * Named here so the three agree structurally rather than by three matching literals. Byte-identical
+ * twin of the Swift `spo2CandidateInBand` (WhoopProtocol/Streams.swift).
+ */
+val SPO2_CANDIDATE_IN_BAND: IntRange = 70..100
+
+/**
+ * One in-band `@82` SpO2 percentage as it travels through a decoded batch, before it is banked as a
+ * [Spo2PctSampleEntity]. Twin of the Swift `Spo2PctSample`.
+ *
+ * LOSSLESS BY CONSTRUCTION: [pct] is the raw in-band byte, verbatim. No run grouping, no ramp trimming,
+ * no smoothing, no dedupe beyond the (deviceId, ts) primary key — see [Spo2PctSampleEntity] for why.
+ */
+data class Spo2PctRow(
+    /** Wall-clock unix seconds — one per strap-second that carried a reading. */
+    val ts: Long,
+    /** The raw in-band `@82` byte, 70..100. */
+    val pct: Int,
+)
+
+/**
  * Storage codec for the 5/MG v18 auxiliary-field stream (`v18AuxSample.fields`).
  *
  * WHY A BLOB AND NOT COLUMNS. There are seventeen slots and they arrive once per strap-second. Seventeen

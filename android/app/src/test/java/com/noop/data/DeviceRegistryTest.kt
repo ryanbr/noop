@@ -91,6 +91,7 @@ class DeviceRegistryTest {
         override suspend fun deletePpgWaveformFor(deviceId: String) { deletedTables += "ppgWaveformSample" to deviceId }
         override suspend fun deleteRawImuFor(deviceId: String) { deletedTables += "rawImuSample" to deviceId }
         override suspend fun deleteV18AuxFor(deviceId: String) { deletedTables += "v18AuxSample" to deviceId }
+        override suspend fun deleteSpo2PctFor(deviceId: String) { deletedTables += "spo2PctSample" to deviceId }
         override suspend fun deleteEventsFor(deviceId: String) { deletedTables += "event" to deviceId }
         override suspend fun deleteBatteryFor(deviceId: String) { deletedTables += "battery" to deviceId }
         override suspend fun deleteDailyMetricsFor(deviceId: String) { deletedTables += "dailyMetric" to deviceId }
@@ -127,6 +128,7 @@ class DeviceRegistryTest {
         override suspend fun reKeyPpgWaveform(from: String, to: String) {}
         override suspend fun reKeyRawImu(from: String, to: String) {}
         override suspend fun reKeyV18Aux(from: String, to: String) {}
+        override suspend fun reKeySpo2Pct(from: String, to: String) {}
         override suspend fun reKeyEvents(from: String, to: String) {}
         override suspend fun reKeyBattery(from: String, to: String) {}
         override suspend fun reKeyDailyMetrics(from: String, to: String) {}
@@ -282,6 +284,9 @@ class DeviceRegistryTest {
         val expectedTables = setOf(
             "hrSample", "rrInterval", "spo2Sample", "skinTempSample", "respSample", "gravitySample",
             "stepSample", "ppgHrSample", "ppgWaveformSample", "rawImuSample", "v18AuxSample",
+            // v34/MIGRATION_25_26: never pruned, so a wipe that missed it would leave YEARS of
+            // blood-oxygen readings behind after the user asked for them to be gone.
+            "spo2PctSample",
             "event", "battery", "dailyMetric", "sleepSession",
             "journal", "workout", "appleDaily", "metricSeries", "dayOwnership",
             "scoreInputProvenance",

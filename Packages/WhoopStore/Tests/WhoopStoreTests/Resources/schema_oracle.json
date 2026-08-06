@@ -1,6 +1,6 @@
 {
   "_readme": "SHARED Room<->GRDB SCHEMA ORACLE (#775). Two byte-identical copies: Packages/WhoopStore/Tests/WhoopStoreTests/Resources/schema_oracle.json and android/app/src/test/resources/schema_oracle.json. SchemaOracleTests.swift compares GRDB's PRAGMA table_info/index_list against it; SchemaOracleTest.kt compares Room's exported schema JSON against it. `columns` is the iOS/GRDB shape in GRDB column order (macOS is the reference implementation); every way Android differs is spelled out in an `android` / `iosAbsent` / `androidColumnOrder` override naming a key in `divergenceReasons`. Adding a column, reordering one, or changing a type/nullability on one platform only fails both suites until it is either fixed or written down here. `grdbMigrationLineages` is the same idea for migration IDENTIFIERS: a fork that numbered its own migrations before upstream reached those numbers declares them there instead of renumbering \u2014 GRDB keys migrations by identifier string, so renaming one wedges a database that already ran it.",
-  "roomVersion": 25,
+  "roomVersion": 26,
   "grdbMigrations": [
     "v1",
     "v2",
@@ -1699,8 +1699,7 @@
       "indices": []
     },
     "spo2PctSample": {
-      "platform": "ios_only",
-      "reason": "Fork-only iOS table (GRDB `v34-spo2-pct-durable`): the durable per-second SpO2 percentages the WHOOP 5/MG emits on `@82` of its v18 record. The byte is already captured raw inside `v18AuxSample.fields`, but that table is CAPPED at 604,800 rows/device (~7 days at 1 Hz) because the aux blob costs ~30 MB/day, so every reading rolled off after a week and was gone permanently \u2014 the strap trims its own history the moment an offload is acked. The in-band signal is only ~2,000 samples/week (~100k rows/year), so a narrow never-pruned sibling retains it forever at trivial cost while the wide aux capture stays capped. `pct` is the RAW in-band byte (70...100); run grouping and acquisition-ramp trimming are read-time policy, not stored. No Room twin yet: the Kotlin capture/aggregate side is outstanding, and until it lands Android keeps banking the byte in its own `v18AuxSample` twin and loses it on the same 7-day roll.",
+      "platform": "both",
       "columns": [
         {
           "name": "deviceId",

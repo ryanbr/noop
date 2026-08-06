@@ -482,6 +482,12 @@ object IntelligenceEngine {
             // #93: WHOOP 4.0 raw SpO2 PPG samples for the night; analyzeDay banks the nightly red/IR ADC
             // means on the DailyMetric. Empty on a 5/MG (no v24 spo2 channels) → the raw means stay null.
             val spo2 = repo.spo2Samples(owner, from, to, STREAM_LIMIT)
+            // v34: the 5/MG's own per-second `@82` SpO2 percentages for the night; analyzeDay banks the
+            // ramp-trimmed nightly MEDIAN on `DailyMetric.spo2Pct`. Read from the durable table, which is
+            // never pruned — so re-scoring an old night still finds its readings, where the capped aux
+            // table they were forked from has held only ~7 days. Empty on a WHOOP 4.0 and on windows
+            // offloaded before MIGRATION_25_26 → the percentage stays null rather than fabricated.
+            val spo2Pct = repo.spo2PctSamples(owner, from, to, STREAM_LIMIT)
             // #938: the strap family that WROTE this owner's skin-temp rows, so analyzeDay converts the raw
             // register on the right scale (5/MG banks centidegrees, a WHOOP 4.0 v24 banks a raw ADC). The
             // owner source resolves it from the registry; unknown/non-WHOOP owners fall back to WHOOP5 (the
@@ -568,6 +574,7 @@ object IntelligenceEngine {
                 skinTempFamily = skinFamily,   // #938
                 skinTempAnchorRaw = skinAnchorRaw,   // #938 second capture: per-device worn anchor
                 spo2 = spo2,                   // #93
+                spo2PctSamples = spo2Pct,      // v34
                 profile = profile,
                 baselines = baselines1,
                 maxHROverride = maxHROverride,

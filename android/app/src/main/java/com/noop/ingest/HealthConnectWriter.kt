@@ -74,6 +74,34 @@ object HealthConnectWriter {
     /** How far back to write. Recomputation only ever touches recent nights; 60 days is generous. */
     private const val WINDOW_DAYS = 60L
 
+    /**
+     * Whether a strap-derived nightly SpO2 is written back to Health Connect as an
+     * [OxygenSaturationRecord]. Twin of the Swift `HealthKitBridge.exportsSpo2ToHealthKit`.
+     *
+     * FALSE, deliberately, and it is not an oversight to be tidied away.
+     *
+     * This export loop reads only the COMPUTED NOOP device rows — imported rows never pass through it —
+     * so before v34 populated `spo2Pct` for WHOOP nights this branch never fired even once. Turning the
+     * field on therefore does not "resume" an export; it STARTS one, and what it would start writing is a
+     * number nobody has checked against a reference oximeter.
+     *
+     * Why that bar is higher here than for the in-app card. A value in the app is read in context, next
+     * to its own provenance, by the person who built it. A Health Connect record is different in kind: it
+     * lands in the system health record under Android's own Blood Oxygen heading, sits alongside
+     * clinically-sourced readings with nothing distinguishing it, and is readable by every other app the
+     * user has authorised. Deleting it later is fiddly and does not recall what already propagated.
+     *
+     * The evidence genuinely does not reach that bar yet. The decode is well supported — distribution,
+     * run structure, sleep gating, night-to-night stability — but ALL of it says "this byte is a real
+     * oxygen measurement", none of it says "97 means 97". Upstream declines to promote the same metric
+     * for the same reason: two straps were checked against the WHOOP app and moved in OPPOSITE directions.
+     *
+     * Flip this to `true` (in lockstep with the Swift constant, or the platforms disagree about what
+     * leaves the device) once paired reference-oximeter nights exist and the bias is characterised — and,
+     * if the bias is a fixed offset, correct for it before writing rather than here.
+     */
+    const val EXPORTS_SPO2_TO_HEALTH_CONNECT = false
+
     private val WRITE_RECORDS: List<KClass<out Record>> = listOf(
         RestingHeartRateRecord::class,
         HeartRateVariabilityRmssdRecord::class,
@@ -139,7 +167,8 @@ object HealthConnectWriter {
                     metadata = meta("hrv", d.day, version),
                 ))
             }
-            d.spo2Pct?.let {
+            // DELIBERATELY NOT EXPORTED while [EXPORTS_SPO2_TO_HEALTH_CONNECT] is false — see the constant.
+            d.spo2Pct?.takeIf { EXPORTS_SPO2_TO_HEALTH_CONNECT }?.let {
                 records.add(OxygenSaturationRecord(
                     time = instant, zoneOffset = offset, percentage = Percentage(it),
                     metadata = meta("spo2", d.day, version),

@@ -9,6 +9,8 @@ import com.noop.data.SkinTempSample
 import com.noop.data.Spo2Sample
 import com.noop.data.RespSample
 import com.noop.data.RrInterval
+import com.noop.data.SPO2_CANDIDATE_IN_BAND
+import com.noop.data.Spo2PctRow
 import com.noop.data.StepSample
 import com.noop.protocol.DeviceFamily
 import com.noop.protocol.Whoop4SkinTemp
@@ -183,6 +185,13 @@ object AnalyticsEngine {
         // decoded" data, NOT a calibrated blood-oxygen % (that needs WHOOP's proprietary curve). Default
         // empty keeps pure-function callers/tests + non-4.0 nights null.
         spo2: List<Spo2Sample> = emptyList(),
+        // Durable 5/MG `@82` SpO2 percentages for the night window (v34 / MIGRATION_25_26). The
+        // ramp-trimmed nightly MEDIAN is banked on `DailyMetric.spo2Pct` — the strap's OWN computed
+        // percentage, not a curve NOOP invented. Distinct from [spo2] above, which is the WHOOP 4.0 v24
+        // raw red/IR ADC pair and feeds `spo2Red`/`spo2Ir`; the two device generations report different
+        // physical quantities and neither substitutes for the other. Default empty keeps pure-function
+        // callers/tests + every non-5/MG night null.
+        spo2PctSamples: List<Spo2PctRow> = emptyList(),
         profile: UserProfile,
         baselines: ProfileBaselines = ProfileBaselines(),
         maxHROverride: Double? = null,
@@ -441,6 +450,14 @@ object AnalyticsEngine {
         // as-is for the Health "Raw SpO2" tile — NOT a calibrated blood-oxygen %. (#93)
         val nightlySpo2Raw = nightlySpo2RawMeans(matched, spo2)
 
+        // ── SpO2 percentage (5/MG @82, durable) ───────────────────────────────
+        // Ramp-trimmed nightly median of the strap's OWN computed SpO2 %, over the detected in-bed spans.
+        // Null on a WHOOP 4.0, on any night with no in-band reading, and on every window offloaded before
+        // MIGRATION_25_26. Unlike the raw red/IR means above this IS a percentage — it is the number the
+        // strap computed, banked verbatim per-second and aggregated here, not a calibration NOOP applied
+        // to an ADC. See [nightlySpo2Pct] for the run/ramp policy and why the statistic is a median.
+        val nightlySpo2PctVal = nightlySpo2Pct(matched, spo2PctSamples)
+
         // ── Rest (sleep_performance composite, 0–100) ─────────────────────────
         // Replaces the bare efficiency proxy: duration-vs-personal-need 0.50 + efficiency 0.20 +
         // restorative (deep+REM)/asleep 0.20 + consistency 0.10. Stored under the sleep_performance
@@ -606,7 +623,20 @@ object AnalyticsEngine {
             recovery = recovery,
             strain = strain,
             exerciseCount = workouts.size,
-            spo2Pct = null,
+            // v34: was unconditionally null here — the on-device engine had no percentage to bank, so the
+            // Blood Oxygen card read "No Data" on every WHOOP night while the same field rendered fine
+            // for imported rows. It now carries the 5/MG's own `@82` median when the night has one, and
+            // stays null otherwise (WHOOP 4.0, pre-MIGRATION_25_26 windows, no in-band samples) — an
+            // absent reading must stay absent rather than become a fabricated number.
+            //
+            // NOTE FOR ANYONE CHANGING THIS: `dailyMetric.spo2Pct` is not display-only.
+            // [com.noop.ingest.HealthConnectWriter] writes it back as an `OxygenSaturationRecord`, so a
+            // value banked here can leave the app and land in the user's Health Connect blood-oxygen
+            // history alongside clinical readings. That export is gated behind
+            // `HealthConnectWriter.EXPORTS_SPO2_TO_HEALTH_CONNECT` for exactly that reason — read the
+            // constant before touching either. This field's bar is "the device measured this", never
+            // "this is our best guess".
+            spo2Pct = nightlySpo2PctVal?.first,
             skinTempDevC = skinTempDevC,
             respRateBpm = respRateDaily,
             steps = stepsTotal,
@@ -765,7 +795,9 @@ object AnalyticsEngine {
         var kept = 0
         for (a in aux) {
             val v = a.auxByte82 ?: continue
-            if (v < 70L || v > 100L) continue
+            // The same named window the store's fork and [nightlySpo2Pct] apply, so the three agree
+            // structurally rather than by three matching literals.
+            if (v.toInt() !in SPO2_CANDIDATE_IN_BAND) continue
             if (sessions.none { a.ts in it.start..it.end }) continue
             sum += v
             kept += 1
@@ -773,6 +805,101 @@ object AnalyticsEngine {
         if (kept == 0) return null
         return Pair((sum / kept).toInt(), kept)
     }
+
+    /**
+     * Nightly SpO2 percentage from the DURABLE `@82` stream (`spo2PctSample`, v34 / MIGRATION_25_26) over
+     * the detected in-bed [sessions] — the value banked on `DailyMetric.spo2Pct` for a 5/MG night — with
+     * the sample count that survived the ramp trim. Null when no reading fell inside any span.
+     *
+     * HOW THIS DIFFERS FROM [nightlySpo2CandidateMean]. That one is a naive mean over the raw candidate
+     * byte read out of the CAPPED aux table, built as a hand-checkable diagnostic. This is the scored
+     * statistic, over the durable stream, and it corrects the two things that make the naive mean wrong.
+     *
+     * THE ACQUISITION RAMP. The strap does not sample SpO2 continuously: it takes a RUN of ~30 one-second
+     * samples roughly once per ~1,200 s while asleep. The first samples of each run are the optical front
+     * end settling, and they read LOW — so a mean over every in-band sample is biased downward by a
+     * contamination that is entirely one-sided, and the bias grows with how much of the night is ramp
+     * (i.e. it is worse on nights with more, shorter runs — precisely when you would least suspect it).
+     * Runs are separated here by a gap of more than [SPO2_RUN_GAP_SECONDS]; at 1 Hz within a run and
+     * ~1,200 s between runs, that boundary is not a close call. The leading [SPO2_RAMP_SAMPLES] of each
+     * run are dropped — but never more than HALF a run, so a short run contributes its settled tail
+     * instead of vanishing and silently reweighting the night toward whichever runs happened to be long.
+     *
+     * WHY THE MEDIAN AND NOT A TRIMMED MEAN. Three reasons, in order of weight:
+     *   1. It is the statistic the cloud reader already reports (the per-night 94-97 medians every
+     *      cross-check against this data has been quoted against). A phone that shipped a trimmed mean
+     *      would disagree with the server on the same rows for no reason anyone could see.
+     *   2. Ramp removal is a heuristic, not a proof. A partially-settled sample just past the cut, or a
+     *      motion artifact mid-run, is residual one-sided contamination that a mean absorbs in full and a
+     *      median very largely ignores.
+     *   3. The in-band values live in a 31-wide integer band with a hard mode at 97, so a median is
+     *      stable and interpretable here in a way it would not be on a sparse continuous quantity.
+     * The trim and the median are complementary, not redundant: the trim removes a KNOWN, structured,
+     * large block of low readings that would move a median too, and the median absorbs what is left.
+     *
+     * READ-TIME POLICY, DELIBERATELY. None of this is applied on the way into the store —
+     * `spo2PctSample` holds raw in-band bytes. These rules have already changed once on the cloud side,
+     * and they will change again if a run's shape turns out to differ by firmware; keeping them here
+     * means that costs a re-score, not a re-capture of data the strap has long since trimmed.
+     *
+     * Pure + deterministic. Byte-parity twin of the Swift `AnalyticsEngine.nightlySpo2Pct`; the returned
+     * pair is (median percentage, surviving sample count), matching Swift's `(pct:samples:)`.
+     */
+    fun nightlySpo2Pct(
+        sessions: List<DetectedSleep>,
+        samples: List<Spo2PctRow>,
+    ): Pair<Double, Int>? {
+        if (sessions.isEmpty() || samples.isEmpty()) return null
+        // In-bed first, so run boundaries are computed over the samples that will actually be used. Note
+        // what that does and does not mean: a session edge splits a run only when the stretch it excludes
+        // is itself longer than [SPO2_RUN_GAP_SECONDS] — a brief out-of-bed moment mid-run leaves the run
+        // intact and singly-trimmed. Gap size is the ONLY run signal; session boundaries are not a second
+        // one. That is deliberate, because the ramp is a property of the sensor restarting, and the
+        // sensor does not restart because the sleep detector drew a line.
+        val inBed = samples
+            .filter { s -> sessions.any { s.ts >= it.start && s.ts <= it.end } }
+            .sortedBy { it.ts }
+        if (inBed.isEmpty()) return null
+
+        val kept = ArrayList<Int>(inBed.size)
+        fun flushRun(fromIdx: Int, toIdx: Int) {
+            val run = inBed.subList(fromIdx, toIdx)
+            // Never trim more than half a run: a 4-sample run keeps its last 2 rather than disappearing.
+            val drop = minOf(SPO2_RAMP_SAMPLES, run.size / 2)
+            for (i in drop until run.size) kept.add(run[i].pct)
+        }
+        var runStart = 0
+        for (i in 1 until inBed.size) {
+            if (inBed[i].ts - inBed[i - 1].ts > SPO2_RUN_GAP_SECONDS) {
+                flushRun(runStart, i)
+                runStart = i
+            }
+        }
+        flushRun(runStart, inBed.size)
+        if (kept.isEmpty()) return null
+
+        kept.sort()
+        val mid = kept.size / 2
+        val median =
+            if (kept.size % 2 == 0) (kept[mid - 1] + kept[mid]) / 2.0
+            else kept[mid].toDouble()
+        return Pair(median, kept.size)
+    }
+
+    /**
+     * Gap (seconds) above which two consecutive in-band `@82` samples belong to different measurement
+     * runs. Samples inside a run are 1 s apart and runs are ~1,200 s apart, so anything in between
+     * separates them; 60 s sits in the middle of that gulf and tolerates a dropped second or two inside a
+     * run without splitting it. Swift twin: `AnalyticsEngine.spo2RunGapSeconds`.
+     */
+    const val SPO2_RUN_GAP_SECONDS: Long = 60L
+
+    /**
+     * Leading samples dropped from each measurement run as the optical front end's acquisition ramp.
+     * ~5 of a ~30-sample run. Capped at half a run by the caller so short runs still contribute.
+     * Swift twin: `AnalyticsEngine.spo2RampSamples`.
+     */
+    const val SPO2_RAMP_SAMPLES: Int = 5
 
     /** Plausible worn skin-temperature range (°C). Off-wrist/charging samples drift to ambient and are
      *  excluded; the strap's own decode gate is the looser 20–45. (PR #85) */

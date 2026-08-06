@@ -51,8 +51,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PpgWaveformSampleEntity::class,
         RawImuSampleEntity::class,
         V18AuxSampleEntity::class,
+        Spo2PctSampleEntity::class,
     ],
-    version = 25,
+    version = 26,
     // #775: ON so Room's KSP processor writes the generated schema (every table's exact `CREATE TABLE`,
     // columns in declaration order with affinity/NOT NULL/default, PK and indices) as JSON. That export
     // is what lets a plain JVM test — no device, no Robolectric — read Android's REAL schema and compare
@@ -691,6 +692,53 @@ abstract class WhoopDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Retain the WHOOP 5/MG's own computed SpO2 percentage forever instead of losing it after seven
+         * days. Twin of the Swift GRDB migration `v34-spo2-pct-durable`.
+         *
+         * THE PROBLEM THIS FIXES. The 5/MG emits its own SpO2 % on `@82` of the v18 record. That byte has
+         * been banked since MIGRATION_24_25 — but only inside `v18AuxSample.fields`, a table CAPPED at
+         * [WhoopRepository.V18_AUX_RETENTION_ROWS] (604,800 rows/device, ~7 days at 1 Hz) because the aux
+         * blob costs ~30 MB/day. So every reading rolled off after a week and was gone permanently: the
+         * strap trims its own history the moment NOOP acks the offload, so there is no second copy
+         * anywhere. Raising the aux cap is the WRONG fix — it buys a year of SpO2 at the price of ~11 GB
+         * of mostly-unrelated aux bytes. The in-band signal is only ~2,000 samples/week (~100k rows/year),
+         * so it gets a narrow sibling that is NEVER pruned while the wide aux capture stays capped and
+         * unchanged. See [Spo2PctSampleEntity] for why this is not a column on `spo2Sample`.
+         *
+         * ADDITIVE ONLY: one CREATE TABLE, no rebuild, no row touched, no existing column changed — the
+         * MIGRATION_9_10 form (a brand-new table). No destructive fallback (see the class doc): a silent
+         * rebuild would lose already-acked, non-resendable strap history.
+         *
+         * `pct` is NOT NULL because a row is written only when the byte carried an in-band measurement;
+         * absence is encoded as "no row", never as a fabricated 0. That matters here more than usual: `0`
+         * is a real value ON THE WIRE ("the strap emitted nothing this second"), so a NULLable column
+         * holding 0 would be indistinguishable from a genuine sentinel.
+         *
+         * VERSION SEQUENCING. Room 25 -> 26 pairs with GRDB `v34`, not `v32`/`v33`: GRDB's identifiers and
+         * Room's integer versions are independent counters that have drifted apart since the fork's
+         * iOS-only migrations (see `grdbMigrationLineages` in `schema_oracle.json`). Room's version is a
+         * dense integer sequence and MUST be the next free one; GRDB's is a string and was numbered ahead
+         * of upstream on purpose. Both are pinned by SchemaOracleTest.
+         *
+         * The CREATE TABLE column order matches [Spo2PctSampleEntity]'s field order and the GRDB schema,
+         * so a migrated schema, a freshly-created one, and a `.noopbak` from iOS all agree.
+         *
+         * Exposed as [SPO2_PCT_DURABLE_MIGRATION_SQL] so a plain-JVM unit test can assert its shape
+         * without an emulator, like the migrations above.
+         */
+        internal val SPO2_PCT_DURABLE_MIGRATION_SQL: List<String> = listOf(
+            "CREATE TABLE IF NOT EXISTS `spo2PctSample` (`deviceId` TEXT NOT NULL, " +
+                "`ts` INTEGER NOT NULL, `pct` INTEGER NOT NULL, " +
+                "PRIMARY KEY(`deviceId`, `ts`))",
+        )
+
+        internal val MIGRATION_25_26 = object : Migration(25, 26) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                for (stmt in SPO2_PCT_DURABLE_MIGRATION_SQL) db.execSQL(stmt)
+            }
+        }
+
         private fun build(appContext: Context): WhoopDatabase =
             Room.databaseBuilder(appContext, WhoopDatabase::class.java, DB_NAME)
                 // #1014: replace ONLY the corruption handling of the default open-helper. The
@@ -707,7 +755,7 @@ abstract class WhoopDatabase : RoomDatabase() {
                     MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
                     MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18,
                     MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22,
-                    MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25,
+                    MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26,
                 )
                 // #1037: a FRESH install builds the schema straight at the current version and runs NO
                 // migrations, so the MIGRATION_7_8 "my-whoop" registry seed never fires and the WHOOP,

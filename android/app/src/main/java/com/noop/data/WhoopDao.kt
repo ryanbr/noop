@@ -100,6 +100,18 @@ interface WhoopDao : DeviceRegistryDao {
     suspend fun insertV18Aux(rows: List<V18AuxSampleEntity>): List<Long>
 
     /**
+     * The durable in-band `@82` SpO2 percentages (v34 / MIGRATION_25_26), forked out of the SAME v18 aux
+     * records `insertV18Aux` banks. IGNORE keeps the FIRST-seen value for a second, matching every other
+     * per-second stream's dedupe rule and making a re-offload of the same window idempotent. Swift twin:
+     * the `ON CONFLICT(deviceId, ts) DO NOTHING` insert in `StreamStore.insert`.
+     *
+     * There is deliberately NO prune query beside this one: unlike `v18AuxSample` this table is never
+     * swept, which is the entire reason it exists.
+     */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertSpo2Pct(rows: List<Spo2PctSampleEntity>): List<Long>
+
+    /**
      * Bound the v18 aux table to the newest [keep] rows for [deviceId] (rolling retention, v31). Same
      * shape as [pruneRawImu] — this is instrumentation nothing reads yet, so it is capped rather than
      * unbounded. Swift twin: the DELETE at the end of `WhoopStore.insert`.
@@ -319,6 +331,20 @@ interface WhoopDao : DeviceRegistryDao {
     )
     suspend fun v18AuxSamples(deviceId: String, from: Long, to: Long, limit: Int):
         List<V18AuxSampleEntity>
+
+    /**
+     * The durable in-band `@82` SpO2 percentages in [from, to] (ascending). Unlike [v18AuxSamples] this
+     * reaches back over the WHOLE recorded history — `spo2PctSample` is never pruned, while the aux table
+     * it is forked from is capped at ~7 days. Empty on a WHOOP 4.0 (no v18 aux stream) and for any window
+     * offloaded before MIGRATION_25_26. Values are RAW in-band bytes; run grouping and acquisition-ramp
+     * trimming are the CALLER's policy. Swift twin: `WhoopStore.spo2PctSamples`.
+     */
+    @Query(
+        "SELECT * FROM spo2PctSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
+            "ORDER BY ts ASC LIMIT :limit"
+    )
+    suspend fun spo2PctSamples(deviceId: String, from: Long, to: Long, limit: Int):
+        List<Spo2PctSampleEntity>
 
     /** Aggregate HR over a window (one indexed (deviceId,ts) range scan — no row materialisation,
      *  no [hrSamples] LIMIT truncation). Backs the imported-workout HR fallback (#77).
@@ -875,6 +901,13 @@ interface WhoopDao : DeviceRegistryDao {
 
     @Query("DELETE FROM v18AuxSample WHERE ts < :minTs OR ts > :maxTs")
     suspend fun pruneV18AuxByTs(minTs: Long, maxTs: Long): Int
+
+    // The durable SpO2 percentages are keyed by the SAME type-47 `ts` as every stream above and are
+    // forked from the same records, so a bad-clock strap garbages them identically. They are never
+    // pruned on age, so an unhealed out-of-bounds row here would persist FOREVER rather than rolling off
+    // — which makes the heal more important here, not less. Swift twin: TimestampHeal.rawTables.
+    @Query("DELETE FROM spo2PctSample WHERE ts < :minTs OR ts > :maxTs")
+    suspend fun pruneSpo2PctByTs(minTs: Long, maxTs: Long): Int
 
     @Query("DELETE FROM event WHERE ts < :minTs OR ts > :maxTs")
     suspend fun pruneEventByTs(minTs: Long, maxTs: Long): Int

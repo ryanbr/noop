@@ -492,6 +492,44 @@ class WhoopRepository(private val dao: WhoopDao) {
             }
         }
 
+        // DURABLE SpO2 (v34 / MIGRATION_25_26) — the in-band `@82` percentages, forked out of the SAME
+        // v18 aux samples banked just above into a narrow table that is NEVER pruned. The aux blob is
+        // capped at ~7 days (the sweep above); this is the copy that survives, and without it every
+        // reading older than a week is destroyed with no second copy anywhere (the strap trims its own
+        // history as soon as an offload is acked).
+        //
+        // READ OFF THE DECODED ROW, NOT THE BLOB. `it.auxByte82` is the slot value; the alternative —
+        // indexing byte 23 of the packed `fields` blob, which is what the cloud reader does — is correct
+        // ONLY while every slot ahead of [V18AuxSlot.AUX_BYTE_82] is present, because [V18AuxCodec] is a
+        // presence-bitmap format that omits absent slots from the body entirely. With all slots present
+        // the arithmetic happens to land on 23 (5-byte header + 4+1+1+1+1+2+1+1+2+2+2 = 18 body bytes
+        // ahead of it), which is why `fields[23]` yields physiologically valid values in production — but
+        // a single absent earlier slot silently shifts it onto a neighbouring byte and the read becomes
+        // garbage that STILL looks like a plausible percentage. `V18AuxCodecOffsetTest` pins both halves.
+        // Here the decoded row is already in hand, so the fragile path is not merely avoided, it is
+        // unreachable.
+        //
+        // Separate loop rather than a branch inside the one above, so the empty-blob skip there can never
+        // silently drop an SpO2 reading. (In practice a present `auxByte82` guarantees a non-empty blob,
+        // but coupling the two would make that a load-bearing invariant nobody stated.)
+        //
+        // Gate: [SPO2_CANDIDATE_IN_BAND] only. `@82` is multiplexed — bit-7 sentinels (0x80/0x88/0x90/
+        // 0xA0/0xA8), sub-70 diagnostic codes, and 0-for-not-emitted share the byte with real percentages,
+        // and 101..127 is an empty band that keeps the two separable. Nothing else is applied: no run
+        // grouping, no acquisition-ramp trim, no smoothing. Those are read-time policies (they have
+        // already changed once on the cloud reader) and baking one in here would destroy the evidence
+        // needed to change it again. Swift twin: the `spo2PctSample` insert in `StreamStore.insert`.
+        if (streams.v18Aux.isNotEmpty()) {
+            val spo2PctRows = streams.v18Aux.mapNotNull {
+                val v = it.auxByte82 ?: return@mapNotNull null
+                if (v.toInt() !in SPO2_CANDIDATE_IN_BAND) null
+                else Spo2PctSampleEntity(deviceId, it.ts, v.toInt())
+            }
+            // IGNORE keeps the FIRST value banked for a second, matching every other per-second stream's
+            // dedupe rule and making a re-offload of the same window idempotent.
+            if (spo2PctRows.isNotEmpty()) dao.insertSpo2Pct(spo2PctRows)
+        }
+
         // OnConflictStrategy.IGNORE returns -1 for skipped (already-present) rows; count the inserts.
         return InsertCounts(
             hr = hrIds.countInserted() + ppgHrIds.countInserted(),
@@ -669,6 +707,7 @@ class WhoopRepository(private val dao: WhoopDao) {
         deleted += dao.prunePpgWaveformByTs(minTs, maxTs)
         deleted += dao.pruneRawImuByTs(minTs, maxTs)
         deleted += dao.pruneV18AuxByTs(minTs, maxTs)
+        deleted += dao.pruneSpo2PctByTs(minTs, maxTs)
         deleted += dao.pruneEventByTs(minTs, maxTs)
         deleted += dao.pruneBatteryByTs(minTs, maxTs)
         // (b) computed daily metrics (by day key) + sleep sessions (by startTs). The prune queries apply
@@ -861,6 +900,26 @@ class WhoopRepository(private val dao: WhoopDao) {
         List<V18AuxRow> =
         dao.v18AuxSamples(deviceId, from, to, limit)
             .map { V18AuxCodec.unpack(it.fields, it.ts) }
+
+    /**
+     * Durable in-band `@82` SpO2 percentages (v34 / MIGRATION_25_26) in [from, to] for one device,
+     * ascending by ts.
+     *
+     * Unlike [v18AuxSamples], this reaches back over the WHOLE recorded history: `spo2PctSample` is never
+     * pruned, while the aux table it is forked from is capped at ~7 days. Empty for a WHOOP 4.0 (no v18
+     * aux stream) and for any window offloaded before MIGRATION_25_26 — the older aux rows still on the
+     * device DO carry the byte, but only for whatever slice of the last seven days survives, and this
+     * reader deliberately does NOT fall back to them: a series that silently changed source partway
+     * through would be unusable as evidence. Backfilling those survivors is a one-shot migration's job,
+     * not a read path's.
+     *
+     * Values are RAW in-band bytes. Run grouping and acquisition-ramp trimming are the CALLER's policy —
+     * see [com.noop.analytics.AnalyticsEngine.nightlySpo2Pct] for the nightly one. Kotlin twin of the
+     * Swift `WhoopStore.spo2PctSamples(deviceId:from:to:)`.
+     */
+    suspend fun spo2PctSamples(deviceId: String, from: Long, to: Long, limit: Int = DEFAULT_LIMIT):
+        List<Spo2PctRow> =
+        dao.spo2PctSamples(deviceId, from, to, limit).map { Spo2PctRow(it.ts, it.pct) }
 
     /** #423: persist a batch of decoded 5/MG raw-IMU offload buffers (one row per strap-second, packed i16
      *  BLOB), then bound the table to the newest [RAW_IMU_RETENTION_ROWS] for the device. Comes from the

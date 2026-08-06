@@ -273,7 +273,9 @@ struct RawHistoryArchive {
     /// full `floor` stays reserved for records that actually contain something.
     ///
     /// Bounded: if everything left is floor-protected it stops even if still over cap (the floor wins —
-    /// `(floor + zeroFloor) × distinctVersions` is tiny). The Android twin has not been updated yet.
+    /// `(floor + zeroFloor) × distinctVersions` is tiny). Twin of the Android
+    /// `RawHistoryArchive.evictLines`, whose `zeroFloor` is defaulted for the same reason it is here — so
+    /// existing call sites do not have to churn.
     static func evictLines(_ lines: [String], maxBytes: Int, floor: Int,
                            zeroFloor: Int = RawHistoryArchive.zeroPayloadFloor) -> [String] {
         // Mark the newest `floor` informative and newest `zeroFloor` zero-payload indices of each version
