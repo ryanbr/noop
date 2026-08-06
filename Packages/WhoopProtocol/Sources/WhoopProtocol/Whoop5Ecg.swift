@@ -23,7 +23,13 @@ import Foundation
 // What is NOT established, and is therefore never asserted:
 //   • The packet TYPE byte these records arrive under. No capture exists, and the repo's `PacketType`
 //     table has no Labrador entry. So this file decodes a PAYLOAD, and the app layer discovers the type
-//     empirically by running `plausibleFilteredPayload` over unclassified frames and logging the hits.
+//     empirically: it runs `filteredBytesPerSampleCandidates` over unclassified frames, and — because a
+//     heuristic that only logs its own hits destroys the evidence for its own misses — CENSUSES every
+//     unclassified frame by type byte whether the triage passed or not (`Whoop5EcgProbe.FrameCensus`).
+//   • The filtered stream's BYTES PER SAMPLE. `decodeFiltered` implements 2, which is what the filtered
+//     layout is documented with; the triage admits 2, 3 and 4, because a populated RAW record read off
+//     hardware turned out to be 3 bytes/sample and a hardcoded 2 in the triage silently discarded every
+//     frame that disagreed. See `filteredWidthCandidates`.
 //   • The `WristSelection` raw values. `right` is listed first in the client's enum, so right=0/left=1 is
 //     the natural reading — but it is an INFERENCE, not an attested fact, and it is labelled as such
 //     everywhere it surfaces (including in the UI, because picking the wrong one writes the wrong
@@ -488,24 +494,74 @@ public enum Whoop5Ecg {
 
     // MARK: Discovery
 
+    /// The bytes-per-sample widths the FILTERED triage admits, in the order it reports them.
+    ///
+    /// 2 leads because it is the width `decodeFiltered` implements and the width the filtered stream is
+    /// documented with, so the triage's existing behaviour is a strict subset of the widened one.
+    ///
+    /// 3 and 4 are here because the 2-byte assumption was, on this repo's own evidence, unsafe. A
+    /// populated RAW flash record read off real hardware carried `numberOfECGSamples = 500` against a
+    /// 1500-byte sample blob — **3 bytes per sample**. Nothing attests that the FILTERED stream uses the
+    /// same width, and nothing rules it out either; what a hardcoded 2 does is make the difference
+    /// unobservable, because a 3-byte frame fails the length agreement and is discarded before anyone can
+    /// look at it. `rawBytesPerSampleCandidates` has enumerated widths on the raw side from the start;
+    /// this is the filtered side getting the same treatment.
+    ///
+    /// Widening the WIDTH is the only loosening: the four Bool-typed bytes, the two classifier enums, the
+    /// signal-quality range and `n > 0` are all unchanged, so a buffer that failed those still fails.
+    public static let filteredWidthCandidates = [2, 3, 4]
+
+    /// Every width in `widths` under which `payload` could be a filtered Labrador payload — i.e. the
+    /// widths whose length agreement holds, once the buffer has passed the field guards.
+    ///
+    /// Empty means "not a filtered payload under any admitted width", and is the triage's rejection. More
+    /// than one width means the buffer genuinely does not determine the answer; like
+    /// `rawBytesPerSampleCandidates` this REPORTS the ambiguity rather than picking a favourite.
+    public static func filteredBytesPerSampleCandidates(_ payload: [UInt8],
+                                                        widths: [Int] = filteredWidthCandidates,
+                                                        maxPadding: Int = defaultMaxPadding) -> [Int] {
+        guard let header = EcgStatusHeader(payload: payload) else { return [] }
+        guard header.signalQualityRaw <= 3,
+              header.heartKeyArrhythmiaCheckResult != nil,
+              header.heartKeyArrhythmiaCheckStatus != nil else { return [] }
+        // The four booleans are Bool-typed on the wire, so anything but 0/1 rules the buffer out.
+        guard payload[2] <= 1, payload[3] <= 1, payload[4] <= 1, payload[5] <= 1 else { return [] }
+        let n = Int(header.numberOfECGSamples)
+        guard n > 0 else { return [] }
+        return widths.filter { width in
+            // `widths` is caller-supplied and `n` comes off the wire, so both the multiply and the add are
+            // checked — the same discipline `decodeRaw` uses, for the same reason: either would trap in
+            // Swift and wrap NEGATIVE in the Kotlin twin.
+            guard width > 0 else { return false }
+            let (blobLength, mulOverflow) = n.multipliedReportingOverflow(by: width)
+            guard !mulOverflow else { return false }
+            let (end, addOverflow) = headerLength.addingReportingOverflow(blobLength)
+            guard !addOverflow else { return false }
+            return end <= payload.count && payload.count - end <= maxPadding
+        }
+    }
+
+    /// The frame-level form of `filteredBytesPerSampleCandidates`, CRC-gated.
+    public static func filteredBytesPerSampleCandidates(frame: [UInt8],
+                                                        payloadStart: Int = puffinPayloadStart,
+                                                        widths: [Int] = filteredWidthCandidates,
+                                                        maxPadding: Int = defaultMaxPadding) -> [Int] {
+        guard let payload = innerPayload(frame, payloadStart: payloadStart) else { return [] }
+        return filteredBytesPerSampleCandidates(payload, widths: widths, maxPadding: maxPadding)
+    }
+
     /// A cheap structural triage for "could these bytes be a filtered Labrador payload?".
     ///
     /// Used by the app layer to hunt for the packet TYPE byte, which is not attested: while an ECG probe
     /// is armed, every unclassified 5/MG frame is run through this and the hits are logged with their
     /// type. It is a HEURISTIC — four booleans, three enum ranges and a length agreement — not a
     /// classifier, and nothing downstream may treat a hit as proof.
+    ///
+    /// A pass under ANY width in `filteredWidthCandidates` is a pass; callers that need to know WHICH
+    /// width agreed call `filteredBytesPerSampleCandidates` instead of re-deriving it.
     public static func plausibleFilteredPayload(_ payload: [UInt8],
                                                 maxPadding: Int = defaultMaxPadding) -> Bool {
-        guard let header = EcgStatusHeader(payload: payload) else { return false }
-        guard header.signalQualityRaw <= 3,
-              header.heartKeyArrhythmiaCheckResult != nil,
-              header.heartKeyArrhythmiaCheckStatus != nil else { return false }
-        // The four booleans are Bool-typed on the wire, so anything but 0/1 rules the buffer out.
-        guard payload[2] <= 1, payload[3] <= 1, payload[4] <= 1, payload[5] <= 1 else { return false }
-        let n = Int(header.numberOfECGSamples)
-        guard n > 0 else { return false }
-        let end = headerLength + n * 2
-        return end <= payload.count && payload.count - end <= maxPadding
+        !filteredBytesPerSampleCandidates(payload, maxPadding: maxPadding).isEmpty
     }
 
     /// The frame-level form of `plausibleFilteredPayload`, CRC-gated. This is what the app layer runs

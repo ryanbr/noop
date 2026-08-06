@@ -376,6 +376,100 @@ class Whoop5EcgTest {
         assertFalse(Whoop5Ecg.plausibleFilteredPayload(List(64) { 0 }))
     }
 
+    // MARK: - Structural triage: sample width
+
+    /**
+     * THE DEFECT this widening fixes. The triage hardcoded `n * 2`, so a payload whose samples are 3 bytes
+     * wide missed the length agreement, failed the padding budget, and was discarded without a trace —
+     * while the probe truthfully reported that no frame passed. A populated raw flash record read off
+     * hardware was 1500 bytes against numberOfECGSamples = 500, i.e. 3.
+     */
+    @Test
+    fun triageAcceptsAThreeBytePerSampleBufferAndNamesTheWidth() {
+        val payload = header(samples = 4) + List(12) { 0x11 }
+        assertEquals(listOf(3), Whoop5Ecg.filteredBytesPerSampleCandidates(payload))
+        assertTrue(Whoop5Ecg.plausibleFilteredPayload(payload))
+    }
+
+    @Test
+    fun triageStillAcceptsTwoBytesPerSampleAndReportsItFirst() {
+        val payload = header(samples = 3) + i16le(listOf(1, 2, 3))
+        assertEquals(listOf(2), Whoop5Ecg.filteredBytesPerSampleCandidates(payload))
+        assertTrue(Whoop5Ecg.plausibleFilteredPayload(payload))
+        assertEquals(2, Whoop5Ecg.FILTERED_WIDTH_CANDIDATES.first())
+    }
+
+    @Test
+    fun triageAcceptsFourBytesPerSample() {
+        assertEquals(
+            listOf(4),
+            Whoop5Ecg.filteredBytesPerSampleCandidates(header(samples = 5) + List(20) { 0x22 }),
+        )
+    }
+
+    /** An ambiguous buffer REPORTS every width it admits rather than picking one. */
+    @Test
+    fun triageReportsEveryWidthAnAmbiguousBufferAdmits() {
+        assertEquals(
+            listOf(3, 4),
+            Whoop5Ecg.filteredBytesPerSampleCandidates(header(samples = 2) + List(8) { 0x33 }),
+        )
+    }
+
+    /** Only the WIDTH assumption moved: every other guard still rejects a length-perfect buffer. */
+    @Test
+    fun wideningTheWidthDoesNotLoosenAnyOtherGuard() {
+        val body = List(12) { 0x11 }
+        assertEquals(listOf(3), Whoop5Ecg.filteredBytesPerSampleCandidates(header(samples = 4) + body))
+        assertTrue(Whoop5Ecg.filteredBytesPerSampleCandidates(header(started = 7, samples = 4) + body).isEmpty())
+        assertTrue(Whoop5Ecg.filteredBytesPerSampleCandidates(header(running = 2, samples = 4) + body).isEmpty())
+        assertTrue(
+            Whoop5Ecg.filteredBytesPerSampleCandidates(header(stoppedAndComplete = 9, samples = 4) + body).isEmpty()
+        )
+        assertTrue(Whoop5Ecg.filteredBytesPerSampleCandidates(header(leadsOn = 3, samples = 4) + body).isEmpty())
+        assertTrue(Whoop5Ecg.filteredBytesPerSampleCandidates(header(signalQuality = 9, samples = 4) + body).isEmpty())
+        assertTrue(
+            Whoop5Ecg.filteredBytesPerSampleCandidates(header(arrhythmiaResult = 9, samples = 4) + body).isEmpty()
+        )
+        assertTrue(
+            Whoop5Ecg.filteredBytesPerSampleCandidates(header(arrhythmiaStatus = 9, samples = 4) + body).isEmpty()
+        )
+        assertTrue(Whoop5Ecg.filteredBytesPerSampleCandidates(header(samples = 0)).isEmpty())
+    }
+
+    @Test
+    fun triageStillRejectsBuffersNoWidthExplains() {
+        assertTrue(
+            Whoop5Ecg.filteredBytesPerSampleCandidates(header(samples = 7) + i16le(listOf(1, 2, 3))).isEmpty()
+        )
+        assertTrue(Whoop5Ecg.filteredBytesPerSampleCandidates(header(samples = 40) + i16le(listOf(1, 2))).isEmpty())
+        assertTrue(
+            Whoop5Ecg.filteredBytesPerSampleCandidates(
+                header(samples = 1) + i16le(listOf(1)) + List(40) { 0 }
+            ).isEmpty()
+        )
+        assertTrue(Whoop5Ecg.filteredBytesPerSampleCandidates(emptyList()).isEmpty())
+        assertFalse(Whoop5Ecg.plausibleFilteredPayload(header(samples = 7) + i16le(listOf(1, 2, 3))))
+    }
+
+    /** The offset math runs in Long: an Int overflow wraps NEGATIVE and would slip past the bounds test. */
+    @Test
+    fun triageWidthMathCannotOverflow() {
+        val payload = header(samples = 65_535) + List(8) { 0 }
+        assertTrue(
+            Whoop5Ecg.filteredBytesPerSampleCandidates(payload, widths = listOf(Int.MAX_VALUE, 2, 3)).isEmpty()
+        )
+        assertTrue(Whoop5Ecg.filteredBytesPerSampleCandidates(payload, widths = listOf(0, -1)).isEmpty())
+    }
+
+    @Test
+    fun triageWidthsAreReportedThroughACrcGatedFrameToo() {
+        val frame = puffinFrame(0x28, header(samples = 4) + List(12) { 0x11 })
+        assertEquals(listOf(3), Whoop5Ecg.filteredBytesPerSampleCandidates(frame))
+        frame[frame.size - 1] = (frame[frame.size - 1].toInt() xor 0xFF).toByte()
+        assertTrue(Whoop5Ecg.filteredBytesPerSampleCandidates(frame).isEmpty())
+    }
+
     // MARK: - Commands
 
     @Test

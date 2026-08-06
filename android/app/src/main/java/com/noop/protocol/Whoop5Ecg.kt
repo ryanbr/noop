@@ -16,7 +16,11 @@ package com.noop.protocol
 // reimplemented here in NOOP's own code — facts with attribution, never copied expression.
 //
 // Deliberately NOT asserted: the packet TYPE byte these records arrive under (no capture exists, and the
-// PacketType table has no Labrador entry), the WristSelection raw values (right-first is an inference),
+// PacketType table has no Labrador entry — an app layer finds it empirically, running
+// filteredBytesPerSampleCandidates over unclassified frames and censusing EVERY one of them by type byte,
+// hits and misses alike, because a heuristic that logs only its own hits destroys the evidence for its own
+// misses), the filtered stream's bytes-per-sample (decodeFiltered implements 2; the triage admits 2, 3 and
+// 4 — see FILTERED_WIDTH_CANDIDATES), the WristSelection raw values (right-first is an inference),
 // the heartKeyProgress "timed out" sentinel, and any clinical meaning at all. The arrhythmia result is
 // computed on-strap by an embedded third-party classifier; NOOP decodes the byte. NOOP is not a medical
 // device and this value is not a diagnosis — see DISCLAIMER.md.
@@ -136,6 +140,23 @@ object Whoop5Ecg {
 
     /** Trailing bytes tolerated after the last decoded field (the puffin pad4 budget). */
     const val DEFAULT_MAX_PADDING = 3
+
+    /**
+     * The bytes-per-sample widths the FILTERED triage admits, in the order it reports them.
+     *
+     * 2 leads because it is the width [decodeFiltered] implements and the width the filtered layout is
+     * documented with, so the triage's earlier behaviour is a strict subset of the widened one.
+     *
+     * 3 and 4 are here because the 2-byte assumption was, on this repo's own evidence, unsafe: a populated
+     * RAW flash record read off hardware carried `numberOfECGSamples = 500` against a 1500-byte sample
+     * blob — 3 bytes per sample. Nothing attests that the FILTERED stream uses the same width and nothing
+     * rules it out; what a hardcoded 2 did was make the difference unobservable, because a 3-byte frame
+     * failed the length agreement and was discarded before anyone could look at it.
+     *
+     * Only the WIDTH is loosened — the four Bool-typed bytes, the two classifier enums, the
+     * signal-quality range and `n > 0` are unchanged.
+     */
+    val FILTERED_WIDTH_CANDIDATES = listOf(2, 3, 4)
 
     // Commands. All four share the shape {revision, arg, padding}; `revision` is the leading inner byte
     // the 5/MG command family already uses (CLIENT_HELLO, SET_CONFIG), and the struct's trailing padding
@@ -380,17 +401,51 @@ object Whoop5Ecg {
      * armed, every unclassified 5/MG frame is run through this and the hits are logged with their type. It
      * is a HEURISTIC — four booleans, three enum ranges and a length agreement — not a classifier, and
      * nothing downstream may treat a hit as proof.
+     *
+     * A pass under ANY width in [FILTERED_WIDTH_CANDIDATES] is a pass; callers that need to know WHICH
+     * width agreed call [filteredBytesPerSampleCandidates] instead of re-deriving it.
      */
-    fun plausibleFilteredPayload(payload: List<Int>, maxPadding: Int = DEFAULT_MAX_PADDING): Boolean {
-        val header = decodeHeader(payload) ?: return false
-        if (header.signalQualityRaw > 3) return false
-        if (header.heartKeyArrhythmiaCheckResult == null) return false
-        if (header.heartKeyArrhythmiaCheckStatus == null) return false
-        if (payload[2] > 1 || payload[3] > 1 || payload[4] > 1 || payload[5] > 1) return false
+    fun plausibleFilteredPayload(payload: List<Int>, maxPadding: Int = DEFAULT_MAX_PADDING): Boolean =
+        filteredBytesPerSampleCandidates(payload, maxPadding = maxPadding).isNotEmpty()
+
+    /**
+     * Every width in [widths] under which [payload] could be a filtered Labrador payload — the widths
+     * whose length agreement holds once the buffer has passed the field guards.
+     *
+     * Empty is the triage's rejection. More than one width means the buffer genuinely does not determine
+     * the answer; like [rawBytesPerSampleCandidates] this REPORTS the ambiguity rather than picking one.
+     */
+    fun filteredBytesPerSampleCandidates(
+        payload: List<Int>,
+        widths: List<Int> = FILTERED_WIDTH_CANDIDATES,
+        maxPadding: Int = DEFAULT_MAX_PADDING,
+    ): List<Int> {
+        val header = decodeHeader(payload) ?: return emptyList()
+        if (header.signalQualityRaw > 3) return emptyList()
+        if (header.heartKeyArrhythmiaCheckResult == null) return emptyList()
+        if (header.heartKeyArrhythmiaCheckStatus == null) return emptyList()
+        if (payload[2] > 1 || payload[3] > 1 || payload[4] > 1 || payload[5] > 1) return emptyList()
         val n = header.numberOfECGSamples
-        if (n <= 0) return false
-        val end = HEADER_LENGTH + n * 2
-        return end <= payload.size && payload.size - end <= maxPadding
+        if (n <= 0) return emptyList()
+        return widths.filter { width ->
+            // `widths` is caller-supplied and `n` comes off the wire, so the offset math is done in Long
+            // and range-checked: a Kotlin Int overflow wraps silently NEGATIVE and would slip past the
+            // bounds test below. Same discipline as decodeRaw.
+            if (width <= 0) return@filter false
+            val end = HEADER_LENGTH + n.toLong() * width.toLong()
+            end <= payload.size && payload.size - end <= maxPadding
+        }
+    }
+
+    /** The frame-level form of [filteredBytesPerSampleCandidates], CRC-gated. */
+    fun filteredBytesPerSampleCandidates(
+        frame: ByteArray,
+        payloadStart: Int = PUFFIN_PAYLOAD_START,
+        widths: List<Int> = FILTERED_WIDTH_CANDIDATES,
+        maxPadding: Int = DEFAULT_MAX_PADDING,
+    ): List<Int> {
+        val payload = innerPayload(frame, payloadStart) ?: return emptyList()
+        return filteredBytesPerSampleCandidates(payload, widths, maxPadding)
     }
 
     /**

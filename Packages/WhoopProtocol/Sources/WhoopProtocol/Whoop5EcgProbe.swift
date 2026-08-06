@@ -155,6 +155,173 @@ public enum Whoop5EcgProbe {
         }
     }
 
+    // MARK: - Unclassified-frame census
+
+    /// A bounded census of EVERY unclassified 5/MG frame seen while a probe run is armed — the ones the
+    /// structural triage rejected as well as the ones it accepted.
+    ///
+    /// ## Why the rejects are the point
+    ///
+    /// The packet TYPE byte the Labrador records arrive under is NOT attested (see `Whoop5Ecg`'s file
+    /// header), so the probe hunts for it with a shape heuristic. Logging only the heuristic's HITS makes
+    /// that hunt unfalsifiable: when the heuristic is wrong, the frame it was wrong about is discarded,
+    /// the report truthfully says "no frame passed the structural triage", and the bytes that would have
+    /// shown the mistake are gone. That is exactly what a hardcoded 2-bytes-per-sample length agreement
+    /// did to every 3-byte frame before `Whoop5Ecg.filteredWidthCandidates` widened it — and the next
+    /// wrong assumption will be invisible the same way unless the raw census exists beside the verdict.
+    ///
+    /// So this records the type byte, the frame and payload lengths, `numberOfECGSamples` when the header
+    /// parses, which sample widths the length agreed with, and the frame's opening bytes as hex. It makes
+    /// no claim about any of them: it is a census, and every line in it is a frame the probe could not
+    /// classify.
+    ///
+    /// ## Bounds
+    ///
+    /// A 5/MG link carries ordinary live traffic at ~1 Hz, and a report is a copyable string, so the
+    /// census is capped in both directions: at most `maxSamplesPerType` (3) recorded frames per distinct
+    /// type byte, and at most `maxTypes` (16) distinct type bytes. Everything past a cap is COUNTED, never
+    /// silently dropped — `count` per type keeps rising after its samples are full, and frames whose type
+    /// byte arrives after the 16th distinct one land in `framesBeyondTypeCap`. Worst case is 48 recorded
+    /// frames × 64 hex-rendered bytes, which is bounded regardless of what the strap does.
+    public struct FrameCensus: Equatable, Sendable {
+
+        /// Recorded frames per distinct type byte. Small on purpose: three examples of a type byte answer
+        /// "what does this look like", and the running count answers "how often".
+        public static let maxSamplesPerType = 3
+        /// Distinct type bytes tracked. A type byte is one octet, so 256 buckets are possible in theory;
+        /// 16 is well past what a live link actually shows and keeps the report readable.
+        public static let maxTypes = 16
+        /// Leading bytes of each recorded frame rendered as hex. Enough to carry the whole envelope plus
+        /// the 17-byte status header and the first samples.
+        public static let headBytes = 64
+
+        /// One recorded frame. Nothing here is interpreted — these are measurements of the buffer.
+        public struct Sample: Equatable, Sendable {
+            public let frameLength: Int
+            /// Length of the inner record's payload, or nil when the frame did not yield one (it failed a
+            /// CRC or was too short for the envelope).
+            public let payloadLength: Int?
+            /// `numberOfECGSamples` as the status header would read it, or nil when the payload is too
+            /// short to hold a header. Reading it does NOT claim this frame is an ECG record.
+            public let numberOfECGSamples: Int?
+            /// The bytes-per-sample widths the payload's length agreed with, per
+            /// `Whoop5Ecg.filteredBytesPerSampleCandidates`. Empty means the triage rejected the frame,
+            /// which is the case this census exists to preserve.
+            public let widths: [Int]
+            /// The frame's first `headBytes` bytes, lowercase hex.
+            public let headHex: String
+
+            public init(frameLength: Int, payloadLength: Int?, numberOfECGSamples: Int?,
+                        widths: [Int], headHex: String) {
+                self.frameLength = frameLength
+                self.payloadLength = payloadLength
+                self.numberOfECGSamples = numberOfECGSamples
+                self.widths = widths
+                self.headHex = headHex
+            }
+
+            public var line: String {
+                let payload = payloadLength.map(String.init) ?? "?"
+                let samples = numberOfECGSamples.map(String.init) ?? "?"
+                let widthText = widths.isEmpty ? "none" : widths.map(String.init).joined(separator: ",")
+                return "len=\(frameLength) payload=\(payload) samples=\(samples) widths=\(widthText) head=\(headHex)"
+            }
+        }
+
+        /// Everything seen under one type byte.
+        public struct Bucket: Equatable, Sendable {
+            public let typeByte: UInt8
+            /// Every frame seen with this type byte, including the ones past the per-type sample cap.
+            public var count: Int
+            public var samples: [Sample]
+
+            public init(typeByte: UInt8, count: Int, samples: [Sample]) {
+                self.typeByte = typeByte
+                self.count = count
+                self.samples = samples
+            }
+        }
+
+        /// Buckets in FIRST-SEEN order, which is the order the report prints them in. Insertion order is
+        /// kept rather than sorted by count so the census reads as a timeline of what the link did.
+        public private(set) var buckets: [Bucket] = []
+        /// Every frame offered to the census, including those past a cap.
+        public private(set) var framesSeen = 0
+        /// Frames dropped because their type byte was the 17th distinct one. Counted, not hidden.
+        public private(set) var framesBeyondTypeCap = 0
+
+        public init() {}
+
+        /// Fold one frame into the census.
+        ///
+        /// The caller CRC-gates the frame first (the BLE safety contract's inbound rule); this reads the
+        /// type byte directly and gets the payload through `Whoop5Ecg.innerPayload`, which re-checks both
+        /// CRCs itself, so a frame that somehow arrives unverified yields `payloadLength == nil` rather
+        /// than a decoded field. Frames with no type byte at all (fewer than 9 bytes — shorter than the
+        /// puffin envelope's minimum) are not records and are ignored.
+        public mutating func record(frame: [UInt8],
+                                    payloadStart: Int = Whoop5Ecg.puffinPayloadStart,
+                                    maxPadding: Int = Whoop5Ecg.defaultMaxPadding) {
+            guard frame.count > 8 else { return }
+            framesSeen += 1
+            let typeByte = frame[8]
+            guard let index = buckets.firstIndex(where: { $0.typeByte == typeByte }) else {
+                guard buckets.count < FrameCensus.maxTypes else {
+                    framesBeyondTypeCap += 1
+                    return
+                }
+                buckets.append(Bucket(typeByte: typeByte,
+                                      count: 1,
+                                      samples: [FrameCensus.sample(frame: frame,
+                                                                   payloadStart: payloadStart,
+                                                                   maxPadding: maxPadding)]))
+                return
+            }
+            buckets[index].count += 1
+            guard buckets[index].samples.count < FrameCensus.maxSamplesPerType else { return }
+            buckets[index].samples.append(FrameCensus.sample(frame: frame,
+                                                            payloadStart: payloadStart,
+                                                            maxPadding: maxPadding))
+        }
+
+        /// Measure one frame. Public so a test can build a `Sample` without a census.
+        public static func sample(frame: [UInt8],
+                                  payloadStart: Int = Whoop5Ecg.puffinPayloadStart,
+                                  maxPadding: Int = Whoop5Ecg.defaultMaxPadding) -> Sample {
+            let payload = Whoop5Ecg.innerPayload(frame, payloadStart: payloadStart)
+            let widths = payload.map {
+                Whoop5Ecg.filteredBytesPerSampleCandidates($0, maxPadding: maxPadding)
+            } ?? []
+            let samples = payload.flatMap { EcgStatusHeader(payload: $0) }
+                .map { Int($0.numberOfECGSamples) }
+            let head = frame.prefix(headBytes).map { String(format: "%02x", $0) }.joined()
+            return Sample(frameLength: frame.count,
+                          payloadLength: payload?.count,
+                          numberOfECGSamples: samples,
+                          widths: widths,
+                          headHex: head)
+        }
+
+        public var isEmpty: Bool { framesSeen == 0 }
+
+        /// The census as report lines, already indented for `report`.
+        public var lines: [String] {
+            var out: [String] = []
+            for bucket in buckets {
+                out.append(String(format: "  type=0x%02x  frames=%d", Int(bucket.typeByte), bucket.count))
+                for sample in bucket.samples { out.append("    \(sample.line)") }
+                if bucket.count > bucket.samples.count {
+                    out.append("    (+\(bucket.count - bucket.samples.count) more of this type, not recorded)")
+                }
+            }
+            if framesBeyondTypeCap > 0 {
+                out.append("  (\(framesBeyondTypeCap) frame(s) of further type bytes past the "
+                    + "\(FrameCensus.maxTypes)-type cap, counted only)")
+            }
+            return out
+        }
+    }
+
     /// The gate verdict, kept separate from the report text so it is assertable in a test.
     public enum Verdict: Equatable, Sendable {
         /// Frames that PASS THE STRUCTURAL TRIAGE arrived. Not proof: the triage is a heuristic over
@@ -272,10 +439,16 @@ public enum Whoop5EcgProbe {
     /// `candidateFrames` are the type/length lines for frames that passed the structural triage in
     /// `Whoop5Ecg.plausibleFilteredPayload` — the empirical answer to "which packet type do these arrive
     /// under", which no table in this repo yet holds.
+    ///
+    /// `census` is the same question asked WITHOUT the heuristic: every unclassified frame the run saw,
+    /// bucketed by type byte, hits and misses alike. It defaults to empty so a caller that has none still
+    /// renders, but a live run always passes one — see `FrameCensus` for why the misses matter more than
+    /// the hits.
     public static func report(steps: [Step],
                               ecgPacketsSeen: Int,
                               candidateFrames: [String],
-                              windowSeconds: Int) -> String {
+                              windowSeconds: Int,
+                              census: FrameCensus = FrameCensus()) -> String {
         var sb = ""
         sb += "WHOOP MG ECG (Labrador) TURN-ON PROBE\n"
         sb += "Verdict: \(verdict(steps: steps, ecgPacketsSeen: ecgPacketsSeen, windowSeconds: windowSeconds).headline)\n"
@@ -311,6 +484,21 @@ public enum Whoop5EcgProbe {
         } else {
             sb += "Candidate packet types (structural triage only, NOT a confirmed mapping):\n"
             for line in candidateFrames { sb += "  \(line)\n" }
+        }
+        // The census goes IMMEDIATELY under the triage result, because it is the check on it: "no frame
+        // passed the structural triage" is only informative next to what the frames actually were.
+        if census.isEmpty {
+            sb += "Unclassified-frame census: no unclassified frame arrived at all — the triage had "
+                + "nothing to reject.\n"
+        } else {
+            sb += "Unclassified-frame census — EVERY frame this run could not classify, triage hits and "
+                + "misses alike, bucketed by the inner record's type byte. The ECG type byte is not "
+                + "attested, so this, not the triage, is the record of what arrived. widths= are the "
+                + "bytes-per-sample the payload length agreed with; none = the triage rejected it. "
+                + "Recorded: \(census.framesSeen) frame(s), first \(FrameCensus.maxSamplesPerType) per "
+                + "type byte, first \(FrameCensus.maxTypes) type bytes, first \(FrameCensus.headBytes) "
+                + "bytes each:\n"
+            for line in census.lines { sb += "\(line)\n" }
         }
         let replies = steps.compactMap { step in step.replyHex.map { "  \(step.labelWithArgument): \($0)" } }
         if !replies.isEmpty {

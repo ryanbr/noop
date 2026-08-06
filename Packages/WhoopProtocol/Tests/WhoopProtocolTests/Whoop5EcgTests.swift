@@ -376,6 +376,191 @@ final class Whoop5EcgTests: XCTestCase {
         XCTAssertFalse(Whoop5Ecg.plausibleFilteredPayload([UInt8](repeating: 0, count: 64)))
     }
 
+    // MARK: - Structural triage: sample width
+
+    /// THE DEFECT this widening fixes. The triage hardcoded `n * 2`, so a payload whose samples are 3
+    /// bytes wide missed the length agreement by a mile, failed the padding budget, and was discarded
+    /// without a trace — while the probe truthfully reported that no frame passed. The raw side has
+    /// enumerated widths since it was written (`rawBytesPerSampleCandidates`), and a populated raw flash
+    /// record read off hardware was 1500 bytes against `numberOfECGSamples = 500`, i.e. 3.
+    func testTriageAcceptsAThreeBytePerSampleBufferAndNamesTheWidth() {
+        let payload = header(samples: 4) + [UInt8](repeating: 0x11, count: 12)   // 4 samples × 3 bytes
+        XCTAssertEqual(Whoop5Ecg.filteredBytesPerSampleCandidates(payload), [3])
+        XCTAssertTrue(Whoop5Ecg.plausibleFilteredPayload(payload))
+    }
+
+    /// The widening is a SUPERSET, never a replacement: 2 stays first in the candidate order and a
+    /// 2-byte buffer still passes exactly as it did.
+    func testTriageStillAcceptsTwoBytesPerSampleAndReportsItFirst() {
+        let payload = header(samples: 3) + i16le([1, 2, 3])
+        XCTAssertEqual(Whoop5Ecg.filteredBytesPerSampleCandidates(payload), [2])
+        XCTAssertTrue(Whoop5Ecg.plausibleFilteredPayload(payload))
+        XCTAssertEqual(Whoop5Ecg.filteredWidthCandidates.first, 2)
+    }
+
+    func testTriageAcceptsFourBytesPerSample() {
+        let payload = header(samples: 5) + [UInt8](repeating: 0x22, count: 20)
+        XCTAssertEqual(Whoop5Ecg.filteredBytesPerSampleCandidates(payload), [4])
+    }
+
+    /// When two widths both fit inside the pad4 budget the buffer genuinely does not determine the
+    /// answer, and the triage says so rather than picking one — the same contract
+    /// `rawBytesPerSampleCandidates` has.
+    func testTriageReportsEveryWidthAnAmbiguousBufferAdmits() {
+        let payload = header(samples: 2) + [UInt8](repeating: 0x33, count: 8)    // 25 bytes total
+        XCTAssertEqual(Whoop5Ecg.filteredBytesPerSampleCandidates(payload), [3, 4])
+    }
+
+    /// Only the WIDTH assumption moved. Every other guard is unchanged, so a buffer that fails a field
+    /// check is still rejected even when its length agrees perfectly with one of the new widths.
+    func testWideningTheWidthDoesNotLoosenAnyOtherGuard() {
+        let threeByteBody = [UInt8](repeating: 0x11, count: 12)                  // exact under width 3
+        XCTAssertEqual(Whoop5Ecg.filteredBytesPerSampleCandidates(header(samples: 4) + threeByteBody), [3])
+        // …and each guard, one at a time, still rules it out.
+        XCTAssertTrue(Whoop5Ecg.filteredBytesPerSampleCandidates(header(started: 7, samples: 4) + threeByteBody).isEmpty)
+        XCTAssertTrue(Whoop5Ecg.filteredBytesPerSampleCandidates(header(running: 2, samples: 4) + threeByteBody).isEmpty)
+        XCTAssertTrue(Whoop5Ecg.filteredBytesPerSampleCandidates(header(stoppedAndComplete: 9, samples: 4) + threeByteBody).isEmpty)
+        XCTAssertTrue(Whoop5Ecg.filteredBytesPerSampleCandidates(header(leadsOn: 3, samples: 4) + threeByteBody).isEmpty)
+        XCTAssertTrue(Whoop5Ecg.filteredBytesPerSampleCandidates(header(signalQuality: 9, samples: 4) + threeByteBody).isEmpty)
+        XCTAssertTrue(Whoop5Ecg.filteredBytesPerSampleCandidates(header(arrhythmiaResult: 9, samples: 4) + threeByteBody).isEmpty)
+        XCTAssertTrue(Whoop5Ecg.filteredBytesPerSampleCandidates(header(arrhythmiaStatus: 9, samples: 4) + threeByteBody).isEmpty)
+        XCTAssertTrue(Whoop5Ecg.filteredBytesPerSampleCandidates(header(samples: 0)).isEmpty)
+    }
+
+    /// A genuinely malformed buffer is still rejected under EVERY admitted width — the widening must not
+    /// turn the triage into something that matches anything.
+    func testTriageStillRejectsBuffersNoWidthExplains() {
+        XCTAssertTrue(Whoop5Ecg.filteredBytesPerSampleCandidates(header(samples: 7) + i16le([1, 2, 3])).isEmpty)
+        XCTAssertTrue(Whoop5Ecg.filteredBytesPerSampleCandidates(header(samples: 40) + i16le([1, 2])).isEmpty)
+        XCTAssertTrue(Whoop5Ecg.filteredBytesPerSampleCandidates(
+            header(samples: 1) + i16le([1]) + [UInt8](repeating: 0, count: 40)).isEmpty)
+        XCTAssertTrue(Whoop5Ecg.filteredBytesPerSampleCandidates([]).isEmpty)
+        XCTAssertFalse(Whoop5Ecg.plausibleFilteredPayload(header(samples: 7) + i16le([1, 2, 3])))
+    }
+
+    /// `numberOfECGSamples` is a u16 off the wire and the width comes from a caller, so the offset math
+    /// is overflow-checked rather than trusted — it would trap in Swift and wrap NEGATIVE in the Kotlin
+    /// twin. A rejection is the correct outcome, not a crash.
+    func testTriageWidthMathCannotOverflow() {
+        let payload = header(samples: 65_535) + [UInt8](repeating: 0, count: 8)
+        XCTAssertTrue(Whoop5Ecg.filteredBytesPerSampleCandidates(payload, widths: [Int.max, 2, 3]).isEmpty)
+        XCTAssertTrue(Whoop5Ecg.filteredBytesPerSampleCandidates(payload, widths: [0, -1]).isEmpty)
+    }
+
+    func testTriageWidthsAreReportedThroughACRCGatedFrameToo() {
+        let payload = header(samples: 4) + [UInt8](repeating: 0x11, count: 12)
+        var frame = puffinFrame(type: 0x28, payload: payload)
+        XCTAssertEqual(Whoop5Ecg.filteredBytesPerSampleCandidates(frame: frame), [3])
+        frame[frame.count - 1] ^= 0xFF                        // a bad CRC never reaches a field read
+        XCTAssertTrue(Whoop5Ecg.filteredBytesPerSampleCandidates(frame: frame).isEmpty)
+    }
+
+    // MARK: - Unclassified-frame census
+
+    /// The census exists for the frames the triage says NO to. A heuristic that logs only its own hits
+    /// destroys the evidence for its own misses: the 2-byte assumption above discarded every 3-byte
+    /// frame, and the report then said, truthfully, that nothing passed.
+    func testCensusRecordsAFrameTheTriageRejects() {
+        // signalQualityRaw = 0xEE fails the very first guard, so the triage rejects this outright.
+        let frame = puffinFrame(type: 0x1A, payload: [UInt8](repeating: 0xEE, count: 20))
+        XCTAssertFalse(Whoop5Ecg.plausibleFilteredFrame(frame), "fixture must be a triage MISS")
+
+        var census = Whoop5EcgProbe.FrameCensus()
+        census.record(frame: frame)
+        XCTAssertEqual(census.framesSeen, 1)
+        XCTAssertEqual(census.buckets.count, 1)
+        XCTAssertEqual(census.buckets[0].typeByte, 0x1A)
+        XCTAssertEqual(census.buckets[0].count, 1)
+
+        let sample = census.buckets[0].samples[0]
+        XCTAssertEqual(sample.frameLength, frame.count)
+        XCTAssertEqual(sample.payloadLength, 21)              // 20 + the envelope's pad4 byte
+        XCTAssertEqual(sample.numberOfECGSamples, 0xEEEE)     // read, not believed
+        XCTAssertTrue(sample.widths.isEmpty)
+        XCTAssertTrue(sample.headHex.hasPrefix("aa"))
+        XCTAssertEqual(census.lines[0], "  type=0x1a  frames=1")
+        XCTAssertTrue(census.lines[1].contains("widths=none"))
+        XCTAssertTrue(census.lines[1].contains("payload=21"))
+    }
+
+    /// A HIT is censused too — the census is the whole record of the window, not a rejects bin.
+    func testCensusRecordsTriageHitsWithTheWidthThatAgreed() {
+        let frame = puffinFrame(type: 0x28, payload: header(samples: 4) + [UInt8](repeating: 0x11, count: 12))
+        XCTAssertTrue(Whoop5Ecg.plausibleFilteredFrame(frame))
+        var census = Whoop5EcgProbe.FrameCensus()
+        census.record(frame: frame)
+        XCTAssertEqual(census.buckets[0].samples[0].widths, [3])
+        XCTAssertEqual(census.buckets[0].samples[0].numberOfECGSamples, 4)
+        XCTAssertTrue(census.lines[1].contains("widths=3"))
+    }
+
+    /// A frame whose CRC does not check out yields no decoded field — the census records its shape and
+    /// its bytes, and says `payload=?` rather than reading a header out of an unverified buffer.
+    func testCensusReadsNoFieldOutOfAnUnverifiedFrame() {
+        var frame = puffinFrame(type: 0x28, payload: header(samples: 3) + i16le([1, 2, 3]))
+        frame[frame.count - 1] ^= 0xFF
+        var census = Whoop5EcgProbe.FrameCensus()
+        census.record(frame: frame)
+        XCTAssertNil(census.buckets[0].samples[0].payloadLength)
+        XCTAssertNil(census.buckets[0].samples[0].numberOfECGSamples)
+        XCTAssertTrue(census.buckets[0].samples[0].widths.isEmpty)
+        XCTAssertTrue(census.lines[1].contains("payload=? samples=? widths=none"))
+    }
+
+    /// A 1 Hz stream must not be able to grow the report without bound — but nothing may be dropped in
+    /// silence either. Past the per-type sample cap the frames are COUNTED.
+    func testCensusCapsSamplesPerTypeButKeepsCounting() {
+        let frame = puffinFrame(type: 0x30, payload: [UInt8](repeating: 0xEE, count: 20))
+        var census = Whoop5EcgProbe.FrameCensus()
+        for _ in 0..<50 { census.record(frame: frame) }
+        XCTAssertEqual(census.framesSeen, 50)
+        XCTAssertEqual(census.buckets.count, 1)
+        XCTAssertEqual(census.buckets[0].count, 50)
+        XCTAssertEqual(census.buckets[0].samples.count, Whoop5EcgProbe.FrameCensus.maxSamplesPerType)
+        XCTAssertTrue(census.lines.contains { $0.contains("+47 more of this type, not recorded") })
+    }
+
+    func testCensusCapsDistinctTypesAndCountsTheOverflow() {
+        var census = Whoop5EcgProbe.FrameCensus()
+        for type in 0..<(Whoop5EcgProbe.FrameCensus.maxTypes + 4) {
+            census.record(frame: puffinFrame(type: UInt8(type), payload: [UInt8](repeating: 0xEE, count: 20)))
+        }
+        XCTAssertEqual(census.buckets.count, Whoop5EcgProbe.FrameCensus.maxTypes)
+        XCTAssertEqual(census.framesBeyondTypeCap, 4)
+        XCTAssertEqual(census.framesSeen, Whoop5EcgProbe.FrameCensus.maxTypes + 4)
+        XCTAssertTrue(census.lines.contains { $0.contains("4 frame(s) of further type bytes past the") })
+    }
+
+    func testCensusIgnoresBuffersTooShortToCarryATypeByte() {
+        var census = Whoop5EcgProbe.FrameCensus()
+        census.record(frame: [])
+        census.record(frame: [UInt8](repeating: 0xAA, count: 8))
+        XCTAssertTrue(census.isEmpty)
+        XCTAssertTrue(census.buckets.isEmpty)
+    }
+
+    /// The census is only useful if the operator can COPY it: it belongs in the same report sheet as the
+    /// verdict, right under the triage result it is the check on.
+    func testReportCarriesTheCensusBesideTheTriageResult() {
+        let rejected = puffinFrame(type: 0x1A, payload: [UInt8](repeating: 0xEE, count: 20))
+        var census = Whoop5EcgProbe.FrameCensus()
+        census.record(frame: rejected)
+        let text = Whoop5EcgProbe.report(
+            steps: [sent(139, arg: 1, .success), sent(124, arg: Whoop5Ecg.ControlSignal.start.rawValue, .success)],
+            ecgPacketsSeen: 0, candidateFrames: [], windowSeconds: 30, census: census)
+        // The old, evidence-free version of this run said only this line. Now the bytes are beside it.
+        XCTAssertTrue(text.contains("Candidate packet types: none — no frame passed the structural triage."))
+        XCTAssertTrue(text.contains("Unclassified-frame census"))
+        XCTAssertTrue(text.contains("type=0x1a  frames=1"))
+        XCTAssertTrue(text.contains("widths=none"))
+        XCTAssertTrue(text.contains(census.buckets[0].samples[0].headHex))
+    }
+
+    func testReportSaysSoWhenNoUnclassifiedFrameArrivedAtAll() {
+        let text = Whoop5EcgProbe.report(steps: [], ecgPacketsSeen: 0, candidateFrames: [], windowSeconds: 30)
+        XCTAssertTrue(text.contains("no unclassified frame arrived at all"))
+    }
+
     // MARK: - Commands
 
     func testCommandOpcodesMatchTheRepoProtocolTable() {

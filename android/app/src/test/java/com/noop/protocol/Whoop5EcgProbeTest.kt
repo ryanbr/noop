@@ -455,4 +455,133 @@ class Whoop5EcgProbeTest {
             assertFalse("report must not name $token", text.lowercase().contains(token.lowercase()))
         }
     }
+
+    // MARK: - Unclassified-frame census
+
+    private fun header(samples: Int): List<Int> = listOf(
+        2, 0x05, 1, 1, 0, 1, 0, 1, 42, 0, 61, 63, 812 and 0xFF, (812 shr 8) and 0xFF, 17,
+        samples and 0xFF, (samples shr 8) and 0xFF,
+    )
+
+    private fun puffinFrame(type: Int, payload: List<Int>): ByteArray =
+        Framing.puffinCommandFrame(
+            cmd = 0x00, seq = 0x01,
+            payload = payload.map { it.toByte() }.toByteArray(),
+            type = type,
+        )
+
+    /**
+     * The census exists for the frames the triage says NO to. A heuristic that logs only its own hits
+     * destroys the evidence for its own misses: the 2-bytes-per-sample assumption discarded every 3-byte
+     * frame, and the report then said, truthfully, that nothing passed.
+     */
+    @Test
+    fun censusRecordsAFrameTheTriageRejects() {
+        val frame = puffinFrame(0x1A, List(20) { 0xEE })
+        assertFalse("fixture must be a triage MISS", Whoop5Ecg.plausibleFilteredFrame(frame))
+
+        val census = Whoop5EcgProbe.FrameCensus()
+        census.record(frame)
+        assertEquals(1, census.framesSeen)
+        assertEquals(1, census.buckets.size)
+        assertEquals(0x1A, census.buckets[0].typeByte)
+        assertEquals(1, census.buckets[0].count)
+
+        val sample = census.buckets[0].samples[0]
+        assertEquals(frame.size, sample.frameLength)
+        assertEquals(21, sample.payloadLength)          // 20 + the envelope's pad4 byte
+        assertEquals(0xEEEE, sample.numberOfECGSamples) // read, not believed
+        assertTrue(sample.widths.isEmpty())
+        assertTrue(sample.headHex.startsWith("aa"))
+        assertEquals("  type=0x1a  frames=1", census.lines[0])
+        assertTrue(census.lines[1].contains("widths=none"))
+        assertTrue(census.lines[1].contains("payload=21"))
+    }
+
+    /** A HIT is censused too — the census is the whole record of the window, not a rejects bin. */
+    @Test
+    fun censusRecordsTriageHitsWithTheWidthThatAgreed() {
+        val frame = puffinFrame(0x28, header(samples = 4) + List(12) { 0x11 })
+        assertTrue(Whoop5Ecg.plausibleFilteredFrame(frame))
+        val census = Whoop5EcgProbe.FrameCensus()
+        census.record(frame)
+        assertEquals(listOf(3), census.buckets[0].samples[0].widths)
+        assertEquals(4, census.buckets[0].samples[0].numberOfECGSamples)
+        assertTrue(census.lines[1].contains("widths=3"))
+    }
+
+    /** A frame whose CRC does not check out yields no decoded field — only its shape and its bytes. */
+    @Test
+    fun censusReadsNoFieldOutOfAnUnverifiedFrame() {
+        val frame = puffinFrame(0x28, header(samples = 3) + listOf(1, 0, 2, 0, 3, 0))
+        frame[frame.size - 1] = (frame[frame.size - 1].toInt() xor 0xFF).toByte()
+        val census = Whoop5EcgProbe.FrameCensus()
+        census.record(frame)
+        assertNull(census.buckets[0].samples[0].payloadLength)
+        assertNull(census.buckets[0].samples[0].numberOfECGSamples)
+        assertTrue(census.buckets[0].samples[0].widths.isEmpty())
+        assertTrue(census.lines[1].contains("payload=? samples=? widths=none"))
+    }
+
+    /** A 1 Hz stream must not grow the report without bound — and nothing may be dropped in silence. */
+    @Test
+    fun censusCapsSamplesPerTypeButKeepsCounting() {
+        val frame = puffinFrame(0x30, List(20) { 0xEE })
+        val census = Whoop5EcgProbe.FrameCensus()
+        repeat(50) { census.record(frame) }
+        assertEquals(50, census.framesSeen)
+        assertEquals(1, census.buckets.size)
+        assertEquals(50, census.buckets[0].count)
+        assertEquals(Whoop5EcgProbe.FrameCensus.MAX_SAMPLES_PER_TYPE, census.buckets[0].samples.size)
+        assertTrue(census.lines.any { it.contains("+47 more of this type, not recorded") })
+    }
+
+    @Test
+    fun censusCapsDistinctTypesAndCountsTheOverflow() {
+        val census = Whoop5EcgProbe.FrameCensus()
+        for (type in 0 until Whoop5EcgProbe.FrameCensus.MAX_TYPES + 4) {
+            census.record(puffinFrame(type, List(20) { 0xEE }))
+        }
+        assertEquals(Whoop5EcgProbe.FrameCensus.MAX_TYPES, census.buckets.size)
+        assertEquals(4, census.framesBeyondTypeCap)
+        assertEquals(Whoop5EcgProbe.FrameCensus.MAX_TYPES + 4, census.framesSeen)
+        assertTrue(census.lines.any { it.contains("4 frame(s) of further type bytes past the") })
+    }
+
+    @Test
+    fun censusIgnoresBuffersTooShortToCarryATypeByte() {
+        val census = Whoop5EcgProbe.FrameCensus()
+        census.record(ByteArray(0))
+        census.record(ByteArray(8) { 0xAA.toByte() })
+        assertTrue(census.isEmpty)
+        assertTrue(census.buckets.isEmpty())
+    }
+
+    /** The census is only useful if the operator can COPY it: it belongs in the report sheet. */
+    @Test
+    fun reportCarriesTheCensusBesideTheTriageResult() {
+        val census = Whoop5EcgProbe.FrameCensus()
+        census.record(puffinFrame(0x1A, List(20) { 0xEE }))
+        val text = Whoop5EcgProbe.report(
+            steps = listOf(
+                sent(139, 1, Whoop5EcgProbe.CommandOutcome.Success),
+                sent(124, Whoop5Ecg.ControlSignal.START.raw, Whoop5EcgProbe.CommandOutcome.Success),
+            ),
+            ecgPacketsSeen = 0,
+            candidateFrames = emptyList(),
+            windowSeconds = 30,
+            census = census,
+        )
+        assertTrue(text.contains("Candidate packet types: none — no frame passed the structural triage."))
+        assertTrue(text.contains("Unclassified-frame census"))
+        assertTrue(text.contains("type=0x1a  frames=1"))
+        assertTrue(text.contains("widths=none"))
+        assertTrue(text.contains(census.buckets[0].samples[0].headHex))
+    }
+
+    @Test
+    fun reportSaysSoWhenNoUnclassifiedFrameArrivedAtAll() {
+        val text = Whoop5EcgProbe.report(emptyList(), 0, emptyList(), 30)
+        assertTrue(text.contains("no unclassified frame arrived at all"))
+    }
 }

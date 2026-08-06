@@ -814,6 +814,9 @@ public final class BLEManager: NSObject, ObservableObject {
     /// Structural-triage hits: the empirical search for the packet TYPE these records arrive under.
     private var ecgProbeCandidates: [String] = []
     private var ecgProbePacketsSeen = 0
+    /// Every unclassified frame the run saw, triage MISSES included — the record that survives a wrong
+    /// heuristic. See `Whoop5EcgProbe.FrameCensus`.
+    private var ecgProbeCensus = Whoop5EcgProbe.FrameCensus()
     /// Non-nil while the listen window is open; drives `ecgProbeArmed`.
     private var ecgProbeDeadline: Date?
     /// Supersedes a previous run's pending verdict timer when the user taps again.
@@ -3338,6 +3341,7 @@ public final class BLEManager: NSObject, ObservableObject {
             ecgProbeSteps = []
             ecgProbeCandidates = []
             ecgProbePacketsSeen = 0
+            ecgProbeCensus = Whoop5EcgProbe.FrameCensus()
         }
         ecgProbeRunToken &+= 1
         ecgProbeDeadline = Date().addingTimeInterval(BLEManager.ecgProbeWindow)
@@ -3354,7 +3358,8 @@ public final class BLEManager: NSObject, ObservableObject {
             let text = Whoop5EcgProbe.report(steps: self.ecgProbeSteps,
                                              ecgPacketsSeen: self.ecgProbePacketsSeen,
                                              candidateFrames: self.ecgProbeCandidates,
-                                             windowSeconds: Int(BLEManager.ecgProbeWindow))
+                                             windowSeconds: Int(BLEManager.ecgProbeWindow),
+                                             census: self.ecgProbeCensus)
             self.log("ECG probe:\n\(text)")
             self.state.ecgProbe = text
         }
@@ -3419,21 +3424,37 @@ public final class BLEManager: NSObject, ObservableObject {
     /// Structural triage for the packet TYPE the ECG records arrive under, which no table in this repo
     /// holds. A hit is a CANDIDATE, never a confirmed mapping.
     private func noteEcgProbeCandidate(_ frame: [UInt8]) {
-        guard frame.count >= 12, Whoop5Ecg.plausibleFilteredFrame(frame) else { return }
+        // CENSUS FIRST, unconditionally — before the heuristic gets a vote. Every frame that reaches here
+        // is one the run could not classify, and the ones the triage REJECTS are the ones whose bytes
+        // would otherwise be gone: a 2-bytes-per-sample length assumption discarded every 3-byte frame in
+        // silence, and the report then truthfully said no frame passed. The census is what makes the next
+        // wrong assumption visible instead of invisible. (The caller has already CRC-gated the frame.)
+        ecgProbeCensus.record(frame: frame)
+        guard frame.count >= 12 else { return }
+        // Which sample widths the length agreed with — recorded rather than re-derived, because a
+        // candidate under width 3 is a different finding from a candidate under width 2 and the report
+        // must not flatten them together.
+        let widths = Whoop5Ecg.filteredBytesPerSampleCandidates(frame: frame)
+        guard !widths.isEmpty else { return }
         ecgProbePacketsSeen += 1
+        // The header is read directly rather than through `decodeFilteredFrame`, which decodes SAMPLES and
+        // therefore still assumes 2 bytes each: a width-3 candidate would fail it and lose its line while
+        // its status header parses perfectly. Nothing on this line comes from the sample blob.
         guard ecgProbeCandidates.count < BLEManager.ecgProbeMaxCandidates,
-              let packet = Whoop5Ecg.decodeFilteredFrame(frame) else { return }
-        let header = packet.header
+              let payload = Whoop5Ecg.innerPayload(frame),
+              let header = EcgStatusHeader(payload: payload) else { return }
         // The classifier byte is logged as a NUMBER, never as its token name: a strap log is a shareable
         // artefact, and no line in it should read like a clinical finding. The decoder maps the value
         // offline; the raw byte is lossless.
-        let line = String(format: "type=0x%02x len=%d samples=%d quality=%d leadsOn=%d hr=%d hrv=%d "
-                          + "classifierRaw=%d statusRaw=%d (unvalidated instrumentation, not a diagnosis)",
-                          Int(frame[8]), frame.count, Int(header.numberOfECGSamples),
-                          Int(header.signalQualityRaw), header.heartKeyLeadsAreOn ? 1 : 0,
-                          Int(header.heartKeyHR), Int(header.heartKeyHRV),
-                          Int(header.heartKeyArrhythmiaCheckResultRaw),
-                          Int(header.heartKeyArrhythmiaCheckStatusRaw))
+        let shape = String(format: "type=0x%02x len=%d samples=%d",
+                           Int(frame[8]), frame.count, Int(header.numberOfECGSamples))
+        let status = String(format: "quality=%d leadsOn=%d hr=%d hrv=%d classifierRaw=%d statusRaw=%d",
+                            Int(header.signalQualityRaw), header.heartKeyLeadsAreOn ? 1 : 0,
+                            Int(header.heartKeyHR), Int(header.heartKeyHRV),
+                            Int(header.heartKeyArrhythmiaCheckResultRaw),
+                            Int(header.heartKeyArrhythmiaCheckStatusRaw))
+        let line = "\(shape) widths=\(widths.map(String.init).joined(separator: ",")) \(status) "
+            + "(unvalidated instrumentation, not a diagnosis)"
         ecgProbeCandidates.append(line)
         log("ECG probe: candidate packet \(line)")
         // Dump the raw bytes of the FIRST few candidates so a plain strap-log export is enough to redo
@@ -4506,6 +4527,7 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         ecgProbeSteps = []
         ecgProbeCandidates = []
         ecgProbePacketsSeen = 0
+        ecgProbeCensus = Whoop5EcgProbe.FrameCensus()
         // The DIS strings belong to the link that just dropped; a stale variant must not keep an MG-only
         // capability unlocked for whatever connects next.
         state.whoop5Variant = nil
