@@ -49,6 +49,18 @@ class Whoop5EcgTest {
     private fun u16le(values: List<Int>): List<Int> =
         values.flatMap { listOf(it and 0xFF, (it shr 8) and 0xFF) }
 
+    /**
+     * The raw record's leads-off tail: the count byte, then [Whoop5Ecg.LEADS_OFF_SLOT_COUNT] i16 I slots,
+     * then the same again for Q. The block is FIXED-SIZE on real hardware (see the Swift
+     * `Whoop5EcgRawHardwareTests`), so these fixtures zero-fill the slots the count does not reach instead
+     * of packing the arrays to the count.
+     */
+    private fun leadsOffBlock(i: List<Int>, q: List<Int>): List<Int> {
+        require(i.size == q.size && i.size <= Whoop5Ecg.LEADS_OFF_SLOT_COUNT)
+        val pad = List(Whoop5Ecg.LEADS_OFF_SLOT_COUNT - i.size) { 0 }
+        return listOf(i.size) + u16le(i + pad) + u16le(q + pad)
+    }
+
     private fun puffinFrame(type: Int, payload: List<Int>): ByteArray =
         Framing.puffinCommandFrame(
             cmd = 0x00, seq = 0x01,
@@ -210,7 +222,7 @@ class Whoop5EcgTest {
         val rawBlob = (0 until 12).toList()                  // 4 samples × 3 bytes
         val leadsOffI = listOf(1, 2)
         val leadsOffQ = listOf(3, 4)
-        val payload = header(samples = 4) + rawBlob + listOf(2) + u16le(leadsOffI) + u16le(leadsOffQ)
+        val payload = header(samples = 4) + rawBlob + leadsOffBlock(leadsOffI, leadsOffQ)
 
         val packet = Whoop5Ecg.decodeRaw(payload, bytesPerSample = 3)
         assertNotNull(packet)
@@ -222,19 +234,47 @@ class Whoop5EcgTest {
         assertEquals(3, packet?.bytesPerSample)              // count ÷ numberOfECGSamples
     }
 
+    /** A zero count still carries the full fixed block — the slots are simply all unused. */
     @Test
     fun rawWithNoLeadsOffSamples() {
-        val payload = header(samples = 2) + listOf(0xAA, 0xBB, 0xCC, 0xDD) + listOf(0)
+        val payload = header(samples = 2) + listOf(0xAA, 0xBB, 0xCC, 0xDD) + leadsOffBlock(emptyList(), emptyList())
         val packet = Whoop5Ecg.decodeRaw(payload, bytesPerSample = 2)
         assertEquals(0, packet?.numberOfLeadsOffSamples)
         assertEquals(emptyList<Int>(), packet?.leadsOffIRaw)
         assertEquals(emptyList<Int>(), packet?.leadsOffQRaw)
         assertEquals(listOf(0xAA, 0xBB, 0xCC, 0xDD), packet?.rawECGDataRaw)
+        assertEquals(emptyList<Int>(), packet?.padding)
+    }
+
+    /**
+     * The valid values come off the FRONT of each fixed array, and the unused slots are dropped rather
+     * than shifting Q or leaking into the padding — the defect the real capture exposed.
+     */
+    @Test
+    fun rawPartiallyFilledLeadsOffBlockKeepsQAligned() {
+        val payload = header(samples = 2) + listOf(0, 0, 0, 0) +
+            leadsOffBlock(listOf(11, 12, 13), listOf(21, 22, 23))
+        val packet = Whoop5Ecg.decodeRaw(payload, bytesPerSample = 2)
+        assertEquals(3, packet?.numberOfLeadsOffSamples)
+        assertEquals(listOf(11, 12, 13), packet?.leadsOffIRaw)
+        assertEquals(listOf(21, 22, 23), packet?.leadsOffQRaw)
+        assertEquals(emptyList<Int>(), packet?.padding)
     }
 
     @Test
     fun rawRejectsTruncatedLeadsOffArrays() {
         val payload = header(samples = 2) + listOf(0, 0, 0, 0) + listOf(3) + u16le(listOf(1, 2, 3))
+        assertNull(Whoop5Ecg.decodeRaw(payload, bytesPerSample = 2))
+    }
+
+    /**
+     * The block holds a fixed number of slots, so a count above it cannot describe this layout and must
+     * fail closed rather than read past the block.
+     */
+    @Test
+    fun rawRejectsLeadsOffCountAboveTheBlockCapacity() {
+        val payload = header(samples = 2) + listOf(0, 0, 0, 0) +
+            listOf(Whoop5Ecg.LEADS_OFF_SLOT_COUNT + 1) + List(Whoop5Ecg.LEADS_OFF_SLOT_COUNT * 4 + 8) { 0 }
         assertNull(Whoop5Ecg.decodeRaw(payload, bytesPerSample = 2))
     }
 
@@ -259,13 +299,13 @@ class Whoop5EcgTest {
     @Test
     fun rawRejectsShortHeaderAndZeroWidth() {
         assertNull(Whoop5Ecg.decodeRaw(listOf(1, 2, 3), bytesPerSample = 2))
-        val payload = header(samples = 2) + listOf(0, 0, 0, 0) + listOf(0)
+        val payload = header(samples = 2) + listOf(0, 0, 0, 0) + leadsOffBlock(emptyList(), emptyList())
         assertNull(Whoop5Ecg.decodeRaw(payload, bytesPerSample = 0))
     }
 
     @Test
     fun rawSampleWidthCandidatesAreEnumeratedNotGuessed() {
-        val payload = header(samples = 4) + List(8) { 0x11 } + listOf(1) + u16le(listOf(7)) + u16le(listOf(8))
+        val payload = header(samples = 4) + List(8) { 0x11 } + leadsOffBlock(listOf(7), listOf(8))
         val candidates = Whoop5Ecg.rawBytesPerSampleCandidates(payload)
         assertTrue("width 2 must be structurally admissible", candidates.contains(2))
         if (candidates.size == 1) {
@@ -277,10 +317,12 @@ class Whoop5EcgTest {
 
     @Test
     fun rawAmbiguousBufferRefusesToDecode() {
-        val payload = header(samples = 1) + List(6) { 0 }
-        val candidates = Whoop5Ecg.rawBytesPerSampleCandidates(payload, maxPadding = 8)
-        assertTrue("fixture is meant to be ambiguous", candidates.size > 1)
-        assertNull(Whoop5Ecg.decodeRaw(payload, maxPadding = 8))
+        // With a single sample, an all-zero tail long enough to hold the fixed leads-off block leaves
+        // every width inside the padding tolerance.
+        val payload = header(samples = 1) + List(49) { 0 }
+        val candidates = Whoop5Ecg.rawBytesPerSampleCandidates(payload)
+        assertEquals("fixture is meant to be ambiguous", listOf(1, 2, 3, 4), candidates)
+        assertNull(Whoop5Ecg.decodeRaw(payload))
     }
 
     // MARK: - Frame level (CRC gating)
@@ -328,7 +370,7 @@ class Whoop5EcgTest {
 
     @Test
     fun rawFrameDecodesThroughAValidPuffinEnvelope() {
-        val payload = header(samples = 2) + listOf(1, 2, 3, 4) + listOf(1) + u16le(listOf(5)) + u16le(listOf(6))
+        val payload = header(samples = 2) + listOf(1, 2, 3, 4) + leadsOffBlock(listOf(5), listOf(6))
         val frame = puffinFrame(0x2F, payload)
         val packet = Whoop5Ecg.decodeRawFrame(frame, bytesPerSample = 2)
         assertEquals(listOf(1, 2, 3, 4), packet?.rawECGDataRaw)
@@ -338,7 +380,7 @@ class Whoop5EcgTest {
 
     @Test
     fun rawFrameRejectsBadCrc() {
-        val payload = header(samples = 2) + listOf(1, 2, 3, 4) + listOf(0)
+        val payload = header(samples = 2) + listOf(1, 2, 3, 4) + leadsOffBlock(emptyList(), emptyList())
         val frame = puffinFrame(0x2F, payload)
         frame[frame.size - 2] = (frame[frame.size - 2].toInt() xor 0xFF).toByte()
         assertNull(Whoop5Ecg.decodeRawFrame(frame, bytesPerSample = 2))

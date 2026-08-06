@@ -12,17 +12,28 @@ import XCTest
 /// What the records establish, and what they contradict, is written against each assertion. The short
 /// version:
 ///
-///   • The `RawLabradorPacket` SHAPE fits end to end — blob, leads-off count, the two leads-off arrays
-///     and a padding remainder all land with no unaccounted bytes — but only when the payload is taken
-///     from frame offset 17, four bytes earlier than the record's real status header.
+///   • The record body is `17 header + 1500 blob + 1 count + 22 leadsOffI + 22 leadsOffQ + 1` = 1563
+///     bytes, with no leftovers — but only when the payload is taken from frame offset 17, four bytes
+///     earlier than the record's real status header.
 ///   • `headerLength = 17` is FOUR bytes too long for this record. The header's last nine bytes
 ///     (`heartKeyProgress` through `numberOfECGSamples`) therefore align correctly at offset 17 and
 ///     decode real values; the first eight bytes do not, and read the record's unix timestamp and two
 ///     unmapped bytes instead of signal quality, the four booleans and the two classifier enums.
-///   • `defaultMaxPadding = 3` rejects 226 of the 350 populated records in the capture (65%), because
-///     the leads-off block is FIXED-SIZE (11 slots each for I and Q) rather than packed to the count.
+///     STILL OPEN — nothing here fixes it.
+///   • The leads-off block is FIXED-SIZE — eleven i16 slots for I then eleven for Q, at the same frame
+///     offsets under both observed counts, with the unused tail slots zeroed. Reading it as PACKED
+///     shifted Q by one slot per unused slot and left a 5-byte remainder against `defaultMaxPadding`,
+///     which discarded 227 of the capture's 351 populated records before any field was read. FIXED —
+///     `Whoop5Ecg.leadsOffSlotCount`; 350 of the 351 now decode.
 ///   • The sample blob is 3 bytes per sample, and the payload is 18 signed bits big-endian inside that
-///     24-bit field — proven here by continuity, not assumed.
+///     24-bit field — measured here by continuity, not assumed, and not attributed to any vendor
+///     source. No scale or unit is claimed for the values, and none is applied.
+///   • STILL OPEN — the one populated record that does not decode is the capture's short final record
+///     (`numberOfECGSamples == 245`). Its leads-off block sits at the SAME fixed frame offset 1534 as
+///     every other record, with bytes 769...1533 zeroed, so the sample REGION is fixed-size too and the
+///     blob length is not `n * bytesPerSample` for a partly-filled record. That record is not embedded
+///     here and the width-from-length premise `rawBytesPerSampleCandidates` rests on does not hold for
+///     it; it keeps failing closed rather than being papered over.
 final class Whoop5EcgRawHardwareTests: XCTestCase {
 
     // MARK: - Real captured records
@@ -214,12 +225,13 @@ final class Whoop5EcgRawHardwareTests: XCTestCase {
                        [UInt16](repeating: 65528, count: 7) + [UInt16](repeating: 65527, count: 4))
         XCTAssertEqual(packet.padding, [0x00])
 
-        // Every byte of the 1563-byte payload is claimed by exactly one field.
+        // Every byte of the 1563-byte payload is claimed by exactly one field. The leads-off block is
+        // charged at its fixed size — which for this record happens to equal the count.
         let accounted = Whoop5Ecg.headerLength
             + packet.rawECGDataRaw.count
             + 1
-            + packet.leadsOffIRaw.count * 2
-            + packet.leadsOffQRaw.count * 2
+            + Whoop5Ecg.leadsOffSlotCount * 2
+            + Whoop5Ecg.leadsOffSlotCount * 2
             + packet.padding.count
         XCTAssertEqual(accounted, payload.count, "no unaccounted bytes in the record body")
     }
@@ -322,41 +334,83 @@ final class Whoop5EcgRawHardwareTests: XCTestCase {
         XCTAssertLessThan(as18.min()!, -32768)
     }
 
-    // MARK: - The two real defects this capture exposes
+    // MARK: - The fixed-size leads-off block
 
-    /// 226 of the 350 populated records in the capture carry `numberOfLeadsOffSamples == 10` rather than
-    /// 11. The record is a fixed 1584 bytes and the leads-off block is a fixed ELEVEN slots for I and
-    /// eleven for Q, so one unused slot leaves five trailing bytes — two over `defaultMaxPadding`. The
-    /// triage therefore discards 65% of real records before any field is read.
-    func testDefaultPaddingToleranceRejectsTheMajorityOfRealRecords() {
-        guard let payload = Whoop5Ecg.innerPayload(frame10, payloadStart: Self.ecgPayloadStart) else {
-            return XCTFail("payload extraction failed")
+    /// The block's geometry, read straight off the frame with no decoder involved. This is the evidence
+    /// `Whoop5Ecg.leadsOffSlotCount` rests on: in BOTH records the count byte sits at frame[1534], the I
+    /// slots start at frame[1535] and the Q slots at frame[1557] — the same offsets under count 11 and
+    /// count 10, which is what a fixed block does and a packed one cannot.
+    func testLeadsOffBlockIsAtTheSameFixedOffsetsUnderBothCounts() {
+        XCTAssertEqual(Whoop5Ecg.leadsOffSlotCount, 11)
+        XCTAssertEqual(frame11[1534], 11)
+        XCTAssertEqual(frame10[1534], 10)
+
+        func slots(_ frame: [UInt8], _ start: Int) -> [UInt16] {
+            (0..<11).map { UInt16(frame[start + $0 * 2]) | UInt16(frame[start + $0 * 2 + 1]) << 8 }
         }
-        XCTAssertEqual(Whoop5Ecg.rawBytesPerSampleCandidates(payload: payload), [],
-                       "a real, well-formed, CRC-valid record is rejected outright")
-        XCTAssertNil(Whoop5Ecg.decodeRaw(payload: payload))
-        // Widening the tolerance to the record's actual remainder recovers it, and recovers width 3.
-        XCTAssertEqual(Whoop5Ecg.rawBytesPerSampleCandidates(payload: payload, maxPadding: 5), [3])
+        // Count 11: every slot carries a value.
+        XCTAssertEqual(slots(frame11, 1535), [UInt16](repeating: 67, count: 11))
+        XCTAssertEqual(slots(frame11, 1557),
+                       [UInt16](repeating: 65528, count: 7) + [UInt16](repeating: 65527, count: 4))
+        // Count 10: ten values then a zeroed slot, in BOTH arrays, at the SAME offsets.
+        XCTAssertEqual(slots(frame10, 1535), [67, 67, 67, 67, 67, 66, 66, 66, 66, 66, 0])
+        XCTAssertEqual(slots(frame10, 1557),
+                       [65527, 65527, 65527, 65527, 65527, 65527, 65526, 65526, 65526, 65526, 0])
+        // And exactly one byte follows the block before the CRC32 trailer.
+        XCTAssertEqual(1579 + 1 + 4, frame10.count)
     }
 
-    /// With the count below the block's capacity, reading Q at `iStart + count * 2` starts two bytes
-    /// early: it picks up the unused eleventh I slot as Q[0] and drops the last real Q value. The
-    /// leads-off block is fixed-size; the decoder treats it as packed.
-    func testLeadsOffQArrayIsShiftedWhenTheBlockIsNotFull() {
+    /// Regression: a real count=10 record is ACCEPTED. Under the packed reading its remainder was five
+    /// bytes against `defaultMaxPadding = 3`, so `rawBytesPerSampleCandidates` returned `[]` and the
+    /// record was discarded before any field was read — 227 of the capture's 351 populated records.
+    func testPopulatedRealRecordIsNotDiscarded() {
+        for frame in [frame11, frame10] {
+            guard let payload = Whoop5Ecg.innerPayload(frame, payloadStart: Self.ecgPayloadStart) else {
+                return XCTFail("payload extraction failed")
+            }
+            XCTAssertEqual(Whoop5Ecg.rawBytesPerSampleCandidates(payload: payload), [3],
+                           "a real, well-formed, CRC-valid record must resolve to width 3")
+            XCTAssertNotNil(Whoop5Ecg.decodeRaw(payload: payload))
+            // Accepted on its OWN remainder, not by widening the tolerance.
+            XCTAssertEqual(Whoop5Ecg.decodeRaw(payload: payload)?.padding, [0x00])
+        }
+    }
+
+    /// With the count below the block's capacity, the ten valid values come off the front of each fixed
+    /// array. The packed reading started Q two bytes early — it picked up the unused eleventh I slot as
+    /// Q[0] and pushed the tenth real Q value out into the "padding".
+    func testPartiallyFilledLeadsOffBlockKeepsQAligned() {
         guard let payload = Whoop5Ecg.innerPayload(frame10, payloadStart: Self.ecgPayloadStart),
               let packet = Whoop5Ecg.decodeRaw(payload: payload, bytesPerSample: 3) else {
             return XCTFail("decodeRaw failed")
         }
         XCTAssertEqual(packet.numberOfLeadsOffSamples, 10)
         XCTAssertEqual(packet.leadsOffIRaw, [67, 67, 67, 67, 67, 66, 66, 66, 66, 66])
-        // What the decoder produces: a spurious leading zero, and the final value lost.
-        XCTAssertEqual(packet.leadsOffQRaw, [0, 65527, 65527, 65527, 65527, 65527, 65527, 65526, 65526, 65526])
-        XCTAssertEqual(packet.leadsOffQRaw[0], 0, "the unused eleventh I slot, misread as Q[0]")
-        // What the fixed-slot layout actually holds: eleven I slots at frame[1535], eleven Q at [1557].
-        let trueQ = (0..<11).map { UInt16(frame10[1557 + $0 * 2]) | UInt16(frame10[1558 + $0 * 2]) << 8 }
-        XCTAssertEqual(trueQ, [65527, 65527, 65527, 65527, 65527, 65527, 65526, 65526, 65526, 65526, 0])
-        // The five "padding" bytes are not padding: the first two are the tenth real Q value.
-        XCTAssertEqual(packet.padding, [246, 255, 0, 0, 0])
-        XCTAssertEqual(UInt16(packet.padding[0]) | UInt16(packet.padding[1]) << 8, 65526)
+        XCTAssertEqual(packet.leadsOffQRaw, [65527, 65527, 65527, 65527, 65527, 65527, 65526, 65526, 65526, 65526])
+        XCTAssertNotEqual(packet.leadsOffQRaw.first, 0, "no spurious leading slot")
+        XCTAssertEqual(packet.leadsOffQRaw.last, 65526, "the tenth real Q value, previously lost")
+        // The unused eleventh slot of each array is dropped, not carried, and is not padding either.
+        XCTAssertEqual(packet.leadsOffIRaw.count, 10)
+        XCTAssertEqual(packet.leadsOffQRaw.count, 10)
+        XCTAssertEqual(packet.padding, [0x00])
+    }
+
+    /// The count=10 record accounts for every byte too — with the leads-off block charged at its FIXED
+    /// size rather than at the count.
+    func testCountTenRecordAccountsForEveryByte() {
+        guard let payload = Whoop5Ecg.innerPayload(frame10, payloadStart: Self.ecgPayloadStart),
+              let packet = Whoop5Ecg.decodeRaw(payload: payload, bytesPerSample: 3) else {
+            return XCTFail("decodeRaw failed")
+        }
+        XCTAssertEqual(payload.count, 1563)
+        XCTAssertEqual(packet.header.numberOfECGSamples, 500)
+        XCTAssertEqual(packet.rawECGDataRaw.count, 1500)
+        let accounted = Whoop5Ecg.headerLength
+            + packet.rawECGDataRaw.count
+            + 1
+            + Whoop5Ecg.leadsOffSlotCount * 2
+            + Whoop5Ecg.leadsOffSlotCount * 2
+            + packet.padding.count
+        XCTAssertEqual(accounted, payload.count, "17 + 1500 + 1 + 22 + 22 + 1")
     }
 }

@@ -209,12 +209,18 @@ public struct FilteredLabradorPacket: Equatable, Sendable {
 /// diagnostic arrays. The blob's bytes-per-sample is `rawECGDataRaw.count / numberOfECGSamples` — which
 /// means the blob's LENGTH is not itself on the wire, so a decode needs that width supplied or resolved
 /// (see `rawBytesPerSampleCandidates`).
+///
+/// The leads-off block that follows is FIXED-SIZE — `Whoop5Ecg.leadsOffSlotCount` slots for I and the
+/// same again for Q, with `numberOfLeadsOffSamples` selecting how many leading slots are valid.
 public struct RawLabradorPacket: Equatable, Sendable {
     public let header: EcgStatusHeader
     /// Opaque. The container width and encoding are unattested, so the bytes are carried verbatim.
     public let rawECGDataRaw: [UInt8]
     public let numberOfLeadsOffSamples: UInt8
+    /// The VALID leads-off I values — `numberOfLeadsOffSamples` of them, taken from the front of the
+    /// record's fixed `Whoop5Ecg.leadsOffSlotCount`-slot block. Unused slots are dropped, not carried.
     public let leadsOffIRaw: [UInt16]
+    /// The VALID leads-off Q values, on the same terms as `leadsOffIRaw`.
     public let leadsOffQRaw: [UInt16]
     public let padding: [UInt8]
 
@@ -251,6 +257,22 @@ public enum Whoop5Ecg {
     /// 4-byte boundary (`puffinCommandFrame`'s pad4), so a well-formed record leaves at most 3 spare
     /// bytes. Callers scanning an unfamiliar layout can widen it.
     public static let defaultMaxPadding = 3
+
+    /// Slots in the raw record's leads-off diagnostic block, per array.
+    ///
+    /// MEASURED FROM HARDWARE, not attested: two complete type-47 layout-16 flash records captured
+    /// 2026-08-06 (embedded verbatim in `Whoop5EcgRawHardwareTests`) show the block is FIXED-SIZE — the
+    /// count byte is followed by eleven i16 I slots and then eleven i16 Q slots, present in full whether
+    /// or not `numberOfLeadsOffSamples` fills them, with the unused tail slots zeroed. Both counts seen
+    /// in the capture (10 and 11) place the Q array at the same offset and leave the same single trailing
+    /// byte, which is what identifies the block as fixed rather than packed.
+    ///
+    /// Reading it as PACKED — `count` elements each — was the original assumption, and it is wrong in two
+    /// compounding ways whenever `count < 11`: Q is read two bytes early per missing slot (so it gains a
+    /// spurious leading value and loses its last real one), and the misplaced end-of-record leaves a
+    /// remainder over `defaultMaxPadding`, which discarded 227 of the capture's 351 populated records
+    /// before any field was read.
+    public static let leadsOffSlotCount = 11
 
     // MARK: Commands
     //
@@ -437,10 +459,15 @@ public enum Whoop5Ecg {
         // The leads-off count byte must itself be inside the buffer.
         guard rawEnd >= headerLength, rawEnd < payload.count else { return nil }
         let leadsOffCount = Int(payload[rawEnd])
+        // The block holds `leadsOffSlotCount` slots per array; a count that overruns it is not a record
+        // this layout can describe, so it fails closed rather than reading past the block.
+        guard leadsOffCount <= leadsOffSlotCount else { return nil }
+        // Both arrays are FIXED-SIZE and always fully present — see `leadsOffSlotCount`. The count byte
+        // selects how many leading slots are VALID; it does not size the block.
         let iStart = rawEnd + 1
-        let qStart = iStart + leadsOffCount * 2
-        let qEnd = qStart + leadsOffCount * 2
-        guard qEnd <= payload.count else { return nil }
+        let qStart = iStart + leadsOffSlotCount * 2
+        let blockEnd = qStart + leadsOffSlotCount * 2
+        guard blockEnd <= payload.count else { return nil }
 
         var leadsOffI = [UInt16]()
         var leadsOffQ = [UInt16]()
@@ -457,7 +484,7 @@ public enum Whoop5Ecg {
                                  numberOfLeadsOffSamples: payload[rawEnd],
                                  leadsOffIRaw: leadsOffI,
                                  leadsOffQRaw: leadsOffQ,
-                                 padding: Array(payload[qEnd...]))
+                                 padding: Array(payload[blockEnd...]))
     }
 
     /// Every sample width in `widths` that yields a structurally consistent raw record leaving at most

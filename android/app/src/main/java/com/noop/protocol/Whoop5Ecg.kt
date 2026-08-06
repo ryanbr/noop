@@ -116,6 +116,10 @@ data class FilteredLabradorPacket(
  *
  * The raw blob is opaque: its bytes-per-sample is `rawECGDataRaw.size / numberOfECGSamples`, which means
  * the blob's LENGTH is not itself on the wire (see [Whoop5Ecg.rawBytesPerSampleCandidates]).
+ *
+ * The leads-off block that follows is FIXED-SIZE — [Whoop5Ecg.LEADS_OFF_SLOT_COUNT] slots for I and the
+ * same again for Q, with [numberOfLeadsOffSamples] selecting how many leading slots are valid.
+ * [leadsOffIRaw] and [leadsOffQRaw] carry only the VALID values; unused slots are dropped.
  */
 data class RawLabradorPacket(
     val header: EcgStatusHeader,
@@ -140,6 +144,24 @@ object Whoop5Ecg {
 
     /** Trailing bytes tolerated after the last decoded field (the puffin pad4 budget). */
     const val DEFAULT_MAX_PADDING = 3
+
+    /**
+     * Slots in the raw record's leads-off diagnostic block, per array.
+     *
+     * MEASURED FROM HARDWARE, not attested: two complete type-47 layout-16 flash records captured
+     * 2026-08-06 (embedded verbatim in the Swift `Whoop5EcgRawHardwareTests`) show the block is
+     * FIXED-SIZE — the count byte is followed by eleven i16 I slots and then eleven i16 Q slots, present
+     * in full whether or not `numberOfLeadsOffSamples` fills them, with the unused tail slots zeroed.
+     * Both counts seen in the capture (10 and 11) place the Q array at the same offset and leave the same
+     * single trailing byte, which is what identifies the block as fixed rather than packed.
+     *
+     * Reading it as PACKED — `count` elements each — was the original assumption, and it is wrong in two
+     * compounding ways whenever `count < 11`: Q is read two bytes early per missing slot (so it gains a
+     * spurious leading value and loses its last real one), and the misplaced end-of-record leaves a
+     * remainder over [DEFAULT_MAX_PADDING], which discarded 227 of the capture's 351 populated records
+     * before any field was read.
+     */
+    const val LEADS_OFF_SLOT_COUNT = 11
 
     /**
      * The bytes-per-sample widths the FILTERED triage admits, in the order it reports them.
@@ -331,14 +353,18 @@ object Whoop5Ecg {
         if (blobLength > Int.MAX_VALUE - HEADER_LENGTH) return null
         val rawEnd = HEADER_LENGTH + blobLength.toInt()
         if (rawEnd < HEADER_LENGTH || rawEnd >= payload.size) return null   // the leads-off count byte must fit
-        // Same domain check as decodeHeader: a negative count would make qEnd negative, slip past the
-        // `qEnd > size` bound, and throw on subList. On the wire this byte is always 0..255.
+        // Same domain check as decodeHeader: a negative count would make blockEnd negative, slip past the
+        // `blockEnd > size` bound, and throw on subList. On the wire this byte is always 0..255, and the
+        // block holds only LEADS_OFF_SLOT_COUNT slots — a count above that is not a record this layout can
+        // describe, so it fails closed rather than reading past the block.
         val leadsOffCount = payload[rawEnd]
-        if (leadsOffCount !in 0..255) return null
+        if (leadsOffCount !in 0..LEADS_OFF_SLOT_COUNT) return null
+        // Both arrays are FIXED-SIZE and always fully present — see [LEADS_OFF_SLOT_COUNT]. The count byte
+        // selects how many leading slots are VALID; it does not size the block.
         val iStart = rawEnd + 1
-        val qStart = iStart + leadsOffCount * 2
-        val qEnd = qStart + leadsOffCount * 2
-        if (qEnd > payload.size) return null
+        val qStart = iStart + LEADS_OFF_SLOT_COUNT * 2
+        val blockEnd = qStart + LEADS_OFF_SLOT_COUNT * 2
+        if (blockEnd > payload.size) return null
 
         val leadsOffI = (0 until leadsOffCount).map { payload[iStart + it * 2] or (payload[iStart + it * 2 + 1] shl 8) }
         val leadsOffQ = (0 until leadsOffCount).map { payload[qStart + it * 2] or (payload[qStart + it * 2 + 1] shl 8) }
@@ -348,7 +374,7 @@ object Whoop5Ecg {
             numberOfLeadsOffSamples = leadsOffCount,
             leadsOffIRaw = leadsOffI,
             leadsOffQRaw = leadsOffQ,
-            padding = payload.subList(qEnd, payload.size).toList(),
+            padding = payload.subList(blockEnd, payload.size).toList(),
         )
     }
 

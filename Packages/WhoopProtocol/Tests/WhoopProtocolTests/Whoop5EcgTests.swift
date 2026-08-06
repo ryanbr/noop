@@ -45,6 +45,18 @@ final class Whoop5EcgTests: XCTestCase {
         values.flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] }
     }
 
+    /// The raw record's leads-off tail: the count byte, then `Whoop5Ecg.leadsOffSlotCount` i16 I slots,
+    /// then the same again for Q. The block is FIXED-SIZE on real hardware (see
+    /// `Whoop5EcgRawHardwareTests`), so these fixtures zero-fill the slots the count does not reach
+    /// instead of packing the arrays to the count.
+    private func leadsOffBlock(i: [UInt16], q: [UInt16]) -> [UInt8] {
+        precondition(i.count == q.count && i.count <= Whoop5Ecg.leadsOffSlotCount)
+        let pad = Whoop5Ecg.leadsOffSlotCount - i.count
+        return [UInt8(i.count)]
+            + u16le(i + [UInt16](repeating: 0, count: pad))
+            + u16le(q + [UInt16](repeating: 0, count: pad))
+    }
+
     /// Wrap a payload in a real, CRC-correct puffin frame using the shipped builder, so the frame-level
     /// tests exercise the same envelope the strap speaks.
     private func puffinFrame(type: UInt8, payload: [UInt8]) -> [UInt8] {
@@ -201,7 +213,7 @@ final class Whoop5EcgTests: XCTestCase {
         let rawBlob: [UInt8] = Array(0..<12)                 // 4 samples × 3 bytes
         let leadsOffI: [UInt16] = [1, 2]
         let leadsOffQ: [UInt16] = [3, 4]
-        let payload = header(samples: 4) + rawBlob + [2] + u16le(leadsOffI) + u16le(leadsOffQ)
+        let payload = header(samples: 4) + rawBlob + leadsOffBlock(i: leadsOffI, q: leadsOffQ)
 
         let packet = Whoop5Ecg.decodeRaw(payload: payload, bytesPerSample: 3)
         XCTAssertNotNil(packet)
@@ -214,18 +226,41 @@ final class Whoop5EcgTests: XCTestCase {
         XCTAssertEqual(packet?.header.numberOfECGSamples, 4)
     }
 
+    /// A zero count still carries the full fixed block — the slots are simply all unused.
     func testRawWithNoLeadsOffSamples() {
-        let payload = header(samples: 2) + [0xAA, 0xBB, 0xCC, 0xDD] + [0]
+        let payload = header(samples: 2) + [0xAA, 0xBB, 0xCC, 0xDD] + leadsOffBlock(i: [], q: [])
         let packet = Whoop5Ecg.decodeRaw(payload: payload, bytesPerSample: 2)
         XCTAssertEqual(packet?.numberOfLeadsOffSamples, 0)
         XCTAssertEqual(packet?.leadsOffIRaw, [])
         XCTAssertEqual(packet?.leadsOffQRaw, [])
         XCTAssertEqual(packet?.rawECGDataRaw, [0xAA, 0xBB, 0xCC, 0xDD])
+        XCTAssertEqual(packet?.padding, [])
+    }
+
+    /// The valid values come off the FRONT of each fixed array, and the unused slots are dropped rather
+    /// than shifting Q or leaking into the padding — the defect the real capture exposed.
+    func testRawPartiallyFilledLeadsOffBlockKeepsQAligned() {
+        let payload = header(samples: 2) + [0, 0, 0, 0]
+            + leadsOffBlock(i: [11, 12, 13], q: [21, 22, 23])
+        let packet = Whoop5Ecg.decodeRaw(payload: payload, bytesPerSample: 2)
+        XCTAssertEqual(packet?.numberOfLeadsOffSamples, 3)
+        XCTAssertEqual(packet?.leadsOffIRaw, [11, 12, 13])
+        XCTAssertEqual(packet?.leadsOffQRaw, [21, 22, 23])
+        XCTAssertEqual(packet?.padding, [], "the unused slots are part of the block, not trailing padding")
     }
 
     func testRawRejectsTruncatedLeadsOffArrays() {
-        // Declares 3 leads-off samples but only carries I (and only partly).
+        // Declares 3 leads-off samples but carries neither array in full.
         let payload = header(samples: 2) + [0, 0, 0, 0] + [3] + u16le([1, 2, 3])
+        XCTAssertNil(Whoop5Ecg.decodeRaw(payload: payload, bytesPerSample: 2))
+    }
+
+    /// The block holds a fixed number of slots, so a count above it cannot describe this layout and must
+    /// fail closed rather than read past the block.
+    func testRawRejectsLeadsOffCountAboveTheBlockCapacity() {
+        let overCount = UInt8(Whoop5Ecg.leadsOffSlotCount + 1)
+        let payload = header(samples: 2) + [0, 0, 0, 0] + [overCount]
+            + [UInt8](repeating: 0, count: Whoop5Ecg.leadsOffSlotCount * 4 + 8)
         XCTAssertNil(Whoop5Ecg.decodeRaw(payload: payload, bytesPerSample: 2))
     }
 
@@ -258,13 +293,14 @@ final class Whoop5EcgTests: XCTestCase {
 
     func testRawRejectsShortHeaderAndZeroWidth() {
         XCTAssertNil(Whoop5Ecg.decodeRaw(payload: [1, 2, 3], bytesPerSample: 2))
-        let payload = header(samples: 2) + [0, 0, 0, 0] + [0]
+        let payload = header(samples: 2) + [0, 0, 0, 0] + leadsOffBlock(i: [], q: [])
         XCTAssertNil(Whoop5Ecg.decodeRaw(payload: payload, bytesPerSample: 0))
     }
 
     func testRawSampleWidthCandidatesAreEnumeratedNotGuessed() {
         // 4 samples × 2 bytes, then a 1-sample leads-off tail. Width 2 must be admitted.
-        let payload = header(samples: 4) + [UInt8](repeating: 0x11, count: 8) + [1] + u16le([7]) + u16le([8])
+        let payload = header(samples: 4) + [UInt8](repeating: 0x11, count: 8)
+            + leadsOffBlock(i: [7], q: [8])
         let candidates = Whoop5Ecg.rawBytesPerSampleCandidates(payload: payload)
         XCTAssertTrue(candidates.contains(2), "width 2 must be structurally admissible")
         // Whatever the full candidate set is, the single-candidate decoder must agree with it: it either
@@ -278,11 +314,12 @@ final class Whoop5EcgTests: XCTestCase {
     }
 
     func testRawAmbiguousBufferRefusesToDecode() {
-        // Hand-built so several widths parse: a long all-zero tail lets many split points look valid.
-        let payload = header(samples: 1) + [UInt8](repeating: 0, count: 6)
-        let candidates = Whoop5Ecg.rawBytesPerSampleCandidates(payload: payload, maxPadding: 8)
-        XCTAssertGreaterThan(candidates.count, 1, "fixture is meant to be ambiguous")
-        XCTAssertNil(Whoop5Ecg.decodeRaw(payload: payload, maxPadding: 8))
+        // Hand-built so several widths parse: with a single sample, an all-zero tail long enough to hold
+        // the fixed leads-off block leaves every width inside the padding tolerance.
+        let payload = header(samples: 1) + [UInt8](repeating: 0, count: 49)
+        let candidates = Whoop5Ecg.rawBytesPerSampleCandidates(payload: payload)
+        XCTAssertEqual(candidates, [1, 2, 3, 4], "fixture is meant to be ambiguous")
+        XCTAssertNil(Whoop5Ecg.decodeRaw(payload: payload))
     }
 
     // MARK: - Frame level (CRC gating)
@@ -329,7 +366,7 @@ final class Whoop5EcgTests: XCTestCase {
     }
 
     func testRawFrameDecodesThroughAValidPuffinEnvelope() {
-        let payload = header(samples: 2) + [1, 2, 3, 4] + [1] + u16le([5]) + u16le([6])
+        let payload = header(samples: 2) + [1, 2, 3, 4] + leadsOffBlock(i: [5], q: [6])
         let frame = puffinFrame(type: 0x2F, payload: payload)
         let packet = Whoop5Ecg.decodeRawFrame(frame, bytesPerSample: 2)
         XCTAssertEqual(packet?.rawECGDataRaw, [1, 2, 3, 4])
@@ -338,7 +375,7 @@ final class Whoop5EcgTests: XCTestCase {
     }
 
     func testRawFrameRejectsBadCRC() {
-        let payload = header(samples: 2) + [1, 2, 3, 4] + [0]
+        let payload = header(samples: 2) + [1, 2, 3, 4] + leadsOffBlock(i: [], q: [])
         var frame = puffinFrame(type: 0x2F, payload: payload)
         frame[frame.count - 2] ^= 0xFF
         XCTAssertNil(Whoop5Ecg.decodeRawFrame(frame, bytesPerSample: 2))
