@@ -1059,11 +1059,23 @@ object SleepStager {
         // traceSink calls are the only addition and never alter `sessions`. `runIndex` counts only
         // sleep-stage runs so the trace numbers match the candidate ordinal.
         var runIndex = -1
+        // #737 follow-up: counters for the one-line detection summary emitted before `return` (below).
+        // Trace-only — never read back into `sessions`, so the untraced path stays byte-identical. They
+        // make the "slept 8h, app shows 1h" shape legible at a glance: a big detectedSpan with most runs
+        // dropped by the 60-min gate is the fragmentation signature. Mirrors Swift.
+        var sleepRunsSeen = 0
+        var minSleepDrops = 0
+        var firstSleepStart = Long.MAX_VALUE
+        var lastSleepEnd = 0L
         for (p in runs) {
             if (p.stage != "sleep") continue
             runIndex += 1
+            sleepRunsSeen += 1
+            firstSleepStart = minOf(firstSleepStart, p.start)
+            lastSleepEnd = maxOf(lastSleepEnd, p.end)
             val spanMin = ((p.end - p.start) / 60).toInt()
             if ((p.end - p.start) <= minSleepS) {
+                minSleepDrops += 1
                 traceSink?.invoke(SleepStagerTrace.runLine(runIndex, p.start, p.end,
                     SleepStagerTrace.Verdict.DROPPED, "minSleepMin", "spanMin=$spanMin minSleepMin=$minSleepMin"))
                 continue
@@ -1147,6 +1159,19 @@ object SleepStager {
             chainPrevEnd = p.end
         }
         sessions.sortBy { it.start }
+        // #737 follow-up: one glanceable line summarising the whole detection pass. A large
+        // detectedSpanMin with most runs droppedMinSleep and a small survivingSpanMin is exactly the
+        // "slept ~8h, only ~1h confirmed" fragmentation the field reports describe. Trace-only. Byte-
+        // identical string to Swift's summary line.
+        if (traceSink != null) {
+            val detectedSpanMin = if (lastSleepEnd > firstSleepStart) ((lastSleepEnd - firstSleepStart) / 60).toInt() else 0
+            val survivingSpanMin = (sessions.sumOf { it.end - it.start } / 60).toInt()
+            traceSink(
+                "sleep-detect summary: sleepRuns=$sleepRunsSeen droppedMinSleep=$minSleepDrops " +
+                    "kept=${sessions.size} detectedSpanMin=$detectedSpanMin survivingSpanMin=$survivingSpanMin " +
+                    "sparse=$sparse grav=${grav.size} hr=${hrS.size}"
+            )
+        }
         return sessions
     }
 

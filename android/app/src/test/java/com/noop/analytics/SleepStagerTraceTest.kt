@@ -37,6 +37,25 @@ class SleepStagerTraceTest {
         assertTrue(lines.any { it.contains("DROPPED gate=minSleepMin") })
     }
 
+    /** The one-line detection summary must be emitted and reflect the pass: a single 30-min run is seen
+     *  and dropped by minSleepMin, so kept=0 and droppedMinSleep=1. Twin of Swift. */
+    @Test fun detectionSummaryLineEmitted() {
+        val start = refMidnight + 2 * 3600
+        val dur = 30 * 60
+        val lines = ArrayList<String>()
+        val sessions = SleepStager.detectSleep(
+            hr = hr(start, dur, 50), gravity = still(start, dur), traceSink = { lines.add(it) })
+        assertEquals(0, sessions.size)
+        val summary = lines.firstOrNull { it.startsWith("sleep-detect summary:") }.orEmpty()
+        assertTrue("expected a sleep-detect summary line, got: $lines", summary.startsWith("sleep-detect summary:"))
+        // Guaranteed-true facts (no exact span/count pins — those depend on run-boundary mechanics):
+        // nothing survived, so kept=0 and survivingSpanMin=0; a run WAS seen and dropped by minSleepMin.
+        assertTrue(summary, summary.contains("kept=0"))
+        assertTrue(summary, summary.contains("survivingSpanMin=0"))
+        assertFalse(summary, summary.contains("droppedMinSleep=0"))
+        assertFalse(summary, summary.contains("detectedSpanMin=0"))
+    }
+
     @Test fun realNightKept() {
         val start = refMidnight + 2 * 3600
         val dur = 90 * 60

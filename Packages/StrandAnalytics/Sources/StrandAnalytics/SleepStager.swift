@@ -977,11 +977,23 @@ public enum SleepStager {
         // `traceSink?(...)` calls are the only addition and never alter `sessions`. `runIndex` counts
         // only sleep-stage runs so the trace numbers match the candidate ordinal.
         var runIndex = -1
+        // #737 follow-up: counters for the one-line detection summary emitted before `return` (below).
+        // Trace-only — never read back into `sessions`, so the untraced path stays byte-identical. They
+        // make the "slept 8h, app shows 1h" shape legible at a glance: a big detectedSpan with most runs
+        // dropped by the 60-min gate is the fragmentation signature.
+        var sleepRunsSeen = 0
+        var minSleepDrops = 0
+        var firstSleepStart = Int.max
+        var lastSleepEnd = 0
         for p in runs {
             if p.stage != "sleep" { continue }
             runIndex += 1
+            sleepRunsSeen += 1
+            firstSleepStart = min(firstSleepStart, p.start)
+            lastSleepEnd = max(lastSleepEnd, p.end)
             let spanMin = (p.end - p.start) / 60
             if (p.end - p.start) <= minSleepS {
+                minSleepDrops += 1
                 traceSink?(GateTrace.runLine(index: runIndex, startTs: p.start, endTs: p.end,
                     verdict: .dropped, gate: "minSleepMin",
                     detail: "spanMin=\(spanMin) minSleepMin=\(minSleepMin)"))
@@ -1065,6 +1077,17 @@ public enum SleepStager {
             chainPrevEnd = p.end
         }
         sessions.sort { $0.start < $1.start }
+        // #737 follow-up: one glanceable line summarising the whole detection pass. A large
+        // `detectedSpanMin` with most runs `droppedMinSleep` and a small `survivingSpanMin` is exactly
+        // the "slept ~8h, only ~1h confirmed" fragmentation the field reports describe — this makes it
+        // readable without hand-summing the per-run lines above. Trace-only.
+        if let traceSink {
+            let detectedSpanMin = lastSleepEnd > firstSleepStart ? (lastSleepEnd - firstSleepStart) / 60 : 0
+            let survivingSpanMin = sessions.reduce(0) { $0 + ($1.end - $1.start) } / 60
+            traceSink("sleep-detect summary: sleepRuns=\(sleepRunsSeen) droppedMinSleep=\(minSleepDrops) "
+                + "kept=\(sessions.count) detectedSpanMin=\(detectedSpanMin) survivingSpanMin=\(survivingSpanMin) "
+                + "sparse=\(sparse) grav=\(grav.count) hr=\(hrS.count)")
+        }
         return sessions
     }
 

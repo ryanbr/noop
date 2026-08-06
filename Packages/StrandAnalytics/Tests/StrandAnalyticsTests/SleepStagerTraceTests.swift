@@ -59,6 +59,28 @@ final class SleepStagerTraceTests: XCTestCase {
                       "expected a minSleepMin drop line, got: \(lines)")
     }
 
+    /// The one-line detection summary must be emitted and reflect the pass: a single 30-min run is seen
+    /// and dropped by minSleepMin, so `kept=0` and `droppedMinSleep=1`. This is the glanceable line that
+    /// makes the "slept 8h, app shows 1h" fragmentation readable in an export without hand-summing.
+    func testDetectionSummaryLineEmitted() {
+        let start = 1_749_513_600 + 2 * 3600
+        let dur = 30 * 60
+        var lines: [String] = []
+        let sessions = SleepStager.detectSleep(
+            hr: hr(start, dur, 50), gravity: still(start, dur),
+            traceSink: { lines.append($0) })
+        XCTAssertEqual(sessions.count, 0)
+        guard let summary = lines.first(where: { $0.hasPrefix("sleep-detect summary:") }) else {
+            return XCTFail("expected a sleep-detect summary line, got: \(lines)")
+        }
+        // Guaranteed-true facts (no exact span/count pins — those depend on run-boundary mechanics):
+        // nothing survived, so kept=0 and survivingSpanMin=0; a run WAS seen and dropped by minSleepMin.
+        XCTAssertTrue(summary.contains("kept=0"), summary)
+        XCTAssertTrue(summary.contains("survivingSpanMin=0"), summary)
+        XCTAssertFalse(summary.contains("droppedMinSleep=0"), "expected >=1 drop: \(summary)")
+        XCTAssertFalse(summary.contains("detectedSpanMin=0"), "expected a detected run: \(summary)")
+    }
+
     func testGateTraceKeepsRealNight() {
         // A 90-minute still low-HR overnight run clears every gate -> one KEPT line.
         let start = 1_749_513_600 + 2 * 3600
