@@ -2071,6 +2071,16 @@ class WhoopBleClient(
                     sex = profileStore.sex,
                     stepTicksPerStep = profileStore.stepTicksPerStep,
                 )
+                // #836: the post-backfill pass is a real update path, so it ALWAYS re-scores (mirroring the
+                // Swift `analyzeRecent(force: true)` call `refreshAfterCompletedBackfill` makes) — but it must
+                // ADVANCE the shared HR-fingerprint watermark on success, which it previously did NOT. That
+                // watermark logic lived only in AppViewModel's 15-min loop, so after this pass the very next
+                // idle tick saw `fp != watermark` and re-ran the IDENTICAL maxDays×~54h re-score — the
+                // double-charge that made every reconnect pay for the multi-day pass twice. Swift already
+                // advances the watermark at the end of EVERY successful analyzeRecent (IntelligenceEngine.swift);
+                // this brings Android into lockstep. Captured before the run, written only on success, so an
+                // interrupted/failed pass can never advance the watermark past unscored data.
+                val analyzeFp = repository.hrFingerprint()
                 runCatching {
                     IntelligenceEngine.analyzeRecent(
                         repo = repository,
@@ -2143,6 +2153,8 @@ class WhoopBleClient(
                             else null,
                     )
                 }.onSuccess {
+                    // Advance the shared watermark so the next 15-min tick sees no change and skips (#836).
+                    NoopPrefs.setAnalyzeWatermark(context, analyzeFp)
                     log("Backfill: post-sync scoring pass done")
                     // #277 diagnostic: surface the day-key the dashboard treats as "today" against the
                     // newest banked row, so a UTC-bucket vs local-day split (rows persist but Today
