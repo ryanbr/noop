@@ -5671,6 +5671,12 @@ class WhoopBleClient(
                 // Advance the tick for both families so the ~60s battery cadence also fires on 5/MG (it
                 // previously incremented only inside the WHOOP 4 branch).
                 keepAliveTick += 1
+                // #1121: sample the PHONE battery on the SAME ~60s cadence as the strap poll, so a detailed
+                // capture carries a phone-battery curve on the same timeline as the offload/connection
+                // activity — turning the capture into a self-contained battery diagnostic ("phone dropped N%
+                // across this offload"). Cheap sticky-intent read; the strap `[battery]` line is the strap's
+                // SoC, this is the phone's. Unconditional (low volume, useful in any shared log), PII-free.
+                if (keepAliveTick % 2 == 0) phoneBatteryLine()?.let { log(it) }
                 if (connectedFamily == DeviceFamily.WHOOP4) {
                     if (wantsRealtime) { realtimeArmed = true; send(CommandNumber.TOGGLE_REALTIME_HR, byteArrayOf(1)) }
                     if (keepAliveTick % 2 == 0) send(CommandNumber.GET_BATTERY_LEVEL)
@@ -7705,6 +7711,25 @@ class WhoopBleClient(
         old.delete()
         f.renameTo(old)
     }
+
+    /** #1121: a PHONE-battery snapshot line (`[phonebattery] level=NN% charging=y/n temp=..C t=..s`) for the
+     *  strap log — the `[battery]` line is the STRAP's SoC; this is the phone's, so a capture can show the
+     *  phone drain against the offload/connection activity on one timeline. One-shot read of the sticky
+     *  ACTION_BATTERY_CHANGED intent (no receiver lifecycle). Null when unreadable. PII-free. */
+    private fun phoneBatteryLine(): String? = runCatching {
+        val i = context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
+            ?: return null
+        val level = i.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1)
+        val scale = i.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1)
+        val pct = if (level >= 0 && scale > 0) level * 100 / scale else -1
+        val status = i.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1)
+        val charging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING ||
+            status == android.os.BatteryManager.BATTERY_STATUS_FULL
+        val tenths = i.getIntExtra(android.os.BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE)
+        val tempStr = if (tenths != Int.MIN_VALUE) " temp=${tenths / 10.0}C" else ""
+        "[phonebattery] level=$pct% charging=${if (charging) "yes" else "no"}$tempStr " +
+            "t=${System.currentTimeMillis() / 1000L}s"
+    }.getOrNull()
 
     /** Scrub personal identifiers from a strap-log line so it's safe to share publicly (#445, @maddognik):
      *  BLE MAC addresses are masked to their first + last byte, and the WHOOP's SERIAL — carried in its
