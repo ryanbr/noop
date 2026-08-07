@@ -1087,7 +1087,8 @@ private fun Hero(
                 // default, unchanged for everyone who doesn't switch).
                 val chartStyle = UnitPrefs.sleepChartStyle(LocalContext.current)
                 val filledSegments = display.hypnogramSegments?.takeIf { it.size >= 2 }
-                if (chartStyle == SleepChartStyle.FILLED && filledSegments != null) {
+                if ((chartStyle == SleepChartStyle.FILLED || chartStyle == SleepChartStyle.RIBBON) &&
+                    filledSegments != null) {
                     ChartCard(
                         title = uiString(R.string.l10n_sleep_screen_stage_breakdown_e9b714f9),
                         subtitle = subtitle,
@@ -1101,6 +1102,7 @@ private fun Hero(
                             segments = filledSegments,
                             onsetTs = windowOnsetTs ?: session?.effectiveStartTs,
                             wakeTs = windowWakeTs ?: session?.endTs,
+                            filled = chartStyle == SleepChartStyle.FILLED,
                         )
                     }
                 } else {

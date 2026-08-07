@@ -119,7 +119,11 @@ enum class SleepChartStyle(val raw: String) {
 
     /** A single stepped hypnogram with the stages stacked by depth and each column FILLED to the
      *  baseline, WHOOP-style — needs the night's real timestamped segments, else falls back to CLASSIC. */
-    FILLED("filled");
+    FILLED("filled"),
+
+    /** The same single stepped chart but drawn as a slim RIBBON (a uniform band at each stage level, not
+     *  filled to the baseline) — the WHOOP-style stepped line, which reads cleaner on a fragmented night. */
+    RIBBON("ribbon");
 
     companion object {
         fun fromRaw(raw: String?): SleepChartStyle = entries.firstOrNull { it.raw == raw } ?: CLASSIC

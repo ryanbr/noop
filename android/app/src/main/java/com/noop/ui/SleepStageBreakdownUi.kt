@@ -204,6 +204,9 @@ internal fun FilledHypnogram(
     segments: List<PersistedSegment>,
     onsetTs: Long?,
     wakeTs: Long?,
+    // true → each stage FILLS its column to the baseline (the stepped-area look). false → a slim uniform
+    // RIBBON at each stage level (the WHOOP-style stepped line), which reads cleaner on a fragmented night.
+    filled: Boolean = true,
 ) {
     if (segments.isEmpty()) return
     val originSec = (onsetTs?.toDouble()) ?: segments.minOf { it.start }.toDouble()
@@ -253,18 +256,28 @@ internal fun FilledHypnogram(
                     strokeWidth = 1f,
                 )
             }
-            // Filled columns: each stage from its level DOWN to the baseline. Sharp rects (not rounded) so
-            // adjacent columns TILE seamlessly into one continuous staircase — the 2dp rounding left dark
-            // notch-gaps between blocks that read as a comb on a fragmented night.
+            // FILLED: each stage from its level DOWN to the baseline (sharp rects tile seamlessly into one
+            // continuous staircase). RIBBON: a slim uniform band centred at the stage level — the WHOOP-style
+            // stepped line, lighter on a fragmented night where full columns amplify the noise.
+            val ribbonThickness = 10.dp.toPx()
             intervals.forEach { iv ->
                 val x0 = xOf(iv.startSec)
                 val x1 = xOf(iv.endSec)
-                val top = levelY(rankOf(iv.stage))
-                drawRect(
-                    color = stageColorFor(iv.stage),
-                    topLeft = Offset(x0, top),
-                    size = Size((x1 - x0).coerceAtLeast(1.5f).coerceAtMost(w - x0), (h - top).coerceAtLeast(0f)),
-                )
+                val y = levelY(rankOf(iv.stage))
+                val segW = (x1 - x0).coerceAtLeast(1.5f).coerceAtMost(w - x0)
+                if (filled) {
+                    drawRect(
+                        color = stageColorFor(iv.stage),
+                        topLeft = Offset(x0, y),
+                        size = Size(segW, (h - y).coerceAtLeast(0f)),
+                    )
+                } else {
+                    drawRect(
+                        color = stageColorFor(iv.stage),
+                        topLeft = Offset(x0, y - ribbonThickness / 2f),
+                        size = Size(segW, ribbonThickness),
+                    )
+                }
             }
             // Connecting risers tracing the staircase between consecutive column tops.
             for (i in 0 until intervals.size - 1) {

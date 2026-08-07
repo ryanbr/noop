@@ -1086,9 +1086,15 @@ fun SettingsScreen(
             // changes the drawing, and it falls back to Classic on a night with no timestamped segments.
             SettingsFormRow(label = "Sleep chart") {
                 SegmentedPillControl(
-                    items = listOf(SleepChartStyle.CLASSIC, SleepChartStyle.FILLED),
+                    items = listOf(SleepChartStyle.CLASSIC, SleepChartStyle.FILLED, SleepChartStyle.RIBBON),
                     selection = sleepChartStyle,
-                    label = { if (it == SleepChartStyle.FILLED) "Filled" else "Classic" },
+                    label = {
+                        when (it) {
+                            SleepChartStyle.FILLED -> "Filled"
+                            SleepChartStyle.RIBBON -> "Ribbon"
+                            else -> "Classic"
+                        }
+                    },
                     onSelect = { style ->
                         sleepChartStyle = style
                         UnitPrefs.setSleepChartStyle(context, style)
