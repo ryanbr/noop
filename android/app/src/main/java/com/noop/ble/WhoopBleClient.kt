@@ -5671,12 +5671,15 @@ class WhoopBleClient(
                 // Advance the tick for both families so the ~60s battery cadence also fires on 5/MG (it
                 // previously incremented only inside the WHOOP 4 branch).
                 keepAliveTick += 1
-                // #1121: sample the PHONE battery on the SAME ~60s cadence as the strap poll, so a detailed
-                // capture carries a phone-battery curve on the same timeline as the offload/connection
-                // activity — turning the capture into a self-contained battery diagnostic ("phone dropped N%
-                // across this offload"). Cheap sticky-intent read; the strap `[battery]` line is the strap's
-                // SoC, this is the phone's. Unconditional (low volume, useful in any shared log), PII-free.
-                if (keepAliveTick % 2 == 0) phoneBatteryLine()?.let { log(it) }
+                // #1121: ONLY while a detailed capture is running (zero work otherwise — one volatile read):
+                // sample the PHONE battery on the same ~60s cadence as the strap poll, so the capture carries
+                // a phone-battery curve on the offload/connection timeline ("phone dropped N% across this
+                // offload"), and flush the rolling file this tick so a sparse idle tail survives an abrupt
+                // kill. The strap `[battery]` line is the strap's SoC; this is the phone's. PII-free.
+                if (captureLogWriter != null) {
+                    if (keepAliveTick % 2 == 0) phoneBatteryLine()?.let { log(it) }
+                    flushCaptureLog()
+                }
                 if (connectedFamily == DeviceFamily.WHOOP4) {
                     if (wantsRealtime) { realtimeArmed = true; send(CommandNumber.TOGGLE_REALTIME_HR, byteArrayOf(1)) }
                     if (keepAliveTick % 2 == 0) send(CommandNumber.GET_BATTERY_LEVEL)
@@ -7678,14 +7681,17 @@ class WhoopBleClient(
     }
 
     /** Append one already-scrubbed line to the rolling file, rotating at the cap. No-op when capture is
-     *  off. Called ONLY from [log], inside its no-throw guard. Flushes per line so a process kill (this
-     *  phone is not battery-exempt) keeps the tail. */
+     *  off. Called ONLY from [log], inside its no-throw guard. Does NOT flush per line — that would be a
+     *  syscall per line on the GATT binder thread during an offload burst; the BufferedWriter coalesces
+     *  writes (and auto-flushes when its buffer fills), and [flushCaptureLog] on the ~30s keep-alive tick
+     *  bounds how much of a sparse idle tail an abrupt kill could lose. Mirrors the 5/MG capture, which
+     *  likewise flushes on a cadence rather than per line. */
     private fun appendCaptureLog(line: String) {
         if (captureLogWriter == null) return
         synchronized(captureLogLock) {
             val w = captureLogWriter ?: return
             runCatching {
-                w.write(line); w.write("\n"); w.flush()
+                w.write(line); w.write("\n")
                 captureLogBytes += line.length + 1
                 if (captureLogBytes > CAPTURE_LOG_MAX_BYTES) {
                     w.flush(); w.close()
@@ -7697,6 +7703,20 @@ class WhoopBleClient(
             }.onFailure {
                 // A write/rotate failure (disk full, revoked FD) disables capture for the process rather
                 // than failing every subsequent line — same self-quiescing contract as the 5/MG capture.
+                captureLogDisabled = true
+                runCatching { captureLogWriter?.close() }
+                captureLogWriter = null
+            }
+        }
+    }
+
+    /** Push the buffered capture writer to the OS. Called on the ~30s keep-alive tick so a sparse idle tail
+     *  (e.g. the 60s phone/strap battery lines) is durable within one tick of an abrupt kill, without
+     *  paying a per-line flush during bursts. No-op + one volatile read when capture is off. */
+    private fun flushCaptureLog() {
+        if (captureLogWriter == null) return
+        synchronized(captureLogLock) {
+            runCatching { captureLogWriter?.flush() }.onFailure {
                 captureLogDisabled = true
                 runCatching { captureLogWriter?.close() }
                 captureLogWriter = null
