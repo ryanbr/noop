@@ -693,8 +693,9 @@ fun SleepScreen(
                 }
                 // StagesVsTypical reads the SELECTED day's model, never the full-history fallback: a
                 // phantom newest day with no stage model would otherwise label ANOTHER night's stages as
-                // this one (#940). Hidden in that state, exactly as before.
-                SleepSection.STAGES_VS_TYPICAL -> model?.let { selectedModel ->
+                // this one (#940). Guarded on BOTH tilesModel and model, exactly as the pre-refactor
+                // nesting was (it lived inside the `if (tilesModel != null)` block).
+                SleepSection.STAGES_VS_TYPICAL -> if (tilesModel != null) model?.let { selectedModel ->
                     item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
                     item { StagesVsTypical(selectedModel) }
                 }
