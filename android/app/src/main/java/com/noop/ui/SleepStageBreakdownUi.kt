@@ -210,8 +210,13 @@ internal fun FilledHypnogram(
     val endSec = (wakeTs?.toDouble()) ?: segments.maxOf { it.end }.toDouble()
     val spanSec = (endSec - originSec).coerceAtLeast(1.0)
     val intervals = remember(segments, originSec, spanSec) {
+        // Sort by start BEFORE smoothing: displaySmoothed's coalesce assumes chronological order (it
+        // bridges seams via startSec − last.endSec), exactly like the Swift Hypnogram sorts before
+        // displaySmoothed. Group segments are normally already ordered, but a fragmented-night
+        // concatenation must not be trusted to be.
         displaySmoothed(
-            segments.map { StageInterval(it.stage, it.start - originSec, it.end - originSec) },
+            segments.sortedBy { it.start }
+                .map { StageInterval(it.stage, it.start - originSec, it.end - originSec) },
             FILLED_HYPNOGRAM_SMOOTH_SEC,
         )
     }
