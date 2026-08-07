@@ -29,6 +29,7 @@ object BiofeedbackPrefs {
     private const val KEY_ST_BASELINE = "biofeedback.stOnsetBaseline"
     private const val KEY_ST_WAS_BELOW = "biofeedback.stOnsetWasBelow"
     private const val KEY_ST_LAST_FIRE = "biofeedback.stOnsetLastFire"
+    private const val KEY_ST_PENDING_EDGE = "biofeedback.stOnsetPendingEdge"
 
     // ── L1 locked resonance pace ──────────────────────────────────────────────
 
@@ -87,6 +88,7 @@ object BiofeedbackPrefs {
             baselineRMSSD = p.getFloat(KEY_ST_BASELINE, 0f).toDouble(),
             wasBelow = p.getBoolean(KEY_ST_WAS_BELOW, false),
             lastFireAt = p.getLong(KEY_ST_LAST_FIRE, 0L),
+            pendingEdgeAt = p.getLong(KEY_ST_PENDING_EDGE, 0L),
         )
     }
 
@@ -95,6 +97,7 @@ object BiofeedbackPrefs {
             .putFloat(KEY_ST_BASELINE, s.baselineRMSSD.toFloat())
             .putBoolean(KEY_ST_WAS_BELOW, s.wasBelow)
             .putLong(KEY_ST_LAST_FIRE, s.lastFireAt)
+            .putLong(KEY_ST_PENDING_EDGE, s.pendingEdgeAt)
             .apply()
     }
 

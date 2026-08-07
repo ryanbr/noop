@@ -32,16 +32,25 @@ class StressOnsetDetectorTest {
         assertNotNull(d.baselineRMSSD)
 
         val lowHrv = jittered(900, 5, 60)
+        // The crossing ARMS the sustain check; it is not yet a nudge.
         d = StressOnsetDetector.evaluate(
             rrBuffer = lowHrv, currentHR = 70.0, recentMotionG = 0.0, sessionActive = false,
             state = d.nextState, config = on, nowSec = 10_060L, tzOffsetSec = 0L,
+        )
+        assertFalse(d.shouldNudge)
+        assertEquals(StressOnsetDetector.Reason.AWAITING_SUSTAIN, d.reason)
+
+        // Still dipped SUSTAIN_SECONDS later → the dip held, so NOW it fires.
+        d = StressOnsetDetector.evaluate(
+            rrBuffer = lowHrv, currentHR = 70.0, recentMotionG = 0.0, sessionActive = false,
+            state = d.nextState, config = on, nowSec = 10_060L + StressOnsetDetector.SUSTAIN_SECONDS, tzOffsetSec = 0L,
         )
         assertTrue(d.shouldNudge)
         assertEquals(StressOnsetDetector.Reason.ONSET, d.reason)
 
         d = StressOnsetDetector.evaluate(
             rrBuffer = lowHrv, currentHR = 70.0, recentMotionG = 0.0, sessionActive = false,
-            state = d.nextState, config = on, nowSec = 10_120L, tzOffsetSec = 0L,
+            state = d.nextState, config = on, nowSec = 10_200L, tzOffsetSec = 0L,
         )
         assertFalse(d.shouldNudge)
         assertEquals(StressOnsetDetector.Reason.NOT_AN_EDGE, d.reason)
@@ -58,6 +67,10 @@ class StressOnsetDetectorTest {
             rrBuffer = lowHrv, currentHR = 140.0, recentMotionG = 0.0, sessionActive = false,
             state = d.nextState, config = on, nowSec = 60L, tzOffsetSec = 0L,
         )
+        d = StressOnsetDetector.evaluate(
+            rrBuffer = lowHrv, currentHR = 140.0, recentMotionG = 0.0, sessionActive = false,
+            state = d.nextState, config = on, nowSec = 60L + StressOnsetDetector.SUSTAIN_SECONDS, tzOffsetSec = 0L,
+        )
         assertFalse(d.shouldNudge)
         assertEquals(StressOnsetDetector.Reason.EXERCISE_GATED, d.reason)
     }
@@ -72,6 +85,10 @@ class StressOnsetDetectorTest {
         d = StressOnsetDetector.evaluate(
             rrBuffer = lowHrv, currentHR = 70.0, recentMotionG = 0.5, sessionActive = false,
             state = d.nextState, config = on, nowSec = 60L, tzOffsetSec = 0L,
+        )
+        d = StressOnsetDetector.evaluate(
+            rrBuffer = lowHrv, currentHR = 70.0, recentMotionG = 0.5, sessionActive = false,
+            state = d.nextState, config = on, nowSec = 60L + StressOnsetDetector.SUSTAIN_SECONDS, tzOffsetSec = 0L,
         )
         assertFalse(d.shouldNudge)
         assertEquals(StressOnsetDetector.Reason.EXERCISE_GATED, d.reason)
@@ -88,11 +105,15 @@ class StressOnsetDetectorTest {
             rrBuffer = lowHrv, currentHR = 70.0, recentMotionG = 0.0, sessionActive = false,
             state = d.nextState, config = on, nowSec = 60L, tzOffsetSec = 0L,
         )
+        d = StressOnsetDetector.evaluate(
+            rrBuffer = lowHrv, currentHR = 70.0, recentMotionG = 0.0, sessionActive = false,
+            state = d.nextState, config = on, nowSec = 60L + StressOnsetDetector.SUSTAIN_SECONDS, tzOffsetSec = 0L,
+        )
         assertTrue(d.shouldNudge)
         val firedState = d.nextState
         val replay = StressOnsetDetector.evaluate(
             rrBuffer = lowHrv, currentHR = 70.0, recentMotionG = 0.0, sessionActive = false,
-            state = firedState, config = on, nowSec = 61L, tzOffsetSec = 0L,
+            state = firedState, config = on, nowSec = 61L + StressOnsetDetector.SUSTAIN_SECONDS, tzOffsetSec = 0L,
         )
         assertFalse(replay.shouldNudge)
     }
@@ -108,15 +129,23 @@ class StressOnsetDetectorTest {
             rrBuffer = lowHrv, currentHR = 70.0, recentMotionG = 0.0, sessionActive = false,
             state = d.nextState, config = on, nowSec = 60L, tzOffsetSec = 0L,
         )
+        d = StressOnsetDetector.evaluate(
+            rrBuffer = lowHrv, currentHR = 70.0, recentMotionG = 0.0, sessionActive = false,
+            state = d.nextState, config = on, nowSec = 120L, tzOffsetSec = 0L,
+        )
         assertTrue(d.shouldNudge)
-        // recover (edge reset) then dip again 5 min after the fire → rate-limited.
+        // recover (edge reset) then dip again and hold, still ~5 min after the fire → rate-limited.
         d = StressOnsetDetector.evaluate(
             rrBuffer = highHrv, currentHR = 70.0, recentMotionG = 0.0, sessionActive = false,
-            state = d.nextState, config = on, nowSec = 120L, tzOffsetSec = 0L,
+            state = d.nextState, config = on, nowSec = 180L, tzOffsetSec = 0L,
         )
         d = StressOnsetDetector.evaluate(
             rrBuffer = lowHrv, currentHR = 70.0, recentMotionG = 0.0, sessionActive = false,
-            state = d.nextState, config = on, nowSec = 360L, tzOffsetSec = 0L,
+            state = d.nextState, config = on, nowSec = 300L, tzOffsetSec = 0L,
+        )
+        d = StressOnsetDetector.evaluate(
+            rrBuffer = lowHrv, currentHR = 70.0, recentMotionG = 0.0, sessionActive = false,
+            state = d.nextState, config = on, nowSec = 420L, tzOffsetSec = 0L,
         )
         assertFalse(d.shouldNudge)
         assertEquals(StressOnsetDetector.Reason.SUPPRESSED, d.reason)
@@ -144,6 +173,10 @@ class StressOnsetDetectorTest {
             rrBuffer = lowHrv, currentHR = 70.0, recentMotionG = 0.0, sessionActive = true,
             state = d.nextState, config = on, nowSec = 60L, tzOffsetSec = 0L,
         )
+        d = StressOnsetDetector.evaluate(
+            rrBuffer = lowHrv, currentHR = 70.0, recentMotionG = 0.0, sessionActive = true,
+            state = d.nextState, config = on, nowSec = 60L + StressOnsetDetector.SUSTAIN_SECONDS, tzOffsetSec = 0L,
+        )
         assertFalse(d.shouldNudge)
         assertEquals(StressOnsetDetector.Reason.SUPPRESSED, d.reason)
     }
@@ -155,5 +188,100 @@ class StressOnsetDetectorTest {
         )
         assertFalse(d.shouldNudge)
         assertEquals(StressOnsetDetector.Reason.INSUFFICIENT_DATA, d.reason)
+    }
+
+    // ── Sustain (twins of the Swift sustain cases) ────────────────────────────
+
+    @Test fun transient_dip_that_recovers_never_fires() {
+        val highHrv = jittered(900, 60, 60)
+        val lowHrv = jittered(900, 5, 60)
+        var d = StressOnsetDetector.evaluate(
+            rrBuffer = highHrv, currentHR = 70.0, recentMotionG = 0.0, sessionActive = false,
+            state = StressOnsetDetector.State.INITIAL, config = on, nowSec = 0L, tzOffsetSec = 0L,
+        )
+        d = StressOnsetDetector.evaluate(
+            rrBuffer = lowHrv, currentHR = 70.0, recentMotionG = 0.0, sessionActive = false,
+            state = d.nextState, config = on, nowSec = 60L, tzOffsetSec = 0L,
+        )
+        assertEquals(StressOnsetDetector.Reason.AWAITING_SUSTAIN, d.reason)
+        assertEquals(60L, d.nextState.pendingEdgeAt)
+        // Recovers well before the sustain elapses → the arm is discarded.
+        d = StressOnsetDetector.evaluate(
+            rrBuffer = highHrv, currentHR = 70.0, recentMotionG = 0.0, sessionActive = false,
+            state = d.nextState, config = on, nowSec = 70L, tzOffsetSec = 0L,
+        )
+        assertEquals(StressOnsetDetector.Reason.NO_DIP, d.reason)
+        assertEquals("a recovered dip must not stay armed", 0L, d.nextState.pendingEdgeAt)
+        d = StressOnsetDetector.evaluate(
+            rrBuffer = lowHrv, currentHR = 70.0, recentMotionG = 0.0, sessionActive = false,
+            state = d.nextState, config = on, nowSec = 200L, tzOffsetSec = 0L,
+        )
+        assertFalse("a fresh dip must serve its own sustain", d.shouldNudge)
+        assertEquals(StressOnsetDetector.Reason.AWAITING_SUSTAIN, d.reason)
+    }
+
+    @Test fun arm_is_consumed_even_when_a_gate_suppresses() {
+        val highHrv = jittered(900, 60, 60)
+        val lowHrv = jittered(900, 5, 60)
+        var d = StressOnsetDetector.evaluate(
+            rrBuffer = highHrv, currentHR = 70.0, recentMotionG = 0.0, sessionActive = false,
+            state = StressOnsetDetector.State.INITIAL, config = on, nowSec = 0L, tzOffsetSec = 0L,
+        )
+        d = StressOnsetDetector.evaluate(
+            rrBuffer = lowHrv, currentHR = 140.0, recentMotionG = 0.0, sessionActive = false,
+            state = d.nextState, config = on, nowSec = 60L, tzOffsetSec = 0L,
+        )
+        d = StressOnsetDetector.evaluate(
+            rrBuffer = lowHrv, currentHR = 140.0, recentMotionG = 0.0, sessionActive = false,
+            state = d.nextState, config = on, nowSec = 60L + StressOnsetDetector.SUSTAIN_SECONDS,
+            tzOffsetSec = 0L,
+        )
+        assertEquals(StressOnsetDetector.Reason.EXERCISE_GATED, d.reason)
+        assertEquals(0L, d.nextState.pendingEdgeAt)
+        d = StressOnsetDetector.evaluate(
+            rrBuffer = lowHrv, currentHR = 70.0, recentMotionG = 0.0, sessionActive = false,
+            state = d.nextState, config = on, nowSec = 300L + StressOnsetDetector.SUSTAIN_SECONDS,
+            tzOffsetSec = 0L,
+        )
+        assertFalse(d.shouldNudge)
+        assertEquals(StressOnsetDetector.Reason.NOT_AN_EDGE, d.reason)
+    }
+
+    @Test fun sustain_boundary_is_inclusive() {
+        val highHrv = jittered(900, 60, 60)
+        val lowHrv = jittered(900, 5, 60)
+        var d = StressOnsetDetector.evaluate(
+            rrBuffer = highHrv, currentHR = 70.0, recentMotionG = 0.0, sessionActive = false,
+            state = StressOnsetDetector.State.INITIAL, config = on, nowSec = 0L, tzOffsetSec = 0L,
+        )
+        d = StressOnsetDetector.evaluate(
+            rrBuffer = lowHrv, currentHR = 70.0, recentMotionG = 0.0, sessionActive = false,
+            state = d.nextState, config = on, nowSec = 1_000L, tzOffsetSec = 0L,
+        )
+        d = StressOnsetDetector.evaluate(
+            rrBuffer = lowHrv, currentHR = 70.0, recentMotionG = 0.0, sessionActive = false,
+            state = d.nextState, config = on,
+            nowSec = 1_000L + StressOnsetDetector.SUSTAIN_SECONDS - 1L, tzOffsetSec = 0L,
+        )
+        assertEquals(StressOnsetDetector.Reason.AWAITING_SUSTAIN, d.reason)
+        d = StressOnsetDetector.evaluate(
+            rrBuffer = lowHrv, currentHR = 70.0, recentMotionG = 0.0, sessionActive = false,
+            state = d.nextState, config = on,
+            nowSec = 1_000L + StressOnsetDetector.SUSTAIN_SECONDS, tzOffsetSec = 0L,
+        )
+        assertTrue(d.shouldNudge)
+    }
+
+    @Test fun state_restored_mid_dip_does_not_fire() {
+        val lowHrv = jittered(900, 5, 60)
+        val restored = StressOnsetDetector.State(
+            baselineRMSSD = 120.0, wasBelow = true, lastFireAt = 0L, pendingEdgeAt = 0L,
+        )
+        val d = StressOnsetDetector.evaluate(
+            rrBuffer = lowHrv, currentHR = 70.0, recentMotionG = 0.0, sessionActive = false,
+            state = restored, config = on, nowSec = 100_000L, tzOffsetSec = 0L,
+        )
+        assertFalse(d.shouldNudge)
+        assertEquals(StressOnsetDetector.Reason.NOT_AN_EDGE, d.reason)
     }
 }

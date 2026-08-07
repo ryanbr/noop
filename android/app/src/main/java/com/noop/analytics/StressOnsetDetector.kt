@@ -50,6 +50,19 @@ object StressOnsetDetector {
     /** Rate limit — at most one fire per this many seconds (the shipped 900 s = 15 min). */
     const val MIN_SECONDS_BETWEEN_FIRES: Long = 900L
 
+    /**
+     * SUSTAIN: after a fresh crossing the dip must STILL be below the threshold this many seconds
+     * later before it earns a nudge. A genuine autonomic stress response holds for minutes; a
+     * momentary dip in a [FAST_WINDOW_BEATS]-wide RMSSD window is far more often a beat-detection
+     * wobble or a posture change than an arousal. Firing on the bare crossing therefore nudges on
+     * noise: replayed over 40 days of real worn WHOOP data the edge alone fired ~8.4x/day, of which
+     * only ~13 % were still below threshold 60 s later — the rest had already recovered. Requiring
+     * the dip to hold cuts that to ~1x/day WITHOUT relaxing what counts as a dip, which lowering
+     * [DROP_RATIO] alone cannot do (it only makes an equally momentary trigger rarer). 0 disables
+     * the requirement and restores the pre-sustain edge-only behaviour.
+     */
+    const val SUSTAIN_SECONDS: Long = 60L
+
     /** Recent smoothed wrist-motion (g) at/above this means "moving" → exercise gate suppresses the fire
      *  (reuses the [SedentaryDetector] move threshold so the two gates agree on what "moving" is). */
     val MOTION_GATE_G: Double = SedentaryDetector.DEFAULT_MOVE_THRESHOLD_G
@@ -90,6 +103,11 @@ object StressOnsetDetector {
         val wasBelow: Boolean = false,
         /** Unix-seconds of the last fire (0 = never) — the rate limiter. */
         val lastFireAt: Long = 0L,
+        /** Unix-seconds of the ARMED crossing awaiting confirmation (0 = nothing armed) — the
+         *  [SUSTAIN_SECONDS] clock. Set when a fresh edge crosses below, cleared when the dip
+         *  recovers before it holds, and consumed once the sustain is satisfied. Persisted with the
+         *  rest of the state so a relaunch mid-dip cannot double-arm. */
+        val pendingEdgeAt: Long = 0L,
     ) {
         companion object {
             /** Cold-start state (no baseline, not below, never fired). */
@@ -113,8 +131,14 @@ object StressOnsetDetector {
         /** Fast RMSSD is at/above the threshold — no dip. */
         NO_DIP,
 
-        /** The dip isn't a fresh edge (already below last tick). */
+        /** The dip isn't a fresh edge (already below last tick, with nothing armed). */
         NOT_AN_EDGE,
+
+        /**
+         * A fresh crossing is ARMED but hasn't held for [SUSTAIN_SECONDS] yet — the dip is real so
+         * far, just not yet proven to be more than a momentary wobble.
+         */
+        AWAITING_SUSTAIN,
 
         /** Suppressed by the exercise gate (HR out of band and/or recent motion = metabolic, not stress). */
         EXERCISE_GATED,
@@ -212,13 +236,24 @@ object StressOnsetDetector {
         val isEdge = isBelow && !state.wasBelow
         next = next.copy(wasBelow = isBelow)
 
+        // SUSTAIN: the crossing only ARMS the check. A dip that recovers before it has held for
+        // [SUSTAIN_SECONDS] is discarded — it was a wobble, not an arousal — and one that holds is
+        // CONSUMED at confirmation time, so a single dip can arm at most one nudge even if the gates
+        // below then suppress it.
+        if (isEdge) next = next.copy(pendingEdgeAt = nowSec)
+        if (!isBelow) next = next.copy(pendingEdgeAt = 0L)
+
         fun decide(nudge: Boolean, reason: Reason) = Decision(
             shouldNudge = nudge, reason = reason, buzzLoops = config.buzzLoops,
             fastRMSSD = fast, baselineRMSSD = baseline, nextState = next,
         )
 
         if (!isBelow) return decide(false, Reason.NO_DIP)
-        if (!isEdge) return decide(false, Reason.NOT_AN_EDGE)
+        // Nothing armed while below: the dip predates this run (e.g. state restored mid-dip) or its
+        // arm was already consumed — either way there is no fresh crossing to act on.
+        if (next.pendingEdgeAt == 0L) return decide(false, Reason.NOT_AN_EDGE)
+        if (nowSec - next.pendingEdgeAt < SUSTAIN_SECONDS) return decide(false, Reason.AWAITING_SUSTAIN)
+        next = next.copy(pendingEdgeAt = 0L)   // consumed: proven sustained, now subject to the gates
 
         // 5) Exercise gate (the credibility line). HR out of the resting band (or unknown) → metabolic.
         //    Recent motion at/above the gate → metabolic. Either suppresses.
