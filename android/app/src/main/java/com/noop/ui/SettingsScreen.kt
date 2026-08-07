@@ -1099,6 +1099,9 @@ fun SettingsScreen(
                         sleepChartStyle = style
                         UnitPrefs.setSleepChartStyle(context, style)
                     },
+                    // Three segments — share the row width equally so the labels can't widen the card past
+                    // the screen (the component's own guidance for longer option sets).
+                    adaptsToAvailableWidth = true,
                 )
             }
 
