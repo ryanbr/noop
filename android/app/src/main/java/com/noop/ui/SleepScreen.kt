@@ -555,7 +555,9 @@ fun SleepScreen(
                     ) {
                         Icon(Icons.Filled.Tune, contentDescription = stringResource(R.string.sleep_customize_title), modifier = Modifier.size(Metrics.iconSmall))
                         Spacer(Modifier.width(Metrics.space4))
-                        Text(stringResource(R.string.sleep_customize_title), style = NoopType.footnote)
+                        // Concise verb on the affordance (the full "Customize Sleep" title is the icon's a11y
+                        // label + the sheet header); reuses Today's generic "Customize" action string.
+                        Text(stringResource(R.string.today_customize_action), style = NoopType.footnote)
                     }
                 }
             }
