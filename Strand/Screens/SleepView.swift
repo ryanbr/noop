@@ -382,14 +382,6 @@ struct SleepView: View {
         return min(max(p / 100.0, 0), 1)
     }
 
-    /// The Rest world's opening: a scenic indigo backdrop with — when the night carries a 0–100
-    /// sleep-performance score — the canonical liquid `LiquidVessel` in the Rest tint with the score
-    /// counting up over it (the SAME hero language Today's score cells and the Trends headline use);
-    /// otherwise a big SF-Rounded hours-slept headline over the same backdrop. A `SourceBadge` states
-    /// whether the score is WHOOP's own imported figure or NOOP's on-device estimate. Presentation-only
-    /// — the score is `performanceScore(for:)` on the ◀/▶-navigated `heroNight`, so the hero tracks the
-    /// same night the hypnogram shows (was pinned to `performance.latest` = last night regardless).
-    @ViewBuilder
     /// Dispatch a reorderable Sleep section to its card. Naps rides with `.stages` (drawn inside the stages
     /// hero); the Rest hero is pinned outside this list. Mirrors the Android SleepScreen `when(section)`.
     @ViewBuilder
@@ -420,6 +412,14 @@ struct SleepView: View {
         }
     }
 
+    /// The Rest world's opening: a scenic indigo backdrop with — when the night carries a 0–100
+    /// sleep-performance score — the canonical liquid `LiquidVessel` in the Rest tint with the score
+    /// counting up over it (the SAME hero language Today's score cells and the Trends headline use);
+    /// otherwise a big SF-Rounded hours-slept headline over the same backdrop. A `SourceBadge` states
+    /// whether the score is WHOOP's own imported figure or NOOP's on-device estimate. Presentation-only
+    /// — the score is `performanceScore(for:)` on the ◀/▶-navigated `heroNight`, so the hero tracks the
+    /// same night the hypnogram shows (was pinned to `performance.latest` = last night regardless).
+    @ViewBuilder
     private func restHero(_ model: SleepModel) -> some View {
         let night = heroNight(model)
         let score = performanceScore(for: night)
