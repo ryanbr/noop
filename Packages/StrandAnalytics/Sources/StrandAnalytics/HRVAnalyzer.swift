@@ -560,6 +560,81 @@ public enum HRVAnalyzer {
         return rrCoverage(tsSec: keptTs, rrMs: keptRr)
     }
 
+    /// #1008: a compact, deterministic RAW-ROW sample of the beats around the DENSEST second, for the
+    /// always-on `hrv diag` log — emitted ONLY on an over-count night, so the mechanism of a `coverage>1`
+    /// verdict can be READ off the log instead of guessed at. The coverage stats above say THAT a night is
+    /// over-counted and whether the extra beats straddle second boundaries; they cannot say WHY. This shows
+    /// the individual rows so the shape is visible:
+    ///
+    ///   - near-equal `rrMs` values sharing / adjacent-in a second (e.g. `[1200,1199]`) ⇒ the SAME beat
+    ///     stored twice (a de-dup / channel-tag fix recovers RMSSD),
+    ///   - a full interval beside a partial one (e.g. `[1200,600]`) ⇒ two DISTINCT interval trains (a
+    ///     genuine second stream, or real dense capture — not a duplicate),
+    ///   - a `@N` suffix ⇒ a non-null `srcChannel`; `src=none` confirms the beats are untagged (the #1071
+    ///     Oura channel machinery does NOT apply, so a WHOOP over-count is a different mechanism).
+    ///
+    /// Deliberately statistics-FREE: at second-resolution `ts`, a genuine consecutive beat and a duplicate
+    /// both look like "a near-equal beat ~1 s away", so any derived de-dup *number* is unreliable here (the
+    /// #550 trap). Raw rows carry no such inference. Pure; integer-only formatting so the twin Kotlin
+    /// `HrvAnalyzer.densestSecondWindowSample` is byte-identical. Returns "" for < 2 beats.
+    ///
+    /// - Parameters:
+    ///   - tsSec: per-beat timestamps (unix seconds).
+    ///   - rrMs: per-beat interval (ms, rounded for display).
+    ///   - srcCodes: per-beat `srcChannel` code or nil, index-aligned with the other two.
+    ///   - halfWindowSec: seconds of context to show either side of the densest second.
+    ///   - maxRowsPerSecond: cap on beats listed per second (a runaway second is truncated with `+K`).
+    public static func densestSecondWindowSample(
+        tsSec: [Int],
+        rrMs: [Double],
+        srcCodes: [Int?],
+        halfWindowSec: Int = 3,
+        maxRowsPerSecond: Int = 24
+    ) -> String {
+        let n = min(tsSec.count, rrMs.count)
+        guard n >= 2 else { return "" }
+        // Per-second beat counts; the densest second (ties → earliest) anchors the window.
+        var perSec: [Int: Int] = [:]
+        for i in 0..<n { perSec[tsSec[i], default: 0] += 1 }
+        let occ = perSec.count
+        var maxInSec = 0
+        var t0 = tsSec[0]
+        // Deterministic argmax: highest count, earliest ts on a tie.
+        for t in perSec.keys.sorted() where perSec[t]! > maxInSec { maxInSec = perSec[t]!; t0 = t }
+        let beatsPerSec = occ > 0 ? Double(n) / Double(occ) : 0
+        // src=none unless any beat in the whole stream carries a channel code; list the distinct codes.
+        var codes = Set<Int>()
+        for i in 0..<n where i < srcCodes.count { if let c = srcCodes[i] { codes.insert(c) } }
+        let srcField = codes.isEmpty ? "none" : codes.sorted().map { String($0) }.joined(separator: "/")
+
+        var out = ""
+        // Two-decimal beats/sec without locale: scale-and-truncate on integers so the twin can't drift.
+        let bpsX100 = Int(beatsPerSec * 100.0 + 0.5)
+        out += "beatsPerSec=\(bpsX100 / 100)."
+        let frac = bpsX100 % 100
+        if frac < 10 { out += "0" }
+        out += "\(frac)"
+        out += " maxInSec=\(maxInSec) occSec=\(occ) totBeats=\(n) src=\(srcField) | t0=\(t0)"
+        for offset in -halfWindowSec...halfWindowSec {
+            let t = t0 + offset
+            // Beats in this second, sorted by rrMs then original index — deterministic.
+            let rows = (0..<n).filter { tsSec[$0] == t }
+                .sorted { a, b in (rrMs[a], a) < (rrMs[b], b) }
+            if rows.isEmpty { continue }
+            out += " " + (offset > 0 ? "+" : "") + "\(offset)s["
+            let shown = min(rows.count, maxRowsPerSecond)
+            for k in 0..<shown {
+                if k > 0 { out += "," }
+                let idx = rows[k]
+                out += "\(Int(rrMs[idx] + 0.5))"
+                if idx < srcCodes.count, let c = srcCodes[idx] { out += "@\(c)" }
+            }
+            if rows.count > shown { out += ",+\(rows.count - shown)" }
+            out += "]"
+        }
+        return out
+    }
+
     // MARK: - Helpers
 
     /// Median of a non-empty array. (Caller guarantees non-empty.)

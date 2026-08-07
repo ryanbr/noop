@@ -525,6 +525,85 @@ object HrvAnalyzer {
         return rrCoverage(keptTs, keptRr)
     }
 
+    /**
+     * #1008: a compact, deterministic RAW-ROW sample of the beats around the DENSEST second, for the
+     * always-on `hrv diag` log — emitted ONLY on an over-count night, so the mechanism of a `coverage>1`
+     * verdict can be READ off the log instead of guessed at. The coverage stats above say THAT a night is
+     * over-counted and whether the extra beats straddle second boundaries; they cannot say WHY. This shows
+     * the individual rows so the shape is visible:
+     *
+     *   - near-equal `rrMs` values sharing / adjacent-in a second (e.g. `[1200,1199]`) ⇒ the SAME beat
+     *     stored twice (a de-dup / channel-tag fix recovers RMSSD),
+     *   - a full interval beside a partial one (e.g. `[1200,600]`) ⇒ two DISTINCT interval trains (a
+     *     genuine second stream, or real dense capture — not a duplicate),
+     *   - a `@N` suffix ⇒ a non-null `srcChannel`; `src=none` confirms the beats are untagged (the #1071
+     *     Oura channel machinery does NOT apply, so a WHOOP over-count is a different mechanism).
+     *
+     * Deliberately statistics-FREE: at second-resolution `ts`, a genuine consecutive beat and a duplicate
+     * both look like "a near-equal beat ~1 s away", so any derived de-dup *number* is unreliable here (the
+     * #550 trap). Raw rows carry no such inference. Pure; integer-only formatting so the twin Swift
+     * `HRVAnalyzer.densestSecondWindowSample` is byte-identical. Returns "" for < 2 beats.
+     *
+     * @param tsSec per-beat timestamps (unix seconds); @param rrMs per-beat interval (ms, rounded for
+     *   display); @param srcCodes per-beat `srcChannel` code or null, index-aligned with the other two.
+     * @param halfWindowSec seconds of context to show either side of the densest second.
+     * @param maxRowsPerSecond cap on beats listed per second (a runaway second is truncated with `+K`).
+     */
+    fun densestSecondWindowSample(
+        tsSec: List<Long>,
+        rrMs: List<Double>,
+        srcCodes: List<Int?>,
+        halfWindowSec: Int = 3,
+        maxRowsPerSecond: Int = 24,
+    ): String {
+        val n = minOf(tsSec.size, rrMs.size)
+        if (n < 2) return ""
+        // Per-second beat counts; the densest second (ties → earliest) anchors the window.
+        val perSec = HashMap<Long, Int>()
+        for (i in 0 until n) perSec[tsSec[i]] = (perSec[tsSec[i]] ?: 0) + 1
+        val occ = perSec.size
+        var maxInSec = 0
+        var t0 = tsSec[0]
+        // Deterministic argmax: highest count, earliest ts on a tie.
+        for ((t, c) in perSec.toSortedMap()) if (c > maxInSec) { maxInSec = c; t0 = t }
+        val beatsPerSec = if (occ > 0) n.toDouble() / occ.toDouble() else 0.0
+        // src=none unless any beat in the whole stream carries a channel code; list the distinct codes.
+        val codes = sortedSetOf<Int>()
+        for (i in 0 until n) srcCodes.getOrNull(i)?.let { codes.add(it) }
+        val srcField = if (codes.isEmpty()) "none" else codes.joinToString("/")
+
+        val sb = StringBuilder()
+        // Two-decimal beats/sec without locale: scale-and-truncate on integers so the twin can't drift.
+        val bpsX100 = (beatsPerSec * 100.0 + 0.5).toLong()
+        sb.append("beatsPerSec=").append(bpsX100 / 100).append('.')
+        val frac = bpsX100 % 100
+        if (frac < 10) sb.append('0')
+        sb.append(frac)
+        sb.append(" maxInSec=").append(maxInSec)
+            .append(" occSec=").append(occ)
+            .append(" totBeats=").append(n)
+            .append(" src=").append(srcField)
+            .append(" | t0=").append(t0)
+        for (offset in -halfWindowSec..halfWindowSec) {
+            val t = t0 + offset
+            // Beats in this second, sorted by rrMs then original index — deterministic.
+            val rows = (0 until n).filter { tsSec[it] == t }
+                .sortedWith(compareBy({ rrMs[it] }, { it }))
+            if (rows.isEmpty()) continue
+            sb.append(' ').append(if (offset > 0) "+" else "").append(offset).append("s[")
+            val shown = minOf(rows.size, maxRowsPerSecond)
+            for (k in 0 until shown) {
+                if (k > 0) sb.append(',')
+                val idx = rows[k]
+                sb.append((rrMs[idx] + 0.5).toLong())
+                srcCodes.getOrNull(idx)?.let { sb.append('@').append(it) }
+            }
+            if (rows.size > shown) sb.append(",+").append(rows.size - shown)
+            sb.append(']')
+        }
+        return sb.toString()
+    }
+
     // ── Rolling / windowed rMSSD (#803) ──────────────────────────────────────
     //
     // The Deep Timeline's "HRV" trace used to plot RAW RR-interval values (ms) and label them "HRV",

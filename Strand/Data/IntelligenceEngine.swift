@@ -767,10 +767,20 @@ final class IntelligenceEngine: ObservableObject {
                     let sdnnField = HRVAnalyzer.beatSpreadIsTrustworthy(verdict)
                         && HRVAnalyzer.beatValuesAreTrustworthy(beatAccurateFraction: accVal)
                         ? "\(ms(h.sdnn))ms" : "withheld"
-                    hrvDiag = "hrv diag day=\(res.daily.day) rmssd=\(ms(h.rmssd))ms sdnn=\(sdnnField) "
+                    var diagLine = "hrv diag day=\(res.daily.day) rmssd=\(ms(h.rmssd))ms sdnn=\(sdnnField) "
                         + "meanNN=\(ms(h.meanNN))ms rr=\(h.nInput)/\(h.nClean) rejected=\(rej)% coverage=\(cov) collapsedCov=\(colCov) dupBeats=\(dup) "
                         + "beatAccurate=\(acc) "
                         + "rrIntegrity=\(verdict.rawValue)"
+                    // #1008: on an OVER-COUNT night only, append a raw-row sample around the densest second
+                    // (carried as a second \n-joined line, split back apart at the emit site) so the
+                    // over-count's MECHANISM is readable from the always-on log — clean nights stay quiet.
+                    // srcChannel rides from the read model. Byte-identical to the Kotlin `hrv rrsample` line.
+                    if verdict == .crossSecondOverCount || verdict == .sameSecondOverCount {
+                        let sample = HRVAnalyzer.densestSecondWindowSample(
+                            tsSec: ts, rrMs: sleepRr, srcCodes: sleepRrRows.map { $0.srcChannel?.rawValue })
+                        if !sample.isEmpty { diagLine += "\nhrv rrsample day=\(res.daily.day) \(sample)" }
+                    }
+                    hrvDiag = diagLine
                 }
                 // ── Steps test mode: 5/MG raw-counter trace ──────────────────────────────────────────────
                 // Only built when the Steps mode is on (the gate was read once before the loop). Recomputes
@@ -1037,7 +1047,13 @@ final class IntelligenceEngine: ObservableObject {
             let hrvLog = daily.avgHrv.map { String(format: "%.1f", $0) } ?? "nil"
             diagnosticSink?("hrv day=\(daily.day) window=\(deepHrvWindow ? "deep" : "whole") avgHrv=\(hrvLog)", nil)
             // #195: the whole-night HRV cleaning summary built in loop 1 (rmssd vs sdnn / cleaning counts).
-            if let hrvDiagLine = night.hrvDiag { diagnosticSink?(hrvDiagLine, nil) }
+            // #1008: on an over-count night this carries a second `hrv rrsample …` line, \n-joined at the
+            // build site; split it back into one diagnosticSink call per line so each is its own log line.
+            if let hrvDiagLine = night.hrvDiag {
+                for line in hrvDiagLine.split(separator: "\n", omittingEmptySubsequences: true) {
+                    diagnosticSink?(String(line), nil)
+                }
+            }
             // ── CAPTURE-B: universal dayOwner self-diagnostic (#814/#799) ────────────────────────────────
             // ONE line per scored day, tagged `.universal` so it rides EVERY Test Centre export regardless
             // of which mode is on. It pins down the read/write split #814 is about: `readId` is the owner

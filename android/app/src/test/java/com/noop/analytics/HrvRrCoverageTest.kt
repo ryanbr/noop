@@ -179,4 +179,53 @@ class HrvRrCoverageTest {
         assertTrue(HrvAnalyzer.beatValuesAreTrustworthy(HrvAnalyzer.BEAT_ACCURACY_MIN_FRACTION))
         assertFalse(HrvAnalyzer.beatValuesAreTrustworthy(HrvAnalyzer.BEAT_ACCURACY_MIN_FRACTION - 0.01))
     }
+
+    // #1008 — densestSecondWindowSample: the raw-row sample that makes an over-count's MECHANISM readable
+    // from the always-on log. Exact-string assertions pin byte-parity with the Swift twin. ---
+
+    /** Near-equal copies clustered in one second (the "same beat stored twice" shape): the sample shows
+     *  `[1199,1200,1201]` — values a de-dup would collapse. This is the signature of a duplication bug. */
+    @Test fun densestSample_showsNearEqualCopies() {
+        val ts = listOf(100L, 100L, 100L, 101L, 102L)
+        val rr = listOf(1200.0, 1199.0, 1201.0, 1200.0, 1198.0)
+        val src = listOf<Int?>(null, null, null, null, null)
+        assertEquals(
+            "beatsPerSec=1.67 maxInSec=3 occSec=3 totBeats=5 src=none | " +
+                "t0=100 0s[1199,1200,1201] +1s[1200] +2s[1198]",
+            HrvAnalyzer.densestSecondWindowSample(ts, rr, src),
+        )
+    }
+
+    /** Distinct interval trains (a full ~1200 ms beat beside a ~600 ms one, every second): the sample
+     *  shows `[600,1200]` — NOT copies of one beat, so this is a genuine second stream, not a de-dupable
+     *  duplicate. The two shapes are what the maintainer needs to tell apart to pick the fix. */
+    @Test fun densestSample_showsDistinctTrains() {
+        val ts = listOf(100L, 100L, 101L, 101L, 102L, 102L)
+        val rr = listOf(1200.0, 600.0, 1200.0, 600.0, 1200.0, 600.0)
+        val src = listOf<Int?>(null, null, null, null, null, null)
+        assertEquals(
+            "beatsPerSec=2.00 maxInSec=2 occSec=3 totBeats=6 src=none | " +
+                "t0=100 0s[600,1200] +1s[600,1200] +2s[600,1200]",
+            HrvAnalyzer.densestSecondWindowSample(ts, rr, src),
+        )
+    }
+
+    /** A non-null srcChannel is surfaced as `@code`, and the `src=` field lists the distinct codes — so a
+     *  tagged (Oura #1071) stream is obvious, and `src=none` on a WHOOP night confirms that machinery
+     *  does NOT apply and the over-count has a different origin. */
+    @Test fun densestSample_surfacesSrcChannelTags() {
+        val ts = listOf(100L, 100L)
+        val rr = listOf(1000.0, 1000.0)
+        val src = listOf<Int?>(1, 2)
+        assertEquals(
+            "beatsPerSec=2.00 maxInSec=2 occSec=1 totBeats=2 src=1/2 | t0=100 0s[1000@1,1000@2]",
+            HrvAnalyzer.densestSecondWindowSample(ts, rr, src),
+        )
+    }
+
+    /** Nothing to sample (< 2 beats) → empty string, so the engine emits no `hrv rrsample` line. */
+    @Test fun densestSample_emptyForTooFewBeats() {
+        assertEquals("", HrvAnalyzer.densestSecondWindowSample(emptyList(), emptyList(), emptyList()))
+        assertEquals("", HrvAnalyzer.densestSecondWindowSample(listOf(100L), listOf(1000.0), listOf<Int?>(null)))
+    }
 }
