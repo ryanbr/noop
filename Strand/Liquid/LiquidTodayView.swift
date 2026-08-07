@@ -1475,28 +1475,16 @@ private struct HeroScoreCell: View {
     // scale passes 1 to match the app-wide one-decimal `effortDisplay` convention (#45).
     var decimals: Int = 0
 
-    @State private var shown: Double = 0
-
-    private var frac: Double? { score.map { max(0, min(1, $0 / maxValue)) } }
-
     var body: some View {
         VStack(spacing: 7) {
-            ZStack {
-                LiquidVessel(value: frac, tint: tint, animated: animated)
-                    .frame(width: Self.vesselDiameter, height: Self.vesselDiameter)
-                Group {
-                    if score != nil {
-                        CountUpNumber(value: shown, font: StrandFont.rounded(26), decimals: decimals)
-                    } else {
-                        Text("–").font(StrandFont.rounded(26))
-                    }
-                }
-                .foregroundStyle(StrandPalette.textPrimary)
-                .shadow(color: .black.opacity(0.5), radius: 6, y: 1)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-                .allowsHitTesting(false)   // taps fall through to the vessel → splash
-            }
+            LiquidScoreGauge(
+                score: score,
+                tint: tint,
+                diameter: Self.vesselDiameter,
+                animated: animated,
+                maxValue: maxValue,
+                decimals: decimals
+            )
             Button(action: onGuide) {
                 HStack(spacing: 3) {
                     // #74: one line, shrink-to-fit rather than wrap under large Dynamic Type (mirrors the
@@ -1511,13 +1499,6 @@ private struct HeroScoreCell: View {
             .accessibilityLabel(Text("\(label), \(score.map { decimals > 0 ? String(format: "%.\(decimals)f", $0) : String(Int($0.rounded())) } ?? String(localized: "no data yet")). See how it is scored."))
         }
         .frame(maxWidth: .infinity)
-        .onAppear { rollTo(score) }
-        .onChangeCompat(of: score) { v in rollTo(v) }
-    }
-
-    private func rollTo(_ v: Double?) {
-        guard let v else { shown = 0; return }
-        withAnimation(.easeOut(duration: 0.9)) { shown = v }   // counts up in step with the vessel filling
     }
 }
 

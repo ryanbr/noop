@@ -13,8 +13,9 @@ import StrandDesign   // NoopMotionState — the shared quiet-motion gate
 
 enum LiquidRender {
 
-    /// A softly sculpted circular progress ring. The simulation still drives the value and tap response,
-    /// but the visual treatment follows the reference's calm, recessed score dials instead of a filled orb.
+    /// A softly sculpted circular progress ring. Geometry is fixed (`radius`, `lineWidth`, arc span);
+    /// this pass only deepens the material — recessed track, frosted inner disc, semantic progress
+    /// gradient — without neon bloom, tip dots, or layout changes.
     static func vessel(_ base: GraphicsContext, _ size: CGSize, _ sim: LiquidSim, now: Double, tint: Color) {
         let diameter = max(2, min(size.width, size.height) - 3)
         let rect = CGRect(x: (size.width - diameter) / 2, y: (size.height - diameter) / 2,
@@ -22,35 +23,106 @@ enum LiquidRender {
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
         let radius = diameter * 0.39
         let lineWidth = max(5, diameter * 0.105)
+        let cap = StrokeStyle(lineWidth: lineWidth, lineCap: .round)
         var ctx = base
 
-        ctx.fill(Path(ellipseIn: rect), with: .linearGradient(
-            Gradient(colors: [NoopVisualStyle.surfaceTop, NoopVisualStyle.surfaceBottom]),
-            startPoint: CGPoint(x: rect.midX, y: rect.minY),
-            endPoint: CGPoint(x: rect.midX, y: rect.maxY)))
-        let inset = rect.insetBy(dx: diameter * 0.13, dy: diameter * 0.13)
-        ctx.fill(Path(ellipseIn: inset), with: .color(NoopVisualStyle.inset))
+        // Restrained outer lift — light gray shadow, not deep black.
+        let shadowRect = rect.offsetBy(dx: 0, dy: max(1, diameter * 0.010))
+        ctx.fill(Path(ellipseIn: shadowRect), with: .color(Color.black.opacity(0.14)))
 
-        var track = Path()
-        track.addArc(center: center, radius: radius, startAngle: .degrees(-90),
-                     endAngle: .degrees(270), clockwise: false)
-        ctx.stroke(track, with: .color(NoopVisualStyle.border.opacity(0.72)),
-                   style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+        // One continuous centre disc — soft 3D: light top face, gentle rim shade.
+        // No separate inset circle / hard ring line.
+        ctx.fill(Path(ellipseIn: rect), with: .linearGradient(
+            Gradient(colors: [
+                NoopVisualStyle.surfaceTop,
+                NoopVisualStyle.surfaceBottom
+            ]),
+            startPoint: CGPoint(x: rect.midX, y: rect.minY),
+            endPoint: CGPoint(x: rect.midX, y: rect.maxY)
+        ))
+        // Soft radial lift — brighter near the upper face, slightly deeper at the rim.
+        ctx.fill(Path(ellipseIn: rect), with: .radialGradient(
+            Gradient(stops: [
+                .init(color: Color.white.opacity(0.07), location: 0.00),
+                .init(color: Color.white.opacity(0.02), location: 0.42),
+                .init(color: Color.clear, location: 0.72),
+                .init(color: Color.black.opacity(0.10), location: 1.00)
+            ]),
+            center: CGPoint(x: rect.midX, y: rect.minY + diameter * 0.32),
+            startRadius: 0,
+            endRadius: diameter * 0.52
+        ))
+        // Very soft lower-edge shade for a lightly recessed read.
+        ctx.fill(Path(ellipseIn: rect), with: .linearGradient(
+            Gradient(stops: [
+                .init(color: Color.clear, location: 0.00),
+                .init(color: Color.clear, location: 0.55),
+                .init(color: Color.black.opacity(0.06), location: 1.00)
+            ]),
+            startPoint: CGPoint(x: rect.midX, y: rect.minY),
+            endPoint: CGPoint(x: rect.midX, y: rect.maxY)
+        ))
+
+        let track = fullArc(center: center, radius: radius)
+
+        // Recessed track — gray channel (original border tone), not black.
+        ctx.stroke(track, with: .linearGradient(
+            Gradient(colors: [
+                Color.white.opacity(0.08),
+                NoopVisualStyle.border.opacity(0.18),
+                NoopVisualStyle.border.opacity(0.50)
+            ]),
+            startPoint: CGPoint(x: rect.midX, y: rect.minY),
+            endPoint: CGPoint(x: rect.midX, y: rect.maxY)
+        ), style: StrokeStyle(lineWidth: lineWidth + 1.6, lineCap: .round))
+
+        ctx.stroke(track, with: .color(NoopVisualStyle.border.opacity(0.72)), style: cap)
 
         let level = max(0, min(1, sim.level))
         if level > 0.004 {
-            var progress = Path()
-            progress.addArc(center: center, radius: radius, startAngle: .degrees(-90),
-                            endAngle: .degrees(-90 + 360 * level), clockwise: false)
-            ctx.stroke(progress,
-                       with: .linearGradient(Gradient(colors: [tint.opacity(0.72), tint]),
-                                             startPoint: CGPoint(x: rect.minX, y: rect.maxY),
-                                             endPoint: CGPoint(x: rect.maxX, y: rect.minY)),
-                       style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+            let progress = partialArc(center: center, radius: radius, level: level)
+
+            // Contained under-lift — wider stroke, low opacity, no blur.
+            ctx.stroke(progress, with: .color(tint.opacity(0.18)),
+                       style: StrokeStyle(lineWidth: lineWidth + 2.0, lineCap: .round))
+
+            // Progress arc — harsh semantic gradient (visible dark ↔ light bands).
+            ctx.stroke(progress, with: .linearGradient(
+                progressGradient(tint),
+                startPoint: CGPoint(x: rect.minX, y: rect.maxY),
+                endPoint: CGPoint(x: rect.maxX, y: rect.minY)
+            ), style: cap)
         }
 
+        // Outer instrument rim (unchanged placement).
         ctx.stroke(Path(ellipseIn: rect.insetBy(dx: 0.5, dy: 0.5)),
                    with: .color(NoopVisualStyle.borderHighlight.opacity(0.55)), lineWidth: 1)
+    }
+
+    /// Full-span track arc — geometry unchanged from the original vessel.
+    private static func fullArc(center: CGPoint, radius: CGFloat) -> Path {
+        var p = Path()
+        p.addArc(center: center, radius: radius, startAngle: .degrees(-90),
+                 endAngle: .degrees(270), clockwise: false)
+        return p
+    }
+
+    private static func partialArc(center: CGPoint, radius: CGFloat, level: Double) -> Path {
+        var p = Path()
+        p.addArc(center: center, radius: radius, startAngle: .degrees(-90),
+                 endAngle: .degrees(-90 + 360 * level), clockwise: false)
+        return p
+    }
+
+    /// Harsh semantic gradient — tight stops so dark/light bands read clearly on the arc.
+    private static func progressGradient(_ tint: Color) -> Gradient {
+        Gradient(stops: [
+            .init(color: tint.liquidDarker(0.48), location: 0.00),
+            .init(color: tint.liquidLighter(0.38), location: 0.34),
+            .init(color: tint.liquidDarker(0.22), location: 0.58),
+            .init(color: tint.liquidLighter(0.28), location: 0.82),
+            .init(color: tint.liquidDarker(0.35), location: 1.00)
+        ])
     }
 
     /// A horizontal capsule tube filled to `frac`; tilt pushes the liquid along it.
@@ -75,7 +147,7 @@ enum LiquidRender {
         p.addLine(to: CGPoint(x: 0, y: h))
         p.closeSubpath()
         let fillGradient = usesCleanFill
-            ? Gradient(colors: [tint.liquidDarker(0.18).opacity(0.82), tint.opacity(0.88)])
+            ? progressGradient(tint)
             : Gradient(colors: [tint.opacity(0.84), tint.liquidDarker(0.28).opacity(0.86)])
         clip.fill(p, with: .linearGradient(
             fillGradient,
@@ -327,5 +399,66 @@ struct CountUpNumber: View, Animatable {
     var body: some View {
         Text(decimals > 0 ? String(format: "%.\(decimals)f", value) : "\(Int(value.rounded()))")
             .font(font).monospacedDigit()
+    }
+}
+
+// MARK: - LiquidScoreGauge — Home hero score instrument (shared)
+
+/// The liquid score gauge used on Today (`HeroScoreCell`): a `LiquidVessel` fill with a count-up centre
+/// read-out. Callers supply diameter/tint/scale; optional caption sits under the number (Sleep: "of 100").
+struct LiquidScoreGauge: View {
+    /// Matches `HeroScoreCell.vesselDiameter` — the Home hero trio size.
+    private static let homeHeroDiameter: CGFloat = 96
+
+    let score: Double?
+    let tint: Color
+    let diameter: CGFloat
+    let animated: Bool
+    /// The scale `score` is expressed on (100 for Charge/Rest, 21 for WHOOP Effort, etc.).
+    var maxValue: Double = 100
+    var decimals: Int = 0
+    /// Optional caption under the number (nil = Home hero: number only).
+    var captionText: String? = nil
+    var numberColor: Color = StrandPalette.textPrimary
+    var captionColor: Color = StrandPalette.textTertiary
+
+    @State private var shown: Double = 0
+
+    private var frac: Double? { score.map { max(0, min(1, $0 / maxValue)) } }
+    private var centerFont: Font { StrandFont.rounded(diameter * 26 / Self.homeHeroDiameter) }
+    private var captionFont: Font { StrandFont.rounded(diameter * 0.085, weight: .medium) }
+
+    var body: some View {
+        ZStack {
+            LiquidVessel(value: frac, tint: tint, animated: animated)
+                .frame(width: diameter, height: diameter)
+            VStack(spacing: captionText == nil ? 0 : 1) {
+                Group {
+                    if score != nil {
+                        CountUpNumber(value: shown, font: centerFont, decimals: decimals)
+                    } else {
+                        Text("–").font(centerFont)
+                    }
+                }
+                if let captionText {
+                    Text(captionText)
+                        .font(captionFont)
+                        .foregroundStyle(captionColor)
+                }
+            }
+            .foregroundStyle(numberColor)
+            .shadow(color: .black.opacity(0.5), radius: 6, y: 1)
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+            .allowsHitTesting(false)
+        }
+        .frame(width: diameter, height: diameter)
+        .onAppear { rollTo(score) }
+        .onChangeCompat(of: score) { rollTo($0) }
+    }
+
+    private func rollTo(_ v: Double?) {
+        guard let v else { shown = 0; return }
+        withAnimation(.easeOut(duration: 0.9)) { shown = v }
     }
 }

@@ -511,6 +511,90 @@ feature rather than by file so they can be reviewed and ported independently.
   scale conversion / progress fraction, and existing accessibility traits (label + value only).
 - **Type:** Accessibility presentation only; no visible UI or workout-logic changes.
 
+### EXP-033 — Liquid vessel premium material (shared gauge renderer)
+
+- **Date:** 2026-08-07
+- **Files:** `Strand/Liquid/LiquidPrimitives.swift` (`LiquidRender.vessel`),
+  `docs/UI_CUSTOMIZATION_LEDGER.md`
+- **Request:** Improve gauge material/shading only — 3D acrylic feel, recessed track, inset center
+  disc, semantic tint preserved — without changing diameter, ring thickness, arc geometry, score/caption
+  layout, animation, or Sleep hero scene.
+- **Implementation:** Reworked `LiquidRender.vessel` Canvas layers only: static outer shadow offset,
+  radial frosted center disc with inset border gradient, three-layer recessed track (outer lip, dark
+  channel, inner edge), contained progress under-lift, multi-stop angular semantic gradient per caller
+  tint, and thin static sheen stroke. No TimelineViews, blur filters, endpoint dots, or neon bloom.
+  **Follow-up (same session):** Restored original gray disc/track tones (`surfaceTop`/`surfaceBottom`,
+  `border`) — removed heavy black fills and the separate darker inset disc (its hard edge was the
+  inner ring line). Progress ring uses harsh tight-stop gradient (dark ↔ light bands). Center disc
+  matches the outer surface gray family, with a soft radial top highlight + gentle rim/lower shade
+  for light 3D depth (no hard ring stroke). Home Key Metrics `LiquidTube` clean-fill bars now
+  reuse the same `progressGradient(tint)` stops as the hero gauges.
+- **Preserved:** All geometry constants (`radius`, `lineWidth`, arc angles, inset), `LiquidVessel` /
+  `LiquidScoreGauge` layout, Home Charge/Effort/Rest and Sleep hero wiring, semantic tint inputs,
+  count-up animation, tap/simulation plumbing, and all data/logic.
+- **Type:** Shared liquid gauge material only (presentation).
+
+### EXP-032 — LiquidScoreGauge premium ring material (Home + Sleep) — REVERTED
+
+- **Date:** 2026-08-07
+- **Files:** `Strand/Liquid/LiquidPrimitives.swift` (`LiquidScoreGauge`),
+  `Strand/Liquid/LiquidTodayView.swift`, `docs/UI_CUSTOMIZATION_LEDGER.md`
+- **Request / outcome:** Premium acrylic-ring upgrade to the shared Home/Sleep gauge was rejected
+  on-device (“awful”). Reverted `LiquidScoreGauge` to the prior `LiquidVessel` + count-up wrapper.
+  Home Charge/Effort/Rest and Sleep again use the liquid vessel look.
+- **Type:** Revert of shared score-gauge presentation.
+
+### EXP-031 — Sleep night scene as fixed topBackground (overscroll)
+
+- **Date:** 2026-08-07
+- **Files:** `Strand/Screens/SleepView.swift`, `docs/UI_CUSTOMIZATION_LEDGER.md`
+- **Request:** Night scene must fill the entire top of the screen — including under the status bar
+  and when overscrolling to the top — instead of revealing black `surfaceBase`.
+- **Implementation:** Moved `SleepPerformanceNightScene` from the scrolling hero `.background` to
+  `ScreenScaffold.topBackground` (same fixed-behind-scroll pattern as Home’s sky). 440pt band with
+  bottom fade; hero content column no longer paints its own scene.
+- **Preserved:** Score gauge, Optimal, ON-DEVICE, Customize, Last Night and everything below; sleep
+  logic unchanged.
+- **Type:** Sleep hero presentation only (backdrop placement).
+
+### EXP-030 — Sleep reuses Home liquid score gauge (LiquidScoreGauge)
+
+- **Date:** 2026-08-07
+- **Files:** `Strand/Liquid/LiquidPrimitives.swift` (`LiquidScoreGauge`),
+  `Strand/Liquid/LiquidTodayView.swift` (`HeroScoreCell` delegates to shared gauge),
+  `Strand/Screens/SleepView.swift`, `docs/UI_CUSTOMIZATION_LEDGER.md`
+- **Request:** Sleep must use the same gauge renderer as Home before any material upgrade pass.
+  Default iOS Home is `LiquidTodayView` → `LiquidVessel`, not `GlowRing`.
+- **Implementation:** Extracted `LiquidScoreGauge` (LiquidVessel + CountUpNumber) from Home's
+  `HeroScoreCell`. Home heroes now call the shared type; Sleep hero calls the same type at 184pt with
+  optional `"of 100"` caption + Optimal word. Reverted mistaken `GlowRing` material changes. Night scene,
+  layout, cards below unchanged.
+- **Preserved:** Sleep score source, 0–100 scale, count-up animation, accessibility, ON-DEVICE badge,
+  Customize, Last Night and below.
+- **Type:** Shared gauge extraction + Sleep renderer swap (no visual upgrade yet).
+
+### EXP-029 — Immersive Sleep hero (night scene + circular gauge)
+
+- **Date:** 2026-08-07
+- **Files:** `Strand/Screens/SleepView.swift`,
+  `Strand/Resources/Assets.xcassets/sleepNightHero.imageset/`,
+  `StrandiOS/Resources/Assets.xcassets/sleepNightHero.imageset/`,
+  `Strand/Resources/SleepNightHero.heic` (bundle fallback), `docs/UI_CUSTOMIZATION_LEDGER.md`
+- **Request:** Redesign only the Sleep tab’s top hero to a Bevel-like composition: one centered
+  “Sleep” title, an original full-width night scene confined to the upper band, and a large circular
+  Sleep Performance ring — without a date under the title and without redesigning cards below.
+- **Implementation:** Removed the scaffold title/subtitle for nights with data; bleeds the hero past
+  ScreenScaffold gutters. `SleepPerformanceRingGauge` uses muted periwinkle (no neon / tip-dot /
+  purple halo), compact Bevel-like proportions, “of 100” + state word + ON-DEVICE. Night scene is an
+  original moonlit-lake HEIC in the **iOS** asset catalog (`StrandiOS/…/Assets.xcassets` — required
+  because NOOPiOS excludes Strand’s catalog) plus a static procedural lake/hills/stars base and a
+  bottom fade into `surfaceBase`. Customize sits at the hero foot. Empty state keeps the plain scaffold
+  title.
+- **Preserved:** `performanceScore(for:)`, `heroFraction` animation, `sleepScoreWord`, `SourceBadge` /
+  `heroSource`, Sleep Marks, stages/hypnogram navigation, customize sheet, edit/delete/add-nap flows,
+  layout prefs, accessibility score label, and all sleep detection/scoring/persistence logic.
+- **Type:** Sleep hero presentation only.
+
 ## Verification history
 
 | Date | Scope | Result |
@@ -537,6 +621,13 @@ feature rather than by file so they can be reviewed and ported independently.
 | 2026-08-05 | Shared floating workout control bar | `NOOPiOS` Debug generic-iOS build succeeded. Source verification confirmed Liquid Glass end controls, timer centering, end-confirm, and `WorkoutTypeIcon` preserved inside one elevated pill `NoopPanelSurface`. |
 | 2026-08-05 | Full-screen workout selection browser | `NOOPiOS` Debug generic-iOS build succeeded after `xcodegen generate`. Source verification confirmed `onStart` / `RecentSportsPrefs` / catalogue matching / merge overrides preserved; footer start row removed in favor of card tap. |
 | 2026-08-05 | Native Liquid Glass search fields | `NOOPiOS` Debug generic-iOS build succeeded. Migrated workout selection, Workouts filter, and Marker editor search to shared `NoopLiquidGlassSearchField`. |
+| 2026-08-07 | Immersive Sleep hero | `NOOPiOS` Debug physical-device build succeeded; signed `com.liammazuz.noop` (team `P2874N8GRQ`) installed and launched on Liam's iPhone. `git diff --check` passed. Presentation-only Sleep hero change. |
+| 2026-08-07 | Sleep hero composition pass | Root cause: night asset lived only in Strand catalog (excluded from NOOPiOS). Copied HEIC into `StrandiOS/…/Assets.xcassets`; verified `sleepNightHero` in `Assets.car`. Tightened hierarchy, muted gauge, richer night scene + fade. Installed/launched on Liam's iPhone. |
+| 2026-08-07 | Liquid vessel premium material (EXP-033) | `NOOPiOS` Debug device build succeeded; signed `com.liammazuz.noop` (team `P2874N8GRQ`) installed and launched on Liam's iPhone. `git diff --check` passed. i18n audit: no new literals from this change; pre-existing baseline gaps unchanged. Material-only change in `LiquidRender.vessel`. |
+| 2026-08-07 | Sleep uses Home LiquidScoreGauge | Corrected: default Home is `LiquidTodayView`/`LiquidVessel`, not `GlowRing`. Extracted `LiquidScoreGauge`; Sleep + Home share it. Reverted GlowRing styling. Built/installed/launched on Liam's iPhone. |
+| 2026-08-07 | Sleep night scene fixed topBackground | Night scene moved to `ScreenScaffold.topBackground` (Home sky pattern) so status-bar/overscroll shows the scene, not black. Built/installed/launched on Liam's iPhone. |
+| 2026-08-07 | LiquidScoreGauge premium ring | Shared Home/Sleep `LiquidScoreGauge` upgraded to layered acrylic ring with semantic gradient; values/captions/animation preserved. Built/installed/launched on Liam's iPhone. |
+| 2026-08-07 | Revert LiquidScoreGauge ring | Premium ring rejected on-device; `LiquidScoreGauge` restored to `LiquidVessel` wrapper. Built/installed/launched on Liam's iPhone. |
 
 ## Required workflow for every future custom UI change
 
