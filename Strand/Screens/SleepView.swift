@@ -113,6 +113,17 @@ struct SleepView: View {
     /// the user hits Undo, so a stale timer can't clear a fresh banner.
     @State private var sleepUndoTask: Task<Void, Never>?
 
+    // #sleep-layout: the arrangeable analytical-card order + explicit hidden set, byte-identical to the
+    // Android SleepLayoutPrefs keys. Reordered via the Arrange sheet; display-only, no metric changes.
+    @AppStorage(SleepLayoutPrefs.orderKey) private var sleepSectionOrderRaw = ""
+    @AppStorage(SleepLayoutPrefs.hiddenKey) private var sleepHiddenSectionsRaw = ""
+    @State private var showSleepCustomize = false
+
+    /// The analytical cards to render, in saved order minus the hidden set.
+    private var sleepVisibleSections: [SleepSection] {
+        SleepLayoutPrefs.visibleOrder(orderRaw: sleepSectionOrderRaw, hiddenRaw: sleepHiddenSectionsRaw)
+    }
+
     var body: some View {
         // Resolve the memoized model for THIS render. `dataKey` is O(1)-ish (counts + last-row
         // identity), so comparing it every render is cheap. When it matches the cached key we
@@ -136,12 +147,12 @@ struct SleepView: View {
                     VStack(alignment: .leading, spacing: NoopMetrics.sectionSpacing) {
                         if let sleepUndo { sleepUndoBanner(sleepUndo) }
                         restHero(resolved).staggeredAppear(index: 0)
-                        SleepMarkCard().staggeredAppear(index: 1)
-                        hero(resolved).staggeredAppear(index: 2)
-                        metricGrid(resolved).staggeredAppear(index: 3)
-                        sleepDebtLedger(resolved).staggeredAppear(index: 4)
-                        stagesVsTypical(resolved).staggeredAppear(index: 5)
-                        durationTrend(resolved).staggeredAppear(index: 6)
+                        sleepArrangeAffordance.staggeredAppear(index: 1)
+                        // #sleep-layout: the analytical cards render in the user's saved order minus the
+                        // hidden set, below the pinned Rest hero. Reordered via the Arrange sheet.
+                        ForEach(Array(sleepVisibleSections.enumerated()), id: \.element) { idx, section in
+                            sleepSectionView(section, resolved).staggeredAppear(index: idx + 2)
+                        }
                     }
                 } else {
                     emptyState
@@ -233,6 +244,12 @@ struct SleepView: View {
             // Manually add a missed nap (#508): same picker, but the chosen window is staged from raw and
             // stored as its OWN separate session — never folded into main sleep (which would mislabel the
             // awake daytime gap as light sleep).
+            .sheet(isPresented: $showSleepCustomize) {
+                SleepCustomizationSheet(
+                    sectionOrderRaw: $sleepSectionOrderRaw,
+                    hiddenSectionsRaw: $sleepHiddenSectionsRaw
+                )
+            }
             .sheet(item: $addNap) { seed in
                 SleepTimeEditor(bedTs: seed.bedTs, wakeTs: seed.wakeTs,
                                 title: "Add a nap",
@@ -373,6 +390,36 @@ struct SleepView: View {
     /// — the score is `performanceScore(for:)` on the ◀/▶-navigated `heroNight`, so the hero tracks the
     /// same night the hypnogram shows (was pinned to `performance.latest` = last night regardless).
     @ViewBuilder
+    /// Dispatch a reorderable Sleep section to its card. Naps rides with `.stages` (drawn inside the stages
+    /// hero); the Rest hero is pinned outside this list. Mirrors the Android SleepScreen `when(section)`.
+    @ViewBuilder
+    private func sleepSectionView(_ section: SleepSection, _ model: SleepModel) -> some View {
+        switch section {
+        case .sleepMarks:      SleepMarkCard()
+        case .stages:          hero(model)
+        case .nightDetail:     metricGrid(model)
+        case .sleepDebt:       sleepDebtLedger(model)
+        case .stagesVsTypical: stagesVsTypical(model)
+        case .asleepDuration:  durationTrend(model)
+        }
+    }
+
+    /// The compact "Customize" affordance above the arrangeable cards — opens the Arrange sheet. Mirrors
+    /// the Today tab's arrange entry and the Android Sleep affordance.
+    private var sleepArrangeAffordance: some View {
+        HStack(spacing: 0) {
+            Spacer()
+            Button {
+                showSleepCustomize = true
+            } label: {
+                Label("Customize", systemImage: "slider.horizontal.3")
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textTertiary)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
     private func restHero(_ model: SleepModel) -> some View {
         let night = heroNight(model)
         let score = performanceScore(for: night)
