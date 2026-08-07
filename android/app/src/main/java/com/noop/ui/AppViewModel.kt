@@ -2517,8 +2517,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private companion object {
         /** Grace before the first scoring pass, letting the first BLE offload land. */
         const val FIRST_OFFLOAD_GRACE_MS = 6_000L
-        /** On-device scoring cadence — 15 min, matching the strap offload cadence. */
-        const val ANALYZE_INTERVAL_MS = 15 * 60 * 1_000L
+        /**
+         * On-device BACKSTOP scoring cadence — 30 min (#836 battery). This loop's watermark gate can't
+         * skip while the strap is connected and streaming live HR, because the HR fingerprint
+         * (count:maxTs) advances every second — so it re-ran a full 21-day analyzeRecent every 15 min over
+         * a large DB even though only TODAY's daytime HR changed (a real-capture CPU drain: ~6-7 full
+         * passes/hour). It is purely a BACKSTOP — every real update (sync-with-rows, import, edit,
+         * recalibrate, the #547 heal) rescores via its OWN forced path, and an app-resume kick (#386,
+         * [analyzeKick]) still wakes it EARLY the moment the user opens NOOP — so halving its cadence only
+         * delays the idle refresh of Today's live Effort/steps (recovery/sleep are night-computed and
+         * unaffected), never a real data update. Android-only tuning; the Swift AppModel loop is a parity
+         * follow-up.
+         */
+        const val ANALYZE_INTERVAL_MS = 30 * 60 * 1_000L
         /** Daily re-arm cadence for the single-instant strap firmware alarm (secondary buzz cue). */
         const val STRAP_ALARM_REARM_INTERVAL_MS = 24 * 60 * 60 * 1_000L
         /** SharedPreferences key for the persisted double-tap action (stored as the enum NAME). */
