@@ -481,34 +481,6 @@
       "Off"
     ],
     [
-      "android/app/src/main/java/com/noop/ui/OnboardingScreen.kt",
-      "Deep blue accent on a dark blue-grey canvas."
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/OnboardingScreen.kt",
-      "Deep blue accent on warm paper."
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/OnboardingScreen.kt",
-      "Following your phone's light/dark setting."
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/OnboardingScreen.kt",
-      "Re-scan"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/OnboardingScreen.kt",
-      "Scan again"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/OnboardingScreen.kt",
-      "Your strap is bonded and ready to stream."
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/OnboardingScreen.kt",
-      "Your strap is bonded · ${it.toInt()}% battery."
-    ],
-    [
       "android/app/src/main/java/com/noop/ui/PipBar.kt",
       "$label: $valueText"
     ],
@@ -538,14 +510,6 @@
     ],
     [
       "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Collapsed"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Expanded"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
       "Manual override"
     ],
     [
@@ -570,15 +534,11 @@
     ],
     [
       "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Strap accepted ${live.r22FlagsAccepted}/15 R22 flags…"
+      "Sleep chart"
     ],
     [
       "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
       "Wear the strap, tap once, then let it sync and share your strap log."
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "✓ Strap accepted all 15 R22 flags"
     ],
     [
       "android/app/src/main/java/com/noop/ui/SkinTempCardsScreen.kt",
@@ -655,6 +615,18 @@
     [
       "android/app/src/main/java/com/noop/ui/StressScreen.kt",
       "Today's value is your recorded daily stress score (0-3)."
+    ],
+    [
+      "android/app/src/main/java/com/noop/ui/TestCentreScreen.kt",
+      "Capturing… reproduce the issue, then share the log below."
+    ],
+    [
+      "android/app/src/main/java/com/noop/ui/TestCentreScreen.kt",
+      "Detailed capture to file"
+    ],
+    [
+      "android/app/src/main/java/com/noop/ui/TestCentreScreen.kt",
+      "Share captured log"
     ],
     [
       "android/app/src/main/java/com/noop/ui/TodayScreen.kt",
@@ -895,10 +867,6 @@
       " \\(unit)"
     ],
     [
-      "Strand/Liquid/LiquidTodayView.swift",
-      "Arrange Today sections"
-    ],
-    [
       "Strand/Screens/AddDeviceWizard.swift",
       "The most common cause is the ring was not fully reset in the Oura app, or the Oura app is still running. Reset the ring again, force-quit Oura, then try once more. If it keeps failing, your ring may be a generation NOOP cannot adopt yet. The ring is not bricked: re-pair it in the Oura app to recover it. You can still use file import."
     ],
@@ -957,10 +925,6 @@
     [
       "Strand/Screens/JournalLogCard.swift",
       "Delete this custom item"
-    ],
-    [
-      "Strand/Screens/JournalLogCard.swift",
-      "Edit \\(item.display)"
     ],
     [
       "Strand/Screens/JournalLogCard.swift",
