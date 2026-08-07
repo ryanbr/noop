@@ -228,4 +228,53 @@ class HrvRrCoverageTest {
         assertEquals("", HrvAnalyzer.densestSecondWindowSample(emptyList(), emptyList(), emptyList()))
         assertEquals("", HrvAnalyzer.densestSecondWindowSample(listOf(100L), listOf(1000.0), listOf<Int?>(null)))
     }
+
+    // Parity edge cases — the SAME literal strings are asserted in the Swift twin (produced by an
+    // independent Swift run), so ties, truncation, short srcCodes, and half-value rounding are pinned
+    // byte-for-byte across platforms, not just the three headline shapes above.
+
+    /** Densest-second TIE (100 & 101 both hold 2) resolves to the EARLIEST ts; equal rrMs order by index. */
+    @Test fun densestSample_tieResolvesToEarliestSecond() {
+        assertEquals(
+            "beatsPerSec=1.67 maxInSec=2 occSec=3 totBeats=5 src=none | t0=100 0s[1000,1000] +1s[1000,1000] +2s[999]",
+            HrvAnalyzer.densestSecondWindowSample(
+                listOf(100L, 100L, 101L, 101L, 102L),
+                listOf(1000.0, 1000.0, 1000.0, 1000.0, 999.0),
+                listOf<Int?>(null, null, null, null, null),
+            ),
+        )
+    }
+
+    /** A runaway second is truncated to maxRowsPerSecond with a `+K` remainder marker. */
+    @Test fun densestSample_truncatesRunawaySecond() {
+        assertEquals(
+            "beatsPerSec=3.00 maxInSec=5 occSec=2 totBeats=6 src=none | t0=50 0s[700,710,720,+2] +1s[1000]",
+            HrvAnalyzer.densestSecondWindowSample(
+                listOf(50L, 50L, 50L, 50L, 50L, 51L),
+                listOf(700.0, 710.0, 720.0, 730.0, 740.0, 1000.0),
+                listOf<Int?>(null, null, null, null, null, null),
+                maxRowsPerSecond = 3,
+            ),
+        )
+    }
+
+    /** srcCodes SHORTER than the beat list is index-guarded (no crash), and only the tagged beat shows `@`. */
+    @Test fun densestSample_shortSrcCodesAreIndexGuarded() {
+        assertEquals(
+            "beatsPerSec=1.50 maxInSec=2 occSec=2 totBeats=3 src=3 | t0=10 0s[1000@3,1000] +1s[1000]",
+            HrvAnalyzer.densestSecondWindowSample(
+                listOf(10L, 10L, 11L), listOf(1000.0, 1000.0, 1000.0), listOf<Int?>(3),
+            ),
+        )
+    }
+
+    /** beatsPerSec at an exact half (3 beats / 2 seconds = 1.50) folds identically on both platforms. */
+    @Test fun densestSample_halfValueBeatsPerSecRounding() {
+        assertEquals(
+            "beatsPerSec=1.50 maxInSec=2 occSec=2 totBeats=3 src=none | t0=200 0s[900,900] +1s[900]",
+            HrvAnalyzer.densestSecondWindowSample(
+                listOf(200L, 200L, 201L), listOf(900.0, 900.0, 900.0), listOf<Int?>(null, null, null),
+            ),
+        )
+    }
 }
