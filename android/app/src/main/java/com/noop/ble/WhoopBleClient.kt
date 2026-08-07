@@ -801,6 +801,12 @@ class WhoopBleClient(
         // EVENT frames are ~40–120 B of hex each, a few KB per day of wear — 5 MB is years.
         private const val WHOOP5_EVENT_LOG_MAX_BYTES = 5L * 1024 * 1024
 
+        /** #1121 detailed-capture: opt-in rolling mirror of the strap log to an on-device file (adb-like,
+         *  but no computer). Shared via Test Centre → "Share captured log". */
+        const val CAPTURE_LOG_FILE = "noop-capture-log.txt"
+        // ~8 MB current + one rolled generation (.1) ≈ a full day even through heavy offload bursts.
+        private const val CAPTURE_LOG_MAX_BYTES = 8L * 1024 * 1024
+
         /** High-rate R22 deep-buffer research log (#423) — the big type-0x2F buffers (1244/2140 B) that
          *  carry tens-of-Hz motion/optical, kept raw in their own file so they survive long enough to
          *  reverse. The 2140-B buffers are ~4.3 KB of hex and arrive in bursts, so a bigger cap than the
@@ -7605,10 +7611,17 @@ class WhoopBleClient(
             if (debugLogcat) Log.d(TAG, safe)
             // Mirror into the in-app ring buffer (format under the lock — SimpleDateFormat isn't
             // thread-safe and log() is called from both the GATT binder thread and the main looper).
-            synchronized(logBuffer) {
-                logBuffer.addLast("${logTimeFmt.format(System.currentTimeMillis())}  $safe")
+            val stamped = synchronized(logBuffer) {
+                val line = "${logTimeFmt.format(System.currentTimeMillis())}  $safe"
+                logBuffer.addLast(line)
                 while (logBuffer.size > LOG_BUFFER_MAX) logBuffer.removeFirst()
+                line
             }
+            // #1121: when detailed capture is on, ALSO append the (already PII-scrubbed) line to the
+            // rolling on-device file, so a long-running issue is captured for hours rather than only the
+            // ~5000-line (~50 min) in-memory ring. No-op + near-zero cost when capture is off, and inside
+            // this same no-throw guard so a file error can never reach the connection path.
+            appendCaptureLog(stamped)
         } catch (t: Throwable) {
             // Last resort: note that a log line failed, without risking another throw. Never rethrow.
             runCatching {
@@ -7618,6 +7631,79 @@ class WhoopBleClient(
                 }
             }
         }
+    }
+
+    // ── #1121 Detailed capture: adb-like rolling strap-log file ────────────────────────────────────
+    // Opt-in mirror of every log() line into a rolling on-device file (filesDir/[CAPTURE_LOG_FILE], capped
+    // at [CAPTURE_LOG_MAX_BYTES] with one previous generation kept as ".1"), so a long-running diagnostic —
+    // battery, an overnight offload — survives well past the ~50 min the in-memory ring holds AND survives
+    // the process being killed (AppViewModel re-arms it from the persisted pref on launch). Lines are
+    // ALREADY PII-scrubbed by log() before they reach here (they are the same `safe` text the ring stores),
+    // so nothing extra is redacted on the way out. All file IO is under [captureLogLock]; a failure disables
+    // capture for the process rather than ever propagating to the connection path.
+    @Volatile private var captureLogWriter: java.io.BufferedWriter? = null
+    @Volatile private var captureLogDisabled = false
+    private var captureLogBytes = 0L
+    private val captureLogLock = Any()
+
+    /** Turn the rolling capture file on or off. Idempotent and safe to call from any thread. On enable it
+     *  opens (rotating first if the existing file is already at the cap); on disable it flushes + closes. */
+    fun setDetailedCapture(enabled: Boolean) {
+        synchronized(captureLogLock) {
+            if (enabled) {
+                if (captureLogWriter != null || captureLogDisabled) return
+                runCatching {
+                    val f = java.io.File(context.filesDir, CAPTURE_LOG_FILE)
+                    if (f.exists() && f.length() > CAPTURE_LOG_MAX_BYTES) rollCaptureFile(f)
+                    captureLogBytes = if (f.exists()) f.length() else 0L
+                    captureLogWriter = java.io.BufferedWriter(java.io.FileWriter(f, true))
+                }.onFailure { captureLogDisabled = true }
+            } else {
+                runCatching { captureLogWriter?.flush(); captureLogWriter?.close() }
+                captureLogWriter = null
+            }
+        }
+        // Emit the marker OUTSIDE the lock — log() → appendCaptureLog re-enters [captureLogLock].
+        when {
+            captureLogWriter != null ->
+                log("Detailed capture: rolling log ON (≤${CAPTURE_LOG_MAX_BYTES / (1024 * 1024)}MB ×2, filesDir/$CAPTURE_LOG_FILE)")
+            !enabled -> log("Detailed capture: OFF")
+        }
+    }
+
+    /** Append one already-scrubbed line to the rolling file, rotating at the cap. No-op when capture is
+     *  off. Called ONLY from [log], inside its no-throw guard. Flushes per line so a process kill (this
+     *  phone is not battery-exempt) keeps the tail. */
+    private fun appendCaptureLog(line: String) {
+        if (captureLogWriter == null) return
+        synchronized(captureLogLock) {
+            val w = captureLogWriter ?: return
+            runCatching {
+                w.write(line); w.write("\n"); w.flush()
+                captureLogBytes += line.length + 1
+                if (captureLogBytes > CAPTURE_LOG_MAX_BYTES) {
+                    w.flush(); w.close()
+                    val f = java.io.File(context.filesDir, CAPTURE_LOG_FILE)
+                    rollCaptureFile(f)
+                    captureLogWriter = java.io.BufferedWriter(java.io.FileWriter(f, true))
+                    captureLogBytes = 0L
+                }
+            }.onFailure {
+                // A write/rotate failure (disk full, revoked FD) disables capture for the process rather
+                // than failing every subsequent line — same self-quiescing contract as the 5/MG capture.
+                captureLogDisabled = true
+                runCatching { captureLogWriter?.close() }
+                captureLogWriter = null
+            }
+        }
+    }
+
+    /** Rotate [f] → "f.1", dropping any prior generation. Caller holds [captureLogLock] and has already
+     *  closed the writer (if any). */
+    private fun rollCaptureFile(f: java.io.File) {
+        val old = java.io.File(context.filesDir, "$CAPTURE_LOG_FILE.1")
+        old.delete()
+        f.renameTo(old)
     }
 
     /** Scrub personal identifiers from a strap-log line so it's safe to share publicly (#445, @maddognik):

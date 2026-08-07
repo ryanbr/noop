@@ -412,6 +412,16 @@ object NoopPrefs {
         of(context).edit().putBoolean(KEY_DEBUG_LOGGING, enabled).apply()
     }
 
+    /** #1121: whether the opt-in "detailed capture" rolling strap-log file is on. Persisted so capture
+     *  RESUMES after the process is killed (AppViewModel re-arms the BLE client from this on launch). */
+    const val KEY_DETAILED_CAPTURE = "noop.detailedCapture"
+    fun detailedCapture(context: Context): Boolean =
+        of(context).getBoolean(KEY_DETAILED_CAPTURE, false)
+
+    fun setDetailedCapture(context: Context, enabled: Boolean) {
+        of(context).edit().putBoolean(KEY_DETAILED_CAPTURE, enabled).apply()
+    }
+
     /** Whether NOOP re-broadcasts its live HR as a standard BLE Heart Rate peripheral. Default OFF. */
     fun hrBroadcast(context: Context): Boolean =
         of(context).getBoolean(KEY_HR_BROADCAST, false)
