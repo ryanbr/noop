@@ -194,6 +194,7 @@ struct SettingsView: View {
     /// time from About — covers how sleep is sorted, how scores + calibration work, what
     /// recording means, and where the provenance badges come from.
     @State private var showHowNoopWorks = false
+    @State private var showLimitations = false
 
     /// "Set up Apple Watch" sheet: the honest watch onboarding flow (what it's great at, where
     /// it's lighter, then the Health permission request). Presented from the About page's primary
@@ -297,6 +298,9 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showHowNoopWorks) {
             HowNoopWorksView(onClose: { showHowNoopWorks = false })
+        }
+        .sheet(isPresented: $showLimitations) {
+            NoopLimitationsView(onClose: { showLimitations = false })
         }
         .sheet(isPresented: $showAppleWatchSetup) {
             AppleWatchSetupView(onClose: { showAppleWatchSetup = false })
@@ -2173,6 +2177,35 @@ struct SettingsView: View {
                 }
                 .buttonStyle(LiquidPressStyle())
                 .accessibilityLabel("How NOOP works")
+
+                // NOOP Limitations — the plain 4.0 vs 5.0/MG capability grid (what reads live off each
+                // strap vs import-only). Note-free sibling of the Android screen; honest tri-state + legend.
+                Button {
+                    showLimitations = true
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "list.bullet.rectangle")
+                            .foregroundStyle(StrandPalette.accent)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("NOOP Limitations")
+                                .font(StrandFont.body)
+                                .foregroundStyle(StrandPalette.textPrimary)
+                            Text("What each strap can read live, and what needs an import.")
+                                .font(StrandFont.footnote)
+                                .foregroundStyle(StrandPalette.textTertiary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(StrandPalette.textTertiary)
+                            .accessibilityHidden(true)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(LiquidPressStyle())
+                .accessibilityLabel("NOOP Limitations")
 
                 // How your scores work — the honest explainer for Charge / Effort / Rest and the
                 // confidence labels. Always reachable here, mirroring the "What's new" affordance.
