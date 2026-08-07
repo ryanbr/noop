@@ -22,6 +22,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -225,6 +227,13 @@ internal fun FilledHypnogram(
     }
     val showsAxis = onsetTs != null && wakeTs != null
     val axSummary = hypnogramSummaryFor(intervals)
+    // Responsive time axis: exact onset/wake at the edges + round-hour marks between, MORE marks on a wider
+    // screen (~one label per 90dp). Empty when the night has no clock window (no axis then).
+    val axisTicks = if (showsAxis) {
+        hypnogramAxisTicks(onsetTs!!, wakeTs!!, maxLabels = (LocalConfiguration.current.screenWidthDp / 90).coerceIn(3, 8))
+    } else {
+        emptyList()
+    }
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.space6)) {
         Canvas(
             modifier = Modifier
@@ -292,21 +301,19 @@ internal fun FilledHypnogram(
                     cap = StrokeCap.Round,
                 )
             }
-            // Time-axis vertical hairlines: onset · midpoint · wake.
-            if (showsAxis) {
-                listOf(0f, 0.5f, 1f).forEach { frac ->
-                    val hx = w * frac
-                    drawLine(
-                        color = Palette.hairline,
-                        start = Offset(hx, 0f),
-                        end = Offset(hx, h),
-                        strokeWidth = 1f,
-                    )
-                }
+            // Time-axis vertical hairlines at each label tick (onset · round hours · wake).
+            axisTicks.forEach { (frac, _) ->
+                val hx = w * frac
+                drawLine(
+                    color = Palette.hairline,
+                    start = Offset(hx, 0f),
+                    end = Offset(hx, h),
+                    strokeWidth = 1f,
+                )
             }
         }
-        if (showsAxis && onsetTs != null && wakeTs != null) {
-            ClockLabelRow(onsetTs, wakeTs)
+        if (axisTicks.isNotEmpty()) {
+            HypnogramTimeAxis(axisTicks)
         }
     }
 }
@@ -316,6 +323,60 @@ internal fun FilledHypnogram(
  *  fragmented / under-detected night unless brief fragments coalesce into legible blocks; render-only, so
  *  totals/percentages are untouched. */
 private const val FILLED_HYPNOGRAM_SMOOTH_SEC = 300.0
+
+/**
+ * Time-axis ticks for the stepped hypnogram: the EXACT onset (frac 0) and wake (frac 1) at the edges, plus
+ * round-hour marks between at a "nice" step chosen so the interior count is ≤ [maxLabels]−2 — so a WIDER
+ * screen (larger [maxLabels]) shows MORE marks. Interior marks within ~8% of either edge are dropped so they
+ * can't collide with the onset/wake labels. Local-clock formatted via [clockTimeLabel]. Pure/unit-testable.
+ */
+internal fun hypnogramAxisTicks(onsetTs: Long, wakeTs: Long, maxLabels: Int): List<Pair<Float, String>> {
+    val span = (wakeTs - onsetTs).toDouble()
+    if (span <= 0.0) return listOf(0f to clockTimeLabel(onsetTs))
+    val out = ArrayList<Pair<Float, String>>()
+    out.add(0f to clockTimeLabel(onsetTs))
+    val spanHours = span / 3600.0
+    val interiorTarget = (maxLabels - 2).coerceAtLeast(1)
+    val stepH = intArrayOf(1, 2, 3, 4, 6, 8, 12).firstOrNull { spanHours / it <= interiorTarget + 0.5 } ?: 12
+    val stepSec = stepH * 3600L
+    var t = ((onsetTs / stepSec) + 1L) * stepSec // first step-aligned hour boundary strictly after onset
+    while (t < wakeTs) {
+        val frac = ((t - onsetTs).toDouble() / span).toFloat()
+        if (frac > 0.08f && frac < 0.92f) out.add(frac to clockTimeLabel(t))
+        t += stepSec
+    }
+    out.add(1f to clockTimeLabel(wakeTs))
+    return out
+}
+
+/**
+ * Places [ticks] (fraction 0..1 → label) along a full-width row, each label CENTRED on its fraction and
+ * clamped so the edge labels stay on-screen. A [Layout] (not a weighted Row) so round-hour marks sit at
+ * their true time position rather than evenly spaced — the labels line up with the axis hairlines drawn at
+ * the same fractions in the chart above.
+ */
+@Composable
+private fun HypnogramTimeAxis(ticks: List<Pair<Float, String>>) {
+    Layout(
+        modifier = Modifier.fillMaxWidth(),
+        content = {
+            ticks.forEach { (_, label) ->
+                Text(label, style = NoopType.footnote, color = Palette.textTertiary, maxLines = 1)
+            }
+        },
+    ) { measurables, constraints ->
+        val placeables = measurables.map { it.measure(constraints.copy(minWidth = 0)) }
+        val wpx = constraints.maxWidth
+        val hpx = placeables.maxOfOrNull { it.height } ?: 0
+        layout(wpx, hpx) {
+            placeables.forEachIndexed { i, p ->
+                val centerX = ticks[i].first * wpx
+                val x = (centerX - p.width / 2f).roundToInt().coerceIn(0, (wpx - p.width).coerceAtLeast(0))
+                p.place(x, 0)
+            }
+        }
+    }
+}
 
 /** One-line a11y summary of the smoothed hypnogram (stage count) — the collapsed node for [FilledHypnogram]. */
 private fun hypnogramSummaryFor(intervals: List<StageInterval>): String =
