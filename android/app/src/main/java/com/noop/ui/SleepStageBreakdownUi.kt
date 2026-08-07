@@ -231,7 +231,7 @@ internal fun FilledHypnogram(
     val showsAxis = onsetTs != null && wakeTs != null
     val axSummary = hypnogramSummaryFor(intervals)
     // Responsive time axis: exact onset/wake at the edges + round-hour marks between, MORE marks on a wider
-    // screen (~one label per 90dp). Empty when the night has no clock window (no axis then).
+    // screen. Empty when the night has no clock window (no axis then).
     // ~60dp per label so a phone (~360dp) budgets ~6 -> fills the interior with round-hour marks instead of
     // stranding the axis at just onset/mid/wake; a tablet fans out to the 8-label ceiling. Floor 4 keeps a
     // narrow phone from collapsing back to bare edges.
@@ -333,7 +333,7 @@ private const val FILLED_HYPNOGRAM_SMOOTH_SEC = 300.0
  * (minute precision, [axisEdgeLabel]), plus round-hour marks between at a "nice" step chosen so the interior
  * count is ≤ [maxLabels]−2 — so a WIDER screen (larger [maxLabels]) shows MORE marks. Interior marks read as
  * the hour only ([axisHourLabel] — "06:00" / "6 AM"), which is shorter than an edge label, so more fit. Marks
- * within ~15% of either edge are dropped so a round-hour label can't collide with the onset/wake label.
+ * within ~18% of either edge are dropped so a round-hour label can't collide with the onset/wake label.
  * [is24h] (from `DateFormat.is24HourFormat`) picks 12/24h formatting. Pure/unit-testable.
  */
 internal fun hypnogramAxisTicks(
@@ -358,9 +358,9 @@ internal fun hypnogramAxisTicks(
     var t = (((onsetTs + offset) / stepSec) + 1L) * stepSec - offset // first LOCAL hour boundary after onset
     while (t < wakeTs) {
         val frac = ((t - onsetTs).toDouble() / span).toFloat()
-        // Drop marks within ~15% of an edge so a round-hour label can't overlap the onset/wake label
-        // (each is roughly a tenth of the width, plus half the mark's own width, on a phone).
-        if (frac > 0.15f && frac < 0.85f) out.add(frac to axisHourLabel(t, is24h))
+        // Drop marks within ~18% of an edge so a round-hour label can't overlap the onset/wake label — sized
+        // for the WIDER 12h edge ("10:25 AM"), plus half the mark's own width, on a phone.
+        if (frac > 0.18f && frac < 0.82f) out.add(frac to axisHourLabel(t, is24h))
         t += stepSec
     }
     out.add(1f to axisEdgeLabel(wakeTs, is24h))
