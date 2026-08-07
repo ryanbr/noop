@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -186,6 +187,119 @@ internal fun HypnogramWithAxis(
         }
     }
 }
+
+/**
+ * #sleep-chart-style — the opt-in FILLED stepped hypnogram (the WHOOP-style single chart): stages stacked
+ * by depth (Awake top → REM → Light → Deep bottom), each stage's column FILLED from its level down to the
+ * baseline, with thin vertical risers tracing the transitions and an onset · midpoint · wake time axis.
+ *
+ * Unlike the classic proportional views this plots the night's REAL timestamps, so [segments] must be the
+ * timestamped `PersistedSegment` array (`SleepModel.hypnogramSegments`); the caller only routes here when
+ * the pref is FILLED and that array is present. Sub-90s fragments are display-smoothed (shared
+ * [displaySmoothed], render-only — totals/percentages are untouched) so the night reads as a clean
+ * staircase rather than a comb. One collapsed a11y node.
+ */
+@Composable
+internal fun FilledHypnogram(
+    segments: List<PersistedSegment>,
+    onsetTs: Long?,
+    wakeTs: Long?,
+) {
+    if (segments.isEmpty()) return
+    val originSec = (onsetTs?.toDouble()) ?: segments.minOf { it.start }.toDouble()
+    val endSec = (wakeTs?.toDouble()) ?: segments.maxOf { it.end }.toDouble()
+    val spanSec = (endSec - originSec).coerceAtLeast(1.0)
+    val intervals = remember(segments, originSec, spanSec) {
+        displaySmoothed(
+            segments.map { StageInterval(it.stage, it.start - originSec, it.end - originSec) },
+            FILLED_HYPNOGRAM_SMOOTH_SEC,
+        )
+    }
+    val showsAxis = onsetTs != null && wakeTs != null
+    val axSummary = hypnogramSummaryFor(intervals)
+    Column(verticalArrangement = Arrangement.spacedBy(Metrics.space6)) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(Metrics.compactChartHeight)
+                .semantics { contentDescription = axSummary },
+        ) {
+            val w = size.width
+            val h = size.height
+            if (w <= 0f || h <= 0f || intervals.isEmpty()) return@Canvas
+            val rowStep = h / 4f
+            fun levelY(rank: Int): Float = rowStep * (rank + 0.5f)
+            fun rankOf(stage: String): Int = when (canonicalStage(stage)) {
+                "awake" -> 0
+                "rem" -> 1
+                "light" -> 2
+                "deep" -> 3
+                else -> 2
+            }
+            fun xOf(sec: Double): Float = (w * (sec / spanSec)).toFloat().coerceIn(0f, w)
+            val radius = CornerRadius(2.dp.toPx(), 2.dp.toPx())
+
+            // Faint per-stage lane guides so height → stage reads even across gaps (mirrors the iOS lanes).
+            for (rank in 0 until 4) {
+                val y = levelY(rank)
+                drawLine(
+                    color = Palette.hairline.copy(alpha = 0.25f),
+                    start = Offset(0f, y),
+                    end = Offset(w, y),
+                    strokeWidth = 1f,
+                )
+            }
+            // Filled columns: each stage from its level DOWN to the baseline.
+            intervals.forEach { iv ->
+                val x0 = xOf(iv.startSec)
+                val x1 = xOf(iv.endSec)
+                val top = levelY(rankOf(iv.stage))
+                drawRoundRect(
+                    color = stageColorFor(iv.stage),
+                    topLeft = Offset(x0, top),
+                    size = Size((x1 - x0).coerceAtLeast(1.5f).coerceAtMost(w - x0), (h - top).coerceAtLeast(0f)),
+                    cornerRadius = radius,
+                )
+            }
+            // Connecting risers tracing the staircase between consecutive column tops.
+            for (i in 0 until intervals.size - 1) {
+                val a = intervals[i]
+                val b = intervals[i + 1]
+                val x = xOf(b.startSec)
+                drawLine(
+                    color = Palette.textTertiary.copy(alpha = 0.5f),
+                    start = Offset(x, levelY(rankOf(a.stage))),
+                    end = Offset(x, levelY(rankOf(b.stage))),
+                    strokeWidth = 1.5f,
+                    cap = StrokeCap.Round,
+                )
+            }
+            // Time-axis vertical hairlines: onset · midpoint · wake.
+            if (showsAxis) {
+                listOf(0f, 0.5f, 1f).forEach { frac ->
+                    val hx = w * frac
+                    drawLine(
+                        color = Palette.hairline,
+                        start = Offset(hx, 0f),
+                        end = Offset(hx, h),
+                        strokeWidth = 1f,
+                    )
+                }
+            }
+        }
+        if (showsAxis && onsetTs != null && wakeTs != null) {
+            ClockLabelRow(onsetTs, wakeTs)
+        }
+    }
+}
+
+/** Display-smoothing floor for [FilledHypnogram] — matches the classic timeline's STAGE_ROW_SMOOTH_SEC so
+ *  both views absorb the same sub-minute flicker. */
+private const val FILLED_HYPNOGRAM_SMOOTH_SEC = 90.0
+
+/** One-line a11y summary of the smoothed hypnogram (stage count) — the collapsed node for [FilledHypnogram]. */
+private fun hypnogramSummaryFor(intervals: List<StageInterval>): String =
+    if (intervals.isEmpty()) "Sleep stages, no data" else "Sleep stage timeline, ${intervals.size} segments"
 
 /**
  * The onset · midpoint · wake clock-label row under a night timeline. Extracted from

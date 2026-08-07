@@ -16,12 +16,17 @@ import kotlin.math.roundToInt
  * segments exist); else null → the honest fallback. Never another night's data. (#160)
  */
 internal fun heroDisplay(model: SleepModel?, night: HeroNight?): HeroDisplay? {
-    if (model != null) return HeroDisplay(model.stages, model.realSegments, model.efficiencyText)
+    if (model != null) {
+        return HeroDisplay(model.stages, model.realSegments, model.hypnogramSegments, model.efficiencyText)
+    }
     val segments = night?.realSegments ?: return null
     val stages = stagesFromSegments(segments) ?: return null
     val eff = night.session.efficiency
         ?.let { e -> "${(if (e <= 1.0) e * 100.0 else e).roundToInt()}%" } ?: "—"
-    return HeroDisplay(stages, segments, eff)
+    // Timestamped segments for the FILLED chart on the fallback path too: the group's full-night segments
+    // when the night is fragmented, else this session's persisted array.
+    val tsSegments = night.groupSegments ?: parsePersistedSegments(night.session.stagesJSON)
+    return HeroDisplay(stages, segments, tsSegments, eff)
 }
 
 /** Sum (stage, minutes) weights into per-stage totals; null when nothing is > 0. */
@@ -219,13 +224,15 @@ internal fun buildSleepModel(
     // near-midnight-UTC wake only matches via the local key; selectNight attributes the
     // night the same way). A non-matching session degrades safely to synthesis, never to
     // a wrong night. (#160)
-    val realSegments = heroSegments?.map { seg -> seg.stage to ((seg.end - seg.start) / 60f) }
+    // Real timestamped segments (group when fragmented, else this session's) — kept whole for the FILLED
+    // hypnogram, and flattened to (stage, minutes) weights for the classic proportional/rows view.
+    val hypnogramSegments: List<PersistedSegment>? = heroSegments
         ?: session
             ?.takeIf {
                 AnalyticsEngine.dayString(it.endTs) == latest.day || localDayString(it.endTs) == latest.day
             }
             ?.let { parsePersistedSegments(it.stagesJSON) }
-            ?.map { seg -> seg.stage to ((seg.end - seg.start) / 60f) }
+    val realSegments = hypnogramSegments?.map { seg -> seg.stage to ((seg.end - seg.start) / 60f) }
 
     // Rolling 14-night sleep-debt ledger over the FULL day history (the analytics caps to the
     // most-recent 14 counted nights and skips no-data nights), using the SAME personal need the
@@ -260,6 +267,7 @@ internal fun buildSleepModel(
         trendDebtHours = trendDebtHours,
         trendDates = trendDates,
         realSegments = realSegments,
+        hypnogramSegments = hypnogramSegments,
         sleepDebtLedger = sleepDebtLedger,
     )
 }

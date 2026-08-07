@@ -1082,23 +1082,46 @@ private fun Hero(
             // else keeps the honest proportional strip + StageBreakdownRows footer.
             val real = display.realSegments?.takeIf { it.size >= 2 }
             if (real != null) {
-                ChartCard(
-                    title = uiString(R.string.l10n_sleep_screen_stage_breakdown_e9b714f9),
-                    subtitle = subtitle,
-                    trailing = durationText(s.asleep),
-                    tint = Palette.restColor,
-                    footer = {},
-                ) {
-                    StageTimeline(
-                        realSegments = real,
-                        s = s,
-                        // #345: the axis spans the WHOLE night. The group hypnogram (#364 seams) runs to
-                        // the group's last wake; labelling the axis off the session fragment's endTs cut
-                        // the clock labels short on a split night.
-                        onsetTs = windowOnsetTs ?: session?.effectiveStartTs,
-                        wakeTs = windowWakeTs ?: session?.endTs,
-                        motionEpochs = motionEpochs,
-                    )
+                // #sleep-chart-style: the opt-in FILLED stepped hypnogram when the user selected it AND the
+                // night has real timestamped segments; otherwise the classic per-stage-rows timeline (the
+                // default, unchanged for everyone who doesn't switch).
+                val chartStyle = UnitPrefs.sleepChartStyle(LocalContext.current)
+                val filledSegments = display.hypnogramSegments?.takeIf { it.size >= 2 }
+                if (chartStyle == SleepChartStyle.FILLED && filledSegments != null) {
+                    ChartCard(
+                        title = uiString(R.string.l10n_sleep_screen_stage_breakdown_e9b714f9),
+                        subtitle = subtitle,
+                        trailing = durationText(s.asleep),
+                        tint = Palette.restColor,
+                        // The stepped chart carries no built-in legend (the rows ARE the legend in the
+                        // classic view), so surface the per-stage breakdown below it, like the reference.
+                        footer = { StageBreakdownRows(s) },
+                    ) {
+                        FilledHypnogram(
+                            segments = filledSegments,
+                            onsetTs = windowOnsetTs ?: session?.effectiveStartTs,
+                            wakeTs = windowWakeTs ?: session?.endTs,
+                        )
+                    }
+                } else {
+                    ChartCard(
+                        title = uiString(R.string.l10n_sleep_screen_stage_breakdown_e9b714f9),
+                        subtitle = subtitle,
+                        trailing = durationText(s.asleep),
+                        tint = Palette.restColor,
+                        footer = {},
+                    ) {
+                        StageTimeline(
+                            realSegments = real,
+                            s = s,
+                            // #345: the axis spans the WHOLE night. The group hypnogram (#364 seams) runs to
+                            // the group's last wake; labelling the axis off the session fragment's endTs cut
+                            // the clock labels short on a split night.
+                            onsetTs = windowOnsetTs ?: session?.effectiveStartTs,
+                            wakeTs = windowWakeTs ?: session?.endTs,
+                            motionEpochs = motionEpochs,
+                        )
+                    }
                 }
             } else {
                 ChartCard(

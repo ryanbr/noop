@@ -109,6 +109,24 @@ enum class HrvWindow(val raw: String) {
 }
 
 /**
+ * How the Sleep tab draws the night's stage timeline (#sleep-chart-style). Display-only — no metric or
+ * stored value changes; it only picks which chart renders. Default [CLASSIC] so nobody's view changes
+ * unless they opt in.
+ */
+enum class SleepChartStyle(val raw: String) {
+    /** The long-standing per-stage-rows timeline (Awake/Light/Deep/REM each on their own track). */
+    CLASSIC("classic"),
+
+    /** A single stepped hypnogram with the stages stacked by depth and each column FILLED to the
+     *  baseline, WHOOP-style — needs the night's real timestamped segments, else falls back to CLASSIC. */
+    FILLED("filled");
+
+    companion object {
+        fun fromRaw(raw: String?): SleepChartStyle = entries.firstOrNull { it.raw == raw } ?: CLASSIC
+    }
+}
+
+/**
  * Reads the two unit preferences from [NoopPrefs] and resolves the "match the system" default for
  * temperature. SharedPreferences isn't reactive, so Compose screens read these once into remembered
  * state (exactly like the other toggles) and re-read on a recomposition triggered by the Settings write.
@@ -164,6 +182,18 @@ object UnitPrefs {
     /** Persist the nightly-HRV window. Changing it re-scores + re-baselines (the value itself moves). */
     fun setHrvWindow(context: Context, window: HrvWindow) {
         NoopPrefs.of(context).edit().putString(KEY_HRV_WINDOW, window.raw).apply()
+    }
+
+    /** SharedPreferences key for the Sleep tab's stage-chart style (#sleep-chart-style). */
+    const val KEY_SLEEP_CHART_STYLE = "sleep.chart.style"
+
+    /** The Sleep stage-chart style (default CLASSIC per-stage rows). Display-only. */
+    fun sleepChartStyle(context: Context): SleepChartStyle =
+        SleepChartStyle.fromRaw(NoopPrefs.of(context).getString(KEY_SLEEP_CHART_STYLE, null))
+
+    /** Persist the Sleep stage-chart style. Display-only — no re-score. */
+    fun setSleepChartStyle(context: Context, style: SleepChartStyle) {
+        NoopPrefs.of(context).edit().putString(KEY_SLEEP_CHART_STYLE, style.raw).apply()
     }
 }
 
