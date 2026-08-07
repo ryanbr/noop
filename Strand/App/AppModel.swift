@@ -443,7 +443,13 @@ final class AppModel: ObservableObject {
                 // v5: recompute the skin-temp suite snapshots (cycle phase + body clock) from the
                 // freshly-scored history so the Health hub cards read a ready result.
                 await self.refreshV5Signals()
-                try? await Task.sleep(nanoseconds: 900_000_000_000)  // 15 min, matches the offload cadence
+                // #836 battery: 30-min BACKSTOP cadence (twin of Android ANALYZE_INTERVAL_MS). The
+                // `force: false` gate above can't skip while the strap streams live HR — the fingerprint
+                // advances every second — so this re-scored the whole 21-day window every 15 min even though
+                // only today's daytime HR changed. It's a pure backstop (every real update rescores via its
+                // own forced call above), so halving the cadence only delays the idle refresh of today's
+                // live Effort/steps; recovery/sleep are night-computed and unaffected.
+                try? await Task.sleep(nanoseconds: 1_800_000_000_000)  // 30 min backstop (#836 battery)
             }
         }
     }
