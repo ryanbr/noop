@@ -3,6 +3,7 @@ package com.noop.ui
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.TimeZone
 
 /**
  * Pure coverage for the stepped-hypnogram time axis (#sleep-chart-style): the exact onset/wake anchor the
@@ -44,6 +45,19 @@ class HypnogramAxisTicksTest {
     @Test fun interiorMarksAreHourOnly24h() {
         hypnogramAxisTicks(onset, eightHours, maxLabels = 8, is24h = true).drop(1).dropLast(1)
             .forEach { (_, label) -> assertTrue("'$label' should be HH:00", label.matches(Regex("""\d{2}:00"""))) }
+    }
+
+    // Marks align to LOCAL hour boundaries, so "HH:00" is truthful even on a half-hour-offset zone where
+    // epoch-aligned steps would land at :30. Pin IST (UTC+5:30) and assert every interior mark ends ":00".
+    @Test fun halfHourOffsetZoneStillLandsOnRoundHours() {
+        val saved = TimeZone.getDefault()
+        try {
+            TimeZone.setDefault(TimeZone.getTimeZone("Asia/Kolkata"))
+            hypnogramAxisTicks(onset, onset + 9 * 3600L, maxLabels = 8, is24h = true).drop(1).dropLast(1)
+                .forEach { (_, label) -> assertTrue("'$label' should end :00 in IST", label.endsWith(":00")) }
+        } finally {
+            TimeZone.setDefault(saved)
+        }
     }
 
     @Test fun twelveHourFormatUsesAmPm() {

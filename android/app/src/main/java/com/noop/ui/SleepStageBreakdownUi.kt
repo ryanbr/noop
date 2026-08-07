@@ -26,6 +26,7 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import android.text.format.DateFormat
+import java.util.TimeZone
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -349,7 +350,12 @@ internal fun hypnogramAxisTicks(
     val interiorTarget = (maxLabels - 2).coerceAtLeast(1)
     val stepH = intArrayOf(1, 2, 3, 4, 6, 8, 12).firstOrNull { spanHours / it <= interiorTarget + 0.5 } ?: 12
     val stepSec = stepH * 3600L
-    var t = ((onsetTs / stepSec) + 1L) * stepSec // first step-aligned hour boundary strictly after onset
+    // Align marks to LOCAL hour boundaries, not UNIX-epoch ones: on a half-hour-offset zone (e.g. UTC+5:30)
+    // an epoch-aligned 3h step lands at local :30, and axisHourLabel's "HH:00" would then LIE. Local midnight
+    // is a whole number of days (a multiple of stepSec for every stepH that divides 24), so shifting into
+    // local-epoch space by the zone offset, aligning there, and shifting back puts every mark on a true :00.
+    val offset = TimeZone.getDefault().getOffset(onsetTs * 1000L) / 1000L
+    var t = (((onsetTs + offset) / stepSec) + 1L) * stepSec - offset // first LOCAL hour boundary after onset
     while (t < wakeTs) {
         val frac = ((t - onsetTs).toDouble() / span).toFloat()
         // Drop marks within ~15% of an edge so a round-hour label can't overlap the onset/wake label
