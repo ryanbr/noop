@@ -85,6 +85,54 @@ final class DecoderGoldenTests: XCTestCase {
         XCTAssertNil(OuraDecoders.decodeHRV(record("5d0702000100328432")))
     }
 
+    // MARK: - 0x5D `00 00` tail padding (#1128)
+
+    /// A record that closes early pads its tail with `00 00`. That pair is not a reading, and a stored
+    /// `hr_bpm: 0` is a fabricated value nothing downstream can tell from a measurement. Real shape,
+    /// from the 2026-08-07 overnight: `... 48/128 47/137 ... 0/0`.
+    func testHRV0x5DDropsTailPadding() {
+        // (50,132), (50,131), then a 00 00 pad.
+        let hrv = OuraDecoders.decodeHRV(record("5d0a02000100328432830000"))
+        XCTAssertEqual(hrv, [
+            OuraHRV(ringTimestamp: rt, index: 0, hrBpm: 50, rmssdMs: 132),
+            OuraHRV(ringTimestamp: rt, index: 1, hrBpm: 50, rmssdMs: 131),
+        ])
+    }
+
+    /// A body that is ENTIRELY padding carries no bucket at all, so it decodes to nil (honest no-data)
+    /// rather than to an empty array a caller might treat as "decoded fine, zero readings".
+    func testHRV0x5DAllPaddingIsNil() {
+        XCTAssertNil(OuraDecoders.decodeHRV(record("5d06020001000000")))
+    }
+
+    /// THE ONE THAT MATTERS: a skipped pair must still CONSUME its index. `index` is not a label —
+    /// `OuraStreamMapping` derives the bucket's wall-clock from it (`bucketTs = ts - index * 300`), so
+    /// renumbering the survivors would slide every later bucket 5 minutes into the past.
+    ///
+    /// Tail padding cannot detect that mistake (nothing follows the pad), which is why this plants the
+    /// zero pair in the MIDDLE: the bucket after it must keep index 2, not collapse to index 1. Only
+    /// tail padding has been observed in the wild; this guards the shape we have not seen yet.
+    func testHRV0x5DZeroPairConsumesItsIndex() {
+        // (50,132), 00 00, (49,130) — the survivor after the pad must stay at index 2.
+        let hrv = OuraDecoders.decodeHRV(record("5d0a02000100328400003182"))
+        XCTAssertEqual(hrv, [
+            OuraHRV(ringTimestamp: rt, index: 0, hrBpm: 50, rmssdMs: 132),
+            OuraHRV(ringTimestamp: rt, index: 2, hrBpm: 49, rmssdMs: 130),
+        ])
+    }
+
+    /// A genuine bucket whose RMSSD byte happens to be 0 is NOT padding and must survive: the rule keys
+    /// on both bytes being zero, so a real reading with one zero byte stays visible as the anomaly it
+    /// would be, instead of being swallowed by the padding rule.
+    func testHRV0x5DLoneZeroByteIsNotTreatedAsPadding() {
+        // (50,0) and (0,131): one zero byte each, neither is the 00 00 signature.
+        let hrv = OuraDecoders.decodeHRV(record("5d080200010032000083"))
+        XCTAssertEqual(hrv, [
+            OuraHRV(ringTimestamp: rt, index: 0, hrBpm: 50, rmssdMs: 0),
+            OuraHRV(ringTimestamp: rt, index: 1, hrBpm: 0, rmssdMs: 131),
+        ])
+    }
+
     // MARK: - 0x6F SpO2 per-sample (byte6 high nibble is a base/status field, DISCARDED; samples are
     // direct percentages, #968 — adding the scaled base gave impossible ~223% readings)
 
