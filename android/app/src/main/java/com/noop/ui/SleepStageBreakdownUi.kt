@@ -242,7 +242,6 @@ internal fun FilledHypnogram(
                 else -> 2
             }
             fun xOf(sec: Double): Float = (w * (sec / spanSec)).toFloat().coerceIn(0f, w)
-            val radius = CornerRadius(2.dp.toPx(), 2.dp.toPx())
 
             // Faint per-stage lane guides so height → stage reads even across gaps (mirrors the iOS lanes).
             for (rank in 0 until 4) {
@@ -254,16 +253,17 @@ internal fun FilledHypnogram(
                     strokeWidth = 1f,
                 )
             }
-            // Filled columns: each stage from its level DOWN to the baseline.
+            // Filled columns: each stage from its level DOWN to the baseline. Sharp rects (not rounded) so
+            // adjacent columns TILE seamlessly into one continuous staircase — the 2dp rounding left dark
+            // notch-gaps between blocks that read as a comb on a fragmented night.
             intervals.forEach { iv ->
                 val x0 = xOf(iv.startSec)
                 val x1 = xOf(iv.endSec)
                 val top = levelY(rankOf(iv.stage))
-                drawRoundRect(
+                drawRect(
                     color = stageColorFor(iv.stage),
                     topLeft = Offset(x0, top),
                     size = Size((x1 - x0).coerceAtLeast(1.5f).coerceAtMost(w - x0), (h - top).coerceAtLeast(0f)),
-                    cornerRadius = radius,
                 )
             }
             // Connecting risers tracing the staircase between consecutive column tops.
@@ -298,9 +298,11 @@ internal fun FilledHypnogram(
     }
 }
 
-/** Display-smoothing floor for [FilledHypnogram] — matches the classic timeline's STAGE_ROW_SMOOTH_SEC so
- *  both views absorb the same sub-minute flicker. */
-private const val FILLED_HYPNOGRAM_SMOOTH_SEC = 90.0
+/** Display-smoothing floor for [FilledHypnogram] — 5 min, matching the WHOOP-style Swift `Hypnogram`
+ *  default (not the classic rows' 90s). The stepped single-chart view reads as a comb of thin spikes on a
+ *  fragmented / under-detected night unless brief fragments coalesce into legible blocks; render-only, so
+ *  totals/percentages are untouched. */
+private const val FILLED_HYPNOGRAM_SMOOTH_SEC = 300.0
 
 /** One-line a11y summary of the smoothed hypnogram (stage count) — the collapsed node for [FilledHypnogram]. */
 private fun hypnogramSummaryFor(intervals: List<StageInterval>): String =
