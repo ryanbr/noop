@@ -2306,6 +2306,16 @@ class WhoopBleClient(
      *  `consecutiveAutoContinues`. */
     private var consecutiveAutoContinues = 0
 
+    /** #battery: consecutive offload sessions that handed over ZERO sensor rows — whether a clean
+     *  HISTORY_COMPLETE-empty OR an idle-timeout STALL (`result=stalled … rows=0`). Feeds BackfillPolicy's
+     *  exponential backoff so the 15-min periodic poll STOPS spinning the radio on a strap that keeps
+     *  returning nothing (a real battery drain: a capture showed ~6 empty stalls/hour at the 15-min floor
+     *  with no backoff, because only HISTORY_COMPLETE fed [emptySyncTracker]). SEPARATE from that tracker —
+     *  which stays console-only-specific for the clock-lost banner — so counting stalls here can never
+     *  falsely fire that banner. Any banked rows reset it; the productive auto-continue tail doesn't count.
+     *  Main-looper only. */
+    private var consecutiveEmptyOffloads = 0
+
     /** #364 spin-detector: the trim cursor as of the END of the PREVIOUS backfill session this
      *  connection. [exitBackfilling] compares Backfiller.lastAckedTrim against this to decide whether the
      *  just-ended session advanced the strap's trim (progress) or froze (stop re-kicking). null until the
@@ -6510,7 +6520,10 @@ class WhoopBleClient(
                 trigger = trigger,
                 nowSeconds = System.currentTimeMillis() / 1000.0,
                 lastBackfillAtSeconds = lastBackfillAtMs?.let { it / 1000.0 },
-                emptyStreak = emptySyncTracker.consecutiveEmptySyncs,
+                // #battery: back off on EITHER a console-only streak (clock-lost, [emptySyncTracker]) OR a
+                // plain empty-offload streak incl. idle-timeout stalls ([consecutiveEmptyOffloads]); the
+                // latter is what stops the 15-min radio poll spinning on a caught-up strap.
+                emptyStreak = maxOf(emptySyncTracker.consecutiveEmptySyncs, consecutiveEmptyOffloads),
                 clockUntrusted = clockUntrusted,
             )
         ) {
@@ -6732,6 +6745,16 @@ class WhoopBleClient(
                 "Backfill: completed but the strap banked no sensor history ($detail); " +
                     "consecutive empty syncs = ${emptySyncTracker.consecutiveEmptySyncs}.",
             )
+        }
+        // #battery: maintain the empty-offload backoff counter (see [consecutiveEmptyOffloads]). A 0-row
+        // session — clean HISTORY_COMPLETE-empty OR an idle-timeout STALL — means there was nothing new to
+        // fetch, so let BackfillPolicy stretch the next PERIODIC/STRAP poll instead of re-spinning the radio
+        // in 15 min. Any banked rows reset it; a productive auto-continue tail (an earlier session in the
+        // burst already banked) neither counts nor resets.
+        consecutiveEmptyOffloads = when {
+            backfiller.sessionRowsPersisted > 0 -> 0
+            productiveBurstTail -> consecutiveEmptyOffloads
+            else -> consecutiveEmptyOffloads + 1
         }
         // #324/#928: a strap whose newest banked record is dated in the FUTURE (RTC relatched ahead) is
         // future-dated regardless of HOW this offload ended — a deep future-dated backlog TIMES OUT as
