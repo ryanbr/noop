@@ -229,11 +229,8 @@ internal fun FilledHypnogram(
     val axSummary = hypnogramSummaryFor(intervals)
     // Responsive time axis: exact onset/wake at the edges + round-hour marks between, MORE marks on a wider
     // screen (~one label per 90dp). Empty when the night has no clock window (no axis then).
-    val axisTicks = if (showsAxis) {
-        hypnogramAxisTicks(onsetTs!!, wakeTs!!, maxLabels = (LocalConfiguration.current.screenWidthDp / 90).coerceIn(3, 8))
-    } else {
-        emptyList()
-    }
+    val maxAxisLabels = (LocalConfiguration.current.screenWidthDp / 90).coerceIn(3, 8)
+    val axisTicks = if (showsAxis) hypnogramAxisTicks(onsetTs!!, wakeTs!!, maxAxisLabels) else emptyList()
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.space6)) {
         Canvas(
             modifier = Modifier
@@ -342,7 +339,9 @@ internal fun hypnogramAxisTicks(onsetTs: Long, wakeTs: Long, maxLabels: Int): Li
     var t = ((onsetTs / stepSec) + 1L) * stepSec // first step-aligned hour boundary strictly after onset
     while (t < wakeTs) {
         val frac = ((t - onsetTs).toDouble() / span).toFloat()
-        if (frac > 0.08f && frac < 0.92f) out.add(frac to clockTimeLabel(t))
+        // Drop marks within ~12% of an edge so a round-hour label can't overlap the onset/wake label
+        // (each is roughly a tenth of the width, plus half the mark's own width, on a phone).
+        if (frac > 0.12f && frac < 0.88f) out.add(frac to clockTimeLabel(t))
         t += stepSec
     }
     out.add(1f to clockTimeLabel(wakeTs))
