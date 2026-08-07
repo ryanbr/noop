@@ -654,6 +654,14 @@ public final class BLEManager: NSObject, ObservableObject {
     /// (its else path, under the cap) and on disconnect — NOT unconditionally on every HISTORY_COMPLETE,
     /// so a strap that slices one offload into many completions can't reset the cap each slice (#25).
     private var consecutiveAutoContinues = 0
+    /// #battery: consecutive offload sessions that banked ZERO sensor rows — a clean HISTORY_COMPLETE-empty
+    /// OR an idle-timeout STALL. Feeds BackfillPolicy's exponential backoff so the 15-min periodic poll
+    /// stops spinning the radio on a strap returning nothing (a capture showed ~6 empty stalls/hour with no
+    /// backoff, because only HISTORY_COMPLETE fed emptySyncTracker). SEPARATE from that tracker — which
+    /// stays console-only-specific for the clock-lost banner — so counting stalls can never falsely fire
+    /// that banner. Any banked rows reset it; the productive auto-continue tail doesn't count. Twin of
+    /// Android `consecutiveEmptyOffloads`.
+    private var consecutiveEmptyOffloads = 0
     /// #364 spin-detector: the trim cursor as of the END of the previous backfill session this
     /// connection. exitBackfilling compares the current Backfiller.lastAckedTrim against this to decide
     /// whether the just-ended session actually advanced the strap's trim (progress) or froze (stop
@@ -1978,6 +1986,12 @@ public final class BLEManager: NSObject, ObservableObject {
         // HISTORY_COMPLETE stamps lastSyncedAt + clears any error; the idle-watchdog timeout surfaces
         // a non-silent error. A disconnect mid-sync bypasses this path (didDisconnectPeripheral resets
         // the flags directly) — that's not a sync failure, and the next connect re-offloads.
+        // #battery: maintain the empty-offload backoff counter for EVERY exit reason (twin of Android
+        // consecutiveEmptyOffloads). A 0-row session — clean HISTORY_COMPLETE-empty OR an idle-timeout STALL
+        // — feeds BackfillPolicy's exponential backoff so the periodic poll stops spinning on a strap
+        // handing over nothing; any banked rows reset it, and a productive auto-continue tail doesn't count.
+        if (backfiller?.sessionRowsPersisted ?? 0) > 0 { consecutiveEmptyOffloads = 0 }
+        else if consecutiveAutoContinues == 0 { consecutiveEmptyOffloads += 1 }
         if reason == "HISTORY_COMPLETE" {
             state.lastSyncedAt = Date().timeIntervalSince1970
             // #77 / #91: a sync that COMPLETED but discarded records must not read as a clean
@@ -3493,7 +3507,10 @@ public final class BLEManager: NSObject, ObservableObject {
         // the .strap/.periodic triggers entirely for such a strap (the .connect pass still re-checks it).
         let clockUntrusted = BackfillContinuation.isFutureDatedNewest(strapNewestTs, wallNowUnix: Int(now))
         guard BackfillPolicy.shouldRun(trigger: trigger, now: now, lastBackfillAt: last,
-                                       emptyStreak: emptySyncTracker.consecutiveEmptySyncs,
+                                       // #battery: back off on EITHER a console-only streak (clock-lost) OR a
+                                       // plain empty-offload streak incl. idle-timeout stalls — the latter is
+                                       // what stops the 15-min poll spinning on a caught-up strap.
+                                       emptyStreak: max(emptySyncTracker.consecutiveEmptySyncs, consecutiveEmptyOffloads),
                                        clockUntrusted: clockUntrusted) else {
             log("Backfill: \(trigger) skipped (rate-limited; last \(last.map { Int(now - $0) } ?? -1)s ago)")
             return
