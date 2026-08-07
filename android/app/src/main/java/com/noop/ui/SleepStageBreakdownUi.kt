@@ -24,6 +24,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import android.text.format.DateFormat
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -229,8 +231,12 @@ internal fun FilledHypnogram(
     val axSummary = hypnogramSummaryFor(intervals)
     // Responsive time axis: exact onset/wake at the edges + round-hour marks between, MORE marks on a wider
     // screen (~one label per 90dp). Empty when the night has no clock window (no axis then).
-    val maxAxisLabels = (LocalConfiguration.current.screenWidthDp / 90).coerceIn(3, 8)
-    val axisTicks = if (showsAxis) hypnogramAxisTicks(onsetTs!!, wakeTs!!, maxAxisLabels) else emptyList()
+    // ~60dp per label so a phone (~360dp) budgets ~6 -> fills the interior with round-hour marks instead of
+    // stranding the axis at just onset/mid/wake; a tablet fans out to the 8-label ceiling. Floor 4 keeps a
+    // narrow phone from collapsing back to bare edges.
+    val maxAxisLabels = (LocalConfiguration.current.screenWidthDp / 60).coerceIn(4, 8)
+    val is24h = DateFormat.is24HourFormat(LocalContext.current)
+    val axisTicks = if (showsAxis) hypnogramAxisTicks(onsetTs!!, wakeTs!!, maxAxisLabels, is24h) else emptyList()
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.space6)) {
         Canvas(
             modifier = Modifier
@@ -322,16 +328,23 @@ internal fun FilledHypnogram(
 private const val FILLED_HYPNOGRAM_SMOOTH_SEC = 300.0
 
 /**
- * Time-axis ticks for the stepped hypnogram: the EXACT onset (frac 0) and wake (frac 1) at the edges, plus
- * round-hour marks between at a "nice" step chosen so the interior count is ≤ [maxLabels]−2 — so a WIDER
- * screen (larger [maxLabels]) shows MORE marks. Interior marks within ~8% of either edge are dropped so they
- * can't collide with the onset/wake labels. Local-clock formatted via [clockTimeLabel]. Pure/unit-testable.
+ * Time-axis ticks for the stepped hypnogram: the EXACT onset (frac 0) and wake (frac 1) at the edges
+ * (minute precision, [axisEdgeLabel]), plus round-hour marks between at a "nice" step chosen so the interior
+ * count is ≤ [maxLabels]−2 — so a WIDER screen (larger [maxLabels]) shows MORE marks. Interior marks read as
+ * the hour only ([axisHourLabel] — "06:00" / "6 AM"), which is shorter than an edge label, so more fit. Marks
+ * within ~15% of either edge are dropped so a round-hour label can't collide with the onset/wake label.
+ * [is24h] (from `DateFormat.is24HourFormat`) picks 12/24h formatting. Pure/unit-testable.
  */
-internal fun hypnogramAxisTicks(onsetTs: Long, wakeTs: Long, maxLabels: Int): List<Pair<Float, String>> {
+internal fun hypnogramAxisTicks(
+    onsetTs: Long,
+    wakeTs: Long,
+    maxLabels: Int,
+    is24h: Boolean = true,
+): List<Pair<Float, String>> {
     val span = (wakeTs - onsetTs).toDouble()
-    if (span <= 0.0) return listOf(0f to clockTimeLabel(onsetTs))
+    if (span <= 0.0) return listOf(0f to axisEdgeLabel(onsetTs, is24h))
     val out = ArrayList<Pair<Float, String>>()
-    out.add(0f to clockTimeLabel(onsetTs))
+    out.add(0f to axisEdgeLabel(onsetTs, is24h))
     val spanHours = span / 3600.0
     val interiorTarget = (maxLabels - 2).coerceAtLeast(1)
     val stepH = intArrayOf(1, 2, 3, 4, 6, 8, 12).firstOrNull { spanHours / it <= interiorTarget + 0.5 } ?: 12
@@ -339,12 +352,12 @@ internal fun hypnogramAxisTicks(onsetTs: Long, wakeTs: Long, maxLabels: Int): Li
     var t = ((onsetTs / stepSec) + 1L) * stepSec // first step-aligned hour boundary strictly after onset
     while (t < wakeTs) {
         val frac = ((t - onsetTs).toDouble() / span).toFloat()
-        // Drop marks within ~12% of an edge so a round-hour label can't overlap the onset/wake label
+        // Drop marks within ~15% of an edge so a round-hour label can't overlap the onset/wake label
         // (each is roughly a tenth of the width, plus half the mark's own width, on a phone).
-        if (frac > 0.12f && frac < 0.88f) out.add(frac to clockTimeLabel(t))
+        if (frac > 0.15f && frac < 0.85f) out.add(frac to axisHourLabel(t, is24h))
         t += stepSec
     }
-    out.add(1f to clockTimeLabel(wakeTs))
+    out.add(1f to axisEdgeLabel(wakeTs, is24h))
     return out
 }
 

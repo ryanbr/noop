@@ -38,4 +38,18 @@ class HypnogramAxisTicksTest {
         assertEquals(1, hypnogramAxisTicks(onset, onset, maxLabels = 5).size)
         assertEquals(1, hypnogramAxisTicks(onset, onset - 100L, maxLabels = 5).size)
     }
+
+    // Interior round-hour marks read as the hour only. Timezone shifts WHICH hour, not the shape, so assert
+    // the format: 24h marks are "HH:00", 12h marks are "h AM/PM" — never a non-zero minute.
+    @Test fun interiorMarksAreHourOnly24h() {
+        hypnogramAxisTicks(onset, eightHours, maxLabels = 8, is24h = true).drop(1).dropLast(1)
+            .forEach { (_, label) -> assertTrue("'$label' should be HH:00", label.matches(Regex("""\d{2}:00"""))) }
+    }
+
+    @Test fun twelveHourFormatUsesAmPm() {
+        val ticks = hypnogramAxisTicks(onset, eightHours, maxLabels = 8, is24h = false)
+        ticks.drop(1).dropLast(1)
+            .forEach { (_, label) -> assertTrue("interior '$label' should be 'h AM/PM'", label.matches(Regex("""\d{1,2} (AM|PM)"""))) }
+        assertTrue("edge '${ticks.first().second}' should carry AM/PM", ticks.first().second.contains(Regex("AM|PM")))
+    }
 }
