@@ -14,6 +14,8 @@
 - **[relue]** - relue/oura_ring_reverse `docs/.../heartbeat_replication_guide.md` and `heartbeat_complete_flow.md` (no-license; Ring 3 live-HR).
 - **[oura-rs]** - Th0rgal/open_oura `crates/oura-protocol/src/events.rs` (no-license Rust clean-room decoder; facts cited only, no code copied). Its event tags marked `"_status": "unvalidated"` are treated the same as our Tier B - plausible, not ground-truth-confirmed.
 - **[open_oura-act]** - Th0rgal/open_oura `crates/oura-cli/src/activity_model.rs` (no-license; facts cited only). The activity classifier's input assembly reads four SEPARATE event tags — `met`←`0x50`, motion←`0x47`, temp←`0x46`, `hr_bpm`←`0x80` — establishing which tag each signal comes from (notably HR from the `0x80` IBI record, not `0x50`).
+- **[open_oura-viz]** - Th0rgal/open_oura `crates/oura-cli/src/viz.rs` + `motion_server.rs` + `crates/oura-link/src/client.rs` (no-license; facts cited only, no code copied). A live 3-D motion visualiser fed by the ring's real-time accelerometer stream. Cited for the live-ACM request/response shape, an accelerometer counts-per-g figure, and its own statement that the **gyroscope is not on the live BLE channel** (RData-only), so yaw is unobservable.
+- **[open_oura-ctl]** - phoenixdo-eth/open_oura `crates/oura-cli/src/control.rs`, commit `b45b534a` 2026-07-16 (no-license; facts cited only, no code copied). **A FORK, not upstream:** the file has never landed in Th0rgal/open_oura, the commit is AI-co-authored, and its unit tests feed synthetic samples rather than captures — weight its claims below upstream ones. Cited for a second, independently-derived accelerometer counts-per-g figure and for a tilt-angle convention that conflicts with [open_oura-viz].
 - **[ring4-ble]** - Defying/oura-ring4-ble `docs/apk-findings.md` + `docs/protocol-notes.md` (no-license; APK static-analysis + Ring-4 BLE captures, facts cited only). Confirms the framing/auth/tag set is generation-invariant (Ring 4 == Ring 3) and pins the full feature-ID table + the feature mode / subscription enums; also confirms the app derives BPM as `round(60000 / ibi_ms)`.
 - **[TechInsights]** / **[System Plus]** - public Gen 3 teardowns identifying the IMU as a **Bosch Sensortec BMI160** (`techinsights.com/ebook/oura-ring-gen-3-smart-ring`, `reverse-costing.com/teardowns/oura-ring-gen3`). Hardware identification only.
 - **[BMI160 datasheet]** - Bosch Sensortec BMI160 datasheet (BST-BMI160-DS000), public vendor documentation. Cited for the part's own `STEP_CNT` register (§2.11.36) — a capability the ring HAS and does NOT expose, not an Oura protocol fact.
@@ -692,6 +694,41 @@ edit of the ring's tag.
     no information about how fast the wearer is moving — only that they are. This is an independent second
     reason (beside the ⛔ ground-truth test below) why steps are unreachable over BLE, and it applies to the
     Tier-A stream NOOP already trusts, so it will not be fixed by a better decode.
+  - **⚠️ SCALE HYPOTHESIS: the `int8 × 8` axes are plausibly a ±1 g full-scale gravity vector — and the
+    axis ORDER/POLARITY is unknown (NOOP, 2026-08-07).** Two independent consumers of the ring's
+    **live accelerometer stream** — a path NOOP does **not** implement (`0x06` set-realtime with type
+    bit `0x20`, responses under tag `0x33` carrying two samples of i16-LE x/y/z per notification, plus a
+    sample-rate byte) — hardcode an accelerometer scale of **1024** counts/g [open_oura-viz] and **1000**
+    counts/g, the latter annotated *"empirical: ~1000 at rest"* [open_oura-ctl]. Both agree within 2.4 %,
+    and both are consistent with a **±2 g 12-bit range = 1024 counts/g**, which is also the `Acm2g50Hz`
+    entry in that repo's RData data-type enum; both files independently assume **50 Hz**. If 1024 is
+    right, `0x47`'s `int8 × 8` axes span −1024…+1016 counts = **exactly ±1 g at 8-count (≈ 0.0078 g)
+    resolution**, i.e. the averaged vector is already gravity-scaled — which is precisely the calibration
+    `OuraMotionDumpLine` records as missing before the vector can become a durable `gravitySample`.
+    **Neither figure is a calibration:** one is a UI slider's default value, the other a single eyeballed
+    at-rest reading in an unmerged fork. This stays a **CANDIDATE scale**, Tier B, and nothing may be
+    scored on it.
+  - **⛔ The three `0x47` axes stay DELIBERATELY UNNAMED — do not map them to X/Y/Z from any RE repo.**
+    Axis identity is unresolved *upstream*, not just here: the two files above disagree on which axis is
+    up. The visualiser takes gravity along **Y** (`pitch = atan2(up.z, up.y)`, and it carries an
+    "invert vertical" toggle precisely because the polarity is unknown) [open_oura-viz]; the fork takes
+    it along **Z** with the textbook tilt form (`pitch = atan2(−x, √(y²+z²))`, `roll = atan2(y, z)`)
+    [open_oura-ctl]. That repo's own `0x47` decoder further states its axis order is *inferred from
+    struct layout*. Of the two, the fork's formulation is the correct tilt maths (pitch taken against the
+    magnitude of the other two axes) and is the one to re-derive from should NOOP ever need orientation —
+    but the axis→field mapping itself remains unattested, so this spec names only "three `int8 × 8` axis
+    magnitudes".
+  - **Validation route that settles both, and needs no model.** Capture the live-ACM stream over (a) a
+    still ring and (b) a moving one. At rest `|a|` **is** the counts-per-g, settling the scale and hence
+    the ±1 g reading of `0x47`. Then compare a per-window deviation magnitude
+    `|raw − lowpass(raw)| / counts_per_g` against the ring's **own** six MAD statistics in `0x72`
+    `sleep_acm_period` (§6.12) for the same window — which cross-checks that decode at the same time
+    (`0x72` is abundant: 5,723 records in the §10 corpus). Blocked on NOOP implementing the `0x06`
+    realtime write: a **new outbound command to hardware**, so the BLE safety contract applies, and
+    [open_oura-viz] notes real-time measurements *do not self-stop reliably* — a mandatory teardown write
+    (`06 04 00000000`) and a time-boxed duration are part of the shape. Note also that `0x47` is
+    movement-gated (no still sample ever arrives), so the lowpass/zero-velocity approach those files use
+    on the live stream **cannot** be transplanted onto `0x47` records.
 - **`0x6B` `motion_period`** (variable): byte6 = header — bits`[7:6]`=period_type, bits`[5:4]`=`count` of valid codes in the **FINAL** byte, bits`[3:0]`=a rolling mod-16 sequence counter (record ordering / dedup, not a state); byte7… = 2-bit MOTION_STATE codes, 4 per byte (MSB-first), the last byte carrying `count` codes where **`count == 0` means 4** (a full final byte — the 2-bit field can't hold 4, so 4 wraps to 0; all 81 `count == 0` records in a real capture have a non-zero final byte, never 0x00, confirming 0 ⇒ 4). MOTION_STATE enum: `0 NO_MOTION, 1 RESTLESS, 2 TOSSING, 3 ACTIVE`. Same shape as the `0x4E` sleep-phase layout (header byte, codes from byte7). The header's low-nibble sequence counter increments and wraps mod-16 across consecutive records in a real capture — pinning byte6 as a header and codes at byte7, correcting an earlier reading (byte6/7 a 12-bit period, codes from byte8) that dropped the first code byte and read phantom codes from the final byte's padding. Layout cross-checked against the native `parse_api_motion_period` (attribution, not a port — re-derived from the capture). [ringverse][open_ring]
 - **`0x50` activity_info / `0x51`,`0x52` activity_summary**: activity category + intensity (MET-class). Layout **(UNVERIFIED - partial)**; [ringverse] notes real_steps/activity_info have unresolved constants. Gate on fixtures. [ringverse]
   - **`0x50` decode formula (PR #960 investigation, live Gen 3, 2026-07-02) [oura-rs]:** byte0 = a `state` code (activity-category, meaning unconfirmed); every following byte = one MET sample, `met = byte × 0.1` for `byte < 0x80`, else `met = 12.8 + (byte − 128) × 0.2` (two-slope: 0.1-MET resolution to 12.7, 0.2 steps above). **Plausible against six real Gen 3 captures** across two sessions - a full day from steady resting (0.9–1.1 MET) through a vigorous-activity burst (7.4 MET), everything physiologically sane, nothing negative or absurd - but **NOT ground-truth-validated** against the Oura app's own MET/step numbers. Stays Tier B: NOOP decodes it (`OuraDecoders.decodeActivityInfo` → `OuraEvent.activityInfo`, both platforms) but gates it behind `allowTierB`, logs it for investigation only, and never folds it into `OuraStreamMapping`/scoring - and NEVER derives a step count from it. `0x51`/`0x52` activity_summary stay fully undecoded (raw Tier-B bytes only).
