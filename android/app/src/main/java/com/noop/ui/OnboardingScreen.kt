@@ -55,6 +55,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -73,7 +74,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.noop.ble.WhoopModel
 import com.noop.data.ImportSummary
 import com.noop.ingest.AppleHealthImporter
@@ -98,7 +98,7 @@ fun OnboardingScreen(viewModel: AppViewModel, onFinished: () -> Unit) {
     // multi-window) doesn't recreate the Activity and throw the user back to page 1.
     var pageIndex by rememberSaveable { mutableIntStateOf(0) }
     val page = pages[pageIndex]
-    val live by viewModel.live.collectAsStateWithLifecycle()
+    val live by viewModel.live.collectAsState()
 
     // The bonded celebration only makes sense once a strap is actually bonded. Auto-advance to it
     // the moment that happens on the Connect step (mirrors macOS's scan → celebration), and skip
@@ -483,8 +483,8 @@ private fun WearStep() {
 @Composable
 private fun ConnectStep(viewModel: AppViewModel) {
     val context = LocalContext.current
-    val live by viewModel.live.collectAsStateWithLifecycle()
-    val selectedModel by viewModel.selectedModel.collectAsStateWithLifecycle()
+    val live by viewModel.live.collectAsState()
+    val selectedModel by viewModel.selectedModel.collectAsState()
 
     val blePerms = remember { blePermissions() }
     // The Scan button goes through the same shared gate as Live/Settings (requests the permission
@@ -618,7 +618,7 @@ private fun ConnectStep(viewModel: AppViewModel) {
 // the nav skips it entirely when nothing is bonded (mirrors the macOS scan → bonded moment).
 @Composable
 private fun BondedStep(viewModel: AppViewModel) {
-    val live by viewModel.live.collectAsStateWithLifecycle()
+    val live by viewModel.live.collectAsState()
     StepShell {
         Column(
             modifier = Modifier
