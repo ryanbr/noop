@@ -179,11 +179,15 @@ private struct DevicesContent: View {
                     // strap's firmware), so prefer the live handshake value but fall back to the last-known
                     // persisted firmware (written on connect in FrameRouter) when the live value is momentarily
                     // nil — mid-handshake, or a connection that hasn't re-read GET_HELLO/REPORT_VERSION_INFO
-                    // yet this session. Without this the "· FW x" blanks out while actively connected. Single
-                    // last-connected-strap key, so a not-yet-connected active strap can briefly show the other
-                    // strap's build on a multi-WHOOP install until it connects and republishes. Twin of Android.
+                    // yet this session. Without this the "· FW x" blanks out while actively connected. The
+                    // persisted fallback is WHOOP-only: "noop.lastFirmware" is written solely from a WHOOP
+                    // handshake, so a non-WHOOP active device (Oura) must NOT inherit it. Single last-connected-
+                    // strap key, so a not-yet-connected active strap can briefly show the other strap's build on
+                    // a multi-WHOOP install until it republishes. Twin of Android.
                     liveFirmware: device.status == .active
-                        ? (live.strapFirmware ?? UserDefaults.standard.string(forKey: "noop.lastFirmware")) : nil,
+                        ? (live.strapFirmware
+                            ?? (SourceCoordinator.isWhoop(device) ? UserDefaults.standard.string(forKey: "noop.lastFirmware") : nil))
+                        : nil,
                     // Historical record layout (v24/v25 on WHOOP 4.0) observed from this connection's
                     // backfill. Distinct from the strap firmware build shown as FW.
                     liveHistoryLayout: (device.status == .active && live.connected) ? live.strapRange?.firmwareLayout : nil,
