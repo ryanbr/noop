@@ -31,6 +31,7 @@
     <string name="nav_automations">Automatizações</string>
     <string name="nav_alarms">Alarmes</string>
     <string name="nav_devices">Dispositivos</string>
+    <string name="nav_noop_limitations">Limitações do NOOP</string>
     <string name="nav_data_sources">Fontes de dados</string>
     <string name="nav_backup_sync">Cópia de segurança e sincronização</string>
     <string name="nav_fused_record">Os teus dados, fundidos</string>

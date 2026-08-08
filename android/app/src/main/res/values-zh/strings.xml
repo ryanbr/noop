@@ -29,6 +29,7 @@
     <string name="nav_automations">自动化</string>
     <string name="nav_alarms">智能闹钟</string>
     <string name="nav_devices">设备管理</string>
+    <string name="nav_noop_limitations">NOOP 限制</string>
     <string name="nav_data_sources">数据源</string>
     <string name="nav_backup_sync">备份与同步</string>
     <string name="nav_fused_record">融合数据</string>

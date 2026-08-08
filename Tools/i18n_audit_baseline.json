@@ -482,23 +482,7 @@
     ],
     [
       "android/app/src/main/java/com/noop/ui/NoopLimitationsScreen.kt",
-      "Close"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/NoopLimitationsScreen.kt",
-      "Done"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/NoopLimitationsScreen.kt",
       "Feature"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/NoopLimitationsScreen.kt",
-      "NOOP Limitations"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/NoopLimitationsScreen.kt",
-      "What each WHOOP can read"
     ],
     [
       "android/app/src/main/java/com/noop/ui/NotificationsSettingsScreen.kt",
@@ -542,14 +526,6 @@
     ],
     [
       "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "NOOP Limitations"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "NOOP Limitations — what each strap can read"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
       "Needs the full encrypted bond: close the official WHOOP app and pair the strap to NOOP first (a live-HR-only link can't carry the unlock)."
     ],
     [
@@ -575,10 +551,6 @@
     [
       "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
       "Wear the strap, tap once, then let it sync and share your strap log."
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "What each strap can read live"
     ],
     [
       "android/app/src/main/java/com/noop/ui/SkinTempCardsScreen.kt",

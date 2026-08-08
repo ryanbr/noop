@@ -31,6 +31,7 @@
     <string name="nav_automations">Automationen</string>
     <string name="nav_alarms">Wecker</string>
     <string name="nav_devices">Geräte</string>
+    <string name="nav_noop_limitations">NOOP-Grenzen</string>
     <string name="nav_data_sources">Datenquellen</string>
     <string name="nav_backup_sync">Backup &amp; Sync</string>
     <string name="nav_fused_record">Deine Daten, vereint</string>

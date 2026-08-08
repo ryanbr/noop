@@ -451,9 +451,6 @@ fun SettingsScreen(
     // Strap section by BOTH model owners. Clears up which features each strap supports — e.g. why the
     // strap-firmware broadcast-out is 5/MG-only while NOOP's own re-broadcast works on any strap.
     var showModelComparison by remember { mutableStateOf(false) }
-    // "NOOP Limitations" — the plain capability grid (what each strap can read live). Sibling of the model
-    // comparison, opened from the same Strap section.
-    var showLimitations by remember { mutableStateOf(false) }
 
     // "Recalibrate Charge baseline" confirm dialog (Charge advanced). Writes now-seconds to BOTH the
     // noop.hrvBaselineEpoch and noop.recoveryBaselineEpoch prefs so foldHistory re-seeds every baseline
@@ -1726,46 +1723,6 @@ fun SettingsScreen(
                             Text(uiString(R.string.l10n_settings_screen_whoop_4_0_vs_5_0_2babb05a), style = NoopType.headline, color = Palette.textPrimary)
                             Text(
                                 uiString(R.string.l10n_settings_screen_what_each_strap_can_read_and_51e7d3fc),
-                                style = NoopType.footnote,
-                                color = Palette.textSecondary,
-                            )
-                        }
-                        Text("›", style = NoopType.title2, color = Palette.accent)
-                    }
-                }
-
-                // "NOOP Limitations" — the plain 4.0 vs 5.0/MG capability grid (no prose). Same tap-through
-                // idiom as the model-comparison row above; honest about what reads live vs import-only.
-                val limitationsInteraction = remember { MutableInteractionSource() }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .liquidPress(limitationsInteraction)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Palette.surfaceInset)
-                        .border(1.dp, Palette.hairline, RoundedCornerShape(10.dp))
-                        .clickable(
-                            interactionSource = limitationsInteraction,
-                            indication = null,
-                        ) { showLimitations = true }
-                        .padding(horizontal = 14.dp, vertical = 12.dp)
-                        .semantics { contentDescription = "NOOP Limitations — what each strap can read" },
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Icon(
-                            Icons.Filled.Info,
-                            contentDescription = null,
-                            tint = Palette.accent,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("NOOP Limitations", style = NoopType.headline, color = Palette.textPrimary)
-                            Text(
-                                "What each strap can read live",
                                 style = NoopType.footnote,
                                 color = Palette.textSecondary,
                             )
@@ -3089,16 +3046,6 @@ fun SettingsScreen(
             }
         }
 
-        if (showLimitations) {
-            Dialog(
-                onDismissRequest = { showLimitations = false },
-                properties = DialogProperties(usePlatformDefaultWidth = false),
-            ) {
-                Surface(modifier = Modifier.fillMaxSize(), color = Palette.surfaceBase) {
-                    NoopLimitationsScreen(onClose = { showLimitations = false })
-                }
-            }
-        }
 
         // Steps-estimate calibration, opened from the Profile card's "Steps estimate" row. Same
         // full-screen Dialog idiom; a manual-coefficient write bumps `rev` so the Profile summary
