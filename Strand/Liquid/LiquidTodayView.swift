@@ -112,7 +112,7 @@ struct LiquidTodayView: View {
     /// The liquid heart pink (matches LiquidThread's default + the mockup #ff6b81).
     private let liquidHeart = Color(.sRGB, red: 1, green: 107 / 255, blue: 129 / 255, opacity: 1)
     /// Hero card fill: a translucent near-black so it floats over the sky (mock rgba(13,14,20,.78)).
-    private let heroFill = Color(.sRGB, red: 13 / 255, green: 14 / 255, blue: 20 / 255, opacity: 0.80)
+    private var heroFill: Color { StrandPalette.heroFill }
     /// "Card transparency" (0–100, default 100): fades every liquid card surface here — the hero, the
     /// session-start row, the metric tiles and the `card` helper — in lockstep with the frosted cards.
     /// Content sits above the surface so it stays readable. Mirrors Kotlin `NoopPrefs.cardOpacityPercent`.
@@ -476,21 +476,21 @@ struct LiquidTodayView: View {
                 Image(systemName: "shield.lefthalf.filled")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(StrandPalette.metricCyan)
-                // The session-start row shares the hero card's pinned-dark `heroFill`, so its text/chevron
-                // use the on-dark tokens — textPrimary/Secondary/Tertiary flip to dark ink in Light mode and
-                // went dark-on-near-black here too (#1013).
+                // The session-start row shares the hero card's THEME-AWARE `heroFill` (#1160), so its text
+                // uses the normal text tokens — light ink on the Dark hero, dark ink on the Light frosted-
+                // white hero. (Was pinned-dark + on-dark tokens before #1160.)
                 Text("Start session")
                     .font(StrandFont.subhead)
-                    .foregroundStyle(StrandPalette.onDarkPrimary)
+                    .foregroundStyle(StrandPalette.textPrimary)
                 Text("BETA")
                     .font(StrandFont.overlineScaled(8.5)).tracking(1.2)
-                    .foregroundStyle(StrandPalette.onDarkSecondary)
+                    .foregroundStyle(StrandPalette.textSecondary)
                     .padding(.horizontal, 8).padding(.vertical, 2.5)
                     .background(Capsule().fill(.white.opacity(0.05))
                         .overlay(Capsule().strokeBorder(.white.opacity(0.18), lineWidth: 1)))
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(StrandPalette.onDarkTertiary)
+                    .foregroundStyle(StrandPalette.textTertiary)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
@@ -498,7 +498,7 @@ struct LiquidTodayView: View {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(heroFill)
                     .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .strokeBorder(.white.opacity(0.11), lineWidth: 1))
+                        .strokeBorder(StrandPalette.heroBorder, lineWidth: 1))
                     .opacity(cardOpacity)
             )
         }
@@ -528,7 +528,7 @@ struct LiquidTodayView: View {
                           animated: dataLoaded, onGuide: { guideSection = .rest })
                 .overlay(alignment: .top) {
                     if let sourceLabel = heroSourceLabel {
-                        SourceBadge("\(sourceLabel)", tint: StrandPalette.onDarkSecondary)
+                        SourceBadge("\(sourceLabel)", tint: StrandPalette.textSecondary)
                             // Match the badge's trailing edge to the Rest vessel and centre it on the card border.
                             .fixedSize()
                             .frame(width: HeroScoreCell.vesselDiameter, alignment: .trailing)
@@ -544,7 +544,7 @@ struct LiquidTodayView: View {
             RoundedRectangle(cornerRadius: 26, style: .continuous)
                 .fill(heroFill)
                 .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .strokeBorder(.white.opacity(0.11), lineWidth: 1))
+                    .strokeBorder(StrandPalette.heroBorder, lineWidth: 1))
                 .shadow(color: .black.opacity(0.6), radius: 30, y: 16)
                 .opacity(cardOpacity)
         )
@@ -1500,7 +1500,7 @@ private struct HeroScoreCell: View {
                         Text("–").font(StrandFont.rounded(26))
                     }
                 }
-                .foregroundStyle(.white)
+                .foregroundStyle(StrandPalette.textPrimary)
                 .shadow(color: .black.opacity(0.5), radius: 6, y: 1)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
@@ -1514,10 +1514,9 @@ private struct HeroScoreCell: View {
                         .lineLimit(1).minimumScaleFactor(0.7)
                     Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).opacity(0.6)
                 }
-                // The hero card fill is pinned dark in BOTH themes, so the CHARGE/EFFORT/REST label must use
-                // the scheme-invariant on-dark token — textSecondary flips to dark ink in Light mode and
-                // went dark-on-near-black here (#1013).
-                .foregroundStyle(StrandPalette.onDarkSecondary)
+                // The hero card fill is THEME-AWARE now (#1160), so the CHARGE/EFFORT/REST label uses the
+                // normal text token — readable on the Dark hero and the Light frosted-white hero alike.
+                .foregroundStyle(StrandPalette.textSecondary)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text("\(label), \(score.map { decimals > 0 ? String(format: "%.\(decimals)f", $0) : String(Int($0.rounded())) } ?? String(localized: "no data yet")). See how it is scored."))

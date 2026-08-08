@@ -67,8 +67,13 @@ object Palette {
     val textSecondary get() = active.textSecondary
     val textTertiary get() = active.textTertiary
 
-    // Text that always sits on a pinned-dark surface, independent of the app's active light/dark scheme.
-    // Mirrors StrandPalette.onDarkSecondary for the liquid hero's source badge.
+    // #1160/#1161: the Liquid hero card surface, now theme-aware — near-black in dark, frosted white in
+    // light so the hero fits in with the other cards; the border flips with it. The hero's own text uses
+    // the flip-able text* tokens now (readable on either fill).
+    val heroFill get() = active.heroFill
+    val heroBorder get() = active.heroBorder
+    // Light-on-dark text for a GENUINELY-always-dark surface (twin of StrandPalette.onDarkSecondary). The
+    // theme-aware hero no longer uses this; kept for any always-dark chrome.
     val onDarkSecondary = Color(0xFFC8CFD8)
 
     // Glow.

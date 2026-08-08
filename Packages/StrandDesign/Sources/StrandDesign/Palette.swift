@@ -82,13 +82,23 @@ public enum StrandPalette {
 
     // MARK: Text ON a permanently-dark surface (scheme-invariant)
     // Use these — NOT textPrimary/Secondary/Tertiary — for labels/pills drawn over a fill that is pinned
-    // dark in BOTH themes (e.g. the Liquid Today hero score card + session-start row, whose `heroFill` is
-    // a fixed near-black). The regular text tokens FLIP to dark ink in Light mode, so on a fixed-dark card
-    // they render dark-on-near-black and vanish (#1013). These hold the light-on-dark values in BOTH
-    // schemes, so a label always reads on the card. (Same hex as the *.dark side of the text tokens.)
+    // dark in BOTH themes (e.g. the over-sky ScreenScaffold title, on the time-of-day sky backdrop). The
+    // regular text tokens FLIP to dark ink in Light mode, so on a fixed-dark surface they render
+    // dark-on-near-black and vanish (#1013). These hold the light-on-dark values in BOTH schemes, so a
+    // label always reads. (The Liquid hero card USED to need these, but its `heroFill` is theme-aware as of
+    // #1160, so the hero now uses the normal text* tokens.)
     public static let onDarkPrimary   = Color(hex: "#F4F6F8")
     public static let onDarkSecondary = Color(hex: "#C8CFD8")
     public static let onDarkTertiary  = Color(hex: "#8A94A4")
+
+    // MARK: Liquid hero card surface (#1160/#1161)
+    // Was pinned near-black in BOTH themes, which read as a broken dark block in Light mode (#1160) and
+    // never honoured card transparency (#1161). Now THEME-AWARE: near-black in Dark, frosted white in
+    // Light, so the hero fits in with the other cards. Its own text uses the regular text*/tint tokens
+    // (which flip) — NOT onDark*, which stays fixed for the genuinely-always-dark SKY backdrop
+    // (ScreenScaffold's over-sky title). 8-digit hex = RRGGBBAA (alpha last).
+    public static let heroFill   = Color(light: "FFFFFFD9", dark: "0D0E14CC")
+    public static let heroBorder = Color(light: "0000001A", dark: "FFFFFF1C")
 
     // MARK: Glow — ambient bloom behind heroes / charts (additive on dark; faint warm on light)
     public static let glowAmbient    = Color(light: "#F0E4C0", dark: "#3A2D0A")
