@@ -231,9 +231,15 @@ fun DevicesScreen(
                     live.batteryPct?.let { Math.round(it).toInt() } else null,
                 liveBatteryMv = if (device.status == DeviceStatus.active.name && live.connected)
                     live.batteryMv else null,
-                // Firmware version from the connect handshake: only for the active, connected strap.
-                liveFirmware = if (device.status == DeviceStatus.active.name && live.connected)
-                    live.strapFirmware else null,
+                // Firmware version for the ACTIVE strap. It's a STABLE property (NOOP can't change a strap's
+                // firmware), so prefer the live handshake value but fall back to the last-known persisted
+                // firmware (NoopPrefs, written on connect) when the live value is momentarily null — mid-
+                // handshake, or a connection that hasn't re-read REPORT_VERSION_INFO yet this session. Without
+                // this the "· FW x" blanks out while actively connected + syncing. Persisted value is a single
+                // last-connected-strap key, so on a multi-WHOOP install a not-yet-connected active strap can
+                // briefly show the other strap's build until it connects and republishes.
+                liveFirmware = if (device.status == DeviceStatus.active.name)
+                    (live.strapFirmware ?: NoopPrefs.lastFirmware(context)) else null,
                 // Historical record layout from the current backfill, distinct from strap firmware.
                 liveHistoryLayout = if (device.status == DeviceStatus.active.name && live.connected)
                     live.historyLayoutVersion else null,

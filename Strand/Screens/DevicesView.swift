@@ -175,9 +175,15 @@ private struct DevicesContent: View {
                     // generic strap, or an FTMS machine all funnel into live.batteryPct). nil otherwise.
                     liveBatteryPct: (device.status == .active && live.connected) ? live.batteryPct.map { Int($0.rounded()) } : nil,
                     liveBatteryMv: (device.status == .active && live.connected) ? live.batteryMv : nil,
-                    // Firmware version belongs to the active + connected strap only; nil otherwise (and
-                    // for a non-WHOOP source that never reports one).
-                    liveFirmware: (device.status == .active && live.connected) ? live.strapFirmware : nil,
+                    // Firmware version for the ACTIVE strap. It's a STABLE property (NOOP can't change a
+                    // strap's firmware), so prefer the live handshake value but fall back to the last-known
+                    // persisted firmware (written on connect in FrameRouter) when the live value is momentarily
+                    // nil — mid-handshake, or a connection that hasn't re-read GET_HELLO/REPORT_VERSION_INFO
+                    // yet this session. Without this the "· FW x" blanks out while actively connected. Single
+                    // last-connected-strap key, so a not-yet-connected active strap can briefly show the other
+                    // strap's build on a multi-WHOOP install until it connects and republishes. Twin of Android.
+                    liveFirmware: device.status == .active
+                        ? (live.strapFirmware ?? UserDefaults.standard.string(forKey: "noop.lastFirmware")) : nil,
                     // Historical record layout (v24/v25 on WHOOP 4.0) observed from this connection's
                     // backfill. Distinct from the strap firmware build shown as FW.
                     liveHistoryLayout: (device.status == .active && live.connected) ? live.strapRange?.firmwareLayout : nil,
