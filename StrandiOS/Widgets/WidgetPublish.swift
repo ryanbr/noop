@@ -90,19 +90,25 @@ extension WidgetSnapshot {
             await publish(from: model)
             return
         }
+        // The loaded value IS the current on-disk state (this runs on the main actor, so nothing else
+        // rewrote it between here and the save); hand it to the dedup so the live path reads the App Group
+        // ONCE per tick instead of loading it again inside saveAndReloadIfChanged.
+        let previous = snap
         snap.bpm = model.bpm ?? model.live.heartRate
         snap.batteryPct = model.live.batteryPct.map { Int($0.rounded()) }
         snap.bonded = model.live.bonded
         snap.updated = now
-        saveAndReloadIfChanged(snap)
+        saveAndReloadIfChanged(snap, previous: previous)
     }
 
     /// Persist and ask WidgetKit for a new timeline only when a rendered field changed. The snapshot's
     /// timestamp is metadata only (no widget family displays it), so an otherwise-identical publish is a
     /// true no-op rather than an App-Group write plus an extension reload.
+    /// `previous` lets the live fast path pass the snapshot it already loaded (it runs on the main actor,
+    /// so that value is still current); the full publish path omits it and this loads once for the dedup.
     @MainActor
-    private static func saveAndReloadIfChanged(_ snap: WidgetSnapshot) {
-        let previous = load()
+    private static func saveAndReloadIfChanged(_ snap: WidgetSnapshot, previous: WidgetSnapshot? = nil) {
+        let previous = previous ?? load()
         if renderedContentChanged(from: previous, to: snap) {
             snap.save()
             WidgetCenter.shared.reloadAllTimelines()
