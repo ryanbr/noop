@@ -50,7 +50,13 @@ class NoopNotificationListener : NotificationListenerService() {
         // Own opt-in (default OFF), still under the notification master + quiet-hours + only-when-worn.
         // Only INTERCEPTS when the toggle is on (then returns, so it can't also double-buzz via per-app);
         // with the toggle off a Clock notification falls through to the per-app path unchanged.
+        // EXCLUDE NOOP's OWN notifications: our SmartAlarmNotifier + SmartAlarmReceiver also set
+        // CATEGORY_ALARM, and this service receives its own app's posts — without this guard the toggle
+        // would buzz for NOOP's OWN smart alarm (a surprise for a "phone Clock" toggle, and a double-buzz
+        // with its firmware-alarm path). NOOP's alarm keeps its own settings; an app-buzz for it is a
+        // separate, deliberate feature, not this.
         if (n.category == Notification.CATEGORY_ALARM &&
+            sbn.packageName != ctx.packageName &&
             NotifPrefs.getBool(ctx, NotifPrefs.MASTER, false) &&
             NotifPrefs.getBool(ctx, NotifPrefs.ALARM_TIMER, false)) {
             val ble = (application as? NoopApplication)?.ble
