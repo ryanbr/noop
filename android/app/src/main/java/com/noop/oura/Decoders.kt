@@ -270,6 +270,7 @@ object OuraDecoders {
     fun decodeHRV(rec: OuraRecord): List<OuraHRV>? {
         val b = rec.payload
         if (b.size < 2 || b.size % 2 != 0) return null   // N complete (hr, rmssd) pairs
+        val pairCount = b.size / 2       // BEFORE any padding pair is dropped — see OuraHRV.count
         val out = ArrayList<OuraHRV>()
         var i = 0
         var index = 0
@@ -277,7 +278,15 @@ object OuraDecoders {
             val hr = b[i]
             val rmssd = b[i + 1]
             if (!(hr == 0 && rmssd == 0)) {
-                out.add(OuraHRV(ringTimestamp = rec.ringTimestamp, index = index, hrBpm = hr, rmssdMs = rmssd))
+                out.add(
+                    OuraHRV(
+                        ringTimestamp = rec.ringTimestamp,
+                        index = index,
+                        hrBpm = hr,
+                        rmssdMs = rmssd,
+                        count = pairCount,
+                    ),
+                )
             }
             i += 2
             index += 1

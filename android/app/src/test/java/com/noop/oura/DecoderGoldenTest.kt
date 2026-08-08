@@ -86,8 +86,8 @@ class DecoderGoldenTest {
         val hrv = OuraDecoders.decodeHRV(rec)
         assertEquals(
             listOf(
-                OuraHRV(ringTimestamp = rt, index = 0, hrBpm = 50, rmssdMs = 132),
-                OuraHRV(ringTimestamp = rt, index = 1, hrBpm = 50, rmssdMs = 131),
+                OuraHRV(ringTimestamp = rt, index = 0, hrBpm = 50, rmssdMs = 132, count = 2),
+                OuraHRV(ringTimestamp = rt, index = 1, hrBpm = 50, rmssdMs = 131, count = 2),
             ),
             hrv,
         )
@@ -109,8 +109,9 @@ class DecoderGoldenTest {
         val hrv = OuraDecoders.decodeHRV(record("5d0a02000100328432830000"))
         assertEquals(
             listOf(
-                OuraHRV(ringTimestamp = rt, index = 0, hrBpm = 50, rmssdMs = 132),
-                OuraHRV(ringTimestamp = rt, index = 1, hrBpm = 50, rmssdMs = 131),
+                // count is 3, not 2: the dropped pad still counts, or the survivors slide (#1167).
+                OuraHRV(ringTimestamp = rt, index = 0, hrBpm = 50, rmssdMs = 132, count = 3),
+                OuraHRV(ringTimestamp = rt, index = 1, hrBpm = 50, rmssdMs = 131, count = 3),
             ),
             hrv,
         )
@@ -135,8 +136,8 @@ class DecoderGoldenTest {
         val hrv = OuraDecoders.decodeHRV(record("5d0a02000100328400003182"))
         assertEquals(
             listOf(
-                OuraHRV(ringTimestamp = rt, index = 0, hrBpm = 50, rmssdMs = 132),
-                OuraHRV(ringTimestamp = rt, index = 2, hrBpm = 49, rmssdMs = 130),
+                OuraHRV(ringTimestamp = rt, index = 0, hrBpm = 50, rmssdMs = 132, count = 3),
+                OuraHRV(ringTimestamp = rt, index = 2, hrBpm = 49, rmssdMs = 130, count = 3),
             ),
             hrv,
         )
@@ -149,8 +150,8 @@ class DecoderGoldenTest {
         val hrv = OuraDecoders.decodeHRV(record("5d080200010032000083"))
         assertEquals(
             listOf(
-                OuraHRV(ringTimestamp = rt, index = 0, hrBpm = 50, rmssdMs = 0),
-                OuraHRV(ringTimestamp = rt, index = 1, hrBpm = 0, rmssdMs = 131),
+                OuraHRV(ringTimestamp = rt, index = 0, hrBpm = 50, rmssdMs = 0, count = 2),
+                OuraHRV(ringTimestamp = rt, index = 1, hrBpm = 0, rmssdMs = 131, count = 2),
             ),
             hrv,
         )

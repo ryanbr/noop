@@ -74,14 +74,23 @@ public struct OuraHR: Equatable, Sendable, Codable {
 /// scoring; this tag is the ring's own summary (validated overnight — the hr byte tracks sleeping HR).
 public struct OuraHRV: Equatable, Sendable, Codable {
     public let ringTimestamp: UInt32
-    /// 0-based pair index within the record; buckets are ~5 min apart (consumer applies the offset).
+    /// 0-based pair index within the record, counting from the record's FIRST byte-pair — which is its
+    /// **OLDEST** bucket (#1167). The consumer needs `count` as well as `index` to place the bucket:
+    /// `bucketTs = ts - (count - index) * 300`.
     public let index: Int
     /// The ring's average HR for the 5-min bucket, in bpm (u8, no scaling).
     public let hrBpm: Int
     /// The ring's average RMSSD for the 5-min bucket, in ms (u8, no scaling).
     public let rmssdMs: Int
-    public init(ringTimestamp: UInt32, index: Int, hrBpm: Int, rmssdMs: Int) {
-        self.ringTimestamp = ringTimestamp; self.index = index; self.hrBpm = hrBpm; self.rmssdMs = rmssdMs
+    /// Total pairs in the record this bucket came from — INCLUDING any `00 00` padding pair the decoder
+    /// dropped (#1128/#1131). `index` is always in `0..<count`. Needed because the record's timestamp
+    /// marks the END of the span it covers, so a bucket's offset is measured from the record's tail, not
+    /// its head: dropping a pad without counting it would slide every surviving bucket in the record.
+    /// Mirrors `OuraSpO2.count`, which the SpO2 path already uses for the same reason.
+    public let count: Int
+    public init(ringTimestamp: UInt32, index: Int, hrBpm: Int, rmssdMs: Int, count: Int = 1) {
+        self.ringTimestamp = ringTimestamp; self.index = index; self.hrBpm = hrBpm
+        self.rmssdMs = rmssdMs; self.count = count
     }
 }
 

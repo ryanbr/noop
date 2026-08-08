@@ -81,13 +81,23 @@ object OuraStreamMapping {
                     //
                     // Each bucket gets its OWN timestamp so it lands on a distinct event row. The event PK is
                     // (deviceId, ts, kind), so N pairs sharing the record ts would collide on insert and only
-                    // one survive — silently dropping the rest of the ring's per-5-min series. Buckets walk
-                    // backward from the record time at the documented 5-min cadence (the OuraHRV.index
-                    // contract; per-sample times step back from the event time, OURA_PROTOCOL.md s6): bucket
-                    // `index` sits 300 * index seconds before the anchored time. Derived from the known
-                    // cadence + record anchor, not a guessed time. Twin of Swift.
+                    // one survive — silently dropping the rest of the ring's per-5-min series.
+                    //
+                    // ORDER (#1167): the record's FIRST byte-pair is its OLDEST bucket, and the record ts
+                    // marks the END of the span it covers — so the LAST pair's 5 minutes end at ts. This
+                    // matches the two sibling per-record series in this file rather than contradicting them:
+                    // Spo2 below lays its samples back from the record time (count - 1 - index), and the
+                    // hypnogram assembler lays a burst's codes backward from its anchored end. A bucket is an
+                    // INTERVAL stamped at its start, not an instant, hence (count - index).
+                    //
+                    // Corrects an earlier `base - index * 300`, which mirrored every bucket within its own
+                    // record (up to +30/-20 min out on a 6-pair record). Measured against an independent
+                    // reconstruction — median HR of the 0x60 beats per 5-min window — over three consecutive
+                    // overnights: r = +0.970 / +0.959 / +0.894 with this ordering vs -0.079 / +0.629 / +0.111
+                    // with the old one. `count` is the record's ORIGINAL pair count, including a `00 00` pad
+                    // dropped at decode (#1131). Twin of Swift.
                     val base = anchor(ev.value.ringTimestamp) ?: continue
-                    val ts = base - ev.value.index * 300
+                    val ts = base - (ev.value.count - ev.value.index) * 300
                     out.events.add(
                         WhoopEvent(
                             ts = ts,

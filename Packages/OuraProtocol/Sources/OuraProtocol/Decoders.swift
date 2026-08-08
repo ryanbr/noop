@@ -234,6 +234,7 @@ public enum OuraDecoders {
     public static func decodeHRV(_ rec: OuraRecord) -> [OuraHRV]? {
         let b = rec.payload
         guard b.count >= 2, b.count % 2 == 0 else { return nil }   // N complete (hr, rmssd) pairs
+        let pairCount = b.count / 2          // BEFORE any padding pair is dropped — see `OuraHRV.count`
         var out: [OuraHRV] = []
         var i = 0
         var index = 0
@@ -241,7 +242,7 @@ public enum OuraDecoders {
             let hr = Int(b[i]), rmssd = Int(b[i + 1])
             if !(hr == 0 && rmssd == 0) {
                 out.append(OuraHRV(ringTimestamp: rec.ringTimestamp, index: index,
-                                   hrBpm: hr, rmssdMs: rmssd))
+                                   hrBpm: hr, rmssdMs: rmssd, count: pairCount))
             }
             i += 2
             index += 1

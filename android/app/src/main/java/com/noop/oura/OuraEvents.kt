@@ -86,7 +86,25 @@ data class OuraHR(val ringTimestamp: Long, val bpm: Int, val ibiMs: Int)
  * pair's position in the record (buckets ~5 min apart). Ring's open summary tag, NOT Oura's readiness
  * score. Twin of Swift OuraHRV.
  */
-data class OuraHRV(val ringTimestamp: Long, val index: Int, val hrBpm: Int, val rmssdMs: Int)
+data class OuraHRV(
+    val ringTimestamp: Long,
+    /**
+     * 0-based pair index within the record, counting from the record's FIRST byte-pair — which is its
+     * OLDEST bucket (#1167). The consumer needs [count] as well as [index] to place the bucket:
+     * `bucketTs = ts - (count - index) * 300`.
+     */
+    val index: Int,
+    val hrBpm: Int,
+    val rmssdMs: Int,
+    /**
+     * Total pairs in the record this bucket came from — INCLUDING any `00 00` padding pair the decoder
+     * dropped (#1128/#1131). [index] is always in `0 until count`. Needed because the record's timestamp
+     * marks the END of the span it covers, so a bucket's offset is measured from the record's tail, not
+     * its head: dropping a pad without counting it would slide every surviving bucket in the record.
+     * Mirrors `OuraSpO2.count`, which the SpO2 path already uses for the same reason. Twin of Swift.
+     */
+    val count: Int = 1,
+)
 
 /**
  * One decoded SpO2 sample. `value` is the raw SpO2 reading; `unit` documents its scale.

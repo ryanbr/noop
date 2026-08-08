@@ -75,8 +75,8 @@ final class DecoderGoldenTests: XCTestCase {
         let rec = record("5d080200010032843283")
         let hrv = OuraDecoders.decodeHRV(rec)
         XCTAssertEqual(hrv, [
-            OuraHRV(ringTimestamp: rt, index: 0, hrBpm: 50, rmssdMs: 132),
-            OuraHRV(ringTimestamp: rt, index: 1, hrBpm: 50, rmssdMs: 131),
+            OuraHRV(ringTimestamp: rt, index: 0, hrBpm: 50, rmssdMs: 132, count: 2),
+            OuraHRV(ringTimestamp: rt, index: 1, hrBpm: 50, rmssdMs: 131, count: 2),
         ])
     }
 
@@ -94,8 +94,9 @@ final class DecoderGoldenTests: XCTestCase {
         // (50,132), (50,131), then a 00 00 pad.
         let hrv = OuraDecoders.decodeHRV(record("5d0a02000100328432830000"))
         XCTAssertEqual(hrv, [
-            OuraHRV(ringTimestamp: rt, index: 0, hrBpm: 50, rmssdMs: 132),
-            OuraHRV(ringTimestamp: rt, index: 1, hrBpm: 50, rmssdMs: 131),
+            // count is 3, not 2: the dropped pad still counts, or the survivors slide (#1167).
+            OuraHRV(ringTimestamp: rt, index: 0, hrBpm: 50, rmssdMs: 132, count: 3),
+            OuraHRV(ringTimestamp: rt, index: 1, hrBpm: 50, rmssdMs: 131, count: 3),
         ])
     }
 
@@ -116,8 +117,8 @@ final class DecoderGoldenTests: XCTestCase {
         // (50,132), 00 00, (49,130) — the survivor after the pad must stay at index 2.
         let hrv = OuraDecoders.decodeHRV(record("5d0a02000100328400003182"))
         XCTAssertEqual(hrv, [
-            OuraHRV(ringTimestamp: rt, index: 0, hrBpm: 50, rmssdMs: 132),
-            OuraHRV(ringTimestamp: rt, index: 2, hrBpm: 49, rmssdMs: 130),
+            OuraHRV(ringTimestamp: rt, index: 0, hrBpm: 50, rmssdMs: 132, count: 3),
+            OuraHRV(ringTimestamp: rt, index: 2, hrBpm: 49, rmssdMs: 130, count: 3),
         ])
     }
 
@@ -128,8 +129,8 @@ final class DecoderGoldenTests: XCTestCase {
         // (50,0) and (0,131): one zero byte each, neither is the 00 00 signature.
         let hrv = OuraDecoders.decodeHRV(record("5d080200010032000083"))
         XCTAssertEqual(hrv, [
-            OuraHRV(ringTimestamp: rt, index: 0, hrBpm: 50, rmssdMs: 0),
-            OuraHRV(ringTimestamp: rt, index: 1, hrBpm: 0, rmssdMs: 131),
+            OuraHRV(ringTimestamp: rt, index: 0, hrBpm: 50, rmssdMs: 0, count: 2),
+            OuraHRV(ringTimestamp: rt, index: 1, hrBpm: 0, rmssdMs: 131, count: 2),
         ])
     }
 
