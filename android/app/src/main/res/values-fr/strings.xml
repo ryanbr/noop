@@ -1252,6 +1252,8 @@
     <string name="l10n_settings_screen_age_ff9f1ff3">Âge</string>
     <string name="l10n_settings_screen_app_icon_abde7a74">Icône de l\'app</string>
     <string name="l10n_settings_screen_appearance_41def7a0">Apparence</string>
+    <string name="l10n_settings_screen_reduce_motion_in_noop_59a6180d">Réduire les animations dans NOOP</string>
+    <string name="l10n_settings_screen_holds_the_liquid_gauges_the_sky_41872b57">Fige les jauges liquides, le ciel et la réaction à l’inclinaison, et coupe le capteur de mouvement qui les anime. Économise la batterie. Le mode économie d’énergie et le réglage système « Réduire les animations » font déjà cela.</string>
     <string name="l10n_settings_screen_auto_detect_workouts_bed4cf2a">Détecter automatiquement les entraînements</string>
     <string name="l10n_settings_screen_automatic_backups_8a772f3c">Sauvegardes automatiques</string>
     <string name="l10n_settings_screen_backup_restore_a1616284">Sauvegarde et restauration</string>

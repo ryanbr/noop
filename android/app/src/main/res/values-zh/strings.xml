@@ -1387,6 +1387,8 @@
     <string name="l10n_settings_screen_age_ff9f1ff3">年龄</string>
     <string name="l10n_settings_screen_app_icon_abde7a74">App 图标</string>
     <string name="l10n_settings_screen_appearance_41def7a0">外观设置</string>
+    <string name="l10n_settings_screen_reduce_motion_in_noop_59a6180d">减少 NOOP 中的动态效果</string>
+    <string name="l10n_settings_screen_holds_the_liquid_gauges_the_sky_41872b57">让液态仪表、天空和倾斜响应保持静止，并关闭驱动它们的运动传感器。省电。低电量模式和系统的“减弱动态效果”设置已经会这样做。</string>
     <string name="l10n_settings_screen_auto_detect_workouts_bed4cf2a">自动识别运动</string>
     <string name="l10n_settings_screen_automatic_backups_8a772f3c">自动备份</string>
     <string name="l10n_settings_screen_backup_restore_a1616284">备份与恢复</string>

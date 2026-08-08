@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.SharedPreferences
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.compose.animation.core.AnimationSpec
@@ -132,8 +133,44 @@ fun rememberPowerSaveMode(): Boolean {
 }
 
 /**
+ * Process-wide live mirror of the in-app "Reduce motion in NOOP" preference. SharedPreferences keeps
+ * listeners weakly, so this object retains both the preferences and listener for the process lifetime.
+ * One observer feeds Compose snapshot state to every looping surface, avoiding a listener per composable.
+ */
+private object QuietMotionMonitor {
+    val enabled = mutableStateOf(false)
+    private var preferences: SharedPreferences? = null
+    private var listener: SharedPreferences.OnSharedPreferenceChangeListener? = null
+
+    /** Idempotent; called on the main thread from composition. */
+    fun ensureStarted(context: Context) {
+        if (preferences != null) return
+        val prefs = NoopPrefs.of(context.applicationContext)
+        enabled.value = prefs.getBoolean(NoopPrefs.KEY_QUIET_MOTION, false)
+        val observer = SharedPreferences.OnSharedPreferenceChangeListener { changed, key ->
+            if (key == NoopPrefs.KEY_QUIET_MOTION) {
+                enabled.value = changed.getBoolean(NoopPrefs.KEY_QUIET_MOTION, false)
+            }
+        }
+        preferences = prefs
+        listener = observer
+        prefs.registerOnSharedPreferenceChangeListener(observer)
+    }
+}
+
+/** The live in-app quiet-motion preference. Previews stay animated. */
+@Composable
+fun rememberQuietMotion(): Boolean {
+    if (LocalInspectionMode.current) return false
+    val context = LocalContext.current
+    remember(context) { QuietMotionMonitor.ensureStarted(context) }
+    return QuietMotionMonitor.enabled.value
+}
+
+/**
  * True when a continuously-animating surface should render its single posed frame instead of running
- * a frame loop — either the user has turned system animations off, or the system is in battery saver.
+ * a frame loop — the user turned system animations off, the system is in battery saver, or the in-app
+ * quiet-motion preference is enabled.
  *
  * **For frame loops only.** The one-shot helpers in this file (`CountUpText`, `staggeredAppear`, the
  * 160 ms tweens in `LiquidPrimitives`) keep asking [rememberReduceMotion] on its own: those settle and
@@ -146,7 +183,8 @@ fun rememberPowerSaveMode(): Boolean {
  * though the number is unmeasured here.
  */
 @Composable
-fun rememberPoseStill(): Boolean = rememberReduceMotion() || rememberPowerSaveMode()
+fun rememberPoseStill(): Boolean =
+    rememberReduceMotion() || rememberPowerSaveMode() || rememberQuietMotion()
 
 // MARK: - NoopMotion springs / tokens
 

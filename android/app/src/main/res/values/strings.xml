@@ -1434,6 +1434,8 @@
     <string name="l10n_settings_screen_age_ff9f1ff3">Age</string>
     <string name="l10n_settings_screen_app_icon_abde7a74">App icon</string>
     <string name="l10n_settings_screen_appearance_41def7a0">Appearance</string>
+    <string name="l10n_settings_screen_reduce_motion_in_noop_59a6180d">Reduce motion in NOOP</string>
+    <string name="l10n_settings_screen_holds_the_liquid_gauges_the_sky_41872b57">Holds the liquid gauges, the sky and the tilt response still, and turns off the motion sensor that drives them. Saves battery. Low Power Mode and the system Reduce Motion setting already do this.</string>
     <string name="l10n_settings_screen_auto_detect_workouts_bed4cf2a">Auto-detect workouts</string>
     <string name="l10n_settings_screen_automatic_backups_8a772f3c">Automatic backups</string>
     <string name="l10n_settings_screen_backup_restore_a1616284">Backup &amp; restore</string>

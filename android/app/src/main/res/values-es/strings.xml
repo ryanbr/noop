@@ -1252,6 +1252,8 @@
     <string name="l10n_settings_screen_age_ff9f1ff3">Edad</string>
     <string name="l10n_settings_screen_app_icon_abde7a74">Icono de la app</string>
     <string name="l10n_settings_screen_appearance_41def7a0">Apariencia</string>
+    <string name="l10n_settings_screen_reduce_motion_in_noop_59a6180d">Reducir movimiento en NOOP</string>
+    <string name="l10n_settings_screen_holds_the_liquid_gauges_the_sky_41872b57">Mantiene quietos los medidores líquidos, el cielo y la respuesta a la inclinación, y apaga el sensor de movimiento que los impulsa. Ahorra batería. El modo de bajo consumo y el ajuste del sistema «Reducir movimiento» ya hacen esto.</string>
     <string name="l10n_settings_screen_auto_detect_workouts_bed4cf2a">Detectar entrenamientos automáticamente</string>
     <string name="l10n_settings_screen_automatic_backups_8a772f3c">Respaldos automáticos</string>
     <string name="l10n_settings_screen_backup_restore_a1616284">Copia de seguridad y restauración</string>

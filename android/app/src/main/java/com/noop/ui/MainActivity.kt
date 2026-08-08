@@ -697,6 +697,17 @@ object NoopPrefs {
         of(context).edit().putBoolean(KEY_SKY_BEHIND_CARDS, enabled).apply()
     }
 
+    /** "Reduce motion in NOOP" (opt-in, default OFF). The literal key matches Apple so the setting has
+     *  one cross-platform identity. [rememberQuietMotion] observes it live for every looping surface. */
+    const val KEY_QUIET_MOTION = "noop.quietMotion"
+
+    fun quietMotion(context: Context): Boolean =
+        of(context).getBoolean(KEY_QUIET_MOTION, false)
+
+    fun setQuietMotion(context: Context, enabled: Boolean) {
+        of(context).edit().putBoolean(KEY_QUIET_MOTION, enabled).apply()
+    }
+
     /** Coach on-device signals (v5): when ON, the opt-in BYO-key Coach's grounding context may include a
      *  SUMMARY-ONLY line of on-device correlations + Lab Book markers (no raw egress). A SECOND opt-in on
      *  top of the existing "let the coach use my data" consent. Default OFF, keeps the anonymity posture. */

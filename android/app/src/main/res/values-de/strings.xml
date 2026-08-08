@@ -1425,6 +1425,8 @@
     <string name="l10n_settings_screen_age_ff9f1ff3">Alter</string>
     <string name="l10n_settings_screen_app_icon_abde7a74">App-Symbol</string>
     <string name="l10n_settings_screen_appearance_41def7a0">Erscheinungsbild</string>
+    <string name="l10n_settings_screen_reduce_motion_in_noop_59a6180d">Bewegung in NOOP reduzieren</string>
+    <string name="l10n_settings_screen_holds_the_liquid_gauges_the_sky_41872b57">Hält die Flüssigkeitsanzeigen, den Himmel und die Neigungsreaktion still und schaltet den Bewegungssensor ab, der sie antreibt. Spart Akku. Der Stromsparmodus und die Systemeinstellung „Bewegung reduzieren“ tun dies bereits.</string>
     <string name="l10n_settings_screen_auto_detect_workouts_bed4cf2a">Workouts automatisch erkennen</string>
     <string name="l10n_settings_screen_automatic_backups_8a772f3c">Automatische Backups</string>
     <string name="l10n_settings_screen_backup_restore_a1616284">Sicherung &amp; Wiederherstellung</string>
