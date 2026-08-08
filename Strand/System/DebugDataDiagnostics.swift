@@ -124,6 +124,11 @@ enum DebugDataDiagnostics {
             // imported read ⇒ a mixed/imported install's funnel is byte-unchanged. Mirrors Android funnelLines.
             recent = await repo.computedSleepSessions(from: nowSec - 14 * 86400, to: nowSec, limit: 200)
         }
+        // `.last`/`.reversed()` below assume ASC-by-onset order. The imported union concatenates per-id
+        // blocks and is NOT globally sorted for a multi-id (re-added strap + canonical) install, so sort
+        // here — else `.last` can pick a non-newest night, and the pick would diverge from Android, which
+        // sorts explicitly. A single-source read is already ASC, so this is a no-op there.
+        recent.sort { $0.startTs < $1.startTs }
         guard let newest = recent.last else {
             lines.append("(no sleep session in the last 14 days to analyze)")
             return lines
