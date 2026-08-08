@@ -440,7 +440,7 @@ struct SleepView: View {
                 }
                 .padding(.top, 8)
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Sleep performance \(Int(score.rounded())) of 100, \(sleepScoreWord(score))")
+                .accessibilityLabel(String(localized: "Sleep performance \(Int(score.rounded())) of 100, \(sleepScoreWord(score))"))
             } else {
                 VStack(spacing: NoopMetrics.space1) {
                     CountUpText(

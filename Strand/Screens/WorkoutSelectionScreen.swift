@@ -342,16 +342,11 @@ extension View {
 
 private extension View {
     /// Circular (or capsule) interactive Liquid Glass for close / recent chips. iOS 26 uses the
-    /// platform glass button; older releases keep circular geometry with the shared material fallback
-    /// already used by Home header / live-workout controls.
+    /// platform glass button; macOS and older iOS keep circular geometry with the shared material
+    /// fallback already used by Home header / live-workout controls.
     @ViewBuilder
     func nativeLiquidGlassWorkoutSelectionControl(capsule: Bool = false) -> some View {
-        if #available(iOS 26.0, *) {
-            self
-                .buttonStyle(.glass)
-                .buttonBorderShape(capsule ? .capsule : .circle)
-                .controlSize(.regular)
-        } else {
+        self.nativeLiquidGlassButtonChrome(controlSize: .regular, capsule: capsule) {
             self
                 .buttonStyle(LiquidPressStyle())
                 .background {
@@ -364,7 +359,7 @@ private extension View {
         }
     }
 
-    /// Native Liquid Glass search field chrome. iOS 26 uses `glassEffect`; older OS versions use a
+    /// Native Liquid Glass search field chrome. iOS 26 uses `glassEffect`; macOS / older OS use a
     /// raised solid surface (not a simulated glass stack).
     @ViewBuilder
     func nativeLiquidGlassSearchField() -> some View {

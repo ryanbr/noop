@@ -3,8 +3,9 @@ import SwiftUI
 // MARK: - Native Liquid Glass search field
 //
 // Shared search chrome for every in-app filter/search bar. iOS 26 uses the platform
-// `glassEffect` capsule; older supported releases keep a solid elevated pill (not a
-// hand-rolled blur stack). Clear control, magnifying-glass glyph, and accessibility
+// `glassEffect` capsule; macOS and older iOS keep a solid elevated pill (not a
+// hand-rolled blur stack). Liquid Glass is intentionally iOS-only — macOS stays on
+// the standard surface. Clear control, magnifying-glass glyph, and accessibility
 // wiring stay identical across call sites.
 
 /// Full-width rounded search field with native Liquid Glass on iOS 26+.
@@ -68,16 +69,64 @@ public struct NoopLiquidGlassSearchField: View {
 }
 
 public extension View {
-    /// Capsule Liquid Glass search chrome. iOS 26 / watchOS 26 / macOS 26 use interactive
-    /// `glassEffect`; older OS versions use the shared elevated pill surface (not ultra-thin material stacks).
+    /// Capsule Liquid Glass search chrome. iOS 26 uses interactive `glassEffect`; macOS and older
+    /// iOS use the shared elevated pill surface. Glass APIs stay behind `#if os(iOS)` so macOS
+    /// (deployment 13) never type-checks or applies Liquid Glass.
     @ViewBuilder
     func nativeLiquidGlassSearchChrome() -> some View {
-        if #available(iOS 26.0, macOS 26.0, watchOS 26.0, *) {
+        #if os(iOS)
+        if #available(iOS 26.0, *) {
             self.glassEffect(.regular.interactive(), in: Capsule())
         } else {
-            self.background(
-                NoopPanelSurface(cornerRadius: NoopVisualStyle.pillRadius, elevated: false)
-            )
+            self.noopStandardSearchChrome()
         }
+        #else
+        self.noopStandardSearchChrome()
+        #endif
+    }
+
+    /// Circular / capsule interactive Liquid Glass button chrome (Home header, live-workout controls,
+    /// workout-selection close/chips). iOS 26 only; every other platform keeps the caller's
+    /// `fallback` (standard material / press style) unchanged.
+    @ViewBuilder
+    func nativeLiquidGlassButtonChrome<Fallback: View>(
+        controlSize: ControlSize = .small,
+        capsule: Bool = false,
+        @ViewBuilder fallback: () -> Fallback
+    ) -> some View {
+        #if os(iOS)
+        if #available(iOS 26.0, *) {
+            self
+                .buttonStyle(.glass)
+                .buttonBorderShape(capsule ? .capsule : .circle)
+                .controlSize(controlSize)
+        } else {
+            fallback()
+        }
+        #else
+        fallback()
+        #endif
+    }
+
+    /// Interactive circular `glassEffect` finish layer (e.g. Home profile photo over glass).
+    /// No-op outside iOS 26 so macOS never imports the glass path.
+    @ViewBuilder
+    func nativeLiquidGlassCircleFinish() -> some View {
+        #if os(iOS)
+        if #available(iOS 26.0, *) {
+            self.glassEffect(.regular.interactive(), in: Circle())
+        } else {
+            self
+        }
+        #else
+        self
+        #endif
+    }
+
+    @ViewBuilder
+    private func noopStandardSearchChrome() -> some View {
+        self.background(
+            NoopPanelSurface(cornerRadius: NoopVisualStyle.pillRadius, elevated: false)
+        )
     }
 }

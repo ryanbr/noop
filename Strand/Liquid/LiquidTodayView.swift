@@ -1940,26 +1940,18 @@ private struct LiquidBatteryButton: View {
 private extension View {
     /// The edge-to-edge photo is overlaid after the native button style so it can fill the face. Finish
     /// the composed control with interactive system glass as the topmost visual layer; otherwise the
-    /// opaque photo would conceal the button style's refraction and highlight.
+    /// opaque photo would conceal the button style's refraction and highlight. macOS keeps the photo
+    /// as-is (Liquid Glass is iOS-only).
     @ViewBuilder
     func nativeLiquidGlassPhotoFinish() -> some View {
-        if #available(iOS 26.0, *) {
-            self.glassEffect(.regular.interactive(), in: Circle())
-        } else {
-            self
-        }
+        self.nativeLiquidGlassCircleFinish()
     }
 
     /// Platform-owned Home-header button chrome. iOS 26 supplies the interactive Liquid Glass button
-    /// material; older supported releases keep the same circular geometry with a native system material.
+    /// material; macOS and older iOS keep the same circular geometry with a native system material.
     @ViewBuilder
     func nativeLiquidGlassHeaderButton() -> some View {
-        if #available(iOS 26.0, *) {
-            self
-                .buttonStyle(.glass)
-                .buttonBorderShape(.circle)
-                .controlSize(.small)
-        } else {
+        self.nativeLiquidGlassButtonChrome(controlSize: .small) {
             self
                 .buttonStyle(LiquidPressStyle())
                 .background(.ultraThinMaterial, in: Circle())

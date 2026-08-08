@@ -396,16 +396,11 @@ struct LiveWorkoutView: View {
 
 private extension View {
     /// Platform-owned circular chrome for the live-workout bottom controls. iOS 26 uses the interactive
-    /// Liquid Glass button material; older supported releases keep the same circular geometry with the
+    /// Liquid Glass button material; macOS and older iOS keep the same circular geometry with the
     /// same native-system material fallback the Home header buttons already use.
     @ViewBuilder
     func nativeLiquidGlassWorkoutControl() -> some View {
-        if #available(iOS 26.0, *) {
-            self
-                .buttonStyle(.glass)
-                .buttonBorderShape(.circle)
-                .controlSize(.large)
-        } else {
+        self.nativeLiquidGlassButtonChrome(controlSize: .large) {
             self
                 .buttonStyle(LiquidPressStyle())
                 .background(.ultraThinMaterial, in: Circle())
