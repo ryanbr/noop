@@ -16,6 +16,9 @@ import XCTest
 ///
 /// Pure static logic → no CoreBluetooth seam. Twin of Android `nextBackfillDelayMs`'s
 /// `whoop5EmptyOffload.historyEmpty` branch.
+// BLEManager is @MainActor, so its static helpers are main-actor-isolated; the test methods must run on
+// the main actor to call them (matches BackfillerSessionTallyTests etc.). Class-level @MainActor covers all.
+@MainActor
 final class Whoop5BatteryBackfillThrottleTests: XCTestCase {
 
     // MARK: - 5/MG battery-read throttle
