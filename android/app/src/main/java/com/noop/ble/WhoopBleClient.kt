@@ -1368,6 +1368,21 @@ class WhoopBleClient(
          *  BackfillContinuation.defaultBehindGapSeconds (and StuckStrapDetector's behindGapSeconds). */
         const val AUTO_CONTINUE_BEHIND_GAP_SECONDS = 300L
 
+        /** #1151: rolling window over which detailed-capture frame timing is summarised into one line. */
+        const val FRAME_TIMING_SUMMARY_WINDOW_MS = 60_000L
+
+        /** One detailed-capture line summarising [counts] (frame typeName → count) over [windowSec] seconds,
+         *  types listed most-frequent first: `frameTiming 60s: 84 frame(s) [EVENT×40, COMMAND_RESPONSE×30,
+         *  METADATA×14]`. Empty counts → a `0 frame(s) []` line (harmless; the caller only flushes after real
+         *  frames). Pure/deterministic (ties broken by type name) so it's unit-testable. */
+        fun formatFrameTimingSummary(counts: Map<String, Int>, windowSec: Long): String {
+            val total = counts.values.sum()
+            val types = counts.entries
+                .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+                .joinToString(", ") { "${it.key}×${it.value}" }
+            return "frameTiming ${windowSec}s: $total frame(s) [$types]"
+        }
+
         /** #928: how far past the WALL CLOCK the strap-reported "newest" may sit before it is implausible.
          *  A strap clock set in the FUTURE makes [dataRangeNewestUnix] read ahead of every real frontier,
          *  so the "backlog remains" guard would report backlog forever and burn the whole auto-continue
@@ -2272,7 +2287,12 @@ class WhoopBleClient(
      *  read AND written exclusively inside the mode gate, so the live hot path is untouched when the mode is
      *  off. The Swift side instead reuses LiveState.lastFrameType (a production field the Live console readout
      *  maintains anyway); Android has no such field, so this mirrors the emit while staying zero-cost off. */
-    private var connLastFrameType: String? = null
+    // #1151 detailed-capture: frame timing is accumulated per-type over a rolling window and flushed as ONE
+    // summary line, instead of a line per frame-TYPE transition (which was ~a third of a real capture, so the
+    // noise crowded actionable offload/reconnect/re-score history out of the 8MB rolling buffer). Test-only
+    // state, touched only inside the CONNECTION-domain gate.
+    private val connFrameCounts = LinkedHashMap<String, Int>()
+    private var connFrameWindowStartMs = 0L
     /** #580: tracks CONSECUTIVE empty 5/MG offloads so a 5/MG whose firmware serves no history (but streams
      *  live HR fine) reads as "history sync experimental on 5.0" instead of a sync error, and the 120s
      *  bounce loop backs off while live HR is flowing. Reset on connect / a banking offload. Twin of macOS. */
@@ -5228,18 +5248,22 @@ class WhoopBleClient(
         // Reject frames that failed their checksum — never let bad bytes drive state.
         if (parsed.crcOk == false) return
 
-        // Connection test mode: one tagged line per genuine frame-TYPE transition (not per frame - the raw
-        // flood repeats one type, so the transition guard naturally throttles it). Gated FIRST so this is
-        // genuinely zero-work on the live hot path when the mode is off: the type compare AND the
-        // connLastFrameType write both happen only inside the gate, so a frame on the non-test path touches
-        // no extra state at all. (connLastFrameType is test-only here; the macOS FrameRouter instead reuses
-        // its EXISTING lastFrameType field, which the Live console readout maintains anyway, so on macOS the
-        // per-change write is not extra work. Android has no such production field, hence the gate.)
+        // Connection test mode: accumulate frames by type and flush ONE `frameTiming` SUMMARY line per
+        // rolling window (#1151), instead of a line per frame-TYPE transition — during offloads/command
+        // bursts the type flips constantly, so the old per-transition log was ~a third of a real capture and
+        // aged actionable history out of the 8MB rolling buffer. Gated FIRST so a frame on the non-test path
+        // touches no extra state at all. (Android-only diagnostic; macOS uses FrameRouter's own lastFrameType
+        // for the Live console — a different surface, untouched here.)
         if (testCentre.active(com.noop.testcentre.TestDomain.CONNECTION)) {
-            if (parsed.typeName != connLastFrameType) {
-                log("frameTiming type=${parsed.typeName} t=${System.currentTimeMillis() / 1000L}s",
+            val nowMs = System.currentTimeMillis()
+            if (connFrameWindowStartMs == 0L) connFrameWindowStartMs = nowMs
+            connFrameCounts[parsed.typeName] = (connFrameCounts[parsed.typeName] ?: 0) + 1
+            val elapsedMs = nowMs - connFrameWindowStartMs
+            if (elapsedMs >= FRAME_TIMING_SUMMARY_WINDOW_MS) {
+                log(formatFrameTimingSummary(connFrameCounts, elapsedMs / 1000L),
                     com.noop.testcentre.TestDomain.CONNECTION)
-                connLastFrameType = parsed.typeName
+                connFrameCounts.clear()
+                connFrameWindowStartMs = nowMs
             }
         }
 
