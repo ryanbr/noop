@@ -641,7 +641,7 @@ private struct BreathingContent: View {
         }
 
         if buzz {
-            model.buzz(loops: newPhase == .inhale ? 1 : 2)
+            model.buzz(loops: newPhase == .inhale ? 1 : 2, gate: HapticPrefs.breathing)
             if audioCues {
                 tonePlayer.play(newPhase == .inhale ? .inhale : .exhale)
             }

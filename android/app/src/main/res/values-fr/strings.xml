@@ -1890,4 +1890,9 @@
     <string name="l10n_app_changelog_widgets_stop_inventing_numbers_naps_count_4f7491bb">Les widgets n\'inventent plus de chiffres, les siestes comptent pour la dette de sommeil, et les indicateurs Android parlent votre langue</string>
     <string name="l10n_sleep_screen_may_be_incomplete_7230dc27">Peut être incomplet</string>
     <string name="l10n_sleep_screen_little_motion_was_recorded_over_f061b7e4">Peu de mouvement a été enregistré cette nuit ; cette nuit peut donc être sous-détectée et le total de sommeil peut sembler court. Assurez-vous que le bracelet est entièrement synchronisé.</string>
+    <string name="haptics_section_title">Retour haptique</string>
+    <string name="haptics_breathing_label">Guide de respiration</string>
+    <string name="haptics_intervals_label">Minuteur d’intervalles</string>
+    <string name="haptics_live_session_label">Signaux de séance en direct</string>
+    <string name="haptics_workout_label">Début et fin d’entraînement</string>
 </resources>

@@ -1905,4 +1905,9 @@
     <string name="l10n_app_changelog_widgets_stop_inventing_numbers_naps_count_4f7491bb">Widgets erfinden keine Zahlen mehr, Nickerchen zählen für die Schlafschuld, und die Android-Statusanzeigen sprechen deine Sprache</string>
     <string name="l10n_sleep_screen_may_be_incomplete_7230dc27">Möglicherweise unvollständig</string>
     <string name="l10n_sleep_screen_little_motion_was_recorded_over_f061b7e4">Über Nacht wurde wenig Bewegung aufgezeichnet, daher wurde diese Nacht möglicherweise nicht vollständig erfasst und die Schlafdauer kann zu kurz erscheinen. Stelle sicher, dass das Band vollständig synchronisiert wurde.</string>
+    <string name="haptics_section_title">Haptik</string>
+    <string name="haptics_breathing_label">Atemtaktgeber</string>
+    <string name="haptics_intervals_label">Intervall-Timer</string>
+    <string name="haptics_live_session_label">Live-Session-Hinweise</string>
+    <string name="haptics_workout_label">Trainingsstart und -ende</string>
 </resources>

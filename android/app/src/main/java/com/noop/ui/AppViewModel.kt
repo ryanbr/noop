@@ -1229,7 +1229,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _lastWorkout.value = null
         val startMs = System.currentTimeMillis()
         _activeWorkout.value = ActiveWorkout(startMs = startMs, sport = sport, gpsEnabled = gpsEnabled)
-        buzz(1)
+        buzz(1, HapticPrefs.WORKOUT)
         // Workouts & GPS test mode (Test Centre): one session-start line tagged .workouts. Zero-cost when off.
         emitWorkoutsTrace {
             com.noop.analytics.WorkoutsTrace.sessionLine(
@@ -1393,7 +1393,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 gpsPoints = if (w.gpsEnabled) track.size else null,
             )
         }
-        buzz(2)
+        buzz(2, HapticPrefs.WORKOUT)
         viewModelScope.launch {
             runCatching { repository.upsertWorkouts(listOf(row)) }
             // #528: persist the live 1 Hz workout HR into hrSample so it can export to Health Connect
@@ -2375,6 +2375,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Fire a haptic buzz on the strap (requires a bonded connection). Scheduled cues only; for a
      *  user-facing "buzz the strap now" action use [buzzStrapOnce] instead (#921). */
     fun buzz(loops: Int = 2) = ble.buzz(loops)
+
+    /** #haptics (#1115 offshoot): an IN-SESSION cue buzz, GATED by its per-event [HapticPrefs] toggle
+     *  (default-off / opt-in, migrated-on for existing installs). Each in-session cue site passes its
+     *  [gate] key (e.g. [HapticPrefs.BREATHING]) so the enable check lives in ONE place rather than at every
+     *  Compose call site — and can't be forgotten, since the param is required. The ungated [buzz] /
+     *  [buzzStrapOnce] remain for ambient cues (which carry their own existing gates) and explicit user
+     *  buzzes (the Live-screen button, settings test), which are deliberately NOT default-off. */
+    fun buzz(loops: Int, gate: String) {
+        if (HapticPrefs.enabled(appContext, gate)) ble.buzz(loops)
+    }
 
     /** One-shot user buzz (#921): the confirmed pattern + RUN_ALARM sequence, written acknowledged
      *  (RUN_ALARM only where the family gate allows it). Drives the Live-screen Buzz button. */

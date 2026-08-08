@@ -211,6 +211,9 @@ final class LiveSessionRunner: ObservableObject {
         let signal: LiveSessionHaptics.Signal = (cue == .pushNudge) ? .push : .easeOff
         let pulses = LiveSessionHaptics.pulses(for: signal)
         guard !pulses.isEmpty else { return }
+        // #haptics (#1115): Live Session coach cues are opt-in (default-off, migrated-on for existing
+        // installs). This runner walks pulses straight out through `ble`, so gate it here directly.
+        guard HapticPrefs.enabled(HapticPrefs.liveSession) else { return }
 
         var offsetMs = 0
         for pulse in pulses {

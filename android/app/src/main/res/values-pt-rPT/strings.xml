@@ -1884,4 +1884,9 @@
     <string name="l10n_app_changelog_widgets_stop_inventing_numbers_naps_count_4f7491bb">Os widgets deixam de inventar números, as sestas contam para a dívida de sono, e os indicadores Android falam a tua língua</string>
     <string name="l10n_sleep_screen_may_be_incomplete_7230dc27">Pode estar incompleto</string>
     <string name="l10n_sleep_screen_little_motion_was_recorded_over_f061b7e4">Foi registado pouco movimento durante a noite, por isso esta noite pode ter sido subdetetada e o total de sono pode parecer curto. Certifique-se de que a pulseira sincronizou totalmente.</string>
+    <string name="haptics_section_title">Vibração</string>
+    <string name="haptics_breathing_label">Guia de respiração</string>
+    <string name="haptics_intervals_label">Temporizador de intervalos</string>
+    <string name="haptics_live_session_label">Sinais de sessão em direto</string>
+    <string name="haptics_workout_label">Início e fim do treino</string>
 </resources>

@@ -1818,4 +1818,9 @@
     <string name="l10n_app_changelog_widgets_stop_inventing_numbers_naps_count_4f7491bb">小组件不再编造数字、小睡计入睡眠债，Android 状态提示也终于会说你的语言</string>
     <string name="l10n_sleep_screen_may_be_incomplete_7230dc27">可能不完整</string>
     <string name="l10n_sleep_screen_little_motion_was_recorded_over_f061b7e4">夜间记录到的动作很少，因此这一夜可能未被完整检测，睡眠总时长可能偏短。请确保表带已完全同步。</string>
+    <string name="haptics_section_title">触觉反馈</string>
+    <string name="haptics_breathing_label">呼吸节拍</string>
+    <string name="haptics_intervals_label">间隔计时器</string>
+    <string name="haptics_live_session_label">实时会话提示</string>
+    <string name="haptics_workout_label">锻炼开始和结束</string>
 </resources>
