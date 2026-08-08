@@ -1721,26 +1721,26 @@ class WhoopBleClient(
      *  at the stack default (BALANCED) exactly as before. Flip on ONLY after on-strap validation (see
      *  #477); a follow-up wires it to a persisted Settings toggle. [connectionPriorityEnabled] enables the
      *  SAFE half (HIGH during offload/live-HR). The RISKY half (LOW_POWER when idle) is BATTERY-ADAPTIVE:
-     *  it engages only when the phone is discharging AND at/below [idleThrottleBatteryPct] (0 = never), so
+     *  it engages only when the STRAP is discharging AND at/below [idleThrottleBatteryPct] (0 = never), so
      *  the drop-risk is confined to when the user actually wants power saving. Set on the main looper via
      *  [setConnectionPriorityManagement]. */
     @Volatile private var connectionPriorityEnabled: Boolean = false
-    /** Battery-% at/below which the LOW_POWER idle throttle engages while discharging; 0 = never (safe
-     *  half only).
+    /** Battery-% at/below which the LOW_POWER idle throttle engages while the STRAP is discharging;
+     *  0 = never (safe half only).
      *
-     *  NOT REACHABLE TODAY, and this doc used to claim a Settings picker that was never built. The only
-     *  caller passes a hard-coded 0 (`AppViewModel.applyPowerSaving`), so the idle throttle is dormant
-     *  for everyone regardless of any setting. #477's validation plan needs it enabled on a real strap,
-     *  which nobody can currently do — see #1005, where the idle link is the addressable share and there
-     *  is no lever to reach it. Wiring a control is a separate change; do not describe one until it
-     *  exists.
+     *  REACHABLE as of #1035, but still OFF by default. `AppViewModel.applyPowerSaving` now passes
+     *  `NoopPrefs.idleThrottleBatteryPct` here instead of a hard-coded 0, so #477's validation plan can
+     *  finally arm it on a real strap. There is deliberately still NO Settings row: the pref is set
+     *  out-of-band on a debug build and CLAMPED to 0 or 10..30 on read, because the two preconditions
+     *  below are invisible in a UI and LOW_POWER can drop a link. Default 0 keeps today's behaviour
+     *  byte-identical for anyone who has not set it.
      *
-     *  Note it would ALSO need [connectionPriorityEnabled], i.e. the Fast history sync toggle, since
-     *  [refreshConnectionPriority] early-returns without it. A control for this alone would do nothing.
+     *  Note it ALSO needs [connectionPriorityEnabled], i.e. the Fast history sync toggle, since
+     *  [refreshConnectionPriority] early-returns without it. Setting this pref alone does nothing.
      *
-     *  Contrast [lowBatteryOffloadPct] below, which IS wired: the Power saving master drives it. Both key
-     *  on the STRAP's battery — see [batteryPctAndCharging] — so neither is a lever a user can pull
-     *  because their PHONE is draining. That is the gap #1005 runs into. */
+     *  Contrast [lowBatteryOffloadPct] below, which the Power saving master drives. Both key on the
+     *  STRAP's battery — see [batteryPctAndCharging] — so neither is a lever a user can pull because their
+     *  PHONE is draining. That is the gap #1005 runs into (this change does not close it). */
     @Volatile private var idleThrottleBatteryPct: Int = 0
 
     /** #533: also escalate to HIGH for the LIVE-HR stream, not just the offload burst. DEFAULT OFF, and
