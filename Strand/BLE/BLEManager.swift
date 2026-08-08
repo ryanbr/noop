@@ -552,9 +552,6 @@ public final class BLEManager: NSObject, ObservableObject {
     /// never silently dies. Started on bond, cancelled on disconnect.
     private var keepAliveTimer: DispatchSourceTimer?
     static let keepAliveIntervalSeconds = 30
-    /// Ten-percent tolerance for the maintenance tick. Liveness decisions still use wall-clock age, so
-    /// a slightly coalesced tick cannot hide a stalled link or accumulate timing drift.
-    static let keepAliveTimerLeewaySeconds = 3
     private var keepAliveTick = 0
     /// If a persisted/missing strap-family preference points at the wrong service, a service-filtered
     /// BLE scan can run forever even though the strap is nearby (the common "won't reconnect after an
@@ -3432,8 +3429,12 @@ public final class BLEManager: NSObject, ObservableObject {
         keepAliveTimer?.cancel()
         let s = BLEManager.keepAliveIntervalSeconds
         let t = DispatchSource.makeTimerSource(queue: .main)
-        t.schedule(deadline: .now() + .seconds(s), repeating: .seconds(s),
-                   leeway: .seconds(BLEManager.keepAliveTimerLeewaySeconds))
+        // Kept EXACT (no leeway): this tick isn't just a liveness check — `keepAliveFire` re-arms the
+        // WHOOP 4 realtime burst (R10/R11) and re-subscribes notifications every cycle so streaming can't
+        // lapse. Coalescing it up to a few seconds late risks a brief realtime-stream gap, for a battery
+        // gain that rounds to nothing on a 30 s timer. The real coalescing win is the offload timer's 60 s
+        // leeway (#1052), which is genuinely loose because the strap banks to flash between syncs.
+        t.schedule(deadline: .now() + .seconds(s), repeating: .seconds(s))
         t.setEventHandler { [weak self] in self?.keepAliveFire() }
         t.resume()
         keepAliveTimer = t
