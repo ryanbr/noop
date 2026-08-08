@@ -203,7 +203,6 @@ private var todayDidSnapToTodayThisLaunch = false
 // The hero card the score vessels float on, ported from the iOS LiquidTodayView. `heroFill` is a
 // translucent near-black (mock rgba(13,14,20,.80)) so it floats over the day-of-sky; the vessels + white
 // count-up numbers read crisp on it. Radius 26 + a white@0.11 hairline give the frosted-glass edge.
-private val LIQUID_HERO_FILL: Color = Color(red = 13f / 255f, green = 14f / 255f, blue = 20f / 255f, alpha = 0.80f)
 private val LIQUID_HERO_RADIUS: Dp = 26.dp
 
 // The Vitality vessel purple (#9b7bff) — no exact Palette token in this theme, so a fixed brand literal
@@ -1377,10 +1376,10 @@ fun TodayScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .background(
-                                        LIQUID_HERO_FILL.copy(alpha = LIQUID_HERO_FILL.alpha * CardAppearance.opacity),
+                                        Palette.heroFill.copy(alpha = Palette.heroFill.alpha * CardAppearance.opacity),
                                         RoundedCornerShape(LIQUID_HERO_RADIUS),
                                     )
-                                    .border(1.dp, Color.White.copy(alpha = 0.11f * CardAppearance.opacity), RoundedCornerShape(LIQUID_HERO_RADIUS))
+                                    .border(1.dp, Palette.heroBorder.copy(alpha = Palette.heroBorder.alpha * CardAppearance.opacity), RoundedCornerShape(LIQUID_HERO_RADIUS))
                                     .staggeredAppear(stagger),
                             ) {
                                 ScoreHeroRow(
@@ -2471,7 +2470,8 @@ private fun ScoreHeroRow(
                     if (heroSourceLabel != null) {
                         SourceBadge(
                             text = heroSourceLabel,
-                            tint = Palette.onDarkSecondary,
+                            // #1160: the hero is theme-aware now, so its badge uses the flip-able text token.
+                            tint = Palette.textSecondary,
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
                                 // Measure the full label even when it is wider than the Rest vessel, then

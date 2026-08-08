@@ -290,6 +290,37 @@ object NoopPrefs {
         of(context).edit().putBoolean(KEY_FAST_HISTORY_SYNC, enabled).apply()
     }
 
+    /** EXPERIMENTAL (#477): strap-battery % at/below which an IDLE link drops to LOW_POWER while the
+     *  strap is discharging. 0 = off, which is the default and today's behaviour for everyone.
+     *
+     *  Two preconditions, both easy to miss. It needs [KEY_FAST_HISTORY_SYNC] on as well, because
+     *  `refreshConnectionPriority` early-returns without connection-priority management; and it keys on
+     *  the STRAP's battery, not the phone's, so a healthy strap never trips it however low the phone is.
+     *  Neither is a bug, but a value set here alone will look like it does nothing.
+     *
+     *  Deliberately has NO Settings control yet. #477's validation plan needs the throttle enabled on a
+     *  real strap and nobody could do that while the caller passed a hard-coded 0; this makes it
+     *  reachable, without shipping a user-facing row whose two preconditions are invisible. LOW_POWER
+     *  lengthens the connection interval, which can drop a link, so it stays opt-in until a field report
+     *  says otherwise.
+     *
+     *  CLAMPED to 0 or 10..30 on read: settable out-of-band on a debug build, and an unclamped 95 would
+     *  engage the throttle at essentially all times, which is a foot-gun rather than a test. */
+    const val KEY_IDLE_THROTTLE_BATTERY_PCT = "noop.idleThrottleBatteryPct"
+
+    fun idleThrottleBatteryPct(context: Context): Int =
+        clampIdleThrottlePct(of(context).getInt(KEY_IDLE_THROTTLE_BATTERY_PCT, 0))
+
+    fun setIdleThrottleBatteryPct(context: Context, pct: Int) {
+        of(context).edit().putInt(KEY_IDLE_THROTTLE_BATTERY_PCT, clampIdleThrottlePct(pct)).apply()
+    }
+
+    /** 0 (off) or 10..30, the range every other battery threshold in this file offers. Anything else is
+     *  out of range rather than a smaller/larger preference, so it reads as OFF - failing closed, because
+     *  the failure mode of the alternative is a link that keeps dropping. Pure, so it is testable
+     *  without a Context. */
+    internal fun clampIdleThrottlePct(raw: Int): Int = if (raw in 10..30) raw else 0
+
     /** EXPERIMENTAL (#533): prefer the LE 2M PHY around the historical offload. LE 2M doubles the symbol
      *  rate, so the same bytes spend half the air-time — it should cost LESS radio energy per byte, not
      *  more (unlike [KEY_FAST_HISTORY_SYNC]'s connection-interval lever). NOOP has never called
@@ -410,6 +441,16 @@ object NoopPrefs {
 
     fun setDebugLogging(context: Context, enabled: Boolean) {
         of(context).edit().putBoolean(KEY_DEBUG_LOGGING, enabled).apply()
+    }
+
+    /** #1121: whether the opt-in "detailed capture" rolling strap-log file is on. Persisted so capture
+     *  RESUMES after the process is killed (AppViewModel re-arms the BLE client from this on launch). */
+    const val KEY_DETAILED_CAPTURE = "noop.detailedCapture"
+    fun detailedCapture(context: Context): Boolean =
+        of(context).getBoolean(KEY_DETAILED_CAPTURE, false)
+
+    fun setDetailedCapture(context: Context, enabled: Boolean) {
+        of(context).edit().putBoolean(KEY_DETAILED_CAPTURE, enabled).apply()
     }
 
     /** Whether NOOP re-broadcasts its live HR as a standard BLE Heart Rate peripheral. Default OFF. */
@@ -685,6 +726,17 @@ object NoopPrefs {
 
     fun setSkyBehindCards(context: Context, enabled: Boolean) {
         of(context).edit().putBoolean(KEY_SKY_BEHIND_CARDS, enabled).apply()
+    }
+
+    /** "Reduce motion in NOOP" (opt-in, default OFF). The literal key matches Apple so the setting has
+     *  one cross-platform identity. [rememberQuietMotion] observes it live for every looping surface. */
+    const val KEY_QUIET_MOTION = "noop.quietMotion"
+
+    fun quietMotion(context: Context): Boolean =
+        of(context).getBoolean(KEY_QUIET_MOTION, false)
+
+    fun setQuietMotion(context: Context, enabled: Boolean) {
+        of(context).edit().putBoolean(KEY_QUIET_MOTION, enabled).apply()
     }
 
     /** Coach on-device signals (v5): when ON, the opt-in BYO-key Coach's grounding context may include a

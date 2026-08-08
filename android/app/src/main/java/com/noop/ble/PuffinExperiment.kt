@@ -46,6 +46,21 @@ class PuffinExperiment(private val prefs: SharedPreferences) {
         get() = prefs.getBoolean(KEY_BROADCAST_HR, false)
         set(v) = prefs.edit().putBoolean(KEY_BROADCAST_HR, v).apply()
 
+    /** True if the user opted in to the "ECG raw-data gate" (#891): NOOP writes the device-config key
+     *  `enable_raw_data_w_ecg` — the key the strap's own 115/116 enumeration listed, which reads '0' on a
+     *  subscription-free WHOOP MG whose three TOGGLE_LABRADOR commands all ack SUCCESS and emit nothing.
+     *
+     *  Its own key rather than a shared "ECG" one, because this repo gives every PERSISTENT STRAP WRITE its
+     *  own deliberate opt-in ([deepData] #174, [broadcastHr] #181) — reusing one switch for "listen for ECG
+     *  packets" and "change a stored value on the strap" would let the second ride in on consent for the
+     *  first. Reversible in one tap, default false, and additionally gated on `Whoop5Variant.isMG` at the
+     *  call site — a plain 5.0 has no electrodes. Driven only by `WhoopBleClient.setEcgRawDataGate`, which
+     *  always follows the write with a GET_DEVICE_CONFIG_VALUE(121) read-back. Mirrors the macOS
+     *  `PuffinExperiment.ecgRawDataKey`. */
+    var ecgRawData: Boolean
+        get() = prefs.getBoolean(KEY_ECG_RAW_DATA, false)
+        set(v) = prefs.edit().putBoolean(KEY_ECG_RAW_DATA, v).apply()
+
     /** True if the user opted in to "Experimental sleep staging (V2)": detected nights are re-staged with
      *  [com.noop.analytics.SleepStagerV2] (the transparent cardiorespiratory recipe, reimplemented from
      *  contributor PR #600) instead of the older V1 [com.noop.analytics.SleepStager]. Pure analysis switch
@@ -131,9 +146,14 @@ class PuffinExperiment(private val prefs: SharedPreferences) {
         /** "Broadcast heart rate" opt-in (mirrors macOS `PuffinExperiment.broadcastHrKey`). */
         const val KEY_BROADCAST_HR = "noopBroadcastHr"
 
+        /** "ECG raw-data gate" opt-in — the `enable_raw_data_w_ecg` strap write (mirrors macOS
+         *  `PuffinExperiment.ecgRawDataKey`). (#891) */
+        const val KEY_ECG_RAW_DATA = "noopEcgRawDataGate"
+
         /** The 5/MG-only probe keys, in ONE place: [resetFiveMGGatedProbes] clears exactly these, and
          *  SettingsScreen watches exactly these for external writes. Two lists would drift. */
-        internal val FIVE_MG_GATED_KEYS = listOf(KEY, KEY_CAPTURE, KEY_DEEP_DATA, KEY_BROADCAST_HR)
+        internal val FIVE_MG_GATED_KEYS =
+            listOf(KEY, KEY_CAPTURE, KEY_DEEP_DATA, KEY_BROADCAST_HR, KEY_ECG_RAW_DATA)
 
         /** "Experimental sleep staging (V2)" opt-in (mirrors macOS `PuffinExperiment.experimentalSleepV2Key`). */
         const val KEY_EXPERIMENTAL_SLEEP_V2 = "noopExperimentalSleepV2"

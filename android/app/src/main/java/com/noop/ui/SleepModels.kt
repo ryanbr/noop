@@ -55,6 +55,10 @@ internal data class SleepModel(
     /** Persisted per-epoch segments as ordered (stage, minutes) weights — the REAL
      *  hypnogram (on-device APPROXIMATE staging) — or null → synthesized fallback. */
     val realSegments: List<Pair<String, Float>>?,
+    /** The SAME real segments but with their wall-clock start/end kept, for the opt-in FILLED
+     *  stepped hypnogram (#sleep-chart-style) which plots stages at real times. Null when the night
+     *  has no timestamped segments (then FILLED falls back to the classic view). */
+    val hypnogramSegments: List<PersistedSegment>?,
     /** Rolling 14-night sleep-debt ledger: Σ(slept − personal need) across the recent
      *  fortnight, with the per-night deltas behind it. Computed once per data change. (#242) */
     val sleepDebtLedger: SleepDebtLedger,
@@ -103,6 +107,8 @@ internal data class HeroNight(
 internal data class HeroDisplay(
     val stages: Stages,
     val realSegments: List<Pair<String, Float>>?,
+    /** Timestamped segments for the opt-in FILLED hypnogram (#sleep-chart-style); null → classic fallback. */
+    val hypnogramSegments: List<PersistedSegment>?,
     val efficiencyText: String,
 )
 

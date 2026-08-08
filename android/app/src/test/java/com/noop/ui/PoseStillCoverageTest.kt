@@ -67,10 +67,14 @@ class PoseStillCoverageTest {
      * user's finger is down. Quieting it would not save idle power (there is no idle: the user is dragging);
      * it would break the interaction by stripping the auto-scroll out from under them.
      *
+     * `SleepScreen.kt` runs the byte-identical drag-reorder auto-scroll loop (#sleep-layout, the Sleep-tab
+     * twin of Today's), gated the same way on `while (sleepSectionDrag.key != null)` — the same direct-
+     * manipulation case, exempt for the same reason. Its only `withFrameNanos` IS that loop.
+     *
      * The distinction this file draws is idle-vs-driven, not animated-vs-still. Anything added here needs a
      * reason of that shape.
      */
-    private val directManipulation = setOf("TodayScreen.kt")
+    private val directManipulation = setOf("TodayScreen.kt", "SleepScreen.kt")
 
     private fun animatingFiles(): List<File> =
         uiDir().walkTopDown()
@@ -98,18 +102,17 @@ class PoseStillCoverageTest {
         )
     }
 
-    /**
-     * The gate is reduce-motion OR battery saver. Losing either half is silent — the screen looks right
-     * in whichever mode still works — so both reads are pinned here rather than left to the composable.
-     */
+    /** The gate combines all three live signals. Losing one is silent, so pin their exact census here. */
     @Test
-    fun poseStillGateCombinesReduceMotionAndBatterySaver() {
+    fun poseStillGateCombinesAllThreeLiveSignals() {
         val motion = File(uiDir(), "NoopMotion.kt")
         assertTrue("NoopMotion.kt missing", motion.isFile)
         val code = stripComments(motion.readText()).replace(Regex("\\s+"), " ")
         assertTrue(
-            "rememberPoseStill must be the OR of both signals: $code",
-            code.contains("fun rememberPoseStill(): Boolean = rememberReduceMotion() || rememberPowerSaveMode()"),
+            "rememberPoseStill must OR system motion, battery saver, and the in-app preference: $code",
+            code.contains(
+                "fun rememberPoseStill(): Boolean = rememberReduceMotion() || rememberPowerSaveMode() || rememberQuietMotion()",
+            ),
         )
         assertTrue(
             "battery saver must be read from PowerManager.isPowerSaveMode",
@@ -118,6 +121,14 @@ class PoseStillCoverageTest {
         assertTrue(
             "and kept live — a read-once value would strand the screen animating after the user flips it",
             code.contains("ACTION_POWER_SAVE_MODE_CHANGED"),
+        )
+        assertTrue(
+            "the in-app preference must use the cross-platform key",
+            code.contains("NoopPrefs.KEY_QUIET_MOTION"),
+        )
+        assertTrue(
+            "and stay live without leaving the screen",
+            code.contains("registerOnSharedPreferenceChangeListener"),
         )
     }
 }

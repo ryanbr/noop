@@ -105,6 +105,9 @@ own device in SQLite, imports your existing WHOOP and Apple Health history, and
 computes recovery, strain, HRV, and sleep **locally**, with no WHOOP account and
 no WHOOP cloud.
 
+There is also **experimental** support for the **Oura Ring (Gen 3)** — real overnight data from a ring
+you own, on iOS and Android, with real limits. See [Oura ring support](#oura-ring-support).
+
 It is built on prior community interoperability work and exists for one
 reason: to let someone who owns a WHOOP strap read **their own biometric data**
 from **their own device**, on a machine **they** control.
@@ -241,6 +244,7 @@ NOOP is an independent, **experimental** project — capable, but a work in prog
 |---|---|
 | **WHOOP 4.0** | ✅ The tested, supported path. Live HR, recovery, strain, sleep, history offload — the full experience. (v1.95 also unlocked sleep + recovery on the newer "v25" 4.0 firmware layout that earlier versions could only read live HR from.) |
 | **WHOOP 5.0 / MG** | 🧪 **Live heart rate works** (confirmed on real hardware). Pick "WHOOP 5.0 / MG" before connecting — and see the pairing note below, because you can't just scan for it. Deeper 5/MG metrics (recovery, strain, sleep) are still being mapped; there's an opt-in **Settings → Experimental** toggle for 5/MG owners who want to help document the protocol. |
+| **Oura Ring (Gen 3)** | 🧪 **Experimental, not a supported strap.** Pairs on **iOS / Android only** and reads real overnight data — heart rate, sleep stages, skin temperature, SpO₂, motion — but a ring-only day does **not** produce a recovery/strain score yet, and some metrics are permanently out of reach. See **Oura ring support** below before you expect anything from it. |
 
 > ### WHOOP 5.0 / MG analysis limits
 >
@@ -289,6 +293,62 @@ NOOP is an independent, **experimental** project — capable, but a work in prog
 > certainly still bonded to the WHOOP app (or another device); free the strap and retry.
 
 The app always tells you what's live now versus still building, both in onboarding and on each screen.
+
+### Oura ring support
+
+NOOP has **experimental, clean-room** support for the **Oura Ring (Gen 3)**. It is not a supported
+strap and it is not on the same footing as a WHOOP 4.0: it lives behind the experimental-device path
+in the pairing wizard, and parts of it are permanently limited by what the ring will hand over. It
+reads real data from a ring you own, over Bluetooth, with no Oura account and no Oura cloud — the
+same rules as everything else here.
+
+> **Not affiliated with Oura.** Independent interoperability work with hardware you own. "Oura" is
+> used only to identify that hardware. NOOP does not use, decompile, or redistribute any Oura app
+> code, and does not bypass any login, paywall, or DRM.
+
+**📱 iOS / Android only.** Pairing an Oura ring **does not work on macOS** — `connect()` is issued
+cleanly and no CoreBluetooth callback ever arrives, so it hangs silently rather than failing. This is
+reproducible and independent of the pairing method. Documented in
+[`docs/OURA_PROTOCOL.md` §3.8](docs/OURA_PROTOCOL.md).
+
+| Input / output | Status |
+|---|---|
+| **Overnight heart rate** | ✅ Works. Reconstructed from the ring's banked inter-beat intervals; validated against a WHOOP strap worn the same night. |
+| **Sleep stages & timeline** | ✅ Works. Uses the **ring's own** hypnogram rather than re-staging it, so the stages are Oura's, shown in NOOP's Sleep screen. |
+| **Skin temperature** | ✅ Works. |
+| **Motion** | ✅ Stored. |
+| **Live wear status** | ✅ Works — NOOP can tell whether the ring is on your finger. |
+| **Live heart rate** | 🟡 Partial. Only one of the ring's channels ever arrives near-live, and it is quality-filtered, so it does not tile continuously the way a chest-strap or WHOOP feed does. |
+| **SpO₂** | 🟡 Raw channel captured and stored; a **calibrated percentage** is still open (~47% of decoded samples read above 100%, which no ground truth yet explains — so NOOP does **not** surface a Blood Oxygen number it can't stand behind). |
+| **Recovery / strain score on a ring-only day** | 🚧 **Not yet.** The ring's night is stored and visible, but it does not currently feed the scorer, so a ring-only day shows no recovery or strain. This is the single biggest gap and it is actively being worked on. |
+| **Step count** | 🚧 Estimated only, and not shown as a step count. The ring does **not** transmit a step total NOOP can read; what exists is a research estimate derived from activity intensity, which over-reads badly on very active days. |
+| **HRV (RMSSD / SDNN) and the Rhythm screen** | ❌ **Not possible from this data.** The ring banks its intervals in records rather than sending true beat-to-beat values, which inflates HRV spread beyond anything physiological. NOOP **refuses** to show a number here rather than showing a plausible-looking wrong one. |
+| **Respiratory rate** | ❌ **Not possible from this data**, for the same reason — it is derived from beat timing, and the ring's banked intervals carry no breathing signal (shuffling them at random produces the identical answer). The Oura app shows respiration because it computes it from data the ring does not transmit. |
+| **Exercise / activity heart rate** | ❌ Server-gated by Oura's cloud; unreachable on a NOOP-only pairing (but see the Auth Key note below). |
+
+> ### Optional: pairing with your ring's own Auth Key
+>
+> There are two ways to pair. The **standard** path provisions **NOOP's own** key, which requires a
+> factory reset of the ring and carries **none** of your Oura account's server-side entitlements.
+>
+> The **Advanced** path reuses the `auth_key` the genuine Oura app already holds for **your own** ring,
+> extracted from **your own** local iPhone backup (Apple's standard, unencrypted backup — no jailbreak,
+> no decryption bypass). Because that key is tied to your account, the ring keeps whatever cloud
+> configuration the real app already unlocked for it, which is what makes otherwise server-gated
+> streams (SpO₂, Exercise HR, real steps) start arriving. Step-by-step recipe:
+> [`docs/OURA_PROTOCOL.md` §3.7](docs/OURA_PROTOCOL.md).
+>
+> **Read the limits honestly before counting on it:**
+>
+> - It **requires an active paid Oura membership** at the time you enable each feature. These are
+>   account-side entitlements; NOOP cannot set them, and a free account does not carry them.
+> - **What happens after a membership lapses is untested.** We don't know whether the unlock persists,
+>   needs a server re-check, or reverts. Treat it as good for the period actually tested (one billing
+>   month), not as permanent.
+> - It **does not unlock the ❌ rows above.** HRV and respiratory rate are limited by what the ring's
+>   interval stream physically contains, not by an entitlement — no key changes that.
+> - Treat the key like a password. NOOP stores it locally (Keychain / EncryptedSharedPreferences) and
+>   transmits it nowhere.
 
 ### What to expect when you start
 

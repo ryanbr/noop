@@ -35,6 +35,15 @@ struct AutomationsView: View {
     @AppStorage("notif.masterEnabled") private var wristAlertsMaster = false
     #endif
 
+    // #haptics (#1115): per-event toggles for NOOP's IN-SESSION strap buzzes. Default ON (opt-out) — these
+    // are feedback to a feature you started, so a fresh install buzzes as before and a user turns off any
+    // cue. Ambient cues (inactivity / stress / coaching) keep their own opt-in cards; double-tap is gated by
+    // its action picker. Same keys the buzz sites read via HapticPrefs (which also defaults an unset key on).
+    @AppStorage(HapticPrefs.breathing) private var breathingHaptic = true
+    @AppStorage(HapticPrefs.intervals) private var intervalsHaptic = true
+    @AppStorage(HapticPrefs.liveSession) private var liveSessionHaptic = true
+    @AppStorage(HapticPrefs.workout) private var workoutHaptic = true
+
     var body: some View {
         ScreenScaffold(title: "Automations",
                        subtitle: "Make the strap do things: tap to act, walk away to lock, train by feel.",
@@ -46,6 +55,7 @@ struct AutomationsView: View {
             wristAlertsCard
             #endif
             doubleTapCard
+            hapticsCard
             wearCard
             coachingCard
             // #766: the strap's silent wake-alarm card used to sit here, which let users conflate it with
@@ -78,6 +88,35 @@ struct AutomationsView: View {
         }
     }
     #endif
+
+    // MARK: - Haptics (#1115)
+
+    /// Per-event opt-in toggles for NOOP's in-session strap buzzes (all default OFF, existing installs
+    /// migrated on). Parity with the Android Automations "Haptics" section. Ambient cues and the
+    /// Android-only call/notification buzzes are not shown here (the latter can't exist on Apple).
+    private var hapticsCard: some View {
+        Section2(icon: "waveform.path", title: String(localized: "Haptics"),
+                 blurb: String(localized: "Choose which in-session cues buzz your wrist during a breathing session, timer, or workout."),
+                 active: breathingHaptic || intervalsHaptic || liveSessionHaptic || workoutHaptic) {
+            VStack(spacing: 0) {
+                ToggleRow(label: String(localized: "Breathing pacer"),
+                          help: String(localized: "Buzz each inhale and exhale during a breathing or resonance session."),
+                          isOn: $breathingHaptic)
+                rowDivider
+                ToggleRow(label: String(localized: "Interval timer"),
+                          help: String(localized: "Buzz on each interval change."),
+                          isOn: $intervalsHaptic)
+                rowDivider
+                ToggleRow(label: String(localized: "Live Session cues"),
+                          help: String(localized: "Coaching buzzes during a live workout session."),
+                          isOn: $liveSessionHaptic)
+                rowDivider
+                ToggleRow(label: String(localized: "Workout start & end"),
+                          help: String(localized: "A buzz confirms a workout starting and saving."),
+                          isOn: $workoutHaptic)
+            }
+        }
+    }
 
     // MARK: - Double tap
 

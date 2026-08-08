@@ -28,6 +28,9 @@ struct StrandiOSApp: App {
     @AppStorage(AppearanceMode.storageKey) private var appearanceRaw = AppearanceMode.system.rawValue
     /// Chart data-colour style (Titanium / Classic throwback). Re-colours gauges + charts.
     @AppStorage(ChartStyle.storageKey) private var chartStyleRaw = ChartStyle.titanium.rawValue
+    /// Effort's display scale is also embedded in the shared widget snapshot. Observe it here so a
+    /// Settings change gets one accurate full rebuild instead of waiting for an unrelated repo refresh.
+    @AppStorage(UnitPrefs.effortScaleKey) private var effortScaleRaw = EffortScale.hundred.rawValue
 
     init() {
         // #1008: pin the pre-change Overnight-only default for existing installs before
@@ -147,11 +150,11 @@ struct StrandiOSApp: App {
                 // and foreground-initiated reloads are budget-exempt. dropFirst() skips the attach replay.
                 .onReceive(model.live.$batteryPct.dropFirst()) { _ in
                     guard scenePhase == .active else { return }
-                    Task { await WidgetSnapshot.publish(from: model) }
+                    Task { await WidgetSnapshot.publishLive(from: model) }
                 }
                 .onReceive(model.live.$connected.dropFirst()) { _ in
                     guard scenePhase == .active else { return }
-                    Task { await WidgetSnapshot.publish(from: model) }
+                    Task { await WidgetSnapshot.publishLive(from: model) }
                 }
                 // #114 (follow-up): `WidgetSnapshot.bpm` reads `model.bpm` (WidgetPublish.swift), the
                 // smoothed live HR — same LIVE-not-repo-cache category as battery/connected above, so it
@@ -159,11 +162,16 @@ struct StrandiOSApp: App {
                 // widget's HR froze at the last foreground snapshot for the rest of the session. UNLIKE
                 // battery/connection, HR is HIGH-frequency (the smoothed median moves every few seconds
                 // under activity), so — unlike the ungated hooks above — this one is throttled through
-                // `HRPublishThrottle` (60 s, mirroring Android's PushGate HR cadence) so it can't re-run
-                // publish's `exploreSeries` read + `reloadAllTimelines()` on every tick.
+                // `HRPublishThrottle` (60 s, mirroring Android's PushGate HR cadence). `publishLive` then
+                // updates the saved live fields without re-reading the full Rest series, while the throttle
+                // still bounds the App-Group writes + WidgetKit timeline reloads.
                 .onReceive(model.$bpm.dropFirst()) { _ in
                     guard scenePhase == .active else { return }
                     guard WidgetSnapshot.HRPublishThrottle.admit() else { return }
+                    Task { await WidgetSnapshot.publishLive(from: model) }
+                }
+                .onChange(of: effortScaleRaw) { _, _ in
+                    guard scenePhase == .active else { return }
                     Task { await WidgetSnapshot.publish(from: model) }
                 }
                 // #581: the `noop://import-health` deep link the iOS Shortcut opens after building the

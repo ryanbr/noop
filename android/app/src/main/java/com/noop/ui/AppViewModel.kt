@@ -677,6 +677,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // existing WHOOP flow below runs unchanged; it only acts when a non-WHOOP strap is the active
         // device. The Devices screen (next task) calls onActiveDeviceChanged after a setActive.
         noopApp.sourceCoordinator.start()
+        // #1121: re-arm the opt-in detailed-capture rolling log on launch, so a capture the user started
+        // keeps going across the process being killed (this phone class is not battery-exempt and Android
+        // kills the background BLE overnight — the very window a battery capture needs to span).
+        if (NoopPrefs.detailedCapture(appContext)) ble.setDetailedCapture(true)
         // #78 hole-4: wire the app-foreground salvage probe (see salvageProbeLifecycleCallbacks above).
         noopApp.registerActivityLifecycleCallbacks(salvageProbeLifecycleCallbacks)
         // Resolve the active band's name for the Live screen header (MW-6). Falls back to "WHOOP" in the
@@ -1053,9 +1057,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // for the bounded offload burst (faster backlog drain). The RISKY idle→LOW_POWER half stays at 0
         // (still dormant, #478), and live-HR does not escalate (see WhoopBleClient.escalateForLiveHr) —
         // realtimeArmed covers the overnight capture window, which would otherwise hold HIGH for hours.
+        // #477/#1005: the RISKY idle->LOW_POWER half was hard-coded to 0 here, so it was dormant for
+        // everyone and its own validation plan could never run. Reads the pref now; still 0 by default,
+        // so this changes nothing for anyone who has not deliberately set it.
         ble.setConnectionPriorityManagement(
             enabled = NoopPrefs.fastHistorySync(appContext),
-            idleThrottleBatteryPct = 0,
+            idleThrottleBatteryPct = NoopPrefs.idleThrottleBatteryPct(appContext),
         )
         // #533: the second, orthogonal sync-speed lever — prefer LE 2M around the offload burst. Also
         // independent of the Power-saving master, and its own toggle so a field report can tell the two
@@ -1225,7 +1232,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _lastWorkout.value = null
         val startMs = System.currentTimeMillis()
         _activeWorkout.value = ActiveWorkout(startMs = startMs, sport = sport, gpsEnabled = gpsEnabled)
-        buzz(1)
+        buzz(1, HapticPrefs.WORKOUT)
         // Workouts & GPS test mode (Test Centre): one session-start line tagged .workouts. Zero-cost when off.
         emitWorkoutsTrace {
             com.noop.analytics.WorkoutsTrace.sessionLine(
@@ -1389,7 +1396,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 gpsPoints = if (w.gpsEnabled) track.size else null,
             )
         }
-        buzz(2)
+        buzz(2, HapticPrefs.WORKOUT)
         viewModelScope.launch {
             runCatching { repository.upsertWorkouts(listOf(row)) }
             // #528: persist the live 1 Hz workout HR into hrSample so it can export to Health Connect
@@ -1966,6 +1973,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         ble.debugLogcat = enabled
     }
 
+    /** #1121: toggle the opt-in rolling "detailed capture" strap-log file. Persisted so it survives a
+     *  process kill (re-armed in [init] below). */
+    fun setDetailedCapture(enabled: Boolean) {
+        NoopPrefs.setDetailedCapture(appContext, enabled)
+        ble.setDetailedCapture(enabled)
+    }
+
     // --- Broadcast heart rate (NOOP acts as a standard BLE HR peripheral; gym kit reads the strap HR) ---
     //
     // OPT-IN, OFF BY DEFAULT, OFFLINE. When on, [HrBroadcaster] advertises the standard Heart Rate Service
@@ -2365,6 +2379,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      *  user-facing "buzz the strap now" action use [buzzStrapOnce] instead (#921). */
     fun buzz(loops: Int = 2) = ble.buzz(loops)
 
+    /** #haptics (#1115 offshoot): an IN-SESSION cue buzz, GATED by its per-event [HapticPrefs] toggle
+     *  (default-off / opt-in, migrated-on for existing installs). Each in-session cue site passes its
+     *  [gate] key (e.g. [HapticPrefs.BREATHING]) so the enable check lives in ONE place rather than at every
+     *  Compose call site — and can't be forgotten, since the param is required. The ungated [buzz] /
+     *  [buzzStrapOnce] remain for ambient cues (which carry their own existing gates) and explicit user
+     *  buzzes (the Live-screen button, settings test), which are deliberately NOT default-off. */
+    fun buzz(loops: Int, gate: String) {
+        if (HapticPrefs.enabled(appContext, gate)) ble.buzz(loops)
+    }
+
     /** One-shot user buzz (#921): the confirmed pattern + RUN_ALARM sequence, written acknowledged
      *  (RUN_ALARM only where the family gate allows it). Drives the Live-screen Buzz button. */
     fun buzzStrapOnce() = ble.buzzStrapOnce()
@@ -2506,8 +2530,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private companion object {
         /** Grace before the first scoring pass, letting the first BLE offload land. */
         const val FIRST_OFFLOAD_GRACE_MS = 6_000L
-        /** On-device scoring cadence — 15 min, matching the strap offload cadence. */
-        const val ANALYZE_INTERVAL_MS = 15 * 60 * 1_000L
+        /**
+         * On-device BACKSTOP scoring cadence — 30 min (#836 battery). This loop's watermark gate can't
+         * skip while the strap is connected and streaming live HR, because the HR fingerprint
+         * (count:maxTs) advances every second — so it re-ran a full 21-day analyzeRecent every 15 min over
+         * a large DB even though only TODAY's daytime HR changed (a real-capture CPU drain: ~6-7 full
+         * passes/hour). It is purely a BACKSTOP — every real update (sync-with-rows, import, edit,
+         * recalibrate, the #547 heal) rescores via its OWN forced path, and an app-resume kick (#386,
+         * [analyzeKick]) still wakes it EARLY the moment the user opens NOOP — so halving its cadence only
+         * delays the idle refresh of Today's live Effort/steps (recovery/sleep are night-computed and
+         * unaffected), never a real data update. Android-only tuning; the Swift AppModel loop is a parity
+         * follow-up.
+         */
+        const val ANALYZE_INTERVAL_MS = 30 * 60 * 1_000L
         /** Daily re-arm cadence for the single-instant strap firmware alarm (secondary buzz cue). */
         const val STRAP_ALARM_REARM_INTERVAL_MS = 24 * 60 * 60 * 1_000L
         /** SharedPreferences key for the persisted double-tap action (stored as the enum NAME). */

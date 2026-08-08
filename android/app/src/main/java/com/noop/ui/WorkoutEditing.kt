@@ -365,13 +365,19 @@ object WorkoutEditing {
         if (trimmed.isEmpty() || startSeconds > nowSeconds || startSeconds <= 0) return null
         if (avgHr != null && avgHr !in 25..250) return null
         if (energyKcal != null && (energyKcal < 0 || energyKcal > 20_000)) return null
+        val durationSeconds = durationMin.toLong() * 60L
+        // Keep both the addition and the future-end check overflow-safe. A valid start can be close to
+        // Long.MAX_VALUE in a boundary test even though production timestamps are much smaller.
+        if (durationSeconds > Long.MAX_VALUE - startSeconds) return null
+        val endSeconds = startSeconds + durationSeconds
+        if (endSeconds > nowSeconds) return null
         return WorkoutRow(
             deviceId = deviceId,
             startTs = startSeconds,
-            endTs = startSeconds + durationMin * 60L,
+            endTs = endSeconds,
             sport = trimmed,
             source = "manual",
-            durationS = durationMin * 60.0,
+            durationS = durationSeconds.toDouble(),
             energyKcal = energyKcal,
             avgHr = avgHr,
             maxHr = null,

@@ -135,6 +135,11 @@ enum ScheduledDebugExport {
 
     static var isEnabled: Bool { UserDefaults.standard.bool(forKey: K.enabled) }
 
+    /// A delivered BGAppRefresh request is single-shot and should schedule its successor only while the
+    /// user still has scheduled exports enabled. Kept outside the iOS-only `register` block so the
+    /// disable-versus-delivery race is testable on every platform.
+    static func backgroundTaskShouldResubmit(enabled: Bool) -> Bool { enabled }
+
     /// Time-of-day to export, minutes since local midnight. Clamped to a valid minute. Default 07:00.
     static var timeMinutes: Int {
         let v = UserDefaults.standard.object(forKey: K.time) as? Int ?? defaultTimeMinutes
@@ -306,8 +311,16 @@ enum ScheduledDebugExport {
             // report that honestly as a failure (so the run is retried) instead of leaving the task
             // marked incomplete, and instead of the old hardcoded `success: true`.
             task.expirationHandler = { completion.finish(success: false) }
-            // Write the drop, then immediately request the next one (BGAppRefresh is single-shot).
-            // `catchUpIfDue()` already no-ops (returning true) when the feature is off.
+            // BGAppRefresh is single-shot. `setEnabled(false)` cancels the pending request, but iOS can
+            // already be delivering one when it does — `cancel` loses that race. Gate the successor on a
+            // fresh enabled read so a stale delivery can't resurrect a daily background wake the user
+            // turned off. Disabled is a terminal no-op: nothing to export, nothing to resubmit.
+            guard backgroundTaskShouldResubmit(enabled: isEnabled) else {
+                completion.finish(success: true)
+                return
+            }
+            // Write the drop, then immediately request the next one.
+            // `catchUpIfDue()` already no-ops (returning true) when nothing is due.
             let succeeded = catchUpIfDue()
             submitBackgroundRequest()
             completion.finish(success: succeeded)

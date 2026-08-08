@@ -94,7 +94,7 @@ fun IntervalsScreen(vm: AppViewModel) {
 
     // Buzz only when bonded — keep it a pure visual tool otherwise.
     fun buzz(loops: Int) {
-        if (live.bonded) vm.buzz(loops)
+        if (live.bonded) vm.buzz(loops, HapticPrefs.INTERVALS)
     }
 
     fun resetToStart() {

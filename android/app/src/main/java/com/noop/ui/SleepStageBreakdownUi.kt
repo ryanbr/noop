@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -21,6 +22,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import android.text.format.DateFormat
+import java.util.TimeZone
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -186,6 +192,213 @@ internal fun HypnogramWithAxis(
         }
     }
 }
+
+/**
+ * #sleep-chart-style — the opt-in FILLED stepped hypnogram (the WHOOP-style single chart): stages stacked
+ * by depth (Awake top → REM → Light → Deep bottom), each stage's column FILLED from its level down to the
+ * baseline, with thin vertical risers tracing the transitions and an onset · midpoint · wake time axis.
+ *
+ * Unlike the classic proportional views this plots the night's REAL timestamps, so [segments] must be the
+ * timestamped `PersistedSegment` array (`SleepModel.hypnogramSegments`); the caller only routes here when
+ * the pref is FILLED and that array is present. Sub-90s fragments are display-smoothed (shared
+ * [displaySmoothed], render-only — totals/percentages are untouched) so the night reads as a clean
+ * staircase rather than a comb. One collapsed a11y node.
+ */
+@Composable
+internal fun FilledHypnogram(
+    segments: List<PersistedSegment>,
+    onsetTs: Long?,
+    wakeTs: Long?,
+    // true → each stage FILLS its column to the baseline (the stepped-area look). false → a slim uniform
+    // RIBBON at each stage level (the WHOOP-style stepped line), which reads cleaner on a fragmented night.
+    filled: Boolean = true,
+) {
+    if (segments.isEmpty()) return
+    val originSec = (onsetTs?.toDouble()) ?: segments.minOf { it.start }.toDouble()
+    val endSec = (wakeTs?.toDouble()) ?: segments.maxOf { it.end }.toDouble()
+    val spanSec = (endSec - originSec).coerceAtLeast(1.0)
+    val intervals = remember(segments, originSec, spanSec) {
+        // Sort by start BEFORE smoothing: displaySmoothed's coalesce assumes chronological order (it
+        // bridges seams via startSec − last.endSec), exactly like the Swift Hypnogram sorts before
+        // displaySmoothed. Group segments are normally already ordered, but a fragmented-night
+        // concatenation must not be trusted to be.
+        displaySmoothed(
+            segments.sortedBy { it.start }
+                .map { StageInterval(it.stage, it.start - originSec, it.end - originSec) },
+            FILLED_HYPNOGRAM_SMOOTH_SEC,
+        )
+    }
+    val showsAxis = onsetTs != null && wakeTs != null
+    val axSummary = hypnogramSummaryFor(intervals)
+    // Responsive time axis: exact onset/wake at the edges + round-hour marks between, MORE marks on a wider
+    // screen. Empty when the night has no clock window (no axis then).
+    // ~60dp per label so a phone (~360dp) budgets ~6 -> fills the interior with round-hour marks instead of
+    // stranding the axis at just onset/mid/wake; a tablet fans out to the 8-label ceiling. Floor 4 keeps a
+    // narrow phone from collapsing back to bare edges.
+    val maxAxisLabels = (LocalConfiguration.current.screenWidthDp / 60).coerceIn(4, 8)
+    val is24h = DateFormat.is24HourFormat(LocalContext.current)
+    val axisTicks = if (showsAxis) hypnogramAxisTicks(onsetTs!!, wakeTs!!, maxAxisLabels, is24h) else emptyList()
+    Column(verticalArrangement = Arrangement.spacedBy(Metrics.space6)) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(Metrics.compactChartHeight)
+                .semantics { contentDescription = axSummary },
+        ) {
+            val w = size.width
+            val h = size.height
+            if (w <= 0f || h <= 0f || intervals.isEmpty()) return@Canvas
+            val rowStep = h / 4f
+            fun levelY(rank: Int): Float = rowStep * (rank + 0.5f)
+            fun rankOf(stage: String): Int = when (canonicalStage(stage)) {
+                "awake" -> 0
+                "rem" -> 1
+                "light" -> 2
+                "deep" -> 3
+                else -> 2
+            }
+            fun xOf(sec: Double): Float = (w * (sec / spanSec)).toFloat().coerceIn(0f, w)
+
+            // Faint per-stage lane guides so height → stage reads even across gaps (mirrors the iOS lanes).
+            for (rank in 0 until 4) {
+                val y = levelY(rank)
+                drawLine(
+                    color = Palette.hairline.copy(alpha = 0.25f),
+                    start = Offset(0f, y),
+                    end = Offset(w, y),
+                    strokeWidth = 1f,
+                )
+            }
+            // FILLED: each stage from its level DOWN to the baseline (sharp rects tile seamlessly into one
+            // continuous staircase). RIBBON: a slim uniform band centred at the stage level — the WHOOP-style
+            // stepped line, lighter on a fragmented night where full columns amplify the noise.
+            val ribbonThickness = 10.dp.toPx()
+            intervals.forEach { iv ->
+                val x0 = xOf(iv.startSec)
+                val x1 = xOf(iv.endSec)
+                val y = levelY(rankOf(iv.stage))
+                val segW = (x1 - x0).coerceAtLeast(1.5f).coerceAtMost(w - x0)
+                if (filled) {
+                    drawRect(
+                        color = stageColorFor(iv.stage),
+                        topLeft = Offset(x0, y),
+                        size = Size(segW, (h - y).coerceAtLeast(0f)),
+                    )
+                } else {
+                    drawRect(
+                        color = stageColorFor(iv.stage),
+                        topLeft = Offset(x0, y - ribbonThickness / 2f),
+                        size = Size(segW, ribbonThickness),
+                    )
+                }
+            }
+            // Connecting risers tracing the staircase between consecutive column tops.
+            for (i in 0 until intervals.size - 1) {
+                val a = intervals[i]
+                val b = intervals[i + 1]
+                val x = xOf(b.startSec)
+                drawLine(
+                    color = Palette.textTertiary.copy(alpha = 0.5f),
+                    start = Offset(x, levelY(rankOf(a.stage))),
+                    end = Offset(x, levelY(rankOf(b.stage))),
+                    strokeWidth = 1.5f,
+                    cap = StrokeCap.Round,
+                )
+            }
+            // Time-axis vertical hairlines at each label tick (onset · round hours · wake).
+            axisTicks.forEach { (frac, _) ->
+                val hx = w * frac
+                drawLine(
+                    color = Palette.hairline,
+                    start = Offset(hx, 0f),
+                    end = Offset(hx, h),
+                    strokeWidth = 1f,
+                )
+            }
+        }
+        if (axisTicks.isNotEmpty()) {
+            HypnogramTimeAxis(axisTicks)
+        }
+    }
+}
+
+/** Display-smoothing floor for [FilledHypnogram] — 5 min, matching the WHOOP-style Swift `Hypnogram`
+ *  default (not the classic rows' 90s). The stepped single-chart view reads as a comb of thin spikes on a
+ *  fragmented / under-detected night unless brief fragments coalesce into legible blocks; render-only, so
+ *  totals/percentages are untouched. */
+private const val FILLED_HYPNOGRAM_SMOOTH_SEC = 300.0
+
+/**
+ * Time-axis ticks for the stepped hypnogram: the EXACT onset (frac 0) and wake (frac 1) at the edges
+ * (minute precision, [axisEdgeLabel]), plus round-hour marks between at a "nice" step chosen so the interior
+ * count is ≤ [maxLabels]−2 — so a WIDER screen (larger [maxLabels]) shows MORE marks. Interior marks read as
+ * the hour only ([axisHourLabel] — "06:00" / "6 AM"), which is shorter than an edge label, so more fit. Marks
+ * within ~18% of either edge are dropped so a round-hour label can't collide with the onset/wake label.
+ * [is24h] (from `DateFormat.is24HourFormat`) picks 12/24h formatting. Pure/unit-testable.
+ */
+internal fun hypnogramAxisTicks(
+    onsetTs: Long,
+    wakeTs: Long,
+    maxLabels: Int,
+    is24h: Boolean = true,
+): List<Pair<Float, String>> {
+    val span = (wakeTs - onsetTs).toDouble()
+    if (span <= 0.0) return listOf(0f to axisEdgeLabel(onsetTs, is24h))
+    val out = ArrayList<Pair<Float, String>>()
+    out.add(0f to axisEdgeLabel(onsetTs, is24h))
+    val spanHours = span / 3600.0
+    val interiorTarget = (maxLabels - 2).coerceAtLeast(1)
+    val stepH = intArrayOf(1, 2, 3, 4, 6, 8, 12).firstOrNull { spanHours / it <= interiorTarget + 0.5 } ?: 12
+    val stepSec = stepH * 3600L
+    // Align marks to LOCAL hour boundaries, not UNIX-epoch ones: on a half-hour-offset zone (e.g. UTC+5:30)
+    // an epoch-aligned 3h step lands at local :30, and axisHourLabel's "HH:00" would then LIE. Local midnight
+    // is a whole number of days (a multiple of stepSec for every stepH that divides 24), so shifting into
+    // local-epoch space by the zone offset, aligning there, and shifting back puts every mark on a true :00.
+    val offset = TimeZone.getDefault().getOffset(onsetTs * 1000L) / 1000L
+    var t = (((onsetTs + offset) / stepSec) + 1L) * stepSec - offset // first LOCAL hour boundary after onset
+    while (t < wakeTs) {
+        val frac = ((t - onsetTs).toDouble() / span).toFloat()
+        // Drop marks within ~18% of an edge so a round-hour label can't overlap the onset/wake label — sized
+        // for the WIDER 12h edge ("10:25 AM"), plus half the mark's own width, on a phone.
+        if (frac > 0.18f && frac < 0.82f) out.add(frac to axisHourLabel(t, is24h))
+        t += stepSec
+    }
+    out.add(1f to axisEdgeLabel(wakeTs, is24h))
+    return out
+}
+
+/**
+ * Places [ticks] (fraction 0..1 → label) along a full-width row, each label CENTRED on its fraction and
+ * clamped so the edge labels stay on-screen. A [Layout] (not a weighted Row) so round-hour marks sit at
+ * their true time position rather than evenly spaced — the labels line up with the axis hairlines drawn at
+ * the same fractions in the chart above.
+ */
+@Composable
+private fun HypnogramTimeAxis(ticks: List<Pair<Float, String>>) {
+    Layout(
+        modifier = Modifier.fillMaxWidth(),
+        content = {
+            ticks.forEach { (_, label) ->
+                Text(label, style = NoopType.footnote, color = Palette.textTertiary, maxLines = 1)
+            }
+        },
+    ) { measurables, constraints ->
+        val placeables = measurables.map { it.measure(constraints.copy(minWidth = 0)) }
+        val wpx = constraints.maxWidth
+        val hpx = placeables.maxOfOrNull { it.height } ?: 0
+        layout(wpx, hpx) {
+            placeables.forEachIndexed { i, p ->
+                val centerX = ticks[i].first * wpx
+                val x = (centerX - p.width / 2f).roundToInt().coerceIn(0, (wpx - p.width).coerceAtLeast(0))
+                p.place(x, 0)
+            }
+        }
+    }
+}
+
+/** One-line a11y summary of the smoothed hypnogram (stage count) — the collapsed node for [FilledHypnogram]. */
+private fun hypnogramSummaryFor(intervals: List<StageInterval>): String =
+    if (intervals.isEmpty()) "Sleep stages, no data" else "Sleep stage timeline, ${intervals.size} segments"
 
 /**
  * The onset · midpoint · wake clock-label row under a night timeline. Extracted from

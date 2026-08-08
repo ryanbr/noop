@@ -287,6 +287,53 @@ object LogExport {
         return out
     }
 
+    /**
+     * Share the opt-in "detailed capture" rolling strap-log file (#1121) — the adb-like long-run log the
+     * Test Centre toggle writes. Concatenates the rolled generation + the live file (oldest first) into one
+     * shareable `.txt`. Lines are ALREADY PII-scrubbed by `WhoopBleClient.log()`, so no extra redaction here.
+     */
+    suspend fun shareCaptureLog(context: Context) {
+        runCatching {
+            val out = withContext(Dispatchers.IO) { writeCaptureLogFile(context) }
+            if (out == null) {
+                Toast.makeText(
+                    context,
+                    "No detailed capture yet — turn on \"Detailed capture to file\" in Test Centre first.",
+                    Toast.LENGTH_LONG,
+                ).show()
+                return
+            }
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_STREAM, fileUri(context, out))
+                putExtra(Intent.EXTRA_SUBJECT, "NOOP detailed capture log")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(send, "Share captured log"))
+        }.onFailure {
+            Toast.makeText(context, "Couldn't share the capture: ${it.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    /** Concatenate the rolling capture file's rolled + live generations (oldest first) into a shareable
+     *  copy under cache/logs. Null when nothing has been captured yet. */
+    private fun writeCaptureLogFile(context: Context): File? {
+        val main = File(context.filesDir, com.noop.ble.WhoopBleClient.CAPTURE_LOG_FILE)
+        val prev = File(context.filesDir, "${com.noop.ble.WhoopBleClient.CAPTURE_LOG_FILE}.1")
+        if (!main.exists() && !prev.exists()) return null
+        val header = buildString {
+            appendLine("# NOOP detailed capture — rolling strap log (PII-scrubbed at source)")
+            appendLine("# App: ${BuildConfig.VERSION_NAME} (${BuildConfig.TIER}) · Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT}) · ${Build.MANUFACTURER} ${Build.MODEL}")
+        }
+        val dir = File(context.cacheDir, "logs").apply { mkdirs() }
+        val out = File(dir, "noop-capture-${timestamp()}.txt")
+        out.outputStream().bufferedWriter().use { w ->
+            w.write(header)
+            for (f in listOf(prev, main)) if (f.exists()) f.bufferedReader().use { r -> r.copyTo(w) }
+        }
+        return out
+    }
+
     private fun fileUri(context: Context, file: File) =
         FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
 

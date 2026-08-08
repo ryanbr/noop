@@ -653,6 +653,16 @@ object IntelligenceEngine {
                     "rr=${h.nInput}/${h.nClean} rejected=$rej% coverage=$cov collapsedCov=$colCov dupBeats=$dup " +
                     "beatAccurate=$acc " +
                     "rrIntegrity=${verdict.raw}")
+                // #1008: on an OVER-COUNT night only, dump a raw-row sample around the densest second so the
+                // over-count's MECHANISM is readable from the always-on log (near-equal copies vs distinct
+                // trains vs a tagged channel) — clean nights stay quiet. srcChannel rides from the read model.
+                if (verdict == HrvAnalyzer.RrCoverageVerdict.CROSS_SECOND_OVER_COUNT ||
+                    verdict == HrvAnalyzer.RrCoverageVerdict.SAME_SECOND_OVER_COUNT) {
+                    val sample = HrvAnalyzer.densestSecondWindowSample(
+                        ts, sleepRr, sleepRrRows.map { it.srcChannel },
+                    )
+                    if (sample.isNotEmpty()) diag("hrv rrsample day=${res.daily.day} $sample")
+                }
             }
 
             // Steps test mode: emit the 5/MG raw-counter trace for this day (cumulative @57 series +

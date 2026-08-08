@@ -128,7 +128,6 @@ private enum class Phase { Inhale, Exhale }
 // translucent near-black (mock rgba(13,14,20,.80)) so it floats over the day-of-sky and the vessel + white
 // count-up read crisp on it; radius 26 + a white@0.11 hairline give the frosted-glass edge. Declared here
 // (not shared from Today) because the Today copies are file-private — same values, kept in lockstep.
-private val LIQUID_HERO_FILL: Color = Color(red = 13f / 255f, green = 14f / 255f, blue = 20f / 255f, alpha = 0.80f)
 private val LIQUID_HERO_RADIUS = 26.dp
 
 /** The three biofeedback layers as a mode switch (mirrors BreathingView.Mode). */
@@ -254,12 +253,12 @@ fun BreatheScreen(viewModel: AppViewModel) {
         while (true) {
             // Inhale: cue, then hold for the inhale duration.
             phase = Phase.Inhale
-            viewModel.buzz(loops = 1)
+            viewModel.buzz(loops = 1, gate = HapticPrefs.BREATHING)
             if (audioCues) tonePlayer.play(BreathTone.Inhale)
             delay((pace.inhale(lockedBpm) * 1000).toLong())
             // Exhale: cue, then hold for the exhale duration.
             phase = Phase.Exhale
-            viewModel.buzz(loops = 2)
+            viewModel.buzz(loops = 2, gate = HapticPrefs.BREATHING)
             if (audioCues) tonePlayer.play(BreathTone.Exhale)
             delay((pace.exhale(lockedBpm) * 1000).toLong())
             breathCount += 1
@@ -374,8 +373,8 @@ fun BreatheScreen(viewModel: AppViewModel) {
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(LIQUID_HERO_RADIUS))
-                .background(LIQUID_HERO_FILL.copy(alpha = LIQUID_HERO_FILL.alpha * CardAppearance.opacity))
-                .border(1.dp, Color.White.copy(alpha = 0.11f * CardAppearance.opacity), RoundedCornerShape(LIQUID_HERO_RADIUS))
+                .background(Palette.heroFill.copy(alpha = Palette.heroFill.alpha * CardAppearance.opacity))
+                .border(1.dp, Palette.heroBorder.copy(alpha = Palette.heroBorder.alpha * CardAppearance.opacity), RoundedCornerShape(LIQUID_HERO_RADIUS))
                 .padding(24.dp),
         ) {
             Column(
@@ -851,7 +850,7 @@ private fun ResonanceMode(
                 // Read the LATEST live state off the flow (the captured `live` param is a snapshot that
                 // only refreshes on recomposition; the standard profile is the reliable R-R source).
                 val liveNow = viewModel.live.value
-                if (liveNow.encryptedBond) viewModel.buzz(loops = cue.loops)
+                if (liveNow.encryptedBond) viewModel.buzz(loops = cue.loops, gate = HapticPrefs.BREATHING)
                 val now = (System.currentTimeMillis() / 1000).toInt()
                 for (ms in liveNow.rr) if (ms in 301..1999) bucket.add(ResonanceEngine.RrBeat(now, ms))
             }
@@ -1085,7 +1084,7 @@ private fun CalmMode(viewModel: AppViewModel, live: com.noop.ble.LiveState, bpm:
                 break
             }
             targetBpm = step.targetBpm
-            if (canBuzz) viewModel.buzz(loops = 1)
+            if (canBuzz) viewModel.buzz(loops = 1, gate = HapticPrefs.BREATHING)
             val interval = step.intervalMs ?: 1000
             delay(interval.toLong())
             elapsed += interval / 1000

@@ -45,3 +45,19 @@ internal fun localDayString(ts: Long): String =
 /** Unix seconds → a local wall-clock "HH:mm" (same 24h formatting the nav-header span uses). */
 internal fun clockTimeLabel(ts: Long): String =
     SimpleDateFormat("HH:mm", Locale.US).format(Date(ts * 1000L))
+
+/**
+ * Hypnogram-axis EDGE label (onset / wake) at minute precision, honouring the device 12/24h setting:
+ * "23:28" when the clock is 24h, "11:28 PM" when it's 12h. The [is24h] flag comes from
+ * `DateFormat.is24HourFormat(context)` at the call site so this stays pure/unit-testable.
+ */
+internal fun axisEdgeLabel(ts: Long, is24h: Boolean): String =
+    SimpleDateFormat(if (is24h) "HH:mm" else "h:mm a", Locale.US).format(Date(ts * 1000L))
+
+/**
+ * Hypnogram-axis INTERIOR round-hour mark — the label is always on the hour, so it drops the minutes and
+ * reads shorter than an edge label ("06:00" in 24h, "6 AM" in 12h). The narrower label lets a phone fit an
+ * extra mark in the same width. Locale 12/24h via [is24h], same source as [axisEdgeLabel].
+ */
+internal fun axisHourLabel(ts: Long, is24h: Boolean): String =
+    SimpleDateFormat(if (is24h) "HH:00" else "h a", Locale.US).format(Date(ts * 1000L))

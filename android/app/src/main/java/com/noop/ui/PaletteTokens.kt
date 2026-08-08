@@ -90,6 +90,12 @@ data class PaletteTokens(
     // The bright gauge-tip / sparkline-head core: white reads as a highlight on dark; on light it
     // would vanish into the white card, so it flips to a deep ink (crisp centre on the coloured bead).
     val tipCore: Color,
+    // #1160/#1161: the Liquid hero card surface (Today's Charge/Effort/Rest vessel + every screen's hero).
+    // Pinned near-black in DARK; in LIGHT it flips to a frosted white so the hero fits in with the other
+    // cards instead of reading as a broken dark block (was a raw literal inlined in 11 screens). heroBorder
+    // + heroLabel flip with it so the edge stays subtle and the source-badge text stays readable in both.
+    val heroFill: Color,
+    val heroBorder: Color,
 )
 
 // WHOOP-reset dark palette (gold killed 2026-06-22). Values match StrandPalette.swift's DARK
@@ -118,6 +124,7 @@ val DarkTokens = PaletteTokens(
     goldDeepText = Color(0xFFFFFFFF), signalYellow = Color(0xFFFFD63D),
     titaniumTop = Color(0xFFF1F3F5), titaniumMid = Color(0xFFC9CFD4), titaniumLow = Color(0xFF969DA4), titaniumDeep = Color(0xFF6B737B),
     tipCore = Color(0xFFFFFFFF),
+    heroFill = Color(0xCC0D0E14), heroBorder = Color(0x1CFFFFFF),
 )
 
 val LightTokens = PaletteTokens(
@@ -144,6 +151,9 @@ val LightTokens = PaletteTokens(
     goldDeepText = Color(0xFF3A2708), signalYellow = Color(0xFFE8A800),
     titaniumTop = Color(0xFFDDE1E6), titaniumMid = Color(0xFFBBC2C9), titaniumLow = Color(0xFF98A0A8), titaniumDeep = Color(0xFF6B737B),
     tipCore = Color(0xFF241B06),
+    // Frosted WHITE hero in light mode (#1160), subtle dark edge. (Hero text uses the flip-able text*
+    // tokens now, so no separate label token is needed.)
+    heroFill = Color(0xD9FFFFFF), heroBorder = Color(0x1A000000),
 )
 
 // MARK: - Chart style (data-viz colour mode) + the Classic throwback ramps

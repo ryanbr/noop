@@ -111,8 +111,10 @@ struct LiquidTodayView: View {
     private let liquidPurple = Color(.sRGB, red: 0x9b / 255, green: 0x7b / 255, blue: 0xff / 255, opacity: 1)
     /// The liquid heart pink (matches LiquidThread's default + the mockup #ff6b81).
     private let liquidHeart = Color(.sRGB, red: 1, green: 107 / 255, blue: 129 / 255, opacity: 1)
-    /// Hero card fill: a translucent near-black so it floats over the sky (mock rgba(13,14,20,.78)).
-    private let heroFill = NoopVisualStyle.surface
+    /// Hero / session-start chrome uses theme-aware `NoopPanelSurface` (design-system surfaces that
+    /// flip with Light/Dark). Upstream #1160/#1161 moved the classic RoundedRectangle hero onto
+    /// `StrandPalette.heroFill` / `heroBorder` for the same theme-aware goal; #1068 keeps the panel
+    /// surface treatment while preserving that Light/Dark readability.
     /// "Card transparency" (0–100, default 100): fades every liquid card surface here — the hero, the
     /// session-start row, the metric tiles and the `card` helper — in lockstep with the frosted cards.
     /// Content sits above the surface so it stays readable. Mirrors Kotlin `NoopPrefs.cardOpacityPercent`.
@@ -479,6 +481,8 @@ struct LiquidTodayView: View {
                 Image(systemName: "shield.lefthalf.filled")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(StrandPalette.metricCyan)
+                // Theme-aware session-start chrome (#1160 parity): NoopPanelSurface + normal text
+                // tokens — light ink on Dark, dark ink on Light. (Was pinned-dark + on-dark tokens.)
                 Text("Start session")
                     .font(StrandFont.subhead)
                     .foregroundStyle(StrandPalette.textPrimary)
@@ -1493,6 +1497,8 @@ private struct HeroScoreCell: View {
                         .lineLimit(1).minimumScaleFactor(0.7)
                     Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).opacity(0.6)
                 }
+                // Theme-aware hero label (#1160): normal text token — readable on Dark and Light
+                // panel surfaces alike (was onDark* when the hero fill was pinned dark).
                 .foregroundStyle(StrandPalette.textSecondary)
             }
             .buttonStyle(.plain)

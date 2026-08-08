@@ -99,7 +99,6 @@ import kotlinx.coroutines.launch
 // frosted card so the strap name + the live battery tube stay crisp on it. Same tokens as the liquid Today
 // hero (heroFill = rgba(13,14,20,.80), radius 26, white@0.11 hairline). Those Today constants are private to
 // TodayScreen, so the identical values are declared here. Mirrors the iOS liquid heroCard.
-private val LIQUID_HERO_FILL: Color = Color(red = 13f / 255f, green = 14f / 255f, blue = 20f / 255f, alpha = 0.80f)
 private val LIQUID_HERO_RADIUS: Dp = 26.dp
 
 @Composable
@@ -231,9 +230,18 @@ fun DevicesScreen(
                     live.batteryPct?.let { Math.round(it).toInt() } else null,
                 liveBatteryMv = if (device.status == DeviceStatus.active.name && live.connected)
                     live.batteryMv else null,
-                // Firmware version from the connect handshake: only for the active, connected strap.
-                liveFirmware = if (device.status == DeviceStatus.active.name && live.connected)
-                    live.strapFirmware else null,
+                // Firmware version for the ACTIVE strap. It's a STABLE property (NOOP can't change a strap's
+                // firmware), so prefer the live handshake value but fall back to the last-known persisted
+                // firmware (NoopPrefs, written on connect) when the live value is momentarily null — mid-
+                // handshake, or a connection that hasn't re-read REPORT_VERSION_INFO yet this session. Without
+                // this the "· FW x" blanks out while actively connected + syncing. The persisted fallback is
+                // WHOOP-only: `noop.lastFirmware` is written solely from a WHOOP handshake, so a non-WHOOP
+                // active device (Oura/FTMS) must NOT inherit it. Single-key, so on a multi-WHOOP install a
+                // not-yet-connected active strap can briefly show the other strap's build until it republishes.
+                liveFirmware = if (device.status == DeviceStatus.active.name)
+                    (live.strapFirmware
+                        ?: if (device.brand.equals("WHOOP", ignoreCase = true)) NoopPrefs.lastFirmware(context) else null)
+                    else null,
                 // Historical record layout from the current backfill, distinct from strap firmware.
                 liveHistoryLayout = if (device.status == DeviceStatus.active.name && live.connected)
                     live.historyLayoutVersion else null,
@@ -671,8 +679,8 @@ private fun DeviceCard(
             modifier = cardModifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(LIQUID_HERO_RADIUS))
-                .background(LIQUID_HERO_FILL.copy(alpha = LIQUID_HERO_FILL.alpha * CardAppearance.opacity))
-                .border(1.dp, Color.White.copy(alpha = 0.11f * CardAppearance.opacity), RoundedCornerShape(LIQUID_HERO_RADIUS))
+                .background(Palette.heroFill.copy(alpha = Palette.heroFill.alpha * CardAppearance.opacity))
+                .border(1.dp, Palette.heroBorder.copy(alpha = Palette.heroBorder.alpha * CardAppearance.opacity), RoundedCornerShape(LIQUID_HERO_RADIUS))
                 .padding(18.dp),
         ) {
             body()

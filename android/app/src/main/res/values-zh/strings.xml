@@ -29,6 +29,7 @@
     <string name="nav_automations">自动化</string>
     <string name="nav_alarms">智能闹钟</string>
     <string name="nav_devices">设备管理</string>
+    <string name="nav_noop_limitations">NOOP 限制</string>
     <string name="nav_data_sources">数据源</string>
     <string name="nav_backup_sync">备份与同步</string>
     <string name="nav_fused_record">融合数据</string>
@@ -1386,6 +1387,8 @@
     <string name="l10n_settings_screen_age_ff9f1ff3">年龄</string>
     <string name="l10n_settings_screen_app_icon_abde7a74">App 图标</string>
     <string name="l10n_settings_screen_appearance_41def7a0">外观设置</string>
+    <string name="l10n_settings_screen_reduce_motion_in_noop_59a6180d">减少 NOOP 中的动态效果</string>
+    <string name="l10n_settings_screen_holds_the_liquid_gauges_the_sky_41872b57">让液态仪表、天空和倾斜响应保持静止，并关闭驱动它们的运动传感器。省电。低电量模式和系统的“减弱动态效果”设置已经会这样做。</string>
     <string name="l10n_settings_screen_auto_detect_workouts_bed4cf2a">自动识别运动</string>
     <string name="l10n_settings_screen_automatic_backups_8a772f3c">自动备份</string>
     <string name="l10n_settings_screen_backup_restore_a1616284">备份与恢复</string>
@@ -1815,4 +1818,15 @@
     <string name="l10n_app_changelog_widgets_stop_inventing_numbers_naps_count_4f7491bb">小组件不再编造数字、小睡计入睡眠债，Android 状态提示也终于会说你的语言</string>
     <string name="l10n_sleep_screen_may_be_incomplete_7230dc27">可能不完整</string>
     <string name="l10n_sleep_screen_little_motion_was_recorded_over_f061b7e4">夜间记录到的动作很少，因此这一夜可能未被完整检测，睡眠总时长可能偏短。请确保表带已完全同步。</string>
+    <string name="haptics_section_title">触觉反馈</string>
+    <string name="haptics_breathing_label">呼吸节拍</string>
+    <string name="haptics_intervals_label">间隔计时器</string>
+    <string name="haptics_live_session_label">实时会话提示</string>
+    <string name="haptics_workout_label">锻炼开始和结束</string>
+    <string name="notif_timer_alarm_title">计时器和闹钟</string>
+    <string name="l10n_settings_screen_ecg_raw_data_gate_whoop_mg_only">ECG 原始数据开关（仅限 WHOOP MG）</string>
+    <string name="l10n_settings_screen_ecg_gate_blurb">你的手环列出了它自己的设备配置键，其中之一是 enable_raw_data_w_ecg。在没有 ECG 订阅的 MG 上它读作 \'0\'，而三条 ECG 命令都回应 SUCCESS 却完全不发送数据 (#891)。这是目前对「什么在挡住 ECG」最有力的猜测。翻转它是否真能产生 ECG 数据，没有人知道：弄清楚正是目的，而「仍然没有」同样是值得发到 #891 的有用答案。</string>
+    <string name="l10n_settings_screen_ecg_gate_persistent_warning">这会写入一项会一直留在你手环上的设置，直到你改回来——它不是应用内的偏好设置，关闭 NOOP 也不会撤销。「关闭开关」一键即可再写入 \'0\'。全程只写入这一个键；你手环列出的另外六个从不触碰。</string>
+    <string name="l10n_settings_screen_ecg_gate_turn_on">打开开关（写入 \'1\'）</string>
+    <string name="l10n_settings_screen_ecg_gate_turn_off">关闭开关（写入 \'0\'）</string>
 </resources>

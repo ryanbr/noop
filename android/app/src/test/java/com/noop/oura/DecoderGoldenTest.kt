@@ -99,6 +99,63 @@ class DecoderGoldenTest {
         assertNull(OuraDecoders.decodeHRV(record("5d0702000100328432")))
     }
 
+    // MARK: - 0x5D `00 00` tail padding (#1128)
+
+    @Test
+    fun testHRV0x5DDropsTailPadding() {
+        // A record that closes early pads its tail with `00 00`. That pair is not a reading, and a
+        // stored hr_bpm: 0 is a fabricated value nothing downstream can tell from a measurement. Real
+        // shape, from the 2026-08-07 overnight: ... 48/128 47/137 ... 0/0.
+        val hrv = OuraDecoders.decodeHRV(record("5d0a02000100328432830000"))
+        assertEquals(
+            listOf(
+                OuraHRV(ringTimestamp = rt, index = 0, hrBpm = 50, rmssdMs = 132),
+                OuraHRV(ringTimestamp = rt, index = 1, hrBpm = 50, rmssdMs = 131),
+            ),
+            hrv,
+        )
+    }
+
+    @Test
+    fun testHRV0x5DAllPaddingIsNull() {
+        // A body that is ENTIRELY padding carries no bucket at all, so it decodes to null (honest
+        // no-data) rather than to an empty list a caller might read as "decoded fine, zero readings".
+        assertNull(OuraDecoders.decodeHRV(record("5d06020001000000")))
+    }
+
+    @Test
+    fun testHRV0x5DZeroPairConsumesItsIndex() {
+        // THE ONE THAT MATTERS: a skipped pair must still CONSUME its index. `index` is not a label —
+        // OuraStreamMapping derives the bucket's wall-clock from it (bucketTs = ts - index * 300), so
+        // renumbering the survivors would slide every later bucket 5 minutes into the past.
+        //
+        // Tail padding cannot detect that mistake (nothing follows the pad), which is why this plants
+        // the zero pair in the MIDDLE: the bucket after it must keep index 2, not collapse to index 1.
+        // Only tail padding has been observed in the wild; this guards the shape we have not seen yet.
+        val hrv = OuraDecoders.decodeHRV(record("5d0a02000100328400003182"))
+        assertEquals(
+            listOf(
+                OuraHRV(ringTimestamp = rt, index = 0, hrBpm = 50, rmssdMs = 132),
+                OuraHRV(ringTimestamp = rt, index = 2, hrBpm = 49, rmssdMs = 130),
+            ),
+            hrv,
+        )
+    }
+
+    @Test
+    fun testHRV0x5DLoneZeroByteIsNotTreatedAsPadding() {
+        // A genuine bucket with ONE zero byte is not padding and must survive: the rule keys on both
+        // bytes being zero, so a real reading with a zero byte stays visible as the anomaly it would be.
+        val hrv = OuraDecoders.decodeHRV(record("5d080200010032000083"))
+        assertEquals(
+            listOf(
+                OuraHRV(ringTimestamp = rt, index = 0, hrBpm = 50, rmssdMs = 0),
+                OuraHRV(ringTimestamp = rt, index = 1, hrBpm = 0, rmssdMs = 131),
+            ),
+            hrv,
+        )
+    }
+
     // MARK: - 0x6F SpO2 per-sample (base from high nibble << 7, then u8, 0xFF terminator)
 
     @Test

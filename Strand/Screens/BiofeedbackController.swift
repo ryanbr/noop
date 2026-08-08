@@ -111,7 +111,8 @@ final class BiofeedbackController: ObservableObject {
 
     private func fireBuzz(loops: Int) {
         guard canBuzz else { return }
-        model.buzz(loops: UInt8(clamping: loops))
+        // #haptics: biofeedback/resonance cues ride the Breathing toggle (parity with Android's Breathe path).
+        model.buzz(loops: UInt8(clamping: loops), gate: HapticPrefs.breathing)
     }
 
     /// Schedule one cancellable buzz at `offsetMs` from now (the asyncAfter walk, cancellable on stop).

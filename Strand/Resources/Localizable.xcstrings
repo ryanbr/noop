@@ -174152,6 +174152,682 @@
           }
         }
       }
+    },
+    "PER STRAP": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PRO BAND"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "POR PULSERA"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PAR BRACELET"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PER FASCIA"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "POR PULSEIRA"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ПО БРАСЛЕТУ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按设备"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按裝置"
+          }
+        }
+      }
+    },
+    "NOOP Limitations": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP-Grenzen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Limitaciones de NOOP"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Limites de NOOP"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Limiti di NOOP"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Limitações do NOOP"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ограничения NOOP"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP 限制"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP 限制"
+          }
+        }
+      }
+    },
+    "What each WHOOP can read": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Was jedes WHOOP lesen kann"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qué puede leer cada WHOOP"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce que chaque WHOOP peut lire"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cosa può leggere ogni WHOOP"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O que cada WHOOP consegue ler"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Что считывает каждый WHOOP"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每款 WHOOP 能读取的内容"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每款 WHOOP 能讀取的內容"
+          }
+        }
+      }
+    },
+    "WHAT NOOP READS": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WAS NOOP LIEST"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "QUÉ LEE NOOP"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CE QUE NOOP LIT"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "COSA LEGGE NOOP"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O QUE O NOOP LÊ"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ЧТО СЧИТЫВАЕТ NOOP"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP 读取的内容"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP 讀取的內容"
+          }
+        }
+      }
+    },
+    "Feature": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Funktion"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Función"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fonction"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Funzione"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Funcionalidade"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Функция"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "功能"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "功能"
+          }
+        }
+      }
+    },
+    "5.0/MG": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5.0/MG"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5.0/MG"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5.0/MG"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5.0/MG"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5.0/MG"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5.0/MG"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5.0/MG"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5.0/MG"
+          }
+        }
+      }
+    },
+    "LEGEND": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LEGENDE"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LEYENDA"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LÉGENDE"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LEGENDA"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LEGENDA"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ОБОЗНАЧЕНИЯ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "图例"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "圖例"
+          }
+        }
+      }
+    },
+    "What each strap can read live, and what needs an import.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Was jedes Band live lesen kann und was einen Import erfordert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qué puede leer cada pulsera en directo y qué necesita una importación."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce que chaque bracelet peut lire en direct, et ce qui nécessite un import."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cosa può leggere ogni fascia in tempo reale e cosa richiede un'importazione."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O que cada pulseira consegue ler em direto e o que precisa de importação."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Что каждый браслет считывает вживую, а что требует импорта."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每条设备可实时读取的内容，以及哪些需要导入。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每條裝置可即時讀取的內容，以及哪些需要匯入。"
+          }
+        }
+      }
+    },
+    "ECG raw-data gate (WHOOP MG only)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ECG-Rohdatensperre (nur WHOOP MG)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bloqueo de datos ECG sin procesar (solo WHOOP MG)"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verrou des données ECG brutes (WHOOP MG uniquement)"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bloqueio de dados ECG em bruto (apenas WHOOP MG)"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blocco dei dati ECG grezzi (solo WHOOP MG)"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Блокировка сырых данных ЭКГ (только WHOOP MG)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ECG 原始数据开关（仅限 WHOOP MG）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ECG 原始資料開關（僅限 WHOOP MG）"
+          }
+        }
+      }
+    },
+    "Turn gate on (write '1')": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sperre einschalten ('1' schreiben)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activar bloqueo (escribir '1')"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activer le verrou (écrire « 1 »)"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ativar bloqueio (escrever '1')"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Attiva blocco (scrivi '1')"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Включить блокировку (записать '1')"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开开关（写入 '1'）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟開關（寫入 '1'）"
+          }
+        }
+      }
+    },
+    "Turn gate off (write '0')": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sperre ausschalten ('0' schreiben)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desactivar bloqueo (escribir '0')"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Désactiver le verrou (écrire « 0 »)"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desativar bloqueio (escrever '0')"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disattiva blocco (scrivi '0')"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выключить блокировку (записать '0')"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭开关（写入 '0'）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關閉開關（寫入 '0'）"
+          }
+        }
+      }
+    },
+    "Your strap listed its own device-config keys, and one of them is enable_raw_data_w_ecg. On an MG with no ECG subscription it reads '0' — while all three ECG commands answer SUCCESS and send no data at all (#891). This is the leading guess for what's holding ECG shut. Nobody knows whether flipping it actually produces ECG data: finding out is the point, and \"still nothing\" is a useful answer worth posting to #891.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dein Band hat seine eigenen Geräte-Konfigurationsschlüssel aufgelistet, darunter enable_raw_data_w_ecg. Auf einem MG ohne ECG-Abo steht er auf '0' — während alle drei ECG-Befehle mit SUCCESS antworten und trotzdem keine Daten senden (#891). Das ist die naheliegendste Vermutung, was ECG verschlossen hält. Ob das Umlegen tatsächlich ECG-Daten liefert, weiß niemand: genau das herauszufinden ist der Zweck, und „immer noch nichts“ ist ein brauchbares Ergebnis, das sich zu posten lohnt (#891)."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu correa ha enumerado sus propias claves de configuración, y una de ellas es enable_raw_data_w_ecg. En un MG sin suscripción de ECG vale '0', mientras que los tres comandos de ECG responden SUCCESS y no envían dato alguno (#891). Es la hipótesis principal sobre qué mantiene el ECG cerrado. Nadie sabe si cambiarla produce realmente datos de ECG: averiguarlo es el objetivo, y «sigue sin haber nada» es una respuesta útil que merece publicarse en #891."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre bracelet a énuméré ses propres clés de configuration, dont enable_raw_data_w_ecg. Sur un MG sans abonnement ECG, elle vaut « 0 » — alors que les trois commandes ECG répondent SUCCESS sans envoyer la moindre donnée (#891). C'est l'hypothèse principale sur ce qui maintient l'ECG fermé. Personne ne sait si la basculer produit réellement des données ECG : le savoir est justement le but, et « toujours rien » est une réponse utile à publier sur #891."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A sua pulseira listou as suas próprias chaves de configuração, e uma delas é enable_raw_data_w_ecg. Num MG sem subscrição de ECG lê '0' — enquanto os três comandos de ECG respondem SUCCESS e não enviam dados nenhuns (#891). Esta é a principal hipótese para o que mantém o ECG fechado. Ninguém sabe se mudá-la produz mesmo dados de ECG: descobrir é o objetivo, e «continua sem nada» é uma resposta útil que vale a pena publicar em #891."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La tua fascia ha elencato le proprie chiavi di configurazione, e una di esse è enable_raw_data_w_ecg. Su un MG senza abbonamento ECG vale '0', mentre tutti e tre i comandi ECG rispondono SUCCESS senza inviare alcun dato (#891). È l'ipotesi principale su cosa tenga chiuso l'ECG. Nessuno sa se cambiarla produca davvero dati ECG: scoprirlo è lo scopo, e «ancora nulla» è una risposta utile da pubblicare su #891."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ваш браслет перечислил собственные ключи конфигурации, и один из них — enable_raw_data_w_ecg. На MG без подписки на ЭКГ он равен '0', при этом все три команды ЭКГ отвечают SUCCESS и не присылают никаких данных (#891). Это главная догадка о том, что держит ЭКГ закрытым. Никто не знает, даст ли переключение реальные данные ЭКГ: выяснить это и есть цель, а «по-прежнему ничего» — полезный результат, который стоит опубликовать в #891."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的手环列出了它自己的设备配置键，其中之一是 enable_raw_data_w_ecg。在没有 ECG 订阅的 MG 上它读作 '0'，而三条 ECG 命令都回应 SUCCESS 却完全不发送数据 (#891)。这是目前对「什么在挡住 ECG」最有力的猜测。翻转它是否真能产生 ECG 数据，没有人知道：弄清楚正是目的，而「仍然没有」同样是值得发到 #891 的有用答案。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的手環列出了它自己的裝置設定鍵，其中之一是 enable_raw_data_w_ecg。在沒有 ECG 訂閱的 MG 上它讀作 '0'，而三條 ECG 命令都回應 SUCCESS 卻完全不傳送資料 (#891)。這是目前對「什麼擋住 ECG」最有力的猜測。翻轉它是否真能產生 ECG 資料，沒有人知道：弄清楚正是目的，而「仍然沒有」同樣是值得發到 #891 的有用答案。"
+          }
+        }
+      }
+    },
+    "This writes a setting that STAYS ON YOUR STRAP until you change it back — it isn't an app preference, and closing NOOP won't undo it. \"Turn gate off\" below writes '0' again, in one tap. Only this one key is ever written; the other six your strap listed are never touched.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dies schreibt eine Einstellung, die AUF DEINEM BAND BLEIBT, bis du sie zurücksetzt — es ist keine App-Einstellung, und das Schließen von NOOP macht sie nicht rückgängig. „Sperre ausschalten“ unten schreibt mit einem Tippen wieder '0'. Es wird ausschließlich dieser eine Schlüssel geschrieben; die anderen sechs, die dein Band aufgelistet hat, werden nie angefasst."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esto escribe un ajuste que PERMANECE EN TU CORREA hasta que lo cambies de vuelta: no es una preferencia de la app y cerrar NOOP no lo deshace. «Desactivar bloqueo», abajo, vuelve a escribir '0' con un solo toque. Solo se escribe esta clave; las otras seis que enumeró tu correa nunca se tocan."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ceci écrit un réglage qui RESTE SUR VOTRE BRACELET jusqu'à ce que vous le remettiez — ce n'est pas une préférence de l'app, et fermer NOOP ne l'annule pas. « Désactiver le verrou », ci-dessous, réécrit « 0 » en une seule touche. Seule cette clé est écrite ; les six autres que votre bracelet a énumérées ne sont jamais touchées."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Isto escreve uma definição que FICA NA SUA PULSEIRA até a repor — não é uma preferência da aplicação e fechar o NOOP não a desfaz. «Desativar bloqueio», abaixo, volta a escrever '0' com um só toque. Só esta chave é escrita; as outras seis que a sua pulseira listou nunca são tocadas."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questo scrive un'impostazione che RESTA SULLA TUA FASCIA finché non la riporti indietro: non è una preferenza dell'app e chiudere NOOP non la annulla. «Disattiva blocco», qui sotto, riscrive '0' con un solo tocco. Viene scritta solo questa chiave; le altre sei elencate dalla fascia non vengono mai toccate."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Это записывает настройку, которая ОСТАЁТСЯ НА БРАСЛЕТЕ, пока вы не вернёте её обратно, — это не настройка приложения, и закрытие NOOP её не отменит. Кнопка «Выключить блокировку» ниже одним нажатием записывает '0' снова. Записывается только этот один ключ; остальные шесть, перечисленные браслетом, никогда не затрагиваются."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这会写入一项会一直留在你手环上的设置，直到你改回来——它不是应用内的偏好设置，关闭 NOOP 也不会撤销。下方的「关闭开关」一键即可再写入 '0'。全程只写入这一个键；你手环列出的另外六个从不触碰。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這會寫入一項會一直留在你手環上的設定，直到你改回來——它不是應用程式內的偏好設定，關閉 NOOP 也不會復原。下方的「關閉開關」一鍵即可再寫入 '0'。全程只寫入這一個鍵；你手環列出的另外六個從不觸碰。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

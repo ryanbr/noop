@@ -443,7 +443,13 @@ final class AppModel: ObservableObject {
                 // v5: recompute the skin-temp suite snapshots (cycle phase + body clock) from the
                 // freshly-scored history so the Health hub cards read a ready result.
                 await self.refreshV5Signals()
-                try? await Task.sleep(nanoseconds: 900_000_000_000)  // 15 min, matches the offload cadence
+                // #836 battery: 30-min BACKSTOP cadence (twin of Android ANALYZE_INTERVAL_MS). The
+                // `force: false` gate above can't skip while the strap streams live HR — the fingerprint
+                // advances every second — so this re-scored the whole 21-day window every 15 min even though
+                // only today's daytime HR changed. It's a pure backstop (every real update rescores via its
+                // own forced call above), so halving the cadence only delays the idle refresh of today's
+                // live Effort/steps; recovery/sleep are night-computed and unaffected.
+                try? await Task.sleep(nanoseconds: 1_800_000_000_000)  // 30 min backstop (#836 battery)
             }
         }
     }
@@ -626,7 +632,7 @@ final class AppModel: ObservableObject {
         // off (the gate is one UserDefaults bool read), so the lifecycle of a missing workout is visible.
         emitWorkoutsTrace(WorkoutsTrace.sessionLine(
             event: "start", sportKey: WorkoutSource.traceSportKey(resolved), hrSamples: 0))
-        buzz(loops: 1)
+        buzz(loops: 1, gate: HapticPrefs.workout)
     }
 
     /// Emit one Workouts & GPS test-mode line tagged `.workouts` iff the mode is on. The cheap
@@ -773,7 +779,7 @@ final class AppModel: ObservableObject {
             event: "end", sportKey: WorkoutSource.traceSportKey(w.sport), hrSamples: samples.count,
             durationSec: Int(end.timeIntervalSince(w.start)),
             gpsPoints: wasGps ? gpsRecorder.pointCount : nil))
-        buzz(loops: 2)
+        buzz(loops: 2, gate: HapticPrefs.workout)
         Task { [weak self] in
             guard let self else { return }
             if let store = await self.repo.storeHandle() {
@@ -1050,6 +1056,15 @@ final class AppModel: ObservableObject {
     /// For a user-facing "buzz the strap now" action use `buzzStrapOnce()` instead (#921).
     func buzz(loops: UInt8 = 2) {
         ble.send(.runHapticsPattern, payload: [2, loops, 0, 0, 0])
+    }
+
+    /// #haptics (#1115): an IN-SESSION cue buzz, GATED by its per-event `HapticPrefs` toggle (default-off /
+    /// opt-in, migrated-on for existing installs). Each in-session cue site passes its `gate` key so the
+    /// enable check lives in ONE place rather than at every call site. The ungated `buzz` / `buzzStrapOnce`
+    /// remain for ambient cues (which carry their own gates) and explicit user buzzes. Twin of Android
+    /// `AppViewModel.buzz(loops, gate)`.
+    func buzz(loops: UInt8 = 2, gate: String) {
+        if HapticPrefs.enabled(gate) { buzz(loops: loops) }
     }
 
     /// One-shot user buzz (#921): the on-device-confirmed pattern (patternId=2, 3 loops) followed by

@@ -33,7 +33,7 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
     // The networked coach, over the local store. No key is held here; the engine reads it from
     // the encrypted store at call time.
     private val aiCoach = AiCoach(
-        WhoopRepository(WhoopDatabase.get(app.applicationContext).whoopDao())
+        WhoopRepository(WhoopDatabase.get(app.applicationContext))
     )
 
     // MARK: - Transcript

@@ -37,6 +37,26 @@ class BackfillContinuationTest {
                 wallNowUnix = wallNow,
                 lastTrimAdvanced = true,
                 consecutiveCount = 0,
+                rowsPersistedThisSession = 200,
+            ),
+        )
+    }
+
+    /** #1144 phantom-gap spin: the strap reports a `newest` well AHEAD of our frontier (so guard 2a's gap
+     *  holds) and the trim advanced — but the offload persisted ZERO rows. Continuing would re-fire 2a to
+     *  the full cap in empty offloads, because the frontier can't advance without rows. An empty session
+     *  must stop regardless of the reported gap. */
+    @Test
+    fun stops_whenGapHoldsButSessionWasEmpty() {
+        assertFalse(
+            WhoopBleClient.shouldAutoContinue(
+                stillConnected = true,
+                strapNewestTs = 1_800_000_000L,
+                ourFrontierTs = 1_800_000_000L - 400L,   // 400s behind → 2a's 300s gap holds
+                wallNowUnix = wallNow,
+                lastTrimAdvanced = true,                 // trim u32 climbs on empty ENDs — not enough
+                consecutiveCount = 0,
+                rowsPersistedThisSession = 0,            // …but nothing was actually offloaded
             ),
         )
     }
@@ -94,6 +114,7 @@ class BackfillContinuationTest {
                 lastTrimAdvanced = true,
                 consecutiveCount = 0,
                 behindGapSeconds = 300L,
+                rowsPersistedThisSession = 200,
             ),
         )
     }
@@ -125,6 +146,7 @@ class BackfillContinuationTest {
                 wallNowUnix = wallNow,
                 lastTrimAdvanced = true,
                 consecutiveCount = cap - 1,
+                rowsPersistedThisSession = 200,
             ),
         )
         assertFalse(
@@ -153,6 +175,7 @@ class BackfillContinuationTest {
                 wallNowUnix = wallNow,
                 lastTrimAdvanced = true,
                 consecutiveCount = 10,                       // well past the old cap of 6
+                rowsPersistedThisSession = 200,
             ),
         )
     }
@@ -288,6 +311,7 @@ class BackfillContinuationTest {
                 wallNowUnix = wallNow,
                 lastTrimAdvanced = true,
                 consecutiveCount = count,
+                rowsPersistedThisSession = 200,   // each pass lands real rows (that's why the frontier advances)
             )
         ) {
             frontier += 86_400L
@@ -455,6 +479,7 @@ class BackfillContinuationTest {
                 wallNowUnix = wallNow,
                 lastTrimAdvanced = true,
                 consecutiveCount = 0,
+                rowsPersistedThisSession = 200,
             ),
         )
         // One second past the cap: excluded, and an empty session must not continue.
@@ -483,6 +508,7 @@ class BackfillContinuationTest {
                 wallNowUnix = wallNow,
                 lastTrimAdvanced = true,
                 consecutiveCount = 0,
+                rowsPersistedThisSession = 200,
             ),
         )
     }

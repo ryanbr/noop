@@ -346,6 +346,8 @@ private fun DiagnosticToolsCard(vm: AppViewModel) {
     var showRecalibrate by remember { mutableStateOf(false) }
     // "Debug logging" moved here from Settings: dev-only, mirrors the strap log to logcat over adb.
     var debugLogging by remember { mutableStateOf(NoopPrefs.debugLogging(context)) }
+    var detailedCapture by remember { mutableStateOf(NoopPrefs.detailedCapture(context)) }
+    var captureShareBusy by remember { mutableStateOf(false) }
     // #646/#651: LogExport.shareStrapLog's file write now runs on Dispatchers.IO instead of blocking the
     // caller, so nothing else stops a second tap mid-share. Same disable-while-busy + spinner shape as
     // Settings' backupBusy pattern — this screen has its own local flag, this button being a separate
@@ -407,6 +409,44 @@ private fun DiagnosticToolsCard(vm: AppViewModel) {
                     onCheckedChange = { debugLogging = it; vm.setDebugLogging(it) },
                     colors = settingsSwitchColors(),
                 )
+            }
+            // #1121 Detailed capture: an adb-like rolling on-device log, no computer needed. Off by default.
+            ToggleRowTC(
+                title = "Detailed capture to file",
+                description = "Continuously append the strap log to a rolling on-device file (≤8 MB, one " +
+                    "previous generation kept) so a long-running issue — battery drain, an overnight " +
+                    "offload — is captured for hours instead of the ~50 minutes the in-memory share holds. " +
+                    "Keeps going if the app is killed and resumes on next launch. The file stays on the " +
+                    "phone unless you share it below.",
+                checked = detailedCapture,
+                onCheckedChange = { detailedCapture = it; vm.setDetailedCapture(it) },
+            )
+            if (detailedCapture) {
+                Text(
+                    "Capturing… reproduce the issue, then share the log below.",
+                    style = NoopType.footnote,
+                    color = Palette.accent,
+                )
+            }
+            NoopButton(
+                text = "Share captured log",
+                leadingIcon = Icons.Filled.Upload,
+                kind = NoopButtonKind.Secondary,
+                fullWidth = true,
+                enabled = !captureShareBusy,
+                onClick = {
+                    captureShareBusy = true
+                    scope.launch {
+                        try {
+                            LogExport.shareCaptureLog(context)
+                        } finally {
+                            captureShareBusy = false
+                        }
+                    }
+                },
+            )
+            if (captureShareBusy) {
+                NoopBusyRow()
             }
         }
     }

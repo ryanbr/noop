@@ -37,6 +37,10 @@ final class LiveSessionRunner: ObservableObject {
     static let autoEndStaleSec = 600
     /// Where the guarded HR came from. v1 only coaches the strap's live feed (see `LiveSessionRow.hrSource`).
     static let hrSource = "whoop"
+    /// The UI/staleness tick does not need an exact wakeup. A ten-percent tolerance lets the system
+    /// coalesce it with nearby work; all elapsed-time math below still uses the wall clock, so it cannot
+    /// accumulate drift or change the session totals.
+    static let timerToleranceSec: TimeInterval = 0.1
 
     // MARK: Published state (the session screen reads ONLY these — it never observes LiveState)
 
@@ -117,9 +121,11 @@ final class LiveSessionRunner: ObservableObject {
         // Bank the in-progress row immediately (endTs nil) — a mid-session crash still leaves a record.
         persist(row(endTs: nil, band: band))
 
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+        let tickTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
         }
+        tickTimer.tolerance = Self.timerToleranceSec
+        timer = tickTimer
 
         // Pocket-the-phone survival: a suspended app stops firing Timers, but CoreBluetooth keeps
         // delivering HR notifies in the background (the same path that feeds the Live Activity), and each
@@ -213,12 +219,18 @@ final class LiveSessionRunner: ObservableObject {
         guard !pulses.isEmpty else { return }
 
         var offsetMs = 0
-        for pulse in pulses {
-            let loops = pulse.isLong ? 2 : 1
-            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(offsetMs)) { [weak ble] in
-                ble?.send(.runHapticsPattern, payload: [2, UInt8(clamping: loops), 0, 0, 0])
+        // #haptics (#1115): Live Session coach cues are opt-in (default-off, migrated-on for existing
+        // installs). Gate ONLY the wrist output — the cue still counts toward the session's push/ease stats
+        // and saved row (below), so turning the buzzes off doesn't erase the coaching record. Matches
+        // Android, where the gate lives in the buzz closure, downstream of the count.
+        if HapticPrefs.enabled(HapticPrefs.liveSession) {
+            for pulse in pulses {
+                let loops = pulse.isLong ? 2 : 1
+                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(offsetMs)) { [weak ble] in
+                    ble?.send(.runHapticsPattern, payload: [2, UInt8(clamping: loops), 0, 0, 0])
+                }
+                offsetMs += pulse.durationMs + pulse.gapMs
             }
-            offsetMs += pulse.durationMs + pulse.gapMs
         }
         hapticWalkUntil = nowDate.addingTimeInterval(Double(offsetMs) / 1000)
 

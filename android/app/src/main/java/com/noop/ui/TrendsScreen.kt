@@ -78,7 +78,6 @@ import kotlin.math.roundToInt
 // (rgba(13,14,20,.80)) rather than the classic frosted surface — the card does the contrast work so the
 // crisp line chart + the count-up vessel accent read clean over the sky. Radius 26 + a white@0.11 hairline
 // give it the frosted-glass edge. Mirrors the liquid Today heroCard (LiquidTodayView / TodayScreen).
-private val LIQUID_HERO_FILL: Color = Color(red = 13f / 255f, green = 14f / 255f, blue = 20f / 255f, alpha = 0.80f)
 private val LIQUID_HERO_RADIUS: Dp = 26.dp
 
 @Composable
@@ -700,8 +699,8 @@ private fun ChartCard(
             modifier = modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(LIQUID_HERO_RADIUS))
-                .background(LIQUID_HERO_FILL.copy(alpha = LIQUID_HERO_FILL.alpha * CardAppearance.opacity))
-                .border(1.dp, Color.White.copy(alpha = 0.11f * CardAppearance.opacity), RoundedCornerShape(LIQUID_HERO_RADIUS))
+                .background(Palette.heroFill.copy(alpha = Palette.heroFill.alpha * CardAppearance.opacity))
+                .border(1.dp, Palette.heroBorder.copy(alpha = Palette.heroBorder.alpha * CardAppearance.opacity), RoundedCornerShape(LIQUID_HERO_RADIUS))
                 .padding(Metrics.cardPadding),
         ) {
             body()

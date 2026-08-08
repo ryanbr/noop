@@ -1,6 +1,7 @@
 package com.noop.data
 
 import android.content.Context
+import androidx.room.withTransaction
 import com.noop.protocol.DroppedRtcEvent
 import com.noop.protocol.RrSourceChannel
 import kotlinx.coroutines.flow.Flow
@@ -366,14 +367,29 @@ object HistoryHeal {
  * Reads.swift, MetricsCache.swift) , the phone does NO metric computation here; daily/sleep
  * rows are an offline cache of server-computed values.
  */
-class WhoopRepository(private val dao: WhoopDao) {
+class WhoopRepository(
+    private val dao: WhoopDao,
+    private val transactor: Transactor = object : Transactor {
+        override suspend fun <R> run(block: suspend () -> R): R = block()
+    },
+) {
+
+    /** Transaction boundary injected so repository writes remain testable without a Room runtime. */
+    interface Transactor {
+        suspend fun <R> run(block: suspend () -> R): R
+    }
 
     /** v18 aux rows banked since the retention sweep last ran, PER DEVICE — the sweep is per device too,
      *  so a shared counter would let one strap spend another's budget. Only the single-threaded offload
      *  path banks v18 rows, so a plain map is enough. Swift twin: `WhoopStore.v18AuxRowsSincePrune`. */
     private val v18AuxRowsSincePrune = mutableMapOf<String, Int>()
 
-    constructor(db: WhoopDatabase) : this(db.whoopDao())
+    constructor(db: WhoopDatabase) : this(
+        dao = db.whoopDao(),
+        transactor = object : Transactor {
+            override suspend fun <R> run(block: suspend () -> R): R = db.withTransaction { block() }
+        },
+    )
 
     // MARK: - Device
 
@@ -418,6 +434,23 @@ class WhoopRepository(private val dao: WhoopDao) {
     ): InsertCounts {
         if (streams.isEmpty) return InsertCounts()
 
+        return transactor.run {
+            insertWithinTransaction(
+                streams = streams,
+                deviceId = deviceId,
+                v18AuxRetentionRows = v18AuxRetentionRows,
+                v18AuxPruneEveryRows = v18AuxPruneEveryRows,
+            )
+        }
+    }
+
+    /** All DAO writes for one decoded chunk share the Room transaction opened by [insert]. */
+    private suspend fun insertWithinTransaction(
+        streams: StreamBatch,
+        deviceId: String,
+        v18AuxRetentionRows: Int,
+        v18AuxPruneEveryRows: Int,
+    ): InsertCounts {
         val hrIds = if (streams.hr.isEmpty()) emptyList() else
             dao.insertHr(streams.hr.map { HrSample(deviceId, it.ts, it.bpm) })
         val rrIds = if (streams.rr.isEmpty()) emptyList() else
@@ -492,9 +525,8 @@ class WhoopRepository(private val dao: WhoopDao) {
                 // delete is. Swift twin: `WhoopStore.v18AuxRowsSincePrune`.
                 val banked = (v18AuxRowsSincePrune[deviceId] ?: 0) + rows.size
                 v18AuxRowsSincePrune[deviceId] = banked
-                // Best-effort: the rows above are already committed, so a sweep failure must not surface
-                // as an insert failure and make Backfiller re-send a chunk it has already banked. Leaving
-                // the budget unspent means the next batch retries the sweep.
+                // Best-effort: a retention-sweep failure must not roll back the decoded rows and make
+                // Backfiller re-send the chunk. Leaving the budget unspent means the next batch retries.
                 if (banked >= v18AuxPruneEveryRows) {
                     runCatching { dao.pruneV18Aux(deviceId, v18AuxRetentionRows) }
                         .onSuccess { v18AuxRowsSincePrune[deviceId] = 0 }

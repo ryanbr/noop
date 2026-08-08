@@ -1,0 +1,69 @@
+package com.noop.ui
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.util.TimeZone
+
+/**
+ * Pure coverage for the stepped-hypnogram time axis (#sleep-chart-style): the exact onset/wake anchor the
+ * edges, round-hour marks fill the middle, and a WIDER screen (larger maxLabels) yields MORE marks. Labels
+ * depend on the JVM default timezone; these assert the fraction structure, which does not.
+ */
+class HypnogramAxisTicksTest {
+
+    private val onset = 1_786_000_000L
+    private val eightHours = onset + 8 * 3600L
+
+    @Test fun edgesAreExactOnsetAndWake() {
+        val ticks = hypnogramAxisTicks(onset, eightHours, maxLabels = 5)
+        assertEquals(0f, ticks.first().first, 1e-4f)
+        assertEquals(1f, ticks.last().first, 1e-4f)
+        assertTrue("expected at least one interior mark", ticks.size >= 3)
+    }
+
+    @Test fun interiorMarksAreStrictlyBetweenTheEdges() {
+        hypnogramAxisTicks(onset, eightHours, maxLabels = 6).drop(1).dropLast(1).forEach { (frac, _) ->
+            assertTrue("interior frac $frac must be inside (0,1)", frac > 0f && frac < 1f)
+        }
+    }
+
+    @Test fun widerScreenGivesAtLeastAsManyMarks() {
+        val narrow = hypnogramAxisTicks(onset, eightHours, maxLabels = 3)
+        val wide = hypnogramAxisTicks(onset, eightHours, maxLabels = 8)
+        assertTrue("wide=${wide.size} should be >= narrow=${narrow.size}", wide.size >= narrow.size)
+        assertTrue("a wide axis over an 8h night should have >3 marks", wide.size > 3)
+    }
+
+    @Test fun zeroOrNegativeSpanYieldsASingleTick() {
+        assertEquals(1, hypnogramAxisTicks(onset, onset, maxLabels = 5).size)
+        assertEquals(1, hypnogramAxisTicks(onset, onset - 100L, maxLabels = 5).size)
+    }
+
+    // Interior round-hour marks read as the hour only. Timezone shifts WHICH hour, not the shape, so assert
+    // the format: 24h marks are "HH:00", 12h marks are "h AM/PM" — never a non-zero minute.
+    @Test fun interiorMarksAreHourOnly24h() {
+        hypnogramAxisTicks(onset, eightHours, maxLabels = 8, is24h = true).drop(1).dropLast(1)
+            .forEach { (_, label) -> assertTrue("'$label' should be HH:00", label.matches(Regex("""\d{2}:00"""))) }
+    }
+
+    // Marks align to LOCAL hour boundaries, so "HH:00" is truthful even on a half-hour-offset zone where
+    // epoch-aligned steps would land at :30. Pin IST (UTC+5:30) and assert every interior mark ends ":00".
+    @Test fun halfHourOffsetZoneStillLandsOnRoundHours() {
+        val saved = TimeZone.getDefault()
+        try {
+            TimeZone.setDefault(TimeZone.getTimeZone("Asia/Kolkata"))
+            hypnogramAxisTicks(onset, onset + 9 * 3600L, maxLabels = 8, is24h = true).drop(1).dropLast(1)
+                .forEach { (_, label) -> assertTrue("'$label' should end :00 in IST", label.endsWith(":00")) }
+        } finally {
+            TimeZone.setDefault(saved)
+        }
+    }
+
+    @Test fun twelveHourFormatUsesAmPm() {
+        val ticks = hypnogramAxisTicks(onset, eightHours, maxLabels = 8, is24h = false)
+        ticks.drop(1).dropLast(1)
+            .forEach { (_, label) -> assertTrue("interior '$label' should be 'h AM/PM'", label.matches(Regex("""\d{1,2} (AM|PM)"""))) }
+        assertTrue("edge '${ticks.first().second}' should carry AM/PM", ticks.first().second.contains(Regex("AM|PM")))
+    }
+}

@@ -215,6 +215,22 @@ public enum OuraDecoders {
     /// byte. Both bytes are UNSIGNED (no scaling). Returns nil on an empty or ODD-length body (a partial
     /// pair is never emitted). Validated against a real overnight: the hr byte tracks sleeping HR (~52 bpm,
     /// matching the #511 IBI-derived median).
+    ///
+    /// PADDING (#1128): a record that closes early pads its tail with a `00 00` pair, and that is NOT a
+    /// reading — a stored `hr_bpm: 0` is a value the ring never asserted, indistinguishable downstream
+    /// from a measurement. Observed on a real overnight: 2 of 22 records were partial, both padded, and
+    /// both zero pairs persisted into the 5-min series beside 110 genuine buckets running 45-64 bpm.
+    /// They are skipped here, at decode, so an absent bucket stays absent instead of becoming a zero one.
+    ///
+    /// The test is BOTH bytes zero — the exact padding signature — not `hrBpm == 0` alone. A lone zero HR
+    /// beside a non-zero RMSSD has never been observed, and if it ever occurs it is a DIFFERENT fault (a
+    /// real record with a bad byte) that should stay visible rather than be silently swallowed by a
+    /// padding rule. Narrower is the honest choice while one night is all the evidence there is.
+    ///
+    /// `index` advances for EVERY pair, including a skipped one, because it is not a label: the consumer
+    /// derives the bucket's wall-clock from it (`OuraStreamMapping`, `bucketTs = ts - index * 300`).
+    /// Renumbering the survivors would slide every later bucket 5 minutes. That is invisible for TAIL
+    /// padding — the only shape observed — which is exactly why it is pinned by test instead of by luck.
     public static func decodeHRV(_ rec: OuraRecord) -> [OuraHRV]? {
         let b = rec.payload
         guard b.count >= 2, b.count % 2 == 0 else { return nil }   // N complete (hr, rmssd) pairs
@@ -222,8 +238,11 @@ public enum OuraDecoders {
         var i = 0
         var index = 0
         while i + 2 <= b.count {
-            out.append(OuraHRV(ringTimestamp: rec.ringTimestamp, index: index,
-                               hrBpm: Int(b[i]), rmssdMs: Int(b[i + 1])))
+            let hr = Int(b[i]), rmssd = Int(b[i + 1])
+            if !(hr == 0 && rmssd == 0) {
+                out.append(OuraHRV(ringTimestamp: rec.ringTimestamp, index: index,
+                                   hrBpm: hr, rmssdMs: rmssd))
+            }
             i += 2
             index += 1
         }

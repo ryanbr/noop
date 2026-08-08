@@ -15,6 +15,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -54,7 +55,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -286,6 +289,37 @@ fun SleepScreen(
     var sleepSectionOrder by remember { mutableStateOf(SleepLayoutPrefs.order(context)) }
     var hiddenSections by remember { mutableStateOf(SleepLayoutPrefs.hidden(context)) }
     var showSleepArrange by remember { mutableStateOf(false) }
+    // #sleep-layout (hold-to-drag): the hoisted list state (the drag math needs layoutInfo + scrollBy) and
+    // the live drag state, mirroring Today (TodayScreen.kt §today-layout). The frame loop runs ONLY while a
+    // card is lifted: each frame it retries the swap (so a card held still at a viewport edge keeps
+    // reordering as the list scrolls under it — onDrag alone only fires while the finger moves) and applies
+    // the edge auto-scroll velocity SleepReorderableSection's onDrag computed. Persistence is on drop
+    // (onDrop below), not here — this only updates the in-memory order live.
+    val sleepListState = rememberLazyListState()
+    val sleepSectionDrag = remember { SleepSectionDragState() }
+    val sleepDragActive = sleepSectionDrag.key != null
+    LaunchedEffect(sleepDragActive) {
+        // Auto-scroll is TIME-based (px/second × real frame delta), not per-frame, so it reads the same on
+        // 60/90/120 Hz. dt is clamped so a dropped/backgrounded frame can't produce one giant jump.
+        var lastFrameNanos = 0L
+        while (sleepSectionDrag.key != null) {
+            val frameNanos = withFrameNanos { it }
+            val dtSec = if (lastFrameNanos == 0L) 0f
+            else ((frameNanos - lastFrameNanos) / 1_000_000_000f).coerceAtMost(0.05f)
+            lastFrameNanos = frameNanos
+            swapTargetForDraggedSleepSection(sleepListState, sleepSectionDrag, sleepSectionOrder)?.let { (dragged, target) ->
+                // Freeze the scroll anchor across the reorder so a swap involving the first visible item
+                // can't leap the viewport by the two cards' height difference in a single frame.
+                val anchorIndex = sleepListState.firstVisibleItemIndex
+                val anchorOffset = sleepListState.firstVisibleItemScrollOffset
+                sleepSectionOrder = sleepSectionOrder.movedSleepSection(dragged, target)
+                sleepListState.scrollToItem(anchorIndex, anchorOffset)
+            }
+            if (sleepSectionDrag.autoScrollPxPerSecond != 0f && dtSec > 0f) {
+                sleepListState.scrollBy(sleepSectionDrag.autoScrollPxPerSecond * dtSec)
+            }
+        }
+    }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     LaunchedEffect(sleeps) {
         // #627: the journal-reminder toggle (default ON) gates this morning sheet too, so disabling the
@@ -437,6 +471,7 @@ fun SleepScreen(
     LazyScreenScaffold(
         title = uiString(R.string.l10n_sleep_screen_sleep_3cac34e6),
         subtitle = "Last night, read in two seconds.",
+        listState = sleepListState,   // #sleep-layout: the hold-to-drag frame loop drives this list state
         // LIQUID SKY BACKDROP (the pilot pattern — LiquidScreenSky.kt): the static time-of-day liquid sky
         // settles into the theme canvas behind the header + hero, bled full-width up behind the status bar
         // via the scaffold's topBackground plumbing. Gated on the day-cycle preference exactly like Today
@@ -562,15 +597,22 @@ fun SleepScreen(
                 }
             }
             // Analytical cards render in the user's saved order (SleepLayoutPrefs), minus the hidden set.
-            // Reordered via the Arrange sheet; each card's data guards (tilesModel/model) are preserved.
+            // Reordered via the Arrange sheet OR by long-press hold-to-drag on the card (#sleep-layout,
+            // mirrors Today); each card's data guards (tilesModel/model) are preserved. Each section is ONE
+            // keyed reorderable item so the whole card (incl. its top spacer) lifts and drops as a unit.
+            // #sleep-layout: persist the live hold-to-drag reorder when the gesture drops (the in-memory
+            // `sleepSectionOrder` already moved live in the frame loop; this writes it through).
+            val persistSleepOrder = { SleepLayoutPrefs.setOrder(context, sleepSectionOrder) }
             sleepSectionOrder.filterNot { it in hiddenSections }.forEach { section ->
+              val k = SLEEP_SECTION_KEY_PREFIX + section.raw
               when (section) {
-                SleepSection.SLEEP_MARKS -> {
-                    item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
+                SleepSection.SLEEP_MARKS -> item(key = k) {
                     // SLEEP MARKS — tap to log "going to sleep" / "I'm awake" (#461, Phase 1). LOGGING ONLY:
                     // a mark is persisted to the `sleep_mark` series + the shareable strap log; it never
                     // changes the detected sleep. Mirrors macOS SleepView.sleepMarkCard.
-                    item {
+                    SleepReorderableSection(k, sleepListState, sleepSectionDrag, persistSleepOrder) {
+                    Column {
+                    Spacer(Modifier.height(Metrics.selectorTopUp))
                     SleepMarkCard(
                 onMark = { type ->
                     val mark = SleepMark.now(type)
@@ -585,10 +627,12 @@ fun SleepScreen(
                 },
             )
                     }
+                    }
                 }
-                SleepSection.STAGES -> {
-                    item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
-                    item {
+                SleepSection.STAGES -> item(key = k) {
+                    SleepReorderableSection(k, sleepListState, sleepSectionDrag, persistSleepOrder) {
+                    Column {
+                    Spacer(Modifier.height(Metrics.selectorTopUp))
                     Hero(
                 display = display,
                 activeIsOura = activeIsOura,
@@ -680,30 +724,55 @@ fun SleepScreen(
                 windowWakeTs = night?.heroWakeTs,
             )
                     }
+                    }
                 }
                 // Tiles / ledger / trends read the FULL-history model (#940): they stay up when only the
                 // selected day's model failed to build, exactly as iOS keeps them while browsing. Each
                 // `tilesModel?.let { m -> ... }` binds a non-null local so the smart-cast carries across
                 // the item {} lambda boundary — same guard the old `if (tilesModel != null)` block used.
                 SleepSection.NIGHT_DETAIL -> tilesModel?.let { m ->
-                    item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
-                    item { MetricGrid(m, onMetricClick = { detailMetricKey = it }) }
+                    item(key = k) {
+                        SleepReorderableSection(k, sleepListState, sleepSectionDrag, persistSleepOrder) {
+                            Column {
+                                Spacer(Modifier.height(Metrics.selectorTopUp))
+                                MetricGrid(m, onMetricClick = { detailMetricKey = it })
+                            }
+                        }
+                    }
                 }
                 SleepSection.SLEEP_DEBT -> tilesModel?.let { m ->
-                    item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
-                    item { SleepDebtLedgerCard(m.sleepDebtLedger) }
+                    item(key = k) {
+                        SleepReorderableSection(k, sleepListState, sleepSectionDrag, persistSleepOrder) {
+                            Column {
+                                Spacer(Modifier.height(Metrics.selectorTopUp))
+                                SleepDebtLedgerCard(m.sleepDebtLedger)
+                            }
+                        }
+                    }
                 }
                 // StagesVsTypical reads the SELECTED day's model, never the full-history fallback: a
                 // phantom newest day with no stage model would otherwise label ANOTHER night's stages as
                 // this one (#940). Guarded on BOTH tilesModel and model, exactly as the pre-refactor
                 // nesting was (it lived inside the `if (tilesModel != null)` block).
                 SleepSection.STAGES_VS_TYPICAL -> if (tilesModel != null) model?.let { selectedModel ->
-                    item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
-                    item { StagesVsTypical(selectedModel) }
+                    item(key = k) {
+                        SleepReorderableSection(k, sleepListState, sleepSectionDrag, persistSleepOrder) {
+                            Column {
+                                Spacer(Modifier.height(Metrics.selectorTopUp))
+                                StagesVsTypical(selectedModel)
+                            }
+                        }
+                    }
                 }
                 SleepSection.ASLEEP_DURATION -> tilesModel?.let { m ->
-                    item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
-                    item { DurationTrend(m) }
+                    item(key = k) {
+                        SleepReorderableSection(k, sleepListState, sleepSectionDrag, persistSleepOrder) {
+                            Column {
+                                Spacer(Modifier.height(Metrics.selectorTopUp))
+                                DurationTrend(m)
+                            }
+                        }
+                    }
                 }
               }
             }
@@ -905,7 +974,6 @@ private fun DeletedSleepWindowsCard(
 // fill is a translucent near-black (mock rgba(13,14,20,.80)) so the card floats OVER the day-of-sky and the
 // vessel + white count-up number stay crisp — the CARD does the contrast work, not a muted sky. Radius 26 +
 // a white@0.11 hairline give the frosted-glass edge. Same constants as the liquid Today heroCard.
-private val LIQUID_HERO_FILL: Color = Color(red = 13f / 255f, green = 14f / 255f, blue = 20f / 255f, alpha = 0.80f)
 private val LIQUID_HERO_RADIUS: Dp = 26.dp
 
 // MARK: - 0. REST HERO — liquid sky + sleep-performance vessel (liquid restyle)
@@ -929,8 +997,8 @@ private fun RestHero(score: Double?, asleepMin: Double?, source: String, overlin
                 // the frosted-glass edge of the liquid Today heroCard (fill rgba(13,14,20,.80), stroke
                 // white@0.11). Replaces the per-hero night atmosphere (the sky now lives at screen level).
                 .clip(RoundedCornerShape(LIQUID_HERO_RADIUS))
-                .background(LIQUID_HERO_FILL.copy(alpha = LIQUID_HERO_FILL.alpha * CardAppearance.opacity))
-                .border(1.dp, Color.White.copy(alpha = 0.11f * CardAppearance.opacity), RoundedCornerShape(LIQUID_HERO_RADIUS)),
+                .background(Palette.heroFill.copy(alpha = Palette.heroFill.alpha * CardAppearance.opacity))
+                .border(1.dp, Palette.heroBorder.copy(alpha = Palette.heroBorder.alpha * CardAppearance.opacity), RoundedCornerShape(LIQUID_HERO_RADIUS)),
         ) {
             Column(
                 modifier = Modifier.fillMaxWidth().padding(Metrics.space24),
@@ -1082,23 +1150,48 @@ private fun Hero(
             // else keeps the honest proportional strip + StageBreakdownRows footer.
             val real = display.realSegments?.takeIf { it.size >= 2 }
             if (real != null) {
-                ChartCard(
-                    title = uiString(R.string.l10n_sleep_screen_stage_breakdown_e9b714f9),
-                    subtitle = subtitle,
-                    trailing = durationText(s.asleep),
-                    tint = Palette.restColor,
-                    footer = {},
-                ) {
-                    StageTimeline(
-                        realSegments = real,
-                        s = s,
-                        // #345: the axis spans the WHOLE night. The group hypnogram (#364 seams) runs to
-                        // the group's last wake; labelling the axis off the session fragment's endTs cut
-                        // the clock labels short on a split night.
-                        onsetTs = windowOnsetTs ?: session?.effectiveStartTs,
-                        wakeTs = windowWakeTs ?: session?.endTs,
-                        motionEpochs = motionEpochs,
-                    )
+                // #sleep-chart-style: the opt-in FILLED stepped hypnogram when the user selected it AND the
+                // night has real timestamped segments; otherwise the classic per-stage-rows timeline (the
+                // default, unchanged for everyone who doesn't switch).
+                val chartStyle = UnitPrefs.sleepChartStyle(LocalContext.current)
+                val filledSegments = display.hypnogramSegments?.takeIf { it.size >= 2 }
+                if ((chartStyle == SleepChartStyle.FILLED || chartStyle == SleepChartStyle.RIBBON) &&
+                    filledSegments != null) {
+                    ChartCard(
+                        title = uiString(R.string.l10n_sleep_screen_stage_breakdown_e9b714f9),
+                        subtitle = subtitle,
+                        trailing = durationText(s.asleep),
+                        tint = Palette.restColor,
+                        // The stepped chart carries no built-in legend (the rows ARE the legend in the
+                        // classic view), so surface the per-stage breakdown below it, like the reference.
+                        footer = { StageBreakdownRows(s) },
+                    ) {
+                        FilledHypnogram(
+                            segments = filledSegments,
+                            onsetTs = windowOnsetTs ?: session?.effectiveStartTs,
+                            wakeTs = windowWakeTs ?: session?.endTs,
+                            filled = chartStyle == SleepChartStyle.FILLED,
+                        )
+                    }
+                } else {
+                    ChartCard(
+                        title = uiString(R.string.l10n_sleep_screen_stage_breakdown_e9b714f9),
+                        subtitle = subtitle,
+                        trailing = durationText(s.asleep),
+                        tint = Palette.restColor,
+                        footer = {},
+                    ) {
+                        StageTimeline(
+                            realSegments = real,
+                            s = s,
+                            // #345: the axis spans the WHOLE night. The group hypnogram (#364 seams) runs to
+                            // the group's last wake; labelling the axis off the session fragment's endTs cut
+                            // the clock labels short on a split night.
+                            onsetTs = windowOnsetTs ?: session?.effectiveStartTs,
+                            wakeTs = windowWakeTs ?: session?.endTs,
+                            motionEpochs = motionEpochs,
+                        )
+                    }
                 }
             } else {
                 ChartCard(

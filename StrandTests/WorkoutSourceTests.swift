@@ -277,6 +277,20 @@ final class WorkoutSourceTests: XCTestCase {
         XCTAssertNil(WorkoutSource.buildManualRow(start: start, durationMin: 30, sport: "Run", avgHr: nil, energyKcal: 99_999, now: now))
     }
 
+    /// #1067 twin: a start at/before `now` still lets `start + duration` overshoot into the future. End
+    /// exactly at `now` is valid; one second beyond is rejected.
+    func testBuildManualRowRejectsAFutureEndButAllowsEndExactlyAtNow() {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)   // 45 min = 2700 s
+        // End exactly at now → valid.
+        XCTAssertNotNil(WorkoutSource.buildManualRow(start: start, durationMin: 45, sport: "Run",
+                                                     avgHr: nil, energyKcal: nil,
+                                                     now: start.addingTimeInterval(2700)))
+        // start ≤ now, but start + duration overshoots now by one second → rejected.
+        XCTAssertNil(WorkoutSource.buildManualRow(start: start, durationMin: 45, sport: "Run",
+                                                  avgHr: nil, energyKcal: nil,
+                                                  now: start.addingTimeInterval(2699)))
+    }
+
     // MARK: - preservingCaptured
 
     func testPreservingCapturedCarriesUnexposedFieldsOnEdit() {

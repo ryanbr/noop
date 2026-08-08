@@ -106,6 +106,7 @@ import com.noop.ble.WhoopBleClient
 // #174: the R22 card reads the flag COUNT off Whoop5Config.enableR22Sequence rather than restating it —
 // the hardcoded "15" outlived the sequence growing to 16 and declared success a flag early.
 import com.noop.protocol.Whoop5Config
+import com.noop.protocol.EcgRawDataGateReport
 import com.noop.ble.WhoopModel
 import com.noop.data.DataBackup
 import com.noop.ingest.RawSensorExport
@@ -490,6 +491,11 @@ fun SettingsScreen(
     // the card cannot drift from it again — it said "15" for the whole life of the 16-flag sequence.
     val r22FlagCount = Whoop5Config.enableR22Sequence.size
     var broadcastHr by remember(rev) { mutableStateOf(puffinExperiment.broadcastHr) }
+    // ECG raw-data gate (#891): the opt-in, the write result, and the attested-MG gate the buttons need.
+    var ecgRawData by remember(rev) { mutableStateOf(puffinExperiment.ecgRawData) }
+    val ecgGateReport by vm.ble.ecgRawDataGate.collectAsStateWithLifecycle()
+    val ecgVariant by vm.ble.whoop5VariantFlow.collectAsStateWithLifecycle()
+    val ecgVariantIsMG = ecgVariant.isMG
     // "Sleep staging (V2)" — V2 is the DEFAULT for every strap (WHOOP 4 and 5/MG); turn it OFF to fall back
     // to V1. Model-agnostic, so it lives outside the 5/MG-only card. 4.0 is unvalidated either way (#319/#347).
     var experimentalSleepV2 by remember { mutableStateOf(puffinExperiment.experimentalSleepV2) }
@@ -579,6 +585,10 @@ fun SettingsScreen(
     // Trend charts (Line / Bar) — flips the Trends tab between the gradient line and value-ramp bars.
     // Display-only; SharedPreferences isn't reactive, so mirror into local state and persist on select.
     var trendChartStyle by remember { mutableStateOf(UnitPrefs.trendChartStyle(context)) }
+    var sleepChartStyle by remember { mutableStateOf(UnitPrefs.sleepChartStyle(context)) }
+    // In-app quiet motion (#941), default OFF. The process-wide preference observer in NoopMotion makes
+    // this take effect on every currently composed looping surface as soon as the switch is flipped.
+    var quietMotion by remember { mutableStateOf(NoopPrefs.quietMotion(context)) }
     // HRV window (#141) — whole-night vs deep-sleep (WHOOP-style). NOT display-only: it changes the computed
     // avgHrv, so a switch clears the analyze watermark to force a re-score + re-baseline on the next pass.
     var hrvWindow by remember { mutableStateOf(UnitPrefs.hrvWindow(context)) }
@@ -1078,6 +1088,44 @@ fun SettingsScreen(
                     },
                 )
             }
+            SettingsRowDivider()
+            // Sleep chart style (#sleep-chart-style). Display-only: "Classic" keeps the per-stage-rows
+            // timeline; "Filled" swaps the Sleep tab's stage chart for a single stepped hypnogram with the
+            // stages stacked by depth and each column filled to the baseline. Same data either way; this only
+            // changes the drawing, and it falls back to Classic on a night with no timestamped segments.
+            SettingsFormRow(label = "Sleep chart") {
+                SegmentedPillControl(
+                    items = listOf(SleepChartStyle.CLASSIC, SleepChartStyle.FILLED, SleepChartStyle.RIBBON),
+                    selection = sleepChartStyle,
+                    label = {
+                        when (it) {
+                            SleepChartStyle.FILLED -> "Filled"
+                            SleepChartStyle.RIBBON -> "Ribbon"
+                            else -> "Classic"
+                        }
+                    },
+                    onSelect = { style ->
+                        sleepChartStyle = style
+                        UnitPrefs.setSleepChartStyle(context, style)
+                    },
+                    // Three segments — share the row width equally so the labels can't widen the card past
+                    // the screen (the component's own guidance for longer option sets).
+                    adaptsToAvailableWidth = true,
+                )
+            }
+            // In-app "Reduce motion in NOOP" (#941) — parity with the Apple quiet-motion toggle. Poses every
+            // looping surface still via the third rememberPoseStill() signal. (SettingsRowDivider, not the
+            // file-private RowDivider used elsewhere, which isn't visible here.)
+            SettingsRowDivider()
+            SettingsToggleRow(
+                title = uiString(R.string.l10n_settings_screen_reduce_motion_in_noop_59a6180d),
+                detail = uiString(R.string.l10n_settings_screen_holds_the_liquid_gauges_the_sky_41872b57),
+                checked = quietMotion,
+                onCheckedChange = {
+                    quietMotion = it
+                    NoopPrefs.setQuietMotion(context, it)
+                },
+            )
 
             // Day-cycle background (#698): the time-of-day scene behind Today. On by default. Off swaps it
             // for a plain dark canvas for people who find the moving scene distracting. Takes effect next
@@ -1891,6 +1939,75 @@ fun SettingsScreen(
                     style = NoopType.caption,
                     color = Palette.textTertiary,
                 )
+
+                // --- ECG raw-data gate — an opt-in device-config WRITE with a mandatory read-back. (#891) ---
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Text(
+                        uiString(R.string.l10n_settings_screen_ecg_raw_data_gate_whoop_mg_only),
+                        style = NoopType.subhead,
+                        color = Palette.textPrimary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(
+                        checked = ecgRawData,
+                        onCheckedChange = {
+                            ecgRawData = it
+                            puffinExperiment.ecgRawData = it
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Palette.surfaceBase,
+                            checkedTrackColor = Palette.accent,
+                            uncheckedThumbColor = Palette.textSecondary,
+                            uncheckedTrackColor = Palette.surfaceInset,
+                            uncheckedBorderColor = Palette.hairline,
+                        ),
+                        modifier = Modifier.semantics {
+                            contentDescription =
+                                uiString(R.string.l10n_settings_screen_ecg_raw_data_gate_whoop_mg_only)
+                        },
+                    )
+                }
+                Text(
+                    uiString(R.string.l10n_settings_screen_ecg_gate_blurb),
+                    style = NoopType.caption,
+                    color = Palette.textTertiary,
+                )
+                if (ecgRawData) {
+                    Text(
+                        uiString(R.string.l10n_settings_screen_ecg_gate_persistent_warning),
+                        style = NoopType.caption,
+                        color = Palette.statusWarning,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        NoopButton(
+                            text = uiString(R.string.l10n_settings_screen_ecg_gate_turn_on),
+                            kind = NoopButtonKind.Primary,
+                            enabled = live.bonded && ecgVariantIsMG,
+                            onClick = { vm.ble.setEcgRawDataGate(true) },
+                        )
+                        NoopButton(
+                            text = uiString(R.string.l10n_settings_screen_ecg_gate_turn_off),
+                            kind = NoopButtonKind.Secondary,
+                            enabled = live.bonded && ecgVariantIsMG,
+                            onClick = { vm.ble.setEcgRawDataGate(false) },
+                        )
+                    }
+                    ecgGateReport?.let { report ->
+                        Text(
+                            report.summary,
+                            style = NoopType.caption,
+                            color = if (report.verdict == EcgRawDataGateReport.Verdict.CONFIRMED) {
+                                Palette.statusPositive
+                            } else {
+                                Palette.textSecondary
+                            },
+                        )
+                    }
+                }
 
                 // --- R22 deep-data unlock — the one probe that writes to the strap. (#174) ---
                 Row(
@@ -3019,6 +3136,7 @@ fun SettingsScreen(
                 }
             }
         }
+
 
         // Steps-estimate calibration, opened from the Profile card's "Steps estimate" row. Same
         // full-screen Dialog idiom; a manual-coefficient write bumps `rev` so the Profile summary

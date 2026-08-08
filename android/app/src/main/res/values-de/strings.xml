@@ -31,6 +31,7 @@
     <string name="nav_automations">Automationen</string>
     <string name="nav_alarms">Wecker</string>
     <string name="nav_devices">Geräte</string>
+    <string name="nav_noop_limitations">NOOP-Grenzen</string>
     <string name="nav_data_sources">Datenquellen</string>
     <string name="nav_backup_sync">Backup &amp; Sync</string>
     <string name="nav_fused_record">Deine Daten, vereint</string>
@@ -1424,6 +1425,8 @@
     <string name="l10n_settings_screen_age_ff9f1ff3">Alter</string>
     <string name="l10n_settings_screen_app_icon_abde7a74">App-Symbol</string>
     <string name="l10n_settings_screen_appearance_41def7a0">Erscheinungsbild</string>
+    <string name="l10n_settings_screen_reduce_motion_in_noop_59a6180d">Bewegung in NOOP reduzieren</string>
+    <string name="l10n_settings_screen_holds_the_liquid_gauges_the_sky_41872b57">Hält die Flüssigkeitsanzeigen, den Himmel und die Neigungsreaktion still und schaltet den Bewegungssensor ab, der sie antreibt. Spart Akku. Der Stromsparmodus und die Systemeinstellung „Bewegung reduzieren“ tun dies bereits.</string>
     <string name="l10n_settings_screen_auto_detect_workouts_bed4cf2a">Workouts automatisch erkennen</string>
     <string name="l10n_settings_screen_automatic_backups_8a772f3c">Automatische Backups</string>
     <string name="l10n_settings_screen_backup_restore_a1616284">Sicherung &amp; Wiederherstellung</string>
@@ -1902,4 +1905,15 @@
     <string name="l10n_app_changelog_widgets_stop_inventing_numbers_naps_count_4f7491bb">Widgets erfinden keine Zahlen mehr, Nickerchen zählen für die Schlafschuld, und die Android-Statusanzeigen sprechen deine Sprache</string>
     <string name="l10n_sleep_screen_may_be_incomplete_7230dc27">Möglicherweise unvollständig</string>
     <string name="l10n_sleep_screen_little_motion_was_recorded_over_f061b7e4">Über Nacht wurde wenig Bewegung aufgezeichnet, daher wurde diese Nacht möglicherweise nicht vollständig erfasst und die Schlafdauer kann zu kurz erscheinen. Stelle sicher, dass das Band vollständig synchronisiert wurde.</string>
+    <string name="haptics_section_title">Haptik</string>
+    <string name="haptics_breathing_label">Atemtaktgeber</string>
+    <string name="haptics_intervals_label">Intervall-Timer</string>
+    <string name="haptics_live_session_label">Live-Session-Hinweise</string>
+    <string name="haptics_workout_label">Trainingsstart und -ende</string>
+    <string name="notif_timer_alarm_title">Timer &amp; Wecker</string>
+    <string name="l10n_settings_screen_ecg_raw_data_gate_whoop_mg_only">ECG-Rohdatensperre (nur WHOOP MG)</string>
+    <string name="l10n_settings_screen_ecg_gate_blurb">Dein Band hat seine eigenen Geräte-Konfigurationsschlüssel aufgelistet, darunter enable_raw_data_w_ecg. Auf einem MG ohne ECG-Abo steht er auf \'0\' — während alle drei ECG-Befehle mit SUCCESS antworten und trotzdem keine Daten senden (#891). Das ist die naheliegendste Vermutung, was ECG verschlossen hält. Ob das Umlegen tatsächlich ECG-Daten liefert, weiß niemand: genau das herauszufinden ist der Zweck, und „immer noch nichts“ ist ein brauchbares Ergebnis, das sich zu posten lohnt (#891).</string>
+    <string name="l10n_settings_screen_ecg_gate_persistent_warning">Dies schreibt eine Einstellung, die AUF DEINEM BAND BLEIBT, bis du sie zurücksetzt — es ist keine App-Einstellung, und das Schließen von NOOP macht sie nicht rückgängig. „Sperre ausschalten“ schreibt mit einem Tippen wieder \'0\'. Es wird ausschließlich dieser eine Schlüssel geschrieben; die anderen sechs, die dein Band aufgelistet hat, werden nie angefasst.</string>
+    <string name="l10n_settings_screen_ecg_gate_turn_on">Sperre einschalten (\'1\' schreiben)</string>
+    <string name="l10n_settings_screen_ecg_gate_turn_off">Sperre ausschalten (\'0\' schreiben)</string>
 </resources>

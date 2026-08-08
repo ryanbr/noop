@@ -115,6 +115,11 @@ struct RawHistoryArchive {
         self.maxBytes = maxBytes
         self.perVersionFloor = perVersionFloor
         self.zeroPayloadFloor = zeroPayloadFloor
+        #if os(iOS)
+        // Migrate an archive created by an older build while launch is normally foreground/unlocked.
+        // The write path repeats this before every append so a first background write is covered too.
+        try? prepareStorageForBackgroundAccess()
+        #endif
     }
 
     /// The archive file URL (does not create anything).
@@ -147,6 +152,14 @@ struct RawHistoryArchive {
     func archive(_ frames: [[UInt8]], trim: UInt32, family: DeviceFamily) -> Result {
         guard !frames.isEmpty else { return .written(count: 0) }
         let url = fileURL
+        // Ensure the directory exists AND (on iOS) carries after-first-unlock protection before the reads
+        // below, so a locked background wake can read the existing archive and rewrite it rather than
+        // failing the mandatory pre-ack write. Directory creation is the only hard failure here.
+        do {
+            try prepareStorageForBackgroundAccess()
+        } catch {
+            return .failed
+        }
         let capturedAtMs = Date().timeIntervalSince1970 * 1000
         // Build the new JSONL lines (each newline-terminated). The version that drives floor-aware
         // retention (#344) is re-derived per line from the stored frame inside `evictLines`.
@@ -189,8 +202,8 @@ struct RawHistoryArchive {
                                                floor: perVersionFloor, zeroFloor: zeroPayloadFloor)
         let data = Data(kept.joined().utf8)
         do {
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             try data.write(to: url, options: .atomic)   // atomic rewrite; durable before the ack
+            applyBackgroundProtectionToArchive()        // atomic replace makes a new inode — re-protect it
             return .written(count: frames.count)
         } catch {
             return .failed
@@ -199,7 +212,7 @@ struct RawHistoryArchive {
 
     /// Append `data` to `url`, fsyncing before returning so it is durable BEFORE the trim ack.
     private func appendDurably(_ data: Data, to url: URL) throws {
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try prepareStorageForBackgroundAccess()
         if FileManager.default.fileExists(atPath: url.path) {
             let handle = try FileHandle(forWritingTo: url)
             defer { try? handle.close() }
@@ -208,7 +221,39 @@ struct RawHistoryArchive {
             try handle.synchronize()   // durable BEFORE the ack — the point of the archive
         } else {
             try data.write(to: url, options: .atomic)
+            applyBackgroundProtectionToArchive()   // new file — set its protection (existing files keep theirs)
         }
+    }
+
+    /// Make the reject archive readable after the first unlock, matching the primary SQLite store's policy
+    /// in `StorePaths`. Background BLE can be woken while the phone is locked; the iOS default (complete)
+    /// protection would otherwise make this mandatory pre-ack write fail and force the strap to resend the
+    /// same history chunk. Applied to the directory (future files inherit it) and any archive left by an
+    /// older build. Non-iOS platforms only need the directory created — protection classes don't apply.
+    private func prepareStorageForBackgroundAccess() throws {
+        let fm = FileManager.default
+        try fm.createDirectory(at: directory, withIntermediateDirectories: true)
+        #if os(iOS)
+        let protection: [FileAttributeKey: Any] = [
+            .protectionKey: FileProtectionType.completeUntilFirstUserAuthentication,
+        ]
+        try? fm.setAttributes(protection, ofItemAtPath: directory.path)
+        if fm.fileExists(atPath: fileURL.path) {
+            try? fm.setAttributes(protection, ofItemAtPath: fileURL.path)
+        }
+        #endif
+    }
+
+    /// Atomic replacement creates a NEW inode, so re-apply the file protection after every fresh write
+    /// rather than relying on directory inheritance alone. Best-effort — the directory policy is the
+    /// durable guarantee; this closes the window on the specific file.
+    private func applyBackgroundProtectionToArchive() {
+        #if os(iOS)
+        try? FileManager.default.setAttributes(
+            [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+            ofItemAtPath: fileURL.path
+        )
+        #endif
     }
 
     /// How one archived line is classified for retention: which version bucket it belongs to, and

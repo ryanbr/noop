@@ -1252,6 +1252,8 @@
     <string name="l10n_settings_screen_age_ff9f1ff3">Edad</string>
     <string name="l10n_settings_screen_app_icon_abde7a74">Icono de la app</string>
     <string name="l10n_settings_screen_appearance_41def7a0">Apariencia</string>
+    <string name="l10n_settings_screen_reduce_motion_in_noop_59a6180d">Reducir movimiento en NOOP</string>
+    <string name="l10n_settings_screen_holds_the_liquid_gauges_the_sky_41872b57">Mantiene quietos los medidores líquidos, el cielo y la respuesta a la inclinación, y apaga el sensor de movimiento que los impulsa. Ahorra batería. El modo de bajo consumo y el ajuste del sistema «Reducir movimiento» ya hacen esto.</string>
     <string name="l10n_settings_screen_auto_detect_workouts_bed4cf2a">Detectar entrenamientos automáticamente</string>
     <string name="l10n_settings_screen_automatic_backups_8a772f3c">Respaldos automáticos</string>
     <string name="l10n_settings_screen_backup_restore_a1616284">Copia de seguridad y restauración</string>
@@ -1543,6 +1545,7 @@
     <string name="nav_automations">Automatizaciones</string>
     <string name="nav_alarms">Alarmas</string>
     <string name="nav_devices">Dispositivos</string>
+    <string name="nav_noop_limitations">Limitaciones de NOOP</string>
     <string name="nav_data_sources">Fuentes de datos</string>
     <string name="nav_backup_sync">Copia y sincronización</string>
     <string name="nav_fused_record">Tus datos, fusionados</string>
@@ -1887,4 +1890,15 @@
     <string name="l10n_app_changelog_widgets_stop_inventing_numbers_naps_count_4f7491bb">Los widgets dejan de inventar números, las siestas cuentan para la deuda de sueño y los indicadores de Android hablan tu idioma</string>
     <string name="l10n_sleep_screen_may_be_incomplete_7230dc27">Puede estar incompleto</string>
     <string name="l10n_sleep_screen_little_motion_was_recorded_over_f061b7e4">Se registró poco movimiento durante la noche, por lo que esta noche puede haberse detectado de forma incompleta y el total de sueño puede parecer corto. Asegúrate de que la correa se haya sincronizado por completo.</string>
+    <string name="haptics_section_title">Vibración</string>
+    <string name="haptics_breathing_label">Guía de respiración</string>
+    <string name="haptics_intervals_label">Temporizador de intervalos</string>
+    <string name="haptics_live_session_label">Avisos de sesión en directo</string>
+    <string name="haptics_workout_label">Inicio y fin del entrenamiento</string>
+    <string name="notif_timer_alarm_title">Temporizador y alarma</string>
+    <string name="l10n_settings_screen_ecg_raw_data_gate_whoop_mg_only">Bloqueo de datos ECG sin procesar (solo WHOOP MG)</string>
+    <string name="l10n_settings_screen_ecg_gate_blurb">Tu correa ha enumerado sus propias claves de configuración, y una de ellas es enable_raw_data_w_ecg. En un MG sin suscripción de ECG vale \'0\', mientras que los tres comandos de ECG responden SUCCESS y no envían dato alguno (#891). Es la hipótesis principal sobre qué mantiene el ECG cerrado. Nadie sabe si cambiarla produce realmente datos de ECG: averiguarlo es el objetivo, y «sigue sin haber nada» es una respuesta útil que merece publicarse en #891.</string>
+    <string name="l10n_settings_screen_ecg_gate_persistent_warning">Esto escribe un ajuste que PERMANECE EN TU CORREA hasta que lo cambies de vuelta: no es una preferencia de la app y cerrar NOOP no lo deshace. «Desactivar bloqueo» vuelve a escribir \'0\' con un solo toque. Solo se escribe esta clave; las otras seis que enumeró tu correa nunca se tocan.</string>
+    <string name="l10n_settings_screen_ecg_gate_turn_on">Activar bloqueo (escribir \'1\')</string>
+    <string name="l10n_settings_screen_ecg_gate_turn_off">Desactivar bloqueo (escribir \'0\')</string>
 </resources>

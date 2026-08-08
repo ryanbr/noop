@@ -35,6 +35,23 @@ enum PuffinExperiment {
 
     static var broadcastHrEnabled: Bool { UserDefaults.standard.bool(forKey: broadcastHrKey) }
 
+    /// Opt-in "ECG raw-data gate" (#891): writes the device-config key `enable_raw_data_w_ecg` — the key
+    /// the strap's own 115/116 enumeration listed, and which reads `'0'` on a subscription-free WHOOP MG
+    /// whose three TOGGLE_LABRADOR commands all ack SUCCESS and emit nothing.
+    ///
+    /// Its own key rather than a shared "ECG" one: this repo gives every PERSISTENT STRAP WRITE its own
+    /// deliberate opt-in (`deepDataKey` #174, `broadcastHrKey` #181), so reusing one switch for "listen for
+    /// ECG packets" (`ecgKey`) and "change a stored value on the strap" would let the second ride in on
+    /// consent given for the first.
+    ///
+    /// Reversible in one tap, default OFF, and additionally gated on `Whoop5Variant.isMG` at the call site
+    /// — a plain 5.0 has no electrodes. Driven only by `BLEManager.setEcgRawDataGate(_:)`, which always
+    /// follows the write with a `GET_DEVICE_CONFIG_VALUE(121)` read-back. Mirrors the Android
+    /// `PuffinExperiment.KEY_ECG_RAW_DATA`.
+    static let ecgRawDataKey = "noopEcgRawDataGate"
+
+    static var ecgRawDataEnabled: Bool { UserDefaults.standard.bool(forKey: ecgRawDataKey) }
+
     /// Opt-in "Continuous HRV capture": hold the dense realtime HR stream armed even with no Live screen
     /// open, so the strap banks beat-to-beat R-R intervals 24/7 for far better overnight HRV/recovery/
     /// sleep (vs the sparse history offload). Uses more battery (continuous HR streaming). Default OFF;
@@ -229,6 +246,7 @@ enum PuffinExperiment {
         // takes the ECG decoder but has no ECG app layer, so Kotlin's FIVE_MG_GATED_KEYS has no twin
         // entry to add. Add one there in the same change that adds an Android probe.
         ecgKey,
+        ecgRawDataKey,                   // enable_raw_data_w_ecg strap write (#891)
         PuffinFrameRecorder.enabledKey,  // raw frame capture — declared on PuffinFrameRecorder
     ]
 

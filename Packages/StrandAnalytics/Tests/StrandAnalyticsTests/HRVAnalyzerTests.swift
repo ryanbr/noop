@@ -247,4 +247,85 @@ final class HRVAnalyzerTests: XCTestCase {
         XCTAssertEqual(HRVAnalyzer.collapsedCoverage(tsSec: ts, rrMs: rr),
                        HRVAnalyzer.rrCoverage(tsSec: ts, rrMs: rr), accuracy: 1e-9)
     }
+
+    // #1008 — densestSecondWindowSample: the raw-row sample that makes an over-count's MECHANISM readable
+    // from the always-on log. Exact-string assertions pin byte-parity with the Kotlin twin.
+
+    /// Near-equal copies clustered in one second (the "same beat stored twice" shape): the sample shows
+    /// `[1199,1200,1201]` — values a de-dup would collapse. This is the signature of a duplication bug.
+    func testDensestSampleShowsNearEqualCopies() {
+        let ts = [100, 100, 100, 101, 102]
+        let rr: [Double] = [1200, 1199, 1201, 1200, 1198]
+        let src: [Int?] = [nil, nil, nil, nil, nil]
+        XCTAssertEqual(
+            HRVAnalyzer.densestSecondWindowSample(tsSec: ts, rrMs: rr, srcCodes: src),
+            "beatsPerSec=1.67 maxInSec=3 occSec=3 totBeats=5 src=none | "
+                + "t0=100 0s[1199,1200,1201] +1s[1200] +2s[1198]")
+    }
+
+    /// Distinct interval trains (a full ~1200 ms beat beside a ~600 ms one, every second): the sample shows
+    /// `[600,1200]` — NOT copies of one beat, so a genuine second stream, not a de-dupable duplicate. The
+    /// two shapes are what the maintainer needs to tell apart to pick the fix.
+    func testDensestSampleShowsDistinctTrains() {
+        let ts = [100, 100, 101, 101, 102, 102]
+        let rr: [Double] = [1200, 600, 1200, 600, 1200, 600]
+        let src: [Int?] = [nil, nil, nil, nil, nil, nil]
+        XCTAssertEqual(
+            HRVAnalyzer.densestSecondWindowSample(tsSec: ts, rrMs: rr, srcCodes: src),
+            "beatsPerSec=2.00 maxInSec=2 occSec=3 totBeats=6 src=none | "
+                + "t0=100 0s[600,1200] +1s[600,1200] +2s[600,1200]")
+    }
+
+    /// A non-null srcChannel is surfaced as `@code`, and `src=` lists the distinct codes — so a tagged (Oura
+    /// #1071) stream is obvious, and `src=none` on a WHOOP night confirms that machinery does NOT apply.
+    func testDensestSampleSurfacesSrcChannelTags() {
+        let ts = [100, 100]
+        let rr: [Double] = [1000, 1000]
+        let src: [Int?] = [1, 2]
+        XCTAssertEqual(
+            HRVAnalyzer.densestSecondWindowSample(tsSec: ts, rrMs: rr, srcCodes: src),
+            "beatsPerSec=2.00 maxInSec=2 occSec=1 totBeats=2 src=1/2 | t0=100 0s[1000@1,1000@2]")
+    }
+
+    /// Nothing to sample (< 2 beats) → empty string, so the engine emits no `hrv rrsample` line.
+    func testDensestSampleEmptyForTooFewBeats() {
+        XCTAssertEqual(HRVAnalyzer.densestSecondWindowSample(tsSec: [], rrMs: [], srcCodes: []), "")
+        XCTAssertEqual(HRVAnalyzer.densestSecondWindowSample(tsSec: [100], rrMs: [1000], srcCodes: [nil]), "")
+    }
+
+    // Parity edge cases — the SAME literal strings are asserted in the Kotlin twin, so ties, truncation,
+    // short srcCodes, and half-value rounding are pinned byte-for-byte across platforms.
+
+    /// Densest-second TIE (100 & 101 both hold 2) resolves to the EARLIEST ts; equal rrMs order by index.
+    func testDensestSampleTieResolvesToEarliestSecond() {
+        XCTAssertEqual(
+            HRVAnalyzer.densestSecondWindowSample(
+                tsSec: [100, 100, 101, 101, 102], rrMs: [1000, 1000, 1000, 1000, 999],
+                srcCodes: [nil, nil, nil, nil, nil]),
+            "beatsPerSec=1.67 maxInSec=2 occSec=3 totBeats=5 src=none | t0=100 0s[1000,1000] +1s[1000,1000] +2s[999]")
+    }
+
+    /// A runaway second is truncated to maxRowsPerSecond with a `+K` remainder marker.
+    func testDensestSampleTruncatesRunawaySecond() {
+        XCTAssertEqual(
+            HRVAnalyzer.densestSecondWindowSample(
+                tsSec: [50, 50, 50, 50, 50, 51], rrMs: [700, 710, 720, 730, 740, 1000],
+                srcCodes: [nil, nil, nil, nil, nil, nil], maxRowsPerSecond: 3),
+            "beatsPerSec=3.00 maxInSec=5 occSec=2 totBeats=6 src=none | t0=50 0s[700,710,720,+2] +1s[1000]")
+    }
+
+    /// srcCodes SHORTER than the beat list is index-guarded (no crash), and only the tagged beat shows `@`.
+    func testDensestSampleShortSrcCodesAreIndexGuarded() {
+        XCTAssertEqual(
+            HRVAnalyzer.densestSecondWindowSample(tsSec: [10, 10, 11], rrMs: [1000, 1000, 1000], srcCodes: [3]),
+            "beatsPerSec=1.50 maxInSec=2 occSec=2 totBeats=3 src=3 | t0=10 0s[1000@3,1000] +1s[1000]")
+    }
+
+    /// beatsPerSec at an exact half (3 beats / 2 seconds = 1.50) folds identically on both platforms.
+    func testDensestSampleHalfValueBeatsPerSecRounding() {
+        XCTAssertEqual(
+            HRVAnalyzer.densestSecondWindowSample(tsSec: [200, 200, 201], rrMs: [900, 900, 900],
+                srcCodes: [nil, nil, nil]),
+            "beatsPerSec=1.50 maxInSec=2 occSec=2 totBeats=3 src=none | t0=200 0s[900,900] +1s[900]")
+    }
 }

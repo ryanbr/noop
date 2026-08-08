@@ -345,8 +345,15 @@ enum WorkoutSource: Equatable {
         if let k = energyKcal, k < 0 || k > 20_000 { return nil }
         let s = Int(start.timeIntervalSince1970)
         guard s > 0 else { return nil }
-        return WorkoutRow(startTs: s, endTs: s + durationMin * 60, sport: trimmed, source: "manual",
-                          durationS: Double(durationMin) * 60, energyKcal: energyKcal,
+        // Reject a row whose END lands in the future: `start <= now` alone still lets `start + duration`
+        // overshoot (a start 10 min ago + a 45 min duration ends 35 min ahead). Overflow-safe, and a row
+        // ending exactly at `now` stays valid. Twin of Android `WorkoutEditing` (#1067).
+        let durationSeconds = durationMin * 60
+        guard durationSeconds <= Int.max - s else { return nil }
+        let end = s + durationSeconds
+        guard end <= Int(now.timeIntervalSince1970) else { return nil }
+        return WorkoutRow(startTs: s, endTs: end, sport: trimmed, source: "manual",
+                          durationS: Double(durationSeconds), energyKcal: energyKcal,
                           avgHr: avgHr, maxHr: nil, strain: nil, distanceM: nil,
                           zonesJSON: nil, notes: nil)
     }
