@@ -39,6 +39,23 @@ class NoopNotificationListener : NotificationListenerService() {
             }
         }
 
+        // Native Clock timer/alarm → wrist buzz (#1115 follow-up, Android-only — iOS can't observe another
+        // app's notifications). Matched by CATEGORY_ALARM (any clock app, no package list) so it also
+        // catches a RINGING alarm, whose ONGOING notification the per-app path below deliberately skips.
+        // Own opt-in (default OFF), still under the notification master + quiet-hours + only-when-worn.
+        // Only INTERCEPTS when the toggle is on (then returns, so it can't also double-buzz via per-app);
+        // with the toggle off a Clock notification falls through to the per-app path unchanged.
+        if (n.category == Notification.CATEGORY_ALARM &&
+            NotifPrefs.getBool(ctx, NotifPrefs.MASTER, false) &&
+            NotifPrefs.getBool(ctx, NotifPrefs.ALARM_TIMER, false)) {
+            val ble = (application as? NoopApplication)?.ble
+            if (ble != null && !NotifPrefs.inQuietHours(ctx) &&
+                (!NotifPrefs.getBool(ctx, NotifPrefs.WORN, true) || ble.state.value.worn)) {
+                ble.buzz(3)   // a strong triple cue for a timer/alarm; send() no-ops if the strap isn't connected
+            }
+            return
+        }
+
         // Master gate + per-app opt-in (both default off — nothing buzzes until the user turns it on).
         // The "all other apps" catch-all (#168) lets anything outside the curated catalog through, since
         // Android package-visibility limits mean we can't list every installed app for per-app opt-in.

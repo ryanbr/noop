@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Email
@@ -160,6 +161,9 @@ internal object NotifPrefs {
     const val CALLS_PHONE = "notif.calls.phoneEnabled"
     const val CALLS_VOIP = "notif.calls.voipEnabled"
     const val CALLS_PATTERN = "notif.calls.pattern"
+    /** Buzz the strap when the phone's native Clock fires a timer/alarm (CATEGORY_ALARM). Android-only
+     *  (iOS can't observe another app's notifications). Default OFF. */
+    const val ALARM_TIMER = "notif.alarmTimer"
 
     private fun prefs(ctx: Context) =
         ctx.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
@@ -235,6 +239,7 @@ fun NotificationsSettingsScreen(vm: AppViewModel) {
     var callsEnabled by remember { mutableStateOf(NotifPrefs.getBool(context, NotifPrefs.CALLS_MASTER, false)) }
     var phoneCallsEnabled by remember { mutableStateOf(NotifPrefs.getBool(context, NotifPrefs.CALLS_PHONE, false)) }
     var voipCallsEnabled by remember { mutableStateOf(NotifPrefs.getBool(context, NotifPrefs.CALLS_VOIP, false)) }
+    var alarmTimerEnabled by remember { mutableStateOf(NotifPrefs.getBool(context, NotifPrefs.ALARM_TIMER, false)) }
     var callsPattern by remember { mutableStateOf(NotifPrefs.callPattern(context)) }
     // Scheduled report notifications (#517) — opt-in, default OFF. SharedPreferences isn't reactive, so
     // each Switch mirrors into local state and writes straight through to NoopPrefs.
@@ -354,6 +359,27 @@ fun NotificationsSettingsScreen(vm: AppViewModel) {
             },
             onTest = { vm.buzz(loops = callsPattern.loops) },
         )
+
+        // #1115 follow-up: buzz the strap when the phone's native Clock fires a timer or alarm
+        // (CATEGORY_ALARM, any clock app). Android-only — iOS can't observe another app's notifications.
+        AlertSection(
+            icon = Icons.Filled.Alarm,
+            title = uiString(R.string.notif_timer_alarm_title),
+            blurb = "Buzz your wrist when your phone's Clock app finishes a timer or rings an alarm.",
+        ) {
+            Column(modifier = Modifier.alphaIf(if (masterEnabled) 1f else Palette.disabledOpacity)) {
+                FormToggleRow(
+                    label = uiString(R.string.notif_timer_alarm_title),
+                    help = "Requires wrist alerts (above) to be on. Buzzes once when a timer/alarm notification fires.",
+                    checked = alarmTimerEnabled,
+                    enabled = masterEnabled,
+                    onChange = {
+                        alarmTimerEnabled = it
+                        NotifPrefs.setBool(context, NotifPrefs.ALARM_TIMER, it)
+                    },
+                )
+            }
+        }
 
         // #926: on a 5/MG the buzz payload is a hardcoded 12-byte literal and byte[11] (overallLoop) is
         // 0, so the caller's repeat count never reaches the wire — every BuzzPattern produces the same
