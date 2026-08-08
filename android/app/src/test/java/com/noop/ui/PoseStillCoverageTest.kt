@@ -67,10 +67,14 @@ class PoseStillCoverageTest {
      * user's finger is down. Quieting it would not save idle power (there is no idle: the user is dragging);
      * it would break the interaction by stripping the auto-scroll out from under them.
      *
+     * `SleepScreen.kt` runs the byte-identical drag-reorder auto-scroll loop (#sleep-layout, the Sleep-tab
+     * twin of Today's), gated the same way on `while (sleepSectionDrag.key != null)` — the same direct-
+     * manipulation case, exempt for the same reason. Its only `withFrameNanos` IS that loop.
+     *
      * The distinction this file draws is idle-vs-driven, not animated-vs-still. Anything added here needs a
      * reason of that shape.
      */
-    private val directManipulation = setOf("TodayScreen.kt")
+    private val directManipulation = setOf("TodayScreen.kt", "SleepScreen.kt")
 
     private fun animatingFiles(): List<File> =
         uiDir().walkTopDown()
