@@ -148,4 +148,20 @@ class ConnectionPriorityTest {
         // threshold 0 → normal cadence always
         assertEquals(base, WhoopBleClient.offloadIntervalMsFor(base, low, batteryPct = 3, charging = false, thresholdPct = 0))
     }
+
+    // #battery: a 5/MG whose history offload is known-empty (experimental on 5.0) stretches to the 45-min
+    // floor regardless of battery % — it banks nothing per pass, so a 15-min kick just holds the link ~60 s
+    // for zero data. Twin of iOS BLEManager.whoop5EmptyHistoryBackfillInterval.
+    @Test fun whoop5EmptyHistoryStretchesToLowFloor() {
+        assertEquals(low, WhoopBleClient.whoop5EmptyHistoryBackfillIntervalMs(base, low, historyEmpty = true))
+    }
+
+    @Test fun whoop5NonEmptyStaysAtBase() {
+        assertEquals(base, WhoopBleClient.whoop5EmptyHistoryBackfillIntervalMs(base, low, historyEmpty = false))
+    }
+
+    // Defensive: a misconfigured low floor below the base never SHORTENS the cadence (max, not min).
+    @Test fun whoop5EmptyHistoryNeverShortensBelowBase() {
+        assertEquals(base, WhoopBleClient.whoop5EmptyHistoryBackfillIntervalMs(base, lowBatteryMs = 300_000L, historyEmpty = true))
+    }
 }

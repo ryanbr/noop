@@ -557,11 +557,41 @@ public final class BLEManager: NSObject, ObservableObject {
             ? max(baseSeconds, lowSeconds) : baseSeconds
     }
 
+    /// #battery: pure 5/MG battery-read throttle decision, unit-testable without a CoreBluetooth seam.
+    /// Returns true when no prior read exists (the first read of a connection, or post-disconnect re-seed)
+    /// OR when at least `whoop5BatteryReadMinIntervalSeconds` has elapsed since the last read. Stops the
+    /// 30 s keep-alive tick from re-reading 0x2A19 every cycle. Twin of the Android `keepAliveTick % 2 == 0`
+    /// ~60 s cadence (WhoopBleClient keepAliveFire).
+    static func shouldPollWhoop5Battery(lastReadAt: Date?, now: Date = Date()) -> Bool {
+        guard let last = lastReadAt else { return true }
+        return now.timeIntervalSince(last) >= whoop5BatteryReadMinIntervalSeconds
+    }
+
+    /// #battery: pure periodic-offload interval for a 5/MG whose history is known-empty, unit-testable
+    /// without a CoreBluetooth seam. Stretches to the low-battery floor (45 min) regardless of battery %,
+    /// because an experimental-history 5/MG banks nothing per pass. Stacks with the BackfillPolicy
+    /// empty-backoff (which engages one cycle later, at 3 empties). Twin of Android `nextBackfillDelayMs`'s
+    /// `whoop5EmptyOffload.historyEmpty` branch.
+    static func whoop5EmptyHistoryBackfillInterval(baseSeconds: Int, lowSeconds: Int,
+                                                   historyEmpty: Bool) -> Int {
+        historyEmpty ? max(baseSeconds, lowSeconds) : baseSeconds
+    }
+
     /// Keep-alive: re-arm realtime, poll battery, and bounce a stalled link so streaming
     /// never silently dies. Started on bond, cancelled on disconnect.
     private var keepAliveTimer: DispatchSourceTimer?
     static let keepAliveIntervalSeconds = 30
     private var keepAliveTick = 0
+    /// #battery: minimum gap between 5/MG 0x2A19 battery reads. `enableLiveNotifications` fires from the
+    /// 30 s keep-alive tick AND once each from the CLIENT_HELLO-ack / post-bond callers, so without a
+    /// throttle a 5/MG was READ every ~30 s — 2 880 GATT reads/day, 2× the Android twin's ~60 s cadence
+    /// (WhoopBleClient keepAliveFire polls 5/MG battery on `keepAliveTick % 2 == 0`) and 20× finer than
+    /// the BatteryEstimator's own 600 s same-% throttle can consume. The post-bond / CLIENT_HELLO-ack
+    /// reads still fire promptly (the first read of a connection has `lastBatteryReadAt == nil`); only
+    /// the repeating keep-alive ticks are spaced to this floor. Reset to nil on disconnect so the next
+    /// connect reads immediately. Parity fix — Android was already at ~60 s, this brings iOS to match.
+    static let whoop5BatteryReadMinIntervalSeconds: TimeInterval = 60
+    private var lastBatteryReadAt: Date?
     /// If a persisted/missing strap-family preference points at the wrong service, a service-filtered
     /// BLE scan can run forever even though the strap is nearby (the common "won't reconnect after an
     /// update" report). Rotate between WHOOP families after a short miss and persist whichever family
@@ -2355,7 +2385,22 @@ public final class BLEManager: NSObject, ObservableObject {
 
     /// The next periodic-offload interval — normally `backfillIntervalSeconds`, stretched when low on
     /// power (#477). Reads the battery snapshot only when the lever is armed (threshold > 0).
+    /// #battery: a 5/MG whose history offload is known-empty (`whoop5EmptyOffload.historyEmpty`, crossed
+    /// after 2 consecutive empty offloads) is stretched to the low-battery cadence (45 min) regardless of
+    /// battery % — history sync is experimental on 5.0 and such a strap banks nothing per pass, so a 15-min
+    /// periodic kick just holds the link ~60 s for zero data. The BackfillPolicy empty-backoff also
+    /// stretches (after 3 empties, doubling to a 1-hr cap), but this engages one cycle earlier (the
+    /// tracker's quietThreshold is 2) and at a fixed 45-min floor that stacks with it. Twin of Android
+    /// `nextBackfillDelayMs`. Resets with `whoop5EmptyOffload` on disconnect (a fresh connect re-probes).
     private func nextBackfillInterval() -> Int {
+        // #battery: known-empty-history 5/MG → stretch to the 45-min floor before any battery lever.
+        if selectedModel.deviceFamily == .whoop5 {
+            let stretched = BLEManager.whoop5EmptyHistoryBackfillInterval(
+                baseSeconds: BLEManager.backfillIntervalSeconds,
+                lowSeconds: BLEManager.lowBatteryBackfillIntervalSeconds,
+                historyEmpty: whoop5EmptyOffload.historyEmpty)
+            if stretched != BLEManager.backfillIntervalSeconds { return stretched }
+        }
         guard lowBatteryOffloadPct > 0 else { return BLEManager.backfillIntervalSeconds }
         let (pct, charging) = batteryPctAndCharging()
         return BLEManager.offloadInterval(
@@ -3707,15 +3752,19 @@ public final class BLEManager: NSObject, ObservableObject {
         // before the link is encrypted) and is never retried, so `batteryPct` stays nil from connect — and
         // the 5/MG sends NO unsolicited battery notification (so the notify subscription above never fills
         // it on its own). Re-issue the read here: every caller is post-bond (CLIENT_HELLO-ack, post-bond,
-        // keep-alive), so the link is encrypted and the read succeeds; the keep-alive caller also RE-polls
-        // it (~every 30 s) so the reading stays current as the strap drains and BatteryEstimator gets its
-        // discharge samples on any screen. This is the iOS parity for Android's post-handshake read +
-        // ~60 s keep-alive poll (WhoopBleClient BATTERY_ON_CONNECT_DELAY_MS / refreshBattery). 4.0 is
-        // EXCLUDED — its 0x2A19 is a stub constant 100 (real value = GET_BATTERY_LEVEL; re-reading the stub
-        // would revert the true reading, #77). The 600 s same-% throttle in LiveState guards the estimator.
+        // keep-alive), so the link is encrypted and the read succeeds. #battery: THROTTLED to
+        // `whoop5BatteryReadMinIntervalSeconds` (~60 s) so the 30 s keep-alive tick no longer re-reads it
+        // every cycle — matching the Android twin's `keepAliveTick % 2 == 0` ~60 s cadence and the
+        // BatteryEstimator's 600 s same-% throttle (a 30 s poll was 20× finer than the estimator uses).
+        // The first read of a connection (`lastBatteryReadAt == nil`, reset on disconnect) always fires,
+        // so the post-bond / CLIENT_HELLO-ack callers still seed the reading promptly. 4.0 is EXCLUDED —
+        // its 0x2A19 is a stub constant 100 (real value = GET_BATTERY_LEVEL; re-reading the stub would
+        // revert the true reading, #77). The 600 s same-% throttle in LiveState guards the estimator.
         if let b = batteryCharacteristic, b.properties.contains(.read),
-           selectedModel.deviceFamily != .whoop4 {
+           selectedModel.deviceFamily != .whoop4,
+           BLEManager.shouldPollWhoop5Battery(lastReadAt: lastBatteryReadAt) {
             p.readValue(for: b)
+            lastBatteryReadAt = Date()
         }
         // #520 DIS identity read — same post-bond reasoning as the #490 battery read above: on a 5/MG the
         // link must be encrypted first. Gated to 5/MG (a 4.0 issues NO new reads, exactly like the battery
@@ -4435,6 +4484,7 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         // re-derives it. (The honest flag is per-link, like the syncing pill / reject counters above.)
         whoop5EmptyOffload.reset()
         state.historySyncExperimental = false
+        lastBatteryReadAt = nil   // #battery: next connect's first enableLiveNotifications re-seeds the 5/MG battery reading
         // #612: the display flag only, not the underlying emptySyncTracker streak (that counter
         // deliberately survives a reconnect — unchanged, existing behaviour). A fresh link re-derives
         // this from its own next HISTORY_COMPLETE.
