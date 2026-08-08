@@ -4718,7 +4718,12 @@ class WhoopBleClient(
             // callback, but duplicate telemetry is still noise and should not repeat future callback work.
             val now = System.currentTimeMillis()
             if (now - lastMtuAtMs < DUPLICATE_MTU_WINDOW_MS && mtu == lastMtuValue) {
-                log("Ignoring duplicate MTU callback (mtu=$mtu) — OnePlus/spurious")
+                // #1066 follow-up: still log THIS callback's timing before dropping it. A same-value second
+                // callback is often our requestMtu completing AFTER a fast connection-event MTU — dropping it
+                // silently would make the settle measurement under-report the real bound the 1.5s must cover.
+                val dupMs = if (mtuRequestedAtMs > 0L) now - mtuRequestedAtMs else -1L
+                log("Ignoring duplicate MTU callback (mtu=$mtu) — OnePlus/spurious" +
+                    if (dupMs >= 0L) " (${dupMs}ms after request)" else "")
                 return
             }
             lastMtuValue = mtu
