@@ -2293,6 +2293,19 @@ class WhoopBleClient(
     // state, touched only inside the CONNECTION-domain gate.
     private val connFrameCounts = LinkedHashMap<String, Int>()
     private var connFrameWindowStartMs = 0L
+
+    /** Flush the accumulated frame-timing counts as ONE summary line and reset the window. No-op when
+     *  nothing has accumulated (capture off, or already flushed). Called on the 60s boundary AND on
+     *  disconnect — the latter so the frames RIGHT BEFORE a drop are recorded rather than stranded in an
+     *  un-flushed window, and so the next connection's window can't span the (possibly hours-long) quiet
+     *  gap and report a misleading windowSec. */
+    private fun flushFrameTimingSummary() {
+        if (connFrameCounts.isEmpty()) return
+        val elapsedSec = ((System.currentTimeMillis() - connFrameWindowStartMs).coerceAtLeast(0L)) / 1000L
+        log(formatFrameTimingSummary(connFrameCounts, elapsedSec), com.noop.testcentre.TestDomain.CONNECTION)
+        connFrameCounts.clear()
+        connFrameWindowStartMs = 0L
+    }
     /** #580: tracks CONSECUTIVE empty 5/MG offloads so a 5/MG whose firmware serves no history (but streams
      *  live HR fine) reads as "history sync experimental on 5.0" instead of a sync error, and the 120s
      *  bounce loop backs off while live HR is flowing. Reset on connect / a banking offload. Twin of macOS. */
@@ -5258,13 +5271,7 @@ class WhoopBleClient(
             val nowMs = System.currentTimeMillis()
             if (connFrameWindowStartMs == 0L) connFrameWindowStartMs = nowMs
             connFrameCounts[parsed.typeName] = (connFrameCounts[parsed.typeName] ?: 0) + 1
-            val elapsedMs = nowMs - connFrameWindowStartMs
-            if (elapsedMs >= FRAME_TIMING_SUMMARY_WINDOW_MS) {
-                log(formatFrameTimingSummary(connFrameCounts, elapsedMs / 1000L),
-                    com.noop.testcentre.TestDomain.CONNECTION)
-                connFrameCounts.clear()
-                connFrameWindowStartMs = nowMs
-            }
+            if (nowMs - connFrameWindowStartMs >= FRAME_TIMING_SUMMARY_WINDOW_MS) flushFrameTimingSummary()
         }
 
         when (parsed.typeName) {
@@ -7120,6 +7127,10 @@ class WhoopBleClient(
 
     @SuppressLint("MissingPermission")
     private fun handleDisconnect(status: Int) {
+        // #1151: flush any pending frame-timing window so the frames right before this drop are recorded
+        // (not stranded), and the next connection starts a fresh window rather than spanning the gap. No-op
+        // when capture is off. Do it BEFORE the connect-down line so the summary reads before the drop.
+        flushFrameTimingSummary()
         // Snapshot the hold time and clear it IMMEDIATELY: every drop log below reads the snapshot, and a
         // stale `linkUpSinceMs` surviving into the next drop would report a hold time for a link that never
         // reached STATE_CONNECTED — the diagnostic would then invent exactly the evidence it exists to find.
