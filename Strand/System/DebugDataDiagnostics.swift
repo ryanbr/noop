@@ -115,7 +115,15 @@ enum DebugDataDiagnostics {
         // Pick the MOST RECENT night that actually carries skin-temp — not the OLDEST in the window. The old
         // `sleepSessions(…, limit: 1).last` returned the oldest session (ASC order), so a fresh gap night read
         // "skin=0" and the funnel never saw a real night. Walk newest→oldest and stop at the first with skin.
-        let recent = await repo.sleepSessions(from: nowSec - 14 * 86400, to: nowSec, limit: 200)
+        var recent = await repo.sleepSessions(from: nowSec - 14 * 86400, to: nowSec, limit: 200)
+        if recent.isEmpty {
+            // #1150: a Bluetooth-only strap (no WHOOP/Apple import) banks every night under the COMPUTED
+            // "-noop" source, so the imported union above is empty and the funnel reported "no session in
+            // 14 days" for a 4.0 user whose nights are all computed — even though computed session rows
+            // exist. Fall back to the computed sessions so a real night is analysed. Only on an empty
+            // imported read ⇒ a mixed/imported install's funnel is byte-unchanged. Mirrors Android funnelLines.
+            recent = await repo.computedSleepSessions(from: nowSec - 14 * 86400, to: nowSec, limit: 200)
+        }
         guard let newest = recent.last else {
             lines.append("(no sleep session in the last 14 days to analyze)")
             return lines

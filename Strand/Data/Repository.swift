@@ -1062,6 +1062,19 @@ final class Repository: ObservableObject {
         return await unionSleepSessions(store: store, from: from, to: to, limit: limit)
     }
 
+    /// Computed ("-noop") sleep sessions for a ts range, oldest→newest by onset — the funnel/diagnostic
+    /// FALLBACK (#1150). A Bluetooth-only strap (no WHOOP/Apple-Health import) banks every night under the
+    /// COMPUTED source, so the imported-only `sleepSessions(from:to:)` returns nothing and the funnel
+    /// reported "no sleep session in the last 14 days to analyze" for a 4.0 user whose nights are all
+    /// computed. Sorted by start so `.last` is the newest, matching the imported path's ASC order. Callers
+    /// use this ONLY when the imported read is empty ⇒ a mixed/imported install's read is byte-unchanged.
+    /// Mirrors Android `WhoopRepository.computedSleepSessionsUnion`.
+    func computedSleepSessions(from: Int, to: Int, limit: Int = 100) async -> [CachedSleepSession] {
+        guard let store = await ensureStore() else { return [] }
+        return (await unionComputedSleepSessions(store: store, from: from, to: to, limit: limit))
+            .sorted { $0.startTs < $1.startTs }
+    }
+
     /// Every sleep BLOCK across BOTH sources, UN-deduplicated , so a split-sleep day (a nap
     /// + a main sleep, or any night recorded as multiple blocks) keeps ALL of its blocks.
     /// `sleeps` collapses each day to a single winner for the dashboard; this does not.

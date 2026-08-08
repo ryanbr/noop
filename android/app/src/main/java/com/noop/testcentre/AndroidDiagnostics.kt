@@ -80,12 +80,27 @@ object AndroidDiagnostics {
         add("Analytics funnels (latest night, best-effort)")
         runCatching {
             val repo = com.noop.data.WhoopRepository.from(context)
-            val id = "my-whoop"
+            // #1150: resolve the ACTIVE strap id (mirrors Swift's `did = repo.deviceId`). A single-WHOOP
+            // install resolves to "my-whoop" ⇒ every read below collapses to the canonical id and is
+            // byte-identical to the old hardcoded path; a re-added strap reads its own "whoop-<uuid>" raws
+            // and "<uuid>-noop" computed sessions (the engine writes computed under `<importedDeviceId>-noop`
+            // and both analyzeRecent callers pass the active strap as importedDeviceId).
+            val id = runCatching {
+                (context.applicationContext as? com.noop.NoopApplication)?.deviceRegistry?.activeDeviceId()
+            }.getOrNull()?.takeIf { it.isNotBlank() } ?: "my-whoop"
             val nowSec = System.currentTimeMillis() / 1000L
             // Pick the MOST RECENT night that actually carries skin-temp — not the OLDEST. The old
             // `sleepSessions(…, 1).lastOrNull()` returned the oldest session in the window (ASC order), so a
             // fresh gap night read "skin=0" and the funnel never saw a real night. Walk newest→oldest.
-            val recent = repo.sleepSessions(id, nowSec - 14L * 86400L, nowSec, 200)
+            var recent = repo.sleepSessionsUnion(id, nowSec - 14L * 86400L, nowSec, 200)
+            if (recent.isEmpty()) {
+                // #1150: a Bluetooth-only strap banks every night under the COMPUTED "-noop" source, so the
+                // imported union above is empty and the funnel used to report "no session in 14 days" for a
+                // 4.0 user whose nights are all computed. Fall back to the computed union so a real night is
+                // analysed. Only on an empty imported read ⇒ an imported install's funnel is unchanged.
+                recent = repo.computedSleepSessionsUnion(id, nowSec - 14L * 86400L, nowSec, 200)
+            }
+            recent = recent.sortedBy { it.startTs }   // `.last()` must be the newest across both branches
             if (recent.isEmpty()) {
                 add("(no sleep session in the last 14 days to analyze)")
                 return@runCatching
