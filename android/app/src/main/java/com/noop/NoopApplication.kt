@@ -43,10 +43,6 @@ class NoopApplication : Application() {
         // #1008: pin the pre-change Overnight-only default for existing installs before anything
         // reads it. Idempotent; a no-op on fresh installs and on every launch after the first.
         com.noop.ui.NoopPrefs.migrateContinuousHrvOvernightDefault(this)
-        // #haptics (#1115): preserve-existing migration for the in-session cue toggles. MUST run here at
-        // startup (before this session's onboarding) so an existing install (already onboarded) keeps its
-        // cues and a fresh install stays default-off. Idempotent.
-        com.noop.ui.HapticPrefs.migrateIfNeeded(this)
         // Record any uncaught crash to a file so it rides along in the shareable strap log — a
         // device-specific crash (e.g. Insights #224/#267) is otherwise lost to an unreachable logcat.
         CrashCapture.install(this)

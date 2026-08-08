@@ -104,10 +104,10 @@ fun AutomationsScreen(viewModel: AppViewModel) {
     // enabling the reminder while master is off isn't silently inert.
     val notifMasterOn = NotifPrefs.getBool(ctx, NotifPrefs.MASTER, false)
 
-    // #haptics (#1115): per-event toggles for NOOP's IN-SESSION strap buzzes. All default OFF; an existing
-    // install is migrated to ON (HapticPrefs.migrateIfNeeded, run on first read) so this isn't a silent
-    // regression. Ambient cues (inactivity / calls / notifications) keep their own sections; double-tap is
-    // gated by its action picker, not here. SharedPreferences isn't reactive → read once into state.
+    // #haptics (#1115): per-event toggles for NOOP's IN-SESSION strap buzzes. Default ON (opt-out) — these
+    // are feedback to a feature you started, so a fresh install buzzes as before and a user turns off any
+    // cue they find noisy. Ambient cues (inactivity / calls / notifications) keep their own opt-in sections;
+    // double-tap is gated by its action picker, not here. SharedPreferences isn't reactive → read into state.
     var breathingHaptic by remember { mutableStateOf(HapticPrefs.enabled(ctx, HapticPrefs.BREATHING)) }
     var intervalsHaptic by remember { mutableStateOf(HapticPrefs.enabled(ctx, HapticPrefs.INTERVALS)) }
     var liveSessionHaptic by remember { mutableStateOf(HapticPrefs.enabled(ctx, HapticPrefs.LIVE_SESSION)) }
@@ -121,13 +121,13 @@ fun AutomationsScreen(viewModel: AppViewModel) {
         title = uiString(R.string.l10n_automations_screen_automations_82542d6d),
         subtitle = "Make the strap do things: tap to act, walk away to lock, train by feel.",
     ) {
-        // #haptics (#1115): per-event in-session haptic toggles. Each is off by default; an existing install
-        // is migrated to its prior (always-on) behaviour so the update doesn't silence a feature mid-use.
+        // #haptics (#1115): per-event in-session haptic toggles, default ON (opt-out) — turn off any cue you
+        // find noisy; the feature keeps working, just without that wrist buzz.
         item {
         SettingsSection(
             icon = Icons.Filled.Vibration,
             title = uiString(R.string.haptics_section_title),
-            blurb = "Choose which in-session cues buzz your wrist. Each is off by default.",
+            blurb = "Choose which in-session cues buzz your wrist during a breathing session, timer, or workout.",
             active = breathingHaptic || intervalsHaptic || liveSessionHaptic || workoutHaptic,
         ) {
             ToggleRow(

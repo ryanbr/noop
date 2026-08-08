@@ -35,14 +35,14 @@ struct AutomationsView: View {
     @AppStorage("notif.masterEnabled") private var wristAlertsMaster = false
     #endif
 
-    // #haptics (#1115): per-event toggles for NOOP's IN-SESSION strap buzzes. All default OFF; an existing
-    // install is migrated to its prior (always-on) behaviour at launch (HapticPrefs.migrateIfNeeded) so the
-    // update doesn't silence a feature mid-use. Ambient cues (inactivity / stress / coaching) keep their own
-    // cards; double-tap is gated by its action picker. Same keys the buzz sites read via HapticPrefs.
-    @AppStorage(HapticPrefs.breathing) private var breathingHaptic = false
-    @AppStorage(HapticPrefs.intervals) private var intervalsHaptic = false
-    @AppStorage(HapticPrefs.liveSession) private var liveSessionHaptic = false
-    @AppStorage(HapticPrefs.workout) private var workoutHaptic = false
+    // #haptics (#1115): per-event toggles for NOOP's IN-SESSION strap buzzes. Default ON (opt-out) — these
+    // are feedback to a feature you started, so a fresh install buzzes as before and a user turns off any
+    // cue. Ambient cues (inactivity / stress / coaching) keep their own opt-in cards; double-tap is gated by
+    // its action picker. Same keys the buzz sites read via HapticPrefs (which also defaults an unset key on).
+    @AppStorage(HapticPrefs.breathing) private var breathingHaptic = true
+    @AppStorage(HapticPrefs.intervals) private var intervalsHaptic = true
+    @AppStorage(HapticPrefs.liveSession) private var liveSessionHaptic = true
+    @AppStorage(HapticPrefs.workout) private var workoutHaptic = true
 
     var body: some View {
         ScreenScaffold(title: "Automations",
@@ -96,7 +96,7 @@ struct AutomationsView: View {
     /// Android-only call/notification buzzes are not shown here (the latter can't exist on Apple).
     private var hapticsCard: some View {
         Section2(icon: "waveform.path", title: String(localized: "Haptics"),
-                 blurb: String(localized: "Choose which in-session cues buzz your wrist. Each is off by default."),
+                 blurb: String(localized: "Choose which in-session cues buzz your wrist during a breathing session, timer, or workout."),
                  active: breathingHaptic || intervalsHaptic || liveSessionHaptic || workoutHaptic) {
             VStack(spacing: 0) {
                 ToggleRow(label: String(localized: "Breathing pacer"),

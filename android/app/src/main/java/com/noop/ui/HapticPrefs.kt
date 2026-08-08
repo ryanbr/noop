@@ -3,65 +3,34 @@ package com.noop.ui
 import android.content.Context
 
 /**
- * Per-event toggles for NOOP's IN-SESSION strap-haptic cues (#1115 offshoot) — the cues that used to fire
- * unconditionally whenever the feature was in use (Breathing pacer, Interval timer, Live Session, workout
- * start/end, double-tap actions, biofeedback session).
+ * Per-event toggles for NOOP's IN-SESSION strap-haptic cues (#1115) — the cues that fire while you're
+ * actively using a feature (Breathing pacer, Interval timer, Live Session coach cues, workout start/end,
+ * biofeedback/resonance).
  *
- * Every key is DEFAULT-OFF (opt-in). To avoid a silent regression for people already using these features,
- * a one-time migration turns them ON for an EXISTING install (one that has ever synced or paired a strap)
- * and leaves them OFF for a fresh install. The ambient cues (inactivity / smart-alarm / stress / zone
- * coaching / calls / notifications) keep their OWN existing keys and are not duplicated here.
+ * These are feedback to something the user explicitly started, so they DEFAULT ON (opt-OUT): a fresh
+ * install buzzes exactly as the features always did, and a user can turn any individual cue off. (The
+ * AMBIENT cues — inactivity / stress / calls / notifications — stay opt-in via their OWN keys; that's where
+ * "off by default" belongs, since those interrupt you unprompted.)
  *
- * Byte-parity twin of the Apple `HapticPrefs` (same key strings + same default-off + same migration rule),
- * so a `.noopbak` restore reads identically on either OS.
+ * Byte-parity twin of the Apple `HapticPrefs` (same key strings, same default-on).
  */
 object HapticPrefs {
     private const val NAME = "noop_haptics_prefs"
     private fun p(ctx: Context) = ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE)
 
-    // In-session cue keys (Group B). New gates, default OFF.
-    // BREATHING also covers the resonance / biofeedback session cues (on Android these run through the
-    // Breathe path — there is no separate biofeedback buzz). Double-tap is deliberately NOT here: it's
-    // already opt-in via the DoubleTapAction selection (NONE = off), so a second default-off gate would
-    // silently kill a configured action.
+    // In-session cue keys. BREATHING also covers the resonance / biofeedback session cues (on Android those
+    // run through the Breathe path). Double-tap is NOT here: it's already opt-in via its DoubleTapAction
+    // picker (a second gate would silently kill a configured action).
     const val BREATHING = "haptics.breathing"
     const val INTERVALS = "haptics.intervals"
     const val LIVE_SESSION = "haptics.liveSession"
     const val WORKOUT = "haptics.workout"
 
-    /** All in-session keys, in display order — drives both the migration and the settings section. */
-    val inSessionKeys = listOf(BREATHING, INTERVALS, LIVE_SESSION, WORKOUT)
-
-    private const val MIGRATED_V1 = "haptics.migratedV1"
-
-    /** Whether an in-session cue may fire. Runs the one-time preserve-existing migration on first access. */
-    fun enabled(ctx: Context, key: String): Boolean {
-        migrateIfNeeded(ctx)
-        return p(ctx).getBoolean(key, false)
-    }
+    /** Whether an in-session cue may fire. DEFAULT-ON: an unset key reads true, so no migration is needed —
+     *  a fresh install buzzes as the features always did, and turning a cue off is an explicit user choice. */
+    fun enabled(ctx: Context, key: String): Boolean = p(ctx).getBoolean(key, true)
 
     fun setEnabled(ctx: Context, key: String, value: Boolean) {
         p(ctx).edit().putBoolean(key, value).apply()
-    }
-
-    /**
-     * One-time preserve-existing migration. An EXISTING install (already ONBOARDED — `noop.onboarded`)
-     * fired these cues unconditionally, so we default them ON there; a fresh install leaves them OFF.
-     *
-     * MUST run at app startup (NoopApplication.onCreate), BEFORE this session's onboarding: the onboarded
-     * flag is the "has run a prior version" proxy, and reading it at startup is what keeps a fresh install
-     * (not yet onboarded on its first launch) OFF — a lazy read after the user onboards would wrongly see
-     * onboarded=true and migrate a brand-new user ON. Idempotent + @Synchronized. Byte-parity twin of the
-     * Apple `HapticPrefs.migrateIfNeeded` (same `noop.onboarded` signal).
-     */
-    @Synchronized
-    fun migrateIfNeeded(ctx: Context) {
-        val prefs = p(ctx)
-        if (prefs.getBoolean(MIGRATED_V1, false)) return
-        val establishedInstall = NoopPrefs.of(ctx).getBoolean(NoopPrefs.KEY_ONBOARDED, false)
-        prefs.edit().apply {
-            if (establishedInstall) inSessionKeys.forEach { putBoolean(it, true) }
-            putBoolean(MIGRATED_V1, true)
-        }.apply()
     }
 }

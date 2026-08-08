@@ -197,10 +197,6 @@ final class AppModel: ObservableObject {
     private var smartAlarmRearmTimer: Timer?
 
     init() {
-        // #haptics (#1115): preserve-existing migration for the in-session cue toggles, run at launch BEFORE
-        // any onboarding — an existing (already onboarded) install keeps its cues; a fresh install stays
-        // default-off. Idempotent. Twin of Android NoopApplication.onCreate.
-        HapticPrefs.migrateIfNeeded()
         let live = LiveState()
         self.live = live
         // SEED every subsystem with the same id (`deviceId`, "my-whoop" at launch). The store/registry
