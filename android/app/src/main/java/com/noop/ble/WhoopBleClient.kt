@@ -4510,6 +4510,12 @@ class WhoopBleClient(
     private var lastMtuValue = -1
     private var lastMtuAtMs = 0L
 
+    /** #1066 follow-up: wall-clock of the `requestMtu` attempt, so `onMtuChanged` can log how long the MTU
+     *  actually took to settle. `MTU_DISCOVERY_SETTLE_MS` (1.5s) is a deliberately-conservative FIXED wait
+     *  (no provenance bit to end it early), added to EVERY connect's discovery; this measurement is what
+     *  lets that constant be tuned down later with capture DATA rather than a guess. Reset per connection. */
+    @Volatile private var mtuRequestedAtMs = 0L
+
     /** Start service discovery exactly once for the captured connection. */
     @SuppressLint("MissingPermission")
     private fun kickServiceDiscovery(g: BluetoothGatt, expectedGeneration: Int, reason: String) {
@@ -4680,6 +4686,7 @@ class WhoopBleClient(
                     // follows one fixed settle delay whether the request is accepted or rejected, so a
                     // stack that ignores requestMtu cannot stall the connect. (PR #85)
                     val mtuOps = gattOps
+                    mtuRequestedAtMs = System.currentTimeMillis()   // #1066: measure the real settle time
                     val mtuOk = mtuOps != null &&
                         safeGatt("requestMtu") { mtuOps.requestMtuCompat(GATT_MTU) }
                     if (mtuOk) {
@@ -4719,7 +4726,12 @@ class WhoopBleClient(
             // Whatever the strap granted (≤ requested). Telemetry only: Android can emit this callback
             // for the connection itself as well as requestMtu, without saying which. Starting discovery
             // here can overlap the still-running MTU operation and wedge service discovery.
-            log("MTU negotiated: $mtu (status=$status)")
+            // #1066 follow-up: log the ACTUAL settle time vs the fixed MTU_DISCOVERY_SETTLE_MS wait, so a
+            // capture reveals how much headroom that 1.5s has before discovery. -1 when no request preceded
+            // this callback (a bare connection-event MTU).
+            val settledMs = if (mtuRequestedAtMs > 0L) now - mtuRequestedAtMs else -1L
+            log("MTU negotiated: $mtu (status=$status)" +
+                if (settledMs >= 0L) " — settled ${settledMs}ms after request (fixed wait ${MTU_DISCOVERY_SETTLE_MS}ms)" else "")
         }
 
         /** #533: what the controller and the strap ACTUALLY settled on — the request is only a preference
@@ -7444,6 +7456,7 @@ class WhoopBleClient(
         // the same strap with the same granted mtu — is never mistaken for a duplicate of the last one.
         lastMtuValue = -1
         lastMtuAtMs = 0L
+        mtuRequestedAtMs = 0L   // #1066: don't measure settle time across a connection boundary
         // The strap forgets the realtime-HR toggle across a disconnect; the post-bond branch re-arms it
         // from [wantsRealtime]. Clear only the "what we last sent" flag — the screen/preference WANTS
         // ([screenWantsRealtime]/[keepStreamForData]/[wantsRealtime]) are intent and must survive a
