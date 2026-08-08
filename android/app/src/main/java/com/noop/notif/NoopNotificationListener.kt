@@ -22,6 +22,11 @@ import com.noop.ui.NotifPrefs
  */
 class NoopNotificationListener : NotificationListenerService() {
 
+    // #1115: notification keys we've already buzzed for a native timer/alarm (CATEGORY_ALARM). onNotification-
+    // Posted fires on every post AND update, and a ringing alarm re-posts repeatedly — so buzz ONCE per key
+    // and forget it on removal, so a re-ring buzzes again but an updating notification can't storm the strap.
+    private val buzzedAlarmKeys = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         val ctx = applicationContext
         val n = sbn.notification ?: return
@@ -49,9 +54,13 @@ class NoopNotificationListener : NotificationListenerService() {
             NotifPrefs.getBool(ctx, NotifPrefs.MASTER, false) &&
             NotifPrefs.getBool(ctx, NotifPrefs.ALARM_TIMER, false)) {
             val ble = (application as? NoopApplication)?.ble
+            // Buzz at most ONCE per notification key. `add()` is the LAST term, so a key is recorded only
+            // when we actually buzz (deliverable) — a re-posting/updating notification can't storm, and a
+            // genuine re-ring gets a fresh key (cleared in onNotificationRemoved) so it buzzes again.
             if (ble != null && !NotifPrefs.inQuietHours(ctx) &&
-                (!NotifPrefs.getBool(ctx, NotifPrefs.WORN, true) || ble.state.value.worn)) {
-                ble.buzz(3)   // a strong triple cue for a timer/alarm; send() no-ops if the strap isn't connected
+                (!NotifPrefs.getBool(ctx, NotifPrefs.WORN, true) || ble.state.value.worn) &&
+                buzzedAlarmKeys.add(sbn.key)) {
+                ble.buzz(3)   // a strong triple cue; send() no-ops if the strap isn't connected
             }
             return
         }
@@ -82,5 +91,8 @@ class NoopNotificationListener : NotificationListenerService() {
         if (VoipCallClassifier.isKnownVoipPackage(sbn.packageName)) {
             CallAlertController.stop(CallAlertSource.VOIP, sbn.key)
         }
+        // #1115: the alarm/timer is dismissed → forget its key so a genuinely new alarm with a re-used key
+        // (some clock apps reuse ids) buzzes again. Cheap no-op for any non-alarm key.
+        buzzedAlarmKeys.remove(sbn.key)
     }
 }
