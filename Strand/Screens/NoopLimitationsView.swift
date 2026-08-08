@@ -3,15 +3,15 @@ import StrandDesign
 
 // MARK: - NoopLimitationsView — "what NOOP can (and can't) read off each strap"
 //
-// The iOS/macOS twin of Android's NoopLimitationsScreen: a plain tri-state capability grid reached from
-// Settings, note-free, listing every metric NOOP surfaces and whether it comes live off a WHOOP 4.0 vs a
-// 5.0/MG. Marks mirror the decoder/analytics truth (Interpreter / AnalyticsEngine / HistoricalStreams):
-// full = read live; partial = an on-device estimate or an experimental / firmware-gated read; none = not
-// off the strap (SpO₂ % is import-only on both; blood pressure has no path at all). A legend carries the
-// meaning in place of per-row prose. Presented as a sheet, mirroring HowNoopWorksView / ScoringGuideView.
+// The iOS/macOS twin of Android's NoopLimitationsScreen: a plain tri-state capability grid listing every
+// metric NOOP surfaces and whether it comes live off a WHOOP 4.0 vs a 5.0/MG. Marks mirror the
+// decoder/analytics truth (Interpreter / AnalyticsEngine / HistoricalStreams): full = read live; partial =
+// an on-device estimate or an experimental / firmware-gated read; none = not off the strap (SpO₂ % is
+// import-only on both; blood pressure has no path). A legend carries the meaning in place of per-row prose.
+// Rendered through the shared ScreenScaffold like every other destination — reached from the iOS More tab
+// (Data group) and the macOS sidebar (Data & App); navigation chrome (back / tab bar) handles dismissal.
 
 struct NoopLimitationsView: View {
-    let onClose: () -> Void
 
     /// Tri-state support for a metric on a given strap — honest, never overstated.
     private enum LimitState {
@@ -69,65 +69,10 @@ struct NoopLimitationsView: View {
     ]
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider().overlay(StrandPalette.hairline)
-            ScrollView {
-                VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
-                    tableCard
-                    legendCard
-                }
-                .padding(20)
-            }
-            Divider().overlay(StrandPalette.hairline)
-            footerBar
+        ScreenScaffold(title: "NOOP Limitations", subtitle: "What each WHOOP can read") {
+            tableCard
+            legendCard
         }
-        #if os(macOS)
-        .frame(width: 560, height: 640)
-        #else
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .noopSheetPresentation(largeFirst: true)
-        #endif
-        .background(StrandPalette.surfaceBase)
-    }
-
-    // MARK: - Header / footer
-
-    private var header: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("PER STRAP").font(StrandFont.overline)
-                    .tracking(StrandFont.overlineTracking)
-                    .foregroundStyle(StrandPalette.textTertiary)
-                Text("NOOP Limitations").font(StrandFont.rounded(26, weight: .bold))
-                    .foregroundStyle(StrandPalette.textPrimary)
-                Text("What each WHOOP can read")
-                    .font(StrandFont.caption)
-                    .foregroundStyle(StrandPalette.textSecondary)
-            }
-            Spacer()
-            Button(action: onClose) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 22))
-                    .foregroundStyle(StrandPalette.textTertiary)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Close")
-        }
-        .padding(20)
-    }
-
-    private var footerBar: some View {
-        HStack {
-            Spacer()
-            Button(action: onClose) {
-                Text("Done").frame(minWidth: 120).padding(.vertical, 4)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(StrandPalette.accent)
-            .keyboardShortcut(.defaultAction)
-        }
-        .padding(16)
     }
 
     // MARK: - Cards
@@ -191,17 +136,17 @@ struct NoopLimitationsView: View {
         }
     }
 
-    /// VoiceOver line for one row, assembled at runtime from already-localized parts. A plain String (not a
-    /// LocalizedStringKey), so it carries no catalog key of its own.
-    private func a11yLabel(_ row: LimitRow) -> String {
-        "\(row.spokenFeature): WHOOP 4.0 \(row.whoop4.spoken), 5.0/MG \(row.whoop5.spoken)"
-    }
-
     private func supportCell(_ state: LimitState) -> some View {
         Image(systemName: state.glyph)
             .font(.system(size: 15, weight: .semibold))
             .foregroundStyle(state.tint)
             .frame(width: 52)
             .accessibilityHidden(true)
+    }
+
+    /// VoiceOver line for one row, assembled at runtime from already-localized parts. A plain String (not a
+    /// LocalizedStringKey), so it carries no catalog key of its own.
+    private func a11yLabel(_ row: LimitRow) -> String {
+        "\(row.spokenFeature): WHOOP 4.0 \(row.whoop4.spoken), 5.0/MG \(row.whoop5.spoken)"
     }
 }
