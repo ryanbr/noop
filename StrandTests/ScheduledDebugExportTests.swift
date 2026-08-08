@@ -55,4 +55,10 @@ final class ScheduledDebugExportTests: XCTestCase {
         // The default (14) must be one of the choices the picker actually offers.
         XCTAssertTrue(ScheduledDebugExport.keepOptions.contains(14))
     }
+
+    /// A stale BGTask delivery must not re-arm tomorrow's wake once the user has disabled the feature.
+    func testBackgroundTaskResubmitsOnlyWhileEnabled() {
+        XCTAssertTrue(ScheduledDebugExport.backgroundTaskShouldResubmit(enabled: true))
+        XCTAssertFalse(ScheduledDebugExport.backgroundTaskShouldResubmit(enabled: false))
+    }
 }
