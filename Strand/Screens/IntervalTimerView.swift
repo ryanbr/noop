@@ -467,7 +467,7 @@ struct IntervalTimerView: View {
     /// also skip the call entirely so this stays a pure visual tool when unbonded).
     private func buzz(loops: UInt8) {
         guard live.bonded else { return }
-        model.buzz(loops: loops)
+        model.buzz(loops: loops, gate: HapticPrefs.intervals)
     }
 
     #if os(iOS)

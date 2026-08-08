@@ -213,12 +213,18 @@ final class LiveSessionRunner: ObservableObject {
         guard !pulses.isEmpty else { return }
 
         var offsetMs = 0
-        for pulse in pulses {
-            let loops = pulse.isLong ? 2 : 1
-            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(offsetMs)) { [weak ble] in
-                ble?.send(.runHapticsPattern, payload: [2, UInt8(clamping: loops), 0, 0, 0])
+        // #haptics (#1115): Live Session coach cues are opt-in (default-off, migrated-on for existing
+        // installs). Gate ONLY the wrist output — the cue still counts toward the session's push/ease stats
+        // and saved row (below), so turning the buzzes off doesn't erase the coaching record. Matches
+        // Android, where the gate lives in the buzz closure, downstream of the count.
+        if HapticPrefs.enabled(HapticPrefs.liveSession) {
+            for pulse in pulses {
+                let loops = pulse.isLong ? 2 : 1
+                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(offsetMs)) { [weak ble] in
+                    ble?.send(.runHapticsPattern, payload: [2, UInt8(clamping: loops), 0, 0, 0])
+                }
+                offsetMs += pulse.durationMs + pulse.gapMs
             }
-            offsetMs += pulse.durationMs + pulse.gapMs
         }
         hapticWalkUntil = nowDate.addingTimeInterval(Double(offsetMs) / 1000)
 

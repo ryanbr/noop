@@ -254,12 +254,12 @@ fun BreatheScreen(viewModel: AppViewModel) {
         while (true) {
             // Inhale: cue, then hold for the inhale duration.
             phase = Phase.Inhale
-            viewModel.buzz(loops = 1)
+            viewModel.buzz(loops = 1, gate = HapticPrefs.BREATHING)
             if (audioCues) tonePlayer.play(BreathTone.Inhale)
             delay((pace.inhale(lockedBpm) * 1000).toLong())
             // Exhale: cue, then hold for the exhale duration.
             phase = Phase.Exhale
-            viewModel.buzz(loops = 2)
+            viewModel.buzz(loops = 2, gate = HapticPrefs.BREATHING)
             if (audioCues) tonePlayer.play(BreathTone.Exhale)
             delay((pace.exhale(lockedBpm) * 1000).toLong())
             breathCount += 1
@@ -851,7 +851,7 @@ private fun ResonanceMode(
                 // Read the LATEST live state off the flow (the captured `live` param is a snapshot that
                 // only refreshes on recomposition; the standard profile is the reliable R-R source).
                 val liveNow = viewModel.live.value
-                if (liveNow.encryptedBond) viewModel.buzz(loops = cue.loops)
+                if (liveNow.encryptedBond) viewModel.buzz(loops = cue.loops, gate = HapticPrefs.BREATHING)
                 val now = (System.currentTimeMillis() / 1000).toInt()
                 for (ms in liveNow.rr) if (ms in 301..1999) bucket.add(ResonanceEngine.RrBeat(now, ms))
             }
@@ -1085,7 +1085,7 @@ private fun CalmMode(viewModel: AppViewModel, live: com.noop.ble.LiveState, bpm:
                 break
             }
             targetBpm = step.targetBpm
-            if (canBuzz) viewModel.buzz(loops = 1)
+            if (canBuzz) viewModel.buzz(loops = 1, gate = HapticPrefs.BREATHING)
             val interval = step.intervalMs ?: 1000
             delay(interval.toLong())
             elapsed += interval / 1000

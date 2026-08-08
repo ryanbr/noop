@@ -112,7 +112,7 @@ fun startOrResumeLiveSession(vm: AppViewModel, context: Context): LiveSessionRun
         deviceId = vm.activeStrapId,
         scope = vm.viewModelScope,
         readBpm = { vm.live.value.heartRate },
-        buzz = { loops -> vm.ble.buzz(loops) },
+        buzz = { loops -> vm.buzz(loops, HapticPrefs.LIVE_SESSION) },
         persist = { row -> vm.repo.upsertLiveSession(row) },
         realtimeHr = { arm -> if (arm) vm.requestRealtimeHr() else vm.releaseRealtimeHr() },
     )
