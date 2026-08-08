@@ -160,7 +160,7 @@ struct NoopLimitationsView: View {
                         supportCell(row.whoop5)
                     }
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(Text("\(row.spokenFeature): WHOOP 4.0 \(row.whoop4.spoken), 5.0/MG \(row.whoop5.spoken)"))
+                    .accessibilityLabel(a11yLabel(row))
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -189,6 +189,12 @@ struct NoopLimitationsView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    /// VoiceOver line for one row, assembled at runtime from already-localized parts. A plain String (not a
+    /// LocalizedStringKey), so it carries no catalog key of its own.
+    private func a11yLabel(_ row: LimitRow) -> String {
+        "\(row.spokenFeature): WHOOP 4.0 \(row.whoop4.spoken), 5.0/MG \(row.whoop5.spoken)"
     }
 
     private func supportCell(_ state: LimitState) -> some View {
