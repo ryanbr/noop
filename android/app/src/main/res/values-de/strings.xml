@@ -1911,4 +1911,9 @@
     <string name="haptics_live_session_label">Live-Session-Hinweise</string>
     <string name="haptics_workout_label">Trainingsstart und -ende</string>
     <string name="notif_timer_alarm_title">Timer &amp; Wecker</string>
+    <string name="l10n_settings_screen_ecg_raw_data_gate_whoop_mg_only">ECG-Rohdatensperre (nur WHOOP MG)</string>
+    <string name="l10n_settings_screen_ecg_gate_blurb">Dein Band hat seine eigenen Geräte-Konfigurationsschlüssel aufgelistet, darunter enable_raw_data_w_ecg. Auf einem MG ohne ECG-Abo steht er auf \'0\' — während alle drei ECG-Befehle mit SUCCESS antworten und trotzdem keine Daten senden (#891). Das ist die naheliegendste Vermutung, was ECG verschlossen hält. Ob das Umlegen tatsächlich ECG-Daten liefert, weiß niemand: genau das herauszufinden ist der Zweck, und „immer noch nichts“ ist ein brauchbares Ergebnis, das sich zu posten lohnt (#891).</string>
+    <string name="l10n_settings_screen_ecg_gate_persistent_warning">Dies schreibt eine Einstellung, die AUF DEINEM BAND BLEIBT, bis du sie zurücksetzt — es ist keine App-Einstellung, und das Schließen von NOOP macht sie nicht rückgängig. „Sperre ausschalten“ schreibt mit einem Tippen wieder \'0\'. Es wird ausschließlich dieser eine Schlüssel geschrieben; die anderen sechs, die dein Band aufgelistet hat, werden nie angefasst.</string>
+    <string name="l10n_settings_screen_ecg_gate_turn_on">Sperre einschalten (\'1\' schreiben)</string>
+    <string name="l10n_settings_screen_ecg_gate_turn_off">Sperre ausschalten (\'0\' schreiben)</string>
 </resources>

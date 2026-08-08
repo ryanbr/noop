@@ -1896,4 +1896,9 @@
     <string name="haptics_live_session_label">Signaux de séance en direct</string>
     <string name="haptics_workout_label">Début et fin d’entraînement</string>
     <string name="notif_timer_alarm_title">Minuteur et alarme</string>
+    <string name="l10n_settings_screen_ecg_raw_data_gate_whoop_mg_only">Verrou des données ECG brutes (WHOOP MG uniquement)</string>
+    <string name="l10n_settings_screen_ecg_gate_blurb">Votre bracelet a énuméré ses propres clés de configuration, dont enable_raw_data_w_ecg. Sur un MG sans abonnement ECG, elle vaut « 0 » — alors que les trois commandes ECG répondent SUCCESS sans envoyer la moindre donnée (#891). C\'est l\'hypothèse principale sur ce qui maintient l\'ECG fermé. Personne ne sait si la basculer produit réellement des données ECG : le savoir est justement le but, et « toujours rien » est une réponse utile à publier sur #891.</string>
+    <string name="l10n_settings_screen_ecg_gate_persistent_warning">Ceci écrit un réglage qui RESTE SUR VOTRE BRACELET jusqu\'à ce que vous le remettiez — ce n\'est pas une préférence de l\'app, et fermer NOOP ne l\'annule pas. « Désactiver le verrou » réécrit « 0 » en une seule touche. Seule cette clé est écrite ; les six autres que votre bracelet a énumérées ne sont jamais touchées.</string>
+    <string name="l10n_settings_screen_ecg_gate_turn_on">Activer le verrou (écrire « 1 »)</string>
+    <string name="l10n_settings_screen_ecg_gate_turn_off">Désactiver le verrou (écrire « 0 »)</string>
 </resources>

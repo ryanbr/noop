@@ -1896,4 +1896,9 @@
     <string name="haptics_live_session_label">Avisos de sesión en directo</string>
     <string name="haptics_workout_label">Inicio y fin del entrenamiento</string>
     <string name="notif_timer_alarm_title">Temporizador y alarma</string>
+    <string name="l10n_settings_screen_ecg_raw_data_gate_whoop_mg_only">Bloqueo de datos ECG sin procesar (solo WHOOP MG)</string>
+    <string name="l10n_settings_screen_ecg_gate_blurb">Tu correa ha enumerado sus propias claves de configuración, y una de ellas es enable_raw_data_w_ecg. En un MG sin suscripción de ECG vale \'0\', mientras que los tres comandos de ECG responden SUCCESS y no envían dato alguno (#891). Es la hipótesis principal sobre qué mantiene el ECG cerrado. Nadie sabe si cambiarla produce realmente datos de ECG: averiguarlo es el objetivo, y «sigue sin haber nada» es una respuesta útil que merece publicarse en #891.</string>
+    <string name="l10n_settings_screen_ecg_gate_persistent_warning">Esto escribe un ajuste que PERMANECE EN TU CORREA hasta que lo cambies de vuelta: no es una preferencia de la app y cerrar NOOP no lo deshace. «Desactivar bloqueo» vuelve a escribir \'0\' con un solo toque. Solo se escribe esta clave; las otras seis que enumeró tu correa nunca se tocan.</string>
+    <string name="l10n_settings_screen_ecg_gate_turn_on">Activar bloqueo (escribir \'1\')</string>
+    <string name="l10n_settings_screen_ecg_gate_turn_off">Desactivar bloqueo (escribir \'0\')</string>
 </resources>

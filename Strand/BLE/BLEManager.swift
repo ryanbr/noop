@@ -1647,10 +1647,20 @@ public final class BLEManager: NSObject, ObservableObject {
                 // in flight, exactly like the read probes' 121/128 clause above, so a default install can
                 // never form these bytes. The write ack is not trusted; this is what proves the clear.
                 || (FeatureFlagWriteGate.isReadBackOpcode(command.rawValue) && r22DisableRun != nil)
-                // SET_DEVICE_CONFIG (the Broadcast-HR flag) is allowed ONLY while that opt-in is on —
-                // it writes one persistent device-config value so the strap advertises standard HR.
-                // Reversible; driven only by setBroadcastHr(_:). (#181)
-                || (command == .setDeviceConfig && PuffinExperiment.broadcastHrEnabled)
+                // SET_DEVICE_CONFIG (119) is KEY-AWARE now (#891): the opcode is shared between the
+                // Broadcast-HR flag (#181) and the ECG raw-data gate, so an opcode-only clause would admit
+                // ANY device-config key whenever EITHER opt-in happened to be on. `admitsSend` parses the
+                // key out of the body and admits exactly the two named keys, each only under its own opt-in
+                // — and the ECG key additionally only on an attested MG. Every other enumerated key, and
+                // SET_FF_VALUE(120), is refused. This is a tightening of the old broadcast-HR-only clause.
+                || DeviceConfigWriteGate.admitsSend(opcode: command.rawValue,
+                                                    payload: payload,
+                                                    ecgGateOptIn: PuffinExperiment.ecgRawDataEnabled,
+                                                    isMG: isWhoop5MG,
+                                                    broadcastHrOptIn: PuffinExperiment.broadcastHrEnabled)
+                // GET_DEVICE_CONFIG_VALUE(121) as the ECG gate's mandatory READ-BACK — gated on a write
+                // being verified, exactly like the R22 read-back above. The write ack is never the proof.
+                || (DeviceConfigWriteGate.isReadBackOpcode(command.rawValue) && ecgGateReport != nil)
                 // The WHOOP MG ECG ("Labrador") family — allowed ONLY when BOTH gates hold: the
                 // Experimental opt-in is on AND the strap has POSITIVELY attested itself an MG over the
                 // Device Information Service. A plain 5.0 has no electrodes and an unidentified strap
@@ -2733,6 +2743,91 @@ public final class BLEManager: NSObject, ObservableObject {
              payload: [0x01] + Whoop5Config.deviceConfigBody(name: "whoop_live_hr_in_adv_ind_pkt", value: value),
              writeType: .withResponse)
         log("Broadcast HR: wrote whoop_live_hr_in_adv_ind_pkt=\(on ? "1" : "0")")
+    }
+
+    // MARK: - ECG raw-data gate (#891) — an opt-in write with a MANDATORY read-back
+
+    private static let ecgGateReadBackTimeout: TimeInterval = 8
+
+    /// Non-nil only while a write is being verified. The send allowlist consults it so the 121 read-back
+    /// can go out, and the frame router consults it to route the ack + read-back replies here.
+    private var ecgGateReport: EcgRawDataGateReport?
+    private var ecgGateStep = 0
+
+    /// Write `enable_raw_data_w_ecg`='1'/'0' on an attested MG, then read it back — the ack is NOT the
+    /// result (#891). Preconditions match the gate: the experiment opt-in, an MG-attested strap, a full
+    /// bond. Reversible in one tap; the two directions differ only in the value byte.
+    public func setEcgRawDataGate(_ on: Bool) {
+        guard selectedModel.deviceFamily == .whoop5 else {
+            log("ECG gate (#891): needs a WHOOP 5/MG strap selected — ignored."); return
+        }
+        guard PuffinExperiment.ecgRawDataEnabled else {
+            log("ECG gate (#891): the experiment is off — enable it in Settings → Experimental first."); return
+        }
+        let variant = whoop5Variant
+        guard variant.isMG else {
+            log("ECG gate (#891): the strap has not attested itself an MG over DIS (variant=\(variant.label)) — ignored. A plain WHOOP 5.0 has no ECG electrodes.")
+            return
+        }
+        // The full encrypted bond, not the live-HR-only link — a config write over the latter silently
+        // fails (#269). Matches the R22 write paths and the button's own `ecgGateReady` gate in Settings.
+        guard state.connected, state.encryptedBond else {
+            log("ECG gate (#891): needs the full encrypted bond, not the live-HR-only link — close the official WHOOP app and pair the strap to NOOP first. Ignored."); return
+        }
+        guard ecgGateReport == nil else {
+            log("ECG gate (#891): a write is already being verified — ignored."); return
+        }
+
+        ecgGateReport = EcgRawDataGateReport(on: on)
+        state.ecgRawDataGate = ecgGateReport
+        log("ECG gate (#891): writing \(DeviceConfigWriteGate.ecgRawDataKey)='\(DeviceConfigWriteGate.valueString(on: on))' via SET_DEVICE_CONFIG_VALUE(119) on an attested MG; the write ack will NOT be reported as the result — a GET_DEVICE_CONFIG_VALUE(121) read-back follows.")
+        send(.setDeviceConfig, payload: DeviceConfigWriteGate.writePayload(on: on), writeType: .withResponse)
+
+        // Settle before the read-back, the same spacing the R22 sequence uses; then bound the whole
+        // verification with a single read-back window. `ecgGateStep` fences a stale timer from a prior run.
+        ecgGateStep &+= 1
+        let armed = ecgGateStep
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(200)) { [weak self] in
+            guard let self, self.ecgGateReport != nil, self.ecgGateStep == armed else { return }
+            self.send(.getDeviceConfigValue, payload: DeviceConfigWriteGate.readBackPayload())
+            DispatchQueue.main.asyncAfter(deadline: .now() + BLEManager.ecgGateReadBackTimeout) { [weak self] in
+                guard let self, self.ecgGateReport != nil, self.ecgGateStep == armed else { return }
+                self.ecgGateReport?.noteReadBackTimeout(seconds: Int(BLEManager.ecgGateReadBackTimeout))
+                self.finishEcgGateWrite()
+            }
+        }
+    }
+
+    private func finishEcgGateWrite() {
+        guard let report = ecgGateReport else { return }
+        ecgGateReport = nil
+        state.ecgRawDataGate = report
+        log("ECG gate (#891):\n\(report.render())")
+    }
+
+    /// Clear the #891 result (Settings row dismissed / disconnect). Twin of Android clearEcgRawDataGate().
+    public func clearEcgRawDataGate() { state.ecgRawDataGate = nil }
+
+    /// The write's own COMMAND_RESPONSE — recorded, never treated as proof (#891). Routed here from the
+    /// frame router when a 119 reply lands while a write is being verified.
+    private func handleEcgGateWriteAck(_ frame: [UInt8], cmdOff: Int) {
+        guard ecgGateReport != nil else { return }
+        let resultIndex = cmdOff + 2
+        let code: Int? = frame.count > resultIndex ? Int(frame[resultIndex]) : nil
+        ecgGateReport?.noteWriteAck(resultCode: code)
+        state.ecgRawDataGate = ecgGateReport
+    }
+
+    /// The 121 read-back — the ONLY thing that decides the verdict. Routed here from the frame router.
+    private func handleEcgGateReadBack(_ frame: [UInt8], isWhoop5: Bool) {
+        guard ecgGateReport != nil else { return }
+        let family: DeviceFamily = isWhoop5 ? .whoop5 : .whoop4
+        switch DeviceConfigReadProbe.parse(frame: frame, family: family,
+                                           expecting: DeviceConfigWriteGate.getDeviceConfigValueCmd) {
+        case .success(let r): ecgGateReport?.noteReadBack(r)
+        case .failure(let f): ecgGateReport?.noteReadBackFailure(f)
+        }
+        finishEcgGateWrite()
     }
 
     /// Read the strap's current BLE advertising name (WHOOP 4.0 / Harvard). The reply lands as a
@@ -4443,6 +4538,13 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         // probes above it has already written to the strap, so the user must be told exactly how far it got
         // and which keys are still set. This publishes the partial report and re-closes the 128 allowlist.
         abandonR22DisableRun("the strap disconnected mid-run")
+        // #891: an ECG-gate write interrupted mid-verification is RENDERED, not dropped — it has already
+        // written to the strap, so the user is told the read-back never landed (verdict silent). Clearing
+        // the in-flight tracker re-closes the 121 read-back allowlist and makes any pending timer no-op.
+        if ecgGateReport != nil {
+            ecgGateReport?.noteReadBackTimeout(seconds: Int(BLEManager.ecgGateReadBackTimeout))
+            finishEcgGateWrite()
+        }
         state.clearBiometrics()       // and a stale HR / R-R must not outlive the link either
         state.liveFeedActive = false  // a drop while Live is open must not leave a stale "Stop live feed"
         didBond = false
@@ -5372,6 +5474,17 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                        frame[10] == WhoopCommand.setConfig.rawValue
                         || frame[10] == WhoopCommand.getFeatureFlagValue.rawValue {
                         handleR22DisableResponse(frame, isWhoop5: true)
+                    }
+                    // #891: a reply belonging to an ECG raw-data gate write — either the SET_DEVICE_CONFIG(119)
+                    // write ack (recorded, never the proof) or the GET_DEVICE_CONFIG_VALUE(121) read-back that
+                    // decides the verdict. Both handlers guard on ecgGateReport being live, so they no-op
+                    // outside a verification (and the 121 read-probe clause above no-ops too, its run not live).
+                    if frame.count > 10, frame[8] == 0x24 {
+                        if frame[10] == WhoopCommand.setDeviceConfig.rawValue {
+                            handleEcgGateWriteAck(frame, cmdOff: 10)
+                        } else if frame[10] == WhoopCommand.getDeviceConfigValue.rawValue {
+                            handleEcgGateReadBack(frame, isWhoop5: true)
+                        }
                     }
                     // #695: a 5/MG GET_DATA_RANGE COMMAND_RESPONSE (puffin envelope: type @8, cmd @10). Feeds
                     // the SAME newest/oldest window + backfill gate + diagnostics as the 4.0 path above — this

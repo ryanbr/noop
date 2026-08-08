@@ -1922,4 +1922,9 @@
     <string name="haptics_live_session_label">Live Session cues</string>
     <string name="haptics_workout_label">Workout start &amp; end</string>
     <string name="notif_timer_alarm_title">Timer &amp; alarm</string>
+    <string name="l10n_settings_screen_ecg_raw_data_gate_whoop_mg_only">ECG raw-data gate (WHOOP MG only)</string>
+    <string name="l10n_settings_screen_ecg_gate_blurb">Your strap listed its own device-config keys, and one of them is enable_raw_data_w_ecg. On an MG with no ECG subscription it reads \'0\' — while all three ECG commands answer SUCCESS and send no data at all (#891). This is the leading guess for what\'s holding ECG shut. Nobody knows whether flipping it actually produces ECG data: finding out is the point, and \"still nothing\" is a useful answer worth posting to #891.</string>
+    <string name="l10n_settings_screen_ecg_gate_persistent_warning">This writes a setting that STAYS ON YOUR STRAP until you change it back — it isn\'t an app preference, and closing NOOP won\'t undo it. \"Turn gate off\" writes \'0\' again, in one tap. Only this one key is ever written; the other six your strap listed are never touched.</string>
+    <string name="l10n_settings_screen_ecg_gate_turn_on">Turn gate on (write \'1\')</string>
+    <string name="l10n_settings_screen_ecg_gate_turn_off">Turn gate off (write \'0\')</string>
 </resources>

@@ -276,6 +276,14 @@ public final class LiveState: ObservableObject {
     /// Android WhoopBleClient.r22DisableReport flow.
     @Published public var r22DisableReport: String? = nil
 
+    /// #891: the result of the last `enable_raw_data_w_ecg` write, AFTER its mandatory
+    /// `GET_DEVICE_CONFIG_VALUE(121)` read-back — the write's own ack is never reported as the outcome.
+    /// nil until a write is attempted. Like the R22 disable report (and unlike the read-only probes), a
+    /// write interrupted mid-verification by a disconnect is RENDERED here rather than dropped — it has
+    /// already written to the strap — and a completed result persists until the next write or
+    /// `clearEcgRawDataGate()`. Twin of the Android WhoopBleClient.ecgRawDataGate flow.
+    @Published public var ecgRawDataGate: EcgRawDataGateReport? = nil
+
     /// Wrist-wear state from WRIST_ON/WRIST_OFF events. Defaults true so wear-gated features work
     /// before the first event arrives; flipped by FrameRouter on a real event.
     @Published public var worn: Bool = true

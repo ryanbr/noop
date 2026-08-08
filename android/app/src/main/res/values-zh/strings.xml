@@ -1824,4 +1824,9 @@
     <string name="haptics_live_session_label">实时会话提示</string>
     <string name="haptics_workout_label">锻炼开始和结束</string>
     <string name="notif_timer_alarm_title">计时器和闹钟</string>
+    <string name="l10n_settings_screen_ecg_raw_data_gate_whoop_mg_only">ECG 原始数据开关（仅限 WHOOP MG）</string>
+    <string name="l10n_settings_screen_ecg_gate_blurb">你的手环列出了它自己的设备配置键，其中之一是 enable_raw_data_w_ecg。在没有 ECG 订阅的 MG 上它读作 \'0\'，而三条 ECG 命令都回应 SUCCESS 却完全不发送数据 (#891)。这是目前对「什么在挡住 ECG」最有力的猜测。翻转它是否真能产生 ECG 数据，没有人知道：弄清楚正是目的，而「仍然没有」同样是值得发到 #891 的有用答案。</string>
+    <string name="l10n_settings_screen_ecg_gate_persistent_warning">这会写入一项会一直留在你手环上的设置，直到你改回来——它不是应用内的偏好设置，关闭 NOOP 也不会撤销。「关闭开关」一键即可再写入 \'0\'。全程只写入这一个键；你手环列出的另外六个从不触碰。</string>
+    <string name="l10n_settings_screen_ecg_gate_turn_on">打开开关（写入 \'1\'）</string>
+    <string name="l10n_settings_screen_ecg_gate_turn_off">关闭开关（写入 \'0\'）</string>
 </resources>

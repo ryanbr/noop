@@ -106,6 +106,7 @@ import com.noop.ble.WhoopBleClient
 // #174: the R22 card reads the flag COUNT off Whoop5Config.enableR22Sequence rather than restating it —
 // the hardcoded "15" outlived the sequence growing to 16 and declared success a flag early.
 import com.noop.protocol.Whoop5Config
+import com.noop.protocol.EcgRawDataGateReport
 import com.noop.ble.WhoopModel
 import com.noop.data.DataBackup
 import com.noop.ingest.RawSensorExport
@@ -490,6 +491,11 @@ fun SettingsScreen(
     // the card cannot drift from it again — it said "15" for the whole life of the 16-flag sequence.
     val r22FlagCount = Whoop5Config.enableR22Sequence.size
     var broadcastHr by remember(rev) { mutableStateOf(puffinExperiment.broadcastHr) }
+    // ECG raw-data gate (#891): the opt-in, the write result, and the attested-MG gate the buttons need.
+    var ecgRawData by remember(rev) { mutableStateOf(puffinExperiment.ecgRawData) }
+    val ecgGateReport by vm.ble.ecgRawDataGate.collectAsStateWithLifecycle()
+    val ecgVariant by vm.ble.whoop5VariantFlow.collectAsStateWithLifecycle()
+    val ecgVariantIsMG = ecgVariant.isMG
     // "Sleep staging (V2)" — V2 is the DEFAULT for every strap (WHOOP 4 and 5/MG); turn it OFF to fall back
     // to V1. Model-agnostic, so it lives outside the 5/MG-only card. 4.0 is unvalidated either way (#319/#347).
     var experimentalSleepV2 by remember { mutableStateOf(puffinExperiment.experimentalSleepV2) }
@@ -1933,6 +1939,75 @@ fun SettingsScreen(
                     style = NoopType.caption,
                     color = Palette.textTertiary,
                 )
+
+                // --- ECG raw-data gate — an opt-in device-config WRITE with a mandatory read-back. (#891) ---
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Text(
+                        uiString(R.string.l10n_settings_screen_ecg_raw_data_gate_whoop_mg_only),
+                        style = NoopType.subhead,
+                        color = Palette.textPrimary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(
+                        checked = ecgRawData,
+                        onCheckedChange = {
+                            ecgRawData = it
+                            puffinExperiment.ecgRawData = it
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Palette.surfaceBase,
+                            checkedTrackColor = Palette.accent,
+                            uncheckedThumbColor = Palette.textSecondary,
+                            uncheckedTrackColor = Palette.surfaceInset,
+                            uncheckedBorderColor = Palette.hairline,
+                        ),
+                        modifier = Modifier.semantics {
+                            contentDescription =
+                                uiString(R.string.l10n_settings_screen_ecg_raw_data_gate_whoop_mg_only)
+                        },
+                    )
+                }
+                Text(
+                    uiString(R.string.l10n_settings_screen_ecg_gate_blurb),
+                    style = NoopType.caption,
+                    color = Palette.textTertiary,
+                )
+                if (ecgRawData) {
+                    Text(
+                        uiString(R.string.l10n_settings_screen_ecg_gate_persistent_warning),
+                        style = NoopType.caption,
+                        color = Palette.statusWarning,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        NoopButton(
+                            text = uiString(R.string.l10n_settings_screen_ecg_gate_turn_on),
+                            kind = NoopButtonKind.Primary,
+                            enabled = live.bonded && ecgVariantIsMG,
+                            onClick = { vm.ble.setEcgRawDataGate(true) },
+                        )
+                        NoopButton(
+                            text = uiString(R.string.l10n_settings_screen_ecg_gate_turn_off),
+                            kind = NoopButtonKind.Secondary,
+                            enabled = live.bonded && ecgVariantIsMG,
+                            onClick = { vm.ble.setEcgRawDataGate(false) },
+                        )
+                    }
+                    ecgGateReport?.let { report ->
+                        Text(
+                            report.summary,
+                            style = NoopType.caption,
+                            color = if (report.verdict == EcgRawDataGateReport.Verdict.CONFIRMED) {
+                                Palette.statusPositive
+                            } else {
+                                Palette.textSecondary
+                            },
+                        )
+                    }
+                }
 
                 // --- R22 deep-data unlock — the one probe that writes to the strap. (#174) ---
                 Row(
