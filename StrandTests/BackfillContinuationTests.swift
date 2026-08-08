@@ -27,7 +27,23 @@ final class BackfillContinuationTests: XCTestCase {
             strapNewestTs: 1_800_000_000,            // strap newest
             ourFrontierTs: 1_800_000_000 - 86_400,   // our frontier a full day behind
             wallNowUnix: wallNow,
+            rowsPersistedThisSession: 200,
             lastTrimAdvanced: true,
+            consecutiveCount: 0))
+    }
+
+    /// #1144 phantom-gap spin: the strap reports a `newest` well AHEAD of our frontier (so guard 2a's gap
+    /// holds) and the trim advanced — but the offload persisted ZERO rows. Continuing would re-fire 2a to
+    /// the full cap in empty offloads, since the frontier can't advance without rows. An empty session must
+    /// stop regardless of the reported gap.
+    func testStopsWhenGapHoldsButSessionWasEmpty() {
+        XCTAssertFalse(BackfillContinuation.shouldAutoContinue(
+            stillConnected: true,
+            strapNewestTs: 1_800_000_000,
+            ourFrontierTs: 1_800_000_000 - 400,      // 400s behind → 2a's 300s gap holds
+            wallNowUnix: wallNow,
+            rowsPersistedThisSession: 0,             // …but nothing was actually offloaded
+            lastTrimAdvanced: true,                  // trim u32 climbs on empty ENDs — not enough
             consecutiveCount: 0))
     }
 
@@ -70,6 +86,7 @@ final class BackfillContinuationTests: XCTestCase {
             strapNewestTs: 1_800_000_000,
             ourFrontierTs: 1_800_000_000 - 301,
             wallNowUnix: wallNow,
+            rowsPersistedThisSession: 200,
             lastTrimAdvanced: true,
             consecutiveCount: 0,
             behindGapSeconds: 300))
@@ -97,6 +114,7 @@ final class BackfillContinuationTests: XCTestCase {
             strapNewestTs: 1_800_000_000,
             ourFrontierTs: 1_800_000_000 - 86_400,
             wallNowUnix: wallNow,
+            rowsPersistedThisSession: 200,
             lastTrimAdvanced: true,
             consecutiveCount: cap - 1))
         // At the cap, stop.
@@ -223,6 +241,7 @@ final class BackfillContinuationTests: XCTestCase {
             strapNewestTs: strapNewest,
             ourFrontierTs: frontier,
             wallNowUnix: wallNow,
+            rowsPersistedThisSession: 200,
             lastTrimAdvanced: true,
             consecutiveCount: count) {
             // Each pass drains ~a day of the oldest backlog and counts as one auto-continue.
@@ -246,6 +265,7 @@ final class BackfillContinuationTests: XCTestCase {
             strapNewestTs: 1_800_000_000,
             ourFrontierTs: 1_800_000_000 - 86_400,   // a full day behind
             wallNowUnix: wallNow,
+            rowsPersistedThisSession: 200,
             lastTrimAdvanced: true,
             consecutiveCount: 10))                    // well past the old cap of 6
     }
@@ -380,6 +400,7 @@ final class BackfillContinuationTests: XCTestCase {
             strapNewestTs: wallNow + 48 * 3600,
             ourFrontierTs: wallNow - 86_400,
             wallNowUnix: wallNow,
+            rowsPersistedThisSession: 200,
             lastTrimAdvanced: true,
             consecutiveCount: 0))
         // One second past the cap: excluded, and an empty session must not continue.
@@ -401,6 +422,7 @@ final class BackfillContinuationTests: XCTestCase {
             strapNewestTs: wallNow + 3600,            // an hour ahead: plausible skew, not a broken clock
             ourFrontierTs: wallNow - 86_400,          // a real day of backlog
             wallNowUnix: wallNow,
+            rowsPersistedThisSession: 200,
             lastTrimAdvanced: true,
             consecutiveCount: 0))
     }

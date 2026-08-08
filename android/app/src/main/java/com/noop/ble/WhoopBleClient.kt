@@ -1452,6 +1452,15 @@ class WhoopBleClient(
             if (!stillConnected) return false                          // 1
             if (consecutiveCount >= maxAutoContinues) return false      // 4 (cap)
             if (!lastTrimAdvanced) return false                        // 3 (don't spin on a frozen cursor)
+            // 3b (#1144): an EMPTY session (0 rows persisted) never auto-continues, whatever the reported
+            // frontier gap. When the strap advertises a `newest` AHEAD of our frontier but the offload for
+            // that range hands back chunkRows=0 (a PHANTOM gap — a timestamp it won't actually offload), 2a
+            // below would latch `true` forever: the frontier can't advance without rows, so `newest -
+            // frontier` stays > gap and it re-fires to the full cap in empty offloads (the storm observed on
+            // a real 4.0). `lastTrimAdvanced` (3) doesn't catch it — the trim u32 climbs on empty ENDs. Stop
+            // and let the 15-min floor retry; healthy backlog sessions persist real rows so this only bites
+            // the empty spin. (Makes 2b's row check the ONE authority for both cases.)
+            if (rowsPersistedThisSession <= 0) return false
             // #928: a strap clock set in the FUTURE makes "newest" read ahead of ANY real frontier, so 2a
             // would report backlog forever and drive up to the full cap in EMPTY offloads on every
             // connect. A newest more than [futureSkewSeconds] past [wallNowUnix] (the REAL wall clock,
