@@ -1907,4 +1907,6 @@
     <string name="settings_chart_classic">Clássico</string>
     <string name="settings_trend_line">Linha</string>
     <string name="settings_trend_bars">Barras</string>
+    <string name="spo2_strap_estimate_caption">estimativa da pulseira (não verificada)</string>
+    <string name="spo2_toggle_on_no_data">ativado · sem dados de @82</string>
 </resources>

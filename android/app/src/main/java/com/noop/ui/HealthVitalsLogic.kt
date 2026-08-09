@@ -218,9 +218,9 @@ internal fun vitalsFor(
             // Android per selected day, Apple `logicalDay ?? most recent` — so the ROW is not the
             // parity contract here; the relationship between the two tiles is.
             missingCaption = if (d?.spo2Pct == null && d?.day?.let { spo2CandidateByDay[it] } != null)
-                "Estimate (unverified)"
+                uiString(R.string.spo2_strap_estimate_caption)
             else if (d?.spo2Pct == null && spo2ToggleOn && spo2CandidateByDay.isEmpty())
-                "toggle ON · no @82 data"
+                uiString(R.string.spo2_toggle_on_no_data)
             else uiString(spo2MissingCaptionRes(d?.let(spo2RawMean) != null)),
             value = d?.spo2Pct ?: d?.day?.let { spo2CandidateByDay[it] },
             format = { String.format("%.0f", it) },

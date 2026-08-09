@@ -137,6 +137,9 @@ fun HealthScreen(
     // Mirrors the shipped Today liveSnap fix. Appearance-preserving.
     val live by vm.live.collectAsStateWithLifecycle()
     val bpm by vm.bpm.collectAsStateWithLifecycle()
+    // #103: collect reactively (not .value) so the Latest-readings card recomposes on its own when the
+    // SpO₂ candidate map updates, matching VitalSignsScreen — not only incidentally via `days`.
+    val spo2CandidateByDay by vm.spo2CandidateByDay.collectAsStateWithLifecycle()
     val hasLiveHr by remember { derivedStateOf { displayHr(bpm, live) != null } }
 
     // LIQUID SKY BACKDROP (the pilot pattern — LiquidScreenSky.kt): the time-of-day liquid sky settles into
@@ -179,7 +182,7 @@ fun HealthScreen(
                     vitals = latestVitals(
                         days,
                         UnitPrefs.temperature(LocalContext.current),
-                        vm.spo2CandidateByDay.value,
+                        spo2CandidateByDay,
                         NoopPrefs.spo2CandidateDisplay(LocalContext.current),
                     ),
                     onVitalClick = onVitalClick,

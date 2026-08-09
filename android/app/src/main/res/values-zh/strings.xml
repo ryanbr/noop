@@ -1841,4 +1841,6 @@
     <string name="settings_chart_classic">经典</string>
     <string name="settings_trend_line">折线</string>
     <string name="settings_trend_bars">柱形</string>
+    <string name="spo2_strap_estimate_caption">腕带估算（未验证）</string>
+    <string name="spo2_toggle_on_no_data">已开启 · 无 @82 数据</string>
 </resources>

@@ -1928,4 +1928,6 @@
     <string name="settings_chart_classic">Klassisch</string>
     <string name="settings_trend_line">Linie</string>
     <string name="settings_trend_bars">Balken</string>
+    <string name="spo2_strap_estimate_caption">Armband-Schätzung (unbestätigt)</string>
+    <string name="spo2_toggle_on_no_data">Schalter EIN · keine @82-Daten</string>
 </resources>
