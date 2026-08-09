@@ -127,7 +127,7 @@ class SleepOnsetStubTest {
         assertTrue("hero segments must start at real sleep (>= fragment A), not the pre-onset stub",
             firstSeg.start >= aStart)
         // Both real fragments contribute (biphasic night preserved): more than fragment B alone.
-        assertTrue("biphasic night must keep both real fragments", hero.groupSegments!!.size >= 4)
+        assertTrue("biphasic night must keep both real fragments", hero.groupSegments.size >= 4)
         // The stub is not a nap — it stays inside the main-night group.
         assertTrue(hero.napBlocks.none { it.startTs == stubStart })
         // #345: the hero's clock WINDOW spans the whole night — displayed bedtime (fragment A's onset,

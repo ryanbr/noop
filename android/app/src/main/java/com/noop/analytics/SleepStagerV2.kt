@@ -126,6 +126,7 @@ object SleepStagerV2 {
     }
 
     /** The pure recipe, exactly as before — extracted so [stageSession] can memoize it. */
+    @Suppress("UNUSED_PARAMETER") // `resp` keeps this a drop-in for SleepStager.stageSession(…resp:) (parity)
     private fun stageSessionUncached(
         start: Long, end: Long, grav: List<GravitySample>,
         hr: List<HrSample>, rr: List<RrInterval>, resp: List<RespSample>,

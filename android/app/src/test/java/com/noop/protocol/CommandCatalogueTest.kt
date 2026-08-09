@@ -39,7 +39,7 @@ class CommandCatalogueTest {
     @Test
     fun everyCommandInTheSharedSchemaIsNamedOnAndroid() {
         val rel = "Packages/WhoopProtocol/Sources/WhoopProtocol/Resources/whoop_protocol.json"
-        val userDir = File(System.getProperty("user.dir"))
+        val userDir = File(System.getProperty("user.dir") ?: ".")
         val schemaFile = listOf(File(userDir, rel), File(userDir, "../../$rel")).firstOrNull { it.exists() }
         org.junit.Assume.assumeTrue(
             "shared schema not found from user.dir=$userDir — skipping the catalogue lockstep check",

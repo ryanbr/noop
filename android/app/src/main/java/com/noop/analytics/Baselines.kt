@@ -160,7 +160,7 @@ object Baselines {
         for (i in 0 until minOf(dayKeys.size, nightlyHrv.size)) {
             if (nightlyHrv[i] == null) continue
             val k = dayKeys[i]
-            if (newest == null || k > newest!!) newest = k
+            if (newest == null || k > newest) newest = k
         }
         val n = newest ?: return null
         val a = isoEpochDay(n) ?: return null

@@ -13,6 +13,7 @@ object DayOwnerResolver {
 
     /** The owning deviceId, or null if no candidate has data for the day. A non-null [lockedOwner]
      *  (an explicit dayOwnership decision) always wins, regardless of priority or data. */
+    @Suppress("UNUSED_PARAMETER") // `day` mirrors the Swift DayOwnerResolver.resolve signature (parity)
     fun resolve(day: String, lockedOwner: String?, candidates: List<Candidate>): String? =
         if (lockedOwner != null) lockedOwner
         else candidates.filter { it.hasData }.minByOrNull { it.priority }?.deviceId

@@ -237,6 +237,7 @@ private data class TodayLiveSnapshot(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+@Suppress("UNUSED_PARAMETER")
 fun TodayScreen(
     viewModel: AppViewModel,
     onQuickActions: () -> Unit = {},
@@ -633,7 +634,6 @@ fun TodayScreen(
     // collapsed and are NOT persisted, so the home screen reopens compact. Mirrors iOS.
     var metricsExpanded by remember { mutableStateOf(false) }
     var sourcesExpanded by remember { mutableStateOf(false) }
-    var scoringCardSeen by remember { mutableStateOf(ScoringGuidePrefs.cardSeen(context)) }
 
     // Per-card "dismissed into the inbox" flags for the two Today info-cards. A small × on each card
     // sets these (and posts a `.dismissedCard` update); "Restore to Today" in the inbox flips them back
@@ -2785,6 +2785,7 @@ private fun ReadinessHeroPill(word: String, level: ReadinessEngine.Level, onTap:
  *  and drawn as a dimmed FILLED ring in the carried branch (matching iOS chargeRing), so this overlay only
  *  covers the calibrating and no-data cases. Mirrors iOS TodayView.ringEmptyOverlay. */
 @Composable
+@Suppress("UNUSED_PARAMETER")
 private fun RingEmptyOverlay(
     calibratingNights: Int?,
     diameter: Dp,
@@ -2852,6 +2853,7 @@ private fun RingNeedsTrackedNight() {
  *  card to the Key-Metrics tiles, which already read per-field. Each row still falls through to "No Data"
  *  for a vital neither today nor the carry supplies. */
 @Composable
+@Suppress("UNUSED_PARAMETER")
 private fun HeroMetricRows(day: DailyMetric?, carriedDay: DailyMetric? = null, vitalsDay: DailyMetric? = null) {
     // Per-field, today-first: today's own value wins; the vitals carry only fills a field today lacks.
     val hrv = day?.avgHrv ?: vitalsDay?.avgHrv
@@ -4323,6 +4325,7 @@ private fun RecordingStatusChip(state: RecordingState, onConnect: () -> Unit) {
  * grid tiles perfectly with no empty cells.
  */
 @Composable
+@Suppress("UNUSED_PARAMETER")
 private fun MetricGrid(
     d: DailyMetric?,
     w: Window,

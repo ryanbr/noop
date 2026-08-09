@@ -2124,6 +2124,7 @@ class WhoopBleClient(
      * UI's 15-min analysis tick (which also doesn't run at all with the app UI closed and only the
      * foreground service alive). Mirrors the AppViewModel loop's profile + writeback behaviour. (#78 fork)
      */
+    @Suppress("UNUSED_PARAMETER")
     private fun onBackfillChunkCommitted(batch: StreamBatch) {
         decodedChunksThisSession += 1   // invoked once per non-empty decoded chunk (#77 family tally)
         if (!analyzeAfterBackfillScheduled.compareAndSet(false, true)) return
@@ -6082,8 +6083,8 @@ class WhoopBleClient(
         handler.postDelayed({
             if (ecgGateReport == null || ecgGateStep != armed) return@postDelayed
             send(CommandNumber.GET_DEVICE_CONFIG_VALUE, DeviceConfigWriteGate.readBackPayload())
-            handler.postDelayed({
-                if (ecgGateReport == null || ecgGateStep != armed) return@postDelayed
+            handler.postDelayed(readBack@{
+                if (ecgGateReport == null || ecgGateStep != armed) return@readBack
                 ecgGateReport?.noteReadBackTimeout((ecgGateReadBackTimeoutMs / 1000).toInt())
                 finishEcgGateWrite()
             }, ecgGateReadBackTimeoutMs)
@@ -6457,6 +6458,7 @@ class WhoopBleClient(
      * mirroring how the Swift code writes the bond frame inline in didDiscoverCharacteristicsFor.
      */
     @SuppressLint("MissingPermission")
+    @Suppress("UNUSED_PARAMETER") // `g` kept for signature symmetry with the other write* frame helpers
     private fun writeBondFrame(g: BluetoothGatt, ch: BluetoothGattCharacteristic) {
         val ops = gattOps ?: return
         val s = seq.incrementAndGet() and 0xFF
@@ -6484,6 +6486,7 @@ class WhoopBleClient(
      * notify subscriptions). Unverified on real MG hardware.
      */
     @SuppressLint("MissingPermission")
+    @Suppress("UNUSED_PARAMETER") // `g` kept for signature symmetry with the other write* frame helpers
     private fun writeClientHello(g: BluetoothGatt, ch: BluetoothGattCharacteristic) {
         val hello = DeviceFamily.WHOOP5.clientHello ?: return
         val ops = gattOps ?: return

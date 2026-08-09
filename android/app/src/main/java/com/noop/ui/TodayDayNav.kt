@@ -21,6 +21,7 @@ import kotlin.math.abs
  * but on a fresh launch they intentionally have NO effect - the old "land on the most recent data day"
  * behaviour (#605/#739) is retired. Mirror EXACTLY in Swift.
  */
+@Suppress("UNUSED_PARAMETER")
 internal fun launchDayOffset(
     isFreshLaunch: Boolean,
     savedOffset: Int,

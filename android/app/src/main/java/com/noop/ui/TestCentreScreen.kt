@@ -481,6 +481,7 @@ private fun DiagnosticToolsCard(vm: AppViewModel) {
 }
 
 @Composable
+@Suppress("UNUSED_PARAMETER")
 private fun ExportCard(vm: AppViewModel, onReport: () -> Unit) {
     val context = LocalContext.current
     val settings = remember { DebugExportSettings.from(context) }

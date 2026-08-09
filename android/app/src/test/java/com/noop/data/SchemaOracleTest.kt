@@ -268,7 +268,7 @@ class SchemaOracleTest {
             .use { it.readBytes() }
 
         // Gradle runs unit tests with the module dir (android/app) or repo root as user.dir; try both.
-        val userDir = File(System.getProperty("user.dir"))
+        val userDir = File(System.getProperty("user.dir") ?: ".")
         val swiftFile = listOf(
             File(userDir, "Packages/WhoopStore/Tests/WhoopStoreTests/Resources/schema_oracle.json"),
             File(userDir, "../../Packages/WhoopStore/Tests/WhoopStoreTests/Resources/schema_oracle.json"),

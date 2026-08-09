@@ -849,6 +849,7 @@ object WearableExportImporter {
     }
 
     /** True if the file is a wellness JSON/CSV we care about (filters out a brand's non-wellness bulk). */
+    @Suppress("UNUSED_PARAMETER") // `data` kept to match the sibling is*File(name, data) probes
     internal fun isWellnessFile(name: String, data: ByteArray): Boolean {
         if (name.endsWith(".csv")) {
             // Includes Oura's generically-named daily-summary CSV (#857) so it reaches the parser.

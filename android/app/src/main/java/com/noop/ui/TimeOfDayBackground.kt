@@ -233,6 +233,7 @@ private fun DrawScope.drawDawn(w: Float, h: Float, isLight: Boolean) {
 }
 
 // MARK: Day — cleanest of the four: a barely-there cool top-light only.
+@Suppress("UNUSED_PARAMETER") // `w` kept for signature symmetry with drawNight(w, h, isLight)
 private fun DrawScope.drawDay(w: Float, h: Float, isLight: Boolean) {
     drawRect(
         brush = Brush.verticalGradient(

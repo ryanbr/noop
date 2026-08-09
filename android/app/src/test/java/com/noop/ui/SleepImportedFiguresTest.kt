@@ -59,7 +59,7 @@ class SleepImportedFiguresTest {
         val m = buildSleepModel(days, session = null, imported = imported)!!
         assertEquals(RestScorer.restFromDaily(days[1])!!, m.performance.latest!!, 1e-9)
         // …and it is NOT the retired asleep/need approximation.
-        assertNotEquals(410.0 / 450.0 * 100.0, m.performance.latest!!, 1e-6)
+        assertNotEquals(410.0 / 450.0 * 100.0, m.performance.latest, 1e-6)
         // …and the imported day still carries the verbatim figure inside the series.
         assertEquals(85.0, m.performance.series.first(), 1e-9)
     }
@@ -84,7 +84,7 @@ class SleepImportedFiguresTest {
         val composite = RestScorer.restFromDaily(night)!!
         assertEquals(composite, m.performance.latest!!, 1e-9)
         assertTrue("composite should be below the 100% proxy ceiling", composite < 100.0)
-        assertNotEquals(100.0, m.performance.latest!!, 1e-6)
+        assertNotEquals(100.0, m.performance.latest, 1e-6)
     }
 
     @Test
@@ -129,7 +129,7 @@ class SleepImportedFiguresTest {
         // Debt tile reads ASLEEP too: max(0, 450 − 410) = 40, never max(0, 450 − 600) = 0.
         assertEquals(40.0, m.sleepDebt.latest!!, 1e-9)
         // The debt TILE and the LEDGER agree (both asleep over the full history) — the #5 symptom.
-        assertEquals(m.sleepDebt.latest!!, -m.sleepDebtLedger.nights.last().deltaMin, 1e-9)
+        assertEquals(m.sleepDebt.latest, -m.sleepDebtLedger.nights.last().deltaMin, 1e-9)
     }
 
     /** A passed session must give the SAME tiles/ledger as no session — there is no display-time

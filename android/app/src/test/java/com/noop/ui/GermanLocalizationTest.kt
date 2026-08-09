@@ -27,7 +27,7 @@ import java.io.File
 class GermanLocalizationTest {
 
     private fun resFile(rel: String): File? {
-        val userDir = File(System.getProperty("user.dir"))
+        val userDir = File(System.getProperty("user.dir") ?: ".")
         // Gradle runs unit tests with the module dir (android/app) or the repo root as user.dir.
         return listOf(
             File(userDir, "src/main/res/$rel"),

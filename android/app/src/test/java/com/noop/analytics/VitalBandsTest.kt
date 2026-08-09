@@ -73,7 +73,7 @@ class VitalBandsTest {
     @Test
     fun nullNights_doNotCountTowardTrust() {
         // 13 valid nights then 10 trailing skips → only 13 valid → provisional, still population.
-        val hist: List<Double?> = (1..13).map { 35.0 as Double? } + List(10) { null }
+        val hist: List<Double?> = (1..13).map { 35.0 } + List(10) { null }
         val r = VitalBands.band(35.0, hist, hrvPop, hrvCfg)
         assertEquals(VitalBands.Basis.POPULATION, r.basis)
     }
@@ -81,7 +81,7 @@ class VitalBandsTest {
     @Test
     fun staleBaseline_fallsBackToPopulation() {
         // 20 valid nights then 20 missing (> staleDays = 14): status STALE → population.
-        val hist: List<Double?> = List(20) { 35.0 as Double? } + List(20) { null }
+        val hist: List<Double?> = List(20) { 35.0 } + List(20) { null }
         val r = VitalBands.band(35.0, hist, hrvPop, hrvCfg)
         assertEquals(VitalBands.Basis.POPULATION, r.basis)
     }

@@ -104,7 +104,7 @@ class DecoderOracleTest {
             .use { it.readBytes() }
 
         // Gradle runs unit tests with the module dir (android/app) or repo root as user.dir; try both.
-        val userDir = java.io.File(System.getProperty("user.dir"))
+        val userDir = java.io.File(System.getProperty("user.dir") ?: ".")
         val candidates = listOf(
             java.io.File(userDir, "Packages/WhoopProtocol/Tests/WhoopProtocolTests/Resources/decoder_oracle.json"),
             java.io.File(userDir, "../../Packages/WhoopProtocol/Tests/WhoopProtocolTests/Resources/decoder_oracle.json"),

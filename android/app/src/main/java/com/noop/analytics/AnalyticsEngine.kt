@@ -190,6 +190,7 @@ object AnalyticsEngine {
      * @param maxHROverride explicit HRmax (bpm) to use for strain/zones; null →
      *   Tanaka from profile.age.
      */
+    @Suppress("UNUSED_PARAMETER") // sleepNeedNights kept for signature stability (unused in the current body)
     fun analyzeDay(
         day: String,
         hr: List<HrSample> = emptyList(),
@@ -1144,6 +1145,7 @@ object RestScorer {
         return "sleep-onset onsetTs=$onsetTs hrAtOnset=$hrAtOnsetBpm baselineHr=$baselineHrBpm hrRatio=$r2"
     }
 
+    @Suppress("UNUSED_PARAMETER") // inBedSeconds mirrors the Swift subScoreLine signature (parity)
     fun subScoreLine(
         tstSeconds: Double, inBedSeconds: Double, efficiency: Double, restorativeSeconds: Double,
         needHours: Double, consistency: Double?, deepSeconds: Double?,

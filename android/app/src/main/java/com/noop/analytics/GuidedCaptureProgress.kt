@@ -9,6 +9,7 @@ sealed class GuidedCaptureProgress {
     object Complete : GuidedCaptureProgress()
 
     companion object {
+        @Suppress("UNUSED_PARAMETER") // nightsElapsed mirrors the Swift GuidedCaptureProgress.evaluate signature (parity)
         fun evaluate(target: Int, nightsWithData: Int, nightsElapsed: Int): GuidedCaptureProgress =
             if (nightsWithData >= target) Complete else Capturing(nightsWithData, target)
 

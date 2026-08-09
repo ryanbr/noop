@@ -152,7 +152,7 @@ class StepsEstimateEngineTest {
             coefficient = 12.34, sampleDays = 6, confidence = 0.2,
         )
         assertEquals(StepsEstimateEngine.ConfidenceTier.LOW, status.confidenceTier)
-        assertEquals(12.34, status.coefficientOrNull!!, 1e-9)
+        assertEquals(12.34, status.coefficientOrNull, 1e-9)
         assertEquals("k=12.3 from 6 days, low confidence", status.detail)
         val one = StepsEstimateEngine.CalibrationStatus.Calibrated(
             coefficient = 5.0, sampleDays = 1, confidence = 0.8,
@@ -164,7 +164,7 @@ class StepsEstimateEngineTest {
     @Test fun statusDetailManualAndNeedsMoreDays() {
         val manual = StepsEstimateEngine.CalibrationStatus.Manual(coefficient = 9.5, sampleDays = 0)
         assertEquals(StepsEstimateEngine.ConfidenceTier.HIGH, manual.confidenceTier)
-        assertEquals(9.5, manual.coefficientOrNull!!, 1e-9)
+        assertEquals(9.5, manual.coefficientOrNull, 1e-9)
         assertEquals("manual k=9.5", manual.detail)
         val needs = StepsEstimateEngine.CalibrationStatus.NeedsMoreDays(have = 1, need = 3)
         assertEquals(StepsEstimateEngine.ConfidenceTier.LOW, needs.confidenceTier)

@@ -114,6 +114,7 @@ private fun BulletItem(marker: String, content: AnnotatedString, color: Color) {
  * Inline Markdown → [AnnotatedString]: **bold**, *italic* / _italic_, `code`. A single left-to-right
  * scan; an unterminated marker is emitted as literal text (so stray `*` never eats the rest of a line).
  */
+@Suppress("UNUSED_PARAMETER") // `color` kept for call-site clarity + API symmetry with the block parser
 fun parseInline(s: String, color: Color): AnnotatedString = buildAnnotatedString {
     var i = 0
     val n = s.length

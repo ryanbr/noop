@@ -170,7 +170,7 @@ object DataBackup {
         val tempSettings = File(appContext.cacheDir, "import-settings.json")
         tempSettings.delete()
         try {
-            when (val staged = stageBackupSqlite(resolver.openInputStream(uri), header, tempSqlite, tempSettings)) {
+            when (stageBackupSqlite(resolver.openInputStream(uri), header, tempSqlite, tempSettings)) {
                 StageResult.OK -> Unit
                 StageResult.CANNOT_OPEN -> return ImportResult.Failed("Could not open the chosen file.")
                 StageResult.NO_DB_IN_ZIP -> {

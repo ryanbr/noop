@@ -232,7 +232,7 @@ object HealthConnectImporter {
         // Whether the water read actually COMPLETED. Distinct from "found nothing": the write below
         // replaces the stored figure, so a swallowed read error must not be mistaken for an authoritative
         // zero and wipe 30 days of imported water.
-        var hydrationReadOk = false
+        var hydrationReadOk: Boolean
 
         val workouts = ArrayList<WorkoutRow>()
         // #1002: each workout's day key, computed at READ time while the record's own zone offset is
