@@ -68,6 +68,9 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Slider
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -1053,6 +1056,30 @@ fun SettingsScreen(
             title = uiString(R.string.l10n_settings_screen_appearance_41def7a0),
             blurb = "Choose Light, Dark, or follow your system. Dark is the signature near-black; Light keeps the same clean look on a bright canvas.",
         ) {
+            // Theme presets — one-tap bundles coordinating accent + chart world + backdrop + card opacity.
+            // Derived (no stored value): tweaking any control below flips this to Custom.
+            SettingsFormRow(label = uiString(R.string.l10n_settings_screen_preset)) {
+                ThemePresetDropdown(
+                    current = ThemePreset.matching(
+                        accentColor, chartStyle, showDayCycleBackground, (cardOpacity * 100).roundToInt(),
+                    ),
+                    onSelect = { p ->
+                        val accent = p.accent
+                        val chart = p.chart
+                        if (accent != null && chart != null) {
+                            accentColor = accent
+                            chartStyle = chart
+                            showDayCycleBackground = p.backdrop
+                            cardOpacity = p.cardOpacity / 100f
+                            AccentPrefs.setColor(context, accent)
+                            ChartStylePrefs.set(context, chart)
+                            NoopPrefs.setShowDayCycleBackground(context, p.backdrop)
+                            NoopPrefs.setCardOpacityPercent(context, p.cardOpacity)
+                        }
+                    },
+                )
+            }
+            SettingsRowDivider()
             SettingsFormRow(label = uiString(R.string.l10n_settings_screen_theme_a797e309)) {
                 SegmentedPillControl(
                     items = listOf(AppearanceMode.SYSTEM, AppearanceMode.LIGHT, AppearanceMode.DARK),
@@ -3269,5 +3296,38 @@ private fun AccentChannelSlider(label: String, value: Float, onChange: (Float) -
             ),
             modifier = Modifier.weight(1f),
         )
+    }
+}
+
+/** #theme: the theme-PRESET picker — a pill showing the current (derived) preset, opening a menu of the
+ *  selectable presets. Picking one writes accent + chart world + backdrop + card opacity at once; the
+ *  granular controls below stay available and flip this back to Custom when tweaked. */
+@Composable
+private fun ThemePresetDropdown(current: ThemePreset, onSelect: (ThemePreset) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(999.dp))
+                .clickable { expanded = true }
+                .background(Palette.surfaceInset)
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(current.label, style = NoopType.subhead, color = Palette.textPrimary)
+            Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = Palette.textSecondary)
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            ThemePreset.selectable.forEach { p ->
+                DropdownMenuItem(
+                    text = { Text(p.label, color = Palette.textPrimary) },
+                    onClick = {
+                        expanded = false
+                        onSelect(p)
+                    },
+                )
+            }
+        }
     }
 }

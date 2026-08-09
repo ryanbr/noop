@@ -815,6 +815,27 @@ struct SettingsView: View {
         )
     }
 
+    /// The Theme PRESET is derived from the four coordinated prefs (no stored value): reads which preset
+    /// the live combination matches (or `.custom`), and on pick writes accent + chart + backdrop + opacity.
+    private var themePresetBinding: Binding<ThemePreset> {
+        Binding(
+            get: {
+                ThemePreset.matching(
+                    accent: AccentColor.resolve(accentRaw),
+                    chart: ChartStyle.resolve(chartStyleRaw),
+                    backdrop: showDayCycleBackground,
+                    cardOpacity: cardOpacityPercent)
+            },
+            set: { preset in
+                guard let r = preset.recipe else { return }   // .custom → no-op
+                accentRaw = r.accent.rawValue
+                chartStyleRaw = r.chart.rawValue
+                showDayCycleBackground = r.backdrop
+                cardOpacityPercent = r.cardOpacity
+            }
+        )
+    }
+
     private var appearanceCard: some View {
         SettingsSection(
             icon: "circle.lefthalf.filled",
@@ -822,6 +843,20 @@ struct SettingsView: View {
             blurb: "Choose Light, Dark, or follow your system. Dark is the signature near-black; Light keeps the same clean look on a bright canvas."
         ) {
             VStack(spacing: 0) {
+                // Theme presets — one-tap bundles coordinating accent + chart world + backdrop + card
+                // opacity. Derived (no stored value): tweaking any control below flips this to Custom.
+                FormRow(label: "Preset") {
+                    Picker("Preset", selection: themePresetBinding) {
+                        ForEach(ThemePreset.allCases) { p in
+                            Text(p.label).tag(p)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .tint(StrandPalette.accent)
+                    .accessibilityLabel("Theme preset")
+                }
+                rowDivider
                 FormRow(label: "Theme") {
                     Picker("Theme", selection: $appearanceRaw) {
                         ForEach(AppearanceMode.allCases) { mode in

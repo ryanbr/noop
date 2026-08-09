@@ -1830,4 +1830,5 @@
     <string name="l10n_settings_screen_ecg_gate_turn_on">打开开关（写入 \'1\'）</string>
     <string name="l10n_settings_screen_ecg_gate_turn_off">关闭开关（写入 \'0\'）</string>
     <string name="l10n_settings_screen_accent">强调色</string>
+    <string name="l10n_settings_screen_preset">预设</string>
 </resources>

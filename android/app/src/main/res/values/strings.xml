@@ -1928,4 +1928,5 @@
     <string name="l10n_settings_screen_ecg_gate_turn_on">Turn gate on (write \'1\')</string>
     <string name="l10n_settings_screen_ecg_gate_turn_off">Turn gate off (write \'0\')</string>
     <string name="l10n_settings_screen_accent">Accent</string>
+    <string name="l10n_settings_screen_preset">Preset</string>
 </resources>

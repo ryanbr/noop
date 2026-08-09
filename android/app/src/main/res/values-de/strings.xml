@@ -1917,4 +1917,5 @@
     <string name="l10n_settings_screen_ecg_gate_turn_on">Sperre einschalten (\'1\' schreiben)</string>
     <string name="l10n_settings_screen_ecg_gate_turn_off">Sperre ausschalten (\'0\' schreiben)</string>
     <string name="l10n_settings_screen_accent">Akzent</string>
+    <string name="l10n_settings_screen_preset">Vorlage</string>
 </resources>

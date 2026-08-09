@@ -114,6 +114,72 @@ public extension View {
     }
 }
 
+/// A named THEME preset — a one-tap bundle that coordinates the accent, the chart colour world, the
+/// day-cycle backdrop, and the card opacity. Purely an orchestration over settings that already exist:
+/// selecting a preset writes those four prefs, and the granular controls stay available underneath. There
+/// is NO stored "current theme" — it's DERIVED from the live prefs via [matching], so tweaking any one
+/// control simply resolves to `.custom`. Theme MODE (System/Light/Dark) is independent and never bundled.
+/// Twin of Kotlin `ThemePreset`.
+public enum ThemePreset: String, CaseIterable, Identifiable, Sendable {
+    case mint       // brand default: mint accent, Titanium charts, backdrop on, solid cards
+    case ocean      // WHOOP-blue accent, Titanium charts, backdrop on, solid
+    case classic    // WHOOP-blue accent, Classic throwback charts, backdrop on, solid
+    case midnight   // mint accent, Titanium charts, backdrop OFF (plain canvas), solid
+    case frosted    // mint accent, Titanium charts, backdrop on, translucent cards
+    case custom     // sentinel: the live combination matches no preset
+
+    public var id: String { rawValue }
+
+    public var label: String {
+        switch self {
+        case .mint:     return String(localized: "Mint", bundle: .module)
+        case .ocean:    return String(localized: "Ocean", bundle: .module)
+        case .classic:  return String(localized: "Classic", bundle: .module)
+        case .midnight: return String(localized: "Midnight", bundle: .module)
+        case .frosted:  return String(localized: "Frosted", bundle: .module)
+        case .custom:   return String(localized: "Custom", bundle: .module)
+        }
+    }
+
+    /// The four coordinated values a preset writes (nil for `.custom`, which sets nothing). Named `Recipe`
+    /// rather than `Bundle` deliberately — `Bundle` would shadow `Foundation.Bundle`, used just above in
+    /// `String(localized:bundle:)`.
+    public struct Recipe: Sendable {
+        public let accent: AccentColor
+        public let chart: ChartStyle
+        public let backdrop: Bool
+        public let cardOpacity: Int
+    }
+
+    public var recipe: Recipe? {
+        switch self {
+        case .mint:     return Recipe(accent: .mint,      chart: .titanium, backdrop: true,  cardOpacity: 100)
+        case .ocean:    return Recipe(accent: .whoopBlue, chart: .titanium, backdrop: true,  cardOpacity: 100)
+        case .classic:  return Recipe(accent: .whoopBlue, chart: .classic,  backdrop: true,  cardOpacity: 100)
+        case .midnight: return Recipe(accent: .mint,      chart: .titanium, backdrop: false, cardOpacity: 100)
+        case .frosted:  return Recipe(accent: .mint,      chart: .titanium, backdrop: true,  cardOpacity: 85)
+        case .custom:   return nil
+        }
+    }
+
+    /// The presets a user can pick (everything except the derived `.custom` sentinel).
+    public static var selectable: [ThemePreset] { allCases.filter { $0 != .custom } }
+
+    public static func resolve(_ raw: String) -> ThemePreset { ThemePreset(rawValue: raw) ?? .mint }
+
+    /// Which preset the live prefs correspond to, or `.custom` when none match.
+    public static func matching(accent: AccentColor, chart: ChartStyle,
+                                backdrop: Bool, cardOpacity: Int) -> ThemePreset {
+        for p in selectable {
+            if let r = p.recipe, r.accent == accent, r.chart == chart,
+               r.backdrop == backdrop, r.cardOpacity == cardOpacity {
+                return p
+            }
+        }
+        return .custom
+    }
+}
+
 /// The user's appearance preference for the whole app. Persisted via
 /// `@AppStorage(AppearanceMode.storageKey)`. `.system` follows the OS (the default);
 /// `.light` / `.dark` force a scheme regardless of the system setting.

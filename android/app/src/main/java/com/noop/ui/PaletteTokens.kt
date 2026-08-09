@@ -335,3 +335,34 @@ object AccentPrefs {
         prefs(ctx).edit().putString(KEY_CUSTOM, hex).apply()
     }
 }
+
+/** A named THEME preset — a one-tap bundle coordinating accent + chart world + backdrop + card opacity.
+ *  Pure orchestration over prefs that already exist; DERIVED (no stored value) via [matching], so tweaking
+ *  any granular control resolves to [CUSTOM]. Theme MODE (light/dark) is independent. Twin of macOS
+ *  `ThemePreset`. */
+enum class ThemePreset(
+    val storageValue: String,
+    val label: String,
+    val accent: AccentColor?,   // null for CUSTOM
+    val chart: ChartStyle?,
+    val backdrop: Boolean,
+    val cardOpacity: Int,       // percent, 100 = solid
+) {
+    MINT("mint", "Mint", AccentColor.MINT, ChartStyle.TITANIUM, true, 100),
+    OCEAN("ocean", "Ocean", AccentColor.WHOOP_BLUE, ChartStyle.TITANIUM, true, 100),
+    CLASSIC("classic", "Classic", AccentColor.WHOOP_BLUE, ChartStyle.CLASSIC, true, 100),
+    MIDNIGHT("midnight", "Midnight", AccentColor.MINT, ChartStyle.TITANIUM, false, 100),
+    FROSTED("frosted", "Frosted", AccentColor.MINT, ChartStyle.TITANIUM, true, 85),
+    CUSTOM("custom", "Custom", null, null, true, 100);
+
+    companion object {
+        /** The presets a user can pick (everything but the derived CUSTOM sentinel). */
+        val selectable: List<ThemePreset> get() = entries.filter { it != CUSTOM }
+
+        /** Which preset the live prefs correspond to, or CUSTOM when none match. */
+        fun matching(accent: AccentColor, chart: ChartStyle, backdrop: Boolean, cardOpacity: Int): ThemePreset =
+            selectable.firstOrNull {
+                it.accent == accent && it.chart == chart && it.backdrop == backdrop && it.cardOpacity == cardOpacity
+            } ?: CUSTOM
+    }
+}

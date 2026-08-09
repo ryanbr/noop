@@ -1902,4 +1902,5 @@
     <string name="l10n_settings_screen_ecg_gate_turn_on">Activer le verrou (écrire « 1 »)</string>
     <string name="l10n_settings_screen_ecg_gate_turn_off">Désactiver le verrou (écrire « 0 »)</string>
     <string name="l10n_settings_screen_accent">Accent</string>
+    <string name="l10n_settings_screen_preset">Préréglage</string>
 </resources>

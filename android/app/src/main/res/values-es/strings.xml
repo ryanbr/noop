@@ -1902,4 +1902,5 @@
     <string name="l10n_settings_screen_ecg_gate_turn_on">Activar bloqueo (escribir \'1\')</string>
     <string name="l10n_settings_screen_ecg_gate_turn_off">Desactivar bloqueo (escribir \'0\')</string>
     <string name="l10n_settings_screen_accent">Acento</string>
+    <string name="l10n_settings_screen_preset">Preajuste</string>
 </resources>
