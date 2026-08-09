@@ -5577,6 +5577,18 @@ class WhoopBleClient(
                                 _state.update { s -> s.copy(batteryMv = mv) }
                             }
                         }
+                        // The strap raises CHARGING_ON(7)/CHARGING_OFF(8) the instant a pack goes on or comes
+                        // off — so flip the charging pill directly instead of waiting on the ~8-min
+                        // BATTERY_LEVEL cadence, which was the only thing moving it before. Same historical-
+                        // replay exclusion as the battery event: a replayed offload event must not move the
+                        // LIVE pill. Ported from tanarchytan/noop @72ac14d9.
+                        if (shouldApplyChargingFromBatteryEvent(replayedOffload)) {
+                            if (ev.startsWith("CHARGING_ON")) {
+                                _state.update { s -> s.copy(charging = true) }
+                            } else if (ev.startsWith("CHARGING_OFF")) {
+                                _state.update { s -> s.copy(charging = false) }
+                            }
+                        }
                         // PR #577: the strap fired its firmware smart alarm (STRAP_DRIVEN_ALARM_EXECUTED,
                         // event 57) → re-arm the next day's instant (single absolute time, no recurrence).
                         // This is NOT a gesture, so it MUST dispatch from here — the gesture branch never

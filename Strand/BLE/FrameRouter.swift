@@ -211,6 +211,15 @@ public final class FrameRouter {
                 if ev.hasPrefix("BATTERY_LEVEL"), let mv = parsed.parsed["battery_mV"]?.intValue {
                     state.batteryMv = mv
                 }
+                // The strap raises CHARGING_ON(7)/CHARGING_OFF(8) the instant a pack goes on or comes off —
+                // flip the pill directly instead of waiting on the ~8-min BATTERY_LEVEL cadence above. Live-
+                // only like those blocks (backfill skips this router), so no replay guard is needed. Ported
+                // from tanarchytan/noop @72ac14d9. Twin of the Kotlin WhoopBleClient handler.
+                if ev.hasPrefix("CHARGING_ON") {
+                    state.charging = true
+                } else if ev.hasPrefix("CHARGING_OFF") {
+                    state.charging = false
+                }
                 // Physical inputs the strap exposes — live only (this path never sees historical
                 // replay, which goes through the Backfiller). Event strings are "NAME(rawValue)".
                 if ev.hasPrefix("DOUBLE_TAP") {
