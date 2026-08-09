@@ -3892,6 +3892,22 @@ public final class BLEManager: NSObject, ObservableObject {
         // Publish it so an MG-only capability can gate on attested hardware. Still diagnostic for every
         // existing consumer — nothing about framing or decode reads this.
         state.whoop5Variant = variant.label
+        reconcileModelFromAttestation(variant)
+    }
+
+    /// The strap's own DIS attestation is ground truth (a WHOOP 4.0 never attests a 5AM/5AG serial). When
+    /// it positively identifies a 5-generation strap but the active registry row still resolves to WHOOP
+    /// 4.0 — a wrong Add-Device pick, or a legacy "4.0" row — correct the model so the Devices display and
+    /// the `forRegistryModel`-driven skin-temp raw→°C scale (#938) stop treating a 5.0 as a 4.0. Extends the
+    /// #716 stamp (which only fixed the "WHOOP" placeholder). ONE-DIRECTIONAL: attestation can only upgrade
+    /// 4.0→5.0, never the reverse, and once corrected the guard below no longer matches, so it self-limits.
+    private func reconcileModelFromAttestation(_ variant: Whoop5Variant) {
+        guard variant != .unknown, let rs = registryStore,
+              let active = try? rs.all().first(where: { $0.status == .active }),
+              DeviceFamily.forRegistryDevice(model: active.model, brand: active.brand) == .whoop4
+        else { return }
+        try? rs.setModel(active.id, model: "WHOOP 5.0 / MG")
+        log("Corrected device model \"\(active.model ?? "nil")\" → \"WHOOP 5.0 / MG\" from DIS attestation (variant=\(variant.label))")
     }
 
     private func requestNotify(_ c: CBCharacteristic, on p: CBPeripheral, reason: String) {
