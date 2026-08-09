@@ -2788,13 +2788,19 @@ private fun RingEmptyOverlay(
     diameter: Dp,
 ) {
     if (calibratingNights != null) {
+        // AutoSizeValue shrink-to-fit + the centring Column, same as RingNeedsTrackedNight (#1168): a longer
+        // localized "N of M nights" would otherwise fill the narrow ring and left-align/clip like the Rest tile.
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(uiString(R.string.l10n_today_screen_calibrating_37c2c9bd), style = NoopType.headline, color = Palette.textTertiary, maxLines = 1)
-            Text(
+            AutoSizeValue(
+                uiString(R.string.l10n_today_screen_calibrating_37c2c9bd),
+                style = NoopType.headline,
+                color = Palette.textTertiary,
+                minScale = 0.7f,
+            )
+            AutoSizeValue(
                 uiString(R.string.l10n_today_screen_calibratingnights_of_baselines_minnightsseed_3b76e55c, calibratingNights, Baselines.minNightsSeed),
                 style = NoopType.footnote,
                 color = Palette.textSecondary,
-                maxLines = 1,
             )
         }
     } else {
@@ -2812,13 +2818,21 @@ private fun RingNoData() {
  *  instead of a bare "No Data", without fabricating a number. Mirrors iOS restRing's needs-a-night branch. */
 @Composable
 private fun RingNeedsTrackedNight() {
+    // AutoSizeValue (not plain Text): the subtext "needs a tracked night" is wider than the narrow ring,
+    // so a maxLines=1 Text filled the width and left-aligned + clipped the tail (#1168). Shrink-to-fit and
+    // let the centering Column place the content-sized line — the Android mirror of iOS ringNeedsTrackedNight's
+    // .minimumScaleFactor + centred VStack.
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(uiString(R.string.l10n_today_screen_calibrating_37c2c9bd), style = NoopType.headline, color = Palette.textTertiary, maxLines = 1)
-        Text(
+        AutoSizeValue(
+            uiString(R.string.l10n_today_screen_calibrating_37c2c9bd),
+            style = NoopType.headline,
+            color = Palette.textTertiary,
+            minScale = 0.7f,
+        )
+        AutoSizeValue(
             uiString(R.string.l10n_today_screen_needs_a_tracked_night_ccfd532a),
             style = NoopType.footnote,
             color = Palette.textSecondary,
-            maxLines = 1,
         )
     }
 }
