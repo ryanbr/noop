@@ -1918,4 +1918,14 @@
     <string name="l10n_settings_screen_ecg_gate_turn_off">Sperre ausschalten (\'0\' schreiben)</string>
     <string name="l10n_settings_screen_accent">Akzent</string>
     <string name="l10n_settings_screen_preset">Vorlage</string>
+    <string name="settings_language">Sprache</string>
+    <string name="settings_choose_language">Sprache auswählen</string>
+    <string name="settings_language_system">Systemstandard</string>
+    <string name="settings_appearance_detail">Wähle Hell, Dunkel oder folge deinem System. Dunkel ist das charakteristische Fast-Schwarz; Hell behält denselben klaren Look auf heller Fläche.</string>
+    <string name="settings_theme_light">Hell</string>
+    <string name="settings_theme_dark">Dunkel</string>
+    <string name="settings_chart_default">Standard</string>
+    <string name="settings_chart_classic">Klassisch</string>
+    <string name="settings_trend_line">Linie</string>
+    <string name="settings_trend_bars">Balken</string>
 </resources>

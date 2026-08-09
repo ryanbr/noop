@@ -163,7 +163,7 @@ struct CoupledView: View {
 
     private var subtitleText: LocalizedStringKey {
         let f = DateFormatter()
-        f.locale = Locale.current
+        f.locale = AppLanguage.activeLocale
         f.setLocalizedDateFormatFromTemplate("d MMM")
         return LocalizedStringKey("Today, \(f.string(from: Date()))")
     }
@@ -692,7 +692,7 @@ struct CoupledView: View {
 
     private static let clockFmt: DateFormatter = {
         let f = DateFormatter()
-        f.locale = Locale.current
+        f.locale = AppLanguage.activeLocale
         f.setLocalizedDateFormatFromTemplate("jmm")
         return f
     }()

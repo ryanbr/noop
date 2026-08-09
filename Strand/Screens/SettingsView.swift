@@ -164,6 +164,9 @@ struct SettingsView: View {
     @AppStorage("appIcon.alt") private var useNavyIcon = false
     // Light/Dark/System theme. Read by both app roots' .preferredColorScheme; default follows the OS.
     @AppStorage(AppearanceMode.storageKey) private var appearanceRaw = AppearanceMode.system.rawValue
+    // App-owned copy language. Apple binds a bundle localization at process launch, so this writes the
+    // standard AppleLanguages override and takes effect after the user reopens NOOP.
+    @AppStorage(AppLanguage.storageKey) private var appLanguageRaw = AppLanguage.system.rawValue
     // Chart colour style: Titanium (brand) or Classic (throwback red→green). Re-colours gauges + charts.
     @AppStorage(ChartStyle.storageKey) private var chartStyleRaw = ChartStyle.titanium.rawValue
     // Chrome accent colour (mint / WHOOP blue / custom). Chrome only — never the data colour worlds.
@@ -843,6 +846,28 @@ struct SettingsView: View {
             blurb: "Choose Light, Dark, or follow your system. Dark is the signature near-black; Light keeps the same clean look on a bright canvas."
         ) {
             VStack(spacing: 0) {
+                // App-owned copy language. Apple binds a bundle localization at process launch, so this
+                // takes effect after the user reopens NOOP (the note below says so). Sits above the theme
+                // controls because it re-words everything under it.
+                FormRow(label: "Language") {
+                    Picker("Language", selection: $appLanguageRaw) {
+                        ForEach(AppLanguage.allCases) { language in
+                            Text(language == .system ? String(localized: "System default") : language.autonym)
+                                .tag(language.rawValue)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .tint(StrandPalette.accent)
+                    .accessibilityLabel("Language")
+                    .onChangeCompat(of: appLanguageRaw) { AppLanguage.apply($0) }
+                }
+                Text("Language changes take effect after you reopen NOOP.")
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, NoopMetrics.space1)
+                rowDivider
                 // Theme presets — one-tap bundles coordinating accent + chart world + backdrop + card
                 // opacity. Derived (no stored value): tweaking any control below flips this to Custom.
                 FormRow(label: "Preset") {

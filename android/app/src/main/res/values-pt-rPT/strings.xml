@@ -1897,4 +1897,14 @@
     <string name="l10n_settings_screen_ecg_gate_turn_off">Desativar bloqueio (escrever \'0\')</string>
     <string name="l10n_settings_screen_accent">Destaque</string>
     <string name="l10n_settings_screen_preset">Predefinição</string>
+    <string name="settings_language">Idioma</string>
+    <string name="settings_choose_language">Escolher idioma</string>
+    <string name="settings_language_system">Predefinição do sistema</string>
+    <string name="settings_appearance_detail">Escolhe Claro, Escuro ou segue o teu sistema. Escuro é o característico quase preto; Claro mantém o mesmo visual limpo num ecrã luminoso.</string>
+    <string name="settings_theme_light">Claro</string>
+    <string name="settings_theme_dark">Escuro</string>
+    <string name="settings_chart_default">Predefinição</string>
+    <string name="settings_chart_classic">Clássico</string>
+    <string name="settings_trend_line">Linha</string>
+    <string name="settings_trend_bars">Barras</string>
 </resources>

@@ -895,7 +895,7 @@ struct TodayView: View {
     private static func lastChargeDateFmt(_ dayKey: String) -> String {
         guard let date = dayKeyParser.date(from: dayKey) else { return dayKey }
         let f = DateFormatter()
-        f.locale = Locale.current
+        f.locale = AppLanguage.activeLocale
         f.setLocalizedDateFormatFromTemplate("dMMM")
         return f.string(from: date)
     }
@@ -4471,7 +4471,7 @@ struct TodayView: View {
     /// where 12-hour is preferred, "19:10" where 24-hour is, instead of forcing one on everyone.
     static let hrTimeFmt: DateFormatter = {
         let f = DateFormatter()
-        f.locale = Locale.current
+        f.locale = AppLanguage.activeLocale
         f.setLocalizedDateFormatFromTemplate("jmm")
         return f
     }()

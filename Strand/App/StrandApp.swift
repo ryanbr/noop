@@ -53,6 +53,9 @@ struct StrandApp: App {
                 .environment(\.stressNudgeCenter, model.stressNudgeCenter)
                 .frame(minWidth: 1000, minHeight: 700)
                 .preferredColorScheme(AppearanceMode.resolve(appearanceRaw).colorScheme)
+                // Keep date/number words on the same bundle language as every localized string. A pending
+                // Settings change intentionally becomes active only after the documented reopen.
+                .environment(\.locale, AppLanguage.activeLocale)
                 .chartStyle(chartStyleRaw)
                 .noopAccent(accentRaw, customHex: accentCustomHex)
                 // Dynamic Type now scales the prose/label roles (StrandFont). Cap the upper end so the
@@ -78,11 +81,13 @@ struct StrandApp: App {
                 .environmentObject(model)
                 .environmentObject(model.repo)
                 .environmentObject(model.live)
+                .environment(\.locale, AppLanguage.activeLocale)
         } label: {
             MenuBarLabel()
                 .environmentObject(model)
                 .environmentObject(model.repo)
                 .environmentObject(model.live)
+                .environment(\.locale, AppLanguage.activeLocale)
         }
         .menuBarExtraStyle(.window)
     }

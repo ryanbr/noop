@@ -172,7 +172,7 @@ struct LiquidTodayView: View {
         case 0: return String(localized: "Today")
         case 1: return String(localized: "Yesterday")
         default:
-            return selectedLogicalDay.formatted(.dateTime.weekday(.wide).locale(Locale.autoupdatingCurrent))
+            return selectedLogicalDay.formatted(.dateTime.weekday(.wide).locale(AppLanguage.activeLocale))
         }
     }
     /// Two-way binding for the graphical calendar: reads the shown day, writes back an offset.
@@ -1373,7 +1373,7 @@ struct LiquidTodayView: View {
         // weekday + month names regardless of the UI language. A locale-aware field template localizes both
         // the names AND the field order (e.g. fr "mercredi 4 juillet") in the user's locale.
         return selectedLogicalDay.formatted(
-            .dateTime.weekday(.wide).day().month(.wide).locale(Locale.autoupdatingCurrent))
+            .dateTime.weekday(.wide).day().month(.wide).locale(AppLanguage.activeLocale))
     }
 
     /// Provenance caption for the recovery-vitals card, keyed on the row a vital actually came from — NOT a

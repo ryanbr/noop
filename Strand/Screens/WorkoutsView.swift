@@ -1579,7 +1579,7 @@ struct WorkoutsView: View {
     // preferred, "16:34" where 24-hour is — instead of forcing 24-hour on everyone (matches TodayView).
     private static let timeFmt: DateFormatter = {
         let f = DateFormatter()
-        f.locale = Locale.current
+        f.locale = AppLanguage.activeLocale
         f.setLocalizedDateFormatFromTemplate("jmm")
         return f
     }()

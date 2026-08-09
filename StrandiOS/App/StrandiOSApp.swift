@@ -92,6 +92,9 @@ struct StrandiOSApp: App {
                 // card observes the SAME instance the central detector (AppModel.evaluateStress) posts to.
                 .environment(\.stressNudgeCenter, model.stressNudgeCenter)
                 .preferredColorScheme(AppearanceMode.resolve(appearanceRaw).colorScheme)
+                // Match SwiftUI format styles to the localization selected by the app's bundles. Language
+                // changes are process-wide on Apple and are applied after the documented reopen.
+                .environment(\.locale, AppLanguage.activeLocale)
                 .chartStyle(chartStyleRaw)
                 .noopAccent(accentRaw, customHex: accentCustomHex)
                 // Dynamic Type now scales the prose/label roles (StrandFont). Cap the upper end so the

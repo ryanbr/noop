@@ -1929,4 +1929,14 @@
     <string name="l10n_settings_screen_ecg_gate_turn_off">Turn gate off (write \'0\')</string>
     <string name="l10n_settings_screen_accent">Accent</string>
     <string name="l10n_settings_screen_preset">Preset</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_choose_language">Choose language</string>
+    <string name="settings_language_system">System default</string>
+    <string name="settings_appearance_detail">Choose Light, Dark, or follow your system. Dark is the signature near-black; Light keeps the same clean look on a bright canvas.</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_chart_default">Default</string>
+    <string name="settings_chart_classic">Classic</string>
+    <string name="settings_trend_line">Line</string>
+    <string name="settings_trend_bars">Bars</string>
 </resources>

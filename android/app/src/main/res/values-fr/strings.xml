@@ -1903,4 +1903,14 @@
     <string name="l10n_settings_screen_ecg_gate_turn_off">Désactiver le verrou (écrire « 0 »)</string>
     <string name="l10n_settings_screen_accent">Accent</string>
     <string name="l10n_settings_screen_preset">Préréglage</string>
+    <string name="settings_language">Langue</string>
+    <string name="settings_choose_language">Choisir la langue</string>
+    <string name="settings_language_system">Réglage système</string>
+    <string name="settings_appearance_detail">Choisissez Clair, Sombre, ou suivez votre système. Sombre est le noir profond caractéristique ; Clair conserve le même look épuré sur un fond clair.</string>
+    <string name="settings_theme_light">Clair</string>
+    <string name="settings_theme_dark">Sombre</string>
+    <string name="settings_chart_default">Par défaut</string>
+    <string name="settings_chart_classic">Classique</string>
+    <string name="settings_trend_line">Courbe</string>
+    <string name="settings_trend_bars">Barres</string>
 </resources>

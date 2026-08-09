@@ -940,7 +940,8 @@ private class Aggregator {
             val d = (doy - (153 * mp + 2) / 5 + 1).toInt()      // [1, 31]
             val m = (if (mp < 10) mp + 3 else mp - 9).toInt()   // [1, 12]
             val year = (if (m <= 2) y + 1 else y).toInt()
-            return String.format("%04d-%02d-%02d", year, m, d)
+            // Locale.ROOT keeps this storage day-key ASCII regardless of the app-language selection (#1004).
+            return String.format(java.util.Locale.ROOT, "%04d-%02d-%02d", year, m, d)
         }
     }
 }

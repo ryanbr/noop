@@ -133,7 +133,7 @@ enum ChargeBreakdownFormat {
     /// The recalibration epoch as a short display day ("19 Jul"), or nil when none is set. Pure — the
     /// caller supplies the epoch (`Baselines.hrvBaselineEpoch()`), so this stays testable. Locale-aware
     /// via `DateFormatter.setLocalizedDateFormatFromTemplate`, so the day/month order follows the user.
-    static func recalibrationDay(epoch: Double, locale: Locale = .current) -> String? {
+    static func recalibrationDay(epoch: Double, locale: Locale = AppLanguage.activeLocale) -> String? {
         guard epoch > 0 else { return nil }
         let fmt = DateFormatter()
         fmt.locale = locale

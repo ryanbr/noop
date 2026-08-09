@@ -175,10 +175,10 @@ struct AutomationsView: View {
     }
     private static let momentFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.locale = Locale.current
+        f.locale = AppLanguage.activeLocale
         // Keep the "EEE d MMM ·" layout but honor the device's 12-/24-hour clock (#337): the "j"
         // template resolves to a 12-hour pattern (contains "a") only where the user prefers it.
-        let uses24h = !(DateFormatter.dateFormat(fromTemplate: "j", options: 0, locale: .current) ?? "H").contains("a")
+        let uses24h = !(DateFormatter.dateFormat(fromTemplate: "j", options: 0, locale: AppLanguage.activeLocale) ?? "H").contains("a")
         f.dateFormat = "EEE d MMM · " + (uses24h ? "HH:mm" : "h:mm a")
         return f
     }()

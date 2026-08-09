@@ -1831,4 +1831,14 @@
     <string name="l10n_settings_screen_ecg_gate_turn_off">关闭开关（写入 \'0\'）</string>
     <string name="l10n_settings_screen_accent">强调色</string>
     <string name="l10n_settings_screen_preset">预设</string>
+    <string name="settings_language">语言</string>
+    <string name="settings_choose_language">选择语言</string>
+    <string name="settings_language_system">跟随系统</string>
+    <string name="settings_appearance_detail">选择浅色、深色，或跟随系统。深色是标志性的近黑色；浅色在明亮画布上保持同样简洁的外观。</string>
+    <string name="settings_theme_light">浅色</string>
+    <string name="settings_theme_dark">深色</string>
+    <string name="settings_chart_default">默认</string>
+    <string name="settings_chart_classic">经典</string>
+    <string name="settings_trend_line">折线</string>
+    <string name="settings_trend_bars">柱形</string>
 </resources>

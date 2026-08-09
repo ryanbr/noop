@@ -39,6 +39,10 @@ import kotlinx.coroutines.launch
  */
 class MainActivity : ComponentActivity() {
 
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(AppLanguagePrefs.wrap(newBase))
+    }
+
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
             // Permission results flow back into the BLE client's own runtime checks;

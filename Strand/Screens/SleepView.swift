@@ -1174,7 +1174,7 @@ struct SleepView: View {
 
     /// Clock labels for the timeline axis; "jmm" respects the device 12/24-hour setting.
     private static let stageAxisFormatter: DateFormatter = {
-        let f = DateFormatter(); f.locale = .current; f.setLocalizedDateFormatFromTemplate("jmm"); return f
+        let f = DateFormatter(); f.locale = AppLanguage.activeLocale; f.setLocalizedDateFormatFromTemplate("jmm"); return f
     }()
 
     /// The WHOOP sleep-stages chart: a stack of four per-stage timeline rows (AWAKE · LIGHT ·
@@ -3293,7 +3293,7 @@ private struct Night {
     // on everyone, matching the HR-tooltip / workout times (#337).
     private static let timeFmt: DateFormatter = {
         let f = DateFormatter()
-        f.locale = Locale.current
+        f.locale = AppLanguage.activeLocale
         f.setLocalizedDateFormatFromTemplate("jmm")
         return f
     }()

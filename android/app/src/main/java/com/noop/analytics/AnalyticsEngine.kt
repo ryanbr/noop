@@ -72,8 +72,12 @@ object AnalyticsEngine {
     // Day-string helper (UTC YYYY-MM-DD), mirrors Swift AnalyticsEngine.isoDay.
     // ─────────────────────────────────────────────────────────────────────────
 
+    // Locale.ROOT so the stored day-key stays ASCII yyyy-MM-dd regardless of the app-language selection
+    // (#1004): the six shipped languages already emit Latin digits, but pinning keeps this the primary
+    // DailyMetric.day writer's numerals stable if a non-Latin-digit locale is ever added — and keeps it
+    // byte-identical to Swift AnalyticsEngine.isoDay.
     private val isoDay: DateTimeFormatter =
-        DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC)
+        DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC).withLocale(java.util.Locale.ROOT)
 
     /** Format a unix-seconds timestamp as a UTC YYYY-MM-DD day string. */
     fun dayString(ts: Long): String = isoDay.format(Instant.ofEpochSecond(ts))

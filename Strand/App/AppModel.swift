@@ -1359,7 +1359,7 @@ final class AppModel: ObservableObject {
     /// encoding (#460) so a double-tap buzzes the time the way the user reads it. Derived from the
     /// locale's "j" (hour) template: a 12-hour locale includes the AM/PM ("a") symbol.
     static var localeUses24HourClock: Bool {
-        let fmt = DateFormatter.dateFormat(fromTemplate: "j", options: 0, locale: .current) ?? "h"
+        let fmt = DateFormatter.dateFormat(fromTemplate: "j", options: 0, locale: AppLanguage.activeLocale) ?? "h"
         return !fmt.contains("a")
     }
 
