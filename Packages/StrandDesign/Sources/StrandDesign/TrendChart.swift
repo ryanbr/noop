@@ -338,7 +338,7 @@ public struct TrendChart: View {
         // stacked under-glow copy (showsHover:false, no label) is hidden so the same series isn't
         // double-announced; the crisp interactive copy passes showsHover:true (default) and speaks.
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(accessibilityLabel ?? "Trend"))
+        .accessibilityLabel(accessibilityLabel.map(Text.init) ?? Text("Trend", bundle: .module))
         .accessibilityValue(Text(a11ySummary))
         .accessibilityHidden(!showsHover && accessibilityLabel == nil)
     }

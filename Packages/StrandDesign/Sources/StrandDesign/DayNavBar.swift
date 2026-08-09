@@ -55,7 +55,7 @@ public struct DayNavBar: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Previous day")
+            .accessibilityLabel(Text("Previous day", bundle: .module))
 
             // Centre accent block — the selected day's label + full date, tappable to jump.
             Button { showingPicker = true } label: {
@@ -97,7 +97,7 @@ public struct DayNavBar: View {
             }
             .buttonStyle(.plain)
             .disabled(!canGoNewer)
-            .accessibilityLabel("Next day")
+            .accessibilityLabel(Text("Next day", bundle: .module))
             Spacer(minLength: 0)
         }
     }
