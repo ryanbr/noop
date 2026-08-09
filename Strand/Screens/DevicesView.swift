@@ -57,6 +57,7 @@ private struct DevicesContent: View {
     @State private var renameDraft = ""
     @State private var removeTarget: PairedDevice?
     @State private var deleteDataTarget: PairedDevice?
+    @State private var forgetTarget: PairedDevice?
     @State private var rebootTarget: PairedDevice?
     /// WHOOP 4.0 reboot probe (Test Centre → Connection, 4.0 only) — the device whose probe sheet is open.
     @State private var probeTarget: PairedDevice?
@@ -363,6 +364,11 @@ private struct DevicesContent: View {
         } message: { device in
             Text("This permanently deletes all data recorded from \(device.displayName). This can't be undone.")
         }
+        // Hard-delete confirm (reached from a REMOVED card's ⋮ menu): purge the registry entry itself,
+        // not just its data — the only way to get a duplicate/stale strap out of the list for good (#1193).
+        // Isolated into its own ViewModifier for the same iOS type-checker-budget reason as the probe
+        // sheets above (the dialog chain is already near the limit; a 6th/7th inline modifier tips it over).
+        .modifier(ForgetDeviceSheet(registry: registry, target: $forgetTarget))
         // After removing the active device, offer to pick a new active one (if any remain).
         .confirmationDialog("Pick a new active strap",
                             isPresented: $pickNewActive,
@@ -400,7 +406,8 @@ private struct DevicesContent: View {
                     onRename: { renameDraft = device.nickname ?? device.displayName; renameTarget = device },
                     onRemove: nil,
                     onReAdd: { registry.setActive(device.id) },
-                    onDeleteData: { deleteDataTarget = device })
+                    onDeleteData: { deleteDataTarget = device },
+                    onForget: { forgetTarget = device })
             }
         }
     }
@@ -606,9 +613,12 @@ private struct DeviceCard: View {
     /// #103 device-config READ probe (Test Centre → Connection, both WHOOP families). Read-only: it asks
     /// the strap for a config key's VALUE and writes none.
     var onDeviceConfigProbe: (() -> Void)? = nil
-    /// Removed-section affordances (re-add as active / delete its data).
+    /// Removed-section affordances (re-add as active / delete its data / forget it entirely).
     var onReAdd: (() -> Void)? = nil
     var onDeleteData: (() -> Void)? = nil
+    /// Hard-delete: purge the registry entry itself (and its data), so a duplicate/stale strap can be
+    /// removed from the list for good rather than lingering in "Removed" forever (#1193). Archived-only.
+    var onForget: (() -> Void)? = nil
 
     /// The card's visible content. The required `body` wraps this in the whole-card liquid press button +
     /// the ⋮ menu overlay.
@@ -832,6 +842,13 @@ private struct DeviceCard: View {
                     Divider()
                     Button(role: .destructive) { onDeleteData() } label: {
                         Label("Delete this device's data…", systemImage: "trash")
+                    }
+                }
+                // Purge the registry entry itself — the only way to get a duplicate/stale strap out of
+                // the "Removed" list for good (#1193). Below "Delete data" as the stronger, final action.
+                if let onForget {
+                    Button(role: .destructive) { onForget() } label: {
+                        Label("Forget device…", systemImage: "trash.slash")
                     }
                 }
             } else {
@@ -1151,6 +1168,39 @@ private struct ExtendedBatteryProbeResultView: View {
 /// #690: the body-location probe's confirm + result dialogs as one ViewModifier, so they're type-checked
 /// in isolation instead of extending the DevicesView `.confirmationDialog`/`.sheet` chain (which is already
 /// near the iOS Swift type-checker's budget). `model`/`live` auto-inject from the parent's environment.
+/// The hard-delete ("Forget device") confirm for an archived row (#1193). Isolated into its own
+/// ViewModifier — like the probe sheets below — so this extra dialog doesn't push the DevicesContent
+/// body over the iOS Swift type-checker budget. `registry` is threaded in (it's an `@ObservedObject`
+/// param on `DevicesContent`, not an environment object).
+private struct ForgetDeviceSheet: ViewModifier {
+    @EnvironmentObject var model: AppModel
+    @ObservedObject var registry: DeviceRegistry
+    @Binding var target: PairedDevice?
+
+    func body(content: Content) -> some View {
+        content
+            .alert("Forget this device?",
+                   isPresented: Binding(get: { target != nil },
+                                        set: { if !$0 { target = nil } }),
+                   presenting: target) { device in
+                Button("Cancel", role: .cancel) { target = nil }
+                Button("Forget device", role: .destructive) {
+                    // Same off-main routing as delete-data: the sample wipe runs on the WhoopStore actor,
+                    // then the registry row is removed and the list reloads. Resolve the store handle
+                    // inside the Task so the main thread never blocks on it.
+                    let deviceId = device.id
+                    Task {
+                        guard let store = await model.repo.storeHandle() else { return }
+                        await registry.forget(deviceId, store: store)
+                    }
+                    target = nil
+                }
+            } message: { _ in
+                Text("NOOP removes this device from your list and permanently deletes all of its recorded data. This can't be undone.")
+            }
+    }
+}
+
 private struct BodyLocationProbeSheets: ViewModifier {
     @EnvironmentObject var model: AppModel
     @EnvironmentObject var live: LiveState

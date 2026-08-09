@@ -36,6 +36,23 @@ final class DeviceRegistryStoreTests: XCTestCase {
         XCTAssertNil(try store.activeDeviceId())
     }
 
+    // #1193: unlike `archive` (which keeps the row so it lingers in "Removed"), `remove` hard-deletes the
+    // registry entry so a duplicate/stale strap can be purged entirely — and touches only the given id.
+    func testRemoveDeletesOnlyTheGivenRegistryRow() throws {
+        let store = DeviceRegistryStore(dbQueue: try makeDB())
+        try store.add(PairedDevice(id: "whoop-DEAD", brand: "WHOOP", model: "4.0", sourceKind: .liveBLE,
+                                   capabilities: [.hr], status: .archived, addedAt: 2, lastSeenAt: 2))
+        XCTAssertEqual(Set(try store.all().map(\.id)), ["my-whoop", "whoop-DEAD"])
+        try store.remove("whoop-DEAD")
+        XCTAssertEqual(try store.all().map(\.id), ["my-whoop"])     // duplicate purged, seed untouched
+    }
+
+    func testRemoveIsANoOpForAnAbsentId() throws {
+        let store = DeviceRegistryStore(dbQueue: try makeDB())
+        try store.remove("whoop-never-existed")                    // must not throw
+        XCTAssertEqual(try store.all().map(\.id), ["my-whoop"])
+    }
+
     func testSeededWhoopHasNilPeripheralId() throws {
         // v16 applies cleanly: the seeded my-whoop row exists with peripheralId nil (it connects to
         // "any WHOOP" today; it adopts its peripheral id later).

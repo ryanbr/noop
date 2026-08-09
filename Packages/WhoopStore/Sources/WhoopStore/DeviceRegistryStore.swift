@@ -48,6 +48,20 @@ public struct DeviceRegistryStore: Sendable {
         }
     }
 
+    /// Permanently remove a device's REGISTRY entry — both the `pairedDevice` row the Devices screen
+    /// lists and its `device` provenance row — so a duplicate/stale strap can be purged entirely
+    /// instead of lingering in the archived "Removed" list forever (issue #1193: today the only
+    /// removal is the soft `archive`, and `deleteAllData` empties recordings but leaves the row). The
+    /// device's recorded SAMPLES are NOT touched here — the caller wipes those first via
+    /// `deleteAllData(deviceId:)` (registry entry vs. recordings are separate ops, exactly as
+    /// `adoptSerialIdentity` treats them). Idempotent: removing an absent id is a no-op.
+    public func remove(_ id: String) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM pairedDevice WHERE id = ?", arguments: [id])
+            try db.execute(sql: "DELETE FROM device WHERE id = ?", arguments: [id])
+        }
+    }
+
     public func rename(_ id: String, nickname: String?) throws {
         try dbQueue.write { db in
             try db.execute(sql: "UPDATE pairedDevice SET nickname = ? WHERE id = ?", arguments: [nickname, id])
