@@ -31,6 +31,10 @@ internal data class Vital(
     /** Trailing values (oldest → newest) for the tile's metric-tinted sparkline trail, matching
      *  Today's Key-Metrics tiles. Presentation-only; defaulted so existing call sites compile. */
     val sparkline: List<Double> = emptyList(),
+    /** #103: true when [value] is the spo2_candidate_82 strap estimate (not a calibrated spo2Pct).
+     *  Drives the "Estimate (unverified)" caption so the user knows this is an unverified value.
+     *  Defaulted false so every other vital is unaffected. */
+    val isEstimate: Boolean = false,
 ) {
     /** Value with its unit appended, or null when no data. */
     val formattedValue: String? = value?.let { "${format(it)} $unit" }
@@ -46,6 +50,9 @@ internal data class Vital(
     /** The in-range caption that stands in for a StatePill inside the fixed-height tile.
      *  The wording says which yardstick judged it: your baseline vs typical ranges. */
     val stateCaption: String = when {
+        // #103: when the Blood O₂ tile is showing the spo2_candidate_82 strap estimate (not a
+        // calibrated spo2Pct), label it "estimate" so the user knows this is an unverified value.
+        isEstimate && banding.band != VitalBands.Band.NO_DATA -> "Estimate (unverified)"
         // Raw SpO₂ is a device-dependent ADC, not a clinical value — never claim an in/out-of-range
         // judgment. Show a plain "uncalibrated" note when a value decoded. (#93)
         key == "spo2raw" && banding.band != VitalBands.Band.NO_DATA -> "Uncalibrated"
@@ -90,11 +97,21 @@ internal enum class VitalCaptionMode {
 }
 
 /** Build the vitals, banded against the user's OWN trailing baseline once 14 trusted
- *  nights exist (population ranges before that — VitalBands does the deciding). */
+ *  nights exist (population ranges before that — VitalBands does the deciding).
+ *
+ * #103: [spo2CandidateByDay] carries the nightly `spo2_candidate_82` mean (70–100) per day, loaded
+ * from the "spo2_candidate" metricSeries key when the experimental display toggle is ON. When the
+ * selected day has no calibrated `spo2Pct` but DOES have a candidate, the Blood O₂ tile falls back to
+ * the candidate with an "estimate" caption. [spo2ToggleOn] distinguishes "toggle ON, no @82 data"
+ * from "toggle OFF" so the missingCaption can tell the user which — a silent blank reads as broken.
+ * Empty map = toggle off or no candidate data → the tile behaves exactly as before. Mirrors the iOS
+ * `BodyVitalSigns.readings` candidate fallback. */
 internal fun vitalsFor(
     d: DailyMetric?,
     days: List<DailyMetric>,
     tempUnit: TemperatureUnit = TemperatureUnit.CELSIUS,
+    spo2CandidateByDay: Map<String, Double> = emptyMap(),
+    spo2ToggleOn: Boolean = false,
 ): List<Vital> {
     val todayKey = d?.day
     // History strictly before the displayed day, oldest→newest (recentDays is already
@@ -190,23 +207,34 @@ internal fun vitalsFor(
         ),
         Vital(
             key = "spo2", label = uiString(R.string.l10n_health_screen_blood_o_9bf5ed9b), unit = "%",
+            // #103: fall back to the spo2_candidate_82 strap estimate when no calibrated spo2Pct exists
+            // and the experimental display toggle is ON (candidate map is non-empty). The candidate is
+            // an unverified strap-computed value (split cross-device evidence), so it ships behind a
+            // default-off toggle and is labelled "estimate" — never fed into a downstream gate.
             // The condition is EXACTLY the Raw SpO₂ tile's own value expression (`d?.let(spo2RawMean)`,
             // below) and must stay that way: the caption's claim is "the tile beside this one is
             // showing a number", so if the two expressions drift, this says the sensor recorded on a
             // night where the neighbouring tile is blank. The platforms pick that row differently —
             // Android per selected day, Apple `logicalDay ?? most recent` — so the ROW is not the
             // parity contract here; the relationship between the two tiles is.
-            missingCaption = uiString(spo2MissingCaptionRes(d?.let(spo2RawMean) != null)),
-            value = d?.spo2Pct, format = { String.format("%.0f", it) },
+            missingCaption = if (d?.spo2Pct == null && d?.day?.let { spo2CandidateByDay[it] } != null)
+                "Estimate (unverified)"
+            else if (d?.spo2Pct == null && spo2ToggleOn && spo2CandidateByDay.isEmpty())
+                "toggle ON · no @82 data"
+            else uiString(spo2MissingCaptionRes(d?.let(spo2RawMean) != null)),
+            value = d?.spo2Pct ?: d?.day?.let { spo2CandidateByDay[it] },
+            format = { String.format("%.0f", it) },
             deltaText = deltaText(d?.spo2Pct, previous { it.spo2Pct }, decimals = 0),
             readingDay = todayKey,
             asOfLabel = asOfLabel(todayKey),
             rangeCaption = spo2RangeCaption,
             // Population-only on purpose: an absolute <95% floor is meaningful regardless
             // of personal baseline (no "spo2" MetricCfg exists).
-            banding = VitalBands.band(d?.spo2Pct, emptyList(), 95.0..100.0, null),
+            banding = VitalBands.band(d?.spo2Pct ?: d?.day?.let { spo2CandidateByDay[it] }, emptyList(), 95.0..100.0, null),
             metricColor = Palette.metricCyan,
             sparkline = trail(d?.spo2Pct) { it.spo2Pct },
+            // #103: mark as estimate when the value came from the candidate, not a calibrated spo2Pct.
+            isEstimate = d?.spo2Pct == null && d?.day?.let { spo2CandidateByDay[it] } != null,
         ),
         Vital(
             // Issue #93: WHOOP 4.0 raw SpO₂ PPG ADC mean (red+IR)/2 per night. NOT a calibrated
@@ -269,13 +297,20 @@ internal fun vitalsFor(
     )
 }
 
-internal fun latestVitals(days: List<DailyMetric>, tempUnit: TemperatureUnit): List<Vital> {
-    val emptyByKey = vitalsFor(null, days, tempUnit).associateBy { it.key }
+internal fun latestVitals(
+    days: List<DailyMetric>,
+    tempUnit: TemperatureUnit,
+    spo2CandidateByDay: Map<String, Double> = emptyMap(),
+    spo2ToggleOn: Boolean = false,
+): List<Vital> {
+    val emptyByKey = vitalsFor(null, days, tempUnit, spo2CandidateByDay, spo2ToggleOn).associateBy { it.key }
     return listOf(
-        latestVital("resp", days, tempUnit, emptyByKey) { it.respRateBpm != null },
-        latestVital("spo2", days, tempUnit, emptyByKey) { it.spo2Pct != null },
-        latestVital("spo2raw", days, tempUnit, emptyByKey) { it.spo2Red != null && it.spo2Ir != null },
-        latestVital("rhr", days, tempUnit, emptyByKey) { it.restingHr != null },
+        latestVital("resp", days, tempUnit, emptyByKey, spo2CandidateByDay, spo2ToggleOn) { it.respRateBpm != null },
+        latestVital("spo2", days, tempUnit, emptyByKey, spo2CandidateByDay, spo2ToggleOn) {
+            it.spo2Pct != null || spo2CandidateByDay[it.day] != null
+        },
+        latestVital("spo2raw", days, tempUnit, emptyByKey, spo2CandidateByDay, spo2ToggleOn) { it.spo2Red != null && it.spo2Ir != null },
+        latestVital("rhr", days, tempUnit, emptyByKey, spo2CandidateByDay, spo2ToggleOn) { it.restingHr != null },
         latestVital("hrv", days, tempUnit, emptyByKey) { it.avgHrv != null },
         latestVital("skin", days, tempUnit, emptyByKey) { it.skinTempDevC != null },
     )
@@ -286,11 +321,13 @@ private fun latestVital(
     days: List<DailyMetric>,
     tempUnit: TemperatureUnit,
     emptyByKey: Map<String, Vital>,
+    spo2CandidateByDay: Map<String, Double> = emptyMap(),
+    spo2ToggleOn: Boolean = false,
     hasValue: (DailyMetric) -> Boolean,
 ): Vital {
     val row = days.asReversed().firstOrNull(hasValue)
     return row
-        ?.let { latestRow -> vitalsFor(latestRow, days, tempUnit).firstOrNull { it.key == key } }
+        ?.let { latestRow -> vitalsFor(latestRow, days, tempUnit, spo2CandidateByDay, spo2ToggleOn).firstOrNull { it.key == key } }
         ?.copy(asOfLabel = asOfLabel(row.day))
         ?: emptyByKey.getValue(key)
 }

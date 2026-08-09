@@ -224,6 +224,11 @@ object IntelligenceEngine {
         // #141: nightly HRV over DEEP-sleep windows only (WHOOP-style) when true; whole-night mean (the
         // historical default) when false. The Context-aware caller reads UnitPrefs.hrvWindow and passes it.
         deepHrvWindow: Boolean = false,
+        // #103: SpO₂ candidate @82 display toggle. When ON, the nightly `spo2_candidate_82` mean is
+        // computed from the V18AuxSample stream and persisted as "spo2_candidate" in metricSeries so the
+        // Blood Oxygen tile can surface it as a "strap estimate (unverified)" fallback. Display-only.
+        // The Context-aware caller reads NoopPrefs.spo2CandidateDisplay(context) and passes it down.
+        spo2CandidateDisplay: Boolean = false,
     ): List<Computed> = withContext(Dispatchers.Default) {
         // Serialise the whole pass so overlapping callers never run two rescores in parallel (see
         // [analyzeGate]). The heavy scoring already ran off the caller's thread via withContext above; the
@@ -232,7 +237,7 @@ object IntelligenceEngine {
             val (out, healed) = analyzeRecentOnCpu(repo, profile, maxDays, importedDeviceId, maxHROverride,
                 nowSeconds, ownerSource, manualStepCoefficient, persistStepsCalibration, baselineEpoch,
                 recoveryEpoch, diag, useExperimentalSleepV2, useMotionAwareWake, sleepTraceSink, recoveryTraceSink,
-                stepsTraceSink, universalSink, workoutsTraceSink, hrvTraceSink, deepHrvWindow)
+                stepsTraceSink, universalSink, workoutsTraceSink, hrvTraceSink, deepHrvWindow, spo2CandidateDisplay)
             if (healed == 0) out
             // #899 heal re-pass: the pass above deleted overlapping duplicate sleep sessions AFTER its days
             // were scored, and the read-side dedup those days consumed had no bank-recency witness (the fresh
@@ -242,7 +247,7 @@ object IntelligenceEngine {
             else analyzeRecentOnCpu(repo, profile, maxDays, importedDeviceId, maxHROverride,
                 nowSeconds, ownerSource, manualStepCoefficient, persistStepsCalibration, baselineEpoch,
                 recoveryEpoch, diag, useExperimentalSleepV2, useMotionAwareWake, sleepTraceSink, recoveryTraceSink,
-                stepsTraceSink, universalSink, workoutsTraceSink, hrvTraceSink, deepHrvWindow).first
+                stepsTraceSink, universalSink, workoutsTraceSink, hrvTraceSink, deepHrvWindow, spo2CandidateDisplay).first
         }
     }
 
@@ -334,6 +339,10 @@ object IntelligenceEngine {
         // #141: nightly HRV over DEEP-sleep windows only (WHOOP-style) when true; whole-night default when
         // false. Threaded into analyzeDay per scored night.
         deepHrvWindow: Boolean = false,
+        // #103: SpO₂ candidate @82 display toggle. When ON, the nightly candidate mean is computed and
+        // persisted as "spo2_candidate" in metricSeries. Default false — the @82 candidate has split
+        // cross-device evidence and ships behind a default-off toggle (CLAUDE.md derived-biosignal rule).
+        spo2CandidateDisplay: Boolean = false,
         // #899 heal re-pass: the second component of the return is how many overlapping duplicate sleep
         // sessions the heal below deleted this pass. The public wrapper re-runs ONCE when it is non-zero
         // so the affected days re-score against the cleaned store.
@@ -394,6 +403,8 @@ object IntelligenceEngine {
         // the cheap recovery composite. The raw hr/rr/... lists are freed after each analyzeDay,
         // keeping memory bounded over a full multi-night offload history.
         val scoredNights = ArrayList<DayResult>()
+        // #103: SpO₂ candidate @82 nightly mean per day, carried from pass 1 for metricSeries persistence.
+        val spo2CandidateByDay = LinkedHashMap<String, Int>()
 
         // In-memory nightly values harvested in pass 1, used to seed the pass-2 baseline.
         // Keyed by day so the union with imported history de-dupes cleanly per UTC day.
@@ -724,6 +735,20 @@ object IntelligenceEngine {
                     .map { it.bpm }
                 diag(rhrFloorMeanLogLine(day, rhrFloor, inBedBpms))
             }
+            // #103: SpO₂ candidate @82 nightly mean. Only computed when the display toggle is ON.
+            // Reads the V18AuxSample stream for this night's owner and averages the in-band (70–100)
+            // @82 readings that fall inside a detected sleep session. null on a WHOOP 4.0 (no v18 aux
+            // stream), a night with no in-band readings, or when the toggle is OFF. Persisted to
+            // metricSeries as "spo2_candidate" in pass 2, never to `spo2Pct`.
+            if (spo2CandidateDisplay) {
+                val auxSamples = repo.v18AuxSamples(owner, from, to, STREAM_LIMIT)
+                if (auxSamples.isNotEmpty()) {
+                    val cand = AnalyticsEngine.nightlySpo2CandidateMean(res.sleepSessions, auxSamples)
+                    if (cand != null) {
+                        spo2CandidateByDay[res.daily.day] = cand.first
+                    }
+                }
+            }
             scoredNights.add(res)
             resolvedScoreOwnerByDay[res.daily.day] = owner
         }
@@ -887,6 +912,12 @@ object IntelligenceEngine {
             val skinTempDevC = recomputeSkinTempDev(res.nightlySkinTempC, baselines2.skinTemp)
             RestScorer.restFromDaily(daily)?.let { rest ->
                 restRows.add(MetricSeriesRow(deviceId = computedId, day = daily.day, key = "sleep_performance", value = rest))
+            }
+            // #103: persist the SpO₂ candidate @82 nightly mean to metricSeries as "spo2_candidate" so the
+            // Blood Oxygen tile can surface it as a "strap estimate (unverified)" fallback when the toggle
+            // is ON. Written under the "-noop" computed device ID, never to `spo2Pct`.
+            spo2CandidateByDay[daily.day]?.let { cand ->
+                restRows.add(MetricSeriesRow(deviceId = computedId, day = daily.day, key = "spo2_candidate", value = cand.toDouble()))
             }
 
             out.add(

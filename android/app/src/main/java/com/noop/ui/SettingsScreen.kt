@@ -2430,6 +2430,49 @@ fun SettingsScreen(
                     color = Palette.textTertiary,
                 )
 
+                // --- #103: Blood Oxygen strap estimate (spo2_candidate_82) — OFF by default. ---
+                // The WHOOP 5/MG strap computes a nightly SpO₂ candidate at byte @82 of the V18Aux stream.
+                // Cross-device evidence is split (corr +0.99 on 8 nights, but 2 nights moved opposite), so
+                // it ships behind a default-off toggle and is labelled "estimate" in the UI. Display-only:
+                // never fed into a downstream gate (recovery, illness). Mirrors the iOS toggle.
+                SettingsRowDivider()
+                var spo2CandidateDisplay by remember { mutableStateOf(NoopPrefs.spo2CandidateDisplay(context)) }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Text(
+                        "Blood Oxygen: strap estimate",
+                        style = NoopType.subhead,
+                        color = Palette.textPrimary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(
+                        checked = spo2CandidateDisplay,
+                        onCheckedChange = {
+                            spo2CandidateDisplay = it
+                            vm.setSpo2CandidateDisplay(it)
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Palette.surfaceBase,
+                            checkedTrackColor = Palette.accent,
+                            uncheckedThumbColor = Palette.textSecondary,
+                            uncheckedTrackColor = Palette.surfaceInset,
+                            uncheckedBorderColor = Palette.hairline,
+                        ),
+                    )
+                }
+                Text(
+                    "Surfaces the WHOOP 5/MG strap's nightly SpO₂ estimate (spo2_candidate_82) in the " +
+                        "Blood Oxygen tile when no calibrated percentage is available. This is an " +
+                        "UNVERIFIED strap-computed value — it matched a reference device closely on most " +
+                        "nights but moved in the opposite direction on some. Shown as an 'estimate' and " +
+                        "never fed into recovery or illness scoring. Off by default.",
+                    style = NoopType.caption,
+                    color = Palette.textTertiary,
+                )
+
                 // Diagnostics: dump the decoded per-sample sensor streams (last 24h) to one long-format
                 // CSV so power users / external devs can prototype sleep/activity/VBT algorithms on real
                 // data without a BLE stream (#308/#276/#322). On-device only; plain text, no BLE hex.

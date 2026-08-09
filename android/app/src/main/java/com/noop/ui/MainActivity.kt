@@ -192,6 +192,14 @@ object NoopPrefs {
      *  [com.noop.ble.WhoopBleClient] at every arm site (re-derived at arm time, never cached). */
     const val KEY_CONTINUOUS_HRV_OVERNIGHT = "noop.continuousHrvOvernight"
 
+    /** #103: "Blood Oxygen: strap estimate" opt-in. When ON, the WHOOP 5/MG `spo2_candidate_82` nightly
+     *  mean is surfaced in the Blood Oxygen tile as a "strap estimate (unverified)" fallback when no
+     *  calibrated `spo2Pct` exists. Display-only — writes nothing to the strap. The @82 candidate has
+     *  split cross-device evidence (corr +0.99 on 8 nights, but 2 nights moved opposite on the original
+     *  device), so it ships behind a default-off toggle per the derived-biosignal rule (CLAUDE.md).
+     *  Mirrors iOS `PuffinExperiment.spo2CandidateDisplayKey`. */
+    const val KEY_SPO2_CANDIDATE_DISPLAY = "noop.spo2CandidateDisplay"
+
     /** The calendar day (yyyy-MM-dd) on which the morning-journal nudge was last shown, keeps the
      *  Sleep screen's "Good morning" sheet to at most once per day. */
     const val KEY_LAST_JOURNAL_PROMPT = "noop.lastJournalPromptDay"
@@ -438,6 +446,15 @@ object NoopPrefs {
 
     fun setContinuousHrvOvernight(context: Context, enabled: Boolean) {
         of(context).edit().putBoolean(KEY_CONTINUOUS_HRV_OVERNIGHT, enabled).apply()
+    }
+
+    /** #103: whether the SpO₂ candidate @82 strap estimate is surfaced in the Blood Oxygen tile.
+     *  Default false — the @82 candidate has split cross-device evidence and ships behind a toggle. */
+    fun spo2CandidateDisplay(context: Context): Boolean =
+        of(context).getBoolean(KEY_SPO2_CANDIDATE_DISPLAY, false)
+
+    fun setSpo2CandidateDisplay(context: Context, enabled: Boolean) {
+        of(context).edit().putBoolean(KEY_SPO2_CANDIDATE_DISPLAY, enabled).apply()
     }
 
     /** Whether the strap log is mirrored to logcat. Default false (normal users don't log to adb). */

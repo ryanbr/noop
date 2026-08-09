@@ -526,9 +526,11 @@ struct TodayView: View {
     }
 
     /// PER-FIELD SpO₂ carry — the twin of `lastVitalsDay` for the field its predicate does NOT check. The
-    /// on-device engine writes `spo2Pct = nil` (it banks only raw `spo2Red`/`spo2Ir`), so every computed
-    /// "-noop" row lacks a percentage; only imported rows carry one. A whole-row carry (`lastScoredRecoveryDay`
-    /// or `lastVitalsDay`) therefore lands on a row with null `spo2Pct` and the Blood Oxygen card reads
+    /// on-device engine writes `spo2Pct = nil` for WHOOP 5/MG (no raw red/IR in the v18 layout; the
+    /// `spo2_candidate_82` @82 byte is surfaced behind an experimental toggle, never as `spo2Pct`), and
+    /// for WHOOP 4.0 the ratio-of-ratios computation may still return nil on too few samples. Only
+    /// imported rows carry a calibrated percentage. A whole-row carry (`lastScoredRecoveryDay` or
+    /// `lastVitalsDay`) therefore lands on a row with null `spo2Pct` and the Blood Oxygen card reads
     /// "No Data" even though an imported row holds a real reading. Resolving SpO₂ independently (the last
     /// strictly-prior row that HAS it) mirrors the Android `lastSpo2Row`. Only on today; today's key bounds it.
     private var lastSpo2Day: DailyMetric? {
@@ -2259,8 +2261,14 @@ struct TodayView: View {
             // PER-FIELD carry: today → whole-row vitals carry → the last row that actually HAS a reading
             // (computed "-noop" rows write spo2Pct = nil), so this card agrees with the Key Metrics tile
             // (`d?.spo2Pct ?? carriedVital(perField: lastSpo2Day)`). Mirrors the Android dashboardCardValue.
-            return (d?.spo2Pct ?? lastVitalsDay?.spo2Pct ?? lastSpo2Day?.spo2Pct)
-                .map { String(format: "%.0f%%", $0) } ?? "—"
+            // #103: when no calibrated spo2Pct exists AND the experimental toggle is ON, fall back to the
+            // spo2_candidate @82 sparkline tail (strap estimate, unverified) so the card shows a number.
+            let calibrated = (d?.spo2Pct ?? lastVitalsDay?.spo2Pct ?? lastSpo2Day?.spo2Pct)
+            if let v = calibrated { return String(format: "%.0f%%", v) }
+            if PuffinExperiment.spo2CandidateDisplayEnabled, let tail = sparks["spo2_candidate"]?.last {
+                return String(format: "%.0f%%", tail)
+            }
+            return "—"
         case .skinTemp:
             // Stored as a deviation from baseline (°C); show it signed so +/- reads honestly. Same per-field
             // carry as Blood Oxygen.
@@ -3364,12 +3372,31 @@ struct TodayView: View {
             let spo2 = carriedVital(unit: "SpO₂", today: d?.spo2Pct,
                                     prior: { $0.spo2Pct }, perField: lastSpo2Day,
                                     format: { String(format: "%.0f%%", $0) })
+            // #103: SpO₂ candidate @82 fallback. When spo2Pct is nil (WHOOP 5/MG BLE-only, no import) AND
+            // the experimental toggle is ON, surface the strap's own @82 nightly mean as a "strap estimate
+            // (unverified)" so the tile shows a number instead of "—". The candidate has split cross-device
+            // evidence (corr +0.99 on 8 nights, but 2 nights moved opposite on the original device), so it
+            // ships behind a default-off toggle and is never written to `spo2Pct` (CLAUDE.md derived-
+            // biosignal rule). The sparkline switches to the candidate trend when the fallback is active.
+            // When the toggle is ON but NO candidate data exists (empty @82 stream, WHOOP 4.0, or the
+            // engine hasn't re-scored yet), show "toggle ON · no @82 data" so the user can tell the
+            // difference between "toggle off" and "toggle on but no data" — a silent blank reads as broken.
+            let spo2CandidateOn = PuffinExperiment.spo2CandidateDisplayEnabled
+            let candidateTail = spo2CandidateOn ? sparks["spo2_candidate"]?.last : nil
+            let spo2Value = spo2.value == "—" && candidateTail != nil
+                ? String(format: "%.0f%%", candidateTail!)
+                : spo2.value
+            let spo2Caption: String = spo2.value == "—" && candidateTail != nil
+                ? String(localized: "strap estimate (unverified)")
+                : (spo2.value == "—" && spo2CandidateOn
+                   ? String(localized: "toggle ON · no @82 data")
+                   : (spo2.caption ?? ""))
             StatTile(
                 label: "Blood Oxygen",
-                value: spo2.value,
-                caption: spo2.caption,
-                accent: spo2.value == "—" ? StrandPalette.textPrimary : StrandPalette.metricCyan,
-                sparkline: sparks["spo2"],
+                value: spo2Value,
+                caption: spo2Caption,
+                accent: spo2Value == "—" ? StrandPalette.textPrimary : StrandPalette.metricCyan,
+                sparkline: spo2.value == "—" && candidateTail != nil ? sparks["spo2_candidate"] : sparks["spo2"],
                 sparkColor: StrandPalette.metricCyan
             )
         case .respiratory:
@@ -3780,6 +3807,11 @@ struct TodayView: View {
         async let hrvSpark           = sparkValues("hrv", source: "my-whoop", window: 14)
         async let rhrSpark           = sparkValues("rhr", source: "my-whoop", window: 14)
         async let spo2Spark          = sparkValues("spo2", source: "my-whoop", window: 14)
+        // #103: SpO₂ candidate @82 nightly mean (WHOOP 5/MG only). Read via `exploreSeries` so the
+        // computed "-noop" metricSeries backs the trend. Empty when the toggle is OFF (the engine
+        // writes nothing) or on a WHOOP 4.0 (no v18 aux stream). Used as a fallback for the Blood
+        // Oxygen tile when `spo2Pct` is nil, labelled "strap estimate (unverified)".
+        async let spo2CandidateSpark = sparkValuesExplore("spo2_candidate", source: "my-whoop", window: 14)
         // `resp_rate` via `exploreSeries` so a BLE-only WHOOP 5 user's on-device computed
         // `DailyMetric.respRateBpm` backs the trend (the engine writes the column, not a metricSeries
         // point). The old `series(… source: "apple-health")` read only Apple Health's metricSeries,
@@ -3796,6 +3828,7 @@ struct TodayView: View {
         sparks["hrv"]             = await hrvSpark
         sparks["rhr"]             = await rhrSpark
         sparks["spo2"]            = await spo2Spark
+        sparks["spo2_candidate"]  = await spo2CandidateSpark
         sparks["resp_rate"]   = await respRateSpark
         sparks["steps"]       = await stepsAppleSpark
         // Steps prefer the strap's own @57 daily total (no metricSeries, it lives on the daily row),

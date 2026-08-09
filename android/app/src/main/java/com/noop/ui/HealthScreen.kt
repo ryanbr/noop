@@ -176,7 +176,12 @@ fun HealthScreen(
                     title = uiString(R.string.l10n_health_screen_vital_signs_e7d9e1b1),
                     overline = "Latest readings",
                     trailing = null,
-                    vitals = latestVitals(days, UnitPrefs.temperature(LocalContext.current)),
+                    vitals = latestVitals(
+                        days,
+                        UnitPrefs.temperature(LocalContext.current),
+                        vm.spo2CandidateByDay.value,
+                        NoopPrefs.spo2CandidateDisplay(LocalContext.current),
+                    ),
                     onVitalClick = onVitalClick,
                     captionMode = VitalCaptionMode.AS_OF,
                 )
@@ -1090,13 +1095,17 @@ private fun yearWord(years: Int): String = if (kotlin.math.abs(years) == 1) "yea
 @Composable
 fun VitalSignsScreen(vm: AppViewModel, onVitalClick: (String) -> Unit = {}) {
     val days by vm.recentDays.collectAsStateWithLifecycle()
+    val spo2CandidateByDay by vm.spo2CandidateByDay.collectAsStateWithLifecycle()
     var selectedDayOffset by remember { mutableIntStateOf(0) }
     val selectedDay = remember(selectedDayOffset) { LocalDate.now().minusDays(selectedDayOffset.toLong()) }
     val selectedDayKey = remember(selectedDay) { selectedDay.toString() }
     val selectedMetric = remember(days, selectedDayKey) { days.lastOrNull { it.day == selectedDayKey } }
     val tempUnit = UnitPrefs.temperature(LocalContext.current)
-    val vitals = remember(selectedMetric, days, tempUnit) {
-        selectedMetric?.let { vitalsFor(it, days, tempUnit) }.orEmpty()
+    // Read the toggle here in the composable body, NOT inside remember{} — LocalContext.current is a
+    // @Composable read and is illegal inside the calculation lambda; pass the resolved value in + key on it.
+    val spo2CandidateDisplay = NoopPrefs.spo2CandidateDisplay(LocalContext.current)
+    val vitals = remember(selectedMetric, days, tempUnit, spo2CandidateByDay, spo2CandidateDisplay) {
+        selectedMetric?.let { vitalsFor(it, days, tempUnit, spo2CandidateByDay, spo2CandidateDisplay) }.orEmpty()
     }
 
     ScreenScaffold(

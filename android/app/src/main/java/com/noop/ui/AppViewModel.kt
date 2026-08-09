@@ -58,6 +58,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
@@ -634,6 +637,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
+     * #103: SpO₂ candidate @82 nightly mean per day, loaded from the "spo2_candidate" metricSeries
+     * key (written by IntelligenceEngine when the experimental display toggle is ON). Empty when the
+     * toggle is OFF or no candidate data exists — the Blood O₂ tile then behaves exactly as before.
+     * Mirrors the iOS HealthView loading `spo2_candidate` from the repository.
+     */
+    val spo2CandidateByDay: StateFlow<Map<String, Double>> =
+        combine(recentDays, flowOf(NoopPrefs.spo2CandidateDisplay(appContext))) { days, toggleOn ->
+            if (!toggleOn || days.isEmpty()) emptyMap()
+            else {
+                val from = days.first().day
+                val to = days.last().day
+                repository.metricSeriesComputedUnion(deviceId, "spo2_candidate", from, to)
+                    .associate { it.day to it.value }
+            }
+        }.flowOn(Dispatchers.IO)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    /**
      * #386 self-heal: a "kick" the app-resume hook sends to wake the 15-min analyze loop early, so an
      * OEM-killed overnight re-score tick catches up the moment the user opens NOOP instead of showing a
      * stale Today card until the next sync/tick. The loop re-runs its EXISTING fingerprint-gated
@@ -1008,6 +1029,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                             else null,
                         // #141: nightly HRV over deep-sleep windows only when the user picked WHOOP-style.
                         deepHrvWindow = UnitPrefs.hrvWindow(appContext) == HrvWindow.DEEP_SLEEP,
+                        // #103: SpO₂ candidate @82 display toggle — when ON, the engine computes and
+                        // persists the nightly @82 mean as "spo2_candidate" in metricSeries.
+                        spo2CandidateDisplay = NoopPrefs.spo2CandidateDisplay(appContext),
                     )
                     // analyzeRecent now hops to Dispatchers.Default; a scope cancellation surfaces as a
                     // CancellationException that runCatching would otherwise swallow, breaking the loop's
@@ -1570,6 +1594,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 useExperimentalSleepV2 = PuffinExperiment.from(appContext).experimentalSleepV2,
                 // Opt-in motion-aware wake refinement (#364 follow-up) — same flag the 15-min loop reads.
                 useMotionAwareWake = PuffinExperiment.from(appContext).motionAwareWake,
+                // #103: SpO₂ candidate @82 display toggle — same flag the 15-min loop reads.
+                spo2CandidateDisplay = NoopPrefs.spo2CandidateDisplay(appContext),
             )
         }.onFailure { if (it is kotlin.coroutines.cancellation.CancellationException) throw it }
     }
@@ -2300,6 +2326,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 daysObserved = lastCircadianBins.second,
             )
         }
+    }
+
+    /** #103: Flip the SpO₂ candidate display toggle. Persists and immediately re-scores so the @82
+     *  candidate is computed and persisted on this flip — without this the user waits up to 15 min
+     *  for the next analyze loop, and the Blood Oxygen tile stays blank in the meantime. Mirrors the
+     *  iOS SettingsView `.onChangeCompat` → `analyzeRecent()` pattern. */
+    fun setSpo2CandidateDisplay(enabled: Boolean) {
+        NoopPrefs.setSpo2CandidateDisplay(appContext, enabled)
+        viewModelScope.launch { rescoreAfterEdit() }
     }
 
     /**

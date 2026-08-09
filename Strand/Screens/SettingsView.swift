@@ -56,6 +56,11 @@ struct SettingsView: View {
     /// See [PuffinExperiment.ecgRawDataKey].
     @AppStorage(PuffinExperiment.ecgRawDataKey) private var ecgRawDataEnabled = false
 
+    /// #103 opt-in: surfaces the WHOOP 5/MG `spo2_candidate_82` nightly mean in the Blood Oxygen tile
+    /// as a "strap estimate (unverified)" fallback when no calibrated `spo2Pct` exists. Display-only —
+    /// writes nothing to the strap. See [PuffinExperiment.spo2CandidateDisplayKey].
+    @AppStorage(PuffinExperiment.spo2CandidateDisplayKey) private var spo2CandidateDisplayEnabled = false
+
     /// True when the connected strap has positively attested itself a WHOOP MG. The variant is published as
     /// its label string (`LiveState.whoop5Variant`); "MG" is `Whoop5Variant.mg.label`. nil / not-yet-
     /// identified / a plain 5.0 is not an MG.
@@ -1782,6 +1787,28 @@ struct SettingsView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityElement(children: .combine)
                 }
+
+                // MARK: #103 SpO₂ strap estimate display — surface the @82 candidate as a fallback.
+                Divider().overlay(StrandPalette.hairline)
+
+                Toggle(isOn: $spo2CandidateDisplayEnabled) {
+                    Text("Blood Oxygen: strap estimate (WHOOP 5/MG)")
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textPrimary)
+                }
+                .toggleStyle(.switch)
+                .tint(StrandPalette.accent)
+                .onChangeCompat(of: spo2CandidateDisplayEnabled) { _ in
+                    // Re-score immediately so the @82 candidate is computed and persisted on this
+                    // toggle flip — without this the user waits up to 15 min for the next analyze
+                    // loop, and the Blood Oxygen tile stays blank in the meantime. Same pattern as
+                    // the HRV window toggle above (analyzeRecent → refresh).
+                    Task { await model.intelligence.analyzeRecent(); await model.repo.refresh() }
+                }
+                Text("Your WHOOP 5.0/MG sends a strap-computed SpO₂ percentage (the @82 candidate byte) every second. An 8-night independent validation tracked it at corr +0.99 against the WHOOP app, but two nights on the original test device moved the OPPOSITE direction — device/firmware variance is unresolved. Turning this on surfaces the nightly mean in the Blood Oxygen tile as \"strap estimate (unverified)\" when no calibrated import exists. It never feeds recovery or illness scoring. WHOOP 4.0 has no @82 stream, so this does nothing there.")
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 // MARK: #891 ECG raw-data gate — the second device-config key this app may write, MG-only.
                 Divider().overlay(StrandPalette.hairline)

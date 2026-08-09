@@ -115,7 +115,8 @@ enum BodyVitalSigns {
 
     static func readings(sourceRows: [SourcedDailyMetric],
                          temperatureUnit: TemperatureUnit,
-                         now: Date = Date()) -> [BodyVitalReading] {
+                         now: Date = Date(),
+                         spo2CandidateByDay: [String: Double] = [:]) -> [BodyVitalReading] {
         let logicalDay = logicalDayKey(now)
 
         // Resolve one metric to a per-day series, taking the FIRST source (by precedence) that carries
@@ -147,6 +148,16 @@ enum BodyVitalSigns {
 
         let respPoints = points(key: "resp", \.respRateBpm)
         let spo2Points = points(key: "spo2", \.spo2Pct)
+        // #103: SpO₂ candidate @82 (WHOOP 5/MG only). When no calibrated spo2Pct exists AND the toggle is
+        // ON, the candidate mean is passed in from metricSeries as a fallback. It has split cross-device
+        // evidence and ships behind a default-off toggle, never as `spo2Pct` (CLAUDE.md derived-biosignal
+        // rule). Built into VitalPoints so the tile + sparkline + `latest()` resolve it the same way.
+        let spo2CandidateOn = PuffinExperiment.spo2CandidateDisplayEnabled && !spo2CandidateByDay.isEmpty
+        let spo2CandidatePoints: [VitalPoint] = spo2CandidateOn
+            ? spo2CandidateByDay.map { (day, value) in
+                VitalPoint(day: day, value: value, source: .noopComputed)
+            }.sorted { $0.day < $1.day }
+            : []
         // WHOOP 4.0 raw SpO₂: the (red + IR) / 2 ADC mean per night, present only when both channels
         // decoded for the day. On-device only, so this resolves to the NOOP-computed row. (#93)
         let spo2rawPoints = points(key: "spo2raw") { m in
@@ -158,7 +169,11 @@ enum BodyVitalSigns {
         let skinPoints = points(key: "skin", \.skinTempDevC)
 
         let respRow = latest(respPoints)
-        let spo2Row = latest(spo2Points)
+        // #103: fall back to the spo2_candidate @82 mean when no calibrated spo2Pct exists. The candidate
+        // is labelled "strap estimate (unverified)" in the tile caption so it is never read as a calibrated
+        // blood-oxygen percentage.
+        let spo2Row = latest(spo2Points) ?? latest(spo2CandidatePoints)
+        let spo2IsCandidate = spo2Row != nil && latest(spo2Points) == nil
         let spo2rawRow = latest(spo2rawPoints)
         let rhrRow = latest(rhrPoints)
         let hrvRow = latest(hrvPoints)
@@ -246,10 +261,14 @@ enum BodyVitalSigns {
                 // neighbouring tile is blank. Note `latest()` here resolves `logicalDay ?? most recent`,
                 // where Android resolves the selected day — so the ROW differs across platforms by design
                 // and the parity contract is the relationship between the two tiles, not the row.
-                missingCaption: spo2rawRow != nil
-                    ? String(localized: "Raw counts only — needs an import")
-                    : String(localized: "No SpO₂ import or Health value"),
-                sparkline: trail(spo2Points)
+                missingCaption: spo2IsCandidate
+                    ? String(localized: "strap estimate (unverified)")
+                    : (PuffinExperiment.spo2CandidateDisplayEnabled && spo2Row == nil
+                       ? String(localized: "toggle ON · no @82 data")
+                       : (spo2rawRow != nil
+                          ? String(localized: "Raw counts only — needs an import")
+                          : String(localized: "No SpO₂ import or Health value"))),
+                sparkline: spo2IsCandidate ? trail(spo2CandidatePoints) : trail(spo2Points)
             ),
             BodyVitalReading(
                 key: "spo2raw",

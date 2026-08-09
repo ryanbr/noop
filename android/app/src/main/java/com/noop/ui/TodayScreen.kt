@@ -272,6 +272,7 @@ fun TodayScreen(
     val today by viewModel.today.collectAsStateWithLifecycle()
     val alert by viewModel.healthAlert.collectAsStateWithLifecycle()
     val days by viewModel.recentDays.collectAsStateWithLifecycle()
+    val spo2CandidateByDay by viewModel.spo2CandidateByDay.collectAsStateWithLifecycle()
     val live by viewModel.live.collectAsStateWithLifecycle()
     // The in-flight manual workout (single source of truth, survives an app kill via rehydration), so the
     // indicator card auto-appears/clears off this alone. Null↔non-null + the start drive the card; the
@@ -1543,6 +1544,7 @@ fun TodayScreen(
                             onOpenSleep = onOpenSleep,
                             onOpenCoupled = onOpenCoupled,
                             onCustomise = { showDashboardEditor = true },
+                            spo2CandidateByDay = spo2CandidateByDay,
                         )
                         // #656: the persistent journal widget (last-7-days strip + tap-through). Now a
                         // reorderable section like the others — hold-drag or Arrange moves it. Today-only
@@ -2997,6 +2999,7 @@ private fun YourCardsSection(
     onOpenSleep: () -> Unit,
     onOpenCoupled: () -> Unit,
     onCustomise: () -> Unit,
+    spo2CandidateByDay: Map<String, Double> = emptyMap(),
 ) {
     Box(modifier = Modifier.fillMaxWidth().staggeredAppear(2)) {
         Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
@@ -3026,6 +3029,7 @@ private fun YourCardsSection(
                         caloriesForDay = caloriesForDay,
                         hydrationTotalMl = hydrationTotalMl,
                         hydrationGoalMl = hydrationGoalMl,
+                        spo2CandidateByDay = spo2CandidateByDay,
                     ),
                     // The mini liquid vessel's fill — the SAME per-card fraction iOS `liquidCard` uses.
                     fraction = dashboardCardFraction(
@@ -3215,6 +3219,7 @@ private fun dashboardCardValue(
     caloriesForDay: Double?,
     hydrationTotalMl: Double,
     hydrationGoalMl: Int,
+    spo2CandidateByDay: Map<String, Double> = emptyMap(),
 ): String {
     fun withUnit(s: String): String =
         if (s == NO_DATA) NO_DATA else if (card.unit.isEmpty()) s else "$s ${card.unit}"
@@ -3232,7 +3237,12 @@ private fun dashboardCardValue(
         DashboardCard.BLOOD_OXYGEN ->
             // PER-FIELD carry: the whole-row carries (vd) land on rows whose spo2Pct is null (the engine
             // writes spo2Pct = null on computed rows), so fall through to the last row that HAS one.
-            (vd?.spo2Pct ?: spo2Day?.spo2Pct)?.let { String.format(Locale.US, "%.0f%%", it) } ?: NO_DATA
+            // #103: when no calibrated spo2Pct exists, fall back to the spo2_candidate_82 strap estimate
+            // (from metricSeries) when the experimental display toggle is ON. Labelled "estimate" in the
+            // Health vitals screen; here it just fills the card so it's not blank.
+            (vd?.spo2Pct ?: spo2Day?.spo2Pct)?.let { String.format(Locale.US, "%.0f%%", it) }
+                ?: (vd?.day ?: day?.day)?.let { spo2CandidateByDay[it] }?.let { String.format(Locale.US, "%.0f%%", it) }
+                ?: NO_DATA
         DashboardCard.SKIN_TEMP ->
             // Stored as a deviation from baseline (°C); show it signed so +/- reads honestly.
             // Same per-field carry as Blood Oxygen.

@@ -52,6 +52,20 @@ enum PuffinExperiment {
 
     static var ecgRawDataEnabled: Bool { UserDefaults.standard.bool(forKey: ecgRawDataKey) }
 
+    /// Opt-in "SpO₂ strap estimate" display (#103): surfaces the WHOOP 5/MG `spo2_candidate_82` nightly
+    /// mean in the Blood Oxygen tile/card, labelled "strap estimate (unverified)". The @82 byte is a
+    /// strap-computed SpO₂ % (70–100 range) that an 8-night independent validation tracked at corr +0.99
+    /// against the WHOOP app, but two nights on the original #103 device moved OPPOSITE — device/firmware
+    /// variance unresolved. Per the derived-biosignal rule (CLAUDE.md), an unvalidated signal ships behind
+    /// a default-off toggle, never as the default `spo2Pct` and never feeding a downstream gate.
+    ///
+    /// Display-only: writes nothing to the strap. The engine computes `nightlySpo2CandidateMean` and
+    /// writes it to metricSeries as "spo2_candidate" under the "-noop" computed device ID; the UI reads
+    /// it only while this toggle is ON. Mirrors the Android `NoopPrefs.KEY_SPO2_CANDIDATE_DISPLAY`.
+    static let spo2CandidateDisplayKey = "noopSpo2CandidateDisplay"
+
+    static var spo2CandidateDisplayEnabled: Bool { UserDefaults.standard.bool(forKey: spo2CandidateDisplayKey) }
+
     /// Opt-in "Continuous HRV capture": hold the dense realtime HR stream armed even with no Live screen
     /// open, so the strap banks beat-to-beat R-R intervals 24/7 for far better overnight HRV/recovery/
     /// sleep (vs the sparse history offload). Uses more battery (continuous HR streaming). Default OFF;

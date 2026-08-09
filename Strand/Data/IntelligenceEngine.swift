@@ -130,6 +130,11 @@ final class IntelligenceEngine: ObservableObject {
         /// where `rr` is in scope and replayed through `diagnosticSink` in pass 2 (which is main-actor
         /// isolated). nil when the night has no in-sleep R-R.
         let hrvDiag: String?
+        /// #103: the nightly `spo2_candidate_82` mean for this day, computed off the main actor from the
+        /// V18AuxSample stream when the SpO₂ candidate display toggle is ON. nil when the toggle is OFF,
+        /// the night has no in-band @82 readings, or the owner is a WHOOP 4.0 (no v18 aux stream).
+        /// Written to metricSeries as "spo2_candidate" under the "-noop" device ID in pass 2.
+        let spo2Candidate: Int?
     }
 
     struct Computed: Identifiable {
@@ -509,6 +514,12 @@ final class IntelligenceEngine: ObservableObject {
         // the 5/MG cumulative @57 series + wrap-aware deltas + dropped deltas, replayed below tagged `.steps`.
         // The trace recomputes the SAME wrap-aware sum analyzeDay already did, so the steps total is unchanged.
         let stepsTraceActive = TestCentre.active(.steps)
+        // #103: read the SpO₂ candidate display toggle ONCE here (off the detached executor, matching the
+        // other toggle reads above). When ON, each night's `spo2_candidate_82` mean is computed from the
+        // V18AuxSample stream and written to metricSeries as "spo2_candidate" under the "-noop" device ID,
+        // so the Blood Oxygen tile can surface it as a "strap estimate (unverified)" fallback. Default OFF
+        // per the derived-biosignal rule (CLAUDE.md) — the @82 candidate has split cross-device evidence.
+        let spo2CandidateDisplayOn = PuffinExperiment.spo2CandidateDisplayEnabled
         let (scanned, skippedDayLines): ([DayScan], [String]) = await Task.detached(priority: .utility) {
             var out: [DayScan] = []
             // Days skipped below (too few HR samples) never get a DayScan, so this diagnostic can't ride
@@ -837,10 +848,26 @@ final class IntelligenceEngine: ObservableObject {
                     }.map { $0.bpm }
                     rhrLine = Self.rhrFloorMeanLogLine(day: res.daily.day, floor: floor, inBedBpms: inBedBpms)
                 }
+                // #103: SpO₂ candidate @82 nightly mean. Only computed when the display toggle is ON.
+                // Reads the V18AuxSample stream for this night's owner and averages the in-band (70–100)
+                // @82 readings that fall inside a detected sleep session. nil on a WHOOP 4.0 (no v18 aux
+                // stream), a night with no in-band readings, or when the toggle is OFF. The mean is
+                // written to metricSeries as "spo2_candidate" in pass 2, never to `spo2Pct` — the guard
+                // test `testHistoricalV18OpticalFieldsAreNotNamedPhysiologically` enforces that boundary.
+                var spo2CandidateMean: Int? = nil
+                if spo2CandidateDisplayOn {
+                    let auxSamples = (try? await store.v18AuxSamples(
+                        deviceId: owner, from: from, to: to, limit: 200_000)) ?? []
+                    if !auxSamples.isEmpty {
+                        if let cand = AnalyticsEngine.nightlySpo2CandidateMean(res.sleepSessions, aux: auxSamples) {
+                            spo2CandidateMean = cand.mean
+                        }
+                    }
+                }
                 out.append(DayScan(result: res, rhrLine: rhrLine,
                                    readOwner: owner, hrRows: hr.count,
                                    sleepTrace: sleepTrace, stepsTrace: stepsTrace, hrvTrace: hrvTrace,
-                                   hrvDiag: hrvDiag))
+                                   hrvDiag: hrvDiag, spo2Candidate: spo2CandidateMean))
             }
             return (out, skippedDayLines)
         }.value
@@ -856,6 +883,8 @@ final class IntelligenceEngine: ObservableObject {
         // visible in every export.
         var readOwnerByDay: [String: (owner: String, hrRows: Int)] = [:]
         var resolvedScoreOwnerByDay: [String: String] = [:]
+        // #103: SpO₂ candidate @82 nightly mean per day, carried from pass 1 for metricSeries persistence.
+        var spo2CandidateByDay: [String: Int] = [:]
 
         // Back on the main actor: fold the off-actor results into the pass-2 state in the SAME order the
         // loop produced them. Pure assignment / appends , no further store reads , so this is cheap and the
@@ -868,6 +897,11 @@ final class IntelligenceEngine: ObservableObject {
             nightlyRhrByDay[res.daily.day] = res.daily.restingHr.map(Double.init)
             nightlyRespByDay[res.daily.day] = res.daily.respRateBpm
             nightlySkinByDay[res.daily.day] = res.nightlySkinTempC
+            // #103: carry the SpO₂ candidate @82 nightly mean into pass 2 for metricSeries persistence.
+            // nil when the toggle is OFF or the night had no in-band @82 readings.
+            if let cand = scan.spo2Candidate {
+                spo2CandidateByDay[res.daily.day] = cand
+            }
             if let line = scan.rhrLine { diagnosticSink?(line, nil) }
             // Sleep & Rest test mode (E5): replay this day's gate-trace + Rest lines tagged `.sleep` so they
             // land under the profile tag in the export. Empty unless the mode is active.
@@ -1096,6 +1130,13 @@ final class IntelligenceEngine: ObservableObject {
             dailies.append(daily.with(recovery: recovery, skinTempDevC: skinDev))
             if let rest = AnalyticsEngine.Rest.composite(daily: daily) {
                 restPoints.append(MetricPoint(day: daily.day, key: "sleep_performance", value: rest))
+            }
+            // #103: persist the SpO₂ candidate @82 nightly mean to metricSeries as "spo2_candidate" so the
+            // Blood Oxygen tile can surface it as a "strap estimate (unverified)" fallback when the toggle
+            // is ON. Written under the "-noop" computed device ID, never to `spo2Pct` — the candidate has
+            // split cross-device evidence and stays behind the experimental display toggle.
+            if let cand = spo2CandidateByDay[daily.day] {
+                restPoints.append(MetricPoint(day: daily.day, key: "spo2_candidate", value: Double(cand)))
             }
             cachedSleep.append(contentsOf: night.cachedSleep)
             // Persist the detected workouts the pipeline already computes (previously discarded).

@@ -514,6 +514,10 @@
     ],
     [
       "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
+      "Blood Oxygen: strap estimate"
+    ],
+    [
+      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
       "Change photo"
     ],
     [
@@ -547,6 +551,10 @@
     [
       "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
       "Sleep chart"
+    ],
+    [
+      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
+      "Surfaces the WHOOP 5/MG strap's nightly SpO₂ estimate (spo2_candidate_82) in the "
     ],
     [
       "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
@@ -972,6 +980,10 @@
     ],
     [
       "Strand/Screens/SettingsView.swift",
+      "Blood Oxygen: strap estimate (WHOOP 5/MG)"
+    ],
+    [
+      "Strand/Screens/SettingsView.swift",
       "Date of birth, age \\(profile.age) years"
     ],
     [
@@ -985,6 +997,10 @@
     [
       "Strand/Screens/SettingsView.swift",
       "WHOOP 5.0 / MG · motion → steps"
+    ],
+    [
+      "Strand/Screens/SettingsView.swift",
+      "Your WHOOP 5.0/MG sends a strap-computed SpO₂ percentage (the @82 candidate byte) every second. An 8-night independent validation tracked it at corr +0.99 against the WHOOP app, but two nights on the original test device moved the OPPOSITE direction — device/firmware variance is unresolved. Turning this on surfaces the nightly mean in the Blood Oxygen tile as \\\"strap estimate (unverified)\\\" when no calibrated import exists. It never feeds recovery or illness scoring. WHOOP 4.0 has no @82 stream, so this does nothing there."
     ],
     [
       "Strand/Screens/SleepView.swift",
@@ -1045,10 +1061,6 @@
     [
       "Strand/Screens/WorkoutsView.swift",
       "Clear filters"
-    ],
-    [
-      "Strand/Screens/WorkoutsView.swift",
-      "Clear search"
     ],
     [
       "Strand/Screens/WorkoutsView.swift",
