@@ -1915,4 +1915,8 @@
     <string name="settings_trend_bars">Barres</string>
     <string name="spo2_strap_estimate_caption">estimation du bracelet (non vérifiée)</string>
     <string name="spo2_toggle_on_no_data">activé · aucune donnée @82</string>
+    <string name="l10n_devices_screen_forget_device_d6eb6209">Oublier l\'appareil…</string>
+    <string name="l10n_devices_screen_forget_device_926e503d">Oublier l\'appareil</string>
+    <string name="l10n_devices_screen_forget_this_device_8dbbc3f3">Oublier cet appareil ?</string>
+    <string name="l10n_devices_screen_noop_removes_this_device_a9cb6b5b">NOOP retire cet appareil de votre liste et supprime définitivement toutes ses données enregistrées. Cette action est irréversible.</string>
 </resources>

@@ -108,6 +108,22 @@ class DeviceRegistry(
     /** Archive a device — keeps its row and samples (invariant I4). */
     suspend fun archive(id: String) = dao.archiveDevice(id)
 
+    /**
+     * Permanently FORGET a device: wipe all of its recorded data AND remove its registry entry (both the
+     * `pairedDevice` row the Devices screen lists and its `device` provenance row), so a duplicate/stale
+     * strap can be purged entirely instead of lingering in the archived "Removed" list forever (#1193).
+     * Twin of the Swift `DeviceRegistry.forget`. The data wipe runs first (its own transaction, via
+     * [deleteDeviceData]), then the small registry-row deletes — registry entry vs. recordings are separate
+     * ops, exactly as [adoptSerialIdentity] treats them.
+     */
+    suspend fun forget(id: String) {
+        deleteDeviceData(id)
+        transactor.run {
+            dao.deletePairedDeviceRow(id)
+            dao.deleteDeviceRow(id)
+        }
+    }
+
     /** Update the model label for a device. Mirrors the Swift store's `setModel`. */
     suspend fun setModel(id: String, model: String) = dao.setModel(id, model)
 

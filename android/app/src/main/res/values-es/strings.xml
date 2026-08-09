@@ -1915,4 +1915,8 @@
     <string name="settings_trend_bars">Barras</string>
     <string name="spo2_strap_estimate_caption">estimación de la correa (sin verificar)</string>
     <string name="spo2_toggle_on_no_data">activado · sin datos de @82</string>
+    <string name="l10n_devices_screen_forget_device_d6eb6209">Olvidar dispositivo…</string>
+    <string name="l10n_devices_screen_forget_device_926e503d">Olvidar dispositivo</string>
+    <string name="l10n_devices_screen_forget_this_device_8dbbc3f3">¿Olvidar este dispositivo?</string>
+    <string name="l10n_devices_screen_noop_removes_this_device_a9cb6b5b">NOOP quita este dispositivo de tu lista y elimina permanentemente todos sus datos registrados. No se puede deshacer.</string>
 </resources>

@@ -1930,4 +1930,8 @@
     <string name="settings_trend_bars">Balken</string>
     <string name="spo2_strap_estimate_caption">Armband-Schätzung (unbestätigt)</string>
     <string name="spo2_toggle_on_no_data">Schalter EIN · keine @82-Daten</string>
+    <string name="l10n_devices_screen_forget_device_d6eb6209">Gerät vergessen…</string>
+    <string name="l10n_devices_screen_forget_device_926e503d">Gerät vergessen</string>
+    <string name="l10n_devices_screen_forget_this_device_8dbbc3f3">Dieses Gerät vergessen?</string>
+    <string name="l10n_devices_screen_noop_removes_this_device_a9cb6b5b">NOOP entfernt dieses Gerät aus deiner Liste und löscht dauerhaft alle aufgezeichneten Daten. Das kann nicht rückgängig gemacht werden.</string>
 </resources>

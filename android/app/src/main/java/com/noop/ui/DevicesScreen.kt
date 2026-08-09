@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.GraphicEq
@@ -139,6 +140,7 @@ fun DevicesScreen(
     var renameTarget by remember { mutableStateOf<PairedDeviceRow?>(null) }
     var removeTarget by remember { mutableStateOf<PairedDeviceRow?>(null) }
     var deleteDataTarget by remember { mutableStateOf<PairedDeviceRow?>(null) }
+    var forgetTarget by remember { mutableStateOf<PairedDeviceRow?>(null) }
     var rebootTarget by remember { mutableStateOf<PairedDeviceRow?>(null) }
     // WHOOP 4.0 reboot probe (Test Centre → Connection, 4.0 only) — the device whose probe sheet is open.
     var probeTarget by remember { mutableStateOf<PairedDeviceRow?>(null) }
@@ -319,6 +321,7 @@ fun DevicesScreen(
                     onRemove = null,
                     onReAdd = { switchTarget = device },
                     onDeleteData = { deleteDataTarget = device },
+                    onForget = { forgetTarget = device },
                 )
             }
         }
@@ -484,6 +487,22 @@ fun DevicesScreen(
         )
     }
 
+    // --- Hard-delete confirm (from a Removed card's ⋮ menu): purge the registry entry itself, not just
+    //     its data — the only way to get a duplicate/stale strap out of the list for good (#1193). ---
+    forgetTarget?.let { device ->
+        ConfirmDialog(
+            title = uiString(R.string.l10n_devices_screen_forget_this_device_8dbbc3f3),
+            message = uiString(R.string.l10n_devices_screen_noop_removes_this_device_a9cb6b5b),
+            confirmLabel = uiString(R.string.l10n_devices_screen_forget_device_926e503d),
+            destructive = true,
+            onConfirm = {
+                scope.launch { viewModel.forgetPairedDevice(device.id); reload() }
+                forgetTarget = null
+            },
+            onDismiss = { forgetTarget = null },
+        )
+    }
+
     // --- After removing the active device, offer to pick a new active one (if any remain) ---
     if (pickNewActive) {
         PickActiveDialog(
@@ -533,6 +552,9 @@ private fun DeviceCard(
     onRemove: (() -> Unit)?,
     onReAdd: (() -> Unit)? = null,
     onDeleteData: (() -> Unit)? = null,
+    /** Hard-delete: purge the registry entry itself (and its data), so a duplicate/stale strap can be
+     *  removed from the list for good rather than lingering in "Removed" forever (#1193). Archived-only. */
+    onForget: (() -> Unit)? = null,
     onConnect: (() -> Unit)? = null,
     onDisconnect: (() -> Unit)? = null,
     onReboot: (() -> Unit)? = null,
@@ -660,6 +682,7 @@ private fun DeviceCard(
                     onRemove = onRemove,
                     onReAdd = onReAdd,
                     onDeleteData = onDeleteData,
+                    onForget = onForget,
                     onConnect = onConnect,
                     onDisconnect = onDisconnect,
                     onReboot = onReboot,
@@ -783,6 +806,7 @@ private fun DeviceActionsMenu(
     onRemove: (() -> Unit)?,
     onReAdd: (() -> Unit)?,
     onDeleteData: (() -> Unit)?,
+    onForget: (() -> Unit)? = null,
     onConnect: (() -> Unit)? = null,
     onDisconnect: (() -> Unit)? = null,
     onReboot: (() -> Unit)? = null,
@@ -816,6 +840,13 @@ private fun DeviceActionsMenu(
                     HorizontalDivider(color = Palette.hairline)
                     MenuItem(uiString(R.string.l10n_devices_screen_delete_this_device_s_data_3cae7a2a), Icons.Filled.Delete, destructive = true) {
                         onOpenChange(false); onDeleteData()
+                    }
+                }
+                // Purge the registry entry itself — the only way to get a duplicate/stale strap out of the
+                // "Removed" list for good (#1193). Below "Delete data" as the stronger, final action.
+                if (onForget != null) {
+                    MenuItem(uiString(R.string.l10n_devices_screen_forget_device_d6eb6209), Icons.Filled.DeleteForever, destructive = true) {
+                        onOpenChange(false); onForget()
                     }
                 }
             } else {

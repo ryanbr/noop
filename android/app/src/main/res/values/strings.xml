@@ -1942,4 +1942,8 @@
     <!-- #103: Blood Oxygen tile captions for the experimental WHOOP 5/MG @82 strap estimate. -->
     <string name="spo2_strap_estimate_caption">strap estimate (unverified)</string>
     <string name="spo2_toggle_on_no_data">toggle ON · no @82 data</string>
+    <string name="l10n_devices_screen_forget_device_d6eb6209">Forget device…</string>
+    <string name="l10n_devices_screen_forget_device_926e503d">Forget device</string>
+    <string name="l10n_devices_screen_forget_this_device_8dbbc3f3">Forget this device?</string>
+    <string name="l10n_devices_screen_noop_removes_this_device_a9cb6b5b">NOOP removes this device from your list and permanently deletes all of its recorded data. This can\'t be undone.</string>
 </resources>

@@ -1909,4 +1909,8 @@
     <string name="settings_trend_bars">Barras</string>
     <string name="spo2_strap_estimate_caption">estimativa da pulseira (não verificada)</string>
     <string name="spo2_toggle_on_no_data">ativado · sem dados de @82</string>
+    <string name="l10n_devices_screen_forget_device_d6eb6209">Esquecer dispositivo…</string>
+    <string name="l10n_devices_screen_forget_device_926e503d">Esquecer dispositivo</string>
+    <string name="l10n_devices_screen_forget_this_device_8dbbc3f3">Esquecer este dispositivo?</string>
+    <string name="l10n_devices_screen_noop_removes_this_device_a9cb6b5b">O NOOP remove este dispositivo da tua lista e elimina permanentemente todos os seus dados registados. Esta ação não pode ser anulada.</string>
 </resources>

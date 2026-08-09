@@ -226,6 +226,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Permanently delete all of a device's recorded data (its registry row is kept). */
     suspend fun deletePairedDeviceData(id: String) = noopApp.deviceRegistry.deleteDeviceData(id)
 
+    /** Permanently forget a device: wipe all its recorded data AND remove its registry entry, so a
+     *  duplicate/stale strap disappears from the list entirely (an archived row could otherwise only be
+     *  re-activated or data-wiped, never purged — #1193). Twin of Swift `DeviceRegistry.forget`. */
+    suspend fun forgetPairedDevice(id: String) = noopApp.deviceRegistry.forget(id)
+
     /**
      * A DISCOVERY-ONLY [StandardHrSource] for the Add-a-strap wizard. It runs its OWN scan and never
      * connects or persists here — the [SourceCoordinator] owns connection once a strap becomes active.
