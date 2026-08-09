@@ -354,7 +354,7 @@ struct BackfillContinuation {
                                    strapNewestTs: Int?,
                                    ourFrontierTs: Int?,
                                    wallNowUnix: Int,
-                                   rowsPersistedThisSession: Int = 0,
+                                   bankedSensorRecords: Bool = false,
                                    lastTrimAdvanced: Bool,
                                    consecutiveCount: Int,
                                    maxAutoContinues: Int = defaultMaxAutoContinues,
@@ -363,15 +363,19 @@ struct BackfillContinuation {
         guard stillConnected else { return false }                 // 1
         guard consecutiveCount < maxAutoContinues else { return false }   // 4 (cap)
         guard lastTrimAdvanced else { return false }               // 3 (don't spin on a frozen cursor)
-        // 3b (#1144): an EMPTY session (0 rows persisted) never auto-continues, whatever the reported
-        // frontier gap. When the strap advertises a `newest` AHEAD of our frontier but the offload for that
-        // range hands back 0 rows (a PHANTOM gap — a timestamp it won't actually offload), 2a below would
-        // latch `true` forever: the frontier can't advance without rows, so `newest - frontier` stays > gap
-        // and it re-fires to the full cap in empty offloads (the storm observed on a real 4.0). Guard 3
-        // doesn't catch it — the trim u32 climbs on empty ENDs. Stop and let the periodic floor retry;
-        // healthy backlog sessions persist real rows so this only bites the empty spin. (Makes 2b's row
-        // check the ONE authority for both cases.)
-        guard rowsPersistedThisSession > 0 else { return false }
+        // 3b (#1144/#1146): an EMPTY session (banked NO real sensor records) never auto-continues, whatever
+        // the reported frontier gap. When the strap advertises a `newest` AHEAD of our frontier but the
+        // offload for that range hands back no sensor rows (a PHANTOM gap — a timestamp it won't actually
+        // offload, or a console-only tail), 2a below would latch `true` forever: the frontier can't advance
+        // without rows, so `newest - frontier` stays > gap and it re-fires to the full cap in empty offloads
+        // (the storm re-observed on a real 4.0 in the 260810 capture — 145 re-kicks/hr). Guard 3 doesn't
+        // catch it — the trim u32 climbs on empty ENDs. This gate takes the ONE authoritative
+        // `bankedSensorRecords` verdict computed at classification (the SAME signal the "banked no sensor
+        // history" log + empty-streak use), captured ONCE in exitBackfilling — NOT a fresh, motion-inclusive
+        // `sessionRowsPersisted` re-read that could disagree with that verdict across the offload boundary.
+        // Stop and let the periodic floor retry; a real backlog session banks sensor records so this only
+        // bites the empty spin. (Makes `bankedSensorRecords` the ONE authority for both 3b and 2b.)
+        guard bankedSensorRecords else { return false }
         // #928: a strap clock set in the FUTURE makes "newest" read ahead of ANY real frontier, so 2a
         // would report backlog forever and drive up to the full cap in EMPTY offloads on every connect.
         // A newest more than futureSkewSeconds past the wall clock is implausible: exclude it from 2a.
@@ -396,10 +400,10 @@ struct BackfillContinuation {
         // epochs, and the data-range "newest" can latch an OLD one (e.g. 2024 when the real newest is 2026).
         // That false "we're already past it" would stop the drain after ONE session and make the user
         // tap the strap to re-trigger (exactly #364 / #451). But guard #3 already proved the trim advanced,
-        // so if this session also PERSISTED REAL SENSOR ROWS the strap is demonstrably still handing over
-        // real backlog — keep going. Empty / console-only ENDs persist 0 rows, so a genuinely stuck or
-        // caught-up strap still won't spin, and the consecutive cap bounds it either way.
-        return rowsPersistedThisSession > 0
+        // so if this session also BANKED REAL SENSOR RECORDS the strap is demonstrably still handing over
+        // real backlog — keep going. Empty / console-only ENDs bank no sensor records, so a genuinely stuck
+        // or caught-up strap still won't spin, and the consecutive cap bounds it either way.
+        return bankedSensorRecords
     }
 }
 
@@ -2161,8 +2165,13 @@ public final class BLEManager: NSObject, ObservableObject {
         // returns false and stops; that else path is also where the consecutive streak is cleared. Bounded
         // by the consecutive-cap and the spin-detector inside the pure predicate either way.
         if reason == "timeout" || reason == "HISTORY_COMPLETE" {
+            // #1146: pass the ONCE-computed `bankedSensorRecords` verdict (from classifyCompletedOffload
+            // above) — NOT a fresh `backfiller.sessionRowsPersisted` read. The live counter can be mutated by
+            // trailing frames / a re-kicked session across the offload boundary, so re-reading it here let an
+            // empty session (classified "banked no sensor history") still look like real backlog and spin to
+            // the cap. One authoritative verdict = auto-continue can't disagree with the empty classification.
             maybeAutoContinueBackfill(trimAdvanced: trimAdvanced,
-                                      rowsPersisted: backfiller?.sessionRowsPersisted ?? 0)
+                                      bankedSensorRecords: bankedSensorRecords)
         }
     }
 
@@ -2177,7 +2186,7 @@ public final class BLEManager: NSObject, ObservableObject {
     /// `trimAdvanced` is the spin-detector signal computed in exitBackfilling (did this session move the
     /// trim cursor vs the previous one) — passed in because exitBackfilling has already advanced
     /// `lastSessionEndTrim` past the comparison point by the time this Task runs.
-    private func maybeAutoContinueBackfill(trimAdvanced: Bool, rowsPersisted: Int) {
+    private func maybeAutoContinueBackfill(trimAdvanced: Bool, bankedSensorRecords: Bool) {
         // Cheap pre-checks first (no Task if we already know we won't continue): still connected, under
         // the cap, and the trim moved. The frontier read only happens when those already hold.
         guard state.connected, state.bonded else { return }
@@ -2192,7 +2201,7 @@ public final class BLEManager: NSObject, ObservableObject {
                 strapNewestTs: newest,
                 ourFrontierTs: frontier,
                 wallNowUnix: wallNow,
-                rowsPersistedThisSession: rowsPersisted,
+                bankedSensorRecords: bankedSensorRecords,
                 lastTrimAdvanced: trimAdvanced,
                 consecutiveCount: count) else {
                 // #1012: name the stop honestly when the future-clock gate is what ended the chain —
@@ -2200,7 +2209,7 @@ public final class BLEManager: NSObject, ObservableObject {
                 // tell "caught up" from "future-dated range refused". Fires ONLY when 2b would otherwise
                 // have continued (still connected, rows banked, trim advanced, under the cap), so a
                 // frozen-trim / cap / disconnect stop is never misattributed to the clock.
-                if stillConnected, rowsPersisted > 0, trimAdvanced,
+                if stillConnected, bankedSensorRecords, trimAdvanced,
                    count < BackfillContinuation.defaultMaxAutoContinues,
                    BackfillContinuation.isFutureDatedNewest(newest, wallNowUnix: wallNow) {
                     let aheadH = ((newest ?? wallNow) - wallNow) / 3600
