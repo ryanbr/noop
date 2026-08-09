@@ -64,8 +64,13 @@ object AndroidDiagnostics {
             val repo = com.noop.data.WhoopRepository.from(context)
             val days = repo.days("my-whoop")
             add("History:     ${days.size} day rows (my-whoop spine)")
-            add("Last sleep:  ${days.lastOrNull { (it.totalSleepMin ?: 0.0) > 0.0 }?.let { "${it.day} · ${it.totalSleepMin?.toInt()} min" } ?: "none"}")
-            add("Last recov.: ${days.lastOrNull { it.recovery != null }?.let { "${it.day} · ${it.recovery?.toInt()}%" } ?: "none"}")
+            // Last sleep/recov read the MERGED view (imported ∪ computed), not the import spine alone: a
+            // strap-only user's freshest scored day lives under the "-noop" computed sibling, so reading the
+            // spine showed a stale value (could be a month old) while the app displayed today's. Twin of
+            // Swift DebugDataDiagnostics, which already reads the merged `repo.days`.
+            val merged = repo.daysMerged("my-whoop")
+            add("Last sleep:  ${merged.lastOrNull { (it.totalSleepMin ?: 0.0) > 0.0 }?.let { "${it.day} · ${it.totalSleepMin?.toInt()} min" } ?: "none"}")
+            add("Last recov.: ${merged.lastOrNull { it.recovery != null }?.let { "${it.day} · ${it.recovery?.toInt()}%" } ?: "none"}")
         }.onFailure { add("(strap/data state unavailable: ${it.message})") }
     }
 
