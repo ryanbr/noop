@@ -2247,7 +2247,13 @@ struct TodayView: View {
             #endif
             return withUnit(d?.restingHr.map { "\($0)" } ?? "—")
         case .respiratory:
+            // PER-FIELD carry: today → recovery-INDEPENDENT vitals carry → the sparkline tail. The
+            // vitals carry (not the recovery-gated `lastScoredRecoveryDay`) feeds respiratory so a
+            // night with real R-R but a null recovery still carries, matching the Android dashboard
+            // card (`day?.respRateBpm ?: vitalsDay?.respRateBpm`). The sparkline tail is the last
+            // resort so a sparse-but-recent value still reads.
             return withUnit(d?.respRateBpm.map { String(format: "%.1f", $0) }
+                            ?? lastVitalsDay?.respRateBpm.map { String(format: "%.1f", $0) }
                             ?? sparks["resp_rate"]?.last.map { String(format: "%.1f", $0) } ?? "—")
         case .bloodOxygen:
             // PER-FIELD carry: today → whole-row vitals carry → the last row that actually HAS a reading
@@ -3774,7 +3780,12 @@ struct TodayView: View {
         async let hrvSpark           = sparkValues("hrv", source: "my-whoop", window: 14)
         async let rhrSpark           = sparkValues("rhr", source: "my-whoop", window: 14)
         async let spo2Spark          = sparkValues("spo2", source: "my-whoop", window: 14)
-        async let respRateSpark      = sparkValues("resp_rate", source: "apple-health", window: 14)
+        // `resp_rate` via `exploreSeries` so a BLE-only WHOOP 5 user's on-device computed
+        // `DailyMetric.respRateBpm` backs the trend (the engine writes the column, not a metricSeries
+        // point). The old `series(… source: "apple-health")` read only Apple Health's metricSeries,
+        // which is empty without a Health import — parity bug vs Android's `DailyMetric.respRateBpm`
+        // trend. "my-whoop" covers imported WHOOP CSV (Layer 1) + computed DailyMetric (Layer 3).
+        async let respRateSpark      = sparkValuesExplore("resp_rate", source: "my-whoop", window: 14)
         async let stepsAppleSpark    = sparkValues("steps", source: "apple-health", window: 14)
         async let weightSpark        = sparkValues("weight", source: "apple-health", window: 90)
         async let activeKcalSpark    = sparkValues("active_kcal", source: "apple-health", window: 14)
@@ -4182,6 +4193,19 @@ struct TodayView: View {
         // `trailingWindow` below still applies the exact same calendar clamp as before — the rendered
         // points are byte-identical to the full-history read.
         let all = await repo.series(key: key, source: source, days: window + 1)   // windowed, asc
+        guard !all.isEmpty else { return [] }
+        return trailingWindow(all, days: window).map { $0.value }
+    }
+
+    /// Same as `sparkValues` but reads via `exploreSeries` so the on-device COMPUTED `DailyMetric`
+    /// column backs the sparkline for a BLE-only WHOOP user (no CSV/Health import). `series` reads
+    /// metricSeries only, which is empty for computed keys like `resp_rate` (the engine writes
+    /// `respRateBpm` on the DailyMetric row, not a metricSeries point); `exploreSeries` Layer 3
+    /// falls back to `dailyColumn` so the strap's own nightly respiratory rate fills the trend.
+    /// Mirrors the Android `rememberTrendWindow` which builds the resp spark from
+    /// `DailyMetric.respRateBpm` directly. Used for `resp_rate` (parity fix).
+    private func sparkValuesExplore(_ key: String, source: String, window: Int) async -> [Double] {
+        let all = await repo.exploreSeries(key: key, source: source, days: window + 1)
         guard !all.isEmpty else { return [] }
         return trailingWindow(all, days: window).map { $0.value }
     }
