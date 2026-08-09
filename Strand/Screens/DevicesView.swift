@@ -1165,9 +1165,6 @@ private struct ExtendedBatteryProbeResultView: View {
     }
 }
 
-/// #690: the body-location probe's confirm + result dialogs as one ViewModifier, so they're type-checked
-/// in isolation instead of extending the DevicesView `.confirmationDialog`/`.sheet` chain (which is already
-/// near the iOS Swift type-checker's budget). `model`/`live` auto-inject from the parent's environment.
 /// The hard-delete ("Forget device") confirm for an archived row (#1193). Isolated into its own
 /// ViewModifier — like the probe sheets below — so this extra dialog doesn't push the DevicesContent
 /// body over the iOS Swift type-checker budget. `registry` is threaded in (it's an `@ObservedObject`
@@ -1201,6 +1198,9 @@ private struct ForgetDeviceSheet: ViewModifier {
     }
 }
 
+/// #690: the body-location probe's confirm + result dialogs as one ViewModifier, so they're type-checked
+/// in isolation instead of extending the DevicesView `.confirmationDialog`/`.sheet` chain (which is already
+/// near the iOS Swift type-checker's budget). `model`/`live` auto-inject from the parent's environment.
 private struct BodyLocationProbeSheets: ViewModifier {
     @EnvironmentObject var model: AppModel
     @EnvironmentObject var live: LiveState
