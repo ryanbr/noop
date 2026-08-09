@@ -1480,7 +1480,7 @@ class WhoopBleClient(
             wallNowUnix: Long,
             lastTrimAdvanced: Boolean,
             consecutiveCount: Int,
-            bankedSensorRecords: Boolean = false,
+            persistedSensorRows: Boolean = false,
             maxAutoContinues: Int = MAX_AUTO_CONTINUES,
             behindGapSeconds: Long = AUTO_CONTINUE_BEHIND_GAP_SECONDS,
             futureSkewSeconds: Long = AUTO_CONTINUE_FUTURE_SKEW_SECONDS,
@@ -1488,21 +1488,21 @@ class WhoopBleClient(
             if (!stillConnected) return false                          // 1
             if (consecutiveCount >= maxAutoContinues) return false      // 4 (cap)
             if (!lastTrimAdvanced) return false                        // 3 (don't spin on a frozen cursor)
-            // 3b (#1144/#1146): an EMPTY session (banked NO real sensor records) never auto-continues,
-            // whatever the reported frontier gap. When the strap advertises a `newest` AHEAD of our frontier
-            // but the offload for that range hands back no sensor rows (a PHANTOM gap — a timestamp it won't
-            // actually offload, or a console-only tail), 2a below would latch `true` forever: the frontier
-            // can't advance without rows, so `newest - frontier` stays > gap and it re-fires to the full cap
-            // in empty offloads (the storm re-observed on a real 4.0 in the 260810 capture — 145 re-kicks/hr).
-            // `lastTrimAdvanced` (3) doesn't catch it — the trim u32 climbs on empty ENDs. This gate takes the
-            // ONE authoritative `bankedSensorRecords` verdict computed at classification (the SAME signal the
-            // "banked no sensor history" log + empty-streak use), captured ONCE in `exitBackfilling`. The old
-            // code re-read `backfiller.sessionRowsPersisted` separately at the decision site, and that live,
-            // motion-inclusive counter could disagree with the classify verdict (trailing frames / cross-
-            // thread mutation), so an empty session was mistaken for real backlog and spun to the cap. Stop
-            // and let the 15-min floor retry; a real backlog session banks sensor records so this only bites
-            // the empty spin. (Makes `bankedSensorRecords` the ONE authority for both 3b and 2b.)
-            if (!bankedSensorRecords) return false
+            // 3b (#1144/#1146): a session that persisted NO NEW sensor rows never auto-continues, whatever the
+            // reported frontier gap. When the strap advertises a `newest` AHEAD of our frontier but the offload
+            // for that range banks no new rows (a PHANTOM gap — a timestamp it won't actually offload, a
+            // console-only tail, or a dup re-offload of already-synced data), 2a below would latch `true`
+            // forever: the frontier can't advance without new rows, so `newest - frontier` stays > gap and it
+            // re-fires to the full cap in empty offloads (the storm re-observed on a real 4.0 in the 260810
+            // capture — 145 re-kicks/hr). `lastTrimAdvanced` (3) doesn't catch it — the trim u32 climbs on
+            // empty ENDs. `persistedSensorRows` is `sessionRowsPersisted > 0` (the frontier ADVANCED this pass)
+            // captured ONCE in `exitBackfilling` — NOT a fresh `backfiller.sessionRowsPersisted` re-read at the
+            // decision site (that live counter, mutated by trailing frames / a re-kicked session across the
+            // main-looper↔BLE-thread boundary, disagreed with the empty verdict and spun to the cap), and NOT
+            // `decodedChunks`/`bankedSensorRecords` (a dup-only or reject-frame re-offload DECODES frames but
+            // banks 0 NEW rows — it must also stop, not spin on already-synced data). Stop and let the 15-min
+            // floor retry; a real backlog pass persists new rows so this only bites the empty/dup spin.
+            if (!persistedSensorRows) return false
             // #928: a strap clock set in the FUTURE makes "newest" read ahead of ANY real frontier, so 2a
             // would report backlog forever and drive up to the full cap in EMPTY offloads on every
             // connect. A newest more than [futureSkewSeconds] past [wallNowUnix] (the REAL wall clock,
@@ -1525,10 +1525,10 @@ class WhoopBleClient(
             // fully discharged (or carries a previous owner's history) banks records across multiple clock
             // epochs and can latch an OLD one (e.g. 2024 when the real newest is 2026). That false "already
             // past it" would stop the drain after ONE session and make the user tap the strap to re-trigger
-            // (#364 / #451). But guard #3 proved the trim advanced, so if this session also BANKED REAL
-            // SENSOR RECORDS the strap is still handing over real backlog — keep going. Empty / console-only
-            // ENDs bank no sensor records, so a stuck or caught-up strap won't spin; the cap bounds it regardless.
-            return bankedSensorRecords
+            // (#364 / #451). But guard #3 proved the trim advanced, so if this session also PERSISTED NEW
+            // SENSOR ROWS the strap is still handing over real backlog — keep going. Empty / console-only / dup
+            // ENDs persist no new rows, so a stuck or caught-up strap won't spin; the cap bounds it regardless.
+            return persistedSensorRows
         }
 
         // #927: Continuous HRV "overnight only" window (pure, unit-tested in ContinuousHrvWindowTest).
@@ -7035,10 +7035,16 @@ class WhoopBleClient(
         // sensor rows is ALSO "banked nothing", regardless of console-frame count. The #126 guard is
         // unchanged — the banner still only fires once SUSTAINED — so a genuinely caught-up strap that
         // banked rows on an earlier cycle won't trip it.
+        // #1146: snapshot THIS completed session's persisted-row verdict ONCE (frontier advanced iff a new
+        // sensor row landed), from the same read `classifyCompletedOffload` sees. The auto-continue decision
+        // below gates on this snapshot — never a fresh `backfiller.sessionRowsPersisted` re-read that a
+        // re-kicked session / trailing frames could have mutated across the main-looper↔BLE-thread boundary.
+        val rowsThisSession = backfiller.sessionRowsPersisted
+        val persistedSensorRows = rowsThisSession > 0
         val (bankedSensorRecords, bankedNothingRaw) = classifyCompletedOffload(
             decodedChunks = decodedChunksThisSession,
             consoleChunks = consoleChunksThisSession,
-            rowsPersisted = backfiller.sessionRowsPersisted,
+            rowsPersisted = rowsThisSession,
         )
         // #42: the empty tail of an auto-continue burst (consecutiveAutoContinues > 0) isn't a "banked
         // nothing" sync — an EARLIER session in the same burst handed over real rows and this pass just
@@ -7233,13 +7239,13 @@ class WhoopBleClient(
         // predicate proves we're caught up — inside maybeAutoContinueBackfill's else path. Bounded by the
         // cap + spin-detector either way.
         if (reason == "timeout" || reason == "HISTORY_COMPLETE") {
-            // #1146: pass the ONCE-computed `bankedSensorRecords` verdict (from classifyCompletedOffload
+            // #1146: pass the ONCE-captured `persistedSensorRows` verdict (snapshotted with the classify read
             // above) — NOT a fresh `backfiller.sessionRowsPersisted` read. The live counter can be mutated by
             // trailing frames / a re-kicked session across the main-looper↔BLE-thread boundary, so re-reading
-            // it here let an empty session (classified "banked no sensor history") still look like real
-            // backlog and spin to the cap. One authoritative verdict = auto-continue can't disagree with the
-            // empty classification.
-            maybeAutoContinueBackfill(trimAdvanced, bankedSensorRecords)
+            // it here let an empty session (which persisted 0 new rows) still look like real backlog and spin
+            // to the cap. Snapshotting `> 0` at classify time = the auto-continue can't disagree with the
+            // empty verdict, and a dup-only re-offload (0 new rows) stops instead of spinning.
+            maybeAutoContinueBackfill(trimAdvanced, persistedSensorRows)
         }
     }
 
@@ -7256,7 +7262,7 @@ class WhoopBleClient(
      * [BackfillTrigger.AUTO_CONTINUE], one of the un-floored triggers in [BackfillPolicy.shouldRun], so the
      * 15-min periodic floor can't suppress an in-progress backlog drain. Mirrors Swift `maybeAutoContinueBackfill`.
      */
-    private fun maybeAutoContinueBackfill(trimAdvanced: Boolean, bankedSensorRecords: Boolean) {
+    private fun maybeAutoContinueBackfill(trimAdvanced: Boolean, persistedSensorRows: Boolean) {
         val s = _state.value
         if (!s.connected || !s.bonded) return
         val newest = strapNewestTs
@@ -7276,7 +7282,7 @@ class WhoopBleClient(
                     wallNowUnix = wallNow,
                     lastTrimAdvanced = trimAdvanced,
                     consecutiveCount = count,
-                    bankedSensorRecords = bankedSensorRecords,
+                    persistedSensorRows = persistedSensorRows,
                 )
             ) {
                 // #1012: name the stop honestly when the future-clock gate is what ended the chain —
@@ -7285,7 +7291,7 @@ class WhoopBleClient(
                 // have continued (still connected, rows banked, trim advanced, under the cap), so a
                 // frozen-trim / cap / disconnect stop is never misattributed to the clock. Twin of the
                 // Swift maybeAutoContinueBackfill line.
-                if (stillConnected && bankedSensorRecords && trimAdvanced &&
+                if (stillConnected && persistedSensorRows && trimAdvanced &&
                     count < MAX_AUTO_CONTINUES && clockUntrusted   // just set above from isFutureDatedNewest(newest, wallNow)
                 ) {
                     val aheadH = ((newest ?: wallNow) - wallNow) / 3600L

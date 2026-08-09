@@ -37,7 +37,7 @@ class BackfillContinuationTest {
                 wallNowUnix = wallNow,
                 lastTrimAdvanced = true,
                 consecutiveCount = 0,
-                bankedSensorRecords = true,
+                persistedSensorRows = true,
             ),
         )
     }
@@ -56,7 +56,7 @@ class BackfillContinuationTest {
                 wallNowUnix = wallNow,
                 lastTrimAdvanced = true,                 // trim u32 climbs on empty ENDs — not enough
                 consecutiveCount = 0,
-                bankedSensorRecords = false,            // …but nothing was actually offloaded
+                persistedSensorRows = false,            // …but nothing was actually offloaded
             ),
         )
     }
@@ -114,7 +114,7 @@ class BackfillContinuationTest {
                 lastTrimAdvanced = true,
                 consecutiveCount = 0,
                 behindGapSeconds = 300L,
-                bankedSensorRecords = true,
+                persistedSensorRows = true,
             ),
         )
     }
@@ -146,7 +146,7 @@ class BackfillContinuationTest {
                 wallNowUnix = wallNow,
                 lastTrimAdvanced = true,
                 consecutiveCount = cap - 1,
-                bankedSensorRecords = true,
+                persistedSensorRows = true,
             ),
         )
         assertFalse(
@@ -175,7 +175,7 @@ class BackfillContinuationTest {
                 wallNowUnix = wallNow,
                 lastTrimAdvanced = true,
                 consecutiveCount = 10,                       // well past the old cap of 6
-                bankedSensorRecords = true,
+                persistedSensorRows = true,
             ),
         )
     }
@@ -218,7 +218,7 @@ class BackfillContinuationTest {
                 wallNowUnix = wallNow,
                 lastTrimAdvanced = true,
                 consecutiveCount = 0,
-                bankedSensorRecords = true,
+                persistedSensorRows = true,
             ),
         )
     }
@@ -235,7 +235,7 @@ class BackfillContinuationTest {
                 wallNowUnix = wallNow,
                 lastTrimAdvanced = true,
                 consecutiveCount = 0,
-                bankedSensorRecords = false,
+                persistedSensorRows = false,
             ),
         )
     }
@@ -251,7 +251,7 @@ class BackfillContinuationTest {
                 wallNowUnix = wallNow,
                 lastTrimAdvanced = true,
                 consecutiveCount = 0,
-                bankedSensorRecords = true,
+                persistedSensorRows = true,
             ),
         )
     }
@@ -268,7 +268,7 @@ class BackfillContinuationTest {
                 wallNowUnix = wallNow,
                 lastTrimAdvanced = false,                   // frozen cursor wins
                 consecutiveCount = 0,
-                bankedSensorRecords = true,
+                persistedSensorRows = true,
             ),
         )
         assertFalse(
@@ -279,7 +279,7 @@ class BackfillContinuationTest {
                 wallNowUnix = wallNow,
                 lastTrimAdvanced = true,
                 consecutiveCount = WhoopBleClient.MAX_AUTO_CONTINUES,   // cap wins
-                bankedSensorRecords = true,
+                persistedSensorRows = true,
             ),
         )
         assertFalse(
@@ -290,7 +290,7 @@ class BackfillContinuationTest {
                 wallNowUnix = wallNow,
                 lastTrimAdvanced = true,
                 consecutiveCount = 0,
-                bankedSensorRecords = true,
+                persistedSensorRows = true,
             ),
         )
     }
@@ -311,7 +311,7 @@ class BackfillContinuationTest {
                 wallNowUnix = wallNow,
                 lastTrimAdvanced = true,
                 consecutiveCount = count,
-                bankedSensorRecords = true,   // each pass lands real rows (that's why the frontier advances)
+                persistedSensorRows = true,   // each pass lands real rows (that's why the frontier advances)
             )
         ) {
             frontier += 86_400L
@@ -340,7 +340,7 @@ class BackfillContinuationTest {
                 wallNowUnix = wallNow,
                 lastTrimAdvanced = true,
                 consecutiveCount = 0,
-                bankedSensorRecords = true,                 // a small slice, but real rows landed
+                persistedSensorRows = true,                 // a small slice, but real rows landed
             ),
         )
     }
@@ -361,7 +361,7 @@ class BackfillContinuationTest {
                 // A genuinely caught-up strap hands over NO new rows on the final END (empty / console-only).
                 // 0 rows means the #451 guard-2b "keep draining if still persisting real backlog" does NOT
                 // fire, so the predicate returns false and the session tears down to the periodic floor.
-                bankedSensorRecords = false,
+                persistedSensorRows = false,
             ),
         )
     }
@@ -380,7 +380,7 @@ class BackfillContinuationTest {
                 wallNowUnix = wallNow,
                 lastTrimAdvanced = true,
                 consecutiveCount = count,
-                bankedSensorRecords = true,                 // every tiny slice banks a few rows
+                persistedSensorRows = true,                 // every tiny slice banks a few rows
             )
         ) {
             count += 1
@@ -407,7 +407,7 @@ class BackfillContinuationTest {
                 wallNowUnix = wallNow,
                 lastTrimAdvanced = true,
                 consecutiveCount = 0,
-                bankedSensorRecords = false,              // the offloads come back empty
+                persistedSensorRows = false,              // the offloads come back empty
             ),
         )
     }
@@ -429,7 +429,7 @@ class BackfillContinuationTest {
                 wallNowUnix = wallNow,
                 lastTrimAdvanced = true,
                 consecutiveCount = 0,
-                bankedSensorRecords = true,            // rows banked — but they're future-dated too
+                persistedSensorRows = true,            // rows banked — but they're future-dated too
             ),
         )
     }
@@ -450,7 +450,7 @@ class BackfillContinuationTest {
                     wallNowUnix = wallNow,
                     lastTrimAdvanced = true,
                     consecutiveCount = 0,
-                    bankedSensorRecords = rows > 0,
+                    persistedSensorRows = rows > 0,
                 ),
             )
         }
@@ -479,7 +479,7 @@ class BackfillContinuationTest {
                 wallNowUnix = wallNow,
                 lastTrimAdvanced = true,
                 consecutiveCount = 0,
-                bankedSensorRecords = true,
+                persistedSensorRows = true,
             ),
         )
         // One second past the cap: excluded, and an empty session must not continue.
@@ -491,7 +491,7 @@ class BackfillContinuationTest {
                 wallNowUnix = wallNow,
                 lastTrimAdvanced = true,
                 consecutiveCount = 0,
-                bankedSensorRecords = false,
+                persistedSensorRows = false,
             ),
         )
     }
@@ -508,7 +508,7 @@ class BackfillContinuationTest {
                 wallNowUnix = wallNow,
                 lastTrimAdvanced = true,
                 consecutiveCount = 0,
-                bankedSensorRecords = true,
+                persistedSensorRows = true,
             ),
         )
     }
