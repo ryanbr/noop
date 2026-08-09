@@ -271,3 +271,67 @@ object AppearancePrefs {
         prefs(ctx).edit().putString(KEY, value.storageValue).apply()
     }
 }
+
+/** The user's CHROME accent colour (buttons/links/selection/focus). Chrome only — the recovery/strain/
+ *  sleep DATA colour worlds are never themed by this. Twin of macOS `AccentColor` (StrandDesign). */
+enum class AccentColor(val storageValue: String, val label: String) {
+    MINT("mint", "Mint"),
+    WHOOP_BLUE("whoopBlue", "WHOOP Blue"),
+    CUSTOM("custom", "Custom");
+
+    companion object {
+        /** Seeds the custom picker (mint) so a fresh Custom selection is not black. */
+        const val DEFAULT_CUSTOM_HEX = "#149A78"
+
+        fun fromStorage(raw: String?): AccentColor =
+            entries.firstOrNull { it.storageValue == raw } ?: MINT
+
+        /** Parse `#RRGGBB` to a Color, falling back to [fallback] on any malformed value. */
+        fun parseHex(hex: String, fallback: Color): Color = try {
+            Color(("FF" + hex.removePrefix("#").trim()).toLong(16))
+        } catch (e: Exception) {
+            fallback
+        }
+
+        /** Blend a hex toward white by [amount] (0..1) — the deterministic hover for a custom accent. */
+        fun lighten(hex: String, amount: Float = 0.24f): Color {
+            val c = parseHex(hex, Color(0xFF149A78))
+            fun up(x: Float) = (x + (1 - x) * amount).coerceIn(0f, 1f)
+            return Color(up(c.red), up(c.green), up(c.blue), 1f)
+        }
+    }
+}
+
+/** Chrome-accent preference, persisted in `noop_prefs` + snapshot state so the picker is live. [load] is
+ *  called once from MainActivity; [setColor]/[setCustomHex] write + flip. Twin of the macOS
+ *  `@AppStorage(AccentColor.storageKey/customHexKey)` app-root wiring. */
+object AccentPrefs {
+    private const val FILE = "noop_prefs"
+    private const val KEY_COLOR = "accent.color"
+    private const val KEY_CUSTOM = "accent.customHex"
+
+    private fun prefs(ctx: Context): SharedPreferences =
+        ctx.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+
+    /** Live accent choice + custom hex read by the Palette accent getters; defaults until [load] runs. */
+    var color by mutableStateOf(AccentColor.MINT)
+        private set
+    var customHex by mutableStateOf(AccentColor.DEFAULT_CUSTOM_HEX)
+        private set
+
+    fun load(ctx: Context) {
+        color = AccentColor.fromStorage(prefs(ctx).getString(KEY_COLOR, AccentColor.MINT.storageValue))
+        customHex = prefs(ctx).getString(KEY_CUSTOM, AccentColor.DEFAULT_CUSTOM_HEX)
+            ?: AccentColor.DEFAULT_CUSTOM_HEX
+    }
+
+    fun setColor(ctx: Context, value: AccentColor) {
+        color = value
+        prefs(ctx).edit().putString(KEY_COLOR, value.storageValue).apply()
+    }
+
+    fun setCustomHex(ctx: Context, hex: String) {
+        customHex = hex
+        prefs(ctx).edit().putString(KEY_CUSTOM, hex).apply()
+    }
+}

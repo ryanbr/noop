@@ -1916,4 +1916,5 @@
     <string name="l10n_settings_screen_ecg_gate_persistent_warning">Dies schreibt eine Einstellung, die AUF DEINEM BAND BLEIBT, bis du sie zurücksetzt — es ist keine App-Einstellung, und das Schließen von NOOP macht sie nicht rückgängig. „Sperre ausschalten“ schreibt mit einem Tippen wieder \'0\'. Es wird ausschließlich dieser eine Schlüssel geschrieben; die anderen sechs, die dein Band aufgelistet hat, werden nie angefasst.</string>
     <string name="l10n_settings_screen_ecg_gate_turn_on">Sperre einschalten (\'1\' schreiben)</string>
     <string name="l10n_settings_screen_ecg_gate_turn_off">Sperre ausschalten (\'0\' schreiben)</string>
+    <string name="l10n_settings_screen_accent">Akzent</string>
 </resources>

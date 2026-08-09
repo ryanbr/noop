@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.material.icons.Icons
@@ -84,6 +85,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -582,6 +584,9 @@ fun SettingsScreen(
     var themeMode by remember { mutableStateOf(AppearancePrefs.mode) }
     // Chart colours (Titanium / Classic) — re-colours gauges + charts; ChartStylePrefs mirrors it live.
     var chartStyle by remember { mutableStateOf(ChartStylePrefs.style) }
+    // Chrome accent (Mint / WHOOP Blue / Custom) — chrome only; AccentPrefs mirrors it in snapshot state.
+    var accentColor by remember { mutableStateOf(AccentPrefs.color) }
+    var accentCustomHex by remember { mutableStateOf(AccentPrefs.customHex) }
     // Trend charts (Line / Bar) — flips the Trends tab between the gradient line and value-ramp bars.
     // Display-only; SharedPreferences isn't reactive, so mirror into local state and persist on select.
     var trendChartStyle by remember { mutableStateOf(UnitPrefs.trendChartStyle(context)) }
@@ -1071,6 +1076,30 @@ fun SettingsScreen(
                     onSelect = { style ->
                         chartStyle = style
                         ChartStylePrefs.set(context, style)
+                    },
+                )
+            }
+            SettingsRowDivider()
+            // Chrome accent colour — links/buttons/selection tint only. The recovery/strain/sleep DATA
+            // colours follow "Chart colours", never this. Custom reveals RGB sliders.
+            SettingsFormRow(label = uiString(R.string.l10n_settings_screen_accent)) {
+                SegmentedPillControl(
+                    items = listOf(AccentColor.MINT, AccentColor.WHOOP_BLUE, AccentColor.CUSTOM),
+                    selection = accentColor,
+                    label = { it.label },
+                    onSelect = { c ->
+                        accentColor = c
+                        AccentPrefs.setColor(context, c)
+                    },
+                )
+            }
+            if (accentColor == AccentColor.CUSTOM) {
+                SettingsRowDivider()
+                AccentCustomPicker(
+                    hex = accentCustomHex,
+                    onHexChange = { hex ->
+                        accentCustomHex = hex
+                        AccentPrefs.setCustomHex(context, hex)
                     },
                 )
             }
@@ -3192,4 +3221,53 @@ private fun setAppIcon(context: Context, navy: Boolean) {
         else PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
         PackageManager.DONT_KILL_APP,
     )
+}
+
+/** #accent: a compact RGB picker for the CUSTOM chrome accent — a live preview swatch + three channel
+ *  sliders. Emits `#RRGGBB` on every change; the Palette accent updates live via [AccentPrefs]. Shown only
+ *  when the accent picker is set to Custom. */
+@Composable
+private fun AccentCustomPicker(hex: String, onHexChange: (String) -> Unit) {
+    val base = AccentColor.parseHex(hex, Color(0xFF149A78))
+    var r by remember { mutableStateOf(base.red) }
+    var g by remember { mutableStateOf(base.green) }
+    var b by remember { mutableStateOf(base.blue) }
+    fun emit() = onHexChange(
+        String.format("#%02X%02X%02X", (r * 255).roundToInt(), (g * 255).roundToInt(), (b * 255).roundToInt()),
+    )
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(26.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(r, g, b, 1f)),
+        )
+        AccentChannelSlider("R", r) { r = it; emit() }
+        AccentChannelSlider("G", g) { g = it; emit() }
+        AccentChannelSlider("B", b) { b = it; emit() }
+    }
+}
+
+@Composable
+private fun AccentChannelSlider(label: String, value: Float, onChange: (Float) -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(label, style = NoopType.caption, color = Palette.textTertiary, modifier = Modifier.width(14.dp))
+        Slider(
+            value = value,
+            onValueChange = onChange,
+            colors = SliderDefaults.colors(
+                thumbColor = Palette.accent,
+                activeTrackColor = Palette.accent,
+                inactiveTrackColor = Palette.surfaceInset,
+            ),
+            modifier = Modifier.weight(1f),
+        )
+    }
 }

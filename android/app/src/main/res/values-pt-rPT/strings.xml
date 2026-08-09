@@ -1895,4 +1895,5 @@
     <string name="l10n_settings_screen_ecg_gate_persistent_warning">Isto escreve uma definição que FICA NA SUA PULSEIRA até a repor — não é uma preferência da aplicação e fechar o NOOP não a desfaz. «Desativar bloqueio» volta a escrever \'0\' com um só toque. Só esta chave é escrita; as outras seis que a sua pulseira listou nunca são tocadas.</string>
     <string name="l10n_settings_screen_ecg_gate_turn_on">Ativar bloqueio (escrever \'1\')</string>
     <string name="l10n_settings_screen_ecg_gate_turn_off">Desativar bloqueio (escrever \'0\')</string>
+    <string name="l10n_settings_screen_accent">Destaque</string>
 </resources>

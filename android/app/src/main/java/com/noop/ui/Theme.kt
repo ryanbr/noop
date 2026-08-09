@@ -79,11 +79,25 @@ object Palette {
     // Glow.
     val glowAmbient get() = active.glowAmbient
 
-    // Accent — GOLD brand anchor.
-    val accent get() = active.accent
-    val accentHover get() = active.accentHover
-    val accentMuted get() = active.accentMuted
-    val focusRing get() = active.focusRing
+    // Accent — user-selectable chrome anchor (mint default / WHOOP blue / custom). Chrome ONLY; the
+    // recovery/strain/sleep DATA worlds are never themed by this. Reads AccentPrefs snapshot state so a
+    // change is live. Twin of macOS StrandPalette.accent* branching on AccentColor.
+    val accent get() = when (AccentPrefs.color) {
+        AccentColor.MINT -> active.accent
+        AccentColor.WHOOP_BLUE -> if (isLight) Color(0xFF234F9E) else Color(0xFF60A0E0)
+        AccentColor.CUSTOM -> AccentColor.parseHex(AccentPrefs.customHex, active.accent)
+    }
+    val accentHover get() = when (AccentPrefs.color) {
+        AccentColor.MINT -> active.accentHover
+        AccentColor.WHOOP_BLUE -> if (isLight) Color(0xFF3A6FC0) else Color(0xFF8FBEEC)
+        AccentColor.CUSTOM -> AccentColor.lighten(AccentPrefs.customHex)
+    }
+    val accentMuted get() = when (AccentPrefs.color) {
+        AccentColor.MINT -> active.accentMuted
+        AccentColor.WHOOP_BLUE -> (if (isLight) Color(0xFF234F9E) else Color(0xFF60A0E0)).copy(alpha = 0.18f)
+        AccentColor.CUSTOM -> AccentColor.parseHex(AccentPrefs.customHex, active.accent).copy(alpha = 0.18f)
+    }
+    val focusRing get() = if (AccentPrefs.color == AccentColor.MINT) active.focusRing else accent
     const val disabledOpacity = 0.45f
 
     // Recovery / Charge gradient.
