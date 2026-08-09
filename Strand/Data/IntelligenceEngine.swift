@@ -388,6 +388,16 @@ final class IntelligenceEngine: ObservableObject {
            UserDefaults.standard.string(forKey: Self.analyzeWatermarkKey) == wmKey {
             return
         }
+        // Attribute a FORCED re-score. A completed offload / edit / recalibrate always re-scores
+        // (force: true) past the gate above, so an empty/duplicate offload — nothing changed since the last
+        // run — still pays for a full maxDays pass over the whole raw store (#1146). `newData=no` means the
+        // fingerprint already equals the watermark the last run advanced: a re-score driven by the trigger,
+        // not by data (#1005 background battery). Diagnostic only; the pass still runs. Twin of the Android
+        // WhoopBleClient post-offload attribution.
+        if force {
+            let hadNew = wmKey.isEmpty || UserDefaults.standard.string(forKey: Self.analyzeWatermarkKey) != wmKey
+            diagnosticSink?("re-score: trigger=forced newData=\(hadNew ? "yes" : "no (nothing changed since last run)")", nil)
+        }
 
         computing = true
         // #899-A re-arm: clear the lock, then if a forced rescore was dropped while this pass held it,
