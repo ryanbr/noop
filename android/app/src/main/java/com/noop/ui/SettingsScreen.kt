@@ -89,6 +89,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.drag
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -3250,52 +3259,114 @@ private fun setAppIcon(context: Context, navy: Boolean) {
     )
 }
 
-/** #accent: a compact RGB picker for the CUSTOM chrome accent — a live preview swatch + three channel
- *  sliders. Emits `#RRGGBB` on every change; the Palette accent updates live via [AccentPrefs]. Shown only
- *  when the accent picker is set to Custom. */
+/** sRGB [Color] for an HSV triple, via the framework converter (Material3 ships no HSV colour helper). */
+private fun hsvColor(h: Float, s: Float, v: Float): Color =
+    Color(android.graphics.Color.HSVToColor(floatArrayOf(h.coerceIn(0f, 360f), s.coerceIn(0f, 1f), v.coerceIn(0f, 1f))))
+
+/** #accent: the CUSTOM chrome-accent picker — a standard HSV colour picker (a saturation × brightness square
+ *  plus a hue rail), the recognisable "colour picker" UX with no third-party dependency. iOS uses the native
+ *  SwiftUI `ColorPicker`; this is its Compose counterpart (Material3 ships none). Emits `#RRGGBB` on every
+ *  change; the Palette accent updates live via [AccentPrefs]. Shown only when the accent picker is Custom. */
 @Composable
 private fun AccentCustomPicker(hex: String, onHexChange: (String) -> Unit) {
-    val base = AccentColor.parseHex(hex, Color(0xFF149A78))
-    var r by remember { mutableStateOf(base.red) }
-    var g by remember { mutableStateOf(base.green) }
-    var b by remember { mutableStateOf(base.blue) }
-    fun emit() = onHexChange(
-        String.format("#%02X%02X%02X", (r * 255).roundToInt(), (g * 255).roundToInt(), (b * 255).roundToInt()),
-    )
+    // Seed HSV from the current hex once (the picker only mounts while Custom is selected).
+    val seed = remember(Unit) {
+        FloatArray(3).also {
+            val c = AccentColor.parseHex(hex, Color(0xFF149A78))
+            android.graphics.Color.RGBToHSV(
+                (c.red * 255).roundToInt(), (c.green * 255).roundToInt(), (c.blue * 255).roundToInt(), it,
+            )
+        }
+    }
+    var hue by remember { mutableStateOf(seed[0]) }    // 0..360
+    var sat by remember { mutableStateOf(seed[1]) }    // 0..1
+    var value by remember { mutableStateOf(seed[2]) }  // 0..1
+    fun emit() {
+        val c = hsvColor(hue, sat, value)
+        onHexChange(
+            String.format("#%02X%02X%02X", (c.red * 255).roundToInt(), (c.green * 255).roundToInt(), (c.blue * 255).roundToInt()),
+        )
+    }
+    val density = LocalDensity.current
+
     Column(
         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(
-            Modifier
+        // Saturation (x) × brightness (y) square, tinted by the current hue.
+        BoxWithConstraints(
+            modifier = Modifier
                 .fillMaxWidth()
-                .height(26.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color(r, g, b, 1f)),
-        )
-        AccentChannelSlider("R", r) { r = it; emit() }
-        AccentChannelSlider("G", g) { g = it; emit() }
-        AccentChannelSlider("B", b) { b = it; emit() }
-    }
-}
-
-@Composable
-private fun AccentChannelSlider(label: String, value: Float, onChange: (Float) -> Unit) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text(label, style = NoopType.caption, color = Palette.textTertiary, modifier = Modifier.width(14.dp))
-        Slider(
-            value = value,
-            onValueChange = onChange,
-            colors = SliderDefaults.colors(
-                thumbColor = Palette.accent,
-                activeTrackColor = Palette.accent,
-                inactiveTrackColor = Palette.surfaceInset,
-            ),
-            modifier = Modifier.weight(1f),
-        )
+                .height(150.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .border(1.dp, Palette.hairline, RoundedCornerShape(12.dp)),
+        ) {
+            val wPx = constraints.maxWidth.toFloat()
+            val hPx = constraints.maxHeight.toFloat()
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .background(Brush.horizontalGradient(listOf(Color.White, hsvColor(hue, 1f, 1f))))
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black)))
+                    .pointerInput(Unit) {
+                        awaitEachGesture {
+                            // Consume the down so the vertically-scrolling settings list can't steal a
+                            // drag inside the picker (esp. the square's vertical brightness axis).
+                            val down = awaitFirstDown().also { it.consume() }
+                            fun set(x: Float, y: Float) {
+                                sat = (x / wPx).coerceIn(0f, 1f)
+                                value = (1f - y / hPx).coerceIn(0f, 1f)
+                                emit()
+                            }
+                            set(down.position.x, down.position.y)
+                            drag(down.id) { set(it.position.x, it.position.y); it.consume() }
+                        }
+                    },
+            )
+            Box(
+                Modifier
+                    .offset(
+                        x = with(density) { (sat * wPx).toDp() } - 9.dp,
+                        y = with(density) { ((1f - value) * hPx).toDp() } - 9.dp,
+                    )
+                    .size(18.dp)
+                    .clip(CircleShape)
+                    .background(hsvColor(hue, sat, value))
+                    .border(2.dp, Color.White, CircleShape),
+            )
+        }
+        // Hue rail (0..360°).
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxWidth().height(22.dp).clip(RoundedCornerShape(50)),
+        ) {
+            val wPx = constraints.maxWidth.toFloat()
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .background(Brush.horizontalGradient((0..6).map { hsvColor(it * 60f, 1f, 1f) }))
+                    .pointerInput(Unit) {
+                        awaitEachGesture {
+                            // Consume the down so the vertically-scrolling settings list can't steal a
+                            // drag inside the picker (esp. the square's vertical brightness axis).
+                            val down = awaitFirstDown().also { it.consume() }
+                            fun set(x: Float) {
+                                hue = (x / wPx).coerceIn(0f, 1f) * 360f
+                                emit()
+                            }
+                            set(down.position.x)
+                            drag(down.id) { set(it.position.x); it.consume() }
+                        }
+                    },
+            )
+            Box(
+                Modifier
+                    .offset(x = with(density) { ((hue / 360f) * wPx).toDp() } - 11.dp)
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    .background(hsvColor(hue, 1f, 1f))
+                    .border(2.dp, Color.White, CircleShape),
+            )
+        }
     }
 }
 
