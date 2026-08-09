@@ -2156,10 +2156,19 @@ class WhoopBleClient(
                 // nothing changed since the last run — a re-score driven purely by the reconnect+offload, not
                 // by data. These lines quantify the background battery cost (#1005). Log-only; behaviour is
                 // unchanged (the pass still runs, matching Swift's force-re-score after a completed backfill).
+                // #1196/#1146: an empty/duplicate offload (newData=no) has no new HR to score — the
+                // fingerprint already equals the watermark the last successful run advanced, so a re-score
+                // would reproduce IDENTICAL rows. SKIP the whole-window pass rather than churn it; over a
+                // flapping-link offload storm (~186 passes in 7.5h were measured) that churn made the
+                // reactive Trends/streak Flows flicker between full and empty — a scare that looked like
+                // data loss (#1196). Scoped to THIS post-offload trigger only: import/edit/settings/
+                // recalibrate re-scores force regardless of the HR fingerprint and are untouched. Twin of
+                // the Swift `analyzeRecent(skipIfUnchanged:)` gate at the refreshAfterCompletedBackfill site.
+                val newData = analyzeFp != NoopPrefs.analyzeWatermark(context)
                 log("re-score: trigger=post-offload newData=" +
-                    if (analyzeFp != NoopPrefs.analyzeWatermark(context)) "yes"
-                    else "no (empty/duplicate offload — nothing changed since last run)")
-                runCatching {
+                    if (newData) "yes"
+                    else "no (empty/duplicate offload — nothing changed since last run) — skipping (#1146)")
+                if (newData) runCatching {
                     IntelligenceEngine.analyzeRecent(
                         repo = repository,
                         profile = profile,

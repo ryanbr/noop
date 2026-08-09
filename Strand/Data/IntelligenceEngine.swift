@@ -360,7 +360,7 @@ final class IntelligenceEngine: ObservableObject {
     /// Compute on-device scores for each of the last `maxDays` that actually has raw HR data.
     /// Personal baselines (HRV / resting HR) are folded from the imported history, so even the first
     /// live night can be scored against your norm.
-    func analyzeRecent(maxDays: Int = 21, force: Bool = true) async {
+    func analyzeRecent(maxDays: Int = 21, force: Bool = true, skipIfUnchanged: Bool = false) async {
         // #899-A: a concurrent pass already holds the lock. A NON-forced idle tick is safe to drop (the
         // in-flight pass already covers the same window). But a FORCED call is a real update path (a
         // post-backfill rescore after a sync) , dropping it would leave a freshly-synced night unscored
@@ -386,6 +386,19 @@ final class IntelligenceEngine: ObservableObject {
             .map { "\($0.count):\($0.maxTs)" } ?? ""
         if !force, !wmKey.isEmpty,
            UserDefaults.standard.string(forKey: Self.analyzeWatermarkKey) == wmKey {
+            return
+        }
+        // #1196/#1146: a FORCED post-offload pass can opt into the same fingerprint gate. An empty/duplicate
+        // offload (fingerprint already == the watermark the last successful run advanced) has no new HR to
+        // score, so a re-score would reproduce IDENTICAL rows; skip the whole pass rather than churn the
+        // window. Over a flapping-link offload storm that churn made the reactive Trends/streak reads
+        // flicker between full and empty — a scare that looked like data loss (#1196). Scoped via
+        // `skipIfUnchanged` to the post-offload caller (refreshAfterCompletedBackfill) ONLY, so an
+        // import/edit/settings/recalibrate re-score — which changes scores WITHOUT changing the HR
+        // fingerprint — always runs. Twin of the Android WhoopBleClient post-offload `newData` gate.
+        if force, skipIfUnchanged, !wmKey.isEmpty,
+           UserDefaults.standard.string(forKey: Self.analyzeWatermarkKey) == wmKey {
+            diagnosticSink?("re-score: trigger=post-offload newData=no — skipped (nothing changed since last run)", nil)
             return
         }
         // Attribute a FORCED re-score. A completed offload / edit / recalibrate always re-scores
@@ -1346,10 +1359,18 @@ final class IntelligenceEngine: ObservableObject {
         // keys we just upserted, and delete each leftover day individually (from == to == key). This
         // removes #277's UTC/local duplicates WITHOUT the wide delete-then-reinsert dip. No-op in steady
         // state (the new keys cover the window), so it adds nothing once the migration has settled.
-        let freshKeys = Set(dailies.map { $0.day })
-        let existingWindow = (try? await store.dailyMetrics(deviceId: computedId, from: oldestDay, to: newestDay)) ?? []
-        for stale in existingWindow where !freshKeys.contains(stale.day) {
-            _ = try? await store.deleteDailyMetrics(deviceId: computedId, from: stale.day, to: stale.day)
+        // #1196: skip stale-eviction on an EMPTY pass so a transient/degenerate empty `dailies` (a read
+        // over a still-incomplete raw store during a reconnect/offload storm, or the active strap
+        // momentarily resolving to an empty id) never evicts the whole window. In steady state `dailies`
+        // covers the window, so eviction runs exactly as before; `persistComputedScores` is guarded the
+        // same way, so an empty pass leaves the persisted window untouched. Twin of the Android
+        // WhoopDao.replaceComputedScoreWindow empty guard.
+        if !dailies.isEmpty {
+            let freshKeys = Set(dailies.map { $0.day })
+            let existingWindow = (try? await store.dailyMetrics(deviceId: computedId, from: oldestDay, to: newestDay)) ?? []
+            for stale in existingWindow where !freshKeys.contains(stale.day) {
+                _ = try? await store.deleteDailyMetrics(deviceId: computedId, from: stale.day, to: stale.day)
+            }
         }
         // ── Fitness Age (Phase 2) , weekly, keyed to the week's Saturday ────────────────────────────
         // Roll the last 7 computed days into the Nes/HUNT inputs and upsert a weekly Fitness Age (+ an

@@ -27,6 +27,12 @@ extension WhoopStore {
         from: String,
         to: String
     ) async throws {
+        // #1196: an empty scoring pass must not destructively rewrite the window — with no daily rows to
+        // write, the provenance wide-delete below would blank the window's attribution while a degenerate
+        // pass (a transient read over an incomplete raw store during a reconnect/offload storm) produced
+        // nothing. A real pass always carries the days it scored, so this guard never fires in steady state.
+        // Twin of the Android WhoopDao.replaceComputedScoreWindow empty guard.
+        guard !dailyMetrics.isEmpty else { return }
         try syncWrite { db in
             _ = try Self.upsertDailyMetrics(dailyMetrics, deviceId: deviceId, in: db)
             _ = try Self.upsertMetricSeries(metricPoints, deviceId: deviceId, in: db)

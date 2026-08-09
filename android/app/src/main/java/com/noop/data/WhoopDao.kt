@@ -229,9 +229,18 @@ interface WhoopDao : DeviceRegistryDao {
         metricPoints: List<MetricSeriesRow>,
         provenance: List<ScoreInputProvenanceRow>,
     ) {
+        // #1196: a scoring pass that produced NO computed daily rows must NOT wipe the persisted window.
+        // That happens transiently during a reconnect+offload storm (a pass runs over a still-incomplete
+        // raw store, or the active strap momentarily resolves to an empty id) — the old unconditional
+        // whole-window delete then blanked recovery/strain/streak history until the next pass repopulated
+        // it, and the reactive Trends/streak Flows surfaced that as a "0 days / lost streak" scare that
+        // looked like data loss. In steady state `dailyMetrics` covers the window, so this guard never
+        // fires and the write is byte-identical to before. (Twin of the Swift IntelligenceEngine
+        // empty-window guard; the post-offload trigger is additionally gated on newData — see #1146.)
+        if (dailyMetrics.isEmpty()) return
         deleteDailyMetricsInRange(deviceId, from, to)
         deleteScoreInputProvenanceInRange(deviceId, from, to)
-        if (dailyMetrics.isNotEmpty()) upsertDailyMetrics(dailyMetrics)
+        upsertDailyMetrics(dailyMetrics)
         if (metricPoints.isNotEmpty()) upsertMetricSeries(metricPoints)
         if (provenance.isNotEmpty()) upsertScoreInputProvenance(provenance)
     }

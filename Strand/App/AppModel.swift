@@ -552,7 +552,11 @@ final class AppModel: ObservableObject {
         // analyzeRecent tick , otherwise a just-synced night's Charge / Effort / Rest can take up to
         // 15 minutes to appear on a strap-only (no-import) dashboard. analyzeRecent no-ops if a tick is
         // already running and refreshes the dashboard itself once the new scores persist. (PR #218)
-        await intelligence.analyzeRecent()
+        // #1196/#1146: `skipIfUnchanged` gates THIS post-offload pass on the HR fingerprint — an empty/
+        // duplicate offload (nothing new banked, common on a flapping link) skips the whole-window rescore
+        // instead of churning it, which was surfacing as a Trends/streak "0 days" flicker. Only this
+        // post-offload caller opts in; every other analyzeRecent path still forces unconditionally.
+        await intelligence.analyzeRecent(skipIfUnchanged: true)
         await refreshV5Signals()
         #if os(iOS)
         // #980: a strap backfill routinely completes while the app is BACKGROUNDED (it runs as a
