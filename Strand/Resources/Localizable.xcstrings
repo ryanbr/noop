@@ -157,54 +157,54 @@
         }
       }
     },
-    "NOOP removes this device from your list and permanently deletes all of its recorded data. This can't be undone.": {
+    "NOOP removes this device from your list and deletes its recorded data here. You can re-pair the strap to pull its recent history back.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "NOOP entfernt dieses Gerät aus deiner Liste und löscht dauerhaft alle aufgezeichneten Daten. Das kann nicht rückgängig gemacht werden."
+            "value": "NOOP entfernt dieses Gerät aus deiner Liste und löscht die hier aufgezeichneten Daten. Du kannst den Strap erneut koppeln, um den jüngsten Verlauf wieder abzurufen."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "NOOP quita este dispositivo de tu lista y elimina permanentemente todos sus datos registrados. No se puede deshacer."
+            "value": "NOOP quita este dispositivo de tu lista y elimina los datos registrados aquí. Puedes volver a emparejar la banda para recuperar su historial reciente."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "NOOP retire cet appareil de votre liste et supprime définitivement toutes ses données enregistrées. Cette action est irréversible."
+            "value": "NOOP retire cet appareil de votre liste et supprime les données enregistrées ici. Vous pouvez ré-appairer le bracelet pour récupérer son historique récent."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "NOOP rimuove questo dispositivo dal tuo elenco ed elimina definitivamente tutti i suoi dati registrati. L’operazione non può essere annullata."
+            "value": "NOOP rimuove questo dispositivo dal tuo elenco ed elimina i dati registrati qui. Puoi riassociare la fascia per recuperare la cronologia recente."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "O NOOP remove este dispositivo da tua lista e elimina permanentemente todos os seus dados registados. Esta ação não pode ser anulada."
+            "value": "O NOOP remove este dispositivo da tua lista e elimina os dados registados aqui. Podes voltar a emparelhar a banda para obter novamente o histórico recente."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "NOOP удалит это устройство из вашего списка и безвозвратно удалит все записанные им данные. Это действие нельзя отменить."
+            "value": "NOOP удаляет это устройство из вашего списка и стирает записанные здесь данные. Вы можете заново подключить ремешок, чтобы снова загрузить его недавнюю историю."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "NOOP 会从你的列表中移除此设备，并永久删除其记录的所有数据。此操作无法撤销。"
+            "value": "NOOP 会从你的列表中移除此设备，并删除此处记录的数据。你可以重新配对设备，以再次获取其最近的历史记录。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "NOOP 會從你的清單中移除此裝置，並永久刪除其記錄的所有資料。此操作無法復原。"
+            "value": "NOOP 會從你的清單中移除此裝置，並刪除此處記錄的資料。你可以重新配對裝置，以再次取得其最近的歷史記錄。"
           }
         }
       }

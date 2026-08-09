@@ -1918,5 +1918,5 @@
     <string name="l10n_devices_screen_forget_device_d6eb6209">Oublier l\'appareil…</string>
     <string name="l10n_devices_screen_forget_device_926e503d">Oublier l\'appareil</string>
     <string name="l10n_devices_screen_forget_this_device_8dbbc3f3">Oublier cet appareil ?</string>
-    <string name="l10n_devices_screen_noop_removes_this_device_a9cb6b5b">NOOP retire cet appareil de votre liste et supprime définitivement toutes ses données enregistrées. Cette action est irréversible.</string>
+    <string name="l10n_devices_screen_noop_removes_this_device_503aff9e">NOOP retire cet appareil de votre liste et supprime les données enregistrées ici. Vous pouvez ré-appairer le bracelet pour récupérer son historique récent.</string>
 </resources>

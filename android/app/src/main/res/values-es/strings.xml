@@ -1918,5 +1918,5 @@
     <string name="l10n_devices_screen_forget_device_d6eb6209">Olvidar dispositivo…</string>
     <string name="l10n_devices_screen_forget_device_926e503d">Olvidar dispositivo</string>
     <string name="l10n_devices_screen_forget_this_device_8dbbc3f3">¿Olvidar este dispositivo?</string>
-    <string name="l10n_devices_screen_noop_removes_this_device_a9cb6b5b">NOOP quita este dispositivo de tu lista y elimina permanentemente todos sus datos registrados. No se puede deshacer.</string>
+    <string name="l10n_devices_screen_noop_removes_this_device_503aff9e">NOOP quita este dispositivo de tu lista y elimina los datos registrados aquí. Puedes volver a emparejar la banda para recuperar su historial reciente.</string>
 </resources>

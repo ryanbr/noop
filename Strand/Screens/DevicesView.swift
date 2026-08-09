@@ -1193,7 +1193,7 @@ private struct ForgetDeviceSheet: ViewModifier {
                     target = nil
                 }
             } message: { _ in
-                Text("NOOP removes this device from your list and permanently deletes all of its recorded data. This can't be undone.")
+                Text("NOOP removes this device from your list and deletes its recorded data here. You can re-pair the strap to pull its recent history back.")
             }
     }
 }

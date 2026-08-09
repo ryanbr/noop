@@ -492,7 +492,7 @@ fun DevicesScreen(
     forgetTarget?.let { device ->
         ConfirmDialog(
             title = uiString(R.string.l10n_devices_screen_forget_this_device_8dbbc3f3),
-            message = uiString(R.string.l10n_devices_screen_noop_removes_this_device_a9cb6b5b),
+            message = uiString(R.string.l10n_devices_screen_noop_removes_this_device_503aff9e),
             confirmLabel = uiString(R.string.l10n_devices_screen_forget_device_926e503d),
             destructive = true,
             onConfirm = {

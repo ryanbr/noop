@@ -1945,5 +1945,5 @@
     <string name="l10n_devices_screen_forget_device_d6eb6209">Forget device…</string>
     <string name="l10n_devices_screen_forget_device_926e503d">Forget device</string>
     <string name="l10n_devices_screen_forget_this_device_8dbbc3f3">Forget this device?</string>
-    <string name="l10n_devices_screen_noop_removes_this_device_a9cb6b5b">NOOP removes this device from your list and permanently deletes all of its recorded data. This can\'t be undone.</string>
+    <string name="l10n_devices_screen_noop_removes_this_device_503aff9e">NOOP removes this device from your list and deletes its recorded data here. You can re-pair the strap to pull its recent history back.</string>
 </resources>

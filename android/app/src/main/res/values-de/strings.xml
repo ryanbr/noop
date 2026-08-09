@@ -1933,5 +1933,5 @@
     <string name="l10n_devices_screen_forget_device_d6eb6209">Gerät vergessen…</string>
     <string name="l10n_devices_screen_forget_device_926e503d">Gerät vergessen</string>
     <string name="l10n_devices_screen_forget_this_device_8dbbc3f3">Dieses Gerät vergessen?</string>
-    <string name="l10n_devices_screen_noop_removes_this_device_a9cb6b5b">NOOP entfernt dieses Gerät aus deiner Liste und löscht dauerhaft alle aufgezeichneten Daten. Das kann nicht rückgängig gemacht werden.</string>
+    <string name="l10n_devices_screen_noop_removes_this_device_503aff9e">NOOP entfernt dieses Gerät aus deiner Liste und löscht die hier aufgezeichneten Daten. Du kannst den Strap erneut koppeln, um den jüngsten Verlauf wieder abzurufen.</string>
 </resources>
