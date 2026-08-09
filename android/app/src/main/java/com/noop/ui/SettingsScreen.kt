@@ -1149,7 +1149,15 @@ fun SettingsScreen(
             // timeline; "Filled" swaps the Sleep tab's stage chart for a single stepped hypnogram with the
             // stages stacked by depth and each column filled to the baseline. Same data either way; this only
             // changes the drawing, and it falls back to Classic on a night with no timestamped segments.
-            SettingsFormRow(label = "Sleep chart") {
+            // A full-width (adaptsToAvailableWidth) control can't share a SettingsFormRow's single line with
+            // a beside-label: it fills the width and starves the weighted label to a tall wrapped sliver,
+            // ballooning the row (the #1129 gap). Stack it — label on its own line, equal-width segments
+            // below — which is how a full-width segmented control is meant to be laid out.
+            Column(
+                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text("Sleep chart", style = NoopType.body, color = Palette.textPrimary)
                 SegmentedPillControl(
                     items = listOf(SleepChartStyle.CLASSIC, SleepChartStyle.FILLED, SleepChartStyle.RIBBON),
                     selection = sleepChartStyle,
@@ -1164,7 +1172,7 @@ fun SettingsScreen(
                         sleepChartStyle = style
                         UnitPrefs.setSleepChartStyle(context, style)
                     },
-                    // Three segments — share the row width equally so the labels can't widen the card past
+                    // Three segments share the row width equally so the labels can't widen the card past
                     // the screen (the component's own guidance for longer option sets).
                     adaptsToAvailableWidth = true,
                 )
