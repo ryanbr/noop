@@ -166,6 +166,9 @@ struct SettingsView: View {
     @AppStorage(AppearanceMode.storageKey) private var appearanceRaw = AppearanceMode.system.rawValue
     // Chart colour style: Titanium (brand) or Classic (throwback red→green). Re-colours gauges + charts.
     @AppStorage(ChartStyle.storageKey) private var chartStyleRaw = ChartStyle.titanium.rawValue
+    // Chrome accent colour (mint / WHOOP blue / custom). Chrome only — never the data colour worlds.
+    @AppStorage(AccentColor.storageKey) private var accentRaw = AccentColor.mint.rawValue
+    @AppStorage(AccentColor.customHexKey) private var accentCustomHex = AccentColor.defaultCustomHex
     // Day-cycle scene backdrop behind Today (#698). Default ON. Off swaps the scene for a plain dark
     // canvas. TodayView reads the same key to gate its SceneScreenBackground.
     @AppStorage(SceneBackgroundPrefs.enabledKey) private var showDayCycleBackground = true
@@ -804,6 +807,14 @@ struct SettingsView: View {
         }
     }
 
+    /// Bridges the SwiftUI `ColorPicker` (a `Color`) to the persisted custom-accent hex string.
+    private var customAccentBinding: Binding<Color> {
+        Binding(
+            get: { Color(hex: accentCustomHex) },
+            set: { accentCustomHex = $0.noopAccentHex ?? AccentColor.defaultCustomHex }
+        )
+    }
+
     private var appearanceCard: some View {
         SettingsSection(
             icon: "circle.lefthalf.filled",
@@ -835,6 +846,28 @@ struct SettingsView: View {
                     .pickerStyle(.menu)
                     .tint(StrandPalette.accent)
                     .accessibilityLabel("Chart colours")
+                }
+                rowDivider
+                // Chrome accent colour — the links/buttons/selection tint only. The recovery/strain/sleep
+                // DATA colours follow "Chart colours" above, never this. Custom reveals a colour well.
+                FormRow(label: "Accent") {
+                    Picker("Accent", selection: $accentRaw) {
+                        ForEach(AccentColor.allCases) { c in
+                            Text(c.label).tag(c.rawValue)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .tint(StrandPalette.accent)
+                    .accessibilityLabel("Accent colour")
+                }
+                if AccentColor.resolve(accentRaw) == .custom {
+                    rowDivider
+                    FormRow(label: "Custom colour") {
+                        ColorPicker("Custom colour", selection: customAccentBinding, supportsOpacity: false)
+                            .labelsHidden()
+                            .accessibilityLabel("Custom accent colour")
+                    }
                 }
                 rowDivider
                 // Trend chart style (line vs bar). Display-only: flips the Trends tab's charts between the
@@ -3297,3 +3330,21 @@ private struct FormRow<Control: View>: View {
         .preferredColorScheme(.dark)
 }
 #endif
+
+// MARK: - Custom accent colour bridge
+
+private extension Color {
+    /// sRGB hex (`#RRGGBB`) for persisting a `ColorPicker` selection into `AccentColor.customHexKey`.
+    /// Falls back to nil if the colour can't resolve to sRGB (the caller then keeps the default).
+    var noopAccentHex: String? {
+        #if os(iOS)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        guard UIColor(self).getRed(&r, green: &g, blue: &b, alpha: &a) else { return nil }
+        #elseif os(macOS)
+        guard let ns = NSColor(self).usingColorSpace(.sRGB) else { return nil }
+        let r = ns.redComponent, g = ns.greenComponent, b = ns.blueComponent
+        #endif
+        return String(format: "#%02X%02X%02X",
+                      Int((r * 255).rounded()), Int((g * 255).rounded()), Int((b * 255).rounded()))
+    }
+}

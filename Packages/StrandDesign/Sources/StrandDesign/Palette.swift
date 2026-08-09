@@ -103,14 +103,19 @@ public enum StrandPalette {
     // MARK: Glow — ambient bloom behind heroes / charts (additive on dark; faint warm on light)
     public static let glowAmbient    = NoopVisualStyle.mintGlow.opacity(0.28)
 
-    // MARK: Accent — chrome anchor (links, selection, focus, generic accent). On DARK this is the brand
-    // GOLD; on LIGHT it shifts to the deep brand BLUE so gold is reserved for the recovery/Charge world
-    // and the gold FAB — keeping the light theme from reading as wall-to-wall gold (the maintainer 2026-06-16).
-    public static let accent         = NoopVisualStyle.mint
-    public static let accentHover    = NoopVisualStyle.mintGlow
-    public static let accentMuted    = NoopVisualStyle.mintDeep.opacity(0.18)
-    /// Focus ring color (blue on both schemes — WHOOP has no gold).
-    public static let focusRing      = NoopVisualStyle.mint
+    // MARK: Accent — chrome anchor (links, selection, focus, generic accent). USER-SELECTABLE (mint /
+    // WHOOP blue / custom) via `accentChoice` below, default mint (#1068). Only the chrome accent is
+    // user-themed — the recovery/strain/sleep DATA worlds follow `chartStyle`, never this.
+    /// The user's chrome-accent choice. Set from `@AppStorage(AccentColor.storageKey)` at the app root
+    /// via `.noopAccent(...)`; the four accessors below branch on it. Default mint.
+    public static var accentChoice: AccentColor = .mint
+    /// The custom accent's hex, used only when `accentChoice == .custom`. Set alongside `accentChoice`.
+    public static var customAccentHex: String = AccentColor.defaultCustomHex
+    public static var accent: Color { accentChoice.accent }
+    public static var accentHover: Color { accentChoice.accentHover }
+    public static var accentMuted: Color { accentChoice.accentMuted }
+    /// Focus ring color — the same accent, on both schemes.
+    public static var focusRing: Color { accentChoice.focusRing }
     /// Opacity for dimmed/disabled sections (shared so screens don't invent their own value).
     public static let disabledOpacity: Double = 0.45
 

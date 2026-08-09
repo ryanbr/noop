@@ -36,6 +36,84 @@ public extension View {
     }
 }
 
+/// The user's CHROME accent colour (buttons, links, focus rings, selected states). Only the chrome
+/// accent — never the recovery/strain/sleep DATA colour worlds (those follow `ChartStyle`). Read globally
+/// via `StrandPalette.accentChoice` (+ `StrandPalette.customAccentHex` for `.custom`), set from
+/// `@AppStorage(AccentColor.storageKey)` / `@AppStorage(AccentColor.customHexKey)` at the app root; the
+/// `accent`/`accentHover`/`accentMuted`/`focusRing` accessors in `StrandPalette` branch on it. Mirror in
+/// Kotlin via `Palette.accentChoice` + `NoopPrefs.accentColor`/`accentCustomHex`.
+public enum AccentColor: String, CaseIterable, Identifiable, Sendable {
+    case mint        // the brand default (#1068 NoopVisualStyle.mint world)
+    case whoopBlue   // the classic WHOOP link blue
+    case custom      // a user-picked colour (hex stored separately)
+
+    public var id: String { rawValue }
+    public static let storageKey = "accent.color"
+    /// The custom colour's hex, kept separate so switching away from `.custom` and back keeps the choice.
+    public static let customHexKey = "accent.customHex"
+    /// Seeds the custom picker (mint) so a fresh `.custom` selection is not black.
+    public static let defaultCustomHex = "#149A78"
+
+    public var label: String {
+        switch self {
+        case .mint:      return String(localized: "Mint", bundle: .module)
+        case .whoopBlue: return String(localized: "WHOOP Blue", bundle: .module)
+        case .custom:    return String(localized: "Custom", bundle: .module)
+        }
+    }
+
+    public static func resolve(_ raw: String) -> AccentColor { AccentColor(rawValue: raw) ?? .mint }
+
+    /// The chrome accent. `.custom` resolves the stored hex at read time.
+    public var accent: Color {
+        switch self {
+        case .mint:      return NoopVisualStyle.mint
+        case .whoopBlue: return Color(light: "#234F9E", dark: "#60A0E0")
+        case .custom:    return Color(hex: StrandPalette.customAccentHex)
+        }
+    }
+
+    /// The brighter hover/pressed accent. For `.custom` it is the chosen colour lightened toward white.
+    public var accentHover: Color {
+        switch self {
+        case .mint:      return NoopVisualStyle.mintGlow
+        case .whoopBlue: return Color(light: "#3A6FC0", dark: "#8FBEEC")
+        case .custom:    return AccentColor.lighten(StrandPalette.customAccentHex)
+        }
+    }
+
+    /// A low-opacity tint of the accent for muted fills (chips, selected rows). Translucent so it
+    /// composites over whatever surface is behind it — the same 0.18 the mint world uses.
+    public var accentMuted: Color {
+        switch self {
+        case .mint:      return NoopVisualStyle.mintDeep.opacity(0.18)
+        case .whoopBlue: return Color(light: "#234F9E", dark: "#60A0E0").opacity(0.18)
+        case .custom:    return Color(hex: StrandPalette.customAccentHex).opacity(0.18)
+        }
+    }
+
+    public var focusRing: Color { accent }
+
+    /// Blend an sRGB hex toward white by `amount` (0…1) — the deterministic "hover" derivation for a
+    /// custom accent, so a single picked colour still gets a sensible brighter pressed state.
+    static func lighten(_ hex: String, by amount: Double = 0.24) -> Color {
+        let c = Color.sRGBComponents(hex: hex)
+        func up(_ x: Double) -> Double { min(1, x + (1 - x) * amount) }
+        return Color(.sRGB, red: up(c.r), green: up(c.g), blue: up(c.b), opacity: 1)
+    }
+}
+
+/// Applies the chrome accent: sets `StrandPalette.accentChoice` + `customAccentHex` (read by the accent
+/// accessors) and keys the content so a change re-renders live. Apply at each app root:
+/// `.noopAccent(accentRaw, customHex: accentCustomHex)`.
+public extension View {
+    func noopAccent(_ raw: String, customHex: String) -> some View {
+        StrandPalette.accentChoice = AccentColor.resolve(raw)
+        StrandPalette.customAccentHex = customHex
+        return self.id("noop.accent.\(raw).\(customHex)")
+    }
+}
+
 /// The user's appearance preference for the whole app. Persisted via
 /// `@AppStorage(AppearanceMode.storageKey)`. `.system` follows the OS (the default);
 /// `.light` / `.dark` force a scheme regardless of the system setting.
