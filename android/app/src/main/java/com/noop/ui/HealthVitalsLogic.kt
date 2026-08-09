@@ -102,13 +102,16 @@ internal enum class VitalCaptionMode {
  * #103: [spo2CandidateByDay] carries the nightly `spo2_candidate_82` mean (70–100) per day, loaded
  * from the "spo2_candidate" metricSeries key when the experimental display toggle is ON. When the
  * selected day has no calibrated `spo2Pct` but DOES have a candidate, the Blood O₂ tile falls back to
- * the candidate with an "estimate" caption. Empty map = toggle off or no candidate data → the tile
- * behaves exactly as before. Mirrors the iOS `BodyVitalSigns.readings` candidate fallback. */
+ * the candidate with an "estimate" caption. [spo2ToggleOn] distinguishes "toggle ON, no @82 data"
+ * from "toggle OFF" so the missingCaption can tell the user which — a silent blank reads as broken.
+ * Empty map = toggle off or no candidate data → the tile behaves exactly as before. Mirrors the iOS
+ * `BodyVitalSigns.readings` candidate fallback. */
 internal fun vitalsFor(
     d: DailyMetric?,
     days: List<DailyMetric>,
     tempUnit: TemperatureUnit = TemperatureUnit.CELSIUS,
     spo2CandidateByDay: Map<String, Double> = emptyMap(),
+    spo2ToggleOn: Boolean = false,
 ): List<Vital> {
     val todayKey = d?.day
     // History strictly before the displayed day, oldest→newest (recentDays is already
@@ -214,7 +217,11 @@ internal fun vitalsFor(
             // night where the neighbouring tile is blank. The platforms pick that row differently —
             // Android per selected day, Apple `logicalDay ?? most recent` — so the ROW is not the
             // parity contract here; the relationship between the two tiles is.
-            missingCaption = uiString(spo2MissingCaptionRes(d?.let(spo2RawMean) != null)),
+            missingCaption = if (d?.spo2Pct == null && d?.day?.let { spo2CandidateByDay[it] } != null)
+                "Estimate (unverified)"
+            else if (d?.spo2Pct == null && spo2ToggleOn && spo2CandidateByDay.isEmpty())
+                "toggle ON · no @82 data"
+            else uiString(spo2MissingCaptionRes(d?.let(spo2RawMean) != null)),
             value = d?.spo2Pct ?: d?.day?.let { spo2CandidateByDay[it] },
             format = { String.format("%.0f", it) },
             deltaText = deltaText(d?.spo2Pct, previous { it.spo2Pct }, decimals = 0),
@@ -294,15 +301,16 @@ internal fun latestVitals(
     days: List<DailyMetric>,
     tempUnit: TemperatureUnit,
     spo2CandidateByDay: Map<String, Double> = emptyMap(),
+    spo2ToggleOn: Boolean = false,
 ): List<Vital> {
-    val emptyByKey = vitalsFor(null, days, tempUnit, spo2CandidateByDay).associateBy { it.key }
+    val emptyByKey = vitalsFor(null, days, tempUnit, spo2CandidateByDay, spo2ToggleOn).associateBy { it.key }
     return listOf(
-        latestVital("resp", days, tempUnit, emptyByKey, spo2CandidateByDay) { it.respRateBpm != null },
-        latestVital("spo2", days, tempUnit, emptyByKey, spo2CandidateByDay) {
+        latestVital("resp", days, tempUnit, emptyByKey, spo2CandidateByDay, spo2ToggleOn) { it.respRateBpm != null },
+        latestVital("spo2", days, tempUnit, emptyByKey, spo2CandidateByDay, spo2ToggleOn) {
             it.spo2Pct != null || spo2CandidateByDay[it.day] != null
         },
-        latestVital("spo2raw", days, tempUnit, emptyByKey, spo2CandidateByDay) { it.spo2Red != null && it.spo2Ir != null },
-        latestVital("rhr", days, tempUnit, emptyByKey, spo2CandidateByDay) { it.restingHr != null },
+        latestVital("spo2raw", days, tempUnit, emptyByKey, spo2CandidateByDay, spo2ToggleOn) { it.spo2Red != null && it.spo2Ir != null },
+        latestVital("rhr", days, tempUnit, emptyByKey, spo2CandidateByDay, spo2ToggleOn) { it.restingHr != null },
         latestVital("hrv", days, tempUnit, emptyByKey) { it.avgHrv != null },
         latestVital("skin", days, tempUnit, emptyByKey) { it.skinTempDevC != null },
     )
@@ -314,11 +322,12 @@ private fun latestVital(
     tempUnit: TemperatureUnit,
     emptyByKey: Map<String, Vital>,
     spo2CandidateByDay: Map<String, Double> = emptyMap(),
+    spo2ToggleOn: Boolean = false,
     hasValue: (DailyMetric) -> Boolean,
 ): Vital {
     val row = days.asReversed().firstOrNull(hasValue)
     return row
-        ?.let { latestRow -> vitalsFor(latestRow, days, tempUnit, spo2CandidateByDay).firstOrNull { it.key == key } }
+        ?.let { latestRow -> vitalsFor(latestRow, days, tempUnit, spo2CandidateByDay, spo2ToggleOn).firstOrNull { it.key == key } }
         ?.copy(asOfLabel = asOfLabel(row.day))
         ?: emptyByKey.getValue(key)
 }

@@ -176,7 +176,12 @@ fun HealthScreen(
                     title = uiString(R.string.l10n_health_screen_vital_signs_e7d9e1b1),
                     overline = "Latest readings",
                     trailing = null,
-                    vitals = latestVitals(days, UnitPrefs.temperature(LocalContext.current)),
+                    vitals = latestVitals(
+                        days,
+                        UnitPrefs.temperature(LocalContext.current),
+                        vm.spo2CandidateByDay.value,
+                        NoopPrefs.spo2CandidateDisplay(LocalContext.current),
+                    ),
                     onVitalClick = onVitalClick,
                     captionMode = VitalCaptionMode.AS_OF,
                 )
@@ -1097,7 +1102,7 @@ fun VitalSignsScreen(vm: AppViewModel, onVitalClick: (String) -> Unit = {}) {
     val selectedMetric = remember(days, selectedDayKey) { days.lastOrNull { it.day == selectedDayKey } }
     val tempUnit = UnitPrefs.temperature(LocalContext.current)
     val vitals = remember(selectedMetric, days, tempUnit, spo2CandidateByDay) {
-        selectedMetric?.let { vitalsFor(it, days, tempUnit, spo2CandidateByDay) }.orEmpty()
+        selectedMetric?.let { vitalsFor(it, days, tempUnit, spo2CandidateByDay, NoopPrefs.spo2CandidateDisplay(LocalContext.current)) }.orEmpty()
     }
 
     ScreenScaffold(

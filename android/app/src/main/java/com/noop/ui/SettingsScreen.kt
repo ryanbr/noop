@@ -2410,7 +2410,7 @@ fun SettingsScreen(
                         checked = spo2CandidateDisplay,
                         onCheckedChange = {
                             spo2CandidateDisplay = it
-                            NoopPrefs.setSpo2CandidateDisplay(context, it)
+                            vm.setSpo2CandidateDisplay(it)
                         },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Palette.surfaceBase,

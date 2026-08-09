@@ -263,9 +263,11 @@ enum BodyVitalSigns {
                 // and the parity contract is the relationship between the two tiles, not the row.
                 missingCaption: spo2IsCandidate
                     ? String(localized: "strap estimate (unverified)")
-                    : (spo2rawRow != nil
-                       ? String(localized: "Raw counts only — needs an import")
-                       : String(localized: "No SpO₂ import or Health value")),
+                    : (PuffinExperiment.spo2CandidateDisplayEnabled && spo2Row == nil
+                       ? String(localized: "toggle ON · no @82 data")
+                       : (spo2rawRow != nil
+                          ? String(localized: "Raw counts only — needs an import")
+                          : String(localized: "No SpO₂ import or Health value"))),
                 sparkline: spo2IsCandidate ? trail(spo2CandidatePoints) : trail(spo2Points)
             ),
             BodyVitalReading(

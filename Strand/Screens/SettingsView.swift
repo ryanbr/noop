@@ -1773,6 +1773,13 @@ struct SettingsView: View {
                 }
                 .toggleStyle(.switch)
                 .tint(StrandPalette.accent)
+                .onChangeCompat(of: spo2CandidateDisplayEnabled) { _ in
+                    // Re-score immediately so the @82 candidate is computed and persisted on this
+                    // toggle flip — without this the user waits up to 15 min for the next analyze
+                    // loop, and the Blood Oxygen tile stays blank in the meantime. Same pattern as
+                    // the HRV window toggle above (analyzeRecent → refresh).
+                    Task { await model.intelligence.analyzeRecent(); await model.repo.refresh() }
+                }
                 Text("Your WHOOP 5.0/MG sends a strap-computed SpO₂ percentage (the @82 candidate byte) every second. An 8-night independent validation tracked it at corr +0.99 against the WHOOP app, but two nights on the original test device moved the OPPOSITE direction — device/firmware variance is unresolved. Turning this on surfaces the nightly mean in the Blood Oxygen tile as \"strap estimate (unverified)\" when no calibrated import exists. It never feeds recovery or illness scoring. WHOOP 4.0 has no @82 stream, so this does nothing there.")
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textTertiary)

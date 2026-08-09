@@ -2328,6 +2328,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** #103: Flip the SpO₂ candidate display toggle. Persists and immediately re-scores so the @82
+     *  candidate is computed and persisted on this flip — without this the user waits up to 15 min
+     *  for the next analyze loop, and the Blood Oxygen tile stays blank in the meantime. Mirrors the
+     *  iOS SettingsView `.onChangeCompat` → `analyzeRecent()` pattern. */
+    fun setSpo2CandidateDisplay(enabled: Boolean) {
+        NoopPrefs.setSpo2CandidateDisplay(appContext, enabled)
+        viewModelScope.launch { rescoreAfterEdit() }
+    }
+
     /**
      * Same-day confounder context for [IllnessSignalEngine] from the day's journal — alcohol / hard-or-late
      * workout / "feeling unwell" suppress an anomaly so a hangover or a late session never reads as illness.

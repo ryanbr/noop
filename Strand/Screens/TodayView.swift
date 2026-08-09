@@ -3378,14 +3378,19 @@ struct TodayView: View {
             // evidence (corr +0.99 on 8 nights, but 2 nights moved opposite on the original device), so it
             // ships behind a default-off toggle and is never written to `spo2Pct` (CLAUDE.md derived-
             // biosignal rule). The sparkline switches to the candidate trend when the fallback is active.
+            // When the toggle is ON but NO candidate data exists (empty @82 stream, WHOOP 4.0, or the
+            // engine hasn't re-scored yet), show "toggle ON · no @82 data" so the user can tell the
+            // difference between "toggle off" and "toggle on but no data" — a silent blank reads as broken.
             let spo2CandidateOn = PuffinExperiment.spo2CandidateDisplayEnabled
             let candidateTail = spo2CandidateOn ? sparks["spo2_candidate"]?.last : nil
             let spo2Value = spo2.value == "—" && candidateTail != nil
                 ? String(format: "%.0f%%", candidateTail!)
                 : spo2.value
-            let spo2Caption = spo2.value == "—" && candidateTail != nil
+            let spo2Caption: String = spo2.value == "—" && candidateTail != nil
                 ? String(localized: "strap estimate (unverified)")
-                : spo2.caption
+                : (spo2.value == "—" && spo2CandidateOn
+                   ? String(localized: "toggle ON · no @82 data")
+                   : (spo2.caption ?? ""))
             StatTile(
                 label: "Blood Oxygen",
                 value: spo2Value,
