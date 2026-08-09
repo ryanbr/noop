@@ -1090,13 +1090,14 @@ private fun yearWord(years: Int): String = if (kotlin.math.abs(years) == 1) "yea
 @Composable
 fun VitalSignsScreen(vm: AppViewModel, onVitalClick: (String) -> Unit = {}) {
     val days by vm.recentDays.collectAsStateWithLifecycle()
+    val spo2CandidateByDay by vm.spo2CandidateByDay.collectAsStateWithLifecycle()
     var selectedDayOffset by remember { mutableIntStateOf(0) }
     val selectedDay = remember(selectedDayOffset) { LocalDate.now().minusDays(selectedDayOffset.toLong()) }
     val selectedDayKey = remember(selectedDay) { selectedDay.toString() }
     val selectedMetric = remember(days, selectedDayKey) { days.lastOrNull { it.day == selectedDayKey } }
     val tempUnit = UnitPrefs.temperature(LocalContext.current)
-    val vitals = remember(selectedMetric, days, tempUnit) {
-        selectedMetric?.let { vitalsFor(it, days, tempUnit) }.orEmpty()
+    val vitals = remember(selectedMetric, days, tempUnit, spo2CandidateByDay) {
+        selectedMetric?.let { vitalsFor(it, days, tempUnit, spo2CandidateByDay) }.orEmpty()
     }
 
     ScreenScaffold(
