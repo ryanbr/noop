@@ -135,6 +135,11 @@ final class IntelligenceEngine: ObservableObject {
         /// the night has no in-band @82 readings, or the owner is a WHOOP 4.0 (no v18 aux stream).
         /// Written to metricSeries as "spo2_candidate" under the "-noop" device ID in pass 2.
         let spo2Candidate: Int?
+        /// #1169 SHADOW METRIC: the primary-session MEAN resting HR (PrimarySessionRestingHR, #1174) for this
+        /// day, computed off the main actor beside the shipped nightly HR FLOOR (`daily.restingHr`). nil when
+        /// no session clears the coverage gate. Written to metricSeries as "rhr_primary_session" in pass 2 —
+        /// instrumentation only, never shown and never fed to any score.
+        let primarySessionRHR: Double?
     }
 
     struct Computed: Identifiable {
@@ -864,10 +869,17 @@ final class IntelligenceEngine: ObservableObject {
                         }
                     }
                 }
+                // #1169 SHADOW METRIC (instrumentation only): the primary-session MEAN resting HR, recorded
+                // beside the shipped nightly HR FLOOR (daily.restingHr = min per session) so the mean-vs-floor
+                // comparison the issue asks for accrues on real devices. NEVER shown and NEVER fed to any
+                // score; #1174's definition is unchanged — this only records its per-night output. The
+                // windowing + delegation lives in the byte-identical, tested `AnalyticsEngine`.
+                let primarySessionRHR = AnalyticsEngine.primarySessionRestingHR(sessions: res.sleepSessions, hr: hr)
                 out.append(DayScan(result: res, rhrLine: rhrLine,
                                    readOwner: owner, hrRows: hr.count,
                                    sleepTrace: sleepTrace, stepsTrace: stepsTrace, hrvTrace: hrvTrace,
-                                   hrvDiag: hrvDiag, spo2Candidate: spo2CandidateMean))
+                                   hrvDiag: hrvDiag, spo2Candidate: spo2CandidateMean,
+                                   primarySessionRHR: primarySessionRHR))
             }
             return (out, skippedDayLines)
         }.value
@@ -885,6 +897,8 @@ final class IntelligenceEngine: ObservableObject {
         var resolvedScoreOwnerByDay: [String: String] = [:]
         // #103: SpO₂ candidate @82 nightly mean per day, carried from pass 1 for metricSeries persistence.
         var spo2CandidateByDay: [String: Int] = [:]
+        // #1169: primary-session mean RHR shadow metric per day, carried from pass 1 for metricSeries persistence.
+        var primarySessionRHRByDay: [String: Double] = [:]
 
         // Back on the main actor: fold the off-actor results into the pass-2 state in the SAME order the
         // loop produced them. Pure assignment / appends , no further store reads , so this is cheap and the
@@ -901,6 +915,10 @@ final class IntelligenceEngine: ObservableObject {
             // nil when the toggle is OFF or the night had no in-band @82 readings.
             if let cand = scan.spo2Candidate {
                 spo2CandidateByDay[res.daily.day] = cand
+            }
+            // #1169: carry the primary-session mean RHR shadow metric into pass 2 for persistence.
+            if let v = scan.primarySessionRHR {
+                primarySessionRHRByDay[res.daily.day] = v
             }
             if let line = scan.rhrLine { diagnosticSink?(line, nil) }
             // Sleep & Rest test mode (E5): replay this day's gate-trace + Rest lines tagged `.sleep` so they
@@ -1137,6 +1155,12 @@ final class IntelligenceEngine: ObservableObject {
             // split cross-device evidence and stays behind the experimental display toggle.
             if let cand = spo2CandidateByDay[daily.day] {
                 restPoints.append(MetricPoint(day: daily.day, key: "spo2_candidate", value: Double(cand)))
+            }
+            // #1169 shadow metric: the primary-session mean RHR, stored beside the shipped floor
+            // (daily.restingHr) under the "-noop" computed ID. Instrumentation only — never shown, never
+            // scored — so the mean-vs-floor comparison the issue needs can be evaluated from exports later.
+            if let v = primarySessionRHRByDay[daily.day] {
+                restPoints.append(MetricPoint(day: daily.day, key: "rhr_primary_session", value: v))
             }
             cachedSleep.append(contentsOf: night.cachedSleep)
             // Persist the detected workouts the pipeline already computes (previously discarded).

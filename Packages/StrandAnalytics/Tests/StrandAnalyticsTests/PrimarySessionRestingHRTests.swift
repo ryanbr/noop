@@ -1,5 +1,6 @@
 import XCTest
 @testable import StrandAnalytics
+import WhoopProtocol
 
 /// #1169 — the primary-session mean resting-HR definition. The oracle for the Android
 /// `PrimarySessionRestingHRTest`; keep the two in lockstep (same fixtures, same numbers).
@@ -60,5 +61,24 @@ final class PrimarySessionRestingHRTests: XCTestCase {
         let bpm = Array(repeating: 62, count: 12)
         XCTAssertNil(P.meanHR(sessions: [S(durationSec: 3600, bpm: bpm)], minValidSamples: 20))
         XCTAssertEqual(P.meanHR(sessions: [S(durationSec: 3600, bpm: bpm)], minValidSamples: 10), 62.0)
+    }
+
+    /// #1169 instrumentation: `AnalyticsEngine.primarySessionRestingHR` windows HR to each session and
+    /// selects the LONGEST — a nap and out-of-window samples must not pollute the primary-night mean.
+    func testPrimarySessionRestingHRWindowsAndSelectsLongest() {
+        let night = SleepSession(start: 0, end: 30_000, efficiency: 0.9, stages: [], restingHR: nil, avgHRV: nil)
+        let nap = SleepSession(start: 40_000, end: 45_000, efficiency: 0.9, stages: [], restingHR: nil, avgHRV: nil)
+        var hr = (0..<100).map { HRSample(ts: $0 * 30, bpm: 60) }        // inside the night
+        hr += (0..<50).map { HRSample(ts: 40_000 + $0 * 30, bpm: 45) }   // inside the nap
+        hr += (0..<50).map { HRSample(ts: 31_000 + $0 * 10, bpm: 100) }  // between the two — excluded
+        XCTAssertEqual(AnalyticsEngine.primarySessionRestingHR(sessions: [nap, night], hr: hr), 60.0)
+    }
+
+    /// Half-open `[start, end)`: a sample exactly at `end` is excluded (kept identical to the Kotlin twin).
+    func testPrimarySessionRestingHRExcludesEndBoundarySample() {
+        let s = SleepSession(start: 0, end: 3000, efficiency: 0.9, stages: [], restingHR: nil, avgHRV: nil)
+        var hr = (0..<40).map { HRSample(ts: $0 * 60, bpm: 58) }         // 0…2340, inside
+        hr.append(HRSample(ts: 3000, bpm: 200))                          // exactly at end → excluded
+        XCTAssertEqual(AnalyticsEngine.primarySessionRestingHR(sessions: [s], hr: hr), 58.0)
     }
 }

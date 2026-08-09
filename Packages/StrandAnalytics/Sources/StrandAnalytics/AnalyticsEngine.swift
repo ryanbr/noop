@@ -1048,6 +1048,23 @@ public enum AnalyticsEngine {
         return (mean: sum / kept, samples: kept)
     }
 
+    /// #1169 SHADOW METRIC: the primary-session MEAN resting HR — window each detected sleep session's HR
+    /// samples to `[start, end)` and delegate to the #1174-defined `PrimarySessionRestingHR.meanHR` (that
+    /// definition is UNCHANGED). `IntelligenceEngine` stores the result beside the shipped nightly HR FLOOR
+    /// (`daily.restingHr`) as "rhr_primary_session" — instrumentation only, never shown, never scored — so
+    /// the mean-vs-floor comparison #1169 asks for can be evaluated from exports without a headline switch.
+    /// Byte-parity twin of the Kotlin `primarySessionRestingHR`.
+    public static func primarySessionRestingHR(
+        sessions: [SleepSession], hr: [HRSample],
+        validBpm: ClosedRange<Int> = PrimarySessionRestingHR.defaultValidBpm,
+        minValidSamples: Int = PrimarySessionRestingHR.defaultMinValidSamples) -> Double? {
+        PrimarySessionRestingHR.meanHR(sessions: sessions.map { s in
+            PrimarySessionRestingHR.Session(
+                durationSec: Double(s.end - s.start),
+                bpm: hr.filter { $0.ts >= s.start && $0.ts < s.end }.map { $0.bpm })
+        }, validBpm: validBpm, minValidSamples: minValidSamples)
+    }
+
     // MARK: - Skin-temp funnel diagnostic (#752)
 
     // Skin temp coming out 0/absent on a WHOOP 4.0 (or any) night is opaque: the user can't tell whether

@@ -855,6 +855,30 @@ object AnalyticsEngine {
         return Pair((sum / kept).toInt(), kept)
     }
 
+    /**
+     * #1169 SHADOW METRIC: the primary-session MEAN resting HR — window each detected sleep session's HR
+     * samples to `[start, end)` and delegate to the #1174-defined [PrimarySessionRestingHR.meanHR] (that
+     * definition is UNCHANGED). IntelligenceEngine stores the result beside the shipped nightly HR FLOOR
+     * (`daily.restingHr`) as "rhr_primary_session" — instrumentation only, never shown, never scored — so
+     * the mean-vs-floor comparison #1169 asks for can be evaluated from exports without a headline switch.
+     * Byte-parity twin of the Swift `primarySessionRestingHR`.
+     */
+    internal fun primarySessionRestingHR(
+        sessions: List<DetectedSleep>,
+        hr: List<HrSample>,
+        validBpm: IntRange = PrimarySessionRestingHR.DEFAULT_VALID_BPM,
+        minValidSamples: Int = PrimarySessionRestingHR.DEFAULT_MIN_VALID_SAMPLES,
+    ): Double? = PrimarySessionRestingHR.meanHR(
+        sessions.map { s ->
+            PrimarySessionRestingHR.Session(
+                durationSec = (s.end - s.start).toDouble(),
+                bpm = hr.filter { it.ts >= s.start && it.ts < s.end }.map { it.bpm },
+            )
+        },
+        validBpm,
+        minValidSamples,
+    )
+
     /** Plausible worn skin-temperature range (°C). Off-wrist/charging samples drift to ambient and are
      *  excluded; the strap's own decode gate is the looser 20–45. (PR #85) */
     private const val SKIN_TEMP_MIN_C: Double = 28.0

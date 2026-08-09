@@ -1,5 +1,6 @@
 package com.noop.analytics
 
+import com.noop.data.HrSample
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -62,5 +63,23 @@ class PrimarySessionRestingHRTest {
         val bpm = List(12) { 62 }
         assertNull(PrimarySessionRestingHR.meanHR(listOf(s(3600.0, bpm)), minValidSamples = 20))
         assertEquals(62.0, PrimarySessionRestingHR.meanHR(listOf(s(3600.0, bpm)), minValidSamples = 10)!!, 1e-9)
+    }
+
+    /** #1169 instrumentation: AnalyticsEngine.primarySessionRestingHR windows HR to each session and
+     *  selects the LONGEST — a nap and out-of-window samples must not pollute the primary-night mean. */
+    @Test fun primarySessionRestingHRWindowsAndSelectsLongest() {
+        val night = DetectedSleep(0L, 30_000L, 0.9, emptyList(), null, null)
+        val nap = DetectedSleep(40_000L, 45_000L, 0.9, emptyList(), null, null)
+        val hr = (0 until 100).map { HrSample("d", (it * 30).toLong(), 60) } +
+            (0 until 50).map { HrSample("d", (40_000 + it * 30).toLong(), 45) } +
+            (0 until 50).map { HrSample("d", (31_000 + it * 10).toLong(), 100) }
+        assertEquals(60.0, AnalyticsEngine.primarySessionRestingHR(listOf(nap, night), hr)!!, 1e-9)
+    }
+
+    /** Half-open [start, end): a sample exactly at `end` is excluded (identical to the macOS twin). */
+    @Test fun primarySessionRestingHRExcludesEndBoundarySample() {
+        val s = DetectedSleep(0L, 3000L, 0.9, emptyList(), null, null)
+        val hr = (0 until 40).map { HrSample("d", (it * 60).toLong(), 58) } + HrSample("d", 3000L, 200)
+        assertEquals(58.0, AnalyticsEngine.primarySessionRestingHR(listOf(s), hr)!!, 1e-9)
     }
 }

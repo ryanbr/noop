@@ -405,6 +405,8 @@ object IntelligenceEngine {
         val scoredNights = ArrayList<DayResult>()
         // #103: SpO₂ candidate @82 nightly mean per day, carried from pass 1 for metricSeries persistence.
         val spo2CandidateByDay = LinkedHashMap<String, Int>()
+        // #1169: primary-session mean RHR shadow metric per day, carried from pass 1 for persistence.
+        val primarySessionRHRByDay = LinkedHashMap<String, Double>()
 
         // In-memory nightly values harvested in pass 1, used to seed the pass-2 baseline.
         // Keyed by day so the union with imported history de-dupes cleanly per UTC day.
@@ -749,6 +751,12 @@ object IntelligenceEngine {
                     }
                 }
             }
+            // #1169 SHADOW METRIC (instrumentation only): the primary-session MEAN resting HR, recorded
+            // beside the shipped nightly HR FLOOR (daily.restingHr = min per session) so the mean-vs-floor
+            // comparison the issue asks for accrues on real devices. NEVER shown and NEVER fed to any score;
+            // #1174's definition is unchanged. The windowing + delegation lives in the byte-identical,
+            // tested AnalyticsEngine.
+            AnalyticsEngine.primarySessionRestingHR(res.sleepSessions, hr)?.let { primarySessionRHRByDay[res.daily.day] = it }
             scoredNights.add(res)
             resolvedScoreOwnerByDay[res.daily.day] = owner
         }
@@ -918,6 +926,12 @@ object IntelligenceEngine {
             // is ON. Written under the "-noop" computed device ID, never to `spo2Pct`.
             spo2CandidateByDay[daily.day]?.let { cand ->
                 restRows.add(MetricSeriesRow(deviceId = computedId, day = daily.day, key = "spo2_candidate", value = cand.toDouble()))
+            }
+            // #1169 shadow metric: the primary-session mean RHR, stored beside the shipped floor
+            // (daily.restingHr) under the "-noop" computed ID. Instrumentation only — never shown, never
+            // scored — for later mean-vs-floor evaluation from exports.
+            primarySessionRHRByDay[daily.day]?.let { v ->
+                restRows.add(MetricSeriesRow(deviceId = computedId, day = daily.day, key = "rhr_primary_session", value = v))
             }
 
             out.add(
