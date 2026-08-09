@@ -264,12 +264,48 @@ final class Repository: ObservableObject {
     /// single returned row per day feeds the existing imported-vs-computed `mergeDaily` unchanged.
     private func unionDailyMetrics(store: WhoopStore, from: String, to: String) async -> [DailyMetric] {
         var byDay: [String: DailyMetric] = [:]
-        for id in importedReadIds {   // active strap FIRST → it claims each day, canonical only fills gaps
-            for m in (try? await store.dailyMetrics(deviceId: id, from: from, to: to)) ?? [] where byDay[m.day] == nil {
-                byDay[m.day] = m
+        for id in importedReadIds {   // active strap FIRST → it claims each column, canonical fills its gaps
+            for m in (try? await store.dailyMetrics(deviceId: id, from: from, to: to)) ?? [] {
+                byDay[m.day] = byDay[m.day].map { Self.coalesceDay($0, m) } ?? m
             }
         }
         return byDay.values.sorted { $0.day < $1.day }
+    }
+
+    /// One day held by two source ids in the SAME bucket, folded into `winner`'s row: `winner` keeps every
+    /// column it carries (NON-nil — a measured zero is a reading) and `filler` supplies only the ones it
+    /// left nil. Whole-row first-wins let a hollow row (steps and nothing else) discard a complete one, and
+    /// nothing downstream healed it — `mergeDaily` only bridges imported/computed/phone, never two straps.
+    /// Columns that only mean something together move as a GROUP, whole and from one row, so a sleep total
+    /// never sits beside another strap's stage minutes: the sleep block, and the raw red/IR PPG pair.
+    /// Across-bucket precedence (`mergeDaily`) is untouched. Ported from tanarchytan/noop @de370b85, reduced
+    /// to the columns this DailyMetric carries. Byte-identical twin of Kotlin WhoopRepository.coalesceDay.
+    nonisolated static func coalesceDay(_ winner: DailyMetric, _ filler: DailyMetric) -> DailyMetric {
+        let sleepFromFiller = winner.totalSleepMin == nil && winner.efficiency == nil &&
+            winner.deepMin == nil && winner.remMin == nil && winner.lightMin == nil &&
+            winner.disturbances == nil
+        let rawSpo2FromFiller = winner.spo2Red == nil && winner.spo2Ir == nil
+        return DailyMetric(
+            day: winner.day,
+            totalSleepMin: sleepFromFiller ? filler.totalSleepMin : winner.totalSleepMin,
+            efficiency: sleepFromFiller ? filler.efficiency : winner.efficiency,
+            deepMin: sleepFromFiller ? filler.deepMin : winner.deepMin,
+            remMin: sleepFromFiller ? filler.remMin : winner.remMin,
+            lightMin: sleepFromFiller ? filler.lightMin : winner.lightMin,
+            disturbances: sleepFromFiller ? filler.disturbances : winner.disturbances,
+            restingHr: winner.restingHr ?? filler.restingHr,
+            avgHrv: winner.avgHrv ?? filler.avgHrv,
+            recovery: winner.recovery ?? filler.recovery,
+            strain: winner.strain ?? filler.strain,
+            exerciseCount: winner.exerciseCount ?? filler.exerciseCount,
+            spo2Pct: winner.spo2Pct ?? filler.spo2Pct,
+            skinTempDevC: winner.skinTempDevC ?? filler.skinTempDevC,
+            respRateBpm: winner.respRateBpm ?? filler.respRateBpm,
+            steps: winner.steps ?? filler.steps,
+            activeKcalEst: winner.activeKcalEst ?? filler.activeKcalEst,
+            spo2Red: rawSpo2FromFiller ? filler.spo2Red : winner.spo2Red,
+            spo2Ir: rawSpo2FromFiller ? filler.spo2Ir : winner.spo2Ir
+        )
     }
 
     /// metricSeries points across the imported union for a key + day range, DEDUPED per day with the active
@@ -296,8 +332,8 @@ final class Repository: ObservableObject {
     private func unionComputedDailyMetrics(store: WhoopStore, from: String, to: String) async -> [DailyMetric] {
         var byDay: [String: DailyMetric] = [:]
         for id in computedReadIds {
-            for m in (try? await store.dailyMetrics(deviceId: id, from: from, to: to)) ?? [] where byDay[m.day] == nil {
-                byDay[m.day] = m
+            for m in (try? await store.dailyMetrics(deviceId: id, from: from, to: to)) ?? [] {
+                byDay[m.day] = byDay[m.day].map { Self.coalesceDay($0, m) } ?? m
             }
         }
         return byDay.values.sorted { $0.day < $1.day }

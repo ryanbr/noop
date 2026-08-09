@@ -1,6 +1,7 @@
 package com.noop.data
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -95,5 +96,58 @@ class ReadSpineUnionTest {
         val union = WhoopRepository.unionByDay(listOf(active, canonicalOnly))
         // mergeDaily re-sorts oldest-first downstream; here assert the day SET is the union.
         assertTrue(union.map { it.day }.toSet() == setOf("2026-06-09", "2026-06-13"))
+    }
+
+    /** #-: a day two straps in the bucket both cover is coalesced per COLUMN, not taken whole — a hollow
+     *  winner (steps and nothing else) keeps every column the other strap's fully-scored row carries,
+     *  instead of the old whole-row first-wins that discarded it. Ported from tanarchytan/noop @de370b85. */
+    @Test
+    fun aHollowWinningRowKeepsTheOtherStrapsColumns() {
+        val day = "2026-07-29"
+        val active = DailyMetric(deviceId = "$reAdded-noop", day = day, steps = 10_775)
+        val other = DailyMetric(
+            deviceId = "$canonical-noop", day = day,
+            totalSleepMin = 435.0, efficiency = 91.0, deepMin = 96.0, remMin = 110.0, lightMin = 229.0,
+            recovery = 93.2, restingHr = 64, avgHrv = 37.06, strain = 8.4,
+        )
+        val merged = WhoopRepository.unionByDay(listOf(listOf(active), listOf(other))).single()
+        assertEquals("the winner's identity is kept", "$reAdded-noop", merged.deviceId)
+        assertEquals("the winner's own steps survive", 10_775, merged.steps)
+        assertEquals(435.0, merged.totalSleepMin)
+        assertEquals(96.0, merged.deepMin)
+        assertEquals(93.2, merged.recovery)
+        assertEquals(64, merged.restingHr)
+        assertEquals(37.06, merged.avgHrv)
+        assertEquals(8.4, merged.strain)
+    }
+
+    /** A measured zero is a READING, not an absence: a hollow-looking 0 steps / 0 strain / 0 HRV on the
+     *  winner is kept ("carries" is non-null), never overwritten by the other strap's value. */
+    @Test
+    fun aMeasuredZeroIsAValueNotAnAbsence() {
+        val day = "2026-07-29"
+        val active = DailyMetric(deviceId = reAdded, day = day, steps = 0, strain = 0.0, avgHrv = 0.0)
+        val other = DailyMetric(deviceId = canonical, day = day, steps = 9_120, strain = 14.7, avgHrv = 42.0)
+        val merged = WhoopRepository.unionByDay(listOf(listOf(active), listOf(other))).single()
+        assertEquals("zero steps is a reading", 0, merged.steps)
+        assertEquals("zero strain is a reading", 0.0, merged.strain)
+        assertEquals("zero HRV is a reading", 0.0, merged.avgHrv)
+    }
+
+    /** The sleep block moves as a GROUP from one row: a winner that carries a sleep total keeps its OWN
+     *  (null) stages rather than borrowing the other strap's — a total never sits beside foreign stages. */
+    @Test
+    fun aSleepBlockIsNeverAssembledFromTwoStraps() {
+        val day = "2026-07-29"
+        val active = DailyMetric(deviceId = reAdded, day = day, totalSleepMin = 402.0)
+        val other = DailyMetric(
+            deviceId = canonical, day = day,
+            totalSleepMin = 435.0, deepMin = 96.0, remMin = 110.0, lightMin = 229.0,
+        )
+        val merged = WhoopRepository.unionByDay(listOf(listOf(active), listOf(other))).single()
+        assertEquals("the winner's total stands", 402.0, merged.totalSleepMin)
+        assertNull("stages must not be borrowed from the other strap", merged.deepMin)
+        assertNull(merged.remMin)
+        assertNull(merged.lightMin)
     }
 }

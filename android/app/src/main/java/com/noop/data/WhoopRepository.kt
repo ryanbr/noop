@@ -2119,9 +2119,57 @@ class WhoopRepository(
         internal fun unionByDay(lists: List<List<DailyMetric>>): List<DailyMetric> {
             if (lists.size == 1) return lists[0]
             val byDay = LinkedHashMap<String, DailyMetric>()
-            // First list wins: only fill a day a later (lower-precedence) list covers and an earlier one didn't.
-            for (list in lists) for (d in list) byDay.putIfAbsent(d.day, d)
+            // A day two ids in this bucket both cover is coalesced per COLUMN ([coalesceDay]), not taken
+            // whole: the earlier (active) list keeps every column it carries and later lists fill only what
+            // it left null. Whole-row first-wins let a hollow row (steps and nothing else) discard a
+            // complete one, and nothing downstream healed it — [mergeDaily] only bridges imported/computed/
+            // phone, never two straps. Ported from tanarchytan/noop @de370b85.
+            for (list in lists) for (d in list) {
+                val held = byDay[d.day]
+                byDay[d.day] = if (held == null) d else coalesceDay(held, d)
+            }
             return byDay.values.toList()
+        }
+
+        /**
+         * One day held by two source ids in the SAME bucket, folded into [winner]'s row: [winner] keeps
+         * every column it carries and [filler] supplies only the ones it left null. "Carries" is NON-NULL,
+         * so a measured zero (no steps, no strain) is a value and is never overwritten.
+         *
+         * Columns that only mean something together are taken as a GROUP, whole and from one row, so a
+         * sleep total never sits beside another strap's stage minutes: the sleep block, and the raw red/IR
+         * PPG pair. A group moves only when [winner] is null across the WHOLE group. [winner]'s deviceId +
+         * day stay, so the folded row keeps the identity the union already gave it. Across-bucket precedence
+         * ([mergeDaily]) is untouched. Ported from tanarchytan/noop @de370b85, reduced to the columns this
+         * DailyMetric carries (upstream has no sleep-need / recovery-index / HR-zone / skin-abs columns).
+         * Byte-identical twin of Swift Repository.coalesceDay.
+         */
+        internal fun coalesceDay(winner: DailyMetric, filler: DailyMetric): DailyMetric {
+            val sleepFromFiller = winner.totalSleepMin == null && winner.efficiency == null &&
+                winner.deepMin == null && winner.remMin == null && winner.lightMin == null &&
+                winner.disturbances == null
+            val rawSpo2FromFiller = winner.spo2Red == null && winner.spo2Ir == null
+            return winner.copy(
+                totalSleepMin = if (sleepFromFiller) filler.totalSleepMin else winner.totalSleepMin,
+                efficiency = if (sleepFromFiller) filler.efficiency else winner.efficiency,
+                deepMin = if (sleepFromFiller) filler.deepMin else winner.deepMin,
+                remMin = if (sleepFromFiller) filler.remMin else winner.remMin,
+                lightMin = if (sleepFromFiller) filler.lightMin else winner.lightMin,
+                disturbances = if (sleepFromFiller) filler.disturbances else winner.disturbances,
+                spo2Red = if (rawSpo2FromFiller) filler.spo2Red else winner.spo2Red,
+                spo2Ir = if (rawSpo2FromFiller) filler.spo2Ir else winner.spo2Ir,
+                // Independent columns: each stands alone, so a plain per-column fill is safe.
+                restingHr = winner.restingHr ?: filler.restingHr,
+                avgHrv = winner.avgHrv ?: filler.avgHrv,
+                recovery = winner.recovery ?: filler.recovery,
+                strain = winner.strain ?: filler.strain,
+                exerciseCount = winner.exerciseCount ?: filler.exerciseCount,
+                spo2Pct = winner.spo2Pct ?: filler.spo2Pct,
+                skinTempDevC = winner.skinTempDevC ?: filler.skinTempDevC,
+                respRateBpm = winner.respRateBpm ?: filler.respRateBpm,
+                steps = winner.steps ?: filler.steps,
+                activeKcalEst = winner.activeKcalEst ?: filler.activeKcalEst,
+            )
         }
 
         /**
