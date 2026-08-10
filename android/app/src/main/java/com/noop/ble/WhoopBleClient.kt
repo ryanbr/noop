@@ -43,6 +43,7 @@ import com.noop.protocol.DeviceFamily
 import com.noop.protocol.DeviceConfigReadProbe
 import com.noop.protocol.DeviceConfigReadProbeReport
 import com.noop.protocol.DeviceConfigWriteGate
+import com.noop.protocol.BroadcastHrGateReport
 import com.noop.protocol.EcgRawDataGateReport
 import com.noop.protocol.FeatureFlagProbe
 import com.noop.protocol.FeatureFlagProbeReport
@@ -3107,9 +3108,11 @@ class WhoopBleClient(
                     isMG = whoop5Variant().isMG,
                     broadcastHrOptIn = puffinExperiment.broadcastHr,
                 ) &&
-                // GET_DEVICE_CONFIG_VALUE(121) as the ECG gate's mandatory READ-BACK, gated on a write being
+                // GET_DEVICE_CONFIG_VALUE(121) as a gate's mandatory READ-BACK, gated on a write being
                 // verified — same discipline as the R22 read-back above. The write ack is never the proof.
-                !(DeviceConfigWriteGate.isReadBackOpcode(cmd.rawValue) && ecgGateReport != null)) {
+                // Both the ECG gate (#891) and the Broadcast-HR gate (#1061) read themselves back over this.
+                !(DeviceConfigWriteGate.isReadBackOpcode(cmd.rawValue) &&
+                    (ecgGateReport != null || broadcastHrGateReport != null))) {
                 log("send(${cmd.name}) skipped — no WHOOP 5/MG framing for this command yet")
                 return
             }
@@ -5211,12 +5214,16 @@ class WhoopBleClient(
                     // verdict. Both handlers guard on ecgGateReport being live, so these are byte compares on
                     // every other frame; 121 is also matched by the read-probe clause above, but the two
                     // paths guard on DIFFERENT in-flight sentinels, so exactly one acts.
+                    // #1061 shares the SAME opcodes for its Broadcast-HR write read-back; only one gate is
+                    // ever in flight (both single-flight), and each handler no-ops unless its report is live.
                     if (frame.size > cmdOff && (frame[cmdOff - 2].toInt() and 0xFF) == 0x24) {
                         val op = frame[cmdOff].toInt() and 0xFF
                         if (op == CommandNumber.SET_DEVICE_CONFIG.rawValue) {
                             handleEcgGateWriteAck(frame, cmdOff)
+                            handleBroadcastHrGateWriteAck(frame, cmdOff)
                         } else if (op == CommandNumber.GET_DEVICE_CONFIG_VALUE.rawValue) {
                             handleEcgGateReadBack(frame, connectedFamily == DeviceFamily.WHOOP5)
+                            handleBroadcastHrGateReadBack(frame, connectedFamily == DeviceFamily.WHOOP5)
                         }
                     }
                     if (frame.size > cmdOff && (frame[cmdOff].toInt() and 0xFF) == CommandNumber.GET_DATA_RANGE.rawValue) {
@@ -6037,13 +6044,17 @@ class WhoopBleClient(
         if (!s.connected || !s.bonded) {
             log("Broadcast HR: connect and bond a 5/MG strap first — ignored."); return
         }
+        // Mutually exclusive with the ECG gate: both verify over the SAME 121 read-back opcode, so if both
+        // were in flight one strap reply would be consumed by both handlers and cross-contaminate the other's
+        // verdict (its key isn't echoed → a spurious notClaimed). Only one device-config write verifies at once.
+        if (broadcastHrGateReport != null || ecgGateReport != null) {
+            log("Broadcast HR: a device-config write is already being verified — ignored."); return
+        }
         val payload = byteArrayOf(0x01) +
             Whoop5Config.deviceConfigBody(DeviceConfigWriteGate.BROADCAST_HR_KEY, DeviceConfigWriteGate.value(on))
-        // #1061: report the ACTUAL outcome, not a fire-and-forget "wrote". send() SILENTLY drops a command
-        // the 5/MG send gate refuses, so the old unconditional "wrote" line lied when the write never went
-        // out — exactly what a reporter saw on the disable path. Consult the SAME gate the send path uses and
-        // log honestly. (With the gate's #1061 fix the OFF write is now admitted, so this normally reports a
-        // real write; the guard keeps the log truthful if a write is ever refused.)
+        // #1061: send() SILENTLY drops a command the 5/MG gate refuses, so consult the SAME gate and log
+        // honestly instead of a fire-and-forget "wrote". (The gate's OFF-write fix means the disable is now
+        // admitted; this keeps the log truthful if a write is ever refused.)
         if (!DeviceConfigWriteGate.admitsSend(
                 opcode = CommandNumber.SET_DEVICE_CONFIG.rawValue,
                 payload = payload,
@@ -6056,8 +6067,61 @@ class WhoopBleClient(
                 " REFUSED by the 5/MG send gate — strap unchanged.")
             return
         }
+        // #1061: write, then READ IT BACK — the ack is not the proof. A reporter on FW 50.36.2.0 saw the
+        // flag written yet the strap never advertised 0x180D, with no way to tell "accepted but not
+        // advertised" from "write ignored". The 121 read-back settles that, same discipline as the ECG gate.
+        val report = BroadcastHrGateReport(on)
+        broadcastHrGateReport = report
+        log(
+            "Broadcast HR: writing ${DeviceConfigWriteGate.BROADCAST_HR_KEY}=" +
+                "'${DeviceConfigWriteGate.valueString(on)}' via SET_DEVICE_CONFIG_VALUE(119); the ack is NOT " +
+                "the result — a GET_DEVICE_CONFIG_VALUE(121) read-back follows.",
+        )
         send(CommandNumber.SET_DEVICE_CONFIG, payload, withResponse = true)
-        log("Broadcast HR: wrote whoop_live_hr_in_adv_ind_pkt=" + (if (on) "1" else "0"))
+
+        broadcastHrGateStep += 1
+        val armed = broadcastHrGateStep
+        handler.postDelayed({
+            if (broadcastHrGateReport == null || broadcastHrGateStep != armed) return@postDelayed
+            send(CommandNumber.GET_DEVICE_CONFIG_VALUE, DeviceConfigReadProbe.requestBody(DeviceConfigWriteGate.BROADCAST_HR_KEY))
+            handler.postDelayed(readBack@{
+                if (broadcastHrGateReport == null || broadcastHrGateStep != armed) return@readBack
+                broadcastHrGateReport?.noteReadBackTimeout((ecgGateReadBackTimeoutMs / 1000).toInt())
+                finishBroadcastHrWrite()
+            }, ecgGateReadBackTimeoutMs)
+        }, ecgGateSettleMs)
+    }
+
+    /** Non-null only while a Broadcast-HR write is being verified (#1061) — same single-flight discipline
+     *  as the ECG gate. The send allowlist consults it so the 121 read-back can go out; the frame router
+     *  routes the ack + read-back replies here. Log-surfaced only (no LiveState). */
+    private var broadcastHrGateReport: BroadcastHrGateReport? = null
+    private var broadcastHrGateStep = 0
+
+    private fun finishBroadcastHrWrite() {
+        val report = broadcastHrGateReport ?: return
+        broadcastHrGateReport = null
+        log("Broadcast HR (#1061):\n${report.render()}")
+    }
+
+    /** The write's own COMMAND_RESPONSE — recorded, never the proof. Routed here when a 119 reply lands
+     *  while a Broadcast-HR write is being verified. */
+    private fun handleBroadcastHrGateWriteAck(frame: ByteArray, cmdOff: Int) {
+        if (broadcastHrGateReport == null) return
+        val resultIndex = cmdOff + 2
+        val code = if (frame.size > resultIndex) frame[resultIndex].toInt() and 0xFF else null
+        broadcastHrGateReport?.noteWriteAck(code)
+    }
+
+    /** The 121 read-back — the ONLY thing that decides the verdict. */
+    private fun handleBroadcastHrGateReadBack(frame: ByteArray, isWhoop5: Boolean) {
+        if (broadcastHrGateReport == null) return
+        val family = if (isWhoop5) DeviceFamily.WHOOP5 else DeviceFamily.WHOOP4
+        val parsed = DeviceConfigReadProbe.parse(frame, family, CommandNumber.GET_DEVICE_CONFIG_VALUE.rawValue)
+        val value = parsed.value
+        if (value != null) broadcastHrGateReport?.noteReadBack(value)
+        else broadcastHrGateReport?.noteReadBackFailure(parsed.failure!!)
+        finishBroadcastHrWrite()
     }
 
     // ---- ECG raw-data gate (#891) — an opt-in write with a MANDATORY read-back ----
@@ -6112,8 +6176,9 @@ class WhoopBleClient(
         if (!s.connected || !s.bonded) {
             log("ECG gate (#891): connect and bond a 5/MG strap first — ignored."); return
         }
-        if (ecgGateReport != null) {
-            log("ECG gate (#891): a write is already being verified — ignored."); return
+        // Mutually exclusive with the Broadcast-HR gate (#1061): both verify over the same 121 read-back.
+        if (ecgGateReport != null || broadcastHrGateReport != null) {
+            log("ECG gate (#891): a device-config write is already being verified — ignored."); return
         }
 
         val report = EcgRawDataGateReport(on)
@@ -7582,6 +7647,12 @@ class WhoopBleClient(
         if (ecgGateReport != null) {
             ecgGateReport?.noteReadBackTimeout((ecgGateReadBackTimeoutMs / 1000).toInt())
             finishEcgGateWrite()
+        }
+        // #1061: a Broadcast-HR write interrupted mid-verification is likewise RENDERED, not dropped — it
+        // has already written, so the user is told the read-back never landed (verdict silent).
+        if (broadcastHrGateReport != null) {
+            broadcastHrGateReport?.noteReadBackTimeout((ecgGateReadBackTimeoutMs / 1000).toInt())
+            finishBroadcastHrWrite()
         }
         // #520/#891: the DIS strings belong to the link that just dropped; a stale variant must not keep an
         // MG-only capability unlocked for whatever connects next.

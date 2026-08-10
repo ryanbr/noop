@@ -292,6 +292,44 @@ final class DeviceConfigWriteGateTests: XCTestCase {
         XCTAssertEqual(report.verdict, .confirmed)
     }
 
+    func testBroadcastHrReadBackVerdictTable() {
+        // #1061: the broadcast-HR write now reads itself back, same discipline as the ECG gate. Confirmed
+        // only when the strap stores what was asked; a SUCCESS ack with an unmoved value is `.unchanged`.
+        func parsed(_ value: String) -> DeviceConfigReadProbe.ValueResponse {
+            let frame = readBackFrame(record: echoRecord(key: DeviceConfigWriteGate.broadcastHrKey, value: value))
+            guard case .success(let r) = DeviceConfigReadProbe.parse(frame: frame, family: .whoop5, expecting: 121)
+            else { fatalError("read-back frame should parse") }
+            return r
+        }
+        var confirmed = BroadcastHrGateReport(on: true)
+        confirmed.noteWriteAck(resultCode: 1)
+        confirmed.noteReadBack(parsed("1"))
+        XCTAssertEqual(confirmed.verdict, .confirmed)
+        XCTAssertEqual(confirmed.storedValue, "1")
+        XCTAssertTrue(confirmed.render().contains("whoop_live_hr_in_adv_ind_pkt"))
+        // A CONFIRMED read-back must still warn that a stored flag ≠ actually advertising 0x180D (#1061).
+        XCTAssertTrue(confirmed.render().contains("0x180D"))
+
+        var unchanged = BroadcastHrGateReport(on: true)
+        unchanged.noteWriteAck(resultCode: 1)          // strap acked SUCCESS…
+        unchanged.noteReadBack(parsed("0"))            // …but the value did not move
+        XCTAssertEqual(unchanged.verdict, .unchanged)
+        XCTAssertTrue(unchanged.summary.contains("did NOT take"))
+
+        var off = BroadcastHrGateReport(on: false)     // disable confirms on '0'
+        XCTAssertEqual(off.requested, "0")
+        off.noteReadBack(parsed("0"))
+        XCTAssertEqual(off.verdict, .confirmed)
+
+        var silent = BroadcastHrGateReport(on: true)
+        silent.noteReadBackTimeout(seconds: 8)
+        XCTAssertEqual(silent.verdict, .silent)
+
+        var refused = BroadcastHrGateReport(on: true)
+        refused.noteReadBack(DeviceConfigReadProbe.ValueResponse(resultCode: 0, record: []))
+        XCTAssertEqual(refused.verdict, .refused)
+    }
+
     func testRefusedSilentNotClaimedAndUndecodableAreNeverSuccess() {
         // FAILURE for the key.
         var refused = EcgRawDataGateReport(on: true)

@@ -369,3 +369,123 @@ public struct EcgRawDataGateReport: Equatable, Sendable {
         return sb
     }
 }
+
+// MARK: - Broadcast-HR read-back report (#1061)
+
+/// The result of one Broadcast-HR (#181) write + mandatory read-back, as a copyable report.
+///
+/// #1061: the strap-flag write (`whoop_live_hr_in_adv_ind_pkt`) was fire-and-forget — NOOP never read it
+/// back, so a reporter on FW 50.36.2.0 could not tell whether the firmware ACCEPTED the flag (and simply
+/// doesn't advertise 0x180D) or IGNORED the write. That is inconsistent with this file's own rule — "read-
+/// back is the proof, not the ack" — which the ECG gate on the SAME opcode already follows. So the write
+/// now reads itself back with `GET_DEVICE_CONFIG_VALUE(121)` and reports the value the strap actually stores.
+///
+/// Same order-dependent, pure verdict machinery as `EcgRawDataGateReport` (`noteWriteAck` → `noteReadBack`/
+/// `noteReadBackTimeout` → `render`), so `swift test` covers the whole table without a strap. Kotlin twin:
+/// `BroadcastHrGateReport`; the rendered text is byte-identical across platforms.
+public struct BroadcastHrGateReport: Equatable, Sendable {
+
+    /// What the run established — identical semantics to `EcgRawDataGateReport.Verdict`: a write whose ack
+    /// said SUCCESS but whose read-back did not move is `.unchanged`, not success.
+    public enum Verdict: String, Equatable, Sendable {
+        case confirmed, unchanged, notClaimed, refused, silent, undecodable, pending
+    }
+
+    /// The value that was requested, as the strap stores it ("1" = advertise on / "0" = off).
+    public let requested: String
+    public private(set) var writeResultCode: Int?
+    public private(set) var storedValue: String?
+    public private(set) var readBackResultCode: Int?
+    public private(set) var readBackRecordHex: String?
+    public private(set) var trace: [String] = []
+    public private(set) var verdict: Verdict = .pending
+
+    public init(on: Bool) {
+        self.requested = DeviceConfigWriteGate.valueString(on: on)
+        trace.append("SET_DEVICE_CONFIG_VALUE(119) key=\"\(DeviceConfigWriteGate.broadcastHrKey)\" value='\(requested)' sent")
+    }
+
+    /// Record the write's own ack. Logged and NOT used to decide anything — a SUCCESS result code does not
+    /// prove state changed (the #891 lesson applies to every device-config write).
+    public mutating func noteWriteAck(resultCode: Int?) {
+        writeResultCode = resultCode
+        let label = resultCode.map { "\(FeatureFlagProbe.resultLabel($0))(\($0))" } ?? "(unlabelled)"
+        trace.append("write ack → result=\(label) — recorded, not treated as proof; the read-back below is the proof")
+    }
+
+    /// Record the decoded read-back and reach a verdict.
+    public mutating func noteReadBack(_ r: DeviceConfigReadProbe.ValueResponse) {
+        readBackResultCode = r.resultCode
+        readBackRecordHex = r.recordHex
+        let stored = r.value(for: DeviceConfigWriteGate.broadcastHrKey)
+            .flatMap { (0x20...0x7E).contains($0) ? String(UnicodeScalar($0)) : nil }
+        storedValue = stored
+        var line = "GET_DEVICE_CONFIG_VALUE(121) key=\"\(DeviceConfigWriteGate.broadcastHrKey)\""
+        if let c = r.resultCode { line += " → result=\(FeatureFlagProbe.resultLabel(c))(\(c))" } else { line += " →" }
+        if let stored { line += " value='\(stored)'" }
+        line += " record=[\(r.recordHex)]"
+        trace.append(line)
+
+        if r.isUnsupported || r.isFailure {
+            verdict = .refused
+        } else if let stored {
+            verdict = stored == requested ? .confirmed : .unchanged
+        } else {
+            verdict = .notClaimed
+        }
+    }
+
+    /// Record a read-back reply that could not be decoded.
+    public mutating func noteReadBackFailure(_ f: DeviceConfigReadProbe.ParseFailure) {
+        let why: String
+        switch f {
+        case .crc:          why = "CRC failed — frame rejected (never decoded)"
+        case .envelope:     why = "not a COMMAND_RESPONSE envelope"
+        case .wrongCommand: why = "COMMAND_RESPONSE for a different command"
+        case .truncated:    why = "record too short to hold a response"
+        }
+        trace.append("read-back reply not decoded: \(why)")
+        verdict = .undecodable
+    }
+
+    /// Record the strap answering nothing at all to the read-back.
+    public mutating func noteReadBackTimeout(seconds: Int) {
+        trace.append("GET_DEVICE_CONFIG_VALUE(121) → no COMMAND_RESPONSE within \(seconds)s")
+        verdict = .silent
+    }
+
+    /// One-line summary, suitable for a strap-log line.
+    public var summary: String {
+        switch verdict {
+        case .confirmed:
+            return "Strap now reports \(DeviceConfigWriteGate.broadcastHrKey)='\(requested)' (read back, not just acked)."
+        case .unchanged:
+            return "Write did NOT take: asked for '\(requested)', strap still reports '\(storedValue ?? "?")'."
+        case .notClaimed:
+            return "Strap answered the read-back but did not echo the key, so no value is claimed."
+        case .refused:
+            return "Strap refused the read-back for this key — the stored value is unknown."
+        case .silent:
+            return "No reply to the read-back — the stored value is unknown."
+        case .undecodable:
+            return "The read-back reply did not decode — the stored value is unknown."
+        case .pending:
+            return "Waiting for the read-back…"
+        }
+    }
+
+    /// The full copyable report.
+    public func render() -> String {
+        var sb = "#1061 BROADCAST-HR FLAG — WHOOP 5/MG\n"
+        sb += "Key: \(DeviceConfigWriteGate.broadcastHrKey) (makes the strap advertise its HR as a standard 0x180D sensor)\n"
+        sb += "Wrote '\(requested)' via SET_DEVICE_CONFIG_VALUE(119), then read it back with "
+        sb += "GET_DEVICE_CONFIG_VALUE(121). The write ack is never trusted; only the read-back decides.\n"
+        sb += "\nVerdict: \(verdict.rawValue) — \(summary)\n"
+        sb += "\nExchange:\n"
+        for line in trace { sb += "  " + line + "\n" }
+        sb += "\nNOTE: a CONFIRMED read-back means the FLAG is stored, NOT that the strap advertises 0x180D — "
+        sb += "some firmware (e.g. 50.36.x) stores it but doesn't advertise. If it reads '1' here yet no "
+        sb += "watch/nRF-Connect scan shows 0x180D while disconnected, that is a firmware result for #1061.\n"
+        return sb
+    }
+}

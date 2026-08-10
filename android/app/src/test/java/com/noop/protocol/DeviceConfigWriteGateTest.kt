@@ -313,6 +313,43 @@ class DeviceConfigWriteGateTest {
     }
 
     @Test
+    fun broadcastHrReadBackVerdictTable() {
+        // #1061: the broadcast-HR write now reads itself back, same discipline as the ECG gate. Confirmed
+        // only when the strap stores what was asked; a SUCCESS ack with an unmoved value is UNCHANGED.
+        val key = DeviceConfigWriteGate.BROADCAST_HR_KEY
+
+        val confirmed = BroadcastHrGateReport(true)
+        confirmed.noteWriteAck(1)
+        assertEquals(BroadcastHrGateReport.Verdict.PENDING, confirmed.verdict)   // ack alone decides nothing
+        confirmed.noteReadBack(parseReadBack(readBackFrame(echoRecord(key, "1"))))
+        assertEquals(BroadcastHrGateReport.Verdict.CONFIRMED, confirmed.verdict)
+        assertEquals("1", confirmed.storedValue)
+        assertTrue(confirmed.render().contains(key))
+        // A CONFIRMED read-back must still warn that a stored flag ≠ actually advertising 0x180D (#1061).
+        assertTrue(confirmed.render().contains("0x180D"))
+        assertTrue(confirmed.render().contains("#1061"))
+
+        val unchanged = BroadcastHrGateReport(true)
+        unchanged.noteWriteAck(1)                                               // acked SUCCESS…
+        unchanged.noteReadBack(parseReadBack(readBackFrame(echoRecord(key, "0"))))  // …but value unmoved
+        assertEquals(BroadcastHrGateReport.Verdict.UNCHANGED, unchanged.verdict)
+        assertTrue(unchanged.summary.contains("did NOT take"))
+
+        val off = BroadcastHrGateReport(false)
+        assertEquals("0", off.requested)
+        off.noteReadBack(parseReadBack(readBackFrame(echoRecord(key, "0"))))
+        assertEquals(BroadcastHrGateReport.Verdict.CONFIRMED, off.verdict)
+
+        val silent = BroadcastHrGateReport(true)
+        silent.noteReadBackTimeout(8)
+        assertEquals(BroadcastHrGateReport.Verdict.SILENT, silent.verdict)
+
+        val refused = BroadcastHrGateReport(true)
+        refused.noteReadBack(DeviceConfigReadProbe.ValueResponse(0, ByteArray(0)))
+        assertEquals(BroadcastHrGateReport.Verdict.REFUSED, refused.verdict)
+    }
+
+    @Test
     fun readBackIsCrcGatedLikeEveryOtherDecode() {
         val frame = readBackFrame(echoRecord("enable_raw_data_w_ecg", "1"))
         frame[frame.size - 1] = (frame[frame.size - 1].toInt() xor 0xFF).toByte()
