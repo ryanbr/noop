@@ -63,10 +63,11 @@ object KeyMetricPrefs {
 
     private const val KEY_WINDOW = "today.keyMetricsWindowDays"
 
-    /** Trailing trend window (calendar days) the DETAILED tiles graph: 2, 7 or 14 (default). Shared key
-     *  with the iOS twin; an unknown stored value coerces to 14 so a bad pref can't skew the window math. */
+    /** Trailing trend window (calendar days) the DETAILED tiles graph: 7, 14 (default) or 30. Shared key
+     *  with the iOS twin; an unknown stored value coerces to 14 so a bad pref can't skew the window math
+     *  (this also migrates users off the retired 2-day option). */
     fun detailWindowDays(context: Context): Int =
-        NoopPrefs.of(context).getInt(KEY_WINDOW, 14).let { if (it == 2 || it == 7 || it == 14) it else 14 }
+        NoopPrefs.of(context).getInt(KEY_WINDOW, 14).let { if (it == 7 || it == 14 || it == 30) it else 14 }
 
     fun setDetailWindowDays(context: Context, value: Int) {
         NoopPrefs.of(context).edit().putInt(KEY_WINDOW, value).apply()

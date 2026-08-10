@@ -74,12 +74,12 @@ struct LiquidTodayView: View {
         TodayLayoutPrefs.visibleOrder(orderRaw: sectionOrderRaw, hiddenRaw: hiddenSectionsRaw)
     }
     // #430 parity: the Key-Metrics grid honours the SAME editor selection/order + Detailed-tiles switch as
-    // Android (byte-identical @AppStorage keys). `kSparks` holds the trailing-14-day series the detailed
+    // Android (byte-identical @AppStorage keys). `kSparks` holds the trailing-30-day series the detailed
     // tiles graph (keyed by metric-catalog key), filled by the loader alongside everything else.
     @AppStorage(KeyMetricPrefs.layoutKey) private var keyMetricsRaw = ""
     @AppStorage("today.keyMetricsDetailed") private var keyMetricsDetailed = false
-    /// The detailed graphs' trailing window — 2 days / 1 week / 2 weeks (shared key with Android). The
-    /// loader banks a day-keyed 14-day superset; render filters down, so a window change applies instantly.
+    /// The detailed graphs' trailing window — 1 week / 2 weeks / 1 month (shared key with Android). The
+    /// loader banks a day-keyed 30-day superset; render filters down, so a window change applies instantly.
     @AppStorage("today.keyMetricsWindowDays") private var keyMetricsWindowDays = 14
     @State private var kSparks: [String: [(String, Double)]] = [:]
     private var enabledKeyMetrics: [KeyMetric] { KeyMetricPrefs.decodeEnabled(keyMetricsRaw) }
@@ -837,11 +837,11 @@ struct LiquidTodayView: View {
 
     // MARK: - Key metrics grid
 
-    /// The chosen detailed-graph window's oldest day key (2 days / 1 week / 2 weeks ending on the
-    /// selected day). The loader banks a 14-day superset; render filters down so a window change in the
+    /// The chosen detailed-graph window's oldest day key (1 week / 2 weeks / 1 month ending on the
+    /// selected day). The loader banks a 30-day superset; render filters down so a window change in the
     /// editor applies instantly, no reload.
     private var sparkWindowCutoffKey: String {
-        let days = (keyMetricsWindowDays == 2 || keyMetricsWindowDays == 7) ? keyMetricsWindowDays : 14
+        let days = (keyMetricsWindowDays == 7 || keyMetricsWindowDays == 30) ? keyMetricsWindowDays : 14
         let cal = Calendar.current
         let anchor = cal.startOfDay(for: selectedLogicalDay)
         return Repository.localDayKey(cal.date(byAdding: .day, value: -(days - 1), to: anchor) ?? anchor)
@@ -856,8 +856,8 @@ struct LiquidTodayView: View {
     /// The Key-Metrics header's trailing label for the chosen detailed-graph window (Android twin).
     private var trendWindowLabel: String {
         switch keyMetricsWindowDays {
-        case 2: return String(localized: "2-day trend")
         case 7: return String(localized: "7-day trend")
+        case 30: return String(localized: "30-day trend")
         default: return String(localized: "14-day trend")
         }
     }
@@ -1192,7 +1192,7 @@ struct LiquidTodayView: View {
         // 2-day/1-week/2-week window filters at render (windowedSpark), so a picker change applies without
         // a reload. Keys mirror the metric catalog so a tile's graph, its tap-through detail and Android's
         // Window all read the same signal. Rest reuses the already-loaded sleep_performance series.
-        let sparkCutoff = Repository.localDayKey(cal.date(byAdding: .day, value: -13, to: dayStart) ?? dayStart)
+        let sparkCutoff = Repository.localDayKey(cal.date(byAdding: .day, value: -29, to: dayStart) ?? dayStart)
         let sparkRows = daysSnapshot.filter { $0.day >= sparkCutoff && $0.day <= selectedDayKey }
         // #616: imported-first calorie spark (the day's imported Apple active energy ?: NOOP's on-device
         // estimate) over the window, so a Health-Connect / Apple-only calorie user gets a trend too —

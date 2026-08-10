@@ -391,7 +391,7 @@ fun TodayScreen(
     var showMetricsEditor by remember { mutableStateOf(false) }
     var enabledKeyMetrics by remember { mutableStateOf(KeyMetricPrefs.enabled(context)) }
     // Detailed Key-Metrics tiles (squarer + trend graph), set from the same editor, plus the chosen
-    // trend window (2 days / 1 week / 2 weeks) the detailed graphs cover.
+    // trend window (1 week / 2 weeks / 1 month) the detailed graphs cover.
     var keyMetricsDetailed by remember { mutableStateOf(KeyMetricPrefs.detailed(context)) }
     var keyMetricsWindowDays by remember { mutableStateOf(KeyMetricPrefs.detailWindowDays(context)) }
     // #today-layout: the user-ordered below-hero section list + its editor dialog flag. Read once (prefs
@@ -5981,7 +5981,7 @@ private data class Window(
 )
 
 /**
- * Build the trailing trend windows from `recentDays` over the chosen span (2 / 7 / 14 calendar days —
+ * Build the trailing trend windows from `recentDays` over the chosen span (7 / 14 / 30 calendar days —
  * the editor's detailed-graph window). Each series drops null days from the trailing calendar window
  * only, so stale imports do not draw a current-day trend.
  */
@@ -6127,8 +6127,8 @@ private fun grouped(value: Int): String =
 
 /** The Key-Metrics header's trailing label for the chosen detailed-graph window. */
 private fun trendWindowLabel(days: Int): String = when (days) {
-    2 -> "2-day trend"
     7 -> "7-day trend"
+    30 -> "30-day trend"
     else -> "14-day trend"
 }
 
@@ -6141,7 +6141,7 @@ private fun KeyMetricsEditorDialog(
     onSave: (List<KeyMetric>, Boolean, Int) -> Unit,
 ) {
     // Detailed tiles: taller/squarer with a trend graph under the fill bar (display-only), over the
-    // chosen trailing window (2 days / 1 week / 2 weeks).
+    // chosen trailing window (1 week / 2 weeks / 1 month).
     var detailed by remember { mutableStateOf(initialDetailed) }
     var windowDays by remember { mutableStateOf(initialWindowDays) }
     val shown = remember { mutableStateListOf<KeyMetric>().apply { addAll(initial) } }
@@ -6195,13 +6195,13 @@ private fun KeyMetricsEditorDialog(
                         modifier = Modifier.semantics { contentDescription = uiString(R.string.l10n_today_screen_detailed_tiles_0801721b) },
                     )
                 }
-                // The detailed graphs' trailing window — 2 days / 1 week / 2 weeks (the NOOP signature
+                // The detailed graphs' trailing window — 1 week / 2 weeks / 1 month (the NOOP signature
                 // segmented pill, same control the trend screens use). Only shown while Detailed is on.
                 if (detailed) {
                     SegmentedPillControl(
-                        items = listOf(2, 7, 14),
+                        items = listOf(7, 14, 30),
                         selection = windowDays,
-                        label = { when (it) { 2 -> "2 days"; 7 -> "1 week"; else -> "2 weeks" } },
+                        label = { when (it) { 7 -> "1 week"; 14 -> "2 weeks"; else -> "1 month" } },
                         onSelect = { windowDays = it },
                         modifier = Modifier.fillMaxWidth(),
                     )

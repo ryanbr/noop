@@ -297,9 +297,9 @@ private struct KeyMetricsCustomizationPage: View {
 
                 if detailed {
                     Picker("Trend window", selection: $windowDays) {
-                        Text("2 days").tag(2)
                         Text("1 week").tag(7)
                         Text("2 weeks").tag(14)
+                        Text("1 month").tag(30)
                     }
                     .pickerStyle(.segmented)
                 }
