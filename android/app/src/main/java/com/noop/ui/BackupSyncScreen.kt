@@ -302,7 +302,7 @@ fun BackupSyncScreen() {
                     // (a lost folder grant, or the app hasn't been opened in a while). backupNow only stamps
                     // lastMs on success, so this surfaces a silently-failing auto-backup instead of it being
                     // discovered only at restore.
-                    if (auto && treeUri != null &&
+                    if (auto && treeUri != null && lastMs > 0L &&
                         BackupSync.isBackupStale(lastMs, System.currentTimeMillis())
                     ) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

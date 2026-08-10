@@ -142,7 +142,9 @@ struct BackupSyncView: View {
                 // Auto is ON but the last SUCCESSFUL backup is stale — the on-launch catch-up isn't landing
                 // (a moved/disconnected cloud folder stops backups silently, or NOOP hasn't been opened).
                 // Surface it so a silently-failing auto-backup is visible, not discovered only at restore.
-                if auto, folderLabel != nil,
+                // `lastMs > 0` excludes the never-backed-up state (the "No backup yet." line above owns that,
+                // and it would otherwise false-fire the moment auto is switched on, before the first backup).
+                if auto, folderLabel != nil, lastMs > 0,
                    BackupSync.isBackupStale(lastBackupMs: lastMs,
                                             nowMs: Int(Date().timeIntervalSince1970 * 1000.0)) {
                     HStack(alignment: .top, spacing: 8) {

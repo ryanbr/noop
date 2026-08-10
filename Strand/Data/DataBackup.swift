@@ -157,7 +157,7 @@ enum DataBackup {
         // present and non-empty (a SQLite header alone is 100 bytes). Fail HERE if not, and don't leave a
         // corrupt file behind masquerading as a good snapshot. Twin of the Android post-write check.
         guard let written = try? Archive(url: dest, accessMode: .read),
-              let dbEntry = written.first(where: { $0.path == backupEntryName }),
+              let dbEntry = written.first(where: { ($0.path as NSString).lastPathComponent == backupEntryName }),
               dbEntry.uncompressedSize >= 100 else {
             try? FileManager.default.removeItem(at: dest)
             throw BackupWriteIncomplete()
