@@ -176978,6 +176978,58 @@
           }
         }
       }
+    },
+    "No nightly skin-temp yet — needs ~4 worn nights (or import a WHOOP CSV)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch keine nächtliche Hauttemperatur — benötigt ~4 getragene Nächte (oder importiere eine WHOOP-CSV)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aún no hay temperatura cutánea nocturna: necesita ~4 noches de uso (o importa un CSV de WHOOP)"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pas encore de température cutanée nocturne — nécessite ~4 nuits portées (ou importez un CSV WHOOP)"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ancora nessuna temperatura cutanea notturna — servono ~4 notti indossate (o importa un CSV WHOOP)"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ainda sem temperatura da pele noturna — precisa de ~4 noites de utilização (ou importe um CSV da WHOOP)"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пока нет ночной температуры кожи — нужно ~4 ночи ношения (или импортируйте CSV из WHOOP)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无夜间皮肤温度 — 需要约 4 个佩戴夜晚（或导入 WHOOP CSV）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚無夜間皮膚溫度 — 需要約 4 個佩戴夜晚（或匯入 WHOOP CSV）"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

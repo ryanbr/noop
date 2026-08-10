@@ -1969,4 +1969,5 @@
     <string name="cycle_phase_learning">Dein Muster wird gelernt</string>
     <string name="cycle_day_single">· ~Tag %1$d</string>
     <string name="cycle_day_range">· ~Tag %1$d–%2$d</string>
+    <string name="skin_temp_missing_caption">Noch keine nächtliche Hauttemperatur — benötigt ~4 getragene Nächte (oder importiere eine WHOOP-CSV)</string>
 </resources>

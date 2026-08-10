@@ -284,7 +284,7 @@ internal fun vitalsFor(
             key = "skin", label = uiString(R.string.l10n_health_screen_skin_temp_a4affc5a), unit = skinUnitLabel,
             // #548: empty is often calibrating (~4 nights for ±deviation) or import-less — not a silent
             // "broken sensor". Absolute °C still arrives via WHOOP CSV / Health Connect import.
-            missingCaption = "No nightly skin-temp yet — needs ~4 worn nights (or import a WHOOP CSV)",
+            missingCaption = uiString(R.string.skin_temp_missing_caption),
             value = skin, format = skinFormat,
             deltaText = deltaText(skin, previousSkin),
             readingDay = todayKey,

@@ -1981,4 +1981,5 @@
     <string name="cycle_phase_learning">Learning your pattern</string>
     <string name="cycle_day_single">· ~day %1$d</string>
     <string name="cycle_day_range">· ~day %1$d–%2$d</string>
+    <string name="skin_temp_missing_caption">No nightly skin-temp yet — needs ~4 worn nights (or import a WHOOP CSV)</string>
 </resources>

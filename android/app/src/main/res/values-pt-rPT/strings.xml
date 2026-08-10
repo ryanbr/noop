@@ -1948,4 +1948,5 @@
     <string name="cycle_phase_learning">A aprender o teu padrão</string>
     <string name="cycle_day_single">· ~dia %1$d</string>
     <string name="cycle_day_range">· ~dia %1$d–%2$d</string>
+    <string name="skin_temp_missing_caption">Ainda sem temperatura da pele noturna — precisa de ~4 noites de utilização (ou importe um CSV da WHOOP)</string>
 </resources>
