@@ -113,4 +113,19 @@ final class PrimarySessionRestingHRTests: XCTestCase {
         XCTAssertEqual(cov?.validSamples, 100)
         XCTAssertEqual(cov?.durationSec, 30_000)
     }
+
+    /// The combined wrapper windows the HR ONCE but must return byte-identical (mean, coverage) to calling the
+    /// two separate wrappers — the only caller (IntelligenceEngine) needs both, so this locks the dedup.
+    func testWithCoverageMatchesSeparateCalls() {
+        let night = SleepSession(start: 0, end: 30_000, efficiency: 0.9, stages: [], restingHR: nil, avgHRV: nil)
+        let nap = SleepSession(start: 40_000, end: 45_000, efficiency: 0.9, stages: [], restingHR: nil, avgHRV: nil)
+        var hr = (0..<100).map { HRSample(ts: $0 * 30, bpm: 60) }
+        hr += (0..<50).map { HRSample(ts: 40_000 + $0 * 30, bpm: 45) }
+        let sessions = [nap, night]
+        let combined = AnalyticsEngine.primarySessionRestingHRWithCoverage(sessions: sessions, hr: hr)
+        XCTAssertEqual(combined.mean, AnalyticsEngine.primarySessionRestingHR(sessions: sessions, hr: hr))
+        let sep = AnalyticsEngine.primarySessionRestingHRCoverage(sessions: sessions, hr: hr)
+        XCTAssertEqual(combined.coverage?.validSamples, sep?.validSamples)
+        XCTAssertEqual(combined.coverage?.durationSec, sep?.durationSec)
+    }
 }

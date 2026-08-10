@@ -901,8 +901,8 @@ final class IntelligenceEngine: ObservableObject {
                 // comparison the issue asks for accrues on real devices. NEVER shown and NEVER fed to any
                 // score; #1174's definition is unchanged — this only records its per-night output. The
                 // windowing + delegation lives in the byte-identical, tested `AnalyticsEngine`.
-                let primarySessionRHR = AnalyticsEngine.primarySessionRestingHR(sessions: res.sleepSessions, hr: hr)
-                let primarySessionRHRCoverage = AnalyticsEngine.primarySessionRestingHRCoverage(sessions: res.sleepSessions, hr: hr)
+                let (primarySessionRHR, primarySessionRHRCoverage) =
+                    AnalyticsEngine.primarySessionRestingHRWithCoverage(sessions: res.sleepSessions, hr: hr)
                 out.append(DayScan(result: res, rhrLine: rhrLine,
                                    readOwner: owner, hrRows: hr.count,
                                    sleepTrace: sleepTrace, stepsTrace: stepsTrace, hrvTrace: hrvTrace,

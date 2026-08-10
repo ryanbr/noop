@@ -758,8 +758,9 @@ object IntelligenceEngine {
             // comparison the issue asks for accrues on real devices. NEVER shown and NEVER fed to any score;
             // #1174's definition is unchanged. The windowing + delegation lives in the byte-identical,
             // tested AnalyticsEngine.
-            AnalyticsEngine.primarySessionRestingHR(res.sleepSessions, hr)?.let { primarySessionRHRByDay[res.daily.day] = it }
-            AnalyticsEngine.primarySessionRestingHRCoverage(res.sleepSessions, hr)?.let { primarySessionRHRCoverageByDay[res.daily.day] = it }
+            val (primaryRhr, primaryRhrCoverage) = AnalyticsEngine.primarySessionRestingHRWithCoverage(res.sleepSessions, hr)
+            primaryRhr?.let { primarySessionRHRByDay[res.daily.day] = it }
+            primaryRhrCoverage?.let { primarySessionRHRCoverageByDay[res.daily.day] = it }
             scoredNights.add(res)
             resolvedScoreOwnerByDay[res.daily.day] = owner
         }

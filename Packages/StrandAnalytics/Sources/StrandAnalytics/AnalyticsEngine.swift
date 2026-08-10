@@ -1058,11 +1058,8 @@ public enum AnalyticsEngine {
         sessions: [SleepSession], hr: [HRSample],
         validBpm: ClosedRange<Int> = PrimarySessionRestingHR.defaultValidBpm,
         minValidSamples: Int = PrimarySessionRestingHR.defaultMinValidSamples) -> Double? {
-        PrimarySessionRestingHR.meanHR(sessions: sessions.map { s in
-            PrimarySessionRestingHR.Session(
-                durationSec: Double(s.end - s.start),
-                bpm: hr.filter { $0.ts >= s.start && $0.ts < s.end }.map { $0.bpm })
-        }, validBpm: validBpm, minValidSamples: minValidSamples)
+        PrimarySessionRestingHR.meanHR(sessions: primarySessions(sessions: sessions, hr: hr),
+                                       validBpm: validBpm, minValidSamples: minValidSamples)
     }
 
     /// #1169 coverage inputs for the shadow `rhr_primary_session` mean (valid-sample count + primary-session
@@ -1073,11 +1070,33 @@ public enum AnalyticsEngine {
         sessions: [SleepSession], hr: [HRSample],
         validBpm: ClosedRange<Int> = PrimarySessionRestingHR.defaultValidBpm,
         minValidSamples: Int = PrimarySessionRestingHR.defaultMinValidSamples) -> PrimarySessionRestingHR.Coverage? {
-        PrimarySessionRestingHR.coverage(sessions: sessions.map { s in
+        PrimarySessionRestingHR.coverage(sessions: primarySessions(sessions: sessions, hr: hr),
+                                         validBpm: validBpm, minValidSamples: minValidSamples)
+    }
+
+    /// Window `hr` to each session's `[start, end)` once — the shared input BOTH the #1169 mean and its coverage
+    /// average over. Extracted so a caller that needs both windows the samples a SINGLE time (this is O(sessions
+    /// × hr); doing it once per metric is pure duplicate work). Twin of the Kotlin `primarySessions`.
+    private static func primarySessions(sessions: [SleepSession], hr: [HRSample]) -> [PrimarySessionRestingHR.Session] {
+        sessions.map { s in
             PrimarySessionRestingHR.Session(
                 durationSec: Double(s.end - s.start),
                 bpm: hr.filter { $0.ts >= s.start && $0.ts < s.end }.map { $0.bpm })
-        }, validBpm: validBpm, minValidSamples: minValidSamples)
+        }
+    }
+
+    /// The #1169 mean AND its coverage from ONE windowing of `hr` (both read the same longest primary session).
+    /// Byte-identical to calling `primarySessionRestingHR` + `primarySessionRestingHRCoverage` separately, but
+    /// windows the per-session samples once instead of twice — the only caller (IntelligenceEngine) needs both.
+    /// Twin of the Kotlin `primarySessionRestingHRWithCoverage`.
+    public static func primarySessionRestingHRWithCoverage(
+        sessions: [SleepSession], hr: [HRSample],
+        validBpm: ClosedRange<Int> = PrimarySessionRestingHR.defaultValidBpm,
+        minValidSamples: Int = PrimarySessionRestingHR.defaultMinValidSamples)
+        -> (mean: Double?, coverage: PrimarySessionRestingHR.Coverage?) {
+        let built = primarySessions(sessions: sessions, hr: hr)
+        return (PrimarySessionRestingHR.meanHR(sessions: built, validBpm: validBpm, minValidSamples: minValidSamples),
+                PrimarySessionRestingHR.coverage(sessions: built, validBpm: validBpm, minValidSamples: minValidSamples))
     }
 
     // MARK: - Skin-temp funnel diagnostic (#752)

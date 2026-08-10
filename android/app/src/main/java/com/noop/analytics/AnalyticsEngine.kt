@@ -15,6 +15,7 @@ import com.noop.protocol.Whoop4SkinTemp
 import com.noop.protocol.skinTempCelsius
 import org.json.JSONObject
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import kotlin.math.max
@@ -95,6 +96,18 @@ object AnalyticsEngine {
      * pure-function callers/tests on UTC are unchanged.
      */
     fun dayString(ts: Long, offsetSec: Long): String = dayString(ts + offsetSec)
+
+    /**
+     * UTC-midnight epoch seconds of an ISO [day] key (yyyy-MM-dd). [isoDay] is a FIXED-UTC formatter, so
+     * `dayString(ts, offsetSec) == day` ⇔ `(ts + offsetSec) ∈ [dayStartUtcSeconds(day), +86400)` — an integer
+     * range check that replaces the per-sample DateFormatter the full-day stream filters in [analyzeDay] used
+     * to run (~170k formatter invocations per scored day, ×maxDays, every pass; #996). A malformed [day] falls
+     * back to 0 — an empty 1970 window no real sample matches — rather than throwing, so a single bad key can
+     * never take down a whole scoring pass. Byte-identical twin of the Swift `AnalyticsEngine.dayStartUtcSeconds`
+     * (locked cross-platform by AnalyticsEngineDayBoundsTest / AnalyticsEngineDayBoundsTests).
+     */
+    fun dayStartUtcSeconds(day: String): Long =
+        runCatching { LocalDate.parse(day).atStartOfDay(ZoneOffset.UTC).toEpochSecond() }.getOrDefault(0L)
 
     /**
      * JSON-encode stage segments to the verbatim array shape the sleepSession cache
@@ -309,6 +322,16 @@ object AnalyticsEngine {
         deepHrvWindow: Boolean = false,
     ): DayResult {
 
+        // Precompute the day's UTC bounds ONCE (#996). isoDay is a FIXED-UTC formatter, so
+        // `dayString(ts, tzOffsetSeconds) == day` is exactly membership in [dayStartUtc, +86400). That turns
+        // the day-bucketing filters below — otherwise a per-sample DateFormatter over the full-day
+        // dayHr/daySteps streams (~86k 1 Hz samples each) once per analyzeDay, ×maxDays every pass — into an
+        // integer range check. Byte-identical to the formatter compare (locked by AnalyticsEngineDayBoundsTest,
+        // incl. fractional offsets), matching the Swift twin.
+        val dayStartUtc = dayStartUtcSeconds(day)
+        val dayEndUtc = dayStartUtc + 86_400
+        fun tsInDay(ts: Long): Boolean = (ts + tzOffsetSeconds) >= dayStartUtc && (ts + tzOffsetSeconds) < dayEndUtc
+
         // ── Sleep detection + staging ─────────────────────────────────────────
         val detectedSessions = SleepStager.detectSleep(
             hr = hr, rr = rr, resp = resp, gravity = gravity, tzOffsetSeconds = tzOffsetSeconds,
@@ -349,7 +372,7 @@ object AnalyticsEngine {
         }
         // Sessions attributed to `day` = those whose end falls on `day` (LOCAL day, #277). `day` is
         // the caller's local-day key; attribute by the same offset so the bucket and the key agree.
-        val matched = allSessions.filter { dayString(it.end, tzOffsetSeconds) == day }
+        val matched = allSessions.filter { tsInDay(it.end) }
 
         // ── The day's MAIN night (#525) ───────────────────────────────────────
         // A day can hold an overnight AND a daytime nap (both end on `day`, so both are in `matched`).
@@ -634,7 +657,7 @@ object AnalyticsEngine {
             // day's read window may include adjacent-day samples, so filter to the LOCAL-day key first
             // (#277); the wrap-aware tick math itself lives in the shared StepsCounter kernel so the daily
             // and per-workout (#398) totals can never disagree.
-            val inDay = (daySteps ?: steps).filter { dayString(it.ts, tzOffsetSeconds) == day }
+            val inDay = (daySteps ?: steps).filter { tsInDay(it.ts) }
             val ticks = StepsCounter.stepsInWindow(inDay) ?: return@run null
             // @57 counts motion ticks, not validated steps — the 5/MG counter overcounts. Divide
             // by the user-calibrated ticks-per-step (default 1.0 = raw pass-through; floor 0.5 so
@@ -656,7 +679,7 @@ object AnalyticsEngine {
         // (dayString(ts, tzOffset)) so it agrees with the bucket (#277). Fall back to the
         // night-window hr for pure-function callers that don't supply dayHr. Strain keeps the full
         // window (bounded log).
-        val dayHrFiltered = (dayHr ?: hr).filter { dayString(it.ts, tzOffsetSeconds) == day }
+        val dayHrFiltered = (dayHr ?: hr).filter { tsInDay(it.ts) }
         val activeKcalEst: Double? = if (dayHrFiltered.isEmpty()) {
             null
         } else {
@@ -868,16 +891,7 @@ object AnalyticsEngine {
         hr: List<HrSample>,
         validBpm: IntRange = PrimarySessionRestingHR.DEFAULT_VALID_BPM,
         minValidSamples: Int = PrimarySessionRestingHR.DEFAULT_MIN_VALID_SAMPLES,
-    ): Double? = PrimarySessionRestingHR.meanHR(
-        sessions.map { s ->
-            PrimarySessionRestingHR.Session(
-                durationSec = (s.end - s.start).toDouble(),
-                bpm = hr.filter { it.ts >= s.start && it.ts < s.end }.map { it.bpm },
-            )
-        },
-        validBpm,
-        minValidSamples,
-    )
+    ): Double? = PrimarySessionRestingHR.meanHR(primarySessions(sessions, hr), validBpm, minValidSamples)
 
     /** #1169 coverage inputs for the shadow `rhr_primary_session` mean (valid-sample count + primary-session
      *  duration). Builds the SAME per-session inputs as [primarySessionRestingHR] and delegates to
@@ -888,16 +902,36 @@ object AnalyticsEngine {
         hr: List<HrSample>,
         validBpm: IntRange = PrimarySessionRestingHR.DEFAULT_VALID_BPM,
         minValidSamples: Int = PrimarySessionRestingHR.DEFAULT_MIN_VALID_SAMPLES,
-    ): PrimarySessionRestingHR.Coverage? = PrimarySessionRestingHR.coverage(
-        sessions.map { s ->
-            PrimarySessionRestingHR.Session(
-                durationSec = (s.end - s.start).toDouble(),
-                bpm = hr.filter { it.ts >= s.start && it.ts < s.end }.map { it.bpm },
-            )
-        },
-        validBpm,
-        minValidSamples,
-    )
+    ): PrimarySessionRestingHR.Coverage? =
+        PrimarySessionRestingHR.coverage(primarySessions(sessions, hr), validBpm, minValidSamples)
+
+    /** Window [hr] to each session's `[start, end)` once — the shared input BOTH the #1169 mean and its coverage
+     *  average over. Extracted so a caller that needs both windows the samples a SINGLE time (this is O(sessions
+     *  × hr); doing it once per metric is pure duplicate work). Twin of the Swift `primarySessions`. */
+    private fun primarySessions(
+        sessions: List<DetectedSleep>,
+        hr: List<HrSample>,
+    ): List<PrimarySessionRestingHR.Session> = sessions.map { s ->
+        PrimarySessionRestingHR.Session(
+            durationSec = (s.end - s.start).toDouble(),
+            bpm = hr.filter { it.ts >= s.start && it.ts < s.end }.map { it.bpm },
+        )
+    }
+
+    /** The #1169 mean AND its coverage from ONE windowing of [hr] (both read the same longest primary session).
+     *  Byte-identical to calling [primarySessionRestingHR] + [primarySessionRestingHRCoverage] separately, but
+     *  windows the per-session samples once instead of twice — the only caller (IntelligenceEngine) needs both.
+     *  Twin of the Swift `primarySessionRestingHRWithCoverage`. */
+    internal fun primarySessionRestingHRWithCoverage(
+        sessions: List<DetectedSleep>,
+        hr: List<HrSample>,
+        validBpm: IntRange = PrimarySessionRestingHR.DEFAULT_VALID_BPM,
+        minValidSamples: Int = PrimarySessionRestingHR.DEFAULT_MIN_VALID_SAMPLES,
+    ): Pair<Double?, PrimarySessionRestingHR.Coverage?> {
+        val built = primarySessions(sessions, hr)
+        return PrimarySessionRestingHR.meanHR(built, validBpm, minValidSamples) to
+            PrimarySessionRestingHR.coverage(built, validBpm, minValidSamples)
+    }
 
     /** Plausible worn skin-temperature range (°C). Off-wrist/charging samples drift to ambient and are
      *  excluded; the strap's own decode gate is the looser 20–45. (PR #85) */

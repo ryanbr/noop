@@ -114,4 +114,19 @@ class PrimarySessionRestingHRTest {
         assertEquals(100, cov.validSamples)
         assertEquals(30_000.0, cov.durationSec, 1e-9)
     }
+
+    /** The combined wrapper windows the HR ONCE but must return byte-identical (mean, coverage) to calling the
+     *  two separate wrappers — the only caller (IntelligenceEngine) needs both, so this locks the dedup. */
+    @Test fun withCoverageMatchesSeparateCalls() {
+        val night = DetectedSleep(0L, 30_000L, 0.9, emptyList(), null, null)
+        val nap = DetectedSleep(40_000L, 45_000L, 0.9, emptyList(), null, null)
+        val hr = (0 until 100).map { HrSample("d", (it * 30).toLong(), 60) } +
+            (0 until 50).map { HrSample("d", (40_000 + it * 30).toLong(), 45) }
+        val sessions = listOf(nap, night)
+        val (mean, cov) = AnalyticsEngine.primarySessionRestingHRWithCoverage(sessions, hr)
+        assertEquals(AnalyticsEngine.primarySessionRestingHR(sessions, hr)!!, mean!!, 1e-9)
+        val sep = AnalyticsEngine.primarySessionRestingHRCoverage(sessions, hr)!!
+        assertEquals(sep.validSamples, cov!!.validSamples)
+        assertEquals(sep.durationSec, cov.durationSec, 1e-9)
+    }
 }

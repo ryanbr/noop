@@ -5435,7 +5435,10 @@ class WhoopBleClient(
             "REALTIME_DATA" -> {
                 // Reject 0 / out-of-range spikes; only accept physiologically plausible HR.
                 (parsed.parsed["heart_rate"] as? Int)?.let { hr ->
-                    if (hr in 30..220) _state.update { it.copy(heartRate = hr) }
+                    // Only republish when the value actually changed: a same-HR frame's it.copy() allocates a
+                    // whole throwaway LiveState that StateFlow drops as equal anyway — pure GC churn at ~1 Hz,
+                    // every frame. Matches the Swift FrameRouter guard (`state.heartRate != hr`).
+                    if (hr in 30..220 && _state.value.heartRate != hr) _state.update { it.copy(heartRate = hr) }
                 }
                 // The realtime stream usually reports rr_count=0; only update R-R when this frame
                 // actually carries intervals, so we don't wipe R-R sourced from the 0x2A37 profile.
@@ -5715,7 +5718,10 @@ class WhoopBleClient(
         if (rr.isNotEmpty()) _state.update { it.withRRIntervals(rr) }
         // HR: accept only physiologically plausible values; reject 0/garbage (off-wrist).
         if (hr in 30..220) {
-            _state.update { it.copy(heartRate = hr) }
+            // Skip the redundant it.copy() when HR is unchanged — StateFlow drops an equal state anyway, so
+            // this only avoids the per-frame throwaway LiveState allocation (matches FrameRouter). The bonded
+            // transition below stays UNCONDITIONAL: it must still fire once even while HR sits steady.
+            if (_state.value.heartRate != hr) _state.update { it.copy(heartRate = hr) }
             // EXPERIMENTAL WHOOP 5.0/MG: there is no confirmed-write bond for a 5/MG strap, so once
             // live HR actually streams over the standard profile we treat the link as established —
             // otherwise the UI sits on "Connecting…" forever even though data is flowing (issue #8).
