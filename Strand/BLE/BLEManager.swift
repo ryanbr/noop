@@ -761,7 +761,9 @@ public final class BLEManager: NSObject, ObservableObject {
     private lazy var puffinDeepBufferLog = PuffinDeepBufferLog()
 
     /// Force the puffin capture buffer to disk so the Settings export/reveal targets a current file.
-    public func flushPuffinCaptures() { puffinRecorder.flush() }
+    /// `async` because the actual encode + write now happens off the main actor (#652); callers that
+    /// need the file to be current when this returns (export, reveal) must await it.
+    public func flushPuffinCaptures() async { await puffinRecorder.flush() }
 
     /// Record a local physical-phase marker for the passive optical experiment. This deliberately has
     /// no peripheral/write path: it only appends to `puffin-deepbuffers.jsonl` when capture is enabled.
@@ -4710,7 +4712,9 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         keepAliveTimer?.cancel()
         keepAliveTimer = nil
         resetCharacteristics()
-        puffinRecorder.flush()   // persist any buffered puffin capture frames before reconnect
+        // Best-effort, fire-and-forget: nothing below depends on this write completing, and the
+        // recorder keeps writing the same session file after reconnect (#652: encode+write off-main).
+        Task { @MainActor in await puffinRecorder.flush() }   // persist any buffered puffin capture frames
         puffinEventLog.close()   // release the event-log handle so the file is safe to export
         puffinDeepBufferLog.close()   // same for the high-rate deep-buffer log (#423)
         Task { @MainActor in await collector?.flushStandardHR() }   // persist any buffered 0x2A37 HR

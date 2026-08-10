@@ -6,7 +6,7 @@ import Foundation
 /// The `hex` key is intentionally the same shape the test fixtures use (`frames.json` is an array of
 /// `{"hex": …}`), so a capture file is *directly* usable as a parity fixture — the extra fields are a
 /// superset the decoder ignores. Keys are snake_case to match the existing `golden.json` style.
-public struct PuffinCaptureRecord: Codable, Equatable {
+public struct PuffinCaptureRecord: Codable, Equatable, Sendable {
     /// Full on-wire frame as lowercase hex — the canonical `ParsedFrame.rawHex`.
     public let hex: String
     /// Source notify characteristic UUID (e.g. `fd4b0005-…`) — tells you which channel the frame

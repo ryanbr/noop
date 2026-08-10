@@ -390,20 +390,22 @@ struct TestCentreView: View {
     }
 
     private func runScheduledExportNow() {
-        model.ble.flushPuffinCaptures()
-        let url = ScheduledDebugExport.runNow(captureURL: live.puffinCaptureURL)
-        if let url {
-            infoTitle = String(localized: "Strap log exported")
-            #if os(iOS)
-            infoMessage = String(localized: "Saved \(url.lastPathComponent) to NOOP's folder in the Files app.")
-            #else
-            infoMessage = String(localized: "Saved \(url.lastPathComponent) to your Documents folder.")
-            #endif
-        } else {
-            infoTitle = String(localized: "Export failed")
-            infoMessage = String(localized: "Couldn't write the strap log right now.")
+        Task { @MainActor in
+            await model.ble.flushPuffinCaptures()
+            let url = ScheduledDebugExport.runNow(captureURL: live.puffinCaptureURL)
+            if let url {
+                infoTitle = String(localized: "Strap log exported")
+                #if os(iOS)
+                infoMessage = String(localized: "Saved \(url.lastPathComponent) to NOOP's folder in the Files app.")
+                #else
+                infoMessage = String(localized: "Saved \(url.lastPathComponent) to your Documents folder.")
+                #endif
+            } else {
+                infoTitle = String(localized: "Export failed")
+                infoMessage = String(localized: "Couldn't write the strap log right now.")
+            }
+            showInfo = true
         }
-        showInfo = true
     }
 }
 
