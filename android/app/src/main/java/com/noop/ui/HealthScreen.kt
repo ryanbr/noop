@@ -78,6 +78,7 @@ import com.noop.analytics.FitnessAgeReadiness
 import com.noop.analytics.FitnessReadinessItem
 import com.noop.analytics.FitnessReadinessRole
 import com.noop.analytics.FitnessReadinessStatus
+import com.noop.analytics.SkinTempDisplay
 import com.noop.analytics.VitalBands
 import com.noop.ble.LiveState
 import com.noop.data.DailyMetric
@@ -2029,27 +2030,25 @@ private fun buildVitalDetail(
     )
     "skin" -> {
         val latest = days.asReversed().asSequence().mapNotNull { it.skinTempDevC }.firstOrNull() ?: return null
-        val absolute = VitalBands.isAbsoluteSkinTemp(latest)
-        val unit = UnitFormatter.temperatureUnit(tempUnit)
-        val format: (Double) -> String = { c ->
-            val full = if (absolute) {
-                UnitFormatter.temperatureFromCelsius(c, tempUnit, decimals = 1)
-            } else {
-                UnitFormatter.temperatureDeltaFromCelsius(c, tempUnit, decimals = 1)
-            }
-            full.removeSuffix(" $unit")
+        val kind = SkinTempDisplay.kind(latest)
+        val fahrenheit = tempUnit == TemperatureUnit.FAHRENHEIT
+        val unit = SkinTempDisplay.unitSymbol(kind, fahrenheit)
+        val title = if (kind == SkinTempDisplay.Kind.ABSOLUTE) {
+            uiString(R.string.l10n_health_screen_skin_temperature_f59127f6)
+        } else {
+            uiString(R.string.skin_temp_delta_title)
         }
         VitalDetailModel(
             key = key,
-            title = uiString(R.string.l10n_health_screen_skin_temperature_f59127f6),
+            title = title,
             unit = unit,
             color = Palette.metricAmber,
             readings = days.mapNotNull { row ->
                 row.skinTempDevC
-                    ?.takeIf { VitalBands.isAbsoluteSkinTemp(it) == absolute }
+                    ?.takeIf { VitalBands.isAbsoluteSkinTemp(it) == (kind == SkinTempDisplay.Kind.ABSOLUTE) }
                     ?.let { value -> VitalReading(row.day, value, row.deviceId) }
             },
-            format = format,
+            format = { c -> SkinTempDisplay.numberString(c, kind, fahrenheit, decimals = 1) },
         )
     }
     else -> null

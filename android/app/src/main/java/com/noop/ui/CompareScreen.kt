@@ -104,11 +104,20 @@ data class CompareMetric(
         return if (unit.isEmpty()) n else "$n $unit"
     }
 
-    /** Unit-aware format (D#103): weight/lean_mass (kg) and skin_temp (°C) convert + relabel via
-     *  [UnitFormatter]; everything else (%, bpm, ms, min, …) is unit-agnostic and falls through. */
+    /** Unit-aware format (D#103): weight/lean_mass (kg) and skin_temp (°C / Δ°C) convert + relabel via
+     *  [UnitFormatter] / [SkinTempDisplay]; everything else falls through. */
     fun format(v: Double, system: UnitSystem, temperature: TemperatureUnit): String = when (unit) {
         "kg" -> UnitFormatter.massFromKilograms(v, system)
-        "°C" -> UnitFormatter.temperatureFromCelsius(v, temperature, decimals)
+        "°C" -> if (key == "skin_temp") {
+            // #622: absolute vs baseline-deviation share the same key — label Δ°C when deviation.
+            com.noop.analytics.SkinTempDisplay.format(
+                v,
+                fahrenheit = temperature == TemperatureUnit.FAHRENHEIT,
+                decimals = decimals,
+            )
+        } else {
+            UnitFormatter.temperatureFromCelsius(v, temperature, decimals)
+        }
         else -> format(v)
     }
 

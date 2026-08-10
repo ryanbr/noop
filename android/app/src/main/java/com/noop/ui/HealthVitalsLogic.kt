@@ -3,6 +3,7 @@ package com.noop.ui
 import androidx.compose.ui.graphics.Color
 import com.noop.R
 import com.noop.analytics.Baselines
+import com.noop.analytics.SkinTempDisplay
 import com.noop.analytics.VitalBands
 import com.noop.data.DailyMetric
 import java.time.LocalDate
@@ -160,16 +161,18 @@ internal fun vitalsFor(
             cfg = if (skinIsAbsolute) Baselines.metricCfg.getValue("skin_temp") else VitalBands.skinTempDeviationCfg,
         )
     }
-    // Resolve the skin-temp label + converter once, honouring the °C/°F preference. `Vital.formattedValue`
-    // appends `unit`, so strip the trailing " °C/°F" the formatter adds.
-    val skinUnitLabel = UnitFormatter.temperatureUnit(tempUnit)
+    // Resolve the skin-temp label + unit once (#622). Absolute → "Skin Temp" / "°C";
+    // deviation → "Skin Temp Δ" / "Δ°C" so −0.1 is never read as a broken thermometer.
+    val skinKind = if (skinIsAbsolute) SkinTempDisplay.Kind.ABSOLUTE else SkinTempDisplay.Kind.DEVIATION
+    val fahrenheit = tempUnit == TemperatureUnit.FAHRENHEIT
+    val skinUnitLabel = SkinTempDisplay.unitSymbol(skinKind, fahrenheit)
+    val skinTitle = if (skinIsAbsolute) {
+        uiString(R.string.l10n_health_screen_skin_temp_a4affc5a)
+    } else {
+        uiString(R.string.skin_temp_delta_title)
+    }
     val skinFormat: (Double) -> String = { c ->
-        val full = if (skinIsAbsolute) {
-            UnitFormatter.temperatureFromCelsius(c, tempUnit, decimals = 1)
-        } else {
-            UnitFormatter.temperatureDeltaFromCelsius(c, tempUnit, decimals = 1)
-        }
-        full.removeSuffix(" $skinUnitLabel")
+        SkinTempDisplay.numberString(c, skinKind, fahrenheit, decimals = 1)
     }
     val previousSkin = history.asReversed().asSequence()
         .mapNotNull { row -> row.skinTempDevC?.takeIf { VitalBands.isAbsoluteSkinTemp(it) == skinIsAbsolute } }
@@ -281,15 +284,20 @@ internal fun vitalsFor(
             sparkline = trail(d?.avgHrv) { it.avgHrv },
         ),
         Vital(
-            key = "skin", label = uiString(R.string.l10n_health_screen_skin_temp_a4affc5a), unit = skinUnitLabel,
-            // #548: empty is often calibrating (~4 nights for ±deviation) or import-less — not a silent
-            // "broken sensor". Absolute °C still arrives via WHOOP CSV / Health Connect import.
+            key = "skin", label = skinTitle, unit = skinUnitLabel,
+            // #548/#622: empty is often calibrating (~4 nights for ±deviation) or import-less — not a
+            // silent broken sensor. Absolute °C still arrives via WHOOP CSV / Health Connect import.
             missingCaption = uiString(R.string.skin_temp_missing_caption),
             value = skin, format = skinFormat,
             deltaText = deltaText(skin, previousSkin),
             readingDay = todayKey,
             asOfLabel = asOfLabel(todayKey),
-            rangeCaption = skinRangeCaption,
+            // Live deviation: name the scale so "−0.1 Δ°C" is not read as absolute wrist temp (#622).
+            rangeCaption = if (!skinIsAbsolute && skin != null) {
+                listOfNotNull(uiString(R.string.skin_temp_vs_baseline), skinRangeCaption).joinToString(" · ")
+            } else {
+                skinRangeCaption
+            },
             banding = skinResult, metricColor = Palette.metricAmber,
             // Keep the trail on the displayed value's kind — absolute °C and ±deviation must not mix.
             sparkline = trail(skin) { row ->

@@ -1991,4 +1991,6 @@
     <string name="cycle_day_single">· ~day %1$d</string>
     <string name="cycle_day_range">· ~day %1$d–%2$d</string>
     <string name="skin_temp_missing_caption">No nightly skin-temp yet — needs ~4 worn nights (or import a WHOOP CSV)</string>
+    <string name="skin_temp_delta_title">Skin Temp Δ</string>
+    <string name="skin_temp_vs_baseline">vs baseline</string>
 </resources>

@@ -1979,4 +1979,6 @@
     <string name="cycle_day_single">· ~Tag %1$d</string>
     <string name="cycle_day_range">· ~Tag %1$d–%2$d</string>
     <string name="skin_temp_missing_caption">Noch keine nächtliche Hauttemperatur — benötigt ~4 getragene Nächte (oder importiere eine WHOOP-CSV)</string>
+    <string name="skin_temp_delta_title">Hauttemperatur Δ</string>
+    <string name="skin_temp_vs_baseline">ggü. Basiswert</string>
 </resources>

@@ -1891,4 +1891,6 @@
     <string name="cycle_day_single">· 约第 %1$d 天</string>
     <string name="cycle_day_range">· 约第 %1$d–%2$d 天</string>
     <string name="skin_temp_missing_caption">暂无夜间皮肤温度 — 需要约 4 个佩戴夜晚（或导入 WHOOP CSV）</string>
+    <string name="skin_temp_delta_title">皮肤体温 Δ</string>
+    <string name="skin_temp_vs_baseline">相对基线</string>
 </resources>

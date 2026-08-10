@@ -83,7 +83,8 @@ struct BodyVitalReading: Identifiable {
         case .whoopImport:
             return String(localized: "WHOOP import")
         case .noopComputed:
-            if key == "skin" { return String(localized: "Overnight computed") }
+            // Live pipeline stores ±°C vs personal baseline (#622) — not absolute wrist °C.
+            if key == "skin" { return String(localized: "vs baseline") }
             return String(localized: "NOOP computed")
         case .appleHealth:
             return String(localized: "Apple Health")
@@ -203,14 +204,16 @@ enum BodyVitalSigns {
             skinResult = VitalBands.Result(band: .noData, basis: .population, nights: 0)
         }
 
-        // Resolve the skin-temp label + converter once, honouring the °C/°F preference. An ABSOLUTE
-        // reading uses the full C→F formula (×9/5 + 32); a ±DEVIATION must omit the offset.
-        let skinUnitLabel = UnitFormatter.temperatureUnit(temperatureUnit)
+        // Resolve the skin-temp label + unit once (#622). Absolute → "Skin Temp" / "°C";
+        // deviation → "Skin Temp Δ" / "Δ°C" so −0.1 is never read as a broken thermometer.
+        let skinKind: SkinTempDisplay.Kind = skinIsAbsolute ? .absolute : .deviation
+        let fahrenheit = temperatureUnit == .fahrenheit
+        let skinUnitLabel = SkinTempDisplay.unitSymbol(kind: skinKind, fahrenheit: fahrenheit)
+        let skinTitle = skinIsAbsolute
+            ? String(localized: "Skin Temp")
+            : String(localized: "Skin Temp Δ")
         let skinFormat: (Double) -> String = { c in
-            let full = skinIsAbsolute
-                ? UnitFormatter.temperatureFromCelsius(c, unit: temperatureUnit, decimals: 1)
-                : UnitFormatter.temperatureDeltaFromCelsius(c, unit: temperatureUnit, decimals: 1)
-            return full.replacingOccurrences(of: " " + skinUnitLabel, with: "")
+            SkinTempDisplay.numberString(c, kind: skinKind, fahrenheit: fahrenheit, decimals: 1)
         }
 
         return [
@@ -330,7 +333,7 @@ enum BodyVitalSigns {
             ),
             BodyVitalReading(
                 key: "skin",
-                label: String(localized: "Skin Temp"),
+                label: skinTitle,
                 unit: skinUnitLabel,
                 value: skin,
                 format: skinFormat,
@@ -338,7 +341,7 @@ enum BodyVitalSigns {
                 metricColor: StrandPalette.metricAmber,
                 day: skinRow?.day,
                 source: skinRow?.source,
-                // #548: empty is often calibrating (needs ~4 nights for ±deviation) or import-less —
+                // #548/#622: empty is often calibrating (needs ~4 nights for ±deviation) or import-less —
                 // not a silent "broken sensor". Absolute °C still arrives via WHOOP CSV import.
                 missingCaption: String(localized: "No nightly skin-temp yet — needs ~4 worn nights (or import a WHOOP CSV)"),
                 // Keep the trail on the displayed value's kind — absolute °C and ±deviation must not

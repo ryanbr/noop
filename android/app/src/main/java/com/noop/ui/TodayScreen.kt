@@ -3284,10 +3284,13 @@ private fun dashboardCardValue(
             (vd?.spo2Pct ?: spo2Day?.spo2Pct)?.let { String.format(Locale.US, "%.0f%%", it) }
                 ?: (vd?.day ?: day?.day)?.let { spo2CandidateByDay[it] }?.let { String.format(Locale.US, "%.0f%%", it) }
                 ?: NO_DATA
-        DashboardCard.SKIN_TEMP ->
-            // Stored as a deviation from baseline (°C); show it signed so +/- reads honestly.
-            // Same per-field carry as Blood Oxygen.
-            (vd?.skinTempDevC ?: skinTempDay?.skinTempDevC)?.let { String.format(Locale.US, "%+.1f°", it) } ?: NO_DATA
+        DashboardCard.SKIN_TEMP -> {
+            // #622: bimodal field — absolute °C (import) vs signed Δ°C vs baseline (live).
+            // Always label the scale; bare "−0.1°" next to a 34° deep-timeline chart looked broken.
+            val v = vd?.skinTempDevC ?: skinTempDay?.skinTempDevC
+            if (v == null) NO_DATA
+            else com.noop.analytics.SkinTempDisplay.format(v, fahrenheit = false)
+        }
         DashboardCard.SLEEP -> sleepValue(vd)
         DashboardCard.STEPS -> {
             val real = day?.steps?.let { intStringGrouped(it.toDouble()) }

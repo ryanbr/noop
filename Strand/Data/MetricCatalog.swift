@@ -66,10 +66,10 @@ struct MetricDescriptor: Identifiable, Hashable {
         switch unit {
         case "kg":  return UnitFormatter.massFromKilograms(v, system: system)
         case "°C":
-            // #111: a skin-temp DEVIATION (v < 20 °C) scales without the +32 offset; an absolute reading
-            // (WHOOP export, v >= 20 °C) keeps the full C→F. Every other °C metric is absolute.
-            if isSkinTemp && !VitalBands.isAbsoluteSkinTemp(v) {
-                return UnitFormatter.temperatureDeltaFromCelsius(v, unit: temperature, decimals: decimals)
+            // #111 / #622: skin_temp is bimodal — absolute (import) vs ±deviation (live). Use
+            // SkinTempDisplay so deviation units read "Δ°C" / "Δ°F" and stay signed.
+            if isSkinTemp {
+                return SkinTempDisplay.format(v, fahrenheit: temperature == .fahrenheit, decimals: decimals)
             }
             return UnitFormatter.temperatureFromCelsius(v, unit: temperature, decimals: decimals)
         default:    return isEffort ? format(v, effortScale: effortScale) : format(v)

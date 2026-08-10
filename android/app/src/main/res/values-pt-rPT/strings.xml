@@ -1958,4 +1958,6 @@
     <string name="cycle_day_single">· ~dia %1$d</string>
     <string name="cycle_day_range">· ~dia %1$d–%2$d</string>
     <string name="skin_temp_missing_caption">Ainda sem temperatura da pele noturna — precisa de ~4 noites de utilização (ou importe um CSV da WHOOP)</string>
+    <string name="skin_temp_delta_title">Temperatura da pele Δ</string>
+    <string name="skin_temp_vs_baseline">vs referência</string>
 </resources>
