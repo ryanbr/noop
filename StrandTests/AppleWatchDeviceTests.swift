@@ -100,11 +100,11 @@ final class AppleWatchDeviceTests: XCTestCase {
         XCTAssertEqual(dev?.nickname, "My Watch")
         XCTAssertEqual(dev?.addedAt, 1000)             // pairing date preserved
         XCTAssertEqual(dev?.lastSeenAt, 2000)          // last-seen advances
-        XCTAssertEqual(dev?.status, .active)           // un refresh no desactiva la fuente visible
+        XCTAssertEqual(dev?.status, .active)           // a refresh doesn't deactivate the visible source
         XCTAssertEqual(dev?.capabilities, [.hr, .hrv, .sleep, .steps])
     }
 
-    // MARK: - Activación automática segura
+    // MARK: - Safe auto-activation
 
     func testActivaAppleCuandoSoloQuedaElWhoopSemillaSinDatos() {
         let placeholder = PairedDevice(

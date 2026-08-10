@@ -962,9 +962,9 @@ final class AppModel: ObservableObject {
     }
 
     #if os(iOS)
-    /// Materializa Apple Health como dispositivo y actualiza la fuente que alimenta «Hoy».
-    /// Solo sustituye la fila WHOOP de arranque cuando sigue siendo un marcador sin pulsera ni datos;
-    /// una fuente física o elegida por el usuario conserva siempre la prioridad.
+    /// Materialize Apple Health as a device and update the source that feeds Today.
+    /// Only replaces the seeded WHOOP row while it is still a placeholder with no strap and no data;
+    /// a physical or user-selected source always keeps priority.
     func refreshAfterAppleHealthSync(authorized: Bool, now: Date = Date()) async {
         await wireSourceCoordinator()
         guard let registry = deviceRegistry, let store = await repo.storeHandle() else {
@@ -995,7 +995,7 @@ final class AppModel: ObservableObject {
             registry.setActive(AppleWatchDevice.deviceId)
             await adoptActiveDevice(AppleWatchDevice.deviceId)
         } else if registry.activeDeviceId == AppleWatchDevice.deviceId {
-            // Cubre relanzamientos: la fila ya era activa, pero el read spine puede estar inicializándose.
+            // Covers relaunches: the row was already active, but the read spine may still be initializing.
             await adoptActiveDevice(AppleWatchDevice.deviceId)
             await repo.refresh()
         } else {

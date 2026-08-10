@@ -80,16 +80,16 @@ enum AppleWatchDevice {
             peripheralId: nil,                 // HealthKit source, not a BLE peripheral
             sourceKind: .liveAppleWatch,
             capabilities: caps,
-            // Refrescar capacidades no debe desactivar una fuente que el usuario ya tenía activa.
+            // Refreshing capabilities must not deactivate a source the user already had active.
             status: existing?.status ?? .paired,
             addedAt: existing?.addedAt ?? ts,
             lastSeenAt: ts)
     }
 
-    /// Apple Health pasa a alimentar «Hoy» únicamente cuando el activo es la fila WHOOP sembrada
-    /// por la migración y esa fila no representa una pulsera ni conserva datos recientes. Así una
-    /// autorización explícita de Salud arregla una instalación sin WHOOP, pero nunca desplaza una
-    /// pulsera real, un Oura u otra fuente que el usuario haya elegido.
+    /// Apple Health starts feeding Today only when the active source is the seeded WHOOP row
+    /// from the migration and that row represents no strap and holds no recent data. So an
+    /// explicit Health authorization fixes a strap-less install, but never displaces a
+    /// real strap, an Oura, or any other source the user has chosen.
     static func shouldAutoActivate(current: PairedDevice?, currentHasRecentData: Bool) -> Bool {
         guard let current else { return true }
         return current.id == Repository.whoopSource
@@ -101,7 +101,7 @@ enum AppleWatchDevice {
             && !currentHasRecentData
     }
 
-    /// Ventana civil compartida por el registro y la comprobación de datos del activo.
+    /// Shared calendar window used by the registry and the active-source recency check.
     static func recentDayRange(now: Date = Date()) -> (from: String, to: String) {
         let fromDate = Calendar.current.date(byAdding: .day, value: -recentWindowDays, to: now) ?? now
         return (dayString(fromDate), dayString(now))

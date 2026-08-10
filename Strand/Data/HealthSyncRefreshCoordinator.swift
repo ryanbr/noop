@@ -1,7 +1,7 @@
 import Foundation
 
-/// Mantiene el orden necesario entre la importación de Salud y la caché que alimenta «Hoy».
-/// HealthKit escribe primero en el almacén local; solo después se refresca el repositorio visible.
+/// Keeps the ordering between the Health import and the cache that feeds Today.
+/// HealthKit writes to the local store first; only then is the visible repository refreshed.
 @MainActor
 enum HealthSyncRefreshCoordinator {
     static func run(sync: () async -> Void, refresh: () async -> Void) async {
