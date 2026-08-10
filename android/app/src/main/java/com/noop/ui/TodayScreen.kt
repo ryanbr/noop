@@ -2184,9 +2184,12 @@ private fun ChipCapsule(icon: ImageVector, text: String, tint: Color, desc: Stri
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         modifier = Modifier
+            // Match the round header controls' height so the pill sits the same size in the cluster
+            // (#1207 follow-up); width stays content-driven. Content centres via the fixed height.
+            .height(HeaderClusterControl)
             .clip(RoundedCornerShape(50))
             .background(Palette.surfaceInset)
-            .padding(horizontal = 8.dp, vertical = 5.dp),
+            .padding(horizontal = 10.dp),
     ) {
         Icon(icon, contentDescription = desc, tint = tint, modifier = Modifier.size(14.dp))
         Text(text, style = NoopType.caption, color = tint)
