@@ -1795,6 +1795,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             // No-ops when there's no strap HR for the window; never overrides a value the user typed.
             rescoreAfterEdit()
             loadWorkouts()
+            // #1195 follow-up: a manually added/edited workout writes back to Health Connect too, mirroring
+            // the live endWorkout path (iOS already syncs manual workouts to HealthKit via its query-based
+            // export). Opt-in; writes the same session + distance the live path does, under the same
+            // "noop-workout-*" client id (so a re-import skips it, no double-count). On ANY edit, delete the
+            // OLD workout's records first, then write fresh — matching iOS's delete-before-write. Deleting
+            // only when the start MOVED would leave a stale distance record when a same-start edit clears or
+            // drops the distance (writeExercise upserts the session but writes no distance record to
+            // overwrite it), or a moved-start record orphaned.
+            if (_hcWriteback.value) {
+                runCatching {
+                    replacing?.let { HealthConnectWriter.deleteExercise(appContext, it.startTs) }
+                    HealthConnectWriter.writeExercise(appContext, row, WorkoutSport.exerciseTypeForName(row.sport))
+                }
+            }
         }
     }
 
@@ -1819,6 +1833,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             runCatching { repository.deleteWorkout(row) }
             loadWorkouts()
+            // #1195 follow-up: a workout removed in NOOP is removed from Health Connect too, so a session
+            // we wrote (manual or live) doesn't linger there after the user deletes it here. Opt-in, keyed
+            // on the same "noop-workout-*" client id; a no-op for a workout we never wrote.
+            if (_hcWriteback.value) {
+                runCatching { HealthConnectWriter.deleteExercise(appContext, row.startTs) }
+            }
         }
     }
 

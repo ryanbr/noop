@@ -27,6 +27,12 @@ object WorkoutSport {
     /** The default when none is chosen ("Other"). */
     val default: Sport get() = all.first { it.name == "Other" }
 
+    /** The Health Connect exercise type for a stored sport NAME (free-text tolerant, case-insensitive),
+     *  falling back to [default]'s OTHER_WORKOUT when the name isn't a catalogue sport. Used by the
+     *  manual-workout HC writeback so a hand-entered workout maps to the same type the live path uses. */
+    fun exerciseTypeForName(name: String): Int =
+        (all.firstOrNull { it.name.equals(name.trim(), ignoreCase = true) } ?: default).exerciseType
+
     /** Sports where a step count is meaningful — feet on the ground — so the workout summary can show
      *  steps (#398). Deliberately narrow: outdoor + treadmill run/walk and hiking, NOT cycling/rowing/
      *  swimming (no footfalls) or gym/court sports (a step tally would be noise). Kept in lockstep with

@@ -34,6 +34,15 @@ class WorkoutSportTest {
         assertEquals("Other", WorkoutSport.default.name)
     }
 
+    /** #1195: the manual-workout HC writeback maps a stored sport NAME to its exercise type — case- and
+     *  whitespace-tolerant, OTHER_WORKOUT for a free-typed sport not in the catalogue. */
+    @Test fun exerciseTypeForName_mapsKnownAndFallsBackForFreeText() {
+        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_RUNNING, WorkoutSport.exerciseTypeForName("Running"))
+        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_RUNNING, WorkoutSport.exerciseTypeForName("  running "))
+        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT, WorkoutSport.exerciseTypeForName("Quidditch"))
+        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT, WorkoutSport.exerciseTypeForName(""))
+    }
+
     /** #768: the newly requested presets are present, spelled byte-for-byte the way iOS persists them. */
     @Test fun newPresets_arePresent() {
         val names = WorkoutSport.all.map { it.name }

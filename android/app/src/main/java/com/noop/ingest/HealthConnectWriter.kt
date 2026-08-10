@@ -340,4 +340,21 @@ object HealthConnectWriter {
         recordStatus(context, result)
         return result
     }
+
+    /** Remove a workout's session + distance records from Health Connect by client-record id (the same ids
+     *  [buildExerciseRecords] assigns: "noop-workout-$startTs" + "-dist"). Used when an edit MOVES the start
+     *  time so the old record doesn't orphan beside the new one — mirroring the iOS delete-before-write.
+     *  Best-effort; a missing record is a no-op. (#1195) */
+    suspend fun deleteExercise(context: Context, startTs: Long) {
+        if (HealthConnectClient.getSdkStatus(context) != HealthConnectClient.SDK_AVAILABLE) return
+        val client = HealthConnectClient.getOrCreate(context)
+        runCatching {
+            client.deleteRecords(ExerciseSessionRecord::class,
+                recordIdsList = emptyList(), clientRecordIdsList = listOf("noop-workout-$startTs"))
+        }
+        runCatching {
+            client.deleteRecords(DistanceRecord::class,
+                recordIdsList = emptyList(), clientRecordIdsList = listOf("noop-workout-dist-$startTs"))
+        }
+    }
 }
