@@ -54,4 +54,23 @@ object PrimarySessionRestingHR {
         if (valid.size < minValidSamples) return null
         return valid.sum().toDouble() / valid.size
     }
+
+    /** #1169 coverage INPUTS for the same primary session [meanHR] averages: its valid-sample count and its
+     *  duration. The fixed [minValidSamples] gate is cadence-blind, so the accruing shadow dataset needs to
+     *  weight/filter each night by how well-covered it was — but this records the RAW inputs, not a derived
+     *  coverage fraction, so the later multi-participant holdout can pick its own coverage definition. Same
+     *  longest-session selection + gate as [meanHR] (null in lockstep with it). Pure + unwired. Twin of the
+     *  Swift `PrimarySessionRestingHR.Coverage` / `coverage`. */
+    data class Coverage(val validSamples: Int, val durationSec: Double)
+
+    fun coverage(
+        sessions: List<Session>,
+        validBpm: IntRange = DEFAULT_VALID_BPM,
+        minValidSamples: Int = DEFAULT_MIN_VALID_SAMPLES,
+    ): Coverage? {
+        val primary = sessions.maxByOrNull { it.durationSec } ?: return null
+        val valid = primary.bpm.filter { it in validBpm }
+        if (valid.size < minValidSamples) return null
+        return Coverage(validSamples = valid.size, durationSec = primary.durationSec)
+    }
 }

@@ -1065,6 +1065,21 @@ public enum AnalyticsEngine {
         }, validBpm: validBpm, minValidSamples: minValidSamples)
     }
 
+    /// #1169 coverage inputs for the shadow `rhr_primary_session` mean (valid-sample count + primary-session
+    /// duration). Builds the SAME per-session inputs as `primarySessionRestingHR` and delegates to
+    /// `PrimarySessionRestingHR.coverage`, so it is `nil` in lockstep with the mean. Byte-parity twin of the
+    /// Kotlin `primarySessionRestingHRCoverage`.
+    public static func primarySessionRestingHRCoverage(
+        sessions: [SleepSession], hr: [HRSample],
+        validBpm: ClosedRange<Int> = PrimarySessionRestingHR.defaultValidBpm,
+        minValidSamples: Int = PrimarySessionRestingHR.defaultMinValidSamples) -> PrimarySessionRestingHR.Coverage? {
+        PrimarySessionRestingHR.coverage(sessions: sessions.map { s in
+            PrimarySessionRestingHR.Session(
+                durationSec: Double(s.end - s.start),
+                bpm: hr.filter { $0.ts >= s.start && $0.ts < s.end }.map { $0.bpm })
+        }, validBpm: validBpm, minValidSamples: minValidSamples)
+    }
+
     // MARK: - Skin-temp funnel diagnostic (#752)
 
     // Skin temp coming out 0/absent on a WHOOP 4.0 (or any) night is opaque: the user can't tell whether

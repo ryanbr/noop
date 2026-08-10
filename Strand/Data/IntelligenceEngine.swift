@@ -140,6 +140,10 @@ final class IntelligenceEngine: ObservableObject {
         /// no session clears the coverage gate. Written to metricSeries as "rhr_primary_session" in pass 2 —
         /// instrumentation only, never shown and never fed to any score.
         let primarySessionRHR: Double?
+        /// #1169 coverage inputs for the shadow mean above (valid-sample count + primary-session duration),
+        /// written as "rhr_primary_session_valid_samples" / "rhr_primary_session_duration_s" in pass 2. nil
+        /// in lockstep with `primarySessionRHR`.
+        let primarySessionRHRCoverage: PrimarySessionRestingHR.Coverage?
     }
 
     struct Computed: Identifiable {
@@ -885,11 +889,13 @@ final class IntelligenceEngine: ObservableObject {
                 // score; #1174's definition is unchanged — this only records its per-night output. The
                 // windowing + delegation lives in the byte-identical, tested `AnalyticsEngine`.
                 let primarySessionRHR = AnalyticsEngine.primarySessionRestingHR(sessions: res.sleepSessions, hr: hr)
+                let primarySessionRHRCoverage = AnalyticsEngine.primarySessionRestingHRCoverage(sessions: res.sleepSessions, hr: hr)
                 out.append(DayScan(result: res, rhrLine: rhrLine,
                                    readOwner: owner, hrRows: hr.count,
                                    sleepTrace: sleepTrace, stepsTrace: stepsTrace, hrvTrace: hrvTrace,
                                    hrvDiag: hrvDiag, spo2Candidate: spo2CandidateMean,
-                                   primarySessionRHR: primarySessionRHR))
+                                   primarySessionRHR: primarySessionRHR,
+                                   primarySessionRHRCoverage: primarySessionRHRCoverage))
             }
             return (out, skippedDayLines)
         }.value
@@ -909,6 +915,8 @@ final class IntelligenceEngine: ObservableObject {
         var spo2CandidateByDay: [String: Int] = [:]
         // #1169: primary-session mean RHR shadow metric per day, carried from pass 1 for metricSeries persistence.
         var primarySessionRHRByDay: [String: Double] = [:]
+        // #1169: its coverage inputs (valid-sample count + primary-session duration), same lifetime as the mean.
+        var primarySessionRHRCoverageByDay: [String: PrimarySessionRestingHR.Coverage] = [:]
 
         // Back on the main actor: fold the off-actor results into the pass-2 state in the SAME order the
         // loop produced them. Pure assignment / appends , no further store reads , so this is cheap and the
@@ -929,6 +937,9 @@ final class IntelligenceEngine: ObservableObject {
             // #1169: carry the primary-session mean RHR shadow metric into pass 2 for persistence.
             if let v = scan.primarySessionRHR {
                 primarySessionRHRByDay[res.daily.day] = v
+            }
+            if let cov = scan.primarySessionRHRCoverage {
+                primarySessionRHRCoverageByDay[res.daily.day] = cov
             }
             if let line = scan.rhrLine { diagnosticSink?(line, nil) }
             // Sleep & Rest test mode (E5): replay this day's gate-trace + Rest lines tagged `.sleep` so they
@@ -1171,6 +1182,12 @@ final class IntelligenceEngine: ObservableObject {
             // scored — so the mean-vs-floor comparison the issue needs can be evaluated from exports later.
             if let v = primarySessionRHRByDay[daily.day] {
                 restPoints.append(MetricPoint(day: daily.day, key: "rhr_primary_session", value: v))
+            }
+            // #1169: its coverage inputs beside the mean — valid-sample count + primary-session duration (s)
+            // — so a thin-coverage night can be down-weighted in the later holdout. Raw inputs, not a fraction.
+            if let cov = primarySessionRHRCoverageByDay[daily.day] {
+                restPoints.append(MetricPoint(day: daily.day, key: "rhr_primary_session_valid_samples", value: Double(cov.validSamples)))
+                restPoints.append(MetricPoint(day: daily.day, key: "rhr_primary_session_duration_s", value: cov.durationSec))
             }
             cachedSleep.append(contentsOf: night.cachedSleep)
             // Persist the detected workouts the pipeline already computes (previously discarded).

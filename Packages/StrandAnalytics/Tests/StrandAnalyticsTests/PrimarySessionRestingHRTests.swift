@@ -81,4 +81,36 @@ final class PrimarySessionRestingHRTests: XCTestCase {
         hr.append(HRSample(ts: 3000, bpm: 200))                          // exactly at end → excluded
         XCTAssertEqual(AnalyticsEngine.primarySessionRestingHR(sessions: [s], hr: hr), 58.0)
     }
+
+    // MARK: - #1169 coverage inputs (shadow metadata beside the mean)
+
+    /// Coverage reports the LONGEST session's VALID-sample count (invalids excluded) and its duration —
+    /// the raw inputs the later holdout weights by. Nap + out-of-range samples must not count.
+    func testCoverageReportsValidCountAndDurationOfLongestSession() {
+        let night = S(durationSec: 8 * 3600, bpm: Array(repeating: 64, count: 480) + [0, 300])
+        let nap = S(durationSec: 40 * 60, bpm: Array(repeating: 50, count: 40))
+        let cov = P.coverage(sessions: [nap, night])
+        XCTAssertEqual(cov?.validSamples, 480)
+        XCTAssertEqual(cov?.durationSec, 8 * 3600)
+    }
+
+    /// Coverage is nil in LOCKSTEP with `meanHR`: below the gate, both return nil (so the mean and its
+    /// coverage are always emitted together or not at all).
+    func testCoverageIsNilInLockstepWithMean() {
+        let thin = [S(durationSec: 3600, bpm: Array(repeating: 60, count: 5))]
+        XCTAssertNil(P.meanHR(sessions: thin))
+        XCTAssertNil(P.coverage(sessions: thin))
+        XCTAssertNil(P.coverage(sessions: []))
+    }
+
+    /// The AnalyticsEngine wrapper windows HR to the longest session, same as the mean wrapper.
+    func testPrimarySessionRestingHRCoverageWindowsToLongest() {
+        let night = SleepSession(start: 0, end: 30_000, efficiency: 0.9, stages: [], restingHR: nil, avgHRV: nil)
+        let nap = SleepSession(start: 40_000, end: 45_000, efficiency: 0.9, stages: [], restingHR: nil, avgHRV: nil)
+        var hr = (0..<100).map { HRSample(ts: $0 * 30, bpm: 60) }
+        hr += (0..<50).map { HRSample(ts: 40_000 + $0 * 30, bpm: 45) }
+        let cov = AnalyticsEngine.primarySessionRestingHRCoverage(sessions: [nap, night], hr: hr)
+        XCTAssertEqual(cov?.validSamples, 100)
+        XCTAssertEqual(cov?.durationSec, 30_000)
+    }
 }

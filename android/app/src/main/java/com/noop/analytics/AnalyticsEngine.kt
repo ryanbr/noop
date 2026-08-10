@@ -879,6 +879,26 @@ object AnalyticsEngine {
         minValidSamples,
     )
 
+    /** #1169 coverage inputs for the shadow `rhr_primary_session` mean (valid-sample count + primary-session
+     *  duration). Builds the SAME per-session inputs as [primarySessionRestingHR] and delegates to
+     *  [PrimarySessionRestingHR.coverage], so it is null in lockstep with the mean. Byte-parity twin of the
+     *  Swift `primarySessionRestingHRCoverage`. */
+    internal fun primarySessionRestingHRCoverage(
+        sessions: List<DetectedSleep>,
+        hr: List<HrSample>,
+        validBpm: IntRange = PrimarySessionRestingHR.DEFAULT_VALID_BPM,
+        minValidSamples: Int = PrimarySessionRestingHR.DEFAULT_MIN_VALID_SAMPLES,
+    ): PrimarySessionRestingHR.Coverage? = PrimarySessionRestingHR.coverage(
+        sessions.map { s ->
+            PrimarySessionRestingHR.Session(
+                durationSec = (s.end - s.start).toDouble(),
+                bpm = hr.filter { it.ts >= s.start && it.ts < s.end }.map { it.bpm },
+            )
+        },
+        validBpm,
+        minValidSamples,
+    )
+
     /** Plausible worn skin-temperature range (°C). Off-wrist/charging samples drift to ambient and are
      *  excluded; the strap's own decode gate is the looser 20–45. (PR #85) */
     private const val SKIN_TEMP_MIN_C: Double = 28.0

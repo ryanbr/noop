@@ -407,6 +407,8 @@ object IntelligenceEngine {
         val spo2CandidateByDay = LinkedHashMap<String, Int>()
         // #1169: primary-session mean RHR shadow metric per day, carried from pass 1 for persistence.
         val primarySessionRHRByDay = LinkedHashMap<String, Double>()
+        // #1169: its coverage inputs (valid-sample count + primary-session duration), same lifetime as the mean.
+        val primarySessionRHRCoverageByDay = LinkedHashMap<String, PrimarySessionRestingHR.Coverage>()
 
         // In-memory nightly values harvested in pass 1, used to seed the pass-2 baseline.
         // Keyed by day so the union with imported history de-dupes cleanly per UTC day.
@@ -757,6 +759,7 @@ object IntelligenceEngine {
             // #1174's definition is unchanged. The windowing + delegation lives in the byte-identical,
             // tested AnalyticsEngine.
             AnalyticsEngine.primarySessionRestingHR(res.sleepSessions, hr)?.let { primarySessionRHRByDay[res.daily.day] = it }
+            AnalyticsEngine.primarySessionRestingHRCoverage(res.sleepSessions, hr)?.let { primarySessionRHRCoverageByDay[res.daily.day] = it }
             scoredNights.add(res)
             resolvedScoreOwnerByDay[res.daily.day] = owner
         }
@@ -932,6 +935,12 @@ object IntelligenceEngine {
             // scored — for later mean-vs-floor evaluation from exports.
             primarySessionRHRByDay[daily.day]?.let { v ->
                 restRows.add(MetricSeriesRow(deviceId = computedId, day = daily.day, key = "rhr_primary_session", value = v))
+            }
+            // #1169: its coverage inputs beside the mean — valid-sample count + primary-session duration (s)
+            // — so a thin-coverage night can be down-weighted in the later holdout. Raw inputs, not a fraction.
+            primarySessionRHRCoverageByDay[daily.day]?.let { cov ->
+                restRows.add(MetricSeriesRow(deviceId = computedId, day = daily.day, key = "rhr_primary_session_valid_samples", value = cov.validSamples.toDouble()))
+                restRows.add(MetricSeriesRow(deviceId = computedId, day = daily.day, key = "rhr_primary_session_duration_s", value = cov.durationSec))
             }
 
             out.add(

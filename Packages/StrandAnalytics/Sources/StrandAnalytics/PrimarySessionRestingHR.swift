@@ -59,4 +59,33 @@ public enum PrimarySessionRestingHR {
         guard valid.count >= minValidSamples else { return nil }
         return Double(valid.reduce(0, +)) / Double(valid.count)
     }
+
+    /// #1169 coverage INPUTS for the same primary session `meanHR` averages: its valid-sample count and its
+    /// duration. The fixed `minValidSamples` gate is cadence-blind, so the accruing shadow dataset needs to
+    /// weight/filter each night's mean by how well-covered it was — but this deliberately records the raw
+    /// inputs, NOT a derived coverage fraction, so the later multi-participant holdout can pick its own
+    /// coverage definition rather than inheriting one. Same longest-session selection + gate as `meanHR`
+    /// (returns `nil` in lockstep with it), so the mean and its coverage are always emitted together. Still
+    /// pure + unwired — shadow instrumentation only. Twin of Kotlin `PrimarySessionRestingHR.coverage`.
+    public struct Coverage: Sendable, Equatable {
+        /// Valid HR samples in the primary session (the count the `minValidSamples` gate saw).
+        public let validSamples: Int
+        /// The primary (longest) session's duration in seconds.
+        public let durationSec: Double
+        public init(validSamples: Int, durationSec: Double) {
+            self.validSamples = validSamples
+            self.durationSec = durationSec
+        }
+    }
+
+    /// The primary session's valid-sample count + duration, or `nil` in lockstep with `meanHR` (no session
+    /// clears `minValidSamples`). Selection + gate mirror `meanHR` exactly.
+    public static func coverage(sessions: [Session],
+                                validBpm: ClosedRange<Int> = defaultValidBpm,
+                                minValidSamples: Int = defaultMinValidSamples) -> Coverage? {
+        guard let primary = sessions.max(by: { $0.durationSec < $1.durationSec }) else { return nil }
+        let valid = primary.bpm.filter { validBpm.contains($0) }
+        guard valid.count >= minValidSamples else { return nil }
+        return Coverage(validSamples: valid.count, durationSec: primary.durationSec)
+    }
 }

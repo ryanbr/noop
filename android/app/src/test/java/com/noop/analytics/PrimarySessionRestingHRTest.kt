@@ -82,4 +82,36 @@ class PrimarySessionRestingHRTest {
         val hr = (0 until 40).map { HrSample("d", (it * 60).toLong(), 58) } + HrSample("d", 3000L, 200)
         assertEquals(58.0, AnalyticsEngine.primarySessionRestingHR(listOf(s), hr)!!, 1e-9)
     }
+
+    // --- #1169 coverage inputs (shadow metadata beside the mean) ---
+
+    /** Coverage reports the LONGEST session's VALID-sample count (invalids excluded) and its duration —
+     *  the raw inputs the later holdout weights by. Nap + out-of-range samples must not count. */
+    @Test fun coverageReportsValidCountAndDurationOfLongestSession() {
+        val night = s(8 * 3600.0, List(480) { 64 } + listOf(0, 300))   // 480 valid + 2 invalid
+        val nap = s(40 * 60.0, List(40) { 50 })
+        val cov = PrimarySessionRestingHR.coverage(listOf(nap, night))!!
+        assertEquals(480, cov.validSamples)
+        assertEquals(8 * 3600.0, cov.durationSec, 1e-9)
+    }
+
+    /** Coverage is null in LOCKSTEP with meanHR: below the gate, both return null (so the mean and its
+     *  coverage are always emitted together or not at all). */
+    @Test fun coverageIsNullInLockstepWithMean() {
+        val thin = listOf(s(3600.0, List(5) { 60 }))
+        assertNull(PrimarySessionRestingHR.meanHR(thin))
+        assertNull(PrimarySessionRestingHR.coverage(thin))
+        assertNull(PrimarySessionRestingHR.coverage(emptyList()))
+    }
+
+    /** The AnalyticsEngine wrapper windows HR to the longest session, same as the mean wrapper. */
+    @Test fun primarySessionRestingHRCoverageWindowsToLongest() {
+        val night = DetectedSleep(0L, 30_000L, 0.9, emptyList(), null, null)
+        val nap = DetectedSleep(40_000L, 45_000L, 0.9, emptyList(), null, null)
+        val hr = (0 until 100).map { HrSample("d", (it * 30).toLong(), 60) } +
+            (0 until 50).map { HrSample("d", (40_000 + it * 30).toLong(), 45) }
+        val cov = AnalyticsEngine.primarySessionRestingHRCoverage(listOf(nap, night), hr)!!
+        assertEquals(100, cov.validSamples)
+        assertEquals(30_000.0, cov.durationSec, 1e-9)
+    }
 }
