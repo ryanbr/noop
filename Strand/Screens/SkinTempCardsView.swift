@@ -319,7 +319,10 @@ struct MenstrualCycleHomeCard: View {
                                 if let result = model.cyclePhase,
                                    let lo = result.cycleDayLow,
                                    let hi = result.cycleDayHigh {
-                                    Text(lo == hi ? "~day \(lo)" : "~day \(lo)-\(hi)")
+                                    // Return `Text` from each branch so the literal is a LocalizedStringKey
+                                    // (`~day %lld` / `~day %lld-%lld`); a ternary of Strings would take the
+                                    // verbatim `Text(_:)` init and ship English regardless of locale.
+                                    (lo == hi ? Text("~day \(lo)") : Text("~day \(lo)-\(hi)"))
                                         .font(StrandFont.bodyNumber)
                                         .foregroundStyle(StrandPalette.textSecondary)
                                 }
@@ -493,7 +496,9 @@ struct CycleTrackerView: View {
                         .foregroundStyle(StrandPalette.textPrimary)
                     Spacer()
                     if let lo = result.cycleDayLow, let hi = result.cycleDayHigh {
-                        Text(lo == hi ? "~day \(lo)" : "~day \(lo)-\(hi)")
+                        // `Text` per branch → localized (`~day %lld` / `~day %lld-%lld`); a String ternary
+                        // would take the verbatim init and never localize.
+                        (lo == hi ? Text("~day \(lo)") : Text("~day \(lo)-\(hi)"))
                             .font(StrandFont.bodyNumber)
                             .foregroundStyle(StrandPalette.textSecondary)
                     }
