@@ -41,15 +41,20 @@ public struct LabMarkerCsvRow: Sendable, Equatable {
     public var unit: String
     /// True when the marker name didn't match the catalog and imported as a custom marker.
     public var isCustomMarker: Bool
+    /// Optional free-text note carried VERBATIM from the source (e.g. a vendor's own status
+    /// column, source-attributed). nil for the generic (date,marker,value,unit) importer, which
+    /// never annotates. Maps to `LabMarker.note`.
+    public var note: String?
 
     public init(markerKey: String, category: LabMarkerCategory, day: String,
-                value: Double, unit: String, isCustomMarker: Bool) {
+                value: Double, unit: String, isCustomMarker: Bool, note: String? = nil) {
         self.markerKey = markerKey
         self.category = category
         self.day = day
         self.value = value
         self.unit = unit
         self.isCustomMarker = isCustomMarker
+        self.note = note
     }
 }
 
@@ -71,9 +76,14 @@ public struct LabMarkerCsvResult: Sendable, Equatable {
     public var truncated: Bool
     /// True when the file was rejected outright for exceeding the byte cap.
     public var fileTooLarge: Bool
+    /// Rows a vendor export marked as NOT MEASURED (e.g. WHOOP's "--" / "No Data Available").
+    /// Counted SEPARATELY from `skippedRows` so a clean import of a normal export doesn't look
+    /// broken. Always 0 for the generic importer.
+    public var notMeasured: Int
 
     public init(rows: [LabMarkerCsvRow], skippedRows: Int, customMarkerKeys: [String],
-                earliestDay: String?, latestDay: String?, truncated: Bool, fileTooLarge: Bool) {
+                earliestDay: String?, latestDay: String?, truncated: Bool, fileTooLarge: Bool,
+                notMeasured: Int = 0) {
         self.rows = rows
         self.skippedRows = skippedRows
         self.customMarkerKeys = customMarkerKeys
@@ -81,6 +91,7 @@ public struct LabMarkerCsvResult: Sendable, Equatable {
         self.latestDay = latestDay
         self.truncated = truncated
         self.fileTooLarge = fileTooLarge
+        self.notMeasured = notMeasured
     }
 
     /// Number of readings imported.
@@ -376,8 +387,9 @@ public enum LabMarkerCsvImport {
     }
 
     /// Parse one bare numeric token with the comma rules — the token must be exactly
-    /// a number, nothing more.
-    private static func numberToken(_ t: String) -> Double? {
+    /// a number, nothing more. `internal` so the WHOOP biomarker parser can split a packed
+    /// "value unit" cell with the same grammar.
+    static func numberToken(_ t: String) -> Double? {
         if let d = finiteDouble(t) { return d }
         // One decimal comma ("5,2" / "12,345" is ambiguous: 3 digits after a single
         // comma reads as a thousands group, anything else as a decimal comma).
@@ -460,7 +472,8 @@ public enum LabMarkerCsvImport {
 
     /// "yyyy-MM-dd" when the components form a real calendar date, else nil.
     /// Pure math (leap-aware), no Foundation calendar — byte-identical to the Kotlin twin.
-    private static func validDay(year: Int, month: Int, day: Int) -> String? {
+    /// `internal` so the WHOOP biomarker parser can build a date from an M/D/YY (2-digit-year) cell.
+    static func validDay(year: Int, month: Int, day: Int) -> String? {
         guard (1...12).contains(month), day >= 1, day <= daysInMonth(year, month) else { return nil }
         return String(format: "%04d-%02d-%02d", year, month, day)
     }

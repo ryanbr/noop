@@ -230,7 +230,13 @@ struct LabBookView: View {
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
             do {
                 let data = try Data(contentsOf: url)
-                let result = LabMarkerCsvImport.parse(data: data)
+                // A WHOOP biomarker export (its own header signature) routes to the vendor parser —
+                // packed units, US 2-digit dates, a Status column carried into note; any other file
+                // takes the generic (date,marker,value,unit) path.
+                let isWhoop = WhoopBiomarkerExportParser.matches(data: data)
+                let result = isWhoop ? WhoopBiomarkerExportParser.parse(data: data)
+                                     : LabMarkerCsvImport.parse(data: data)
+                let sourceId = isWhoop ? WhoopBiomarkerExportParser.sourceId : LabMarkerCsvImport.sourceId
                 guard !result.fileTooLarge else {
                     csvSummary = String(localized: "That file is too large for a markers CSV import.")
                     csvFailed = true
@@ -265,8 +271,8 @@ struct LabBookView: View {
                         value: r.value,
                         valueText: nil,
                         unit: r.unit,
-                        source: LabMarkerCsvImport.sourceId,
-                        note: nil,
+                        source: sourceId,
+                        note: r.note,
                         referenceText: nil
                     )
                 }
@@ -280,6 +286,13 @@ struct LabBookView: View {
                     msg += " · " + (result.skippedRows == 1
                                     ? String(localized: "1 row skipped")
                                     : String(localized: "\(result.skippedRows) rows skipped"))
+                }
+                // A vendor export's not-measured markers ("--" / "No Data Available") are absent by
+                // design, not malformed — reported apart so a clean import doesn't look broken.
+                if result.notMeasured > 0 {
+                    msg += " · " + (result.notMeasured == 1
+                                    ? String(localized: "1 not measured")
+                                    : String(localized: "\(result.notMeasured) not measured"))
                 }
                 csvSummary = msg
                 csvFailed = false

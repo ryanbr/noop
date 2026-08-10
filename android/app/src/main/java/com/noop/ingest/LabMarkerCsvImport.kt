@@ -62,6 +62,10 @@ object LabMarkerCsvImport {
          *  column for a known marker; empty for a unit-less custom marker. */
         val unit: String,
         val isCustomMarker: Boolean,
+        /** Optional free-text note carried VERBATIM from the source (e.g. a vendor's own
+         *  status column, source-attributed). null for the generic (date,marker,value,unit)
+         *  importer, which never annotates. Maps to LabMarker.note. */
+        val note: String? = null,
     )
 
     /** Result of parsing a markers CSV. Mirrors the Swift LabMarkerCsvResult. */
@@ -78,6 +82,10 @@ object LabMarkerCsvImport {
         val truncated: Boolean,
         /** True when the file was rejected outright for exceeding the byte cap. */
         val fileTooLarge: Boolean,
+        /** Rows a vendor export marked as NOT MEASURED (e.g. WHOOP's "--" / "No Data
+         *  Available"). Counted SEPARATELY from [skippedRows] so a clean import of a normal
+         *  export doesn't look broken. Always 0 for the generic importer. */
+        val notMeasured: Int = 0,
     ) {
         val importedReadings: Int get() = rows.size
         val distinctMarkers: Int get() = rows.map { it.markerKey }.toHashSet().size
@@ -104,7 +112,27 @@ object LabMarkerCsvImport {
             return ImportSummary.failure(SOURCE_LABEL, "Could not read CSV: ${e.message ?: "unknown error"}")
         }
 
-        val result = parse(bytes)
+        // Route a WHOOP biomarker export to its vendor parser (packed units, US 2-digit dates, a Status
+        // column carried into note); any other file takes the generic (date,marker,value,unit) path.
+        // Detection is on the header signature, so a normal markers CSV is never treated as a WHOOP export.
+        val result: LabMarkerCsvResult
+        val sourceId: String
+        if (bytes.size > MAX_BYTES) {
+            result = LabMarkerCsvResult(
+                rows = emptyList(), skippedRows = 0, customMarkerKeys = emptyList(),
+                earliestDay = null, latestDay = null, truncated = false, fileTooLarge = true,
+            )
+            sourceId = SOURCE_ID
+        } else {
+            val table = CsvTable.fromData(bytes)
+            if (WhoopBiomarkerExportParser.matches(table)) {
+                result = WhoopBiomarkerExportParser.parse(table, MAX_ROWS)
+                sourceId = WhoopBiomarkerExportParser.SOURCE_ID
+            } else {
+                result = parse(table, MAX_ROWS)
+                sourceId = SOURCE_ID
+            }
+        }
         if (result.fileTooLarge) {
             return ImportSummary.failure(SOURCE_LABEL, "That file is too large for a markers CSV import.")
         }
@@ -127,8 +155,8 @@ object LabMarkerCsvImport {
                 value = r.value,
                 valueText = null,
                 unit = r.unit,
-                source = SOURCE_ID,
-                note = null,
+                source = sourceId,
+                note = r.note,
                 referenceText = null,
             )
         }
@@ -154,6 +182,11 @@ object LabMarkerCsvImport {
                     append(" ${result.skippedRows} row")
                     if (result.skippedRows != 1) append("s")
                     append(" skipped.")
+                }
+                // A vendor export's not-measured markers ("--" / "No Data Available") are absent by
+                // design, not malformed — report them apart so a clean import doesn't look broken.
+                if (result.notMeasured > 0) {
+                    append(" ${result.notMeasured} not measured.")
                 }
             },
         )
@@ -459,8 +492,9 @@ object LabMarkerCsvImport {
         return if (d.isFinite()) d else null
     }
 
-    /** One bare numeric token with the comma rules — must be exactly a number. */
-    private fun numberToken(t: String): Double? {
+    /** One bare numeric token with the comma rules — must be exactly a number.
+     *  `internal` so the WHOOP biomarker parser can split a packed "value unit" cell. */
+    internal fun numberToken(t: String): Double? {
         finiteDouble(t)?.let { return it }
         // One decimal comma ("5,2"; but 3 digits after a single comma reads as a
         // thousands group, anything else as a decimal comma).
@@ -531,8 +565,9 @@ object LabMarkerCsvImport {
     }
 
     /** "yyyy-MM-dd" when the components form a real calendar date, else null.
-     *  Pure math (leap-aware) — byte-identical to the Swift twin. */
-    private fun validDay(year: Int, month: Int, day: Int): String? {
+     *  Pure math (leap-aware) — byte-identical to the Swift twin. `internal` so the WHOOP
+     *  biomarker parser can build a date from an M/D/YY (2-digit-year) cell. */
+    internal fun validDay(year: Int, month: Int, day: Int): String? {
         if (month !in 1..12 || day < 1 || day > daysInMonth(year, month)) return null
         return "%04d-%02d-%02d".format(Locale.US, year, month, day)
     }
