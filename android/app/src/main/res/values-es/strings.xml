@@ -1919,4 +1919,5 @@
     <string name="l10n_devices_screen_forget_device_926e503d">Olvidar dispositivo</string>
     <string name="l10n_devices_screen_forget_this_device_8dbbc3f3">¿Olvidar este dispositivo?</string>
     <string name="l10n_devices_screen_noop_removes_this_device_503aff9e">NOOP quita este dispositivo de tu lista y elimina los datos registrados aquí. Puedes volver a emparejar la banda para recuperar su historial reciente.</string>
+    <string name="l10n_backup_sync_screen_auto_backup_hasn_t_run_in_e3cd484e">La copia de seguridad automática no se ha ejecutado en varios días. Comprueba que la carpeta de copias sigue disponible: una carpeta en la nube movida o desconectada detiene las copias sin avisar.</string>
 </resources>

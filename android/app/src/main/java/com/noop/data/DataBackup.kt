@@ -57,6 +57,36 @@ object DataBackup {
             0x6F, 0x72, 0x6D, 0x61, 0x74, 0x20, 0x33, 0x00,
         )
 
+    /**
+     * #1014 (write-side): cheaply confirm a JUST-WRITTEN `.noopbak` at [uri] is structurally intact — its
+     * DB entry is present and begins with the SQLite magic header. A torn write (truncated ZIP / a
+     * half-flushed SAF document on a full disk or flaky provider) otherwise leaves a `.noopbak` that
+     * silently "restores" into an empty store, caught only by the import-side quick_check much later. Fail
+     * HERE at write time instead. Twin of the Apple post-write check in `writeVerifiedBackupZip`.
+     * Best-effort: any read/format error returns false (treated as not-intact).
+     */
+    fun isWrittenBackupIntact(context: Context, uri: Uri): Boolean = runCatching {
+        context.contentResolver.openInputStream(uri)?.use { stream ->
+            ZipInputStream(stream).use { zip ->
+                var entry = zip.nextEntry
+                while (entry != null) {
+                    if (!entry.isDirectory && entry.name.substringAfterLast('/') == ZIP_ENTRY_NAME) {
+                        val header = ByteArray(SQLITE_MAGIC.size)
+                        var got = 0
+                        while (got < header.size) {
+                            val r = zip.read(header, got, header.size - got)
+                            if (r < 0) break
+                            got += r
+                        }
+                        return@runCatching got == header.size && header.contentEquals(SQLITE_MAGIC)
+                    }
+                    entry = zip.nextEntry
+                }
+                false
+            }
+        } ?: false
+    }.getOrDefault(false)
+
     /** First 4 bytes of every ZIP file: "PK\x03\x04". */
     private val ZIP_MAGIC: ByteArray =
         byteArrayOf(0x50, 0x4B, 0x03, 0x04)

@@ -37,6 +37,16 @@ final class BackupSyncTests: XCTestCase {
         XCTAssertEqual(sorted, [c, b, a])
     }
 
+    func testIsBackupStale() {
+        let last = 1_782_000_000_000
+        let day = 24 * 60 * 60 * 1000
+        XCTAssertFalse(BackupSync.isBackupStale(lastBackupMs: last, nowMs: last))            // same instant
+        XCTAssertFalse(BackupSync.isBackupStale(lastBackupMs: last, nowMs: last + 2 * day))  // 2 days: still fresh
+        XCTAssertTrue(BackupSync.isBackupStale(lastBackupMs: last, nowMs: last + 3 * day))   // 3 days: stale (threshold)
+        XCTAssertTrue(BackupSync.isBackupStale(lastBackupMs: last, nowMs: last + 10 * day))  // well past
+        XCTAssertTrue(BackupSync.isBackupStale(lastBackupMs: 0, nowMs: last))                // never backed up: stale
+    }
+
     func testPruneKeepsNewestN() {
         let names = (0..<5).map { BackupSync.snapshotName(1_782_000_000_000 + $0 * 60_000) }
         let pruned = BackupSync.snapshotsToPrune(names + ["keepme.txt"], keep: 2)

@@ -1,6 +1,110 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Auto-backup hasn't run in a few days. Check the backup folder is still available — a moved or disconnected cloud folder stops backups silently.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das automatische Backup lief seit einigen Tagen nicht. Prüfe, ob der Backup-Ordner noch verfügbar ist – ein verschobener oder getrennter Cloud-Ordner stoppt Backups stillschweigend."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La copia de seguridad automática no se ha ejecutado en varios días. Comprueba que la carpeta de copias sigue disponible: una carpeta en la nube movida o desconectada detiene las copias sin avisar."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La sauvegarde automatique n'a pas eu lieu depuis plusieurs jours. Vérifie que le dossier de sauvegarde est toujours disponible — un dossier cloud déplacé ou déconnecté interrompt les sauvegardes en silence."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il backup automatico non viene eseguito da alcuni giorni. Verifica che la cartella di backup sia ancora disponibile: una cartella cloud spostata o disconnessa interrompe i backup senza avvisare."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A cópia de segurança automática não é feita há alguns dias. Verifica se a pasta de backup ainda está disponível — uma pasta na nuvem movida ou desligada interrompe as cópias silenciosamente."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Автоматическое резервное копирование не выполнялось несколько дней. Проверьте, доступна ли папка для резервных копий — перемещённая или отключённая облачная папка молча останавливает копирование."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动备份已有几天未运行。请检查备份文件夹是否仍然可用——被移动或断开连接的云文件夹会悄然停止备份。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動備份已有幾天未執行。請檢查備份資料夾是否仍然可用——被移動或中斷連線的雲端資料夾會悄悄停止備份。"
+          }
+        }
+      }
+    },
+    "the backup file was written incompletely (its database entry is missing or truncated). Free up space or check the backup folder, then try again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Backup-Datei wurde unvollständig geschrieben (ihr Datenbankeintrag fehlt oder ist abgeschnitten). Gib Speicherplatz frei oder prüfe den Backup-Ordner und versuche es erneut."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El archivo de copia de seguridad se escribió de forma incompleta (falta su entrada de base de datos o está truncada). Libera espacio o comprueba la carpeta de copias e inténtalo de nuevo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le fichier de sauvegarde a été écrit de façon incomplète (son entrée de base de données est manquante ou tronquée). Libère de l'espace ou vérifie le dossier de sauvegarde, puis réessaie."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il file di backup è stato scritto in modo incompleto (la sua voce di database è mancante o troncata). Libera spazio o controlla la cartella di backup, poi riprova."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O ficheiro de cópia de segurança foi escrito de forma incompleta (falta a entrada da base de dados ou está truncada). Liberta espaço ou verifica a pasta de backup e tenta novamente."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Файл резервной копии записан не полностью (запись базы данных отсутствует или усечена). Освободите место или проверьте папку резервных копий и повторите попытку."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "备份文件写入不完整（其数据库条目缺失或被截断）。请释放空间或检查备份文件夹，然后重试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "備份檔案寫入不完整（其資料庫項目遺失或被截斷）。請釋放空間或檢查備份資料夾，然後重試。"
+          }
+        }
+      }
+    },
     "Forget device": {
       "localizations": {
         "de": {

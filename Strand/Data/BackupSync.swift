@@ -26,6 +26,20 @@ enum BackupSync {
 
     // MARK: - Pure helpers (unit-tested; mirror Android BackupSync)
 
+    /// Default staleness threshold (3 days). Auto-backup runs a DAILY on-launch catch-up, so a
+    /// *successful* backup older than this means the catch-up isn't landing — a stale/permission-lost
+    /// folder bookmark, or the app simply hasn't been launched in a while. Surfaced as a warning so a
+    /// silently-failing auto-backup is visible instead of only discovered when a restore is needed.
+    static let staleThresholdMs = 3 * 24 * 60 * 60 * 1000
+
+    /// True when auto-backup should be flagged STALE: the last SUCCESSFUL backup is older than
+    /// `thresholdMs`. `lastBackupMs == 0` (never backed up while auto is on) also counts as stale. Pure so
+    /// it's unit-tested with literal ms; the caller supplies `nowMs` and gates on `autoEnabled`/folder.
+    /// Twin of Android `BackupSync.isBackupStale`.
+    static func isBackupStale(lastBackupMs: Int, nowMs: Int, thresholdMs: Int = staleThresholdMs) -> Bool {
+        nowMs - lastBackupMs >= thresholdMs
+    }
+
     /// A fresh UTC second-resolution formatter. Created per call so the type stays trivially `Sendable`
     /// and there is no shared mutable `DateFormatter` to data-race; the cost is irrelevant at this rate.
     private static func stampFormatter() -> DateFormatter {

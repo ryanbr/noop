@@ -1919,4 +1919,5 @@
     <string name="l10n_devices_screen_forget_device_926e503d">Oublier l\'appareil</string>
     <string name="l10n_devices_screen_forget_this_device_8dbbc3f3">Oublier cet appareil ?</string>
     <string name="l10n_devices_screen_noop_removes_this_device_503aff9e">NOOP retire cet appareil de votre liste et supprime les données enregistrées ici. Vous pouvez ré-appairer le bracelet pour récupérer son historique récent.</string>
+    <string name="l10n_backup_sync_screen_auto_backup_hasn_t_run_in_e3cd484e">La sauvegarde automatique n\'a pas eu lieu depuis plusieurs jours. Vérifie que le dossier de sauvegarde est toujours disponible — un dossier cloud déplacé ou déconnecté interrompt les sauvegardes en silence.</string>
 </resources>

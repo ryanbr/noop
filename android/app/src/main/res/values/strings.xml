@@ -1946,4 +1946,5 @@
     <string name="l10n_devices_screen_forget_device_926e503d">Forget device</string>
     <string name="l10n_devices_screen_forget_this_device_8dbbc3f3">Forget this device?</string>
     <string name="l10n_devices_screen_noop_removes_this_device_503aff9e">NOOP removes this device from your list and deletes its recorded data here. You can re-pair the strap to pull its recent history back.</string>
+    <string name="l10n_backup_sync_screen_auto_backup_hasn_t_run_in_e3cd484e">Auto-backup hasn\'t run in a few days. Check the backup folder is still available — a moved or disconnected cloud folder stops backups silently.</string>
 </resources>

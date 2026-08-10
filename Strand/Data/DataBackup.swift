@@ -127,6 +127,16 @@ enum DataBackup {
         }
     }
 
+    /// The freshly-written `.noopbak` failed a post-write structural check — its DB entry is missing or
+    /// truncated, i.e. a torn write from a full disk / dying filesystem / flaky cloud sync mid-write.
+    /// Thrown by `writeVerifiedBackupZip` so a bad backup fails at WRITE time, not silently — the old
+    /// behaviour let a truncated file sit as a "successful" snapshot and only surface at restore (#1014).
+    private struct BackupWriteIncomplete: LocalizedError {
+        var errorDescription: String? {
+            String(localized: "the backup file was written incompletely (its database entry is missing or truncated). Free up space or check the backup folder, then try again.")
+        }
+    }
+
     /// The production export path: verify, then archive. GRDB checkpoints the WAL first (the
     /// callers' `checkpoint()` guard), so at this point the single file IS the whole store — run a
     /// read-only `PRAGMA quick_check` over it BEFORE zipping (#1014). Archiving an already-corrupt
@@ -139,6 +149,19 @@ enum DataBackup {
             throw ExportIntegrityFailure(complaint: complaint)
         }
         try writeBackupZip(dbURL: dbURL, to: dest, settingsJSON: settingsJSON)
+        // #1014 (write-side): the SOURCE is verified above, but the PRODUCED file can still be torn by a
+        // full disk / dying filesystem / flaky cloud-sync mid-write, and such a truncated `.noopbak`
+        // otherwise "restores" into an empty store — caught only by the import-side quick_check much later.
+        // Re-open the file we just wrote (a cheap central-directory read, no extraction — and a torn file
+        // has no valid trailing central directory, so it won't even open) and confirm its DB entry is
+        // present and non-empty (a SQLite header alone is 100 bytes). Fail HERE if not, and don't leave a
+        // corrupt file behind masquerading as a good snapshot. Twin of the Android post-write check.
+        guard let written = try? Archive(url: dest, accessMode: .read),
+              let dbEntry = written.first(where: { $0.path == backupEntryName }),
+              dbEntry.uncompressedSize >= 100 else {
+            try? FileManager.default.removeItem(at: dest)
+            throw BackupWriteIncomplete()
+        }
     }
 
     /// Write the live SQLite at `dbURL` into a fresh deflate ZIP at `dest`: the DB under the canonical

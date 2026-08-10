@@ -87,6 +87,16 @@ class BackupSyncTest {
         assertTrue(BackupSync.isCatchUpDue(0L, last))                          // never-backed-up: due
     }
 
+    @Test fun isBackupStaleAfterThreshold() {
+        val last = 1_782_000_000_000L
+        val day = 24L * 3_600_000L
+        assertFalse(BackupSync.isBackupStale(last, last))            // same instant
+        assertFalse(BackupSync.isBackupStale(last, last + 2 * day))  // 2 days: still fresh
+        assertTrue(BackupSync.isBackupStale(last, last + 3 * day))   // 3 days: stale (threshold)
+        assertTrue(BackupSync.isBackupStale(last, last + 10 * day))  // well past
+        assertTrue(BackupSync.isBackupStale(0L, last))              // never backed up: stale
+    }
+
     // Restore listing accepts ANY .noopbak, including date-only manual names (#852).
 
     @Test fun isBackupFileAcceptsAnyNoopbakExtension() {

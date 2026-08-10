@@ -139,6 +139,22 @@ struct BackupSyncView: View {
                 }
                 Text(lastMs > 0 ? "Last backup: \(relativeTime(lastMs))" : "No backup yet.")
                     .font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
+                // Auto is ON but the last SUCCESSFUL backup is stale — the on-launch catch-up isn't landing
+                // (a moved/disconnected cloud folder stops backups silently, or NOOP hasn't been opened).
+                // Surface it so a silently-failing auto-backup is visible, not discovered only at restore.
+                if auto, folderLabel != nil,
+                   BackupSync.isBackupStale(lastBackupMs: lastMs,
+                                            nowMs: Int(Date().timeIntervalSince1970 * 1000.0)) {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(StrandPalette.statusWarning)
+                            .font(.system(size: 12))
+                            .accessibilityHidden(true)
+                        Text("Auto-backup hasn't run in a few days. Check the backup folder is still available — a moved or disconnected cloud folder stops backups silently.")
+                            .font(StrandFont.caption).foregroundStyle(StrandPalette.statusWarning)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
                 NoopButton(busy ? "Working…" : "Back up now",
                            systemImage: "icloud.and.arrow.up", kind: .primary, fullWidth: true) { backupNow() }
                     .disabled(folderLabel == nil || busy)

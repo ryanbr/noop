@@ -164,6 +164,17 @@ object BackupSync {
     /** True when [nowMs] is at least a day past [lastBackupMs] (pure, so the catch-up gate is testable). */
     fun isCatchUpDue(lastBackupMs: Long, nowMs: Long): Boolean = nowMs - lastBackupMs >= DAY_MS
 
+    /** Staleness threshold (3 days). Auto-backup runs a DAILY catch-up, so a *successful* backup older than
+     *  this means the catch-up isn't landing — a lost folder grant, or the app hasn't been opened in a
+     *  while. Twin of Apple `BackupSync.staleThresholdMs`. */
+    const val STALE_MS = 3L * DAY_MS
+
+    /** True when auto-backup should be flagged STALE: the last SUCCESSFUL backup is older than [thresholdMs]
+     *  ([lastBackupMs] == 0, i.e. never backed up while auto is on, also counts). Pure so it's testable with
+     *  literal ms; the caller gates on auto being ON + a chosen folder. Twin of Apple `BackupSync.isBackupStale`. */
+    fun isBackupStale(lastBackupMs: Long, nowMs: Long, thresholdMs: Long = STALE_MS): Boolean =
+        nowMs - lastBackupMs >= thresholdMs
+
     // ── Folder destination I/O (SAF tree via DocumentsContract - no extra dep) ──
 
     /** Create + write one snapshot into the chosen [treeUri]; returns the new file Uri, or null on failure. */
@@ -180,6 +191,11 @@ object BackupSync {
         // never picks up a corrupt snapshot.
         return runCatching {
             DataBackup.exportTo(context, fileUri)
+            // #1014 (write-side): confirm the file we just wrote is structurally intact — a torn write (full
+            // disk / flaky SAF provider) otherwise leaves a truncated .noopbak that "restores" empty, caught
+            // only at import. Require the DB entry present + valid SQLite header, else treat as a failure and
+            // delete it below. Twin of the Apple post-write check in writeVerifiedBackupZip.
+            require(DataBackup.isWrittenBackupIntact(context, fileUri)) { "backup written incompletely" }
             fileUri
         }.getOrElse {
             runCatching { DocumentsContract.deleteDocument(resolver, fileUri) }

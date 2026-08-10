@@ -298,6 +298,26 @@ fun BackupSyncScreen() {
                         },
                         style = NoopType.caption, color = Palette.textTertiary,
                     )
+                    // Auto is ON but the last SUCCESSFUL backup is stale — the daily catch-up isn't landing
+                    // (a lost folder grant, or the app hasn't been opened in a while). backupNow only stamps
+                    // lastMs on success, so this surfaces a silently-failing auto-backup instead of it being
+                    // discovered only at restore.
+                    if (auto && treeUri != null &&
+                        BackupSync.isBackupStale(lastMs, System.currentTimeMillis())
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(
+                                Icons.Filled.Warning,
+                                contentDescription = null,
+                                tint = Palette.statusWarning,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Text(
+                                uiString(R.string.l10n_backup_sync_screen_auto_backup_hasn_t_run_in_e3cd484e),
+                                style = NoopType.caption, color = Palette.statusWarning,
+                            )
+                        }
+                    }
                     NoopButton(
                         text = if (busy) "Working…" else "Back up now",
                         leadingIcon = Icons.Filled.CloudUpload,

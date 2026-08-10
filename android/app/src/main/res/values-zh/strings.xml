@@ -1847,4 +1847,5 @@
     <string name="l10n_devices_screen_forget_device_926e503d">忘记设备</string>
     <string name="l10n_devices_screen_forget_this_device_8dbbc3f3">忘记此设备？</string>
     <string name="l10n_devices_screen_noop_removes_this_device_503aff9e">NOOP 会从你的列表中移除此设备，并删除此处记录的数据。你可以重新配对设备，以再次获取其最近的历史记录。</string>
+    <string name="l10n_backup_sync_screen_auto_backup_hasn_t_run_in_e3cd484e">自动备份已有几天未运行。请检查备份文件夹是否仍然可用——被移动或断开连接的云文件夹会悄然停止备份。</string>
 </resources>
