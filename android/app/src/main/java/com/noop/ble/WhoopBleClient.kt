@@ -5618,6 +5618,12 @@ class WhoopBleClient(
                             (parsed.parsed["battery_mV"] as? Int)?.let { mv ->
                                 _state.update { s -> s.copy(batteryMv = mv) }
                             }
+                            // The same pushed BATTERY_LEVEL event also carries the real SoC% (soc@17/10, what
+                            // history already banks) — drive the LIVE battery % from it too, not only from the
+                            // polled GET_BATTERY_LEVEL command-response. Otherwise a stalled/late poll (or fresh
+                            // state after relaunch) blanks the % while charging — read from THIS same event —
+                            // keeps updating (the WHOOP 4.0 report). Same live-only guard as charging above.
+                            doubleValue(parsed.parsed["battery_pct"])?.let { pct -> setBattery(pct) }
                         }
                         // The strap raises CHARGING_ON(7)/CHARGING_OFF(8) the instant a pack goes on or comes
                         // off — so flip the charging pill directly instead of waiting on the ~8-min

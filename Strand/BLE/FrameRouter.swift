@@ -211,6 +211,15 @@ public final class FrameRouter {
                 if ev.hasPrefix("BATTERY_LEVEL"), let mv = parsed.parsed["battery_mV"]?.intValue {
                     state.batteryMv = mv
                 }
+                // The same pushed BATTERY_LEVEL event also carries the real SoC% (soc@17/10, what history
+                // already banks) — drive the LIVE battery % from it too, not only from the polled
+                // GET_BATTERY_LEVEL command-response. Otherwise a stalled/late poll (or a fresh LiveState
+                // after relaunch) blanks the % to "—" while charging — read from THIS same event — keeps
+                // updating (the WHOOP 4.0 report). Live-only path (backfill skips this router), so no replay
+                // guard is needed; the family-specific #77 concern was the 0x2A19 stub, a different source.
+                if ev.hasPrefix("BATTERY_LEVEL"), let pct = parsed.parsed["battery_pct"]?.doubleValue {
+                    state.setBattery(pct)
+                }
                 // The strap raises CHARGING_ON(7)/CHARGING_OFF(8) the instant a pack goes on or comes off —
                 // flip the pill directly instead of waiting on the ~8-min BATTERY_LEVEL cadence above. Live-
                 // only like those blocks (backfill skips this router), so no replay guard is needed. Ported
