@@ -11,8 +11,8 @@ private struct SuggestionsHeightKey: PreferenceKey {
 
 // MARK: - Manual workout sheet
 //
-// Add a workout you tracked elsewhere, or edit one you already logged. Five inputs — sport,
-// start, duration, average HR, calories — validated by WorkoutSource.buildManualRow (the same
+// Add a workout you tracked elsewhere, or edit one you already logged. Six inputs — sport,
+// start, duration, distance, average HR, calories — validated by WorkoutSource.buildManualRow (the same
 // honest-row rules the engine uses). On save the caller persists it under the strap source via
 // Repository.saveManualWorkout. Captured-but-unexposed fields (maxHr / strain / zones) on an edited
 // row are carried over by WorkoutSource.preservingCaptured so editing a live-tracked session's
@@ -34,10 +34,19 @@ struct ManualWorkoutSheet: View {
     @State private var durationMin: Int
     @State private var avgHrText: String
     @State private var kcalText: String
+    /// Distance as ENTERED, in the user's unit (km or mi) — converted to stored metres on save (#1195).
+    @State private var distanceText: String
 
-    /// Focus for the numeric (Avg HR / Calories) fields so the keyboard Done button can resign them —
-    /// the decimal pad has no return key. iOS-only effect; the enum keeps both platforms compiling.
-    private enum NumberField: Hashable { case avgHr, calories }
+    /// The length unit system, so the Distance field reads/writes in the user's unit. Read live for the
+    /// field label + parse; the init pre-fill reads the same key straight from UserDefaults (@AppStorage
+    /// isn't available before `self` is formed).
+    @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
+    private var unitSystem: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .metric }
+    private var distanceUnit: String { unitSystem == .imperial ? "mi" : "km" }
+
+    /// Focus for the numeric (Avg HR / Calories / Distance) fields so the keyboard Done button can resign
+    /// them — the decimal pad has no return key. iOS-only effect; the enum keeps both platforms compiling.
+    private enum NumberField: Hashable { case avgHr, calories, distance }
     @FocusState private var focusedField: NumberField?
 
     /// Whether the Sport text field is being edited — drives whether the catalogue suggestions show
@@ -62,6 +71,23 @@ struct ManualWorkoutSheet: View {
         _durationMin = State(initialValue: e.map { max(1, Int((($0.durationS ?? Double($0.endTs - $0.startTs)) / 60).rounded())) } ?? 45)
         _avgHrText = State(initialValue: e?.avgHr.map(String.init) ?? "")
         _kcalText = State(initialValue: e?.energyKcal.map { String(Int($0.rounded())) } ?? "")
+        // Pre-fill the distance in the user's unit so an untouched edit round-trips the stored metres
+        // (buildManualRow then re-stores exactly what's shown). @AppStorage isn't usable pre-init, so read
+        // the same key directly.
+        let sys = UnitSystem(rawValue: UserDefaults.standard.string(forKey: UnitPrefs.systemKey) ?? "") ?? .metric
+        _distanceText = State(initialValue: e?.distanceM.map { Self.distanceEntryString($0, system: sys) } ?? "")
+    }
+
+    /// The stored metres shown as a clean editable number in `system`'s unit (km/mi) — trailing zeros and a
+    /// dangling decimal trimmed so the field reads "5.2", not "5.20". Two decimals (~10 m) is plenty for a
+    /// hand-entered distance; the field's purpose is manual entry, not preserving GPS's metre precision.
+    private static func distanceEntryString(_ meters: Double, system: UnitSystem) -> String {
+        let km = meters / 1000.0
+        let value = system == .imperial ? km * UnitFormatter.milesPerKilometer : km
+        var s = String(format: "%.2f", value)
+        while s.hasSuffix("0") { s.removeLast() }
+        if s.hasSuffix(".") { s.removeLast() }
+        return s
     }
 
     var body: some View {
@@ -89,6 +115,10 @@ struct ManualWorkoutSheet: View {
                         }
                         .accessibilityLabel("Duration in minutes")
                     }
+                }
+                field(String(localized: "Distance")) {
+                    numberInput(String(localized: "optional"), text: $distanceText, unit: distanceUnit, field: .distance)
+                        .accessibilityLabel("Distance, optional")
                 }
                 HStack(spacing: 14) {
                     field(String(localized: "Avg HR")) {
@@ -322,14 +352,25 @@ struct ManualWorkoutSheet: View {
     private var avgHr: Int? { Int(avgHrText.trimmingCharacters(in: .whitespaces)) }
     private var kcal: Double? { Double(kcalText.trimmingCharacters(in: .whitespaces)) }
 
+    /// Parsed distance in stored METRES — nil for blank (no distance), or when the typed value can't be a
+    /// non-negative number. The user enters km/mi; convert to metres for the row. (#1195)
+    private var distanceMeters: Double? {
+        let t = distanceText.trimmingCharacters(in: .whitespaces)
+        guard !t.isEmpty, let v = Double(t), v >= 0 else { return nil }
+        let km = unitSystem == .imperial ? v / UnitFormatter.milesPerKilometer : v
+        return km * 1000.0
+    }
+
     /// The validated row, or nil when the inputs can't make an honest one (drives the disabled Save +
     /// the inline note). Built through the same WorkoutSource.buildManualRow the engine trusts.
     private var builtRow: WorkoutRow? {
         // A typed-but-unparseable number is invalid (e.g. "abc" in Avg HR) — guard before building.
         if !avgHrText.trimmingCharacters(in: .whitespaces).isEmpty && avgHr == nil { return nil }
         if !kcalText.trimmingCharacters(in: .whitespaces).isEmpty && kcal == nil { return nil }
+        if !distanceText.trimmingCharacters(in: .whitespaces).isEmpty && distanceMeters == nil { return nil }
         guard let base = WorkoutSource.buildManualRow(start: start, durationMin: durationMin,
-                                                      sport: sport, avgHr: avgHr, energyKcal: kcal)
+                                                      sport: sport, avgHr: avgHr, energyKcal: kcal,
+                                                      distanceM: distanceMeters)
         else { return nil }
         // Carry over captured-but-unexposed fields when editing an existing strap session.
         return WorkoutSource.preservingCaptured(base, from: editing)
@@ -355,6 +396,10 @@ struct ManualWorkoutSheet: View {
         }
         if !kcalText.trimmingCharacters(in: .whitespaces).isEmpty, kcal == nil || (kcal ?? -1) < 0 || (kcal ?? 0) > 20_000 {
             return String(localized: "Calories must be 0-20,000.")
+        }
+        if !distanceText.trimmingCharacters(in: .whitespaces).isEmpty,
+           distanceMeters == nil || (distanceMeters ?? -1) < 0 || (distanceMeters ?? 0) > 1_000_000 {
+            return String(localized: "Distance must be 0–1,000 km.")
         }
         return String(localized: "Check the values and try again.")
     }

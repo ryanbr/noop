@@ -291,7 +291,37 @@ final class WorkoutSourceTests: XCTestCase {
                                                   now: start.addingTimeInterval(2699)))
     }
 
+    func testBuildManualRowAcceptsAndBoundsDistance() {
+        // #1195: distance is now a manual field. A valid entry is stored verbatim (metres); 0 and the
+        // 1,000 km ceiling are allowed; negative and beyond are rejected; nil means "no distance".
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        let now = start.addingTimeInterval(3600)
+        func build(_ d: Double?) -> WorkoutRow? {
+            WorkoutSource.buildManualRow(start: start, durationMin: 30, sport: "Run",
+                                         avgHr: nil, energyKcal: nil, distanceM: d, now: now)
+        }
+        XCTAssertEqual(build(5_234)?.distanceM, 5_234)
+        XCTAssertNil(build(nil)?.distanceM)
+        XCTAssertNotNil(build(0))
+        XCTAssertNotNil(build(1_000_000))     // exactly 1,000 km
+        XCTAssertNil(build(-1))
+        XCTAssertNil(build(1_000_001))
+    }
+
     // MARK: - preservingCaptured
+
+    func testPreservingCapturedTakesDistanceFromTheRebuiltRowNotOld() {
+        // #1195: distance is a sheet field now, so an edit's value wins over the old row's captured
+        // distance (the sheet pre-fills from old, so an untouched field still round-trips it), while
+        // maxHr/strain stay carried. A cleared field clears, not resurrects.
+        let old = fullRow(start: 100, end: 3700, sport: "Running", source: "manual", dist: 10_000, maxHr: 175)
+        let edited = fullRow(start: 100, end: 3700, sport: "Running", source: "manual", dist: 12_500)
+        let merged = WorkoutSource.preservingCaptured(edited, from: old)
+        XCTAssertEqual(merged.distanceM, 12_500)   // edited distance wins
+        XCTAssertEqual(merged.maxHr, 175)          // maxHr still carried from old
+        let cleared = fullRow(start: 100, end: 3700, sport: "Running", source: "manual", dist: nil)
+        XCTAssertNil(WorkoutSource.preservingCaptured(cleared, from: old).distanceM)
+    }
 
     func testPreservingCapturedCarriesUnexposedFieldsOnEdit() {
         // The sheet rebuilds a row from its 5 inputs; an edit must keep the original's captured

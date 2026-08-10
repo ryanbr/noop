@@ -1768,7 +1768,7 @@ private fun Cell(text: String, modifier: Modifier, color: Color? = null) {
 // MARK: - Manual workout add / edit dialog
 //
 // Five inputs — sport, start (date-time, here entered as minutes-ago for simplicity on phone),
-// duration, average HR, calories — validated by WorkoutEditing.buildManualRow (the same honest-row
+// duration, distance, average HR, calories — validated by WorkoutEditing.buildManualRow (the same honest-row
 // rules the engine uses). Editing carries the original's captured maxHr/strain/route over via
 // preservingCaptured so changing sport/duration never wipes them. Android mirror of macOS
 // ManualWorkoutSheet (the macOS sheet uses a DatePicker; on phone we take "minutes ago" to keep the
@@ -1796,6 +1796,19 @@ private fun ManualWorkoutDialog(
     }
     var avgHr by remember { mutableStateOf(editing?.avgHr?.toString() ?: "") }
     var kcal by remember { mutableStateOf(editing?.energyKcal?.let { it.roundToInt().toString() } ?: "") }
+    // #1195: distance as ENTERED, in the user's unit (km/mi), converted to stored metres on save. Pre-fill
+    // in that unit so an untouched edit round-trips the stored value. Period decimal (Locale.US) to match
+    // toDoubleOrNull parsing, exactly as the macOS ManualWorkoutSheet does.
+    val unitSystem = UnitPrefs.system(LocalContext.current)
+    val distUnit = if (unitSystem == UnitSystem.IMPERIAL) "mi" else "km"
+    var distance by remember {
+        mutableStateOf(
+            editing?.distanceM?.let { m ->
+                val v = (m / 1000.0).let { if (unitSystem == UnitSystem.IMPERIAL) it * UnitFormatter.MILES_PER_KILOMETER else it }
+                java.util.Locale.US.let { String.format(it, "%.2f", v) }.trimEnd('0').trimEnd('.')
+            } ?: "",
+        )
+    }
 
     // Build the validated row (null disables Save). Start = the chosen date+time. Captured fields preserved.
     val built: WorkoutRow? = run {
@@ -1805,9 +1818,15 @@ private fun ManualWorkoutDialog(
         // A typed-but-unparseable number is invalid (e.g. "abc" in Avg HR) — reject before building.
         val hr: Int? = if (hrText.isEmpty()) null else hrText.toIntOrNull()
         val k: Double? = if (kText.isEmpty()) null else kText.toDoubleOrNull()
+        val dText = distance.trim()
+        // Distance entered in the user's unit → stored metres. null for blank (no distance). (#1195)
+        val distM: Double? = if (dText.isEmpty()) null else dText.toDoubleOrNull()?.let { v ->
+            (if (unitSystem == UnitSystem.IMPERIAL) v / UnitFormatter.MILES_PER_KILOMETER else v) * 1000.0
+        }
         if (dur == null) return@run null
         if (hrText.isNotEmpty() && hr == null) return@run null
         if (kText.isNotEmpty() && k == null) return@run null
+        if (dText.isNotEmpty() && distM == null) return@run null
         // A manual workout ALWAYS lives under the strap source (where live-tracked sessions land), so
         // a "duplicate as manual" of an imported apple-health/whoop row never writes back to it.
         val base = WorkoutEditing.buildManualRow(
@@ -1817,6 +1836,7 @@ private fun ManualWorkoutDialog(
             sport = sport,
             avgHr = hr,
             energyKcal = k,
+            distanceM = distM,
             nowSeconds = nowSec,
         ) ?: return@run null
         WorkoutEditing.preservingCaptured(base, editing)
@@ -1852,6 +1872,7 @@ private fun ManualWorkoutDialog(
                 SportPickerField(sport, onChange = { sport = it })
                 StartTimeField(startMillis, onPick = { startMillis = it })
                 DialogField("Duration (minutes)", durationMin, onChange = { durationMin = it }, numeric = true)
+                DialogField("Distance ($distUnit, optional)", distance, onChange = { distance = it }, numeric = true)
                 DialogField("Avg HR (bpm, optional)", avgHr, onChange = { avgHr = it }, numeric = true)
                 DialogField("Calories (kcal, optional)", kcal, onChange = { kcal = it }, numeric = true)
                 if (built == null) {

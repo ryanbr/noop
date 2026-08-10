@@ -311,17 +311,19 @@ object WorkoutEditing {
     // MARK: - Building / preserving rows
 
     /**
-     * Carry the captured fields the add/edit sheet does NOT expose (maxHr, strain, distanceM,
-     * zonesJSON, notes, routePolyline) over from the row being edited. A live-tracked session has real
-     * captured strain/maxHr/route; rebuilding from the sheet's inputs alone would wipe them on an edit.
-     * No-op for a fresh add (old == null).
+     * Carry the captured fields the add/edit sheet does NOT expose (maxHr, strain, zonesJSON, notes,
+     * routePolyline) over from the row being edited. A live-tracked session has real captured
+     * strain/maxHr/route; rebuilding from the sheet's inputs alone would wipe them on an edit. No-op for a
+     * fresh add (old == null). distanceM is NOW a sheet field (#1195), so it comes from the freshly built
+     * row (the sheet pre-fills it from the edited row, so an untouched field preserves the captured GPS
+     * distance and a cleared one clears it); routePolyline still carries the captured map verbatim.
      */
     fun preservingCaptured(row: WorkoutRow, old: WorkoutRow?): WorkoutRow {
         if (old == null) return row
         return row.copy(
             maxHr = old.maxHr,
             strain = old.strain,
-            distanceM = old.distanceM,
+            distanceM = row.distanceM,
             zonesJSON = old.zonesJSON,
             notes = old.notes,
             routePolyline = old.routePolyline,
@@ -358,13 +360,19 @@ object WorkoutEditing {
         sport: String,
         avgHr: Int?,
         energyKcal: Double?,
+        // Trailing so the existing positional callers (which pass `nowSeconds` last) are unaffected; the
+        // one caller that sets a distance (the manual sheet) passes it by name. (#1195)
         nowSeconds: Long = System.currentTimeMillis() / 1000L,
+        distanceM: Double? = null,
     ): WorkoutRow? {
         if (durationMin <= 0 || durationMin > 24 * 60) return null
         val trimmed = sport.trim()
         if (trimmed.isEmpty() || startSeconds > nowSeconds || startSeconds <= 0) return null
         if (avgHr != null && avgHr !in 25..250) return null
         if (energyKcal != null && (energyKcal < 0 || energyKcal > 20_000)) return null
+        // Distance 0–1000 km (#1195): rejects a negative or absurd manual entry. 1000 km comfortably
+        // covers any single session (an Ironman bike is 180 km, an ultra 160 km).
+        if (distanceM != null && (distanceM < 0 || distanceM > 1_000_000)) return null
         val durationSeconds = durationMin.toLong() * 60L
         // Keep both the addition and the future-end check overflow-safe. A valid start can be close to
         // Long.MAX_VALUE in a boundary test even though production timestamps are much smaller.
@@ -382,7 +390,7 @@ object WorkoutEditing {
             avgHr = avgHr,
             maxHr = null,
             strain = null,
-            distanceM = null,
+            distanceM = distanceM,
             zonesJSON = null,
             notes = null,
             routePolyline = null,

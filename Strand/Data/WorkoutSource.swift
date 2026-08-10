@@ -320,16 +320,18 @@ enum WorkoutSource: Equatable {
 
     // MARK: - Building / preserving rows
 
-    /// Carry the captured fields the add/edit sheet does NOT expose (maxHr, strain, distanceM,
-    /// zonesJSON, notes) over from the row being edited. A v1.67 live-tracked session has real
-    /// captured strain/maxHr; rebuilding the row from the sheet's inputs alone would silently wipe
-    /// them on an edit. No-op for a fresh add (`old == nil`).
+    /// Carry the captured fields the add/edit sheet does NOT expose (maxHr, strain, zonesJSON, notes)
+    /// over from the row being edited. A v1.67 live-tracked session has real captured strain/maxHr;
+    /// rebuilding the row from the sheet's inputs alone would silently wipe them on an edit. No-op for a
+    /// fresh add (`old == nil`). `distanceM` is NOW a sheet field (#1195), so it comes from the freshly
+    /// built `row` (the sheet pre-fills it from the edited row, so an untouched field preserves the
+    /// captured GPS distance and a cleared one clears it) rather than being force-carried from `old`.
     static func preservingCaptured(_ row: WorkoutRow, from old: WorkoutRow?) -> WorkoutRow {
         guard let old else { return row }
         return WorkoutRow(startTs: row.startTs, endTs: row.endTs, sport: row.sport,
                           source: row.source, durationS: row.durationS,
                           energyKcal: row.energyKcal, avgHr: row.avgHr,
-                          maxHr: old.maxHr, strain: old.strain, distanceM: old.distanceM,
+                          maxHr: old.maxHr, strain: old.strain, distanceM: row.distanceM,
                           zonesJSON: old.zonesJSON, notes: old.notes)
     }
 
@@ -337,12 +339,16 @@ enum WorkoutSource: Equatable {
     /// caller — where v1.67's live sessions live). Returns nil when the input can't make an honest row.
     /// strain/zones stay nil: with no captured HR window an APPROXIMATE strain is never fabricated.
     static func buildManualRow(start: Date, durationMin: Int, sport: String,
-                               avgHr: Int?, energyKcal: Double?, now: Date = Date()) -> WorkoutRow? {
+                               avgHr: Int?, energyKcal: Double?, distanceM: Double? = nil,
+                               now: Date = Date()) -> WorkoutRow? {
         guard durationMin > 0, durationMin <= 24 * 60 else { return nil }
         let trimmed = sport.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty, start <= now else { return nil }
         if let hr = avgHr, !(25...250).contains(hr) { return nil }
         if let k = energyKcal, k < 0 || k > 20_000 { return nil }
+        // Distance 0–1000 km (#1195): rejects a negative or absurd manual entry. 1000 km comfortably
+        // covers any single session (an Ironman bike is 180 km, an ultra 160 km).
+        if let d = distanceM, d < 0 || d > 1_000_000 { return nil }
         let s = Int(start.timeIntervalSince1970)
         guard s > 0 else { return nil }
         // Reject a row whose END lands in the future: `start <= now` alone still lets `start + duration`
@@ -354,7 +360,7 @@ enum WorkoutSource: Equatable {
         guard end <= Int(now.timeIntervalSince1970) else { return nil }
         return WorkoutRow(startTs: s, endTs: end, sport: trimmed, source: "manual",
                           durationS: Double(durationSeconds), energyKcal: energyKcal,
-                          avgHr: avgHr, maxHr: nil, strain: nil, distanceM: nil,
+                          avgHr: avgHr, maxHr: nil, strain: nil, distanceM: distanceM,
                           zonesJSON: nil, notes: nil)
     }
 }

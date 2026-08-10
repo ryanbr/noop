@@ -5,6 +5,7 @@ import com.noop.data.WorkoutRow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -342,7 +343,40 @@ class WorkoutEditingTest {
         )
     }
 
+    @Test
+    fun buildManualRow_acceptsAndBoundsDistance() {
+        // #1195: distance is now a manual field. A valid entry is stored verbatim (metres); 0 and the
+        // 1,000 km ceiling are allowed; negative and beyond are rejected; null means "no distance".
+        val now = 1_700_003_600L
+        fun build(d: Double?) = WorkoutEditing.buildManualRow(
+            "my-whoop", startSeconds = now - 1800, durationMin = 30, sport = "Run",
+            avgHr = null, energyKcal = null, nowSeconds = now, distanceM = d,
+        )
+        assertEquals(5_234.0, build(5_234.0)?.distanceM)
+        assertNull(build(null)?.distanceM)
+        assertNotNull(build(0.0))
+        assertNotNull(build(1_000_000.0))   // exactly 1,000 km
+        assertNull(build(-1.0))
+        assertNull(build(1_000_001.0))
+    }
+
     // MARK: - preservingCaptured
+
+    @Test
+    fun preservingCaptured_takesDistanceFromRebuiltNotOld() {
+        // #1195: distance is a sheet field now, so an edit's value wins over the old row's captured
+        // distance (the sheet pre-fills from old, so an untouched field still round-trips it), while
+        // maxHr/route stay carried. A cleared field clears, not resurrects.
+        val old = row("my-whoop", 100, 3700, "Running", "manual", maxHr = 175)
+            .copy(distanceM = 10_000.0, routePolyline = "abc")
+        val edited = row("my-whoop", 100, 3700, "Running", "manual").copy(distanceM = 12_500.0)
+        val merged = WorkoutEditing.preservingCaptured(edited, old)
+        assertEquals(12_500.0, merged.distanceM)   // edited distance wins
+        assertEquals(175, merged.maxHr)            // maxHr still carried
+        assertEquals("abc", merged.routePolyline)  // route still carried
+        val cleared = row("my-whoop", 100, 3700, "Running", "manual").copy(distanceM = null)
+        assertNull(WorkoutEditing.preservingCaptured(cleared, old).distanceM)
+    }
 
     @Test
     fun preservingCaptured_carriesUnexposedFieldsOnEdit() {
