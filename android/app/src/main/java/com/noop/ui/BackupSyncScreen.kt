@@ -315,6 +315,9 @@ fun BackupSyncScreen() {
                             Text(
                                 uiString(R.string.l10n_backup_sync_screen_auto_backup_hasn_t_run_in_e3cd484e),
                                 style = NoopType.caption, color = Palette.statusWarning,
+                                // weight(1f) so the long warning wraps within the Row instead of overflowing
+                                // the card on a narrow screen (parity with the iOS row's fixedSize wrap).
+                                modifier = Modifier.weight(1f),
                             )
                         }
                     }
