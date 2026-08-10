@@ -1898,8 +1898,8 @@ private fun QuickActionDisc(onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     Box(
         modifier = Modifier
-            // 34dp to sit level with the heart / avatar / battery ring in the liquid header cluster.
-            .size(34.dp)
+            // Sit level with the avatar / battery ring in the liquid header cluster (shared size).
+            .size(HeaderClusterControl)
             .liquidPress(interaction)
             .clip(CircleShape)
             // A translucent-white disc so the + reads on the day-of-sky like the rest of the liquid cluster,
@@ -2003,8 +2003,13 @@ private fun ScoringGuideIntroCard(onOpen: () -> Unit, onDismiss: () -> Unit) {
 // recording-light + bell header). LEFT: a tappable title block — the big rounded-bold day title over a human
 // date line ("Friday, 3 July"), tap opens the day picker. RIGHT: exactly the iOS four controls, in order —
 // a filled HEART (→ Support), the PROFILE AVATAR (→ Settings), a "+" ADD button (→ quick actions), and the
-// strap BATTERY RING (→ Devices). Each ~34dp, spacing ~8dp. There is no recording light and no bell here;
+// strap BATTERY RING (→ Devices). Each ~36dp, spacing ~8dp. There is no recording light and no bell here;
 // iOS's Today header has neither, and the Updates inbox is relocated into the "+" quick-actions sheet.
+
+/** The uniform diameter of the round Today-header controls — profile avatar, quick-add (+) and the strap
+ *  battery ring — so they sit level in the liquid cluster (the sync chip beside them is content-sized).
+ *  Single source of truth so a size tweak keeps all three in lockstep. */
+private val HeaderClusterControl = 36.dp
 
 @Composable
 private fun LiquidTodayHeader(
@@ -2095,7 +2100,7 @@ private fun LiquidTodayHeader(
             )
         }
 
-        // RIGHT: the controls, in order — [sync chip] · avatar · + · battery ring. Each ~34dp, 8dp apart.
+        // RIGHT: the controls, in order — [sync chip] · avatar · + · battery ring. Each ~36dp, 8dp apart.
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -2110,7 +2115,7 @@ private fun LiquidTodayHeader(
             // (a) Profile avatar (the photo set in Settings, or the NOOP loop mark) → Settings. Mirrors iOS.
             Box(
                 modifier = Modifier
-                    .size(34.dp)
+                    .size(HeaderClusterControl)
                     .clip(CircleShape)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
@@ -2120,10 +2125,10 @@ private fun LiquidTodayHeader(
                     .semantics { contentDescription = uiString(R.string.l10n_today_screen_profile_and_settings_9b3d12f2) },
                 contentAlignment = Alignment.Center,
             ) {
-                ProfileAvatar(size = 34.dp)
+                ProfileAvatar(size = HeaderClusterControl)
             }
             // (b) Quick-add (+), the accented primary. Mirrors iOS's LiquidAddButton (a glyph on a translucent
-            // disc → the quick-actions menu). Sized 34dp to match the rest of the liquid cluster.
+            // disc → the quick-actions menu). Sized to match the rest of the liquid cluster (shared HeaderClusterControl).
             QuickActionDisc(onClick = onQuickActions)
             // (c) Strap battery ring showing the % (iOS LiquidBatteryButton). Tap → Devices.
             LiquidBatteryRing(batteryPct = batteryPct, onClick = onOpenDevices)
@@ -2197,7 +2202,7 @@ private fun LiquidBatteryRing(batteryPct: Double?, onClick: () -> Unit) {
     val label = batteryPct?.let { "Strap battery ${it.roundToInt()} percent" } ?: "Strap battery"
     Box(
         modifier = Modifier
-            .size(34.dp)
+            .size(HeaderClusterControl)
             .liquidPress(interaction)
             .clip(CircleShape)
             // A translucent near-black disc + faint white rim, matching iOS (rgba(10,11,16,.5) + white@.15).
@@ -2218,7 +2223,7 @@ private fun LiquidBatteryRing(batteryPct: Double?, onClick: () -> Unit) {
                 pct < 35 -> Palette.statusWarning
                 else -> Palette.chargeColor
             }
-            Canvas(modifier = Modifier.size(34.dp).padding(2.5.dp)) {
+            Canvas(modifier = Modifier.size(HeaderClusterControl).padding(2.5.dp)) {
                 val strokePx = 3.dp.toPx()
                 val d = size.minDimension - strokePx
                 val topLeft = Offset((size.width - d) / 2f, (size.height - d) / 2f)
