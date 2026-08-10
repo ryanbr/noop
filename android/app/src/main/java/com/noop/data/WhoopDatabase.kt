@@ -52,7 +52,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         RawImuSampleEntity::class,
         V18AuxSampleEntity::class,
     ],
-    version = 29,
+    version = 30,
     // #775: ON so Room's KSP processor writes the generated schema (every table's exact `CREATE TABLE`,
     // columns in declaration order with affinity/NOT NULL/default, PK and indices) as JSON. That export
     // is what lets a plain JVM test — no device, no Robolectric — read Android's REAL schema and compare
@@ -813,6 +813,35 @@ abstract class WhoopDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * #548: drop calibrated SpO₂ from WHOOP registry capabilities (import-only metric).
+         * Data-only UPDATE — no schema change. Twin of Swift WhoopStore `v36-whoop-caps-no-spo2`.
+         * Token strip matches [WhoopLiveCapabilities.stripSpo2Token].
+         */
+        internal val MIGRATION_29_30 = object : Migration(29, 30) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                val cursor = db.query(
+                    "SELECT `id`, `capabilities` FROM `pairedDevice` " +
+                        "WHERE `brand` = 'WHOOP' OR `id` = 'my-whoop' OR `id` LIKE 'whoop-%'",
+                )
+                cursor.use { c ->
+                    val idIdx = c.getColumnIndex("id")
+                    val capsIdx = c.getColumnIndex("capabilities")
+                    while (c.moveToNext()) {
+                        val id = c.getString(idIdx)
+                        val encoded = c.getString(capsIdx) ?: continue
+                        val stripped = WhoopLiveCapabilities.stripSpo2Token(encoded)
+                        if (stripped != encoded && stripped.isNotEmpty()) {
+                            db.execSQL(
+                                "UPDATE `pairedDevice` SET `capabilities` = ? WHERE `id` = ?",
+                                arrayOf(stripped, id),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         private fun build(appContext: Context): WhoopDatabase =
             Room.databaseBuilder(appContext, WhoopDatabase::class.java, DB_NAME)
                 // #1014: replace ONLY the corruption handling of the default open-helper. The
@@ -830,13 +859,14 @@ abstract class WhoopDatabase : RoomDatabase() {
                     MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18,
                     MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22,
                     MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26,
-                    MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29,
+                    MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30,
                 )
                 // #1037: a FRESH install builds the schema straight at the current version and runs NO
                 // migrations, so the MIGRATION_7_8 "my-whoop" registry seed never fires and the WHOOP,
                 // though paired and streaming fine, never appears in the Devices list. Seed the canonical
                 // row on create too (same idempotent INSERT OR IGNORE as the migration) so a first-ever
                 // install still lists its WHOOP. iOS/GRDB re-runs migrations on a fresh DB, so it never hit this.
+                // #548: no calibrated SpO₂ in the seed (import-only).
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         val now = System.currentTimeMillis() / 1000
@@ -845,7 +875,7 @@ abstract class WhoopDatabase : RoomDatabase() {
                                 "(`id`, `brand`, `model`, `nickname`, `sourceKind`, `capabilities`, " +
                                 "`status`, `addedAt`, `lastSeenAt`) VALUES " +
                                 "('my-whoop', 'WHOOP', 'WHOOP', NULL, 'liveBLE', " +
-                                "'hr,hrv,spo2,skinTemp,sleep,strainLoad', 'active', $now, $now)",
+                                "'${WhoopLiveCapabilities.encoded("WHOOP")}', 'active', $now, $now)",
                         )
                     }
                 })

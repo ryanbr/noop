@@ -338,7 +338,9 @@ enum BodyVitalSigns {
                 metricColor: StrandPalette.metricAmber,
                 day: skinRow?.day,
                 source: skinRow?.source,
-                missingCaption: String(localized: "No nightly skin-temp value"),
+                // #548: empty is often calibrating (needs ~4 nights for ±deviation) or import-less —
+                // not a silent "broken sensor". Absolute °C still arrives via WHOOP CSV import.
+                missingCaption: String(localized: "No nightly skin-temp yet — needs ~4 worn nights (or import a WHOOP CSV)"),
                 // Keep the trail on the displayed value's kind — absolute °C and ±deviation must not
                 // mix on one sparkline (matches the banding partition above).
                 sparkline: trail(skinPoints.filter { VitalBands.isAbsoluteSkinTemp($0.value) == skinIsAbsolute })

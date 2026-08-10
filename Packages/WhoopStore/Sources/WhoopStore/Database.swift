@@ -798,6 +798,30 @@ extension WhoopStore {
             // otherwise lean on SQLite's affinity coercion rather than being explicit.
             try db.execute(sql: "UPDATE rrInterval SET tsSuspect = 1 WHERE ts > CAST(strftime('%s','now') AS INTEGER)")
         }
+        // v36 (#548): drop calibrated SpO₂ from WHOOP registry capabilities. Live NOOP never fills
+        // spo2Pct from the strap (import-only / experimental @82 candidate); advertising `spo2` made
+        // an empty Blood Oxygen tile look broken. Data-only UPDATE — no schema change. Twin of Room
+        // MIGRATION_29_30. Decode-time strip in DeviceRegistryStore is the belt; this is the suspenders.
+        migrator.registerMigration("v36-whoop-caps-no-spo2") { db in
+            let rows = try Row.fetchAll(
+                db,
+                sql: """
+                    SELECT id, capabilities FROM pairedDevice
+                    WHERE brand = 'WHOOP' OR id = 'my-whoop' OR id LIKE 'whoop-%'
+                    """
+            )
+            for row in rows {
+                let id: String = row["id"]
+                let encoded: String = row["capabilities"]
+                let stripped = WhoopLiveCapabilities.stripSpo2Token(fromEncoded: encoded)
+                if stripped != encoded && !stripped.isEmpty {
+                    try db.execute(
+                        sql: "UPDATE pairedDevice SET capabilities = ? WHERE id = ?",
+                        arguments: [stripped, id]
+                    )
+                }
+            }
+        }
         return migrator
     }
 }

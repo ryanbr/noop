@@ -1562,7 +1562,7 @@ struct DeviceCardCatalog: View {
     static func oura(_ model: String, status: DeviceStatus = .paired) -> PairedDevice {
         PairedDevice(id: "oura-demo-\(model)", brand: "Oura", model: model, nickname: nil,
                      peripheralId: "00000000-0000-0000-0000-0000000000aa", sourceKind: .oura,
-                     capabilities: [.hr, .hrv, .spo2, .skinTemp, .sleep],
+                     capabilities: WhoopLiveCapabilities.metrics(forModel: "4.0"),
                      status: status, addedAt: 0, lastSeenAt: 0)
     }
 
@@ -1638,7 +1638,7 @@ struct BondRefusedDemoScreen: View {
                        topBackground: liquidScaffoldSky()) {
             DeviceCard(device: PairedDevice(id: "whoop-5-refused-solo", brand: "WHOOP", model: "5.0 MG",
                                             nickname: nil, peripheralId: nil, sourceKind: .liveBLE,
-                                            capabilities: [.hr, .hrv, .spo2, .skinTemp, .sleep, .strainLoad, .steps],
+                                            capabilities: WhoopLiveCapabilities.metrics(forModel: "5.0 MG"),
                                             status: .active, addedAt: 0, lastSeenAt: 0),
                        isActive: true, isLiveConnected: true, bondRefused: true,
                        pairingHint: "NOOP can see your strap but it's refusing to pair - it's likely still bonded to the official WHOOP app, or your phone is holding an old pairing. To fix it: (1) fully close the WHOOP app, (2) on a 5.0/MG, tap the band repeatedly until the LEDs flash blue (pairing mode), (3) if your strap is listed under iPhone Settings → Bluetooth, tap it and choose Forget This Device, then reconnect in NOOP.",

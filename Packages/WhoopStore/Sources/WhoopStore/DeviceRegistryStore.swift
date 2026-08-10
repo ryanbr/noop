@@ -226,11 +226,20 @@ public struct DeviceRegistryStore: Sendable {
     }
 
     private static func decode(_ row: Row) -> PairedDevice {
-        let caps = (row["capabilities"] as String).split(separator: ",").compactMap { Metric(rawValue: String($0)) }
-        return PairedDevice(id: row["id"], brand: row["brand"], model: row["model"], nickname: row["nickname"],
+        var caps = Set((row["capabilities"] as String).split(separator: ",").compactMap { Metric(rawValue: String($0)) })
+        // #548: calibrated SpO₂ % is never produced from a live WHOOP path — drop a stale registry bit
+        // so Devices / day-owner UI never advertise a capability AnalyticsEngine will not fill.
+        let brand = row["brand"] as String
+        let id = row["id"] as String
+        if brand.caseInsensitiveCompare("WHOOP") == .orderedSame
+            || id == "my-whoop"
+            || id.hasPrefix("whoop-") {
+            caps = WhoopLiveCapabilities.withoutCalibratedSpo2(caps)
+        }
+        return PairedDevice(id: id, brand: brand, model: row["model"], nickname: row["nickname"],
                             peripheralId: row["peripheralId"],
                             sourceKind: SourceKind(rawValue: row["sourceKind"]) ?? .liveBLE,
-                            capabilities: Set(caps), status: DeviceStatus(rawValue: row["status"]) ?? .paired,
+                            capabilities: caps, status: DeviceStatus(rawValue: row["status"]) ?? .paired,
                             addedAt: row["addedAt"], lastSeenAt: row["lastSeenAt"])
     }
 }

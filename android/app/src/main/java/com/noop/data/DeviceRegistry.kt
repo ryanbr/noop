@@ -33,7 +33,22 @@ class DeviceRegistry(
     )
 
     /** All paired devices, oldest first. */
-    suspend fun all(): List<PairedDeviceRow> = dao.pairedDevices()
+    suspend fun all(): List<PairedDeviceRow> =
+        dao.pairedDevices().map { honestWhoopCapabilities(it) }
+
+    /**
+     * #548: calibrated SpO₂ % is never produced from a live WHOOP path — drop a stale registry bit so
+     * Devices / day-owner UI never advertise a capability AnalyticsEngine will not fill. Twin of the
+     * Swift `DeviceRegistryStore.decode` strip.
+     */
+    private fun honestWhoopCapabilities(row: PairedDeviceRow): PairedDeviceRow {
+        val isWhoop = row.brand.equals("WHOOP", ignoreCase = true)
+            || row.id == "my-whoop"
+            || row.id.startsWith("whoop-")
+        if (!isWhoop) return row
+        val stripped = WhoopLiveCapabilities.stripSpo2Token(row.capabilities)
+        return if (stripped == row.capabilities) row else row.copy(capabilities = stripped)
+    }
 
     /** The single active device id, or null if none. */
     suspend fun activeDeviceId(): String? = dao.activeDeviceId()

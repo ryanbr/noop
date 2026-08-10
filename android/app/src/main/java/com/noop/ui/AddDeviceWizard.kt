@@ -65,6 +65,7 @@ import com.noop.ble.WhoopModel
 import com.noop.data.DeviceStatus
 import com.noop.data.PairedDeviceRow
 import com.noop.data.SourceKind
+import com.noop.data.WhoopLiveCapabilities
 import com.noop.oura.OuraRingGen
 import kotlinx.coroutines.launch
 
@@ -279,7 +280,8 @@ fun AddDeviceWizard(
         val isGarmin = type == DeviceType.Garmin
         val device: PairedDeviceRow? = when {
             pw != null && type?.whoopModel != null -> {
-                // WHOOP: full capability set; id namespaced by address; model "4.0" / "5.0 MG".
+                // WHOOP: honest live capability set (no calibrated SpO₂ % — import-only; #548);
+                // id namespaced by address; model "4.0" / "5.0 MG". Steps only on 5.0/MG.
                 val wm = type!!.whoopModel!!
                 val modelLabel = if (wm == WhoopModel.WHOOP4) "4.0" else "5.0 MG"
                 PairedDeviceRow(
@@ -289,7 +291,7 @@ fun AddDeviceWizard(
                     nickname = confirmName,
                     peripheralId = pw.address,
                     sourceKind = SourceKind.liveBLE.name,
-                    capabilities = "hr,hrv,spo2,skinTemp,sleep,strainLoad",
+                    capabilities = WhoopLiveCapabilities.encoded(modelLabel),
                     status = DeviceStatus.paired.name,
                     addedAt = now,
                     lastSeenAt = now,

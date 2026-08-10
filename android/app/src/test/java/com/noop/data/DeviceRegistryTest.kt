@@ -2,6 +2,7 @@ package com.noop.data
 
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -178,6 +179,16 @@ class DeviceRegistryTest {
         assertEquals(1, all.size)
         assertEquals("my-whoop", all.first().id)
         assertEquals("my-whoop", reg.activeDeviceId())
+    }
+
+    /** #548: stale registry bits listing calibrated SpO₂ must not surface for a live WHOOP. */
+    @Test
+    fun allStripsSpo2FromWhoopCapabilities() = runBlocking {
+        val reg = registryWith(seededDao())
+        val caps = reg.all().first().capabilities
+        assertFalse(caps.split(',').contains("spo2"))
+        assertTrue(caps.contains("hr"))
+        assertTrue(caps.contains("skinTemp"))
     }
 
     @Test
