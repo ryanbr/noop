@@ -1699,7 +1699,14 @@ class WhoopBleClient(
             // paused, so it never sets the flag for a WHOOP. `bonded` stays false (no encrypted bond), so
             // the buzz/alarm/HRV feature gates keep keying off the WHOOP bond. Twin of iOS OuraLiveSource
             // → LiveState.streamingLiveHR (PR #56).
-            _state.update { it.copy(heartRate = hr, connected = true, streamingLiveHR = true) }
+            // Skip the per-frame it.copy() once HR is steady AND both flags are already set — StateFlow drops
+            // the equal state anyway, so this only avoids the throwaway LiveState allocation. The guard still
+            // fires whenever ANY of the three isn't at its target, so the connected/streamingLiveHR
+            // transitions are never missed (matches the WHOOP live-HR paths).
+            val s = _state.value
+            if (s.heartRate != hr || !s.connected || !s.streamingLiveHR) {
+                _state.update { it.copy(heartRate = hr, connected = true, streamingLiveHR = true) }
+            }
         }
     }
 
