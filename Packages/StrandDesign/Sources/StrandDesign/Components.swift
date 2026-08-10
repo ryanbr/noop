@@ -18,6 +18,9 @@ public enum NoopMetrics {
     // so we pin a single height that clears the tallest layout (value + inline sparkline + caption).
     public static let keyMetricTileHeight: CGFloat = 122
     public static let chartHeight: CGFloat = 220
+    /// Minimum macOS detail-sheet footprint for a scrollable editor/history surface.
+    public static let detailSheetMinWidth: CGFloat = 520
+    public static let detailSheetMinHeight: CGFloat = 620
     /// Canonical compact provenance-chip height; shared with overlays that align the chip to a border.
     public static let sourceBadgeHeight: CGFloat = 18
     public static let hypnogramBandMinThickness: CGFloat = 14  // floor so short stages read as bars, not ticks

@@ -1694,6 +1694,8 @@ struct TodayView: View {
             recoveryVitalsSection
         case .yourCards:
             yourCardsSection
+        case .menstrualCycle:
+            if selectedDayOffset == 0 { MenstrualCycleHomeCard() }
         case .journal:
             if selectedDayOffset == 0 { JournalReminderCard() }
         }

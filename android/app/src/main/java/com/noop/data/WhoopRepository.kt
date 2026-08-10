@@ -832,6 +832,10 @@ class WhoopRepository(
         dao.sessionSleepStateJson(deviceId, sessionStart)?.let { decodeIntArray(it) }
 
     suspend fun upsertMetricSeries(rows: List<MetricSeriesRow>) = dao.upsertMetricSeries(rows)
+    suspend fun deleteMetricSeriesPoint(deviceId: String, day: String, key: String) =
+        dao.deleteMetricSeriesPoint(deviceId, day, key)
+    suspend fun deleteMetricSeries(deviceId: String, key: String) =
+        dao.deleteMetricSeries(deviceId, key)
     suspend fun upsertJournal(rows: List<JournalEntry>) = dao.upsertJournal(rows)
     suspend fun upsertWorkouts(rows: List<WorkoutRow>) = dao.upsertWorkouts(rows)
     suspend fun upsertAppleDaily(rows: List<AppleDaily>) = dao.upsertAppleDaily(rows)

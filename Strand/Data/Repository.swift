@@ -198,6 +198,11 @@ final class Repository: ObservableObject {
     @Published private(set) var hydrationSeq = 0
     func noteHydrationChanged() { hydrationSeq += 1 }
 
+    /// Bumped whenever a period-start row is logged or removed. Cycle surfaces use this lightweight
+    /// signal to reload their sensitive local history without forcing a full strap-data refresh.
+    @Published private(set) var cycleTrackingSeq = 0
+    func noteCycleTrackingChanged() { cycleTrackingSeq += 1 }
+
     /// Workouts & GPS test mode (Test Centre): the tagged sink for the `.workouts` diagnostic lines
     /// (auto-detect inputs/thresholds/why, cross-source dedup decisions). Default nil (inert) so tests +
     /// non-prod inits get the byte-identical untraced path; AppModel wires it to `live.append(log:domain:)`.

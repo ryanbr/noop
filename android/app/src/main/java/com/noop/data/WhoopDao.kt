@@ -592,6 +592,10 @@ interface WhoopDao : DeviceRegistryDao {
     @Query("DELETE FROM metricSeries WHERE deviceId = :deviceId AND day = :day AND key = :key")
     suspend fun deleteMetricSeriesPoint(deviceId: String, day: String, key: String)
 
+    /** Delete one complete source/key series atomically. */
+    @Query("DELETE FROM metricSeries WHERE deviceId = :deviceId AND key = :key")
+    suspend fun deleteMetricSeries(deviceId: String, key: String)
+
     // MARK: - Lab Book markers (Swift labMarker, v17 / LabMarkerStore.swift)
     //
     // The book is `labMarker` (one row per dated reading the user entered themselves); the daily

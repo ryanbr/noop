@@ -410,11 +410,13 @@ object Metrics {
     val screenPadding = 24.dp
     val tileHeight = 108.dp   // every metric tile is this tall
     val chartHeight = 220.dp
+    val dialogScrollableMaxHeight = 560.dp
     val divider = 1.dp
     val compactChartHeight = chartHeight - 90.dp
     val selectorTopUp = sectionGap - screenRowSpacing
     val iconButton = 36.dp
     val iconSmall = 18.dp
+    val iconTiny = 12.dp
     val selectorPadding = 10.dp
     val selectorSpacing = 8.dp
     val sparkWidthWide = 48.dp   // inline trend beside a tile value — kept compact so the value (which

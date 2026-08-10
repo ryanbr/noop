@@ -1325,6 +1325,7 @@ private struct SkinTempSection: View {
 
     /// The cycle-awareness opt-in (default OFF). The same key AppModel reads, so a flip is consistent.
     @AppStorage(AppModel.cycleAwarenessKey) private var cycleEnabled = false
+    @State private var cycleTrackerPresented = false
 
     /// Whether the cycle-awareness opt-in is offered for this profile (#801). Delegates to the shared
     /// ``ProfileStore/cycleAwarenessApplies`` gate so Health + Automations stay in lockstep: cycle phase
@@ -1352,6 +1353,13 @@ private struct SkinTempSection: View {
             // rather than silently hiding their data; only the OPT-IN invitation is gated.
             if cycleEnabled, let cycle = model.cyclePhase {
                 CycleAwarenessCard(result: cycle, curve: model.cycleCurve,
+                                   onLogPeriod: {
+                                       Task {
+                                           await repo.logPeriodStart(day: Repository.localDayKey(Date()))
+                                           await model.refreshV5Signals()
+                                       }
+                                   },
+                                   onOpenDetail: { cycleTrackerPresented = true },
                                    // Symmetric off (#801): turn it off in-place, here in Health, where
                                    // it was turned on, not only from Automations.
                                    onTurnOff: {
@@ -1375,6 +1383,13 @@ private struct SkinTempSection: View {
                 && model.illnessSignal == nil && model.circadianPhase == nil && model.cyclePhase == nil {
                 ComingSoon(what: "Wear the strap overnight and these read from your nightly skin temperature.",
                            symbol: "thermometer.medium")
+            }
+        }
+        .sheet(isPresented: $cycleTrackerPresented) {
+            if let cycle = model.cyclePhase {
+                CycleTrackerView(result: cycle, curve: model.cycleCurve)
+                    .environmentObject(repo)
+                    .environmentObject(model)
             }
         }
     }

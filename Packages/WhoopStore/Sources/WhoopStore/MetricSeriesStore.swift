@@ -89,4 +89,31 @@ extension WhoopStore {
             return (earliest, latest)
         }
     }
+
+    /// Delete one point identified by the metric-series natural key. User-entered local series use this
+    /// to provide a real delete (rather than leaving a sentinel value behind). Returns the number of rows
+    /// removed; deleting an absent point is an idempotent zero-row change.
+    @discardableResult
+    public func deleteMetricSeriesPoint(deviceId: String, day: String, key: String) async throws -> Int {
+        try syncWrite { db in
+            try db.execute(sql: """
+                DELETE FROM metricSeries
+                WHERE deviceId = ? AND day = ? AND key = ?
+                """, arguments: [deviceId, day, key])
+            return db.changesCount
+        }
+    }
+
+    /// Delete every point for one source/key pair in a single statement. Returns the number of rows
+    /// removed; deleting an absent series is an idempotent zero-row change.
+    @discardableResult
+    public func deleteMetricSeries(deviceId: String, key: String) async throws -> Int {
+        try syncWrite { db in
+            try db.execute(sql: """
+                DELETE FROM metricSeries
+                WHERE deviceId = ? AND key = ?
+                """, arguments: [deviceId, key])
+            return db.changesCount
+        }
+    }
 }

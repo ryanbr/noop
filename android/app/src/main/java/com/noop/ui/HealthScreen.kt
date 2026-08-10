@@ -118,6 +118,8 @@ fun HealthScreen(
     // analytics pass and published by the ViewModel. Cycle awareness gates on its opt-in pref.
     val v5Signals by vm.v5Signals.collectAsStateWithLifecycle()
     val cycleEnabled by vm.cycleTrackingEnabled.collectAsStateWithLifecycle()
+    val periodStarts by vm.periodStarts.collectAsStateWithLifecycle()
+    var showCycleTracker by remember { mutableStateOf(false) }
     val hrMax = profile.hrMax
 
     // Health Monitor shows live HR too, so it must keep the realtime stream on while it's visible —
@@ -208,6 +210,8 @@ fun HealthScreen(
                     // invitation is NOT offered for male profiles. Matches iOS SkinTempSection.cycleOptInApplies.
                     cycleOptInApplies = cycleOptInApplies(profile.sex),
                     onEnableCycle = { vm.setCycleTrackingEnabled(true) },
+                    onLogPeriod = { vm.logPeriodStart() },
+                    onOpenCycleTracker = { showCycleTracker = true },
                     // #801: symmetric off-control. Cycle awareness could be turned ON here but only OFF from
                     // Automations; let the user turn it off in-place where they turned it on.
                     onTurnOffCycle = { vm.setCycleTrackingEnabled(false) },
@@ -226,6 +230,19 @@ fun HealthScreen(
                     onOpenFusedRecord = onOpenFusedRecord,
                 )
             }
+        }
+    }
+
+    if (showCycleTracker) {
+        v5Signals?.cycle?.let { cycle ->
+            CycleTrackerDialog(
+                result = cycle,
+                starts = periodStarts,
+                onLog = vm::logPeriodStart,
+                onDelete = vm::deletePeriodStart,
+                onDeleteAll = vm::deleteAllPeriodStarts,
+                onDismiss = { showCycleTracker = false },
+            )
         }
     }
 }
@@ -441,6 +458,8 @@ private fun SkinTempSuiteSection(
     // #801: whether the cycle-awareness opt-in invitation is offered for this profile (sex-gated).
     cycleOptInApplies: Boolean,
     onEnableCycle: () -> Unit,
+    onLogPeriod: () -> Unit,
+    onOpenCycleTracker: () -> Unit,
     // #801: symmetric off-control, surfaced on the live card.
     onTurnOffCycle: () -> Unit,
 ) {
@@ -458,7 +477,14 @@ private fun SkinTempSuiteSection(
         // opt-in invitation is shown ONLY for profiles it can apply to (sex-gated); a male profile that
         // previously enabled it still sees its existing card, only the invitation is gated.
         if (cycleEnabled) {
-            signals?.cycle?.let { CycleAwarenessCard(result = it, onTurnOff = onTurnOffCycle) }
+            signals?.cycle?.let {
+                CycleAwarenessCard(
+                    result = it,
+                    onLogPeriod = onLogPeriod,
+                    onOpenDetail = onOpenCycleTracker,
+                    onTurnOff = onTurnOffCycle,
+                )
+            }
         } else if (cycleOptInApplies) {
             CycleAwarenessOptInCard(onEnable = onEnableCycle)
         }
