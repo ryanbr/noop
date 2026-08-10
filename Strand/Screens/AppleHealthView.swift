@@ -46,6 +46,7 @@ struct AppleHealthView: View {
     // property and every `health.*` use below MUST stay inside `#if os(iOS)`.
     #if os(iOS)
     @EnvironmentObject private var health: HealthKitBridge
+    @EnvironmentObject private var model: AppModel
     #endif
 
     // Imperial/Metric display preference (D#103). Weight and lean mass (stored kg) re-label to lb here;
@@ -418,7 +419,13 @@ struct AppleHealthView: View {
                     Button {
                         Task {
                             await health.requestAuthorization()
-                            await health.sync()
+                            await HealthSyncRefreshCoordinator.run(
+                                sync: { await health.sync() },
+                                refresh: {
+                                    await model.refreshAfterAppleHealthSync(
+                                        authorized: health.auth == .authorized)
+                                }
+                            )
                             await load()
                         }
                     } label: {
@@ -445,7 +452,13 @@ struct AppleHealthView: View {
                     }
                     Button {
                         Task {
-                            await health.sync()
+                            await HealthSyncRefreshCoordinator.run(
+                                sync: { await health.sync() },
+                                refresh: {
+                                    await model.refreshAfterAppleHealthSync(
+                                        authorized: health.auth == .authorized)
+                                }
+                            )
                             await load()
                         }
                     } label: {

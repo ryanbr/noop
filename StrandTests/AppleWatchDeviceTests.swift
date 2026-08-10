@@ -93,13 +93,54 @@ final class AppleWatchDeviceTests: XCTestCase {
         let existing = PairedDevice(id: "apple-health", brand: "Apple", model: "Apple Watch",
                                     nickname: "My Watch", peripheralId: nil,
                                     sourceKind: .liveAppleWatch, capabilities: [.hr],
-                                    status: .paired, addedAt: 1000, lastSeenAt: 1000)
+                                    status: .active, addedAt: 1000, lastSeenAt: 1000)
         let d = [daily("2026-06-20", restingHr: 52, avgHrv: 45, totalSleepMin: 420, steps: 8000)]
         let dev = AppleWatchDevice.device(daily: d, apple: [], authorized: true,
                                           existing: existing, now: Date(timeIntervalSince1970: 2000))
         XCTAssertEqual(dev?.nickname, "My Watch")
         XCTAssertEqual(dev?.addedAt, 1000)             // pairing date preserved
         XCTAssertEqual(dev?.lastSeenAt, 2000)          // last-seen advances
+        XCTAssertEqual(dev?.status, .active)           // un refresh no desactiva la fuente visible
         XCTAssertEqual(dev?.capabilities, [.hr, .hrv, .sleep, .steps])
+    }
+
+    // MARK: - Activación automática segura
+
+    func testActivaAppleCuandoSoloQuedaElWhoopSemillaSinDatos() {
+        let placeholder = PairedDevice(
+            id: "my-whoop", brand: "WHOOP", model: "WHOOP", peripheralId: nil,
+            sourceKind: .liveBLE, capabilities: [.hr], status: .active,
+            addedAt: 1000, lastSeenAt: 1000)
+
+        XCTAssertTrue(AppleWatchDevice.shouldAutoActivate(
+            current: placeholder, currentHasRecentData: false))
+    }
+
+    func testNoSustituyeUnWhoopRealNiUnaFuenteElegida() {
+        let pairedWhoop = PairedDevice(
+            id: "my-whoop", brand: "WHOOP", model: "WHOOP 4.0", peripheralId: "BLE-123",
+            sourceKind: .liveBLE, capabilities: [.hr], status: .active,
+            addedAt: 1000, lastSeenAt: 2000)
+        let oura = PairedDevice(
+            id: "oura-123", brand: "Oura", model: "Ring 4", peripheralId: "BLE-456",
+            sourceKind: .oura, capabilities: [.hr, .hrv], status: .active,
+            addedAt: 1000, lastSeenAt: 2000)
+
+        XCTAssertFalse(AppleWatchDevice.shouldAutoActivate(
+            current: pairedWhoop, currentHasRecentData: false))
+        XCTAssertFalse(AppleWatchDevice.shouldAutoActivate(
+            current: pairedWhoop, currentHasRecentData: true))
+        XCTAssertFalse(AppleWatchDevice.shouldAutoActivate(
+            current: oura, currentHasRecentData: false))
+    }
+
+    func testNoSustituyeElWhoopSemillaSiTieneDatosRecientes() {
+        let placeholder = PairedDevice(
+            id: "my-whoop", brand: "WHOOP", model: "WHOOP", peripheralId: nil,
+            sourceKind: .liveBLE, capabilities: [.hr], status: .active,
+            addedAt: 1000, lastSeenAt: 1000)
+
+        XCTAssertFalse(AppleWatchDevice.shouldAutoActivate(
+            current: placeholder, currentHasRecentData: true))
     }
 }

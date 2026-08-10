@@ -233,7 +233,13 @@ struct StrandiOSApp: App {
                 model.ble.requestSync(.foreground)
                 Task {
                     health.refreshAuthIfPreviouslyGranted()
-                    await health.sync()
+                    await HealthSyncRefreshCoordinator.run(
+                        sync: { await health.sync() },
+                        refresh: {
+                            await model.refreshAfterAppleHealthSync(
+                                authorized: health.auth == .authorized)
+                        }
+                    )
                     await WidgetSnapshot.publish(from: model)
                     // Push the wrist on the SAME refresh as the Home-screen widget so the watch, the
                     // widget and Today never disagree about which day they describe. Without this the
