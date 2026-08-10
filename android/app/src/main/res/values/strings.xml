@@ -105,6 +105,8 @@
     <string name="trends_trailing">Trailing</string>
     <string name="trends_trailing_days">Trailing %1$d days</string>
     <string name="trends_all_history">All history</string>
+    <string name="trends_trend">Trend</string>
+    <string name="trends_trend_a11y">Trend: %1$s</string>
     <plurals name="trends_n_days">
         <item quantity="one">%1$d day</item>
         <item quantity="other">%1$d days</item>

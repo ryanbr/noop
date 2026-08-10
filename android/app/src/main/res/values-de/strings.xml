@@ -96,6 +96,8 @@
     <string name="trends_trailing">Letzte</string>
     <string name="trends_trailing_days">Letzte %1$d Tage</string>
     <string name="trends_all_history">Gesamter Verlauf</string>
+    <string name="trends_trend">Trend</string>
+    <string name="trends_trend_a11y">Trend: %1$s</string>
     <plurals name="trends_n_days">
         <item quantity="one">%1$d Tag</item>
         <item quantity="other">%1$d Tage</item>

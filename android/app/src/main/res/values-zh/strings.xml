@@ -83,6 +83,8 @@
     <string name="trends_trailing">近</string>
     <string name="trends_trailing_days">近 %1$d 天</string>
     <string name="trends_all_history">全部历史</string>
+    <string name="trends_trend">趋势</string>
+    <string name="trends_trend_a11y">趋势：%1$s</string>
     <plurals name="trends_n_days">
         <item quantity="other">%1$d 天</item>
     </plurals>

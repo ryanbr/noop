@@ -1599,6 +1599,8 @@
     <string name="trends_trailing">Últimos</string>
     <string name="trends_trailing_days">Últimos %1$d días</string>
     <string name="trends_all_history">Todo el historial</string>
+    <string name="trends_trend">Tendencia</string>
+    <string name="trends_trend_a11y">Tendencia: %1$s</string>
     <plurals name="trends_n_days">
         <item quantity="one">%1$d día</item>
         <item quantity="other">%1$d días</item>
