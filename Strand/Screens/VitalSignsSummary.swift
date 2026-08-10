@@ -76,7 +76,7 @@ struct BodyVitalReading: Identifiable {
     }
 
     /// Short provenance word for the caption. The local-cache fallback stays unnamed (previews/tests),
-    /// and computed skin temp reads "Overnight computed" since that figure is a nightly derivation.
+    /// and computed skin temp reads "vs baseline" (#622) since that figure is a ±°C nightly deviation.
     private static func sourceLabel(_ source: DailyMetricSource?, key: String) -> String? {
         guard let source else { return nil }
         switch source {
