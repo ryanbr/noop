@@ -72,6 +72,26 @@ final class DeviceConfigWriteGateTests: XCTestCase {
             opcode: 119, payload: p, ecgGateOptIn: true, isMG: false, broadcastHrOptIn: true))
     }
 
+    func testAdmitsBroadcastHrDisableWriteRegardlessOfOptIn() {
+        // #1061: turning the Broadcast-HR flag OFF is the safe UNDO and must NOT be gated on the opt-in —
+        // it is already false by the time the user disables, which made the toggle-off path dead (the
+        // disable refused here, strap left advertising). The OFF write must be admitted with NO opt-in.
+        let off = payload(key: DeviceConfigWriteGate.broadcastHrKey, value: DeviceConfigWriteGate.disabledValue)
+        XCTAssertTrue(DeviceConfigWriteGate.admitsSend(
+            opcode: 119, payload: off, ecgGateOptIn: false, isMG: false, broadcastHrOptIn: false))
+        XCTAssertTrue(DeviceConfigWriteGate.admitsSend(
+            opcode: 119, payload: off, ecgGateOptIn: false, isMG: false, broadcastHrOptIn: true))
+        // The ON write stays gated on the opt-in — the exemption is for OFF only.
+        let on = payload(key: DeviceConfigWriteGate.broadcastHrKey, value: DeviceConfigWriteGate.enabledValue)
+        XCTAssertFalse(DeviceConfigWriteGate.admitsSend(
+            opcode: 119, payload: on, ecgGateOptIn: false, isMG: false, broadcastHrOptIn: false))
+        // The OFF exemption is Broadcast-HR ONLY: the ECG key's OFF write is still gated on its own opt-in
+        // (a mandatory read-back gate, #891) — the exemption must not leak to it.
+        let ecgOff = payload(key: DeviceConfigWriteGate.ecgRawDataKey, value: DeviceConfigWriteGate.disabledValue)
+        XCTAssertFalse(DeviceConfigWriteGate.admitsSend(
+            opcode: 119, payload: ecgOff, ecgGateOptIn: false, isMG: true, broadcastHrOptIn: false))
+    }
+
     // MARK: - The allowlist: what it refuses
 
     func testRefusesEveryOtherEnumeratedKeyEvenWithBothOptInsOn() {

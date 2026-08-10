@@ -78,6 +78,22 @@ class DeviceConfigWriteGateTest {
         assertTrue(DeviceConfigWriteGate.admitsSend(119, p, ecgGateOptIn = true, isMG = false, broadcastHrOptIn = true))
     }
 
+    @Test
+    fun admitsBroadcastHrDisableWriteRegardlessOfOptIn() {
+        // #1061: turning the Broadcast-HR flag OFF is the safe UNDO and must NOT be gated on the opt-in — it
+        // is already false by the time the user disables, which made the toggle-off path dead (the disable
+        // refused here, strap left advertising). The OFF write must be admitted with NO opt-in.
+        val off = payload(DeviceConfigWriteGate.BROADCAST_HR_KEY, DeviceConfigWriteGate.DISABLED_VALUE)
+        assertTrue(DeviceConfigWriteGate.admitsSend(119, off, ecgGateOptIn = false, isMG = false, broadcastHrOptIn = false))
+        assertTrue(DeviceConfigWriteGate.admitsSend(119, off, ecgGateOptIn = false, isMG = false, broadcastHrOptIn = true))
+        // The ON write stays gated on the opt-in — the exemption is for OFF only.
+        val on = payload(DeviceConfigWriteGate.BROADCAST_HR_KEY, DeviceConfigWriteGate.ENABLED_VALUE)
+        assertFalse(DeviceConfigWriteGate.admitsSend(119, on, ecgGateOptIn = false, isMG = false, broadcastHrOptIn = false))
+        // The OFF exemption is Broadcast-HR ONLY: the ECG key's OFF write stays gated on its own opt-in (#891).
+        val ecgOff = payload(DeviceConfigWriteGate.ECG_RAW_DATA_KEY, DeviceConfigWriteGate.DISABLED_VALUE)
+        assertFalse(DeviceConfigWriteGate.admitsSend(119, ecgOff, ecgGateOptIn = false, isMG = true, broadcastHrOptIn = false))
+    }
+
     // The allowlist: what it refuses -----------------------------------------------------------------
 
     @Test

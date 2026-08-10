@@ -158,6 +158,15 @@ public enum DeviceConfigWriteGate {
         return String(decoding: name, as: UTF8.self)
     }
 
+    /// The single value byte a `SET_DEVICE_CONFIG_VALUE` payload carries immediately after the 32-byte
+    /// NUL-padded name field, or nil when the payload is too short to hold one. The gate only ever writes
+    /// single-character values ('0'/'1'), so this one byte is the whole value. Used to tell a turn-OFF
+    /// write from a turn-ON write in `admitsSend`.
+    public static func valueByte(inSendPayload payload: [UInt8]) -> UInt8? {
+        guard payload.count > 1 + nameFieldBytes, payload[0] == 0x01 else { return nil }
+        return payload[1 + nameFieldBytes]
+    }
+
     // MARK: - The allowlist predicate
 
     /// Whether a device-config KEY may be written, given the two opt-ins and the hardware attestation.
@@ -189,6 +198,13 @@ public enum DeviceConfigWriteGate {
                                   broadcastHrOptIn: Bool) -> Bool {
         guard opcode == setDeviceConfigValueCmd else { return false }
         guard let key = keyName(inSendPayload: payload) else { return false }
+        // #1061: turning the Broadcast-HR flag OFF is the safe UNDO and must NEVER be gated on the opt-in.
+        // The opt-in (`broadcastHrEnabled`) is bound straight to the Settings switch, so it is already false
+        // by the time the user disables — gating the OFF write on it made the toggle-off path DEAD (the
+        // disable was refused here, the strap stayed advertising, and the app could not clear it). Same
+        // lesson the #174 R22 disable clause records for SET_FF_VALUE. So admit the Broadcast-HR OFF write
+        // unconditionally; the ON write (and the ECG key, both directions) stay gated by `isWritableKey`.
+        if key == broadcastHrKey, valueByte(inSendPayload: payload) == disabledValue { return true }
         return isWritableKey(key, ecgGateOptIn: ecgGateOptIn, isMG: isMG, broadcastHrOptIn: broadcastHrOptIn)
     }
 

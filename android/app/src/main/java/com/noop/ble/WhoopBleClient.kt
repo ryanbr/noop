@@ -6037,12 +6037,26 @@ class WhoopBleClient(
         if (!s.connected || !s.bonded) {
             log("Broadcast HR: connect and bond a 5/MG strap first — ignored."); return
         }
-        val value = if (on) 0x31 else 0x30   // ASCII '1' / '0'
-        send(
-            CommandNumber.SET_DEVICE_CONFIG,
-            byteArrayOf(0x01) + Whoop5Config.deviceConfigBody("whoop_live_hr_in_adv_ind_pkt", value),
-            withResponse = true,
-        )
+        val payload = byteArrayOf(0x01) +
+            Whoop5Config.deviceConfigBody(DeviceConfigWriteGate.BROADCAST_HR_KEY, DeviceConfigWriteGate.value(on))
+        // #1061: report the ACTUAL outcome, not a fire-and-forget "wrote". send() SILENTLY drops a command
+        // the 5/MG send gate refuses, so the old unconditional "wrote" line lied when the write never went
+        // out — exactly what a reporter saw on the disable path. Consult the SAME gate the send path uses and
+        // log honestly. (With the gate's #1061 fix the OFF write is now admitted, so this normally reports a
+        // real write; the guard keeps the log truthful if a write is ever refused.)
+        if (!DeviceConfigWriteGate.admitsSend(
+                opcode = CommandNumber.SET_DEVICE_CONFIG.rawValue,
+                payload = payload,
+                ecgGateOptIn = puffinExperiment.ecgRawData,
+                isMG = whoop5Variant().isMG,
+                broadcastHrOptIn = puffinExperiment.broadcastHr,
+            )
+        ) {
+            log("Broadcast HR: write whoop_live_hr_in_adv_ind_pkt=" + (if (on) "1" else "0") +
+                " REFUSED by the 5/MG send gate — strap unchanged.")
+            return
+        }
+        send(CommandNumber.SET_DEVICE_CONFIG, payload, withResponse = true)
         log("Broadcast HR: wrote whoop_live_hr_in_adv_ind_pkt=" + (if (on) "1" else "0"))
     }
 

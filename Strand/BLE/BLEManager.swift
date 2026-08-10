@@ -2755,10 +2755,22 @@ public final class BLEManager: NSObject, ObservableObject {
         guard state.connected, state.bonded else {
             log("Broadcast HR: connect and bond a 5/MG strap first — ignored."); return
         }
-        let value: UInt8 = on ? 0x31 : 0x30   // ASCII '1' / '0'
-        send(.setDeviceConfig,
-             payload: [0x01] + Whoop5Config.deviceConfigBody(name: "whoop_live_hr_in_adv_ind_pkt", value: value),
-             writeType: .withResponse)
+        let payload = [0x01] + Whoop5Config.deviceConfigBody(name: DeviceConfigWriteGate.broadcastHrKey,
+                                                             value: DeviceConfigWriteGate.value(on: on))
+        // #1061: report the ACTUAL outcome, not a fire-and-forget "wrote". `send` SILENTLY drops a command
+        // the 5/MG send gate refuses, so the old unconditional "wrote" line lied when the write never went
+        // out — which is exactly what a reporter saw on the disable path. Consult the SAME gate the send
+        // path uses and log honestly. (With the gate's #1061 fix the OFF write is now admitted, so this
+        // branch normally reports a real write; the guard keeps the log truthful if a write is ever refused.)
+        guard DeviceConfigWriteGate.admitsSend(opcode: DeviceConfigWriteGate.setDeviceConfigValueCmd,
+                                               payload: payload,
+                                               ecgGateOptIn: PuffinExperiment.ecgRawDataEnabled,
+                                               isMG: isWhoop5MG,
+                                               broadcastHrOptIn: PuffinExperiment.broadcastHrEnabled) else {
+            log("Broadcast HR: write whoop_live_hr_in_adv_ind_pkt=\(on ? "1" : "0") REFUSED by the 5/MG send gate — strap unchanged.")
+            return
+        }
+        send(.setDeviceConfig, payload: payload, writeType: .withResponse)
         log("Broadcast HR: wrote whoop_live_hr_in_adv_ind_pkt=\(on ? "1" : "0")")
     }
 
