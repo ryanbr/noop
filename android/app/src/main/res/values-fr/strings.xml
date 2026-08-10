@@ -1952,4 +1952,6 @@
     <string name="cycle_phase_luteal">Phase lutéale</string>
     <string name="cycle_phase_unclear">Aucun profil clair</string>
     <string name="cycle_phase_learning">Apprentissage de votre profil</string>
+    <string name="cycle_day_single">· ~jour %1$d</string>
+    <string name="cycle_day_range">· ~jour %1$d–%2$d</string>
 </resources>

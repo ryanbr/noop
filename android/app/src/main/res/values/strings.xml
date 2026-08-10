@@ -1979,4 +1979,6 @@
     <string name="cycle_phase_luteal">Luteal</string>
     <string name="cycle_phase_unclear">No clear pattern</string>
     <string name="cycle_phase_learning">Learning your pattern</string>
+    <string name="cycle_day_single">· ~day %1$d</string>
+    <string name="cycle_day_range">· ~day %1$d–%2$d</string>
 </resources>

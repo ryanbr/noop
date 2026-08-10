@@ -396,7 +396,10 @@ private fun cyclePhaseTitle(phase: CyclePhaseEngine.Phase): String = when (phase
 private fun cycleDayText(r: CyclePhaseEngine.Result): String? {
     val lo = r.cycleDayLow ?: return null
     val hi = r.cycleDayHigh ?: return null
-    return if (lo == hi) "· ~day $lo" else "· ~day $lo - $hi"
+    // Localized (uiString resolves via the app's resources — safe outside composition). Was a hardcoded
+    // interpolation, so the label shipped English regardless of locale; the audit misses it because this
+    // isn't a @Composable. Twin of the iOS `· ~day %lld` / `· ~day %lld–%lld` catalog entries.
+    return if (lo == hi) uiString(R.string.cycle_day_single, lo) else uiString(R.string.cycle_day_range, lo, hi)
 }
 
 private fun cycleConfidenceLabel(c: CyclePhaseEngine.Confidence): String = when (c) {

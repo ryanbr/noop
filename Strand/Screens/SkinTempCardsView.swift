@@ -203,7 +203,9 @@ struct CycleAwarenessCard: View {
     /// "~day 18–22" — always a RANGE, never a single point.
     private var cycleDayText: String? {
         guard let lo = result.cycleDayLow, let hi = result.cycleDayHigh else { return nil }
-        return lo == hi ? String(localized: "· ~day \(lo)") : String(localized: "· ~day \(lo)-\(hi)")
+        // En-dash in the range so the key matches the catalog entry `· ~day %lld–%lld` (a hyphen here
+        // missed it and fell back to the English literal on every locale).
+        return lo == hi ? String(localized: "· ~day \(lo)") : String(localized: "· ~day \(lo)–\(hi)")
     }
 
     private var statusLine: String { result.note }

@@ -1880,4 +1880,6 @@
     <string name="cycle_phase_luteal">黄体期</string>
     <string name="cycle_phase_unclear">未发现明确模式</string>
     <string name="cycle_phase_learning">正在学习你的模式</string>
+    <string name="cycle_day_single">· 约第 %1$d 天</string>
+    <string name="cycle_day_range">· 约第 %1$d–%2$d 天</string>
 </resources>

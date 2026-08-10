@@ -1952,4 +1952,6 @@
     <string name="cycle_phase_luteal">Fase lútea</string>
     <string name="cycle_phase_unclear">Sin patrón claro</string>
     <string name="cycle_phase_learning">Aprendiendo tu patrón</string>
+    <string name="cycle_day_single">· ~día %1$d</string>
+    <string name="cycle_day_range">· ~día %1$d–%2$d</string>
 </resources>

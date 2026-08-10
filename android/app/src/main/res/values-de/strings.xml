@@ -1967,4 +1967,6 @@
     <string name="cycle_phase_luteal">Lutealphase</string>
     <string name="cycle_phase_unclear">Kein klares Muster</string>
     <string name="cycle_phase_learning">Dein Muster wird gelernt</string>
+    <string name="cycle_day_single">· ~Tag %1$d</string>
+    <string name="cycle_day_range">· ~Tag %1$d–%2$d</string>
 </resources>
