@@ -90,6 +90,10 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     private static let writeChar = CBUUID(string: OuraGatt.writeCharacteristicUUID)
     private static let notifyChar = CBUUID(string: OuraGatt.notifyCharacteristicUUID)
 
+    /// iOS state-restoration identifier for the PERSISTENT Oura central (#1213). DISTINCT from the WHOOP
+    /// central's `BLEManager.restoreID` — each restoring `CBCentralManager` needs its own unique id.
+    private static let restoreID = "com.openwhoop.ble.oura"
+
     /// The `0x25` SetAuthKey-response outer opcode (`25 01 <status>`, status `0x00` = OK). Per
     /// OURA_PROTOCOL.md s3.2. This is the install-ack the adopt key-install awaits.
     private static let setAuthKeyRespOp: UInt8 = 0x25
@@ -785,7 +789,23 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         self.rawDump = feedsLive && !deviceId.isEmpty ? OuraRawDump(deviceId: deviceId, log: log) : nil
         super.init()
         // Dedicated queue-less central -> callbacks arrive on the main queue, matching @MainActor.
+        #if os(iOS)
+        // iOS state restoration (#1213): only the PERSISTENT live source (feedsLive, real deviceId) carries a
+        // restore identifier, so CoreBluetooth relaunches the app into the background and delivers
+        // willRestoreState after a suspend-then-jettison — without it an overnight Oura session dies with the
+        // process and nothing reconnects until the user re-opens the app. The discovery-only wizard scanner
+        // (feedsLive == false, deviceId "scan-preview") must NOT restore, and two centrals may never share one
+        // restore identifier, so it is deliberately excluded. Mirrors the WHOOP central in BLEManager.
+        if feedsLive && !deviceId.isEmpty {
+            self.central = CBCentralManager(delegate: self, queue: nil,
+                                            options: [CBCentralManagerOptionRestoreIdentifierKey: Self.restoreID])
+        } else {
+            self.central = CBCentralManager(delegate: self, queue: nil)
+        }
+        #else
+        // Strand (macOS desktop): no state-restoration identifier (iOS background feature).
         self.central = CBCentralManager(delegate: self, queue: nil)
+        #endif
     }
 
     // MARK: - Scanning
@@ -1570,6 +1590,37 @@ public final class OuraLiveSource: NSObject, ObservableObject {
 // MARK: - CBCentralManagerDelegate
 
 extension OuraLiveSource: @preconcurrency CBCentralManagerDelegate {
+    /// iOS relaunched us into the background after a suspend-then-jettison and handed back the Oura central's
+    /// peripheral (#1213). Re-adopt it so an overnight session resumes without the user opening the app. Only
+    /// the persistent live source carries the restore identifier, so only it is ever restored here. Mirrors
+    /// `BLEManager.willRestoreState`; never called on macOS (no restore identifier is set there).
+    public func centralManager(_ central: CBCentralManager, willRestoreState dict: [String: Any]) {
+        guard let peripherals = dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral],
+              let p = peripherals.first else {
+            log("Oura restore: no peripherals in restore state")
+            return
+        }
+        let id = p.identifier
+        seenPeripherals[id] = p
+        peripheral = p
+        p.delegate = self
+        reconnectID = id                 // an involuntary drop re-targets this ring (#912)
+        intentionalDisconnect = false
+        if p.state == .connected {
+            // The link survived; CoreBluetooth does NOT re-fire didConnect for an already-connected restored
+            // peripheral, so re-run the session bring-up (fresh driver + service discovery) directly.
+            log("Oura restore: peripheral \(id) still connected — resuming session")
+            centralManager(central, didConnect: p)
+        } else if central.state == .poweredOn {
+            log("Oura restore: peripheral \(id) disconnected — reconnecting")
+            central.connect(p, options: nil)
+        } else {
+            // Radio not ready yet; centralManagerDidUpdateState replays pendingConnectID on poweredOn.
+            pendingConnectID = id
+            log("Oura restore: peripheral \(id) disconnected, central not poweredOn — deferring to poweredOn")
+        }
+    }
+
     public func centralManagerDidUpdateState(_ central: CBCentralManager) {
         switch central.state {
         case .poweredOn:
