@@ -168,6 +168,19 @@ enum UnitFormatter {
         }
     }
 
+    /// Average pace for display: "m:ss /km" (metric) or "m:ss /mi" (imperial). "—" when pace is undefined
+    /// (nil or ≤ 0, i.e. no distance yet). `secPerKm` is the seconds-per-kilometre the GPS recorder
+    /// publishes. Byte-identical to the Kotlin `UnitFormatter.paceFromSecPerKm`, and to the post-workout
+    /// pace shown in the workout detail view. (#1195)
+    static func paceFromSecPerKm(_ secPerKm: Double?, system: UnitSystem) -> String {
+        guard let secPerKm, secPerKm > 0 else { return "—" }
+        let (secs, label): (Double, String) = system == .imperial
+            ? (secPerKm / milesPerKilometer, "/mi")
+            : (secPerKm, "/km")
+        let s = Int(secs.rounded())
+        return "\(s / 60):\(String(format: "%02d", s % 60)) \(label)"
+    }
+
     /// Format a distance given in KILOMETRES (e.g. the Workouts "Total Distance" sum), with one decimal
     /// and a unit label. Metric: "12.4 km". Imperial: "7.7 mi".
     static func distanceFromKilometers(_ km: Double, system: UnitSystem) -> String {

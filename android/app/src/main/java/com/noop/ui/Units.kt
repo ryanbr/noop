@@ -246,6 +246,21 @@ object UnitFormatter {
     }
 
     /**
+     * Average pace for display: "m:ss /km" (metric) or "m:ss /mi" (imperial). "—" when pace is undefined
+     * (null or ≤ 0, i.e. no distance yet). [secPerKm] is the seconds-per-kilometre the GPS session
+     * publishes. Byte-identical to the Swift `UnitFormatter.paceFromSecPerKm`. (#1195)
+     */
+    fun paceFromSecPerKm(secPerKm: Double?, system: UnitSystem): String {
+        if (secPerKm == null || secPerKm <= 0) return "—"
+        val (secs, label) = when (system) {
+            UnitSystem.IMPERIAL -> (secPerKm / MILES_PER_KILOMETER) to "/mi"
+            UnitSystem.METRIC -> secPerKm to "/km"
+        }
+        val s = secs.roundToInt()
+        return "${s / 60}:${(s % 60).toString().padStart(2, '0')} $label"
+    }
+
+    /**
      * Format a distance given in KILOMETRES (e.g. the Workouts "Total Distance" sum), with one decimal
      * and a unit label. Metric: "12.4 km". Imperial: "7.7 mi".
      */

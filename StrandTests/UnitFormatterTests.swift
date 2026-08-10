@@ -53,6 +53,23 @@ final class UnitFormatterTests: XCTestCase {
         XCTAssertEqual(UnitFormatter.distanceFromMeters(100, system: .imperial), "109 yd")
     }
 
+    func testPaceFormatsAndConvertsPerUnit() {
+        // #1195: the live-workout distance/pace surface. Must byte-match the Kotlin formatter.
+        // 5:00 /km (300 s/km) stays 5:00 /km in metric.
+        XCTAssertEqual(UnitFormatter.paceFromSecPerKm(300, system: .metric), "5:00 /km")
+        // Same pace per MILE: 300 / 0.621371 = 482.8 s ≈ 8:03 /mi.
+        XCTAssertEqual(UnitFormatter.paceFromSecPerKm(300, system: .imperial), "8:03 /mi")
+        // Seconds pad to two digits.
+        XCTAssertEqual(UnitFormatter.paceFromSecPerKm(245, system: .metric), "4:05 /km")
+    }
+
+    func testPaceIsDashWhenUndefined() {
+        // nil (no distance yet) and non-positive are both "—" — never "0:00", which reads as instant.
+        XCTAssertEqual(UnitFormatter.paceFromSecPerKm(nil, system: .metric), "—")
+        XCTAssertEqual(UnitFormatter.paceFromSecPerKm(0, system: .imperial), "—")
+        XCTAssertEqual(UnitFormatter.paceFromSecPerKm(-1, system: .metric), "—")
+    }
+
     func testDistanceFromKilometers() {
         XCTAssertEqual(UnitFormatter.distanceFromKilometers(12.4, system: .metric), "12.4 km")
         // 12.4 km * 0.621371 = 7.704... → "7.7 mi"

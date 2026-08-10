@@ -51,6 +51,10 @@ struct LiveWorkoutView: View {
                     AnyView(effortGauge),
                     AnyView(zoneSection),
                     AnyView(statsGrid),
+                    // Live GPS distance + pace (#1195) — a self-gating leaf owning its own recorder
+                    // observation, so a GPS fix re-renders only this card. Renders nothing until the first
+                    // accepted fix, so non-GPS / denied sessions leave the stack unchanged.
+                    AnyView(DistancePaceRowIfPresent(recorder: model.gpsRecorder)),
                 ]
                 ForEach(Array(cards.enumerated()), id: \.offset) { index, card in
                     card.staggeredAppear(index: index)
@@ -422,8 +426,9 @@ private extension View {
 /// This is a standalone leaf that owns its OWN `@EnvironmentObject live` (the parent `LiveWorkoutView`
 /// no longer observes `LiveState`), so an incoming sensor / R-R packet re-renders only this row, not the
 /// HR hero / effort gauge / zone rail above. The gate, layout and `staggeredAppear(index: 5)` are
-/// preserved verbatim (index bumped to 6 after the glanceable layout split TIME / HR / Effort / zone
-/// into separate stagger slots), so the rendered output matches the previous inline code.
+/// preserved verbatim (index bumped to 7 — 6 after the glanceable layout split TIME / HR / Effort / zone
+/// into separate stagger slots, then 7 after the live distance/pace card #1195 took the slot before it),
+/// so the rendered output matches the previous inline code.
 private struct SensorRowIfPresent: View {
     @EnvironmentObject private var live: LiveState
 
@@ -444,7 +449,7 @@ private struct SensorRowIfPresent: View {
                     }
                 }
             }
-            .staggeredAppear(index: 6)
+            .staggeredAppear(index: 7)
         }
     }
 
@@ -461,5 +466,58 @@ private struct SensorRowIfPresent: View {
                 .lineLimit(1).minimumScaleFactor(0.6)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// Live GPS distance + average pace on the active-workout screen, for distance sports (#1195). The main
+/// gap this closes: the recorder already computes and publishes `distanceM` / `paceSecPerKm` on every
+/// accepted fix, but they were only ever shown in the post-workout detail view — never live.
+///
+/// A standalone leaf that owns its OWN `@ObservedObject` on the recorder (the parent `LiveWorkoutView`
+/// does not observe it), so a GPS fix re-renders only this card — not the HR hero / effort gauge above,
+/// the same scroll-stutter isolation as `SensorRowIfPresent`. Self-gates to nothing until the first
+/// accepted fix, so a denied-permission or GPS-less (Mac) session shows no empty card. Mirrors Android's
+/// gated distance/pace row in `LiveWorkoutScreen`.
+private struct DistancePaceRowIfPresent: View {
+    @ObservedObject var recorder: GpsWorkoutRecorder
+    @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
+    private var unitSystem: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .metric }
+
+    var body: some View {
+        // `isRecording` is essential, not just `pointCount > 0`: the recorder is a single long-lived
+        // object and `stop()` leaves `pointCount`/`distanceM` intact (only `start()` resets them, and it
+        // runs solely for distance sports). Without the `isRecording` guard a non-GPS workout started
+        // after a GPS one would show the previous session's stale distance. Together they mean "a GPS
+        // recording is live AND has at least one accepted fix" — the Android `gpsEnabled && track` twin.
+        if recorder.isRecording, recorder.pointCount > 0 {
+            NoopCard(padding: NoopMetrics.cardInnerPadding, tint: StrandPalette.effortColor) {
+                HStack(spacing: 0) {
+                    // "Distance"/"Pace" are already localized (reused from the detail view); uppercased for
+                    // the caps stat grid, exactly as the detail route stats do.
+                    stat(String(localized: "Distance").uppercased(),
+                         UnitFormatter.distanceFromMeters(recorder.distanceM, system: unitSystem))
+                    statDivider
+                    stat(String(localized: "Pace").uppercased(),
+                         UnitFormatter.paceFromSecPerKm(recorder.paceSecPerKm, system: unitSystem))
+                }
+            }
+        }
+    }
+
+    private func stat(_ title: String, _ value: String) -> some View {
+        VStack(spacing: NoopMetrics.space1) {
+            Text(title)
+                .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
+                .foregroundStyle(StrandPalette.textSecondary)
+            Text(value)
+                .font(StrandFont.number(28))
+                .foregroundStyle(StrandPalette.effortColor)
+                .lineLimit(1).minimumScaleFactor(0.5)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var statDivider: some View {
+        Rectangle().fill(StrandPalette.hairline).frame(width: 1, height: 48)
     }
 }

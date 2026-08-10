@@ -63,6 +63,7 @@ fun LiveWorkoutScreen(vm: AppViewModel, onClose: () -> Unit) {
     val profile = remember { ProfileStore.from(context.applicationContext) }
     // Effort display scale (#268) — routes the live Effort read-out so it matches every other surface.
     val effortScale = UnitPrefs.effortScale(context)
+    val unitSystem = UnitPrefs.system(context)
     val bpm by vm.bpm.collectAsStateWithLifecycle()
     val activeWorkout by vm.activeWorkout.collectAsStateWithLifecycle()
     // Additive: instantaneous speed/cadence/power from a connected standard fitness sensor (RSC/CSC/CPS),
@@ -179,6 +180,20 @@ fun LiveWorkoutScreen(vm: AppViewModel, onClose: () -> Unit) {
                     accent = if (w.peakHr > 0) Palette.metricRose else Palette.textPrimary)
                 StatTile(modifier = Modifier.weight(1f), label = uiString(R.string.l10n_live_workout_screen_effort_8c974bc6), value = UnitFormatter.effortDisplay(w.liveStrain, effortScale),
                     accent = Palette.strainColor(w.liveStrain))
+            }
+
+            // Live GPS distance + average pace for distance sports (#1195). The values are already computed
+            // and published on every accepted fix (mirrored from GpsSession into ActiveWorkout) — this only
+            // surfaces them live, where before they appeared solely in the post-workout detail. Hidden until
+            // the first accepted fix, so a denied-permission session shows no empty tiles. Reuses the already
+            // localized "Distance"/"Pace" labels. Mirrors the iOS DistancePaceRowIfPresent leaf.
+            if (w.gpsEnabled && w.track.isNotEmpty()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Metrics.gap), modifier = Modifier.fillMaxWidth()) {
+                    StatTile(modifier = Modifier.weight(1f), label = uiString(R.string.l10n_live_screen_distance_42320809),
+                        value = UnitFormatter.distanceFromMeters(w.distanceM, unitSystem), accent = Palette.effortColor)
+                    StatTile(modifier = Modifier.weight(1f), label = uiString(R.string.l10n_live_screen_pace_7a9a6226),
+                        value = UnitFormatter.paceFromSecPerKm(w.paceSecPerKm, unitSystem), accent = Palette.effortColor)
+                }
             }
 
             // Additive sensor readout — only renders when a connected standard fitness sensor is feeding.
