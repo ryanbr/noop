@@ -981,7 +981,7 @@ struct LiquidTodayView: View {
             LiquidTube(frac: frac ?? 0, tint: tint, height: 9, animated: false,
                        showsHighlight: false, usesCleanFill: true)
             // #430 parity: DETAILED tiles grow the trend graph under the bar, tinted to the metric and
-            // windowed to the editor's 2-day / 1-week / 2-week choice (the Android twin). A metric with no
+            // windowed to the editor's 1-week / 2-week / 1-month choice (the Android twin). A metric with no
             // windowed series keeps a clear placeholder of the same height so every tile in a detailed row
             // stays equal-height with its bars aligned.
             if keyMetricsDetailed {
@@ -1188,8 +1188,8 @@ struct LiquidTodayView: View {
 
         // #430 parity: the day-keyed series the DETAILED Key-Metrics tiles graph — a trailing CALENDAR
         // window ending on the selected day (not the last-N stored rows, which on an old import showed
-        // months-old data as a fresh trend, issue #23). The loader banks the 14-day SUPERSET; the chosen
-        // 2-day/1-week/2-week window filters at render (windowedSpark), so a picker change applies without
+        // months-old data as a fresh trend, issue #23). The loader banks the 30-day SUPERSET; the chosen
+        // 1-week/2-week/1-month window filters at render (windowedSpark), so a picker change applies without
         // a reload. Keys mirror the metric catalog so a tile's graph, its tap-through detail and Android's
         // Window all read the same signal. Rest reuses the already-loaded sleep_performance series.
         let sparkCutoff = Repository.localDayKey(cal.date(byAdding: .day, value: -29, to: dayStart) ?? dayStart)
