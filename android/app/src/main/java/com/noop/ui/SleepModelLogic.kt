@@ -90,13 +90,6 @@ internal fun parseSessionStages(stagesJSON: String?): StageMins? {
 }
 
 /**
- * Build the whole model from the cached daily metrics + the latest sleep session + the
- * export-verbatim sleep figures. Returns null when there is no usable latest night (no
- * stage minutes), which renders the empty state. All series are computed in one pass-set
- * here, matching the macOS buildModel(). Internal so SleepImportedFiguresTest can pin the
- * prefer-imported logic (the recoveryCalibrationNights test pattern).
- */
-/**
  * #today-hosted-cards: the pure trailing-14-night sleep-hours trend — hours + index-aligned day keys, the
  * SAME rows [buildSleepModel] derives `trendHours`/`trendDates` from. Nap-free (no debt/session data), so a
  * Today host can build it from `days` alone. Kept byte-identical to the inline logic in [buildSleepModel].
@@ -108,6 +101,13 @@ internal fun sleepDurationTrend(days: List<DailyMetric>): Pair<List<Double>, Lis
     return hours to dates
 }
 
+/**
+ * Build the whole model from the cached daily metrics + the latest sleep session + the
+ * export-verbatim sleep figures. Returns null when there is no usable latest night (no
+ * stage minutes), which renders the empty state. All series are computed in one pass-set
+ * here, matching the macOS buildModel(). Internal so SleepImportedFiguresTest can pin the
+ * prefer-imported logic (the recoveryCalibrationNights test pattern).
+ */
 internal fun buildSleepModel(
     days: List<DailyMetric>,
     session: SleepSession?,
