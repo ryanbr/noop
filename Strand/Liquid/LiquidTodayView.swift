@@ -692,6 +692,15 @@ struct LiquidTodayView: View {
             } else {
                 hostedSleepDebtPlaceholder
             }
+        case .stages:
+            // The READ-ONLY latest-night stage card — same shared SleepModel (same night + intervals as the
+            // Sleep tab), rendered without the Sleep tab's nav/edit/nap interaction. Until the async build
+            // lands — or on a device with no usable latest night — show the placeholder, as above.
+            if let m = hostedSleepModel {
+                StagesCard(model: m)
+            } else {
+                hostedSleepPlaceholder
+            }
         }
     }
 

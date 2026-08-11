@@ -3074,7 +3074,7 @@ private fun HostedCardsSection(cards: List<HostedCard>, days: List<DailyMetric>,
     // follow). Build the shared model ONCE, and only when at least one such card is actually hosted, so a
     // Today hosting none pays no cost. Same inputs + builder as the Sleep tab (buildHostedSleepModel), so
     // hosted numbers match the Sleep tab. Reused by every model-backed card. Twin of the iOS hostedSleepModel.
-    val modelBackedHosted = setOf(HostedCard.STAGES_VS_TYPICAL, HostedCard.NIGHT_DETAIL, HostedCard.SLEEP_DEBT)
+    val modelBackedHosted = setOf(HostedCard.STAGES_VS_TYPICAL, HostedCard.NIGHT_DETAIL, HostedCard.SLEEP_DEBT, HostedCard.STAGES)
     val needsSleepModel = cards.any { it in modelBackedHosted }
     var hostedSleepModel by remember { mutableStateOf<SleepModel?>(null) }
     LaunchedEffect(needsSleepModel, days, viewModel.activeStrapId) {
@@ -3119,6 +3119,11 @@ private fun HostedCardsSection(cards: List<HostedCard>, days: List<DailyMetric>,
                 // Sleep tab uses (mirror, not copy). Null until the async build lands / no stage data — the
                 // slot renders nothing this frame, matching the Sleep tab's null-model guard.
                 HostedCard.SLEEP_DEBT -> hostedSleepModel?.let { SleepDebtLedgerHostCard(it) }
+                // #today-hosted-cards: the READ-ONLY latest-night stage chart + breakdown, rendered from the
+                // SAME shared SleepModel the Sleep tab uses (mirror, not copy) — none of the hero's nav/edit/
+                // nap interaction. Null until the async build lands / no stage data — the slot renders nothing
+                // this frame, matching the Sleep tab's null-model guard.
+                HostedCard.STAGES -> hostedSleepModel?.let { StagesHostCard(it) }
             }
         }
     }

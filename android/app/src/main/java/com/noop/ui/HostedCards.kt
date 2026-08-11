@@ -7,6 +7,7 @@ import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.StackedBarChart
+import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -51,7 +52,11 @@ enum class HostedCard(
     /** Sleep tab · "Sleep-debt ledger" — the rolling 14-night running balance of (slept − personal need)
      *  from the wearer's SleepModel (#today-hosted-cards). Third of the SleepModel-backed sleep cards
      *  hosted in Today. */
-    SLEEP_DEBT("sleep.sleepDebt", "Sleep-debt ledger", "Sleep", Icons.Filled.Balance);
+    SLEEP_DEBT("sleep.sleepDebt", "Sleep-debt ledger", "Sleep", Icons.Filled.Balance),
+    /** Sleep tab · "Stages" — a READ-ONLY latest-night stage chart + breakdown from the wearer's
+     *  SleepModel (#today-hosted-cards). Unlike the interactive Sleep tab hero (night nav, wake edit, nap
+     *  add/edit/delete), the Today host mirrors ONLY the display. Fourth of the SleepModel-backed cards. */
+    STAGES("sleep.stages", "Stages", "Sleep", Icons.Filled.Timeline);
 
     companion object {
         fun fromRaw(raw: String?): HostedCard? = entries.firstOrNull { it.raw == raw }
@@ -77,6 +82,7 @@ fun HostedCard.localizedTitle(): String = when (this) {
     HostedCard.STAGES_VS_TYPICAL -> stringResource(R.string.l10n_sleep_screen_stages_vs_typical_28463f24)
     HostedCard.NIGHT_DETAIL -> stringResource(R.string.l10n_sleep_screen_night_detail_8f271bcf)
     HostedCard.SLEEP_DEBT -> stringResource(R.string.l10n_sleep_screen_sleep_debt_ledger_8cc9a992)
+    HostedCard.STAGES -> stringResource(R.string.l10n_sleep_screen_stages_c1d33ad5)
 }
 
 /**

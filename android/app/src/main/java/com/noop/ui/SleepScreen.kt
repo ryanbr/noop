@@ -2585,6 +2585,93 @@ private fun DebtDeltaBars(ledger: SleepDebtLedger) {
     )
 }
 
+// MARK: - Stages (read-only latest-night host card)
+
+/**
+ * #today-hosted-cards: the READ-ONLY "Stages" card hosted in Today — the latest night's stage chart +
+ * breakdown rendered from the shared [SleepModel] (the SAME stages the Sleep tab hero shows). Unlike the
+ * Sleep tab hero it carries NONE of the interaction: no night ◀/▶ navigation, no wake-time edit, no nap
+ * add/edit/delete — only the display is mirrored. It reuses the SAME StageTimeline / FilledHypnogram /
+ * HypnogramWithAxis + StageBreakdownRows renderers the hero uses (each owns its own transient tap-
+ * highlight), so the stage split can never diverge between the two surfaces. `internal` so the Today host
+ * (TodayScreen) can render it; lives here so its private [StageTimeline] sibling is in-file. Twin of the
+ * iOS `StagesCard`.
+ *
+ * NOTE (feature-level parity): the Kotlin [SleepModel] carries no session timestamps or nap blocks (those
+ * ride [HeroNight]/[HeroDisplay] on the Sleep tab), so — unlike iOS, whose `SleepModel.night` carries the
+ * session + source blocks — this card shows no clock-window row and no Main/Nap(s)/Total split. The stage
+ * chart + breakdown is the shared data both platforms mirror.
+ */
+@Composable
+internal fun StagesHostCard(m: SleepModel) {
+    val s = m.stages
+    Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
+        // Read-only header: the night's span label in the trailing slot — NO ◀/▶ nav controls.
+        SectionHeader("Stages", overline = "Last night", trailing = m.clockLabel)
+        // Verbatim of the Sleep tab Hero's stage-chart block, read from the shared model with a null
+        // session window (no clock axis) and no motion strip — the fractions/segments are identical.
+        val subtitle = "${durationText(s.total)} in bed · ${m.efficiencyText} efficiency" +
+            (if (m.realSegments != null) " · approx. stages (on-device)" else "")
+        val real = m.realSegments?.takeIf { it.size >= 2 }
+        if (real != null) {
+            val chartStyle = UnitPrefs.sleepChartStyle(LocalContext.current)
+            val filledSegments = m.hypnogramSegments?.takeIf { it.size >= 2 }
+            if ((chartStyle == SleepChartStyle.FILLED || chartStyle == SleepChartStyle.RIBBON) &&
+                filledSegments != null) {
+                ChartCard(
+                    title = uiString(R.string.l10n_sleep_screen_stage_breakdown_e9b714f9),
+                    subtitle = subtitle,
+                    trailing = durationText(s.asleep),
+                    tint = Palette.restColor,
+                    footer = { StageBreakdownRows(s) },
+                ) {
+                    FilledHypnogram(
+                        segments = filledSegments,
+                        onsetTs = null,
+                        wakeTs = null,
+                        filled = chartStyle == SleepChartStyle.FILLED,
+                    )
+                }
+            } else {
+                ChartCard(
+                    title = uiString(R.string.l10n_sleep_screen_stage_breakdown_e9b714f9),
+                    subtitle = subtitle,
+                    trailing = durationText(s.asleep),
+                    tint = Palette.restColor,
+                    footer = {},
+                ) {
+                    StageTimeline(
+                        realSegments = real,
+                        s = s,
+                        onsetTs = null,
+                        wakeTs = null,
+                        motionEpochs = emptyList(),
+                    )
+                }
+            }
+        } else {
+            ChartCard(
+                title = uiString(R.string.l10n_sleep_screen_stage_breakdown_e9b714f9),
+                subtitle = subtitle,
+                trailing = durationText(s.asleep),
+                tint = Palette.restColor,
+                footer = { StageBreakdownRows(s) },
+            ) {
+                val segments = stageSegments(s)
+                if (segments.isNotEmpty()) {
+                    HypnogramWithAxis(stages = segments, onsetTs = null, wakeTs = null)
+                } else {
+                    Text(
+                        uiString(R.string.l10n_sleep_screen_no_stage_breakdown_for_this_night_b74bf9c3),
+                        style = NoopType.subhead,
+                        color = Palette.textTertiary,
+                    )
+                }
+            }
+        }
+    }
+}
+
 // MARK: - 3. Stages vs typical
 
 /**
