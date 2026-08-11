@@ -750,6 +750,41 @@ object NoopPrefs {
         of(context).edit().putBoolean(KEY_SKY_BEHIND_CARDS, enabled).apply()
     }
 
+    /** Custom background image (#custom-background): a user-picked photo drawn full-bleed behind every
+     *  screen, REPLACING the day-cycle sky when enabled (precedence: image > sky > flat canvas). The
+     *  image itself is a device-local file (see [BackgroundImageStore]) — like the avatar it is
+     *  deliberately kept OUT of the .noopbak whitelist. The three key strings are byte-identical to the
+     *  iOS BackgroundImagePrefs. */
+    const val KEY_BACKGROUND_IMAGE_ENABLED = "noop.backgroundImageEnabled"
+
+    fun backgroundImageEnabled(context: Context): Boolean =
+        of(context).getBoolean(KEY_BACKGROUND_IMAGE_ENABLED, false)
+
+    fun setBackgroundImageEnabled(context: Context, enabled: Boolean) {
+        of(context).edit().putBoolean(KEY_BACKGROUND_IMAGE_ENABLED, enabled).apply()
+    }
+
+    /** The [BackgroundFillMode] rawValue (default "fill"). */
+    const val KEY_BACKGROUND_FILL_MODE = "noop.backgroundFillMode"
+
+    fun backgroundFillMode(context: Context): BackgroundFillMode =
+        BackgroundFillMode.fromStorage(of(context).getString(KEY_BACKGROUND_FILL_MODE, null))
+
+    fun setBackgroundFillMode(context: Context, mode: BackgroundFillMode) {
+        of(context).edit().putString(KEY_BACKGROUND_FILL_MODE, mode.storageValue).apply()
+    }
+
+    /** Whether a background image file has been stored (so the UI can offer Remove and the backdrop can
+     *  skip a decode when absent). Default false. */
+    const val KEY_BACKGROUND_IMAGE_PRESENT = "noop.backgroundImagePresent"
+
+    fun backgroundImagePresent(context: Context): Boolean =
+        of(context).getBoolean(KEY_BACKGROUND_IMAGE_PRESENT, false)
+
+    fun setBackgroundImagePresent(context: Context, present: Boolean) {
+        of(context).edit().putBoolean(KEY_BACKGROUND_IMAGE_PRESENT, present).apply()
+    }
+
     /** "Reduce motion in NOOP" (opt-in, default OFF). The literal key matches Apple so the setting has
      *  one cross-platform identity. [rememberQuietMotion] observes it live for every looping surface. */
     const val KEY_QUIET_MOTION = "noop.quietMotion"

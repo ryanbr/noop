@@ -258,6 +258,44 @@ public enum SkyBehindCardsPrefs {
     public static let enabledKey = "noop.skyBehindCards"
 }
 
+/// Custom background image (#custom-background): a user-picked photo drawn full-bleed behind every screen,
+/// REPLACING the day-cycle sky when enabled (precedence: image > sky > plain canvas). The image itself is
+/// a device-local file (Application Support on Apple, `filesDir` on Android) — like the avatar it is
+/// deliberately kept OUT of the `.noopbak` whitelist. Read in the scaffold sky provider + Today's inline
+/// sky. Mirror in Kotlin via `NoopPrefs.backgroundImageEnabled` / `.backgroundFillMode` /
+/// `.backgroundImagePresent` — the three key strings are byte-identical across platforms.
+public enum BackgroundImagePrefs {
+    /// Master gate — when true AND an image is present, the custom image overrides the sky. Default false.
+    public static let enabledKey = "noop.backgroundImageEnabled"
+    /// The `BackgroundFillMode` rawValue. Default `"fill"`.
+    public static let fillModeKey = "noop.backgroundFillMode"
+    /// Whether a background image file has been stored (so the UI can offer Remove and the provider can
+    /// skip a decode when absent). Default false.
+    public static let presentKey = "noop.backgroundImagePresent"
+}
+
+/// How a custom background image is scaled to the screen. RawValues are byte-identical to the Kotlin
+/// `BackgroundFillMode` twin so a backup/restore (if ever whitelisted) would read the same, and the two
+/// platforms map them onto the same intent: fill → aspect-fill/crop, fit → aspect-fit, stretch →
+/// no-aspect fill, tile → repeat.
+public enum BackgroundFillMode: String, CaseIterable, Identifiable, Sendable {
+    case fill, fit, stretch, tile
+
+    public var id: String { rawValue }
+
+    public var label: String {
+        switch self {
+        case .fill:    return String(localized: "Fill", bundle: .module)
+        case .fit:     return String(localized: "Fit", bundle: .module)
+        case .stretch: return String(localized: "Stretch", bundle: .module)
+        case .tile:    return String(localized: "Tile", bundle: .module)
+        }
+    }
+
+    /// Tolerant parse — an unknown/legacy rawValue falls back to `.fill` (the default).
+    public static func resolve(_ raw: String) -> BackgroundFillMode { BackgroundFillMode(rawValue: raw) ?? .fill }
+}
+
 // MARK: - Light-idiom helpers
 
 /// An additive glow (ring blooms, sparkline heads, hero halos) only reads on a DARK canvas —

@@ -171,6 +171,23 @@ enum class ChartStyle(val storageValue: String, val label: String) {
     }
 }
 
+/** How a custom background image is scaled to the screen (#custom-background). [storageValue] is
+ *  byte-identical to the iOS `BackgroundFillMode` rawValue so the pref reads the same on both
+ *  platforms: fill → aspect-crop, fit → aspect-fit, stretch → no-aspect fill, tile → repeat. Labels
+ *  are localized at the Settings call site (not in the enum), so no hardcoded UI literal lives here. */
+enum class BackgroundFillMode(val storageValue: String) {
+    FILL("fill"),
+    FIT("fit"),
+    STRETCH("stretch"),
+    TILE("tile");
+
+    companion object {
+        /** Tolerant parse — an unknown/legacy rawValue falls back to [FILL] (the default). */
+        fun fromStorage(raw: String?): BackgroundFillMode =
+            entries.firstOrNull { it.storageValue == raw } ?: FILL
+    }
+}
+
 /** Chart-colour preference, persisted in `noop_prefs` and mirrored in snapshot state so a flip
  *  re-colours every gauge/chart live (the Palette ramp accessors read [ChartStylePrefs.style]). */
 object ChartStylePrefs {
