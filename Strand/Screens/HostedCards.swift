@@ -37,6 +37,11 @@ enum HostedCard: String, CaseIterable, Identifiable {
     /// tab hero, the Today host carries NO night navigation, NO wake-edit and NO nap add/edit/delete —
     /// the interaction stays on the Sleep tab; only the display is mirrored (`StagesCard`).
     case stages = "sleep.stages"
+    /// Sleep tab · "Hours vs Needed" — the wearer's latest hours-slept-vs-personal-need percentage
+    /// rendered from the shared `SleepModel` (#today-hosted-cards). The Sleep tab surfaces this metric
+    /// only as a StatTile in the Night-detail grid; the Today host gives it a standalone card
+    /// (`HoursVsNeededCard`) reading the SAME `hoursVsNeeded` metric, so the value can't diverge.
+    case hoursVsNeeded = "sleep.hoursVsNeeded"
 
     var id: String { rawValue }
 
@@ -49,6 +54,7 @@ enum HostedCard: String, CaseIterable, Identifiable {
         case .nightDetail: return String(localized: "Night detail")
         case .sleepDebt: return String(localized: "Sleep-debt ledger")
         case .stages: return String(localized: "Stages")
+        case .hoursVsNeeded: return String(localized: "Hours vs Needed")
         }
     }
 
@@ -56,7 +62,7 @@ enum HostedCard: String, CaseIterable, Identifiable {
     /// Trends". Matches the Android `HostedCard.origin`.
     var origin: String {
         switch self {
-        case .sleepMarks, .asleepDuration, .stagesVsTypical, .nightDetail, .sleepDebt, .stages: return String(localized: "Sleep")
+        case .sleepMarks, .asleepDuration, .stagesVsTypical, .nightDetail, .sleepDebt, .stages, .hoursVsNeeded: return String(localized: "Sleep")
         }
     }
 
@@ -69,13 +75,14 @@ enum HostedCard: String, CaseIterable, Identifiable {
         case .nightDetail: return "square.grid.2x2"
         case .sleepDebt: return "scalemass"
         case .stages: return "chart.bar.fill"
+        case .hoursVsNeeded: return "gauge.medium"
         }
     }
 
     /// Editor row tint.
     var customizationTint: Color {
         switch self {
-        case .sleepMarks, .asleepDuration, .stagesVsTypical, .nightDetail, .sleepDebt, .stages: return StrandPalette.restColor
+        case .sleepMarks, .asleepDuration, .stagesVsTypical, .nightDetail, .sleepDebt, .stages, .hoursVsNeeded: return StrandPalette.restColor
         }
     }
 

@@ -6,6 +6,7 @@ import androidx.compose.material.icons.filled.Balance
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.StackedBarChart
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.runtime.Composable
@@ -56,7 +57,12 @@ enum class HostedCard(
     /** Sleep tab · "Stages" — a READ-ONLY latest-night stage chart + breakdown from the wearer's
      *  SleepModel (#today-hosted-cards). Unlike the interactive Sleep tab hero (night nav, wake edit, nap
      *  add/edit/delete), the Today host mirrors ONLY the display. Fourth of the SleepModel-backed cards. */
-    STAGES("sleep.stages", "Stages", "Sleep", Icons.Filled.Timeline);
+    STAGES("sleep.stages", "Stages", "Sleep", Icons.Filled.Timeline),
+    /** Sleep tab · "Hours vs Needed" — the wearer's latest hours-slept-vs-personal-need percentage from the
+     *  wearer's SleepModel (#today-hosted-cards). The Sleep tab surfaces this metric only as a StatTile in
+     *  the Night-detail grid; the Today host gives it a standalone card (HoursVsNeededCard) reading the SAME
+     *  metric, so the value can't diverge. */
+    HOURS_VS_NEEDED("sleep.hoursVsNeeded", "Hours vs Needed", "Sleep", Icons.Filled.Speed);
 
     companion object {
         fun fromRaw(raw: String?): HostedCard? = entries.firstOrNull { it.raw == raw }
@@ -83,6 +89,7 @@ fun HostedCard.localizedTitle(): String = when (this) {
     HostedCard.NIGHT_DETAIL -> stringResource(R.string.l10n_sleep_screen_night_detail_8f271bcf)
     HostedCard.SLEEP_DEBT -> stringResource(R.string.l10n_sleep_screen_sleep_debt_ledger_8cc9a992)
     HostedCard.STAGES -> stringResource(R.string.l10n_sleep_screen_stages_c1d33ad5)
+    HostedCard.HOURS_VS_NEEDED -> stringResource(R.string.l10n_sleep_screen_hours_vs_needed_500a0aca)
 }
 
 /**
