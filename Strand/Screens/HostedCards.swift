@@ -19,6 +19,8 @@ enum HostedCard: String, CaseIterable, Identifiable {
     /// Sleep tab · "Sleep marks" — the tap-to-log going-to-sleep / awake card. Self-contained (logging
     /// only, no model), the first card wired end-to-end.
     case sleepMarks = "sleep.sleepMarks"
+    /// Sleep tab · "Asleep duration" — trailing-30-night sleep-hours trend (#today-hosted-cards P1).
+    case asleepDuration = "sleep.asleepDuration"
 
     var id: String { rawValue }
 
@@ -26,6 +28,7 @@ enum HostedCard: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .sleepMarks: return String(localized: "Sleep marks")
+        case .asleepDuration: return String(localized: "Asleep duration")
         }
     }
 
@@ -33,7 +36,7 @@ enum HostedCard: String, CaseIterable, Identifiable {
     /// Trends". Matches the Android `HostedCard.origin`.
     var origin: String {
         switch self {
-        case .sleepMarks: return String(localized: "Sleep")
+        case .sleepMarks, .asleepDuration: return String(localized: "Sleep")
         }
     }
 
@@ -41,13 +44,14 @@ enum HostedCard: String, CaseIterable, Identifiable {
     var customizationIcon: String {
         switch self {
         case .sleepMarks: return "moon.zzz"
+        case .asleepDuration: return "chart.bar.xaxis"
         }
     }
 
     /// Editor row tint.
     var customizationTint: Color {
         switch self {
-        case .sleepMarks: return StrandPalette.restColor
+        case .sleepMarks, .asleepDuration: return StrandPalette.restColor
         }
     }
 

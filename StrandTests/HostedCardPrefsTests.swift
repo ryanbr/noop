@@ -10,6 +10,7 @@ final class HostedCardPrefsTests: XCTestCase {
     /// The rawValues are persisted + cross the .noopbak wire, so they are frozen. Origin-namespaced.
     func testRawValuesAreTheFrozenNamespacedContract() {
         XCTAssertEqual(HostedCard.sleepMarks.rawValue, "sleep.sleepMarks")
+        XCTAssertEqual(HostedCard.asleepDuration.rawValue, "sleep.asleepDuration")
         // Every id must be origin-namespaced so it routes to the right provider and can't collide with a
         // Today DashboardCard id.
         for card in HostedCard.allCases {

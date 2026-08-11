@@ -16,6 +16,7 @@ class HostedCardPrefsTest {
     @Test
     fun rawValues_areTheFrozenNamespacedContract() {
         assertEquals("sleep.sleepMarks", HostedCard.SLEEP_MARKS.raw)
+        assertEquals("sleep.asleepDuration", HostedCard.ASLEEP_DURATION.raw)
         // Every id must be origin-namespaced so it routes to the right provider and can't collide with a
         // Today DashboardCard id.
         HostedCard.entries.forEach { card ->

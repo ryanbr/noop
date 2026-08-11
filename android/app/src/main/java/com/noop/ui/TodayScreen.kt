@@ -1592,6 +1592,7 @@ fun TodayScreen(
                         // arranged order. Each is the SAME card its home tab renders (a mirror).
                         TodaySection.ADDED_CARDS -> HostedCardsSection(
                             cards = enabledHostedCards,
+                            days = days,
                             viewModel = viewModel,
                         )
                     }
@@ -3065,7 +3066,7 @@ private fun TodayEditAction(
  * confirmation toast). Renders nothing when [cards] is empty. Twin of the iOS `hostedCardsSection`.
  */
 @Composable
-private fun HostedCardsSection(cards: List<HostedCard>, viewModel: AppViewModel) {
+private fun HostedCardsSection(cards: List<HostedCard>, days: List<DailyMetric>, viewModel: AppViewModel) {
     if (cards.isEmpty()) return
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -3084,6 +3085,13 @@ private fun HostedCardsSection(cards: List<HostedCard>, viewModel: AppViewModel)
                         Toast.makeText(context, mark.confirmation(), Toast.LENGTH_SHORT).show()
                     }
                 )
+                // #today-hosted-cards P1: the hours-asleep trend, built pure from `days` (no nap/debt) so
+                // it matches the Sleep tab's hours chart. The card composable lives in SleepScreen.kt
+                // (internal) where its ChartCard/BarChart siblings are in-file.
+                HostedCard.ASLEEP_DURATION -> {
+                    val (hours, dates) = sleepDurationTrend(days)
+                    AsleepDurationHostCard(hours = hours, dates = dates)
+                }
             }
         }
     }

@@ -2,6 +2,7 @@ package com.noop.ui
 
 import android.content.Context
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.ui.graphics.vector.ImageVector
 import org.json.JSONArray
@@ -31,7 +32,9 @@ enum class HostedCard(
 ) {
     /** Sleep tab · "Sleep marks" — the tap-to-log going-to-sleep / awake card. Self-contained (logging
      *  only, no model), the first card wired end-to-end. */
-    SLEEP_MARKS("sleep.sleepMarks", "Sleep marks", "Sleep", Icons.Filled.Bedtime);
+    SLEEP_MARKS("sleep.sleepMarks", "Sleep marks", "Sleep", Icons.Filled.Bedtime),
+    /** Sleep tab · "Asleep duration" — trailing-14-night sleep-hours trend (#today-hosted-cards P1). */
+    ASLEEP_DURATION("sleep.asleepDuration", "Asleep duration", "Sleep", Icons.Filled.BarChart);
 
     companion object {
         fun fromRaw(raw: String?): HostedCard? = entries.firstOrNull { it.raw == raw }

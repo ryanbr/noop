@@ -2649,6 +2649,52 @@ private fun DrawScope.drawRoundRectFill(color: Color, frac: Float) {
 
 // MARK: - 4. 14-day asleep-hours trend
 
+/**
+ * #today-hosted-cards P1: the hosted "Asleep duration" card — the hours-asleep BarChart from [DurationTrend],
+ * hours-only (no debt sub-chart, so no nap/session data needed), built from the pure [sleepDurationTrend].
+ * `internal` so the Today host (TodayScreen) can render it; lives here so its ChartCard/BarChart siblings
+ * are in-file. Twin of the iOS `AsleepDurationCard`.
+ */
+@Composable
+internal fun AsleepDurationHostCard(hours: List<Double>, dates: List<String>) {
+    val avg = hours.sleepAverageOrNull()
+    Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
+        SectionHeader("Asleep duration", overline = "Sleep", trailing = "Last 14 days")
+        ChartCard(
+            title = uiString(R.string.l10n_sleep_screen_hours_asleep_06f68993),
+            subtitle = "Per night, trailing 14 days",
+            trailing = avg?.let { String.format(Locale.US, "%.1f h avg", it) },
+            tint = Palette.restColor,
+            footer = {
+                ChartFooter(
+                    listOf(
+                        "Avg" to (avg?.let { String.format(Locale.US, "%.1f h", it) } ?: "—"),
+                        "Min" to (hours.minOrNull()?.let { String.format(Locale.US, "%.1f h", it) } ?: "—"),
+                        "Max" to (hours.maxOrNull()?.let { String.format(Locale.US, "%.1f h", it) } ?: "—"),
+                        "Nights" to "${hours.size}",
+                    ),
+                )
+            },
+        ) {
+            if (hours.size >= 2) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    BarChart(
+                        values = hours,
+                        modifier = Modifier.fillMaxWidth().height(Metrics.compactChartHeight)
+                            .semantics { contentDescription = uiString(R.string.l10n_sleep_screen_sleep_hours_trend_chart_a6fbc46d) },
+                        color = Palette.restColor,
+                        selectionEnabled = true,
+                        selectionLabels = dates.map(::shortDayLabel),
+                    )
+                    DateAxisRow(dates)
+                }
+            } else {
+                TrendPlaceholder()
+            }
+        }
+    }
+}
+
 @Composable
 private fun DurationTrend(m: SleepModel) {
     val pts = m.trendHours
@@ -2730,7 +2776,8 @@ private fun DurationTrend(m: SleepModel) {
 }
 
 @Composable
-private fun TrendPlaceholder() {
+// internal (not private) so the Today hosted-cards duration card (#today-hosted-cards) can reuse it.
+internal fun TrendPlaceholder() {
     Box(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = Alignment.Center,
@@ -2760,8 +2807,9 @@ private fun TrendLegend(items: List<Pair<String, Color>>) {
     }
 }
 
+// internal (not private) so the Today hosted-cards duration card (#today-hosted-cards) can reuse it.
 @Composable
-private fun DateAxisRow(days: List<String>) {
+internal fun DateAxisRow(days: List<String>) {
     if (days.isEmpty()) return
     val labels = listOf(
         days.firstOrNull(),
