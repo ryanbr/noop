@@ -541,10 +541,12 @@ final class Repository: ObservableObject {
     static let wearableImportSources = ["oura-import", "fitbit-import", "garmin-import", "oura-api", healthConnectSource]
 
     /// `yyyy-MM-dd` in the device's local zone, matching how `DailyMetric.day` is stored.
-    private static let dayKeyFormatter: DateFormatter = {
+    // `nonisolated` so pure callers off the main actor (e.g. the extracted `SleepModel.build`) can key a
+    // day the SAME way `DailyMetric.day` is stored. Pure date→string; no actor state is touched.
+    private nonisolated static let dayKeyFormatter: DateFormatter = {
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.locale = Locale(identifier: "en_US_POSIX"); return f
     }()
-    static func localDayKey(_ date: Date) -> String { dayKeyFormatter.string(from: date) }
+    nonisolated static func localDayKey(_ date: Date) -> String { dayKeyFormatter.string(from: date) }
 
     /// The hour the LOGICAL day rolls (04:00 local). Between midnight and this hour, "Today" stays put.
     nonisolated static let logicalDayRolloverHour = 4
