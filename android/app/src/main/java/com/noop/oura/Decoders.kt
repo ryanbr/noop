@@ -543,6 +543,17 @@ object OuraDecoders {
         val b = rec.payload
         // body[0] is the header (spec offset 6); phase codes begin at body[1].
         if (b.size < 2) return null
+        // #1246: a whole record of 0xFF is an UNWRITTEN (erased-flash) hypnogram page, not sleep — the ring
+        // serves pages of it for a stretch it never classified (confirmed on-device: SpO2/R-R go dark in the
+        // SAME window). The 2-bit unpack would read each 0xFF as `11 11 11 11` = four AWAKE, manufacturing
+        // hours of fake wake (one night: 320 of 334 "awake" min were padding → 36 % efficiency). Detect it
+        // at the RECORD level (unambiguous; a byte-level filter would eat the four genuine AWAKE epochs that
+        // also encode as 0xFF) and flag the epochs unwritten so the assembler drops them as a GAP while they
+        // still hold their place in the time axis. Byte-parity twin of the Swift decodeSleepPhase.
+        // Require >=2 code bytes so a LONE 0xFF byte — four genuine AWAKE epochs, which also encode as 0xFF
+        // (the reporter's explicit caution) — is never mistaken for an erased page. Observed erased pages
+        // are whole ~13-byte records; a single byte is real wake.
+        val unwritten = (b.size - 1) >= 2 && (1 until b.size).all { (b[it].toInt() and 0xFF) == 0xFF }
         val out = ArrayList<OuraSleepPhase>()
         var index = 0
         for (k in 1 until b.size) {
@@ -553,7 +564,12 @@ object OuraDecoders {
                 val code = (byte shr shift) and 0x03
                 val stage = OuraSleepStage.fromRaw(code)
                 if (stage != null) {
-                    out.add(OuraSleepPhase(ringTimestamp = rec.ringTimestamp, index = index, stage = stage))
+                    out.add(
+                        OuraSleepPhase(
+                            ringTimestamp = rec.ringTimestamp, index = index,
+                            stage = stage, unwritten = unwritten,
+                        ),
+                    )
                     index += 1
                 }
                 shift -= 2

@@ -66,9 +66,15 @@ public struct OuraHypnogramBurst: Equatable, Sendable {
                 j += 1
             }
         }
-        guard let start = sleepStartUnixSeconds else { return out }
-        let clipped = out.filter { $0.ts >= start }
-        return clipped.isEmpty ? out : clipped
+        // #1246: drop UNWRITTEN epochs (whole-record `0xFF` erased pages) from the reconstructed hypnogram
+        // — they are a GAP, not `awake`. Done AFTER the lay so `n`/`j` (and thus every WRITTEN code's ts)
+        // are computed over the full sequence: an unwritten run anywhere — head, middle, or tail — leaves
+        // the real codes around it correctly timed. An all-unwritten burst yields [] (an honest no-stage
+        // night), which the caller drops rather than persisting a blank session.
+        let written = out.filter { !$0.phase.unwritten }
+        guard let start = sleepStartUnixSeconds else { return written }
+        let clipped = written.filter { $0.ts >= start }
+        return clipped.isEmpty ? written : clipped
     }
 }
 

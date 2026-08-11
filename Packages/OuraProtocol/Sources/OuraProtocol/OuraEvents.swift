@@ -159,8 +159,15 @@ public struct OuraSleepPhase: Equatable, Sendable, Codable {
     public let ringTimestamp: UInt32
     public let index: Int          // position within the record's phase sequence
     public let stage: OuraSleepStage
-    public init(ringTimestamp: UInt32, index: Int, stage: OuraSleepStage) {
+    /// #1246: this epoch came from an UNWRITTEN hypnogram page (a whole record of the erased-flash value
+    /// `0xFF`, which the 2-bit decode would otherwise read as four `awake` codes). It keeps a placeholder
+    /// `stage` so it still OCCUPIES its 30 s slot in the burst's time axis (dropping it would mis-time the
+    /// real codes laid around it), but the assembler EXCLUDES it from the reconstructed hypnogram — a gap,
+    /// not `awake`. Defaults false so every real decoded/constructed phase is a written epoch.
+    public let unwritten: Bool
+    public init(ringTimestamp: UInt32, index: Int, stage: OuraSleepStage, unwritten: Bool = false) {
         self.ringTimestamp = ringTimestamp; self.index = index; self.stage = stage
+        self.unwritten = unwritten
     }
 }
 

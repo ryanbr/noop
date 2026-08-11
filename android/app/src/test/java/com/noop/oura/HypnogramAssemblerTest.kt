@@ -33,6 +33,39 @@ class HypnogramAssemblerTest {
         assertEquals(10_000L, laid.last().ts + 30)
     }
 
+    // MARK: - #1246 unwritten (0xFF) epochs excluded, real codes stay timed. Twin of Swift.
+
+    @Test
+    fun unwrittenEpochsDroppedButRealCodesKeepFullSequenceTimes_middleGap() {
+        // A burst with an UNWRITTEN run in the MIDDLE. codesWithTimes lays times over the FULL count (so
+        // the real codes keep their true positions), then drops the unwritten as a gap — it must NOT pull
+        // the pre-gap codes toward the post-gap ones (which a drop-before-lay would).
+        val real1 = phases(listOf(OuraSleepStage.DEEP, OuraSleepStage.LIGHT, OuraSleepStage.REM, OuraSleepStage.AWAKE), rt = 1000)
+        val gap = (0 until 4).map { OuraSleepPhase(ringTimestamp = 1001, index = it, stage = OuraSleepStage.AWAKE, unwritten = true) }
+        val real2 = phases(listOf(OuraSleepStage.LIGHT, OuraSleepStage.DEEP, OuraSleepStage.REM, OuraSleepStage.LIGHT), rt = 1002)
+        val burst = OuraHypnogramBurst(
+            listOf(
+                OuraHypnogramRecord(1000, real1),
+                OuraHypnogramRecord(1001, gap),
+                OuraHypnogramRecord(1002, real2),
+            ),
+        )
+        val laid = burst.codesWithTimes(endUnixSeconds = 10_000)   // n=12, 30 s/code
+        assertEquals(8, laid.size)                                 // 4 unwritten dropped
+        assertTrue(laid.none { it.phase.unwritten })
+        assertEquals(listOf(9_640L, 9_670L, 9_700L, 9_730L), laid.take(4).map { it.ts })
+        assertEquals(listOf(9_880L, 9_910L, 9_940L, 9_970L), laid.takeLast(4).map { it.ts })
+    }
+
+    @Test
+    fun allUnwrittenBurstReconstructsEmpty() {
+        // Every page erased → no stageable sleep. Returns [] so the caller drops it (no blank/awake night).
+        val gap = (0 until 4).map { OuraSleepPhase(ringTimestamp = 1000, index = it, stage = OuraSleepStage.AWAKE, unwritten = true) }
+        val burst = OuraHypnogramBurst(listOf(OuraHypnogramRecord(1000, gap)))
+        assertTrue(burst.codesWithTimes(endUnixSeconds = 10_000).isEmpty())
+        assertTrue(burst.codesWithTimes(endUnixSeconds = 10_000, sleepStartUnixSeconds = 9_000).isEmpty())
+    }
+
     // MARK: - 0x49 onset start-clamp (clips leading pre-window codes). Twin of Swift's clamp tests.
 
     private fun fourCodeBurst(): OuraHypnogramBurst {

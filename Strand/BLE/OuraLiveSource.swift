@@ -632,8 +632,16 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         // Reconstruct the time axis; `sleepStart` (the 0x49 onset, or nil) clips leading pre-window codes
         // in the PURE assembler (never emptying the night). Testable there; the app just logs the trim.
         let laid = burst.codesWithTimes(endUnixSeconds: end, sleepStartUnixSeconds: sleepStart)
+        // #1246: an all-unwritten burst (every hypnogram page erased) reconstructs to nothing. Note the
+        // resume cursor so the ring stops re-serving it, but persist no blank/awake session.
+        guard !laid.isEmpty else {
+            log("Oura: hypnogram burst entirely unwritten (0xFF) - \(burst.totalCodes) code(s), no stageable sleep; skipped")
+            noteStoredHistoryRingTime(burst.lastRingTimestamp)
+            return
+        }
         if laid.count < burst.totalCodes {
-            log("Oura: hypnogram start clamped to 0x49 onset - dropped \(burst.totalCodes - laid.count) pre-window code(s)")
+            // Fewer laid than decoded = unwritten (#1246, 0xFF pages) and/or pre-0x49-onset epochs trimmed.
+            log("Oura: hypnogram trimmed \(burst.totalCodes - laid.count) code(s) - unwritten (0xFF) and/or pre-onset")
         }
         for code in laid {
             enqueue([.sleepPhase(code.phase)], ts: code.ts)

@@ -159,8 +159,21 @@ enum class OuraSleepStage(val raw: Int) {
     }
 }
 
-/** One decoded sleep-phase code in order within a 0x4E/0x5A record (OURA_PROTOCOL.md s6.12). */
-data class OuraSleepPhase(val ringTimestamp: Long, val index: Int, val stage: OuraSleepStage)
+/**
+ * One decoded sleep-phase code in order within a 0x4E/0x5A record (OURA_PROTOCOL.md s6.12). [unwritten]
+ * (#1246) marks an epoch from an UNWRITTEN hypnogram page (a whole record of the erased-flash value 0xFF,
+ * which the 2-bit decode would otherwise read as four AWAKE codes). It keeps a placeholder [stage] so it
+ * still OCCUPIES its 30 s
+ * slot in the burst time axis (dropping it would mis-time the real codes around it), but the assembler
+ * EXCLUDES it from the reconstructed hypnogram — a gap, not AWAKE. Defaults false = a written epoch.
+ * Byte-parity twin of the Swift OuraSleepPhase.
+ */
+data class OuraSleepPhase(
+    val ringTimestamp: Long,
+    val index: Int,
+    val stage: OuraSleepStage,
+    val unwritten: Boolean = false,
+)
 
 /** Motion state (OURA_PROTOCOL.md s6.13): 0 NO_MOTION, 1 RESTLESS, 2 TOSSING, 3 ACTIVE. */
 enum class OuraMotionState(val raw: Int) {

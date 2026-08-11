@@ -73,9 +73,15 @@ data class OuraHypnogramBurst(val records: List<OuraHypnogramRecord>) {
                 j += 1
             }
         }
-        if (sleepStartUnixSeconds == null) return out
-        val clipped = out.filter { it.ts >= sleepStartUnixSeconds }
-        return if (clipped.isEmpty()) out else clipped
+        // #1246: drop UNWRITTEN epochs (whole-record 0xFF erased pages) from the reconstructed hypnogram —
+        // they are a GAP, not AWAKE. Done AFTER the lay so n/j (and thus every WRITTEN code's ts) are
+        // computed over the full sequence: an unwritten run anywhere — head, middle, or tail — leaves the
+        // real codes around it correctly timed. An all-unwritten burst yields [] (an honest no-stage night),
+        // which the caller drops rather than persisting a blank session. Byte-parity twin of Swift.
+        val written = out.filter { !it.phase.unwritten }
+        if (sleepStartUnixSeconds == null) return written
+        val clipped = written.filter { it.ts >= sleepStartUnixSeconds }
+        return if (clipped.isEmpty()) written else clipped
     }
 }
 

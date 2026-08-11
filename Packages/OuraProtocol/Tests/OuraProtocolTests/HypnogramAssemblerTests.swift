@@ -23,6 +23,37 @@ final class HypnogramAssemblerTests: XCTestCase {
         XCTAssertEqual(laid.last!.ts + 30, 10_000)
     }
 
+    // MARK: - #1246 unwritten (0xFF) epochs excluded, real codes stay timed
+
+    func testUnwrittenEpochsDroppedButRealCodesKeepFullSequenceTimes_middleGap() {
+        // A burst with an UNWRITTEN run in the MIDDLE. codesWithTimes lays times over the FULL count (so
+        // the real codes keep their true positions), then drops the unwritten as a gap — it must NOT pull
+        // the pre-gap codes toward the post-gap ones (which a drop-before-lay would).
+        let real1 = phases([.deep, .light, .rem, .awake], rt: 1000)
+        let gap = (0..<4).map { OuraSleepPhase(ringTimestamp: 1001, index: $0, stage: .awake, unwritten: true) }
+        let real2 = phases([.light, .deep, .rem, .light], rt: 1002)
+        let burst = OuraHypnogramBurst(records: [
+            OuraHypnogramRecord(ringTimestamp: 1000, phases: real1),
+            OuraHypnogramRecord(ringTimestamp: 1001, phases: gap),
+            OuraHypnogramRecord(ringTimestamp: 1002, phases: real2),
+        ])
+        let laid = burst.codesWithTimes(endUnixSeconds: 10_000)   // n=12, 30 s/code
+        XCTAssertEqual(laid.count, 8)                              // 4 unwritten dropped
+        XCTAssertTrue(laid.allSatisfy { !$0.phase.unwritten })
+        // real1 keeps its EARLY slots (j 0..3 of 12); real2 keeps its LATE slots (j 8..11) — a 120 s gap
+        // sits where the unwritten run was, instead of real1 sliding later to meet real2.
+        XCTAssertEqual(laid.prefix(4).map { $0.ts }, [9_640, 9_670, 9_700, 9_730])
+        XCTAssertEqual(laid.suffix(4).map { $0.ts }, [9_880, 9_910, 9_940, 9_970])
+    }
+
+    func testAllUnwrittenBurstReconstructsEmpty() {
+        // Every page erased → no stageable sleep. Returns [] so the caller drops it (no blank/awake night).
+        let gap = (0..<4).map { OuraSleepPhase(ringTimestamp: 1000, index: $0, stage: .awake, unwritten: true) }
+        let burst = OuraHypnogramBurst(records: [OuraHypnogramRecord(ringTimestamp: 1000, phases: gap)])
+        XCTAssertTrue(burst.codesWithTimes(endUnixSeconds: 10_000).isEmpty)
+        XCTAssertTrue(burst.codesWithTimes(endUnixSeconds: 10_000, sleepStartUnixSeconds: 9_000).isEmpty)
+    }
+
     // MARK: - 0x49 onset start-clamp (clips leading pre-window codes)
 
     private func fourCodeBurst() -> OuraHypnogramBurst {

@@ -253,6 +253,38 @@ class DecoderGoldenTest {
     }
 
     @Test
+    fun testSleepPhase0x4EWholeFFRecordIsUnwritten() {
+        // #1246: two 0xFF code bytes (an erased/unwritten flash page). Flagged unwritten so the assembler
+        // drops them as a GAP instead of 8 awake epochs. PARITY twin of the Swift test.
+        val rec = record("4e070200010000ffff")
+        val phases = OuraDecoders.decodeSleepPhase(rec)
+        assertEquals(8, phases?.size)
+        assertTrue(phases!!.all { it.unwritten && it.stage == OuraSleepStage.AWAKE })
+    }
+
+    @Test
+    fun testSleepPhase0x4ELoneFFByteIsGenuineAwake() {
+        // #1246 caution: a SINGLE 0xFF code byte is four genuine AWAKE epochs, NOT an erased page — it must
+        // stay written (only a run of >=2 all-0xFF code bytes reads as unwritten). PARITY twin of Swift.
+        val rec = record("4e060200010000ff")
+        val phases = OuraDecoders.decodeSleepPhase(rec)
+        assertEquals(4, phases?.size)
+        assertTrue(phases!!.none { it.unwritten })
+        assertTrue(phases.all { it.stage == OuraSleepStage.AWAKE })
+    }
+
+    @Test
+    fun testSleepPhase0x4EMixedFFIsWritten() {
+        // A record that is NOT entirely 0xFF is genuine data — its 0xFF byte is four REAL awake epochs, so
+        // none of the record is flagged unwritten. Guards against a byte-level filter eating genuine wake.
+        val rec = record("4e0702000100006cff")
+        val phases = OuraDecoders.decodeSleepPhase(rec)
+        assertEquals(8, phases?.size)
+        assertTrue(phases!!.none { it.unwritten })
+        assertTrue(phases.takeLast(4).all { it.stage == OuraSleepStage.AWAKE })
+    }
+
+    @Test
     fun testSleepStageRawValuesMatchOpenOura() {
         // Pin the validated open_oura order (0=deep, 1=light, 2=rem, 3=awake) so a regression to the
         // old unverified mapping (0=awake/2=deep/3=REM) breaks loudly. Twin of the Swift enum.

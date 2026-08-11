@@ -216,6 +216,38 @@ final class DecoderGoldenTests: XCTestCase {
         ])
     }
 
+    func testSleepPhase0x4EWholeFFRecordIsUnwritten() {
+        // #1246: two code bytes of 0xFF (an erased/unwritten flash page). The 2-bit unpack still reads
+        // four awake each, but because the WHOLE record's code bytes are 0xFF the epochs are flagged
+        // `unwritten` — the assembler drops them as a GAP instead of manufacturing 8 awake epochs.
+        let rec = record("4e070200010000ffff")   // len 07 = rt(4) + payload(00 ff ff): header + two 0xFF bytes
+        let phases = OuraDecoders.decodeSleepPhase(rec)
+        XCTAssertEqual(phases?.count, 8)
+        XCTAssertEqual(phases?.allSatisfy { $0.unwritten && $0.stage == .awake }, true)
+    }
+
+    func testSleepPhase0x4ELoneFFByteIsGenuineAwake() {
+        // #1246 caution: a SINGLE 0xFF code byte is four genuine `awake` epochs, NOT an erased page — it
+        // must stay written (only a run of >=2 all-0xFF code bytes reads as unwritten).
+        let rec = record("4e060200010000ff")   // header + one 0xFF code byte
+        let phases = OuraDecoders.decodeSleepPhase(rec)
+        XCTAssertEqual(phases?.count, 4)
+        XCTAssertEqual(phases?.contains { $0.unwritten }, false)
+        XCTAssertEqual(phases?.allSatisfy { $0.stage == .awake }, true)
+    }
+
+    func testSleepPhase0x4EMixedFFIsWritten() {
+        // A record that is NOT entirely 0xFF (real codes 0x6C + one 0xFF byte) is genuine data — its 0xFF
+        // byte is four REAL awake epochs, so NONE of the record is flagged unwritten. Guards against a
+        // byte-level filter eating genuine wake.
+        let rec = record("4e0702000100006cff")
+        let phases = OuraDecoders.decodeSleepPhase(rec)
+        XCTAssertEqual(phases?.count, 8)
+        XCTAssertEqual(phases?.contains { $0.unwritten }, false)
+        // The trailing 0xFF byte still decodes to four awake epochs (real wake, kept).
+        XCTAssertEqual(phases?.suffix(4).allSatisfy { $0.stage == .awake }, true)
+    }
+
     // MARK: - 0x6B motion period (2-bit MOTION_STATE codes; 2 header bytes skipped)
 
     func testMotionPeriod0x6B() {

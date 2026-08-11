@@ -476,6 +476,18 @@ public enum OuraDecoders {
         let b = rec.payload
         // body[0] is the header (spec offset 6); phase codes begin at body[1].
         guard b.count >= 2 else { return nil }
+        // #1246: a whole record of `0xFF` is an UNWRITTEN (erased-flash) hypnogram page, not sleep — the
+        // ring serves pages of it for a stretch it never classified (confirmed on-device: SpO2/R-R go dark
+        // in the SAME window). The 2-bit unpack would read each `0xFF` as `11 11 11 11` = four `awake`,
+        // manufacturing hours of fake wake (one night: 320 of 334 "awake" min were padding → 36 %
+        // efficiency). Detect it at the RECORD level (unambiguous; a byte-level filter would eat the four
+        // genuine `awake` epochs that also encode as `0xFF`) and flag the epochs `unwritten` so the
+        // assembler drops them as a GAP while they still hold their place in the time axis.
+        // Require ≥2 code bytes so a LONE 0xFF byte — four genuine `awake` epochs, which also encode as
+        // 0xFF (the reporter's explicit caution) — is never mistaken for an erased page. Observed erased
+        // pages are whole ~13-byte records; a single byte is real wake.
+        let codeBytes = b.dropFirst()
+        let unwritten = codeBytes.count >= 2 && codeBytes.allSatisfy { $0 == 0xFF }
         var out: [OuraSleepPhase] = []
         var index = 0
         for k in 1..<b.count {
@@ -484,7 +496,8 @@ public enum OuraDecoders {
             for shift in stride(from: 6, through: 0, by: -2) {
                 let code = Int((byte >> UInt8(shift)) & 0x03)
                 if let stage = OuraSleepStage(rawValue: code) {
-                    out.append(OuraSleepPhase(ringTimestamp: rec.ringTimestamp, index: index, stage: stage))
+                    out.append(OuraSleepPhase(ringTimestamp: rec.ringTimestamp, index: index,
+                                              stage: stage, unwritten: unwritten))
                     index += 1
                 }
             }
