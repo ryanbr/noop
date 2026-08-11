@@ -1457,7 +1457,12 @@ fun SettingsScreen(
                     checked = BackgroundImageStore.enabled,
                     onCheckedChange = { BackgroundImageStore.setEnabled(context, it) },
                 )
-                SettingsFormRow(label = "Scaling") {
+                // Scaling label ABOVE a full-width segmented control — NOT a SettingsFormRow. In a
+                // label|control row the adaptsToAvailableWidth pill fills the width and starves the label
+                // to ~0px, which wrapped "Scaling" one letter per line and blew the row up to a tall
+                // empty gap. A stacked label sidesteps that entirely.
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Scaling", style = NoopType.footnote, color = Palette.textSecondary)
                     SegmentedPillControl(
                         items = BackgroundFillMode.entries,
                         selection = BackgroundImageStore.fillMode,
