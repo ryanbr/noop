@@ -111,26 +111,31 @@ object RouteExport {
         }
 
         val elapsedMs = ((endTs - startTs).coerceAtLeast(0)) * 1000L
-        val distCenti = distanceM?.let { (it * 100.0).roundToLong().coerceAtLeast(0) } ?: 0xFFFFFFFFL
-        val kcal = energyKcal?.let { it.roundToLong().coerceIn(0, 0xFFFEL) } ?: 0xFFFFL
+        val distCenti = distanceM?.let { (it * 100.0).roundToLong().coerceAtLeast(0) }
 
-        // ── lap (global 19) ── (external tools expect at least one; our decoder folds it under session)
+        // ── lap (global 19) ── (external tools expect at least one; our decoder folds it under session).
+        // Distance uses the FIT 0xFFFFFFFF "invalid" value when absent — the decoder special-cases it.
         body.defn(2, 19, listOf(F(253, 4, 0x86), F(2, 4, 0x86), F(7, 4, 0x86), F(9, 4, 0x86)))
         body.write(2)
-        body.u32(fitTime(endTs)); body.u32(fitTime(startTs)); body.u32(elapsedMs); body.u32(distCenti)
+        body.u32(fitTime(endTs)); body.u32(fitTime(startTs)); body.u32(elapsedMs)
+        body.u32(distCenti ?: 0xFFFFFFFFL)
 
-        // ── session (global 18): the authoritative summary the importer reads ──
-        body.defn(
-            3, 18,
-            listOf(
-                F(253, 4, 0x86), F(2, 4, 0x86), F(7, 4, 0x86), F(9, 4, 0x86),
-                F(5, 1, 0x00), F(11, 2, 0x84), F(16, 1, 0x02), F(17, 1, 0x02),
-            ),
-        )
+        // ── session (global 18): the authoritative summary the importer reads. ONLY the fields we
+        // actually have are emitted — an absent HR must be truly absent, since the importer's validHr
+        // accepts 1..300 and would misread a 0xFF sentinel as a real HR of 255. ──
+        val sf = ArrayList<F>(8)
+        val sd = ByteArrayOutputStream(28)
+        sf.add(F(253, 4, 0x86)); sd.u32(fitTime(endTs))
+        sf.add(F(2, 4, 0x86)); sd.u32(fitTime(startTs))
+        sf.add(F(7, 4, 0x86)); sd.u32(elapsedMs)
+        sf.add(F(5, 1, 0x00)); sd.u8(fitSport(canon))
+        if (distCenti != null) { sf.add(F(9, 4, 0x86)); sd.u32(distCenti) }
+        energyKcal?.let { sf.add(F(11, 2, 0x84)); sd.u16(it.roundToLong().coerceIn(0, 0xFFFEL).toInt()) }
+        avgHr?.let { sf.add(F(16, 1, 0x02)); sd.u8(it.coerceIn(0, 254)) }
+        maxHr?.let { sf.add(F(17, 1, 0x02)); sd.u8(it.coerceIn(0, 254)) }
+        body.defn(3, 18, sf)
         body.write(3)
-        body.u32(fitTime(endTs)); body.u32(fitTime(startTs)); body.u32(elapsedMs); body.u32(distCenti)
-        body.u8(fitSport(canon)); body.u16(kcal.toInt())
-        body.u8(avgHr?.coerceIn(0, 254) ?: 0xFF); body.u8(maxHr?.coerceIn(0, 254) ?: 0xFF)
+        body.write(sd.toByteArray())
 
         // ── activity (global 34): one session ──
         body.defn(4, 34, listOf(F(253, 4, 0x86), F(1, 2, 0x84), F(2, 1, 0x00)))

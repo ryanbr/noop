@@ -106,24 +106,30 @@ public enum RouteExporter {
         }
 
         let elapsedMs = UInt32(max(0, endTs - startTs)) &* 1000
-        let distCenti: UInt32 = distanceM.map { UInt32(max(0, (($0 * 100.0).rounded()))) } ?? 0xFFFF_FFFF
-        let kcal: UInt16 = energyKcal.map { UInt16(min(max(0, $0.rounded()), 65534)) } ?? 0xFFFF
+        let distCenti: UInt32? = distanceM.map { UInt32(max(0, ($0 * 100.0).rounded())) }
 
         // lap (global 19): external tools expect at least one; our decoder folds it under session.
+        // Distance uses the FIT 0xFFFFFFFF "invalid" value when absent — the decoder special-cases it.
         defn(&body, local: 2, global: 19, fields: [(253, 4, 0x86), (2, 4, 0x86), (7, 4, 0x86), (9, 4, 0x86)])
         body.append(2)
-        u32(&body, fitTime(endTs)); u32(&body, fitTime(startTs)); u32(&body, elapsedMs); u32(&body, distCenti)
+        u32(&body, fitTime(endTs)); u32(&body, fitTime(startTs)); u32(&body, elapsedMs)
+        u32(&body, distCenti ?? 0xFFFF_FFFF)
 
-        // session (global 18): the authoritative summary the importer reads.
-        defn(&body, local: 3, global: 18, fields: [
-            (253, 4, 0x86), (2, 4, 0x86), (7, 4, 0x86), (9, 4, 0x86),
-            (5, 1, 0x00), (11, 2, 0x84), (16, 1, 0x02), (17, 1, 0x02),
-        ])
+        // session (global 18): only the fields we actually have. An absent HR must be truly absent — the
+        // importer's validHr accepts 1..300 and would misread a 0xFF sentinel as a real HR of 255.
+        var sf: [(Int, Int, Int)] = []
+        var sd: [UInt8] = []
+        sf.append((253, 4, 0x86)); u32(&sd, fitTime(endTs))
+        sf.append((2, 4, 0x86)); u32(&sd, fitTime(startTs))
+        sf.append((7, 4, 0x86)); u32(&sd, elapsedMs)
+        sf.append((5, 1, 0x00)); u8(&sd, fitSport(canon))
+        if let distCenti { sf.append((9, 4, 0x86)); u32(&sd, distCenti) }
+        if let energyKcal { sf.append((11, 2, 0x84)); u16(&sd, UInt16(min(max(0, energyKcal.rounded()), 65534))) }
+        if let avgHr { sf.append((16, 1, 0x02)); u8(&sd, min(max(avgHr, 0), 254)) }
+        if let maxHr { sf.append((17, 1, 0x02)); u8(&sd, min(max(maxHr, 0), 254)) }
+        defn(&body, local: 3, global: 18, fields: sf)
         body.append(3)
-        u32(&body, fitTime(endTs)); u32(&body, fitTime(startTs)); u32(&body, elapsedMs); u32(&body, distCenti)
-        u8(&body, fitSport(canon)); u16(&body, UInt16(kcal))
-        u8(&body, avgHr.map { min(max($0, 0), 254) } ?? 0xFF)
-        u8(&body, maxHr.map { min(max($0, 0), 254) } ?? 0xFF)
+        body.append(contentsOf: sd)
 
         // activity (global 34): one session.
         defn(&body, local: 4, global: 34, fields: [(253, 4, 0x86), (1, 2, 0x84), (2, 1, 0x00)])

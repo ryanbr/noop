@@ -3,6 +3,7 @@ package com.noop.ingest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -95,6 +96,17 @@ class RouteExportTest {
         // Empty GPX is still well-formed (no trackpoints); the importer rejects it without throwing.
         val gpx = RouteExport.buildGpx(emptyList(), startTs, endTs, "run").toByteArray(Charsets.UTF_8)
         assertTrue(String(gpx).contains("<trkseg>"))
+    }
+
+    @Test fun fitWithoutHrDoesNotFabricateHr() {
+        // Regression: the FIT "no HR" case must decode to NULL HR. validHr accepts 1..300, so a 0xFF
+        // sentinel would be misread as a real HR of 255 — the fields must be OMITTED, not sentinelled.
+        val bytes = RouteExport.buildFit(route, startTs, endTs, "walk") // no HR, no calories
+        val a = ActivityFileImporter.parse(bytes, "x.fit").activity
+        assertNotNull(a)
+        assertNull(a!!.avgHr)
+        assertNull(a.maxHr)
+        assertNull(a.energyKcal)
     }
 
     @Test fun interpolatedTimesSpanTheWindow() {

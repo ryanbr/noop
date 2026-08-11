@@ -61,6 +61,17 @@ final class RouteExporterTests: XCTestCase {
         XCTAssertEqual(RouteExporter.fitCrc(Array(bytes[0..<(bytes.count - 2)])), crc)
     }
 
+    func testFitWithoutHrDoesNotFabricateHr() {
+        // Regression: the FIT "no HR" case must decode to nil HR. validHr accepts 1...300, so a 0xFF
+        // sentinel would be misread as a real HR of 255 — the fields must be OMITTED, not sentinelled.
+        let data = RouteExporter.render(.fit, route: route, startTs: startTs, endTs: endTs, sport: "walk")
+        let a = ActivityFileImporter.parse(data: data, filename: "x.fit").activity
+        XCTAssertNotNil(a)
+        XCTAssertNil(a!.avgHr)
+        XCTAssertNil(a!.maxHr)
+        XCTAssertNil(a!.energyKcal)
+    }
+
     func testInterpolatedTimesSpanTheWindow() {
         let t = RouteExporter.interpolatedTimes(5, 1000, 2000)
         XCTAssertEqual(t.first, 1000)
