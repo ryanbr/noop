@@ -2470,12 +2470,6 @@ struct SleepView: View {
         AsleepDurationData.build(days: repo.days).points
     }
 
-    private func trendRange(_ pts: [TrendPoint]) -> ClosedRange<Double> {
-        let vals = pts.map(\.value)
-        let lo = Swift.max(0, (vals.min() ?? 0) - 1)
-        let hi = (vals.max() ?? 9) + 1
-        return lo...Swift.max(hi, lo + 1)
-    }
 
     // MARK: - Empty / sparse states
 
@@ -2492,13 +2486,6 @@ struct SleepView: View {
         }
     }
 
-    private var sparsePlaceholder: some View {
-        Text("Not enough nights yet.")
-            .font(StrandFont.subhead)
-            .foregroundStyle(StrandPalette.textTertiary)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            .background(NoopPanelSurface(tint: StrandPalette.restColor, cornerRadius: 12))
-    }
 
     /// Hero chart slot for a NAVIGATED session with no decodable stages — honest about the
     /// gap instead of rendering the latest night under a navigated label. (#160)
