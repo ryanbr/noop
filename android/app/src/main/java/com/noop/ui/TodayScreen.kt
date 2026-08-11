@@ -3526,7 +3526,12 @@ internal fun <T> EditableVisibilityRows(
     hidden: MutableList<T>,
     itemTitle: (T) -> String,
     modifier: Modifier = Modifier,
+    // Whether the Shown list may go EMPTY. Default false — the last shown item can't be hidden, so
+    // surfaces needing >=1 item can't be emptied. The hosted-cards editor (#today-hosted-cards) passes
+    // true (opt-in: un-hosting the last card is valid).
+    allowEmpty: Boolean = false,
 ) {
+    val minShown = if (allowEmpty) 0 else 1
     Column(
         modifier = modifier
             .heightIn(max = Metrics.editorListMaxHeight)
@@ -3570,15 +3575,15 @@ internal fun <T> EditableVisibilityRows(
                 }
                 IconButton(
                     onClick = {
-                        if (shown.size > 1) hidden.add(shown.removeAt(index))
+                        if (shown.size > minShown) hidden.add(shown.removeAt(index))
                     },
-                    enabled = shown.size > 1,
+                    enabled = shown.size > minShown,
                     modifier = Modifier.size(Metrics.iconButton),
                 ) {
                     Icon(
                         Icons.Filled.Close,
                         contentDescription = stringResource(R.string.today_customize_hide, title),
-                        tint = if (shown.size > 1) Palette.textSecondary else Palette.textTertiary,
+                        tint = if (shown.size > minShown) Palette.textSecondary else Palette.textTertiary,
                         modifier = Modifier.size(Metrics.iconSmall),
                     )
                 }
@@ -3732,6 +3737,7 @@ private fun HostedCardsEditorDialog(
                     shown = shown,
                     hidden = hidden,
                     itemTitle = { it.title },
+                    allowEmpty = true,   // hosting is opt-in: un-hosting the last card is valid
                 )
 
                 Row(verticalAlignment = Alignment.CenterVertically) {

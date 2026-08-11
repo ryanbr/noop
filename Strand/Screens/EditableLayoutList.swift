@@ -15,6 +15,10 @@ where Item: Identifiable & Equatable, Options: View {
     let configurationLabel: (Item) -> String?
     let onConfigure: (Item) -> Void
     let onReset: () -> Void
+    /// Whether the Shown list may go EMPTY. Default false — every visible item can be hidden EXCEPT the
+    /// last, so surfaces that need ≥1 item (Today sections, Key Metrics, Your Cards) can't be emptied. The
+    /// hosted-cards page (#today-hosted-cards) is opt-in, so it passes `true` to allow un-hosting the last.
+    var allowEmpty: Bool = false
     @ViewBuilder let options: () -> Options
 
     var body: some View {
@@ -30,7 +34,7 @@ where Item: Identifiable & Equatable, Options: View {
                         tint: tint(item),
                         configurationLabel: configurationLabel(item),
                         isVisible: true,
-                        canHide: draft.visible.count > 1,
+                        canHide: draft.visible.count > (allowEmpty ? 0 : 1),
                         onConfigure: { onConfigure(item) },
                         onVisibilityChange: { hide(item) }
                     )

@@ -395,7 +395,8 @@ private struct HostedCardsCustomizationPage: View {
             tint: \.customizationTint,
             configurationLabel: { _ in nil },
             onConfigure: { _ in },
-            onReset: onReset
+            onReset: onReset,
+            allowEmpty: true   // hosting is opt-in: the last card can be un-hosted (Shown may be empty)
         ) {
             EmptyView()
         }

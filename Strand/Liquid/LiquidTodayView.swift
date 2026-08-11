@@ -295,7 +295,8 @@ struct LiquidTodayView: View {
                         case .journal: if selectedDayOffset == 0 { JournalReminderCard() }
                         // #today-hosted-cards: cards the user pulled in from the Trends/Sleep tabs, in the
                         // order they arranged. Empty (renders nothing) until they add one in Customise.
-                        case .addedCards: hostedCardsSection
+                        // Today-only, matching Android's addedCards section gate + the classic TodayView.
+                        case .addedCards: if selectedDayOffset == 0 { hostedCardsSection }
                         }
                     }
                     // Opt-in "looks like a workout?" suggestion, dropped in the liquid Home rewrite. Its

@@ -50,6 +50,13 @@ enum HostedCard: String, CaseIterable, Identifiable {
         case .sleepMarks: return StrandPalette.restColor
         }
     }
+
+    /// The default selection: EMPTY. Nothing is hosted until the user opts in. On the enum (not the prefs)
+    /// to mirror `DashboardCard.defaultSelection`; keep byte-identical to the Android companion default.
+    static let defaultSelection: [HostedCard] = []
+
+    /// Canonical order used to list the not-yet-hosted remainder in the editor (mirrors `allCases`).
+    static let canonicalOrder: [HostedCard] = allCases
 }
 
 /// Display-only persistence for the Today-hosted card selection. Holds an ORDERED list of the enabled
@@ -60,12 +67,6 @@ enum HostedCard: String, CaseIterable, Identifiable {
 enum HostedCardPrefs {
     /// UserDefaults key — a JSON array of `HostedCard` ids in display order. In the `.noopbak` whitelist.
     static let selectionKey = "today.hostedCards"
-
-    /// The default selection: EMPTY. Nothing is hosted until the user opts in.
-    static let defaultSelection: [HostedCard] = []
-
-    /// Canonical order used to list the not-yet-hosted remainder in the editor.
-    static let canonicalOrder: [HostedCard] = HostedCard.allCases
 
     /// Encode an ordered list of hosted cards into the stored JSON string. Falls back to a comma-joined
     /// string if JSON encoding ever fails (it won't for [String]), so the value is always decodable.
