@@ -810,11 +810,23 @@
     ],
     [
       "android/app/src/main/java/com/noop/ui/WorkoutsScreen.kt",
+      "Export route"
+    ],
+    [
+      "android/app/src/main/java/com/noop/ui/WorkoutsScreen.kt",
+      "FIT"
+    ],
+    [
+      "android/app/src/main/java/com/noop/ui/WorkoutsScreen.kt",
       "Finish selecting"
     ],
     [
       "android/app/src/main/java/com/noop/ui/WorkoutsScreen.kt",
       "From strap HR"
+    ],
+    [
+      "android/app/src/main/java/com/noop/ui/WorkoutsScreen.kt",
+      "GPX"
     ],
     [
       "android/app/src/main/java/com/noop/ui/WorkoutsScreen.kt",
@@ -827,6 +839,10 @@
     [
       "android/app/src/main/java/com/noop/ui/WorkoutsScreen.kt",
       "Save"
+    ],
+    [
+      "android/app/src/main/java/com/noop/ui/WorkoutsScreen.kt",
+      "Save this GPS route as a file to import into Strava, Garmin Connect, or another app. "
     ],
     [
       "android/app/src/main/java/com/noop/ui/WorkoutsScreen.kt",

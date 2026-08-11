@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- FileProvider paths for in-app exports. Only the app's own cache subdirs are shared:
      - logs/    : the strap-log export (LogExport) + 5/MG raw capture
-     - reports/ : the shareable offline trends report PDF (TrendsReport, #436) -->
+     - reports/ : the shareable offline trends report PDF (TrendsReport, #436)
+     - exports/ : GPX/FIT workout route export (RouteExportShare) -->
 <paths>
     <cache-path name="logs" path="logs/" />
     <cache-path name="reports" path="reports/" />
+    <cache-path name="exports" path="exports/" />
 </paths>
