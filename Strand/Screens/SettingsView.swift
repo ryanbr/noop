@@ -582,12 +582,6 @@ struct SettingsView: View {
         }
     }
 
-    /// Custom background image controls (#custom-background): pick from Photos or Browse the files,
-    /// choose the fill mode, and (once set) enable / remove. The store downscales + persists a
-    /// device-local file — nothing here is uploaded (NOOP is offline), and it is left out of `.noopbak`.
-    /// Wrapped in a layout-transparent `Group` so the picker `onChange` + the file importer can hang off
-    /// the whole cluster while it still flows inside the appearance VStack.
-    @ViewBuilder
     /// One recent-background preset: a small cropped thumbnail (accent-ringed when active) over its
     /// fill-mode label. Tapping re-applies that image + scaling.
     @ViewBuilder
@@ -611,6 +605,12 @@ struct SettingsView: View {
         .buttonStyle(.plain)
     }
 
+    /// Custom background image controls (#custom-background): pick from Photos or Browse the files,
+    /// choose the fill mode, and (once set) enable / remove. The store downscales + persists a
+    /// device-local file — nothing here is uploaded (NOOP is offline), and it is left out of `.noopbak`.
+    /// Wrapped in a layout-transparent `Group` so the picker `onChange` + the file importer can hang off
+    /// the whole cluster while it still flows inside the appearance VStack.
+    @ViewBuilder
     private var backgroundImageControls: some View {
         let hasImage = backgroundStore.hasImage
         Group {
