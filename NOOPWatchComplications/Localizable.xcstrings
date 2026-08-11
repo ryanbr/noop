@@ -38,6 +38,12 @@
             "state": "translated",
             "value": "%1$@ %2$lld"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %lld"
+          }
         }
       }
     },
@@ -78,6 +84,12 @@
             "state": "translated",
             "value": "Étalonnage %1$@"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kalibracja %@"
+          }
         }
       }
     },
@@ -117,6 +129,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$@ non disponible"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ niedostępny"
           }
         }
       }
@@ -176,6 +194,12 @@
             "state": "translated",
             "value": "能量"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Energia"
+          }
         }
       }
     },
@@ -215,6 +239,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Chargez %1$lld sur 100"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Energia %lld na 100"
           }
         }
       }
@@ -256,6 +286,12 @@
             "state": "translated",
             "value": "Charger %1$lld · %2$lld bpm%3$@"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Energia %lld · %lld bpm%@"
+          }
         }
       }
     },
@@ -295,6 +331,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Charger %1$lld%2$@"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Energia %lld%@"
           }
         }
       }
@@ -336,6 +378,12 @@
             "state": "translated",
             "value": "Étalonnage des charges"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kalibracja Energia"
+          }
         }
       }
     },
@@ -375,6 +423,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Étalonnage de charge, besoin de plus de données"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kalibracja Energia, wymaga więcej danych"
           }
         }
       }
@@ -416,6 +470,12 @@
             "state": "translated",
             "value": "Charge hors date, dernière synchronisation %1$@. Ouvrez NOOP sur iPhone."
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Energia nieaktualny, ostatnia synchronizacja %@. Otwórz NOOP na iPhonie."
+          }
         }
       }
     },
@@ -455,6 +515,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Intervalle de charge · %1$@"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Energia nieaktualne · %@"
           }
         }
       }
@@ -496,6 +562,12 @@
             "state": "translated",
             "value": "Frais non disponibles"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Energia niedostępny"
+          }
         }
       }
     },
@@ -535,6 +607,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Charge · %1$@"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Energia · %@"
           }
         }
       }
@@ -576,6 +654,12 @@
             "state": "translated",
             "value": "Charge"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Energia · kal"
+          }
         }
       }
     },
@@ -615,6 +699,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Frais –"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Energia –"
           }
         }
       }
@@ -674,6 +764,12 @@
             "state": "translated",
             "value": "消耗"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wysiłek"
+          }
         }
       }
     },
@@ -732,6 +828,12 @@
             "state": "translated",
             "value": "Charge NOOP"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP Energia"
+          }
         }
       }
     },
@@ -771,6 +873,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "NOOP · ouvert sur iPhone"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP · otwórz na iPhonie"
           }
         }
       }
@@ -812,6 +920,12 @@
             "state": "translated",
             "value": "- Oui. %1$@, %2$@, %3$@."
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP. %@, %@, %@."
+          }
         }
       }
     },
@@ -851,6 +965,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "- Oui. Pas encore de données, ouvrez NOOP sur votre iPhone pour synchroniser."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP. Nie ma jeszcze danych. Otwórz NOOP na swoim iPhonie, aby przeprowadzić synchronizację."
           }
         }
       }
@@ -892,6 +1012,12 @@
             "state": "translated",
             "value": "- Oui. Les scores sont dépassés, le dernier %1$@ synchronisé. Ouvrez NOOP sur iPhone pour vous rafraîchir."
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP. Wyniki nieaktualne, ostatnia synchronizacja %@. Otwórz NOOP na iPhonie, aby odświeżyć."
+          }
         }
       }
     },
@@ -932,6 +1058,12 @@
             "state": "translated",
             "value": "Pas de données, ouvrir NOOP sur iPhone"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brak danych, otwórz NOOP na iPhonie"
+          }
         }
       }
     },
@@ -971,6 +1103,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ouvrir NOOP"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otwórz NOOP"
           }
         }
       }
@@ -1030,6 +1168,12 @@
             "state": "translated",
             "value": "休息"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odpoczynek"
+          }
         }
       }
     },
@@ -1088,6 +1232,12 @@
             "state": "translated",
             "value": "Votre charge (récupération) sur le cadran, avec l'effort et le repos dans la carte rectangulaire."
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Twoje Energia (odzyskiwanie) na tarczy zegarka, z Wysiłek i Odpoczynek na prostokątnej karcie."
+          }
         }
       }
     },
@@ -1127,6 +1277,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Il y a longtemps"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "jakiś czas temu"
           }
         }
       }
@@ -1168,6 +1324,12 @@
             "state": "translated",
             "value": "cal"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "kal"
+          }
         }
       }
     },
@@ -1207,6 +1369,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "vieux"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "stary"
           }
         }
       }
@@ -1248,6 +1416,12 @@
             "state": "translated",
             "value": "Ouvrir un iPhone"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "otwórz iPhone'a"
+          }
         }
       }
     },
@@ -1287,6 +1461,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Stable"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nieświeży"
           }
         }
       }

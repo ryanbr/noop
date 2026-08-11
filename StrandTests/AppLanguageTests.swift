@@ -11,6 +11,11 @@ final class AppLanguageTests: XCTestCase {
         XCTAssertEqual(AppLanguage.chinese.autonym, "中文")
     }
 
+    func testPolishCatalogTagIsSupported() {
+        XCTAssertEqual(AppLanguage.resolve("pl"), .polish)
+        XCTAssertEqual(AppLanguage.polish.autonym, "Polski")
+    }
+
     func testExplicitLanguageWritesAndSystemRemovesAppleOverride() throws {
         let suiteName = "AppLanguageTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))

@@ -56,6 +56,12 @@
             "state": "translated",
             "value": "%@ resp/min"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ br/min"
+          }
         }
       }
     },
@@ -113,6 +119,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Allure %@"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tempo %@"
           }
         }
       }
@@ -172,6 +184,12 @@
             "state": "translated",
             "value": "%@ · %@s inspire / %@s expire"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · %@ wejścia / %@ wyjścia"
+          }
         }
       }
     },
@@ -226,6 +244,12 @@
           }
         },
         "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · %lld kcal"
+          }
+        },
+        "pl": {
           "stringUnit": {
             "state": "translated",
             "value": "%@ · %lld kcal"
@@ -288,6 +312,12 @@
             "state": "translated",
             "value": "%lld respirations · %@"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld oddechy · %@"
+          }
         }
       }
     },
@@ -345,6 +375,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$lld secondes restantes dans %2$@"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld pozostałe sekundy w %2$@"
           }
         }
       }
@@ -404,6 +440,12 @@
             "state": "translated",
             "value": "Autoriser l'accès"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zezwól na dostęp"
+          }
         }
       }
     },
@@ -461,6 +503,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Carré"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skrzynka"
           }
         }
       }
@@ -520,6 +568,12 @@
             "state": "translated",
             "value": "呼吸"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oddychać"
+          }
         }
       }
     },
@@ -577,6 +631,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Inspirez"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wdychać"
           }
         }
       }
@@ -636,6 +696,12 @@
             "state": "translated",
             "value": "Inspirez pendant %lld secondes"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wdychaj przez %lld sekundy"
+          }
         }
       }
     },
@@ -693,6 +759,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Expirez"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wydychać"
           }
         }
       }
@@ -752,6 +824,12 @@
             "state": "translated",
             "value": "Expirez pendant %lld secondes"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oddychaj przez %lld sekundy"
+          }
         }
       }
     },
@@ -809,6 +887,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "能量"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Energia"
           }
         }
       }
@@ -868,6 +952,12 @@
             "state": "translated",
             "value": "Cohérence"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konsekwencja"
+          }
         }
       }
     },
@@ -925,6 +1015,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "TERMINÉ"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ZROBIONE"
           }
         }
       }
@@ -984,6 +1080,12 @@
             "state": "translated",
             "value": "Terminé"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gotowe"
+          }
         }
       }
     },
@@ -1041,6 +1143,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "消耗"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wysiłek"
           }
         }
       }
@@ -1100,6 +1208,12 @@
             "state": "translated",
             "value": "Terminer"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Koniec"
+          }
         }
       }
     },
@@ -1157,6 +1271,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Terminer l'entraînement"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zakończ trening"
           }
         }
       }
@@ -1216,6 +1336,12 @@
             "state": "translated",
             "value": "Renforcement fonctionnel"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siła funkcjonalna"
+          }
         }
       }
     },
@@ -1273,6 +1399,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Autoriser l'accès à Santé"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Przyznaj dostęp do Zdrowie"
           }
         }
       }
@@ -1332,6 +1464,12 @@
             "state": "translated",
             "value": "心率"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TĘTNO"
+          }
         }
       }
     },
@@ -1389,6 +1527,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "FC non disponible"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HR niedostępny"
           }
         }
       }
@@ -1448,6 +1592,12 @@
             "state": "translated",
             "value": "Fréquence cardiaque et énergie en direct, enregistrées à votre poignet. Reste sur l'appareil."
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tętno i energia na żywo rejestrowane na nadgarstku. Pozostaje na urządzeniu."
+          }
         }
       }
     },
@@ -1505,6 +1655,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ouvrez NOOP sur votre iPhone pour synchroniser"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otwórz NOOP na swoim iPhonie, aby zsynchronizować"
           }
         }
       }
@@ -1564,6 +1720,12 @@
             "state": "translated",
             "value": "EN PAUSE"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WSTRZYMANO"
+          }
         }
       }
     },
@@ -1621,6 +1783,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "暫停"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pauza"
           }
         }
       }
@@ -1680,6 +1848,12 @@
             "state": "translated",
             "value": "ENREGISTREMENT"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NAGRANIE"
+          }
         }
       }
     },
@@ -1737,6 +1911,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "REPOS"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ODPOCZYNEK"
           }
         }
       }
@@ -1796,6 +1976,12 @@
             "state": "translated",
             "value": "Prêt à respirer"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gotowy do oddychania"
+          }
         }
       }
     },
@@ -1853,6 +2039,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Détente"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zrelaksować się"
           }
         }
       }
@@ -1912,6 +2104,12 @@
             "state": "translated",
             "value": "重設"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nastawić"
+          }
         }
       }
     },
@@ -1969,6 +2167,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "休息"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odpoczynek"
           }
         }
       }
@@ -2028,6 +2232,12 @@
             "state": "translated",
             "value": "重新啟動"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uruchom ponownie"
+          }
         }
       }
     },
@@ -2085,6 +2295,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Reprendre"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wznawiać"
           }
         }
       }
@@ -2144,6 +2360,12 @@
             "state": "translated",
             "value": "Cycle %lld sur %lld"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Okrągłe %lld z %lld"
+          }
         }
       }
     },
@@ -2201,6 +2423,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "SEC"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SEK"
           }
         }
       }
@@ -2260,6 +2488,12 @@
             "state": "translated",
             "value": "Séance terminée"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sesja skończona"
+          }
         }
       }
     },
@@ -2317,6 +2551,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "開始"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start"
           }
         }
       }
@@ -2376,6 +2616,12 @@
             "state": "translated",
             "value": "開始工作階段"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rozpocznij sesję"
+          }
         }
       }
     },
@@ -2433,6 +2679,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Arrêter"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zatrzymywać się"
           }
         }
       }
@@ -2492,6 +2744,12 @@
             "state": "translated",
             "value": "停止工作階段"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zatrzymaj sesję"
+          }
         }
       }
     },
@@ -2549,6 +2807,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "TRAVAIL"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PRACA"
           }
         }
       }
@@ -2608,6 +2872,12 @@
             "state": "translated",
             "value": "Entraînement"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trening"
+          }
         }
       }
     },
@@ -2665,6 +2935,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Entraînement enregistré"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trening zapisany"
           }
         }
       }
@@ -2724,6 +3000,12 @@
             "state": "translated",
             "value": "au %@"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "od %@"
+          }
         }
       }
     },
@@ -2782,6 +3064,12 @@
             "state": "translated",
             "value": "bpm"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "bpm"
+          }
         }
       }
     },
@@ -2821,6 +3109,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "cal"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "kal"
           }
         }
       }
@@ -2880,6 +3174,12 @@
             "state": "translated",
             "value": "obsolète · %@"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nieaktualne · %@"
+          }
         }
       }
     },
@@ -2908,6 +3208,12 @@
             "state": "translated",
             "value": "%lld"
           }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld"
+          }
         }
       }
     },
@@ -2932,6 +3238,12 @@
           }
         },
         "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "/%lld"
+          }
+        },
+        "pl": {
           "stringUnit": {
             "state": "translated",
             "value": "/%lld"
