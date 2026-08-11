@@ -30,11 +30,16 @@ object RecapShare {
         if (view.width <= 0 || view.height <= 0) return null
         val full = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
         view.draw(Canvas(full))
-        val x = bounds.left.toInt().coerceIn(0, full.width - 1)
-        val y = bounds.top.toInt().coerceIn(0, full.height - 1)
-        val w = bounds.width.toInt().coerceIn(1, full.width - x)
-        val h = bounds.height.toInt().coerceIn(1, full.height - y)
-        val cropped = Bitmap.createBitmap(full, x, y, w, h)
+        // Crop the INTERSECTION of the card with the view — if the card is partially scrolled off, this
+        // captures only its visible part instead of over-running past its edge into content below.
+        val left = bounds.left.toInt().coerceIn(0, full.width)
+        val top = bounds.top.toInt().coerceIn(0, full.height)
+        val right = bounds.right.toInt().coerceIn(left, full.width)
+        val bottom = bounds.bottom.toInt().coerceIn(top, full.height)
+        val w = right - left
+        val h = bottom - top
+        if (w < 1 || h < 1) return null
+        val cropped = Bitmap.createBitmap(full, left, top, w, h)
         if (cropped !== full) full.recycle()
         cropped
     }.getOrNull()
