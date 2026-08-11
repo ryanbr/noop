@@ -596,8 +596,10 @@
     <string name="l10n_sleep_screen_about_your_main_sleep_1da8a640">Acerca de tu sueño principal</string>
     <string name="l10n_sleep_screen_as_of_latest_first_726f20bb">de %1$s</string>
     <string name="l10n_sleep_screen_asleep_b9692bbe">Dormido</string>
+    <string name="l10n_sleep_screen_asleep_duration_3638413f">Duración del sueño</string>
     <string name="l10n_sleep_screen_asleep_last_night_b969b068">dormido anoche</string>
     <string name="l10n_sleep_screen_bedtime_wake_time_b2a22c32">Hora de dormir y hora de despertar</string>
+    <string name="l10n_sleep_screen_consistency_0ea7b95e">Consistencia</string>
     <string name="l10n_sleep_screen_consistencypct_roundtoint_b23a9d40">%1$s%%</string>
     <string name="l10n_sleep_screen_delete_this_nap_1adf0a3f">Eliminar esta siesta</string>
     <string name="l10n_sleep_screen_fell_asleep_at_asleep_woke_at_80465b2d">Duerme en %1$s, despertó en %2$s</string>
@@ -612,6 +614,7 @@
     <string name="l10n_sleep_screen_log_waking_up_2f9c230e">Registrar que te despiertas</string>
     <string name="l10n_sleep_screen_logged_as_a_nap_wrong_tap_4285d23e">Registrado como siesta. ¿No es correcto? Toca Editar para ajustar tus horas de sueño y despertar.</string>
     <string name="l10n_sleep_screen_nap_window_durationtext_durmin_bbc35167">Nap %1$s, %2$s</string>
+    <string name="l10n_sleep_screen_night_detail_8f271bcf">Detalle de la noche</string>
     <string name="l10n_sleep_screen_no_movement_detail_for_this_night_a6f9736a">No hay detalle de movimiento para esta noche.</string>
     <string name="l10n_sleep_screen_no_nights_here_yet_607248f5">Aún no hay noches aquí.</string>
     <string name="l10n_sleep_screen_no_nights_with_sleep_data_yet_fa71b6b3">Aún no hay noches con datos de sueño. Tu registro se irá llenando a medida que duermas con la pulsera puesta.</string>
@@ -622,6 +625,7 @@
     <string name="l10n_sleep_screen_score_roundtoint_a2d1cc99">%1$s%%</string>
     <string name="l10n_sleep_screen_sleep_consistency_nightly_bed_and_wake_14526f89">Plano de dormir con consistencia nocturna</string>
     <string name="l10n_sleep_screen_sleep_debt_3aec7d9c">Deuda de sueño</string>
+    <string name="l10n_sleep_screen_sleep_debt_ledger_8cc9a992">Registro de deuda de sueño</string>
     <string name="l10n_sleep_screen_sleep_debt_trend_chart_9e178776">Gráfico de la tendencia al sueño</string>
     <string name="l10n_sleep_screen_sleep_hours_trend_chart_a6fbc46d">Gráfico de tendencia de horas de sueño</string>
     <string name="l10n_sleep_screen_sleep_marks_8e9b86f0">Marcas de sueño</string>
@@ -633,6 +637,8 @@
     <string name="l10n_sleep_screen_spec_format_v_spec_unit_7a7f630c">%1$s %2$s</string>
     <string name="l10n_sleep_screen_spec_title_trend_chart_3085ac6e">Gráfico de tendencia %1$s</string>
     <string name="l10n_sleep_screen_stage_durationtext_minutes_percent_percent_of_477dbf14">%1$s: %2$s, %3$s por ciento de la noche</string>
+    <string name="l10n_sleep_screen_stages_c1d33ad5">Fases</string>
+    <string name="l10n_sleep_screen_stages_vs_typical_28463f24">Fases vs lo habitual</string>
     <string name="l10n_sleep_screen_tap_when_you_re_heading_to_1f401690">Toca cuando te vayas a la cama o cuando despiertes. Cada toque se registra con la hora. No cambia el sueño detectado esta noche.</string>
     <string name="l10n_sleep_screen_this_metric_needs_at_least_two_2de1d37a">Esta métrica necesita al menos dos noches de datos.</string>
     <string name="l10n_sleep_screen_undo_39fc7212">Undo</string>

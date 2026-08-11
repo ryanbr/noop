@@ -781,8 +781,10 @@
     <string name="l10n_sleep_screen_about_your_main_sleep_1da8a640">Über deinen Hauptschlaf</string>
     <string name="l10n_sleep_screen_as_of_latest_first_726f20bb">wie von %1$s</string>
     <string name="l10n_sleep_screen_asleep_b9692bbe">Schlafend</string>
+    <string name="l10n_sleep_screen_asleep_duration_3638413f">Schlafdauer</string>
     <string name="l10n_sleep_screen_asleep_last_night_b969b068">letzte Nacht geschlafen</string>
     <string name="l10n_sleep_screen_bedtime_wake_time_b2a22c32">Schlafenszeit und Wachzeit</string>
+    <string name="l10n_sleep_screen_consistency_0ea7b95e">Konsistenz</string>
     <string name="l10n_sleep_screen_consistencypct_roundtoint_b23a9d40">%1$s%%</string>
     <string name="l10n_sleep_screen_delete_this_nap_1adf0a3f">Löschen Sie dieses Nickerchen</string>
     <string name="l10n_sleep_screen_fell_asleep_at_asleep_woke_at_80465b2d">Schlafen bei %1$s, wachen bei %2$s</string>
@@ -797,6 +799,7 @@
     <string name="l10n_sleep_screen_log_waking_up_2f9c230e">Aufwachen erfassen</string>
     <string name="l10n_sleep_screen_logged_as_a_nap_wrong_tap_4285d23e">Als Nickerchen erfasst. Falsch? Tippe auf „Bearbeiten“, um Schlaf- und Aufwachzeiten anzupassen.</string>
     <string name="l10n_sleep_screen_nap_window_durationtext_durmin_bbc35167">Nap %1$s, %2$s</string>
+    <string name="l10n_sleep_screen_night_detail_8f271bcf">Nacht-Details</string>
     <string name="l10n_sleep_screen_no_movement_detail_for_this_night_a6f9736a">Kein Bewegungsdetail für diese Nacht.</string>
     <string name="l10n_sleep_screen_no_nights_here_yet_607248f5">Keine Nächte hier noch</string>
     <string name="l10n_sleep_screen_no_nights_with_sleep_data_yet_fa71b6b3">Noch keine Nächte mit Schlafdaten. Deine Bilanz füllt sich, wenn du den Strap im Bett trägst.</string>
@@ -807,6 +810,7 @@
     <string name="l10n_sleep_screen_score_roundtoint_a2d1cc99">%1$s%%</string>
     <string name="l10n_sleep_screen_sleep_consistency_nightly_bed_and_wake_14526f89">Schlafkonsistenz Nachtbett und Wake Chart</string>
     <string name="l10n_sleep_screen_sleep_debt_3aec7d9c">Schlafdefizit</string>
+    <string name="l10n_sleep_screen_sleep_debt_ledger_8cc9a992">Schlafdefizit-Bilanz</string>
     <string name="l10n_sleep_screen_sleep_debt_trend_chart_9e178776">Schlaf Schulden Trend Chart</string>
     <string name="l10n_sleep_screen_sleep_hours_trend_chart_a6fbc46d">Sleep Stunden Trend Chart</string>
     <string name="l10n_sleep_screen_sleep_marks_8e9b86f0">Schlafmarken</string>
@@ -818,6 +822,8 @@
     <string name="l10n_sleep_screen_spec_format_v_spec_unit_7a7f630c">%1$s %2$s</string>
     <string name="l10n_sleep_screen_spec_title_trend_chart_3085ac6e">%1$s Trenddiagramm</string>
     <string name="l10n_sleep_screen_stage_durationtext_minutes_percent_percent_of_477dbf14">%1$s: %2$s, %3$s Prozent der Nacht</string>
+    <string name="l10n_sleep_screen_stages_c1d33ad5">Phasen</string>
+    <string name="l10n_sleep_screen_stages_vs_typical_28463f24">Phasen vs. typisch</string>
     <string name="l10n_sleep_screen_tap_when_you_re_heading_to_1f401690">Tippe, wenn du ins Bett gehst oder aufwachst. Jeder Tipp wird mit der Zeit erfasst. Er ändert den heute Nacht erkannten Schlaf nicht.</string>
     <string name="l10n_sleep_screen_this_metric_needs_at_least_two_2de1d37a">Diese Metrik benötigt mindestens zwei Nächte Daten.</string>
     <string name="l10n_sleep_screen_undo_39fc7212">Undo</string>

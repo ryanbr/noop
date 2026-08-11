@@ -4,7 +4,10 @@ import android.content.Context
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
+import com.noop.R
 import org.json.JSONArray
 
 // MARK: - Hosted cards (#today-hosted-cards)
@@ -45,6 +48,29 @@ enum class HostedCard(
         /** Canonical order used to list the not-yet-hosted remainder in the editor (matches iOS allCases). */
         val canonicalOrder: List<HostedCard> = entries.toList()
     }
+}
+
+/**
+ * The card's display title, localized. The enum's [title] field stays the English source-of-truth default
+ * (used for logging/comparisons); the UI reads this so the editor shows a translated title. Enum
+ * constructors can't call [stringResource], so resolution happens here at the render site. Mirrors iOS,
+ * where `HostedCard.title` is a `String(localized:)`.
+ */
+@Composable
+fun HostedCard.localizedTitle(): String = when (this) {
+    HostedCard.SLEEP_MARKS -> stringResource(R.string.l10n_sleep_screen_sleep_marks_8e9b86f0)
+    HostedCard.ASLEEP_DURATION -> stringResource(R.string.l10n_sleep_screen_asleep_duration_3638413f)
+}
+
+/**
+ * The origin (source tab) label, localized — the editor groups the Available list by this. Resolves off the
+ * English [origin] field so a future Trends-origin card localizes automatically; the raw [origin] stays the
+ * source of truth for non-UI uses. Reuses the nav tab names, which carry the same text in every locale.
+ */
+@Composable
+fun HostedCard.localizedOrigin(): String = when (origin) {
+    "Trends" -> stringResource(R.string.nav_trends)
+    else -> stringResource(R.string.nav_sleep)
 }
 
 /**

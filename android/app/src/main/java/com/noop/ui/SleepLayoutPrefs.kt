@@ -1,6 +1,9 @@
 package com.noop.ui
 
 import android.content.Context
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
+import com.noop.R
 
 // MARK: - Reorderable Sleep sections (#sleep-layout)
 //
@@ -35,7 +38,7 @@ enum class SleepSection(val raw: String, val title: String) {
      *  so these two rawValues are Android-only — the macOS `SleepSection` stops at `asleepDuration`. Safe to
      *  diverge here: `sleep.sectionOrder` is not in the .noopbak whitelist, so a cross-OS restore never
      *  reads them. (Consistency's underlying score also differs across platforms — a separate parity item.) */
-    HOURS_VS_NEEDED("hoursVsNeeded", "Hours vs needed"),
+    HOURS_VS_NEEDED("hoursVsNeeded", "Hours vs Needed"),
     CONSISTENCY("consistency", "Consistency");
 
     companion object {
@@ -50,6 +53,24 @@ enum class SleepSection(val raw: String, val title: String) {
             HOURS_VS_NEEDED, CONSISTENCY,
         )
     }
+}
+
+/**
+ * The section's display title, localized. The enum's [title] field stays the English source-of-truth
+ * default (used for logging/comparisons); the UI reads this so the Sleep arrange sheet shows a translated
+ * title. Enum constructors can't call [stringResource], so resolution happens here at the render site.
+ * Mirrors the Apple platforms, where `SleepSection.title` is a `String(localized:)`.
+ */
+@Composable
+fun SleepSection.localizedTitle(): String = when (this) {
+    SleepSection.SLEEP_MARKS -> stringResource(R.string.l10n_sleep_screen_sleep_marks_8e9b86f0)
+    SleepSection.STAGES -> stringResource(R.string.l10n_sleep_screen_stages_c1d33ad5)
+    SleepSection.NIGHT_DETAIL -> stringResource(R.string.l10n_sleep_screen_night_detail_8f271bcf)
+    SleepSection.SLEEP_DEBT -> stringResource(R.string.l10n_sleep_screen_sleep_debt_ledger_8cc9a992)
+    SleepSection.STAGES_VS_TYPICAL -> stringResource(R.string.l10n_sleep_screen_stages_vs_typical_28463f24)
+    SleepSection.ASLEEP_DURATION -> stringResource(R.string.l10n_sleep_screen_asleep_duration_3638413f)
+    SleepSection.HOURS_VS_NEEDED -> stringResource(R.string.l10n_sleep_screen_hours_vs_needed_500a0aca)
+    SleepSection.CONSISTENCY -> stringResource(R.string.l10n_sleep_screen_consistency_0ea7b95e)
 }
 
 /**

@@ -61,10 +61,14 @@ fun SleepArrangeSheet(
                     )
                 }
 
+                // Resolve the localized title per section up front (the composable-only stringResource
+                // call can't run inside the plain itemTitle lambda). The enum's raw title stays the English
+                // source of truth; the sheet shows the translated text.
+                val titleFor = SleepSection.entries.associateWith { it.localizedTitle() }
                 EditableVisibilityRows(
                     shown = shown,
                     hidden = hidden,
-                    itemTitle = { it.title },
+                    itemTitle = { titleFor.getValue(it) },
                 )
 
                 Row(verticalAlignment = Alignment.CenterVertically) {

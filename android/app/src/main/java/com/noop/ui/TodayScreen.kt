@@ -3783,12 +3783,17 @@ private fun HostedCardsEditorDialog(
                     )
                 }
 
+                // Resolve the localized title/origin per card up front (composable-only calls can't run
+                // inside the plain itemTitle/hiddenGroup lambdas). The enum's raw title/origin stay the
+                // English source of truth; the UI shows the translated text.
+                val titleFor = HostedCard.entries.associateWith { it.localizedTitle() }
+                val originFor = HostedCard.entries.associateWith { it.localizedOrigin() }
                 EditableVisibilityRows(
                     shown = shown,
                     hidden = hidden,
-                    itemTitle = { it.title },
+                    itemTitle = { titleFor.getValue(it) },
                     allowEmpty = true,   // hosting is opt-in: un-hosting the last card is valid
-                    hiddenGroup = { it.origin },   // group the Available list by origin tab ("Sleep", "Trends")
+                    hiddenGroup = { originFor.getValue(it) },   // group the Available list by origin tab ("Sleep", "Trends")
                 )
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
