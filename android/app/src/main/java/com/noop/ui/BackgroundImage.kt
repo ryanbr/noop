@@ -127,7 +127,12 @@ object BackgroundImageStore {
             file(app, id).outputStream().use { out -> scaled.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, out) }
         }.isSuccess
         scaled.recycle()
-        if (!wrote) return false
+        if (!wrote) {
+            // A failed compress can leave a partial file behind — it's never added to `recents`, so delete
+            // it here or it leaks forever (unlike iOS's atomic write, which leaves nothing on failure).
+            runCatching { file(app, id).delete() }
+            return false
+        }
         // A fresh pick inherits the current fill mode. Prepend, cap at MAX_RECENTS, delete any dropped file.
         val next = (listOf(Recent(id, fillMode)) + recents).take(MAX_RECENTS)
         recents.filter { it !in next }.forEach { runCatching { file(app, it.id).delete() } }
