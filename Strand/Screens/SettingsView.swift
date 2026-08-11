@@ -637,11 +637,11 @@ struct SettingsView: View {
                             .font(StrandFont.footnote)
                             .foregroundStyle(StrandPalette.textSecondary)
                         HStack(spacing: 10) {
-                            ForEach(Array(backgroundStore.recents.enumerated()), id: \.offset) { index, recent in
+                            ForEach(backgroundStore.recents.indices, id: \.self) { index in
                                 backgroundRecentThumb(
                                     thumb: backgroundStore.thumbnails.indices.contains(index)
                                         ? backgroundStore.thumbnails[index] : nil,
-                                    mode: recent.fillMode,
+                                    mode: backgroundStore.recents[index].fillMode,
                                     active: index == 0,
                                     action: { backgroundStore.applyRecent(index) })
                             }

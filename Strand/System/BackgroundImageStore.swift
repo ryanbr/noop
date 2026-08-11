@@ -100,7 +100,7 @@ final class BackgroundImageStore: ObservableObject {
     func applyRecent(_ index: Int) {
         guard recents.indices.contains(index), index != 0 else { return }
         let chosen = recents[index]
-        recents = [chosen] + recents.enumerated().filter { $0.offset != index }.map(\.element)
+        recents = [chosen] + recents.enumerated().filter { $0.offset != index }.map { $0.element }
         refresh()
         if !enabled { enabled = true }
         persist()
