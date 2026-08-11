@@ -745,7 +745,7 @@ fun SleepScreen(
                         SleepReorderableSection(k, sleepListState, sleepSectionDrag, persistSleepOrder) {
                             Column {
                                 Spacer(Modifier.height(Metrics.selectorTopUp))
-                                SleepDebtLedgerCard(m.sleepDebtLedger)
+                                SleepDebtLedgerHostCard(m)
                             }
                         }
                     }
@@ -2480,10 +2480,14 @@ private fun MetricGrid(m: SleepModel, onMetricClick: (String) -> Unit = {}) {
  * card: the net debt/surplus headline, a plain-English read, and a diverging bar of each
  * night's delta (surplus above the centre line, deficit below). Honest: a simple accumulator
  * — a surplus night offsets a deficit one — capped at 14 nights, no-data nights skipped.
- * Mirrors the macOS SleepView sleepDebtLedger card section-for-section. (#242)
+ * Mirrors the macOS SleepDebtLedgerCard section-for-section. `internal` and keyed on the shared
+ * [SleepModel] so the Today host (TodayScreen) can render the SAME view the Sleep tab does (a mirror,
+ * not a copy); the nap-credited ledger is read from `m.sleepDebtLedger`, never recomputed here. Twin of
+ * the iOS `SleepDebtLedgerCard`. (#242) (#today-hosted-cards)
  */
 @Composable
-internal fun SleepDebtLedgerCard(ledger: SleepDebtLedger) {
+internal fun SleepDebtLedgerHostCard(m: SleepModel) {
+    val ledger = m.sleepDebtLedger
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
         SectionHeader("Sleep-debt ledger", overline = "Last 14 nights", trailing = "running balance")
         NoopCard(padding = Metrics.cardPadding, tint = Palette.restColor) {

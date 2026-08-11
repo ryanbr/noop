@@ -28,6 +28,10 @@ enum HostedCard: String, CaseIterable, Identifiable {
     /// Restorative/Respiratory/Sleep Debt) rendered from the wearer's `SleepModel` (#today-hosted-cards).
     /// Second of the SleepModel-backed sleep cards hosted in Today.
     case nightDetail = "sleep.nightDetail"
+    /// Sleep tab · "Sleep-debt ledger" — the rolling 14-night running balance of (slept − personal
+    /// need) rendered from the wearer's `SleepModel` (#today-hosted-cards). Third of the SleepModel-backed
+    /// sleep cards hosted in Today.
+    case sleepDebt = "sleep.sleepDebt"
 
     var id: String { rawValue }
 
@@ -38,6 +42,7 @@ enum HostedCard: String, CaseIterable, Identifiable {
         case .asleepDuration: return String(localized: "Asleep duration")
         case .stagesVsTypical: return String(localized: "Stages vs typical")
         case .nightDetail: return String(localized: "Night detail")
+        case .sleepDebt: return String(localized: "Sleep-debt ledger")
         }
     }
 
@@ -45,7 +50,7 @@ enum HostedCard: String, CaseIterable, Identifiable {
     /// Trends". Matches the Android `HostedCard.origin`.
     var origin: String {
         switch self {
-        case .sleepMarks, .asleepDuration, .stagesVsTypical, .nightDetail: return String(localized: "Sleep")
+        case .sleepMarks, .asleepDuration, .stagesVsTypical, .nightDetail, .sleepDebt: return String(localized: "Sleep")
         }
     }
 
@@ -56,13 +61,14 @@ enum HostedCard: String, CaseIterable, Identifiable {
         case .asleepDuration: return "chart.bar.xaxis"
         case .stagesVsTypical: return "chart.bar.doc.horizontal"
         case .nightDetail: return "square.grid.2x2"
+        case .sleepDebt: return "scalemass"
         }
     }
 
     /// Editor row tint.
     var customizationTint: Color {
         switch self {
-        case .sleepMarks, .asleepDuration, .stagesVsTypical, .nightDetail: return StrandPalette.restColor
+        case .sleepMarks, .asleepDuration, .stagesVsTypical, .nightDetail, .sleepDebt: return StrandPalette.restColor
         }
     }
 

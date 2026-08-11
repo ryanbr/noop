@@ -2,6 +2,7 @@ package com.noop.ui
 
 import android.content.Context
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Balance
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.GridView
@@ -46,7 +47,11 @@ enum class HostedCard(
     /** Sleep tab · "Night detail" — the metric grid (Rest/Efficiency/Consistency/Hours vs Needed/
      *  Restorative/Respiratory/Sleep Debt) from the wearer's SleepModel (#today-hosted-cards). Second of
      *  the SleepModel-backed sleep cards hosted in Today. */
-    NIGHT_DETAIL("sleep.nightDetail", "Night detail", "Sleep", Icons.Filled.GridView);
+    NIGHT_DETAIL("sleep.nightDetail", "Night detail", "Sleep", Icons.Filled.GridView),
+    /** Sleep tab · "Sleep-debt ledger" — the rolling 14-night running balance of (slept − personal need)
+     *  from the wearer's SleepModel (#today-hosted-cards). Third of the SleepModel-backed sleep cards
+     *  hosted in Today. */
+    SLEEP_DEBT("sleep.sleepDebt", "Sleep-debt ledger", "Sleep", Icons.Filled.Balance);
 
     companion object {
         fun fromRaw(raw: String?): HostedCard? = entries.firstOrNull { it.raw == raw }
@@ -71,6 +76,7 @@ fun HostedCard.localizedTitle(): String = when (this) {
     HostedCard.ASLEEP_DURATION -> stringResource(R.string.l10n_sleep_screen_asleep_duration_3638413f)
     HostedCard.STAGES_VS_TYPICAL -> stringResource(R.string.l10n_sleep_screen_stages_vs_typical_28463f24)
     HostedCard.NIGHT_DETAIL -> stringResource(R.string.l10n_sleep_screen_night_detail_8f271bcf)
+    HostedCard.SLEEP_DEBT -> stringResource(R.string.l10n_sleep_screen_sleep_debt_ledger_8cc9a992)
 }
 
 /**
