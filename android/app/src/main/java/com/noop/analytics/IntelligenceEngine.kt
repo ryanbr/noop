@@ -694,6 +694,19 @@ object IntelligenceEngine {
                     )
                     if (sample.isNotEmpty()) diag("hrv rrsample day=${res.daily.day} $sample")
                 }
+            } else if (res.sleepSessions.isEmpty()) {
+                // #1244: no in-sleep R-R AND no detected session (past the >=200-HR gate) = the "HR tracked,
+                // no sleep" case. Emit a counts-only reason line naming the inputs the stager had, so the
+                // report says WHY nothing staged. `window` is the read span in whole hours (30 h back → next
+                // local midnight, or +18 h for today). Byte-identical to the Swift line.
+                val windowHours = ((to - from) / 3_600L).toInt()
+                diag(
+                    sleepDetectNoNightLogLine(
+                        day = day, hrCount = hr.size, rrCount = rr.size, respCount = resp.size,
+                        gravCount = grav.size, stepCount = steps.size, providedCount = providedSleep.size,
+                        windowHours = windowHours,
+                    ),
+                )
             }
 
             // Steps test mode: emit the 5/MG raw-counter trace for this day (cumulative @57 series +
@@ -1960,5 +1973,24 @@ object IntelligenceEngine {
             else Math.round(inBedBpms.sum().toDouble() / inBedBpms.size).toString()
         return "rhr day=$day floor=$floor nightMean=$meanLog inBedSamples=${inBedBpms.size} " +
             "(floor = WHOOP-style lowest-sustained = NOOP RHR; mean = sleeping-HR-app number)"
+    }
+
+    /**
+     * #1244: one line for a day that CLEARED the >=200-HR gate yet detected NO in-bed session, so the
+     * dashboard shows "HR tracked but no sleep". Today only the summary `sleep day=... totalSleepMin=nil`
+     * rides the log — with no clue WHY, since every other night trace (`rhr`/`rrsample`/`hrv diag`) only
+     * emits once a session exists. This names the raw inputs the stager was handed so the next capture
+     * separates the causes: `grav=0` = no motion offloaded (the in-bed detector can't gate — the WHOOP
+     * 4.0 sparse-motion path has no HR-only fallback); a large `hr` with a night still empty = coverage
+     * gap or the sleep hours fell outside `window`; `provided=` = a persisted hypnogram was (not) available.
+     * Counts + a window length only — same privacy class as the sibling `sleep day=` line, no PII. Pure so
+     * it's unit-tested directly; byte-identical to the Swift `sleepDetectNoNightLogLine`.
+     */
+    internal fun sleepDetectNoNightLogLine(
+        day: String, hrCount: Int, rrCount: Int, respCount: Int, gravCount: Int,
+        stepCount: Int, providedCount: Int, windowHours: Int,
+    ): String {
+        return "sleep-detect day=$day NO-NIGHT hr=$hrCount rr=$rrCount resp=$respCount " +
+            "grav=$gravCount steps=$stepCount provided=$providedCount window=${windowHours}h"
     }
 }

@@ -217,6 +217,22 @@ final class IntelligenceEngine: ObservableObject {
             + "(floor = WHOOP-style lowest-sustained = NOOP RHR; mean = sleeping-HR-app number)"
     }
 
+    /// #1244: one line for a day that CLEARED the ≥200-HR gate yet detected NO in-bed session, so the
+    /// dashboard shows "HR tracked but no sleep". Today only the summary `sleep day=… totalSleepMin=nil`
+    /// rides the log — with no clue WHY, since every other night trace (`rhr`/`rrsample`/`hrv diag`) only
+    /// emits once a session exists. This names the raw inputs the stager was handed so the next capture
+    /// separates the causes: `grav=0` = no motion offloaded (the in-bed detector can't gate — the WHOOP
+    /// 4.0 sparse-motion path has no HR-only fallback); a large `hr` with a night still empty = coverage
+    /// gap or the sleep hours fell outside `window`; `provided=` = a persisted hypnogram was (not) available.
+    /// Counts + a window length only — same privacy class as the sibling `sleep day=` line, no PII. Pure so
+    /// it's unit-tested directly; byte-identical to the Android `sleepDetectNoNightLogLine`.
+    nonisolated static func sleepDetectNoNightLogLine(day: String, hrCount: Int, rrCount: Int,
+                                                      respCount: Int, gravCount: Int, stepCount: Int,
+                                                      providedCount: Int, windowHours: Int) -> String {
+        return "sleep-detect day=\(day) NO-NIGHT hr=\(hrCount) rr=\(rrCount) resp=\(respCount) "
+            + "grav=\(gravCount) steps=\(stepCount) provided=\(providedCount) window=\(windowHours)h"
+    }
+
     /// The Saturday on-or-before a "yyyy-MM-dd" local-day string , the weekly key Fitness Age writes to.
     static func saturdayKey(onOrBefore dayStr: String) -> String {
         var cal = Calendar(identifier: .gregorian); cal.timeZone = .current
@@ -786,7 +802,22 @@ final class IntelligenceEngine: ObservableObject {
                 let sleepRr = sleepRrRows.map { Double($0.rrMs) }
                 let hrvDiag: String?
                 if sleepRr.isEmpty {
-                    hrvDiag = nil
+                    // #1244: no in-sleep R-R means no HRV summary. If the whole night also detected NO
+                    // session (past the ≥200-HR gate → this is the "HR tracked, no sleep" case), carry a
+                    // counts-only reason line on the SAME loop-1 diagnostic channel (emitted in the
+                    // main-actor replay below) so the report says WHY the stager found nothing. `window` is
+                    // the read span in whole hours (30 h back → next local midnight, or +18 h for today).
+                    if res.cachedSleep.isEmpty {
+                        // from/to are Int unix seconds; the span is always a whole-hour multiple
+                        // (30 h + 24 h, or 30 h + 18 h), so integer division is exact. Matches Kotlin.
+                        let windowHours = (to - from) / 3_600
+                        hrvDiag = Self.sleepDetectNoNightLogLine(
+                            day: day, hrCount: hr.count, rrCount: rr.count, respCount: resp.count,
+                            gravCount: grav.count, stepCount: steps.count,
+                            providedCount: providedSleep.count, windowHours: windowHours)
+                    } else {
+                        hrvDiag = nil
+                    }
                 } else {
                     let h = HRVAnalyzer.analyze(rawRR: sleepRr)
                     func ms(_ v: Double?) -> String { v.map { String(format: "%.0f", $0) } ?? "nil" }
