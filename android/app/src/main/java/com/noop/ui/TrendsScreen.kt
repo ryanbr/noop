@@ -15,7 +15,18 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.IosShare
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalView
+import kotlinx.coroutines.launch
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.HorizontalDivider
@@ -358,10 +369,16 @@ private fun WeeklyDigestNav(
         WeeklyDigestEngine.addDays(logicalDayKeyNow(), weekOffset * 7)
     }
     // #268/#463: past weeks quote Effort on the user's display scale too, same as the live card.
-    val factor = effortDisplayFactor(UnitPrefs.effortScale(LocalContext.current))
+    val context = LocalContext.current
+    val factor = effortDisplayFactor(UnitPrefs.effortScale(context))
     val digest = remember(days, anchorDay, factor) {
         buildWeeklyDigest(days, anchorDay, effortDisplayFactor = factor)
     }
+    // "Share recap" capture: track the card's on-screen bounds, then draw the Compose host view + crop
+    // (RecapShare.captureCropped) — the Compose-1.7 GraphicsLayer capture API isn't in this 1.6.8 build.
+    val scope = rememberCoroutineScope()
+    val hostView = LocalView.current
+    var cardBounds by remember { mutableStateOf<Rect?>(null) }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         WeekNavBar(weekOffset = weekOffset, minWeekOffset = minWeekOffset, onStep = onStep)
@@ -371,7 +388,19 @@ private fun WeeklyDigestNav(
                 body = stringResource(R.string.trends_no_readings_body),
             )
         } else {
-            NoopCard { WeeklyDigestContent(digest = digest, compact = true) }
+            Box(modifier = Modifier.onGloballyPositioned { cardBounds = it.boundsInRoot() }) {
+                NoopCard { WeeklyDigestContent(digest = digest, compact = true) }
+            }
+            NoopButton(
+                text = "Share recap",
+                leadingIcon = Icons.Filled.IosShare,
+                kind = NoopButtonKind.Secondary,
+                onClick = {
+                    val bounds = cardBounds
+                    val bmp = bounds?.let { RecapShare.captureCropped(hostView, it) }
+                    if (bmp != null) scope.launch { RecapShare.share(context, bmp, anchorDay) }
+                },
+            )
         }
     }
 }

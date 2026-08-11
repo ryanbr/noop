@@ -741,6 +741,10 @@
       "Zoomed in · drag to pan"
     ],
     [
+      "android/app/src/main/java/com/noop/ui/TrendsScreen.kt",
+      "Share recap"
+    ],
+    [
       "android/app/src/main/java/com/noop/ui/UpdateStore.kt",
       "What's new in NOOP $version"
     ],

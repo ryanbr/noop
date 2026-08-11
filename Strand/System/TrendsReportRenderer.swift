@@ -68,6 +68,35 @@ enum TrendsReportRenderer {
         return didRender ? url : nil
     }
 
+    /// Render `page` to a PNG in the temp directory and present the share sheet / save panel via
+    /// `FileExport` — the image sibling of `exportPDF`, used for the shareable weekly recap card.
+    @MainActor
+    static func exportPNG<Page: View>(page: Page, suggestedName: String) {
+        guard let url = makePNG(page: page, fileName: suggestedName) else { return }
+        FileExport.exportFile(at: url, suggestedName: suggestedName)
+    }
+
+    /// Render `page` to a PNG file and return its URL (nil on failure). The page must carry its own
+    /// opaque background (`ImageRenderer.uiImage`/`nsImage` composites the view tree as-is), so callers
+    /// wrap the content in a `surfaceBase` background — no explicit media-box fill like the PDF path.
+    @MainActor
+    static func makePNG<Page: View>(page: Page, fileName: String) -> URL? {
+        let renderer = ImageRenderer(content: page)
+        renderer.scale = 2.0
+        #if canImport(UIKit)
+        guard let data = renderer.uiImage?.pngData() else { return nil }
+        #elseif canImport(AppKit)
+        guard let img = renderer.nsImage, let tiff = img.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let data = rep.representation(using: .png, properties: [:]) else { return nil }
+        #else
+        return nil
+        #endif
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        do { try data.write(to: url) } catch { return nil }
+        return url
+    }
+
     /// The report page's deep-navy canvas colour as a CGColor, so the PDF's media box is
     /// filled before the view draws (PDF pages start transparent). Pulled from the same
     /// `StrandPalette.surfaceBase` token the page uses, so there's no colour drift.

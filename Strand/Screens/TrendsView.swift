@@ -48,6 +48,8 @@ struct TrendsView: View {
     // #436 — shareable offline trends report (PDF over a date range). The sheet owns its
     // own range picker; this just presents it with the loaded history.
     @State private var showingReport = false
+    /// Current appearance, passed into the off-screen recap render so the shared PNG matches the app.
+    @Environment(\.colorScheme) private var colorScheme
 
     /// Rest's per-day series, keyed by "yyyy-MM-dd". Rest is the sleep_performance COMPOSITE (the same
     /// number the Today Rest score + the Sleep Rest-detail plot, #614 follow-up) — NOT raw efficiency,
@@ -388,6 +390,17 @@ struct TrendsView: View {
                 } else {
                     WeeklyDigestContent(digest: digest, compact: true, showsHeader: false)
                         .padding(.top, NoopMetrics.space1)
+                    // Share this week's recap as an image. Renders the digest card (with its header) to a
+                    // PNG off-screen and hands it to the share sheet / Save panel — reuses TrendsReport's
+                    // ImageRenderer path. Only offered when the week actually holds data.
+                    NoopButton("Share recap", systemImage: "square.and.arrow.up", kind: .secondary) {
+                        let page = WeeklyDigestContent(digest: digest, compact: true, showsHeader: true)
+                            .frame(width: 380)
+                            .padding(24)
+                            .background(StrandPalette.surfaceBase)
+                            .environment(\.colorScheme, colorScheme)
+                        TrendsReportRenderer.exportPNG(page: page, suggestedName: "noop-recap-\(weekAnchorDay).png")
+                    }
                 }
             }
         }
