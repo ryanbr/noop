@@ -24,6 +24,12 @@ struct SettingsView: View {
     /// Profile-photo picker selection (PhotosUI). Cleared back to nil once the bytes are loaded.
     @State private var avatarPickerItem: PhotosPickerItem?
 
+    /// Custom background image (#custom-background). The store owns the decoded image + toggles; the
+    /// picker selection + the file-importer flag are local UI state.
+    @ObservedObject private var backgroundStore = BackgroundImageStore.shared
+    @State private var backgroundPickerItem: PhotosPickerItem?
+    @State private var showBackgroundFileImporter = false
+
     /// Backup & restore UI state.
     @State private var backupBusy = false
     @State private var backupAlertTitle = ""
@@ -576,6 +582,87 @@ struct SettingsView: View {
         }
     }
 
+    /// Custom background image controls (#custom-background): pick from Photos or Browse the files,
+    /// choose the fill mode, and (once set) enable / remove. The store downscales + persists a
+    /// device-local file — nothing here is uploaded (NOOP is offline), and it is left out of `.noopbak`.
+    /// Wrapped in a layout-transparent `Group` so the picker `onChange` + the file importer can hang off
+    /// the whole cluster while it still flows inside the appearance VStack.
+    @ViewBuilder
+    private var backgroundImageControls: some View {
+        let hasImage = backgroundStore.hasImage
+        Group {
+            HStack(spacing: NoopMetrics.space2) {
+                PhotosPicker(selection: $backgroundPickerItem, matching: .images) {
+                    Text(hasImage ? "Replace from Photos" : "Choose from Photos")
+                }
+                .buttonStyle(NoopButtonStyle(.secondary, fullWidth: true))
+
+                Button {
+                    showBackgroundFileImporter = true
+                } label: {
+                    Text("Browse files")
+                }
+                .buttonStyle(NoopButtonStyle(.secondary, fullWidth: true))
+            }
+
+            if hasImage {
+                Toggle(isOn: $backgroundStore.enabled) {
+                    Text("Show custom background")
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textPrimary)
+                }
+                .toggleStyle(.switch)
+                .tint(StrandPalette.accent)
+
+                FormRow(label: "Scaling") {
+                    Picker("Scaling", selection: $backgroundStore.fillMode) {
+                        ForEach(BackgroundFillMode.allCases) { mode in
+                            Text(mode.label).tag(mode)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .tint(StrandPalette.accent)
+                    .accessibilityLabel("Background scaling")
+                }
+
+                Button {
+                    backgroundStore.clearImage()
+                } label: {
+                    Text("Remove image")
+                }
+                .buttonStyle(NoopButtonStyle(.tertiary))
+                .accessibilityHint("Removes the custom background and restores the day-cycle sky")
+            }
+
+            Text("Optional. Use your own photo behind every tab, in place of the day-cycle sky. It stays on \(Platform.deviceNounPhrase) and is never uploaded. Pair it with Transparent cards above to let it show through.")
+                .font(StrandFont.caption)
+                .foregroundStyle(StrandPalette.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        // Load the picked photo's bytes, hand them to the store (which downscales + persists), then clear
+        // the selection so the same photo can be re-picked. Mirrors the avatar row.
+        .onChange(of: backgroundPickerItem) { newItem in
+            guard let newItem else { return }
+            Task {
+                let data = try? await newItem.loadTransferable(type: Data.self)
+                await MainActor.run {
+                    if let data { backgroundStore.setImage(from: data) }
+                    backgroundPickerItem = nil
+                }
+            }
+        }
+        // "Browse files" — the system file browser. The picked URL is security-scoped (outside the
+        // sandbox), so bracket the one-time read; we copy the bytes into our own file immediately.
+        .fileImporter(isPresented: $showBackgroundFileImporter, allowedContentTypes: [.image]) { result in
+            guard case .success(let url) = result else { return }
+            let didAccess = url.startAccessingSecurityScopedResource()
+            defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+            if let data = try? Data(contentsOf: url) { backgroundStore.setImage(from: data) }
+        }
+    }
+
     /// One-line state for the "Steps estimate" tap-through row: manual, the auto-fit confidence, or a
     /// not-yet-calibrated prompt — so the row reflects the current calibration without opening the sheet.
     private var stepsCalibrationSummary: String {
@@ -1029,6 +1116,26 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
+                // MARK: Transparent cards — a quick on/off over the SAME cardOpacityPercent (no separate
+                // pref), so it stays in lock-step with the slider below. Off = solid (100%); on = a sensible
+                // see-through default the slider then fine-tunes. Lets the custom background (or the sky)
+                // show through the cards. `isOn` is derived from the opacity, so dragging to solid flips off.
+                Toggle(isOn: Binding(
+                    get: { cardOpacityPercent < 100 },
+                    set: { on in cardOpacityPercent = on ? (cardOpacityPercent >= 100 ? 70 : cardOpacityPercent) : 100 }
+                )) {
+                    Text("Transparent cards")
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textPrimary)
+                }
+                .toggleStyle(.switch)
+                .tint(StrandPalette.accent)
+                Text("Let the background show through every card. Tune how much just below.")
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
                 // MARK: Card transparency — fade every frosted card's glass toward the background. Reactive
                 // @AppStorage, so all cards (incl. the ones on this screen) update live as you drag. The
                 // slider shows TRANSPARENCY (0 = solid, 100 = clear); we store the OPACITY percent.
@@ -1054,6 +1161,9 @@ struct SettingsView: View {
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
+
+                rowDivider
+                backgroundImageControls
             }
         }
     }

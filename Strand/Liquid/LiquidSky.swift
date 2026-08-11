@@ -174,9 +174,15 @@ struct LiquidScaffoldSky: View {
     var height: CGFloat = 240
     @AppStorage(SceneBackgroundPrefs.enabledKey) private var showDayCycleBackground = true
     @AppStorage(SkyBehindCardsPrefs.enabledKey) private var skyBehindCards = true
+    // The custom-background store (#custom-background). A custom image OVERRIDES the sky and always fills
+    // the viewport, so every scaffold that passes `liquidScaffoldSky()` reads the SAME cached image and
+    // draws it identically — seamless across tabs including More.
+    @ObservedObject private var backgroundStore = BackgroundImageStore.shared
 
     var body: some View {
-        if showDayCycleBackground {
+        if backgroundStore.isActive {
+            BackgroundImageBackdrop()
+        } else if showDayCycleBackground {
             LiquidSkyStatic(hour: nil, settleStrength: skyBehindCards ? 0.78 : 1)
                 .frame(maxWidth: .infinity, maxHeight: skyBehindCards ? .infinity : nil)
                 .frame(height: skyBehindCards ? nil : height, alignment: .top)

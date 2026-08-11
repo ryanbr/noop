@@ -137,6 +137,8 @@ struct LiquidTodayView: View {
     /// dark canvas — parity with Android and the classic TodayView, which already honour this pref. Mirrors
     /// Kotlin `NoopPrefs.showDayCycleBackground`.
     @AppStorage(SceneBackgroundPrefs.enabledKey) private var showDayCycleBackground = true
+    /// Custom background image (#custom-background): when active it overrides the sky in the backdrop below.
+    @ObservedObject private var backgroundStore = BackgroundImageStore.shared
 
     // MARK: - Day navigation (ported from classic Today: swipe + calendar, day-keyed reads)
 
@@ -328,9 +330,14 @@ struct LiquidTodayView: View {
         .background(alignment: .top) {
             ZStack(alignment: .top) {
                 StrandPalette.surfaceBase
-                // Day-cycle scene (#698): the sky only paints when the toggle is ON; off = the plain
-                // surfaceBase canvas above (parity with Android + the classic TodayView).
-                if showDayCycleBackground {
+                // Custom background image (#custom-background): a picked photo OVERRIDES the sky, filling
+                // the whole backdrop (same cached image as every other tab, so it's seamless).
+                if backgroundStore.isActive {
+                    BackgroundImageBackdrop()
+                }
+                // Day-cycle scene (#698): the sky only paints when the toggle is ON AND no custom image is
+                // active; off = the plain surfaceBase canvas above (parity with Android + classic TodayView).
+                else if showDayCycleBackground {
                     // Reduce-motion (and low-power) users get the same sky posed still — no twinkle/breath.
                     // Also static until the first data load settles, so launch isn't fighting a live sky too.
                     // "Sky behind cards" (opt-in): fill the whole backdrop with a softer settle so the sky
