@@ -233,6 +233,16 @@ final class IntelligenceEngine: ObservableObject {
             + "grav=\(gravCount) steps=\(stepCount) provided=\(providedCount) window=\(windowHours)h"
     }
 
+    /// #1248: the device ids the banked-sleep heal (#899) must sweep — the computed-scores id AND every
+    /// registered device id. A live source (an Oura ring) banks its OWN hypnogram under its OWN device id,
+    /// so a computedId-only heal never sees (or collapses) those rows, and they are re-read as
+    /// `providedSleep` and re-detected every pass — one night ballooned to 14 stored rows / 9 phantom
+    /// "naps". The de-duplicated union, sorted for a deterministic sweep order. Pure so it's unit-tested
+    /// directly; byte-identical to the Android `healDeviceIds`.
+    nonisolated static func healDeviceIds(computedId: String, registeredIds: [String]) -> [String] {
+        Set([computedId] + registeredIds).sorted()
+    }
+
     /// The Saturday on-or-before a "yyyy-MM-dd" local-day string , the weekly key Fitness Age writes to.
     static func saturdayKey(onOrBefore dayStr: String) -> String {
         var cal = Calendar(identifier: .gregorian); cal.timeZone = .current
@@ -1645,14 +1655,27 @@ final class IntelligenceEngine: ObservableObject {
         // stale copies. Scoped to sessions whose wake day lies inside the [oldestDay, newestDay] daily
         // reconcile window: exactly the days this pass re-scored/evicted, so a session row is never
         // deleted out from under a daily row the pass did not refresh. Edited rows are never dropped.
-        let storedSessions = (try? await store.sleepSessions(deviceId: computedId, from: windowStart,
-                                                             to: now, limit: 4000)) ?? []
-        let healable = storedSessions.filter {
-            (oldestDay...newestDay).contains(AnalyticsEngine.dayString($0.endTs, offsetSec: tzOffset))
-        }
-        let healDropped = SleepSessionDedup.dedupe(healable, freshStarts: keptStarts).dropped
-        for stale in healDropped {
-            _ = try? await store.deleteSleepSession(deviceId: computedId, startTs: stale.startTs)
+        // #1248: heal EVERY device that banks sleep in this window, not just `computedId`. A live source
+        // (an Oura ring) banks its OWN hypnogram under its device id; a night re-banked there accumulates
+        // overlapping copies the computedId-only heal never saw — and, worse, those un-healed ring rows are
+        // re-read as `providedSleep` and re-detected every pass, so one night ballooned to 14 rows / 9
+        // "naps". Dedup each device's rows AMONG THEMSELVES and delete stale copies under that SAME id
+        // (never across ids, so a survivor is never orphaned under an id the day-owner read skips).
+        // `freshStarts` (this pass's computed bank witness) only matches the computedId rows; the others
+        // fall back to longest-wins, the read-side dedup's own default. Sorted for a deterministic order.
+        let healDeviceIds = Self.healDeviceIds(computedId: computedId, registeredIds: regDevices.map { $0.id })
+        var healDropped: [CachedSleepSession] = []
+        for healId in healDeviceIds {
+            let storedSessions = (try? await store.sleepSessions(deviceId: healId, from: windowStart,
+                                                                 to: now, limit: 4000)) ?? []
+            let healable = storedSessions.filter {
+                (oldestDay...newestDay).contains(AnalyticsEngine.dayString($0.endTs, offsetSec: tzOffset))
+            }
+            let dropped = SleepSessionDedup.dedupe(healable, freshStarts: keptStarts).dropped
+            for stale in dropped {
+                _ = try? await store.deleteSleepSession(deviceId: healId, startTs: stale.startTs)
+            }
+            healDropped.append(contentsOf: dropped)
         }
         if !healDropped.isEmpty {
             diagnosticSink?("Dedup(#899): removed \(healDropped.count) overlapping duplicate sleep "
