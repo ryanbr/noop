@@ -710,6 +710,15 @@ struct LiquidTodayView: View {
             } else {
                 hostedHoursVsNeededPlaceholder
             }
+        case .consistency:
+            // The single sleep-consistency % metric, rendered from the same shared SleepModel built in
+            // load(). Until that async build lands — or on a device with no usable latest night — show the
+            // graceful placeholder, mirroring stagesVsTypical.
+            if let m = hostedSleepModel {
+                ConsistencyCard(model: m)
+            } else {
+                hostedConsistencyPlaceholder
+            }
         }
     }
 
@@ -761,6 +770,20 @@ struct LiquidTodayView: View {
     private var hostedHoursVsNeededPlaceholder: some View {
         VStack(alignment: .leading, spacing: NoopMetrics.gap) {
             SectionHeader("Hours vs Needed", overline: "Sleep")
+            Text("Not enough nights yet.")
+                .font(StrandFont.subhead)
+                .foregroundStyle(StrandPalette.textTertiary)
+                .frame(maxWidth: .infinity, minHeight: 60, alignment: .center)
+                .background(NoopPanelSurface(tint: StrandPalette.restColor, cornerRadius: 12))
+        }
+    }
+
+    /// Graceful empty state for the hosted "Consistency" card before its shared SleepModel builds (first
+    /// frame) or when there is no usable latest night. Same treatment as `hostedSleepPlaceholder`, labelled
+    /// for this card so add/remove/reorder in Customise still reads. #today-hosted-cards.
+    private var hostedConsistencyPlaceholder: some View {
+        VStack(alignment: .leading, spacing: NoopMetrics.gap) {
+            SectionHeader("Consistency", overline: "Sleep")
             Text("Not enough nights yet.")
                 .font(StrandFont.subhead)
                 .foregroundStyle(StrandPalette.textTertiary)

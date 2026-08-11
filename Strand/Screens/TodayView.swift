@@ -2282,6 +2282,22 @@ struct TodayView: View {
                         .background(NoopPanelSurface(tint: StrandPalette.restColor, cornerRadius: 12))
                 }
             }
+        case .consistency:
+            // The single sleep-consistency % metric, rendered from the shared SleepModel built in loadAll().
+            // Until the async build lands — or with no usable latest night — show the graceful placeholder,
+            // as above.
+            if let m = hostedSleepModel {
+                ConsistencyCard(model: m)
+            } else {
+                VStack(alignment: .leading, spacing: NoopMetrics.gap) {
+                    SectionHeader("Consistency", overline: "Sleep")
+                    Text("Not enough nights yet.")
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                        .frame(maxWidth: .infinity, minHeight: 60, alignment: .center)
+                        .background(NoopPanelSurface(tint: StrandPalette.restColor, cornerRadius: 12))
+                }
+            }
         }
     }
 

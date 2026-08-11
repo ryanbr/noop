@@ -3074,7 +3074,7 @@ private fun HostedCardsSection(cards: List<HostedCard>, days: List<DailyMetric>,
     // follow). Build the shared model ONCE, and only when at least one such card is actually hosted, so a
     // Today hosting none pays no cost. Same inputs + builder as the Sleep tab (buildHostedSleepModel), so
     // hosted numbers match the Sleep tab. Reused by every model-backed card. Twin of the iOS hostedSleepModel.
-    val modelBackedHosted = setOf(HostedCard.STAGES_VS_TYPICAL, HostedCard.NIGHT_DETAIL, HostedCard.SLEEP_DEBT, HostedCard.STAGES, HostedCard.HOURS_VS_NEEDED)
+    val modelBackedHosted = setOf(HostedCard.STAGES_VS_TYPICAL, HostedCard.NIGHT_DETAIL, HostedCard.SLEEP_DEBT, HostedCard.STAGES, HostedCard.HOURS_VS_NEEDED, HostedCard.CONSISTENCY)
     val needsSleepModel = cards.any { it in modelBackedHosted }
     var hostedSleepModel by remember { mutableStateOf<SleepModel?>(null) }
     LaunchedEffect(needsSleepModel, days, viewModel.activeStrapId) {
@@ -3129,6 +3129,11 @@ private fun HostedCardsSection(cards: List<HostedCard>, days: List<DailyMetric>,
                 // HoursVsNeededCard. Null until the async build lands / no stage data — the slot renders
                 // nothing this frame, matching the Sleep tab's null-model guard.
                 HostedCard.HOURS_VS_NEEDED -> hostedSleepModel?.let { HoursVsNeededCard(it) }
+                // #today-hosted-cards: the single sleep-consistency % metric, rendered from the SAME shared
+                // SleepModel the Sleep tab uses (mirror, not copy) via the simple standalone
+                // ConsistencyHostCard. Null until the async build lands / no stage data — the slot renders
+                // nothing this frame, matching the Sleep tab's null-model guard.
+                HostedCard.CONSISTENCY -> hostedSleepModel?.let { ConsistencyHostCard(it) }
             }
         }
     }
