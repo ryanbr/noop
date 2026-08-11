@@ -24,9 +24,10 @@ class SleepLayoutPrefsTest {
         val reordered = listOf(
             SleepSection.NIGHT_DETAIL, SleepSection.SLEEP_MARKS, SleepSection.ASLEEP_DURATION,
             SleepSection.STAGES, SleepSection.SLEEP_DEBT, SleepSection.STAGES_VS_TYPICAL,
+            SleepSection.HOURS_VS_NEEDED, SleepSection.CONSISTENCY,
         )
         val encoded = SleepLayoutPrefs.encode(reordered)
-        assertEquals("nightDetail,sleepMarks,asleepDuration,stages,sleepDebt,stagesVsTypical", encoded)
+        assertEquals("nightDetail,sleepMarks,asleepDuration,stages,sleepDebt,stagesVsTypical,hoursVsNeeded,consistency", encoded)
         assertEquals(reordered, SleepLayoutPrefs.decodeOrder(encoded))
     }
 
@@ -41,6 +42,7 @@ class SleepLayoutPrefsTest {
             listOf(
                 SleepSection.STAGES, SleepSection.NIGHT_DETAIL, SleepSection.SLEEP_DEBT,
                 SleepSection.STAGES_VS_TYPICAL, SleepSection.ASLEEP_DURATION, SleepSection.SLEEP_MARKS,
+                SleepSection.HOURS_VS_NEEDED, SleepSection.CONSISTENCY,
             ),
             decoded,
         )
@@ -75,7 +77,7 @@ class SleepLayoutPrefsTest {
         assertEquals(
             listOf(
                 SleepSection.NIGHT_DETAIL, SleepSection.SLEEP_MARKS, SleepSection.STAGES,
-                SleepSection.STAGES_VS_TYPICAL,
+                SleepSection.STAGES_VS_TYPICAL, SleepSection.HOURS_VS_NEEDED, SleepSection.CONSISTENCY,
             ),
             SleepLayoutPrefs.visibleOrder(order, "asleepDuration,sleepDebt"),
         )
@@ -103,7 +105,7 @@ class SleepLayoutPrefsTest {
         assertEquals("raw keys must be unique (they're the persisted identity)", raws.size, raws.toSet().size)
         // Pin the exact wire strings — they cross the .noopbak boundary and must match macOS byte-for-byte.
         assertEquals(
-            listOf("sleepMarks", "stages", "nightDetail", "sleepDebt", "stagesVsTypical", "asleepDuration"),
+            listOf("sleepMarks", "stages", "nightDetail", "sleepDebt", "stagesVsTypical", "asleepDuration", "hoursVsNeeded", "consistency"),
             raws,
         )
     }

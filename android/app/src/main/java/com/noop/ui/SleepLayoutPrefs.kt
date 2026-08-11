@@ -27,7 +27,16 @@ enum class SleepSection(val raw: String, val title: String) {
     NIGHT_DETAIL("nightDetail", "Night detail"),
     SLEEP_DEBT("sleepDebt", "Sleep-debt ledger"),
     STAGES_VS_TYPICAL("stagesVsTypical", "Stages vs typical"),
-    ASLEEP_DURATION("asleepDuration", "Asleep duration");
+    ASLEEP_DURATION("asleepDuration", "Asleep duration"),
+
+    /** #sleep-layout: two ANDROID-ONLY detail cards (Hours-vs-Needed + Consistency, richer than the
+     *  Night-detail grid tiles) — previously pinned below the arrange region, now first-class arrangeable
+     *  Sleep sections. iOS deliberately renders these metrics only as Night-detail grid tiles (tap-through),
+     *  so these two rawValues are Android-only — the macOS `SleepSection` stops at `asleepDuration`. Safe to
+     *  diverge here: `sleep.sectionOrder` is not in the .noopbak whitelist, so a cross-OS restore never
+     *  reads them. (Consistency's underlying score also differs across platforms — a separate parity item.) */
+    HOURS_VS_NEEDED("hoursVsNeeded", "Hours vs needed"),
+    CONSISTENCY("consistency", "Consistency");
 
     companion object {
         fun fromRaw(raw: String?): SleepSection? = entries.firstOrNull { it.raw == raw }
@@ -38,6 +47,7 @@ enum class SleepSection(val raw: String, val title: String) {
          *  card is a follow-up that requires hoisting the hero's edit/delete callbacks.) */
         val defaultOrder: List<SleepSection> = listOf(
             SLEEP_MARKS, STAGES, NIGHT_DETAIL, SLEEP_DEBT, STAGES_VS_TYPICAL, ASLEEP_DURATION,
+            HOURS_VS_NEEDED, CONSISTENCY,
         )
     }
 }

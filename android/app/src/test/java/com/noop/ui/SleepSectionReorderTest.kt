@@ -1,6 +1,8 @@
 package com.noop.ui
 
 import com.noop.ui.SleepSection.ASLEEP_DURATION
+import com.noop.ui.SleepSection.CONSISTENCY
+import com.noop.ui.SleepSection.HOURS_VS_NEEDED
 import com.noop.ui.SleepSection.NIGHT_DETAIL
 import com.noop.ui.SleepSection.SLEEP_DEBT
 import com.noop.ui.SleepSection.SLEEP_MARKS
@@ -22,14 +24,14 @@ class SleepSectionReorderTest {
 
     @Test fun movingDownPlacesTheCardAtTheTargetsSlot() {
         assertEquals(
-            listOf(STAGES, NIGHT_DETAIL, SLEEP_MARKS, SLEEP_DEBT, STAGES_VS_TYPICAL, ASLEEP_DURATION),
+            listOf(STAGES, NIGHT_DETAIL, SLEEP_MARKS, SLEEP_DEBT, STAGES_VS_TYPICAL, ASLEEP_DURATION, HOURS_VS_NEEDED, CONSISTENCY),
             order.movedSleepSection(SLEEP_MARKS, NIGHT_DETAIL),
         )
     }
 
     @Test fun movingUpPlacesTheCardAtTheTargetsSlot() {
         assertEquals(
-            listOf(SLEEP_MARKS, ASLEEP_DURATION, STAGES, NIGHT_DETAIL, SLEEP_DEBT, STAGES_VS_TYPICAL),
+            listOf(SLEEP_MARKS, ASLEEP_DURATION, STAGES, NIGHT_DETAIL, SLEEP_DEBT, STAGES_VS_TYPICAL, HOURS_VS_NEEDED, CONSISTENCY),
             order.movedSleepSection(ASLEEP_DURATION, STAGES),
         )
     }

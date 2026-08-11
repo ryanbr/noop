@@ -774,15 +774,29 @@ fun SleepScreen(
                         }
                     }
                 }
+                // #sleep-layout: the two former pinned detail cards are now arrangeable sections.
+                SleepSection.HOURS_VS_NEEDED -> tilesModel?.let { m ->
+                    item(key = k) {
+                        SleepReorderableSection(k, sleepListState, sleepSectionDrag, persistSleepOrder) {
+                            Column {
+                                Spacer(Modifier.height(Metrics.selectorTopUp))
+                                HoursVsNeededCard(m)
+                            }
+                        }
+                    }
+                }
+                // Gated on tilesModel to preserve the pre-refactor visibility (both cards shared one
+                // `tilesModel?.let` wrapper) — the card reads `sleeps`, not the model, but must not appear
+                // in the #940 phantom-edit state (night != null, tilesModel == null) where it didn't before.
+                SleepSection.CONSISTENCY -> if (tilesModel != null) item(key = k) {
+                    SleepReorderableSection(k, sleepListState, sleepSectionDrag, persistSleepOrder) {
+                        Column {
+                            Spacer(Modifier.height(Metrics.selectorTopUp))
+                            SleepConsistencyCard(sleeps, habitualMidsleep)
+                        }
+                    }
+                }
               }
-            }
-            // Android-only detail cards, pinned below the arrangeable region (iOS folds these into Night
-            // detail; making them arrangeable too is a #sleep-layout follow-up).
-            tilesModel?.let { m ->
-                item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
-                item { HoursVsNeededCard(m) }
-                item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
-                item { SleepConsistencyCard(sleeps, habitualMidsleep) }
             }
         }
     }
