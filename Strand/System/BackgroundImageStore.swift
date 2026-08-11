@@ -21,8 +21,20 @@ import StrandDesign
 final class BackgroundImageStore: ObservableObject {
     static let shared = BackgroundImageStore()
 
-    /// The decoded background, cached; nil = none stored. Drawn by ``BackgroundImageBackdrop``.
+    /// One recent background: its app-private filename + the fill mode it was last shown with.
+    struct Recent: Equatable {
+        let id: String
+        let fillMode: BackgroundFillMode
+    }
+
+    /// The recent images, most-recent (== ACTIVE) first, up to ``maxRecents``.
+    @Published private(set) var recents: [Recent] = []
+
+    /// The active (recents[0]) decoded for the backdrop; nil = none stored. Drawn by ``BackgroundImageBackdrop``.
     @Published private(set) var image: Image?
+
+    /// Small preview images, index-aligned to ``recents`` (nil for a decode miss).
+    @Published private(set) var thumbnails: [Image?] = []
 
     /// Master enable toggle (persisted under ``BackgroundImagePrefs/enabledKey``). When true AND an
     /// image is present, the custom image overrides the sky.
@@ -30,12 +42,11 @@ final class BackgroundImageStore: ObservableObject {
         didSet { d.set(enabled, forKey: BackgroundImagePrefs.enabledKey) }
     }
 
-    /// How the image is scaled (persisted under ``BackgroundImagePrefs/fillModeKey`` as its rawValue).
-    @Published var fillMode: BackgroundFillMode {
-        didSet { d.set(fillMode.rawValue, forKey: BackgroundImagePrefs.fillModeKey) }
-    }
-
     private let d = UserDefaults.standard
+
+    /// How the ACTIVE image is scaled — the fill mode of the most-recent entry. Backed by `recents`
+    /// (`@Published`), so the backdrop re-reads it whenever the list changes.
+    var fillMode: BackgroundFillMode { recents.first?.fillMode ?? .fill }
 
     /// The custom image is the ACTIVE backdrop (top of the precedence: enabled AND actually decoded).
     var isActive: Bool { enabled && image != nil }
@@ -45,61 +56,130 @@ final class BackgroundImageStore: ObservableObject {
 
     private init() {
         enabled = d.bool(forKey: BackgroundImagePrefs.enabledKey)                       // default false
-        fillMode = BackgroundFillMode.resolve(d.string(forKey: BackgroundImagePrefs.fillModeKey) ?? "")
-        // Decode the persisted image (if any) once, up front.
-        if d.bool(forKey: BackgroundImagePrefs.presentKey),
-           let url = try? Self.fileURL(create: false),
-           let data = try? Data(contentsOf: url),
-           let platform = PlatformImage(data: data) {
-            image = Image(platformImage: platform)
-        } else {
-            image = nil
+        var list = Self.parse(d.string(forKey: BackgroundImagePrefs.recentsKey) ?? "")
+            .filter { Self.fileExists($0.id) }
+        // Migration: pre-recents installs stored ONE `background.jpg`; adopt it as the sole recent so an
+        // upgrading user keeps their background.
+        if list.isEmpty, d.bool(forKey: BackgroundImagePrefs.presentKey), Self.fileExists("background.jpg") {
+            list = [Recent(id: "background.jpg",
+                           fillMode: BackgroundFillMode.resolve(d.string(forKey: BackgroundImagePrefs.fillModeKey) ?? ""))]
         }
+        let capped = Array(list.prefix(Self.maxRecents))
+        recents = capped
+        image = capped.first.flatMap { Self.fullImage(id: $0.id) }
+        thumbnails = capped.map { Self.thumbnail(id: $0.id) }
+        persist()
     }
 
-    /// Store a picked image: downscale + re-encode to the app-private JPEG, flip the present flag, and
-    /// update the cached ``image``. Silently no-ops if the bytes can't be decoded/written (the current
-    /// background is left untouched). Reuses the avatar's ImageIO downscale path.
+    /// Store a picked image: downscale + re-encode to a new app-private JPEG, push it to the FRONT of the
+    /// recent list (deleting any dropped beyond ``maxRecents``), and refresh the decoded image/thumbnails.
+    /// Silently no-ops if the bytes can't be decoded/written. Reuses the avatar's ImageIO downscale path.
     func setImage(from data: Data) {
-        // Downscale the longest edge to at most MAX_DIMEN so a 100MP pick can never sit full-res in memory
-        // or on disk; fall back to the raw bytes only if the decode fails (matching setAvatar).
         let jpeg = AvatarImage.downscaledJPEG(from: data, maxDimension: Self.maxDimension, quality: 0.9) ?? data
-        guard let platform = PlatformImage(data: jpeg) else { return }
-        guard let url = try? Self.fileURL(create: true) else { return }
-        do {
-            try jpeg.write(to: url, options: .atomic)
-        } catch {
+        guard PlatformImage(data: jpeg) != nil else { return }
+        let id = "bg-\(Int(Date().timeIntervalSince1970 * 1000)).jpg"
+        guard let url = try? Self.fileURL(id: id, create: true) else { return }
+        do { try jpeg.write(to: url, options: .atomic) } catch { return }
+        // A fresh pick inherits the current fill mode. Prepend, cap, delete any dropped file.
+        let next = Array(([Recent(id: id, fillMode: fillMode)] + recents).prefix(Self.maxRecents))
+        for r in recents where !next.contains(r) {
+            if let u = try? Self.fileURL(id: r.id, create: false) { try? FileManager.default.removeItem(at: u) }
+        }
+        recents = next
+        refresh()
+        // Actively picking an image means the user wants to SEE it — turn the background on now.
+        if !enabled { enabled = true }
+        persist()
+    }
+
+    /// Re-apply a recent preset: move it to the front (so it becomes the ACTIVE image + its fill mode).
+    func applyRecent(_ index: Int) {
+        guard recents.indices.contains(index), index != 0 else { return }
+        let chosen = recents[index]
+        recents = [chosen] + recents.enumerated().filter { $0.offset != index }.map(\.element)
+        refresh()
+        if !enabled { enabled = true }
+        persist()
+    }
+
+    /// Change the ACTIVE image's fill mode (recents[0]).
+    func setFillMode(_ mode: BackgroundFillMode) {
+        guard !recents.isEmpty else {
+            d.set(mode.rawValue, forKey: BackgroundImagePrefs.fillModeKey)
             return
         }
-        d.set(true, forKey: BackgroundImagePrefs.presentKey)
-        image = Image(platformImage: platform)
-        // Actively picking an image means the user wants to SEE it — turn the background on so it shows
-        // immediately, instead of silently storing a photo that stays hidden behind a separate toggle.
-        // They can still toggle it off afterwards (the image is kept) or Remove it entirely.
-        if !enabled { enabled = true }
+        recents = recents.enumerated().map { $0.offset == 0 ? Recent(id: $0.element.id, fillMode: mode) : $0.element }
+        persist()
     }
 
-    /// Remove the photo: delete the file, clear the present flag, drop the cached ``image``.
+    /// Remove the ACTIVE image (recents[0]); the next recent becomes active, or the background clears.
     func clearImage() {
-        if let url = try? Self.fileURL(create: false) {
-            try? FileManager.default.removeItem(at: url)
-        }
-        d.set(false, forKey: BackgroundImagePrefs.presentKey)
-        image = nil
+        guard let removed = recents.first else { return }
+        if let u = try? Self.fileURL(id: removed.id, create: false) { try? FileManager.default.removeItem(at: u) }
+        recents = Array(recents.dropFirst())
+        refresh()
+        persist()
     }
 
-    /// Longest edge (px) the stored image is downscaled to — big enough to cover a large display crisply,
-    /// capped so a huge pick sub-samples rather than fully decoding. Mirrors the Kotlin MAX_DIMEN.
+    /// Decode the active image + every recent's thumbnail.
+    private func refresh() {
+        image = recents.first.flatMap { Self.fullImage(id: $0.id) }
+        thumbnails = recents.map { Self.thumbnail(id: $0.id) }
+    }
+
+    private func persist() {
+        d.set(Self.serialize(recents), forKey: BackgroundImagePrefs.recentsKey)
+        d.set(fillMode.rawValue, forKey: BackgroundImagePrefs.fillModeKey)
+        d.set(!recents.isEmpty, forKey: BackgroundImagePrefs.presentKey)
+    }
+
+    /// How many recent images the "presets" strip keeps (MRU). Mirrors the Kotlin MAX_RECENTS.
+    static let maxRecents = 3
+
+    /// Longest edge (px) the stored image is downscaled to. Mirrors the Kotlin MAX_DIMEN.
     private static let maxDimension: CGFloat = 2560
 
-    /// `<AppSupport>/OpenWhoop/background.jpg` (the same base folder the capture recorder uses).
-    private static func fileURL(create: Bool) throws -> URL {
+    /// `"<file>,<mode>;<file>,<mode>"`. Filenames never contain `,`/`;`.
+    static func serialize(_ list: [Recent]) -> String {
+        list.map { "\($0.id),\($0.fillMode.rawValue)" }.joined(separator: ";")
+    }
+
+    static func parse(_ s: String) -> [Recent] {
+        s.split(separator: ";").compactMap { entry -> Recent? in
+            let parts = entry.split(separator: ",", maxSplits: 1, omittingEmptySubsequences: false)
+            guard parts.count == 2, !parts[0].isEmpty else { return nil }
+            return Recent(id: String(parts[0]), fillMode: BackgroundFillMode.resolve(String(parts[1])))
+        }
+    }
+
+    private static func fullImage(id: String) -> Image? {
+        guard let url = try? fileURL(id: id, create: false),
+              let data = try? Data(contentsOf: url),
+              let platform = PlatformImage(data: data) else { return nil }
+        return Image(platformImage: platform)
+    }
+
+    private static func thumbnail(id: String) -> Image? {
+        guard let url = try? fileURL(id: id, create: false),
+              let data = try? Data(contentsOf: url),
+              let jpeg = AvatarImage.downscaledJPEG(from: data, maxDimension: 256, quality: 0.85),
+              let platform = PlatformImage(data: jpeg) else { return nil }
+        return Image(platformImage: platform)
+    }
+
+    private static func fileExists(_ id: String) -> Bool {
+        guard let url = try? fileURL(id: id, create: false) else { return false }
+        return FileManager.default.fileExists(atPath: url.path)
+    }
+
+    /// `<AppSupport>/OpenWhoop/<id>` (the same base folder the capture recorder uses).
+    private static func fileURL(id: String, create: Bool) throws -> URL {
         let fm = FileManager.default
         let dir = try fm.url(for: .applicationSupportDirectory, in: .userDomainMask,
                              appropriateFor: nil, create: create)
             .appendingPathComponent("OpenWhoop", isDirectory: true)
         if create { try fm.createDirectory(at: dir, withIntermediateDirectories: true) }
-        return dir.appendingPathComponent("background.jpg", isDirectory: false)
+        return dir.appendingPathComponent(id, isDirectory: false)
     }
 }
 

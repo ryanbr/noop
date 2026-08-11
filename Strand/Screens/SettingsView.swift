@@ -588,6 +588,29 @@ struct SettingsView: View {
     /// Wrapped in a layout-transparent `Group` so the picker `onChange` + the file importer can hang off
     /// the whole cluster while it still flows inside the appearance VStack.
     @ViewBuilder
+    /// One recent-background preset: a small cropped thumbnail (accent-ringed when active) over its
+    /// fill-mode label. Tapping re-applies that image + scaling.
+    @ViewBuilder
+    private func backgroundRecentThumb(thumb: Image?, mode: BackgroundFillMode, active: Bool,
+                                       action: @escaping () -> Void) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+        Button(action: action) {
+            VStack(spacing: 3) {
+                Group {
+                    if let thumb { thumb.resizable().scaledToFill() } else { StrandPalette.surfaceInset }
+                }
+                .frame(width: 64, height: 64)
+                .clipShape(shape)
+                .overlay(shape.strokeBorder(active ? StrandPalette.accent : StrandPalette.hairline,
+                                            lineWidth: active ? 2 : 1))
+                Text(mode.label)
+                    .font(StrandFont.caption)
+                    .foregroundStyle(active ? StrandPalette.accent : StrandPalette.textTertiary)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
     private var backgroundImageControls: some View {
         let hasImage = backgroundStore.hasImage
         Group {
@@ -606,6 +629,26 @@ struct SettingsView: View {
             }
 
             if hasImage {
+                // Recent presets: tap a thumbnail to re-apply that image + the scaling it was last shown
+                // with. The first (accent-ringed) one is the active background.
+                if !backgroundStore.recents.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Recent")
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                        HStack(spacing: 10) {
+                            ForEach(Array(backgroundStore.recents.enumerated()), id: \.offset) { index, recent in
+                                backgroundRecentThumb(
+                                    thumb: backgroundStore.thumbnails.indices.contains(index)
+                                        ? backgroundStore.thumbnails[index] : nil,
+                                    mode: recent.fillMode,
+                                    active: index == 0,
+                                    action: { backgroundStore.applyRecent(index) })
+                            }
+                        }
+                    }
+                }
+
                 Toggle(isOn: $backgroundStore.enabled) {
                     Text("Show custom background")
                         .font(StrandFont.subhead)
@@ -615,7 +658,9 @@ struct SettingsView: View {
                 .tint(StrandPalette.accent)
 
                 FormRow(label: "Scaling") {
-                    Picker("Scaling", selection: $backgroundStore.fillMode) {
+                    Picker("Scaling", selection: Binding(
+                        get: { backgroundStore.fillMode },
+                        set: { backgroundStore.setFillMode($0) })) {
                         ForEach(BackgroundFillMode.allCases) { mode in
                             Text(mode.label).tag(mode)
                         }

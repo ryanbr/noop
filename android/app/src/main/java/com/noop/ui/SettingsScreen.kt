@@ -14,7 +14,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.rememberScrollState
@@ -1450,6 +1453,27 @@ fun SettingsScreen(
             }
 
             if (BackgroundImageStore.hasImage) {
+                // Recent presets: tap a thumbnail to re-apply that image + the scaling it was last shown
+                // with. The first (accent-ringed) one is the active background.
+                val recents = BackgroundImageStore.recents
+                if (recents.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Recent", style = NoopType.footnote, color = Palette.textSecondary)
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            recents.forEachIndexed { i, r ->
+                                BackgroundRecentThumb(
+                                    thumb = BackgroundImageStore.thumbnails.getOrNull(i),
+                                    mode = r.fillMode,
+                                    active = i == 0,
+                                    // Off-main: applyRecent re-decodes the full-size active image.
+                                    onClick = {
+                                        scope.launch { withContext(Dispatchers.IO) { BackgroundImageStore.applyRecent(context, i) } }
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
                 // Master gate + scaling only make sense once an image exists.
                 SettingsToggleRow(
                     title = "Show custom background",
@@ -1483,7 +1507,9 @@ fun SettingsScreen(
                     text = "Remove image",
                     kind = NoopButtonKind.Tertiary,
                     modifier = Modifier.fillMaxWidth(),
-                    onClick = { BackgroundImageStore.clearImage(context) },
+                    onClick = {
+                        scope.launch { withContext(Dispatchers.IO) { BackgroundImageStore.clearImage(context) } }
+                    },
                 )
             }
         }
@@ -3632,4 +3658,53 @@ private fun Context.hostingActivity(): Activity? {
         current = current.baseContext
     }
     return current as? Activity
+}
+
+/** One recent-background preset: a small cropped thumbnail (accent-ringed when active) over its fill-mode
+ *  label. Tapping re-applies that image + scaling via [BackgroundImageStore.applyRecent]. */
+@Composable
+private fun BackgroundRecentThumb(
+    thumb: ImageBitmap?,
+    mode: BackgroundFillMode,
+    active: Boolean,
+    onClick: () -> Unit,
+) {
+    val shape = RoundedCornerShape(10.dp)
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(64.dp)
+                .clip(shape)
+                .border(
+                    width = if (active) 2.dp else 1.dp,
+                    color = if (active) Palette.accent else Palette.hairline,
+                    shape = shape,
+                )
+                .clickable(onClick = onClick),
+        ) {
+            if (thumb != null) {
+                Image(
+                    bitmap = thumb,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                )
+            } else {
+                Box(Modifier.fillMaxSize().background(Palette.surfaceInset))
+            }
+        }
+        Text(
+            text = when (mode) {
+                BackgroundFillMode.FILL -> "Fill"
+                BackgroundFillMode.FIT -> "Fit"
+                BackgroundFillMode.STRETCH -> "Stretch"
+                BackgroundFillMode.TILE -> "Tile"
+            },
+            style = NoopType.caption,
+            color = if (active) Palette.accent else Palette.textTertiary,
+        )
+    }
 }

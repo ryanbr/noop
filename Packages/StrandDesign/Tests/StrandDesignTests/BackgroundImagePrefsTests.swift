@@ -11,6 +11,7 @@ final class BackgroundImagePrefsTests: XCTestCase {
         XCTAssertEqual(BackgroundImagePrefs.enabledKey, "noop.backgroundImageEnabled")
         XCTAssertEqual(BackgroundImagePrefs.fillModeKey, "noop.backgroundFillMode")
         XCTAssertEqual(BackgroundImagePrefs.presentKey, "noop.backgroundImagePresent")
+        XCTAssertEqual(BackgroundImagePrefs.recentsKey, "noop.backgroundRecents")
     }
 
     func testFillModeRawValuesMatchTheKotlinContract() {

@@ -272,6 +272,10 @@ public enum BackgroundImagePrefs {
     /// Whether a background image file has been stored (so the UI can offer Remove and the provider can
     /// skip a decode when absent). Default false.
     public static let presentKey = "noop.backgroundImagePresent"
+    /// The recent-images list (MRU, up to 3), serialized as `"<file>,<fillMode>;<file>,<fillMode>;…"`.
+    /// Device-local like the image files — the filenames differ per device, so only the KEY is shared,
+    /// not the value. Default `""`.
+    public static let recentsKey = "noop.backgroundRecents"
 }
 
 /// How a custom background image is scaled to the screen. RawValues are byte-identical to the Kotlin

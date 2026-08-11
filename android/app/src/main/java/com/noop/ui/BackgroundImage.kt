@@ -42,30 +42,41 @@ import java.io.File
  * from MainActivity before first composition.
  */
 object BackgroundImageStore {
-    private const val FILE_NAME = "background.jpg"
-
     /** Longest edge (px) the stored image is downscaled to. Big enough to cover a large tablet/foldable
      *  screen crisply, capped so a 100MP pick can never fully decode into memory (it sub-samples first). */
     private const val MAX_DIMEN = 2560
+
+    /** Longest edge (px) for the small recent-image PREVIEW thumbnails in Settings. */
+    private const val THUMB_DIMEN = 256
 
     /** JPEG quality for the re-encoded background — a touch higher than the avatar since it fills the
      *  whole screen behind (semi-transparent) cards, still modest on disk. */
     private const val JPEG_QUALITY = 90
 
-    private fun backgroundFile(ctx: Context): File =
-        File(ctx.applicationContext.filesDir, FILE_NAME)
+    /** How many recent images the "presets" strip keeps (MRU). */
+    const val MAX_RECENTS = 3
 
-    /** The decoded background for composition; null = none stored. */
+    /** One recent background: its app-private filename + the fill mode it was last shown with. */
+    data class Recent(val id: String, val fillMode: BackgroundFillMode)
+
+    /** The recent images, most-recent (== ACTIVE) first, up to [MAX_RECENTS]. Snapshot-backed. */
+    var recents by mutableStateOf<List<Recent>>(emptyList())
+        private set
+
+    /** The active (recents[0]) decoded full-size for the backdrop; null = none stored. */
     var bitmap by mutableStateOf<ImageBitmap?>(null)
+        private set
+
+    /** Small preview thumbnails, index-aligned to [recents] (null for a decode miss). */
+    var thumbnails by mutableStateOf<List<ImageBitmap?>>(emptyList())
         private set
 
     /** Master enable toggle (mirrors NoopPrefs.backgroundImageEnabled), snapshot-backed for live redraw. */
     var enabled by mutableStateOf(false)
         private set
 
-    /** How the image is scaled (mirrors NoopPrefs.backgroundFillMode), snapshot-backed for live redraw. */
-    var fillMode by mutableStateOf(BackgroundFillMode.FILL)
-        private set
+    /** How the ACTIVE image is scaled — the fill mode of the most-recent entry. */
+    val fillMode: BackgroundFillMode get() = recents.firstOrNull()?.fillMode ?: BackgroundFillMode.FILL
 
     /** True when a photo is stored — drives the Remove affordance in Settings. */
     val hasImage: Boolean get() = bitmap != null
@@ -73,17 +84,21 @@ object BackgroundImageStore {
     /** The custom image is the ACTIVE backdrop (top of the precedence: enabled AND actually decoded). */
     val isActive: Boolean get() = enabled && bitmap != null
 
-    /** Load the persisted toggles + image (if any). Safe to call before first composition. */
+    private fun file(app: Context, id: String): File = File(app.applicationContext.filesDir, id)
+
+    /** Load the toggles + the recent list (migrating a pre-recents single `background.jpg`). */
     fun load(ctx: Context) {
         val app = ctx.applicationContext
         enabled = NoopPrefs.backgroundImageEnabled(app)
-        fillMode = NoopPrefs.backgroundFillMode(app)
-        val file = backgroundFile(app)
-        bitmap = if (NoopPrefs.backgroundImagePresent(app) && file.exists()) {
-            runCatching { BitmapFactory.decodeFile(file.absolutePath)?.asImageBitmap() }.getOrNull()
-        } else {
-            null
+        var list = parseRecents(NoopPrefs.backgroundRecents(app)).filter { file(app, it.id).exists() }
+        // Migration: pre-recents installs stored ONE `background.jpg`; adopt it as the sole recent so an
+        // upgrading user keeps their background.
+        if (list.isEmpty() && NoopPrefs.backgroundImagePresent(app) && file(app, "background.jpg").exists()) {
+            list = listOf(Recent("background.jpg", NoopPrefs.backgroundFillMode(app)))
         }
+        recents = list.take(MAX_RECENTS)
+        refreshDecoded(app)
+        persist(app)
     }
 
     fun setEnabled(ctx: Context, on: Boolean) {
@@ -91,42 +106,102 @@ object BackgroundImageStore {
         NoopPrefs.setBackgroundImageEnabled(ctx.applicationContext, on)
     }
 
+    /** Change the ACTIVE image's fill mode (recents[0]). */
     fun setFillMode(ctx: Context, mode: BackgroundFillMode) {
-        fillMode = mode
-        NoopPrefs.setBackgroundFillMode(ctx.applicationContext, mode)
+        val app = ctx.applicationContext
+        recents = if (recents.isEmpty()) recents
+        else recents.mapIndexed { i, r -> if (i == 0) r.copy(fillMode = mode) else r }
+        persist(app)
     }
 
     /**
-     * Read the picked image, downscale to [MAX_DIMEN] on the longest edge, re-encode as a JPEG into
-     * `filesDir/background.jpg`, flip the present flag, and update the live [bitmap]. Returns true on
-     * success. Call off the main thread for a large source (bitmap decode + file IO).
+     * Read the picked image, downscale, save a new app-private JPEG, and push it to the FRONT of the
+     * recent list (dropping + deleting the oldest beyond [MAX_RECENTS]). Returns true on success. Call off
+     * the main thread for a large source (bitmap decode + file IO).
      */
     fun setImageFromUri(ctx: Context, uri: Uri): Boolean {
         val app = ctx.applicationContext
         val scaled = runCatching { decodeDownscaled(app, uri) }.getOrNull() ?: return false
-        val file = backgroundFile(app)
+        val id = "bg-${System.currentTimeMillis()}.jpg"
         val wrote = runCatching {
-            file.outputStream().use { out -> scaled.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, out) }
+            file(app, id).outputStream().use { out -> scaled.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, out) }
         }.isSuccess
-        if (!wrote) {
-            scaled.recycle()
-            return false
-        }
-        NoopPrefs.setBackgroundImagePresent(app, true)
-        bitmap = scaled.asImageBitmap()
+        scaled.recycle()
+        if (!wrote) return false
+        // A fresh pick inherits the current fill mode. Prepend, cap at MAX_RECENTS, delete any dropped file.
+        val next = (listOf(Recent(id, fillMode)) + recents).take(MAX_RECENTS)
+        recents.filter { it !in next }.forEach { runCatching { file(app, it.id).delete() } }
+        recents = next
+        refreshDecoded(app)
         // Actively picking an image means the user wants to SEE it — turn the background on so it shows
-        // immediately, instead of silently storing a photo that stays hidden behind a separate toggle.
-        // They can still toggle it off afterwards (the image is kept) or Remove it entirely.
+        // immediately. They can still toggle it off afterwards (the image is kept) or Remove it.
         if (!enabled) setEnabled(app, true)
+        persist(app)
         return true
     }
 
-    /** Remove the photo: delete the file, clear the present flag, drop the live [bitmap] to null. */
+    /** Re-apply a recent preset: move it to the front (so it becomes the ACTIVE image + its fill mode). */
+    fun applyRecent(ctx: Context, index: Int) {
+        val app = ctx.applicationContext
+        if (index !in recents.indices || index == 0) return
+        val chosen = recents[index]
+        recents = listOf(chosen) + recents.filterIndexed { i, _ -> i != index }
+        refreshDecoded(app)
+        if (!enabled) setEnabled(app, true)
+        persist(app)
+    }
+
+    /** Remove the ACTIVE image (recents[0]); the next recent becomes active, or the background clears. */
     fun clearImage(ctx: Context) {
         val app = ctx.applicationContext
-        runCatching { backgroundFile(app).delete() }
-        NoopPrefs.setBackgroundImagePresent(app, false)
-        bitmap = null
+        val removed = recents.firstOrNull() ?: return
+        runCatching { file(app, removed.id).delete() }
+        recents = recents.drop(1)
+        refreshDecoded(app)
+        persist(app)
+    }
+
+    /** Decode the active image full-size + every recent as a small thumbnail. */
+    private fun refreshDecoded(app: Context) {
+        bitmap = recents.firstOrNull()?.let { r ->
+            runCatching { BitmapFactory.decodeFile(file(app, r.id).absolutePath)?.asImageBitmap() }.getOrNull()
+        }
+        thumbnails = recents.map { r ->
+            runCatching { decodeScaledFile(file(app, r.id), THUMB_DIMEN)?.asImageBitmap() }.getOrNull()
+        }
+    }
+
+    /** Persist the recent list + mirror the active fill mode / present flag onto the shared pref keys. */
+    private fun persist(app: Context) {
+        NoopPrefs.setBackgroundRecents(app, serializeRecents(recents))
+        NoopPrefs.setBackgroundFillMode(app, fillMode)
+        NoopPrefs.setBackgroundImagePresent(app, recents.isNotEmpty())
+    }
+
+    /** `"<file>,<mode>;<file>,<mode>"` — see [KEY_BACKGROUND_RECENTS]. Filenames never contain `,`/`;`. */
+    internal fun serializeRecents(list: List<Recent>): String =
+        list.joinToString(";") { "${it.id},${it.fillMode.storageValue}" }
+
+    internal fun parseRecents(s: String): List<Recent> =
+        s.split(";").mapNotNull { entry ->
+            if (entry.isBlank()) return@mapNotNull null
+            val parts = entry.split(",")
+            if (parts.size != 2 || parts[0].isBlank()) return@mapNotNull null
+            Recent(parts[0], BackgroundFillMode.fromStorage(parts[1]))
+        }.take(MAX_RECENTS)
+
+    /** Decode [f] downscaled so its longest edge is ~[maxDimen] (two-pass inSampleSize). Null on failure. */
+    private fun decodeScaledFile(f: File, maxDimen: Int): Bitmap? {
+        if (!f.exists()) return null
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(f.absolutePath, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        var sample = 1
+        while (bounds.outWidth / (sample * 2) >= maxDimen && bounds.outHeight / (sample * 2) >= maxDimen) {
+            sample *= 2
+        }
+        val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+        return BitmapFactory.decodeFile(f.absolutePath, opts)
     }
 
     /**

@@ -789,6 +789,17 @@ object NoopPrefs {
         of(context).edit().putBoolean(KEY_BACKGROUND_IMAGE_PRESENT, present).apply()
     }
 
+    /** Recent background images (MRU, up to 3), serialized as `"<file>,<fillMode>;…"` — see
+     *  BackgroundImageStore. Default "". Device-local like the image files, NOT in the .noopbak whitelist. */
+    const val KEY_BACKGROUND_RECENTS = "noop.backgroundRecents"
+
+    fun backgroundRecents(context: Context): String =
+        of(context).getString(KEY_BACKGROUND_RECENTS, "") ?: ""
+
+    fun setBackgroundRecents(context: Context, value: String) {
+        of(context).edit().putString(KEY_BACKGROUND_RECENTS, value).apply()
+    }
+
     /** "Reduce motion in NOOP" (opt-in, default OFF). The literal key matches Apple so the setting has
      *  one cross-platform identity. [rememberQuietMotion] observes it live for every looping surface. */
     const val KEY_QUIET_MOTION = "noop.quietMotion"
