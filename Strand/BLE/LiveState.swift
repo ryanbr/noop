@@ -568,6 +568,10 @@ public final class LiveState: ObservableObject {
     private static let trimSlack = 256
 
     public func append(log line: String, domain: TestDomain? = nil) {
+        // FIRST append of this process: rescue the previous process's durable tail into the generation ring
+        // before this process's own `persistTail` overwrites it (see `rollLogGenerationsIfNeeded`). Latched,
+        // so this is one Bool test per line after the first.
+        Self.rollLogGenerationsIfNeeded()
         // Tag inert when nil (today's behaviour, byte-identical). When tagged, prefix a compact,
         // parseable marker the export filters on. Redaction is STILL the only scrub point
         // (redactPii below); tagging happens BEFORE redaction so the scrub covers the whole line.
@@ -628,6 +632,80 @@ public final class LiveState: ObservableObject {
         (UserDefaults.standard.array(forKey: tailKey) as? [String]) ?? []
     }
 
+    // MARK: - Previous-process log generations (the "why did the app stop" record)
+
+    /// WHY THIS EXISTS. The in-memory `log` lives for the life of the PROCESS, and `exportableLogText()`
+    /// renders exactly that — so an export taken after a restart begins at the restart and the lines that
+    /// would explain the restart are gone. Worse, the single durable slot did not survive either: a fresh
+    /// process starts logging and, 32 lines in, `persistTail` OVERWRITES `strapLog.tail` with the new
+    /// (short) array, destroying the previous session's tail before anyone can read it.
+    ///
+    /// That is not hypothetical — it has now cost THREE consecutive overnight Oura captures, each time the
+    /// same way: the app restarted after wake, and the whole night (connection drops, drain timings, the
+    /// `0x6A` lines) was gone by the time the bundle was exported. An unexplained restart is exactly when
+    /// the previous lines matter most.
+    ///
+    /// So: at the first append of each process, the surviving tail is ROLLED into a small ring of previous
+    /// generations (and the live slot cleared, so a generation is never double-counted). Exports render the
+    /// generations oldest-first ahead of the current process, which keeps `report.txt` in chronological
+    /// order — the log-parsing tools read it unchanged, they simply get more of the night.
+    private static let generationsKey = "strapLog.generations"
+    /// How many previous processes to keep. Three covers the observed failure shape (a wake-time restart,
+    /// occasionally two) without turning a debug tail into a database.
+    static let maxLogGenerations = 3
+    /// Per-generation line cap — smaller than the live `tailLimit` because what explains a stop is the END
+    /// of the previous session. 3 × 1,000 short redacted lines ≈ 300 KB of UserDefaults, bounded.
+    static let generationTailLimit = 1_000
+    /// Once-per-process latch: the roll must happen BEFORE the first `persistTail` of this process, and
+    /// exactly once, or a second roll would push this process's own partial tail in as a "previous" one.
+    nonisolated(unsafe) private static var didRollGenerations = false
+
+    /// Roll the surviving durable tail into the generation ring. Idempotent per process, and a NO-OP when
+    /// the tail is empty — so a launch that logs nothing (or a run right after a roll) never pushes an
+    /// empty generation and never evicts a real one.
+    nonisolated static func rollLogGenerationsIfNeeded(now: Date = Date()) {
+        if didRollGenerations { return }
+        didRollGenerations = true
+        let tail = persistedLogTail()
+        guard !tail.isEmpty else { return }
+        let iso = ISO8601DateFormatter()
+        iso.timeZone = TimeZone(identifier: "UTC")
+        // The stamp is when the roll happened (i.e. this launch), NOT when those lines were written — the
+        // lines carry their own clock. Said plainly in the text so nobody reads it as the session's end.
+        let header = "===== previous app session, \(tail.count) line(s), rolled at "
+            + iso.string(from: now) + " (this launch) ====="
+        let clipped = tail.count > generationTailLimit ? Array(tail.suffix(generationTailLimit)) : tail
+        var gens = persistedLogGenerations()
+        gens.append([header] + clipped)
+        if gens.count > maxLogGenerations { gens.removeFirst(gens.count - maxLogGenerations) }
+        UserDefaults.standard.set(gens, forKey: generationsKey)
+        // Clear the live slot: this tail now belongs to a generation, and leaving it would duplicate it in
+        // every export until 32 fresh lines happen to overwrite it.
+        UserDefaults.standard.set([String](), forKey: tailKey)
+    }
+
+    /// The stored generations, oldest-first. Each element's first line is its own separator header.
+    nonisolated static func persistedLogGenerations() -> [[String]] {
+        (UserDefaults.standard.array(forKey: generationsKey) as? [[String]]) ?? []
+    }
+
+    /// The previous processes' lines, oldest-first, ready to sit AHEAD of the current session in an export.
+    /// Empty string when there are none, so a caller can concatenate unconditionally.
+    nonisolated static func previousSessionsText() -> String {
+        let gens = persistedLogGenerations()
+        guard !gens.isEmpty else { return "" }
+        return gens.map { $0.joined(separator: "\n") }.joined(separator: "\n") + "\n"
+            + "===== current app session =====\n"
+    }
+
+    /// Drop every stored generation (Settings → the same place the log is cleared from).
+    nonisolated static func clearLogGenerations() {
+        UserDefaults.standard.removeObject(forKey: generationsKey)
+    }
+
+    /// Tests only: clear the once-per-process latch so a test can stand in for a fresh app launch.
+    nonisolated static func resetGenerationRollLatchForTesting() { didRollGenerations = false }
+
     /// A shareable strap-log body sourced from the DURABLE tail, for a background / scheduled export that
     /// runs with no live `LiveState` instance. Mirrors `exportableLogText()`'s header so a scheduled drop
     /// reads the same as a manual share; falls back to the live `log` is not available here by design
@@ -643,7 +721,9 @@ public final class LiveState: ObservableObject {
             + ProcessInfo.processInfo.operatingSystemVersionString + "\n"
         if !extraHeaderLines.isEmpty { header += extraHeaderLines.joined(separator: "\n") + "\n" }
         header += String(repeating: "-", count: 40) + "\n"
-        return header + persistedLogTail().joined(separator: "\n")
+        // Same generations-then-current shape as `exportableLogText()`: a scheduled drop that fires after a
+        // restart must not report only the (possibly empty) current tail.
+        return header + previousSessionsText() + persistedLogTail().joined(separator: "\n")
     }
 
     /// Scrub personal identifiers from a strap-log line so it's safe to share publicly (#445): BLE MAC
@@ -690,6 +770,8 @@ public final class LiveState: ObservableObject {
         #endif
         if !extraHeaderLines.isEmpty { header += extraHeaderLines.joined(separator: "\n") + "\n" }
         header += String(repeating: "-", count: 40) + "\n"
-        return header + log.joined(separator: "\n")
+        // Previous processes first, so the body stays in chronological order and the log-parsing tools read
+        // it unchanged — they just get the night that a wake-time restart used to erase.
+        return header + Self.previousSessionsText() + log.joined(separator: "\n")
     }
 }
