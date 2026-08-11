@@ -97,6 +97,11 @@ object BackgroundImageStore {
             list = listOf(Recent("background.jpg", NoopPrefs.backgroundFillMode(app)))
         }
         recents = list.take(MAX_RECENTS)
+        // GC orphan background files (bg-*.jpg / legacy background.jpg) not referenced by the list — e.g.
+        // one left by a crash between writing a pick and persisting the list. Only OUR files are matched.
+        val kept = recents.map { it.id }.toSet()
+        app.filesDir.listFiles { f -> f.isFile && (f.name.startsWith("bg-") || f.name == "background.jpg") }
+            ?.forEach { if (it.name !in kept) runCatching { it.delete() } }
         refreshDecoded(app)
         persist(app)
     }

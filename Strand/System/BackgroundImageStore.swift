@@ -66,6 +66,10 @@ final class BackgroundImageStore: ObservableObject {
         }
         let capped = Array(list.prefix(Self.maxRecents))
         recents = capped
+        // GC orphan background files not referenced by the list — e.g. one left by a crash between writing
+        // a pick and persisting the list. (iOS writes atomically, so a partial file never appears; this
+        // catches only the crash-before-persist case.)
+        Self.gcOrphans(keeping: Set(capped.map(\.id)))
         image = capped.first.flatMap { Self.fullImage(id: $0.id) }
         thumbnails = capped.map { Self.thumbnail(id: $0.id) }
         persist()
@@ -174,12 +178,27 @@ final class BackgroundImageStore: ObservableObject {
 
     /// `<AppSupport>/OpenWhoop/<id>` (the same base folder the capture recorder uses).
     private static func fileURL(id: String, create: Bool) throws -> URL {
+        let dir = try dirURL(create: create)
+        return dir.appendingPathComponent(id, isDirectory: false)
+    }
+
+    private static func dirURL(create: Bool = false) throws -> URL {
         let fm = FileManager.default
         let dir = try fm.url(for: .applicationSupportDirectory, in: .userDomainMask,
                              appropriateFor: nil, create: create)
             .appendingPathComponent("OpenWhoop", isDirectory: true)
         if create { try fm.createDirectory(at: dir, withIntermediateDirectories: true) }
-        return dir.appendingPathComponent(id, isDirectory: false)
+        return dir
+    }
+
+    /// Delete background files (`bg-*.jpg` / legacy `background.jpg`) NOT referenced by `keeping` — only
+    /// OUR files are matched, so the avatar and capture files are untouched.
+    private static func gcOrphans(keeping kept: Set<String>) {
+        guard let dir = try? dirURL(create: false),
+              let names = try? FileManager.default.contentsOfDirectory(atPath: dir.path) else { return }
+        for name in names where (name.hasPrefix("bg-") || name == "background.jpg") && !kept.contains(name) {
+            try? FileManager.default.removeItem(at: dir.appendingPathComponent(name))
+        }
     }
 }
 
