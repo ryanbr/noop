@@ -14,6 +14,10 @@ struct StrandApp: App {
         // here, before the first Today render. No-op (active stays nil) when the arg is absent, so
         // Release is unaffected (whole harness is `#if DEBUG`). See DemoDayHarness.swift.
         DemoDayHarness.applyLaunchArgsIfNeeded()
+        // DEBUG-only sync harness: `--demo-sync` drives the Today header's charge→sync control with a
+        // synthetic battery + a looping sync signal, so the morph is watchable with no strap paired.
+        // No-op (active stays false) when the arg is absent. See DemoSyncHarness.swift.
+        DemoSyncHarness.applyLaunchArgsIfNeeded()
         #endif
         // Foreground presentation: without a delegate, macOS suppresses a notification's banner while the
         // app is frontmost, so a reminder tested with NOOP open would show nothing. Mirrors iOS.

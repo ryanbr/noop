@@ -137529,54 +137529,226 @@
         }
       }
     },
-    "Syncing strap history, %lld chunks": {
+    "Syncing strap history": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Verlaufssynchronisierung des Straps läuft, %lld Chunks"
+            "value": "Strap-Verlauf wird synchronisiert"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Syncing strap history"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sincronizando el historial de la pulsera, %lld bloques"
+            "value": "Sincronizando el historial de la pulsera"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Synchronisation de l'historique du bracelet, %lld blocs"
+            "value": "Synchronisation de l'historique du bracelet"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sincronizzazione della cronologia della fascia, %lld blocchi"
+            "value": "Sincronizzazione della cronologia della fascia"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "A sincronizar o histórico da bracelete, %lld pedaços"
+            "value": "A sincronizar o histórico da bracelete"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Синхронизация истории браслета, %lld фрагментов"
+            "value": "Синхронизирую историю браслета"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "正在同步手环历史记录，%lld 个数据块"
+            "value": "正在同步手环历史"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "正在同步手環歷史記錄，%lld 個資料塊"
+            "value": "正在同步手環歷史"
+          }
+        }
+      }
+    },
+    "Syncing strap history, %lld chunks": {
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Verlaufssynchronisierung des Straps läuft, %lld Chunk"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Verlaufssynchronisierung des Straps läuft, %lld Chunks"
+                }
+              }
+            }
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Syncing strap history, %lld chunk"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Syncing strap history, %lld chunks"
+                }
+              }
+            }
+          }
+        },
+        "es": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Sincronizando el historial de la pulsera, %lld bloque"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Sincronizando el historial de la pulsera, %lld bloques"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Synchronisation de l'historique du bracelet, %lld bloc"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Synchronisation de l'historique du bracelet, %lld blocs"
+                }
+              }
+            }
+          }
+        },
+        "it": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Sincronizzazione della cronologia della fascia, %lld blocco"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Sincronizzazione della cronologia della fascia, %lld blocchi"
+                }
+              }
+            }
+          }
+        },
+        "pt-PT": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "A sincronizar o histórico da bracelete, %lld pedaço"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "A sincronizar o histórico da bracelete, %lld pedaços"
+                }
+              }
+            }
+          }
+        },
+        "ru": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Синхронизация истории браслета, %lld фрагмент"
+                }
+              },
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Синхронизация истории браслета, %lld фрагмента"
+                }
+              },
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Синхронизация истории браслета, %lld фрагментов"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Синхронизация истории браслета, %lld фрагмента"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "正在同步手环历史记录，%lld 个数据块"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hant": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "正在同步手環歷史記錄，%lld 個資料塊"
+                }
+              }
+            }
           }
         }
       }

@@ -61,11 +61,12 @@ public enum StrandFont {
     /// Footnote 11. Scales with Dynamic Type.
     public static let footnote = Font.system(.footnote, design: .rounded, weight: .regular)
 
-    /// Compact semibold status copy for constrained header chrome.
-    public static let compactStatus = helveticaScaled(10.5, weight: .semibold, relativeTo: .caption2)
-
     /// Overline 11 / Bold, +1.4 tracking (apply `.tracking(1.4)` at use site;
     /// `overlineText(_:)` does it for you). Sparing ALL-CAPS labels. Scales with Dynamic Type.
+    ///
+    /// Also the face for compact status copy in constrained chrome (the Today header's sync capsule),
+    /// used there WITHOUT the tracking — that is sentence case, not an overline, and the letter-spacing
+    /// is what makes an overline read as one.
     public static let overline = Font.system(.caption2, design: .rounded, weight: .semibold)
 
     /// `overline` at a custom point size — same Helvetica face, weight and Dynamic-Type scaling

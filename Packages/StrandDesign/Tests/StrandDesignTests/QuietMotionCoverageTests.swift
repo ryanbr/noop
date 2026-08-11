@@ -30,6 +30,17 @@ final class QuietMotionCoverageTests: XCTestCase {
     /// A loop that never settles: an indefinitely repeating implicit animation, or a per-frame
     /// `TimelineView` clock. `TimelineView(.periodic…)` is deliberately NOT censused — a 1 s or 60 s
     /// clock is a label ticking over, not the per-frame drawing this gate exists to stop.
+    ///
+    /// Matched against the source with ALL WHITESPACE REMOVED, not line by line. Line-by-line matching
+    /// meant a marker only counted when it fitted on one line, so the ordinary wrapped spelling
+    ///
+    ///     TimelineView(
+    ///         .animation(
+    ///
+    /// scored zero hits and the file was never censused at all. That is not hypothetical: it is how the
+    /// first version of `ChargeSyncIndicator` shipped two ungated 60 Hz clocks with this suite green. A
+    /// census whose blind spot is "the author let the formatter wrap the call" is worse than none,
+    /// because the green tick is read as coverage.
     private static let loopMarkers = ["repeatForever(", "TimelineView(.animation"]
 
     /// Files allowed to contain a marker without naming the gate, each with the reason.
@@ -75,6 +86,33 @@ final class QuietMotionCoverageTests: XCTestCase {
         return out
     }
 
+    /// Every marker occurrence in `lines`, as the 1-based line the occurrence STARTS on.
+    ///
+    /// Whitespace is stripped from the whole file before matching, so a call split across lines reads
+    /// the same as one written inline. The index map is carried alongside purely so an offender can
+    /// still be reported at a line the author can jump to.
+    private func markerHits(in lines: [String]) -> [Int] {
+        var flattened = ""
+        var lineOfCharacter: [Int] = []
+        for (index, line) in lines.enumerated() {
+            for character in line where !character.isWhitespace {
+                flattened.append(character)
+                lineOfCharacter.append(index + 1)
+            }
+        }
+
+        var hits: [Int] = []
+        for marker in Self.loopMarkers {
+            var searchFrom = flattened.startIndex
+            while let found = flattened.range(of: marker, range: searchFrom..<flattened.endIndex) {
+                let offset = flattened.distance(from: flattened.startIndex, to: found.lowerBound)
+                hits.append(lineOfCharacter[offset])
+                searchFrom = found.upperBound
+            }
+        }
+        return hits.sorted()
+    }
+
     /// Strip `//` line comments so a marker merely *described* in prose is not censused as code.
     private func codeLines(_ text: String) -> [String] {
         text.split(separator: "\n", omittingEmptySubsequences: false).map { line in
@@ -95,15 +133,16 @@ final class QuietMotionCoverageTests: XCTestCase {
         var censused = 0
         for (rel, text) in files {
             let code = codeLines(text)
-            let hits = code.enumerated().filter { _, line in
-                Self.loopMarkers.contains { line.contains($0) }
-            }
+            let hits = markerHits(in: code)
             guard !hits.isEmpty else { continue }
             censused += 1
             if Self.exemptions[rel] != nil { continue }
             guard !text.contains("NoopMotionState") else { continue }
-            for (i, line) in hits {
-                offenders.append("\(rel):\(i + 1): \(line.trimmingCharacters(in: .whitespaces))")
+            for line in hits {
+                let source = code.indices.contains(line - 1)
+                    ? code[line - 1].trimmingCharacters(in: .whitespaces)
+                    : ""
+                offenders.append("\(rel):\(line): \(source)")
             }
         }
 

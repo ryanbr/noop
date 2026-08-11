@@ -28,14 +28,25 @@ public enum NoopMetrics {
     /// Canonical diameter for compact circular controls in dense header chrome.
     public static let compactControlSize: CGFloat = 36
     /// Expanded width of the compact charge-to-sync status capsule.
-    public static let syncIndicatorExpandedWidth: CGFloat = 94
+    public static let syncIndicatorExpandedWidth: CGFloat = 108
     /// Optical space between the sync ring and its transient label.
     public static let syncIndicatorLabelSpacing: CGFloat = 5
-    /// Inset for the animated sync arc inside a compact circular control.
-    public static let syncIndicatorArcInset: CGFloat = 5.5
+    /// Smallest readable scale for long localized labels inside the sync capsule.
+    public static let syncIndicatorMinimumLabelScale: CGFloat = 0.72
+    /// Even inset around the sync control before applying exact-bounds Liquid Glass, matching the inset
+    /// the system's `.small` glass chrome gives the sibling header circles. Equal on both axes so the
+    /// compact state stays circular.
+    public static let syncIndicatorGlassPadding: CGFloat = 5
+    /// Inset for the indicator's ring in BOTH states — the battery arc and the sync spinner share one
+    /// radius, so the morph changes colour and sweep without the circle also resizing. Two different
+    /// radii read as two different controls swapping places rather than one control changing state.
+    public static let syncIndicatorArcInset: CGFloat = 2.5
     /// Width of the soft fade where long header text passes beneath trailing controls.
     public static let headerTextFadeWidth: CGFloat = 48
-    /// Maximum trailing footprint reserved for an expanded transient header control.
+    /// Starting guess for the trailing footprint a header control row occupies, used ONLY until the host
+    /// has measured its own cluster (see `headerTrailingControlFadeMask(reserving:)`). Four compact
+    /// controls plus their gaps and the sync control's glass inset — deliberately not a fixed budget,
+    /// because a cluster that gains a control must not silently start mis-fading the title beside it.
     public static let headerControlReserveWidth: CGFloat = 168
 
     // MARK: Standardised spacing scale (the ONE source of truth for margins)

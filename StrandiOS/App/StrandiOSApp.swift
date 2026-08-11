@@ -45,6 +45,11 @@ struct StrandiOSApp: App {
         // MUST live here, not in StrandApp.swift — that is the macOS @main and is excluded from the iOS
         // target, so the hook there never runs on iOS.
         DemoDayHarness.applyLaunchArgsIfNeeded()
+        // DEBUG-only sync harness: `--demo-sync` drives the Today header's charge→sync control with a
+        // synthetic battery + a looping sync signal, so the morph is watchable with no strap paired.
+        // Same reason this lives here rather than StrandApp.swift: that file is the macOS @main and is
+        // excluded from the iOS target. See DemoSyncHarness.swift.
+        DemoSyncHarness.applyLaunchArgsIfNeeded()
         #endif
         // Debug-only canary: trips if the App Group entitlement is missing on this target before any
         // silent no-op (PendingIntents, WidgetSnapshot.publish, Live Activity) can mask the issue as

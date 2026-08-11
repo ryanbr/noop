@@ -984,7 +984,6 @@
     <string name="l10n_app_changelog_honest_labelling_for_whoop_5_mg_8c650225">Etiquetas honestas para diagnósticos de datos profundos WHOOP 5/MG</string>
     <string name="l10n_app_changelog_hotfix_making_a_heart_rate_strap_09f87c0a">Hotfix - hacer una correa de corazón activa ya no se bloquea</string>
     <string name="l10n_app_changelog_hr_from_the_optical_waveform_an_b8874b42">Recursos humanos de la forma de onda óptica, una reflujo de día temprano y términos más claros</string>
-    <string name="l10n_app_changelog_hrv_accuracy_fix_oura_sleep_and_4ed31e39">Corrección de la precisión de la VFC, sueño y movimiento de Oura, decodificación 5/MG más completa y sincronización cancelable</string>
     <string name="l10n_app_changelog_hrv_that_reads_true_and_a_2b09fa43">HRV que lee verdad, y una lista de entrenamiento de tidier</string>
     <string name="l10n_app_changelog_import_fixes_both_sources_all_data_92cfed50">Arreglos de importación - ambas fuentes, todos los tipos de datos</string>
     <string name="l10n_app_changelog_import_polish_mac_whoop_5_optical_5067d90c">Esmalte de importación (Mac) + decodificación óptica WHOOP 5</string>

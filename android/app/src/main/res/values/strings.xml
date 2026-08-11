@@ -1170,7 +1170,6 @@
     <string name="l10n_app_changelog_honest_labelling_for_whoop_5_mg_8c650225">Honest labelling for WHOOP 5/MG deep-data diagnostics</string>
     <string name="l10n_app_changelog_hotfix_making_a_heart_rate_strap_09f87c0a">Hotfix - making a heart-rate strap active no longer crashes</string>
     <string name="l10n_app_changelog_hr_from_the_optical_waveform_an_b8874b42">HR from the optical waveform, an early-morning day rollover, and clearer terms</string>
-    <string name="l10n_app_changelog_hrv_accuracy_fix_oura_sleep_and_4ed31e39">HRV accuracy fix, Oura sleep and motion, richer 5/MG decoding, and a stoppable sync</string>
     <string name="l10n_app_changelog_hrv_that_reads_true_and_a_2b09fa43">HRV that reads true, and a tidier workout list</string>
     <string name="l10n_app_changelog_import_fixes_both_sources_all_data_92cfed50">Import fixes - both sources, all data types</string>
     <string name="l10n_app_changelog_import_polish_mac_whoop_5_optical_5067d90c">Import polish (Mac) + WHOOP 5 optical decode</string>

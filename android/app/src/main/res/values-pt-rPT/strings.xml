@@ -1150,7 +1150,6 @@
     <string name="l10n_app_changelog_honest_labelling_for_whoop_5_mg_8c650225">Rotulagem honesta para diagnósticos de dados profundos do WHOOP 5/MG</string>
     <string name="l10n_app_changelog_hotfix_making_a_heart_rate_strap_09f87c0a">Hotfix – ativar uma bracelete de frequência cardíaca já não bloqueia</string>
     <string name="l10n_app_changelog_hr_from_the_optical_waveform_an_b8874b42">HR a partir da forma de onda ótica, um rollover de manhã cedo e termos mais claros</string>
-    <string name="l10n_app_changelog_hrv_accuracy_fix_oura_sleep_and_4ed31e39">Correção da precisão da VFC, sono e movimento da Oura, descodificação 5/MG mais completa e sincronização cancelável</string>
     <string name="l10n_app_changelog_hrv_that_reads_true_and_a_2b09fa43">HRV que é verdadeiro e uma lista de exercícios mais organizada</string>
     <string name="l10n_app_changelog_import_fixes_both_sources_all_data_92cfed50">Correções de importação – ambas as fontes, todos os tipos de dados</string>
     <string name="l10n_app_changelog_import_polish_mac_whoop_5_optical_5067d90c">Importação polaco (Mac) + descodificação óptica WHOOP 5</string>
