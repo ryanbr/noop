@@ -396,7 +396,8 @@ private struct HostedCardsCustomizationPage: View {
             configurationLabel: { _ in nil },
             onConfigure: { _ in },
             onReset: onReset,
-            allowEmpty: true   // hosting is opt-in: the last card can be un-hosted (Shown may be empty)
+            allowEmpty: true,   // hosting is opt-in: the last card can be un-hosted (Shown may be empty)
+            group: { $0.origin }   // group the Available list by origin tab ("Sleep", "Trends")
         ) {
             EmptyView()
         }

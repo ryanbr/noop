@@ -3538,6 +3538,11 @@ internal fun <T> EditableVisibilityRows(
     // surfaces needing >=1 item can't be emptied. The hosted-cards editor (#today-hosted-cards) passes
     // true (opt-in: un-hosting the last card is valid).
     allowEmpty: Boolean = false,
+    // Optional grouping key for the Hidden ("Available") list. When set (the hosted-cards editor passes the
+    // card's origin, e.g. "Sleep" / "Trends"), the Available items render under one sub-header per group so
+    // a user browses by origin. null (Today sections, Key Metrics, Your Cards) keeps the flat list. The
+    // Shown list stays flat — it is the user's own cross-origin order. Twin of the Swift EditableLayoutList.
+    hiddenGroup: ((T) -> String)? = null,
 ) {
     val minShown = if (allowEmpty) 0 else 1
     Column(
@@ -3610,6 +3615,43 @@ internal fun <T> EditableVisibilityRows(
                 color = Palette.textTertiary,
                 modifier = Modifier.padding(vertical = Metrics.space12),
             )
+        } else if (hiddenGroup != null) {
+            // Grouped Available list: one sub-header per origin ("Sleep", "Trends"). Remove by identity
+            // (items are unique) so the move is index-free across the regrouped display.
+            val buckets = LinkedHashMap<String, MutableList<T>>()
+            hidden.forEach { item -> buckets.getOrPut(hiddenGroup(item)) { ArrayList() }.add(item) }
+            buckets.keys.toList().forEachIndexed { gi, groupName ->
+                Text(
+                    groupName,
+                    style = NoopType.overline,
+                    color = Palette.textTertiary,
+                    modifier = Modifier.padding(top = if (gi == 0) Metrics.space4 else Metrics.space12),
+                )
+                val itemsIn = buckets.getValue(groupName)
+                itemsIn.forEachIndexed { ii, item ->
+                    val title = itemTitle(item)
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = Metrics.space6),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(title, style = NoopType.body, color = Palette.textTertiary, modifier = Modifier.weight(1f))
+                        IconButton(
+                            onClick = { hidden.remove(item); shown.add(item) },
+                            modifier = Modifier.size(Metrics.iconButton),
+                        ) {
+                            Icon(
+                                Icons.Filled.Add,
+                                contentDescription = stringResource(R.string.today_customize_show, title),
+                                tint = Palette.accent,
+                                modifier = Modifier.size(Metrics.iconSmall),
+                            )
+                        }
+                    }
+                    if (ii < itemsIn.lastIndex) {
+                        HorizontalDivider(color = Palette.hairline, thickness = Metrics.divider)
+                    }
+                }
+            }
         } else {
             hidden.forEachIndexed { index, item ->
                 val title = itemTitle(item)
@@ -3746,6 +3788,7 @@ private fun HostedCardsEditorDialog(
                     hidden = hidden,
                     itemTitle = { it.title },
                     allowEmpty = true,   // hosting is opt-in: un-hosting the last card is valid
+                    hiddenGroup = { it.origin },   // group the Available list by origin tab ("Sleep", "Trends")
                 )
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
