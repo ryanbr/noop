@@ -56,6 +56,9 @@
     <string name="today_customize_title">Heute anpassen</string>
     <string name="today_customize_action">Anpassen</string>
     <string name="today_customize_description">Ordne sichtbare Elemente neu an oder verschiebe einen Abschnitt nach „Ausgeblendet“, ohne ihn zu löschen.</string>
+    <string name="today_customize_edit_added_cards">Hinzugefügte Karten bearbeiten</string>
+    <string name="today_hosted_editor_title">Hinzugefügte Karten</string>
+    <string name="today_hosted_editor_desc">Wähle, welche Trends- und Schlaf-Karten auf „Heute“ erscheinen. Sie bleiben auch in ihren eigenen Tabs.</string>
     <string name="sleep_customize_title">Schlaf anpassen</string>
     <string name="sleep_customize_description">Ordne sichtbare Elemente neu an oder verschiebe einen Abschnitt nach „Ausgeblendet“, ohne ihn zu löschen.</string>
     <string name="today_customize_shown">ANGEZEIGT</string>

@@ -1566,6 +1566,9 @@
     <string name="today_customize_title">Personnaliser Aujourd’hui</string>
     <string name="today_customize_action">Personnaliser</string>
     <string name="today_customize_description">Réorganisez les éléments affichés ou déplacez une section dans Masqués sans la supprimer.</string>
+    <string name="today_customize_edit_added_cards">Modifier les cartes ajoutées</string>
+    <string name="today_hosted_editor_title">Cartes ajoutées</string>
+    <string name="today_hosted_editor_desc">Choisissez les cartes Tendances et Sommeil affichées dans Aujourd\'hui. Elles restent aussi dans leurs propres onglets.</string>
     <string name="sleep_customize_title">Personnaliser le sommeil</string>
     <string name="sleep_customize_description">Réorganisez les éléments affichés ou déplacez une section dans Masqués sans la supprimer.</string>
     <string name="today_customize_shown">AFFICHÉS</string>

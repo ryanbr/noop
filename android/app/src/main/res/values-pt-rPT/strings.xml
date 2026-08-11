@@ -52,6 +52,9 @@
     <string name="today_customize_title">Personalizar Hoje</string>
     <string name="today_customize_action">Personalizar</string>
     <string name="today_customize_description">Reordena o que é mostrado ou move uma secção para Ocultos sem a apagar.</string>
+    <string name="today_customize_edit_added_cards">Editar cartões adicionados</string>
+    <string name="today_hosted_editor_title">Cartões adicionados</string>
+    <string name="today_hosted_editor_desc">Escolhe que cartões de Tendências e Sono aparecem em Hoje. Também permanecem nos seus próprios separadores.</string>
     <string name="sleep_customize_title">Personalizar Sono</string>
     <string name="sleep_customize_description">Reordena o que é mostrado ou move uma secção para Ocultos sem a apagar.</string>
     <string name="today_customize_shown">MOSTRADOS</string>

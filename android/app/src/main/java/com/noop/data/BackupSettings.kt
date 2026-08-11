@@ -1,6 +1,7 @@
 package com.noop.data
 
 import android.content.Context
+import com.noop.ui.HostedCardPrefs
 import com.noop.ui.NoopPrefs
 import com.noop.ui.ProfileStore
 import com.noop.ui.UnitPrefs
@@ -54,6 +55,11 @@ object BackupSettingsCodec {
         "units.system" to Kind.STRING,
         "units.temperature" to Kind.STRING,
         "effort.scale" to Kind.STRING,
+        // The ONE layout pref carried (#today-hosted-cards): the Trends/Sleep cards the user chose to host
+        // in Today, a JSON [String] of ids. Unlike section order, this is a deliberate composition the user
+        // built and expects across a restore. Its POSITION (the addedCards slot in today.sectionOrder) is
+        // not carried, so on restore the set + internal order return but the section sits at its default.
+        HostedCardPrefs.KEY_SELECTION to Kind.STRING,
     )
 
     /**
@@ -124,6 +130,9 @@ object BackupSettingsBridge {
         if (noop.contains(UnitPrefs.KEY_EFFORT_SCALE)) {
             noop.getString(UnitPrefs.KEY_EFFORT_SCALE, null)?.let { values["effort.scale"] = it }
         }
+        if (noop.contains(HostedCardPrefs.KEY_SELECTION)) {
+            noop.getString(HostedCardPrefs.KEY_SELECTION, null)?.let { values[HostedCardPrefs.KEY_SELECTION] = it }
+        }
         return BackupSettingsCodec.encode(values)
     }
 
@@ -147,6 +156,7 @@ object BackupSettingsBridge {
             else editor.putString(NoopPrefs.KEY_TEMPERATURE_UNIT, raw)
         }
         (values["effort.scale"] as? String)?.let { editor.putString(UnitPrefs.KEY_EFFORT_SCALE, it) }
+        (values[HostedCardPrefs.KEY_SELECTION] as? String)?.let { editor.putString(HostedCardPrefs.KEY_SELECTION, it) }
         editor.apply()
     }
 }

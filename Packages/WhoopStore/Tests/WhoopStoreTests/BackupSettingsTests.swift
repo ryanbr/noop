@@ -20,6 +20,8 @@ final class BackupSettingsTests: XCTestCase {
             "units.system": "imperial",
             "units.temperature": "celsius",
             "effort.scale": "whoop",
+            // #today-hosted-cards: the one layout pref carried, a JSON [String] stored under the String kind.
+            "today.hostedCards": "[\"sleep.sleepMarks\"]",
         ]
         let data = try XCTUnwrap(BackupSettings.encode(values))
         let back = BackupSettings.decode(data)
@@ -33,6 +35,7 @@ final class BackupSettingsTests: XCTestCase {
         XCTAssertEqual(back["units.system"] as? String, "imperial")
         XCTAssertEqual(back["units.temperature"] as? String, "celsius")
         XCTAssertEqual(back["effort.scale"] as? String, "whoop")
+        XCTAssertEqual(back["today.hostedCards"] as? String, "[\"sleep.sleepMarks\"]")
         XCTAssertEqual(back.count, values.count, "Nothing extra should appear")
     }
 

@@ -39,7 +39,14 @@ public enum BackupSettings {
     /// display prefs that exist with identical semantics on both platforms. Deliberately EXCLUDED:
     /// step calibration (per-strap, not per-person), the avatar blob (bulky, and not "settings"),
     /// steps-engine fitted outputs (derived), and every noop.* toggle that is device- or
-    /// install-specific.
+    /// install-specific — INCLUDING the Today/Sleep section order, Key-Metrics and dashboard-card
+    /// selections, which stay per-install.
+    ///
+    /// The ONE layout pref that IS carried is `today.hostedCards` (#today-hosted-cards): the Trends/Sleep
+    /// cards the user chose to host in Today. Unlike section order, this is a deliberate composition the
+    /// user built and expects to keep across a restore; it is a JSON `[String]` (rides the String kind).
+    /// The hosted cards' POSITION (the `addedCards` section slot in `today.sectionOrder`) is not carried,
+    /// so on restore the set + internal order return but the section sits at its default position.
     public static let whitelist: [String: Kind] = [
         "profile.age": .int,
         "profile.sex": .string,
@@ -50,6 +57,7 @@ public enum BackupSettings {
         "units.system": .string,
         "units.temperature": .string,
         "effort.scale": .string,
+        "today.hostedCards": .string,
     ]
 
     /// Canonical JSON key → this platform's UserDefaults key. Identity everywhere except
@@ -65,6 +73,7 @@ public enum BackupSettings {
         "units.system": "units.system",
         "units.temperature": "units.temperature",
         "effort.scale": "effort.scale",
+        "today.hostedCards": "today.hostedCards",
     ]
 
     // MARK: - Snapshot / apply (UserDefaults boundary)

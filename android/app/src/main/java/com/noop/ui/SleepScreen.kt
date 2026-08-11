@@ -796,8 +796,10 @@ fun SleepScreen(
 // on this screen; it's a record for later tap-driven sleep bounds + calibration. Mirrors macOS
 // SleepView.sleepMarkCard.
 
+// Lives in the Sleep tab but also hostable in Today (#today-hosted-cards), so it is `internal` (not
+// private). Self-contained apart from the [onMark] persistence callback the host supplies.
 @Composable
-private fun SleepMarkCard(onMark: (SleepMarkType) -> Unit) {
+internal fun SleepMarkCard(onMark: (SleepMarkType) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
         SectionHeader(title = uiString(R.string.l10n_sleep_screen_sleep_marks_8e9b86f0), overline = "Tap to log", trailing = "Phase 1")
         NoopCard(tint = Palette.restColor) {

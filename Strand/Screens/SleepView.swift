@@ -3090,7 +3090,10 @@ private struct SleepPerformanceNightScene: View {
 /// with a haptic and a transient line. LOGGING ONLY: a mark never touches the sleep detector or the
 /// night boundaries. Owns `live` (it appends to the strap log) + `repo` (the metric-series write) and
 /// the `lastMark` confirmation state, so its strap-log write keeps working without SleepView observing.
-private struct SleepMarkCard: View {
+/// The "Sleep marks" tap-to-log card. Lives in the Sleep tab but is also hostable in Today
+/// (#today-hosted-cards), so it is `internal` (not `private`) and self-contained — it reads only the
+/// shared `repo`/`live` environment objects, both present on Today too.
+struct SleepMarkCard: View {
     @EnvironmentObject private var repo: Repository
     @EnvironmentObject private var live: LiveState
 

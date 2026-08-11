@@ -139,6 +139,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import android.app.DatePickerDialog
 import android.view.HapticFeedbackConstants
+import android.widget.Toast
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.noop.R
 import com.noop.analytics.Baselines
@@ -148,6 +149,8 @@ import com.noop.analytics.HydrationGoal
 import com.noop.analytics.HydrationStore
 import com.noop.analytics.ReadinessEngine
 import com.noop.analytics.ScoreConfidence
+import com.noop.analytics.SleepMark
+import com.noop.analytics.SleepMarkType
 import com.noop.analytics.StepsEstimateEngine
 import com.noop.analytics.StrainScorer
 import com.noop.data.DailyMetric
@@ -447,6 +450,10 @@ fun TodayScreen(
     // SharedPreferences isn't reactive, so it's mirrored into local state and re-read when the editor saves.
     var showDashboardEditor by remember { mutableStateOf(false) }
     var enabledDashboardCards by remember { mutableStateOf(DashboardCardPrefs.enabled(context)) }
+    // #today-hosted-cards: the Trends/Sleep cards hosted in Today (empty/opt-in). Mirrored into local
+    // state like the dashboard selection and re-read when the hosted-cards editor saves.
+    var showHostedEditor by remember { mutableStateOf(false) }
+    var enabledHostedCards by remember { mutableStateOf(HostedCardPrefs.enabled(context)) }
 
     // The pinned "Your cards" values (Stress / Fitness age / Vitality), surfaced on Today so the buried
     // Explore features sit on the home screen (#582). The same merged resolvedSeries reads their detail
@@ -1361,6 +1368,8 @@ fun TodayScreen(
                         (cycleOptInApplies(profileStore.sex) || cycleEnabled || periodStarts.isNotEmpty())
                 TodaySection.JOURNAL ->
                     selectedDayOffset == 0 && journalReminderOn
+                TodaySection.ADDED_CARDS ->
+                    selectedDayOffset == 0 && enabledHostedCards.isNotEmpty()
                 else -> true
             }
             if (!sectionVisible) return@forEach
@@ -1579,6 +1588,12 @@ fun TodayScreen(
                             days = days,
                             onOpenJournal = onOpenJournal,
                         )
+                        // #today-hosted-cards: the Trends/Sleep cards the user pulled into Today, in
+                        // arranged order. Each is the SAME card its home tab renders (a mirror).
+                        TodaySection.ADDED_CARDS -> HostedCardsSection(
+                            cards = enabledHostedCards,
+                            viewModel = viewModel,
+                        )
                     }
                 }
             }
@@ -1716,13 +1731,32 @@ fun TodayScreen(
         )
     }
 
+    // #today-hosted-cards: the add/remove/reorder editor for the Trends/Sleep cards hosted in Today. Saves
+    // the selection and re-reads it into local state so the Added-cards section reflects it immediately.
+    if (showHostedEditor) {
+        HostedCardsEditorDialog(
+            initial = enabledHostedCards,
+            onDismiss = { showHostedEditor = false },
+            onSave = { cards ->
+                HostedCardPrefs.setEnabled(context, cards)
+                enabledHostedCards = cards
+                showHostedEditor = false
+            },
+        )
+    }
+
     // #today-layout: the section-order editor (reorder the below-hero sections). Saves the order and
-    // re-reads it into local state so Today re-lays-out immediately and survives relaunch.
+    // re-reads it into local state so Today re-lays-out immediately and survives relaunch. Its "Edit added
+    // cards" button hands off to the hosted-cards editor above (#today-hosted-cards).
     if (showLayoutEditor) {
         TodayLayoutEditorDialog(
             initialOrder = sectionOrder,
             initialHidden = hiddenSections,
             onDismiss = { showLayoutEditor = false },
+            onEditAdded = {
+                showLayoutEditor = false
+                showHostedEditor = true
+            },
             onSave = { order, hidden ->
                 TodayLayoutPrefs.setOrder(context, order)
                 TodayLayoutPrefs.setHidden(context, hidden)
@@ -3024,6 +3058,37 @@ private fun TodayEditAction(
     }
 }
 
+/**
+ * #today-hosted-cards render: the Trends/Sleep cards hosted in Today, in arranged order. Each case renders
+ * the SAME card its home tab uses (a mirror, not a copy) so the two never diverge. P0 hosts only Sleep
+ * marks; its logging callback mirrors the Sleep tab's exactly (external log + metric-series upsert +
+ * confirmation toast). Renders nothing when [cards] is empty. Twin of the iOS `hostedCardsSection`.
+ */
+@Composable
+private fun HostedCardsSection(cards: List<HostedCard>, viewModel: AppViewModel) {
+    if (cards.isEmpty()) return
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    Column(verticalArrangement = Arrangement.spacedBy(Metrics.sectionGap)) {
+        cards.forEach { card ->
+            when (card) {
+                HostedCard.SLEEP_MARKS -> SleepMarkCard(
+                    onMark = { type ->
+                        val mark = SleepMark.now(type)
+                        viewModel.ble.externalLog(mark.logLine())
+                        scope.launch {
+                            runCatching {
+                                viewModel.repo.upsertMetricSeries(listOf(mark.metricPoint("my-whoop")))
+                            }
+                        }
+                        Toast.makeText(context, mark.confirmation(), Toast.LENGTH_SHORT).show()
+                    }
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun YourCardsSection(
     cards: List<DashboardCard>,
@@ -3629,6 +3694,70 @@ private fun DashboardCardsEditorDialog(
     }
 }
 
+/**
+ * #today-hosted-cards: the add/remove/reorder editor for the Trends/Sleep cards hosted in Today. Clone of
+ * [DashboardCardsEditorDialog] over [HostedCard], with ONE difference — Done is always enabled, because an
+ * EMPTY hosted set is valid (the feature is opt-in; hosting nothing simply hides the Added-cards section).
+ * Reuses the shared [EditableVisibilityRows]. Twin of the iOS `HostedCardsCustomizationPage`.
+ */
+@Composable
+private fun HostedCardsEditorDialog(
+    initial: List<HostedCard>,
+    onDismiss: () -> Unit,
+    onSave: (List<HostedCard>) -> Unit,
+) {
+    val shown = remember { mutableStateListOf<HostedCard>().apply { addAll(initial) } }
+    val hidden = remember {
+        mutableStateListOf<HostedCard>().apply {
+            addAll(HostedCard.canonicalOrder.filter { it !in initial })
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(color = Palette.surfaceOverlay, shape = RoundedCornerShape(16.dp)) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(stringResource(R.string.today_hosted_editor_title), style = NoopType.title2, color = Palette.textPrimary)
+                    Text(
+                        stringResource(R.string.today_hosted_editor_desc),
+                        style = NoopType.subhead,
+                        color = Palette.textSecondary,
+                    )
+                }
+
+                EditableVisibilityRows(
+                    shown = shown,
+                    hidden = hidden,
+                    itemTitle = { it.title },
+                )
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(
+                        onClick = {
+                            shown.clear()
+                            shown.addAll(HostedCard.defaultSelection)
+                            hidden.clear()
+                            hidden.addAll(HostedCard.canonicalOrder.filter { it !in shown })
+                        },
+                        colors = ButtonDefaults.textButtonColors(contentColor = Palette.textSecondary),
+                    ) { Text(uiString(R.string.l10n_today_screen_reset_44c57abd), style = NoopType.body) }
+                    Spacer(Modifier.weight(1f))
+                    Button(
+                        onClick = { onSave(shown.toList()) },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Palette.accent,
+                            contentColor = Palette.surfaceBase,
+                        ),
+                    ) { Text(uiString(R.string.l10n_today_screen_done_e9b450d1), style = NoopType.captionNumber) }
+                }
+            }
+        }
+    }
+}
+
 // #today-layout (hold-to-drag): LazyColumn key prefix for the reorderable section items, so the drag can
 // tell a section item from the pinned rows around it.
 private const val TODAY_SECTION_KEY_PREFIX = "todaySection:"
@@ -3820,6 +3949,7 @@ private fun TodayLayoutEditorDialog(
     initialOrder: List<TodaySection>,
     initialHidden: List<TodaySection>,
     onDismiss: () -> Unit,
+    onEditAdded: () -> Unit,
     onSave: (List<TodaySection>, List<TodaySection>) -> Unit,
 ) {
     val hiddenSet = remember(initialHidden) { initialHidden.toSet() }
@@ -3850,6 +3980,17 @@ private fun TodayLayoutEditorDialog(
                     hidden = hidden,
                     itemTitle = { it.title },
                 )
+
+                // #today-hosted-cards: hand-off to the editor that chooses WHICH Trends/Sleep cards the
+                // "Added Cards" section hosts (the section row above only reorders/hides the section).
+                TextButton(
+                    onClick = onEditAdded,
+                    colors = ButtonDefaults.textButtonColors(contentColor = Palette.accent),
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(Metrics.iconSmall))
+                    Spacer(Modifier.width(Metrics.space6))
+                    Text(stringResource(R.string.today_customize_edit_added_cards), style = NoopType.body)
+                }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(

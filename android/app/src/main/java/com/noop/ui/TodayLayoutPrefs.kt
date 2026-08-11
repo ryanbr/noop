@@ -30,7 +30,12 @@ enum class TodaySection(val raw: String, val title: String) {
     RECOVERY_VITALS("recoveryVitals", "Recovery Vitals"),
     YOUR_CARDS("yourCards", "Your Cards"),
     MENSTRUAL_CYCLE("menstrualCycle", "Menstrual Cycle"),
-    JOURNAL("journal", "Journal");
+    JOURNAL("journal", "Journal"),
+
+    /** Cards hosted from the Trends / Sleep tabs (#today-hosted-cards). Renders the [HostedCardPrefs]
+     *  selection in order; empty (and effectively invisible) until the user adds a card in Customise.
+     *  Appended LAST so [decodeOrder]'s back-fill lands it predictably for existing saved orders. */
+    ADDED_CARDS("addedCards", "Added Cards");
 
     companion object {
         fun fromRaw(raw: String?): TodaySection? = entries.firstOrNull { it.raw == raw }
@@ -39,7 +44,7 @@ enum class TodaySection(val raw: String, val title: String) {
          *  journal widget (#656) is last by default, where it was first added, above the data-sources card. */
         val defaultOrder: List<TodaySection> = listOf(
             HERO, LIVE_SESSION, SYNTHESIS, KEY_METRICS, WORKOUTS, HEART_RATE, RECOVERY_VITALS, YOUR_CARDS,
-            MENSTRUAL_CYCLE, JOURNAL,
+            MENSTRUAL_CYCLE, JOURNAL, ADDED_CARDS,
         )
     }
 }

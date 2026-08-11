@@ -226,6 +226,9 @@ struct TodayView: View {
     // Resting HR). The "CUSTOMISE" link on the section header opens a local sheet (no new nav destination).
     // Persistence is display-only, these cards read the SAME values the rest of Today already loads.
     @AppStorage(DashboardCardPrefs.selectionKey) private var dashboardCardsRaw = ""
+    /// #today-hosted-cards: the ordered Trends/Sleep cards hosted in Today (empty/opt-in). Shared key
+    /// with Android; rendered by the `.addedCards` section.
+    @AppStorage(HostedCardPrefs.selectionKey) private var hostedCardsRaw = ""
     @AppStorage(TodayLayoutPrefs.orderKey) private var sectionOrderRaw = ""
     @AppStorage(TodayLayoutPrefs.hiddenKey) private var hiddenSectionsRaw = ""
     @AppStorage(LiveSessionPrefs.betaKey) private var liveSessionsBeta = true
@@ -1422,7 +1425,8 @@ struct TodayView: View {
                 keyMetricsRaw: $keyMetricsRaw,
                 keyMetricsDetailed: $keyMetricsDetailed,
                 keyMetricsWindowDays: $keyMetricsWindowDays,
-                dashboardCardsRaw: $dashboardCardsRaw
+                dashboardCardsRaw: $dashboardCardsRaw,
+                hostedCardsRaw: $hostedCardsRaw
             )
         }
         #if os(iOS)
@@ -1698,6 +1702,8 @@ struct TodayView: View {
             if selectedDayOffset == 0 { MenstrualCycleHomeCard() }
         case .journal:
             if selectedDayOffset == 0 { JournalReminderCard() }
+        case .addedCards:
+            hostedCardsSection
         }
     }
 
@@ -2169,6 +2175,29 @@ struct TodayView: View {
                     dashboardCardRow(card)
                 }
             }
+        }
+    }
+
+    /// #today-hosted-cards: the Trends/Sleep cards the user hosted in Today, in arranged order. Each is the
+    /// SAME view its home tab renders, carrying its own header, so this section adds none. Renders nothing
+    /// until the user hosts a card (opt-in). TODAY only. Twin of the LiquidTodayView `hostedCardsSection`.
+    @ViewBuilder
+    private var hostedCardsSection: some View {
+        let cards = HostedCardPrefs.decodeEnabled(hostedCardsRaw)
+        if selectedDayOffset == 0 && !cards.isEmpty {
+            VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
+                ForEach(cards) { card in
+                    hostedCard(for: card)
+                }
+            }
+        }
+    }
+
+    /// Dispatch a hosted card id to its native view (mirror, not a copy). P0 hosts only Sleep marks.
+    @ViewBuilder
+    private func hostedCard(for card: HostedCard) -> some View {
+        switch card {
+        case .sleepMarks: SleepMarkCard()
         }
     }
 

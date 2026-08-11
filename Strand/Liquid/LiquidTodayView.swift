@@ -34,6 +34,9 @@ struct LiquidTodayView: View {
 
     /// Shared with the real Today's card-customise editor so the two stay in sync.
     @AppStorage(DashboardCardPrefs.selectionKey) private var dashboardCardsRaw = ""
+    /// #today-hosted-cards: the ordered Trends/Sleep cards the user has hosted in Today. Empty by default
+    /// (opt-in); rendered by the `.addedCards` section. Shared @AppStorage key with Android.
+    @AppStorage(HostedCardPrefs.selectionKey) private var hostedCardsRaw = ""
     /// #989 parity with classic Today + Android: the hydration card is opt-in twice over — the feature
     /// toggle AND an explicit add in CUSTOMISE. Liquid filtered on neither, so a user who added the card
     /// and later switched the feature off kept a permanently-blank row.
@@ -290,6 +293,9 @@ struct LiquidTodayView: View {
                         // the card self-hides when the reminder toggle is off (an empty branch renders
                         // nothing yet keeps its slot). Twin of Android TodayScreen's JOURNAL arm.
                         case .journal: if selectedDayOffset == 0 { JournalReminderCard() }
+                        // #today-hosted-cards: cards the user pulled in from the Trends/Sleep tabs, in the
+                        // order they arranged. Empty (renders nothing) until they add one in Customise.
+                        case .addedCards: hostedCardsSection
                         }
                     }
                     // Opt-in "looks like a workout?" suggestion, dropped in the liquid Home rewrite. Its
@@ -362,7 +368,8 @@ struct LiquidTodayView: View {
                 keyMetricsRaw: $keyMetricsRaw,
                 keyMetricsDetailed: $keyMetricsDetailed,
                 keyMetricsWindowDays: $keyMetricsWindowDays,
-                dashboardCardsRaw: $dashboardCardsRaw
+                dashboardCardsRaw: $dashboardCardsRaw,
+                hostedCardsRaw: $hostedCardsRaw
             )
         }
         .sheet(isPresented: $showSettings) {
@@ -619,6 +626,33 @@ struct LiquidTodayView: View {
                         .filter { hydrationEnabled || $0 != .hydration }) { card in
                 liquidCard(for: card)
             }
+        }
+    }
+
+    // MARK: - Added cards (#today-hosted-cards)
+
+    /// The Trends/Sleep cards the user hosted in Today, in their arranged order. Data-driven off the SAME
+    /// @AppStorage the Customise editor writes, so add / remove / reorder reflects live. Each hosted card
+    /// is the SAME view its home tab renders (a mirror, not a copy) and carries its own header, so this
+    /// section adds no header of its own. Renders nothing until the user hosts a card.
+    @ViewBuilder
+    private var hostedCardsSection: some View {
+        let cards = HostedCardPrefs.decodeEnabled(hostedCardsRaw)
+        if !cards.isEmpty {
+            VStack(spacing: NoopMetrics.sectionGap) {
+                ForEach(cards) { card in
+                    hostedCard(for: card)
+                }
+            }
+        }
+    }
+
+    /// Dispatch a hosted card id to its native view. Each case renders the exact view the originating tab
+    /// uses, so the Today copy and the home-tab copy never diverge. P0 hosts only Sleep marks.
+    @ViewBuilder
+    private func hostedCard(for card: HostedCard) -> some View {
+        switch card {
+        case .sleepMarks: SleepMarkCard()
         }
     }
 

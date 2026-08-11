@@ -1566,6 +1566,9 @@
     <string name="today_customize_title">Personalizar Hoy</string>
     <string name="today_customize_action">Personalizar</string>
     <string name="today_customize_description">Reordena lo que se muestra o mueve una sección a Ocultos sin eliminarla.</string>
+    <string name="today_customize_edit_added_cards">Editar tarjetas añadidas</string>
+    <string name="today_hosted_editor_title">Tarjetas añadidas</string>
+    <string name="today_hosted_editor_desc">Elige qué tarjetas de Tendencias y Sueño se muestran en Hoy. También permanecen en sus propias pestañas.</string>
     <string name="sleep_customize_title">Personalizar Sueño</string>
     <string name="sleep_customize_description">Reordena lo que se muestra o mueve una sección a Ocultos sin eliminarla.</string>
     <string name="today_customize_shown">VISIBLES</string>

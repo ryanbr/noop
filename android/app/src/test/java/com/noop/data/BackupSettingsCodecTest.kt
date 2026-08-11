@@ -38,6 +38,8 @@ class BackupSettingsCodecTest {
             "units.system" to "imperial",
             "units.temperature" to "celsius",
             "effort.scale" to "whoop",
+            // #today-hosted-cards: the one layout pref carried, a JSON [String] stored under the String kind.
+            "today.hostedCards" to "[\"sleep.sleepMarks\"]",
         )
         val json = requireNotNull(BackupSettingsCodec.encode(values))
         val back = BackupSettingsCodec.decode(json)
@@ -51,6 +53,7 @@ class BackupSettingsCodecTest {
         assertEquals("imperial", back["units.system"])
         assertEquals("celsius", back["units.temperature"])
         assertEquals("whoop", back["effort.scale"])
+        assertEquals("[\"sleep.sleepMarks\"]", back["today.hostedCards"])
         assertEquals(values.size, back.size)
     }
 

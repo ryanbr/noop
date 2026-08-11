@@ -62,6 +62,9 @@
     <string name="today_customize_title">Customize Today</string>
     <string name="today_customize_action">Customize</string>
     <string name="today_customize_description">Reorder what is shown, or move a section to Hidden without deleting it.</string>
+    <string name="today_customize_edit_added_cards">Edit added cards</string>
+    <string name="today_hosted_editor_title">Added cards</string>
+    <string name="today_hosted_editor_desc">Choose which Trends and Sleep cards show on Today. They stay in their own tabs too.</string>
     <string name="sleep_customize_title">Customize Sleep</string>
     <string name="sleep_customize_description">Reorder what is shown, or move a section to Hidden without deleting it.</string>
     <string name="today_customize_shown">SHOWN</string>
