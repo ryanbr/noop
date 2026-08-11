@@ -58,6 +58,21 @@ struct WorkoutsView: View {
     @State private var loadedWindowDays: Int?
     private let usesPreviewRows: Bool
 
+    /// Daily active-calorie totals (day "yyyy-MM-dd" → kcal) for the 13-week heatmap, loaded alongside the
+    /// rows. Empty until loaded / when there's no daily-calorie data (the heatmap then hides itself).
+    @State private var dailyKcal: [String: Double] = [:]
+
+    /// Local `yyyy-MM-dd` formatter for the heatmap's day keys + "today" anchor (matches the stored keys).
+    private static let dayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = .current
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+    private func todayDayString() -> String { Self.dayFormatter.string(from: Date()) }
+
     /// #797: trailing-day window the FIRST workouts read is bounded to, so first paint never sorts a
     /// multi-thousand-workout history. Comfortably covers the default range (the tightest range with ≥2
     /// sessions, almost always ≤90 days); a wider pick pages the rest in via `expandWindow`. 400 days
@@ -171,6 +186,7 @@ struct WorkoutsView: View {
                 if let postLogNote { postLogBanner(postLogNote) }
                 effortHero(rows: windowRows, effectiveRange: resolved, groups: groups)
                 summarySection(rows: windowRows, effectiveRange: resolved, groups: groups)
+                heatmapSection()
                 breakdownSection(groups: groups, rows: windowRows)
                 if let z = zonesSummary {
                     zonesSection(z, totalSessions: windowRows.count)
@@ -184,6 +200,12 @@ struct WorkoutsView: View {
             // #797: read only the currently-loaded window (bounded on first paint), not the whole history.
             let r = await repo.workoutRows(days: loadedWindowDays ?? 4000)
             allRows = r
+            // 13-week active-calorie heatmap: pull ~100 days of daily metrics and map day → active kcal.
+            let toDay = todayDayString()
+            let fromDate = Calendar.current.date(byAdding: .day, value: -100, to: Date()) ?? Date()
+            let metrics = await repo.dailyMetrics(fromDay: Self.dayFormatter.string(from: fromDate), toDay: toDay)
+            dailyKcal = Dictionary(metrics.compactMap { m in m.activeKcalEst.map { (m.day, $0) } },
+                                   uniquingKeysWith: max)
             let wasLoaded = loaded
             loaded = true
             if !wasLoaded {
@@ -792,6 +814,66 @@ struct WorkoutsView: View {
     }
 
     // MARK: - Summary tiles (uniform 104pt StatTiles)
+
+    // MARK: - Active-calorie heatmap (last 13 weeks)
+    //
+    // A GitHub-contribution-style grid of daily active calories: columns = weeks (Monday-first), rows =
+    // weekdays, cell shade = that day's burn vs the window max. The bucketing is the pure cross-platform
+    // `ActivityHeatmap` (parity with the Kotlin twin); this is just the SwiftUI renderer. Hidden entirely
+    // when there's no daily-calorie data yet.
+    @ViewBuilder
+    private func heatmapSection() -> some View {
+        let grid = ActivityHeatmap.build(values: dailyKcal, today: todayDayString())
+        if !grid.isEmpty {
+            VStack(alignment: .leading, spacing: NoopMetrics.gap) {
+                SectionHeader("Active calories", overline: "Last 13 weeks")
+                NoopCard(tint: StrandPalette.effortColor) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Canvas { ctx, size in
+                            let cols = grid.columns.count
+                            guard cols > 0 else { return }
+                            let gap: CGFloat = 3
+                            let cell = min((size.width - gap * CGFloat(cols - 1)) / CGFloat(cols),
+                                           (size.height - gap * 6) / 7)
+                            guard cell > 0 else { return }
+                            for c in 0..<cols {
+                                let col = grid.columns[c]
+                                for r in 0..<7 {
+                                    let rect = CGRect(x: CGFloat(c) * (cell + gap), y: CGFloat(r) * (cell + gap),
+                                                      width: cell, height: cell)
+                                    ctx.fill(Path(roundedRect: rect, cornerRadius: cell * 0.22),
+                                             with: .color(heatColor(col[r].level)))
+                                }
+                            }
+                        }
+                        .aspectRatio(13.0 / 7.0, contentMode: .fit)
+                        .frame(maxWidth: .infinity)
+                        .accessibilityLabel(Text("Active-calorie heatmap, last 13 weeks"))
+                        HStack(spacing: 4) {
+                            Text("Less").font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
+                            ForEach(0..<5, id: \.self) { lvl in
+                                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                    .fill(heatColor(lvl))
+                                    .frame(width: 10, height: 10)
+                            }
+                            Text("More").font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Level (0 = no data, 1...4 by intensity) → the amber calorie ramp.
+    private func heatColor(_ level: Int) -> Color {
+        switch level {
+        case 0: return StrandPalette.surfaceInset
+        case 1: return StrandPalette.metricAmber.opacity(0.28)
+        case 2: return StrandPalette.metricAmber.opacity(0.52)
+        case 3: return StrandPalette.metricAmber.opacity(0.78)
+        default: return StrandPalette.metricAmber
+        }
+    }
 
     private func summarySection(rows: [WorkoutRow], effectiveRange: Range, groups: [SportGroup]) -> some View {
         let totalCount = rows.count

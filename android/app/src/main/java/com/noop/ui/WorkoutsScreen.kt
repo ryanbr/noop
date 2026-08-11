@@ -89,6 +89,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
+import com.noop.analytics.ActivityHeatmap
 import com.noop.analytics.RouteMath
 import com.noop.ingest.RouteExport
 import kotlinx.coroutines.launch
@@ -287,6 +292,7 @@ fun WorkoutsScreen(vm: AppViewModel) {
             postLogNote?.let { item { PostLogNoteBanner(it) } }
             item { EffortHero(rows = windowRows, effectiveRange = resolved, groups = groups) }
             item { SummarySection(rows = windowRows, effectiveRange = resolved, groups = groups) }
+            item { CalorieHeatmapSection(recentDays) }
             item { BreakdownSection(groups = groups, rows = windowRows) }
             item { ZonesSection(windowRows) }
             if (recoveryTrend.isNotEmpty()) {
@@ -755,6 +761,77 @@ private fun HeroStat(title: String, value: String, tint: Color, modifier: Modifi
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Overline(title)
         Text(value, style = NoopType.number(20f), color = tint, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+// MARK: - Active-calorie heatmap (last 13 weeks)
+//
+// A GitHub-contribution-style grid of daily active calories: columns = weeks (Monday-first), rows =
+// weekdays, cell shade = that day's burn vs the window max. The bucketing is the pure cross-platform
+// [ActivityHeatmap] (parity with the Swift twin); this composable is just the Compose renderer. Hidden
+// entirely when there's no daily-calorie data yet.
+@Composable
+private fun CalorieHeatmapSection(recentDays: List<com.noop.data.DailyMetric>) {
+    val values = remember(recentDays) {
+        recentDays.mapNotNull { d -> d.activeKcalEst?.let { d.day to it } }
+            .groupBy({ it.first }, { it.second })
+            .mapValues { (_, v) -> v.max() }
+    }
+    val today = remember { java.time.LocalDate.now().toString() }
+    val grid = remember(values, today) { ActivityHeatmap.build(values, today) }
+    if (grid.isEmpty) return
+
+    val amber = Palette.effortColor
+    val inset = Palette.surfaceInset
+    fun colorFor(level: Int): Color = when (level) {
+        0 -> inset
+        1 -> amber.copy(alpha = 0.28f)
+        2 -> amber.copy(alpha = 0.52f)
+        3 -> amber.copy(alpha = 0.78f)
+        else -> amber
+    }
+
+    NoopCard(tint = Palette.effortColor) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Active calories", style = NoopType.title2, color = Palette.textPrimary)
+            Text("Last 13 weeks · daily burn", style = NoopType.footnote, color = Palette.textTertiary)
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val gap = 3.dp
+                val cols = grid.weeks
+                val cell = ((maxWidth - gap * (cols - 1)) / cols).coerceAtLeast(2.dp)
+                Canvas(Modifier.fillMaxWidth().height(cell * 7 + gap * 6)) {
+                    val gapPx = gap.toPx()
+                    val cellPx = cell.toPx()
+                    val radius = CornerRadius(cellPx * 0.22f, cellPx * 0.22f)
+                    for (c in 0 until cols) {
+                        val column = grid.columns[c]
+                        for (r in 0 until 7) {
+                            drawRoundRect(
+                                color = colorFor(column[r].level),
+                                topLeft = Offset(c * (cellPx + gapPx), r * (cellPx + gapPx)),
+                                size = Size(cellPx, cellPx),
+                                cornerRadius = radius,
+                            )
+                        }
+                    }
+                }
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text("Less", style = NoopType.caption, color = Palette.textTertiary)
+                for (lvl in 0..4) {
+                    Box(
+                        Modifier
+                            .size(10.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(colorFor(lvl)),
+                    )
+                }
+                Text("More", style = NoopType.caption, color = Palette.textTertiary)
+            }
+        }
     }
 }
 

@@ -782,6 +782,10 @@
     ],
     [
       "android/app/src/main/java/com/noop/ui/WorkoutsScreen.kt",
+      "Active calories"
+    ],
+    [
+      "android/app/src/main/java/com/noop/ui/WorkoutsScreen.kt",
       "Add"
     ],
     [
@@ -830,7 +834,19 @@
     ],
     [
       "android/app/src/main/java/com/noop/ui/WorkoutsScreen.kt",
+      "Last 13 weeks · daily burn"
+    ],
+    [
+      "android/app/src/main/java/com/noop/ui/WorkoutsScreen.kt",
+      "Less"
+    ],
+    [
+      "android/app/src/main/java/com/noop/ui/WorkoutsScreen.kt",
       "Logged sessions across ${effectiveRange.caption}."
+    ],
+    [
+      "android/app/src/main/java/com/noop/ui/WorkoutsScreen.kt",
+      "More"
     ],
     [
       "android/app/src/main/java/com/noop/ui/WorkoutsScreen.kt",
