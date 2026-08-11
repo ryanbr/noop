@@ -329,7 +329,8 @@ struct WorkoutDetailView: View {
     @MainActor private func exportRoute(_ format: RouteExporter.Format) {
         guard route.count >= 2 else { return }
         let points = route.map { RoutePoint(lat: $0.lat, lon: $0.lon) }
-        let name = FileExport.timestampedName("noop-route", ext: format.ext)
+        // Name the file by the workout's start (not export time) so it's stable + matches the Android twin.
+        let name = "noop-route-\(row.startTs).\(format.ext)"
         let startTs = row.startTs, endTs = row.endTs, sport = row.sport
         let distanceM = row.distanceM, energyKcal = row.energyKcal, avgHr = row.avgHr, maxHr = row.maxHr
         Task.detached(priority: .userInitiated) {
