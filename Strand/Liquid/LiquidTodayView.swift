@@ -57,6 +57,11 @@ struct LiquidTodayView: View {
     @State private var importedActiveKcalDay: Double?  // #616: Apple Health active energy for the day (calorie fallback)
     @State private var hrValues: [Double] = []     // hrBuckets since midnight → 5-min means
     @State private var workouts: [WorkoutRow] = [] // newest-first
+    /// #today-hosted-cards: the shared SleepModel that backs every SleepModel-derived hosted sleep card
+    /// (Stages vs typical today; more to follow). Built ONCE in `load()` from the SAME inputs the Sleep tab
+    /// uses (`SleepModel.build`), and only when a sleep-origin card is actually hosted — so a Today with no
+    /// hosted sleep card pays none of the extra Repository work. nil until (and unless) it's built.
+    @State private var hostedSleepModel: SleepModel? = nil
 
     // sheets / expanders
     @State private var guideSection: ScoreSection?
@@ -662,6 +667,29 @@ struct LiquidTodayView: View {
         switch card {
         case .sleepMarks: SleepMarkCard()
         case .asleepDuration: AsleepDurationCard(data: AsleepDurationData.build(days: repo.days))
+        case .stagesVsTypical:
+            // Renders from the shared SleepModel built in load() (same inputs as the Sleep tab). Until that
+            // async build lands — or on a device with no usable latest night — show the graceful placeholder
+            // rather than a half-built card, mirroring how AsleepDuration degrades on no data.
+            if let m = hostedSleepModel {
+                StagesVsTypicalCard(model: m)
+            } else {
+                hostedSleepPlaceholder
+            }
+        }
+    }
+
+    /// Graceful empty state for a SleepModel-backed hosted card whose model hasn't built yet (first frame)
+    /// or is nil (no usable latest night). Keeps the hosted slot present + labelled so add/remove/reorder in
+    /// Customise still reads, without rendering a partial card. #today-hosted-cards.
+    private var hostedSleepPlaceholder: some View {
+        VStack(alignment: .leading, spacing: NoopMetrics.gap) {
+            SectionHeader("Stages vs typical", overline: "Last night")
+            Text("Not enough nights yet.")
+                .font(StrandFont.subhead)
+                .foregroundStyle(StrandPalette.textTertiary)
+                .frame(maxWidth: .infinity, minHeight: 60, alignment: .center)
+                .background(NoopPanelSurface(tint: StrandPalette.restColor, cornerRadius: 12))
         }
     }
 
@@ -1309,6 +1337,27 @@ struct LiquidTodayView: View {
             }
         }
         heroProviderByMetric = providers
+
+        // #today-hosted-cards: build the shared SleepModel that backs the hosted sleep cards, but ONLY when
+        // at least one sleep-origin card is actually hosted — otherwise Today pays no extra Repository cost.
+        // The inputs (allSleepSessions / habitualMidsleepSec / sessionMotions) are loaded exactly as the
+        // Sleep tab loads them, then handed to the SAME pure `SleepModel.build`, so a hosted card renders
+        // numbers byte-identical to the Sleep tab. Reused by every SleepModel-backed hosted card (built once).
+        let sleepOrigin = String(localized: "Sleep")
+        if HostedCardPrefs.decodeEnabled(hostedCardsRaw).contains(where: { $0.origin == sleepOrigin }) {
+            let hostedSessions = await repo.allSleepSessions()
+            let hostedHabitual = await repo.habitualMidsleepSec()
+            let hostedMotion = await repo.sessionMotions(starts: hostedSessions.map { $0.startTs })
+            hostedSleepModel = SleepModel.build(SleepModelInputs(
+                days: repo.days,
+                sleeps: repo.sleeps,
+                allSessions: hostedSessions,
+                importedSleep: repo.importedSleep,
+                habitualMidsleepSec: hostedHabitual,
+                motionByStart: hostedMotion))
+        } else {
+            hostedSleepModel = nil
+        }
 
         // First load done — bring the hero gauges + sky to life now the launch churn has settled.
         if !dataLoaded { withAnimation(.easeIn(duration: 0.4)) { dataLoaded = true } }

@@ -759,7 +759,7 @@ fun SleepScreen(
                         SleepReorderableSection(k, sleepListState, sleepSectionDrag, persistSleepOrder) {
                             Column {
                                 Spacer(Modifier.height(Metrics.selectorTopUp))
-                                StagesVsTypical(selectedModel)
+                                StagesVsTypicalHostCard(selectedModel)
                             }
                         }
                     }
@@ -2571,8 +2571,14 @@ private fun DebtDeltaBars(ledger: SleepDebtLedger) {
 
 // MARK: - 3. Stages vs typical
 
+/**
+ * #today-hosted-cards: the "Stages vs typical" card — last night's Deep/REM/Light against the wearer's
+ * personal per-stage means from the shared [SleepModel]. `internal` so the Today host (TodayScreen) can
+ * render the SAME view the Sleep tab does (a mirror, not a copy); lives here so its StageRow/Hairline
+ * siblings are in-file. Twin of the iOS `StagesVsTypicalCard`.
+ */
 @Composable
-private fun StagesVsTypical(m: SleepModel) {
+internal fun StagesVsTypicalHostCard(m: SleepModel) {
     val s = m.stages
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
         SectionHeader("Stages vs typical", overline = "Selected night", trailing = "marker = your mean")

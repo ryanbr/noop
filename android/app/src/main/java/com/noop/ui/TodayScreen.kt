@@ -3070,6 +3070,20 @@ private fun HostedCardsSection(cards: List<HostedCard>, days: List<DailyMetric>,
     if (cards.isEmpty()) return
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    // #today-hosted-cards: the SleepModel-backed hosted sleep cards (Stages vs typical today; more to
+    // follow). Build the shared model ONCE, and only when at least one such card is actually hosted, so a
+    // Today hosting none pays no cost. Same inputs + builder as the Sleep tab (buildHostedSleepModel), so
+    // hosted numbers match the Sleep tab. Reused by every model-backed card. Twin of the iOS hostedSleepModel.
+    val modelBackedHosted = setOf(HostedCard.STAGES_VS_TYPICAL)
+    val needsSleepModel = cards.any { it in modelBackedHosted }
+    var hostedSleepModel by remember { mutableStateOf<SleepModel?>(null) }
+    LaunchedEffect(needsSleepModel, days, viewModel.activeStrapId) {
+        hostedSleepModel = if (needsSleepModel) {
+            buildHostedSleepModel(viewModel.repo, viewModel.activeStrapId, days)
+        } else {
+            null
+        }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.sectionGap)) {
         cards.forEach { card ->
             when (card) {
@@ -3092,6 +3106,11 @@ private fun HostedCardsSection(cards: List<HostedCard>, days: List<DailyMetric>,
                     val (hours, dates) = sleepDurationTrend(days)
                     AsleepDurationHostCard(hours = hours, dates = dates)
                 }
+                // #today-hosted-cards: last night's stages vs the wearer's personal per-stage means, rendered
+                // from the SAME shared SleepModel the Sleep tab uses (mirror, not copy). Until the async build
+                // lands — or on a device with no stage data — the model is null and the slot renders nothing
+                // this frame, matching how the Sleep tab guards the section on a null model.
+                HostedCard.STAGES_VS_TYPICAL -> hostedSleepModel?.let { StagesVsTypicalHostCard(it) }
             }
         }
     }

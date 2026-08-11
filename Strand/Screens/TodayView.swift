@@ -306,6 +306,11 @@ struct TodayView: View {
     // used to anchor the recovery marker at wake time (WHOOP-style Overview HR annotations).
     @State private var sleepToday: CachedSleepSession?
 
+    // #today-hosted-cards: the shared SleepModel backing every SleepModel-derived hosted sleep card (Stages
+    // vs typical today; more to follow). Built in loadAll() from the SAME inputs the Sleep tab uses, and only
+    // when a sleep-origin card is hosted. Twin of the LiquidTodayView `hostedSleepModel`.
+    @State private var hostedSleepModel: SleepModel? = nil
+
     // TODAY's in-progress Effort (NOOP 0–100 axis), recomputed over the day's HR (local-midnight→now)
     // each load so the gauge tracks today as it accumulates rather than waiting on the heavy daily pass
     // to persist, which early in the day would otherwise surface yesterday's completed Effort or a stale
@@ -2199,6 +2204,22 @@ struct TodayView: View {
         switch card {
         case .sleepMarks: SleepMarkCard()
         case .asleepDuration: AsleepDurationCard(data: AsleepDurationData.build(days: repo.days))
+        case .stagesVsTypical:
+            // Renders from the shared SleepModel built in loadAll() (same inputs as the Sleep tab). Until the
+            // async build lands — or on a device with no usable latest night — show the graceful placeholder,
+            // mirroring how AsleepDuration degrades on no data.
+            if let m = hostedSleepModel {
+                StagesVsTypicalCard(model: m)
+            } else {
+                VStack(alignment: .leading, spacing: NoopMetrics.gap) {
+                    SectionHeader("Stages vs typical", overline: "Last night")
+                    Text("Not enough nights yet.")
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                        .frame(maxWidth: .infinity, minHeight: 60, alignment: .center)
+                        .background(NoopPanelSurface(tint: StrandPalette.restColor, cornerRadius: 12))
+                }
+            }
         }
     }
 
@@ -3779,6 +3800,10 @@ struct TodayView: View {
         // #860 retired the launch auto-land, this pass no longer changes `selectedDayOffset`, so there's no
         // re-fire to bail for: the history-wide set + the new-day announce run straight through below.
         await loadDayScoped()
+        // #today-hosted-cards: refresh the shared SleepModel for the hosted sleep cards. Runs on EVERY load
+        // (before the cache-restore short-circuit below), so the card survives a tab-away/return; the gate
+        // inside makes it a no-op unless a sleep card is actually hosted.
+        await loadHostedSleepModel()
         // #849: a bare Today RE-MOUNT (tab-away + return, or an Apple-Health import that recreates the view)
         // re-fires this task with TodayView's `@State` reset, so the heavy history-wide pass re-ran in full
         // every time even when NOTHING in the data had changed: hundreds of redundant reads (incl. the
@@ -3817,6 +3842,29 @@ struct TodayView: View {
             repo.todayHistoryWideLoadedSeq = currentSeq
         }
         announceNewDaysIfNeeded()
+    }
+
+    /// #today-hosted-cards: build the shared SleepModel backing the hosted sleep cards, ONLY when a
+    /// sleep-origin card is actually hosted (else Today pays no extra cost). Loads the inputs the SAME way
+    /// SleepView does (`allSleepSessions` / `habitualMidsleepSec` / `sessionMotions`) and hands them to the
+    /// SAME pure `SleepModel.build`, so a hosted card's numbers match the Sleep tab. Twin of the
+    /// LiquidTodayView hostedSleepModel build.
+    private func loadHostedSleepModel() async {
+        let sleepOrigin = String(localized: "Sleep")
+        guard HostedCardPrefs.decodeEnabled(hostedCardsRaw).contains(where: { $0.origin == sleepOrigin }) else {
+            hostedSleepModel = nil
+            return
+        }
+        let hostedSessions = await repo.allSleepSessions()
+        let hostedHabitual = await repo.habitualMidsleepSec()
+        let hostedMotion = await repo.sessionMotions(starts: hostedSessions.map { $0.startTs })
+        hostedSleepModel = SleepModel.build(SleepModelInputs(
+            days: repo.days,
+            sleeps: repo.sleeps,
+            allSessions: hostedSessions,
+            importedSleep: repo.importedSleep,
+            habitualMidsleepSec: hostedHabitual,
+            motionByStart: hostedMotion))
     }
 
     /// True while the strap is mid history-offload, the SAME signal the "Syncing strap history…" note

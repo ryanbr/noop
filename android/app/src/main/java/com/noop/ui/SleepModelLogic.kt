@@ -5,6 +5,7 @@ import com.noop.analytics.SleepDebt
 import com.noop.analytics.SleepStageTotals
 import com.noop.data.DailyMetric
 import com.noop.data.SleepSession
+import com.noop.data.WhoopRepository
 import java.util.Calendar
 import org.json.JSONArray
 import org.json.JSONObject
@@ -307,6 +308,55 @@ internal fun fallbackSleepModel(
     }?.day ?: return null
     return buildSleepModel(days, null, imported, selectedDay = anchorDay,
         napSleepMinByDay = napSleepMinByDay, sessions = sessions)
+}
+
+/**
+ * #today-hosted-cards: the ONE loader that builds the shared [SleepModel] backing every SleepModel-derived
+ * hosted sleep card in Today (Stages vs typical today; more to follow). It mirrors the Sleep tab's own
+ * inputs step-for-step — the active∪canonical session union with the #241 richness merge, the learned
+ * habitual midsleep, the imported metric series, and the nap-minutes-by-day map — then hands them to the
+ * SAME [fallbackSleepModel] the Sleep tab uses (SleepScreen.kt), so a hosted card renders numbers
+ * byte-identical to the Sleep tab. Returns null when no day has stage data (the first-run empty state).
+ * Suspends (a handful of repo reads); call it from a keyed LaunchedEffect and cache the result, and only
+ * when a SleepModel-backed card is actually hosted, so a Today with none pays no cost. Twin of the iOS
+ * `LiquidTodayView` hostedSleepModel build.
+ */
+internal suspend fun buildHostedSleepModel(
+    repo: WhoopRepository,
+    activeStrapId: String,
+    days: List<DailyMetric>,
+): SleepModel? {
+    val now = System.currentTimeMillis() / 1000L
+    // Active∪canonical union + #241 richness merge, keyed by LOCAL wake-day — the SAME merge SleepScreen
+    // does for its `sleeps` (imported-wins, stage-less imports yield to a computed day that has stages),
+    // ordered by effective onset.
+    val sleeps: List<SleepSession> = runCatching {
+        val imported = repo.sleepSessionsUnion(activeStrapId, 0L, now)
+        val computed = repo.computedSleepSessionsUnion(activeStrapId, 0L, now)
+        fun localEndDay(ts: Long): String {
+            val offsetSec = (java.util.TimeZone.getDefault().getOffset(ts * 1000) / 1000).toLong()
+            return AnalyticsEngine.dayString(ts, offsetSec)
+        }
+        WhoopRepository.mergeSleepRichness(imported, computed) { localEndDay(it.endTs) }
+            .sortedBy { it.effectiveStartTs }
+    }.getOrDefault(emptyList())
+
+    // Learned habitual midsleep (threads the active strap id, as SleepScreen does); null under threshold.
+    val habitualMidsleep = runCatching { repo.habitualMidsleepSec(activeStrapId) }.getOrNull()
+
+    // Imported headline series (the SAME ImportedSleepSeries the Sleep tab loads). metricSeries has no Flow.
+    suspend fun load(key: String) = runCatching {
+        repo.metricSeries("my-whoop", key, "0000-00-00", "9999-99-99")
+    }.getOrDefault(emptyList()).associate { it.day to it.value }
+    val imported = ImportedSleepSeries(
+        performance = load("sleep_performance"),
+        consistency = load("sleep_consistency"),
+        needMin = load("sleep_need_min"),
+        debtMin = load("sleep_debt_min"),
+    )
+
+    val napSleepMinByDay = napSleepMinutesByDay(sleeps, habitualMidsleep)
+    return fallbackSleepModel(days, imported, napSleepMinByDay, sessions = sleeps)
 }
 
 /** Build a metric from a per-day transform, keeping only finite values. */
