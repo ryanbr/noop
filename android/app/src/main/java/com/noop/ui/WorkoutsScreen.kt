@@ -799,7 +799,12 @@ private fun CalorieHeatmapSection(recentDays: List<com.noop.data.DailyMetric>) {
                 val gap = 3.dp
                 val cols = grid.weeks
                 val cell = ((maxWidth - gap * (cols - 1)) / cols).coerceAtLeast(2.dp)
-                Canvas(Modifier.fillMaxWidth().height(cell * 7 + gap * 6)) {
+                Canvas(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(cell * 7 + gap * 6)
+                        .semantics { contentDescription = "Active-calorie heatmap, last 13 weeks" },
+                ) {
                     val gapPx = gap.toPx()
                     val cellPx = cell.toPx()
                     val radius = CornerRadius(cellPx * 0.22f, cellPx * 0.22f)
