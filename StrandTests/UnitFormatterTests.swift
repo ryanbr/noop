@@ -118,20 +118,22 @@ final class UnitFormatterTests: XCTestCase {
         XCTAssertEqual(UnitFormatter.temperatureDeltaFromCelsius(0.6, unit: .celsius), "0.6 °C")
     }
 
-    // #111: skin_temp holds EITHER a signed deviation (v < 20 °C) or an absolute reading (v >= 20 °C).
-    // A DEVIATION must convert ×9/5 with NO +32 — the absolute formula turned a −4.2 °C deviation into the
-    // reported nonsense "24.4 °F". An ABSOLUTE reading must still get the full C→F. Pin both branches.
+    // #111/#622: skin_temp holds EITHER a signed deviation (v < 20 °C) or an absolute reading (v >= 20 °C).
+    // A DEVIATION converts ×9/5 with NO +32 (the absolute formula turned a −4.2 °C deviation into the
+    // nonsense "24.4 °F") and is labelled as a signed baseline delta — "Δ°C" / "Δ°F", sign always shown —
+    // so −0.1 never reads as a broken thermometer (#622/#1224). An ABSOLUTE reading gets the full C→F and
+    // a plain unit. Pin both branches.
     func testSkinTempMetricPicksDeltaVsAbsoluteByValue() {
         guard let skin = MetricCatalog.all.first(where: { $0.key == "skin_temp" }) else {
             return XCTFail("skin_temp descriptor missing")
         }
-        // DEVIATION (< 20 °C): ×9/5, no +32 — NOT the bogus absolute 24.4 °F.
-        XCTAssertEqual(skin.format(-4.2, system: .imperial, temperature: .fahrenheit), "-7.6 °F")
-        XCTAssertEqual(skin.format(0.6, system: .imperial, temperature: .fahrenheit), "1.1 °F")
-        // ABSOLUTE (>= 20 °C, e.g. an imported WHOOP export reading): full C→F with +32 — 34 °C = 93.2 °F.
+        // DEVIATION (< 20 °C): ×9/5, no +32, signed Δ unit — NOT the bogus absolute 24.4 °F.
+        XCTAssertEqual(skin.format(-4.2, system: .imperial, temperature: .fahrenheit), "-7.6 Δ°F")
+        XCTAssertEqual(skin.format(0.6, system: .imperial, temperature: .fahrenheit), "+1.1 Δ°F")
+        // ABSOLUTE (>= 20 °C, e.g. an imported WHOOP export reading): full C→F with +32, plain unit — 34 °C = 93.2 °F.
         XCTAssertEqual(skin.format(34.0, system: .imperial, temperature: .fahrenheit), "93.2 °F")
-        // Celsius is unchanged for both — this always looked right; only °F was broken.
-        XCTAssertEqual(skin.format(0.6, system: .metric, temperature: .celsius), "0.6 °C")
+        // Celsius takes the same split: a deviation stays signed "Δ°C", an absolute reading a plain "°C".
+        XCTAssertEqual(skin.format(0.6, system: .metric, temperature: .celsius), "+0.6 Δ°C")
         XCTAssertEqual(skin.format(34.0, system: .metric, temperature: .celsius), "34.0 °C")
     }
 
