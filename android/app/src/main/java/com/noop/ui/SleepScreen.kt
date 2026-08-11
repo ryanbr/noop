@@ -735,7 +735,7 @@ fun SleepScreen(
                         SleepReorderableSection(k, sleepListState, sleepSectionDrag, persistSleepOrder) {
                             Column {
                                 Spacer(Modifier.height(Metrics.selectorTopUp))
-                                MetricGrid(m, onMetricClick = { detailMetricKey = it })
+                                NightDetailHostCard(m, onMetricClick = { detailMetricKey = it })
                             }
                         }
                     }
@@ -2368,6 +2368,18 @@ private fun NightNavHeader(
 }
 
 // MARK: - 2. Metric grid (row-equalized min-height tiles, each with a bottom sparkline)
+
+/**
+ * #today-hosted-cards: the "Night detail" metric grid rendered from the shared [SleepModel]. `internal` so
+ * the Today host (TodayScreen) can render the SAME grid the Sleep tab does (a mirror, not a copy); lives
+ * here so its [MetricGrid]/[SparkTile] siblings stay in-file. Twin of the iOS `NightDetailCard`. The Sleep
+ * tab passes an [onMetricClick] to open per-metric detail; the Today host omits it (no detail sheet there),
+ * so the tiles render read-only when hosted.
+ */
+@Composable
+internal fun NightDetailHostCard(m: SleepModel, onMetricClick: (String) -> Unit = {}) {
+    MetricGrid(m, onMetricClick = onMetricClick)
+}
 
 @Composable
 private fun MetricGrid(m: SleepModel, onMetricClick: (String) -> Unit = {}) {

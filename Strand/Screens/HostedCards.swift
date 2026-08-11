@@ -24,6 +24,10 @@ enum HostedCard: String, CaseIterable, Identifiable {
     /// Sleep tab · "Stages vs typical" — last night's Deep/REM/Light vs the wearer's personal per-stage
     /// means (#today-hosted-cards). First of the SleepModel-backed sleep cards hosted in Today.
     case stagesVsTypical = "sleep.stagesVsTypical"
+    /// Sleep tab · "Night detail" — the metric grid (Rest/Efficiency/Consistency/Hours vs Needed/
+    /// Restorative/Respiratory/Sleep Debt) rendered from the wearer's `SleepModel` (#today-hosted-cards).
+    /// Second of the SleepModel-backed sleep cards hosted in Today.
+    case nightDetail = "sleep.nightDetail"
 
     var id: String { rawValue }
 
@@ -33,6 +37,7 @@ enum HostedCard: String, CaseIterable, Identifiable {
         case .sleepMarks: return String(localized: "Sleep marks")
         case .asleepDuration: return String(localized: "Asleep duration")
         case .stagesVsTypical: return String(localized: "Stages vs typical")
+        case .nightDetail: return String(localized: "Night detail")
         }
     }
 
@@ -40,7 +45,7 @@ enum HostedCard: String, CaseIterable, Identifiable {
     /// Trends". Matches the Android `HostedCard.origin`.
     var origin: String {
         switch self {
-        case .sleepMarks, .asleepDuration, .stagesVsTypical: return String(localized: "Sleep")
+        case .sleepMarks, .asleepDuration, .stagesVsTypical, .nightDetail: return String(localized: "Sleep")
         }
     }
 
@@ -50,13 +55,14 @@ enum HostedCard: String, CaseIterable, Identifiable {
         case .sleepMarks: return "moon.zzz"
         case .asleepDuration: return "chart.bar.xaxis"
         case .stagesVsTypical: return "chart.bar.doc.horizontal"
+        case .nightDetail: return "square.grid.2x2"
         }
     }
 
     /// Editor row tint.
     var customizationTint: Color {
         switch self {
-        case .sleepMarks, .asleepDuration, .stagesVsTypical: return StrandPalette.restColor
+        case .sleepMarks, .asleepDuration, .stagesVsTypical, .nightDetail: return StrandPalette.restColor
         }
     }
 

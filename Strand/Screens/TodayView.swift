@@ -2220,6 +2220,21 @@ struct TodayView: View {
                         .background(NoopPanelSurface(tint: StrandPalette.restColor, cornerRadius: 12))
                 }
             }
+        case .nightDetail:
+            // Renders from the shared SleepModel built in loadAll() (same inputs as the Sleep tab). Until the
+            // async build lands — or with no usable latest night — show the graceful placeholder, as above.
+            if let m = hostedSleepModel {
+                NightDetailCard(model: m)
+            } else {
+                VStack(alignment: .leading, spacing: NoopMetrics.gap) {
+                    SectionHeader("Night detail", overline: "Metrics")
+                    Text("Not enough nights yet.")
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                        .frame(maxWidth: .infinity, minHeight: 60, alignment: .center)
+                        .background(NoopPanelSurface(tint: StrandPalette.restColor, cornerRadius: 12))
+                }
+            }
         }
     }
 

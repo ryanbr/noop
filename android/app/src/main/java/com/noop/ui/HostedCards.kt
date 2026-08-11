@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.StackedBarChart
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -41,7 +42,11 @@ enum class HostedCard(
     ASLEEP_DURATION("sleep.asleepDuration", "Asleep duration", "Sleep", Icons.Filled.BarChart),
     /** Sleep tab · "Stages vs typical" — last night's Deep/REM/Light vs the wearer's personal per-stage
      *  means (#today-hosted-cards). First of the SleepModel-backed sleep cards hosted in Today. */
-    STAGES_VS_TYPICAL("sleep.stagesVsTypical", "Stages vs typical", "Sleep", Icons.Filled.StackedBarChart);
+    STAGES_VS_TYPICAL("sleep.stagesVsTypical", "Stages vs typical", "Sleep", Icons.Filled.StackedBarChart),
+    /** Sleep tab · "Night detail" — the metric grid (Rest/Efficiency/Consistency/Hours vs Needed/
+     *  Restorative/Respiratory/Sleep Debt) from the wearer's SleepModel (#today-hosted-cards). Second of
+     *  the SleepModel-backed sleep cards hosted in Today. */
+    NIGHT_DETAIL("sleep.nightDetail", "Night detail", "Sleep", Icons.Filled.GridView);
 
     companion object {
         fun fromRaw(raw: String?): HostedCard? = entries.firstOrNull { it.raw == raw }
@@ -65,6 +70,7 @@ fun HostedCard.localizedTitle(): String = when (this) {
     HostedCard.SLEEP_MARKS -> stringResource(R.string.l10n_sleep_screen_sleep_marks_8e9b86f0)
     HostedCard.ASLEEP_DURATION -> stringResource(R.string.l10n_sleep_screen_asleep_duration_3638413f)
     HostedCard.STAGES_VS_TYPICAL -> stringResource(R.string.l10n_sleep_screen_stages_vs_typical_28463f24)
+    HostedCard.NIGHT_DETAIL -> stringResource(R.string.l10n_sleep_screen_night_detail_8f271bcf)
 }
 
 /**

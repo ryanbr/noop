@@ -676,6 +676,14 @@ struct LiquidTodayView: View {
             } else {
                 hostedSleepPlaceholder
             }
+        case .nightDetail:
+            // Renders from the same shared SleepModel built in load(). Until that async build lands — or on a
+            // device with no usable latest night — show the graceful placeholder, mirroring stagesVsTypical.
+            if let m = hostedSleepModel {
+                NightDetailCard(model: m)
+            } else {
+                hostedNightDetailPlaceholder
+            }
         }
     }
 
@@ -685,6 +693,20 @@ struct LiquidTodayView: View {
     private var hostedSleepPlaceholder: some View {
         VStack(alignment: .leading, spacing: NoopMetrics.gap) {
             SectionHeader("Stages vs typical", overline: "Last night")
+            Text("Not enough nights yet.")
+                .font(StrandFont.subhead)
+                .foregroundStyle(StrandPalette.textTertiary)
+                .frame(maxWidth: .infinity, minHeight: 60, alignment: .center)
+                .background(NoopPanelSurface(tint: StrandPalette.restColor, cornerRadius: 12))
+        }
+    }
+
+    /// Graceful empty state for the hosted "Night detail" grid before its shared SleepModel builds (first
+    /// frame) or when there is no usable latest night. Same treatment as `hostedSleepPlaceholder`, labelled
+    /// for this card so add/remove/reorder in Customise still reads. #today-hosted-cards.
+    private var hostedNightDetailPlaceholder: some View {
+        VStack(alignment: .leading, spacing: NoopMetrics.gap) {
+            SectionHeader("Night detail", overline: "Metrics")
             Text("Not enough nights yet.")
                 .font(StrandFont.subhead)
                 .foregroundStyle(StrandPalette.textTertiary)
