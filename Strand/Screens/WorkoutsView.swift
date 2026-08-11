@@ -200,18 +200,20 @@ struct WorkoutsView: View {
             // #797: read only the currently-loaded window (bounded on first paint), not the whole history.
             let r = await repo.workoutRows(days: loadedWindowDays ?? 4000)
             allRows = r
-            // 13-week active-calorie heatmap: pull ~100 days of daily metrics and map day → active kcal.
-            let toDay = todayDayString()
-            let fromDate = Calendar.current.date(byAdding: .day, value: -100, to: Date()) ?? Date()
-            let metrics = await repo.dailyMetrics(fromDay: Self.dayFormatter.string(from: fromDate), toDay: toDay)
-            dailyKcal = Dictionary(metrics.compactMap { m in m.activeKcalEst.map { (m.day, $0) } },
-                                   uniquingKeysWith: max)
             let wasLoaded = loaded
             loaded = true
             if !wasLoaded {
                 range = defaultRange(for: r)
                 seededInitialRange = true
             }
+            // 13-week active-calorie heatmap: pull ~100 days of daily metrics and map day → active kcal.
+            // Loaded AFTER `loaded`/range are set so the secondary heatmap never delays the list's first
+            // paint — the card is hidden until this populates, then appears in place.
+            let toDay = todayDayString()
+            let fromDate = Calendar.current.date(byAdding: .day, value: -100, to: Date()) ?? Date()
+            let metrics = await repo.dailyMetrics(fromDay: Self.dayFormatter.string(from: fromDate), toDay: toDay)
+            dailyKcal = Dictionary(metrics.compactMap { m in m.activeKcalEst.map { (m.day, $0) } },
+                                   uniquingKeysWith: max)
         }
         .onAppear {
             // Preview-seeded rows skip `.task`; still choose a range that has data.
