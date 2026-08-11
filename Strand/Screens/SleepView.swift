@@ -1868,73 +1868,22 @@ struct SleepView: View {
             refreshSeq: repo.refreshSeq)
     }
 
-    /// Build every expensive derivation exactly once. Called only when `dataKey` changes,
-    /// so each full pass over repo.days / repo.sleeps runs once per data change rather than
-    /// once per render. Returns nil when there is no usable latest night (renders empty state).
+    /// Build every expensive derivation exactly once. Called only when `dataKey` changes, so each
+    /// full pass over repo.days / repo.sleeps runs once per data change rather than once per render.
+    /// A thin wrapper: it snapshots the view's current state into `SleepModelInputs` and hands off to
+    /// the pure `SleepModel.build(_:)` (SleepModel.swift), which the Today host also calls. Returns
+    /// nil when there is no usable latest night (renders empty state).
     private func buildModel() -> SleepModel? {
-        // #940: ONE un-mergeable newest day (e.g. an impossible hand-edit staged all-awake) must
-        // not blank the whole tab behind the first-run empty state; every older night is still in
-        // the DB. Degrade to the SAME honest stage-less stub the ◀/▶ browse shows for such a day,
-        // keeping the edit/delete affordances reachable so the user can fix the bad night. nil
-        // (the true empty state) only when there is genuinely no day to show.
-        let night: Night
-        let isStub: Bool
-        if let merged = latestNight {
-            night = merged
-            isStub = false
-        } else if let stubSession = SleepView.stubDaySession(dayBlocks(at: 0),
-                                                             habitualMidsleepSec: habitualMidsleepSec) {
-            night = Night(session: stubSession, stages: Stages(awake: 0, light: 0, deep: 0, rem: 0),
-                          sourceBlocks: dayBlocks(at: 0), habitualMidsleepSec: habitualMidsleepSec)
-            isStub = true
-        } else {
-            return nil
-        }
-        let napSleepMinByDay = self.napSleepMinutesByDay
-        return SleepModel(
-            night: night,
-            intervals: night.intervals,
-            isPersistedHypnogram: (night.realSegments?.count ?? 0) >= 2,
-            isStubNight: isStub,
-            performance: performanceSeries,
-            efficiency: efficiencySeries,
-            consistency: consistencySeries,
-            hoursVsNeeded: hoursVsNeededSeries,
-            restorative: restorativeSeries,
-            respiratory: respiratorySeries,
-            sleepDebt: sleepDebtSeries(napSleepMinByDay: napSleepMinByDay),
-            typicalTotalMin: typicalTotalMin,
-            typicalDeepMin: typicalStageMin(\.deepMin),
-            typicalRemMin: typicalStageMin(\.remMin),
-            typicalLightMin: typicalStageMin(\.lightMin),
-            trendPoints: durationTrendPoints,
-            sleepDebtLedger: debtLedger(napSleepMinByDay: napSleepMinByDay))
-    }
-
-    /// The rolling 14-night sleep-debt ledger from the cached daily metrics. Uses the
-    /// SAME personal sleep need the tiles use (`sleepNeedMin`, ≥ 7.5 h, the per-user
-    /// override over the 8 h default), measured against each main night's `totalSleepMin`
-    /// plus actual asleep minutes from separately-recorded naps.
-    /// Skips nights with no sleep (the analytics function does the skip). (#242)
-    private func debtLedger(napSleepMinByDay: [String: Double]) -> SleepDebtLedger {
-        SleepDebt.ledger(
-            series: repo.days.map { day in
-                (day: day.day, totalSleepMin: SleepDebt.creditedSleepMin(
-                    mainSleepMin: day.totalSleepMin,
-                    napSleepMin: napSleepMinByDay[day.day] ?? 0))
-            },
-            needHours: sleepNeedMin / 60.0)
+        SleepModel.build(SleepModelInputs(
+            days: repo.days,
+            sleeps: repo.sleeps,
+            allSessions: allSessions,
+            importedSleep: repo.importedSleep,
+            habitualMidsleepSec: habitualMidsleepSec,
+            motionByStart: motionByStart))
     }
 
     // MARK: - Derived model
-
-    /// The most recent sleep, decoded into stage durations. TWO stagesJSON formats exist:
-    /// imported nights store a dict of MINUTES {"light","deep","rem","awake"}; on-device computed
-    /// nights store a SEGMENT ARRAY [{start,end,stage}] (AnalyticsEngine.encodeStages). Only the
-    /// dict was decoded before, so a Bluetooth-only user's night vanished from this tab entirely
-    /// while Intelligence showed it (#77). Computed nights also carry their REAL timeline now —
-    /// the hypnogram draws genuine segments instead of the synthetic reconstruction.
-    private var latestNight: Night? { decodedNight(at: 0) }
 
     /// The browsable block list: every sleep session un-deduplicated (incl. same-day naps / split
     /// sleep). Falls back to `repo.sleeps` (one-per-night) until the fuller list loads, so the hero
@@ -1943,19 +1892,10 @@ struct SleepView: View {
         allSessions.isEmpty ? repo.sleeps : allSessions
     }
 
-    /// The browsable DAY list: every block grouped by the calendar day it ENDS on (matching the
-    /// dashboard's per-night merge), newest day first, blocks within a day oldest→newest. Each day
-    /// is ONE ◀/▶ stop, so a split-sleep day reads as a single night and the "N nights ago" label
-    /// stays truthful — two blocks of the same day are never "1 night ago" AND "2 nights ago". (#170)
+    /// The browsable DAY list — a thin wrapper over the shared `SleepModel.navDays`, which is the
+    /// source of truth the builder and the ◀/▶ nav both read (no duplicated grouping). (#170)
     private var navDays: [[CachedSleepSession]] {
-        let cal = Calendar.current
-        func endDay(_ s: CachedSleepSession) -> Date {
-            cal.startOfDay(for: Date(timeIntervalSince1970: TimeInterval(s.endTs)))
-        }
-        let groups = Dictionary(grouping: navSessions, by: endDay)
-        return groups.keys.sorted(by: >).map { key in
-            (groups[key] ?? []).sorted { $0.effectiveStartTs < $1.effectiveStartTs }
-        }
+        SleepModel.navDays(navSessions: navSessions)
     }
 
     /// The device's current UTC offset (seconds east), evaluated once per pick. Feeds the selector's
@@ -2059,54 +1999,10 @@ struct SleepView: View {
         }
     }
 
-    /// Build the hero `Night` for a day around its MAIN-night GROUP — the winning block PLUS any fragments
-    /// a brief wake split it into, bridged the way `AnalyticsEngine.analyzeDay` bridges them (#561), so a
-    /// biphasic / interrupted night shows as ONE continuous sleep whose total matches the day's headline.
-    /// It does NOT merge the whole day: an afternoon nap sits OUTSIDE the bridged group (its gap exceeds
-    /// `gapBridgeMaxMin`), so it never folds in and stays a nap (the impossible 1 AM→5 PM merge #518 guarded
-    /// against). Stage minutes are SUMMED over the group (the inter-fragment wake gap belongs to no
-    /// fragment, so it is excluded from the minutes exactly as the engine excludes it), the hypnogram lays
-    /// each fragment's real timeline end-to-end, and `sourceBlocks` keeps every block so the naps card and
-    /// the daily Main/Nap/Total summary can read them. A single-block day is byte-identical to the prior
-    /// behaviour. Returns nil if the group decodes to no usable stages. (#170, #318, #518, #555, #561)
-
-    /// The night's DISPLAYED onset (bedtime), aligned to the SAME fragment the pencil edit targets so the
-    /// shown "Asleep" time and the editor agree (#736). The bug: a night sometimes records a brief, all-awake
-    /// pre-sleep stub (e.g. lying in bed scrolling at 21:41) as its own block. The gap-bridge folds it into
-    /// the main-night group, so it became `group.first` and drove the shown bedtime, while the pencil edited
-    /// the MAIN block (`mainNightSession`, which scores by sleep span/timing and skips the all-awake stub) —
-    /// the two diverged and editing couldn't move the displayed bedtime. Fix: skip a leading spurious stub
-    /// when deriving the shown onset so it lands on the first fragment with real sleep, which IS the edit
-    /// target. A stub is spurious only when it's BRIEF and essentially sleepless AND a later fragment carries
-    /// the real sleep; otherwise the earliest effective onset stands (single-block and normal biphasic nights
-    /// are byte-identical). Returns a real fragment's `effectiveStartTs`, never a synthetic value.
-    private func nightOnsetTs(_ group: [CachedSleepSession]) -> Int {
-        // group is ascending by effective onset; first is the earliest fragment.
-        guard let first = group.first else { return 0 }
-        // #259: reference size for the "minor relative to the main block" test = the group's largest asleep
-        // span (≈ the main block). A genuine biphasic first sleep is comparable and is kept; a small stray
-        // lead is skipped, so the onset no longer jumps hours early.
-        let refAsleepMin = group.map {
-            SleepView.decodedAsleepMinutes($0.stagesJSON, effectiveStartTs: $0.effectiveStartTs)
-        }.max() ?? 0
-        // Walk past any leading spurious pre-onset awake stubs to the first real-sleep fragment.
-        for frag in group {
-            if !isPreOnsetAwakeStub(frag, refAsleepMin: refAsleepMin) { return frag.effectiveStartTs }
-        }
-        // Whole group is stub-like (shouldn't reach the hero, mergeDay gates on stages.asleep > 0): keep the
-        // earliest onset rather than inventing one.
-        return first.effectiveStartTs
-    }
-
-    /// A fragment is a spurious pre-onset awake stub when it's within the lie-in cap (<= `preOnsetStubMaxMin`)
-    /// and carries essentially no sleep (asleep minutes <= `preOnsetStubAsleepMaxMin`). Used only to skip such
-    /// a stub when it leads the main-night group, so the displayed bedtime tracks where real sleep began. (#736)
-    private func isPreOnsetAwakeStub(_ frag: CachedSleepSession, refAsleepMin: Double = 0) -> Bool {
-        let spanMin = Double(frag.endTs - frag.effectiveStartTs) / 60.0
-        let asleepMin = SleepView.decodedAsleepMinutes(frag.stagesJSON,
-                                                       effectiveStartTs: frag.effectiveStartTs)
-        return SleepView.isPreOnsetAwakeStub(spanMin: spanMin, asleepMin: asleepMin, refAsleepMin: refAsleepMin)
-    }
+    // `mergeDay` / `nightOnsetTs` / the fragment-level `isPreOnsetAwakeStub(_:)` moved to
+    // SleepModel.swift (pure statics reused by the builder and the ◀/▶ nav). The pure rule statics and
+    // tuning constants below stay here — they are the shared source of truth reused by tests and by
+    // those moved helpers.
 
     /// Longest a leading block can be and still be treated as a spurious pre-sleep awake stub (lying in bed
     /// before sleep). Generous (a few hours) because the reporter's stub ran 21:41 → 00:27 — ~2h45m of
@@ -2162,66 +2058,6 @@ struct SleepView: View {
         return 0
     }
 
-    private func mergeDay(_ sessions: [CachedSleepSession]) -> Night? {
-        let fullGroup = SleepView.mainNightGroup(sessions, habitualMidsleepSec: habitualMidsleepSec)
-        // The displayed bedtime is the night's MAIN onset, aligned to the same fragment the pencil edits.
-        // The latest wake closes the span. (#318, #736)
-        guard let last = fullGroup.last else { return nil }
-        let onset = nightOnsetTs(fullGroup), wake = last.endTs
-        // Aggregate (stages, hypnogram, motion) from the displayed onset fragment onward so the chart and
-        // the totals start where the bedtime label does — a spurious leading pre-sleep awake stub is dropped
-        // from the night's reconstruction (#736). It still rides in `sourceBlocks`/`mainGroupStarts`, so it's
-        // never lost and never mislabelled as a nap. Without a leading stub this is the whole group (unchanged).
-        let group = fullGroup.drop { $0.effectiveStartTs < onset }
-        var stages = Stages(awake: 0, light: 0, deep: 0, rem: 0)
-        var segs: [SleepInterval] = []
-        // #407: lay the GROUP's per-epoch motion fragment-by-fragment in the SAME order the stage timeline
-        // is laid, reading the already-chosen group's stored series (NOT a re-resolution). The detected key
-        // (`startTs`, not `effectiveStartTs`) is the motion store's key. A fragment with no persisted series
-        // contributes nothing; if NO fragment has one, `motionEpochs` stays empty → honest empty state.
-        var motion: [Double] = []
-        for frag in group {
-            if let seg = Self.decodeSegments(frag.stagesJSON, sessionStart: frag.effectiveStartTs), seg.stages.total > 0 {
-                stages.awake += seg.stages.awake; stages.light += seg.stages.light
-                stages.deep  += seg.stages.deep;  stages.rem   += seg.stages.rem
-                // decodeSegments yields intervals relative to THAT fragment's onset; rebase them to
-                // NIGHT-relative (seconds from the displayed onset) so a later fragment's bars land
-                // after the first fragment instead of overlapping it — the same coordinate space
-                // sleepHRChart maps HR into (rel = ts - nightStart). No-op for the first fragment
-                // of a night (shift 0), so single-block nights are byte-identical. (#364)
-                let shift = TimeInterval(frag.effectiveStartTs - onset)
-                for iv in seg.intervals {
-                    segs.append(SleepInterval(stage: iv.stage, start: iv.start + shift, end: iv.end + shift))
-                }
-            } else if let st = Self.decodeStages(frag.stagesJSON), st.total > 0 {
-                stages.awake += st.awake; stages.light += st.light
-                stages.deep  += st.deep;  stages.rem   += st.rem
-            }
-            if let m = motionByStart[frag.startTs] { motion.append(contentsOf: m) }
-        }
-        // #364: the inter-fragment wake seams belong to the night — draw each as a wake SEGMENT so
-        // the hero hypnogram has no hole where the user was up, matching what the Health export now
-        // writes. The stage MINUTES deliberately stay fragment-only (the seam is not added to
-        // `stages.awake`): the hero's in-bed/efficiency accounting sums fragment windows, mirroring
-        // the Android groupInBedMin rule, so asleep ≤ in-bed stays coherent. Seams are
-        // night-relative like the rebased segments above.
-        let orderedFrags = Array(group)
-        for (prev, next) in zip(orderedFrags, orderedFrags.dropFirst()) {
-            let gapStart = prev.endTs, gapEnd = next.effectiveStartTs
-            guard gapEnd > gapStart else { continue }
-            segs.append(SleepInterval(stage: .awake,
-                                      start: TimeInterval(gapStart - onset),
-                                      end: TimeInterval(gapEnd - onset)))
-        }
-        guard stages.asleep > 0 else { return nil }
-        let eff = stages.total > 0 ? stages.asleep / stages.total : nil
-        let synth = CachedSleepSession(startTs: onset, endTs: wake, efficiency: eff,
-                                       restingHr: nil, avgHrv: nil, stagesJSON: nil)
-        let realSegs = segs.count >= 2 ? segs.sorted { $0.start < $1.start } : nil
-        return Night(session: synth, stages: stages, realSegments: realSegs, sourceBlocks: sessions,
-                     motionEpochs: motion, habitualMidsleepSec: habitualMidsleepSec)
-    }
-
     /// The real stored blocks composing the day at `offset` (for the stage-less stub Night, so its edit
     /// affordance still targets a real row). Empty when out of range.
     private func dayBlocks(at offset: Int) -> [CachedSleepSession] {
@@ -2229,13 +2065,13 @@ struct SleepView: View {
         return offset >= 0 && offset < days.count ? days[offset] : []
     }
 
-    /// The merged Night for the DAY `offset` stops back from the most recent (0 = last night).
-    /// Backs the hero's ◀/▶ navigation via the `navNight` cache — JSON-decodes, so it only runs
-    /// from `buildModel()` and the onChange handlers, never per render. (#160, #170)
+    /// The merged Night for the DAY `offset` stops back from the most recent (0 = last night). Backs the
+    /// hero's ◀/▶ navigation via the `navNight` cache — a thin wrapper over the shared
+    /// `SleepModel.decodedNight`, which JSON-decodes, so it only runs from the builder and the onChange
+    /// handlers, never per render. (#160, #170)
     private func decodedNight(at offset: Int) -> Night? {
-        let days = navDays
-        guard offset >= 0, offset < days.count else { return nil }
-        return mergeDay(days[offset])
+        SleepModel.decodedNight(at: offset, navDays: navDays,
+                                habitualMidsleepSec: habitualMidsleepSec, motionByStart: motionByStart)
     }
 
     /// A synthetic session for the DAY `offset` stops back, spanning the MAIN block's window (not the
@@ -2326,149 +2162,11 @@ struct SleepView: View {
         }
     }
 
-    /// Mean total sleep duration (minutes) across nights with data — the "typical".
-    private var typicalTotalMin: Double? {
-        mean(repo.days.compactMap { $0.totalSleepMin }.filter { $0 > 0 })
-    }
-
-    /// Mean of a per-stage minutes column across days with data.
-    private func typicalStageMin(_ key: KeyPath<DailyMetric, Double?>) -> Double? {
-        mean(repo.days.compactMap { $0[keyPath: key] }.filter { $0 > 0 })
-    }
-
-    // MARK: - Per-tile series (latest, typical mean, sparkline history)
-
-    private typealias Metric = (latest: Double?, typical: Double?, series: [Double])
-
-    /// Build a metric from a per-day transform, keeping only finite positive-ish values.
-    private func metric(_ transform: (DailyMetric) -> Double?) -> Metric {
-        let series = repo.days.compactMap(transform).filter { $0.isFinite }
-        return (series.last, mean(series), series)
-    }
-
-    /// Sleep performance %: the imported WHOOP figure (sleep_performance, 0–100) when the
-    /// export carried one for that day; else the REAL resolved Rest composite for that day —
-    /// the same single source of truth the Today Rest score reads (AnalyticsEngine.Rest.composite,
-    /// what Repository.dailyColumn resolves "sleep_performance" to), NOT a local hours-vs-need
-    /// approximation. Keeps the Rest detail graph in agreement with the Today Rest score. (#614
-    /// follow-up) Values land 0–100 via the composite; the metric() finite filter drops the rest.
-    private var performanceSeries: Metric {
-        let imported = repo.importedSleep
-        return metric { d in
-            if let p = imported[d.day]?.performancePct { return p }   // export-verbatim
-            return AnalyticsEngine.Rest.composite(daily: d)            // real resolved Rest composite
-        }
-    }
-
-    private var efficiencySeries: Metric {
-        metric { d in
-            guard let e = d.efficiency else { return nil }
-            return e <= 1.0 ? e * 100 : e
-        }
-    }
-
-    /// Consistency: prefer the imported sleep_consistency series, but only when it covers
-    /// the latest night — otherwise "latest" would silently be a months-old import-era
-    /// value. Fallback is the APPROXIMATE rolling bedtime-spread score (per session, lower
-    /// spread → higher score, same SD→score mapping).
-    private var consistencySeries: Metric {
-        let imported = repo.importedSleep
-        if let lastDay = repo.days.last?.day, imported[lastDay]?.consistencyPct != nil {
-            let series = repo.days.compactMap { imported[$0.day]?.consistencyPct }
-            return (series.last, mean(series), series)
-        }
-        let cal = Calendar.current
-        func bedMinutes(_ s: CachedSleepSession) -> Double {
-            let d = Date(timeIntervalSince1970: TimeInterval(s.effectiveStartTs))
-            let comps = cal.dateComponents([.hour, .minute], from: d)
-            var m = Double((comps.hour ?? 0) * 60 + (comps.minute ?? 0))
-            if m < 12 * 60 { m += 24 * 60 }   // wrap evening onsets into one continuous scale
-            return m
-        }
-        let mins = repo.sleeps.map(bedMinutes)
-        guard mins.count >= 3 else { return (nil, nil, []) }
-        var scores: [Double] = []
-        for i in mins.indices {
-            let lo = Swift.max(0, i - 13)
-            let window = Array(mins[lo...i])
-            guard window.count >= 3 else { continue }
-            let m = window.reduce(0, +) / Double(window.count)
-            let variance = window.map { ($0 - m) * ($0 - m) }.reduce(0, +) / Double(window.count)
-            let sd = variance.squareRoot()
-            scores.append(Swift.max(0, Swift.min(100, 100 * (1 - sd / 120))))
-        }
-        return (scores.last, mean(scores), scores)
-    }
-
-    /// Hours vs needed % = asleep / need (can exceed 100 on a long night). The imported
-    /// sleep_need_min wins per day; else the APPROXIMATE personal-mean need.
-    private var hoursVsNeededSeries: Metric {
-        let imported = repo.importedSleep
-        let fallbackNeed = sleepNeedMin
-        return metric { d in
-            guard let asleep = d.totalSleepMin, asleep > 0 else { return nil }
-            let need = imported[d.day]?.needMin ?? fallbackNeed
-            guard need > 0 else { return nil }
-            return asleep / need * 100
-        }
-    }
-
-    /// Restorative % = (deep + REM) / asleep — the share of the night that does the work.
-    private var restorativeSeries: Metric {
-        metric { d in
-            guard let deep = d.deepMin, let rem = d.remMin,
-                  let asleep = d.totalSleepMin, asleep > 0 else { return nil }
-            return (deep + rem) / asleep * 100
-        }
-    }
-
-    private var respiratorySeries: Metric {
-        metric { $0.respRateBpm }
-    }
-
-    /// Sleep debt (minutes): the imported sleep_debt_min when the export carried it; else
-    /// the APPROXIMATE per-night need − (main sleep + nap sleep), floored at 0.
-    private func sleepDebtSeries(napSleepMinByDay: [String: Double]) -> Metric {
-        let imported = repo.importedSleep
-        let need = sleepNeedMin
-        let series = repo.days.compactMap { d -> Double? in
-            if let debt = imported[d.day]?.debtMin { return debt }   // minutes, export-verbatim
-            guard let asleep = SleepDebt.creditedSleepMin(
-                mainSleepMin: d.totalSleepMin,
-                napSleepMin: napSleepMinByDay[d.day] ?? 0), need > 0 else { return nil }
-            return Swift.max(0, need - asleep)   // APPROXIMATE fallback
-        }
-        return (series.last, mean(series), series)
-    }
-
-    /// Per-local-wake-day nap credit derived from the same un-deduplicated session list and
-    /// main-night selector the hero/naps card use. `DailyMetric.totalSleepMin` stays main-night-only;
-    /// this separate map is consumed only by the local debt tile and ledger.
-    private var napSleepMinutesByDay: [String: Double] {
-        var result: [String: Double] = [:]
-        for blocks in navDays {
-            guard let endTs = blocks.first?.endTs else { continue }
-            let day = Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval(endTs)))
-            result[day] = Self.napSleepMinutes(blocks, habitualMidsleepSec: habitualMidsleepSec)
-        }
-        return result
-    }
-
-    /// The personal sleep need (minutes): mean asleep, but never below a 7.5h floor so
-    /// debt/performance read sensibly even for a chronically short sleeper.
-    private var sleepNeedMin: Double {
-        Swift.max(450, typicalTotalMin ?? 450)   // 450 min = 7.5h
-    }
-
-    // MARK: - Trend points
-
-    /// Trailing 30 days of total sleep, plotted in HOURS. Falls back to all nights with
-    /// data if the trailing window is too sparse.
-    private var durationTrendPoints: [TrendPoint] {
-        // #today-hosted-cards: single source of truth shared with the Today host (AsleepDurationCard),
-        // so the Sleep-tab trend and the hosted copy are byte-identical.
-        AsleepDurationData.build(days: repo.days).points
-    }
+    // The typical/need values, the per-tile `Metric` series (performance / efficiency / consistency /
+    // hoursVsNeeded / restorative / respiratory / sleepDebt), the `napSleepMinutesByDay` credit map,
+    // `durationTrendPoints`, and the `mean` helper moved to SleepModel.swift as pure statics over
+    // explicit inputs. `buildModel()` calls them via `SleepModel.build(_:)`; the renderers read the
+    // resulting `SleepModel` fields.
 
 
     // MARK: - Empty / sparse states
@@ -2618,11 +2316,6 @@ struct SleepView: View {
         return tail.count > 1 ? tail : nil
     }
 
-    private func mean(_ vals: [Double]) -> Double? {
-        guard !vals.isEmpty else { return nil }
-        return vals.reduce(0, +) / Double(vals.count)
-    }
-
     // MARK: - Stage decoding
 
     /// Asleep minutes decoded from a stored `stagesJSON` in EITHER of the two formats that exist in the
@@ -2645,7 +2338,8 @@ struct SleepView: View {
     }
 
     /// Decode the imported stagesJSON dict of MINUTES {"light","deep","rem","awake"}.
-    private static func decodeStages(_ json: String?) -> Stages? {
+    /// Internal (not private) so `SleepModel.mergeDay` (SleepModel.swift) can call it.
+    static func decodeStages(_ json: String?) -> Stages? {
         guard let json, let data = json.data(using: .utf8) else { return nil }
         guard let obj = try? JSONSerialization.jsonObject(with: data),
               let dict = obj as? [String: Any] else { return nil }
@@ -2663,7 +2357,8 @@ struct SleepView: View {
     /// Decode the COMPUTED stagesJSON segment array [{"start":epoch,"end":epoch,"stage":"wake"|
     /// "light"|"deep"|"rem"}] into stage totals plus the real timeline (seconds relative to the
     /// session start, the Hypnogram's domain). The on-device SleepStager calls awake "wake". (#77)
-    private static func decodeSegments(
+    /// Internal (not private) so `SleepModel.mergeDay` (SleepModel.swift) can call it.
+    static func decodeSegments(
         _ json: String?, sessionStart: Int
     ) -> (stages: Stages, intervals: [SleepInterval])? {
         guard let json, let data = json.data(using: .utf8),
@@ -3112,166 +2807,8 @@ private struct SleepInputKey: Equatable {
     let refreshSeq: Int
 }
 
-/// Memoized result of every expensive SleepView derivation. Built once per data change in
-/// `buildModel()` and read by the subviews, so full passes over repo.days / repo.sleeps and
-/// the Night.intervals reconstruction no longer run on every render.
-private struct SleepModel {
-    /// (latest, typical mean, full history) per metric — mirrors SleepView.Metric.
-    typealias Metric = (latest: Double?, typical: Double?, series: [Double])
-
-    let night: Night
-    /// Stage intervals for the hypnogram — computed once (Night.intervals is a computed
-    /// property; it was previously re-derived on each access during render).
-    let intervals: [SleepInterval]
-    /// True when `intervals` are the stager's persisted per-epoch segments (on-device
-    /// APPROXIMATE staging), not the synthesized architecture.
-    let isPersistedHypnogram: Bool
-    /// True when `night` is the stage-less STUB for a newest day that failed to merge (#940: e.g.
-    /// an impossible hand-edit staged all-awake). The hero then renders the honest no-stage-data
-    /// header for it, exactly as the navigated ◀/▶ stub path does, while the tiles / ledger /
-    /// trends (all full-history) stay up. It must NEVER blank the whole tab: every older night is
-    /// still in the DB and the edit/delete affordance must stay reachable to fix the bad night.
-    let isStubNight: Bool
-
-    let performance: Metric
-    let efficiency: Metric
-    let consistency: Metric
-    let hoursVsNeeded: Metric
-    let restorative: Metric
-    let respiratory: Metric
-    let sleepDebt: Metric
-
-    let typicalTotalMin: Double?
-    let typicalDeepMin: Double?
-    let typicalRemMin: Double?
-    let typicalLightMin: Double?
-
-    let trendPoints: [TrendPoint]
-
-    /// Rolling 14-night sleep-debt ledger: Σ(slept − personal need) across the recent
-    /// fortnight, with the per-night deltas behind it. Computed once per data change.
-    let sleepDebtLedger: SleepDebtLedger
-}
-
-private struct Stages {
-    var awake: Double
-    var light: Double
-    var deep: Double
-    var rem: Double
-    /// All stages (includes awake) — total time-in-bed minutes.
-    var total: Double { awake + light + deep + rem }
-    /// Asleep time = total minus awake.
-    var asleep: Double { light + deep + rem }
-}
-
-private struct Night {
-    let session: CachedSleepSession
-    let stages: Stages
-    /// The REAL per-segment timeline for on-device computed nights (nil for imported nights,
-    /// whose export carries totals only — those keep the synthetic reconstruction below). (#77)
-    var realSegments: [SleepInterval]? = nil
-    /// The actual stored block(s) this merged Night was built from. `session` above is a SYNTHETIC
-    /// merge for display; an edit must target a real row, so it resolves it from here by identity
-    /// rather than re-scanning by wake time. (#318)
-    var sourceBlocks: [CachedSleepSession] = []
-
-    /// Per-epoch MOTION for the MAIN-night GROUP, laid fragment-by-fragment in the SAME order `intervals`
-    /// lays the group's stage timeline (#407). Empty when no group fragment has a persisted `motionJSON`
-    /// (older rows) — the Sleep tab then shows an honest empty state instead of a fabricated zero trace.
-    /// This is read off the already-resolved group, NOT a re-resolution of the night.
-    var motionEpochs: [Double] = []
-
-    /// The LEARNED habitual midsleep (local time-of-day seconds) the owning view loaded for the user — the
-    /// SAME value the engine threaded into the daily total — so `editTarget` resolves the SAME main block
-    /// the hero and the analytics rollup did, for a shift/late sleeper too. nil = cold-start band. (#547)
-    var habitualMidsleepSec: Int? = nil
-
-    /// The real stored block a sleep-time edit writes against — the day's MAIN block, resolved by the
-    /// SAME shared selector (`SleepView.mainNightSession` → `SleepStageTotals.mainNightIndex`) the hero,
-    /// the naps card, and `AnalyticsEngine.analyzeDay` use, so all of them and the edit affordance agree
-    /// (no re-derived overnight gate). Passes the same learned habitual the hero used, so the edit target
-    /// matches the hero block even for a shift/late sleeper. Its `startTs` is a genuine detected key, so
-    /// `applySleepEdit` matches. nil when there's no underlying block (a synthetic stub) — the edit
-    /// affordance is then hidden. (#318, #518, #547)
-    var editTarget: CachedSleepSession? {
-        SleepView.mainNightSession(sourceBlocks, habitualMidsleepSec: habitualMidsleepSec)
-    }
-
-    /// The `startTs` of every block in the day's bridged MAIN-night GROUP (the winning block plus the
-    /// fragments bridged into it, #561), so the naps card excludes ALL of them — only blocks OUTSIDE the
-    /// group are naps. Without this the tab treated every block except the single winner as a nap and a
-    /// biphasic night rendered as phantom naps. (#555)
-    var mainGroupStarts: Set<Int> {
-        Set(SleepView.mainNightGroup(sourceBlocks, habitualMidsleepSec: habitualMidsleepSec).map { $0.startTs })
-    }
-
-    /// Total time in bed in minutes (from reconstructed stages).
-    var timeInBed: Double { stages.total }
-
-    /// The wall-clock start of the night (for the Hypnogram's clock labels).
-    var onsetDate: Date { Date(timeIntervalSince1970: TimeInterval(session.effectiveStartTs)) }
-
-    /// Stage intervals laid end-to-end across the night, in seconds from start.
-    /// On-device computed nights use their REAL timeline; imported nights are reconstructed
-    /// from durations only (the export has no per-epoch timeline).
-    var intervals: [SleepInterval] {
-        if let real = realSegments, real.count >= 2 { return real }
-        var t: TimeInterval = 0
-        var out: [SleepInterval] = []
-        func add(_ stage: SleepStage, _ minutes: Double) {
-            guard minutes > 0 else { return }
-            let secs = minutes * 60
-            out.append(SleepInterval(stage: stage, start: t, end: t + secs))
-            t += secs
-        }
-        // A plausible architecture: deep early, REM later, awake last.
-        add(.light, stages.light * 0.4)
-        add(.deep, stages.deep)
-        add(.light, stages.light * 0.3)
-        add(.rem, stages.rem)
-        add(.light, stages.light * 0.3)
-        add(.awake, stages.awake)
-        return out
-    }
-
-    var onsetText: String { Night.timeFmt.string(from: Date(timeIntervalSince1970: TimeInterval(session.effectiveStartTs))) }
-    var wakeText: String { Night.timeFmt.string(from: Date(timeIntervalSince1970: TimeInterval(session.endTs))) }
-    var dateLabel: String { Night.dateFmt.string(from: Date(timeIntervalSince1970: TimeInterval(session.effectiveStartTs))) }
-
-    /// Date label that becomes a span when the night crosses midnight (onset on a different
-    /// calendar day from wake) — e.g. "Fri 13 → Sat 14 Jun" — otherwise a single date. Lets an
-    /// aggregated day that started the previous evening read honestly. (#170)
-    var spanLabel: String {
-        let onsetDay = Date(timeIntervalSince1970: TimeInterval(session.effectiveStartTs))
-        let wakeDay  = Date(timeIntervalSince1970: TimeInterval(session.endTs))
-        let cal = Calendar.current
-        if cal.isDate(onsetDay, inSameDayAs: wakeDay) { return Night.dateFmt.string(from: onsetDay) }
-        return "\(Night.spanFmt.string(from: onsetDay)) → \(Night.dateFmt.string(from: wakeDay))"
-    }
-
-    /// A unix-second timestamp as a device-locale clock string ("11:42 PM" / "23:42"). Shared so the nap
-    /// rows format their windows identically to the Asleep/Woke row. (#508)
-    static func clockString(_ ts: Int) -> String {
-        timeFmt.string(from: Date(timeIntervalSince1970: TimeInterval(ts)))
-    }
-
-    // Clock for the Asleep/Woke row — the times people read at a glance. The "jmm" skeleton
-    // follows the device's 12-/24-hour setting ("11:42 PM" or "23:42") instead of forcing one
-    // on everyone, matching the HR-tooltip / workout times (#337).
-    private static let timeFmt: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = AppLanguage.activeLocale
-        f.setLocalizedDateFormatFromTemplate("jmm")
-        return f
-    }()
-    private static let dateFmt: DateFormatter = {
-        let f = DateFormatter(); f.dateFormat = "EEE d MMM"; return f
-    }()
-    /// Onset side of a cross-midnight span — no month (the wake side carries it): "Fri 13".
-    private static let spanFmt: DateFormatter = {
-        let f = DateFormatter(); f.dateFormat = "EEE d"; return f
-    }()
-}
+// SleepModel / Night / Stages and the pure `SleepModel.build(_:)` derivation pipeline now live in
+// SleepModel.swift, so the Today host can build the same model without a SleepView instance.
 
 // MARK: - Wake-time editor
 
