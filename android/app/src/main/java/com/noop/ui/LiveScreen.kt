@@ -212,10 +212,10 @@ fun LiveScreen(viewModel: AppViewModel, onManageDevices: () -> Unit = {}) {
         // behind the header + hero and the cards float over the flat canvas below. Reuses the shared
         // LiquidScreenSky() slot verbatim; when the day-cycle background is off, the scaffold paints the
         // plain surface instead (matching the liquid Today's showDayCycleBackground gate).
-        topBackground = if (showDayCycleBackground) { { LiquidScreenSky(fillHeight = skyBehindCards) } } else null,
+        topBackground = screenBackdropSlot(showDayCycleBackground, skyBehindCards),
         // Sky-behind-cards fills the viewport so the transparent cards reveal the sky the whole way
         // down (Today / Trends / Sleep / metric-detail parity - same two prefs, same two behaviours).
-        fullBleedBackground = showDayCycleBackground && skyBehindCards,
+        fullBleedBackground = screenBackdropFullBleed(showDayCycleBackground, skyBehindCards),
     ) {
 
         // Active band row (MW-6) — names the band the console is reading, with a "Manage devices"

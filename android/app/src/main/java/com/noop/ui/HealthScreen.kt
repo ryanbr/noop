@@ -157,10 +157,10 @@ fun HealthScreen(
     LazyScreenScaffold(
         title = uiString(R.string.l10n_health_screen_health_monitor_c4abc3fc),
         subtitle = "Live vitals, streamed from the strap.",
-        topBackground = if (showDayCycleBackground) { { LiquidScreenSky(fillHeight = skyBehindCards) } } else null,
+        topBackground = screenBackdropSlot(showDayCycleBackground, skyBehindCards),
         // Sky-behind-cards fills the viewport so the transparent cards reveal the sky the whole way
         // down (Today / Trends / Sleep / metric-detail parity - same two prefs, same two behaviours).
-        fullBleedBackground = showDayCycleBackground && skyBehindCards,
+        fullBleedBackground = screenBackdropFullBleed(showDayCycleBackground, skyBehindCards),
     ) {
         if (today == null && !hasLiveHr) {
             // Even with no history yet, a freshly-connected strap can be told to sync now (#364) — the
@@ -1716,10 +1716,10 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
             loadedPoints == 1 -> "Your latest reading — trend to follow."
             else -> "Historical trend from cached daily metrics."
         },
-        topBackground = if (showDayCycleBackground) { { LiquidScreenSky(fillHeight = skyBehindCards) } } else null,
+        topBackground = screenBackdropSlot(showDayCycleBackground, skyBehindCards),
         // Sky-behind-cards needs the full-viewport container too — the band container's status-bar
         // offset left the lower cards on plain canvas (tester report).
-        fullBleedBackground = showDayCycleBackground && skyBehindCards,
+        fullBleedBackground = screenBackdropFullBleed(showDayCycleBackground, skyBehindCards),
     ) {
         if (isSeriesBacked && !seriesLoaded) {
             DataPendingNote(

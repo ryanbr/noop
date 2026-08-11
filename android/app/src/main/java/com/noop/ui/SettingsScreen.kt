@@ -61,6 +61,7 @@ import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
@@ -715,6 +716,25 @@ fun SettingsScreen(
         }
     }
 
+    // Custom background image (#custom-background) — two sources per the design: the modern Photo Picker
+    // (no storage permission) and the system file browser ("Browse"). Both read the bytes ONCE, downscale
+    // + persist a private JPEG off the main thread via BackgroundImageStore, which flips the live backdrop
+    // on every tab. We copy immediately, so no persistable-Uri grant is needed for the file source.
+    val setBackgroundFromUri: (Uri) -> Unit = { uri ->
+        scope.launch {
+            val ok = withContext(Dispatchers.IO) { BackgroundImageStore.setImageFromUri(context, uri) }
+            if (!ok) {
+                Toast.makeText(context, "Couldn't use that image. Try another.", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+    val backgroundPhotoLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia(),
+    ) { uri -> if (uri != null) setBackgroundFromUri(uri) }
+    val backgroundFileLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri -> if (uri != null) setBackgroundFromUri(uri) }
+
     ScreenScaffold(
         title = uiString(R.string.l10n_settings_screen_settings_c7f73bb5),
         subtitle = "Your numbers, your strap, and how NOOP works. All on this phone.",
@@ -723,10 +743,10 @@ fun SettingsScreen(
         // scroll-heavy list with NO hero gauge, so the liquid finish here is just the sky + liquidPress on
         // the tappable rows. Gated on the same day-cycle background pref Today reads, so turning that off
         // returns Settings to the plain dark canvas too.
-        topBackground = if (showDayCycleBackground) { { LiquidScreenSky(fillHeight = skyBehindCards) } } else null,
+        topBackground = screenBackdropSlot(showDayCycleBackground, skyBehindCards),
         // Sky-behind-cards fills the viewport so the transparent cards reveal the sky the whole way
         // down (Today / Trends / Sleep / metric-detail parity - same two prefs, same two behaviours).
-        fullBleedBackground = showDayCycleBackground && skyBehindCards,
+        fullBleedBackground = screenBackdropFullBleed(showDayCycleBackground, skyBehindCards),
     ) {
         // Read the revision counter so every profile write recomposes this subtree
         // (SharedPreferences is not observable; `mutate` bumps `rev` after each write).
@@ -1315,6 +1335,41 @@ fun SettingsScreen(
                 )
             }
 
+            // Transparent cards (#custom-background): a quick on/off over the SAME cardOpacityPercent —
+            // no separate pref, so it stays in lock-step with the slider below. Off = solid (100%); on =
+            // a sensible see-through default the slider then fine-tunes. Lets the custom background (or the
+            // sky) show through the cards. `checked` is derived from the opacity, so dragging the slider
+            // to solid flips this off automatically.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Transparent cards", style = NoopType.subhead, color = Palette.textPrimary)
+                    Text(
+                        "Let the background show through every card. Tune how much just below.",
+                        style = NoopType.footnote,
+                        color = Palette.textTertiary,
+                    )
+                }
+                Switch(
+                    checked = cardOpacity < 1f,
+                    onCheckedChange = { on ->
+                        cardOpacity = if (on) { if (cardOpacity >= 1f) 0.7f else cardOpacity } else 1f
+                        CardAppearance.opacity = cardOpacity
+                        NoopPrefs.setCardOpacityPercent(context, (cardOpacity * 100).toInt())
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Palette.surfaceBase,
+                        checkedTrackColor = Palette.accent,
+                        uncheckedThumbColor = Palette.textSecondary,
+                        uncheckedTrackColor = Palette.surfaceInset,
+                        uncheckedBorderColor = Palette.hairline,
+                    ),
+                )
+            }
+
             // Card transparency: scale every frosted card's glass toward the background. Live-preview (the
             // cards on THIS screen update as you drag) via CardAppearance; saved on release. Default solid.
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -1356,6 +1411,74 @@ fun SettingsScreen(
                         activeTrackColor = Palette.accent,
                         inactiveTrackColor = Palette.surfaceInset,
                     ),
+                )
+            }
+        }
+
+        // --- Background image (#custom-background) ---
+        // An optional custom photo drawn full-bleed behind EVERY tab (including More), in place of the
+        // day-cycle sky (precedence: image > sky > flat canvas). Pick from Photos or Browse the files; the
+        // image is downscaled + kept on this phone only (NOOP is offline, so it's never uploaded), and left
+        // out of the .noopbak backup like the avatar. Reads BackgroundImageStore snapshot state, so the
+        // controls + the live backdrop update the instant an image is set, removed, or re-scaled.
+        SettingsCard(
+            icon = Icons.Outlined.Image,
+            title = "Background image",
+            blurb = "Optional. Use your own photo behind every tab, in place of the day-cycle sky. " +
+                "Stored only on this phone. Pair it with Transparent cards above to let it show through.",
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                NoopButton(
+                    text = if (BackgroundImageStore.hasImage) "Replace from Photos" else "Choose from Photos",
+                    kind = NoopButtonKind.Secondary,
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        backgroundPhotoLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                        )
+                    },
+                )
+                NoopButton(
+                    text = "Browse files",
+                    kind = NoopButtonKind.Secondary,
+                    modifier = Modifier.weight(1f),
+                    onClick = { backgroundFileLauncher.launch(arrayOf("image/*")) },
+                )
+            }
+
+            if (BackgroundImageStore.hasImage) {
+                // Master gate + scaling only make sense once an image exists.
+                SettingsToggleRow(
+                    title = "Show custom background",
+                    detail = "Draw your photo behind every tab, replacing the day-cycle sky.",
+                    checked = BackgroundImageStore.enabled,
+                    onCheckedChange = { BackgroundImageStore.setEnabled(context, it) },
+                )
+                SettingsFormRow(label = "Scaling") {
+                    SegmentedPillControl(
+                        items = BackgroundFillMode.entries,
+                        selection = BackgroundImageStore.fillMode,
+                        label = { mode ->
+                            when (mode) {
+                                BackgroundFillMode.FILL -> "Fill"
+                                BackgroundFillMode.FIT -> "Fit"
+                                BackgroundFillMode.STRETCH -> "Stretch"
+                                BackgroundFillMode.TILE -> "Tile"
+                            }
+                        },
+                        onSelect = { BackgroundImageStore.setFillMode(context, it) },
+                        // Four segments share the row width equally so the labels can't widen the card.
+                        adaptsToAvailableWidth = true,
+                    )
+                }
+                NoopButton(
+                    text = "Remove image",
+                    kind = NoopButtonKind.Tertiary,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { BackgroundImageStore.clearImage(context) },
                 )
             }
         }

@@ -43,6 +43,33 @@ import androidx.compose.ui.unit.dp
 //
 // Non-interactive + accessibility-hidden — it is pure decoration (the scaffold slot never receives taps).
 
+// MARK: - Screen backdrop precedence (#custom-background)
+//
+// The ONE decision every liquid screen shares: which backdrop goes in the scaffold's `topBackground` slot.
+// Precedence is custom image > day-cycle sky > flat canvas. A custom background image (BackgroundImage.kt)
+// OVERRIDES the sky and always bleeds full-screen, so it reads identically behind every tab (the same
+// decode-once cached bitmap on each) — seamless at the tab crossfade. When no image is active this is
+// exactly the previous `showDayCycleBackground ? sky : null` behavior. Routing every screen through these
+// two helpers is what keeps the image seamless across tabs including More.
+
+/** The scaffold `topBackground` slot honouring the image > sky > canvas precedence. `isActive` is
+ *  snapshot-backed, so toggling/removing the image in Settings re-picks the backdrop live. */
+fun screenBackdropSlot(
+    showDayCycleBackground: Boolean,
+    skyBehindCards: Boolean,
+): (@Composable () -> Unit)? = when {
+    BackgroundImageStore.isActive -> { { BackgroundImageBackdrop() } }
+    showDayCycleBackground -> { { LiquidScreenSky(fillHeight = skyBehindCards) } }
+    else -> null
+}
+
+/** `fullBleedBackground` for the same precedence: a custom image always bleeds behind the whole scroll;
+ *  the sky only when "Sky behind cards" is on. */
+fun screenBackdropFullBleed(
+    showDayCycleBackground: Boolean,
+    skyBehindCards: Boolean,
+): Boolean = BackgroundImageStore.isActive || (showDayCycleBackground && skyBehindCards)
+
 /** The reusable liquid sky backdrop for a liquid screen's top region. Drop it into a scaffold's
  *  `topBackground` slot. [height] is the sky band; the sky fades into the theme canvas within it, so the
  *  cards below sit on the flat surface. Mirrors the iOS `liquidScaffoldSky`. */

@@ -476,10 +476,10 @@ fun SleepScreen(
         // settles into the theme canvas behind the header + hero, bled full-width up behind the status bar
         // via the scaffold's topBackground plumbing. Gated on the day-cycle preference exactly like Today
         // (showDayCycleBackground ? sky : plain canvas). Replaces the classic per-hero scene backdrop.
-        topBackground = if (showDayCycleBackground) { { LiquidScreenSky(fillHeight = skyBehindCards) } } else null,
+        topBackground = screenBackdropSlot(showDayCycleBackground, skyBehindCards),
         // Sky-behind-cards fills the viewport so the transparent cards reveal the sky the whole way down
         // (Today / metric-detail parity — the same two prefs drive the same two behaviours everywhere).
-        fullBleedBackground = showDayCycleBackground && skyBehindCards,
+        fullBleedBackground = screenBackdropFullBleed(showDayCycleBackground, skyBehindCards),
     ) {
         // #65: the transient UNDO banner after a suppressing delete. Restores the deleted row into its
         // ORIGINAL namespace + lifts the tombstone. Mirrors the macOS SleepView sleepUndoBanner.

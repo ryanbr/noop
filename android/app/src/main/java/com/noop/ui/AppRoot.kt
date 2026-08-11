@@ -612,9 +612,9 @@ private fun MoreScreen(onNavigate: (String) -> Unit) {
     ScreenScaffold(
         title = uiString(R.string.l10n_app_root_more_4bab2d8f),
         subtitle = "Everything else, one tap away",
-        topBackground = if (showDayCycleBackground) { { LiquidScreenSky(fillHeight = skyBehindCards) } } else null,
+        topBackground = screenBackdropSlot(showDayCycleBackground, skyBehindCards),
         // Sky-behind-cards fills the viewport so the transparent cards reveal the sky the whole way down.
-        fullBleedBackground = showDayCycleBackground && skyBehindCards,
+        fullBleedBackground = screenBackdropFullBleed(showDayCycleBackground, skyBehindCards),
     ) {
         // Mirror the iOS More page: each group is a tappable UPPERCASE overline header (with a disclosure
         // chevron) over a single grouped white NoopCard whose rows are tight (accent icon + title +

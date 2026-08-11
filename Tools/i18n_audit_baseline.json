@@ -514,7 +514,15 @@
     ],
     [
       "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
+      "Background image"
+    ],
+    [
+      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
       "Blood Oxygen: strap estimate"
+    ],
+    [
+      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
+      "Browse files"
     ],
     [
       "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
@@ -522,7 +530,15 @@
     ],
     [
       "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
+      "Choose from Photos"
+    ],
+    [
+      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
       "Choose photo"
+    ],
+    [
+      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
+      "Let the background show through every card. Tune how much just below."
     ],
     [
       "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
@@ -546,7 +562,23 @@
     ],
     [
       "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
+      "Remove image"
+    ],
+    [
+      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
+      "Replace from Photos"
+    ],
+    [
+      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
+      "Scaling"
+    ],
+    [
+      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
       "Searching…"
+    ],
+    [
+      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
+      "Show custom background"
     ],
     [
       "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
@@ -555,6 +587,10 @@
     [
       "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
       "Surfaces the WHOOP 5/MG strap's nightly SpO₂ estimate (spo2_candidate_82) in the "
+    ],
+    [
+      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
+      "Transparent cards"
     ],
     [
       "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",

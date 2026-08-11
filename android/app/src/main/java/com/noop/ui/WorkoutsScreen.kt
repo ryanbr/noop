@@ -237,10 +237,10 @@ fun WorkoutsScreen(vm: AppViewModel) {
         // into the theme canvas behind the header + top rows (bled full-width up behind the status bar via
         // the scaffold's topBackground plumbing), and the cards float OVER it on the flat surface below. The
         // Android equivalent of the iOS `ScreenScaffold(topBackground: liquidScaffoldSky())`.
-        topBackground = if (showDayCycleBackground) { { LiquidScreenSky(fillHeight = skyBehindCards) } } else null,
+        topBackground = screenBackdropSlot(showDayCycleBackground, skyBehindCards),
         // Sky-behind-cards fills the viewport so the transparent cards reveal the sky the whole way
         // down (Today / Trends / Sleep / metric-detail parity - same two prefs, same two behaviours).
-        fullBleedBackground = showDayCycleBackground && skyBehindCards,
+        fullBleedBackground = screenBackdropFullBleed(showDayCycleBackground, skyBehindCards),
     ) {
         // Start (or stop) a workout right here, not only on Live — mirrors the Live control (#115).
         // Start + Add sit side-by-side as an action row when a strap is bonded (EXP-018 parity).

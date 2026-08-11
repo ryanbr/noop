@@ -100,6 +100,10 @@ class MainActivity : ComponentActivity() {
         // header + Settings avatars show it from the first frame. No-op when no photo is set.
         ProfileAvatarStore.load(this)
 
+        // Decode the optional custom background image (if set) + its toggles before first composition so
+        // the backdrop is right from the first frame on every tab. No-op when no image is set.
+        BackgroundImageStore.load(this)
+
         setContent {
             NoopTheme {
                 NoopRoot()

@@ -87,10 +87,10 @@ fun CoachScreen(vm: CoachViewModel = viewModel()) {
         // LIQUID SKY BACKDROP (the pilot pattern — LiquidScreenSky.kt): the liquid sky sits behind the
         // header and the cards float over the flat canvas below. Reuses the shared LiquidScreenSky() slot
         // verbatim; when the day-cycle background is off, the scaffold paints the plain surface instead.
-        topBackground = if (showDayCycleBackground) { { LiquidScreenSky(fillHeight = skyBehindCards) } } else null,
+        topBackground = screenBackdropSlot(showDayCycleBackground, skyBehindCards),
         // Sky-behind-cards fills the viewport so the transparent cards reveal the sky the whole way
         // down (Today / Trends / Sleep / metric-detail parity - same two prefs, same two behaviours).
-        fullBleedBackground = showDayCycleBackground && skyBehindCards,
+        fullBleedBackground = screenBackdropFullBleed(showDayCycleBackground, skyBehindCards),
     ) {
         if (!configured) {
             CoachSetup(vm = vm)

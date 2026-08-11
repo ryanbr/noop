@@ -158,10 +158,10 @@ fun TrendsScreen(vm: AppViewModel) {
         // into the theme canvas behind the header + top rows, full-bleed via the scaffold's topBackground
         // plumbing. Static (LiquidSkyStatic, inside the helper) — never an animated sky behind a scrolling
         // list. Gated on the same day-cycle pref as Today; when off, the scaffold paints the flat canvas.
-        topBackground = if (showDayCycleBackground) { { LiquidScreenSky(fillHeight = skyBehindCards) } } else null,
+        topBackground = screenBackdropSlot(showDayCycleBackground, skyBehindCards),
         // Sky-behind-cards fills the viewport so the transparent cards reveal the sky the whole way down
         // (Today / metric-detail parity — the same two prefs drive the same two behaviours everywhere).
-        fullBleedBackground = showDayCycleBackground && skyBehindCards,
+        fullBleedBackground = screenBackdropFullBleed(showDayCycleBackground, skyBehindCards),
     ) {
         if (days.isEmpty()) {
             item { EmptyTrends() }

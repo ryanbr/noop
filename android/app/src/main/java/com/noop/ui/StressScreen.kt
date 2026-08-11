@@ -140,10 +140,10 @@ fun StressScreen(vm: AppViewModel, onBreathe: () -> Unit = {}) {
         // status bar via the scaffold's topBackground plumbing), and the cards float OVER it on the flat
         // surface below. The Android equivalent of the iOS `ScreenScaffold(topBackground: liquidScaffoldSky())`.
         // Gated on the "Day-cycle background" setting like Today; off passes null (the flat-canvas path).
-        topBackground = if (showDayCycleBackground) { { LiquidScreenSky(fillHeight = skyBehindCards) } } else null,
+        topBackground = screenBackdropSlot(showDayCycleBackground, skyBehindCards),
         // Sky-behind-cards fills the viewport so the transparent cards reveal the sky the whole way
         // down (Today / Trends / Sleep / metric-detail parity - same two prefs, same two behaviours).
-        fullBleedBackground = showDayCycleBackground && skyBehindCards,
+        fullBleedBackground = screenBackdropFullBleed(showDayCycleBackground, skyBehindCards),
     ) {
         when {
             model != null -> StressContent(model, daytime, stressIndex, freqHrv, onBreathe)

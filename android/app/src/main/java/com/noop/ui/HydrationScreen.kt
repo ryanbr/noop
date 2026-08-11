@@ -184,10 +184,10 @@ fun HydrationScreen(viewModel: AppViewModel) {
     LazyScreenScaffold(
         title = uiString(R.string.l10n_hydration_screen_hydration_bdfb040f),
         subtitle = "Your fluid intake today, on this phone only.",
-        topBackground = if (showDayCycleBackground) { { LiquidScreenSky(fillHeight = skyBehindCards) } } else null,
+        topBackground = screenBackdropSlot(showDayCycleBackground, skyBehindCards),
         // Sky-behind-cards fills the viewport so the transparent cards reveal the sky the whole way
         // down (Today / Trends / Sleep / metric-detail parity - same two prefs, same two behaviours).
-        fullBleedBackground = showDayCycleBackground && skyBehindCards,
+        fullBleedBackground = screenBackdropFullBleed(showDayCycleBackground, skyBehindCards),
     ) {
         // HERO — the day's intake as a LiquidVessel (water in a vessel: the literal fit), with the litre
         // figure counting up over it, floating on the frosted translucent-black liquid hero card so it reads

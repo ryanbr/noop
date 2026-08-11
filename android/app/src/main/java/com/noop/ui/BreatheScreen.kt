@@ -303,10 +303,10 @@ fun BreatheScreen(viewModel: AppViewModel) {
         // into the theme canvas behind the header + top card and bleeds full-width up behind the status bar
         // via the scaffold's topBackground plumbing. The Android equivalent of the iOS
         // `ScreenScaffold(topBackground: liquidScaffoldSky())`; the cards float OVER it on the flat canvas.
-        topBackground = if (showDayCycleBackground) { { LiquidScreenSky(fillHeight = skyBehindCards) } } else null,
+        topBackground = screenBackdropSlot(showDayCycleBackground, skyBehindCards),
         // Sky-behind-cards fills the viewport so the transparent cards reveal the sky the whole way
         // down (Today / Trends / Sleep / metric-detail parity - same two prefs, same two behaviours).
-        fullBleedBackground = showDayCycleBackground && skyBehindCards,
+        fullBleedBackground = screenBackdropFullBleed(showDayCycleBackground, skyBehindCards),
     ) {
         // Mode switch — Breathe / Resonance / Calm me.
         SegmentedPillControl(

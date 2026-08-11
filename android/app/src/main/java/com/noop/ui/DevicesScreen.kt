@@ -169,10 +169,10 @@ fun DevicesScreen(
         // into the flat canvas behind the top of the screen so the frosted device cards float over it. The
         // static sky (LiquidSkyStatic inside the helper) carries no per-frame cost on this scrolling list.
         // Gated on the same "Day-cycle background" setting as Today; off passes null for the plain canvas.
-        topBackground = if (showDayCycleBackground) { { LiquidScreenSky(fillHeight = skyBehindCards) } } else null,
+        topBackground = screenBackdropSlot(showDayCycleBackground, skyBehindCards),
         // Sky-behind-cards fills the viewport so the transparent cards reveal the sky the whole way
         // down (Today / Trends / Sleep / metric-detail parity - same two prefs, same two behaviours).
-        fullBleedBackground = showDayCycleBackground && skyBehindCards,
+        fullBleedBackground = screenBackdropFullBleed(showDayCycleBackground, skyBehindCards),
     ) {
         // #802: the re-pair guide belongs HERE too, not only on Live. A strap that connects but never
         // finishes bonding leaves the user on this screen — it is where you go to fix a device — while the

@@ -200,10 +200,10 @@ fun CoupledScreen(
         // The Android equivalent of the iOS `ScreenScaffold(topBackground: liquidScaffoldSky())`; it replaces
         // the classic flat-canvas backdrop with the liquid day-of-sky (LiquidSkyStatic — no per-frame cost on
         // this scrolling column). The other liquid screens drop in the SAME LiquidScreenSky() slot verbatim.
-        topBackground = if (showDayCycleBackground) { { LiquidScreenSky(fillHeight = skyBehindCards) } } else null,
+        topBackground = screenBackdropSlot(showDayCycleBackground, skyBehindCards),
         // Sky-behind-cards fills the viewport so the transparent cards reveal the sky the whole way
         // down (Today / Trends / Sleep / metric-detail parity - same two prefs, same two behaviours).
-        fullBleedBackground = showDayCycleBackground && skyBehindCards,
+        fullBleedBackground = screenBackdropFullBleed(showDayCycleBackground, skyBehindCards),
     ) {
         HeroCard(
             recovery = recovery,

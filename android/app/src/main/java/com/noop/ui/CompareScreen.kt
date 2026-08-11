@@ -473,10 +473,10 @@ fun CompareScreen(vm: AppViewModel) {
         subtitle = "Overlay signals, draw conclusions.",
         // Liquid sky backdrop (LiquidScreenSky.kt) in the scaffold's topBackground slot, gated on the
         // day-cycle preference — the same pilot plumbing the liquid Today uses.
-        topBackground = if (showDayCycleBackground) { { LiquidScreenSky(fillHeight = skyBehindCards) } } else null,
+        topBackground = screenBackdropSlot(showDayCycleBackground, skyBehindCards),
         // Sky-behind-cards fills the viewport so the transparent cards reveal the sky the whole way
         // down (Today / Trends / Sleep / metric-detail parity - same two prefs, same two behaviours).
-        fullBleedBackground = showDayCycleBackground && skyBehindCards,
+        fullBleedBackground = screenBackdropFullBleed(showDayCycleBackground, skyBehindCards),
     ) {
 
         // ── Metric picker section (chips + range control)
