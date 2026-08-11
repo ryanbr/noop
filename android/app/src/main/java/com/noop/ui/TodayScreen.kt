@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.automirrored.filled.BatteryUnknown
 import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
@@ -48,9 +49,13 @@ import androidx.compose.material.icons.filled.Functions
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.MonitorHeart
+import androidx.compose.material.icons.filled.MonitorWeight
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.TrackChanges
+import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Info
@@ -4587,6 +4592,7 @@ private fun MetricGrid(
                 rowTiles.forEach { (metric, tile) ->
                     LiquidKeyTile(
                         tile,
+                        icon = keyMetricIcon(metric),
                         detailed = detailed,
                         windowDays = windowDays,
                         onClick = tapFor(metric),
@@ -4633,6 +4639,23 @@ private data class KeyTileData(
     val spark: List<Double> = emptyList(),
 )
 
+/** The per-metric glyph shown beside a Key-Metric tile's label — the Android twin of iOS
+ *  `LiquidTodayView.keyMetricIcon`, using Material equivalents of its SF Symbols: heart / bolt / moon /
+ *  trend line / heart-monitor / drop / air (≈lungs) / walk / scale / flame. Tinted to the tile colour at
+ *  render, so the icon reads as the same signal as the bar. */
+private fun keyMetricIcon(metric: KeyMetric): ImageVector = when (metric) {
+    KeyMetric.CHARGE -> Icons.Filled.Favorite
+    KeyMetric.EFFORT -> Icons.Filled.Bolt
+    KeyMetric.REST -> Icons.Filled.Bedtime
+    KeyMetric.HRV -> Icons.Filled.Timeline
+    KeyMetric.RESTING_HR -> Icons.Filled.MonitorHeart
+    KeyMetric.BLOOD_OXYGEN -> Icons.Filled.WaterDrop
+    KeyMetric.RESPIRATORY -> Icons.Filled.Air
+    KeyMetric.STEPS -> Icons.AutoMirrored.Filled.DirectionsWalk
+    KeyMetric.WEIGHT -> Icons.Filled.MonitorWeight
+    KeyMetric.CALORIES -> Icons.Filled.LocalFireDepartment
+}
+
 /**
  * One iOS `ktile`: a compact 3-column tile — a 9sp / +1.2 overline label, the value (number 17) + small
  * unit (caption), and a thin 8dp [LiquidTube] fill bar tinted [KeyTileData.tint] to [KeyTileData.frac].
@@ -4647,6 +4670,7 @@ private data class KeyTileData(
 @Composable
 private fun LiquidKeyTile(
     data: KeyTileData,
+    icon: ImageVector,
     detailed: Boolean = false,
     windowDays: Int = 14,
     onClick: (() -> Unit)? = null,
@@ -4672,13 +4696,28 @@ private fun LiquidKeyTile(
             .semantics { contentDescription = uiString(R.string.l10n_today_screen_data_label_data_value_data_unit_27f6fd6b, data.label, data.value, data.unit).trim() },
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text(
-            data.label.uppercase(),
-            style = NoopType.overline.copy(fontSize = 9.sp, letterSpacing = 1.2.sp),
-            color = Palette.textTertiary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        // iOS ktile parity: a small metric glyph before the overline label, tinted to the tile colour at
+        // 0.72 opacity (LiquidTodayView `Image(systemName:).foregroundStyle(tint.opacity(0.72))`). Decorative
+        // — the tile's own semantics already announce the label/value, so the icon is contentDescription-null.
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = data.tint.copy(alpha = 0.72f),
+                modifier = Modifier.size(12.dp),
+            )
+            Text(
+                data.label.uppercase(),
+                style = NoopType.overline.copy(fontSize = 9.sp, letterSpacing = 1.2.sp),
+                color = Palette.textTertiary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+        }
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
                 data.value,
