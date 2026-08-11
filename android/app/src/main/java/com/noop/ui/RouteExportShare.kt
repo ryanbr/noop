@@ -26,13 +26,15 @@ object RouteExportShare {
         row: WorkoutRow,
     ) {
         runCatching {
-            val points = track.map { RouteExport.Point(it.lat, it.lon) }
-            val bytes = RouteExport.render(
-                format, points, row.startTs, row.endTs, row.sport,
-                distanceM = row.distanceM, energyKcal = row.energyKcal, avgHr = row.avgHr, maxHr = row.maxHr,
-            )
             val filename = "noop-route-${row.startTs}.${format.ext}"
+            // Build the file AND write it off the main thread — a long route (10k+ points) is a non-trivial
+            // string/byte build, and file IO must never block the UI. Only the chooser launch stays on Main.
             val file = withContext(Dispatchers.IO) {
+                val points = track.map { RouteExport.Point(it.lat, it.lon) }
+                val bytes = RouteExport.render(
+                    format, points, row.startTs, row.endTs, row.sport,
+                    distanceM = row.distanceM, energyKcal = row.energyKcal, avgHr = row.avgHr, maxHr = row.maxHr,
+                )
                 File(File(context.cacheDir, "exports").apply { mkdirs() }, filename)
                     .apply { writeBytes(bytes) }
             }

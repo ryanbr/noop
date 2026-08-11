@@ -323,16 +323,23 @@ struct WorkoutDetailView: View {
     /// Write the route to a GPX/FIT file and hand it to the system share sheet (or a Save panel on macOS).
     /// Points are decoded lat/lon only (the stored polyline), so the exporter interpolates per-point times
     /// across the session window and carries the workout's summary (sport, distance, calories, HR).
+    ///
+    /// The build + disk write run OFF the main actor (a long route is a non-trivial encode, and blocking
+    /// file IO must never stall the UI); only the share-sheet present hops back to the main actor.
     @MainActor private func exportRoute(_ format: RouteExporter.Format) {
         guard route.count >= 2 else { return }
         let points = route.map { RoutePoint(lat: $0.lat, lon: $0.lon) }
-        let data = RouteExporter.render(
-            format, route: points, startTs: row.startTs, endTs: row.endTs, sport: row.sport,
-            distanceM: row.distanceM, energyKcal: row.energyKcal, avgHr: row.avgHr, maxHr: row.maxHr)
         let name = FileExport.timestampedName("noop-route", ext: format.ext)
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
-        do { try data.write(to: url) } catch { return }
-        FileExport.exportFile(at: url, suggestedName: name)
+        let startTs = row.startTs, endTs = row.endTs, sport = row.sport
+        let distanceM = row.distanceM, energyKcal = row.energyKcal, avgHr = row.avgHr, maxHr = row.maxHr
+        Task.detached(priority: .userInitiated) {
+            let data = RouteExporter.render(
+                format, route: points, startTs: startTs, endTs: endTs, sport: sport,
+                distanceM: distanceM, energyKcal: energyKcal, avgHr: avgHr, maxHr: maxHr)
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+            do { try data.write(to: url) } catch { return }
+            await MainActor.run { FileExport.exportFile(at: url, suggestedName: name) }
+        }
     }
 
     private func routeStat(_ title: String, _ value: String, tint: Color) -> some View {
