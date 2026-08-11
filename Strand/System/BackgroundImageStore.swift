@@ -73,6 +73,10 @@ final class BackgroundImageStore: ObservableObject {
         }
         d.set(true, forKey: BackgroundImagePrefs.presentKey)
         image = Image(platformImage: platform)
+        // Actively picking an image means the user wants to SEE it — turn the background on so it shows
+        // immediately, instead of silently storing a photo that stays hidden behind a separate toggle.
+        // They can still toggle it off afterwards (the image is kept) or Remove it entirely.
+        if !enabled { enabled = true }
     }
 
     /// Remove the photo: delete the file, clear the present flag, drop the cached ``image``.

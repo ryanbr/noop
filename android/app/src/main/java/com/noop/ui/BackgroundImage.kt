@@ -114,6 +114,10 @@ object BackgroundImageStore {
         }
         NoopPrefs.setBackgroundImagePresent(app, true)
         bitmap = scaled.asImageBitmap()
+        // Actively picking an image means the user wants to SEE it — turn the background on so it shows
+        // immediately, instead of silently storing a photo that stays hidden behind a separate toggle.
+        // They can still toggle it off afterwards (the image is kept) or Remove it entirely.
+        if (!enabled) setEnabled(app, true)
         return true
     }
 
