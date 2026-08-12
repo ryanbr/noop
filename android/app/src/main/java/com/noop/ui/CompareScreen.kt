@@ -1167,8 +1167,10 @@ private fun CompareChartTooltip(
     }
 }
 
+// Device locale so the weekday/month names translate (a non-English user shouldn't see an English
+// tooltip date). Same pattern + device locale as the iOS twin, so both localize consistently.
 private val compareTooltipDateFormatter: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("EEE d MMM yyyy", Locale.US)
+    DateTimeFormatter.ofPattern("EEE d MMM yyyy", Locale.getDefault())
 
 private fun prettyCompareDay(day: String): String =
     runCatching { LocalDate.parse(day).format(compareTooltipDateFormatter) }.getOrDefault(day)

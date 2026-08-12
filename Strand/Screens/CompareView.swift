@@ -1085,7 +1085,10 @@ private struct MultiTooltip: View {
     /// Shared formatter; was rebuilt from scratch on every hover frame.
     private static let dateLabelFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
+        // Device locale (not en_US_POSIX) so the DISPLAYED weekday/month names translate — the crosshair
+        // parser above still uses en_US_POSIX for stable yyyy-MM-dd parsing. Same pattern + device locale
+        // as the Android twin so both localize consistently.
+        f.locale = Locale.autoupdatingCurrent
         f.dateFormat = "EEE d MMM yyyy"
         return f
     }()

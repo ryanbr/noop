@@ -169,6 +169,10 @@
       "Max 4"
     ],
     [
+      "android/app/src/main/java/com/noop/ui/CompareScreen.kt",
+      "\\u2014"
+    ],
+    [
       "android/app/src/main/java/com/noop/ui/CoupledScreen.kt",
       "A classic one-glance read of NOOP's own scores. Same data, different lens."
     ],
