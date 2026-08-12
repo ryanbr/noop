@@ -180,6 +180,8 @@ struct SettingsView: View {
     @AppStorage(AppLanguage.storageKey) private var appLanguageRaw = AppLanguage.system.rawValue
     // Chart colour style: Titanium (brand) or Classic (throwback red→green). Re-colours gauges + charts.
     @AppStorage(ChartStyle.storageKey) private var chartStyleRaw = ChartStyle.titanium.rawValue
+    // Sleep tab stage-CHART shape: Classic per-stage rows, or the WHOOP-style stepped hypnogram Filled/Ribbon.
+    @AppStorage(SleepChartStyle.storageKey) private var sleepChartStyleRaw = SleepChartStyle.classic.rawValue
     // Chrome accent colour (mint / WHOOP blue / custom). Chrome only — never the data colour worlds.
     @AppStorage(AccentColor.storageKey) private var accentRaw = AccentColor.mint.rawValue
     @AppStorage(AccentColor.customHexKey) private var accentCustomHex = AccentColor.defaultCustomHex
@@ -1058,6 +1060,21 @@ struct SettingsView: View {
                     .pickerStyle(.menu)
                     .tint(StrandPalette.accent)
                     .accessibilityLabel("Chart colours")
+                }
+                rowDivider
+                FormRow(label: "Sleep chart") {
+                    // Classic = the per-stage timeline rows (default). Filled/Ribbon = the WHOOP-style
+                    // single stepped hypnogram, filled to the baseline or as a slim band. Display-only —
+                    // same stages either way; falls back to Classic on a night with no timestamped segments.
+                    Picker("Sleep chart", selection: $sleepChartStyleRaw) {
+                        ForEach(SleepChartStyle.allCases) { style in
+                            Text(style.label).tag(style.rawValue)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .tint(StrandPalette.accent)
+                    .accessibilityLabel("Sleep chart")
                 }
                 rowDivider
                 // Chrome accent colour — the links/buttons/selection tint only. The recovery/strain/sleep

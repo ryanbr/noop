@@ -40,6 +40,9 @@ struct SleepView: View {
     /// only when the underlying repo data actually changes — NOT on hover/animation/1Hz HR
     /// ticks that merely re-evaluate `body`. `nil` until first build or when there's no night.
     @State private var model: SleepModel?
+    /// The Sleep tab's stage-chart shape (Settings → Appearance → Sleep chart). Display-only; Filled/Ribbon
+    /// draw the WHOOP-style stepped hypnogram, Classic keeps the per-stage rows. Mirrors Android. (#sleep-chart-style)
+    @AppStorage(SleepChartStyle.storageKey) private var sleepChartStyleRaw = SleepChartStyle.classic.rawValue
     /// The repo signature the cached `model` was built from. Cheap to compute every render;
     /// when it differs from the current inputs we rebuild the model.
     @State private var modelKey: SleepInputKey?
@@ -726,13 +729,17 @@ struct SleepView: View {
             : String(localized: "\(durationText(night.timeInBed)) in bed · \(efficiencyText(night)) efficiency")
         VStack(alignment: .leading, spacing: NoopMetrics.space2) {
             if intervals.count >= 2 {
-                // WHOOP sleep-details layout (ryanAtriumAi #988): one full-width timeline ROW per
-                // stage — hatched track = the whole night, solid segments = when that stage occurred,
-                // header carries the stage %, duration right-aligned. Tap a row to highlight that
-                // stage; the others grey out. Replaces the 4-level hypnogram, whose staircase turned
-                // fragmented on-device staging into an unreadable comb. No separate footer — the
-                // rows ARE the legend.
-                stageTimelineCard(s, subtitle: subtitle, intervals: intervals, night: night)
+                // #sleep-chart-style (Settings → Appearance): Classic keeps the per-stage timeline ROWS
+                // (ryanAtriumAi #988) — hatched track = the whole night, solid segments = when that stage
+                // occurred, tap a row to highlight it. Filled/Ribbon draw the WHOOP-style single stepped
+                // hypnogram (filled to the baseline, or a slim band) with the breakdown rows as the legend.
+                switch SleepChartStyle.resolve(sleepChartStyleRaw) {
+                case .classic:
+                    stageTimelineCard(s, subtitle: subtitle, intervals: intervals, night: night)
+                case .filled, .ribbon:
+                    steppedHypnogramCard(s, subtitle: subtitle, intervals: intervals, night: night,
+                                         filled: SleepChartStyle.resolve(sleepChartStyleRaw) == .filled)
+                }
             } else {
                 ChartCard(
                     title: "Stage breakdown",
@@ -799,6 +806,36 @@ struct SleepView: View {
                 stageTimeline(stages, intervals: intervals, night: night)
             }
         }
+    }
+
+    /// #sleep-chart-style — the WHOOP-style single stepped hypnogram (Filled = each stage banded down to
+    /// the baseline, Ribbon = a slim band at each stage level), with the per-stage breakdown rows below as
+    /// the legend. Mirrors the Android FilledHypnogram card; only routed here when the night has ≥2 real
+    /// segments (the shared `intervals`). The stages/totals are identical to Classic — this only redraws.
+    @ViewBuilder
+    private func steppedHypnogramCard(_ s: Stages, subtitle: String, intervals: [SleepInterval],
+                                      night: Night, filled: Bool) -> some View {
+        ChartCard(
+            title: "Stage breakdown",
+            subtitle: subtitle,
+            trailing: durationText(s.asleep),
+            height: NoopMetrics.chartHeight,
+            tint: StrandPalette.restColor,
+            chart: {
+                Hypnogram(
+                    intervals: intervals,
+                    height: NoopMetrics.chartHeight,
+                    showsStageAxis: false,
+                    showsHover: true,
+                    nightStart: night.onsetDate,
+                    showsTimeAxis: true,
+                    filled: filled
+                )
+            },
+            // The stepped chart carries no built-in legend (the rows ARE the legend in Classic), so surface
+            // the per-stage breakdown below it — the same apportioned rows the Classic view uses.
+            footer: { stageBreakdownRows(s) }
+        )
     }
 
     /// #407 — the per-epoch movement/restlessness strip drawn UNDER the hypnogram, on the SAME timeline.

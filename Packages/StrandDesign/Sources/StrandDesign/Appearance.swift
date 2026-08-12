@@ -25,6 +25,32 @@ public enum ChartStyle: String, CaseIterable, Identifiable, Sendable {
     public static func resolve(_ raw: String) -> ChartStyle { ChartStyle(rawValue: raw) ?? .titanium }
 }
 
+/// The Sleep tab's stage-CHART shape (distinct from `ChartStyle`, which is colours): the long-standing
+/// per-stage-rows timeline, or the WHOOP-style single stepped hypnogram drawn either FILLED to the
+/// baseline or as a slim RIBBON. Display-only — the underlying stages/totals are identical; this only
+/// changes the drawing, and Filled/Ribbon fall back to Classic on a night with no timestamped segments.
+/// The byte-identical twin is Android `SleepChartStyle` (Units.kt): same `classic`/`filled`/`ribbon`
+/// rawValues and the same `sleep.chart.style` key, so a device reads its own choice consistently.
+/// Device-local (NOT in the `.noopbak` whitelist), like the Android pref.
+public enum SleepChartStyle: String, CaseIterable, Identifiable, Sendable {
+    case classic   // per-stage-rows timeline (the default, unchanged)
+    case filled    // single stepped hypnogram, each stage filled from its lane to the baseline
+    case ribbon    // the same stepped chart drawn as a slim band at each stage level
+
+    public var id: String { rawValue }
+    public static let storageKey = "sleep.chart.style"
+
+    public var label: String {
+        switch self {
+        case .classic: return String(localized: "Classic", bundle: .module)
+        case .filled:  return String(localized: "Filled", bundle: .module)
+        case .ribbon:  return String(localized: "Ribbon", bundle: .module)
+        }
+    }
+
+    public static func resolve(_ raw: String) -> SleepChartStyle { SleepChartStyle(rawValue: raw) ?? .classic }
+}
+
 /// Applies the chart style: sets the global `StrandPalette.chartStyle` (read by the data-ramp
 /// accessors) AND keys the content on the raw value so a flip re-renders the visible charts. The
 /// global is set during body evaluation, before the keyed content renders, so the new ramps are live
