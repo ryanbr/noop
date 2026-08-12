@@ -96,6 +96,7 @@ import com.noop.analytics.AnalyticsEngine
 import com.noop.analytics.SleepDebtLedger
 import com.noop.analytics.SleepEditGuard
 import com.noop.analytics.SleepStageTotals
+import com.noop.analytics.StagePercentages
 import com.noop.data.DismissedSleep
 import com.noop.data.SleepSession
 import com.noop.data.WhoopRepository
@@ -1656,7 +1657,7 @@ private fun StageTimeline(
             StageTimelineRow(
                 label = label,
                 minutes = minutes,
-                total = s.total,
+                percent = stageSharePercent(label, s),
                 color = color,
                 spans = stageRowSpans(intervals, label, spanSec),
                 selected = selectedStage == label,
@@ -1688,14 +1689,13 @@ private fun StageTimeline(
 private fun StageTimelineRow(
     label: String,
     minutes: Double,
-    total: Double,
+    percent: Int,
     color: Color,
     spans: List<Pair<Float, Float>>,
     selected: Boolean,
     dimmed: Boolean,
     onTap: () -> Unit,
 ) {
-    val percent = if (total > 0.0) (minutes / total * 100.0).roundToInt() else 0
     val segColor = if (dimmed) Palette.textTertiary.copy(alpha = 0.55f) else color
     val pctColor = if (dimmed) Palette.textTertiary else color
     val shape = RoundedCornerShape(Metrics.stageRowCorner)
@@ -1788,10 +1788,10 @@ private fun StageRowTrack(spans: List<Pair<Float, Float>>, color: Color) {
 @Composable
 private fun StageInsight(selectedStage: String?, s: Stages) {
     val text = when (selectedStage) {
-        "Awake" -> stageInsightLine("Awake", s.awake, s.total)
-        "Light" -> stageInsightLine("Light", s.light, s.total)
-        "Deep" -> stageInsightLine("Deep", s.deep, s.total)
-        "REM" -> stageInsightLine("REM", s.rem, s.total)
+        "Awake" -> stageInsightLine("Awake", s.awake, stageSharePercent("Awake", s))
+        "Light" -> stageInsightLine("Light", s.light, stageSharePercent("Light", s))
+        "Deep" -> stageInsightLine("Deep", s.deep, stageSharePercent("Deep", s))
+        "REM" -> stageInsightLine("REM", s.rem, stageSharePercent("REM", s))
         else -> "Tap a stage to highlight it across the night."
     }
     Box(
@@ -1802,9 +1802,25 @@ private fun StageInsight(selectedStage: String?, s: Stages) {
     }
 }
 
-private fun stageInsightLine(label: String, minutes: Double, total: Double): String {
-    val percent = if (total > 0.0) (minutes / total * 100.0).roundToInt() else 0
-    return "$label tonight: ${durationText(minutes)} — $percent% of the night."
+private fun stageInsightLine(label: String, minutes: Double, percent: Int): String =
+    "$label tonight: ${durationText(minutes)} — $percent% of the night."
+
+/**
+ * The night's four stages as whole percentages that sum to exactly 100 (largest-remainder), keyed by
+ * label — so the breakdown rows, the timeline rows and the insight line all read ONE apportionment: they
+ * agree with each other and add up, instead of four independent roundings landing on 99/101. The bar
+ * fills still track the raw minutes/total fraction. 0 for a night with no minutes. Twin of the Swift
+ * SleepView.stageSharePercent. (tanarchytan)
+ */
+internal fun stageSharePercent(label: String, s: Stages): Int {
+    val p = StagePercentages.wholePercentages(listOf(s.awake, s.light, s.deep, s.rem)) ?: return 0
+    return when (label) {
+        "Awake" -> p[0]
+        "Light" -> p[1]
+        "Deep" -> p[2]
+        "REM" -> p[3]
+        else -> 0
+    }
 }
 
 /**

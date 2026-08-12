@@ -46,21 +46,20 @@ import kotlin.math.roundToInt
 @Composable
 internal fun StageBreakdownRows(s: Stages) {
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.space12)) {
-        StageBreakdownRow("REM", s.rem, s.total, Palette.sleepREM)
-        StageBreakdownRow("Deep", s.deep, s.total, Palette.sleepDeep)
-        StageBreakdownRow("Light", s.light, s.total, Palette.sleepLight)
-        StageBreakdownRow("Awake", s.awake, s.total, Palette.sleepAwake)
+        StageBreakdownRow("REM", s.rem, s.total, Palette.sleepREM, stageSharePercent("REM", s))
+        StageBreakdownRow("Deep", s.deep, s.total, Palette.sleepDeep, stageSharePercent("Deep", s))
+        StageBreakdownRow("Light", s.light, s.total, Palette.sleepLight, stageSharePercent("Light", s))
+        StageBreakdownRow("Awake", s.awake, s.total, Palette.sleepAwake, stageSharePercent("Awake", s))
     }
 }
 
 /**
- * One WHOOP-style stage row. `fraction = minutes / total` sets both the % and the PipBar fill, so the
- * coloured percent and the segmented bar always agree. Mirrors the macOS SleepView.stageBreakdownRow.
+ * One WHOOP-style stage row. `fraction = minutes / total` sets the PipBar fill; `percent` is the night's
+ * apportioned share (so the four rows sum to 100). Mirrors the macOS SleepView.stageBreakdownRow.
  */
 @Composable
-private fun StageBreakdownRow(stage: String, minutes: Double, total: Double, color: Color) {
+private fun StageBreakdownRow(stage: String, minutes: Double, total: Double, color: Color, percent: Int) {
     val fraction = if (total > 0.0) (minutes / total).coerceIn(0.0, 1.0) else 0.0
-    val percent = (fraction * 100.0).roundToInt()
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Metrics.space10),

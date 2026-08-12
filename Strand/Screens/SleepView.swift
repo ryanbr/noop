@@ -1086,7 +1086,7 @@ struct SleepView: View {
             .frame(height: 34)
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Sleep stage breakdown: deep \(pct(s.deep, s.total)) percent, light \(pct(s.light, s.total)) percent, REM \(pct(s.rem, s.total)) percent, awake \(pct(s.awake, s.total)) percent")
+            .accessibilityLabel("Sleep stage breakdown: deep \(stageSharePercent(.deep, s)) percent, light \(stageSharePercent(.light, s)) percent, REM \(stageSharePercent(.rem, s)) percent, awake \(stageSharePercent(.awake, s)) percent")
             HStack(spacing: 16) {
                 legend(.deep, String(localized: "Deep"))
                 legend(.light, String(localized: "Light"))
@@ -1124,21 +1124,34 @@ struct SleepView: View {
     @ViewBuilder
     private func stageBreakdownRows(_ s: Stages) -> some View {
         VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {
-            stageBreakdownRow(.rem,   minutes: s.rem,   total: s.total)
-            stageBreakdownRow(.deep,  minutes: s.deep,  total: s.total)
-            stageBreakdownRow(.light, minutes: s.light, total: s.total)
-            stageBreakdownRow(.awake, minutes: s.awake, total: s.total)
+            stageBreakdownRow(.rem,   minutes: s.rem,   total: s.total, percent: stageSharePercent(.rem, s))
+            stageBreakdownRow(.deep,  minutes: s.deep,  total: s.total, percent: stageSharePercent(.deep, s))
+            stageBreakdownRow(.light, minutes: s.light, total: s.total, percent: stageSharePercent(.light, s))
+            stageBreakdownRow(.awake, minutes: s.awake, total: s.total, percent: stageSharePercent(.awake, s))
         }
     }
 
-    /// One WHOOP-style stage row. `fraction = minutes / total` sets both the % and the bar fill.
-    /// Tappable (WHOOP, ryanAtriumAi #988): selecting a row highlights that stage and recedes the
-    /// rest; tapping the selected row again clears the highlight.
+    /// The night's four stages as whole percentages that sum to exactly 100 (largest-remainder), so the
+    /// breakdown rows, the timeline rows and the stage-bar read-out all print ONE apportionment: they agree
+    /// with each other and add up. The bar fills still track the raw `minutes / total` fraction. Falls back
+    /// to 0 for a night with no minutes. Twin of Android `stageSharePercent`. (tanarchytan)
+    private func stageSharePercent(_ stage: SleepStage, _ s: Stages) -> Int {
+        guard let p = StagePercentages.wholePercentages([s.awake, s.light, s.deep, s.rem]) else { return 0 }
+        switch stage {
+        case .awake: return p[0]
+        case .light: return p[1]
+        case .deep:  return p[2]
+        case .rem:   return p[3]
+        }
+    }
+
+    /// One WHOOP-style stage row. `fraction = minutes / total` sets the bar fill; `percent` is the night's
+    /// apportioned share (so the four rows sum to 100). Tappable (WHOOP, ryanAtriumAi #988): selecting a
+    /// row highlights that stage and recedes the rest; tapping the selected row again clears the highlight.
     @ViewBuilder
-    private func stageBreakdownRow(_ stage: SleepStage, minutes: Double, total: Double) -> some View {
+    private func stageBreakdownRow(_ stage: SleepStage, minutes: Double, total: Double, percent: Int) -> some View {
         let color = StrandPalette.sleepStageColor(stage)
         let fraction = total > 0 ? min(1, max(0, minutes / total)) : 0
-        let percent = Int((fraction * 100).rounded())
         let isSelected = selectedStage == stage
         let othersSelected = selectedStage != nil && !isSelected
         HStack(spacing: 10) {
@@ -1210,10 +1223,10 @@ struct SleepView: View {
                 .frame(height: 124)
                 .padding(.horizontal, 10)
                 .padding(.bottom, 2)
-            stageTimelineRow(.awake, minutes: s.awake, total: s.total, intervals: smoothed, origin: origin, span: span)
-            stageTimelineRow(.light, minutes: s.light, total: s.total, intervals: smoothed, origin: origin, span: span)
-            stageTimelineRow(.deep,  minutes: s.deep,  total: s.total, intervals: smoothed, origin: origin, span: span)
-            stageTimelineRow(.rem,   minutes: s.rem,   total: s.total, intervals: smoothed, origin: origin, span: span)
+            stageTimelineRow(.awake, minutes: s.awake, percent: stageSharePercent(.awake, s), intervals: smoothed, origin: origin, span: span)
+            stageTimelineRow(.light, minutes: s.light, percent: stageSharePercent(.light, s), intervals: smoothed, origin: origin, span: span)
+            stageTimelineRow(.deep,  minutes: s.deep,  percent: stageSharePercent(.deep, s), intervals: smoothed, origin: origin, span: span)
+            stageTimelineRow(.rem,   minutes: s.rem,   percent: stageSharePercent(.rem, s), intervals: smoothed, origin: origin, span: span)
             // onset · midpoint · wake clock labels, aligned with the rows' inner strips.
             HStack {
                 Text(Self.stageAxisFormatter.string(from: night.onsetDate))
@@ -1357,12 +1370,11 @@ struct SleepView: View {
     /// night-long track with solid segments where the stage occurred. Tap toggles the highlight:
     /// the selected row keeps its colour + gains a border while every other row's segments grey out.
     @ViewBuilder
-    private func stageTimelineRow(_ stage: SleepStage, minutes: Double, total: Double,
+    private func stageTimelineRow(_ stage: SleepStage, minutes: Double, percent: Int,
                                   intervals: [SleepInterval], origin: TimeInterval, span: TimeInterval) -> some View {
         let color = StrandPalette.sleepStageColor(stage)
         let isSelected = selectedStage == stage
         let dimmed = selectedStage != nil && !isSelected
-        let percent = total > 0 ? Int((minutes / total * 100).rounded()) : 0
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Text(stage.label.uppercased())
@@ -1920,10 +1932,6 @@ struct SleepView: View {
     }
 
     // MARK: - Formatting helpers
-
-    private func pct(_ minutes: Double, _ total: Double) -> Int {
-        total > 0 ? Int((minutes / total * 100).rounded()) : 0
-    }
 
     // The metric-grid tile formatters (`pctValue` / `rrValue` / `vsTypical` / `debtCaption` / `debtColor`)
     // moved to `NightDetailCard` with the grid; they had no other caller in SleepView.
