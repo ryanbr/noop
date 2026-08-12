@@ -171,6 +171,15 @@ object SleepStager {
      *  bare "asleep". Mirrors Swift `bandVetoRecoverStage`. (band sleep_state veto) */
     const val bandVetoRecoverStage: String = "light"
 
+    /** #1210: a TRACE-ONLY line reporting what the (dormant) band wake-veto WOULD recover on a banded night,
+     *  so a validator gathers the recovered-minutes distribution across real nights without any output change
+     *  (the persisted hypnogram stays the flag-gated, unchanged one). Namespaced `bandVeto(shadow):` and free
+     *  of a `day=` / `t=…s` token so `CaptureAccumulator` never counts it as a captured day. Byte-identical to
+     *  Swift `bandVetoShadowLine`. (band sleep_state veto) */
+    internal fun bandVetoShadowLine(startTs: Long, recoveredMin: Double, rawEff: Double, shadowEff: Double): String =
+        "bandVeto(shadow): startTs=$startTs recoveredMin=${Math.round(recoveredMin)} " +
+            "eff ${Math.round(rawEff * 100)}%->${Math.round(shadowEff * 100)}%"
+
     /** Seconds in a calendar day (for local-hour-of-day arithmetic). */
     const val secondsPerDay: Long = 86_400L
 
@@ -1253,6 +1262,21 @@ object SleepStager {
             traceSink?.invoke(SleepStagerTrace.runLine(runIndex, p.start, p.end,
                 SleepStagerTrace.Verdict.KEPT, "accepted",
                 "spanMin=$spanMin eff=${SleepStagerTrace.round2(eff)} restingHR=${resting ?: -1} daytime=$isDaytime"))
+            // #1210 shadow: the band wake-veto is dormant (default-off), but its recovered-vs-reverse ratio
+            // can only come from banded nights. When a band stream is present, compute what the veto WOULD
+            // recover and trace it — OUTPUT-NEUTRAL: `stages`/`eff` persisted above are the flag-gated
+            // (unchanged) values and nothing reads `shadowStages`. Guarded on `traceSink`, so it fires ONLY
+            // while a diagnostic is collecting (zero production cost). Retire once the flip (#1210) lands.
+            if (traceSink != null && !bandStateWakeVetoEnabled && bandSleepState.isNotEmpty()) {
+                val shadowStages = applyBandStateWakeVeto(rawStages, start = p.start, end = p.end,
+                    bandSleepState = bandSleepState, enabled = true)
+                val shadowEff = efficiency(start = p.start, end = p.end, stages = shadowStages)
+                val recoveredMin = (shadowEff - eff) * (p.end - p.start).toDouble() / 60.0
+                if (recoveredMin >= 1.0) {
+                    traceSink(bandVetoShadowLine(startTs = p.start, recoveredMin = recoveredMin,
+                        rawEff = eff, shadowEff = shadowEff))
+                }
+            }
             // A run that does NOT continue the chain re-anchors it on this run's onset.
             if (!continuesChain) chainFromOvernight = isOvernightOnset(p.start, tzOffsetSeconds)
             chainPrevEnd = p.end

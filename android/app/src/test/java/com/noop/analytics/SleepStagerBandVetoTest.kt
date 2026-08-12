@@ -2,6 +2,8 @@ package com.noop.analytics
 
 import com.noop.data.GravitySample
 import com.noop.data.HrSample
+import com.noop.testcentre.CaptureAccumulator
+import com.noop.testcentre.TestDomain
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -187,5 +189,43 @@ class SleepStagerBandVetoTest {
             noBand[0].stages, withBand[0].stages)
         assertEquals("default-off: efficiency is untouched by the band stream",
             noBand[0].efficiency, withBand[0].efficiency, 1e-9)
+    }
+
+    @Test
+    fun shadowLineIsNamespacedAndUncountedByCaptureAccumulator() {
+        // #1210 shadow: the validation line formats the recovered delta and is NEVER miscounted as a captured
+        // sleep day (carries no `sleep day=` / `gate run=` / `day=` token). Byte-identical format to Swift.
+        val line = SleepStager.bandVetoShadowLine(
+            startTs = 1_723_000_000L, recoveredMin = 31.4, rawEff = 0.742, shadowEff = 0.808,
+        )
+        assertEquals("bandVeto(shadow): startTs=1723000000 recoveredMin=31 eff 74%->81%", line)
+        assertEquals("shadow line must not be counted as a captured sleep day",
+            0, CaptureAccumulator.capturedDays(TestDomain.SLEEP, line, 0L))
+    }
+
+    @Test
+    fun shadowTraceReportsRecoveryOutputNeutral() {
+        // #1210 shadow: veto DORMANT (default-off) + a band present + a collecting traceSink -> a
+        // `bandVeto(shadow):` line quantifying what the veto WOULD recover, WITHOUT changing the persisted
+        // hypnogram (detectSleep's documented trace contract). Same burst fixture as the default-off wiring
+        // test. (The line reports MAGNITUDE only; whether the move is toward truth needs the PSG harness.)
+        val start = startAtHour(2)
+        val dur = 6 * 3600
+        val grav = stillGravity(start, dur).toMutableList()
+        val hr = hrStream(start, dur, 50).toMutableList()
+        for (i in (3 * 3600) until (3 * 3600 + 5 * 60)) {  // interior 5-min burst -> false wake
+            grav[i] = GravitySample(deviceId = dev, ts = start + i, x = (i % 2) * 0.5, y = 0.0, z = 1.0)
+            hr[i] = HrSample(deviceId = dev, ts = start + i, bpm = 95)
+        }
+        val band = bandAllAsleep(start = start, end = start + dur)
+        val untraced = SleepStager.detectSleep(hr = hr, gravity = grav, bandSleepState = band)
+        val lines = mutableListOf<String>()
+        val traced = SleepStager.detectSleep(
+            hr = hr, gravity = grav, bandSleepState = band, traceSink = { lines.add(it) },
+        )
+        assertEquals("shadow trace must not change the persisted hypnogram",
+            untraced[0].stages, traced[0].stages)
+        assertTrue("a banded night with interior false-wake emits a shadow line",
+            lines.any { it.startsWith("bandVeto(shadow):") && it.contains("recoveredMin=") })
     }
 }
