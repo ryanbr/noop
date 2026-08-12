@@ -46,6 +46,17 @@ class Vo2maxCaloriesTest {
     }
 
     @Test
+    fun caloriesActiveAndRestingMale_matchesSwiftGolden() {
+        // Twin of Swift WorkoutDetectorTests.testCaloriesActiveAndRestingMale (which had NO Kotlin
+        // equivalent — this closes that gap). 600 s @150 bpm, male 80 kg / 30 y, hrmax 190, RHR 60 →
+        // Uth VO2max 48.45 → fitness model 58.5503 kJ/min × 600 / 251.04 = 139.9386 kcal.
+        val hr = (0 until 600).map { com.noop.data.HrSample(deviceId = "test", ts = it.toLong(), bpm = 150) }
+        val profile = UserProfile(weightKg = 80.0, heightCm = 180.0, age = 30.0, sex = "male")
+        val kcal = Calories.estimateBoutCalories(hr, profile, hrmax = 190.0, restingHR = 60.0).first
+        assertEquals(139.9386, kcal, 0.1)
+    }
+
+    @Test
     fun boutThreadsVo2maxWhenRestingHrKnown() {
         // Dense 1 Hz bout, 60 s all at HR 150 (well above the 92 bpm active gate for RHR 50 / HRmax 190),
         // male 80 kg / age 30. Every second is billed the fitness active rate → total = 60 × that rate.
