@@ -831,7 +831,7 @@ private fun CalorieHeatmapSection(recentDays: List<com.noop.data.DailyMetric>) {
                     val cellPx = cell.toPx()
                     val leftPx = leftInset.toPx()
                     val topPx = topInset.toPx()
-                    val radius = CornerRadius(cellPx * 0.22f, cellPx * 0.22f)
+                    val radius = CornerRadius(cellPx * 0.24f, cellPx * 0.24f)
                     val labelPaint = android.graphics.Paint().apply {
                         isAntiAlias = true
                         color = labelArgb
@@ -858,15 +858,26 @@ private fun CalorieHeatmapSection(recentDays: List<com.noop.data.DailyMetric>) {
                             nc.drawText(sym, leftPx + c * (cellPx + gapPx), labelPaint.textSize, labelPaint)
                         }
                     }
+                    // Cells; today's cell gets an outline so "where am I" reads at a glance (mirrors #222).
                     for (c in 0 until cols) {
                         val column = grid.columns[c]
                         for (r in 0 until 7) {
+                            val tl = Offset(leftPx + c * (cellPx + gapPx), topPx + r * (cellPx + gapPx))
                             drawRoundRect(
                                 color = colorFor(column[r].level),
-                                topLeft = Offset(leftPx + c * (cellPx + gapPx), topPx + r * (cellPx + gapPx)),
+                                topLeft = tl,
                                 size = Size(cellPx, cellPx),
                                 cornerRadius = radius,
                             )
+                            if (column[r].day == today) {
+                                drawRoundRect(
+                                    color = Palette.textPrimary,
+                                    topLeft = tl,
+                                    size = Size(cellPx, cellPx),
+                                    cornerRadius = radius,
+                                    style = Stroke(width = 1.5.dp.toPx()),
+                                )
+                            }
                         }
                     }
                 }

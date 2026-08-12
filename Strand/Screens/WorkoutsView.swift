@@ -845,7 +845,7 @@ struct WorkoutsView: View {
                                     .font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
                             }
                         }
-                        Canvas { ctx, size in drawHeatmap(ctx, size: size, grid: grid) }
+                        Canvas { ctx, size in drawHeatmap(ctx, size: size, grid: grid, today: todayDayString()) }
                         .aspectRatio(13.0 / 7.6, contentMode: .fit)
                         .frame(maxWidth: .infinity)
                         .accessibilityLabel(Text("Active-calorie heatmap, last 13 weeks"))
@@ -867,7 +867,7 @@ struct WorkoutsView: View {
     /// Renders the heatmap into the Canvas: a left gutter of weekday labels (Mon/Wed/Fri/Sun) and a top
     /// row of month labels (drawn where the month changes), then the cells. Labels use the LOCALIZED
     /// calendar symbols so they translate for free and carry no hardcoded literals.
-    private func drawHeatmap(_ ctx: GraphicsContext, size: CGSize, grid: ActivityHeatmap.Grid) {
+    private func drawHeatmap(_ ctx: GraphicsContext, size: CGSize, grid: ActivityHeatmap.Grid, today: String) {
         let cols = grid.columns.count
         guard cols > 0 else { return }
         let gap: CGFloat = 3
@@ -909,15 +909,18 @@ struct WorkoutsView: View {
             }
         }
 
-        // Cells.
+        // Cells; today's cell gets an outline so "where am I" reads at a glance (mirrors #222).
         for c in 0..<cols {
             let col = grid.columns[c]
             for r in 0..<7 {
                 let rect = CGRect(x: leftInset + CGFloat(c) * (cell + gap),
                                   y: topInset + CGFloat(r) * (cell + gap),
                                   width: cell, height: cell)
-                ctx.fill(Path(roundedRect: rect, cornerRadius: cell * 0.22),
-                         with: .color(heatColor(col[r].level)))
+                let path = Path(roundedRect: rect, cornerRadius: cell * 0.24)
+                ctx.fill(path, with: .color(heatColor(col[r].level)))
+                if col[r].day == today {
+                    ctx.stroke(path, with: .color(StrandPalette.textPrimary), lineWidth: 1.5)
+                }
             }
         }
     }
