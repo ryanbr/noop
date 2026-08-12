@@ -439,6 +439,23 @@ class WhoopBleClient(
         private const val LOG_BUFFER_MAX = 5000
 
         /**
+         * #1263: durable strap-log tail + generation ring (Android parity for iOS `LiveState`). The in-memory
+         * [logBuffer] dies with the process, so an export taken after a restart would begin at the restart and
+         * lose the lines that explain it. We mirror a durable tail to SharedPreferences every
+         * [LOG_TAIL_PERSIST_EVERY] lines and, at the first log line of each process (and at export time), roll
+         * the surviving tail into a bounded generation ring so an export STILL carries the previous session.
+         * Keys mirror the iOS UserDefaults keys; the tail is newline-joined, the generations a JSON array of
+         * newline-joined blocks. Pure ring math lives in [com.noop.ui.StrapLogGenerations].
+         */
+        private const val STRAP_LOG_TAIL_KEY = "strapLog.tail"
+        private const val STRAP_LOG_GENERATIONS_KEY = "strapLog.generations"
+        /** Persist the durable tail every N lines (batched, not per-line — mirrors iOS `persistEveryNLines`). */
+        private const val LOG_TAIL_PERSIST_EVERY = 32
+        /** How many recent lines the durable tail retains — a sensible day's worth, larger than a single
+         *  generation's cap so a session's whole tail is available to roll. Mirrors iOS `tailLimit`. */
+        private const val LOG_DURABLE_TAIL_LIMIT = 2_000
+
+        /**
          * Fallback device id when the registry has no active device yet (fresh install before the v8
          * migration seeds it, or an all-archived registry). Matches the Swift default and the legacy
          * hardcoded id, so behaviour is unchanged today — the registry resolves to exactly this string.
@@ -2035,6 +2052,86 @@ class WhoopBleClient(
     private val logTimeFmt = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
     // PII scrubbers for the shareable strap log (#445) live at file scope as [redactStrapLogPii]
     // so they're unit-testable without constructing this Android-only client (#421).
+
+    // ── #1263 Durable strap-log tail + generation ring (Android parity for iOS LiveState) ───────────
+    // The in-memory [logBuffer] dies with the process. To make an export taken AFTER a restart still carry
+    // the previous session's tail (issues #1259/#1264), we mirror a durable tail to SharedPreferences and,
+    // once per process, roll the surviving tail into a bounded generation ring. The ring MATH is the pure,
+    // JVM-tested [com.noop.ui.StrapLogGenerations]; this is the thin, untested SharedPreferences wrapper
+    // (the same split iOS has with UserDefaults). All of it runs inside log()'s no-throw guard, and the
+    // roll latch + persistence are serialised on [genLock] because log() is called from BOTH the GATT binder
+    // thread and the main looper — the roll must happen exactly once and must not race the tail mirror.
+    private val genLock = Any()
+    /** Once-per-process latch: the roll must run BEFORE this process's first durable-tail mirror overwrites
+     *  the surviving tail, and exactly once, or a second roll would push this process's own partial tail in
+     *  as a "previous" session. Guarded by [genLock]. */
+    private var didRollGenerations = false
+    /** Durable-tail mirror counter, mutated only under [logBuffer]'s monitor (like [logBuffer] itself). */
+    private var logsSincePersist = 0
+
+    private fun strapLogPrefs() = context.getSharedPreferences("noop_prefs", Context.MODE_PRIVATE)
+
+    /** The persisted durable tail, newest-last. Empty when nothing has been logged on this device. */
+    private fun persistedLogTail(): List<String> {
+        val s = strapLogPrefs().getString(STRAP_LOG_TAIL_KEY, null)
+        return if (s.isNullOrEmpty()) emptyList() else s.split('\n')
+    }
+
+    /** Mirror the most recent [LOG_DURABLE_TAIL_LIMIT] lines to SharedPreferences (newline-joined). */
+    private fun persistLogTail(lines: List<String>) {
+        val tail = if (lines.size > LOG_DURABLE_TAIL_LIMIT)
+            lines.subList(lines.size - LOG_DURABLE_TAIL_LIMIT, lines.size) else lines
+        strapLogPrefs().edit().putString(STRAP_LOG_TAIL_KEY, tail.joinToString("\n")).apply()
+    }
+
+    /** The stored generations, oldest-first — each a newline-joined block whose first line is its own header.
+     *  Persisted as a JSON array of strings; a corrupt/absent value reads as none. */
+    private fun persistedLogGenerations(): List<List<String>> {
+        val s = strapLogPrefs().getString(STRAP_LOG_GENERATIONS_KEY, null) ?: return emptyList()
+        return runCatching {
+            val arr = org.json.JSONArray(s)
+            (0 until arr.length()).map { i ->
+                val block = arr.getString(i)
+                if (block.isEmpty()) emptyList() else block.split('\n')
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    private fun persistLogGenerations(gens: List<List<String>>) {
+        val arr = org.json.JSONArray()
+        for (g in gens) arr.put(g.joinToString("\n"))
+        strapLogPrefs().edit().putString(STRAP_LOG_GENERATIONS_KEY, arr.toString()).apply()
+    }
+
+    /**
+     * Roll the surviving durable tail into the generation ring. Idempotent per process (latched) and a NO-OP
+     * when the tail is empty — so a launch that logs nothing (or a run right after a roll) never pushes an
+     * empty generation and never evicts a real one. Runs on the FIRST log() append of the process AND in the
+     * export path, so an export taken before the first append isn't empty (iOS #1264). Serialised on [genLock].
+     */
+    private fun rollLogGenerationsIfNeeded() {
+        synchronized(genLock) {
+            if (didRollGenerations) return
+            didRollGenerations = true
+            val tail = persistedLogTail()
+            if (tail.isEmpty()) return
+            val gens = com.noop.ui.StrapLogGenerations.roll(tail, persistedLogGenerations(), System.currentTimeMillis())
+            persistLogGenerations(gens)
+            // Clear the live slot: this tail now belongs to a generation, and leaving it would duplicate it
+            // in every export until the next mirror overwrites it. Empty string reads back as no tail.
+            strapLogPrefs().edit().putString(STRAP_LOG_TAIL_KEY, "").apply()
+        }
+    }
+
+    /** Flush the current in-memory tail to the durable slot (mirroring is batched every N lines, so a
+     *  disconnect / shutdown flushes the last partial batch — the twin of iOS flushing in clearBiometrics).
+     *  No-throw; called off the per-line path. */
+    private fun flushDurableLogTail() {
+        runCatching {
+            val snapshot = synchronized(logBuffer) { logsSincePersist = 0; logBuffer.toList() }
+            if (snapshot.isNotEmpty()) persistLogTail(snapshot)
+        }
+    }
 
     /** Fired if a scan finds nothing in [SCAN_TIMEOUT_MS]; stops scanning and explains why. */
     private val scanTimeoutRunnable = Runnable {
@@ -7518,6 +7615,10 @@ class WhoopBleClient(
         // (not stranded), and the next connection starts a fresh window rather than spanning the gap. No-op
         // when capture is off. Do it BEFORE the connect-down line so the summary reads before the drop.
         flushFrameTimingSummary()
+        // #1263: flush the durable strap-log tail so a completed session's last partial batch survives to a
+        // later export even if the process is killed before the next 32-line mirror (twin of iOS's flush on
+        // disconnect). The connect-down line logged just below still mirrors again once it crosses a batch.
+        flushDurableLogTail()
         // Snapshot the hold time and clear it IMMEDIATELY: every drop log below reads the snapshot, and a
         // stale `linkUpSinceMs` surviving into the next drop would report a hold time for a link that never
         // reached STATE_CONNECTED — the diagnostic would then invent exactly the evidence it exists to find.
@@ -7874,6 +7975,7 @@ class WhoopBleClient(
      * (e.g. AppViewModel.onCleared) AFTER [disconnect]. Idempotent.
      */
     fun shutdown() {
+        flushDurableLogTail()   // #1263: persist the last partial tail batch before we go away
         ioScope.cancel()
     }
 
@@ -8085,6 +8187,10 @@ class WhoopBleClient(
         // in here may propagate. (The regex bug itself is also fixed; this guarantees the class can't
         // recur.)
         try {
+            // #1263: FIRST append of this process — rescue the previous process's durable tail into the
+            // generation ring BEFORE this process's own mirror overwrites it. Latched + a no-op on an empty
+            // tail, so this is one guarded check per line after the first.
+            rollLogGenerationsIfNeeded()
             // Scrub personal identifiers FIRST so a user can safely share the strap log (#445), THEN
             // apply the optional Test Centre domain tag in front of the already-safe line.
             val safe = taggedStrapLogLine(redactPii(s), domain)
@@ -8093,12 +8199,21 @@ class WhoopBleClient(
             if (debugLogcat) Log.d(TAG, safe)
             // Mirror into the in-app ring buffer (format under the lock — SimpleDateFormat isn't
             // thread-safe and log() is called from both the GATT binder thread and the main looper).
+            // #1263: while under the lock, snapshot the tail for the durable mirror every N lines (so the
+            // SharedPreferences write itself happens OUTSIDE the monitor, off the hot per-line path).
+            var tailToPersist: List<String>? = null
             val stamped = synchronized(logBuffer) {
                 val line = "${logTimeFmt.format(System.currentTimeMillis())}  $safe"
                 logBuffer.addLast(line)
                 while (logBuffer.size > LOG_BUFFER_MAX) logBuffer.removeFirst()
+                if (++logsSincePersist >= LOG_TAIL_PERSIST_EVERY) {
+                    logsSincePersist = 0
+                    tailToPersist = logBuffer.toList()
+                }
                 line
             }
+            // #1263: durable-tail mirror (batched), OUTSIDE the logBuffer monitor.
+            tailToPersist?.let { persistLogTail(it) }
             // #1121: when detailed capture is on, ALSO append the (already PII-scrubbed) line to the
             // rolling on-device file, so a long-running issue is captured for hours rather than only the
             // ~5000-line (~50 min) in-memory ring. No-op + near-zero cost when capture is off, and inside
@@ -8248,8 +8363,22 @@ class WhoopBleClient(
         log("bondState $detail", com.noop.testcentre.TestDomain.CONNECTION)
     }
 
-    /** Snapshot of the recent strap log, newest last, for the "Share strap log" diagnostics export. */
-    fun exportLogText(): String = synchronized(logBuffer) { logBuffer.joinToString("\n") }
+    /**
+     * Snapshot of the recent strap log, newest last, for the "Share strap log" diagnostics export.
+     *
+     * #1263: previous app sessions come FIRST (oldest-first, each with its own header, then a
+     * "===== current app session =====" marker), so `report.txt` stays chronological and the log-parsing
+     * tools read it unchanged — they just get the session a restart used to erase. We roll here too, not only
+     * in [log], because a user can open the app and export BEFORE this process logs its first line — at which
+     * point the surviving tail is still unrolled and [logBuffer] is empty. The roll is latched + a no-op on an
+     * empty tail, so it's harmless when [log] already ran.
+     */
+    fun exportLogText(): String {
+        rollLogGenerationsIfNeeded()
+        val previous = com.noop.ui.StrapLogGenerations.previousSessionsText(persistedLogGenerations())
+        val current = synchronized(logBuffer) { logBuffer.joinToString("\n") }
+        return previous + current
+    }
 }
 
 // PII scrubbers for the shareable strap log (#445). Kept at FILE scope (not inside WhoopBleClient) so
