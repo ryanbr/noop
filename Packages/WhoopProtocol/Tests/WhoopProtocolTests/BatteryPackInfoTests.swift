@@ -44,4 +44,19 @@ final class BatteryPackInfoTests: XCTestCase {
         var f = bytes(attachedHex); f[12] = 0 // result = FAILURE
         XCTAssertNil(BatteryPackInfo.decode(frame: f))
     }
+
+    /// Edge vectors mutated off the attached golden. The Kotlin twin asserts the SAME results, byte for
+    /// byte — including the non-ASCII-serial case, where both must return a nil serial (not a garbage one).
+    func testEdgeVectorsDecodeIdenticallyToKotlin() {
+        let base = bytes(attachedHex)
+        func mut(_ kv: [Int: UInt8]) -> [UInt8] { var f = base; for (i, v) in kv { f[i] = v }; return f }
+        XCTAssertEqual(BatteryPackInfo.decode(frame: mut([37: 0, 38: 0]))?.socPct ?? -1, 0.0, accuracy: 1e-9)
+        XCTAssertEqual(BatteryPackInfo.decode(frame: mut([37: 0xe8, 38: 0x03]))?.socPct ?? -1, 100.0, accuracy: 1e-9)
+        XCTAssertNil(BatteryPackInfo.decode(frame: mut([21: 0]))?.serial)            // empty serial → nil
+        let hb = BatteryPackInfo.decode(frame: mut([21: 0x80]))                       // non-ASCII byte
+        XCTAssertEqual(hb?.present, true)
+        XCTAssertNil(hb?.serial)                                                      // undecodable → nil
+        XCTAssertNil(BatteryPackInfo.decode(frame: mut([10: 0])))                     // not a 151 response
+        XCTAssertNil(BatteryPackInfo.decode(frame: mut([12: 0])))                     // not SUCCESS
+    }
 }

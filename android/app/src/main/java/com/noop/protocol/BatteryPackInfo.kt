@@ -40,7 +40,10 @@ object BatteryPackInfo {
 
         val btAddr = (btStart until btStart + 6).joinToString("") { "%02x".format(frame[it].toInt() and 0xFF) }
         val serBytes = (serStart until serStart + 16).map { frame[it] }.takeWhile { it.toInt() != 0 }
-        val serial = if (serBytes.isEmpty()) null else String(serBytes.toByteArray(), Charsets.US_ASCII)
+        // Null on empty OR any non-ASCII byte, matching the Swift twin's `String(bytes:encoding:.ascii)`
+        // (which returns nil for any byte > 127) — keeps the two byte-identical on a malformed serial.
+        val serial = if (serBytes.isEmpty() || serBytes.any { (it.toInt() and 0xFF) >= 0x80 }) null
+        else String(serBytes.toByteArray(), Charsets.US_ASCII)
         val raw = (frame[socStart].toInt() and 0xFF) or ((frame[socStart + 1].toInt() and 0xFF) shl 8)
         return Info(true, raw / 10.0, serial, btAddr)
     }

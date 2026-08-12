@@ -43,4 +43,19 @@ class BatteryPackInfoTest {
         val f = bytes(attachedHex); f[12] = 0 // result != SUCCESS
         assertNull(BatteryPackInfo.decode(f))
     }
+
+    /** Edge vectors mutated off the attached golden — the SAME results the Swift twin asserts, byte for
+     *  byte, including the non-ASCII-serial case where both must return a null serial (not a garbage one). */
+    @Test fun edgeVectorsDecodeIdenticallyToSwift() {
+        val base = bytes(attachedHex)
+        fun mut(vararg kv: Pair<Int, Int>) = base.copyOf().also { for ((i, v) in kv) it[i] = v.toByte() }
+        assertEquals(0.0, BatteryPackInfo.decode(mut(37 to 0, 38 to 0))!!.socPct!!, 1e-9)
+        assertEquals(100.0, BatteryPackInfo.decode(mut(37 to 0xe8, 38 to 0x03))!!.socPct!!, 1e-9)
+        assertNull(BatteryPackInfo.decode(mut(21 to 0))!!.serial)          // empty serial → null
+        val hb = BatteryPackInfo.decode(mut(21 to 0x80))!!                  // non-ASCII byte
+        assertEquals(true, hb.present)
+        assertNull(hb.serial)                                              // undecodable → null
+        assertNull(BatteryPackInfo.decode(mut(10 to 0)))                   // not a 151 response
+        assertNull(BatteryPackInfo.decode(mut(12 to 0)))                   // not SUCCESS
+    }
 }
