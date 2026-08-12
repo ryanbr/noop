@@ -746,7 +746,7 @@ class OuraLiveSource(
             // Diagnostic only — nothing is skipped here; the fix is 0x49-window session keying (hardware-gated).
             recentPersistedSessionWindows.firstOrNull { (s, e) -> start < e && end > s }?.let { (s, e) ->
                 val nested = start >= s && end <= e
-                val anchor = if (w != null) "0x49 anchor=[onset-${w.second}..end-${w.third}]min" else "NO 0x49 anchor (write-envelope end)"
+                val anchor = if (sleepStart != null) "0x49 anchor applied (onset=$sleepStart)" else "NO 0x49 anchor (write-envelope end)"
                 log("Oura: duplicate-gen(#1284) new session [$start -> $end] ${if (nested) "NESTED IN" else "OVERLAPS"} " +
                     "already-banked [$s -> $e] this connection - $anchor; PK=(deviceId,startTs) mints a 2nd row")
             }
