@@ -719,6 +719,7 @@ fun SleepScreen(
                 napBlocks = night?.napBlocks ?: emptyList(),
                 habitualMidsleepSec = habitualMidsleep,
                 motionEpochs = night?.groupMotion ?: emptyList(),
+                groupStages = night?.groupStages,
                 groupInBedMin = night?.groupInBedMin,
                 windowOnsetTs = night?.heroOnsetTs,
                 windowWakeTs = night?.heroWakeTs,
@@ -1114,6 +1115,11 @@ private fun Hero(
     // Per-epoch MOTION for the main-night GROUP (#407), laid in group order by `selectNight`. Empty → honest
     // empty state. Drawn UNDER the hypnogram on the same timeline. Mirrors iOS SleepView.Night.motionEpochs.
     motionEpochs: List<Double> = emptyList(),
+    // The bridged main-night GROUP's summed DECODED stage minutes (`sumGroupStages`, gaps excluded) —
+    // the byte-for-byte twin of iOS `night.stages.total`, used for the Naps card's "Main sleep". Null
+    // for single-block days → the session's own decoded stages below. NOT `display.stages`, whose awake
+    // is efficiency-derived and only approximates the decoded total.
+    groupStages: StageMins? = null,
     // Whole-group time-in-bed minutes for a fragmented night (#561): Σ fragment windows, gaps
     // excluded, computed by `selectNight`. Null for single-block days → the session-window /
     // stage-total fallbacks below apply unchanged.
@@ -1251,13 +1257,16 @@ private fun Hero(
         // with the SAME mechanism main sleep uses, plus a Main / Nap(s) / Total split so what drives the
         // day's Rest total is explainable. Mirrors iOS SleepView.napSection.
         if (session != null) {
-            // Main = the WHOLE bridged main-night group's summed stage minutes (`display.stages.total`,
-            // the shared SleepModel's group total), NOT the winning fragment's window — a biphasic/
-            // bridged night has sibling fragments that are part of the main sleep, not naps. Mirrors iOS
-            // SleepView.napSection (`night.stages.total`); the old single-block window undercounted the
-            // Main / Total split on a fragmented night and disagreed with the hero above it. Window
-            // fallback only for a stage-less stub day (display == null), byte-identical to before there.
-            val mainMin = display?.stages?.total
+            // Main = the WHOLE main-night's summed DECODED stage minutes (awake+light+deep+rem), NOT the
+            // winning fragment's window — a biphasic/bridged night has sibling fragments that are part of
+            // the main sleep, not naps, and the old single-block window undercounted the Main / Total
+            // split on a fragmented night. Byte-for-byte twin of iOS SleepView.napSection (`night.stages
+            // .total`): the bridged group's `sumGroupStages` (gaps excluded, mirrors iOS mergeDay), or the
+            // single block's own decoded stages, both clamped to onset. NOT `display.stages`, whose awake
+            // is efficiency-derived. Window fallback only for a stage-less stub day, unchanged from before.
+            val mainStages = groupStages
+                ?: parseSessionStages(SleepStageTotals.clampStagesToOnset(session.stagesJSON, session.effectiveStartTs))
+            val mainMin = mainStages?.let { it.awake + it.light + it.deep + it.rem }
                 ?: (session.endTs - session.effectiveStartTs) / 60.0
             NapsCard(
                 main = session,
@@ -1283,9 +1292,9 @@ private fun Hero(
 @Composable
 private fun NapsCard(
     main: SleepSession,
-    // The day's MAIN-sleep minutes = the whole bridged main-night group's summed stage minutes
-    // (iOS `night.stages.total`), passed in from the hero's already-resolved `display.stages.total`
-    // so the split matches the hero. NOT `main`'s own window — that undercounts a bridged night.
+    // The day's MAIN-sleep minutes = the whole main-night's summed DECODED stage minutes (iOS
+    // `night.stages.total`): the bridged group's `sumGroupStages` or the single block's own decoded
+    // stages. Computed by the caller. NOT `main`'s own window — that undercounts a bridged night.
     mainMin: Double,
     naps: List<SleepSession>,
     onEditNapTimes: (SleepSession, Long, Long) -> Unit,
