@@ -83,6 +83,16 @@ public enum KnownWorkoutType: String, CaseIterable, Sendable {
     case spinning = "Spinning"
     case jumpRope = "Jump rope"
     case powerlifting = "Powerlifting"
+    // Long-tail batch. Raw values byte-identical to WorkoutCatalog / Android.
+    case rucking = "Rucking"
+    case sandVolleyball = "Sand volleyball"
+    case archery = "Archery"
+    case fishing = "Fishing"
+    case hunting = "Hunting"
+    case curling = "Curling"
+    case netball = "Netball"
+    case gaelicFootball = "Gaelic football"
+    case spikeball = "Spikeball"
     case other = "Other"
 
     /// Case-insensitive exact match against a stored/free-typed sport label.
@@ -294,6 +304,15 @@ public enum WorkoutTypeIconography {
         case .spinning:             return .system("bicycle.circle")
         case .jumpRope:             return .system("figure.jumprope")
         case .powerlifting:         return .system("dumbbell")
+        case .rucking:              return .system("backpack")
+        case .sandVolleyball:       return .system("beach.umbrella")
+        case .archery:              return .system("figure.archery")
+        case .fishing:              return .system("figure.fishing")
+        case .hunting:              return .system("figure.hunting")
+        case .curling:              return .system("figure.curling")
+        case .netball:              return .system("basketball")
+        case .gaelicFootball:       return .system("soccerball")
+        case .spikeball:            return .system("volleyball")
         case .other:
             return .system("figure.mixed.cardio")
         }
@@ -371,6 +390,15 @@ public enum WorkoutTypeIconography {
         case .spinning:             return "system:bicycle.circle"
         case .jumpRope:             return "system:figure.jumprope"
         case .powerlifting:         return "system:dumbbell"
+        case .rucking:              return "system:backpack"
+        case .sandVolleyball:       return "system:beach.umbrella"
+        case .archery:              return "system:figure.archery"
+        case .fishing:              return "system:figure.fishing"
+        case .hunting:              return "system:figure.hunting"
+        case .curling:              return "system:figure.curling"
+        case .netball:              return "system:basketball"
+        case .gaelicFootball:       return "system:soccerball"
+        case .spikeball:            return "system:volleyball"
         case .other:            return "system:figure.mixed.cardio"
         }
     }

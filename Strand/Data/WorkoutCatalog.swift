@@ -104,6 +104,16 @@ enum WorkoutCatalog {
         Sport(name: "Spinning", isDistanceSport: false),
         Sport(name: "Jump rope", isDistanceSport: false),
         Sport(name: "Powerlifting", isDistanceSport: false),
+        // Long-tail batch (names byte-identical to Android EXTRA). All map to a fallback HC type, GPS off.
+        Sport(name: "Rucking", isDistanceSport: false),
+        Sport(name: "Sand volleyball", isDistanceSport: false),
+        Sport(name: "Archery", isDistanceSport: false),
+        Sport(name: "Fishing", isDistanceSport: false),
+        Sport(name: "Hunting", isDistanceSport: false),
+        Sport(name: "Curling", isDistanceSport: false),
+        Sport(name: "Netball", isDistanceSport: false),
+        Sport(name: "Gaelic football", isDistanceSport: false),
+        Sport(name: "Spikeball", isDistanceSport: false),
         Sport(name: "Other", isDistanceSport: false),
     ]
 

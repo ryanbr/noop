@@ -105,6 +105,16 @@ object ExerciseTypes {
         "Spinning" to EX.EXERCISE_TYPE_BIKING_STATIONARY,
         "Jump rope" to EX.EXERCISE_TYPE_OTHER_WORKOUT,
         "Powerlifting" to EX.EXERCISE_TYPE_WEIGHTLIFTING,
+        // Long-tail batch: HC has no type → ride a nearby one for writeback, keep the label.
+        "Rucking" to EX.EXERCISE_TYPE_WALKING,
+        "Sand volleyball" to EX.EXERCISE_TYPE_VOLLEYBALL,
+        "Archery" to EX.EXERCISE_TYPE_OTHER_WORKOUT,
+        "Fishing" to EX.EXERCISE_TYPE_OTHER_WORKOUT,
+        "Hunting" to EX.EXERCISE_TYPE_OTHER_WORKOUT,
+        "Curling" to EX.EXERCISE_TYPE_OTHER_WORKOUT,
+        "Netball" to EX.EXERCISE_TYPE_OTHER_WORKOUT,
+        "Gaelic football" to EX.EXERCISE_TYPE_OTHER_WORKOUT,
+        "Spikeball" to EX.EXERCISE_TYPE_OTHER_WORKOUT,
     )
 
     /** Types where a route makes sense -> GPS defaults on. */
