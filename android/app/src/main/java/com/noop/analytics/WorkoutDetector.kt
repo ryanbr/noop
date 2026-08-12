@@ -414,26 +414,40 @@ object Calories {
         /** Applied to height in METRES. */
         val restingHeight: Double,
         val restingAge: Double,
+        // Keytel 2005 base (fitness-blind) active model: EE(kJ/min) = alpha + hr·HR + wt·W + age·A.
         val workoutHR: Double,
         val workoutWeight: Double,
         val workoutAge: Double,
         val workoutAlpha: Double,
+        // Keytel 2005 fitness-ADJUSTED active model, which reads VO2max and is the more accurate form
+        // the authors published: EE(kJ/min) = fitAlpha + fitHR·HR + fitVO2·VO2max + fitWeight·W + fitAge·A.
+        // Used only when a resting HR is known (so a Uth VO2max can be derived); otherwise the base
+        // workout* model above, unchanged. (Keytel et al. 2005, J. Sports Sci. 23(3).)
+        val fitHR: Double,
+        val fitVO2: Double,
+        val fitWeight: Double,
+        val fitAge: Double,
+        val fitAlpha: Double,
     )
 
     val male = Coeffs(
         restingAlpha = 88.362, restingWeight = 13.397, restingHeight = 479.9,
         restingAge = 5.677, workoutHR = 0.6309, workoutWeight = 0.1988,
         workoutAge = 0.2017, workoutAlpha = -55.0969,
+        fitHR = 0.634, fitVO2 = 0.404, fitWeight = 0.394, fitAge = 0.271, fitAlpha = -95.7735,
     )
     val female = Coeffs(
         restingAlpha = 447.593, restingWeight = 9.247, restingHeight = 309.8,
         restingAge = 4.33, workoutHR = 0.4472, workoutWeight = -0.1263,
         workoutAge = 0.0740, workoutAlpha = -20.4022,
+        fitHR = 0.450, fitVO2 = 0.380, fitWeight = 0.103, fitAge = 0.274, fitAlpha = -59.3954,
     )
+    // Nonbinary = the male/female midpoint, the same convention the base workout* coeffs use.
     val nonbinary = Coeffs(
         restingAlpha = 267.9775, restingWeight = 11.322, restingHeight = 394.85,
         restingAge = 5.0035, workoutHR = 0.53905, workoutWeight = 0.03625,
         workoutAge = 0.13785, workoutAlpha = -37.74955,
+        fitHR = 0.542, fitVO2 = 0.392, fitWeight = 0.2485, fitAge = 0.2725, fitAlpha = -77.58445,
     )
 
     const val activeHRRFraction: Double = 0.30
@@ -463,9 +477,31 @@ object Calories {
         return maxOf(0.0, bmr) / 86_400.0
     }
 
-    fun activeKcalPerS(c: Coeffs, hr: Double, hrmax: Double, weightKg: Double, age: Double): Double {
-        val eeKjMin = c.workoutHR * minOf(hr, hrmax) + c.workoutWeight * weightKg +
-            c.workoutAge * age + c.workoutAlpha
+    /**
+     * Uth–Sørensen VO2max estimate (ml·kg⁻¹·min⁻¹) ≈ 15.3 · HRmax / HRrest. Returns null when no
+     * usable resting HR — the caller then keeps the base (fitness-blind) Keytel model, so a strap with
+     * no resting baseline is scored exactly as before. A function of HRmax + resting HR ONLY, so every
+     * call site resolves it locally and day derivation stays deterministic (no cross-day dependency).
+     * (Uth et al. 2004, Eur. J. Appl. Physiol. 91.)
+     */
+    fun vo2maxFor(hrmax: Double, restingHR: Double?): Double? {
+        if (restingHR == null || restingHR <= 0.0 || hrmax <= 0.0) return null
+        return 15.3 * hrmax / restingHR
+    }
+
+    /**
+     * Active energy rate (kcal/s). With [vo2max] present, uses the Keytel 2005 fitness-ADJUSTED
+     * equation (personalizes beyond age/weight/sex); with null, the base fitness-blind Keytel model,
+     * byte-identical to before. HR is capped at HRmax in both, as the base model always did.
+     */
+    fun activeKcalPerS(c: Coeffs, hr: Double, hrmax: Double, weightKg: Double, age: Double, vo2max: Double? = null): Double {
+        val eeKjMin = if (vo2max != null) {
+            c.fitHR * minOf(hr, hrmax) + c.fitVO2 * vo2max + c.fitWeight * weightKg +
+                c.fitAge * age + c.fitAlpha
+        } else {
+            c.workoutHR * minOf(hr, hrmax) + c.workoutWeight * weightKg +
+                c.workoutAge * age + c.workoutAlpha
+        }
         return maxOf(0.0, eeKjMin) / workoutDivisor
     }
 
@@ -501,6 +537,9 @@ object Calories {
         val activeThreshold = effResting + activeHRRFraction * (effHRmax - effResting)
 
         val restingRate = restingKcalPerS(coeffs, weightKg, heightCm, age)
+        // Fitness anchor (Uth VO2max) when a resting HR is known → the Keytel fitness-adjusted rate;
+        // null restingHR → base model, unchanged. Computed once (constant across the bout).
+        val vo2max = vo2maxFor(effHRmax, restingHR)
 
         // Weight each sample by the ACTUAL elapsed time to the next sample, not a flat 1 s.
         // restingRate / activeKcalPerS are per-SECOND rates, so summing one per sample only
@@ -523,7 +562,7 @@ object Calories {
             totalKcal += if (bpm < activeThreshold) {
                 restingRate * dur
             } else {
-                activeKcalPerS(coeffs, bpm, effHRmax, weightKg, age) * dur
+                activeKcalPerS(coeffs, bpm, effHRmax, weightKg, age, vo2max) * dur
             }
         }
         return totalKcal to (totalKcal * 4.184)
@@ -580,6 +619,9 @@ object Calories {
         val activeThreshold = effResting + dayActiveHRRFraction * (effHRmax - effResting)
 
         val restingRate = restingKcalPerS(coeffs, weightKg, heightCm, age)
+        // Fitness anchor (Uth VO2max) when a resting HR is known → Keytel fitness-adjusted rate; null
+        // restingHR → base model, unchanged. Constant across the day.
+        val vo2max = vo2maxFor(effHRmax, restingHR)
 
         var totalKcal = 0.0
         for (s in hrSamples) {
@@ -590,7 +632,7 @@ object Calories {
                 // Floor the active rate at the resting BMR rate: a worn day-second never
                 // burns LESS than resting metabolism, even where the Keytel value dips low
                 // for some profiles just above the gate.
-                maxOf(restingRate, activeKcalPerS(coeffs, bpm, effHRmax, weightKg, age))
+                maxOf(restingRate, activeKcalPerS(coeffs, bpm, effHRmax, weightKg, age, vo2max))
             }
         }
         return totalKcal

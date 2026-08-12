@@ -398,21 +398,38 @@ public enum Calories {
         let restingWeight: Double
         let restingHeight: Double  // applied to height in METRES
         let restingAge: Double
+        // Keytel 2005 base (fitness-blind) active model: EE(kJ/min) = alpha + hr·HR + wt·W + age·A.
         let workoutHR: Double
         let workoutWeight: Double
         let workoutAge: Double
         let workoutAlpha: Double
+        // Keytel 2005 fitness-ADJUSTED active model, which reads VO2max and is the more accurate
+        // form the authors published: EE(kJ/min) = fitAlpha + fitHR·HR + fitVO2·VO2max + fitWeight·W
+        // + fitAge·A. Used only when a resting HR is known (so a Uth VO2max can be derived); otherwise
+        // the base workout* model above is used, unchanged. (Keytel et al. 2005, J. Sports Sci. 23(3).)
+        let fitHR: Double
+        let fitVO2: Double
+        let fitWeight: Double
+        let fitAge: Double
+        let fitAlpha: Double
     }
 
     static let male = Coeffs(restingAlpha: 88.362, restingWeight: 13.397, restingHeight: 479.9,
                              restingAge: 5.677, workoutHR: 0.6309, workoutWeight: 0.1988,
-                             workoutAge: 0.2017, workoutAlpha: -55.0969)
+                             workoutAge: 0.2017, workoutAlpha: -55.0969,
+                             fitHR: 0.634, fitVO2: 0.404, fitWeight: 0.394, fitAge: 0.271,
+                             fitAlpha: -95.7735)
     static let female = Coeffs(restingAlpha: 447.593, restingWeight: 9.247, restingHeight: 309.8,
                                restingAge: 4.33, workoutHR: 0.4472, workoutWeight: -0.1263,
-                               workoutAge: 0.0740, workoutAlpha: -20.4022)
+                               workoutAge: 0.0740, workoutAlpha: -20.4022,
+                               fitHR: 0.450, fitVO2: 0.380, fitWeight: 0.103, fitAge: 0.274,
+                               fitAlpha: -59.3954)
+    // Nonbinary = the male/female midpoint, the same convention the base workout* coeffs use.
     static let nonbinary = Coeffs(restingAlpha: 267.9775, restingWeight: 11.322, restingHeight: 394.85,
                                   restingAge: 5.0035, workoutHR: 0.53905, workoutWeight: 0.03625,
-                                  workoutAge: 0.13785, workoutAlpha: -37.74955)
+                                  workoutAge: 0.13785, workoutAlpha: -37.74955,
+                                  fitHR: 0.542, fitVO2: 0.392, fitWeight: 0.2485, fitAge: 0.2725,
+                                  fitAlpha: -77.58445)
 
     static let activeHRRFraction = 0.30
     /// Whole-day active gate (`estimateDayCalories` only). The Keytel 2005 equation is
@@ -440,9 +457,29 @@ public enum Calories {
         return max(0.0, bmr) / 86_400.0
     }
 
-    static func activeKcalPerS(_ c: Coeffs, hr: Double, hrmax: Double, weightKg: Double, age: Double) -> Double {
-        let eeKjMin = c.workoutHR * min(hr, hrmax) + c.workoutWeight * weightKg
-            + c.workoutAge * age + c.workoutAlpha
+    /// Uth–Sørensen VO2max estimate (ml·kg⁻¹·min⁻¹) ≈ 15.3 · HRmax / HRrest. Returns nil when no
+    /// usable resting HR — the caller then keeps the base (fitness-blind) Keytel model, so a strap
+    /// with no resting baseline is scored exactly as before. A function of HRmax + resting HR ONLY,
+    /// so every call site resolves it locally and day derivation stays deterministic (no cross-day
+    /// dependency). (Uth et al. 2004, Eur. J. Appl. Physiol. 91.)
+    static func vo2maxFor(hrmax: Double, restingHR: Double?) -> Double? {
+        guard let rhr = restingHR, rhr > 0, hrmax > 0 else { return nil }
+        return 15.3 * hrmax / rhr
+    }
+
+    /// Active energy rate (kcal/s). With `vo2max` present, uses the Keytel 2005 fitness-ADJUSTED
+    /// equation (personalizes beyond age/weight/sex); with nil, the base fitness-blind Keytel model,
+    /// byte-identical to before. HR is capped at HRmax in both, as the base model always did.
+    static func activeKcalPerS(_ c: Coeffs, hr: Double, hrmax: Double, weightKg: Double, age: Double,
+                               vo2max: Double? = nil) -> Double {
+        let eeKjMin: Double
+        if let vo2 = vo2max {
+            eeKjMin = c.fitHR * min(hr, hrmax) + c.fitVO2 * vo2 + c.fitWeight * weightKg
+                + c.fitAge * age + c.fitAlpha
+        } else {
+            eeKjMin = c.workoutHR * min(hr, hrmax) + c.workoutWeight * weightKg
+                + c.workoutAge * age + c.workoutAlpha
+        }
         return max(0.0, eeKjMin) / workoutDivisor
     }
 
@@ -469,6 +506,9 @@ public enum Calories {
         let activeThreshold = effResting + activeHRRFraction * (effHRmax - effResting)
 
         let restingRate = restingKcalPerS(coeffs, weightKg: weightKg, heightCm: heightCm, age: age)
+        // Fitness anchor (Uth VO2max) when a resting HR is known → the Keytel fitness-adjusted rate;
+        // nil restingHR → base model, unchanged. Computed once (constant across the bout).
+        let vo2max = vo2maxFor(hrmax: effHRmax, restingHR: restingHR)
 
         // Weight each sample by the ACTUAL elapsed time to the next sample, not a flat 1 s.
         // restingRate / activeKcalPerS are per-SECOND rates, so summing one per sample only
@@ -492,7 +532,7 @@ public enum Calories {
             if bpm < activeThreshold {
                 totalKcal += restingRate * dur
             } else {
-                totalKcal += activeKcalPerS(coeffs, hr: bpm, hrmax: effHRmax, weightKg: weightKg, age: age) * dur
+                totalKcal += activeKcalPerS(coeffs, hr: bpm, hrmax: effHRmax, weightKg: weightKg, age: age, vo2max: vo2max) * dur
             }
         }
         return (totalKcal, totalKcal * 4.184)
@@ -537,6 +577,9 @@ public enum Calories {
         let activeThreshold = effResting + dayActiveHRRFraction * (effHRmax - effResting)
 
         let restingRate = restingKcalPerS(coeffs, weightKg: weightKg, heightCm: heightCm, age: age)
+        // Fitness anchor (Uth VO2max) when a resting HR is known → Keytel fitness-adjusted rate; nil
+        // restingHR → base model, unchanged. Constant across the day.
+        let vo2max = vo2maxFor(hrmax: effHRmax, restingHR: restingHR)
 
         var totalKcal = 0.0
         for s in hrSamples {
@@ -547,7 +590,7 @@ public enum Calories {
                 // Floor the active rate at the resting BMR rate: a worn day-second never burns
                 // LESS than resting metabolism, even where the Keytel value dips low for some
                 // profiles just above the gate.
-                let active = activeKcalPerS(coeffs, hr: bpm, hrmax: effHRmax, weightKg: weightKg, age: age)
+                let active = activeKcalPerS(coeffs, hr: bpm, hrmax: effHRmax, weightKg: weightKg, age: age, vo2max: vo2max)
                 totalKcal += max(restingRate, active)
             }
         }
