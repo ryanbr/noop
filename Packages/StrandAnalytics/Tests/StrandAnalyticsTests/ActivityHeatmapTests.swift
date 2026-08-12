@@ -14,7 +14,7 @@ final class ActivityHeatmapTests: XCTestCase {
         XCTAssertEqual(g.weeks, 13)
         XCTAssertEqual(g.columns.count, 13)
         XCTAssertTrue(g.columns.allSatisfy { $0.count == 7 })
-        XCTAssertEqual(g.maxValue, 400.0)
+        XCTAssertEqual(g.scale, 400.0)   // p90 of [100,200,400] = 400 ≥ floor 250
 
         // The rightmost column is the current week; today sits at weekday row 1, Monday at row 0.
         let last = g.columns[12]
@@ -56,7 +56,30 @@ final class ActivityHeatmapTests: XCTestCase {
     func testEmptyValuesGivesAllNoData() {
         let g = ActivityHeatmap.build(values: [:], today: today, weeks: 13)
         XCTAssertTrue(g.isEmpty)
-        XCTAssertEqual(g.maxValue, 0.0)
+        XCTAssertEqual(g.scale, 250.0)   // no active days → the floor
         XCTAssertTrue(g.columns.flatMap { $0 }.allSatisfy { $0.level == 0 })
+    }
+
+    func testRampScaleIsPercentileFloored() {
+        XCTAssertEqual(ActivityHeatmap.rampScale([]), 250.0)                    // no active days → floor
+        XCTAssertEqual(ActivityHeatmap.rampScale(Array(repeating: 100.0, count: 10)), 250.0)  // p90 100 < floor
+        // 9×400 + one 8000 outlier: nearest-rank p90 (rank 9 of 10) = 400, NOT the 8000 → outlier excluded.
+        XCTAssertEqual(ActivityHeatmap.rampScale(Array(repeating: 400.0, count: 9) + [8000.0]), 400.0)
+    }
+
+    func testOneHugeSessionDoesNotFlattenTheGrid() {
+        // 10 recent days at 300 kcal + a single 9000 kcal monster. Under the old max-scaling the 300s
+        // would all wash out to level 1 (300/9000 → 1); with percentile scaling the ramp is ~300, so a
+        // 300 day shades near full and the monster just caps at 4.
+        var values: [String: Double] = ["2026-08-11": 9000.0]
+        for i in 1...10 { values[ActivityHeatmap.civilDay(20676 - i)] = 300.0 }
+        let g = ActivityHeatmap.build(values: values, today: today, weeks: 13)
+        XCTAssertLessThanOrEqual(g.scale, 300.0)   // percentile, not the 9000 max
+        let monster = g.columns[12][1]
+        XCTAssertEqual(monster.value, 9000.0)
+        XCTAssertEqual(monster.level, 4)
+        // A representative 300-day is well above the washed-out level 1 the max-scale produced.
+        let a300 = g.columns.flatMap { $0 }.first { $0.value == 300.0 }
+        XCTAssertGreaterThanOrEqual(a300?.level ?? 0, 3)
     }
 }

@@ -20,7 +20,7 @@ class ActivityHeatmapTest {
         assertEquals(13, g.weeks)
         assertEquals(13, g.columns.size)
         assertTrue(g.columns.all { it.size == 7 })
-        assertEquals(400.0, g.maxValue, 0.0)
+        assertEquals(400.0, g.scale, 0.0)   // p90 of [100,200,400] = 400 ≥ floor 250
 
         // The rightmost column is the current week; today sits at weekday row 1, Monday at row 0.
         val last = g.columns[12]
@@ -62,7 +62,29 @@ class ActivityHeatmapTest {
     @Test fun emptyValuesGivesAllNoData() {
         val g = ActivityHeatmap.build(emptyMap(), today, weeks = 13)
         assertTrue(g.isEmpty)
-        assertEquals(0.0, g.maxValue, 0.0)
+        assertEquals(250.0, g.scale, 0.0)   // no active days → the floor
         assertTrue(g.columns.flatten().all { it.level == 0 })
+    }
+
+    @Test fun rampScaleIsPercentileFloored() {
+        assertEquals(250.0, ActivityHeatmap.rampScale(emptyList()), 0.0)                 // no active days → floor
+        assertEquals(250.0, ActivityHeatmap.rampScale(List(10) { 100.0 }), 0.0)          // p90 100 < floor
+        // 9×400 + one 8000 outlier: nearest-rank p90 (rank 9 of 10) = 400, NOT the 8000 → outlier excluded.
+        assertEquals(400.0, ActivityHeatmap.rampScale(List(9) { 400.0 } + 8000.0), 0.0)
+    }
+
+    @Test fun oneHugeSessionDoesNotFlattenTheGrid() {
+        // 10 recent days at 300 kcal + a single 9000 kcal monster. Percentile scaling keeps the ramp ~300
+        // (not the 9000 max), so a 300 day shades near full and the monster just caps at 4.
+        val values = HashMap<String, Double>()
+        values["2026-08-11"] = 9000.0
+        for (i in 1..10) values[ActivityHeatmap.civilDay(20676L - i)] = 300.0
+        val g = ActivityHeatmap.build(values, today, weeks = 13)
+        assertTrue(g.scale <= 300.0)   // percentile, not the 9000 max
+        val monster = g.columns[12][1]
+        assertEquals(9000.0, monster.value)
+        assertEquals(4, monster.level)
+        val a300 = g.columns.flatten().first { it.value == 300.0 }
+        assertTrue(a300.level >= 3)
     }
 }

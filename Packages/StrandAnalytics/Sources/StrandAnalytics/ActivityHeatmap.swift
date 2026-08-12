@@ -23,31 +23,40 @@ public enum ActivityHeatmap {
         }
     }
 
-    /// `columns` is `weeks` arrays of 7 cells (row 0 = Monday). `maxValue` scales the intensity ramp.
+    /// `columns` is `weeks` arrays of 7 cells (row 0 = Monday). `scale` is the ramp denominator: the
+    /// wearer's 90th-percentile ACTIVE day, floored at `rampFloorKcal`. Scaling to the percentile (not
+    /// the raw max) stops one exceptional session flattening the whole grid to pale; the floor keeps a
+    /// beginner's low-calorie days appropriately cool instead of maxing them out.
     public struct Grid: Equatable, Sendable {
         public let weeks: Int
         public let columns: [[Cell]]
-        public let maxValue: Double
-        public init(weeks: Int, columns: [[Cell]], maxValue: Double) {
+        public let scale: Double
+        public init(weeks: Int, columns: [[Cell]], scale: Double) {
             self.weeks = weeks
             self.columns = columns
-            self.maxValue = maxValue
+            self.scale = scale
         }
         public var isEmpty: Bool { columns.allSatisfy { col in col.allSatisfy { $0.value == nil } } }
     }
+
+    /// The ramp denominator floor (kcal): days at/above this shade fullest, so a light week reads cool
+    /// rather than maxing a beginner's grid. Mirrors OpenStrap's 250 kcal floor.
+    public static let rampFloorKcal = 250.0
+    /// Percentile of the active days the ramp scales to (90th).
+    public static let rampPercentile = 90.0
 
     /// - Parameters:
     ///   - values: day ("yyyy-MM-dd") → metric value. Missing days render as no-data cells.
     ///   - today: the "yyyy-MM-dd" anchoring the rightmost column.
     ///   - weeks: number of week columns (default 13).
     public static func build(values: [String: Double], today: String, weeks: Int = defaultWeeks) -> Grid {
-        guard let e = epochDay(today) else { return Grid(weeks: weeks, columns: [], maxValue: 0) }
+        guard let e = epochDay(today) else { return Grid(weeks: weeks, columns: [], scale: 0) }
         let cols = max(weeks, 1)
         let todayWeekday = mondayFirstWeekday(e)
         let currentMonday = e - todayWeekday
         let firstMonday = currentMonday - (cols - 1) * 7
 
-        var maxValue = 0.0
+        var active: [Double] = []   // present days with a positive value → the ramp's percentile basis
         var raw: [[Cell]] = []
         raw.reserveCapacity(cols)
         for c in 0..<cols {
@@ -60,23 +69,35 @@ public enum ActivityHeatmap {
                 } else {
                     let ds = civilDay(d)
                     let v = values[ds]
-                    if let v, v > maxValue { maxValue = v }
+                    if let v, v > 0 { active.append(v) }
                     col.append(Cell(day: ds, value: v, level: 0))
                 }
             }
             raw.append(col)
         }
+        let scale = rampScale(active)
         let leveled = raw.map { col in
-            col.map { Cell(day: $0.day, value: $0.value, level: levelFor($0.value, maxValue)) }
+            col.map { Cell(day: $0.day, value: $0.value, level: levelFor($0.value, scale)) }
         }
-        return Grid(weeks: cols, columns: leveled, maxValue: maxValue)
+        return Grid(weeks: cols, columns: leveled, scale: scale)
     }
 
-    /// 0 = no data; otherwise 1...4 by fraction of `maxValue` (a present-but-zero day is still level 1).
-    static func levelFor(_ value: Double?, _ maxValue: Double) -> Int {
+    /// Ramp denominator: the 90th-percentile ACTIVE day (nearest-rank, mirroring `deriveRestingHR`),
+    /// floored at `rampFloorKcal`. No active days → the floor. Scaling to the percentile rather than the
+    /// max keeps one huge session from washing every other day out to level 1.
+    static func rampScale(_ active: [Double]) -> Double {
+        guard !active.isEmpty else { return rampFloorKcal }
+        let sorted = active.sorted()
+        let rank = max(1, Int(ceil(rampPercentile / 100.0 * Double(sorted.count))))
+        let p90 = sorted[min(rank, sorted.count) - 1]
+        return max(rampFloorKcal, p90)
+    }
+
+    /// 0 = no data; otherwise 1...4 by fraction of `scale` (a present-but-zero day is still level 1).
+    static func levelFor(_ value: Double?, _ scale: Double) -> Int {
         guard let value else { return 0 }
-        if maxValue <= 0 { return 1 }
-        return min(max(Int(ceil(value / maxValue * 4.0)), 1), 4)
+        if scale <= 0 { return 1 }
+        return min(max(Int(ceil(value / scale * 4.0)), 1), 4)
     }
 
     /// Monday-first weekday (Mon = 0 … Sun = 6) of an epoch-day count. Epoch day 0 (1970-01-01) is a Thu.

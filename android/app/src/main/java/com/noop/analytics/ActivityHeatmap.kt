@@ -18,10 +18,20 @@ object ActivityHeatmap {
      *  data that day); [level] = 0 for no-data, 1..4 for intensity buckets. */
     data class Cell(val day: String?, val value: Double?, val level: Int)
 
-    /** [columns] is [weeks] lists of 7 cells (row 0 = Monday). [maxValue] scales the intensity ramp. */
-    data class Grid(val weeks: Int, val columns: List<List<Cell>>, val maxValue: Double) {
+    /**
+     * [columns] is [weeks] lists of 7 cells (row 0 = Monday). [scale] is the ramp denominator: the
+     * wearer's 90th-percentile ACTIVE day, floored at [RAMP_FLOOR_KCAL]. Scaling to the percentile (not
+     * the raw max) stops one exceptional session flattening the whole grid to pale; the floor keeps a
+     * beginner's low-calorie days appropriately cool instead of maxing them out.
+     */
+    data class Grid(val weeks: Int, val columns: List<List<Cell>>, val scale: Double) {
         val isEmpty: Boolean get() = columns.all { col -> col.all { it.value == null } }
     }
+
+    /** The ramp denominator floor (kcal): days at/above this shade fullest. Mirrors OpenStrap's 250. */
+    const val RAMP_FLOOR_KCAL = 250.0
+    /** Percentile of the active days the ramp scales to (90th). */
+    const val RAMP_PERCENTILE = 90.0
 
     /**
      * @param values day ("yyyy-MM-dd") → metric value. Missing days render as no-data cells.
@@ -35,7 +45,7 @@ object ActivityHeatmap {
         val currentMonday = e - todayWeekday
         val firstMonday = currentMonday - (cols - 1).toLong() * 7L
 
-        var maxValue = 0.0
+        val active = ArrayList<Double>()   // present days with a positive value → the ramp's percentile basis
         val raw = ArrayList<List<Cell>>(cols)
         for (c in 0 until cols) {
             val col = ArrayList<Cell>(7)
@@ -46,21 +56,35 @@ object ActivityHeatmap {
                 } else {
                     val ds = civilDay(d)
                     val v = values[ds]
-                    if (v != null && v > maxValue) maxValue = v
+                    if (v != null && v > 0.0) active.add(v)
                     col.add(Cell(ds, v, 0))
                 }
             }
             raw.add(col)
         }
-        val leveled = raw.map { col -> col.map { it.copy(level = levelFor(it.value, maxValue)) } }
-        return Grid(cols, leveled, maxValue)
+        val scale = rampScale(active)
+        val leveled = raw.map { col -> col.map { it.copy(level = levelFor(it.value, scale)) } }
+        return Grid(cols, leveled, scale)
     }
 
-    /** 0 = no data; otherwise 1..4 by fraction of [maxValue] (a present-but-zero day is still level 1). */
-    internal fun levelFor(value: Double?, maxValue: Double): Int {
+    /**
+     * Ramp denominator: the 90th-percentile ACTIVE day (nearest-rank, mirroring `deriveRestingHR`),
+     * floored at [RAMP_FLOOR_KCAL]. No active days → the floor. Scaling to the percentile rather than
+     * the max keeps one huge session from washing every other day out to level 1.
+     */
+    internal fun rampScale(active: List<Double>): Double {
+        if (active.isEmpty()) return RAMP_FLOOR_KCAL
+        val sorted = active.sorted()
+        val rank = ceil(RAMP_PERCENTILE / 100.0 * sorted.size.toDouble()).toInt().coerceAtLeast(1)
+        val p90 = sorted[minOf(rank, sorted.size) - 1]
+        return maxOf(RAMP_FLOOR_KCAL, p90)
+    }
+
+    /** 0 = no data; otherwise 1..4 by fraction of [scale] (a present-but-zero day is still level 1). */
+    internal fun levelFor(value: Double?, scale: Double): Int {
         if (value == null) return 0
-        if (maxValue <= 0.0) return 1
-        return ceil(value / maxValue * 4.0).toInt().coerceIn(1, 4)
+        if (scale <= 0.0) return 1
+        return ceil(value / scale * 4.0).toInt().coerceIn(1, 4)
     }
 
     /** Monday-first weekday (Mon = 0 … Sun = 6) of an epoch-day count. Epoch day 0 (1970-01-01) is a Thu. */
