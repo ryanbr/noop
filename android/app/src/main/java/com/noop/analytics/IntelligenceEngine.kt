@@ -1410,6 +1410,13 @@ object IntelligenceEngine {
             for (stale in dropped) repo.deleteSleepSessionRowOnly(stale)
             healDropped.addAll(dropped)
         }
+        // #1284: log the sweep ALWAYS, even at zero removals — a heal that collapsed rows was previously
+        // silent (the line below only fired on a non-empty drop), so from the strap log alone it was
+        // indistinguishable from never having run. Counts only, no PII. Twin of the Swift line.
+        diag(
+            "Dedup(#899): swept ${healDeviceIds.size} device id(s), removed " +
+                "${healDropped.size} overlapping duplicate session(s).",
+        )
         if (healDropped.isNotEmpty()) {
             diag(
                 "Dedup(#899): removed ${healDropped.size} overlapping duplicate sleep " +

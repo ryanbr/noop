@@ -19,6 +19,11 @@ package com.noop.oura
 
 object OuraDecoders {
 
+    /** #1284: minimum TRAILING run of 0xFF code bytes (1 byte = 4 epochs = 16 min) for [decodeSleepPhase]
+     *  to treat it as unwritten flash pad rather than continuous awake. Byte-identical to the Swift
+     *  `OuraDecoders.minTrailingUnwritten`. Conservative + tunable; measured pads ran 9-10 bytes. */
+    const val MIN_TRAILING_UNWRITTEN = 6
+
     /**
      * Decode a GetProductInfo reply body (serial page `18 03 08 00 10` or hardware page `18 03 18 00 10`,
      * both under outer op 0x19). On-device capture 2026-07-24 (Gen3): the body is `byte0 = 0x00 status, then
@@ -553,11 +558,22 @@ object OuraDecoders {
         // Require >=2 code bytes so a LONE 0xFF byte — four genuine AWAKE epochs, which also encode as 0xFF
         // (the reporter's explicit caution) — is never mistaken for an erased page. Observed erased pages
         // are whole ~13-byte records; a single byte is real wake.
-        val unwritten = (b.size - 1) >= 2 && (1 until b.size).all { (b[it].toInt() and 0xFF) == 0xFF }
+        val codeCount = b.size - 1
+        val allUnwritten = codeCount >= 2 && (1 until b.size).all { (b[it].toInt() and 0xFF) == 0xFF }
+        // #1284: a PARTLY-written page fills front-to-back and leaves the TAIL as 0xFF pad, which the
+        // whole-record rule misses. Flag a TRAILING run of >= MIN_TRAILING_UNWRITTEN consecutive 0xFF code
+        // bytes (to the record's end) as unwritten too. Trailing-only + a run floor, on purpose: a
+        // leading/interior 0xFF run stays real wake (a pre-onset run is dropped by the assembler's onset
+        // clip), and a short trailing run is spared. Byte-parity twin of the Swift decodeSleepPhase.
+        var trailingFF = 0
+        var t = b.size - 1
+        while (t >= 1 && (b[t].toInt() and 0xFF) == 0xFF) { trailingFF++; t-- }
+        val trailingStart = if (trailingFF >= MIN_TRAILING_UNWRITTEN) codeCount - trailingFF else codeCount
         val out = ArrayList<OuraSleepPhase>()
         var index = 0
         for (k in 1 until b.size) {
             val byte = b[k]
+            val byteUnwritten = allUnwritten || (k - 1) >= trailingStart
             // MSB-first within the byte: [7:6] is the first code.
             var shift = 6
             while (shift >= 0) {
@@ -567,7 +583,7 @@ object OuraDecoders {
                     out.add(
                         OuraSleepPhase(
                             ringTimestamp = rec.ringTimestamp, index = index,
-                            stage = stage, unwritten = unwritten,
+                            stage = stage, unwritten = byteUnwritten,
                         ),
                     )
                     index += 1

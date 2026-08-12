@@ -1698,6 +1698,11 @@ final class IntelligenceEngine: ObservableObject {
             }
             healDropped.append(contentsOf: dropped)
         }
+        // #1284: log the sweep ALWAYS, even at zero removals — a heal that collapsed rows was previously
+        // silent (the line below only fired on a non-empty drop), so from the strap log alone it was
+        // indistinguishable from never having run. Counts only, no PII.
+        diagnosticSink?("Dedup(#899): swept \(healDeviceIds.count) device id(s), removed "
+            + "\(healDropped.count) overlapping duplicate session(s).", nil)
         if !healDropped.isEmpty {
             diagnosticSink?("Dedup(#899): removed \(healDropped.count) overlapping duplicate sleep "
                 + "session(s) re-banked under a shifted strap timebase; re-scoring the affected days.", nil)
