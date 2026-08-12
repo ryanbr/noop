@@ -53,6 +53,9 @@ struct StageDetailView: View {
     @State private var selectedStage: SleepStage? = nil
     /// Per-night sleeping-HR buckets, loaded by `stageCard`'s `.task(id:)` below.
     @State private var nightHR: [HRBucket] = []
+    /// The Sleep-chart shape (Settings → Appearance → Sleep chart), so the Today host card switches with
+    /// the Sleep tab and Android's `StagesHostCard`. Display-only. (#sleep-chart-style)
+    @AppStorage(SleepChartStyle.storageKey) private var sleepChartStyleRaw = SleepChartStyle.classic.rawValue
 
     var body: some View {
         // `stageCard` carries its own `.task(id: night.session.startTs)` HR load; clearing the
@@ -76,13 +79,16 @@ struct StageDetailView: View {
             : String(localized: "\(durationText(night.timeInBed)) in bed · \(efficiencyText(night)) efficiency")
         VStack(alignment: .leading, spacing: NoopMetrics.space2) {
             if intervals.count >= 2 {
-                // WHOOP sleep-details layout (ryanAtriumAi #988): one full-width timeline ROW per
-                // stage — hatched track = the whole night, solid segments = when that stage occurred,
-                // header carries the stage %, duration right-aligned. Tap a row to highlight that
-                // stage; the others grey out. Replaces the 4-level hypnogram, whose staircase turned
-                // fragmented on-device staging into an unreadable comb. No separate footer — the
-                // rows ARE the legend.
-                stageTimelineCard(s, subtitle: subtitle, intervals: intervals, night: night)
+                // #sleep-chart-style: Classic keeps the per-stage timeline ROWS (ryanAtriumAi #988);
+                // Filled/Ribbon draw the WHOOP-style stepped hypnogram with the breakdown rows as the
+                // legend — switching with the Sleep tab and Android's StagesHostCard.
+                switch SleepChartStyle.resolve(sleepChartStyleRaw) {
+                case .classic:
+                    stageTimelineCard(s, subtitle: subtitle, intervals: intervals, night: night)
+                case .filled, .ribbon:
+                    steppedHypnogramCard(s, subtitle: subtitle, intervals: intervals,
+                                         filled: SleepChartStyle.resolve(sleepChartStyleRaw) == .filled)
+                }
             } else {
                 ChartCard(
                     title: "Stage breakdown",
@@ -149,6 +155,34 @@ struct StageDetailView: View {
                 stageTimeline(stages, intervals: intervals, night: night)
             }
         }
+    }
+
+    /// #sleep-chart-style — the WHOOP-style stepped hypnogram (Filled = each stage banded to the baseline,
+    /// Ribbon = a slim band) for the read-only Today host card, with the per-stage breakdown as the legend.
+    /// Matches Android `StagesHostCard`: no clock axis (this card carries no session window). Only routed
+    /// here when the night has ≥2 real segments; the stages/totals are identical to Classic.
+    @ViewBuilder
+    private func steppedHypnogramCard(_ s: Stages, subtitle: String, intervals: [SleepInterval],
+                                      filled: Bool) -> some View {
+        ChartCard(
+            title: "Stage breakdown",
+            subtitle: subtitle,
+            trailing: durationText(s.asleep),
+            height: NoopMetrics.chartHeight,
+            tint: StrandPalette.restColor,
+            chart: {
+                Hypnogram(
+                    intervals: intervals,
+                    height: NoopMetrics.chartHeight,
+                    showsStageAxis: false,
+                    showsHover: true,
+                    nightStart: nil,
+                    showsTimeAxis: false,
+                    filled: filled
+                )
+            },
+            footer: { stageBreakdownRows(s) }
+        )
     }
 
     /// #407 — the per-epoch movement/restlessness strip drawn UNDER the hypnogram, on the SAME timeline.
