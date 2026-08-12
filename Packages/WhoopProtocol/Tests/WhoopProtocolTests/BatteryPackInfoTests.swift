@@ -1,0 +1,47 @@
+import XCTest
+@testable import WhoopProtocol
+
+/// GET_BATTERY_PACK_INFO (151) has two answers and the Devices card must behave oppositely on each: a
+/// reply naming a pack fills the row, a reply naming none must CLEAR it. Both frames below came off one
+/// WHOOP 5 strap — pack attached, then physically removed — so the decode is pinned to real bytes. The
+/// Kotlin `BatteryPackInfoTest` asserts the same values, keeping the two decoders byte-identical.
+final class BatteryPackInfoTests: XCTestCase {
+
+    private func bytes(_ s: String) -> [UInt8] {
+        stride(from: 0, to: s.count, by: 2).map { i in
+            let a = s.index(s.startIndex, offsetBy: i)
+            return UInt8(s[a...s.index(a, offsetBy: 1)], radix: 16)!
+        }
+    }
+
+    private let attachedHex =
+        "aa01280001002de1245c9704010101f7381d2e3161574242354150303132363339" +
+        "35000000e5020c01000000be577aee"
+    private let absentHex =
+        "aa01280001002de1240797040101000000000000000000000000000000000000" +
+        "000000000000000000000000cf8e5340"
+
+    func testAttachedPackNamesItsChargeAndSerial() {
+        let info = BatteryPackInfo.decode(frame: bytes(attachedHex))
+        XCTAssertNotNil(info)
+        XCTAssertEqual(info?.present, true)
+        XCTAssertEqual(info?.socPct ?? 0, 74.1, accuracy: 1e-9)
+        XCTAssertEqual(info?.serial, "WBB5AP0126395")
+        XCTAssertEqual(info?.btAddr, "f7381d2e3161")
+    }
+
+    func testRemovedPackReportsAbsenceNotAStaleReading() {
+        let info = BatteryPackInfo.decode(frame: bytes(absentHex))
+        XCTAssertEqual(info?.present, false)
+        XCTAssertNil(info?.socPct)
+        XCTAssertNil(info?.serial)
+        XCTAssertNil(info?.btAddr)
+    }
+
+    func testNonPackOrShortFrameIsNil() {
+        XCTAssertNil(BatteryPackInfo.decode(frame: bytes("aa0128000100"))) // too short
+        // A 151 response whose result byte is not SUCCESS decodes to nil.
+        var f = bytes(attachedHex); f[12] = 0 // result = FAILURE
+        XCTAssertNil(BatteryPackInfo.decode(frame: f))
+    }
+}
