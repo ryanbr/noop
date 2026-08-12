@@ -1671,14 +1671,20 @@ final class Repository: ObservableObject {
         return out
     }
 
-    /// Family of the ACTIVE strap (#623), for the deep timeline's family-specific empty-state copy. Reuses
-    /// the canonical `DeviceFamily.forRegistryDevice` (#171, #1086) with its `.whoop5` fallback for nil/unknown/
-    /// ambiguous, matching Android's `FullDayChartScreen`. Best-effort: no store / unreadable registry → `.whoop5`.
-    func activeStrapFamily() -> DeviceFamily {
-        guard let store else { return .whoop5 }
+    /// Is the ACTIVE strap a 5.0/MG-family WHOOP (#623)? Gates the deep timeline's family-specific
+    /// empty-state copy.
+    ///
+    /// Asks the canonical `DeviceFamily.isWhoop5Registry` (#171, #1086) rather than resolving a family and
+    /// comparing, because the old shape — `forRegistryDevice(…) ?? .whoop5` — answered **yes** for a
+    /// positively non-WHOOP brand and handed an Oura ring WHOOP-5 copy that told it to look for an
+    /// estimate the ring cannot produce. Best-effort: no store / unreadable registry → `false`, i.e. the
+    /// generic empty copy, which is the safe direction (`strapHasEverProduced` already returns `true`
+    /// without a store, so this changes no behaviour for a WHOOP). Twin of Android's `FullDayChartScreen`.
+    func activeStrapIsWhoop5() -> Bool {
+        guard let store else { return false }
         let devices = (try? DeviceRegistryStore(dbQueue: store.registryWriter).all()) ?? []
         let d = devices.first(where: { $0.id == deviceId })
-        return DeviceFamily.forRegistryDevice(model: d?.model, brand: d?.brand) ?? .whoop5
+        return DeviceFamily.isWhoop5Registry(model: d?.model, brand: d?.brand)
     }
 
     /// Whether the active strap has EVER banked a sample of `metric` (#623) — distinguishes a strap that

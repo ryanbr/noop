@@ -118,6 +118,27 @@ enum class DeviceFamily {
             return forRegistryModel(model)
         }
 
+        /**
+         * Is this registry row positively a 5.0/MG-family WHOOP? For callers asking a YES/NO
+         * *identity* question rather than needing a concrete family to compute with.
+         *
+         * The distinction matters because the two kinds of caller must treat [forRegistryDevice]'s
+         * `null` oppositely, and only one of them may coalesce it:
+         *
+         *  - **Needs a concrete family** (the skin-temp raw→°C scale): a non-WHOOP reading genuinely
+         *    shares the non-4.0 branch, so `?: WHOOP5` picks the right arithmetic and preserves the
+         *    prior behaviour.
+         *  - **Asks "is it a 5/MG?"** (this): `?: WHOOP5` answers **yes** for an Oura ring, which is
+         *    the #171 fall-through mistake wearing #1086's clothes — the brand said "not a WHOOP"
+         *    and the coalesce threw that evidence away.
+         *
+         * Exists so the second kind cannot be written as
+         * `(forRegistryDevice(…) ?: WHOOP5) == WHOOP5`, which reads plausible and is wrong.
+         * Mirrors the Swift `DeviceFamily.isWhoop5Registry`.
+         */
+        fun isWhoop5Registry(model: String?, brand: String?): Boolean =
+            forRegistryDevice(model, brand) == WHOOP5
+
         /** Whoop 5.0 CLIENT_HELLO bytes (16 bytes). Exposed as a named constant for test/debug use. */
         val WHOOP5_CLIENT_HELLO: ByteArray = byteArrayOf(
             0xAA.toByte(), 0x01, 0x08, 0x00, 0x00, 0x01, 0xE6.toByte(), 0x71,

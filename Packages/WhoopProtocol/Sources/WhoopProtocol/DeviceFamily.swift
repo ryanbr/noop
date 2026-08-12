@@ -172,6 +172,24 @@ public extension DeviceFamily {
         return forRegistryModel(model)
     }
 
+    /// Is this registry row positively a 5.0/MG-family WHOOP? For callers asking a YES/NO *identity*
+    /// question rather than needing a concrete family to compute with.
+    ///
+    /// The distinction matters because the two kinds of caller must treat `forRegistryDevice`'s `nil`
+    /// oppositely, and only one of them may coalesce it:
+    ///
+    ///   - **Needs a concrete family** (the skin-temp raw→°C scale): a non-WHOOP reading genuinely shares
+    ///     the non-4.0 branch, so `?? .whoop5` picks the right arithmetic and preserves prior behaviour.
+    ///   - **Asks "is it a 5/MG?"** (this): `?? .whoop5` answers **yes** for an Oura ring, which is the
+    ///     #171 fall-through mistake wearing #1086's clothes — the brand said "not a WHOOP" and the
+    ///     coalesce threw that evidence away.
+    ///
+    /// Exists so the second kind cannot be written as `forRegistryDevice(…) ?? .whoop5 == .whoop5`, which
+    /// reads plausible and is wrong. Mirrors the Kotlin `DeviceFamily.isWhoop5Registry`.
+    static func isWhoop5Registry(model: String?, brand: String?) -> Bool {
+        forRegistryDevice(model: model, brand: brand) == .whoop5
+    }
+
     /// The header-CRC algorithm this family uses. This is the single switch that the family-aware
     /// `verifyFrame`/`parseFrame` overloads branch on; the payload CRC32 is identical for both.
     var headerCRCKind: HeaderCRCKind {

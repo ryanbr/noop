@@ -98,8 +98,12 @@ struct FullDayChartView: View {
     /// #623: a SpO2/respiration track is "unsupported on this strap" only when it's a 5.0-family strap that
     /// has never produced the metric — not merely an empty window (a 4.0-v24 banks SpO2, and the legacy
     /// bare-"WHOOP" model resolves to the 5.0 family). Re-resolves when the metric changes.
+    ///
+    /// The family test must be a positive "is it a 5/MG" (#1086), never a coalesced one: the respiration
+    /// copy tells the reader their estimate is on the Health screen, which is true for a WHOOP 5 (the R-R
+    /// RSA estimate runs) and false for a non-WHOOP device whose banked stream that estimate refuses.
     private func resolveMetricUnsupported() async {
-        guard repo.activeStrapFamily() == .whoop5, metric == .spo2 || metric == .respiration else {
+        guard repo.activeStrapIsWhoop5(), metric == .spo2 || metric == .respiration else {
             metricUnsupported = false
             return
         }

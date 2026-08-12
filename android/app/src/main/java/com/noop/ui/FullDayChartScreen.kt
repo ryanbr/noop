@@ -109,9 +109,10 @@ fun FullDayChartScreen(vm: AppViewModel, onBack: () -> Unit) {
     LaunchedEffect(deviceId) {
         val d = runCatching { vm.pairedDevices() }.getOrDefault(emptyList())
             .firstOrNull { it.id == deviceId }
-        // Non-WHOOP device (null) coalesces to WHOOP5 so this gate is unchanged from before; the
-        // brand-aware resolver just no longer claims a non-WHOOP device is a WHOOP (#1086).
-        val whoop5 = (DeviceFamily.forRegistryDevice(d?.model, d?.brand) ?: DeviceFamily.WHOOP5) == DeviceFamily.WHOOP5
+        // A positive "is it a 5/MG", never a coalesced one (#1086): the respiration copy tells the reader
+        // their estimate is on the Health screen, which is true for a WHOOP 5 (the R-R RSA estimate runs)
+        // and false for a non-WHOOP device whose banked stream that estimate refuses.
+        val whoop5 = DeviceFamily.isWhoop5Registry(d?.model, d?.brand)
         isWhoop5 = whoop5
         val now = System.currentTimeMillis() / 1000
         everSpo2 = !whoop5 || runCatching { vm.repo.spo2Samples(deviceId, 0, now, 1) }.getOrDefault(emptyList()).isNotEmpty()
