@@ -12,9 +12,11 @@ package com.noop.protocol
  */
 object BatteryPackInfo {
 
-    /** [present] tells an attached pack from a removed one — the command answers SUCCESS either way, so a
-     *  removed pack's zeroed block is the only discriminator and MUST clear the card, never keep a stale
-     *  charge. [socPct] is tenths-precision %, null when absent; [serial]/[btAddr] null when absent. */
+    /** [present]: from [decode] (5/MG, cmd 151) this is a REAL flag — a removed pack's zeroed block is the
+     *  only discriminator, so an absent reply MUST clear the card. From [decodeExtended] (4.0, cmd 98) it
+     *  only means "a voltage decoded" — cmd 98 has no presence flag and its voltage may be the strap's, so
+     *  it's ~always true; real 4.0 pack presence must come from the attach/detach events, NOT this field.
+     *  [socPct] is tenths-precision %, null when absent; [serial]/[btAddr] null when absent. */
     data class Info(
         val present: Boolean,
         val socPct: Double?,
@@ -57,6 +59,10 @@ object BatteryPackInfo {
      * payload bytes 7..8 (LE), i.e. `frame[cmdOff+8..cmdOff+9]`, confirmed on WHOOP4 (#592: a 3970 mV
      * capture); [cmdOff] is 6 on WHOOP4. Same offset noop's `ExtendedBatteryProbe` reads. Null when the
      * frame is not a 98 response with a voltage payload. Byte-identical twin of Swift `decodeExtended`.
+     *
+     * NOTE on `present`: cmd 98 has no present/absent flag (unlike 151), so `present` here only marks "a
+     * voltage decoded" and is ~always true — NOT a reliable "pack attached" signal. A 4.0 UI must take pack
+     * presence from the attach/detach events and use this only for the voltage reading.
      */
     fun decodeExtended(frame: ByteArray, cmdOff: Int = 6): Info? {
         // The voltage bytes must fall inside the payload (before the 4-byte CRC32 trailer) ⇒ len >= cmdOff+14.

@@ -12,9 +12,11 @@ import Foundation
 public enum BatteryPackInfo {
 
     public struct Info: Equatable, Sendable {
-        /// Whether a pack is attached. The command answers SUCCESS either way; a removed pack sends a
-        /// zeroed block with the present flag clear, which is the ONLY thing that tells the two apart — so
-        /// an absent reply must clear the card, never keep a stale charge.
+        /// Whether a pack is attached. From `decode` (5/MG, cmd 151) this is a REAL flag: a removed pack
+        /// sends a zeroed block with the flag clear, which is the only thing that tells the two apart, so
+        /// an absent reply must clear the card. From `decodeExtended` (4.0, cmd 98) it only means "a
+        /// voltage decoded" — cmd 98 has no presence flag and its voltage may be the strap's, so it's ~always
+        /// true. Real 4.0 pack presence must come from the attach/detach events, NOT this field.
         public let present: Bool
         /// State of charge (%), tenths precision, or nil when no pack is attached.
         public let socPct: Double?
@@ -64,6 +66,10 @@ public enum BatteryPackInfo {
     /// WHOOP4 (#592: a 3970 mV capture); `cmdOff` is 6 on WHOOP4. This is the same offset noop's
     /// `ExtendedBatteryProbe` reads. Returns an Info carrying only `voltageMv`, or nil when the frame is
     /// not a 98 response with a voltage payload.
+    ///
+    /// NOTE on `present`: cmd 98 carries no present/absent flag (unlike 151), so `present` here just marks
+    /// "a voltage decoded" and is ~always true — it is NOT a reliable "pack attached" signal. A 4.0 UI must
+    /// take pack presence from the attach/detach events and use this only for the voltage reading.
     public static func decodeExtended(frame: [UInt8], cmdOff: Int = 6) -> Info? {
         // Need the voltage bytes to fall inside the payload (before the 4-byte CRC32 trailer): the payload
         // ends at frame.count - 4, so byte cmdOff+9 must be < that ⇒ frame.count >= cmdOff + 14.
