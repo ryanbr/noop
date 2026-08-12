@@ -746,7 +746,7 @@ class OuraLiveSource(
             // Diagnostic only — nothing is skipped here; the fix is 0x49-window session keying (hardware-gated).
             recentPersistedSessionWindows.firstOrNull { (s, e) -> start < e && end > s }?.let { (s, e) ->
                 val nested = start >= s && end <= e
-                val anchor = if (sleepStart != null) "0x49 anchor applied (onset=$sleepStart)" else "NO 0x49 anchor (write-envelope end)"
+                val anchor = if (sleepStart != null) "0x49 onset=$sleepStart" else "no 0x49 onset (start derived from burst end)"
                 log("Oura: duplicate-gen(#1284) new session [$start -> $end] ${if (nested) "NESTED IN" else "OVERLAPS"} " +
                     "already-banked [$s -> $e] this connection - $anchor; PK=(deviceId,startTs) mints a 2nd row")
             }
@@ -759,7 +759,7 @@ class OuraLiveSource(
             // #1284 residual 3: stamp the 0x49 anchor state on EVERY persist, so an unanchored early-drain row
             // (the prime suspect for the short nested duplicate) is self-evident even when it is the FIRST
             // persist, before the duplicate-gen line above can fire.
-            val anchorTag = if (sleepStart != null) "0x49-anchored" else "NO-0x49-anchor"
+            val anchorTag = if (sleepStart != null) "0x49-onset" else "no-0x49-onset"
             log("Oura: sleep session persisted [$start -> $end] eff=$effStr [$anchorTag] -> $deviceId (ring-provided night; wins merge over computed)")
         }
     }

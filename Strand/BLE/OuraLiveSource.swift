@@ -803,7 +803,7 @@ public final class OuraLiveSource: NSObject, ObservableObject {
             // here; the fix is 0x49-window session keying (hardware-gated). Twin of Kotlin's.
             if let prior = recentPersistedSessionWindows.first(where: { start < $0.end && end > $0.start }) {
                 let nested = start >= prior.start && end <= prior.end
-                let anchor = sleepStart != nil ? "0x49 anchor applied (onset=\(sleepStart!))" : "NO 0x49 anchor (write-envelope end)"
+                let anchor = sleepStart != nil ? "0x49 onset=\(sleepStart!)" : "no 0x49 onset (start derived from burst end)"
                 log("Oura: duplicate-gen(#1284) new session [\(start) → \(end)] \(nested ? "NESTED IN" : "OVERLAPS") already-banked [\(prior.start) → \(prior.end)] this connection - \(anchor); PK=(deviceId,startTs) mints a 2nd row")
             }
             recentPersistedSessionWindows.append((start: start, end: end))
@@ -815,7 +815,7 @@ public final class OuraLiveSource: NSObject, ObservableObject {
             // #1284 residual 3: stamp the 0x49 anchor state on EVERY persist, so an unanchored early-drain row
             // (the prime suspect for the short nested duplicate) is self-evident even when it is the FIRST
             // persist, before the duplicate-gen line above can fire.
-            let anchorTag = sleepStart != nil ? "0x49-anchored" : "NO-0x49-anchor"
+            let anchorTag = sleepStart != nil ? "0x49-onset" : "no-0x49-onset"
             log("Oura: sleep session persisted [\(startStr) → \(endStr)] eff=\(effStr) [\(anchorTag)] → \(deviceId) (ring-provided night; wins merge over computed)")
         }
     }
