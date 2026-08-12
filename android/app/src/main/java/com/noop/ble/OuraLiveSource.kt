@@ -507,6 +507,16 @@ class OuraLiveSource(
      */
     private val recentSleepWindows049 = ArrayList<Triple<Long, Int, Int>>()
 
+    /**
+     * #1284 residual 3 (duplicate-generation diagnostic): the [start, end] window of each sleep session
+     * banked THIS connection. The session PK is (deviceId, startTs) and the burst end moves with the 0x49
+     * drain, so an early partial drain can bank a short session that a later full burst then nests inside,
+     * minting a second row that the #899 heal only cleans up afterwards. Comparing each new persist against
+     * this list surfaces the GENERATION in the strap log (the heal side is #899's own line). Diagnostic only,
+     * nothing is skipped. Bounded; cleared on disconnect with the 0x49 windows. Twin of Swift's.
+     */
+    private val recentPersistedSessionWindows = ArrayList<Pair<Long, Long>>()
+
     /** 0x71 fixture capture (#287): per-session count + observed payload lengths; log cap vs flooding. */
     private var greenIbiAmpCount = 0
     private val greenIbiAmpLengths = sortedSetOf<Int>()
@@ -728,9 +738,25 @@ class OuraLiveSource(
         // over NOOP's computed night (#325 persist). Uses the anchored+0x49-refined `end` via `laid`. The
         // confirmation line makes the persist self-evident in the strap log for on-device validation.
         OuraSleepSessionMapping.session(laid.map { it.ts to it.phase.stage })?.let {
+            val start = laid.first().ts
+            // #1284 residual 3: log when this persist lands wholly inside — or overlapping — a session already
+            // banked this connection. That is the duplicate GENERATION (an early partial drain banked a short
+            // session; this fuller burst nests it), which the #899 heal only cleans up afterward. Include the
+            // 0x49 anchor state, since a persist with NO 0x49 anchor is the prime suspect for the short row.
+            // Diagnostic only — nothing is skipped here; the fix is 0x49-window session keying (hardware-gated).
+            recentPersistedSessionWindows.firstOrNull { (s, e) -> start < e && end > s }?.let { (s, e) ->
+                val nested = start >= s && end <= e
+                val anchor = if (w != null) "0x49 anchor=[onset-${w.second}..end-${w.third}]min" else "NO 0x49 anchor (write-envelope end)"
+                log("Oura: duplicate-gen(#1284) new session [$start -> $end] ${if (nested) "NESTED IN" else "OVERLAPS"} " +
+                    "already-banked [$s -> $e] this connection - $anchor; PK=(deviceId,startTs) mints a 2nd row")
+            }
+            recentPersistedSessionWindows.add(start to end)
+            if (recentPersistedSessionWindows.size > RECENT_PERSISTED_SESSIONS_CAP) {
+                recentPersistedSessionWindows.subList(0, recentPersistedSessionWindows.size - RECENT_PERSISTED_SESSIONS_CAP).clear()
+            }
             persistSleepSession(it, deviceId)
             val effStr = it.efficiency?.let { e -> "${(e * 100).toInt()}%" } ?: "n/a"
-            log("Oura: sleep session persisted [${laid.first().ts} -> $end] eff=$effStr -> $deviceId (ring-provided night; wins merge over computed)")
+            log("Oura: sleep session persisted [$start -> $end] eff=$effStr -> $deviceId (ring-provided night; wins merge over computed)")
         }
     }
 
@@ -890,6 +916,7 @@ class OuraLiveSource(
         hypnogramAssembler.reset()        // never replay a half-accumulated burst from a dead session
         pendingUnanchoredBursts.clear()
         recentSleepWindows049.clear()
+        recentPersistedSessionWindows.clear()
         greenIbiAmpCount = 0
         greenIbiAmpLengths.clear()
         // Resume the GetEvents cursor from where the LAST connection to this ring left off (s5.1/5.3), so a
@@ -1899,6 +1926,9 @@ class OuraLiveSource(
 
         /** Bound on stashed 0x49 windows (twin of Swift's recentSleepWindows049Cap). */
         private const val RECENT_SLEEP_WINDOWS_049_CAP = 16
+
+        /** Bound on the #1284 duplicate-generation window list (twin of Swift's). */
+        private const val RECENT_PERSISTED_SESSIONS_CAP = 16
 
         /**
          * The 0x49 window in [windows] whose envelope ring-time is nearest [rt] and within [tolerance]

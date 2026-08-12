@@ -250,6 +250,15 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     private var recentSleepWindows049: [(ringTimestamp: UInt32, startOffMin: Int, endOffMin: Int)] = []
     private static let recentSleepWindows049Cap = 16
 
+    /// #1284 residual 3 (duplicate-generation diagnostic): the [start, end] window of each sleep session
+    /// banked THIS connection. The session PK is (deviceId, startTs) and the burst end moves with the 0x49
+    /// drain, so an early partial drain can bank a short session that a later full burst then nests inside,
+    /// minting a second row that the #899 heal only cleans up afterward. Comparing each new persist against
+    /// this list surfaces the GENERATION in the strap log. Diagnostic only; nothing is skipped. Bounded;
+    /// reset per session with the 0x49 windows. Twin of Kotlin's recentPersistedSessionWindows.
+    private var recentPersistedSessionWindows: [(start: Int, end: Int)] = []
+    private static let recentPersistedSessionsCap = 16
+
     // MARK: - Activity (0x50 MET) estimate accumulation — INVESTIGATION ONLY
     // Aggregate the decoded 0x50 MET stream into an honest, clearly-labeled per-day estimate
     // (OuraActivityEstimator) logged at drain-end, for eyeballing against WHOOP active minutes / Apple
@@ -786,6 +795,21 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         // Reuses the anchored+0x49-refined `end` via `laid`, so the session end IS the true sleep end. The
         // confirmation line makes the persist self-evident in the strap log for on-device validation.
         if let session = OuraSleepSessionMapping.session(fromCodes: laid.map { (ts: $0.ts, stage: $0.phase.stage) }) {
+            let start = laid.first!.ts
+            // #1284 residual 3: log when this persist lands wholly inside — or overlapping — a session already
+            // banked this connection (the duplicate GENERATION an early partial drain creates, which the #899
+            // heal only cleans up afterward). `sleepStart != nil` = a 0x49 anchor was applied; a persist with
+            // NO anchor is the prime suspect for the short nested row. Diagnostic only — nothing is skipped
+            // here; the fix is 0x49-window session keying (hardware-gated). Twin of Kotlin's.
+            if let prior = recentPersistedSessionWindows.first(where: { start < $0.end && end > $0.start }) {
+                let nested = start >= prior.start && end <= prior.end
+                let anchor = sleepStart != nil ? "0x49 anchor applied (onset=\(sleepStart!))" : "NO 0x49 anchor (write-envelope end)"
+                log("Oura: duplicate-gen(#1284) new session [\(start) → \(end)] \(nested ? "NESTED IN" : "OVERLAPS") already-banked [\(prior.start) → \(prior.end)] this connection - \(anchor); PK=(deviceId,startTs) mints a 2nd row")
+            }
+            recentPersistedSessionWindows.append((start: start, end: end))
+            if recentPersistedSessionWindows.count > Self.recentPersistedSessionsCap {
+                recentPersistedSessionWindows.removeFirst(recentPersistedSessionWindows.count - Self.recentPersistedSessionsCap)
+            }
             persistSleepSession(session)
             let effStr = session.efficiency.map { String(format: "%.0f%%", $0 * 100) } ?? "n/a"
             log("Oura: sleep session persisted [\(startStr) → \(endStr)] eff=\(effStr) → \(deviceId) (ring-provided night; wins merge over computed)")
@@ -1035,6 +1059,7 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         greenIbiAmpCount = 0
         greenIbiAmpLengths.removeAll()
         recentSleepWindows049.removeAll()
+        recentPersistedSessionWindows.removeAll()
         activityMETByDay.removeAll()
         activityCadenceObs.removeAll()
         lastActivityUtc = nil
@@ -1834,6 +1859,7 @@ extension OuraLiveSource: @preconcurrency CBCentralManagerDelegate {
         greenIbiAmpCount = 0
         greenIbiAmpLengths.removeAll()
         recentSleepWindows049.removeAll()
+        recentPersistedSessionWindows.removeAll()
         pendingAnchorEvents.removeAll()   // a fresh session must never replay a stale-anchor guess
         hypnogramAssembler.reset()        // ditto for a half-accumulated burst from a dead session
         pendingUnanchoredBursts.removeAll()
@@ -1918,6 +1944,7 @@ extension OuraLiveSource: @preconcurrency CBCentralManagerDelegate {
         greenIbiAmpCount = 0
         greenIbiAmpLengths.removeAll()
         recentSleepWindows049.removeAll()
+        recentPersistedSessionWindows.removeAll()
         activityMETByDay.removeAll()
         activityCadenceObs.removeAll()
         lastActivityUtc = nil
