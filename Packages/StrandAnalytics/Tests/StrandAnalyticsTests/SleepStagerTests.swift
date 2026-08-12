@@ -1215,6 +1215,25 @@ final class SleepStagerTests: XCTestCase {
                       "a banded night with interior false-wake emits a shadow line")
     }
 
+    func testBandVetoCutoffSparesNightsBeforeCutoff() {
+        // #1210 item 2: with the veto ON, a non-zero cutoff spares a night that STARTED before it (history
+        // keeps its raw hypnogram) and applies to one starting at/after it. Boundary is inclusive. Kotlin twin.
+        let base = 1_000_000
+        let fixture = vetoHypnoFixture().map {
+            StageSegment(start: $0.start + base, end: $0.end + base, stage: $0.stage)
+        }
+        let band = bandAllAsleep(start: base, end: base + 960)
+        let recovered = SleepStager.applyBandStateWakeVeto(fixture, start: base, end: base + 960,
+                                                           bandSleepState: band, enabled: true, cutoffTs: 0)
+        XCTAssertNotEqual(recovered, fixture, "sanity: the veto does change this fixture")
+        XCTAssertEqual(SleepStager.applyBandStateWakeVeto(fixture, start: base, end: base + 960,
+                                                          bandSleepState: band, enabled: true, cutoffTs: base + 1),
+                       fixture, "a night starting before the cutoff keeps its raw hypnogram")
+        XCTAssertEqual(SleepStager.applyBandStateWakeVeto(fixture, start: base, end: base + 960,
+                                                          bandSleepState: band, enabled: true, cutoffTs: base),
+                       recovered, "a night starting at/after the cutoff (inclusive) gets the veto")
+    }
+
     // MARK: - REM-funnel diagnostic (#688)
 
     /// A still, REM-eligible epoch (still + cardiac-activated + irregular resp). The percentile

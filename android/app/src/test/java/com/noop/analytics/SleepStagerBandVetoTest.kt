@@ -6,6 +6,7 @@ import com.noop.testcentre.CaptureAccumulator
 import com.noop.testcentre.TestDomain
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.ceil
@@ -189,6 +190,26 @@ class SleepStagerBandVetoTest {
             noBand[0].stages, withBand[0].stages)
         assertEquals("default-off: efficiency is untouched by the band stream",
             noBand[0].efficiency, withBand[0].efficiency, 1e-9)
+    }
+
+    @Test
+    fun cutoffSparesNightsBeforeCutoff() {
+        // #1210 item 2: with the veto ON, a non-zero cutoff spares a night that STARTED before it (history
+        // keeps its raw hypnogram) and applies to one starting at/after it. Boundary is inclusive. Swift twin.
+        val base = 1_000_000L
+        val fixture = vetoHypnoFixture().map {
+            StageSegment(start = it.start + base, end = it.end + base, stage = it.stage)
+        }
+        val band = bandAllAsleep(start = base, end = base + 960)
+        val recovered = SleepStager.applyBandStateWakeVeto(fixture, start = base, end = base + 960,
+            bandSleepState = band, enabled = true, cutoffTs = 0L)
+        assertNotEquals("sanity: the veto does change this fixture", recovered, fixture)
+        assertEquals("a night starting before the cutoff keeps its raw hypnogram",
+            fixture, SleepStager.applyBandStateWakeVeto(fixture, start = base, end = base + 960,
+                bandSleepState = band, enabled = true, cutoffTs = base + 1))
+        assertEquals("a night starting at/after the cutoff (inclusive) gets the veto",
+            recovered, SleepStager.applyBandStateWakeVeto(fixture, start = base, end = base + 960,
+                bandSleepState = band, enabled = true, cutoffTs = base))
     }
 
     @Test

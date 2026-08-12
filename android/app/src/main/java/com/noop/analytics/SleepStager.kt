@@ -164,6 +164,14 @@ object SleepStager {
      *  Mirrors Swift `bandStateWakeVetoEnabled`. (band sleep_state veto) */
     const val bandStateWakeVetoEnabled: Boolean = false
 
+    /** #1210 item 2 (retroactive-rescore story): the new-nights-only cutoff. When the veto is flipped on
+     *  ([bandStateWakeVetoEnabled] = true), a NON-ZERO cutoff (a unix second) restricts the correction to
+     *  sessions whose `start >= cutoffTs` — nights already in history keep their raw efficiency, so flipping
+     *  the default cannot silently re-score months of banked nights upward. `0` (the default) applies the veto
+     *  to every banded night (the "just ship the one-time shift" path). Inert while the flag is off. Set this
+     *  to the flip date at the same time as the flag. Byte-identical to Swift `bandStateWakeVetoCutoffTs`. */
+    const val bandStateWakeVetoCutoffTs: Long = 0L
+
     /** The sleep stage a band-vetoed false-wake epoch is reclassified to. [bandStateAsleep] (band sleep_state == 2) means
      *  only "asleep" — the band carries NO light/deep/REM resolution — so the veto maps it to the generic,
      *  most-common sleep stage rather than inventing deep/REM detail the strap never asserted (deep/REM
@@ -844,10 +852,14 @@ object SleepStager {
         stages: List<StageSegment>, start: Long, end: Long,
         bandSleepState: List<Pair<Long, Int>>,
         enabled: Boolean = bandStateWakeVetoEnabled,
+        cutoffTs: Long = bandStateWakeVetoCutoffTs,
     ): List<StageSegment> {
         if (!enabled || bandSleepState.isEmpty() || stages.isEmpty() || end <= start) {
             return stages
         }
+        // #1210 item 2: new-nights-only gate. A non-zero cutoff spares nights that started before it (history
+        // keeps its raw efficiency); `0` applies to every banded night. Inert while the flag is off.
+        if (cutoffTs > 0L && start < cutoffTs) return stages
         // Per-epoch band on the 30 s stagesJSON grid — byte-identical to the persisted sleepStateJSON.
         val states = sessionEpochSleepState(start, end, bandSleepState)
         if (states.isEmpty()) return stages
@@ -1268,8 +1280,11 @@ object SleepStager {
             // (unchanged) values and nothing reads `shadowStages`. Guarded on `traceSink`, so it fires ONLY
             // while a diagnostic is collecting (zero production cost). Retire once the flip (#1210) lands.
             if (traceSink != null && !bandStateWakeVetoEnabled && bandSleepState.isNotEmpty()) {
+                // cutoffTs = 0 on purpose: the shadow measures the FULL veto potential across EVERY banded
+                // night (history included) to build the validation distribution, independent of whatever
+                // new-nights cutoff the eventual flip uses.
                 val shadowStages = applyBandStateWakeVeto(rawStages, start = p.start, end = p.end,
-                    bandSleepState = bandSleepState, enabled = true)
+                    bandSleepState = bandSleepState, enabled = true, cutoffTs = 0L)
                 val shadowEff = efficiency(start = p.start, end = p.end, stages = shadowStages)
                 val recoveredMin = (shadowEff - eff) * (p.end - p.start).toDouble() / 60.0
                 if (recoveredMin >= 1.0) {
