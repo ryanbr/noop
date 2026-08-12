@@ -2483,7 +2483,10 @@ internal fun sportIcon(sport: String): ImageVector {
         s.contains("walk") || s.contains("hike") -> Icons.AutoMirrored.Filled.DirectionsWalk
         s.contains("cycl") || s.contains("bike") || s.contains("ride") -> Icons.AutoMirrored.Filled.DirectionsBike
         s.contains("swim") -> Icons.Filled.Pool
-        s.contains("row") -> Icons.Filled.Rowing
+        s.contains("row") || s.contains("kayak") || s.contains("paddle") -> Icons.Filled.Rowing
+        s.contains("surf") || s.contains("sail") || s.contains("scuba") || s.contains("polo") -> Icons.Filled.Pool
+        s.contains("cricket") || s.contains("softball") || s.contains("baseball") -> Icons.Filled.SportsBaseball
+        s.contains("spin") -> Icons.AutoMirrored.Filled.DirectionsBike
         s.contains("yoga") || s.contains("pilates") || s.contains("meditat") || s.contains("stretch") -> Icons.Filled.SelfImprovement
         s.contains("strength") || s.contains("weight") || s.contains("lift") -> Icons.Filled.FitnessCenter
         s.contains("box") || s.contains("martial") || s.contains("jiu") || s.contains("judo") || s.contains("karate") -> Icons.Filled.SportsMartialArts

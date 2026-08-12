@@ -46,6 +46,27 @@ object ExerciseTypes {
         // Snow sports have a route, so they default GPS on (see DISTANCE_TYPES). (#768)
         EX.EXERCISE_TYPE_SKIING to "Skiing",
         EX.EXERCISE_TYPE_SNOWBOARDING to "Snowboarding",
+        // Batch of common sports HC enumerates natively, so they round-trip on export (#222 follow-up).
+        EX.EXERCISE_TYPE_FOOTBALL_AMERICAN to "American football",
+        EX.EXERCISE_TYPE_FOOTBALL_AUSTRALIAN to "Australian football",
+        EX.EXERCISE_TYPE_RUGBY to "Rugby",
+        EX.EXERCISE_TYPE_CRICKET to "Cricket",
+        EX.EXERCISE_TYPE_SOFTBALL to "Softball",
+        EX.EXERCISE_TYPE_HANDBALL to "Handball",
+        EX.EXERCISE_TYPE_WATER_POLO to "Water polo",
+        EX.EXERCISE_TYPE_FRISBEE_DISC to "Frisbee",
+        EX.EXERCISE_TYPE_SURFING to "Surfing",
+        EX.EXERCISE_TYPE_PADDLING to "Kayaking",
+        EX.EXERCISE_TYPE_SAILING to "Sailing",
+        EX.EXERCISE_TYPE_SCUBA_DIVING to "Scuba diving",
+        EX.EXERCISE_TYPE_ICE_SKATING to "Ice skating",
+        EX.EXERCISE_TYPE_SKATING to "Inline skating",
+        EX.EXERCISE_TYPE_SNOWSHOEING to "Snowshoeing",
+        EX.EXERCISE_TYPE_GYMNASTICS to "Gymnastics",
+        EX.EXERCISE_TYPE_FENCING to "Fencing",
+        EX.EXERCISE_TYPE_CALISTHENICS to "Calisthenics",
+        EX.EXERCISE_TYPE_STAIR_CLIMBING_MACHINE to "Stair climber",
+        EX.EXERCISE_TYPE_BOOT_CAMP to "Boot camp",
         EX.EXERCISE_TYPE_OTHER_WORKOUT to "Other",
     )
 
@@ -72,6 +93,18 @@ object ExerciseTypes {
         // #714 bodybuilding. No dedicated HC type, so it rides on STRENGTH_TRAINING for writeback and
         // keeps "Bodybuilding" on our own rows. No route → GPS off.
         "Bodybuilding" to EX.EXERCISE_TYPE_STRENGTH_TRAINING,
+        // #222 follow-up: sports HC has no dedicated type for → ride a nearby type for writeback while
+        // keeping their own NOOP label. GPS off (EXTRA is kept out of DISTANCE_TYPES).
+        "Lacrosse" to EX.EXERCISE_TYPE_OTHER_WORKOUT,
+        "Field hockey" to EX.EXERCISE_TYPE_OTHER_WORKOUT,
+        "CrossFit" to EX.EXERCISE_TYPE_HIGH_INTENSITY_INTERVAL_TRAINING,
+        "Kickboxing" to EX.EXERCISE_TYPE_MARTIAL_ARTS,
+        "Mountain biking" to EX.EXERCISE_TYPE_BIKING,
+        "Skateboarding" to EX.EXERCISE_TYPE_OTHER_WORKOUT,
+        "Stand-up paddleboard" to EX.EXERCISE_TYPE_PADDLING,
+        "Spinning" to EX.EXERCISE_TYPE_BIKING_STATIONARY,
+        "Jump rope" to EX.EXERCISE_TYPE_OTHER_WORKOUT,
+        "Powerlifting" to EX.EXERCISE_TYPE_WEIGHTLIFTING,
     )
 
     /** Types where a route makes sense -> GPS defaults on. */
@@ -85,6 +118,11 @@ object ExerciseTypes {
         // Snow sports cover ground → a route makes sense, GPS defaults on. (#768)
         EX.EXERCISE_TYPE_SKIING,
         EX.EXERCISE_TYPE_SNOWBOARDING,
+        // New distance sports (#222 follow-up): paddling/sailing/skating/snowshoeing cover ground.
+        EX.EXERCISE_TYPE_PADDLING,
+        EX.EXERCISE_TYPE_SAILING,
+        EX.EXERCISE_TYPE_SKATING,
+        EX.EXERCISE_TYPE_SNOWSHOEING,
     )
 
     fun nameFor(type: Int): String = NAMES[type] ?: "Workout"

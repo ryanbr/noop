@@ -51,6 +51,38 @@ public enum KnownWorkoutType: String, CaseIterable, Sendable {
     case padel = "Padel"
     case pickleball = "Pickleball"
     case bowling = "Bowling"
+    // #222 follow-up batch. Raw values byte-identical to WorkoutCatalog / Android WorkoutSport.
+    case iceHockey = "Ice Hockey"
+    case americanFootball = "American football"
+    case australianFootball = "Australian football"
+    case rugby = "Rugby"
+    case cricket = "Cricket"
+    case softball = "Softball"
+    case handball = "Handball"
+    case waterPolo = "Water polo"
+    case frisbee = "Frisbee"
+    case surfing = "Surfing"
+    case kayaking = "Kayaking"
+    case sailing = "Sailing"
+    case scubaDiving = "Scuba diving"
+    case iceSkating = "Ice skating"
+    case inlineSkating = "Inline skating"
+    case snowshoeing = "Snowshoeing"
+    case gymnastics = "Gymnastics"
+    case fencing = "Fencing"
+    case calisthenics = "Calisthenics"
+    case stairClimber = "Stair climber"
+    case bootCamp = "Boot camp"
+    case lacrosse = "Lacrosse"
+    case fieldHockey = "Field hockey"
+    case crossfit = "CrossFit"
+    case kickboxing = "Kickboxing"
+    case mountainBiking = "Mountain biking"
+    case skateboarding = "Skateboarding"
+    case standUpPaddleboard = "Stand-up paddleboard"
+    case spinning = "Spinning"
+    case jumpRope = "Jump rope"
+    case powerlifting = "Powerlifting"
     case other = "Other"
 
     /// Case-insensitive exact match against a stored/free-typed sport label.
@@ -229,6 +261,39 @@ public enum WorkoutTypeIconography {
             return systemOrCustom("figure.pickleball", .pickleballPaddle)
         case .bowling:
             return .system("figure.bowling")
+        // #222 follow-up batch. Each sport gets its OWN symbol — the icon tests require a distinct glyph
+        // + identity per case, so no two share one (that's why e.g. spinning ≠ indoor cycle here).
+        case .iceHockey:            return .system("figure.hockey")
+        case .americanFootball:     return .system("figure.american.football")
+        case .australianFootball:   return .system("figure.australian.football")
+        case .rugby:                return .system("figure.rugby")
+        case .cricket:              return .system("figure.cricket")
+        case .softball:             return .system("figure.softball")
+        case .handball:             return .system("figure.handball")
+        case .waterPolo:            return .system("figure.waterpolo")
+        case .frisbee:              return .system("figure.disc.sports")
+        case .surfing:              return .system("figure.surfing")
+        case .kayaking:             return .system("oar.2.crossed")
+        case .sailing:              return .system("figure.sailing")
+        case .scubaDiving:          return .system("figure.water.fitness")
+        case .iceSkating:           return .system("figure.ice.skating")
+        case .inlineSkating:        return .system("figure.skating")
+        case .snowshoeing:          return .system("figure.skiing.crosscountry")
+        case .gymnastics:           return .system("figure.gymnastics")
+        case .fencing:              return .system("figure.fencing")
+        case .calisthenics:         return .system("figure.core.training")
+        case .stairClimber:         return .system("figure.stair.stepper")
+        case .bootCamp:             return .system("figure.step.training")
+        case .lacrosse:             return .system("figure.lacrosse")
+        case .fieldHockey:          return .system("figure.field.hockey")
+        case .crossfit:             return .system("figure.cross.training")
+        case .kickboxing:           return .system("figure.kickboxing")
+        case .mountainBiking:       return .system("bicycle")
+        case .skateboarding:        return .system("skateboard")
+        case .standUpPaddleboard:   return .system("water.waves")
+        case .spinning:             return .system("bicycle.circle")
+        case .jumpRope:             return .system("figure.jumprope")
+        case .powerlifting:         return .system("dumbbell")
         case .other:
             return .system("figure.mixed.cardio")
         }
@@ -275,6 +340,37 @@ public enum WorkoutTypeIconography {
         case .padel:            return "custom:padelRacket"
         case .pickleball:       return "system:figure.pickleball"
         case .bowling:          return "system:figure.bowling"
+        case .iceHockey:            return "system:figure.hockey"
+        case .americanFootball:     return "system:figure.american.football"
+        case .australianFootball:   return "system:figure.australian.football"
+        case .rugby:                return "system:figure.rugby"
+        case .cricket:              return "system:figure.cricket"
+        case .softball:             return "system:figure.softball"
+        case .handball:             return "system:figure.handball"
+        case .waterPolo:            return "system:figure.waterpolo"
+        case .frisbee:              return "system:figure.disc.sports"
+        case .surfing:              return "system:figure.surfing"
+        case .kayaking:             return "system:oar.2.crossed"
+        case .sailing:              return "system:figure.sailing"
+        case .scubaDiving:          return "system:figure.water.fitness"
+        case .iceSkating:           return "system:figure.ice.skating"
+        case .inlineSkating:        return "system:figure.skating"
+        case .snowshoeing:          return "system:figure.skiing.crosscountry"
+        case .gymnastics:           return "system:figure.gymnastics"
+        case .fencing:              return "system:figure.fencing"
+        case .calisthenics:         return "system:figure.core.training"
+        case .stairClimber:         return "system:figure.stair.stepper"
+        case .bootCamp:             return "system:figure.step.training"
+        case .lacrosse:             return "system:figure.lacrosse"
+        case .fieldHockey:          return "system:figure.field.hockey"
+        case .crossfit:             return "system:figure.cross.training"
+        case .kickboxing:           return "system:figure.kickboxing"
+        case .mountainBiking:       return "system:bicycle"
+        case .skateboarding:        return "system:skateboard"
+        case .standUpPaddleboard:   return "system:water.waves"
+        case .spinning:             return "system:bicycle.circle"
+        case .jumpRope:             return "system:figure.jumprope"
+        case .powerlifting:         return "system:dumbbell"
         case .other:            return "system:figure.mixed.cardio"
         }
     }
