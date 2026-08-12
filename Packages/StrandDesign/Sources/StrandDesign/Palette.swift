@@ -379,15 +379,51 @@ public enum StrandPalette {
     // Brand sleep ramps for the two stepped-hypnogram styles, so the chart reads like the app it's modelled
     // on. Ribbon = Oura's ramp (cream awake + blues, sampled from the ring's app); Filled = Garmin's
     // (blue light/deep + magenta REM). Opt-in only (Sleep-tab stepped chart) — every other Hypnogram caller
-    // keeps `sleepStageColor`. Flat (theme-independent): both source apps are dark-tuned. (#sleep-chart-style)
-    static let oSleepAwake = Color(light: "#EAE3D3", dark: "#EAE3D3")
-    static let oSleepREM   = Color(light: "#90D0F0", dark: "#90D0F0")
-    static let oSleepLight = Color(light: "#40B0E0", dark: "#40B0E0")
-    static let oSleepDeep  = Color(light: "#206080", dark: "#206080")
-    static let gSleepAwake = Color(light: "#F26FE8", dark: "#F26FE8")
-    static let gSleepREM   = Color(light: "#E22DD0", dark: "#E22DD0")
-    static let gSleepLight = Color(light: "#4AA6F2", dark: "#4AA6F2")
-    static let gSleepDeep  = Color(light: "#2472D8", dark: "#2472D8")
+    // keeps `sleepStageColor`. (#sleep-chart-style)
+    //
+    // WHY THERE IS A LIGHT VARIANT. Both source apps are dark-tuned, so the ramps shipped flat — the same
+    // hex in both schemes. On the light card those bands are drawn on near-white (`NoopVisualStyle.surface`
+    // = #FFFFFF; a real Sleep-screen capture samples #FEFEFF), and measured there the Oura ramp collapses:
+    // three of its four bands fall under the 3:1 non-text minimum and `awake` #EAE3D3 sits at **1.28:1**,
+    // i.e. not drawn. That is not a rare band — on one real ring night awake was 64% of the chart.
+    //
+    // HOW THE LIGHT VALUES WERE DERIVED (not eyeballed, and not invented hues). Clamping each band on its
+    // own to 3:1 is the obvious fix and it BREAKS THE RAMP: Oura `rem` → #1E9EDD and `light` → #239FD5 land
+    // 1.00:1 apart, two adjacent stages the same colour. Instead ONE uniform HLS-lightness scale is applied
+    // per ramp, pinned so the ramp's lightest band reaches 3:1 on white — Oura ×0.575, Garmin ×0.912. Hue
+    // and saturation are untouched, so it is still recognisably the brand ramp; stage ORDERING survives;
+    // and the intra-ramp separation is no worse than the shipped dark ramp's (pinned in
+    // `BrandSleepRampTests`, twin `BrandSleepRampTest` on Android).
+    static let oSleepAwake = Color(light: BrandSleepRamp.ouraAwake.light, dark: BrandSleepRamp.ouraAwake.dark)
+    static let oSleepREM   = Color(light: BrandSleepRamp.ouraREM.light,   dark: BrandSleepRamp.ouraREM.dark)
+    static let oSleepLight = Color(light: BrandSleepRamp.ouraLight.light, dark: BrandSleepRamp.ouraLight.dark)
+    static let oSleepDeep  = Color(light: BrandSleepRamp.ouraDeep.light,  dark: BrandSleepRamp.ouraDeep.dark)
+    static let gSleepAwake = Color(light: BrandSleepRamp.garminAwake.light, dark: BrandSleepRamp.garminAwake.dark)
+    static let gSleepREM   = Color(light: BrandSleepRamp.garminREM.light,   dark: BrandSleepRamp.garminREM.dark)
+    static let gSleepLight = Color(light: BrandSleepRamp.garminLight.light, dark: BrandSleepRamp.garminLight.dark)
+    static let gSleepDeep  = Color(light: BrandSleepRamp.garminDeep.light,  dark: BrandSleepRamp.garminDeep.dark)
+
+    /// The brand ramps as hex PAIRS, so the properties above can be asserted in a test — a `SwiftUI.Color`
+    /// built from a dynamic provider cannot be read back, and these are also the values the Kotlin twin
+    /// must match byte for byte (`stageColorForBrand` in `SleepStageBreakdownUi.kt`). `.dark` is the
+    /// shipped ramp, unchanged.
+    enum BrandSleepRamp {
+        static let ouraAwake   = (light: "#AD9153", dark: "#EAE3D3")
+        static let ouraREM     = (light: "#1A8AC2", dark: "#90D0F0")
+        static let ouraLight   = (light: "#176B8E", dark: "#40B0E0")
+        static let ouraDeep    = (light: "#12374A", dark: "#206080")
+        static let garminAwake = (light: "#EF52E3", dark: "#F26FE8")
+        static let garminREM   = (light: "#D91EC7", dark: "#E22DD0")
+        static let garminLight = (light: "#3099F0", dark: "#4AA6F2")
+        static let garminDeep  = (light: "#2168C5", dark: "#2472D8")
+
+        /// Oura's ramp in STAGE order (awake → rem → light → deep), which is not the same as luminance
+        /// order — Garmin's `light` is lighter than its `rem`. What the light pass must preserve is each
+        /// ramp's OWN luminance order, whatever it is; that is what the tests assert.
+        static let oura   = [ouraAwake, ouraREM, ouraLight, ouraDeep]
+        /// Garmin's ramp in stage order.
+        static let garmin = [garminAwake, garminREM, garminLight, garminDeep]
+    }
 
     /// The brand sleep ramp for the stepped hypnogram: Garmin's for Filled, Oura's for Ribbon.
     public static func sleepStageColorBrand(_ stage: SleepStage, filled: Bool) -> Color {

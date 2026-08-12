@@ -451,16 +451,57 @@ private fun stageColorFor(name: String): Color = when (canonicalStage(name)) {
 
 // Brand sleep ramps for the stepped [FilledHypnogram]: Garmin's for Filled (blue light/deep + magenta REM),
 // Oura's for Ribbon (cream awake + blues, sampled from the ring's app), so the chart reads like the app it's
-// modelled on. Byte-identical hexes to the Swift `StrandPalette.sleepStageColorBrand`. The classic hero
-// strip ([HypnogramWithAxis]) keeps the NOOP tokens via [stageColorFor]. (#sleep-chart-style)
-private val ouraSleepAwake = Color(0xFFEAE3D3)
-private val ouraSleepREM = Color(0xFF90D0F0)
-private val ouraSleepLight = Color(0xFF40B0E0)
-private val ouraSleepDeep = Color(0xFF206080)
-private val garminSleepAwake = Color(0xFFF26FE8)
-private val garminSleepREM = Color(0xFFE22DD0)
-private val garminSleepLight = Color(0xFF4AA6F2)
-private val garminSleepDeep = Color(0xFF2472D8)
+// modelled on. Byte-identical hexes to the Swift `StrandPalette.BrandSleepRamp`. The classic hero strip
+// ([HypnogramWithAxis]) keeps the NOOP tokens via [stageColorFor]. (#sleep-chart-style)
+//
+// PER-SCHEME since the light-mode pass. The ramps shipped flat — one hex for both schemes — because both
+// source apps are dark-tuned; measured on the light card (near-white) the Oura ramp collapses, with `awake`
+// #EAE3D3 at 1.28:1, i.e. not drawn. The light values apply ONE uniform HLS-lightness scale per ramp
+// (Oura x0.575, Garmin x0.912), pinned so each ramp's lightest band reaches 3:1 on white: hue and
+// saturation untouched, ordering preserved, no stage pair collapsed. Clamping each band separately to 3:1
+// is the trap — it drives Oura `rem` and `light` to 1.00:1 apart. Properties pinned in [BrandSleepRampTest],
+// twin of the Swift `BrandSleepRampTests`.
+/**
+ * The eight brand hexes x two schemes, declared ONCE as ARGB longs — the [Color]s below and the ramp lists
+ * [BrandSleepRampTest] asserts on are both built from these, so there is no second copy to drift. Stage
+ * order is awake, rem, light, deep (which is NOT luminance order: Garmin's `light` is lighter than its
+ * `rem`; what the light pass preserves is each ramp's own order, whatever it is).
+ */
+internal object BrandSleepRamp {
+    const val OURA_AWAKE_DARK = 0xFFEAE3D3
+    const val OURA_REM_DARK = 0xFF90D0F0
+    const val OURA_LIGHT_DARK = 0xFF40B0E0
+    const val OURA_DEEP_DARK = 0xFF206080
+    const val GARMIN_AWAKE_DARK = 0xFFF26FE8
+    const val GARMIN_REM_DARK = 0xFFE22DD0
+    const val GARMIN_LIGHT_DARK = 0xFF4AA6F2
+    const val GARMIN_DEEP_DARK = 0xFF2472D8
+    const val OURA_AWAKE_LIGHT = 0xFFAD9153
+    const val OURA_REM_LIGHT = 0xFF1A8AC2
+    const val OURA_LIGHT_LIGHT = 0xFF176B8E
+    const val OURA_DEEP_LIGHT = 0xFF12374A
+    const val GARMIN_AWAKE_LIGHT = 0xFFEF52E3
+    const val GARMIN_REM_LIGHT = 0xFFD91EC7
+    const val GARMIN_LIGHT_LIGHT = 0xFF3099F0
+    const val GARMIN_DEEP_LIGHT = 0xFF2168C5
+
+    val ouraDark = listOf(OURA_AWAKE_DARK, OURA_REM_DARK, OURA_LIGHT_DARK, OURA_DEEP_DARK)
+    val ouraLight = listOf(OURA_AWAKE_LIGHT, OURA_REM_LIGHT, OURA_LIGHT_LIGHT, OURA_DEEP_LIGHT)
+    val garminDark = listOf(GARMIN_AWAKE_DARK, GARMIN_REM_DARK, GARMIN_LIGHT_DARK, GARMIN_DEEP_DARK)
+    val garminLight = listOf(GARMIN_AWAKE_LIGHT, GARMIN_REM_LIGHT, GARMIN_LIGHT_LIGHT, GARMIN_DEEP_LIGHT)
+}
+
+// The scheme-resolved ramp. `Palette.isLight` is snapshot state, so a theme flip re-resolves these inside a
+// Canvas DrawScope with no call-site change — the same per-scheme idiom the rest of the palette uses.
+private fun brand(light: Long, dark: Long) = Color(if (Palette.isLight) light else dark)
+private val ouraSleepAwake: Color get() = brand(BrandSleepRamp.OURA_AWAKE_LIGHT, BrandSleepRamp.OURA_AWAKE_DARK)
+private val ouraSleepREM: Color get() = brand(BrandSleepRamp.OURA_REM_LIGHT, BrandSleepRamp.OURA_REM_DARK)
+private val ouraSleepLight: Color get() = brand(BrandSleepRamp.OURA_LIGHT_LIGHT, BrandSleepRamp.OURA_LIGHT_DARK)
+private val ouraSleepDeep: Color get() = brand(BrandSleepRamp.OURA_DEEP_LIGHT, BrandSleepRamp.OURA_DEEP_DARK)
+private val garminSleepAwake: Color get() = brand(BrandSleepRamp.GARMIN_AWAKE_LIGHT, BrandSleepRamp.GARMIN_AWAKE_DARK)
+private val garminSleepREM: Color get() = brand(BrandSleepRamp.GARMIN_REM_LIGHT, BrandSleepRamp.GARMIN_REM_DARK)
+private val garminSleepLight: Color get() = brand(BrandSleepRamp.GARMIN_LIGHT_LIGHT, BrandSleepRamp.GARMIN_LIGHT_DARK)
+private val garminSleepDeep: Color get() = brand(BrandSleepRamp.GARMIN_DEEP_LIGHT, BrandSleepRamp.GARMIN_DEEP_DARK)
 
 private fun stageColorForBrand(name: String, filled: Boolean): Color = when (canonicalStage(name)) {
     "deep" -> if (filled) garminSleepDeep else ouraSleepDeep
