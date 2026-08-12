@@ -63,7 +63,25 @@ class ActivityHeatmapTest {
         val g = ActivityHeatmap.build(emptyMap(), today, weeks = 13)
         assertTrue(g.isEmpty)
         assertEquals(250.0, g.scale, 0.0)   // no active days → the floor
+        assertEquals(0.0, g.total, 0.0)
+        assertEquals(0, g.streak)
         assertTrue(g.columns.flatten().all { it.level == 0 })
+    }
+
+    @Test fun streakAndTotal() {
+        val g = ActivityHeatmap.build(mapOf("2026-08-11" to 400.0, "2026-08-10" to 100.0, "2026-08-09" to 200.0), today)
+        assertEquals(3, g.streak)
+        assertEquals(700.0, g.total, 0.0)
+    }
+
+    @Test fun streakEndsYesterdayWhenTodayEmpty() {
+        val g = ActivityHeatmap.build(mapOf("2026-08-10" to 100.0, "2026-08-09" to 200.0), today)
+        assertEquals(2, g.streak)
+    }
+
+    @Test fun streakZeroAndGapBreaks() {
+        assertEquals(0, ActivityHeatmap.build(mapOf("2026-08-08" to 300.0), today).streak)
+        assertEquals(1, ActivityHeatmap.build(mapOf("2026-08-11" to 300.0, "2026-08-09" to 300.0), today).streak)
     }
 
     @Test fun rampScaleIsPercentileFloored() {

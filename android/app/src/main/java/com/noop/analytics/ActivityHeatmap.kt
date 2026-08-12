@@ -24,7 +24,16 @@ object ActivityHeatmap {
      * the raw max) stops one exceptional session flattening the whole grid to pale; the floor keeps a
      * beginner's low-calorie days appropriately cool instead of maxing them out.
      */
-    data class Grid(val weeks: Int, val columns: List<List<Cell>>, val scale: Double) {
+    data class Grid(
+        val weeks: Int,
+        val columns: List<List<Cell>>,
+        val scale: Double,
+        /** Total of the window's active days (kcal) — the header's big number. */
+        val total: Double = 0.0,
+        /** Current consecutive-day activity streak, ending today or (if nothing logged yet today)
+         *  yesterday. 0 when neither today nor yesterday has activity. */
+        val streak: Int = 0,
+    ) {
         val isEmpty: Boolean get() = columns.all { col -> col.all { it.value == null } }
     }
 
@@ -63,8 +72,12 @@ object ActivityHeatmap {
             raw.add(col)
         }
         val scale = rampScale(active)
+        // Streak = consecutive days with a positive value, via the shared StreakCalculator (same
+        // today-not-yet-scored grace the Settings streak uses) so the two never disagree in logic.
+        val keys = values.keys.toList()
+        val streak = StreakCalculator.streaks(keys, keys.map { (values[it] ?: 0.0) > 0.0 }, today).current
         val leveled = raw.map { col -> col.map { it.copy(level = levelFor(it.value, scale)) } }
-        return Grid(cols, leveled, scale)
+        return Grid(cols, leveled, scale, total = active.sum(), streak = streak)
     }
 
     /**

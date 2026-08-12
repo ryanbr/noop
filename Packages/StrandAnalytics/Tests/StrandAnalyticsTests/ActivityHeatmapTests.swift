@@ -57,7 +57,29 @@ final class ActivityHeatmapTests: XCTestCase {
         let g = ActivityHeatmap.build(values: [:], today: today, weeks: 13)
         XCTAssertTrue(g.isEmpty)
         XCTAssertEqual(g.scale, 250.0)   // no active days → the floor
+        XCTAssertEqual(g.total, 0.0)
+        XCTAssertEqual(g.streak, 0)
         XCTAssertTrue(g.columns.flatMap { $0 }.allSatisfy { $0.level == 0 })
+    }
+
+    func testStreakAndTotal() {
+        // Three consecutive days ending today (2026-08-09/10/11).
+        let g = ActivityHeatmap.build(values: ["2026-08-11": 400, "2026-08-10": 100, "2026-08-09": 200], today: today)
+        XCTAssertEqual(g.streak, 3)
+        XCTAssertEqual(g.total, 700.0)
+    }
+
+    func testStreakEndsYesterdayWhenTodayEmpty() {
+        // Nothing logged today yet, but yesterday + the day before → the streak still counts, from yesterday.
+        let g = ActivityHeatmap.build(values: ["2026-08-10": 100, "2026-08-09": 200], today: today)
+        XCTAssertEqual(g.streak, 2)
+    }
+
+    func testStreakZeroAndGapBreaks() {
+        // Neither today nor yesterday active → 0.
+        XCTAssertEqual(ActivityHeatmap.build(values: ["2026-08-08": 300], today: today).streak, 0)
+        // Today active but yesterday empty → a gap breaks it, streak of 1.
+        XCTAssertEqual(ActivityHeatmap.build(values: ["2026-08-11": 300, "2026-08-09": 300], today: today).streak, 1)
     }
 
     func testRampScaleIsPercentileFloored() {

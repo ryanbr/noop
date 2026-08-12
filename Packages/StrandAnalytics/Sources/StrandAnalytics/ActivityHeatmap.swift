@@ -31,10 +31,17 @@ public enum ActivityHeatmap {
         public let weeks: Int
         public let columns: [[Cell]]
         public let scale: Double
-        public init(weeks: Int, columns: [[Cell]], scale: Double) {
+        /// Total of the window's active days (kcal) — the header's big number.
+        public let total: Double
+        /// Current consecutive-day activity streak, ending today or (if nothing is logged yet today)
+        /// yesterday. 0 when neither today nor yesterday has activity.
+        public let streak: Int
+        public init(weeks: Int, columns: [[Cell]], scale: Double, total: Double = 0, streak: Int = 0) {
             self.weeks = weeks
             self.columns = columns
             self.scale = scale
+            self.total = total
+            self.streak = streak
         }
         public var isEmpty: Bool { columns.allSatisfy { col in col.allSatisfy { $0.value == nil } } }
     }
@@ -76,10 +83,16 @@ public enum ActivityHeatmap {
             raw.append(col)
         }
         let scale = rampScale(active)
+        // Streak = consecutive days with a positive value, via the shared StreakCalculator (same
+        // today-not-yet-scored grace the Settings streak uses) so the two never disagree in logic.
+        let keys = Array(values.keys)
+        let streak = StreakCalculator.streaks(dayKeys: keys,
+                                              qualified: keys.map { (values[$0] ?? 0) > 0 },
+                                              today: today).current
         let leveled = raw.map { col in
             col.map { Cell(day: $0.day, value: $0.value, level: levelFor($0.value, scale)) }
         }
-        return Grid(weeks: cols, columns: leveled, scale: scale)
+        return Grid(weeks: cols, columns: leveled, scale: scale, total: active.reduce(0, +), streak: streak)
     }
 
     /// Ramp denominator: the 90th-percentile ACTIVE day (nearest-rank, mirroring `deriveRestingHR`),
