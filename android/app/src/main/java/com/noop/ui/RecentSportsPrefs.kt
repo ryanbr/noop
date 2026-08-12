@@ -24,8 +24,9 @@ object RecentSportsPrefs {
     /** SharedPreferences key. The macOS/iOS twin persists the same "workout.recentSports" name. */
     const val KEY = "workout.recentSports"
 
-    /** Most-recent-first cap — the issue asks for "2-3"; three keeps the section one glance tall. */
-    const val MAX_COUNT = 3
+    /** Most-recent-first cap. Bumped 3 → 5 now the catalogue is large (~78 sports): a wider rotation
+     *  surfaces without scrolling, still short enough to stay above the full list. Twin of iOS. */
+    const val MAX_COUNT = 5
 
     /** Encode an ordered list of names into the stored comma-joined string. */
     fun encode(names: List<String>): String = names.joinToString(",")

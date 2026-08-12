@@ -11,7 +11,7 @@ final class RecentSportsPrefsTests: XCTestCase {
     func testKeyAndCapMatchAndroid() {
         // Both platforms persist "workout.recentSports", capped at three entries.
         XCTAssertEqual(RecentSportsPrefs.key, "workout.recentSports")
-        XCTAssertEqual(RecentSportsPrefs.maxCount, 3)
+        XCTAssertEqual(RecentSportsPrefs.maxCount, 5)
     }
 
     func testEncodeDecodeRoundTrips() {
@@ -37,9 +37,13 @@ final class RecentSportsPrefsTests: XCTestCase {
                        ["running", "Yoga", "Padel"])
     }
 
-    func testRecordingCapsAtThree() {
+    func testRecordingCapsAtFive() {
+        // A full list of 5, recording a 6th drops the oldest.
+        XCTAssertEqual(RecentSportsPrefs.recording("HIIT", into: ["Running", "Yoga", "Padel", "Boxing", "Tennis"]),
+                       ["HIIT", "Running", "Yoga", "Padel", "Boxing"])
+        // Under the cap, nothing is dropped.
         XCTAssertEqual(RecentSportsPrefs.recording("HIIT", into: ["Running", "Yoga", "Padel"]),
-                       ["HIIT", "Running", "Yoga"])
+                       ["HIIT", "Running", "Yoga", "Padel"])
     }
 
     func testRecordingIgnoresBlankAndCommaNames() {

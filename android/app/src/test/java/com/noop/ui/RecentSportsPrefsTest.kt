@@ -18,7 +18,7 @@ class RecentSportsPrefsTest {
     fun keyAndCapMatchIos() {
         // Both platforms persist "workout.recentSports", capped at three entries.
         assertEquals("workout.recentSports", RecentSportsPrefs.KEY)
-        assertEquals(3, RecentSportsPrefs.MAX_COUNT)
+        assertEquals(5, RecentSportsPrefs.MAX_COUNT)
     }
 
     @Test
@@ -57,9 +57,15 @@ class RecentSportsPrefsTest {
     }
 
     @Test
-    fun recordingCapsAtThree() {
+    fun recordingCapsAtFive() {
+        // Full list of 5 → recording a 6th drops the oldest.
         assertEquals(
-            listOf("HIIT", "Running", "Yoga"),
+            listOf("HIIT", "Running", "Yoga", "Padel", "Boxing"),
+            RecentSportsPrefs.recording("HIIT", listOf("Running", "Yoga", "Padel", "Boxing", "Tennis")),
+        )
+        // Under the cap → nothing dropped.
+        assertEquals(
+            listOf("HIIT", "Running", "Yoga", "Padel"),
             RecentSportsPrefs.recording("HIIT", listOf("Running", "Yoga", "Padel")),
         )
     }

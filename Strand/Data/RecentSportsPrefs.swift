@@ -19,8 +19,9 @@ enum RecentSportsPrefs {
     /// UserDefaults key. The Android twin persists the same "workout.recentSports" name.
     static let key = "workout.recentSports"
 
-    /// Most-recent-first cap — the issue asks for "2-3"; three keeps the section one glance tall.
-    static let maxCount = 3
+    /// Most-recent-first cap. Bumped 3 → 5 now the catalogue is large (~78 sports): a wider rotation
+    /// surfaces without scrolling, still short enough to stay above the full list. Twin of Android.
+    static let maxCount = 5
 
     /// Encode an ordered list of names into the stored comma-joined string.
     static func encode(_ names: [String]) -> String { names.joined(separator: ",") }
