@@ -881,12 +881,18 @@ struct WorkoutsView: View {
 
         // Weekday gutter: Mon/Wed/Fri/Sun. `veryShortWeekdaySymbols` is Sunday-first, so row r (Mon-first)
         // maps to symbol (r + 1) % 7.
+        // Resolve + colour via the Canvas shading (macOS 13 compatible — `Text.foregroundStyle`
+        // returning Text is macOS 14+, but a resolved text's `shading` is available here).
+        func label(_ s: String) -> GraphicsContext.ResolvedText {
+            var t = ctx.resolve(Text(s).font(labelFont))
+            t.shading = .color(labelColor)
+            return t
+        }
         let wd = Calendar.current.veryShortWeekdaySymbols
         if wd.count == 7 {
             for r in stride(from: 0, to: 7, by: 2) {
                 let y = topInset + CGFloat(r) * (cell + gap) + cell / 2
-                ctx.draw(Text(wd[(r + 1) % 7]).font(labelFont).foregroundStyle(labelColor),
-                         at: CGPoint(x: 0, y: y), anchor: .leading)
+                ctx.draw(label(wd[(r + 1) % 7]), at: CGPoint(x: 0, y: y), anchor: .leading)
             }
         }
 
@@ -899,8 +905,7 @@ struct WorkoutsView: View {
             if m != lastMonth {
                 lastMonth = m
                 let x = leftInset + CGFloat(c) * (cell + gap)
-                ctx.draw(Text(months[m - 1]).font(labelFont).foregroundStyle(labelColor),
-                         at: CGPoint(x: x, y: 0), anchor: .topLeading)
+                ctx.draw(label(months[m - 1]), at: CGPoint(x: x, y: 0), anchor: .topLeading)
             }
         }
 
