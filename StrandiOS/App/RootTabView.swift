@@ -10,6 +10,8 @@ struct RootTabView: View {
     /// Cross-screen navigation requests (e.g. Live → "Manage devices"). Devices isn't a tab — it lives
     /// behind the More list — so a request presents it as a sheet, matching the quick-action screens.
     @EnvironmentObject private var router: NavRouter
+    /// The scene-local receiver for actions chosen from NOOP's Home Screen icon menu.
+    @EnvironmentObject private var homeScreenQuickActions: HomeScreenQuickActionSceneDelegate
 
     /// Which quick-action screen the centre FAB is presenting (nil = sheet closed).
     @State private var quickAction: QuickAction?
@@ -197,6 +199,28 @@ struct RootTabView: View {
                 router.quickActionsRequested = false
             }
         }
+        // A cold-launch selection is already pending when this shell appears; a warm selection arrives
+        // through the change callback. Both route through the same screens as the centre FAB.
+        .onAppear {
+            if let action = homeScreenQuickActions.pendingAction {
+                presentHomeScreenQuickAction(action)
+            }
+        }
+        .onChange(of: homeScreenQuickActions.pendingAction) { _, action in
+            guard let action else { return }
+            presentHomeScreenQuickAction(action)
+        }
+    }
+
+    private func presentHomeScreenQuickAction(_ action: HomeScreenQuickAction) {
+        homeScreenQuickActions.consume(action)
+        let destination: QuickAction = switch action {
+        case .liveHeartRate: .live
+        case .startWorkout: .workout
+        case .logJournal: .journal
+        case .breathe: .breathe
+        }
+        withAnimation(Self.sheetEase) { quickAction = destination }
     }
 
     /// A routed v5 pillar screen wrapped in its own nav stack + Done button (mirrors `quickScreen`).

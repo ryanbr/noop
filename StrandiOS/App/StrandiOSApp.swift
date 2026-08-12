@@ -14,6 +14,8 @@ import UserNotifications
 /// `RootTabView` so the iOS app keeps the same gating without depending on the macOS-only shell.
 @main
 struct StrandiOSApp: App {
+    /// UIKit bridge for Home Screen quick actions. SwiftUI keeps ownership of the scene and window.
+    @UIApplicationDelegateAdaptor(HomeScreenQuickActionAppDelegate.self) private var appDelegate
     @StateObject private var model: AppModel
     @StateObject private var health: HealthKitBridge
     /// The phone→watch link. Built + activated here so the watch app actually receives snapshots on a
