@@ -1,5 +1,6 @@
 package com.noop.ui
 
+import com.noop.analytics.StagePercentages
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -85,12 +86,14 @@ private fun hypnogramSummary(stages: List<Pair<String, Float>>): String {
         }
         byStage[key] = (byStage[key] ?: 0f) + v
     }
-    val parts = order.mapNotNull { key ->
+    // One apportionment (largest-remainder) over the four stages so the read-out shares sum to 100 rather
+    // than 99/101 — same helper the visible breakdown rows use; absent stages get 0 and are skipped below.
+    val shares = StagePercentages.wholePercentages(order.map { (byStage[it] ?: 0f).toDouble() })
+    val parts = order.mapIndexedNotNull { i, key ->
         val v = byStage[key] ?: 0f
-        if (v <= 0f) null else {
-            val pct = (v / total * 100f).roundToInt()
+        if (v <= 0f || shares == null) null else {
             val label = if (key == "rem") "REM" else key.replaceFirstChar { it.uppercase() }
-            "$pct percent $label"
+            "${shares[i]} percent $label"
         }
     }
     return if (parts.isEmpty()) "Sleep stages, no data" else "Sleep stages, " + parts.joinToString(", ")
