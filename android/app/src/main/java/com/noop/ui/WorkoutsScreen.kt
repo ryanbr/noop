@@ -804,8 +804,11 @@ private fun CalorieHeatmapSection(recentDays: List<com.noop.data.DailyMetric>) {
             Text("Last 13 weeks · daily burn", style = NoopType.footnote, color = Palette.textTertiary)
             // Quarter total + current streak (streak reuses the Settings streak plural — no new string;
             // the "Active calories" title above supplies the kcal unit for the big number).
-            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(grouped(grid.total), style = NoopType.title1, color = Palette.textPrimary)
+            Row(verticalAlignment = Alignment.Bottom) {
+                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(grouped(grid.total), style = NoopType.title1, color = Palette.textPrimary)
+                    Text("kcal", style = NoopType.caption, color = Palette.textTertiary)  // unit, as elsewhere on this screen
+                }
                 Spacer(Modifier.weight(1f))
                 if (grid.streak > 0) {
                     Text(

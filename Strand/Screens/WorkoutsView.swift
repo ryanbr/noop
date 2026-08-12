@@ -833,10 +833,11 @@ struct WorkoutsView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         // Quarter total + current streak. Both come from the pure builder; the streak
                         // reuses the same "day(s) in a row" copy as the Settings streak (no new string).
-                        HStack(alignment: .firstTextBaseline, spacing: 6) {
-                            // Quarter total (the "Active calories" title above supplies the kcal unit).
+                        HStack(alignment: .firstTextBaseline, spacing: 4) {
                             Text(grouped(grid.total))
                                 .font(StrandFont.number(24)).foregroundStyle(StrandPalette.textPrimary)
+                            Text(String(localized: "KCAL"))   // reuses the miniStat/colHeader unit label
+                                .font(StrandFont.caption).foregroundStyle(StrandPalette.textSecondary)
                             Spacer(minLength: 8)
                             if grid.streak > 0 {
                                 Text("\(grid.streak)").font(StrandFont.number(15))
