@@ -157,11 +157,14 @@ object SleepStager {
      *  this conservative. Mirrors Swift `morningReonsetBandAsleepFrac`. (H8 consume) */
     const val morningReonsetBandAsleepFrac: Double = 0.6
 
-    /** Default-ON gate for the band sleep_state WAKE-veto. Flip to false to fall back to the byte-identical
-     *  pre-veto hypnogram. [bandStateAsleep] is WHOOP's OWN banked verdict (not a signal we re-derive), which
-     *  is why vetoing false-wakes with it is well-founded; it stays a single flip-point + fully tested. An
-     *  absent band stream (WHOOP 4.0 / unbanded window) makes the veto a no-op regardless of this flag.
-     *  Mirrors Swift `bandStateWakeVetoEnabled`. (band sleep_state veto) */
+    /** Default-OFF gate for the band sleep_state WAKE-veto (the SHIPPED state; the pre-veto hypnogram is what
+     *  users see). [bandStateAsleep] is WHOOP's OWN banked verdict (not a signal we re-derive), so vetoing
+     *  false-wakes with it is well-founded on the n=12 that motivated it — but the PSG harness measures the
+     *  recipe UNDER-calling wake overall (bias -4.92 pp), so a veto that converts wake->light moves the
+     *  population result AWAY from truth. Flip to true only with PSG evidence in hand (see #1210), and set
+     *  [bandStateWakeVetoCutoffTs] alongside to spare history. It stays a single flip-point + fully tested
+     *  (tests pass `enabled = true` explicitly). An absent band stream (WHOOP 4.0 / unbanded window) makes the
+     *  veto a no-op regardless of this flag. Mirrors Swift `bandStateWakeVetoEnabled`. (band sleep_state veto) */
     const val bandStateWakeVetoEnabled: Boolean = false
 
     /** #1210 item 2 (retroactive-rescore story): the new-nights-only cutoff. When the veto is flipped on
