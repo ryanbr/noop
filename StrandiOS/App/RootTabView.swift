@@ -6,6 +6,10 @@ import StrandDesign
 /// natural analogue is a `TabView` with the most-used screens as tabs and everything else under a
 /// "More" list. Every screen is the same `StrandDesign`-built view the macOS app uses.
 struct RootTabView: View {
+    /// External entry points must wait until the mandatory first-run gates have completed. The root owns
+    /// that state; keeping it explicit here prevents this shell's window-level sheet from covering a gate.
+    let homeScreenQuickActionsEnabled: Bool
+
     @EnvironmentObject private var repo: Repository
     /// Cross-screen navigation requests (e.g. Live → "Manage devices"). Devices isn't a tab — it lives
     /// behind the More list — so a request presents it as a sheet, matching the quick-action screens.
@@ -145,17 +149,17 @@ struct RootTabView: View {
         // Quick-action sheet presents with the calm easing (~0.42s) per the README sheet spec —
         // the easing is applied where `quickAction` is set (see `presentQuickAction`), keeping the
         // animation scoped to the sheet rather than the whole shell.
-        .sheet(item: $quickAction) { action in
+        .sheet(item: $quickAction, onDismiss: presentPendingHomeScreenQuickActionIfPossible) { action in
             quickActionDestination(action)
         }
         // Live's "Manage devices" affordance (and any future cross-screen link to Devices) routes here:
         // present the Devices manager in its own nav stack, the same way the quick-action screens do.
-        .sheet(isPresented: $showDevices) {
+        .sheet(isPresented: $showDevices, onDismiss: presentPendingHomeScreenQuickActionIfPossible) {
             devicesScreen
         }
         // v5 pillar deep-links (Insights hub / Lab Book / fused record / Rhythm) present as a sheet in
         // their own nav stack — the same idiom the quick-action + Devices screens use on iPhone.
-        .sheet(item: $routedPillar) { dest in
+        .sheet(item: $routedPillar, onDismiss: presentPendingHomeScreenQuickActionIfPossible) { dest in
             pillarScreen(dest)
         }
         // Honour a router request: Devices keeps its dedicated sheet; the v5 pillars route through the
@@ -202,24 +206,32 @@ struct RootTabView: View {
         // A cold-launch selection is already pending when this shell appears; a warm selection arrives
         // through the change callback. Both route through the same screens as the centre FAB.
         .onAppear {
-            if let action = homeScreenQuickActions.pendingAction {
-                presentHomeScreenQuickAction(action)
-            }
+            presentPendingHomeScreenQuickActionIfPossible()
         }
-        .onChange(of: homeScreenQuickActions.pendingAction) { _, action in
-            guard let action else { return }
-            presentHomeScreenQuickAction(action)
+        .onChange(of: homeScreenQuickActions.pendingAction) { _, _ in
+            presentPendingHomeScreenQuickActionIfPossible()
+        }
+        .onChange(of: homeScreenQuickActionsEnabled) { _, _ in
+            presentPendingHomeScreenQuickActionIfPossible()
         }
     }
 
-    private func presentHomeScreenQuickAction(_ action: HomeScreenQuickAction) {
-        homeScreenQuickActions.consume(action)
+    /// Presents only when the mandatory gates and any current shell modal are out of the way. Until then,
+    /// the scene delegate retains the action; each sheet's onDismiss and the readiness change retry it.
+    private func presentPendingHomeScreenQuickActionIfPossible() {
+        guard homeScreenQuickActionsEnabled,
+              quickAction == nil,
+              !showDevices,
+              routedPillar == nil,
+              let action = homeScreenQuickActions.pendingAction else { return }
+
         let destination: QuickAction = switch action {
         case .liveHeartRate: .live
         case .startWorkout: .workout
         case .logJournal: .journal
         case .breathe: .breathe
         }
+        homeScreenQuickActions.consume(action)
         withAnimation(Self.sheetEase) { quickAction = destination }
     }
 

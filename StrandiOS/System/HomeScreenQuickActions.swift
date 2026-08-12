@@ -5,8 +5,8 @@ import UIKit
 /// The app-specific actions shown when someone touches and holds NOOP's Home Screen icon.
 ///
 /// These are dynamic rather than Info.plist actions so their titles come from NOOP's existing
-/// localization catalog and follow the language selected in the app. The menu is installed at launch
-/// and refreshed as the app leaves the foreground.
+/// localization catalog and follow the language selected in the app. The menu is installed at launch;
+/// changing the app language requires the same process restart that updates every other localized bundle.
 enum HomeScreenQuickAction: String, CaseIterable {
     case liveHeartRate = "com.noop.quick-action.live-heart-rate"
     case startWorkout = "com.noop.quick-action.start-workout"
@@ -97,11 +97,6 @@ final class HomeScreenQuickActionSceneDelegate: NSObject, UIWindowSceneDelegate,
         if let shortcutItem = connectionOptions.shortcutItem {
             pendingAction = HomeScreenQuickAction(shortcutItem: shortcutItem)
         }
-    }
-
-    func sceneWillResignActive(_ scene: UIScene) {
-        // Refresh the titles after an in-app language change before the Home Screen menu can appear.
-        HomeScreenQuickAction.install()
     }
 
     func windowScene(
