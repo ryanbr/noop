@@ -988,6 +988,14 @@ object IntelligenceEngine {
                     "matched=${res.sleepSessions.size} " +
                     "source=${daySourceToken(daily.day, importedWhoopDays, appleHealthDays)}",
             )
+            // #674/#1244: flag a COMPUTED day carrying a sleep total with NO matched session — the folded
+            // edited/hand-logged block on a day the detector staged nothing (see sleepDivergenceLogLine).
+            // Scoped to computed days: an imported-total-only day legitimately has a total without our
+            // sessions, so it is NOT a divergence.
+            val imported = daily.day in importedWhoopDays || daily.day in appleHealthDays
+            if (!imported && daily.totalSleepMin != null && res.sleepSessions.isEmpty()) {
+                diag(sleepDivergenceLogLine(daily.day, Math.round(daily.totalSleepMin).toInt(), dayEditedRows.size))
+            }
             // #195: one always-on line per scored night with the computed HRV value + the window it used,
             // so an "HRV reads high / deep-sleep window not changing" report is self-diagnosing straight
             // from the strap log — the whole-night vs deep-sleep value, and `avgHrv=nil window=deep` when a
@@ -2007,6 +2015,18 @@ object IntelligenceEngine {
         return "sleep-detect day=$day NO-NIGHT hr=$hrCount rr=$rrCount resp=$respCount " +
             "grav=$gravCount steps=$stepCount provided=$providedCount window=${windowHours}h"
     }
+
+    /**
+     * #674/#1244: the "sleep total with no matched session" divergence line. A COMPUTED day whose fresh
+     * scoring pass matched ZERO detected sleep sessions yet still carries a non-null totalSleepMin — the
+     * value comes from a folded edited/hand-logged block (sleepEditedDaily) on a day the detector staged
+     * nothing (often a day absorbed into a neighbour's coupled window, so it never got its own pass). That
+     * total leaks to Today/Coupled while the Sleep tab (session-backed) shows nothing. [editFold] = how
+     * many edited/manual rows folded a total onto this session-less day, so the next capture proves whether
+     * it's an orphaned edit. Counts only, no PII. Pure; byte-identical to the Swift `sleepDivergenceLogLine`.
+     */
+    internal fun sleepDivergenceLogLine(day: String, totalSleepMin: Int, editFold: Int): String =
+        "sleep divergence day=$day totalSleepMin=$totalSleepMin matched=0 editFold=$editFold"
 
     /**
      * #1248: the device ids the banked-sleep heal (#899) must sweep — the computed-scores id AND every
