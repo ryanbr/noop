@@ -279,13 +279,13 @@ internal fun FilledHypnogram(
                 val segW = (x1 - x0).coerceAtLeast(1.5f).coerceAtMost(w - x0)
                 if (filled) {
                     drawRect(
-                        color = stageColorFor(iv.stage),
+                        color = stageColorForBrand(iv.stage, filled),
                         topLeft = Offset(x0, y),
                         size = Size(segW, (h - y).coerceAtLeast(0f)),
                     )
                 } else {
                     drawRect(
-                        color = stageColorFor(iv.stage),
+                        color = stageColorForBrand(iv.stage, filled),
                         topLeft = Offset(x0, y - ribbonThickness / 2f),
                         size = Size(segW, ribbonThickness),
                     )
@@ -447,4 +447,25 @@ private fun stageColorFor(name: String): Color = when (canonicalStage(name)) {
     "light" -> Palette.sleepLight
     "awake" -> Palette.sleepAwake
     else -> Palette.sleepLight
+}
+
+// Brand sleep ramps for the stepped [FilledHypnogram]: Garmin's for Filled (blue light/deep + magenta REM),
+// Oura's for Ribbon (cream awake + blues, sampled from the ring's app), so the chart reads like the app it's
+// modelled on. Byte-identical hexes to the Swift `StrandPalette.sleepStageColorBrand`. The classic hero
+// strip ([HypnogramWithAxis]) keeps the NOOP tokens via [stageColorFor]. (#sleep-chart-style)
+private val ouraSleepAwake = Color(0xFFEAE3D3)
+private val ouraSleepREM = Color(0xFF90D0F0)
+private val ouraSleepLight = Color(0xFF40B0E0)
+private val ouraSleepDeep = Color(0xFF206080)
+private val garminSleepAwake = Color(0xFFF26FE8)
+private val garminSleepREM = Color(0xFFE22DD0)
+private val garminSleepLight = Color(0xFF4AA6F2)
+private val garminSleepDeep = Color(0xFF2472D8)
+
+private fun stageColorForBrand(name: String, filled: Boolean): Color = when (canonicalStage(name)) {
+    "deep" -> if (filled) garminSleepDeep else ouraSleepDeep
+    "rem" -> if (filled) garminSleepREM else ouraSleepREM
+    "light" -> if (filled) garminSleepLight else ouraSleepLight
+    "awake" -> if (filled) garminSleepAwake else ouraSleepAwake
+    else -> if (filled) garminSleepLight else ouraSleepLight
 }

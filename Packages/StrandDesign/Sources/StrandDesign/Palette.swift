@@ -376,6 +376,33 @@ public enum StrandPalette {
         }
     }
 
+    // Brand sleep ramps for the two stepped-hypnogram styles, so the chart reads like the app it's modelled
+    // on. Ribbon = Oura's ramp (cream awake + blues, sampled from the ring's app); Filled = Garmin's
+    // (blue light/deep + magenta REM). Opt-in only (Sleep-tab stepped chart) — every other Hypnogram caller
+    // keeps `sleepStageColor`. Flat (theme-independent): both source apps are dark-tuned. (#sleep-chart-style)
+    static let oSleepAwake = Color(light: "#EAE3D3", dark: "#EAE3D3")
+    static let oSleepREM   = Color(light: "#90D0F0", dark: "#90D0F0")
+    static let oSleepLight = Color(light: "#40B0E0", dark: "#40B0E0")
+    static let oSleepDeep  = Color(light: "#206080", dark: "#206080")
+    static let gSleepAwake = Color(light: "#F26FE8", dark: "#F26FE8")
+    static let gSleepREM   = Color(light: "#E22DD0", dark: "#E22DD0")
+    static let gSleepLight = Color(light: "#4AA6F2", dark: "#4AA6F2")
+    static let gSleepDeep  = Color(light: "#2472D8", dark: "#2472D8")
+
+    /// The brand sleep ramp for the stepped hypnogram: Garmin's for Filled, Oura's for Ribbon.
+    public static func sleepStageColorBrand(_ stage: SleepStage, filled: Bool) -> Color {
+        switch (filled, stage) {
+        case (true, .awake): return gSleepAwake
+        case (true, .light): return gSleepLight
+        case (true, .deep):  return gSleepDeep
+        case (true, .rem):   return gSleepREM
+        case (false, .awake): return oSleepAwake
+        case (false, .light): return oSleepLight
+        case (false, .deep):  return oSleepDeep
+        case (false, .rem):   return oSleepREM
+        }
+    }
+
     // MARK: - Linear gradient stop interpolation
 
     /// Interpolate a set of gradient stops at a normalized position 0...1.

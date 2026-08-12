@@ -178,7 +178,8 @@ struct StageDetailView: View {
                     showsHover: true,
                     nightStart: nil,
                     showsTimeAxis: false,
-                    filled: filled
+                    filled: filled,
+                    brandPalette: true   // Filled → Garmin ramp, Ribbon → Oura ramp
                 )
             },
             footer: { stageBreakdownRows(s) }

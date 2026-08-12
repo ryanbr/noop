@@ -829,7 +829,8 @@ struct SleepView: View {
                     showsHover: true,
                     nightStart: night.onsetDate,
                     showsTimeAxis: true,
-                    filled: filled
+                    filled: filled,
+                    brandPalette: true   // Filled → Garmin ramp, Ribbon → Oura ramp
                 )
             },
             // The stepped chart carries no built-in legend (the rows ARE the legend in Classic), so surface
