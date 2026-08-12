@@ -812,7 +812,11 @@ public final class OuraLiveSource: NSObject, ObservableObject {
             }
             persistSleepSession(session)
             let effStr = session.efficiency.map { String(format: "%.0f%%", $0 * 100) } ?? "n/a"
-            log("Oura: sleep session persisted [\(startStr) → \(endStr)] eff=\(effStr) → \(deviceId) (ring-provided night; wins merge over computed)")
+            // #1284 residual 3: stamp the 0x49 anchor state on EVERY persist, so an unanchored early-drain row
+            // (the prime suspect for the short nested duplicate) is self-evident even when it is the FIRST
+            // persist, before the duplicate-gen line above can fire.
+            let anchorTag = sleepStart != nil ? "0x49-anchored" : "NO-0x49-anchor"
+            log("Oura: sleep session persisted [\(startStr) → \(endStr)] eff=\(effStr) [\(anchorTag)] → \(deviceId) (ring-provided night; wins merge over computed)")
         }
     }
 

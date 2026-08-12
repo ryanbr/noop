@@ -756,7 +756,11 @@ class OuraLiveSource(
             }
             persistSleepSession(it, deviceId)
             val effStr = it.efficiency?.let { e -> "${(e * 100).toInt()}%" } ?: "n/a"
-            log("Oura: sleep session persisted [$start -> $end] eff=$effStr -> $deviceId (ring-provided night; wins merge over computed)")
+            // #1284 residual 3: stamp the 0x49 anchor state on EVERY persist, so an unanchored early-drain row
+            // (the prime suspect for the short nested duplicate) is self-evident even when it is the FIRST
+            // persist, before the duplicate-gen line above can fire.
+            val anchorTag = if (sleepStart != null) "0x49-anchored" else "NO-0x49-anchor"
+            log("Oura: sleep session persisted [$start -> $end] eff=$effStr [$anchorTag] -> $deviceId (ring-provided night; wins merge over computed)")
         }
     }
 
