@@ -59,4 +59,18 @@ final class BatteryPackInfoTests: XCTestCase {
         XCTAssertNil(BatteryPackInfo.decode(frame: mut([10: 0])))                     // not a 151 response
         XCTAssertNil(BatteryPackInfo.decode(frame: mut([12: 0])))                     // not SUCCESS
     }
+
+    /// WHOOP 4.0 path: the pack is read via GET_EXTENDED_BATTERY_INFO (98), reporting VOLTAGE not a %.
+    /// The frame is the #592 WHOOP4 capture (pay[7..8] = 0x0f82 = 3970 mV). The Kotlin twin asserts the same.
+    func testWhoop4PackReportsVoltageNotPercent() {
+        let realFrame = "aa2400fa24c6620d010165006bff820f0c0128000f05e90321120200010100001a0000004675fe58"
+        let info = BatteryPackInfo.decodeExtended(frame: bytes(realFrame))
+        XCTAssertEqual(info?.present, true)
+        XCTAssertEqual(info?.voltageMv, 3970)   // 3.97 V
+        XCTAssertNil(info?.socPct)              // 4.0 has no fuel-gauge %
+        XCTAssertNil(info?.serial)
+        // A 5/MG 151 frame is not a 98 response → nil; and the 5/MG SoC decode never fills voltage.
+        XCTAssertNil(BatteryPackInfo.decodeExtended(frame: bytes(attachedHex)))
+        XCTAssertNil(BatteryPackInfo.decode(frame: bytes(attachedHex))?.voltageMv)
+    }
 }

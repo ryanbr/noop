@@ -20,6 +20,9 @@ object BatteryPackInfo {
         val socPct: Double?,
         val serial: String?,
         val btAddr: String?,
+        /** WHOOP 4.0 only: pack VOLTAGE in mV — a 4.0 has no fuel-gauge command, so its pack is read via
+         *  GET_EXTENDED_BATTERY_INFO (98) which reports voltage, not a charge %. null on 5/MG. */
+        val voltageMv: Int? = null,
     )
 
     /** Resp-cmd byte sits at [cmdOff] (10 on WHOOP 5/MG — the only family with a pack). Null when the
@@ -46,5 +49,21 @@ object BatteryPackInfo {
         else String(serBytes.toByteArray(), Charsets.US_ASCII)
         val raw = (frame[socStart].toInt() and 0xFF) or ((frame[socStart + 1].toInt() and 0xFF) shl 8)
         return Info(true, raw / 10.0, serial, btAddr)
+    }
+
+    /**
+     * WHOOP 4.0 path. A 4.0 has no `GET_BATTERY_PACK_INFO` (151); its pack is read via
+     * `GET_EXTENDED_BATTERY_INFO` (98), which reports the pack VOLTAGE (mV) — NOT a charge %. Voltage at
+     * payload bytes 7..8 (LE), i.e. `frame[cmdOff+8..cmdOff+9]`, confirmed on WHOOP4 (#592: a 3970 mV
+     * capture); [cmdOff] is 6 on WHOOP4. Same offset noop's `ExtendedBatteryProbe` reads. Null when the
+     * frame is not a 98 response with a voltage payload. Byte-identical twin of Swift `decodeExtended`.
+     */
+    fun decodeExtended(frame: ByteArray, cmdOff: Int = 6): Info? {
+        // The voltage bytes must fall inside the payload (before the 4-byte CRC32 trailer) ⇒ len >= cmdOff+14.
+        if (cmdOff < 0 || frame.size < cmdOff + 14 || (frame[cmdOff].toInt() and 0xFF) != 98) return null
+        val mv = (frame[cmdOff + 8].toInt() and 0xFF) or ((frame[cmdOff + 9].toInt() and 0xFF) shl 8)
+        // 0 mV is not a real reading (no pack / empty answer) → report absence, not "0.00 V".
+        if (mv <= 0) return Info(false, null, null, null)
+        return Info(true, null, null, null, voltageMv = mv)
     }
 }

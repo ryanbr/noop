@@ -22,9 +22,13 @@ public enum BatteryPackInfo {
         public let serial: String?
         /// The pack's Bluetooth address as lowercase hex — identity, not a reading. nil when absent.
         public let btAddr: String?
+        /// WHOOP 4.0 only: the pack VOLTAGE in millivolts. A 4.0 has no fuel-gauge command, so its pack is
+        /// read via GET_EXTENDED_BATTERY_INFO (98) which reports voltage, NOT a charge %. nil on 5/MG.
+        public let voltageMv: Int?
 
-        public init(present: Bool, socPct: Double?, serial: String?, btAddr: String?) {
-            self.present = present; self.socPct = socPct; self.serial = serial; self.btAddr = btAddr
+        public init(present: Bool, socPct: Double?, serial: String?, btAddr: String?, voltageMv: Int? = nil) {
+            self.present = present; self.socPct = socPct; self.serial = serial
+            self.btAddr = btAddr; self.voltageMv = voltageMv
         }
     }
 
@@ -52,5 +56,21 @@ public enum BatteryPackInfo {
         let raw = Int(frame[socStart]) | (Int(frame[socStart + 1]) << 8)
         let socPct = Double(raw) / 10.0
         return Info(present: true, socPct: socPct, serial: serial, btAddr: btAddr)
+    }
+
+    /// WHOOP 4.0 path. A 4.0 has no `GET_BATTERY_PACK_INFO` (151); its pack is read via
+    /// `GET_EXTENDED_BATTERY_INFO` (98), which reports the pack VOLTAGE (mV) — NOT a charge %. The
+    /// voltage sits at payload bytes 7..8 (little-endian), i.e. `frame[cmdOff+8..cmdOff+9]`, confirmed on
+    /// WHOOP4 (#592: a 3970 mV capture); `cmdOff` is 6 on WHOOP4. This is the same offset noop's
+    /// `ExtendedBatteryProbe` reads. Returns an Info carrying only `voltageMv`, or nil when the frame is
+    /// not a 98 response with a voltage payload.
+    public static func decodeExtended(frame: [UInt8], cmdOff: Int = 6) -> Info? {
+        // Need the voltage bytes to fall inside the payload (before the 4-byte CRC32 trailer): the payload
+        // ends at frame.count - 4, so byte cmdOff+9 must be < that ⇒ frame.count >= cmdOff + 14.
+        guard cmdOff >= 0, frame.count >= cmdOff + 14, Int(frame[cmdOff]) == 98 else { return nil }
+        let mv = Int(frame[cmdOff + 8]) | (Int(frame[cmdOff + 9]) << 8)
+        // 0 mV is not a real pack reading (no pack / empty answer) — report absence rather than "0.00 V".
+        guard mv > 0 else { return Info(present: false, socPct: nil, serial: nil, btAddr: nil) }
+        return Info(present: true, socPct: nil, serial: nil, btAddr: nil, voltageMv: mv)
     }
 }

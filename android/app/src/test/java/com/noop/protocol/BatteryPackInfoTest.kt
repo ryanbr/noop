@@ -58,4 +58,17 @@ class BatteryPackInfoTest {
         assertNull(BatteryPackInfo.decode(mut(10 to 0)))                   // not a 151 response
         assertNull(BatteryPackInfo.decode(mut(12 to 0)))                   // not SUCCESS
     }
+
+    /** WHOOP 4.0 path: pack read via GET_EXTENDED_BATTERY_INFO (98), reporting VOLTAGE not a %. The frame
+     *  is the #592 WHOOP4 capture (pay[7..8] = 0x0f82 = 3970 mV); same values the Swift twin asserts. */
+    @Test fun whoop4PackReportsVoltageNotPercent() {
+        val realFrame = "aa2400fa24c6620d010165006bff820f0c0128000f05e90321120200010100001a0000004675fe58"
+        val info = BatteryPackInfo.decodeExtended(bytes(realFrame))!!
+        assertEquals(true, info.present)
+        assertEquals(3970, info.voltageMv)   // 3.97 V
+        assertNull(info.socPct)              // 4.0 has no fuel-gauge %
+        assertNull(info.serial)
+        assertNull(BatteryPackInfo.decodeExtended(bytes(attachedHex)))   // 151 frame is not a 98 response
+        assertNull(BatteryPackInfo.decode(bytes(attachedHex))!!.voltageMv) // 5/MG decode never fills voltage
+    }
 }
