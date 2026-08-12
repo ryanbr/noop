@@ -101,4 +101,17 @@ final class LiveStateLogGenerationsTests: XCTestCase {
     func testNoGenerationsRendersNothing() {
         XCTAssertEqual(LiveState.previousSessionsText(), "")
     }
+
+    /// #1263: a manual export taken BEFORE this process's first append must still carry the previous
+    /// session. `exportableLogText()` rolls the surviving tail itself (not only `append`), so an
+    /// instant post-restart Report is not empty — the exact case the generation ring exists for.
+    func testExportBeforeFirstAppendStillCarriesThePreviousSession() {
+        UserDefaults.standard.set(["last night 03:14 reconnect storm", "03:15 gave up"], forKey: tailKey)
+        // Fresh process: setUp reset the roll latch and the in-memory `log` is empty (no append yet).
+        let text = LiveState().exportableLogText()
+        XCTAssertTrue(text.contains("last night 03:14 reconnect storm"),
+                      "export before the first append must roll + include the previous session")
+        XCTAssertTrue(text.contains("previous app session"), "the previous session keeps its header")
+        XCTAssertEqual(LiveState.persistedLogTail(), [], "the roll clears the live slot")
+    }
 }

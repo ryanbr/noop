@@ -756,6 +756,12 @@ public final class LiveState: ObservableObject {
     /// session log. Shared so BOTH the Live screen's log card AND a macOS Settings shortcut (#507 — a 4.0
     /// owner couldn't find the log on Mac) build the SAME text. Call on the main thread (button taps).
     func exportableLogText(extraHeaderLines: [String] = []) -> String {
+        // #1263: roll here too, not only in `append`. A restart's export is the whole point of the
+        // generation ring, and a user can open the app and tap Report BEFORE this process logs its first
+        // line — at which point the previous session is still in `tailKey` (unrolled) and the in-memory
+        // `log` is empty, so `previousSessionsText()` below would miss it. The roll is latched + a no-op on
+        // an empty tail, so this is harmless when `append` already ran.
+        Self.rollLogGenerationsIfNeeded()
         let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
         #if os(iOS)
         let osName = "iOS"
