@@ -1239,7 +1239,9 @@ fun SettingsScreen(
                     label = {
                         when (it) {
                             SleepChartStyle.FILLED -> "Fill"
-                            SleepChartStyle.GARMIN_FILLED -> "Garmin Fill"
+                            // "Garmin" not "Garmin Fill": four equal-width segments ellipsis-truncate a long
+                            // label on a normal-width phone (iOS keeps "Garmin Fill" — it's a menu, not a pill).
+                            SleepChartStyle.GARMIN_FILLED -> "Garmin"
                             SleepChartStyle.RIBBON -> "Ribbon"
                             else -> "Classic"
                         }
