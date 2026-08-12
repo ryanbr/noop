@@ -1251,8 +1251,17 @@ private fun Hero(
         // with the SAME mechanism main sleep uses, plus a Main / Nap(s) / Total split so what drives the
         // day's Rest total is explainable. Mirrors iOS SleepView.napSection.
         if (session != null) {
+            // Main = the WHOLE bridged main-night group's summed stage minutes (`display.stages.total`,
+            // the shared SleepModel's group total), NOT the winning fragment's window — a biphasic/
+            // bridged night has sibling fragments that are part of the main sleep, not naps. Mirrors iOS
+            // SleepView.napSection (`night.stages.total`); the old single-block window undercounted the
+            // Main / Total split on a fragmented night and disagreed with the hero above it. Window
+            // fallback only for a stage-less stub day (display == null), byte-identical to before there.
+            val mainMin = display?.stages?.total
+                ?: (session.endTs - session.effectiveStartTs) / 60.0
             NapsCard(
                 main = session,
+                mainMin = mainMin,
                 naps = napBlocks,
                 onEditNapTimes = onUpdateTimes,
                 onDeleteNap = onDeleteSession,
@@ -1274,6 +1283,10 @@ private fun Hero(
 @Composable
 private fun NapsCard(
     main: SleepSession,
+    // The day's MAIN-sleep minutes = the whole bridged main-night group's summed stage minutes
+    // (iOS `night.stages.total`), passed in from the hero's already-resolved `display.stages.total`
+    // so the split matches the hero. NOT `main`'s own window — that undercounts a bridged night.
+    mainMin: Double,
     naps: List<SleepSession>,
     onEditNapTimes: (SleepSession, Long, Long) -> Unit,
     onDeleteNap: (SleepSession) -> Unit,
@@ -1283,7 +1296,6 @@ private fun NapsCard(
     // Active strap is an Oura ring → a computed night's provenance reads "Oura" not "On-device" (C4).
     activeIsOura: Boolean = false,
 ) {
-    val mainMin = (main.endTs - main.effectiveStartTs) / 60.0
     val napMin = naps.sumOf { (it.endTs - it.effectiveStartTs) / 60.0 }
     NoopCard(padding = Metrics.space14, tint = Palette.restColor) {
         Column(verticalArrangement = Arrangement.spacedBy(Metrics.space12)) {
