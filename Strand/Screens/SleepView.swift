@@ -733,12 +733,13 @@ struct SleepView: View {
                 // (ryanAtriumAi #988) — hatched track = the whole night, solid segments = when that stage
                 // occurred, tap a row to highlight it. Filled/Ribbon draw the WHOOP-style single stepped
                 // hypnogram (filled to the baseline, or a slim band) with the breakdown rows as the legend.
-                switch SleepChartStyle.resolve(sleepChartStyleRaw) {
+                let chartStyle = SleepChartStyle.resolve(sleepChartStyleRaw)
+                switch chartStyle {
                 case .classic:
                     stageTimelineCard(s, subtitle: subtitle, intervals: intervals, night: night)
-                case .filled, .ribbon:
+                case .filled, .garminFilled, .ribbon:
                     steppedHypnogramCard(s, subtitle: subtitle, intervals: intervals, night: night,
-                                         filled: SleepChartStyle.resolve(sleepChartStyleRaw) == .filled)
+                                         style: chartStyle)
                 }
             } else {
                 ChartCard(
@@ -814,7 +815,7 @@ struct SleepView: View {
     /// segments (the shared `intervals`). The stages/totals are identical to Classic — this only redraws.
     @ViewBuilder
     private func steppedHypnogramCard(_ s: Stages, subtitle: String, intervals: [SleepInterval],
-                                      night: Night, filled: Bool) -> some View {
+                                      night: Night, style: SleepChartStyle) -> some View {
         ChartCard(
             title: "Stage breakdown",
             subtitle: subtitle,
@@ -829,13 +830,18 @@ struct SleepView: View {
                     showsHover: true,
                     nightStart: night.onsetDate,
                     showsTimeAxis: true,
-                    filled: filled,
-                    brandPalette: true   // Filled → Garmin ramp, Ribbon → Oura ramp
+                    filled: style.isFilled,
+                    stagePalette: style.stagePalette
                 )
             },
-            // The stepped chart carries no built-in legend (the rows ARE the legend in Classic), so surface
-            // the per-stage breakdown below it — the same apportioned rows the Classic view uses.
-            footer: { stageBreakdownRows(s) }
+            // A colour-coded key in the chart's ramp so the bands are decodable (esp. the Garmin ramp's two
+            // pinks), then the per-stage breakdown rows below.
+            footer: {
+                VStack(alignment: .leading, spacing: NoopMetrics.space2) {
+                    SleepStageLegend(palette: style.stagePalette)
+                    stageBreakdownRows(s)
+                }
+            }
         )
     }
 

@@ -11,7 +11,14 @@ final class SleepChartStyleTests: XCTestCase {
         XCTAssertEqual(SleepChartStyle.filled.rawValue, "filled")
         XCTAssertEqual(SleepChartStyle.ribbon.rawValue, "ribbon")
         // Exactly these three, in this order (parity with the Kotlin enum entries).
-        XCTAssertEqual(SleepChartStyle.allCases.map(\.rawValue), ["classic", "filled", "ribbon"])
+        XCTAssertEqual(SleepChartStyle.garminFilled.rawValue, "garminFilled")
+        XCTAssertEqual(SleepChartStyle.allCases.map(\.rawValue), ["classic", "filled", "garminFilled", "ribbon"])
+        // Style → ramp mapping: Fill/Classic keep NOOP, Garmin Fill → Garmin, Ribbon → Oura.
+        XCTAssertEqual(SleepChartStyle.filled.stagePalette, .noop)
+        XCTAssertEqual(SleepChartStyle.garminFilled.stagePalette, .garmin)
+        XCTAssertEqual(SleepChartStyle.ribbon.stagePalette, .oura)
+        XCTAssertTrue(SleepChartStyle.filled.isFilled && SleepChartStyle.garminFilled.isFilled)
+        XCTAssertFalse(SleepChartStyle.ribbon.isFilled || SleepChartStyle.classic.isFilled)
     }
 
     func testStorageKeyMatchesTheAndroidPrefKey() {

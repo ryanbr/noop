@@ -1178,22 +1178,27 @@ private fun Hero(
                 // default, unchanged for everyone who doesn't switch).
                 val chartStyle = UnitPrefs.sleepChartStyle(LocalContext.current)
                 val filledSegments = display.hypnogramSegments?.takeIf { it.size >= 2 }
-                if ((chartStyle == SleepChartStyle.FILLED || chartStyle == SleepChartStyle.RIBBON) &&
-                    filledSegments != null) {
+                if (chartStyle != SleepChartStyle.CLASSIC && filledSegments != null) {
                     ChartCard(
                         title = uiString(R.string.l10n_sleep_screen_stage_breakdown_e9b714f9),
                         subtitle = subtitle,
                         trailing = durationText(s.asleep),
                         tint = Palette.restColor,
-                        // The stepped chart carries no built-in legend (the rows ARE the legend in the
-                        // classic view), so surface the per-stage breakdown below it, like the reference.
-                        footer = { StageBreakdownRows(s) },
+                        // A colour-coded key in the chart's ramp so the bands are decodable (esp. the Garmin
+                        // ramp's two pinks), then the per-stage breakdown rows below.
+                        footer = {
+                            Column(verticalArrangement = Arrangement.spacedBy(Metrics.space6)) {
+                                SleepStageLegend(chartStyle.stagePalette)
+                                StageBreakdownRows(s)
+                            }
+                        },
                     ) {
                         FilledHypnogram(
                             segments = filledSegments,
                             onsetTs = windowOnsetTs ?: session?.effectiveStartTs,
                             wakeTs = windowWakeTs ?: session?.endTs,
-                            filled = chartStyle == SleepChartStyle.FILLED,
+                            filled = chartStyle.isFilled,
+                            palette = chartStyle.stagePalette,
                         )
                     }
                 } else {
@@ -2653,20 +2658,25 @@ internal fun StagesHostCard(m: SleepModel) {
         if (real != null) {
             val chartStyle = UnitPrefs.sleepChartStyle(LocalContext.current)
             val filledSegments = m.hypnogramSegments?.takeIf { it.size >= 2 }
-            if ((chartStyle == SleepChartStyle.FILLED || chartStyle == SleepChartStyle.RIBBON) &&
-                filledSegments != null) {
+            if (chartStyle != SleepChartStyle.CLASSIC && filledSegments != null) {
                 ChartCard(
                     title = uiString(R.string.l10n_sleep_screen_stage_breakdown_e9b714f9),
                     subtitle = subtitle,
                     trailing = durationText(s.asleep),
                     tint = Palette.restColor,
-                    footer = { StageBreakdownRows(s) },
+                    footer = {
+                        Column(verticalArrangement = Arrangement.spacedBy(Metrics.space6)) {
+                            SleepStageLegend(chartStyle.stagePalette)
+                            StageBreakdownRows(s)
+                        }
+                    },
                 ) {
                     FilledHypnogram(
                         segments = filledSegments,
                         onsetTs = null,
                         wakeTs = null,
-                        filled = chartStyle == SleepChartStyle.FILLED,
+                        filled = chartStyle.isFilled,
+                        palette = chartStyle.stagePalette,
                     )
                 }
             } else {

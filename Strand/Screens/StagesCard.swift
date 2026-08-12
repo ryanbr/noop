@@ -82,12 +82,12 @@ struct StageDetailView: View {
                 // #sleep-chart-style: Classic keeps the per-stage timeline ROWS (ryanAtriumAi #988);
                 // Filled/Ribbon draw the WHOOP-style stepped hypnogram with the breakdown rows as the
                 // legend — switching with the Sleep tab and Android's StagesHostCard.
-                switch SleepChartStyle.resolve(sleepChartStyleRaw) {
+                let chartStyle = SleepChartStyle.resolve(sleepChartStyleRaw)
+                switch chartStyle {
                 case .classic:
                     stageTimelineCard(s, subtitle: subtitle, intervals: intervals, night: night)
-                case .filled, .ribbon:
-                    steppedHypnogramCard(s, subtitle: subtitle, intervals: intervals,
-                                         filled: SleepChartStyle.resolve(sleepChartStyleRaw) == .filled)
+                case .filled, .garminFilled, .ribbon:
+                    steppedHypnogramCard(s, subtitle: subtitle, intervals: intervals, style: chartStyle)
                 }
             } else {
                 ChartCard(
@@ -163,7 +163,7 @@ struct StageDetailView: View {
     /// here when the night has ≥2 real segments; the stages/totals are identical to Classic.
     @ViewBuilder
     private func steppedHypnogramCard(_ s: Stages, subtitle: String, intervals: [SleepInterval],
-                                      filled: Bool) -> some View {
+                                      style: SleepChartStyle) -> some View {
         ChartCard(
             title: "Stage breakdown",
             subtitle: subtitle,
@@ -178,11 +178,16 @@ struct StageDetailView: View {
                     showsHover: true,
                     nightStart: nil,
                     showsTimeAxis: false,
-                    filled: filled,
-                    brandPalette: true   // Filled → Garmin ramp, Ribbon → Oura ramp
+                    filled: style.isFilled,
+                    stagePalette: style.stagePalette
                 )
             },
-            footer: { stageBreakdownRows(s) }
+            footer: {
+                VStack(alignment: .leading, spacing: NoopMetrics.space2) {
+                    SleepStageLegend(palette: style.stagePalette)
+                    stageBreakdownRows(s)
+                }
+            }
         )
     }
 

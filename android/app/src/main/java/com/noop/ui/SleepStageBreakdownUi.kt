@@ -2,6 +2,7 @@ package com.noop.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -211,6 +212,8 @@ internal fun FilledHypnogram(
     // true → each stage FILLS its column to the baseline (the stepped-area look). false → a slim uniform
     // RIBBON at each stage level (the WHOOP-style stepped line), which reads cleaner on a fragmented night.
     filled: Boolean = true,
+    // The stage-colour ramp: NOOP tokens (Fill), Garmin's (Garmin Fill), or Oura's (Ribbon).
+    palette: SleepStagePalette = SleepStagePalette.NOOP,
 ) {
     if (segments.isEmpty()) return
     val originSec = (onsetTs?.toDouble()) ?: segments.minOf { it.start }.toDouble()
@@ -279,13 +282,13 @@ internal fun FilledHypnogram(
                 val segW = (x1 - x0).coerceAtLeast(1.5f).coerceAtMost(w - x0)
                 if (filled) {
                     drawRect(
-                        color = stageColorForBrand(iv.stage, filled),
+                        color = stageColorForRamp(iv.stage, palette),
                         topLeft = Offset(x0, y),
                         size = Size(segW, (h - y).coerceAtLeast(0f)),
                     )
                 } else {
                     drawRect(
-                        color = stageColorForBrand(iv.stage, filled),
+                        color = stageColorForRamp(iv.stage, palette),
                         topLeft = Offset(x0, y - ribbonThickness / 2f),
                         size = Size(segW, ribbonThickness),
                     )
@@ -317,6 +320,27 @@ internal fun FilledHypnogram(
         }
         if (axisTicks.isNotEmpty()) {
             HypnogramTimeAxis(axisTicks)
+        }
+    }
+}
+
+/** A compact colour-coded key for the stepped hypnogram: one dot + label per stage in the chart's ramp, so
+ *  the bands are decodable (esp. the Garmin ramp's two pinks, Awake vs REM). Twin of Swift SleepStageLegend. */
+@Composable
+internal fun SleepStageLegend(palette: SleepStagePalette) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        for (label in listOf("Awake", "REM", "Light", "Deep")) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(stageColorForRamp(label, palette)))
+                Text(label, style = NoopType.caption, color = Palette.textSecondary, maxLines = 1)
+            }
         }
     }
 }
@@ -503,10 +527,14 @@ private val garminSleepREM: Color get() = brand(BrandSleepRamp.GARMIN_REM_LIGHT,
 private val garminSleepLight: Color get() = brand(BrandSleepRamp.GARMIN_LIGHT_LIGHT, BrandSleepRamp.GARMIN_LIGHT_DARK)
 private val garminSleepDeep: Color get() = brand(BrandSleepRamp.GARMIN_DEEP_LIGHT, BrandSleepRamp.GARMIN_DEEP_DARK)
 
-private fun stageColorForBrand(name: String, filled: Boolean): Color = when (canonicalStage(name)) {
-    "deep" -> if (filled) garminSleepDeep else ouraSleepDeep
-    "rem" -> if (filled) garminSleepREM else ouraSleepREM
-    "light" -> if (filled) garminSleepLight else ouraSleepLight
-    "awake" -> if (filled) garminSleepAwake else ouraSleepAwake
-    else -> if (filled) garminSleepLight else ouraSleepLight
+private fun stageColorForRamp(name: String, palette: SleepStagePalette): Color = when (palette) {
+    SleepStagePalette.NOOP -> stageColorFor(name)
+    SleepStagePalette.OURA -> when (canonicalStage(name)) {
+        "deep" -> ouraSleepDeep; "rem" -> ouraSleepREM; "light" -> ouraSleepLight
+        "awake" -> ouraSleepAwake; else -> ouraSleepLight
+    }
+    SleepStagePalette.GARMIN -> when (canonicalStage(name)) {
+        "deep" -> garminSleepDeep; "rem" -> garminSleepREM; "light" -> garminSleepLight
+        "awake" -> garminSleepAwake; else -> garminSleepLight
+    }
 }

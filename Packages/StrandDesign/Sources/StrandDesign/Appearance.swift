@@ -33,23 +33,42 @@ public enum ChartStyle: String, CaseIterable, Identifiable, Sendable {
 /// rawValues and the same `sleep.chart.style` key, so a device reads its own choice consistently.
 /// Device-local (NOT in the `.noopbak` whitelist), like the Android pref.
 public enum SleepChartStyle: String, CaseIterable, Identifiable, Sendable {
-    case classic   // per-stage-rows timeline (the default, unchanged)
-    case filled    // single stepped hypnogram, each stage filled from its lane to the baseline
-    case ribbon    // the same stepped chart drawn as a slim band at each stage level
+    case classic       // per-stage-rows timeline (the default, unchanged)
+    case filled        // stepped hypnogram filled to the baseline, NOOP sleep colours
+    case garminFilled  // the same filled chart in Garmin's blue/magenta ramp
+    case ribbon        // slim band at each stage level, Oura's cream/blue ramp
 
     public var id: String { rawValue }
     public static let storageKey = "sleep.chart.style"
 
     public var label: String {
         switch self {
-        case .classic: return String(localized: "Classic", bundle: .module)
-        case .filled:  return String(localized: "Filled", bundle: .module)
-        case .ribbon:  return String(localized: "Ribbon", bundle: .module)
+        case .classic:      return String(localized: "Classic", bundle: .module)
+        case .filled:       return String(localized: "Fill", bundle: .module)
+        case .garminFilled: return String(localized: "Garmin Fill", bundle: .module)
+        case .ribbon:       return String(localized: "Ribbon", bundle: .module)
+        }
+    }
+
+    /// Whether the stepped chart fills each stage to the baseline (Fill / Garmin Fill) or draws a slim
+    /// ribbon band (Ribbon). Classic doesn't use the stepped chart.
+    public var isFilled: Bool { self == .filled || self == .garminFilled }
+
+    /// The stage-colour ramp this style draws with.
+    public var stagePalette: SleepStagePalette {
+        switch self {
+        case .classic, .filled: return .noop
+        case .garminFilled:     return .garmin
+        case .ribbon:           return .oura
         }
     }
 
     public static func resolve(_ raw: String) -> SleepChartStyle { SleepChartStyle(rawValue: raw) ?? .classic }
 }
+
+/// Which stage-colour ramp a sleep chart draws with: NOOP's own tokens, Oura's ramp (Ribbon), or Garmin's
+/// (Garmin Fill). Twin of the Kotlin `SleepStagePalette`.
+public enum SleepStagePalette: String, Sendable { case noop, oura, garmin }
 
 /// Applies the chart style: sets the global `StrandPalette.chartStyle` (read by the data-ramp
 /// accessors) AND keys the content on the raw value so a flip re-renders the visible charts. The

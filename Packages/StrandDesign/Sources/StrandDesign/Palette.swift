@@ -425,17 +425,24 @@ public enum StrandPalette {
         static let garmin = [garminAwake, garminREM, garminLight, garminDeep]
     }
 
-    /// The brand sleep ramp for the stepped hypnogram: Garmin's for Filled, Oura's for Ribbon.
-    public static func sleepStageColorBrand(_ stage: SleepStage, filled: Bool) -> Color {
-        switch (filled, stage) {
-        case (true, .awake): return gSleepAwake
-        case (true, .light): return gSleepLight
-        case (true, .deep):  return gSleepDeep
-        case (true, .rem):   return gSleepREM
-        case (false, .awake): return oSleepAwake
-        case (false, .light): return oSleepLight
-        case (false, .deep):  return oSleepDeep
-        case (false, .rem):   return oSleepREM
+    /// A sleep-stage colour in a chosen ramp: NOOP's own tokens, Oura's (Ribbon), or Garmin's (Garmin Fill).
+    public static func sleepStageColor(_ stage: SleepStage, palette: SleepStagePalette) -> Color {
+        switch palette {
+        case .noop: return sleepStageColor(stage)
+        case .oura:
+            switch stage {
+            case .awake: return oSleepAwake
+            case .light: return oSleepLight
+            case .deep:  return oSleepDeep
+            case .rem:   return oSleepREM
+            }
+        case .garmin:
+            switch stage {
+            case .awake: return gSleepAwake
+            case .light: return gSleepLight
+            case .deep:  return gSleepDeep
+            case .rem:   return gSleepREM
+            }
         }
     }
 

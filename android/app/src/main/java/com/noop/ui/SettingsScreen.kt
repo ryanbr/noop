@@ -1233,11 +1233,13 @@ fun SettingsScreen(
             ) {
                 Text("Sleep chart", style = NoopType.body, color = Palette.textPrimary)
                 SegmentedPillControl(
-                    items = listOf(SleepChartStyle.CLASSIC, SleepChartStyle.FILLED, SleepChartStyle.RIBBON),
+                    items = listOf(SleepChartStyle.CLASSIC, SleepChartStyle.FILLED,
+                                   SleepChartStyle.GARMIN_FILLED, SleepChartStyle.RIBBON),
                     selection = sleepChartStyle,
                     label = {
                         when (it) {
-                            SleepChartStyle.FILLED -> "Filled"
+                            SleepChartStyle.FILLED -> "Fill"
+                            SleepChartStyle.GARMIN_FILLED -> "Garmin Fill"
                             SleepChartStyle.RIBBON -> "Ribbon"
                             else -> "Classic"
                         }
