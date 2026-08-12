@@ -368,11 +368,6 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     /// When the current standing connect was issued, or nil when none is outstanding.
     private var standingConnectAt: Date?
 
-    /// Next backoff delay, capped at 60s, matching BLEManager's `min(60, 3 * 2^(n-1))` and the Android twin.
-    private func nextReconnectDelay() -> TimeInterval {
-        min(60.0, 3.0 * pow(2.0, Double(max(0, failedReconnectAttempts - 1))))
-    }
-
     /// What to do after an involuntary drop or a failed connect. Split out as a PURE function so the policy
     /// is unit-testable with no CoreBluetooth, no radio and no ring — `OuraLiveSource` itself owns a
     /// `CBCentralManager` and cannot be built in a test.
