@@ -503,8 +503,13 @@ public enum OuraDecoders {
         // real wake (the ring wrote it; a genuinely pre-onset run is dropped separately by the assembler's
         // onset clip), and a short trailing run is spared as possible real end-of-page wake. `minTrailing`
         // is the tunable safety margin between "padding" and "a long real wake block at a page boundary".
+        // The floor is clamped to >= 2: a LONE trailing 0xFF is four genuine awake epochs (the #1246 case),
+        // and the whole-record rule above only fires at codeCount >= 2 — the trailing rule must never undercut
+        // that even if `minTrailingUnwritten` is lowered by someone who hasn't read #1284. So the constant is
+        // freely tunable upward, but can never drop low enough to eat a single real-wake byte.
+        let effectiveFloor = max(2, Self.minTrailingUnwritten)
         let trailingFF = codeBytes.reversed().prefix { $0 == 0xFF }.count
-        let trailingStart = trailingFF >= Self.minTrailingUnwritten ? codeCount - trailingFF : codeCount
+        let trailingStart = trailingFF >= effectiveFloor ? codeCount - trailingFF : codeCount
         var out: [OuraSleepPhase] = []
         var index = 0
         for k in 1..<b.count {

@@ -565,10 +565,14 @@ object OuraDecoders {
         // bytes (to the record's end) as unwritten too. Trailing-only + a run floor, on purpose: a
         // leading/interior 0xFF run stays real wake (a pre-onset run is dropped by the assembler's onset
         // clip), and a short trailing run is spared. Byte-parity twin of the Swift decodeSleepPhase.
+        // Floor clamped to >= 2 (see Swift): a LONE trailing 0xFF is four genuine awake epochs (the #1246
+        // case), and the whole-record rule only fires at codeCount >= 2 — the trailing rule must never undercut
+        // that even if MIN_TRAILING_UNWRITTEN is lowered by someone who hasn't read #1284.
+        val effectiveFloor = maxOf(2, MIN_TRAILING_UNWRITTEN)
         var trailingFF = 0
         var t = b.size - 1
         while (t >= 1 && (b[t].toInt() and 0xFF) == 0xFF) { trailingFF++; t-- }
-        val trailingStart = if (trailingFF >= MIN_TRAILING_UNWRITTEN) codeCount - trailingFF else codeCount
+        val trailingStart = if (trailingFF >= effectiveFloor) codeCount - trailingFF else codeCount
         val out = ArrayList<OuraSleepPhase>()
         var index = 0
         for (k in 1 until b.size) {

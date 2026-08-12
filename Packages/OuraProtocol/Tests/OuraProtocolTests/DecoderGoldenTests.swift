@@ -272,6 +272,19 @@ final class DecoderGoldenTests: XCTestCase {
         XCTAssertEqual(OuraDecoders.decodeSleepPhase(belowFloor)?.contains { $0.unwritten }, false)
     }
 
+    func testSleepPhase0x4ETrailingSingleFFIsGenuineAwake() {
+        // #1284/#1246 boundary: a written record ending in a SINGLE trailing 0xFF is four genuine awake epochs,
+        // never pad. The trailing floor is clamped to >= 2, so this holds even if `minTrailingUnwritten` is
+        // lowered — a lone trailing byte can never be eaten (the case #1246 was careful to protect). Kotlin twin.
+        XCTAssertGreaterThanOrEqual(OuraDecoders.minTrailingUnwritten, 2,
+                                    "floor < 2 would eat a lone trailing 0xFF (#1246); the decode clamps to 2 as a backstop")
+        let rec = record("4e120200010000555555555555555555555555ff")   // 12 real codes + 1 trailing 0xFF
+        let phases = OuraDecoders.decodeSleepPhase(rec)
+        XCTAssertEqual(phases?.count, 52)
+        XCTAssertEqual(phases?.contains { $0.unwritten }, false)                    // nothing flagged unwritten
+        XCTAssertEqual(phases?.suffix(4).allSatisfy { $0.stage == .awake }, true)   // the lone 0xFF stays real wake
+    }
+
     func testSleepPhase0x4ELeadingFFRunIsRealWake() {
         // Trailing-only, by design: a LONG leading/interior 0xFF run (nine here) that does NOT reach the
         // record's end is left as genuine wake — the ring wrote it, and a pre-onset run is dropped by the

@@ -305,6 +305,19 @@ class DecoderGoldenTest {
     }
 
     @Test
+    fun testSleepPhase0x4ETrailingSingleFFIsGenuineAwake() {
+        // #1284/#1246 boundary: a written record ending in a SINGLE trailing 0xFF is four genuine awake epochs,
+        // never pad. The trailing floor is clamped to >= 2, so this holds even if MIN_TRAILING_UNWRITTEN is
+        // lowered — a lone trailing byte can never be eaten (the case #1246 protects). PARITY twin of Swift.
+        assertTrue("floor < 2 would eat a lone trailing 0xFF (#1246); the decode clamps to 2 as a backstop",
+            OuraDecoders.MIN_TRAILING_UNWRITTEN >= 2)
+        val phases = OuraDecoders.decodeSleepPhase(record("4e120200010000555555555555555555555555ff"))
+        assertEquals(52, phases?.size)                                 // 13 code bytes * 4
+        assertTrue(phases!!.none { it.unwritten })                     // nothing flagged unwritten
+        assertTrue(phases.takeLast(4).all { it.stage == OuraSleepStage.AWAKE })   // the lone 0xFF stays real wake
+    }
+
+    @Test
     fun testSleepPhase0x4ELeadingFFRunIsRealWake() {
         // Trailing-only: a long leading 0xFF run that does NOT reach the record's end stays real wake.
         val phases = OuraDecoders.decodeSleepPhase(record("4e120200010000ffffffffffffffffff55555555"))
