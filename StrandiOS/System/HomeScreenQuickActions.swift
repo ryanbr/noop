@@ -49,7 +49,6 @@ enum HomeScreenQuickAction: String, CaseIterable {
     static func install(in application: UIApplication) {
         application.shortcutItems = allCases.map(\.shortcutItem)
     }
-
 }
 
 /// Adds UIKit's scene callback to the SwiftUI app lifecycle. SwiftUI continues to create and own the
