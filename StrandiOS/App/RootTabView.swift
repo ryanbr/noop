@@ -149,17 +149,17 @@ struct RootTabView: View {
         // Quick-action sheet presents with the calm easing (~0.42s) per the README sheet spec —
         // the easing is applied where `quickAction` is set (see `presentQuickAction`), keeping the
         // animation scoped to the sheet rather than the whole shell.
-        .sheet(item: $quickAction, onDismiss: presentPendingHomeScreenQuickActionIfPossible) { action in
+        .sheet(item: $quickAction) { action in
             quickActionDestination(action)
         }
         // Live's "Manage devices" affordance (and any future cross-screen link to Devices) routes here:
         // present the Devices manager in its own nav stack, the same way the quick-action screens do.
-        .sheet(isPresented: $showDevices, onDismiss: presentPendingHomeScreenQuickActionIfPossible) {
+        .sheet(isPresented: $showDevices) {
             devicesScreen
         }
         // v5 pillar deep-links (Insights hub / Lab Book / fused record / Rhythm) present as a sheet in
         // their own nav stack — the same idiom the quick-action + Devices screens use on iPhone.
-        .sheet(item: $routedPillar, onDismiss: presentPendingHomeScreenQuickActionIfPossible) { dest in
+        .sheet(item: $routedPillar) { dest in
             pillarScreen(dest)
         }
         // Honour a router request: Devices keeps its dedicated sheet; the v5 pillars route through the
@@ -216,13 +216,11 @@ struct RootTabView: View {
         }
     }
 
-    /// Presents only when the mandatory gates and any current shell modal are out of the way. Until then,
-    /// the scene delegate retains the action; each sheet's onDismiss and the readiness change retry it.
+    /// Mandatory launch gates defer an external action. Once the shell is available, an explicit Home
+    /// Screen choice supersedes any ordinary shell sheet; choosing the already-open destination simply
+    /// consumes the request and leaves that screen in place.
     private func presentPendingHomeScreenQuickActionIfPossible() {
         guard homeScreenQuickActionsEnabled,
-              quickAction == nil,
-              !showDevices,
-              routedPillar == nil,
               let action = homeScreenQuickActions.pendingAction else { return }
 
         let destination: QuickAction = switch action {
@@ -232,7 +230,11 @@ struct RootTabView: View {
         case .breathe: .breathe
         }
         homeScreenQuickActions.consume(action)
-        withAnimation(Self.sheetEase) { quickAction = destination }
+        withAnimation(Self.sheetEase) {
+            showDevices = false
+            routedPillar = nil
+            quickAction = destination
+        }
     }
 
     /// A routed v5 pillar screen wrapped in its own nav stack + Done button (mirrors `quickScreen`).

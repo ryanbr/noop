@@ -316,7 +316,12 @@ private struct iOSRootView: View {
             // Terms acknowledgment gate — over EVERYTHING (before onboarding/pairing/Bluetooth) until
             // the current terms version is accepted; re-appears if the terms materially change.
             if acceptedTerms != Terms.currentVersion && !demoBypass {
-                TermsGateView(onAccept: { acceptedTerms = Terms.currentVersion })
+                TermsGateView(onAccept: {
+                    // Keep any external action behind the gate while the accepted-terms change decides
+                    // whether What's New must present next. This write must precede acceptedTerms.
+                    automaticLaunchSheetResolved = false
+                    acceptedTerms = Terms.currentVersion
+                })
                     .transition(.opacity)
                     .zIndex(2)
             }
