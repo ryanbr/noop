@@ -79,6 +79,28 @@ class StrapLogGenerationsTest {
         )
     }
 
+    /** A clipped generation must SAY it lost its head, in the same words iOS uses — the header reported the
+     *  pre-clip total, so a generation holding 1,000 of 2,000 lines announced "2000 line(s)" and read as a
+     *  complete session, and the dropped head then measures as silence in the log tools. */
+    @Test
+    fun clippedGenerationHeaderSaysWhatWasKept() {
+        val many = (0 until (StrapLogGenerations.GENERATION_TAIL_LIMIT + 50)).map { "line $it" }
+        val header = StrapLogGenerations.roll(many, emptyList(), now)[0][0]
+        assertTrue(
+            "header must carry both the kept and the pre-clip count: $header",
+            header.contains("${StrapLogGenerations.GENERATION_TAIL_LIMIT} of ${many.size} line(s)"),
+        )
+        assertTrue("a clipped generation must say so: $header", header.contains("head clipped"))
+    }
+
+    /** ...and an UNCLIPPED one must not cry wolf: no "clipped", just the count. */
+    @Test
+    fun unclippedGenerationHeaderClaimsNoLoss() {
+        val header = StrapLogGenerations.roll(listOf("22:01 connected", "22:02 drain done"), emptyList(), now)[0][0]
+        assertTrue(header, header.contains("2 line(s)"))
+        assertTrue(header, !header.contains("clipped"))
+    }
+
     /** The export puts previous sessions AHEAD of the current-session marker, so `report.txt` stays
      *  chronological and the log-parsing tools keep working on it unchanged. */
     @Test

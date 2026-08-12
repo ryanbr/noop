@@ -84,6 +84,32 @@ final class LiveStateLogGenerationsTests: XCTestCase {
         XCTAssertEqual(body.last, "line \(LiveState.generationTailLimit + 49)", "the newest line must survive")
     }
 
+    /// A clipped generation must SAY it lost its head. The header reported the pre-clip total, so a
+    /// generation holding 1,000 of 2,000 lines announced "2000 line(s)" and read as a complete session —
+    /// and the dropped head then measures as silence in the log tools.
+    func testClippedGenerationHeaderSaysWhatWasKept() {
+        let many = (0..<(LiveState.generationTailLimit + 50)).map { "line \($0)" }
+        UserDefaults.standard.set(many, forKey: tailKey)
+
+        LiveState.rollLogGenerationsIfNeeded()
+
+        let header = LiveState.persistedLogGenerations()[0][0]
+        XCTAssertTrue(header.contains("\(LiveState.generationTailLimit) of \(many.count) line(s)"),
+                      "header must carry both the kept and the pre-clip count: \(header)")
+        XCTAssertTrue(header.contains("head clipped"), "a clipped generation must say so: \(header)")
+    }
+
+    /// ...and an UNCLIPPED one must not cry wolf: no "head clipped", just the count.
+    func testUnclippedGenerationHeaderClaimsNoLoss() {
+        UserDefaults.standard.set(["22:01 connected", "22:02 drain done"], forKey: tailKey)
+
+        LiveState.rollLogGenerationsIfNeeded()
+
+        let header = LiveState.persistedLogGenerations()[0][0]
+        XCTAssertTrue(header.contains("2 line(s)"), header)
+        XCTAssertFalse(header.contains("clipped"), header)
+    }
+
     /// The export puts previous sessions AHEAD of the current one, so `report.txt` stays chronological and
     /// the log-parsing tools keep working on it unchanged.
     func testPreviousSessionsTextPrecedesTheCurrentMarker() {

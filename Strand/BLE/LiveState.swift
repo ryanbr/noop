@@ -672,9 +672,17 @@ public final class LiveState: ObservableObject {
         iso.timeZone = TimeZone(identifier: "UTC")
         // The stamp is when the roll happened (i.e. this launch), NOT when those lines were written — the
         // lines carry their own clock. Said plainly in the text so nobody reads it as the session's end.
-        let header = "===== previous app session, \(tail.count) line(s), rolled at "
-            + iso.string(from: now) + " (this launch) ====="
         let clipped = tail.count > generationTailLimit ? Array(tail.suffix(generationTailLimit)) : tail
+        // Say the KEPT count, and say so when the head was dropped. The header used to report only
+        // `tail.count` (the pre-clip total), so a generation that had lost its first 1,000 lines still
+        // announced "2,000 line(s)" and read as a complete session — a reader (or a log tool) then
+        // measures the missing head as silence. Both numbers are printed: the pre-clip total is what
+        // tells anyone how much is gone.
+        let count = clipped.count == tail.count
+            ? "\(tail.count) line(s)"
+            : "\(clipped.count) of \(tail.count) line(s), head clipped"
+        let header = "===== previous app session, \(count), rolled at "
+            + iso.string(from: now) + " (this launch) ====="
         var gens = persistedLogGenerations()
         gens.append([header] + clipped)
         if gens.count > maxLogGenerations { gens.removeFirst(gens.count - maxLogGenerations) }

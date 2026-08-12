@@ -48,10 +48,17 @@ object StrapLogGenerations {
     fun roll(previousTail: List<String>, existing: List<List<String>>, nowMs: Long): List<List<String>> {
         if (previousTail.isEmpty()) return existing
         val iso = Instant.ofEpochMilli(nowMs).truncatedTo(ChronoUnit.SECONDS).toString()
-        val header = "===== previous app session, ${previousTail.size} line(s), rolled at $iso (this launch) ====="
         val clipped = if (previousTail.size > GENERATION_TAIL_LIMIT) {
             previousTail.subList(previousTail.size - GENERATION_TAIL_LIMIT, previousTail.size)
         } else previousTail
+        // Say the KEPT count, and say so when the head was dropped — byte-identical wording to iOS,
+        // because the same log tools parse both platforms' report.txt. The header used to report only
+        // the pre-clip total, so a generation that had lost its first 1,000 lines still announced
+        // "2000 line(s)" and read as a complete session; the missing head then measures as silence.
+        val count = if (clipped.size == previousTail.size) {
+            "${previousTail.size} line(s)"
+        } else "${clipped.size} of ${previousTail.size} line(s), head clipped"
+        val header = "===== previous app session, $count, rolled at $iso (this launch) ====="
         val gens = existing.toMutableList()
         gens.add(listOf(header) + clipped)
         while (gens.size > MAX_GENERATIONS) gens.removeAt(0)
