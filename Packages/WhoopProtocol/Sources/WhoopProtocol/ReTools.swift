@@ -313,6 +313,69 @@ public enum ReTools {
                      pearson: pearson(pairs), residuals: residuals)
     }
 
+    // MARK: - E) gravity2 characterization (issue #1308)
+
+    /// One axis of the gravity-vs-gravity2 comparison. The V24 schema decodes a SECOND gravity/accel
+    /// triplet (`gravity2_x/y/z` @56/60/64) alongside the primary one (`gravity_x/y/z` @40/44/48), but
+    /// nothing consumes it and its semantics are unknown (goose decodes it too and doesn't know either).
+    /// These stats are the instrument for finding out what it is — never a metric.
+    public struct GravityAxisPair: Equatable {
+        public let axis: String          // "x" / "y" / "z"
+        public let n: Int
+        public let meanPrimary: Double
+        public let meanSecond: Double
+        public let meanDelta: Double      // mean(second - primary)
+        public let maxAbsDelta: Double
+        public let correlation: Double?   // corr(primary, second)
+    }
+
+    public struct GravityPairReport: Equatable {
+        public let key: String
+        public let sampleCount: Int
+        public let axes: [GravityAxisPair]
+        /// Every axis tracks the primary to within `epsilon` on every sample → gravity2 is just a copy of
+        /// gravity (no new information). If false, it carries something the primary triplet doesn't.
+        public let identicalToPrimary: Bool
+    }
+
+    /// Characterize the unknown V24 `gravity2` triplet against the primary `gravity` triplet, per axis:
+    /// is it an identical copy, a constant offset, a scaled/filtered version, or decorrelated (a different
+    /// sensor)? Pairs the two triplets on records that carry both, per group. Pure instrumentation for
+    /// issue #1308 — feeds no score; the point is to learn what gravity2 is from a real 5/MG capture.
+    public static func gravityPair(_ records: [Record], epsilon: Double = 1e-4) -> [GravityPairReport] {
+        let groups = Dictionary(grouping: records, by: { groupKey($0.frame) })
+        var out: [GravityPairReport] = []
+        for (key, recs) in groups {
+            var report: [String: (p: [Double], s: [Double])] = ["x": ([], []), "y": ([], []), "z": ([], [])]
+            for r in recs {
+                for axis in ["x", "y", "z"] {
+                    guard let p = r.frame.parsed["gravity_\(axis)"]?.doubleValue,
+                          let s = r.frame.parsed["gravity2_\(axis)"]?.doubleValue else { continue }
+                    report[axis]!.p.append(p); report[axis]!.s.append(s)
+                }
+            }
+            var axes: [GravityAxisPair] = []
+            var allIdentical = true
+            for axis in ["x", "y", "z"] {
+                let p = report[axis]!.p, s = report[axis]!.s
+                guard !p.isEmpty else { continue }
+                let n = Double(p.count)
+                let deltas = zip(p, s).map { $0.1 - $0.0 }
+                let maxAbs = deltas.map(abs).max() ?? 0
+                if maxAbs > epsilon { allIdentical = false }
+                axes.append(GravityAxisPair(
+                    axis: axis, n: p.count,
+                    meanPrimary: p.reduce(0, +) / n, meanSecond: s.reduce(0, +) / n,
+                    meanDelta: deltas.reduce(0, +) / n, maxAbsDelta: maxAbs,
+                    correlation: pearson(Array(zip(p, s).map { (t: $0.0, d: $0.1) }))))
+            }
+            guard !axes.isEmpty else { continue }
+            out.append(GravityPairReport(key: key, sampleCount: axes.map { $0.n }.max() ?? 0,
+                                         axes: axes, identicalToPrimary: allIdentical))
+        }
+        return out.sorted { $0.key < $1.key }
+    }
+
     /// Pearson correlation over (truth, decoded) pairs; nil when fewer than two points or either side
     /// has zero variance (a correlation would be undefined, so we say so rather than emit a fake 0/NaN).
     private static func pearson(_ pairs: [(t: Double, d: Double)]) -> Double? {

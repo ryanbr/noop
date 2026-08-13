@@ -48,6 +48,7 @@ USAGE:
   whoop-re coverage  [--family whoop4|whoop5|auto] FILE
   whoop-re inventory [--family whoop4|whoop5|auto] FILE
   whoop-re diff      [--family whoop4|whoop5|auto] FILE_A FILE_B
+  whoop-re gravity2  [--family whoop4|whoop5|auto] FILE
   whoop-re truth     [--family …] --field NAME --truth TRUTH.json [--max-dt MS] FILE
 
 FILE is a capture/fixture JSON array of {"hex", …} (the {"hex","char","hr","ts_ms"}
@@ -220,6 +221,23 @@ case "truth":
         let dec = r.decoded.map { String(format: "%.3f", $0) } ?? "—(no decode)"
         let dt = r.dtMs == Int.max ? "—(no record carries field)" : "\(r.dtMs)ms"
         print("      ts=\(r.tsMs)  truth=\(String(format: "%.3f", r.truth))  decoded=\(dec)  Δt=\(dt)")
+    }
+
+case "gravity2":
+    requireFile()
+    let reports = ReTools.gravityPair(loadRecords(positional[0], family))
+    if reports.isEmpty { print("no records carry both gravity and gravity2 triplets") }
+    for g in reports {
+        let verdict = g.identicalToPrimary
+            ? "IDENTICAL to primary gravity (no new info)" : "DIFFERS from primary — carries something distinct"
+        print("\(g.key)  —  \(g.sampleCount) paired samples  →  \(verdict)")
+        for a in g.axes {
+            print("      \(a.axis)  meanG1=\(String(format: "%+.4f", a.meanPrimary))  "
+                  + "meanG2=\(String(format: "%+.4f", a.meanSecond))  "
+                  + "meanΔ=\(String(format: "%+.4f", a.meanDelta))  "
+                  + "max|Δ|=\(String(format: "%.4f", a.maxAbsDelta))  "
+                  + "r=\(a.correlation.map { String(format: "%+.3f", $0) } ?? "—")")
+        }
     }
 
 default:
