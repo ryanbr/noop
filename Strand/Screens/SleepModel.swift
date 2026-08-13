@@ -331,9 +331,26 @@ extension SleepModel {
     // MARK: Per-tile series (latest, typical mean, sparkline history)
 
     /// Build a metric from a per-day transform, keeping only finite values.
-    static func metric(days: [DailyMetric], _ transform: (DailyMetric) -> Double?) -> Metric {
-        let series = days.compactMap(transform).filter { $0.isFinite }
-        return (series.last, mean(series), series)
+    ///
+    /// `latest` is STALENESS-BOUNDED (`Baselines.vitalCarryDays`): it is the newest value only while
+    /// that value's own day is recent enough to still be presented as this night's reading, and nil
+    /// otherwise. Without the bound `series.last` reached back arbitrarily far — a respiratory rate
+    /// last written by a WHOOP CSV import on 30 Jul kept rendering as "Respiratory 15.6" in the Night
+    /// detail card two weeks later, with no date anywhere beside it, and was read (by the project's own
+    /// investigation) as a current measurement. `typical` and `series` are deliberately UNBOUNDED: they
+    /// are explicitly historical — the trend line and the "vs typical" mean are supposed to span the
+    /// whole history, and it is only the headline number that claims to be current.
+    static func metric(days: [DailyMetric], now: Date = Date(),
+                       _ transform: (DailyMetric) -> Double?) -> Metric {
+        let points = days.compactMap { d -> (day: String, value: Double)? in
+            guard let v = transform(d), v.isFinite else { return nil }
+            return (d.day, v)
+        }
+        let series = points.map(\.value)
+        // `BodyVitalSigns.logicalDayKey` rather than `Repository.logicalDayKey`: same 04:00 boundary,
+        // but self-contained, so this stays pure and independent of the @MainActor Repository.
+        let fresh = Baselines.freshestCarried(points, todayKey: BodyVitalSigns.logicalDayKey(now))
+        return (fresh?.value, mean(series), series)
     }
 
     /// Sleep performance %: the imported WHOOP figure when the export carried one for that day;

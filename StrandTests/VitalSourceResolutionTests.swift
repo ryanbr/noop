@@ -62,7 +62,13 @@ final class VitalSourceResolutionTests: XCTestCase {
             sourceRows: [
                 SourcedDailyMetric(metric: daily(day: "2026-06-12", spo2Pct: 98), source: .appleHealth)
             ],
-            temperatureUnit: .celsius
+            temperatureUnit: .celsius,
+            // Pin the clock: these fixtures are dated 2026-06-12, and the carry is staleness-bounded
+            // (`Baselines.vitalCarryDays`). Left to default to the real `Date()`, they only passed
+            // because the carry used to be unbounded — the very defect under test elsewhere. They are
+            // about SOURCE PRECEDENCE, so the day must sit inside the window for the resolution to be
+            // what is being asserted.
+            now: localNoon(day: "2026-06-13")
         )
 
         let spo2 = readings.first { $0.key == "spo2" }
@@ -77,7 +83,13 @@ final class VitalSourceResolutionTests: XCTestCase {
                 SourcedDailyMetric(metric: daily(day: "2026-06-12", spo2Pct: 96), source: .whoopImport),
                 SourcedDailyMetric(metric: daily(day: "2026-06-12", spo2Pct: 99), source: .appleHealth)
             ],
-            temperatureUnit: .celsius
+            temperatureUnit: .celsius,
+            // Pin the clock: these fixtures are dated 2026-06-12, and the carry is staleness-bounded
+            // (`Baselines.vitalCarryDays`). Left to default to the real `Date()`, they only passed
+            // because the carry used to be unbounded — the very defect under test elsewhere. They are
+            // about SOURCE PRECEDENCE, so the day must sit inside the window for the resolution to be
+            // what is being asserted.
+            now: localNoon(day: "2026-06-13")
         )
 
         let spo2 = readings.first { $0.key == "spo2" }
@@ -90,7 +102,13 @@ final class VitalSourceResolutionTests: XCTestCase {
             sourceRows: [
                 SourcedDailyMetric(metric: daily(day: "2026-06-12", skinTempDevC: 34.2), source: .appleHealth)
             ],
-            temperatureUnit: .celsius
+            temperatureUnit: .celsius,
+            // Pin the clock: these fixtures are dated 2026-06-12, and the carry is staleness-bounded
+            // (`Baselines.vitalCarryDays`). Left to default to the real `Date()`, they only passed
+            // because the carry used to be unbounded — the very defect under test elsewhere. They are
+            // about SOURCE PRECEDENCE, so the day must sit inside the window for the resolution to be
+            // what is being asserted.
+            now: localNoon(day: "2026-06-13")
         )
 
         let skin = readings.first { $0.key == "skin" }
@@ -103,7 +121,13 @@ final class VitalSourceResolutionTests: XCTestCase {
             sourceRows: [
                 SourcedDailyMetric(metric: daily(day: "2026-06-12", skinTempDevC: 0.2), source: .noopComputed)
             ],
-            temperatureUnit: .celsius
+            temperatureUnit: .celsius,
+            // Pin the clock: these fixtures are dated 2026-06-12, and the carry is staleness-bounded
+            // (`Baselines.vitalCarryDays`). Left to default to the real `Date()`, they only passed
+            // because the carry used to be unbounded — the very defect under test elsewhere. They are
+            // about SOURCE PRECEDENCE, so the day must sit inside the window for the resolution to be
+            // what is being asserted.
+            now: localNoon(day: "2026-06-13")
         )
 
         let skin = readings.first { $0.key == "skin" }
@@ -192,6 +216,48 @@ final class VitalSourceResolutionTests: XCTestCase {
         XCTAssertEqual(spo2?.source, .whoopImport)
         // The calibrated caption, NOT the "strap estimate" one.
         XCTAssertFalse(spo2?.missingCaption.contains("strap estimate") == true)
+    }
+
+    // MARK: - Carry staleness
+
+    /// THE REPORTED REGRESSION, end to end through the real resolver. A WHOOP CSV import ending
+    /// 2026-07-30 kept the Health tab's Resp Rate tile reading "15.6 rpm" on 2026-08-13 — 14 days on,
+    /// under a section headed "Latest", while the live device wrote no respiratory rate at all. The
+    /// tile must fall to its honest empty state instead of presenting a fortnight-old import as a
+    /// current measurement.
+    func testStaleImportedRespiratoryRateNoLongerCarries() {
+        let readings = BodyVitalSigns.readings(
+            sourceRows: [
+                SourcedDailyMetric(metric: daily(day: "2026-07-28", respRateBpm: 16.0), source: .whoopImport),
+                SourcedDailyMetric(metric: daily(day: "2026-07-29", respRateBpm: 16.2), source: .whoopImport),
+                SourcedDailyMetric(metric: daily(day: "2026-07-30", respRateBpm: 15.6), source: .whoopImport)
+            ],
+            temperatureUnit: .celsius,
+            now: localNoon(day: "2026-08-13")
+        )
+
+        let resp = readings.first { $0.key == "resp" }
+        XCTAssertNil(resp?.value)
+        XCTAssertNil(resp?.day)
+        XCTAssertNil(resp?.source)
+        XCTAssertEqual(resp?.banding.band, .noData)
+        // The trail is HISTORICAL and deliberately survives — only the headline claims to be current.
+        XCTAssertEqual(resp?.sparkline?.count, 3)
+    }
+
+    /// The carry still does its job: one missed night must not blank a tile.
+    func testRecentRespiratoryRateStillCarries() {
+        let readings = BodyVitalSigns.readings(
+            sourceRows: [
+                SourcedDailyMetric(metric: daily(day: "2026-08-12", respRateBpm: 14.1), source: .noopComputed)
+            ],
+            temperatureUnit: .celsius,
+            now: localNoon(day: "2026-08-13")
+        )
+
+        let resp = readings.first { $0.key == "resp" }
+        XCTAssertEqual(resp?.value, 14.1)
+        XCTAssertEqual(resp?.day, "2026-08-12")
     }
 
     // MARK: - Fixtures

@@ -326,6 +326,14 @@ internal fun latestVitals(
     )
 }
 
+/**
+ * The newest row carrying this vital, STALENESS-BOUNDED by [Baselines.vitalCarryDays]: the carry
+ * exists so a missed night doesn't blank a tile, not so a months-old reading sits under a section
+ * headed "Latest". Unbounded, this reached back arbitrarily far — a WHOOP CSV import that ended
+ * 30 Jul kept the Resp Rate tile reading "15.6 rpm" a fortnight later. The `asOfLabel` ("as of
+ * 30 Jul") was not enough on its own: the eye takes the headline number for today's. Byte-twin of
+ * the Swift `BodyVitalSigns.latest`.
+ */
 private fun latestVital(
     key: String,
     days: List<DailyMetric>,
@@ -333,9 +341,13 @@ private fun latestVital(
     emptyByKey: Map<String, Vital>,
     spo2CandidateByDay: Map<String, Double> = emptyMap(),
     spo2ToggleOn: Boolean = false,
+    todayKey: String = logicalDayKeyNow(),
     hasValue: (DailyMetric) -> Boolean,
 ): Vital {
-    val row = days.asReversed().firstOrNull(hasValue)
+    val row = Baselines.freshestCarried(
+        days.filter(hasValue).map { it.day to it },
+        todayKey,
+    )?.second
     return row
         ?.let { latestRow -> vitalsFor(latestRow, days, tempUnit, spo2CandidateByDay, spo2ToggleOn).firstOrNull { it.key == key } }
         ?.copy(asOfLabel = asOfLabel(row.day))

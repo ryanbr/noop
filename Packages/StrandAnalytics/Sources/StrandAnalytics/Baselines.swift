@@ -100,6 +100,53 @@ public enum Baselines {
     public static let minNightsTrust: Int = 14
     /// Missing-night count after which a baseline is marked stale.
     public static let staleDays: Int = 14
+    /// How many days a nightly VITAL may be carried forward and still be presented as the "latest"
+    /// reading. A carry exists so one missed night doesn't blank a tile — not so a months-old value
+    /// reads as tonight's measurement. Past this age the tile must show "—": a silent stale number is
+    /// worse than no number, because the reader takes it for a current measurement (which is exactly
+    /// what a 14-day-old imported respiratory rate did, surfacing as "Respiratory 15.6" on the Sleep
+    /// tab's Night detail with no date beside it). A week comfortably covers a missed night or a
+    /// weekend off-strap while staying decisively short of `staleDays`, past which the personal
+    /// baseline that judges the value is itself stale. Byte-twin of the Android `vitalCarryDays`.
+    public static let vitalCarryDays: Int = 7
+
+    /// The freshest `(day, value)` pair that is still fresh enough to present as "latest", or nil when
+    /// the newest one is older than `vitalCarryDays` relative to `todayKey`. Both keys are `yyyy-MM-dd`,
+    /// which compares chronologically as a string, so no calendar math (or time zone) is involved —
+    /// `points` need only be sorted oldest→newest. Shared by every "latest vital" resolver so the Sleep
+    /// tab's Night detail, the Health tab's Vital Signs and the Android twin cannot disagree about when
+    /// a carried value has gone stale.
+    public static func freshestCarried<T>(_ points: [(day: String, value: T)],
+                                          todayKey: String,
+                                          carryDays: Int = vitalCarryDays) -> (day: String, value: T)? {
+        guard let newest = points.last else { return nil }
+        return newest.day >= cutoffKey(todayKey: todayKey, carryDays: carryDays) ? newest : nil
+    }
+
+    /// The oldest `yyyy-MM-dd` a carried vital may bear: `todayKey − carryDays` days. The parse, the
+    /// calendar and the format all pin UTC, so the arithmetic is pure key math and never shifts a day
+    /// under a local time zone or a DST edge. An unparseable key yields `todayKey`, which admits only
+    /// today — fail closed, never carry.
+    public static func cutoffKey(todayKey: String, carryDays: Int = vitalCarryDays) -> String {
+        guard let today = dayKeyFormatter.date(from: todayKey),
+              let cutoff = utcCalendar.date(byAdding: .day, value: -carryDays, to: today)
+        else { return todayKey }
+        return dayKeyFormatter.string(from: cutoff)
+    }
+
+    private static let utcCalendar: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "UTC")!
+        return c
+    }()
+
+    private static let dayKeyFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "UTC")
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
 
     // MARK: - Early-life anti-anchoring (Reddit HRV report)
     //

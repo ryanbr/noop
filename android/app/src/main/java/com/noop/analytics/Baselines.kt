@@ -52,6 +52,43 @@ object Baselines {
     /** Missing-night count after which a baseline is marked stale. */
     const val staleDays: Int = 14
 
+    /**
+     * How many days a nightly VITAL may be carried forward and still be presented as the "latest"
+     * reading. A carry exists so one missed night doesn't blank a tile — not so a months-old value
+     * reads as tonight's measurement. Past this age the tile must show "—": a silent stale number is
+     * worse than no number, because the reader takes it for a current measurement (which is exactly
+     * what a 14-day-old imported respiratory rate did, surfacing as "Respiratory 15.6" on the Sleep
+     * tab's Night detail with no date beside it). A week comfortably covers a missed night or a
+     * weekend off-strap while staying decisively short of [staleDays], past which the personal
+     * baseline that judges the value is itself stale. Byte-twin of the Swift `vitalCarryDays`.
+     */
+    const val vitalCarryDays: Int = 7
+
+    /**
+     * The freshest `(day, value)` pair still fresh enough to present as "latest", or null when the
+     * newest one is older than [carryDays] relative to [todayKey]. Both keys are `yyyy-MM-dd`, which
+     * compares chronologically as a string, so no calendar math (or time zone) is involved — [points]
+     * need only be sorted oldest→newest. Byte-twin of the Swift `freshestCarried`.
+     */
+    fun <T> freshestCarried(
+        points: List<Pair<String, T>>,
+        todayKey: String,
+        carryDays: Int = vitalCarryDays,
+    ): Pair<String, T>? {
+        val newest = points.lastOrNull() ?: return null
+        return if (newest.first >= cutoffKey(todayKey, carryDays)) newest else null
+    }
+
+    /**
+     * The oldest `yyyy-MM-dd` a carried vital may bear: [todayKey] − [carryDays] days. An unparseable
+     * key yields [todayKey], which admits only today — fail closed, never carry. Byte-twin of the
+     * Swift `cutoffKey`.
+     */
+    fun cutoffKey(todayKey: String, carryDays: Int = vitalCarryDays): String =
+        runCatching {
+            java.time.LocalDate.parse(todayKey).minusDays(carryDays.toLong()).toString()
+        }.getOrDefault(todayKey)
+
     // ─────────────────────────────────────────────────────────────────────────
     // Early-life anti-anchoring (Reddit HRV report) — mirrors Baselines.swift
     // ─────────────────────────────────────────────────────────────────────────

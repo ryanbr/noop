@@ -19,6 +19,14 @@ import java.time.ZoneId
  */
 class SleepImportedFiguresTest {
 
+    /**
+     * The pinned "today" for every build below. These fixtures are dated 2026-06-01/02 and the tile
+     * `latest` is staleness-bounded ([Baselines.vitalCarryDays]), so the clock has to be pinned beside
+     * them — left to the real date they only passed while the carry was unbounded, which is the very
+     * defect `VitalCarryStalenessTest` pins. This file is about PREFER-IMPORTED, not staleness.
+     */
+    private val pinnedToday = "2026-06-03"
+
     private fun day(d: String, asleep: Double?) = DailyMetric(
         deviceId = "my-whoop", day = d, totalSleepMin = asleep,
         deepMin = 80.0, remMin = 90.0, lightMin = 200.0, efficiency = 90.0,
@@ -28,7 +36,7 @@ class SleepImportedFiguresTest {
     fun importedPerformanceWinsPerDay() {
         val days = listOf(day("2026-06-01", 420.0), day("2026-06-02", 410.0))
         val imported = ImportedSleepSeries(performance = mapOf("2026-06-02" to 85.0))
-        val m = buildSleepModel(days, session = null, imported = imported)!!
+        val m = buildSleepModel(days, session = null, imported = imported, todayKey = pinnedToday)!!
         assertEquals(85.0, m.performance.latest!!, 1e-9)
     }
 
@@ -36,7 +44,7 @@ class SleepImportedFiguresTest {
     fun importedDebtPassesThroughInMinutes() {
         val days = listOf(day("2026-06-01", 420.0), day("2026-06-02", 410.0))
         val imported = ImportedSleepSeries(debtMin = mapOf("2026-06-02" to 60.0))
-        val m = buildSleepModel(days, session = null, imported = imported)!!
+        val m = buildSleepModel(days, session = null, imported = imported, todayKey = pinnedToday)!!
         assertEquals(60.0, m.sleepDebt.latest!!, 1e-9)
     }
 
@@ -44,7 +52,7 @@ class SleepImportedFiguresTest {
     fun hoursVsNeededUsesImportedNeedPerDay() {
         val days = listOf(day("2026-06-01", 400.0))
         val imported = ImportedSleepSeries(needMin = mapOf("2026-06-01" to 480.0))
-        val m = buildSleepModel(days, session = null, imported = imported)!!
+        val m = buildSleepModel(days, session = null, imported = imported, todayKey = pinnedToday)!!
         assertEquals(400.0 / 480.0 * 100.0, m.hoursVsNeeded.latest!!, 1e-9)
     }
 
@@ -56,7 +64,7 @@ class SleepImportedFiguresTest {
         // that ceilinged live 5.0 nights at ~100% while every other surface showed ~85% (#298).
         val days = listOf(day("2026-06-01", 420.0), day("2026-06-02", 410.0))
         val imported = ImportedSleepSeries(performance = mapOf("2026-06-01" to 85.0))
-        val m = buildSleepModel(days, session = null, imported = imported)!!
+        val m = buildSleepModel(days, session = null, imported = imported, todayKey = pinnedToday)!!
         assertEquals(RestScorer.restFromDaily(days[1])!!, m.performance.latest!!, 1e-9)
         // …and it is NOT the retired asleep/need approximation.
         assertNotEquals(410.0 / 450.0 * 100.0, m.performance.latest, 1e-6)
@@ -80,7 +88,7 @@ class SleepImportedFiguresTest {
                 deepMin = 70.0, remMin = 80.0, lightMin = 270.0, efficiency = 0.85),
             night,
         )
-        val m = buildSleepModel(days, session = null)!!
+        val m = buildSleepModel(days, session = null, todayKey = pinnedToday)!!
         val composite = RestScorer.restFromDaily(night)!!
         assertEquals(composite, m.performance.latest!!, 1e-9)
         assertTrue("composite should be below the 100% proxy ceiling", composite < 100.0)
@@ -92,20 +100,22 @@ class SleepImportedFiguresTest {
         val days = listOf(day("2026-06-01", 420.0), day("2026-06-02", 410.0))
         // Covers the latest night → verbatim series wins.
         val covered = buildSleepModel(days, null,
-            ImportedSleepSeries(consistency = mapOf("2026-06-01" to 70.0, "2026-06-02" to 74.0)))!!
+            ImportedSleepSeries(consistency = mapOf("2026-06-01" to 70.0, "2026-06-02" to 74.0)),
+            todayKey = pinnedToday)!!
         assertEquals(74.0, covered.consistency.latest!!, 1e-9)
         // Ends before the latest night → the APPROXIMATE duration-spread proxy, never a
         // months-old import-era value presented as "latest".
         val stale = buildSleepModel(days, null,
-            ImportedSleepSeries(consistency = mapOf("2026-06-01" to 70.0)))!!
+            ImportedSleepSeries(consistency = mapOf("2026-06-01" to 70.0)),
+            todayKey = pinnedToday)!!
         assertNotEquals(70.0, stale.consistency.latest)
     }
 
     @Test
     fun emptyImportedReproducesTheApproximateBaseline() {
         val days = listOf(day("2026-06-01", 420.0), day("2026-06-02", 410.0))
-        val a = buildSleepModel(days, session = null)!!
-        val b = buildSleepModel(days, session = null, imported = ImportedSleepSeries())!!
+        val a = buildSleepModel(days, session = null, todayKey = pinnedToday)!!
+        val b = buildSleepModel(days, session = null, imported = ImportedSleepSeries(), todayKey = pinnedToday)!!
         assertEquals(a, b)
     }
 
@@ -123,7 +133,7 @@ class SleepImportedFiguresTest {
         val session = SleepSession(
             deviceId = "my-whoop", startTs = 1780351200L, endTs = 1780387200L, efficiency = 90.0,
         )
-        val m = buildSleepModel(days, session = session)!!
+        val m = buildSleepModel(days, session = session, todayKey = pinnedToday)!!
         // need = max(450, mean asleep[420,410]=415) = 450. hours-vs-needed reads ASLEEP 410, not 600.
         assertEquals(410.0 / 450.0 * 100.0, m.hoursVsNeeded.latest!!, 1e-9)
         // Debt tile reads ASLEEP too: max(0, 450 − 410) = 40, never max(0, 450 − 600) = 0.
@@ -140,8 +150,8 @@ class SleepImportedFiguresTest {
         val session = SleepSession(
             deviceId = "my-whoop", startTs = 1780351200L, endTs = 1780387200L, efficiency = 90.0,
         )
-        val withSession = buildSleepModel(days, session = session)!!
-        val noSession = buildSleepModel(days, session = null)!!
+        val withSession = buildSleepModel(days, session = session, todayKey = pinnedToday)!!
+        val noSession = buildSleepModel(days, session = null, todayKey = pinnedToday)!!
         assertEquals(noSession.performance, withSession.performance)
         assertEquals(noSession.hoursVsNeeded, withSession.hoursVsNeeded)
         assertEquals(noSession.sleepDebt, withSession.sleepDebt)
@@ -173,6 +183,7 @@ class SleepImportedFiguresTest {
             days = listOf(day("2026-06-01", 568.0), day("2026-06-02", 392.0)),
             session = night,
             napSleepMinByDay = napCredit,
+            todayKey = pinnedToday,
         )!!
         assertEquals(40.0, m.sleepDebt.latest!!, 1e-9)
         assertEquals(40.0 / 60.0, m.trendDebtHours.last(), 1e-9)
@@ -209,8 +220,8 @@ class SleepImportedFiguresTest {
     @Test
     fun browsingAPastNightKeepsTilesLatestAnchored() {
         val days = listOf(day("2026-06-01", 420.0), day("2026-06-02", 410.0), day("2026-06-03", 400.0))
-        val latestView = buildSleepModel(days, session = null)!!                       // newest night
-        val browsedView = buildSleepModel(days, session = null, selectedDay = "2026-06-01")!!
+        val latestView = buildSleepModel(days, session = null, todayKey = pinnedToday)!!                       // newest night
+        val browsedView = buildSleepModel(days, session = null, selectedDay = "2026-06-01", todayKey = pinnedToday)!!
         // Tiles, need, typical and the ledger are identical regardless of which night is browsed.
         assertEquals(latestView.performance, browsedView.performance)
         assertEquals(latestView.sleepDebt, browsedView.sleepDebt)

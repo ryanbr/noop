@@ -135,9 +135,15 @@ enum BodyVitalSigns {
         }
 
         // Prefer the logical day's value; otherwise the most recent day that has one — so a vital still
-        // shows after a day with no wear instead of blanking to "—".
+        // shows after a day with no wear instead of blanking to "—". That carry is STALENESS-BOUNDED
+        // (`Baselines.vitalCarryDays`): it exists to survive a missed night, not to keep a months-old
+        // reading under a section headed "Latest". Unbounded, `pts.last` reached back arbitrarily far —
+        // a WHOOP CSV import that ended 30 Jul kept this tile reading "15.6 rpm" a fortnight later. The
+        // "· 30 Jul ·" in `stateCaption` was not enough: the eye takes the headline number for today's.
         func latest(_ pts: [VitalPoint]) -> VitalPoint? {
-            pts.last(where: { $0.day == logicalDay }) ?? pts.last
+            if let today = pts.last(where: { $0.day == logicalDay }) { return today }
+            return Baselines.freshestCarried(pts.map { (day: $0.day, value: $0) },
+                                             todayKey: logicalDay)?.value
         }
 
         func history(before day: String?, _ pts: [VitalPoint]) -> [Double?] {
