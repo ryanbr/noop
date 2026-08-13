@@ -559,18 +559,21 @@ private suspend fun loadStrapCompare(repo: WhoopRepository, devices: List<Paired
     if (comparable.size < 2) return null
     val a = comparable[0]
     val b = comparable[1]
-    // Read both straps concurrently — Room's query executor runs the two reads in parallel rather than
-    // one-after-the-other.
-    val (aDaily, bByDay) = coroutineScope {
-        val aD = async { repo.dailyMetrics(a.id, "0000-01-01", "9999-12-31") }
-        val bD = async { repo.dailyMetrics(b.id, "0000-01-01", "9999-12-31") }
-        aD.await() to bD.await().associateBy { it.day }
-    }
-    val shared = aDaily.sortedByDescending { it.day }.firstOrNull { bByDay.containsKey(it.day) } ?: return null
-    val bShared = bByDay[shared.day] ?: return null
-    val rows = StrapComparison.compare(strapMetricValues(shared), strapMetricValues(bShared))
-    return if (rows.isEmpty()) null
-    else StrapCompareData(displayName(a), displayName(b), shared.day, rows)
+    // A DB read failure degrades to "no card" rather than crashing the screen — matching the Swift `try?`.
+    return runCatching {
+        // Read both straps concurrently — Room's query executor runs the two reads in parallel rather than
+        // one-after-the-other.
+        val (aDaily, bByDay) = coroutineScope {
+            val aD = async { repo.dailyMetrics(a.id, "0000-01-01", "9999-12-31") }
+            val bD = async { repo.dailyMetrics(b.id, "0000-01-01", "9999-12-31") }
+            aD.await() to bD.await().associateBy { it.day }
+        }
+        val shared = aDaily.sortedByDescending { it.day }.firstOrNull { bByDay.containsKey(it.day) }
+            ?: return@runCatching null
+        val bShared = bByDay[shared.day] ?: return@runCatching null
+        val rows = StrapComparison.compare(strapMetricValues(shared), strapMetricValues(bShared))
+        if (rows.isEmpty()) null else StrapCompareData(displayName(a), displayName(b), shared.day, rows)
+    }.getOrNull()
 }
 
 /** Map a stored DailyMetric onto the comparable MetricKinds it carries (heartRate has no daily field).
