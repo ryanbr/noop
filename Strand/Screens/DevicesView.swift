@@ -454,9 +454,11 @@ private struct DevicesContent: View {
     /// (invariant I2). Pairwise (the first two WHOOP straps). Reads each strap by its own `deviceId` —
     /// never the hardcoded `my-whoop` (see #1304).
     private func loadStrapCompare() async {
-        let whoops = activeDevices.filter { SourceCoordinator.isWhoop($0) }
-        guard whoops.count >= 2, let store = await model.repo.storeHandle() else { strapCompare = nil; return }
-        let a = whoops[0], b = whoops[1]
+        // WHOOP or Oura — the sources that bank comparable dailies. Cross-source (Oura vs WHOOP) is exactly
+        // what the fusion tolerances are for; a plain HR strap has no dailies and self-excludes below.
+        let comparable = activeDevices.filter { SourceCoordinator.isWhoop($0) || $0.id.hasPrefix("oura-") }
+        guard comparable.count >= 2, let store = await model.repo.storeHandle() else { strapCompare = nil; return }
+        let a = comparable[0], b = comparable[1]
         let aDaily = (try? await store.dailyMetrics(deviceId: a.id, from: "0000-01-01", to: "9999-12-31")) ?? []
         let bDaily = (try? await store.dailyMetrics(deviceId: b.id, from: "0000-01-01", to: "9999-12-31")) ?? []
         let bByDay = Dictionary(bDaily.map { ($0.day, $0) }, uniquingKeysWith: { first, _ in first })
@@ -501,7 +503,7 @@ private struct DevicesContent: View {
     // inline Text literal by the i18n gate.
     private var compareTitle: LocalizedStringKey { "HOW YOUR STRAPS COMPARE" }
     private var compareFootnote: LocalizedStringKey {
-        "A read-only look at your last shared day — not a combined score. Both values are kept as they are."
+        "A read-only look at your last shared day — not a combined score. Different devices read a little differently, so a difference isn't necessarily wrong."
     }
 
     @ViewBuilder private func agreementPill(_ a: AgreementState) -> some View {

@@ -551,10 +551,12 @@ data class StrapCompareData(
  *  with the existing tolerances ([StrapComparison]). Read-only; never mixes into a score (I2). Pairwise.
  *  Reads each strap by its own deviceId — never the hardcoded my-whoop (#1304). */
 private suspend fun loadStrapCompare(repo: WhoopRepository, devices: List<PairedDeviceRow>): StrapCompareData? {
-    val whoops = devices.filter { SourceCoordinator.isWhoop(it) }
-    if (whoops.size < 2) return null
-    val a = whoops[0]
-    val b = whoops[1]
+    // WHOOP or Oura — the sources that bank comparable dailies. Cross-source (Oura vs WHOOP) is exactly what
+    // the fusion tolerances are for; a plain HR strap has no dailies and self-excludes below.
+    val comparable = devices.filter { SourceCoordinator.isWhoop(it) || it.id.startsWith("oura-") }
+    if (comparable.size < 2) return null
+    val a = comparable[0]
+    val b = comparable[1]
     val aDaily = repo.dailyMetrics(a.id, "0000-01-01", "9999-12-31")
     val bByDay = repo.dailyMetrics(b.id, "0000-01-01", "9999-12-31").associateBy { it.day }
     val shared = aDaily.sortedByDescending { it.day }.firstOrNull { bByDay.containsKey(it.day) } ?: return null
@@ -601,7 +603,7 @@ private fun strapAgreementLabel(a: AgreementState): Pair<String, StrandTone> = w
 private fun strapValue(v: Double?): String = v?.let { "%.0f".format(it) } ?: "—"
 
 private fun strapCompareFootnote(): String =
-    "A read-only look at your last shared day — not a combined score. Both values are kept as they are."
+    "A read-only look at your last shared day — not a combined score. Different devices read a little differently, so a difference isn't necessarily wrong."
 
 @Composable
 private fun CompareCard(c: StrapCompareData) {
