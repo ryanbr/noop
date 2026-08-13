@@ -300,6 +300,20 @@ struct RhythmView: View {
         windows.flatMap { $0.poincare }
     }
 
+    /// #1298: the temp .csv URL for the share sheet, written ONCE by `.task` (below) — not in `body`,
+    /// so rendering never touches disk. nil until the write lands / when nothing is readable.
+    @State private var rhythmExportURL: URL?
+
+    /// Write the night's DESCRIPTIVE data to a temp .csv for the OS share sheet — the §11 "share with
+    /// my clinician" path. Neutral data ONLY (`RhythmExport` forbids any verdict / condition name); nil
+    /// when nothing readable. A tiny, atomic write, run off the render path from `.task`.
+    private func buildRhythmExportURL() -> URL? {
+        guard let night, !windows.isEmpty else { return nil }
+        let csv = RhythmExport.csv(summary: night, windows: windows)
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("noop-rhythm.csv")
+        return (try? csv.write(to: url, atomically: true, encoding: .utf8)) != nil ? url : nil
+    }
+
     private var visualization: some View {
         ScreenScaffold(
             title: "Rhythm",
@@ -314,6 +328,7 @@ struct RhythmView: View {
             trailing: { closeButton }
         ) {
             SourceBadge("Experimental", tint: StrandPalette.restColor)
+                .task(id: windows.count) { rhythmExportURL = buildRhythmExportURL() }
 
             if allPoints.isEmpty {
                 emptyState
@@ -321,6 +336,14 @@ struct RhythmView: View {
                 summaryCard
                 plotCard
                 statsCard
+                if let rhythmExportURL {
+                    // #1298: hand the clinician the DATA, never a verdict. A neutral CSV export.
+                    ShareLink(item: rhythmExportURL) {
+                        Label("Share", systemImage: "square.and.arrow.up")
+                            .font(StrandFont.subhead)
+                    }
+                    .tint(StrandPalette.restColor)
+                }
             }
 
             methodologyCard

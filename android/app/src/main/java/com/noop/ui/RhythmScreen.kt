@@ -273,6 +273,9 @@ private fun RhythmVisualization(
             item { SummaryCard(night = night, headline = headline) }
             item { PlotCard(points = allPoints) }
             item { StatsCard(headline = headline) }
+            // #1298: the clinician-share button lives here on iOS, but Android's Rhythm screen is still
+            // fed null/empty (no capture pipeline yet), so a Share action would be unreachable. The pure
+            // RhythmExport builder is in place; wire the button when the Android rhythm loader lands.
         }
 
         item { MethodologyCard() }
