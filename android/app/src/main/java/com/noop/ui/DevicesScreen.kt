@@ -80,6 +80,7 @@ import com.noop.analytics.StrapComparison
 import com.noop.data.DailyMetric
 import com.noop.data.WhoopRepository
 import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import com.noop.data.DeviceStatus
@@ -573,7 +574,12 @@ private suspend fun loadStrapCompare(repo: WhoopRepository, devices: List<Paired
         val bShared = bByDay[shared.day] ?: return@runCatching null
         val rows = StrapComparison.compare(strapMetricValues(shared), strapMetricValues(bShared))
         if (rows.isEmpty()) null else StrapCompareData(displayName(a), displayName(b), shared.day, rows)
-    }.getOrNull()
+    }.getOrElse { e ->
+        // A DB error → no card; but NEVER swallow cancellation (screen disposed mid-read) — re-throw it so
+        // the coroutine cancels cooperatively (runCatching otherwise catches CancellationException too).
+        if (e is CancellationException) throw e
+        null
+    }
 }
 
 /** Map a stored DailyMetric onto the comparable MetricKinds it carries (heartRate has no daily field).
