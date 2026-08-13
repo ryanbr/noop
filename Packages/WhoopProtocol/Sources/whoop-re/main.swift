@@ -161,8 +161,8 @@ case "coverage":
         let enc = g.likelyEncrypted ? "  ⚠︎ LIKELY ENCRYPTED/RANDOM" : ""
         print("\(g.key)  —  \(g.frameCount) frames, \(g.frameLen)B, "
               + "\(g.coveredBytes)/\(g.totalBytes) named (\(String(format: "%.0f", g.coveragePct))%), "
-              + "unknown entropy \(String(format: "%.2f", g.unknownEntropyBits)) bits/byte "
-              + "over \(g.unknownSampleCount) samples\(enc)")
+              + "unknown entropy \(String(format: "%.2f", g.unknownEntropyBits)) bits/byte/pos "
+              + "over \(g.unknownSampleCount) frames\(enc)")
         for b in g.unknownBytes {
             let tag = b.constant ? "constant" : "varies (\(b.distinctValues) distinct)"
             print("      @\(pad(String(b.offset), 4, right: true)) unknown  "
@@ -189,8 +189,13 @@ case "diff":
             print("\(g.key)  —  ONLY IN \(g.inA ? "A" : "B")")
             continue
         }
-        if g.changedOffsets.isEmpty { print("\(g.key)  —  identical value sets"); continue }
-        print("\(g.key)  —  \(g.changedOffsets.count) offset(s) changed")
+        let lenNote = g.lengthDiffers
+            ? "  ⚠︎ LENGTH DIFFERS A=\(g.lenA)B B=\(g.lenB)B — extra bytes on the longer side not compared" : ""
+        if g.changedOffsets.isEmpty {
+            print("\(g.key)  —  identical value sets\(lenNote.isEmpty ? "" : lenNote)")
+            continue
+        }
+        print("\(g.key)  —  \(g.changedOffsets.count) offset(s) changed\(lenNote)")
         for o in g.changedOffsets {
             let flag = o.disjoint ? "  ⟵ DISJOINT (feature-linked)" : ""
             let named = o.covered ? " [named]" : ""
@@ -213,7 +218,8 @@ case "truth":
     print("  MAE=\(fmt(s.meanAbsError))  bias=\(fmt(s.bias))  Pearson r=\(fmt(s.pearson))")
     for r in s.residuals {
         let dec = r.decoded.map { String(format: "%.3f", $0) } ?? "—(no decode)"
-        print("      ts=\(r.tsMs)  truth=\(String(format: "%.3f", r.truth))  decoded=\(dec)  Δt=\(r.dtMs)ms")
+        let dt = r.dtMs == Int.max ? "—(no timestamped record)" : "\(r.dtMs)ms"
+        print("      ts=\(r.tsMs)  truth=\(String(format: "%.3f", r.truth))  decoded=\(dec)  Δt=\(dt)")
     }
 
 default:

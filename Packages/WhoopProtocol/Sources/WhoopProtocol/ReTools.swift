@@ -83,17 +83,22 @@ public enum ReTools {
         public let totalBytes: Int
         /// Uncovered offsets only (the RE worklist), each with its cross-frame variance, offset-ascending.
         public let unknownBytes: [ByteStat]
-        /// Shannon entropy (bits/byte, 0–8) of ALL unknown bytes pooled across the group. The
-        /// encrypted-vs-merely-unknown test: a value near 8 with a large sample means the undecoded
-        /// payload is statistically random (ciphered or compressed); a low value means it's structured
-        /// plaintext you simply haven't decoded yet. Meaningless on a tiny sample — read it with
-        /// `unknownSampleCount`.
+        /// Mean per-offset Shannon entropy (bits/byte, 0–8) over the unknown offsets — for EACH unknown
+        /// byte position, the entropy of its value distribution ACROSS frames, then averaged. This is
+        /// the encrypted-vs-merely-unknown test done right: a value near 8 means every byte position is
+        /// random over time (ciphered/compressed), while structured plaintext — even a payload whose
+        /// offsets each hold a *different* constant — stays near 0. It is NOT pooled across offsets, so
+        /// cross-position variety can't masquerade as randomness. Bounded above by log2(unknownSampleCount),
+        /// so it's meaningless until you have many frames — read it with `unknownSampleCount` (= frames).
         public let unknownEntropyBits: Double
+        /// Number of same-layout frames the per-offset entropy was measured over (the entropy ceiling is
+        /// log2 of this). NOT the byte count.
         public let unknownSampleCount: Int
         public var coveragePct: Double { totalBytes == 0 ? 0 : Double(coveredBytes) / Double(totalBytes) * 100 }
-        /// A heuristic flag, deliberately conservative: high pooled entropy over a sample big enough to
-        /// trust. NOT proof of encryption (high-entropy plaintext exists) — a prompt to investigate,
-        /// which is why the raw entropy and sample size are exposed alongside it.
+        /// A heuristic flag, deliberately conservative: near-max per-offset entropy over enough frames
+        /// for the 8-bit ceiling to be reachable (log2(256)=8). NOT proof of encryption (high-entropy
+        /// plaintext exists) — a prompt to investigate, which is why the entropy and frame count sit
+        /// beside it.
         public var likelyEncrypted: Bool { unknownEntropyBits >= 7.5 && unknownSampleCount >= 256 }
     }
 
@@ -131,22 +136,25 @@ public enum ReTools {
             var covered = Set<Int>()
             for r in sized { covered.formUnion(coveredOffsets(r.frame)) }
             var unknown: [ByteStat] = []
-            var pooled: [UInt8] = []          // every unknown byte, all offsets × all frames — the entropy sample
+            var offsetEntropies: [Double] = []   // per-offset entropy across frames — averaged, never pooled
             for off in 0 ..< len where !covered.contains(off) {
                 var distinct = Set<Int>(); var lo = Int.max; var hi = Int.min
+                var column: [UInt8] = []; column.reserveCapacity(sized.count)
                 for r in sized {
-                    let v = Int(r.bytes[off]); distinct.insert(v)
-                    lo = min(lo, v); hi = max(hi, v)
-                    pooled.append(r.bytes[off])
+                    let byte = r.bytes[off]; let v = Int(byte); distinct.insert(v)
+                    lo = min(lo, v); hi = max(hi, v); column.append(byte)
                 }
+                offsetEntropies.append(shannonBits(column))
                 unknown.append(ByteStat(offset: off, distinctValues: distinct.count,
                                         minValue: lo, maxValue: hi, sampleCount: sized.count))
             }
+            let meanEntropy = offsetEntropies.isEmpty
+                ? 0 : offsetEntropies.reduce(0, +) / Double(offsetEntropies.count)
             let coveredInLen = covered.filter { $0 < len }.count
             out.append(GroupCoverage(key: key, frameCount: recs.count, frameLen: len,
                                      coveredBytes: coveredInLen, totalBytes: len,
                                      unknownBytes: unknown.sorted { $0.offset < $1.offset },
-                                     unknownEntropyBits: shannonBits(pooled), unknownSampleCount: pooled.count))
+                                     unknownEntropyBits: meanEntropy, unknownSampleCount: sized.count))
         }
         return out.sorted { $0.key < $1.key }
     }
@@ -166,9 +174,16 @@ public enum ReTools {
         public let key: String
         public let inA: Bool
         public let inB: Bool
-        /// Offsets present in BOTH captures whose value set differs (empty when the layouts match byte
-        /// for byte). Only populated for shared keys.
+        /// Modal frame length on each side (0 for an absent side). When these differ, one capture's
+        /// layout grew/shrank — often the whole point (enabling a feature can ADD trailing bytes), and
+        /// `changedOffsets` only spans the overlap, so those extra bytes are reported here, not there.
+        public let lenA: Int
+        public let lenB: Int
+        /// Offsets present in BOTH captures (up to the shorter length) whose value set differs (empty
+        /// when the overlap matches byte for byte). Only populated for shared keys.
         public let changedOffsets: [OffsetDiff]
+        /// The layouts are different widths — extra bytes on the longer side are NOT in `changedOffsets`.
+        public var lengthDiffers: Bool { inA && inB && lenA != lenB }
     }
 
     /// Diff two captures by record layout. Keys in only one side surface as presence differences (a
@@ -182,12 +197,16 @@ public enum ReTools {
         for key in Set(ga.keys).union(gb.keys) {
             let ra = ga[key], rb = gb[key]
             guard let ra, let rb else {
-                out.append(GroupDiff(key: key, inA: ra != nil, inB: rb != nil, changedOffsets: []))
+                out.append(GroupDiff(key: key, inA: ra != nil, inB: rb != nil,
+                                     lenA: ra.map(modalLength) ?? 0, lenB: rb.map(modalLength) ?? 0,
+                                     changedOffsets: []))
                 continue
             }
             let lenA = modalLength(ra), lenB = modalLength(rb)
             let sa = ra.filter { $0.bytes.count == lenA }, sb = rb.filter { $0.bytes.count == lenB }
-            let coveredA = sa.first.map { coveredOffsets($0.frame) } ?? []
+            // Union covered offsets across A's frames so a conditional field still reads as "named".
+            var coveredA = Set<Int>()
+            for r in sa { coveredA.formUnion(coveredOffsets(r.frame)) }
             var changed: [OffsetDiff] = []
             for off in 0 ..< min(lenA, lenB) {
                 let va = Set(sa.map { Int($0.bytes[off]) })
@@ -197,7 +216,7 @@ public enum ReTools {
                                               aValues: va.sorted(), bValues: vb.sorted()))
                 }
             }
-            out.append(GroupDiff(key: key, inA: true, inB: true, changedOffsets: changed))
+            out.append(GroupDiff(key: key, inA: true, inB: true, lenA: lenA, lenB: lenB, changedOffsets: changed))
         }
         return out.sorted { $0.key < $1.key }
     }

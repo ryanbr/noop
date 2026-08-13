@@ -103,6 +103,22 @@ final class ReToolsTests: XCTestCase {
         XCTAssertTrue(rg.likelyEncrypted)
     }
 
+    func testCoverageEntropyIsPerOffsetNotPooled() {
+        // Each unknown offset holds a DIFFERENT constant. Pooled entropy would read ~log2(8)=3 bits and
+        // look "somewhat random"; per-offset entropy is 0 at every position → mean 0. This is the whole
+        // point of measuring per-position, not pooled.
+        var recs: [ReTools.Record] = []
+        for _ in 0..<300 {
+            let bytes: [UInt8] = [0xAA, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]  // off0 named, 1..7 distinct constants
+            recs.append(rec(frame(type: "HISTORICAL_DATA", seq: 20, len: 8, named: [(0, 1)]), bytes: bytes))
+        }
+        let g = ReTools.coverage(recs)[0]
+        XCTAssertEqual(g.unknownEntropyBits, 0.0, accuracy: 1e-9)   // every position constant → 0, despite 7 distinct values
+        XCTAssertFalse(g.likelyEncrypted)
+        XCTAssertEqual(g.unknownSampleCount, 300)                   // frames, not bytes
+        XCTAssertTrue(g.unknownBytes.allSatisfy { $0.constant })
+    }
+
     // MARK: - C) inventory: census sorted by count, ok/crc, ts span, len spread
 
     func testInventoryCensus() {
@@ -153,6 +169,18 @@ final class ReToolsTests: XCTestCase {
         XCTAssertTrue(changed[0].disjoint)
         XCTAssertEqual(changed[0].aValues, [0x00])
         XCTAssertEqual(changed[0].bValues, [0x01])
+    }
+
+    func testDiffSurfacesLengthMismatch() {
+        // Same type/version, but B's layout grew by two trailing bytes (a feature that ADDS bytes) —
+        // those extra bytes are past the overlap and must be flagged, not silently dropped.
+        let a = [rec(frame(type: "HISTORICAL_DATA", seq: 26, len: 4), bytes: [0x01, 0x02, 0x03, 0x04])]
+        let b = [rec(frame(type: "HISTORICAL_DATA", seq: 26, len: 6), bytes: [0x01, 0x02, 0x03, 0x04, 0x09, 0x0A])]
+        let g = ReTools.diff(a, b).first { $0.key == "HISTORICAL_DATA/v26" }!
+        XCTAssertTrue(g.lengthDiffers)
+        XCTAssertEqual(g.lenA, 4)
+        XCTAssertEqual(g.lenB, 6)
+        XCTAssertTrue(g.changedOffsets.isEmpty)   // the 4-byte overlap is identical; the growth is the signal
     }
 
     // MARK: - D) ground truth: MAE / bias / Pearson, and honest coverage
