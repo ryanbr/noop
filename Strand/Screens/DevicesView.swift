@@ -143,6 +143,10 @@ private struct DevicesContent: View {
             sectionHead("YOUR BANDS", trailing: activeDevices.count == 1
                         ? String(localized: "1 paired")
                         : String(localized: "\(activeDevices.count) paired"))
+            // #1300: a prominent switcher to flip which strap is active — the "switch, don't combine"
+            // option for a user with two straps (e.g. a 4.0 + a 5/MG). Shown only with 2+ straps, so it
+            // auto-collapses when one is forgotten. Reuses the existing active-strap confirmation.
+            if activeDevices.count > 1 { strapSwitcher }
             ForEach(Array(activeDevices.enumerated()), id: \.element.id) { idx, device in
                 // Shared read-only probe gate (Test Centre → Connection + a live WHOOP), hoisted so the two
                 // probe closures below don't each re-inline a 4-term && chain — which tips the iOS Swift
@@ -426,6 +430,33 @@ private struct DevicesContent: View {
 
     /// UPPERCASE overline section header with tracking + a muted trailing note, matching the liquid Today's
     /// `sectionHead`. Keeps every page's section chrome identical.
+    /// #1300: a compact segmented switcher over the paired straps. The active one is highlighted; tapping
+    /// another opens the SAME "Make active?" confirmation the per-card action uses (no accidental switch,
+    /// history preserved). Switching-not-combining: scores stay single-owner-per-day, this just picks the
+    /// owner. Collapses automatically when only one strap remains (the caller gates on count > 1).
+    private var strapSwitcher: some View {
+        HStack(spacing: 6) {
+            ForEach(activeDevices, id: \.id) { device in
+                let isActive = device.status == .active
+                Button { if !isActive { switchTarget = device } } label: {
+                    Text(device.displayName)
+                        .font(StrandFont.caption)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 7)
+                        .background(isActive ? StrandPalette.accent.opacity(0.18) : Color.clear,
+                                    in: Capsule(style: .continuous))
+                        .overlay(Capsule(style: .continuous).strokeBorder(
+                            isActive ? StrandPalette.accent.opacity(0.45) : StrandPalette.hairline, lineWidth: 1))
+                        .foregroundStyle(isActive ? StrandPalette.accent : StrandPalette.textSecondary)
+                }
+                .buttonStyle(.plain)
+                .disabled(isActive)
+            }
+        }
+        .padding(.horizontal, 2)
+    }
+
     private func sectionHead(_ title: LocalizedStringKey, trailing: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(title).font(StrandFont.overline).tracking(1.6).foregroundStyle(StrandPalette.textTertiary)

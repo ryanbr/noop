@@ -210,6 +210,12 @@ fun DevicesScreen(
             return@LazyScreenScaffold
         }
 
+        // #1300: a prominent switcher to flip which strap is active — the "switch, don't combine" option
+        // for a user with two straps (e.g. a 4.0 + a 5/MG). Shown only with 2+ straps, so it collapses
+        // when one is forgotten. Reuses the existing active-strap confirmation (switchTarget).
+        if (activeDevices.size > 1) {
+            item { StrapSwitcher(devices = activeDevices, onSelect = { switchTarget = it }) }
+        }
         items(activeDevices) { device ->
             DeviceCard(
                 device = device,
@@ -521,6 +527,36 @@ fun DevicesScreen(
 /** One paired device as a [NoopCard]: name, brand·model, a capabilities line, a state pill, last-seen,
  *  and a per-device actions menu. The active device is tinted with the accent (WHOOP blue) and carries
  *  an "Active" pill. */
+@Composable
+private fun StrapSwitcher(devices: List<PairedDeviceRow>, onSelect: (PairedDeviceRow) -> Unit) {
+    // #1300: a compact segmented switcher over the paired straps. The active one is highlighted; tapping
+    // another opens the SAME "Make active?" confirmation the per-card action uses (via switchTarget) — no
+    // accidental switch, history preserved. Switching-not-combining: scores stay single-owner-per-day.
+    val shape = RoundedCornerShape(50)
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+        devices.forEach { device ->
+            val isActive = device.status == DeviceStatus.active.name
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(shape)
+                    .background(if (isActive) Palette.accent.copy(alpha = 0.18f) else Color.Transparent)
+                    .border(1.dp, if (isActive) Palette.accent.copy(alpha = 0.45f) else Palette.hairline, shape)
+                    .then(if (isActive) Modifier else Modifier.clickable { onSelect(device) })
+                    .padding(vertical = 7.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    displayName(device),
+                    style = NoopType.caption,
+                    color = if (isActive) Palette.accent else Palette.textSecondary,
+                    maxLines = 1,
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun DeviceCard(
     device: PairedDeviceRow,
