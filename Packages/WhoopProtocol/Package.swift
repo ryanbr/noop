@@ -8,6 +8,7 @@ let package = Package(
         .library(name: "WhoopProtocol", targets: ["WhoopProtocol"]),
         .executable(name: "whoop-decode", targets: ["whoop-decode"]),
         .executable(name: "whoop-optical-experiment", targets: ["whoop-optical-experiment"]),
+        .executable(name: "whoop-re", targets: ["whoop-re"]),
     ],
     targets: [
         .target(
@@ -20,6 +21,10 @@ let package = Package(
         ),
         .executableTarget(
             name: "whoop-optical-experiment",
+            dependencies: ["WhoopProtocol"]
+        ),
+        .executableTarget(
+            name: "whoop-re",
             dependencies: ["WhoopProtocol"]
         ),
         .testTarget(
