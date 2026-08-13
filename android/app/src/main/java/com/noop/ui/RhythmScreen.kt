@@ -4,6 +4,9 @@ import com.noop.R
 import androidx.compose.ui.res.stringResource
 import android.content.Context
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,7 +22,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -297,9 +302,39 @@ private fun SummaryCard(
                 Overline("Last night", modifier = Modifier.weight(1f))
                 ConfidencePill(headline = headline, readable = night?.readableWindows)
             }
-            Text(headlineLabel(label), style = NoopType.title2, color = Palette.textPrimary)
+            StatusChip(label)
             Text(headlineDetail(label), style = NoopType.subhead, color = Palette.textSecondary)
         }
+    }
+}
+
+/**
+ * OpenStrap-style status chip: a compact pill with an icon + the neutral regularity label. Modelled on
+ * [SourceBadge], but in the calm Rest-blue palette — NEVER a warn/alarm colour (§11 forbids alarm styling;
+ * OpenStrap tints its chip amber, NOOP does not). States differ by icon + wording only; the label reuses
+ * the existing [headlineLabel]. Non-diagnostic — no verdict, no condition. Twin of Swift `statusChip`.
+ */
+@Composable
+private fun StatusChip(label: RhythmRegularity) {
+    val shape = RoundedCornerShape(50)
+    // Calm, non-alarm icons: a check for steady, a heart for any variation (never a warning triangle),
+    // an info glyph when unread. No red, no alarm (§11).
+    val icon = when (label) {
+        RhythmRegularity.STEADY -> Icons.Filled.CheckCircle
+        RhythmRegularity.OCCASIONAL_ECTOPY, RhythmRegularity.VARIED -> Icons.Filled.Favorite
+        RhythmRegularity.UNREADABLE -> Icons.Filled.Info
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier
+            .clip(shape)
+            .background(Palette.restColor.copy(alpha = 0.14f))
+            .border(1.dp, Palette.restColor.copy(alpha = 0.30f), shape)
+            .padding(horizontal = Metrics.space12, vertical = 7.dp),
+    ) {
+        Icon(icon, contentDescription = null, tint = Palette.restBright, modifier = Modifier.size(16.dp))
+        Text(headlineLabel(label), style = NoopType.subhead, color = Palette.restBright)
     }
 }
 

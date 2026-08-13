@@ -365,6 +365,35 @@ struct RhythmView: View {
 
     // MARK: Summary card — the neutral, plain-language headline (NO verdict)
 
+    /// OpenStrap-style status chip: a compact pill with an icon + the neutral regularity label. Modelled
+    /// on `SourceBadge`, but in the calm Rest-blue palette — NEVER a warn/alarm colour (§11 forbids alarm
+    /// styling; OpenStrap tints its chip amber, NOOP does not). States differ by icon + wording only, and
+    /// the label reuses the existing localized `headlineLabel`. Non-diagnostic — no verdict, no condition.
+    private var statusChip: some View {
+        let label = night?.overall ?? headlineWindow?.label ?? .unreadable
+        return HStack(spacing: 6) {
+            Image(systemName: Self.statusIcon(label))
+            Text(headlineLabel)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .font(StrandFont.subhead)
+        .foregroundStyle(StrandPalette.restBright)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(StrandPalette.restColor.opacity(0.16), in: Capsule(style: .continuous))
+        .overlay(Capsule(style: .continuous).strokeBorder(StrandPalette.restColor.opacity(0.34), lineWidth: 1))
+    }
+
+    /// A calm, non-alarm SF Symbol per neutral state — a check for steady, the ECG waveform for any
+    /// variation (never a warning triangle), a question mark when unread. No red, no alarm (§11).
+    private static func statusIcon(_ label: RhythmRegularity) -> String {
+        switch label {
+        case .steady:                    return "checkmark.circle.fill"
+        case .occasionalEctopy, .varied: return "waveform.path.ecg"
+        case .unreadable:                return "questionmark.circle"
+        }
+    }
+
     private var summaryCard: some View {
         StrandCard(padding: 18, tint: StrandPalette.restColor) {
             VStack(alignment: .leading, spacing: 10) {
@@ -373,10 +402,7 @@ struct RhythmView: View {
                     Spacer()
                     ScoreStatePill(confidenceState, text: confidenceText)
                 }
-                Text(headlineLabel)
-                    .font(StrandFont.title2)
-                    .foregroundStyle(StrandPalette.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
+                statusChip
                 Text(headlineDetail)
                     .font(StrandFont.subhead)
                     .foregroundStyle(StrandPalette.textSecondary)
