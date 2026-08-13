@@ -368,13 +368,12 @@ struct RhythmView: View {
     /// OpenStrap-style status chip: a compact pill with an icon + the neutral regularity label. Modelled
     /// on `SourceBadge`, but in the calm Rest-blue palette — NEVER a warn/alarm colour (§11 forbids alarm
     /// styling; OpenStrap tints its chip amber, NOOP does not). States differ by icon + wording only, and
-    /// the label reuses the existing localized `headlineLabel`. Non-diagnostic — no verdict, no condition.
+    /// the short `chipLabel` sits in the pill, the sentence `headlineDetail` reads below. Non-diagnostic.
     private var statusChip: some View {
         let label = night?.overall ?? headlineWindow?.label ?? .unreadable
         return HStack(spacing: 6) {
             Image(systemName: Self.statusIcon(label))
-            Text(headlineLabel)
-                .fixedSize(horizontal: false, vertical: true)
+            Text(chipLabel(label))
         }
         .font(StrandFont.subhead)
         .foregroundStyle(StrandPalette.restBright)
@@ -382,6 +381,17 @@ struct RhythmView: View {
         .padding(.vertical, 7)
         .background(StrandPalette.restColor.opacity(0.16), in: Capsule(style: .continuous))
         .overlay(Capsule(style: .continuous).strokeBorder(StrandPalette.restColor.opacity(0.34), lineWidth: 1))
+    }
+
+    /// The SHORT neutral status word inside the chip (the sentence-length `headlineDetail` reads below).
+    /// Compact so the chip renders like OpenStrap's, not a full-width banner. Non-diagnostic wording.
+    private func chipLabel(_ label: RhythmRegularity) -> String {
+        switch label {
+        case .steady:           return String(localized: "Steady")
+        case .occasionalEctopy: return String(localized: "Some variation")
+        case .varied:           return String(localized: "More varied")
+        case .unreadable:       return String(localized: "No clear reading")
+        }
     }
 
     /// A calm, non-alarm SF Symbol per neutral state — a check for steady, the ECG waveform for any
@@ -532,17 +542,6 @@ struct RhythmView: View {
     }
 
     // MARK: - Copy mapping (neutral, non-clinical — NO verdict, NO condition name)
-
-    /// The plain-language headline for the night's most-prominent label. Deliberately
-    /// descriptive and benign; no "consider a clinician", no condition, no alarm.
-    private var headlineLabel: String {
-        switch night?.overall ?? headlineWindow?.label ?? .unreadable {
-        case .steady:           return String(localized: "Your rhythm looked steady")
-        case .occasionalEctopy: return String(localized: "Some occasional extra or skipped beats")
-        case .varied:           return String(localized: "Your rhythm varied more than usual")
-        case .unreadable:       return String(localized: "Couldn't read clearly")
-        }
-    }
 
     private var headlineDetail: String {
         switch night?.overall ?? headlineWindow?.label ?? .unreadable {

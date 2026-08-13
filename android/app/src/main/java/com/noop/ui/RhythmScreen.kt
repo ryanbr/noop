@@ -312,7 +312,7 @@ private fun SummaryCard(
  * OpenStrap-style status chip: a compact pill with an icon + the neutral regularity label. Modelled on
  * [SourceBadge], but in the calm Rest-blue palette — NEVER a warn/alarm colour (§11 forbids alarm styling;
  * OpenStrap tints its chip amber, NOOP does not). States differ by icon + wording only; the label reuses
- * the existing [headlineLabel]. Non-diagnostic — no verdict, no condition. Twin of Swift `statusChip`.
+ * the short [chipLabel]; the sentence [headlineDetail] reads below. Non-diagnostic. Twin of Swift `statusChip`.
  */
 @Composable
 private fun StatusChip(label: RhythmRegularity) {
@@ -334,7 +334,7 @@ private fun StatusChip(label: RhythmRegularity) {
             .padding(horizontal = Metrics.space12, vertical = 7.dp),
     ) {
         Icon(icon, contentDescription = null, tint = Palette.restBright, modifier = Modifier.size(16.dp))
-        Text(headlineLabel(label), style = NoopType.subhead, color = Palette.restBright)
+        Text(chipLabel(label), style = NoopType.subhead, color = Palette.restBright)
     }
 }
 
@@ -530,11 +530,13 @@ private fun RhythmDisclaimerNote() {
 
 // ── Copy mapping (neutral, non-clinical — NO verdict, NO condition name) ──────────────────
 
-private fun headlineLabel(label: RhythmRegularity): String = when (label) {
-    RhythmRegularity.STEADY -> "Your rhythm looked steady"
-    RhythmRegularity.OCCASIONAL_ECTOPY -> "Some occasional extra or skipped beats"
-    RhythmRegularity.VARIED -> "Your rhythm varied more than usual"
-    RhythmRegularity.UNREADABLE -> "Couldn't read clearly"
+/** SHORT neutral status word inside the status chip (compact, so the chip reads like OpenStrap's; the
+ *  sentence-length [headlineDetail] carries the description below). Twin of Swift `chipLabel`. */
+private fun chipLabel(label: RhythmRegularity): String = when (label) {
+    RhythmRegularity.STEADY -> "Steady"
+    RhythmRegularity.OCCASIONAL_ECTOPY -> "Some variation"
+    RhythmRegularity.VARIED -> "More varied"
+    RhythmRegularity.UNREADABLE -> "No clear reading"
 }
 
 private fun headlineDetail(label: RhythmRegularity): String = when (label) {
