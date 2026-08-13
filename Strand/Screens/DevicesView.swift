@@ -459,8 +459,12 @@ private struct DevicesContent: View {
         let comparable = activeDevices.filter { SourceCoordinator.isWhoop($0) || $0.id.hasPrefix("oura-") }
         guard comparable.count >= 2, let store = await model.repo.storeHandle() else { strapCompare = nil; return }
         let a = comparable[0], b = comparable[1]
-        let aDaily = (try? await store.dailyMetrics(deviceId: a.id, from: "0000-01-01", to: "9999-12-31")) ?? []
-        let bDaily = (try? await store.dailyMetrics(deviceId: b.id, from: "0000-01-01", to: "9999-12-31")) ?? []
+        // Read both straps concurrently — the production store is a DatabasePool, so the two reads run in
+        // parallel rather than one-after-the-other.
+        async let aRaw = store.dailyMetrics(deviceId: a.id, from: "0000-01-01", to: "9999-12-31")
+        async let bRaw = store.dailyMetrics(deviceId: b.id, from: "0000-01-01", to: "9999-12-31")
+        let aDaily = (try? await aRaw) ?? []
+        let bDaily = (try? await bRaw) ?? []
         let bByDay = Dictionary(bDaily.map { ($0.day, $0) }, uniquingKeysWith: { first, _ in first })
         guard let shared = aDaily.sorted(by: { $0.day > $1.day }).first(where: { bByDay[$0.day] != nil }),
               let bShared = bByDay[shared.day] else { strapCompare = nil; return }
