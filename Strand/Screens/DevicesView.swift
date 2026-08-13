@@ -138,6 +138,9 @@ private struct DevicesContent: View {
             // as LiveView's banner; no new copy.
             if let guide = live.reconnectGuide { repairGuideBanner(guide) }
             DeviceSyncStatusCard()
+                // #1300 tier 2: compute the two-strap comparison off the giant body-modifier chain (attaching
+                // .task to the whole `body` tips the iOS type-check budget on this already-heavy view).
+                .task(id: activeDevices.count) { await loadStrapCompare() }
             // UPPERCASE overline section header, matching the liquid Today. Counts the paired bands so the
             // multi-WHOOP reality reads at a glance.
             sectionHead("YOUR BANDS", trailing: activeDevices.count == 1
@@ -254,7 +257,6 @@ private struct DevicesContent: View {
 
             whoopFirstFooter
         }
-        .task(id: activeDevices.count) { await loadStrapCompare() }
         // Add a device — guided, branching wizard (asks the device TYPE first, then runs the right
         // scan/register path: WHOOP present-scan for WHOOP families, StandardHRSource for HR straps).
         .sheet(isPresented: $showAddWizard) {
