@@ -276,26 +276,29 @@ public enum ReTools {
     }
 
     /// Score how well a decoded field tracks timestamped ground truth (what the official app showed).
-    /// Each truth point is matched to the nearest record by `ts_ms` within `maxDtMs`, `fieldName` is
-    /// read from that record's decoded dict, and the paired values are scored: mean-absolute-error,
-    /// bias (mean signed error), and Pearson r. This is the instrument-first check that lets a
-    /// candidate PPG→HRV / SpO₂ mapping be *validated*, not eyeballed — and it's honest about coverage
-    /// (`n` is how many points actually matched a decoded record).
+    /// Each truth point is matched to the nearest record *that actually carries a numeric decode of
+    /// `fieldName`* within `maxDtMs` — NOT merely the nearest record of any type, because on a real
+    /// interleaved capture the closest frame by time is usually some other packet that doesn't carry
+    /// the metric. The paired values are scored: mean-absolute-error, bias (mean signed error), and
+    /// Pearson r. This is the instrument-first check that lets a candidate PPG→HRV / SpO₂ mapping be
+    /// *validated*, not eyeballed — and it's honest about coverage (`n` = truth points that found a
+    /// field-bearing record in range; a `nil` decoded residual means none did).
     public static func groundTruth(records: [Record], truth: [TruthPoint],
                                    fieldName: String, maxDtMs: Int = 60_000) -> Score {
-        let stamped = records.filter { $0.tsMs != nil }
+        // Only records that are timestamped AND carry a numeric value for this field are candidates —
+        // pairing `decoded` to the field-bearing record, never to a nearer frame that lacks it.
+        let candidates: [(ts: Int, value: Double)] = records.compactMap { r in
+            guard let ts = r.tsMs, let v = r.frame.parsed[fieldName]?.doubleValue else { return nil }
+            return (ts, v)
+        }
         var residuals: [Residual] = []
         for t in truth.sorted(by: { $0.tsMs < $1.tsMs }) {
-            var best: Record?; var bestDt = Int.max
-            for r in stamped {
-                let dt = abs(r.tsMs! - t.tsMs)
-                if dt < bestDt { bestDt = dt; best = r }
+            var bestValue: Double?; var bestDt = Int.max
+            for c in candidates {
+                let dt = abs(c.ts - t.tsMs)
+                if dt < bestDt { bestDt = dt; bestValue = c.value }
             }
-            guard let match = best, bestDt <= maxDtMs else {
-                residuals.append(Residual(tsMs: t.tsMs, truth: t.value, decoded: nil, dtMs: bestDt))
-                continue
-            }
-            let decoded = match.frame.parsed[fieldName]?.doubleValue
+            let decoded = (bestValue != nil && bestDt <= maxDtMs) ? bestValue : nil
             residuals.append(Residual(tsMs: t.tsMs, truth: t.value, decoded: decoded, dtMs: bestDt))
         }
         let pairs = residuals.compactMap { r in r.decoded.map { (t: r.truth, d: $0) } }

@@ -218,7 +218,7 @@ case "truth":
     print("  MAE=\(fmt(s.meanAbsError))  bias=\(fmt(s.bias))  Pearson r=\(fmt(s.pearson))")
     for r in s.residuals {
         let dec = r.decoded.map { String(format: "%.3f", $0) } ?? "—(no decode)"
-        let dt = r.dtMs == Int.max ? "—(no timestamped record)" : "\(r.dtMs)ms"
+        let dt = r.dtMs == Int.max ? "—(no record carries field)" : "\(r.dtMs)ms"
         print("      ts=\(r.tsMs)  truth=\(String(format: "%.3f", r.truth))  decoded=\(dec)  Δt=\(dt)")
     }
 

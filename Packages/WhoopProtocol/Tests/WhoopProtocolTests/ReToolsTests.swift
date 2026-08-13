@@ -205,6 +205,22 @@ final class ReToolsTests: XCTestCase {
         XCTAssertNil(s.residuals.last?.decoded)         // the far truth point decodes to nil
     }
 
+    func testGroundTruthMatchesFieldBearingRecordNotNearestFrame() {
+        // A truth point at t=1000. The NEAREST record by time (t=1000) is some other packet that does
+        // NOT carry `hrv`; the field-bearing record is farther (t=6000, Δt=5s, still within maxDt).
+        // The scorer must pair with the field-bearing one — not report "no decode" off the nearer frame.
+        let nearNoField = rec(frame(type: "REALTIME_DATA", len: 4, parsed: [:]), bytes: [0, 0, 0, 0], ts: 1000)
+        let farWithField = rec(frame(type: "HISTORICAL_DATA", seq: 26, len: 4, parsed: ["hrv": 55.0]),
+                               bytes: [0, 0, 0, 0], ts: 6000)
+        let s = ReTools.groundTruth(records: [nearNoField, farWithField],
+                                    truth: [ReTools.TruthPoint(tsMs: 1000, value: 55)],
+                                    fieldName: "hrv", maxDtMs: 60_000)
+        XCTAssertEqual(s.n, 1)                          // matched the field-bearing record, not the nearer empty one
+        XCTAssertEqual(s.residuals.first?.decoded, 55.0)
+        XCTAssertEqual(s.residuals.first?.dtMs, 5000)   // Δt to the field-bearing record, not 0
+        XCTAssertEqual(s.meanAbsError!, 0.0, accuracy: 1e-9)
+    }
+
     func testGroundTruthNilStatsWhenNothingMatches() {
         let recs = [rec(frame(type: "HISTORICAL_DATA", seq: 26, len: 4, parsed: ["hrv": 50.0]),
                         bytes: [0, 0, 0, 0], ts: 1000)]
