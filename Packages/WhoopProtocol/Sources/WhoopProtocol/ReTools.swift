@@ -333,6 +333,9 @@ public enum ReTools {
         public let key: String
         public let sampleCount: Int
         public let axes: [GravityAxisPair]
+        /// Records skipped because `skin_contact == 0` (off-wrist): gravity/gravity2 are meaningless there
+        /// (zeroed/stale), so pooling them would skew the verdict. Reported so the coverage is honest.
+        public let excludedOffWrist: Int
         /// Every axis tracks the primary to within `epsilon` on every sample → gravity2 is just a copy of
         /// gravity (no new information). If false, it carries something the primary triplet doesn't.
         public let identicalToPrimary: Bool
@@ -340,14 +343,19 @@ public enum ReTools {
 
     /// Characterize the unknown V24 `gravity2` triplet against the primary `gravity` triplet, per axis:
     /// is it an identical copy, a constant offset, a scaled/filtered version, or decorrelated (a different
-    /// sensor)? Pairs the two triplets on records that carry both, per group. Pure instrumentation for
-    /// issue #1308 — feeds no score; the point is to learn what gravity2 is from a real 5/MG capture.
+    /// sensor)? Pairs the two triplets on records that carry both, per group. Off-wrist records
+    /// (`skin_contact == 0`) are excluded — like every other V24 biometric — because gravity is
+    /// meaningless off the wrist and would corrupt the comparison. Pure instrumentation for issue
+    /// #1308 — feeds no score; the point is to learn what gravity2 is from a real 5/MG capture.
     public static func gravityPair(_ records: [Record], epsilon: Double = 1e-4) -> [GravityPairReport] {
         let groups = Dictionary(grouping: records, by: { groupKey($0.frame) })
         var out: [GravityPairReport] = []
         for (key, recs) in groups {
             var report: [String: (p: [Double], s: [Double])] = ["x": ([], []), "y": ([], []), "z": ([], [])]
+            var excluded = 0
             for r in recs {
+                // Gate on the on-wrist contact byte, exactly as the rest of the V24 biometric suite does.
+                if r.frame.parsed["skin_contact"]?.intValue == 0 { excluded += 1; continue }
                 for axis in ["x", "y", "z"] {
                     guard let p = r.frame.parsed["gravity_\(axis)"]?.doubleValue,
                           let s = r.frame.parsed["gravity2_\(axis)"]?.doubleValue else { continue }
@@ -371,7 +379,8 @@ public enum ReTools {
             }
             guard !axes.isEmpty else { continue }
             out.append(GravityPairReport(key: key, sampleCount: axes.map { $0.n }.max() ?? 0,
-                                         axes: axes, identicalToPrimary: allIdentical))
+                                         axes: axes, excludedOffWrist: excluded,
+                                         identicalToPrimary: allIdentical))
         }
         return out.sorted { $0.key < $1.key }
     }

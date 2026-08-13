@@ -230,7 +230,8 @@ case "gravity2":
     for g in reports {
         let verdict = g.identicalToPrimary
             ? "IDENTICAL to primary gravity (no new info)" : "DIFFERS from primary — carries something distinct"
-        print("\(g.key)  —  \(g.sampleCount) paired samples  →  \(verdict)")
+        let excl = g.excludedOffWrist > 0 ? "  (\(g.excludedOffWrist) off-wrist excluded)" : ""
+        print("\(g.key)  —  \(g.sampleCount) paired samples\(excl)  →  \(verdict)")
         for a in g.axes {
             print("      \(a.axis)  meanG1=\(String(format: "%+.4f", a.meanPrimary))  "
                   + "meanG2=\(String(format: "%+.4f", a.meanSecond))  "
