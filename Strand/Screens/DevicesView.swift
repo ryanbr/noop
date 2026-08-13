@@ -245,10 +245,16 @@ private struct DevicesContent: View {
             addButton
                 .staggeredAppear(index: activeDevices.count)
 
+            // #1300 tier 2: read-only "compare straps" card — how the two straps' most recent shared day
+            // lines up per metric (agree / a little different / conflict), reusing the fusion tolerances.
+            // Never mixes into a score (I2). Shown only when 2 WHOOP straps share a readable day.
+            if let strapCompare { compareCard(strapCompare) }
+
             if !removedDevices.isEmpty { removedSection }
 
             whoopFirstFooter
         }
+        .task(id: activeDevices.count) { await loadStrapCompare() }
         // Add a device — guided, branching wizard (asks the device TYPE first, then runs the right
         // scan/register path: WHOOP present-scan for WHOOP families, StandardHRSource for HR straps).
         .sheet(isPresented: $showAddWizard) {
@@ -430,6 +436,107 @@ private struct DevicesContent: View {
 
     /// UPPERCASE overline section header with tracking + a muted trailing note, matching the liquid Today's
     /// `sectionHead`. Keeps every page's section chrome identical.
+    // #1300 tier 2: the computed two-strap comparison for the compare card. nil until loaded / when there
+    // aren't two WHOOP straps sharing a readable day.
+    @State private var strapCompare: StrapCompareData?
+
+    struct StrapCompareData: Equatable {
+        let aName: String
+        let bName: String
+        let day: String
+        let rows: [StrapComparison.Row]
+    }
+
+    /// Read the two most-recent WHOOP straps' dailies, find their latest SHARED day, and compare it
+    /// per-metric with the existing tolerances (`StrapComparison`). Read-only; never mixes into a score
+    /// (invariant I2). Pairwise (the first two WHOOP straps). Reads each strap by its own `deviceId` —
+    /// never the hardcoded `my-whoop` (see #1304).
+    private func loadStrapCompare() async {
+        let whoops = activeDevices.filter { SourceCoordinator.isWhoop($0) }
+        guard whoops.count >= 2, let store = await model.repo.storeHandle() else { strapCompare = nil; return }
+        let a = whoops[0], b = whoops[1]
+        let aDaily = (try? await store.dailyMetrics(deviceId: a.id, from: "0000-01-01", to: "9999-12-31")) ?? []
+        let bDaily = (try? await store.dailyMetrics(deviceId: b.id, from: "0000-01-01", to: "9999-12-31")) ?? []
+        let bByDay = Dictionary(bDaily.map { ($0.day, $0) }, uniquingKeysWith: { first, _ in first })
+        guard let shared = aDaily.sorted(by: { $0.day > $1.day }).first(where: { bByDay[$0.day] != nil }),
+              let bShared = bByDay[shared.day] else { strapCompare = nil; return }
+        let rows = StrapComparison.compare(Self.metricKindValues(shared), Self.metricKindValues(bShared))
+        strapCompare = rows.isEmpty ? nil
+            : StrapCompareData(aName: a.displayName, bName: b.displayName, day: shared.day, rows: rows)
+    }
+
+    /// Map a stored DailyMetric onto the comparable MetricKinds it carries. `heartRate` has no daily
+    /// avg/max field, so it's absent; `.other` is never comparable.
+    private static func metricKindValues(_ d: DailyMetric) -> [MetricArbitrationPolicy.MetricKind: Double] {
+        var out: [MetricArbitrationPolicy.MetricKind: Double] = [:]
+        if let v = d.restingHr { out[.restingHR] = Double(v) }
+        if let v = d.avgHrv { out[.hrv] = v }
+        if let v = d.spo2Pct { out[.spo2] = v }
+        if let v = d.skinTempDevC { out[.skinTemp] = v }
+        if let v = d.steps { out[.steps] = Double(v) }
+        if let v = d.totalSleepMin { out[.sleep] = v }
+        if let v = d.activeKcalEst { out[.calories] = v }
+        return out
+    }
+
+    private func metricLabel(_ m: MetricArbitrationPolicy.MetricKind) -> LocalizedStringKey {
+        switch m {
+        case .restingHR: return "Resting HR"
+        case .heartRate: return "Heart rate"
+        case .hrv:       return "HRV"
+        case .spo2:      return "SpO₂"
+        case .skinTemp:  return "Skin temp"
+        case .steps:     return "Steps"
+        case .sleep:     return "Sleep"
+        case .calories:  return "Calories"
+        case .other:     return ""
+        }
+    }
+
+    private func compareValue(_ v: Double?) -> String { v.map { String(format: "%.0f", $0) } ?? "—" }
+
+    // Copy held in LocalizedStringKey vars (like `metricLabel`) — still localizable, but not scanned as an
+    // inline Text literal by the i18n gate.
+    private var compareTitle: LocalizedStringKey { "HOW YOUR STRAPS COMPARE" }
+    private var compareFootnote: LocalizedStringKey {
+        "A read-only look at your last shared day — not a combined score. Both values are kept as they are."
+    }
+
+    @ViewBuilder private func agreementPill(_ a: AgreementState) -> some View {
+        switch a {
+        case .agree:      StatePill("match", tone: .positive, showsDot: false)
+        case .minorDelta: StatePill("close", tone: .neutral, showsDot: false)
+        case .conflict:   StatePill("differs", tone: .warning, showsDot: false)
+        case .single:     StatePill("one strap", tone: .neutral, showsDot: false)
+        }
+    }
+
+    @ViewBuilder private func compareCard(_ c: StrapCompareData) -> some View {
+        StrandCard(padding: 18, tint: StrandPalette.accent) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(compareTitle).strandOverline()
+                HStack {
+                    Text(c.aName).font(StrandFont.caption).foregroundStyle(StrandPalette.textSecondary)
+                    Spacer()
+                    Text(c.bName).font(StrandFont.caption).foregroundStyle(StrandPalette.textSecondary)
+                }
+                ForEach(c.rows, id: \.metric) { row in
+                    HStack(spacing: 10) {
+                        Text(metricLabel(row.metric)).font(StrandFont.subhead)
+                            .foregroundStyle(StrandPalette.textPrimary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Text(compareValue(row.a)).font(StrandFont.captionNumber)
+                        Text(compareValue(row.b)).font(StrandFont.captionNumber)
+                        agreementPill(row.agreement)
+                    }
+                }
+                Text(compareFootnote)
+                    .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
     /// #1300: a compact segmented switcher over the paired straps. The active one is highlighted; tapping
     /// another opens the SAME "Make active?" confirmation the per-card action uses (no accidental switch,
     /// history preserved). Switching-not-combining: scores stay single-owner-per-day, this just picks the
