@@ -1015,6 +1015,42 @@ fun SettingsScreen(
                     }
                 }
                 SettingsRowDivider()
+                // Custom HR zones (#531, @kavemang): five personalized inclusive BPM lower bounds that
+                // replace the conventional %HRmax bands. Off -> the effective set stays conventional.
+                SettingsFormRow(label = uiString(R.string.l10n_settings_screen_custom_hr_zones_84736ca5)) {
+                    Switch(
+                        checked = profile.hasCustomHrZones,
+                        onCheckedChange = { mutate { profile.setCustomHrZonesEnabled(it) } },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Palette.surfaceBase,
+                            checkedTrackColor = Palette.accent,
+                            uncheckedThumbColor = Palette.textSecondary,
+                            uncheckedTrackColor = Palette.surfaceInset,
+                            uncheckedBorderColor = Palette.hairline,
+                        ),
+                    )
+                }
+                if (profile.hasCustomHrZones) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = uiString(R.string.l10n_settings_screen_custom_hr_zones_hint_f7fa3bae),
+                        style = NoopType.footnote,
+                        color = Palette.textTertiary,
+                    )
+                    profile.hrZoneThresholds?.forEachIndexed { index, value ->
+                        SettingsRowDivider()
+                        SettingsFormRow(label = uiString(R.string.l10n_settings_screen_zone_starts_a0a60d45, index + 1)) {
+                            StepperField(
+                                value = value.toString(),
+                                unit = "bpm",
+                                accessibility = "Zone ${index + 1} starts at $value bpm",
+                                onMinus = { mutate { profile.stepHrZoneThreshold(index, up = false) } },
+                                onPlus = { mutate { profile.stepHrZoneThreshold(index, up = true) } },
+                            )
+                        }
+                    }
+                }
+                SettingsRowDivider()
                 // Step calibration (#139/#132): daily steps = @57 counter ticks ÷ this divisor.
                 // 1.0 = raw pass-through until the true 5/MG tick rate is known. The divisor goes
                 // up to 30 because a 5/MG motion counter can overcount by ~24×; the stepper uses a

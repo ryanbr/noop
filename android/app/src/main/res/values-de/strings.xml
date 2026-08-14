@@ -1991,4 +1991,7 @@
     <string name="skin_temp_delta_title">Hauttemperatur Δ</string>
     <string name="skin_temp_vs_baseline">ggü. Basiswert</string>
     <string name="l10n_app_changelog_make_noop_yours_theme_colours_and_6bdef2a7">Mach NOOP zu deinem — Akzentfarben und eigene Hintergründe, vierzig weitere Sportarten mit GPS-Strecken und eine Kalorien-Heatmap</string>
+    <string name="l10n_settings_screen_custom_hr_zones_84736ca5">Eigene HF-Zonen</string>
+    <string name="l10n_settings_screen_custom_hr_zones_hint_f7fa3bae">Lege die Herzfrequenz fest, bei der jede Zone beginnt. Ausschalten, um die Standardzonen in Prozent der maximalen Herzfrequenz wiederherzustellen.</string>
+    <string name="l10n_settings_screen_zone_starts_a0a60d45">Beginn Zone %1$d</string>
 </resources>

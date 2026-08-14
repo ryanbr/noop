@@ -1970,4 +1970,7 @@
     <string name="l10n_sleep_screen_stages_c1d33ad5">Fazy</string>
     <string name="l10n_sleep_screen_stages_vs_typical_28463f24">Fazy na tle typowych wartości</string>
     <string name="l10n_app_changelog_make_noop_yours_theme_colours_and_6bdef2a7">Dostosuj NOOP do siebie — kolory motywu i własne tła, czterdzieści kolejnych dyscyplin z trasami GPS oraz mapa cieplna kalorii</string>
+    <string name="l10n_settings_screen_custom_hr_zones_84736ca5">Własne strefy HR</string>
+    <string name="l10n_settings_screen_custom_hr_zones_hint_f7fa3bae">Ustaw tętno, przy którym zaczyna się każda strefa. Wyłącz, aby przywrócić domyślne strefy oparte na procencie tętna maksymalnego.</string>
+    <string name="l10n_settings_screen_zone_starts_a0a60d45">Początek strefy %1$d</string>
 </resources>

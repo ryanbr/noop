@@ -1976,4 +1976,7 @@
     <string name="skin_temp_delta_title">Temp. de piel Δ</string>
     <string name="skin_temp_vs_baseline">vs. referencia</string>
     <string name="l10n_app_changelog_make_noop_yours_theme_colours_and_6bdef2a7">Haz NOOP tuyo: colores de acento y fondos personalizados, cuarenta deportes más con rutas GPS y un mapa de calor de calorías</string>
+    <string name="l10n_settings_screen_custom_hr_zones_84736ca5">Zonas de FC personalizadas</string>
+    <string name="l10n_settings_screen_custom_hr_zones_hint_f7fa3bae">Define las pulsaciones en las que empieza cada zona. Desactiva para restaurar las zonas predeterminadas por porcentaje de la frecuencia máxima.</string>
+    <string name="l10n_settings_screen_zone_starts_a0a60d45">Inicio de la zona %1$d</string>
 </resources>

@@ -1903,4 +1903,7 @@
     <string name="skin_temp_delta_title">皮肤体温 Δ</string>
     <string name="skin_temp_vs_baseline">相对基线</string>
     <string name="l10n_app_changelog_make_noop_yours_theme_colours_and_6bdef2a7">把 NOOP 变成你的——强调色与自定义背景、新增四十多项运动及 GPS 轨迹，还有卡路里热力图</string>
+    <string name="l10n_settings_screen_custom_hr_zones_84736ca5">自定义心率区间</string>
+    <string name="l10n_settings_screen_custom_hr_zones_hint_f7fa3bae">设置每个区间开始时的心率。关闭可恢复按最大心率百分比划分的默认区间。</string>
+    <string name="l10n_settings_screen_zone_starts_a0a60d45">区间 %1$d 起点</string>
 </resources>

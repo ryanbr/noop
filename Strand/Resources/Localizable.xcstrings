@@ -199230,6 +199230,262 @@
           }
         }
       }
+    },
+    "Custom HR zones": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eigene HF-Zonen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Custom HR zones"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zonas de FC personalizadas"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zones FC personnalisées"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zone FC personalizzate"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Własne strefy HR"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zonas de RH personalizadas"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Свои зоны пульса"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自定义心率区间"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自訂心率區間"
+          }
+        }
+      }
+    },
+    "Set the BPM where each zone begins. Turn off to restore the default percentage-of-max zones.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lege die Herzfrequenz fest, bei der jede Zone beginnt. Ausschalten, um die Standardzonen in Prozent der maximalen Herzfrequenz wiederherzustellen."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set the BPM where each zone begins. Turn off to restore the default percentage-of-max zones."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Define las pulsaciones en las que empieza cada zona. Desactiva para restaurar las zonas predeterminadas por porcentaje de la frecuencia máxima."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Définis la fréquence cardiaque à laquelle chaque zone commence. Désactive pour rétablir les zones par défaut en pourcentage de la fréquence maximale."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imposta la frequenza cardiaca a cui inizia ogni zona. Disattiva per ripristinare le zone predefinite in percentuale della frequenza massima."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ustaw tętno, przy którym zaczyna się każda strefa. Wyłącz, aby przywrócić domyślne strefy oparte na procencie tętna maksymalnego."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Define os batimentos em que cada zona começa. Desativa para repor as zonas predefinidas por percentagem da frequência máxima."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Задайте пульс, с которого начинается каждая зона. Выключите, чтобы вернуть стандартные зоны в процентах от максимального пульса."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置每个区间开始时的心率。关闭可恢复按最大心率百分比划分的默认区间。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定每個區間開始時的心率。關閉可恢復按最大心率百分比劃分的預設區間。"
+          }
+        }
+      }
+    },
+    "Zone %lld starts": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beginn Zone %lld"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zone %lld starts"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inicio de la zona %lld"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Début de la zone %lld"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inizio della zona %lld"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Początek strefy %lld"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Início da zona %lld"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Начало зоны %lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "区间 %lld 起点"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "區間 %lld 起點"
+          }
+        }
+      }
+    },
+    "Zone %lld starts at %lld beats per minute": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zone %1$lld beginnt bei %2$lld Schlägen pro Minute"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zone %lld starts at %lld beats per minute"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La zona %1$lld empieza en %2$lld pulsaciones por minuto"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La zone %1$lld débute à %2$lld battements par minute"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La zona %1$lld inizia a %2$lld battiti al minuto"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Strefa %1$lld zaczyna się przy %2$lld uderzeniach na minutę"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A zona %1$lld começa aos %2$lld batimentos por minuto"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Зона %1$lld начинается при %2$lld ударах в минуту"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "区间 %1$lld 从每分钟 %2$lld 次开始"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "區間 %1$lld 從每分鐘 %2$lld 次開始"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -2003,4 +2003,7 @@
     <string name="skin_temp_delta_title">Skin Temp Δ</string>
     <string name="skin_temp_vs_baseline">vs baseline</string>
     <string name="l10n_app_changelog_make_noop_yours_theme_colours_and_6bdef2a7">Make NOOP yours — theme colours and custom backgrounds, forty more sports with GPS routes, and a calorie heatmap</string>
+    <string name="l10n_settings_screen_custom_hr_zones_84736ca5">Custom HR zones</string>
+    <string name="l10n_settings_screen_custom_hr_zones_hint_f7fa3bae">Set the BPM where each zone begins. Turn off to restore the default percentage-of-max zones.</string>
+    <string name="l10n_settings_screen_zone_starts_a0a60d45">Zone %1$d starts</string>
 </resources>
