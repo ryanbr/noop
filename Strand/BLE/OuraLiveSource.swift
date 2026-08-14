@@ -815,8 +815,14 @@ public final class OuraLiveSource: NSObject, ObservableObject {
             // #1284 residual 3: stamp the 0x49 anchor state on EVERY persist, so an unanchored early-drain row
             // (the prime suspect for the short nested duplicate) is self-evident even when it is the FIRST
             // persist, before the duplicate-gen line above can fire.
+            // #1284: log the SESSION's STORED window, not the pre-trim burst window. The #1293
+            // trailing-run trim shortens the persisted end, so `startStr`/`endStr` (from the burst) read
+            // ~tens of minutes wider than the row — every future capture then reads the wrong window out
+            // of the log. `session.startTs`/`.endTs` are exactly what `persistSleepSession` banks.
+            let persistedStart = fmt.string(from: Date(timeIntervalSince1970: TimeInterval(session.startTs)))
+            let persistedEnd = fmt.string(from: Date(timeIntervalSince1970: TimeInterval(session.endTs)))
             let anchorTag = sleepStart != nil ? "0x49-onset" : "no-0x49-onset"
-            log("Oura: sleep session persisted [\(startStr) → \(endStr)] eff=\(effStr) [\(anchorTag)] → \(deviceId) (ring-provided night; wins merge over computed)")
+            log("Oura: sleep session persisted [\(persistedStart) → \(persistedEnd)] eff=\(effStr) [\(anchorTag)] → \(deviceId) (ring-provided night; wins merge over computed)")
         }
     }
 

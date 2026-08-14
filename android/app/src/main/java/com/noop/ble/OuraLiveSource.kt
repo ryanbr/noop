@@ -759,8 +759,12 @@ class OuraLiveSource(
             // #1284 residual 3: stamp the 0x49 anchor state on EVERY persist, so an unanchored early-drain row
             // (the prime suspect for the short nested duplicate) is self-evident even when it is the FIRST
             // persist, before the duplicate-gen line above can fire.
+            // #1284: log the SESSION's STORED window, not the pre-trim burst window. The #1293
+            // trailing-run trim shortens the persisted end, so [$start -> $end] (from the burst) reads
+            // ~tens of minutes wider than the row — every future capture then reads the wrong window out
+            // of the log. it.startTs/it.endTs are exactly what persistSleepSession banks.
             val anchorTag = if (sleepStart != null) "0x49-onset" else "no-0x49-onset"
-            log("Oura: sleep session persisted [$start -> $end] eff=$effStr [$anchorTag] -> $deviceId (ring-provided night; wins merge over computed)")
+            log("Oura: sleep session persisted [${it.startTs} -> ${it.endTs}] eff=$effStr [$anchorTag] -> $deviceId (ring-provided night; wins merge over computed)")
         }
     }
 
