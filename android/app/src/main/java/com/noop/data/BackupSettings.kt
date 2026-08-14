@@ -52,6 +52,7 @@ object BackupSettingsCodec {
         "profile.heightCm" to Kind.DOUBLE,
         "profile.waistCm" to Kind.DOUBLE,
         "profile.hrMax" to Kind.INT,
+        "profile.hrZoneThresholds" to Kind.STRING,
         "units.system" to Kind.STRING,
         "units.temperature" to Kind.STRING,
         "effort.scale" to Kind.STRING,
