@@ -115,6 +115,13 @@ object ExerciseTypes {
         "Netball" to EX.EXERCISE_TYPE_OTHER_WORKOUT,
         "Gaelic football" to EX.EXERCISE_TYPE_OTHER_WORKOUT,
         "Spikeball" to EX.EXERCISE_TYPE_OTHER_WORKOUT,
+        // WHOOP-parity batch: activities in WHOOP's catalogue NOOP lacked. HC has no dedicated type, so
+        // they ride a nearby one for writeback and keep their own label. GPS off (EXTRA convention).
+        "Meditation" to EX.EXERCISE_TYPE_OTHER_WORKOUT,
+        "Horseback riding" to EX.EXERCISE_TYPE_OTHER_WORKOUT,
+        "Wheelchair" to EX.EXERCISE_TYPE_OTHER_WORKOUT,
+        "Gaming" to EX.EXERCISE_TYPE_OTHER_WORKOUT,
+        "Motor racing" to EX.EXERCISE_TYPE_OTHER_WORKOUT,
     )
 
     /** Types where a route makes sense -> GPS defaults on. */

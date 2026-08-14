@@ -93,6 +93,13 @@ public enum KnownWorkoutType: String, CaseIterable, Sendable {
     case netball = "Netball"
     case gaelicFootball = "Gaelic football"
     case spikeball = "Spikeball"
+    // WHOOP-parity batch: activities in WHOOP's catalogue NOOP lacked (raw values byte-identical to
+    // WorkoutCatalog / Android WorkoutSport). Icons are distinct SF Symbols available on iOS 17 / macOS 13.
+    case meditation = "Meditation"
+    case horsebackRiding = "Horseback riding"
+    case wheelchair = "Wheelchair"
+    case gaming = "Gaming"
+    case motorRacing = "Motor racing"
     case other = "Other"
 
     /// Case-insensitive exact match against a stored/free-typed sport label.
@@ -313,6 +320,11 @@ public enum WorkoutTypeIconography {
         case .netball:              return .system("basketball")
         case .gaelicFootball:       return .system("soccerball")
         case .spikeball:            return .system("volleyball")
+        case .meditation:           return .system("figure.mind.and.body")
+        case .horsebackRiding:      return .system("figure.equestrian.sports")
+        case .wheelchair:           return .system("figure.roll")
+        case .gaming:               return .system("gamecontroller.fill")
+        case .motorRacing:          return .system("steeringwheel")
         case .other:
             return .system("figure.mixed.cardio")
         }
@@ -399,6 +411,11 @@ public enum WorkoutTypeIconography {
         case .netball:              return "system:basketball"
         case .gaelicFootball:       return "system:soccerball"
         case .spikeball:            return "system:volleyball"
+        case .meditation:           return "system:figure.mind.and.body"
+        case .horsebackRiding:      return "system:figure.equestrian.sports"
+        case .wheelchair:           return "system:figure.roll"
+        case .gaming:               return "system:gamecontroller.fill"
+        case .motorRacing:          return "system:steeringwheel"
         case .other:            return "system:figure.mixed.cardio"
         }
     }
