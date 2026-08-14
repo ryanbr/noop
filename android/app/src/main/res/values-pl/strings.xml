@@ -1042,7 +1042,7 @@
     <string name="l10n_app_changelog_a_smoother_dashboard_on_big_histories_3e3a8dea">Płynniejszy pulpit nawigacyjny z dużymi historiami i wyraźniejszy inteligentny alarm</string>
     <string name="l10n_app_changelog_a_sync_chip_on_today_clearer_37682fc9">Chip synchronizacji w Today, wyraźniejsze ostrzeżenia zegara na pasku i pełny język niemiecki</string>
     <string name="l10n_app_changelog_a_whole_new_look_titanium_gold_b40e0108">Zupełnie nowy wygląd - „Tytan i złoto”</string>
-    <string name="l10n_app_changelog_a_whoop_style_today_chart_clearer_9bdd13ff">Wykres dnia dzisiejszego w stylu WHOOP, wyraźniejsze czasy snu i duża aktualizacja iPhone'a</string>
+    <string name="l10n_app_changelog_a_whoop_style_today_chart_clearer_9bdd13ff">Wykres dnia dzisiejszego w stylu WHOOP, wyraźniejsze czasy snu i duża aktualizacja iPhone\'a</string>
     <string name="l10n_app_changelog_accuracy_reliability_accessibility_a_big_community_43c3787d">Dokładność, niezawodność i dostępność — wielka fala poprawek społeczności</string>
     <string name="l10n_app_changelog_android_bottom_tab_bar_99b41cad">Android: dolny pasek zakładek</string>
     <string name="l10n_app_changelog_android_faster_sync_skin_temp_sync_4f774d79">Android: szybsza synchronizacja, temperatura skóry, stan synchronizacji, podstawy alarmu</string>
@@ -1122,7 +1122,7 @@
     <string name="l10n_app_changelog_fix_the_android_freeze_after_a_bf7f8d81">Napraw zawieszanie się Android po kilku nocach przesyłania danych</string>
     <string name="l10n_app_changelog_fix_your_day_now_follows_your_e772176e">Poprawka: Twój dzień jest teraz zgodny ze strefą czasową, a nie UTC</string>
     <string name="l10n_app_changelog_fixed_imported_data_and_strap_sync_18350836">Naprawiono: importowane dane i synchronizacja paska blokowały się na iOS</string>
-    <string name="l10n_app_changelog_fixed_iphone_import_and_a_stuck_38876ee9">Naprawiono: import iPhone'a i zablokowany sklep teraz leczą się samoczynnie</string>
+    <string name="l10n_app_changelog_fixed_iphone_import_and_a_stuck_38876ee9">Naprawiono: import iPhone\'a i zablokowany sklep teraz leczą się samoczynnie</string>
     <string name="l10n_app_changelog_fixes_a_false_pairing_refused_warning_7023464e">Naprawiono fałszywe ostrzeżenie „Odmowa parowania” (Mac)</string>
     <string name="l10n_app_changelog_fixes_the_experimental_sleep_toggle_now_fc281b7d">Poprawki: działa teraz eksperymentalny przełącznik uśpienia, kalibracja kroków, ręczne treningi na WHOOP 5/MG i rozsądny odczyt HRV</string>
     <string name="l10n_app_changelog_fixes_the_insights_tab_crash_plus_042d1702">Naprawiono awarię karty Statystyki oraz dokładniejsze HRV</string>
@@ -1141,13 +1141,13 @@
     <string name="l10n_app_changelog_import_polish_mac_whoop_5_optical_5067d90c">Importuj język polski (Mac) + dekodowanie optyczne WHOOP 5</string>
     <string name="l10n_app_changelog_independent_and_experimental_f9b65317">Niezależny i eksperymentalny</string>
     <string name="l10n_app_changelog_ios_is_now_a_direct_download_fab6ed69">iOS można teraz pobrać bezpośrednio — nie jest potrzebny komputer Mac ani Xcode</string>
-    <string name="l10n_app_changelog_iphone_button_label_polish_64244980">Polerowanie etykiet przycisków iPhone'a</string>
-    <string name="l10n_app_changelog_iphone_hotfix_sideloading_works_again_7b90c265">Poprawka dla iPhone'a: ​​ładowanie boczne znów działa</string>
-    <string name="l10n_app_changelog_iphone_import_handle_icloud_and_large_2d60298a">Import iPhone'a: ​​obsługa iCloud i dużych plików eksportu</string>
+    <string name="l10n_app_changelog_iphone_button_label_polish_64244980">Polerowanie etykiet przycisków iPhone\'a</string>
+    <string name="l10n_app_changelog_iphone_hotfix_sideloading_works_again_7b90c265">Poprawka dla iPhone\'a: ​​ładowanie boczne znów działa</string>
+    <string name="l10n_app_changelog_iphone_import_handle_icloud_and_large_2d60298a">Import iPhone\'a: ​​obsługa iCloud i dużych plików eksportu</string>
     <string name="l10n_app_changelog_iphone_polish_accessibility_99bba695">Polski iPhone + dostępność</string>
     <string name="l10n_app_changelog_iphone_polish_what_s_new_fits_1dad9b15">Polski iPhone: Co nowego pasuje, Karty dzisiaj się zgadzają</string>
     <string name="l10n_app_changelog_iphone_smoother_scrolling_753e0b0d">iPhone: płynniejsze przewijanie</string>
-    <string name="l10n_app_changelog_iphone_workouts_table_fits_the_screen_156a691c">Tabela ćwiczeń iPhone'a pasuje do ekranu</string>
+    <string name="l10n_app_changelog_iphone_workouts_table_fits_the_screen_156a691c">Tabela ćwiczeń iPhone\'a pasuje do ekranu</string>
     <string name="l10n_app_changelog_journal_logging_an_imperial_metric_units_a507a5d2">Rejestrowanie dziennika + przełączanie jednostek imperialnych/metrycznych</string>
     <string name="l10n_app_changelog_large_apple_health_imports_no_longer_830fa786">Duży import Apple Health nie powoduje już awarii (iPhone/Mac)</string>
     <string name="l10n_app_changelog_last_workouts_tile_fix_301180af">Poprawka kafelka Ostatnich Treningów</string>
@@ -1181,7 +1181,7 @@
     <string name="l10n_app_changelog_open_a_workout_see_what_it_a40fd8a4">Otwórz trening, zobacz, ile Cię to kosztuje, i podziel się swoimi trendami</string>
     <string name="l10n_app_changelog_optional_inactivity_nudge_3f4ca05a">Opcjonalne szturchnięcie w przypadku braku aktywności</string>
     <string name="l10n_app_changelog_personal_vital_baselines_mac_analytics_parity_744972d1">Osobiste podstawowe wartości życiowe + parytet analityki Mac</string>
-    <string name="l10n_app_changelog_polish_matched_to_the_iphone_mac_cc34126b">Polski - dopasowany do designu iPhone'a i Maca</string>
+    <string name="l10n_app_changelog_polish_matched_to_the_iphone_mac_cc34126b">Polski - dopasowany do designu iPhone\'a i Maca</string>
     <string name="l10n_app_changelog_german_french_spanish_pull_to_sync_1109bda2">Niemiecki, francuski i hiszpański, synchronizacja typu „pull” w „Dzisiaj” oraz fala języka polskiego</string>
     <string name="l10n_app_changelog_hrv_accuracy_fix_oura_sleep_and_4ed31e39">Poprawka dokładności HRV, tryb uśpienia i ruchu Oura, bogatsze dekodowanie 5/MG i synchronizacja z możliwością zatrzymania</string>
     <string name="l10n_app_changelog_optimal_strain_alerts_faster_history_sync_6488a27a">Alerty o optymalnym obciążeniu, szybsza synchronizacja historii i fala poprawek dotyczących dokładności</string>
@@ -1261,7 +1261,7 @@
     <string name="l10n_app_changelog_true_battery_a_sync_indicator_and_89037fc3">Wskaźnik synchronizacji prawdziwej baterii %, a i tętno w importowanych treningach</string>
     <string name="l10n_app_changelog_two_quick_fixes_the_blue_titanium_4c021d78">Dwie szybkie poprawki: ikona Blue Titanium i „Twoje karty” na komputerze Mac</string>
     <string name="l10n_app_changelog_under_the_hood_current_api_migration_672da037">Pod maską: migracja bieżącego API (bez zmiany zachowania)</string>
-    <string name="l10n_app_changelog_universal_mac_build_iphone_import_fix_363425a0">Uniwersalna kompilacja komputerów Mac + poprawka importu iPhone'a</string>
+    <string name="l10n_app_changelog_universal_mac_build_iphone_import_fix_363425a0">Uniwersalna kompilacja komputerów Mac + poprawka importu iPhone\'a</string>
     <string name="l10n_app_changelog_update_check_shows_what_s_new_6779c2e3">Kontrola aktualizacji pokazuje, co nowego</string>
     <string name="l10n_app_changelog_updates_check_github_again_1e00ced1">Aktualizacje ponownie sprawdź GitHub</string>
     <string name="l10n_app_changelog_v5_the_raw_signal_release_noop_c109e3f2">v5 - wydanie surowego sygnału: NOOP odczytuje sygnał na Twoim urządzeniu za darmo</string>
@@ -1593,7 +1593,7 @@
     <string name="l10n_sleep_screen_your_night_data_is_in_logging_ec461720">Dane z Twojej nocy są już dostępne. Rejestrowanie Twojego samopoczucia pomaga NOOP dowiedzieć się, co zapewnia najlepszą regenerację.</string>
     <string name="l10n_stress_screen_autonomic_balance_lf_hf_776cb6f7">Równowaga autonomiczna (LF/HF)</string>
     <string name="l10n_stress_screen_avg_a178769d">średnio</string>
-    <string name="l10n_stress_screen_baevsky_stress_index_296cf7c0">Indeks stresu Baevsky'ego</string>
+    <string name="l10n_stress_screen_baevsky_stress_index_296cf7c0">Indeks stresu Baevsky\'ego</string>
     <string name="l10n_stress_screen_daily_0_3_proxy_63247929">Codziennie 0-3 proxy</string>
     <string name="l10n_stress_screen_hf_power_3a9fd8c9">Moc wysokiej częstotliwości</string>
     <string name="l10n_stress_screen_not_enough_recent_days_to_chart_c072bade">Nie ma jeszcze wystarczającej liczby ostatnich dni, aby wyznaczyć trend. Noś pasek, aby go zapełnić.</string>
