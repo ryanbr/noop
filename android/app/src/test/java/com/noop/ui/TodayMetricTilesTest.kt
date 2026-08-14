@@ -480,7 +480,9 @@ class TodayMetricTilesTest {
         hrv: Double? = null,
         spo2: Double? = null,
         skinTemp: Double? = null,
-    ) = DailyMetric(deviceId = "my-whoop", day = day, avgHrv = hrv, spo2Pct = spo2, skinTempDevC = skinTemp)
+        resp: Double? = null,
+    ) = DailyMetric(deviceId = "my-whoop", day = day, avgHrv = hrv, spo2Pct = spo2, skinTempDevC = skinTemp,
+                    respRateBpm = resp)
 
     @Test
     fun lastSpo2Row_skipsANewerVitalsRowWithNullSpo2_documentsTheWholeRowBug() {
@@ -495,6 +497,34 @@ class TodayMetricTilesTest {
         val spo2 = lastSpo2Row(days, todayKey = "2026-06-19")
         assertEquals("2026-06-17", spo2?.day)
         assertEquals(96.0, spo2?.spo2Pct)
+    }
+
+    @Test
+    fun lastRespRow_carriesARECENTReading_whenTheNewestVitalsNightLacksResp() {
+        // #1331: respiratory needs a longer clean sleep R-R segment than HRV, so last night can carry HRV
+        // but no breaths/min. lastVitalsRow picks last night (right for HRV); respiratory resolves per-field
+        // to the last night that HAD a reading — but only within the vitalCarryDays window.
+        val days = listOf(
+            fieldDay("2026-08-11", resp = 20.0),                 // 3 days back: within the 7-day carry window
+            fieldDay("2026-08-13", hrv = 65.0, resp = null),     // last night: HRV yes, respiratory null
+        )
+        assertEquals("2026-08-13", lastVitalsRow(days, todayKey = "2026-08-14")?.day)
+        val resp = lastRespRow(days, todayKey = "2026-08-14")
+        assertEquals("2026-08-11", resp?.day)
+        assertEquals(20.0, resp?.respRateBpm)
+    }
+
+    @Test
+    fun lastRespRow_returnsNull_whenTheLastReadingIsStale_soNoStaleNumberIsShownAsCurrent() {
+        // The reported #1331 case: respiratory last computed weeks ago (here 23 days). A nightly vital that
+        // old must NOT be carried as the current card value — a silent stale number reads as a live
+        // measurement (the "Respiratory 15.6 a fortnight later" bug). Beyond vitalCarryDays => "No Data".
+        val days = listOf(
+            fieldDay("2026-07-22", resp = 20.0),                 // 23 days back — beyond the 7-day window
+            fieldDay("2026-08-13", hrv = 65.0, resp = null),     // recent HRV-only night
+        )
+        assertEquals("2026-08-13", lastVitalsRow(days, todayKey = "2026-08-14")?.day)
+        assertNull(lastRespRow(days, todayKey = "2026-08-14"))
     }
 
     @Test

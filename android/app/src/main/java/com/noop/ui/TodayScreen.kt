@@ -978,6 +978,11 @@ fun TodayScreen(
     val lastSkinTempDay: DailyMetric? = remember(days, carryOverTodayKey, selectedDayOffset, displayMetric) {
         if (selectedDayOffset == 0) lastSkinTempRow(days, maxOf(displayMetric?.day ?: "", carryOverTodayKey)) else null
     }
+    // PER-FIELD respiratory carry (#1331): the freshest strictly-prior row that actually HAS a breaths/min,
+    // since lastVitalsDay can land on a night with HRV/RHR but no respiratory. Twin of lastSpo2Day.
+    val lastRespDay: DailyMetric? = remember(days, carryOverTodayKey, selectedDayOffset, displayMetric) {
+        if (selectedDayOffset == 0) lastRespRow(days, maxOf(displayMetric?.day ?: "", carryOverTodayKey)) else null
+    }
     // Carry-over Charge for TODAY, the prior scored row's recovery + its "Last night · <date>" caption.
     // Derived from lastScoredRecoveryDay so Charge and every other recovery tile carry the SAME prior day.
     val lastScoredCharge: LastCharge? = remember(lastScoredRecoveryDay) {
@@ -1498,6 +1503,7 @@ fun TodayScreen(
                                     lastScoredCharge = lastScoredCharge,
                                     carriedDay = lastScoredRecoveryDay,
                                     spo2CarryDay = lastSpo2Day,
+                                    respCarryDay = lastRespDay,
                                     unitSystem = unitSystem,
                                     effortScale = effortScale,
                                     effortForDay = effortForDay,   // #1001: same figure as the hero ring
@@ -1552,6 +1558,7 @@ fun TodayScreen(
                             vitalsDay = lastVitalsDay,
                             spo2Day = lastSpo2Day,
                             skinTempDay = lastSkinTempDay,
+                            respDay = lastRespDay,
                             stress = stressToday,
                             fitnessAge = fitnessAgeToday,
                             vitality = vitalityToday,
@@ -3147,6 +3154,7 @@ private fun YourCardsSection(
     vitalsDay: DailyMetric?,
     spo2Day: DailyMetric?,
     skinTempDay: DailyMetric?,
+    respDay: DailyMetric?,
     stress: Double?,
     fitnessAge: Double?,
     vitality: Double?,
@@ -3183,6 +3191,7 @@ private fun YourCardsSection(
                         vitalsDay = vitalsDay,
                         spo2Day = spo2Day,
                         skinTempDay = skinTempDay,
+                        respDay = respDay,
                         stress = stress,
                         fitnessAge = fitnessAge,
                         vitality = vitality,
@@ -3199,6 +3208,7 @@ private fun YourCardsSection(
                         day = day,
                         carriedDay = carriedDay,
                         vitalsDay = vitalsDay,
+                        respDay = respDay,
                         stress = stress,
                         fitnessAge = fitnessAge,
                         vitality = vitality,
@@ -3326,6 +3336,7 @@ private fun dashboardCardFraction(
     day: DailyMetric?,
     carriedDay: DailyMetric?,
     vitalsDay: DailyMetric?,
+    respDay: DailyMetric?,
     stress: Double?,
     fitnessAge: Double?,
     vitality: Double?,
@@ -3340,7 +3351,7 @@ private fun dashboardCardFraction(
         DashboardCard.VITALITY -> over(vitality, 100.0)
         DashboardCard.HRV -> over(day?.avgHrv ?: vitalsDay?.avgHrv, 120.0)
         DashboardCard.RESTING_HR -> over((day?.restingHr ?: vitalsDay?.restingHr)?.toDouble(), 100.0)
-        DashboardCard.RESPIRATORY -> over(day?.respRateBpm ?: vitalsDay?.respRateBpm, 24.0)
+        DashboardCard.RESPIRATORY -> over(day?.respRateBpm ?: vitalsDay?.respRateBpm ?: respDay?.respRateBpm, 24.0)
         DashboardCard.STEPS -> {
             val steps = (day?.steps ?: importedStepsForDay ?: estimatedStepsForDay)?.toDouble()
             over(steps, 10000.0)
@@ -3373,6 +3384,7 @@ private fun dashboardCardValue(
     vitalsDay: DailyMetric?,
     spo2Day: DailyMetric?,
     skinTempDay: DailyMetric?,
+    respDay: DailyMetric?,
     stress: Double?,
     fitnessAge: Double?,
     vitality: Double?,
@@ -3395,7 +3407,7 @@ private fun dashboardCardValue(
         DashboardCard.RESTING_HR ->
             withUnit((day?.restingHr ?: vitalsDay?.restingHr)?.toString() ?: NO_DATA)
         DashboardCard.RESPIRATORY ->
-            withUnit((day?.respRateBpm ?: vitalsDay?.respRateBpm)?.let { String.format(Locale.US, "%.1f", it) } ?: NO_DATA)
+            withUnit((day?.respRateBpm ?: vitalsDay?.respRateBpm ?: respDay?.respRateBpm)?.let { String.format(Locale.US, "%.1f", it) } ?: NO_DATA)
         DashboardCard.BLOOD_OXYGEN ->
             // PER-FIELD carry: the whole-row carries (vd) land on rows whose spo2Pct is null (the engine
             // writes spo2Pct = null on computed rows), so fall through to the last row that HAS one.
@@ -4629,6 +4641,9 @@ private fun MetricGrid(
     // spo2Pct is null (computed rows never carry one), so the Blood Oxygen tile falls through to the
     // last row that actually has a reading. Mirrors iOS TodayView.lastSpo2Day (carriedVital's per-field fallback).
     spo2CarryDay: DailyMetric? = null,
+    // PER-FIELD respiratory carry (#1331): same reason as spo2CarryDay — respiratory needs a longer
+    // clean sleep R-R segment than HRV, so carriedDay can land on a night with HRV but no breaths/min.
+    respCarryDay: DailyMetric? = null,
     unitSystem: UnitSystem = UnitSystem.METRIC,
     effortScale: EffortScale = EffortScale.HUNDRED,
     // #1001: the day's resolved Effort (live-preferring for today, floored at the stored row). Threaded
@@ -4750,7 +4765,7 @@ private fun MetricGrid(
             )
         },
         KeyMetric.RESPIRATORY to run {
-            val v = d?.respRateBpm ?: carriedDay?.respRateBpm
+            val v = d?.respRateBpm ?: carriedDay?.respRateBpm ?: respCarryDay?.respRateBpm
             KeyTileData(
                 label = uiString(R.string.l10n_today_screen_respiratory_1cd8c175),
                 value = v?.let { String.format(Locale.US, "%.1f", it) } ?: NO_DATA,

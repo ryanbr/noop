@@ -1,5 +1,6 @@
 package com.noop.analytics
 
+import java.util.Locale
 import com.noop.data.DailyMetric
 import com.noop.data.MetricSeriesRow
 import com.noop.data.ScoreInputProvenanceRow
@@ -735,6 +736,10 @@ object IntelligenceEngine {
             nightlyRhrByDay[day] = res.daily.restingHr?.toDouble()
             nightlySkinByDay[day] = res.nightlySkinTempC
             nightlyRespByDay[day] = res.daily.respRateBpm
+            // #1331 respiratory diagnostic: log each night's breaths/min (or "nil") so a "respiratory not
+            // showing" report is explainable from the strap log — a run of nil nights localises when it
+            // stopped. Logging only; no scoring change. The Swift diag twin lands with the iOS carry (#1331 follow-up).
+            diag(respRateLogLine(day, res.daily.respRateBpm))
             // ── RHR floor-vs-mean diagnostic (#691) ────────────────────────────────────────────────
             // Make the recurring "NOOP's resting HR reads LOWER than my sleeping-HR app" reports
             // explainable from the strap log instead of a guess. The two numbers measure different
@@ -1997,6 +2002,11 @@ object IntelligenceEngine {
      * is "nil". Counts/bpm only , no timestamps or PII. Pure so it's unit-tested directly and is the SAME
      * line analyzeRecent ships. Byte-identical to the Swift `rhrFloorMeanLogLine`.
      */
+    /** #1331 diagnostic line: the night's computed respiratory rate (breaths/min) or "nil". Format kept
+     *  simple so the planned Swift twin (iOS #1331 follow-up) can match it byte-for-byte. */
+    internal fun respRateLogLine(day: String, respRateBpm: Double?): String =
+        "resp day=$day rpm=${respRateBpm?.let { String.format(Locale.US, "%.1f", it) } ?: "nil"}"
+
     internal fun rhrFloorMeanLogLine(day: String, floor: Int, inBedBpms: List<Int>): String {
         val meanLog = if (inBedBpms.isEmpty()) "nil"
             else Math.round(inBedBpms.sum().toDouble() / inBedBpms.size).toString()
