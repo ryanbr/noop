@@ -107,6 +107,8 @@ final class IntelligenceEngine: ObservableObject {
     private struct DayScan {
         let result: AnalyticsEngine.DayResult
         let rhrLine: String?
+        /// #1331 respiratory diagnostic line (see `respRateLogLine`); replayed with `rhrLine`.
+        let respLine: String?
         /// CAPTURE-B (#814/#799): the resolved READ owner id this day was scored from, and how many HR rows
         /// that owner returned for the night window, carried out of the off-actor loop so the main-actor
         /// fold can emit the universal `dayOwner …` self-diagnostic line (it needs the registry active id +
@@ -210,6 +212,12 @@ final class IntelligenceEngine: ObservableObject {
     /// SAME span the floor came from, so the two numbers are directly comparable). Empty in-bed → nightMean
     /// is "nil". Counts/bpm only , no timestamps or PII. Pure so it's unit-tested directly and is the SAME
     /// line `analyzeRecent` ships. Byte-identical to the Android `rhrFloorMeanLogLine`.
+    /// #1331 diagnostic line: the night's computed respiratory rate (breaths/min) or "nil". Format kept
+    /// simple so it stays byte-identical to the Android `respRateLogLine`.
+    nonisolated static func respRateLogLine(day: String, respRateBpm: Double?) -> String {
+        "resp day=\(day) rpm=\(respRateBpm.map { String(format: "%.1f", $0) } ?? "nil")"
+    }
+
     nonisolated static func rhrFloorMeanLogLine(day: String, floor: Int, inBedBpms: [Int]) -> String {
         let meanLog: String = inBedBpms.isEmpty ? "nil"
             : String(Int((Double(inBedBpms.reduce(0, +)) / Double(inBedBpms.count)).rounded()))
@@ -932,6 +940,9 @@ final class IntelligenceEngine: ObservableObject {
                     }.map { $0.bpm }
                     rhrLine = Self.rhrFloorMeanLogLine(day: res.daily.day, floor: floor, inBedBpms: inBedBpms)
                 }
+                // #1331 respiratory diagnostic — a run of nil nights localises when it stopped. Same
+                // pure-compute-here / replay-on-main-actor path as rhrLine.
+                let respLine: String? = Self.respRateLogLine(day: res.daily.day, respRateBpm: res.daily.respRateBpm)
                 // #103: SpO₂ candidate @82 nightly mean. Only computed when the display toggle is ON.
                 // Reads the V18AuxSample stream for this night's owner and averages the in-band (70–100)
                 // @82 readings that fall inside a detected sleep session. nil on a WHOOP 4.0 (no v18 aux
@@ -955,7 +966,7 @@ final class IntelligenceEngine: ObservableObject {
                 // windowing + delegation lives in the byte-identical, tested `AnalyticsEngine`.
                 let (primarySessionRHR, primarySessionRHRCoverage) =
                     AnalyticsEngine.primarySessionRestingHRWithCoverage(sessions: res.sleepSessions, hr: hr)
-                out.append(DayScan(result: res, rhrLine: rhrLine,
+                out.append(DayScan(result: res, rhrLine: rhrLine, respLine: respLine,
                                    readOwner: owner, hrRows: hr.count,
                                    sleepTrace: sleepTrace, stepsTrace: stepsTrace, hrvTrace: hrvTrace,
                                    hrvDiag: hrvDiag, spo2Candidate: spo2CandidateMean,
@@ -1007,6 +1018,7 @@ final class IntelligenceEngine: ObservableObject {
                 primarySessionRHRCoverageByDay[res.daily.day] = cov
             }
             if let line = scan.rhrLine { diagnosticSink?(line, nil) }
+            if let line = scan.respLine { diagnosticSink?(line, nil) }
             // Sleep & Rest test mode (E5): replay this day's gate-trace + Rest lines tagged `.sleep` so they
             // land under the profile tag in the export. Empty unless the mode is active.
             for line in scan.sleepTrace { diagnosticSink?(line, .sleep) }

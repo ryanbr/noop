@@ -521,6 +521,15 @@ final class Repository: ObservableObject {
     nonisolated static func lastSkinTempDay(days: [DailyMetric], todayKey: String) -> DailyMetric? {
         DailyMetric.lastSkinTempDay(days: days, todayKey: todayKey)
     }
+
+    /// PER-FIELD respiratory carry — twin of `lastSpo2Day`, but STALENESS-BOUNDED to `Baselines.vitalCarryDays`.
+    /// SpO₂/skin-temp are sparse/imported so last-known-of-any-age is expected; respiratory is nightly, so a
+    /// weeks-old value shown as the current number is the "Respiratory 15.6 a fortnight later" bug that
+    /// `vitalCarryDays` exists to prevent. Byte-twin of the Android `lastRespRow` (#1331).
+    nonisolated static func lastRespDay(days: [DailyMetric], todayKey: String) -> DailyMetric? {
+        guard let newest = days.last(where: { $0.respRateBpm != nil && $0.day < todayKey }) else { return nil }
+        return newest.day >= Baselines.cutoffKey(todayKey: todayKey) ? newest : nil
+    }
     /// The trailing 7 CALENDAR days ending today (for the week strip), oldest→newest , not the last 7
     /// stored rows, which on a stale import were old data. ISO yyyy-MM-dd compares chronologically.
     var week: [DailyMetric] {
