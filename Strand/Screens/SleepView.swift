@@ -2148,7 +2148,18 @@ private struct SleepPerformanceNightScene: View {
         .init(x: 0.70, y: 0.31, size: 0.6, opacity: 0.18)
     ]
 
+    /// #1319: honour the Settings "Day-cycle background" toggle on the Sleep tab too. The bundled
+    /// moonlit-lake scene used to draw unconditionally here, so an iOS user who turned the toggle off
+    /// still saw it on Sleep — while Home/Today (and the Android Sleep screen) already went plain.
+    @AppStorage(SceneBackgroundPrefs.enabledKey) private var showDayCycleBackground = true
+
     var body: some View {
+        if showDayCycleBackground { nightScene } else { StrandPalette.surfaceBase }
+    }
+
+    /// The bundled night scene (moonlit lake + procedural fallback). Shown only when the day-cycle
+    /// background is enabled; off swaps it for the plain surfaceBase canvas, parity with Home/Today.
+    private var nightScene: some View {
         GeometryReader { geo in
             let w = geo.size.width
             let h = geo.size.height
