@@ -165,6 +165,14 @@ final class Repository: ObservableObject {
         computedDeviceId == canonicalComputedId ? [computedDeviceId] : [computedDeviceId, canonicalComputedId]
     }
 
+    /// Every namespace that can own a sleep row the Sleep tab currently shows: computed sources first
+    /// (they keep precedence over imported), the active id ahead of the canonical one on each side.
+    /// `CachedSleepSession` deliberately carries no device id, so a write that starts from a merged
+    /// Sleep-tab row must resolve its owner against this same union the reads use — otherwise a
+    /// historical night sitting under the CANONICAL source (after a strap re-add) looks editable but its
+    /// save silently matches nothing.
+    private var sleepOwnerIds: [String] { computedReadIds + importedReadIds }
+
     /// True when the ACTIVE strap is an Oura ring, resolved from its registry id prefix against the canonical
     /// brand table (`DeviceBrandCatalog.idPrefix`) rather than an ad-hoc "oura" literal. The device registry
     /// mints every non-WHOOP id as "<idPrefix>-<uuid>", so the stored id's prefix IS its brand key. Read/UI
@@ -1221,16 +1229,15 @@ final class Repository: ObservableObject {
         let stagesJSON = await restageFromRaw(start: safeStartTs, end: safeEndTs)
             ?? SleepWindowReclip.reclip(stagesJSON: storedStagesJSON, sessionStart: detectedStartTs,
                                         oldEnd: oldEndTs, newStart: safeStartTs, newEnd: safeEndTs)
-        // Apply to the source that actually OWNS this block. Try the computed source first; only fall
-        // back to the imported source when no computed row matched , so we never edit a coincidental
-        // same-startTs row in the other namespace (which the old unconditional double-write could do).
-        let computedChanged = (try? await store.applySleepEdit(
-            deviceId: computedDeviceId, detectedStartTs: detectedStartTs,
-            newStartTs: safeStartTs, newEndTs: safeEndTs, stagesJSON: stagesJSON)) ?? 0
-        if computedChanged == 0 {
-            _ = try? await store.applySleepEdit(
-                deviceId: deviceId, detectedStartTs: detectedStartTs,
-                newStartTs: safeStartTs, newEndTs: safeEndTs, stagesJSON: stagesJSON)
+        // Apply to the source that actually OWNS this block, resolved against every namespace the Sleep
+        // tab can display (computed precedence preserved by ordering). Stop at the first source that
+        // matched, so a coincidental same-startTs row in another namespace never takes a second edit —
+        // and, unlike the old computed-then-active pair, a night under the canonical source is reached.
+        for ownerDeviceId in sleepOwnerIds {
+            let changed = (try? await store.applySleepEdit(
+                deviceId: ownerDeviceId, detectedStartTs: detectedStartTs,
+                newStartTs: safeStartTs, newEndTs: safeEndTs, stagesJSON: stagesJSON)) ?? 0
+            if changed > 0 { break }
         }
         await refresh()
     }
@@ -1269,11 +1276,12 @@ final class Repository: ObservableObject {
             dismissedSleepSpans = DismissedSleepSpans.adding(startTs: detectedStartTs, endTs: endTs,
                                                              to: dismissedSleepSpans)
         }
-        // Delete from the namespace that actually owns the row: computed first, imported as a fallback.
-        let computedDeleted = (try? await store.deleteSleepSession(
-            deviceId: computedDeviceId, startTs: detectedStartTs)) ?? 0
-        if computedDeleted == 0 {
-            _ = try? await store.deleteSleepSession(deviceId: deviceId, startTs: detectedStartTs)
+        // Delete from the same union of possible owners the Sleep tab reads from, first match wins —
+        // so a night under the canonical source (post strap re-add) is actually removed, not no-op'd.
+        for ownerDeviceId in sleepOwnerIds {
+            let deleted = (try? await store.deleteSleepSession(
+                deviceId: ownerDeviceId, startTs: detectedStartTs)) ?? 0
+            if deleted > 0 { break }
         }
         await refresh()
         return snapshot
@@ -1324,11 +1332,12 @@ final class Repository: ObservableObject {
             return SleepDeletionSnapshot(session: session, ownerDeviceId: owner, endTs: session.endTs,
                                          motion: motion ?? nil, sleepState: sleepState ?? nil)
         }
-        if let computed = await row(computedDeviceId) {
-            return await snapshot(computed, owner: computedDeviceId)
-        }
-        if let imported = await row(deviceId) {
-            return await snapshot(imported, owner: deviceId)
+        // Same owner union as the edit/delete paths, so the undo snapshot records the row's REAL owner
+        // (including the canonical source) instead of guessing computed-or-active.
+        for ownerDeviceId in sleepOwnerIds {
+            if let session = await row(ownerDeviceId) {
+                return await snapshot(session, owner: ownerDeviceId)
+            }
         }
         return nil
     }
