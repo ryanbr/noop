@@ -194,8 +194,12 @@ struct BackupSyncView: View {
         // `busy` guards against a double-tap stacking a second picker presentation on top of the first.
         busy = true
         Task {
+            // Clear in a `defer` so it clears on ANY exit. It matters more here than elsewhere: every
+            // control on this screen is `.disabled(busy)`, so a pick that never returned wedged the whole
+            // screen — including the "Use NOOP's own folder" escape hatch. DocumentPicker now guarantees
+            // the continuation resumes, but the flag must not depend on that promise holding.
+            defer { busy = false }
             let picked = await FolderBackup.pickFolder()
-            busy = false
             if picked != nil {
                 folderLabel = FolderBackup.folderLabel()
             } else if !FolderBackup.useInternalFolder {
@@ -225,10 +229,10 @@ struct BackupSyncView: View {
     private func backupNow() {
         busy = true
         Task {
+            defer { busy = false }   // any exit, incl. cancellation — see chooseFolder
             let ok = await FolderBackup.backupNow(checkpoint: { await model.repo.checkpointForBackup() })
             await MainActor.run {
                 lastMs = FolderBackup.lastBackupMs
-                busy = false
                 alertTitle = ok ? String(localized: "Backed up") : String(localized: "Backup problem")
                 alertMessage = ok
                     ? String(localized: "Saved a backup to your folder.")
@@ -253,13 +257,13 @@ struct BackupSyncView: View {
         pendingRestore = nil
         busy = true
         Task {
+            defer { busy = false }   // any exit, incl. cancellation — see chooseFolder
             // The restore is synchronous file I/O; run it off the main actor so the UI stays responsive
             // for a large store, then report on the main actor.
             let result = await Task.detached(priority: .userInitiated) {
                 FolderBackup.restore(snapshotNamed: snap.name)
             }.value
             await MainActor.run {
-                busy = false
                 switch result {
                 case .imported:
                     alertTitle = String(localized: "Restored")
