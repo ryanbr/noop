@@ -1746,8 +1746,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val ids = WhoopRepository.workoutHrDeviceIds(source, rowDeviceId, deviceId)
         val samples = runCatching { repository.hrSamplesFor(ids, from, to) }.getOrDefault(emptyList())
         if (samples.isEmpty()) return null
-        val age = profileStore.age.toDouble().takeIf { it > 0 } ?: 30.0
-        val zoneSet = com.noop.analytics.HrZones.zones(age = age)
+        val zoneSet = profileStore.hrZoneSet
         val tiz = com.noop.analytics.HrZones.timeInZone(samples, zoneSet)
         val minutes = tiz.seconds.map { it / 60.0 }
         return if (minutes.any { it > 0.0 }) minutes else null
@@ -2609,9 +2608,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (hr < 30) return
         val maxHR = profileStore.hrMax.toDouble()
         if (maxHR <= 0) return
-        // Memoized on maxHR: this runs every ~1 Hz live-HR sample while zone coaching is active, but the
-        // zone set only changes when the user edits their max HR — so don't rebuild it per tick.
-        val zone = zoneSetCache.zones(maxHR).zoneNumber(hr.toDouble())
+        // Memoized on maxHR + personalized bounds: this runs every ~1 Hz live-HR sample while zone
+        // coaching is active, but the zone set only changes when the user edits their max HR or custom
+        // zones — so don't rebuild it per tick.
+        val zone = zoneSetCache.zones(maxHR, profileStore.hrZoneThresholds?.map(Int::toDouble))
+            .zoneNumber(hr.toDouble())
         val previous = lastZone
         lastZone = zone
         val loops = zoneCoachBuzzLoops(previous, zone, _zoneCoachRecovery.value)

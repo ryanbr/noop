@@ -136,7 +136,7 @@ fun LiveScreen(viewModel: AppViewModel, onManageDevices: () -> Unit = {}) {
     // Live HR zone for the focal readout's colour world (presentation only — same shared HrZones model
     // the live-workout screen uses). 0 = below Zone 1 / no HR yet.
     val profile = remember { ProfileStore.from(context.applicationContext) }
-    val zoneSet = remember(profile.hrMax) { HrZones.zones(maxHR = profile.hrMax.toDouble()) }
+    val zoneSet = remember(profile.hrMax, profile.hrZoneThresholds) { profile.hrZoneSet }
     val liveZone = bpm?.let { zoneSet.zoneNumber(it.toDouble()) } ?: 0
 
     // HR-zone coaching state, shown read-only here; the toggles live in Automations.

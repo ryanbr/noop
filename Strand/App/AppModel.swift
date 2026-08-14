@@ -1467,10 +1467,10 @@ final class AppModel: ObservableObject {
     /// HR-zone haptic coaching: buzz when crossing into the top zone (ease off) or back to recovery.
     private func coachZone(_ hr: Int?) {
         guard behavior.zoneCoaching, live.bonded, live.worn, let hr, hr >= 30 else { return }
-        let maxHR = Double(profile.hrMax)
-        guard maxHR > 0 else { return }
-        let pct = Double(hr) / maxHR
-        let zone = pct >= 0.9 ? 5 : pct >= 0.8 ? 4 : pct >= 0.7 ? 3 : pct >= 0.6 ? 2 : 1
+        guard profile.hrMax > 0 else { return }
+        // #531: route the haptic coach through the profile's effective zone set (personalized when set,
+        // conventional %HRmax otherwise) instead of hardcoded percentage bands.
+        let zone = profile.hrZoneSet.zoneNumber(forBPM: Double(hr))
         defer { lastCoachZone = zone }
         guard lastCoachZone != -1, zone != lastCoachZone else { return }
         if zone == 5, lastCoachZone < 5 { buzz(loops: 3) }          // entered max , ease off

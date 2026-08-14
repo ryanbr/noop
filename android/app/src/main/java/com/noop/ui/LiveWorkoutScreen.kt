@@ -96,7 +96,7 @@ fun LiveWorkoutScreen(vm: AppViewModel, onClose: () -> Unit) {
     LaunchedEffect(w == null) { if (w == null) onClose() }
     if (w == null) return
 
-    val zoneSet = remember(profile.hrMax) { HrZones.zones(maxHR = profile.hrMax.toDouble()) }
+    val zoneSet = remember(profile.hrMax, profile.hrZoneThresholds) { profile.hrZoneSet }
     val zone = bpm?.let { zoneSet.zoneNumber(it.toDouble()) } ?: 0
 
     // Guards the destructive End action behind a confirm (#517) — a stray tap on the full-width

@@ -230,11 +230,18 @@ object HrZones {
  */
 internal class HrZoneSetCache {
     private var maxHR = Double.NaN
+    private var custom: List<Double>? = null
     private var set: HrZoneSet? = null
 
-    /** The `manual`-source zone set for [maxHR], rebuilt only when [maxHR] differs from the last call. */
-    fun zones(maxHR: Double): HrZoneSet {
-        set?.let { if (maxHR == this.maxHR) return it }
-        return HrZones.zones(maxHR = maxHR).also { this.maxHR = maxHR; set = it }
+    /**
+     * The effective zone set for [maxHR] and optional [customLowerBounds], rebuilt only when an input
+     * differs from the last call — so the 1 Hz coach path reuses it, and personalized zones (#531) are
+     * honoured instead of the maxHR-only default.
+     */
+    fun zones(maxHR: Double, customLowerBounds: List<Double>? = null): HrZoneSet {
+        set?.let { if (maxHR == this.maxHR && customLowerBounds == custom) return it }
+        return HrZones.zones(maxHR = maxHR, customLowerBounds = customLowerBounds).also {
+            this.maxHR = maxHR; custom = customLowerBounds; set = it
+        }
     }
 }

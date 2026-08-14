@@ -86,7 +86,7 @@ fun AutomationsScreen(viewModel: AppViewModel) {
     val zoneCoachRecovery by viewModel.zoneCoachRecovery.collectAsStateWithLifecycle()
     // The Zone 5 entry threshold (≥ 90% of HR-max), from the same HrZones model used everywhere.
     val zone5Bpm = remember(profile.hrMax) {
-        HrZones.zones(maxHR = profile.hrMax.toDouble()).zones.firstOrNull { it.number == 5 }?.lower?.roundToInt() ?: 0
+        profile.hrZoneSet.zones.firstOrNull { it.number == 5 }?.lower?.roundToInt() ?: 0
     }
 
     // Inactivity reminder (#419) — real + persisted via InactivityPrefs (opt-in, default OFF). Seeded

@@ -38,7 +38,7 @@ struct LiveWorkoutView: View {
     /// control must not end the workout instantly with no way back.
     @State private var showEndConfirm = false
 
-    private var zoneSet: HRZoneSet { HRZones.zones(maxHR: Double(model.profile.hrMax)) }
+    private var zoneSet: HRZoneSet { model.profile.hrZoneSet }
     private var zone: Int { model.bpm.map { zoneSet.zoneNumber(forBPM: Double($0)) } ?? 0 }
 
     var body: some View {

@@ -2729,13 +2729,12 @@ final class Repository: ObservableObject {
     /// day-level union, so a bout detected on a second WHOOP had its zones computed from a strap that
     /// never recorded it. `source` defaults to "" (⇒ the imported branch, the union) so a caller
     /// without a row keeps today's behaviour.
-    func workoutZoneMinutes(from: Int, to: Int, age: Int, source: String = "") async -> [Double]? {
+    func workoutZoneMinutes(from: Int, to: Int, zoneSet: HRZoneSet, source: String = "") async -> [Double]? {
         guard to > from else { return nil }
         let ids = Self.workoutHrDeviceIds(source: source, activeStrapId: deviceId,
                                           importedIds: importedReadIds)
         let samples = await hrSamples(deviceIds: ids, from: from, to: to)
         guard !samples.isEmpty else { return nil }
-        let zoneSet = HRZones.zones(age: age > 0 ? Double(age) : 30)
         let tiz = HRZones.timeInZone(samples, zoneSet: zoneSet)
         let minutes = tiz.seconds.map { $0 / 60.0 }
         return minutes.contains(where: { $0 > 0 }) ? minutes : nil
