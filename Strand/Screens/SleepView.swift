@@ -352,8 +352,26 @@ struct SleepView: View {
     /// ◀/▶-navigated night. Shared by the Rest hero overline and the hypnogram nav header so both
     /// name the SAME night the hero's score is now resolved for.
     private var nightRelativeLabel: LocalizedStringKey {
-        nightOffset == 0 ? "Last night"
-            : (nightOffset == 1 ? "1 night ago" : "\(nightOffset) nights ago")
+        let n = nightsAgo(nightOffset)
+        return n == 0 ? "Last night" : (n == 1 ? "1 night ago" : "\(n) nights ago")
+    }
+
+    /// #1311: how many CALENDAR nights back the carousel night at `offset` is from the newest recorded
+    /// night. The ◀/▶ carousel steps by RECORDED night (`navDays`, newest-first), so a night with no
+    /// data (strap off-body) is a gap the flat index can't see — labelling by index makes two nights
+    /// either side of a skipped night read as consecutive and desyncs the "N nights ago" labels (and the
+    /// Rest value they name). Uses the same local start-of-day `navDays` is grouped by; falls back to the
+    /// raw index if it can't resolve. 0 = last night. Mirrors Android SleepHeroLogic.calendarNightsAgo.
+    private func nightsAgo(_ offset: Int) -> Int {
+        let days = navDays
+        guard offset >= 0, offset < days.count,
+              let newestTs = days.first?.first?.endTs, let shownTs = days[offset].first?.endTs
+        else { return offset }
+        let cal = Calendar.current
+        let shown = cal.startOfDay(for: Date(timeIntervalSince1970: TimeInterval(shownTs)))
+        let newest = cal.startOfDay(for: Date(timeIntervalSince1970: TimeInterval(newestTs)))
+        let d = cal.dateComponents([.day], from: shown, to: newest).day ?? offset
+        return d >= 0 ? d : offset
     }
 
     /// The night the Rest hero reflects: the ◀/▶-navigated night while browsing (falling back to

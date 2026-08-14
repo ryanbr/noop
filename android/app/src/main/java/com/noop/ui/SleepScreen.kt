@@ -439,6 +439,14 @@ fun SleepScreen(
         selectNight(navDays, days, nightOffset, habitualMidsleep, motionByStart)
     }
 
+    // #1311: label the carousel by CALENDAR nights, not the flat recorded-night index — a night with no
+    // data (strap off-body) is skipped by the carousel, so labelling by index makes two nights either
+    // side of it read as consecutive and desyncs the "N nights ago" labels. Shared by the Rest hero
+    // overline and the nav header so both name the SAME calendar night.
+    val nightLabel = nightRelativeLabel(
+        calendarNightsAgo(navDays, nightOffset, java.util.TimeZone.getDefault())
+    )
+
     // The HERO follows the selected night (its stage breakdown comes from that day's row); the
     // at-a-glance TILES, the debt ledger, the personal need and the trend stay full-history /
     // latest-anchored, matching iOS SleepView. `selectedDay` re-points only the hero. Model is null
@@ -577,7 +585,7 @@ fun SleepScreen(
                             else tilesModel?.performance?.latest,
                     asleepMin = model?.stages?.asleep,
                     source = restHeroSource(imported, night?.dayKey ?: days.lastOrNull()?.day, activeIsOura),
-                    overline = nightRelativeLabel(nightOffset),
+                    overline = nightLabel,
                 )
             }
             // #sleep-layout: a compact "Arrange" affordance (the same Tune entry Today uses) opens the
@@ -640,6 +648,7 @@ fun SleepScreen(
                 clock = night?.clockLabel ?: model?.clockLabel,
                 nightOffset = nightOffset,
                 lastIndex = max(navDays.lastIndex, 0),
+                nightLabel = nightLabel,
                 onNavigate = { nightOffset = it },
                 session = night?.session,
                 onUpdateTimes = { s, start, end ->
@@ -1102,6 +1111,9 @@ private fun Hero(
     clock: String?,
     nightOffset: Int,
     lastIndex: Int,
+    // #1311: the calendar-aware "N nights ago" label for the shown night, computed by the caller from
+    // navDays so a skipped no-data night doesn't desync the count. Used by the overline + nav header.
+    nightLabel: String,
     onNavigate: (Int) -> Unit,
     session: SleepSession? = null,
     onUpdateTimes: (SleepSession, Long, Long) -> Unit = { _, _, _ -> },
@@ -1133,7 +1145,7 @@ private fun Hero(
     windowWakeTs: Long? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
-        NightNavHeader(nightOffset, lastIndex, clock, onNavigate, session, onUpdateTimes, onDeleteSession, onAddNap, onPickNightDate)
+        NightNavHeader(nightOffset, nightLabel, lastIndex, clock, onNavigate, session, onUpdateTimes, onDeleteSession, onAddNap, onPickNightDate)
         // The night's clock window — when you fell asleep and when you woke — as its own clearly
         // labelled row. These were only ever in the nav-header's trailing caption, which truncates
         // between the two chevrons on a phone, so in practice the two times people look for first
@@ -1953,6 +1965,9 @@ private fun SleepTime(icon: androidx.compose.ui.graphics.vector.ImageVector, lab
 @Composable
 private fun NightNavHeader(
     offset: Int,
+    // #1311: calendar-aware "N nights ago" label, computed by the caller from navDays so a skipped
+    // no-data night doesn't desync the count. Replaces the old offset-index labelling.
+    nightLabel: String,
     lastIndex: Int,
     clock: String?,
     onNavigate: (Int) -> Unit,
@@ -2280,7 +2295,7 @@ private fun NightNavHeader(
         )
     }
 
-    val nightLabel = nightRelativeLabel(offset)
+    // #1311: nightLabel is now the calendar-aware label passed in (was nightRelativeLabel(offset)).
     val blockShape = RoundedCornerShape(Metrics.cornerSm)
     val clockParts = clock?.split(" · ", limit = 2)
     val dateLabel = clockParts?.getOrNull(0)

@@ -2,6 +2,7 @@ package com.noop.ui
 
 import com.noop.analytics.RestScorer
 import com.noop.data.DailyMetric
+import com.noop.data.SleepSession
 
 /** A short Rest state word for the hero gauge — same banding the synthesis hero uses. */
 internal fun sleepScoreWord(score: Double): String = when {
@@ -20,6 +21,28 @@ internal fun nightRelativeLabel(offset: Int): String = when (offset) {
     0 -> "Last night"
     1 -> "1 night ago"
     else -> "$offset nights ago"
+}
+
+/**
+ * How many CALENDAR nights back the carousel night at [offset] is from the newest recorded night.
+ * The ◀/▶ carousel steps by RECORDED night ([navDays], newest-first), so a night with no data (strap
+ * off-body) is a gap the flat index can't see — labelling by index makes two nights either side of a
+ * skipped night read as consecutive and desyncs the "N nights ago" labels (#1311). This restores the
+ * true calendar distance from each night's local wake-day (the same key navDays is grouped by), so the
+ * label — and the Rest value it names — line up with the night actually shown. Falls back to the raw
+ * index if a day can't be read. 0 = last night. Mirrors iOS SleepView.nightsAgo.
+ */
+internal fun calendarNightsAgo(
+    navDays: List<List<SleepSession>>, offset: Int, zone: java.util.TimeZone,
+): Int {
+    if (offset < 0 || offset >= navDays.size) return offset
+    val newestTs = navDays.firstOrNull()?.firstOrNull()?.endTs ?: return offset
+    val shownTs = navDays[offset].firstOrNull()?.endTs ?: return offset
+    val z = zone.toZoneId()
+    val shown = java.time.Instant.ofEpochSecond(shownTs).atZone(z).toLocalDate()
+    val newest = java.time.Instant.ofEpochSecond(newestTs).atZone(z).toLocalDate()
+    val d = java.time.temporal.ChronoUnit.DAYS.between(shown, newest).toInt()
+    return if (d >= 0) d else offset
 }
 
 /**
