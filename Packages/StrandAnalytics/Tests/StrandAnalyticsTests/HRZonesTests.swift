@@ -47,6 +47,28 @@ final class HRZonesTests: XCTestCase {
         XCTAssertEqual(zs.zoneNumber(forBPM: 250), 5)   // above max still z5
     }
 
+    func testCustomBPMBoundariesReplacePercentageEdges() {
+        let zs = HRZones.zones(maxHR: 200, customLowerBounds: [95, 118, 142, 168, 184])
+        XCTAssertEqual(zs.source, "custom")
+        XCTAssertEqual(zs.zones.map(\.lower), [95, 118, 142, 168, 184])
+        XCTAssertEqual(zs.zoneNumber(forBPM: 117), 1)
+        XCTAssertEqual(zs.zoneNumber(forBPM: 118), 2)
+        XCTAssertEqual(zs.zoneNumber(forBPM: 167), 3)
+        XCTAssertEqual(zs.zoneNumber(forBPM: 168), 4)
+        XCTAssertEqual(zs.zoneNumber(forBPM: 184), 5)
+        XCTAssertEqual(zs.zoneNumber(forBPM: 230), 5)
+    }
+
+    func testInvalidCustomBoundariesFallBackToDefaults() {
+        let zs = HRZones.zones(maxHR: 200, customLowerBounds: [100, 120, 120, 160, 180])
+        XCTAssertEqual(zs.source, "manual")
+        XCTAssertEqual(zs.zones.map(\.lower), [100, 120, 140, 160, 180])
+    }
+
+    func testDefaultEditorBoundsPreserveIntegerClassification() {
+        XCTAssertEqual(HRZones.defaultLowerBounds(maxHR: 187), [94, 113, 131, 150, 169])
+    }
+
     func testTimeInZoneAccountsForAllTime() {
         let zs = HRZones.zones(maxHR: 200)  // edges 100/120/140/160/180/200
         // 1 Hz samples: 3 in z1 (110), 2 in z3 (150), 1 below (90).

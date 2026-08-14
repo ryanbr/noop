@@ -41,13 +41,14 @@ public struct HRZone: Equatable, Sendable {
     }
 }
 
-/// Five HR zones derived from a max HR, plus the max HR itself and its source.
+/// Five HR zones derived from a max HR or personalized BPM boundaries, plus the max HR itself and
+/// its source.
 public struct HRZoneSet: Equatable, Sendable {
     /// The five zones, z1...z5, in ascending order.
     public let zones: [HRZone]
     /// Max HR (bpm) the zones were built from.
     public let maxHR: Double
-    /// "tanaka" (age formula) or "manual" (caller override).
+    /// "tanaka" (age formula), "manual" (caller override), or "custom" (personalized boundaries).
     public let source: String
 
     public init(zones: [HRZone], maxHR: Double, source: String) {
@@ -97,6 +98,10 @@ public enum HRZones {
     /// %HRmax band edges for zones 1...5: [0.50, 0.60, 0.70, 0.80, 0.90, 1.00].
     public static let zoneEdges: [Double] = [0.50, 0.60, 0.70, 0.80, 0.90, 1.00]
 
+    /// Sensible editable BPM range for personalized zone starts. The analytics API accepts any
+    /// positive finite values; the app UIs use this range to keep steppers practical.
+    public static let customBPMRange: ClosedRange<Int> = 30...250
+
     /// Tanaka (2001) age-predicted max HR: 208 − 0.7 × age (gender-independent).
     public static func tanakaMaxHR(age: Double) -> Double {
         208.0 - 0.7 * age
@@ -107,7 +112,9 @@ public enum HRZones {
     /// - Parameters:
     ///   - age: age in years (used only when `maxHROverride` is nil).
     ///   - maxHROverride: explicit HRmax (bpm); when provided, `source == "manual"`.
-    public static func zones(age: Double, maxHROverride: Double? = nil) -> HRZoneSet {
+    public static func zones(age: Double,
+                             maxHROverride: Double? = nil,
+                             customLowerBounds: [Double]? = nil) -> HRZoneSet {
         let maxHR: Double
         let source: String
         if let override = maxHROverride {
@@ -117,24 +124,48 @@ public enum HRZones {
             maxHR = tanakaMaxHR(age: age)
             source = "tanaka"
         }
-        return zones(maxHR: maxHR, source: source)
+        return zones(maxHR: maxHR, source: source, customLowerBounds: customLowerBounds)
     }
 
-    /// Build the 5-zone set directly from a known max HR.
-    public static func zones(maxHR: Double, source: String = "manual") -> HRZoneSet {
+    /// Build the 5-zone set directly from a known max HR, optionally replacing the conventional
+    /// percentage edges with five personalized inclusive lower bounds in BPM. Invalid custom input
+    /// falls back to the conventional model, so malformed restored preferences can never create gaps.
+    public static func zones(maxHR: Double,
+                             source: String = "manual",
+                             customLowerBounds: [Double]? = nil) -> HRZoneSet {
+        let custom = customLowerBounds.flatMap(validCustomLowerBounds)
         var built: [HRZone] = []
         for i in 0..<5 {
-            let loPct = zoneEdges[i]
-            let hiPct = zoneEdges[i + 1]
+            let lower = custom?[i] ?? zoneEdges[i] * maxHR
+            let upper = custom.map { i < 4 ? $0[i + 1] : max(maxHR, $0[i]) }
+                ?? zoneEdges[i + 1] * maxHR
+            let loPct = maxHR > 0 ? lower / maxHR : 0
+            let hiPct = maxHR > 0 ? upper / maxHR : 0
             built.append(HRZone(
                 number: i + 1,
-                lower: loPct * maxHR,
-                upper: hiPct * maxHR,
+                lower: lower,
+                upper: upper,
                 lowerPct: loPct,
                 upperPct: hiPct
             ))
         }
-        return HRZoneSet(zones: built, maxHR: maxHR, source: source)
+        return HRZoneSet(zones: built, maxHR: maxHR, source: custom == nil ? source : "custom")
+    }
+
+    /// The conventional five inclusive lower bounds, rounded up to whole BPM for an editor. Rounding
+    /// up preserves the existing integer-sample classification (e.g. a 93.5 edge starts at 94 bpm).
+    public static func defaultLowerBounds(maxHR: Double) -> [Int] {
+        Array(zoneEdges.prefix(5)).map { Int(ceil($0 * maxHR)) }
+    }
+
+    /// Return a valid five-boundary custom model, or nil unless values are positive, finite, and
+    /// strictly increasing. Kept public so persistence layers can reject hand-edited backup values
+    /// using the exact same invariant as the analytics engine.
+    public static func validCustomLowerBounds(_ values: [Double]) -> [Double]? {
+        guard values.count == 5,
+              values.allSatisfy({ $0.isFinite && $0 > 0 }) else { return nil }
+        for i in 1..<values.count where values[i] <= values[i - 1] { return nil }
+        return values
     }
 
     /// Compute time-in-zone (seconds) from a time-ordered HR stream.

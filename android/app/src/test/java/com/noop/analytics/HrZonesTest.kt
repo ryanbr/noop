@@ -56,4 +56,34 @@ class HrZonesTest {
         assertNotSame(a, a2)               // single-entry: not restored, rebuilt
         assertEquals(a, a2)                // but value-equal — same pure output for the same maxHR
     }
+
+    @Test
+    fun customBpmBoundariesReplacePercentageEdges() {
+        val zs = HrZones.zones(
+            maxHR = 200.0,
+            customLowerBounds = listOf(95.0, 118.0, 142.0, 168.0, 184.0),
+        )
+        assertEquals("custom", zs.source)
+        assertEquals(listOf(95.0, 118.0, 142.0, 168.0, 184.0), zs.zones.map { it.lower })
+        assertEquals(1, zs.zoneNumber(117.0))
+        assertEquals(2, zs.zoneNumber(118.0))
+        assertEquals(4, zs.zoneNumber(168.0))
+        assertEquals(5, zs.zoneNumber(184.0))
+        assertEquals(5, zs.zoneNumber(230.0))
+    }
+
+    @Test
+    fun invalidCustomBoundariesFallBackToDefaults() {
+        val zs = HrZones.zones(
+            maxHR = 200.0,
+            customLowerBounds = listOf(100.0, 120.0, 120.0, 160.0, 180.0),
+        )
+        assertEquals("manual", zs.source)
+        assertEquals(listOf(100.0, 120.0, 140.0, 160.0, 180.0), zs.zones.map { it.lower })
+    }
+
+    @Test
+    fun defaultEditorBoundsPreserveIntegerClassification() {
+        assertEquals(listOf(94, 113, 131, 150, 169), HrZones.defaultLowerBounds(187.0))
+    }
 }
