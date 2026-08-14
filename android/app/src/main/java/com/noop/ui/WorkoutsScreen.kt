@@ -918,7 +918,11 @@ private fun SummarySection(
     val totalCount = rows.size
     val totalTimeH = rows.mapNotNull { it.durationS }.sum() / 3600.0
     val totalKcal = rows.mapNotNull { it.energyKcal }.sum()
-    val totalKm = rows.mapNotNull { it.distanceM }.sum() / 1000.0
+    // Only POSITIVE distances count as "has distance" (a strap-detected sport with no GPS/manual
+    // distance is null; an explicit 0 is not a real distance) — matches the per-row distance label. When
+    // nothing in the window has distance, the tile shows "–" instead of a misleading "0.0 km covered".
+    val distancesM = rows.mapNotNull { it.distanceM }.filter { it > 0.0 }
+    val totalKm = distancesM.sum() / 1000.0
     val modal = groups.firstOrNull()
 
     val tiles = listOf<@Composable (Modifier) -> Unit>(
@@ -953,7 +957,7 @@ private fun SummarySection(
             StatTile(
                 modifier = m,
                 label = uiString(R.string.l10n_workouts_screen_total_distance_e8260e11),
-                value = UnitFormatter.distanceFromKilometers(totalKm, unitSystem),
+                value = if (distancesM.isEmpty()) "–" else UnitFormatter.distanceFromKilometers(totalKm, unitSystem),
                 caption = "covered",
                 accent = Palette.metricCyan,
             )

@@ -941,7 +941,12 @@ struct WorkoutsView: View {
         let totalCount = rows.count
         let totalTimeH = rows.compactMap(\.durationS).reduce(0, +) / 3600.0
         let totalKcal = rows.compactMap(\.energyKcal).reduce(0, +)
-        let totalKmRaw = rows.compactMap(\.distanceM).reduce(0, +) / 1000.0
+        // Only POSITIVE distances count as "has distance" (a strap-detected sport with no GPS/manual
+        // distance is nil, and an explicit 0 is not a real distance) — matches `distanceLabel`'s `m > 0`
+        // guard on the per-workout rows. When nothing in the window has distance, the tile shows "–"
+        // instead of a misleading "0.0 km covered" (#reddit: rugby read as data loss).
+        let distancesM = rows.compactMap(\.distanceM).filter { $0 > 0 }
+        let totalKmRaw = distancesM.reduce(0, +) / 1000.0
         let modal = modalSport(from: groups)
 
         return LazyVGrid(columns: tileColumns, alignment: .leading, spacing: NoopMetrics.gap) {
@@ -958,7 +963,7 @@ struct WorkoutsView: View {
                      caption: "kcal",
                      accent: StrandPalette.metricAmber)
             StatTile(label: "Total Distance",
-                     value: UnitFormatter.distanceFromKilometers(totalKmRaw, system: unitSystem),
+                     value: distancesM.isEmpty ? "–" : UnitFormatter.distanceFromKilometers(totalKmRaw, system: unitSystem),
                      caption: String(localized: "covered"),
                      accent: StrandPalette.metricCyan)
             StatTile(label: "Most Active",
