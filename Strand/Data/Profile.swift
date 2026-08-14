@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import SwiftUI
+import StrandAnalytics
 
 /// User profile (age/sex/body metrics/HR-max) persisted in UserDefaults.
 /// Powers HR zones, calories and recovery baselines.
@@ -26,6 +27,13 @@ final class ProfileStore: ObservableObject {
     @Published var waistCm: Double { didSet { d.set(waistCm, forKey: K.waist) } }
     /// 0 = auto-estimate from age.
     @Published var hrMaxOverride: Int { didSet { d.set(hrMaxOverride, forKey: K.hrMax) } }
+    /// Five personalized inclusive zone starts in BPM; empty = conventional %HRmax zones.
+    @Published var hrZoneThresholds: [Int] {
+        didSet {
+            if hrZoneThresholds.isEmpty { d.removeObject(forKey: K.hrZoneThresholds) }
+            else { d.set(hrZoneThresholds.map(String.init).joined(separator: ","), forKey: K.hrZoneThresholds) }
+        }
+    }
     /// Step-calibration divisor (#139/#132): counter ticks per real step for the @57 motion
     /// counter. 1.0 = raw pass-through (default — no behavior change). Clamped 0.5–30.0
     /// (WHOOP 5/MG motion-counter overcount can reach ~24×, so the ceiling has to be high).
@@ -69,6 +77,7 @@ final class ProfileStore: ObservableObject {
         static let legacyAge = "profile.age"
         static let sex = "profile.sex", weight = "profile.weightKg"
         static let height = "profile.heightCm", hrMax = "profile.hrMaxOverride"
+        static let hrZoneThresholds = "profile.hrZoneThresholds"
         static let stepScale = "profile.stepTicksPerStep"
         static let waist = "profile.waistCm"
         static let stepsCoeff = "profile.stepsCalibrationCoefficient"
@@ -106,6 +115,9 @@ final class ProfileStore: ObservableObject {
         heightCm = d.object(forKey: K.height) as? Double ?? 178
         waistCm = d.object(forKey: K.waist) as? Double ?? 0
         hrMaxOverride = d.object(forKey: K.hrMax) as? Int ?? 0
+        let storedThresholds = d.string(forKey: K.hrZoneThresholds)?
+            .split(separator: ",").compactMap { Int($0) } ?? []
+        hrZoneThresholds = Self.validZoneThresholds(storedThresholds) ? storedThresholds : []
         stepTicksPerStep = min(max(d.object(forKey: K.stepScale) as? Double ?? 1.0, 0.5), 30.0)
         stepsCalibrationCoefficient = d.object(forKey: K.stepsCoeff) as? Double ?? 0
         stepsCalibrationSampleDays = d.object(forKey: K.stepsSampleDays) as? Int ?? 0
@@ -170,6 +182,42 @@ final class ProfileStore: ObservableObject {
 
     /// Tanaka estimate unless overridden.
     var hrMax: Int { hrMaxOverride > 0 ? hrMaxOverride : Int((208 - 0.7 * Double(age)).rounded()) }
+
+    /// Personalized zone starts after enforcing the same five-value invariant as `HRZones`.
+    var customHRZoneLowerBounds: [Double]? {
+        guard Self.validZoneThresholds(hrZoneThresholds) else { return nil }
+        return hrZoneThresholds.map(Double.init)
+    }
+
+    /// The single display-zone model used by live HR, workout splits, and haptic coaching.
+    var hrZoneSet: HRZoneSet {
+        HRZones.zones(maxHR: Double(hrMax), customLowerBounds: customHRZoneLowerBounds)
+    }
+
+    var hasCustomHRZones: Bool { customHRZoneLowerBounds != nil }
+
+    /// Enable by seeding the editor with boundaries that classify integer BPM exactly like today's
+    /// conventional percentages; disabling removes the override and immediately restores defaults.
+    func setCustomHRZonesEnabled(_ enabled: Bool) {
+        hrZoneThresholds = enabled ? HRZones.defaultLowerBounds(maxHR: Double(hrMax)) : []
+    }
+
+    /// Move one boundary while preserving strict ordering. Neighbour-aware clamps make it impossible
+    /// for the stepper to create a gap, overlap, or invalid persisted state.
+    func stepHRZoneThreshold(at index: Int, up: Bool) {
+        guard hrZoneThresholds.indices.contains(index) else { return }
+        var next = hrZoneThresholds
+        let floor = index == 0 ? HRZones.customBPMRange.lowerBound : next[index - 1] + 1
+        let ceiling = index == next.count - 1 ? HRZones.customBPMRange.upperBound : next[index + 1] - 1
+        next[index] = min(max(next[index] + (up ? 1 : -1), floor), ceiling)
+        hrZoneThresholds = next
+    }
+
+    nonisolated static func validZoneThresholds(_ values: [Int]) -> Bool {
+        guard values.count == 5,
+              values.allSatisfy(HRZones.customBPMRange.contains) else { return false }
+        return zip(values, values.dropFirst()).allSatisfy(<)
+    }
 
     /// Whether the cycle-awareness opt-in applies to this profile (#801). Cycle phase is read from the
     /// MENSTRUAL skin-temperature shift, so the opt-in (the Health card + the Automations toggle) is only
