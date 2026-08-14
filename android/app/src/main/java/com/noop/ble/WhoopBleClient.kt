@@ -3857,7 +3857,9 @@ class WhoopBleClient(
         val parsed = FeatureFlagProbe.parseNext(frame, connectedFamily)
         val next = parsed.value
         if (next == null) {
-            featureFlagReport?.noteFailure(parsed.failure!!, awaiting)
+            // Log the whole frame on a 118 decode failure too — the START (117) arm above already does,
+            // and a reply that failed to decode is the only evidence of what the strap put on the wire.
+            featureFlagReport?.noteFailure(parsed.failure!!, awaiting, frame)
             finishFeatureFlagProbe()
             return
         }

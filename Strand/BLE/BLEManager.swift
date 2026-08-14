@@ -3334,7 +3334,9 @@ public final class BLEManager: NSObject, ObservableObject {
                 finishFeatureFlagProbe()
             }
         case .failure(let f):
-            featureFlagReport?.noteFailure(f, command: Int(awaiting))
+            // Log the whole frame on a 118 decode failure too — the START (117) arm above already does,
+            // and a reply that failed to decode is the only evidence of what the strap put on the wire.
+            featureFlagReport?.noteFailure(f, command: Int(awaiting), frame: frame)
             finishFeatureFlagProbe()
         }
     }
