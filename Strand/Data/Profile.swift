@@ -209,6 +209,7 @@ final class ProfileStore: ObservableObject {
         var next = hrZoneThresholds
         let floor = index == 0 ? HRZones.customBPMRange.lowerBound : next[index - 1] + 1
         let ceiling = index == next.count - 1 ? HRZones.customBPMRange.upperBound : next[index + 1] - 1
+        guard floor <= ceiling else { return }   // no room between neighbours -> no-op (parity w/ Kotlin)
         next[index] = min(max(next[index] + (up ? 1 : -1), floor), ceiling)
         hrZoneThresholds = next
     }

@@ -321,6 +321,7 @@ class ProfileStore(private val prefs: SharedPreferences) {
         if (index !in current.indices) return
         val floor = if (index == 0) HrZones.customBPMRange.first else current[index - 1] + 1
         val ceiling = if (index == current.lastIndex) HrZones.customBPMRange.last else current[index + 1] - 1
+        if (floor > ceiling) return   // no room between neighbours -> no-op (coerceIn throws on empty range)
         current[index] = (current[index] + if (up) 1 else -1).coerceIn(floor, ceiling)
         hrZoneThresholds = current
     }
