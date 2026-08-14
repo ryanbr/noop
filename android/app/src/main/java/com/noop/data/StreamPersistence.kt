@@ -38,7 +38,12 @@ object StreamPersistence {
         // protocol carriers, so a missing column never causes a misread until a migration adds one.
         spo2 = streams.spo2.map { Spo2Row(it.ts.toLong(), it.red, it.ir) },
         skinTemp = streams.skinTemp.map { SkinTempRow(it.ts.toLong(), it.raw) },
-        // resp/gravity/steps/ppgHr remain type-47-only (historical offload), unchanged.
+        // resp is populated by a live source that decodes a respiration value itself — the Oura ring's
+        // 0x6A `breath`, stored in milli-bpm under the ring's own deviceId (`OuraRespScale`). It stays
+        // empty for a WHOOP live batch, whose respiration rows arrive on the historical-offload path.
+        // The rows already carry the Room shape, so this is a pass-through, not a re-map.
+        resp = streams.resp.map { RespRow(it.ts.toLong(), it.raw) },
+        // gravity/steps/ppgHr remain type-47-only (historical offload), unchanged.
     )
 
     /**

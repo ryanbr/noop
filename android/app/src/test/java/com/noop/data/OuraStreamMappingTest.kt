@@ -380,5 +380,67 @@ class OuraStreamMappingTest {
         assertTrue(s.battery.isEmpty())
         assertTrue(s.spo2.isEmpty())
         assertTrue(s.skinTemp.isEmpty())
+        assertTrue(s.resp.isEmpty())
+    }
+
+    // MARK: - 0x6A sleep_period_info -> respiration instrumentation
+
+    private fun sleepPeriod(bpm: Double, ringTimestamp: Long = 100) = OuraEvent.SleepPeriodInfo(
+        com.noop.oura.OuraSleepPeriodInfo(
+            ringTimestamp = ringTimestamp, averageHrBpm = 53.0, hrTrend = -0.625, mzci = 3.75,
+            dzci = 1.75, breathsPerMin = bpm, breathVariability = 4.625,
+            motionCount = 0, sleepState = 1, cv = 0.25,
+        ),
+    )
+
+    /**
+     * `breath` becomes ONE resp row, in milli-bpm, at the record's own ts - and nothing else about the
+     * record reaches a durable stream. The other fields are the whole reason the record was dropped
+     * wholesale before: `averageHrBpm` at a ~5-min cadence would sit in the same series as the
+     * beat-derived HR channel with no way to tell them apart afterwards. Swift twin:
+     * `testSleepPeriodInfoMapsBreathToRespirationAndNothingElse`.
+     */
+    @Test
+    fun sleepPeriodInfoMapsBreathToRespirationAndNothingElse() {
+        val s = OuraStreamMapping.streams(listOf(sleepPeriod(14.375)), anchor)
+        assertEquals(1, s.resp.size)
+        assertEquals(base + 100, s.resp[0].ts)
+        assertEquals(14_375, s.resp[0].raw)
+        assertTrue(s.hr.isEmpty())
+        assertTrue(s.rr.isEmpty())
+        assertTrue(s.events.isEmpty())
+        assertTrue(s.skinTemp.isEmpty())
+        assertTrue(s.spo2.isEmpty())
+    }
+
+    /**
+     * Every value the wire can express survives the round trip exactly - the point of the milli scale,
+     * and the property that makes the two platforms agree without a rounding rule. The field is a
+     * `u8 / 8`, so the whole alphabet is 0..31.875 bpm in 0.125 steps. Swift twin:
+     * `testEveryWireBreathValueRoundTripsExactly`.
+     */
+    @Test
+    fun everyWireBreathValueRoundTripsExactly() {
+        for (byte in 0..255) {
+            val bpm = byte / 8.0
+            val s = OuraStreamMapping.streams(listOf(sleepPeriod(bpm)), anchor)
+            assertEquals(byte * 125, s.resp[0].raw)
+            assertEquals(bpm, OuraRespScale.breathsPerMin(s.resp[0].raw), 1e-12)
+        }
+    }
+
+    /**
+     * Each record keeps its OWN anchored second, so a night's ~5-min windows land where they were
+     * measured. The rows are keyed (deviceId, ts), so two records sharing a second would collapse to
+     * one - the failure mode that cost 92% of an overnight's SpO2 before #1070.
+     */
+    @Test
+    fun sleepPeriodInfoRecordsKeepTheirOwnTimestamps() {
+        val s = OuraStreamMapping.streams(
+            listOf(sleepPeriod(14.375, 100), sleepPeriod(14.5, 396), sleepPeriod(15.0, 692)),
+            anchor,
+        )
+        assertEquals(listOf(base + 100, base + 396, base + 692), s.resp.map { it.ts })
+        assertEquals(listOf(14_375, 14_500, 15_000), s.resp.map { it.raw })
     }
 }

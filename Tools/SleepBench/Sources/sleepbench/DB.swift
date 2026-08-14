@@ -2,6 +2,7 @@ import Foundation
 import SQLite3
 import StrandAnalytics
 import WhoopProtocol
+import WhoopStore
 
 /// Minimal read-only SQLite reader. Deliberately not GRDB: this tool must be able to open a COPY of a
 /// device database taken at any schema version, including one older or newer than `WhoopStore`'s current
@@ -119,8 +120,14 @@ extension ReadOnlyDB {
                 z: ReadOnlyDB.dbl(s, 3), unit: "g",
                 dynAccel: ReadOnlyDB.isNull(s, 4) ? nil : ReadOnlyDB.dbl(s, 4)))
         }
-        try query("SELECT ts, raw FROM respSample WHERE \(w) ORDER BY ts") { s in
-            st.resp.append(RespSample(ts: ReadOnlyDB.int(s, 0), raw: ReadOnlyDB.int(s, 1)))
+        // An Oura ring's respiration rows are its OWN per-window rate (0x6A, milli-bpm), stored as
+        // instrumentation; the stagers read this stream as a ~1 Hz raw ADC waveform. The app refuses
+        // them by provenance at every scoring read, so the bench must refuse them the same way or it
+        // would score a night the app cannot produce. Same seam, one line: `OuraRespScale.forScoring`.
+        if !OuraRespScale.isRingRateStream(deviceId: device) {
+            try query("SELECT ts, raw FROM respSample WHERE \(w) ORDER BY ts") { s in
+                st.resp.append(RespSample(ts: ReadOnlyDB.int(s, 0), raw: ReadOnlyDB.int(s, 1)))
+            }
         }
         try query("SELECT ts, counter, activityClass FROM stepSample WHERE \(w) ORDER BY ts") { s in
             st.steps.append(StepSample(

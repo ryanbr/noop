@@ -2,6 +2,7 @@ package com.noop.analytics
 
 import com.noop.data.GravitySample
 import com.noop.data.HrSample
+import com.noop.data.OuraRespScale
 import com.noop.data.RespSample
 import com.noop.data.RrInterval
 import com.noop.data.SleepSession
@@ -73,7 +74,12 @@ object SleepStageHealer {
         if (!isDense(grav, start, end)) return null
         val hr = repo.hrSamples(deviceId, lo, hi, IntelligenceEngine.STREAM_LIMIT)
         val rr = repo.rrIntervals(deviceId, lo, hi, IntelligenceEngine.STREAM_LIMIT)
-        val resp = repo.respSamples(deviceId, lo, hi, IntelligenceEngine.STREAM_LIMIT)
+        // Same provenance refusal as the nightly scan: an Oura ring's respiration rows are its own
+        // per-window RATE stored as instrumentation, not the ~1 Hz raw ADC waveform this stager reads,
+        // so they never reach a re-stage either. See `OuraRespScale.forScoring`. Mirrors Swift.
+        val resp = OuraRespScale.forScoring(
+            repo.respSamples(deviceId, lo, hi, IntelligenceEngine.STREAM_LIMIT), deviceId,
+        )
         // Only read when the refinement might actually use it — no point paying for it on the (default) off path.
         val steps = if (useMotionAwareWake) repo.stepSamples(deviceId, lo, hi, IntelligenceEngine.STREAM_LIMIT) else emptyList()
         return restageFromSamples(start, end, grav, hr, rr, resp, useExperimentalSleepV2, steps, useMotionAwareWake)

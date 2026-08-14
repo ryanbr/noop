@@ -675,7 +675,17 @@ final class IntelligenceEngine: ObservableObject {
                     continue
                 }
                 let rr = (try? await store.rrIntervals(deviceId: owner, from: from, to: to, limit: 200_000)) ?? []
-                let resp = (try? await store.respSamples(deviceId: owner, from: from, to: to, limit: 200_000)) ?? []
+                // `forScoring` drops an Oura ring's respiration rows: those are the ring's OWN per-window
+                // RATE (0x6A, milli-bpm, ~1 row per 5 min), stored as instrumentation, while the stager
+                // reads this stream as a ~1 Hz raw ADC waveform. Refusing by provenance keeps the
+                // instrumentation out of every scored path by construction rather than by cadence luck.
+                // A WHOOP owner is unaffected, and this day scores exactly as it did before those rows
+                // existed — including its `dailyMetric.respRateBpm`, which nothing here derives from a
+                // ring row. See `OuraRespScale.forScoring`.
+                let resp = OuraRespScale.forScoring(
+                    (try? await store.respSamples(deviceId: owner, from: from, to: to,
+                                                  limit: 200_000)) ?? [],
+                    deviceId: owner)
                 let grav = (try? await store.gravitySamples(deviceId: owner, from: from, to: to, limit: 200_000)) ?? []
                 let steps = (try? await store.stepSamples(deviceId: owner, from: from, to: to, limit: 200_000)) ?? []
                 let skin = (try? await store.skinTempSamples(deviceId: owner, from: from, to: to, limit: 200_000)) ?? []

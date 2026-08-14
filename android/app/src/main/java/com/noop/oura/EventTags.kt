@@ -64,6 +64,9 @@ enum class OuraEventTag(val raw: Int) {
     SLEEP_SUMMARY_E(0x57),    // sleep summary variant, OURA_PROTOCOL.md s6.12 (UNVERIFIED)
     SLEEP_SUMMARY_F(0x58),    // sleep summary variant, OURA_PROTOCOL.md s6.12 (UNVERIFIED)
 
+    // --- Sleep period info (Tier B, UNVERIFIED) ---
+    SLEEP_PERIOD_INFO(0x6A),  // sleep_period_info (avg HR + breath rate), OURA_PROTOCOL.md s6.12 (UNVERIFIED)
+
     // --- Sleep phase codes (Tier A: 2-bit phase codes are byte-for-byte verified) ---
     // 0x4B/0x4E/0x5A are the three aliases the ring emits for the SAME hypnogram layout — a header
     // byte then 2-bit stage codes, 4/byte MSB-first (open_oura decode_sleep_phases routes all three,
@@ -94,6 +97,12 @@ enum class OuraEventTag(val raw: Int) {
             SLEEP_SUMMARY_1, SLEEP_SUMMARY_C, SLEEP_SUMMARY_D, SLEEP_SUMMARY_E,
             SLEEP_SUMMARY_F, ACTIVITY_INFO, ACTIVITY_SUMMARY_1, ACTIVITY_SUMMARY_2,
             REAL_STEPS_1, REAL_STEPS_2, SPO2_SMOOTHED,
+            // 0x6A sleep_period_info: the field NAMES come from a single decompiled-binary source
+            // ([open_ring]); NOOP's own captures confirm the layout's declared invariants and the
+            // fixed-point scales. Tier B on DECODE PROVENANCE - third-party names, not Oura
+            // documentation - not on doubt that the ring measures respiration: `breath` is the ring's
+            // own value read off the wire, and it feeds respRateBpm (see OuraSleepPeriodInfo).
+            SLEEP_PERIOD_INFO,
             // #287: 0x71 green_ibi_and_amp is NOT corpus-verified — no captured 0x71 fixture, and
             // OURA_PROTOCOL.md §6.2 documents a DIFFERENT layout (5 IBI deltas + 6 amplitudes, shift
             // [2:0]) than the 0x60 decoder it was wired to (6 absolute IBIs, 4-bit shift). Decoding it
@@ -127,6 +136,7 @@ enum class OuraEventTag(val raw: Int) {
             SLEEP_TEMP -> "SLEEP_TEMP"
             MOTION -> "MOTION"
             MOTION_PERIOD -> "MOTION_PERIOD"
+            SLEEP_PERIOD_INFO -> "SLEEP_PERIOD_INFO"
             SLEEP_SUMMARY_1 -> "SLEEP_SUMMARY_1"
             SLEEP_PHASE_B -> "SLEEP_PHASE_4B"
             SLEEP_SUMMARY_C -> "SLEEP_SUMMARY_4C"

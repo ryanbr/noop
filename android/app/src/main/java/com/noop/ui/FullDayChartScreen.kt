@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.noop.R
 import com.noop.analytics.HrvAnalyzer
+import com.noop.data.OuraRespScale
 import com.noop.protocol.DeviceFamily
 import com.noop.protocol.skinTempCelsius
 import kotlinx.coroutines.Dispatchers
@@ -411,8 +412,12 @@ private suspend fun readTimeline(
                 .map { TimelinePoint(it.ts, skinTempCelsius(it.raw, family)) }
         }
         TimelineMetric.Respiration ->
+            // Two quantities share this table: a WHOOP's raw respiration ADC waveform (plotted verbatim,
+            // as before) and an Oura ring's own per-window RATE in milli-bpm (0x6A instrumentation), which
+            // is scaled back to breaths/min so the track reads as ~14-16 instead of ~14,375.
+            // `OuraRespScale` is the single place that mapping lives. Mirrors Swift.
             runCatching { repo.respSamples(deviceId, from, to, 200_000) }.getOrDefault(emptyList())
-                .map { TimelinePoint(it.ts, it.raw.toDouble()) }
+                .map { TimelinePoint(it.ts, OuraRespScale.displayValue(it.raw, deviceId)) }
         TimelineMetric.Motion ->
             runCatching { repo.gravitySamples(deviceId, from, to, 200_000) }.getOrDefault(emptyList())
                 .map { TimelinePoint(it.ts, kotlin.math.sqrt(it.x * it.x + it.y * it.y + it.z * it.z)) }

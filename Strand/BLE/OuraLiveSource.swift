@@ -1612,6 +1612,34 @@ public final class OuraLiveSource: NSObject, ObservableObject {
                     realStepsDump?.record(tag: steps.tag, ringTs: steps.ringTimestamp, utc: utc, fields: steps.fields)
                 }
 
+            case .sleepPeriodInfo(let info):
+                // 0x6A sleep_period_info (Tier B - third-party field NAMES [open_ring] over offsets our
+                // own §6.12 already had; see OuraSleepPeriodInfo). Logged with the DECODED values every
+                // time, like 0x50 MET rather than once-per-kind: its cadence is a modest ~5 min and the
+                // series is what the respiration ledger is reconstructed from, sample by sample.
+                //
+                // The record's `breath` field is also PERSISTED, as instrumentation: anchored to its own
+                // ring-time and enqueued exactly like the sibling banked streams (.hrv/.temp/.spo2), so a
+                // night's ~5-min windows land where they were MEASURED and never at the drain-arrival
+                // moment. `OuraStreamMapping` maps that ONE field onto a `respSample` row in milli-bpm;
+                // everything else in this record stays here in the log. Nothing SCORES the row — not the
+                // sleep stager, and not `dailyMetric.respRateBpm` (see `OuraRespScale`). The logging is
+                // kept as well as the row: the log line is what the ledger is reconstructed from,
+                // including for records no anchor can place, and it carries the fields the store
+                // deliberately does not.
+                let periodWhen = driver.unixSeconds(forRingTimestamp: info.ringTimestamp)
+                    .map { Self.cursorDateFormatter.string(from: Date(timeIntervalSince1970: TimeInterval($0))) }
+                    ?? "no anchor yet"
+                log("Oura: sleep_period (Tier-B) [\(periodWhen)] hr=\(info.averageHrBpm) "
+                    + "trend=\(info.hrTrend) breath=\(info.breathsPerMin) "
+                    + "breathV=\(info.breathVariability) motion=\(info.motionCount) state=\(info.sleepState)")
+                if let ts = driver.unixSeconds(forRingTimestamp: info.ringTimestamp) {
+                    enqueue([e], ts: ts)
+                    noteStoredHistoryRingTime(info.ringTimestamp)
+                } else {
+                    pendingAnchorEvents.append((e, info.ringTimestamp))
+                }
+
             case .state(let s):
                 // The ring's own lifecycle strings (0x45/0x53). Charger transitions drive the wear badge;
                 // never a durable Streams row. Only the LIVE stream updates the indicator (a history

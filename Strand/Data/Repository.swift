@@ -1448,7 +1448,12 @@ final class Repository: ObservableObject {
         guard inWindowGravity >= max(20, windowSeconds / 120) else { return nil }
         let hr = (try? await store.hrSamples(deviceId: deviceId, from: lo, to: hi, limit: 200_000)) ?? []
         let rr = (try? await store.rrIntervals(deviceId: deviceId, from: lo, to: hi, limit: 200_000)) ?? []
-        let resp = (try? await store.respSamples(deviceId: deviceId, from: lo, to: hi, limit: 200_000)) ?? []
+        // Same provenance refusal as the nightly scan (`IntelligenceEngine`): an Oura ring's respiration
+        // rows are its own per-window RATE stored as instrumentation, not the ~1 Hz raw ADC waveform this
+        // stager reads, so they never reach a re-stage either. See `OuraRespScale.forScoring`.
+        let resp = OuraRespScale.forScoring(
+            (try? await store.respSamples(deviceId: deviceId, from: lo, to: hi, limit: 200_000)) ?? [],
+            deviceId: deviceId)
         // Read only when the refinement below might actually use it (see `useMotionAwareWake`) — a plain
         // read cost, but no point paying it on the (default) off path.
         let useMotionAwareWake = PuffinExperiment.motionAwareWakeEnabled
@@ -1761,9 +1766,13 @@ final class Repository: ObservableObject {
                 s.map { Self.timelinePoint($0.ts, skinTempCelsius(raw: $0.raw, family: family)) }
             }.value
         case .respiration:
+            // Two quantities share this table: a WHOOP's raw respiration ADC waveform (plotted verbatim,
+            // as before) and an Oura ring's own per-window RATE in milli-bpm (0x6A instrumentation), which
+            // is scaled back to breaths/min so the track reads as ~14–16 instead of ~14,375.
+            // `OuraRespScale` is the single place that mapping lives.
             let s = (try? await store.respSamples(deviceId: source, from: from, to: to, limit: 200_000)) ?? []
             return await Task.detached(priority: .utility) {
-                s.map { Self.timelinePoint($0.ts, Double($0.raw)) }
+                s.map { Self.timelinePoint($0.ts, OuraRespScale.displayValue(raw: $0.raw, deviceId: source)) }
             }.value
         case .motion:
             // Gravity vector magnitude as a coarse movement signal (1 g at rest).

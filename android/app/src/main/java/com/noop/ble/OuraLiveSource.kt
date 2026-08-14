@@ -1807,6 +1807,35 @@ class OuraLiveSource(
                     realStepsDump?.record(tag = e.value.tag, ringTs = e.value.ringTimestamp, utc = utc, fields = e.value.fields)
                 }
             }
+            is OuraEvent.SleepPeriodInfo -> {
+                // 0x6A sleep_period_info (Tier B - third-party field NAMES [open_ring] over offsets our
+                // own s6.12 already had; see OuraSleepPeriodInfo). Logged with the DECODED values every
+                // time, like 0x50 MET rather than once-per-kind: its cadence is a modest ~5 min and the
+                // series is what the respiration ledger is reconstructed from, sample by sample.
+                //
+                // The record's `breath` field is also PERSISTED, as instrumentation: anchored to its own
+                // ring-time and enqueued exactly like the sibling banked streams (Hrv/Temp/Spo2), so a
+                // night's ~5-min windows land where they were MEASURED and never at the drain-arrival
+                // moment. OuraStreamMapping maps that ONE field onto a `respSample` row in milli-bpm;
+                // everything else in this record stays here in the log. Nothing SCORES the row - not the
+                // sleep stager, and not `dailyMetric.respRateBpm` (see OuraRespScale). The logging is
+                // kept as well as the row: the log line is what the ledger is reconstructed from,
+                // including for records no anchor can place, and it carries the fields the store
+                // deliberately does not.
+                //
+                // Twin of Swift's `.sleepPeriodInfo` log line, with one deliberate difference: Swift
+                // prints a formatted clock time because that source already holds a formatter, and this
+                // one holds none - the anchored epoch seconds correlate just as well, and adding a
+                // formatter here only to match a log string would be the wrong kind of parity.
+                val v = e.value
+                val whenUtc = d.unixSeconds(forRingTimestamp = v.ringTimestamp)?.toString() ?: "no anchor yet"
+                log(
+                    "Oura: sleep_period (Tier-B) [$whenUtc] hr=${v.averageHrBpm} trend=${v.hrTrend} " +
+                        "breath=${v.breathsPerMin} breathV=${v.breathVariability} " +
+                        "motion=${v.motionCount} state=${v.sleepState}",
+                )
+                enqueueAnchoredOrPark(e, v.ringTimestamp, d)
+            }
             is OuraEvent.MotionVectorEvent -> {
                 // 0x47 averaged accel vector (Tier-A). Persisted as an OURA_MOTION event (same event-table
                 // path as OURA_HRV / OURA_SLEEP_PHASE — see OuraStreamMapping), AND appended to the raw

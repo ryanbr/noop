@@ -3,6 +3,7 @@ package com.noop.analytics
 import java.util.Locale
 import com.noop.data.DailyMetric
 import com.noop.data.MetricSeriesRow
+import com.noop.data.OuraRespScale
 import com.noop.data.ScoreInputProvenanceRow
 import com.noop.data.SleepSession
 import com.noop.data.WhoopRepository
@@ -510,7 +511,13 @@ object IntelligenceEngine {
                 continue
             }
             val rr = repo.rrIntervals(owner, from, to, STREAM_LIMIT)
-            val resp = repo.respSamples(owner, from, to, STREAM_LIMIT)
+            // `forScoring` drops an Oura ring's respiration rows: those are the ring's OWN per-window
+            // RATE (0x6A, milli-bpm, ~1 row per 5 min), stored as instrumentation, while the stager reads
+            // this stream as a ~1 Hz raw ADC waveform. Refusing by provenance keeps the instrumentation
+            // out of every scored path by construction rather than by cadence luck. A WHOOP owner is
+            // unaffected, and this day scores exactly as it did before those rows existed — including its
+            // `respRateBpm`, which nothing here derives from a ring row. Mirrors Swift.
+            val resp = OuraRespScale.forScoring(repo.respSamples(owner, from, to, STREAM_LIMIT), owner)
             val grav = repo.gravitySamples(owner, from, to, STREAM_LIMIT)
             val steps = repo.stepSamples(owner, from, to, STREAM_LIMIT)
             val skin = repo.skinTempSamples(owner, from, to, STREAM_LIMIT)

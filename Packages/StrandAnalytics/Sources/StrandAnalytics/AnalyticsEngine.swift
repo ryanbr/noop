@@ -660,6 +660,16 @@ public enum AnalyticsEngine {
         // NOT a cloud/clinical respiration value. Per matched in-bed session, estimate
         // over [start, end]; the night's value = median of finite per-session
         // estimates; nil only when no session yields a finite estimate.
+        //
+        // An Oura ring's 0x6A `breath` rows do NOT enter here, deliberately. They are the ring's own
+        // per-window respiratory RATE, decoded and stored as INSTRUMENTATION only (`OuraRespScale`,
+        // OURA_PROTOCOL.md §6.12): shown beside the incumbent on the respiration track, never scored.
+        // `dailyMetric.respRateBpm` is the scored slot — it feeds the recovery resp term and
+        // `IllnessSignalEngine` — and a signal sitting at the vendor ceiling (r = +0.680 is the BEST any
+        // Oura-derived rate can score against WHOOP, which is Oura's own app's number) is exactly what
+        // CLAUDE.md's #194 rule says to instrument rather than make the default and gate on. So a ring
+        // night's `respRateBpm` is whatever the RSA path returns — on banked R-R that is nil — and this
+        // block is byte-identical to what it was before 0x6A was decoded.
         let respRateDaily: Double? = {
             let perSession = matched
                 .map { SleepStager.respRateFromRR(rr, start: $0.start, end: $0.end) }

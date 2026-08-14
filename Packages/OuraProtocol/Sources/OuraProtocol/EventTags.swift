@@ -59,6 +59,9 @@ public enum OuraEventTag: UInt8, Sendable, CaseIterable, Codable {
     case sleepSummaryE    = 0x57   // sleep summary variant, OURA_PROTOCOL.md s6.12 (UNVERIFIED)
     case sleepSummaryF    = 0x58   // sleep summary variant, OURA_PROTOCOL.md s6.12 (UNVERIFIED)
 
+    // --- Sleep period info (Tier B, UNVERIFIED) ---
+    case sleepPeriodInfo  = 0x6A   // sleep_period_info (avg HR + breath rate), OURA_PROTOCOL.md s6.12 (UNVERIFIED)
+
     // --- Sleep phase codes (Tier A: 2-bit phase codes are byte-for-byte verified) ---
     // 0x4B/0x4E/0x5A are the three aliases the ring emits for the SAME hypnogram layout — a header byte
     // then 2-bit phase codes, 4 per byte MSB-first (open_oura `0x4b | 0x4e | 0x5a => decode_sleep_phases`,
@@ -87,6 +90,12 @@ public enum OuraEventTag: UInt8, Sendable, CaseIterable, Codable {
         case .sleepSummary1, .sleepSummaryC, .sleepSummaryD, .sleepSummaryE,
              .sleepSummaryF, .activityInfo, .activitySummary1, .activitySummary2,
              .realSteps1, .realSteps2, .spo2Smoothed,
+             // 0x6A sleep_period_info: the field NAMES come from a single decompiled-binary source
+             // ([open_ring]); NOOP's own captures confirm the layout's declared invariants and the
+             // fixed-point scales. Tier B on DECODE PROVENANCE — third-party names, not Oura
+             // documentation — not on doubt that the ring measures respiration: `breath` is the ring's
+             // own value read off the wire, and it feeds respRateBpm (see OuraSleepPeriodInfo).
+             .sleepPeriodInfo,
              // #287: 0x71 green_ibi_and_amp is NOT corpus-verified — there is no captured 0x71 fixture,
              // and OURA_PROTOCOL.md §6.2 documents a DIFFERENT layout (5 IBI deltas + 6 amplitudes,
              // shift [2:0]) than the 0x60 decoder it was wired to (6 absolute IBIs, 4-bit shift). Decoding
@@ -128,6 +137,7 @@ public enum OuraEventTag: UInt8, Sendable, CaseIterable, Codable {
         case .sleepSummaryD: return "SLEEP_SUMMARY_4F"
         case .sleepSummaryE: return "SLEEP_SUMMARY_57"
         case .sleepSummaryF: return "SLEEP_SUMMARY_58"
+        case .sleepPeriodInfo: return "SLEEP_PERIOD_INFO"
         case .sleepPhaseB: return "SLEEP_PHASE_4B"
         case .sleepPhase: return "SLEEP_PHASE"
         case .sleepPhaseAlt: return "SLEEP_PHASE_ALT"

@@ -16,9 +16,13 @@ let package = Package(
     dependencies: [
         .package(path: "../../Packages/StrandAnalytics"),
         .package(path: "../../Packages/WhoopProtocol"),
+        // For `OuraRespScale` only: the one seam that decides which respiration rows a stager may read.
+        // A bench that fed an Oura ring's per-window RATE rows to the stager as if they were a WHOOP's
+        // raw ADC waveform would report numbers the app can never produce.
+        .package(path: "../../Packages/WhoopStore"),
     ],
     targets: [
-        .executableTarget(name: "sleepbench", dependencies: ["StrandAnalytics", "WhoopProtocol"]),
+        .executableTarget(name: "sleepbench", dependencies: ["StrandAnalytics", "WhoopProtocol", "WhoopStore"]),
         // The scoring primitives are pure functions over label arrays, so they are unit-testable without a
         // database. `swift test` here needs no health data and no `--db` argument.
         .testTarget(name: "sleepbenchTests", dependencies: ["sleepbench"]),

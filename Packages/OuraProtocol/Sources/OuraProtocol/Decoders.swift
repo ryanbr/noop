@@ -529,6 +529,48 @@ public enum OuraDecoders {
         return out.isEmpty ? nil : out
     }
 
+    // MARK: - Sleep period info (0x6A; s6.12) - Tier B, third-party field names
+
+    /// Decode the 0x6A sleep_period_info: a fixed 10-byte body carrying the ring's OWN per-window sleep
+    /// summary — an average heart rate and a CANDIDATE breath rate. Field names and multipliers are a
+    /// clean-room fact citation of [open_ring]'s `decode_sleep_period_info_2`
+    /// (`parse_api_sleep_period_info`, multipliers from its `.rodata` block); no code is copied. See
+    /// `OuraSleepPeriodInfo` for what our own captures do and do not establish, and OURA_PROTOCOL.md
+    /// s6.12.
+    ///   byte0 = average_hr, u8 × 0.5      (so wire 130 = 65 bpm — NOT a bare bpm byte)
+    ///   byte1 = hr_trend,   s8 × 0.0625   (the only SIGNED field in the body)
+    ///   byte2 = mzci,       u8 × 0.0625
+    ///   byte3 = dzci,       u8 × 0.0625
+    ///   byte4 = breath,     u8 / 8.0      (breaths per minute — the reason this tag matters)
+    ///   byte5 = breath_v,   u8 / 8.0
+    ///   byte6 = motion_count, u8          (source DECLARES < 121)
+    ///   byte7 = sleep_state,  u8          (source DECLARES ∈ {0,1,2})
+    ///   byte8-9 = cv, u16 LE / 65536      (so [0,1))
+    ///
+    /// Returns nil on a short body OR when either declared invariant is violated. Rejecting on the
+    /// invariants is deliberate and is what makes this decode falsifiable rather than credulous: the
+    /// source's own parser throws there, so a body that breaks them is not this layout, and the honest
+    /// answer is "not decoded" rather than a number built from bytes that mean something else. It costs
+    /// nothing on real data — all 3 493 records across four consecutive Gen 3 overnights pass both.
+    public static func decodeSleepPeriodInfo(_ rec: OuraRecord) -> OuraSleepPeriodInfo? {
+        let b = rec.payload
+        guard b.count >= 10 else { return nil }
+        let motionCount = Int(b[6])
+        let sleepState = Int(b[7])
+        guard motionCount < 121, sleepState <= 2 else { return nil }   // the source's own invariants
+        return OuraSleepPeriodInfo(
+            ringTimestamp: rec.ringTimestamp,
+            averageHrBpm: Double(b[0]) * 0.5,
+            hrTrend: Double(Int8(bitPattern: b[1])) * 0.0625,
+            mzci: Double(b[2]) * 0.0625,
+            dzci: Double(b[3]) * 0.0625,
+            breathsPerMin: Double(b[4]) / 8.0,
+            breathVariability: Double(b[5]) / 8.0,
+            motionCount: motionCount,
+            sleepState: sleepState,
+            cv: Double(u16le(b, 8)) / 65536.0)
+    }
+
     // MARK: - Motion period, 2-bit MOTION_STATE codes (0x6B; s6.13)
 
     /// Decode the 0x6B motion_period: a compact run of 2-bit MOTION_STATE codes. Layout cross-checked

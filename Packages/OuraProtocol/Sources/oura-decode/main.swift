@@ -154,6 +154,7 @@ func describe(_ e: OuraEvent) -> String {
     case .tierB(let v): return "TIER_B[UNVERIFIED] tag=0x\(String(v.tag, radix: 16)) kind=\(v.kind) bytes=\(v.rawPayload.count)"
     case .activityInfo(let v): return "ACTIVITY[TIER-B,UNVERIFIED] state=\(v.state) met=\(v.met) rt=\(v.ringTimestamp)"
     case .realStepsFields(let v): return "REAL_STEPS[TIER-B,UNVERIFIED] tag=0x\(String(v.tag, radix: 16)) fields=\(v.fields) rt=\(v.ringTimestamp)"
+    case .sleepPeriodInfo(let v): return "SLEEP_PERIOD[TIER-B,UNVERIFIED] hr=\(v.averageHrBpm) trend=\(v.hrTrend) breath=\(v.breathsPerMin) breathV=\(v.breathVariability) mzci=\(v.mzci) dzci=\(v.dzci) motion=\(v.motionCount) state=\(v.sleepState) cv=\(v.cv) rt=\(v.ringTimestamp)"
     }
 }
 
