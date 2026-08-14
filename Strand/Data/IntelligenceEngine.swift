@@ -238,6 +238,29 @@ final class IntelligenceEngine: ObservableObject {
     /// separates the causes: `grav=0` = no motion offloaded (the in-bed detector can't gate — the WHOOP
     /// 4.0 sparse-motion path has no HR-only fallback); a large `hr` with a night still empty = coverage
     /// gap or the sleep hours fell outside `window`; `provided=` = a persisted hypnogram was (not) available.
+    /// The END of the window the sleep pipeline reads for the night that finishes on `dayStart`'s day.
+    ///
+    /// A PAST day reads through to the next local midnight: the night may end any time before it — late
+    /// sleepers, weekend lie-ins, shift workers who wake well after noon. A hard `dayStart + 18h` (6 PM)
+    /// bound truncated the read at exactly 18:00 and reported a flat 18:00 wake (#500).
+    ///
+    /// **#500 follow-up — the half that was left broken.** TODAY kept the 18:00 cap, on the reasoning that
+    /// "the store clamps to `now` anyway". That holds only for someone who wakes in the MORNING. A
+    /// day-sleeper — asleep ~12:00, awake ~20:00 — is still inside today when they wake, so the cap cut the
+    /// read three hours short and reported a flat 18:00 wake for the entire evening. At the next local
+    /// midnight the day became PAST, the other branch took over, and the SAME night silently re-scored to
+    /// the real time. That is exactly the reported symptom: *"it shows 18:00 every day no matter what time
+    /// I wake up, then as soon as it hits 00:01 it updates to the actual wake time."* Not offload lag, not
+    /// a stager gate, not clock drift — this bound.
+    ///
+    /// Today is now capped at `now`, which keeps the only property the old bound was there for — never read
+    /// past the present — and is what that original comment already assumed was happening. It stops the
+    /// window from asserting that nobody wakes after 6 PM.
+    nonisolated static func sleepReadWindowEnd(dayStart: Int, nowLocalMidnight: Int, now: Int) -> Int {
+        let nextMidnight = dayStart + 86_400
+        return dayStart < nowLocalMidnight ? nextMidnight : min(nextMidnight, now)
+    }
+
     /// Counts + a window length only — same privacy class as the sibling `sleep day=` line, no PII. Pure so
     /// it's unit-tested directly; byte-identical to the Android `sleepDetectNoNightLogLine`.
     nonisolated static func sleepDetectNoNightLogLine(day: String, hrCount: Int, rrCount: Int,
@@ -633,14 +656,10 @@ final class IntelligenceEngine: ObservableObject {
                 let day = AnalyticsEngine.dayString(dayStart, offsetSec: tzOffset)
                 // Read a generous window around the night that ends on `day`; the stager finds the span.
                 let from = dayStart - 30 * 3_600
-                // Sleep read-window END. For a PAST day the night may end any time before the NEXT local
-                // midnight (late sleepers / weekend lie-ins / shift workers wake well after noon), so a
-                // hard `dayStart + 18h` (6 PM) bound TRUNCATED the read at exactly 18:00 , and a real wake
-                // past it was reported as a flat 18:00 wake (#500). Read a PAST day through to the next
-                // local midnight so the stager sees the whole night; TODAY keeps the 18:00 cap (the store
-                // clamps to `now` anyway, and an in-progress nap shouldn't be read as a finished night).
-                let nextMidnight = dayStart + 86_400
-                let to = (dayStart < nowLocalMidnight) ? nextMidnight : dayStart + 18 * 3_600
+                // Sleep read-window END — see `sleepReadWindowEnd`.
+                let to = Self.sleepReadWindowEnd(dayStart: dayStart,
+                                                 nowLocalMidnight: nowLocalMidnight,
+                                                 now: now)
 
                 // I2: pick the single device that owns this day, and read ITS streams below. With one device
                 // this resolves to `deviceId` (active strap, has data → priority 0), so nothing changes; with
