@@ -1991,6 +1991,11 @@ object IntelligenceEngine {
             "hrRows=$hrRows provenance=$provenance"
     }
 
+    /** #1331 diagnostic line: the night's computed respiratory rate (breaths/min) or "nil". Format kept
+     *  simple so the planned Swift twin (iOS #1331 follow-up) can match it byte-for-byte. */
+    internal fun respRateLogLine(day: String, respRateBpm: Double?): String =
+        "resp day=$day rpm=${respRateBpm?.let { String.format(Locale.US, "%.1f", it) } ?: "nil"}"
+
     /**
      * The per-day RHR floor-vs-mean diagnostic line (#691). NOOP's [floor] is the WHOOP-style resting
      * HR , the lowest SUSTAINED 5-min in-bed level (SleepStager picks the min 5-min rolling-mean HR per
@@ -2002,11 +2007,6 @@ object IntelligenceEngine {
      * is "nil". Counts/bpm only , no timestamps or PII. Pure so it's unit-tested directly and is the SAME
      * line analyzeRecent ships. Byte-identical to the Swift `rhrFloorMeanLogLine`.
      */
-    /** #1331 diagnostic line: the night's computed respiratory rate (breaths/min) or "nil". Format kept
-     *  simple so the planned Swift twin (iOS #1331 follow-up) can match it byte-for-byte. */
-    internal fun respRateLogLine(day: String, respRateBpm: Double?): String =
-        "resp day=$day rpm=${respRateBpm?.let { String.format(Locale.US, "%.1f", it) } ?: "nil"}"
-
     internal fun rhrFloorMeanLogLine(day: String, floor: Int, inBedBpms: List<Int>): String {
         val meanLog = if (inBedBpms.isEmpty()) "nil"
             else Math.round(inBedBpms.sum().toDouble() / inBedBpms.size).toString()
