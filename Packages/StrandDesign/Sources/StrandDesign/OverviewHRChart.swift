@@ -484,6 +484,13 @@ public struct OverviewHRChart: View {
         // itself) never flips the hint/Reset row into its "Zoomed in" state.
         .modifier(ZoomPanModifier(
             isActive: zoomBounds != nil,
+            scrubActive: {
+                #if os(iOS)
+                scrubEngaged
+                #else
+                false
+                #endif
+            },
             isZoomed: { zoomDomain != nil },
             current: { xDomain },
             bounds: zoomClampBounds,
@@ -612,6 +619,9 @@ private struct ZoomPanModifier: ViewModifier {
     let reset: () -> Void
     let zoom: (ClosedRange<Date>, Double, Double, ClosedRange<Date>) -> ClosedRange<Date>
     let pan: (ClosedRange<Date>, CGFloat, CGFloat, ClosedRange<Date>) -> ClosedRange<Date>
+    /// #1342: true while a touch scrub is engaged, so the pan drag is masked off (`.subviews`) and can't
+    /// ALSO slide the window sideways out from under the crosshair. Always false on macOS (no touch scrub).
+    let scrubActive: () -> Bool
 
     @State private var plotWidth: CGFloat = 1
     // Reduce Motion: the reset snaps instantly when on, otherwise it eases out (the gesture frames
@@ -626,7 +636,9 @@ private struct ZoomPanModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         guard isActive else { return AnyView(content) }
-        let drag = DragGesture(minimumDistance: 6)
+        // #1342: 10 pt (not 6) so the pan can't start inside the scrub long-press's 8 pt hold window —
+        // the 6–8 pt overlap band is what let a held-then-dragged finger begin panning during a scrub.
+        let drag = DragGesture(minimumDistance: 10)
             .onChanged { value in
                 let base = anchor ?? current()
                 if anchor == nil { anchor = base }
@@ -661,8 +673,10 @@ private struct ZoomPanModifier: ViewModifier {
         // host's scroll modifier (it owns the NSEvent monitor); here we wire pan + the double-tap reset.
         return AnyView(measured.gesture(drag).simultaneousGesture(doubleTapReset))
         #else
+        // #1342: mask the pan off while a scrub is engaged so a horizontal scrub no longer ALSO slides
+        // the window (the pan is `.simultaneous`, so it otherwise co-recognises alongside the scrub).
         return AnyView(measured.gesture(magnify)
-            .simultaneousGesture(drag)
+            .simultaneousGesture(drag, including: scrubActive() ? .subviews : .all)
             .simultaneousGesture(doubleTapReset))
         #endif
     }
