@@ -2116,6 +2116,67 @@ final class Repository: ObservableObject {
         }
     }
 
+    /// Which of `catalog`'s metrics hold at least one reading — the question the Explore catalog list asks
+    /// to decide which rows get the faint "no data" dot.
+    ///
+    /// PERF: the list used to answer it by calling `exploreSeries` once PER METRIC and throwing the series
+    /// away, keeping only `isEmpty`. That is ~60 full-history reads, each walking `self.days`, building a
+    /// dictionary and sorting it on the main actor, to produce 60 booleans. This asks the cheap question
+    /// instead: one DISTINCT-key query per source (a handful in total), plus one in-memory pass for the
+    /// daily-column layer.
+    ///
+    /// The source precedence MIRRORS `exploreSeries` / `series` deliberately, or the dots would disagree
+    /// with the screens they point at:
+    /// - the canonical WHOOP source unions the imported AND computed read ids (`exploreSeries` reads both;
+    ///   note `availableKeys` below unions only the imported ones, which is why this does not reuse it);
+    /// - the daily-column fallback applies to the WHOOP source ONLY, exactly as `exploreSeries` gates it;
+    /// - every other source reads its own key set verbatim.
+    ///
+    /// One deliberate difference: `metricKeys` has no day window, while the old probe used
+    /// `exploreSeries`'s ~11-year default. A metric whose only rows predate that window now reads as
+    /// "has data" rather than showing the dot. That can only ever REMOVE a dot, never add a wrong one,
+    /// and "we hold readings for this, just very old ones" is the more truthful answer anyway.
+    ///
+    /// A store that will not open returns every id (i.e. "has data"), matching the old probe's
+    /// failures-default-to-no-dot behaviour: a diagnostic dot on every row would read as data loss.
+    func nonEmptyMetricIDs(_ catalog: [MetricDescriptor]) async -> Set<String> {
+        guard let store = await ensureStore() else { return Set(catalog.map(\.id)) }
+
+        // One DISTINCT-key query per distinct source (the WHOOP one fans out over its read ids).
+        var keysBySource: [String: Set<String>] = [:]
+        for source in Set(catalog.map(\.source)) {
+            var keys = Set<String>()
+            if source == canonicalDeviceId {
+                for id in importedReadIds + computedReadIds {
+                    keys.formUnion((try? await store.metricKeys(deviceId: id)) ?? [])
+                }
+            } else {
+                keys.formUnion((try? await store.metricKeys(deviceId: source)) ?? [])
+            }
+            keysBySource[source] = keys
+        }
+
+        // The merged daily column, which `exploreSeries` layers under the WHOOP series, is handled by the
+        // pure half below: in-memory over the already-published `days`, with `contains` short-circuiting
+        // on the first day that carries the key — nothing like the 60 full merges it replaces.
+        return Self.nonEmptyMetricIDs(catalog, keysBySource: keysBySource, days: days,
+                                      whoopSource: canonicalDeviceId)
+    }
+
+    /// The decision itself, split out from the queries so it is testable with no store and no app: given
+    /// which keys each source holds and the merged daily rows, which catalog ids have data.
+    nonisolated static func nonEmptyMetricIDs(_ catalog: [MetricDescriptor],
+                                              keysBySource: [String: Set<String>],
+                                              days: [DailyMetric],
+                                              whoopSource: String = Repository.whoopSource) -> Set<String> {
+        Set(catalog.lazy.filter { metric in
+            if keysBySource[metric.source]?.contains(metric.key) == true { return true }
+            // The daily-column fallback is WHOOP-only, exactly as `exploreSeries` gates it.
+            guard metric.source == whoopSource else { return false }
+            return days.contains { dailyColumn(key: metric.key, day: $0) != nil }
+        }.map(\.id))
+    }
+
     func availableKeys(source: String) async -> [String] {
         guard let store = await ensureStore() else { return [] }
         // For the canonical WHOOP source, UNION the keys present under the active strap too, so a re-added
