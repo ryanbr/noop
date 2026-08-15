@@ -366,6 +366,11 @@ class OuraStreamMappingTest {
                 OuraEvent.ActivityInfo(
                     com.noop.oura.OuraActivityInfo(ringTimestamp = 100, state = 0x41, met = listOf(1.8, 1.9)),
                 ),
+                // 0x7E/0x7F real_steps_features: decoded but Tier-B - must never mint a `steps` row
+                // either. Ground truth showed no field is a count; they are model inputs (s6.13).
+                OuraEvent.RealStepsFields(
+                    com.noop.oura.OuraRealStepsFields(tag = 0x7E, ringTimestamp = 100, fields = (0..13).toList()),
+                ),
             ),
             anchor,
         )

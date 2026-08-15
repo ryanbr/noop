@@ -508,15 +508,16 @@ class OuraDriver(
                         ),
                     ),
                 )
-            OuraEventTag.REAL_STEPS_1, OuraEventTag.REAL_STEPS_2 ->
-                listOf(
-                    OuraEvent.TierB(
-                        OuraTierBSummary(
-                            tag = record.type, ringTimestamp = record.ringTimestamp,
-                            rawPayload = record.payload, kind = "real_steps",
-                        ),
-                    ),
-                )
+            OuraEventTag.REAL_STEPS_1, OuraEventTag.REAL_STEPS_2 -> {
+                // Split out of the raw-bytes TierB wrapper, same as ActivityInfo: this tag pair now has a
+                // cited third-party unpack formula (OuraDecoders.decodeRealStepsFields, [oura-rs]). Still
+                // Tier B - only reached behind allowTierB (gated above), and OuraStreamMapping never folds
+                // RealStepsFields into a durable stream. Applies the SAME 14-field unpack to both 0x7E and
+                // 0x7F bodies (the formula is generic over any 14-byte body; NOOP's own investigation
+                // found the movement-correlated fields present in both).
+                val fields = OuraDecoders.decodeRealStepsFields(record) ?: return emptyList()
+                listOf(OuraEvent.RealStepsFields(fields))
+            }
             OuraEventTag.SPO2_SMOOTHED ->
                 listOf(
                     OuraEvent.TierB(

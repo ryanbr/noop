@@ -207,11 +207,13 @@ object OuraStreamMapping {
                     out.events.add(WhoopEvent(ts = ts, kind = EVENT_MOTION, payload = payload))
                 }
 
-                // Motion / state / time-sync / rtc / debug / TierB / ActivityInfo never map onto a
-                // scored stream. In particular the 0x50 activity/MET decode (PR #960) NEVER mints a
-                // `steps` row: the formula is third-party and unvalidated (Tier B, OURA_PROTOCOL.md
+                // Motion / state / time-sync / rtc / debug / TierB / ActivityInfo / RealStepsFields never
+                // map onto a scored stream. In particular the 0x50 activity/MET decode (PR #960) NEVER
+                // mints a `steps` row: the formula is third-party and unvalidated (Tier B, OURA_PROTOCOL.md
                 // s6.13), and MET is not a step count - fabricating one would break the honest-data
-                // invariant and the per-source day-owner rules.
+                // invariant and the per-source day-owner rules. Same discipline for 0x7E/0x7F real_steps
+                // (s6.13) - decoded, logged, never scored: ground truth showed no field is a step count,
+                // they are the inputs to Oura's step model.
                 else -> Unit
             }
         }

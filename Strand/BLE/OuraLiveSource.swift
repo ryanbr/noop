@@ -281,6 +281,9 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     private let activityDump: OuraActivityDump?
     /// Append-only JSONL sidecar for the 0x47 motion vectors (Tier-A), for offline LSB→g calibration (#804).
     private let motionDump: OuraMotionDump?
+    /// Append-only JSONL research corpus for 0x7E/0x7F real_steps_features (Tier-B, third-party
+    /// [oura-rs] unpack formula, never scored/persisted to SQLite). See OuraRealStepsDump.
+    private let realStepsDump: OuraRealStepsDump?
     /// Append-only JSONL capture of the RAW, undecoded history-drain notification bytes (`oura-raw-<id>.jsonl`).
     /// Complement to the decoded sidecars above: those show what NOOP interpreted, this shows exactly what the
     /// ring sent, so after a full connect a hole in a decoded file can be pinned as a decode drop vs ring-side.
@@ -955,6 +958,8 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         self.motionDump = feedsLive && !deviceId.isEmpty ? OuraMotionDump(deviceId: deviceId, log: log) : nil
         // RAW undecoded history-drain capture: same live/persisting gate; complements the decoded sidecars.
         self.rawDump = feedsLive && !deviceId.isEmpty ? OuraRawDump(deviceId: deviceId, log: log) : nil
+        // 0x7E/0x7F real_steps research corpus: same gate as the other Tier-B dumps.
+        self.realStepsDump = feedsLive && !deviceId.isEmpty ? OuraRealStepsDump(deviceId: deviceId, log: log) : nil
         super.init()
         // Dedicated queue-less central -> callbacks arrive on the main queue, matching @MainActor.
         #if os(iOS)
@@ -1588,6 +1593,23 @@ public final class OuraLiveSource: NSObject, ObservableObject {
                     }
                     lastActivityUtc = utc
                     lastActivitySampleCount = info.met.count
+                }
+
+            case .realStepsFields(let steps):
+                // INVESTIGATION ONLY (0x7E/0x7F real_steps_features, Tier B - a cited third-party unpack
+                // formula [oura-rs], NOT ground-truth-validated; see OuraRealStepsFields). Logged once per
+                // kind (like the other raw Tier-B tags) rather than every occurrence - this stream runs at
+                // a much higher rate than 0x50 MET, so the JSONL corpus is the real record; the strap log
+                // just confirms the ring sends it at all. Never persisted, never scored, and NEVER
+                // converted into steps (OuraStreamMapping drops .realStepsFields unconditionally) - not
+                // even from fields[0]/fields[8], which ground truth showed are movement FEATURES, not a
+                // count (a 13,349-step day; every field large and non-zero asleep - OURA_PROTOCOL.md §6.13).
+                if !loggedTierBKinds.contains("real_steps_fields") {
+                    loggedTierBKinds.insert("real_steps_fields")
+                    log("Oura: Tier-B real_steps_fields seen (tag 0x\(String(steps.tag, radix: 16))) - first fields: \(steps.fields)")
+                }
+                if let utc = driver.unixSeconds(forRingTimestamp: steps.ringTimestamp) {
+                    realStepsDump?.record(tag: steps.tag, ringTs: steps.ringTimestamp, utc: utc, fields: steps.fields)
                 }
 
             case .state(let s):

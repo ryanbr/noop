@@ -249,6 +249,11 @@ class OuraLiveSource(
      *  of the Swift `OuraMotionDump`. Null when there is no device id. */
     private val motionDump: OuraMotionDump? =
         if (deviceId.isNotEmpty()) OuraMotionDump(appContext, deviceId, log) else null
+
+    /** 0x7E/0x7F real_steps research corpus (Tier-B), for offline investigation. Kotlin twin of the Swift
+     *  `OuraRealStepsDump`. Null when there is no device id. */
+    private val realStepsDump: OuraRealStepsDump? =
+        if (deviceId.isNotEmpty()) OuraRealStepsDump(appContext, deviceId, log) else null
     private val scanner: BluetoothLeScanner? get() = adapter?.bluetoothLeScanner
 
     private var gatt: BluetoothGatt? = null
@@ -1784,6 +1789,22 @@ class OuraLiveSource(
                         ringTs = e.value.ringTimestamp, utc = utc, state = e.value.state,
                         secPerSample = 60, met = e.value.met, // 60 s = assumed MET cadence (s6.13)
                     )
+                }
+            }
+            is OuraEvent.RealStepsFields -> {
+                // INVESTIGATION ONLY (0x7E/0x7F real_steps_features, Tier B - a cited third-party unpack
+                // formula [oura-rs], NOT ground-truth-validated; see OuraRealStepsFields). Logged once per
+                // kind (like the other raw Tier-B tags) rather than every occurrence - this stream runs at
+                // a much higher rate than 0x50 MET, so the JSONL corpus is the real record; the strap log
+                // just confirms the ring sends it at all. Never persisted, never scored, and NEVER
+                // converted into steps (OuraStreamMapping drops RealStepsFields unconditionally) - not
+                // even from fields[0]/fields[8], which ground truth showed are movement FEATURES, not a
+                // count (a 13,349-step day; every field large and non-zero asleep - OURA_PROTOCOL.md s6.13).
+                if (loggedTierBKinds.add("real_steps_fields")) {
+                    log("Oura: Tier-B real_steps_fields seen (tag 0x${e.value.tag.toString(16)}) - first fields: ${e.value.fields}")
+                }
+                d.unixSeconds(forRingTimestamp = e.value.ringTimestamp)?.let { utc ->
+                    realStepsDump?.record(tag = e.value.tag, ringTs = e.value.ringTimestamp, utc = utc, fields = e.value.fields)
                 }
             }
             is OuraEvent.MotionVectorEvent -> {

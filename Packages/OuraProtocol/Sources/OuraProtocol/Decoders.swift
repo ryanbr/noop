@@ -611,4 +611,72 @@ public enum OuraDecoders {
         }
         return OuraActivityInfo(ringTimestamp: rec.ringTimestamp, state: Int(state), met: met)
     }
+
+    // MARK: - Real steps features (0x7E/0x7F; s6.13) - Tier B, third-party formula
+
+    /// The byte offset at which a real_steps record's packed field block starts, per tag.
+    ///
+    /// `0x7E` starts at byte 0. **`0x7F` starts at byte 2** - its block is shifted by two bytes, so
+    /// applying `0x7E`'s layout to it (what this decoder did until 2026-08-01) mis-assembles every
+    /// field. Established from a real 5,122-record capture:
+    /// - Aligning `0x7F`'s per-byte statistics onto `0x7E`'s scores a **+2** shift at total error 19.0
+    ///   vs 58.6 for the next-best offset (a 3x separation); at +2 the per-byte mean, standard
+    ///   deviation AND MSB-set rate all match.
+    /// - The carry-bit test is decisive: fields 0/8 take their 9th bit from a neighbouring byte's MSB,
+    ///   which for a real carry bit sits near 50% set. `0x7E` reads 49.7%/49.0%; `0x7F` at the OLD
+    ///   (unshifted) offsets read 41.6%/**17.5%** - byte 11 at 17.5% is plainly a data byte, not a
+    ///   carry bit - and at +2 reads 51.6%/45.3%.
+    /// - Behaviourally, `0x7F`'s field 0 decoded to an INVERTED movement signal (Cohen's d = -1.72
+    ///   against a sleep-vs-activity contrast, i.e. higher at rest); at +2 it reads +2.36, matching
+    ///   `0x7E`'s own +2.35, and paired-window agreement goes r = -0.557 -> **+0.790**.
+    ///
+    /// See OURA_PROTOCOL.md s6.13. NOOP's own finding - not in the [oura-rs] source, which applies one
+    /// layout to both tags.
+    static func realStepsFieldOffset(forTag tag: UInt8) -> Int {
+        tag == OuraEventTag.realSteps2.rawValue ? 2 : 0
+    }
+
+    /// Decode a `0x7E`/`0x7F` real_steps_features record's bit-packed field block.
+    /// Formula ([oura-rs] - Th0rgal/open_oura `crates/oura-protocol/src/events.rs`, clean-room fact
+    /// citation, no code copied): fields 0 and 8 are 9-bit values built as `byte*2 + carry_bit`, where
+    /// the carry bit is the MSB of a neighboring byte (block byte 3's MSB for field 0, block byte 11's
+    /// MSB for field 8) - the same byte then also supplies field 3 / field 11 from its own low 7 bits.
+    /// Fields 1, 2, 9, 10 are a bare `byte<<1` (no carry completion). Fields 4-7 and 12-13 are plain
+    /// bytes. Returns nil unless the body is exactly 14 bytes (the source's own length gate).
+    ///
+    /// TAG-DEPENDENT OFFSET (NOOP, 2026-08-01): the block starts at byte 0 for `0x7E` but at **byte 2**
+    /// for `0x7F` - see `realStepsFieldOffset(forTag:)` for the evidence. Consequences for `0x7F`:
+    /// - It yields **12 fields, not 14**: fields 12/13 would need block bytes 12/13 = record bytes
+    ///   14/15, which do not exist in a 14-byte body. They are OMITTED rather than zero-filled - a
+    ///   fabricated zero would be indistinguishable from a real one (honest-data invariant).
+    /// - CONFIDENCE TIERS on the 12 it does yield, from the same capture: **fields 0-7 are validated**
+    ///   (mean and standard deviation match `0x7E`'s to ~1%, and the sleep-vs-activity effect size
+    ///   matches within 0.13 on two independent contrasts); **field 8 is likely right** (effect +2.82 vs
+    ///   `0x7E`'s +2.33, r = +0.854, but its mean is offset); **fields 9-11 remain uncertain** (they
+    ///   improve but do not converge, consistent with the block being truncated by the record boundary).
+    ///   All 12 are emitted because the only consumer is the Tier-B research sidecar; nothing is scored.
+    public static func decodeRealStepsFields(_ rec: OuraRecord) -> OuraRealStepsFields? {
+        let p = rec.payload
+        guard p.count == 14 else { return nil }
+        let off = realStepsFieldOffset(forTag: rec.type)
+        func b(_ i: Int) -> Int { Int(p[off + i]) }
+        var fields: [Int] = [
+            (b(3) >> 7) | (b(0) << 1),
+            b(1) << 1,
+            b(2) << 1,
+            b(3) & 0x7f,
+            b(4), b(5), b(6), b(7),
+            (b(11) >> 7) | (b(8) << 1),
+            b(9) << 1,
+            b(10) << 1,
+            b(11) & 0x7f,
+        ]
+        // Fields 12/13 exist only when the block starts at byte 0 (0x7E); for 0x7F they would read past
+        // the 14-byte body, so they are omitted rather than invented.
+        if off == 0 {
+            fields.append(b(12))
+            fields.append(b(13))
+        }
+        return OuraRealStepsFields(tag: rec.type, ringTimestamp: rec.ringTimestamp, fields: fields)
+    }
 }

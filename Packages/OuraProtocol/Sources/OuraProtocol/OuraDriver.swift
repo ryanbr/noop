@@ -431,8 +431,14 @@ public final class OuraDriver {
             return [.tierB(OuraTierBSummary(tag: record.type, ringTimestamp: record.ringTimestamp,
                                             rawPayload: record.payload, kind: "activity"))]
         case .realSteps1, .realSteps2:
-            return [.tierB(OuraTierBSummary(tag: record.type, ringTimestamp: record.ringTimestamp,
-                                            rawPayload: record.payload, kind: "real_steps"))]
+            // Split out of the raw-bytes .tierB wrapper, same as .activityInfo: this tag pair now has a
+            // cited third-party unpack formula (Decoders.decodeRealStepsFields, [oura-rs]). Still Tier B
+            // - only reached behind allowTierB (gated above), and OuraStreamMapping never folds
+            // .realStepsFields into a durable stream. Applies the SAME 14-field unpack to both 0x7E and
+            // 0x7F bodies (the formula is generic over any 14-byte body; NOOP's own investigation found
+            // the movement-correlated fields present in both).
+            guard let fields = OuraDecoders.decodeRealStepsFields(record) else { return [] }
+            return [.realStepsFields(fields)]
         case .spo2Smoothed:
             return [.tierB(OuraTierBSummary(tag: record.type, ringTimestamp: record.ringTimestamp,
                                             rawPayload: record.payload, kind: "spo2_smoothed"))]

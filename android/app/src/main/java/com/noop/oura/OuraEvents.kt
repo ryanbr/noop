@@ -275,6 +275,35 @@ data class OuraTierBSummary(
  */
 data class OuraActivityInfo(val ringTimestamp: Long, val state: Int, val met: List<Double>)
 
+/**
+ * One decoded `0x7E`/`0x7F` real_steps_features record: 14 unpacked feature values from a 14-byte
+ * bit-packed body. THIRD-PARTY FORMULA ([oura-rs] - Th0rgal/open_oura `crates/oura-protocol/src/
+ * events.rs`, clean-room fact citation, no code copied; the source itself marks this decode
+ * `"_status": "unvalidated"`): two of the 14 fields (index 0 and 8) are genuine 9-bit values built as
+ * `byte*2 + carry_bit`, where the carry bit is stolen from the MSB of a neighboring byte (index 3 for
+ * field 0, index 11 for field 8); the rest are either plain bytes or a bare `byte<<1` with no carry.
+ * NOOP's OWN investigation (2026-07-30, a 2661-pair real Gen 3 capture cross-correlated against the
+ * already-anchored 0x50 MET corpus) found `fields[0]` and `fields[8]` - the two carry-completed 9-bit
+ * values - are also the ONLY fields with a consistent movement correlation (r~+0.3 vs mean MET, effect
+ * size +1.5/+1.25 resting-vs-moving), a real convergence between the bit-layout hint and the empirical
+ * signal.
+ *
+ * NO FIELD IS A STEP COUNT - settled by ground truth, not left open (OURA_PROTOCOL.md s6.13): a
+ * measured 13,349-step day tested against 805 paired records found every one of the 14 fields large and
+ * non-zero during sleep (`fields[3]` sums HIGHER asleep than walking), and no byte offset on either tag
+ * yields a monotonic counter across 5,122 records. What these ARE is what the tag name says -
+ * `real_steps_FEATURES`, the *inputs* to Oura's step model, computed every 30 s whether walking or
+ * asleep. `f0`/`f8` rank top by movement discrimination (Cohen's d +2.35/+2.37), which is why they
+ * correlated: genuine movement-intensity features, useless as a count. A count would require
+ * reimplementing Oura's model over them - unvalidatable, and the s194 precedent forbids fitting one.
+ *
+ * Stays Tier B end to end: emitted only behind `OuraDriver.allowTierB`, and NEVER folded into
+ * `OuraStreamMapping`/scoring - not even from `fields[0]`/`fields[8]`. `fields` holds all values
+ * verbatim, in the source's own order, as an activity-signal corpus. Kotlin twin of the Swift
+ * `OuraRealStepsFields`.
+ */
+data class OuraRealStepsFields(val tag: Int, val ringTimestamp: Long, val fields: List<Int>)
+
 // MARK: - The emitted event union
 
 /**
@@ -319,8 +348,16 @@ sealed class OuraEvent {
      */
     data class ActivityInfo(val value: OuraActivityInfo) : OuraEvent()
 
+    /**
+     * A decoded `0x7E`/`0x7F` real_steps_features record (14 unpacked fields). Still Tier-B (see
+     * [OuraRealStepsFields] doc) - split out of the raw-bytes [TierB] wrapper for the same reason
+     * [ActivityInfo] was: a cited third-party unpack formula worth surfacing as real numbers instead of
+     * hex. Same gate (`allowTierB`), same discipline (never reaches `OuraStreamMapping`).
+     */
+    data class RealStepsFields(val value: OuraRealStepsFields) : OuraEvent()
+
     /** True for Tier-B events, so a consumer can assert none leaked into a Tier-A-only sink. */
-    val isTierB: Boolean get() = this is TierB || this is ActivityInfo
+    val isTierB: Boolean get() = this is TierB || this is ActivityInfo || this is RealStepsFields
 
     /**
      * The record's envelope ring-time, when it carries one (battery is a plain response, not a log
@@ -345,5 +382,6 @@ sealed class OuraEvent {
             is DebugTextEvent -> ringTimestamp
             is TierB -> value.ringTimestamp
             is ActivityInfo -> value.ringTimestamp
+            is RealStepsFields -> value.ringTimestamp
         }
 }
