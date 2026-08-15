@@ -91,6 +91,41 @@ struct ManualWorkoutSheet: View {
     }
 
     var body: some View {
+        #if os(macOS)
+        formContent
+            .padding(NoopMetrics.space6)
+            .frame(width: 420)
+            .background(NoopChromeSurface())
+            // Lets the user dismiss the decimal pad (which has no return key) and reach Cancel/Add.
+            .keyboardDoneToolbar($focusedField)
+        #else
+        // #450 raised the sheet to .large so the keyboard had room, but the body was still a bare
+        // fixed-height VStack — with no ScrollView to absorb the squeeze, iOS's own keyboard-avoidance
+        // had no choice but to rigidly shift the WHOLE block up to keep the focused Sport field clear
+        // of the keyboard. That shift could push the header + Sport field (and the top of its floating
+        // suggestion overlay) off the top of the screen entirely — "recents still clip" — and could also
+        // carry the footer's Add/Cancel row up into the same band where the system's own keyboard
+        // "Done" accessory renders, producing the floating Fertig/Hinzufügen overlap. Wrapping in a
+        // ScrollView gives keyboard-avoidance somewhere to scroll INSTEAD of rigidly displacing fixed
+        // content, so nothing needs to leave its own bounds to stay clear of the keyboard.
+        ScrollView {
+            formContent
+                .padding(NoopMetrics.space6)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        // A fixed 420pt is right for the free-floating macOS sheet, but on iPhone it's wider than
+        // the screen, so the Avg HR/Calories row, the Start DatePicker and the footer ran off the
+        // right edge (#185, same fix as WhatsNewView/ScoringGuideView). iOS fills the presented
+        // sheet's width and sizes to content height instead.
+        .frame(maxWidth: .infinity)
+        .noopSheetPresentation(largeFirst: true)
+        .background(NoopChromeSurface())
+        // Lets the user dismiss the decimal pad (which has no return key) and reach Cancel/Add.
+        .keyboardDoneToolbar($focusedField)
+        #endif
+    }
+
+    private var formContent: some View {
         VStack(alignment: .leading, spacing: NoopMetrics.space5) {
             header
             VStack(alignment: .leading, spacing: NoopMetrics.space4) {
@@ -135,25 +170,6 @@ struct ManualWorkoutSheet: View {
             if avgHrEditedNote { noteRow(String(localized: "Avg HR is shown as typed. The HR graph, zones and Effort stay from the recorded session.")) }
             footer
         }
-        .padding(NoopMetrics.space6)
-        // A fixed 420pt is right for the free-floating macOS sheet, but on iPhone it's wider than
-        // the screen, so the Avg HR/Calories row, the Start DatePicker and the footer ran off the
-        // right edge (#185, same fix as WhatsNewView/ScoringGuideView). iOS fills the presented
-        // sheet's width and sizes to content height instead.
-        #if os(macOS)
-        .frame(width: 420)
-        #else
-        .frame(maxWidth: .infinity)
-        // Full height, not .medium: the Sportart field's floating Recent/catalogue overlay (see
-        // sportPicker below) needs headroom below the field once the keyboard is up. At .medium the
-        // fixed-height VStack has no ScrollView to absorb the squeeze, so the keyboard pushed the
-        // header, the Sportart field and the overlay anchored to it off the top of the sheet —
-        // "recents vanish" was really the panel being clipped along with its off-screen anchor.
-        .noopSheetPresentation(largeFirst: true)
-        #endif
-        .background(NoopChromeSurface())
-        // Lets the user dismiss the decimal pad (which has no return key) and reach Cancel/Add. No-op on macOS.
-        .keyboardDoneToolbar($focusedField)
     }
 
     // MARK: - Sport picker
