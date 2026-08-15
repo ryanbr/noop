@@ -330,6 +330,23 @@ final class SourceCoordinator: ObservableObject {
             onBattery: { [live] pct in live.setBattery(Double(pct)) })
     }
 
+    /// One duplicate-candidate's shape for the `dup-gen(#1284)` line: the window, its duration, and the two
+    /// measures that actually decide WHICH row is fuller — the stage-segment count and the decoded JSON
+    /// length. Duration cannot decide it on its own: the mode-1 re-anchor mints rows of IDENTICAL length at
+    /// two `0x49` onsets (measured 2026-08-14/15: three 390 min / 1333 B rows, and four 26 min / 266 B
+    /// fragments), so a duration-derived "code count" prints the same value for both members of the pair and
+    /// the corpus cannot adjudicate. Segments + JSON length are also the fields the issue's own analysis is
+    /// written in, so the log lines drop straight into it.
+    ///
+    /// Both terms are plain substring/length counts over the ASCII segments JSON — no parser, no locale, and
+    /// identical arithmetic in the Kotlin twin (`SourceCoordinator.dupGenShape`), so the two platforms' lines
+    /// compare directly.
+    private static func dupGenShape(_ s: CachedSleepSession) -> String {
+        let json = s.stagesJSON ?? ""
+        let segments = json.components(separatedBy: "\"stage\"").count - 1
+        return "[\(s.startTs) -> \(s.endTs)] min=\((s.endTs - s.startTs) / 60) segs=\(segments) json=\(json.utf8.count)"
+    }
+
     /// Build the EXPERIMENTAL Oura source (Oura Ring gen 3/4/5) for `id`, driven by the clean-room
     /// `OuraProtocol.OuraDriver`. Decoded raw signals (HR / IBI / HRV / SpO2 / temp / sleep-phase / battery)
     /// ride the SAME `LiveState` + persist channels as the other sources, so NOOP scores the Oura day with
@@ -367,18 +384,16 @@ final class SourceCoordinator: ObservableObject {
                     // blind to the common case: an overnight with link drops mints the duplicate across
                     // DIFFERENT connections. Read the day's stored sessions here instead (cross-connection,
                     // survives an app restart) and log — using the SAME `SleepSessionDedup.isDuplicate` rule
-                    // the heal uses — when this persist duplicates one. `startΔ` ≈ the 0x49 onset jitter
-                    // (a session's startTs IS its anchored onset); both code counts confirm the fuller row
-                    // is the one to keep. One compact line per duplicate, to survive the log head-clip. This
-                    // is the corpus the generation-side 0x49/sleep-day keying will be designed against.
+                    // the heal uses — when this persist duplicates one. `startDelta` ≈ the 0x49 onset jitter
+                    // (a session's startTs IS its anchored onset); the two shapes say WHICH row is fuller.
+                    // One compact line per duplicate, to survive the log head-clip. This is the corpus the
+                    // generation-side 0x49/sleep-day keying will be designed against.
                     let from = session.startTs - 16 * 3600 - 3600
                     let to = session.endTs + 3600
                     let stored = ((try? await store.sleepSessions(deviceId: id, from: from, to: to, limit: 64)) ?? [])
                         .filter { $0.startTs != session.startTs }
                     for e in stored where SleepSessionDedup.isDuplicate(session, e) {
-                        let newCodes = max(0, (session.endTs - session.startTs) / 30)
-                        let storedCodes = max(0, (e.endTs - e.startTs) / 30)
-                        straplog("Oura: dup-gen(#1284) persist [\(session.startTs) -> \(session.endTs)] codes=\(newCodes) duplicates stored [\(e.startTs) -> \(e.endTs)] codes=\(storedCodes) startDelta=\(session.startTs - e.startTs)s (~0x49 onset jitter) - cross-connection DB read")
+                        straplog("Oura: dup-gen(#1284) persist \(SourceCoordinator.dupGenShape(session)) duplicates stored \(SourceCoordinator.dupGenShape(e)) startDelta=\(session.startTs - e.startTs)s (~0x49 onset jitter) - cross-connection DB read")
                     }
                     _ = try? await store.upsertSleepSessions([session], deviceId: id)
                 }

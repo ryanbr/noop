@@ -393,6 +393,25 @@ class SourceCoordinator(
     }
 
     /**
+     * One duplicate-candidate's shape for the `dup-gen(#1284)` line: the window, its duration, and the two
+     * measures that actually decide WHICH row is fuller — the stage-segment count and the decoded JSON
+     * length. Duration cannot decide it on its own: the mode-1 re-anchor mints rows of IDENTICAL length at
+     * two `0x49` onsets (measured 2026-08-14/15: three 390 min / 1333 B rows, and four 26 min / 266 B
+     * fragments), so a duration-derived "code count" prints the same value for both members of the pair and
+     * the corpus cannot adjudicate. Segments + JSON length are also the fields the issue's own analysis is
+     * written in, so the log lines drop straight into it.
+     *
+     * Both terms are plain substring/length counts over the ASCII segments JSON — no parser, no locale, and
+     * identical arithmetic in the Swift twin (`SourceCoordinator.dupGenShape`), so the two platforms' lines
+     * compare directly.
+     */
+    private fun dupGenShape(startTs: Long, endTs: Long, stagesJSON: String?): String {
+        val json = stagesJSON ?: ""
+        val segments = json.split("\"stage\"").size - 1
+        return "[$startTs -> $endTs] min=${(endTs - startTs) / 60} segs=$segments json=${json.length}"
+    }
+
+    /**
      * Build the EXPERIMENTAL Oura ring source (gen3 / gen4 / gen5) for [id]. Also wires the adopt-outcome
      * mirror ([ouraStateJob]) and consumes the one-shot adopt consent — side effects the coordinator owns,
      * so they live here rather than in the plain FTMS / Huami / Standard arms of [makeSource]. Mirrors the
@@ -432,8 +451,8 @@ class SourceCoordinator(
                         // connections. Read the day's stored sessions here (cross-connection, survives an app
                         // restart) and log — using the SAME SleepSessionDedup.isDuplicate rule the heal uses —
                         // when this persist duplicates one. startDelta ~ the 0x49 onset jitter (a session's
-                        // startTs IS its anchored onset); both code counts confirm the fuller row wins. One
-                        // compact line per duplicate, to survive the log head-clip. This is the corpus the
+                        // startTs IS its anchored onset); the two shapes say WHICH row is fuller. One compact
+                        // line per duplicate, to survive the log head-clip. This is the corpus the
                         // generation-side 0x49/sleep-day keying will be designed against.
                         //
                         // ISOLATED in its own runCatching: log-only means log-only. The read below is a DB
@@ -447,9 +466,7 @@ class SourceCoordinator(
                             repo.sleepSessions(deviceId, from, to, 64)
                                 .filter { it.startTs != s.startTs && com.noop.analytics.SleepSessionDedup.isDuplicate(session, it) }
                                 .forEach { e ->
-                                    val newCodes = maxOf(0L, (s.endTs - s.startTs) / 30)
-                                    val storedCodes = maxOf(0L, (e.endTs - e.startTs) / 30)
-                                    straplog("Oura: dup-gen(#1284) persist [${s.startTs} -> ${s.endTs}] codes=$newCodes duplicates stored [${e.startTs} -> ${e.endTs}] codes=$storedCodes startDelta=${s.startTs - e.startTs}s (~0x49 onset jitter) - cross-connection DB read")
+                                    straplog("Oura: dup-gen(#1284) persist ${dupGenShape(s.startTs, s.endTs, s.stagesJson)} duplicates stored ${dupGenShape(e.startTs, e.endTs, e.stagesJSON)} startDelta=${s.startTs - e.startTs}s (~0x49 onset jitter) - cross-connection DB read")
                                 }
                         }
                         repo.upsertSleepSessions(listOf(session))
