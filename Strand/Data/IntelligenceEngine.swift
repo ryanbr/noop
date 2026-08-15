@@ -137,6 +137,12 @@ final class IntelligenceEngine: ObservableObject {
         /// the night has no in-band @82 readings, or the owner is a WHOOP 4.0 (no v18 aux stream).
         /// Written to metricSeries as "spo2_candidate" under the "-noop" device ID in pass 2.
         let spo2Candidate: Int?
+        /// #1118: whether this night's in-sleep R-R is OVER-COUNTED (`crossSecondOverCount` /
+        /// `sameSecondOverCount`) — the WHOOP-4.0 two-optical-channel artifact that inflates R-R and
+        /// contaminates the displayed HRV. nil when the night has no in-sleep R-R (no HRV to caveat).
+        /// Persisted to metricSeries as "hrv_rr_overcount" (1/0) in pass 2 so the HRV card can flag the
+        /// reading "unverified" until the de-dup fix lands. Same verdict the always-on `hrv diag` logs.
+        let hrvOverCounted: Bool?
         /// #1169 SHADOW METRIC: the primary-session MEAN resting HR (PrimarySessionRestingHR, #1174) for this
         /// day, computed off the main actor beside the shipped nightly HR FLOOR (`daily.restingHr`). nil when
         /// no session clears the coverage gate. Written to metricSeries as "rhr_primary_session" in pass 2 —
@@ -845,7 +851,9 @@ final class IntelligenceEngine: ObservableObject {
                 let sleepRrRows = rr.filter { r in res.cachedSleep.contains { r.ts >= $0.startTs && r.ts < $0.endTs } }
                 let sleepRr = sleepRrRows.map { Double($0.rrMs) }
                 let hrvDiag: String?
+                let hrvOverCounted: Bool?   // #1118: nil = no in-sleep R-R (no HRV to caveat)
                 if sleepRr.isEmpty {
+                    hrvOverCounted = nil
                     // #1244: no in-sleep R-R means no HRV summary. If the whole night also detected NO
                     // session (past the ≥200-HR gate → this is the "HR tracked, no sleep" case), carry a
                     // counts-only reason line on the SAME loop-1 diagnostic channel (emitted in the
@@ -919,6 +927,9 @@ final class IntelligenceEngine: ObservableObject {
                         if !sample.isEmpty { diagLine += "\nhrv rrsample day=\(res.daily.day) \(sample)" }
                     }
                     hrvDiag = diagLine
+                    // #1118: flag this night's HRV as over-counted (same verdict the diag logs) so the
+                    // HRV card can mark the reading unverified until the two-channel de-dup lands.
+                    hrvOverCounted = (verdict == .crossSecondOverCount || verdict == .sameSecondOverCount)
                 }
                 // ── Steps test mode: 5/MG raw-counter trace ──────────────────────────────────────────────
                 // Only built when the Steps mode is on (the gate was read once before the loop). Recomputes
@@ -985,6 +996,7 @@ final class IntelligenceEngine: ObservableObject {
                                    readOwner: owner, hrRows: hr.count,
                                    sleepTrace: sleepTrace, stepsTrace: stepsTrace, hrvTrace: hrvTrace,
                                    hrvDiag: hrvDiag, spo2Candidate: spo2CandidateMean,
+                                   hrvOverCounted: hrvOverCounted,
                                    primarySessionRHR: primarySessionRHR,
                                    primarySessionRHRCoverage: primarySessionRHRCoverage))
             }
@@ -1004,6 +1016,9 @@ final class IntelligenceEngine: ObservableObject {
         var resolvedScoreOwnerByDay: [String: String] = [:]
         // #103: SpO₂ candidate @82 nightly mean per day, carried from pass 1 for metricSeries persistence.
         var spo2CandidateByDay: [String: Int] = [:]
+        // #1118: per-day HRV over-count flag, carried from pass 1 for metricSeries persistence. nil (absent)
+        // for a night with no in-sleep R-R; otherwise true/false, so a re-score always overwrites the row.
+        var hrvOverCountByDay: [String: Bool] = [:]
         // #1169: primary-session mean RHR shadow metric per day, carried from pass 1 for metricSeries persistence.
         var primarySessionRHRByDay: [String: Double] = [:]
         // #1169: its coverage inputs (valid-sample count + primary-session duration), same lifetime as the mean.
@@ -1024,6 +1039,10 @@ final class IntelligenceEngine: ObservableObject {
             // nil when the toggle is OFF or the night had no in-band @82 readings.
             if let cand = scan.spo2Candidate {
                 spo2CandidateByDay[res.daily.day] = cand
+            }
+            // #1118: carry the HRV over-count flag into pass 2 for metricSeries persistence.
+            if let oc = scan.hrvOverCounted {
+                hrvOverCountByDay[res.daily.day] = oc
             }
             // #1169: carry the primary-session mean RHR shadow metric into pass 2 for persistence.
             if let v = scan.primarySessionRHR {
@@ -1278,6 +1297,12 @@ final class IntelligenceEngine: ObservableObject {
             // split cross-device evidence and stays behind the experimental display toggle.
             if let cand = spo2CandidateByDay[daily.day] {
                 restPoints.append(MetricPoint(day: daily.day, key: "spo2_candidate", value: Double(cand)))
+            }
+            // #1118: persist the HRV over-count flag (1/0) so the HRV card can mark an over-counted 4.0
+            // night's reading "unverified" until the two-channel de-dup lands. 0 written on a clean night
+            // (not just absent) so a night that flips clean on re-score clears its prior flag.
+            if let oc = hrvOverCountByDay[daily.day] {
+                restPoints.append(MetricPoint(day: daily.day, key: "hrv_rr_overcount", value: oc ? 1.0 : 0.0))
             }
             // #1169 shadow metric: the primary-session mean RHR, stored beside the shipped floor
             // (daily.restingHr) under the "-noop" computed ID. Instrumentation only — never shown, never

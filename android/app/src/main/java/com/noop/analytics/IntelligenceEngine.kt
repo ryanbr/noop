@@ -411,6 +411,9 @@ object IntelligenceEngine {
         val scoredNights = ArrayList<DayResult>()
         // #103: SpO₂ candidate @82 nightly mean per day, carried from pass 1 for metricSeries persistence.
         val spo2CandidateByDay = LinkedHashMap<String, Int>()
+        // #1118: per-day HRV over-count flag, carried for metricSeries persistence. Absent for a night with
+        // no in-sleep R-R (no HRV to caveat); otherwise true/false, so a re-score always overwrites the row.
+        val hrvOverCountByDay = LinkedHashMap<String, Boolean>()
         // #1169: primary-session mean RHR shadow metric per day, carried from pass 1 for persistence.
         val primarySessionRHRByDay = LinkedHashMap<String, Double>()
         // #1169: its coverage inputs (valid-sample count + primary-session duration), same lifetime as the mean.
@@ -716,6 +719,11 @@ object IntelligenceEngine {
                 // #1008: on an OVER-COUNT night only, dump a raw-row sample around the densest second so the
                 // over-count's MECHANISM is readable from the always-on log (near-equal copies vs distinct
                 // trains vs a tagged channel) — clean nights stay quiet. srcChannel rides from the read model.
+                // #1118: flag this night's HRV as over-counted (same verdict the diag logs) so the HRV
+                // card can mark the reading unverified until the two-channel de-dup lands.
+                hrvOverCountByDay[res.daily.day] =
+                    (verdict == HrvAnalyzer.RrCoverageVerdict.CROSS_SECOND_OVER_COUNT ||
+                        verdict == HrvAnalyzer.RrCoverageVerdict.SAME_SECOND_OVER_COUNT)
                 if (verdict == HrvAnalyzer.RrCoverageVerdict.CROSS_SECOND_OVER_COUNT ||
                     verdict == HrvAnalyzer.RrCoverageVerdict.SAME_SECOND_OVER_COUNT) {
                     val sample = HrvAnalyzer.densestSecondWindowSample(
@@ -976,6 +984,12 @@ object IntelligenceEngine {
             // is ON. Written under the "-noop" computed device ID, never to `spo2Pct`.
             spo2CandidateByDay[daily.day]?.let { cand ->
                 restRows.add(MetricSeriesRow(deviceId = computedId, day = daily.day, key = "spo2_candidate", value = cand.toDouble()))
+            }
+            // #1118: persist the HRV over-count flag (1/0) so the HRV card can mark an over-counted 4.0
+            // night's reading "unverified" until the two-channel de-dup lands. 0 written on a clean night
+            // (not just absent) so a night that flips clean on re-score clears its prior flag.
+            hrvOverCountByDay[daily.day]?.let { oc ->
+                restRows.add(MetricSeriesRow(deviceId = computedId, day = daily.day, key = "hrv_rr_overcount", value = if (oc) 1.0 else 0.0))
             }
             // #1169 shadow metric: the primary-session mean RHR, stored beside the shipped floor
             // (daily.restingHr) under the "-noop" computed ID. Instrumentation only — never shown, never
