@@ -423,9 +423,28 @@ class SourceCoordinator(
                 // staging over NOOP's sparse-motion computed night (#325).
                 scope.launch {
                     runCatching {
-                        repo.upsertSleepSessions(listOf(com.noop.data.SleepSession(
+                        val session = com.noop.data.SleepSession(
                             deviceId = deviceId, startTs = s.startTs, endTs = s.endTs,
-                            efficiency = s.efficiency, stagesJSON = s.stagesJson)))
+                            efficiency = s.efficiency, stagesJSON = s.stagesJson)
+                        // #1284 duplicate-generation diagnostic (LOG-ONLY). The in-source
+                        // duplicate-gen(#1284) line compares a PER-CONNECTION memory list, so it is blind to
+                        // the common case: an overnight with link drops mints the duplicate across DIFFERENT
+                        // connections. Read the day's stored sessions here (cross-connection, survives an app
+                        // restart) and log — using the SAME SleepSessionDedup.isDuplicate rule the heal uses —
+                        // when this persist duplicates one. startDelta ~ the 0x49 onset jitter (a session's
+                        // startTs IS its anchored onset); both code counts confirm the fuller row wins. One
+                        // compact line per duplicate, to survive the log head-clip. This is the corpus the
+                        // generation-side 0x49/sleep-day keying will be designed against.
+                        val from = s.startTs - 16 * 3600 - 3600
+                        val to = s.endTs + 3600
+                        repo.sleepSessions(deviceId, from, to, 64)
+                            .filter { it.startTs != s.startTs && com.noop.analytics.SleepSessionDedup.isDuplicate(session, it) }
+                            .forEach { e ->
+                                val newCodes = maxOf(0L, (s.endTs - s.startTs) / 30)
+                                val storedCodes = maxOf(0L, (e.endTs - e.startTs) / 30)
+                                straplog("Oura: dup-gen(#1284) persist [${s.startTs} -> ${s.endTs}] codes=$newCodes duplicates stored [${e.startTs} -> ${e.endTs}] codes=$storedCodes startDelta=${s.startTs - e.startTs}s (~0x49 onset jitter) - cross-connection DB read")
+                            }
+                        repo.upsertSleepSessions(listOf(session))
                     }
                 }
             },

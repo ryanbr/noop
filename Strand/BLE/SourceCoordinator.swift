@@ -356,11 +356,32 @@ final class SourceCoordinator: ObservableObject {
             persist: { [storeHandle] streams in
                 Task { if let store = await storeHandle() { _ = try? await store.insert(streams, deviceId: id) } }
             },
-            persistSleepSession: { [storeHandle] session in
+            persistSleepSession: { [storeHandle, straplog] session in
                 // The ring-PROVIDED hypnogram night, upserted under the ring's OWN id (the imported/measured
                 // side, NOT the "-noop" computed sibling) so SleepMerge's imported-over-computed rule makes
                 // Oura's SleepNet staging win over NOOP's sparse-motion computed night (#325).
-                Task { if let store = await storeHandle() { _ = try? await store.upsertSleepSessions([session], deviceId: id) } }
+                Task {
+                    guard let store = await storeHandle() else { return }
+                    // #1284 duplicate-generation diagnostic (LOG-ONLY, no behaviour change). The in-source
+                    // `duplicate-gen(#1284)` line compares against a PER-CONNECTION memory list, so it is
+                    // blind to the common case: an overnight with link drops mints the duplicate across
+                    // DIFFERENT connections. Read the day's stored sessions here instead (cross-connection,
+                    // survives an app restart) and log — using the SAME `SleepSessionDedup.isDuplicate` rule
+                    // the heal uses — when this persist duplicates one. `startΔ` ≈ the 0x49 onset jitter
+                    // (a session's startTs IS its anchored onset); both code counts confirm the fuller row
+                    // is the one to keep. One compact line per duplicate, to survive the log head-clip. This
+                    // is the corpus the generation-side 0x49/sleep-day keying will be designed against.
+                    let from = session.startTs - 16 * 3600 - 3600
+                    let to = session.endTs + 3600
+                    let stored = ((try? await store.sleepSessions(deviceId: id, from: from, to: to, limit: 64)) ?? [])
+                        .filter { $0.startTs != session.startTs }
+                    for e in stored where SleepSessionDedup.isDuplicate(session, e) {
+                        let newCodes = max(0, (session.endTs - session.startTs) / 30)
+                        let storedCodes = max(0, (e.endTs - e.startTs) / 30)
+                        straplog("Oura: dup-gen(#1284) persist [\(session.startTs)→\(session.endTs)] codes=\(newCodes) duplicates stored [\(e.startTs)→\(e.endTs)] codes=\(storedCodes) startΔ=\(session.startTs - e.startTs)s (≈0x49 onset jitter) - cross-connection DB read")
+                    }
+                    _ = try? await store.upsertSleepSessions([session], deviceId: id)
+                }
             },
             log: straplog,
             onBattery: { [live] pct in live.setBattery(Double(pct)) },
