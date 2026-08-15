@@ -435,15 +435,23 @@ class SourceCoordinator(
                         // startTs IS its anchored onset); both code counts confirm the fuller row wins. One
                         // compact line per duplicate, to survive the log head-clip. This is the corpus the
                         // generation-side 0x49/sleep-day keying will be designed against.
-                        val from = s.startTs - 16 * 3600 - 3600
-                        val to = s.endTs + 3600
-                        repo.sleepSessions(deviceId, from, to, 64)
-                            .filter { it.startTs != s.startTs && com.noop.analytics.SleepSessionDedup.isDuplicate(session, it) }
-                            .forEach { e ->
-                                val newCodes = maxOf(0L, (s.endTs - s.startTs) / 30)
-                                val storedCodes = maxOf(0L, (e.endTs - e.startTs) / 30)
-                                straplog("Oura: dup-gen(#1284) persist [${s.startTs} -> ${s.endTs}] codes=$newCodes duplicates stored [${e.startTs} -> ${e.endTs}] codes=$storedCodes startDelta=${s.startTs - e.startTs}s (~0x49 onset jitter) - cross-connection DB read")
-                            }
+                        //
+                        // ISOLATED in its own runCatching: log-only means log-only. The read below is a DB
+                        // round-trip on the BLE persist path and CAN throw (locked DB, disk I/O, a store
+                        // closed under a background teardown); sharing the outer runCatching would let a
+                        // failed DIAGNOSTIC skip the upsert underneath it and silently lose the night. The
+                        // Swift twin contains its read the same way (`(try? ...) ?? []`).
+                        runCatching {
+                            val from = s.startTs - 16 * 3600 - 3600
+                            val to = s.endTs + 3600
+                            repo.sleepSessions(deviceId, from, to, 64)
+                                .filter { it.startTs != s.startTs && com.noop.analytics.SleepSessionDedup.isDuplicate(session, it) }
+                                .forEach { e ->
+                                    val newCodes = maxOf(0L, (s.endTs - s.startTs) / 30)
+                                    val storedCodes = maxOf(0L, (e.endTs - e.startTs) / 30)
+                                    straplog("Oura: dup-gen(#1284) persist [${s.startTs} -> ${s.endTs}] codes=$newCodes duplicates stored [${e.startTs} -> ${e.endTs}] codes=$storedCodes startDelta=${s.startTs - e.startTs}s (~0x49 onset jitter) - cross-connection DB read")
+                                }
+                        }
                         repo.upsertSleepSessions(listOf(session))
                     }
                 }
