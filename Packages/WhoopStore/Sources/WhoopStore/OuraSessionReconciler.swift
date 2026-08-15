@@ -104,6 +104,16 @@ public enum OuraSessionReconciler {
         return .skip
     }
 
+    /// The `[from, to]` startTs range the caller should read candidate sessions over, given the new
+    /// session's bounds. A hypnogram night is at most ~16 h and a same-session sits within `mergeGapS`,
+    /// so a stored session starting earlier than `from` or after `to` cannot be proximate to `new` —
+    /// `reconcile` would filter it out anyway. Read is proximity-scoped (a superset of the noon-anchored
+    /// sleep-day, and timezone-independent, so a mid-night travel offset change can't split the read).
+    public static func candidateReadWindow(newStartTs: Int, newEndTs: Int,
+                                           mergeGapS: Int = defaultMergeGapSeconds) -> (from: Int, to: Int) {
+        (from: newStartTs - 16 * 3600 - mergeGapS, to: newEndTs + mergeGapS)
+    }
+
     /// Two windows are the same session when they overlap, or the nearest edge gap between them is under
     /// `mergeGapS`. Symmetric; either ordering of the pair gives the same answer.
     static func isSameSession(_ a: SessionWindow, _ b: SessionWindow, mergeGapS: Int) -> Bool {

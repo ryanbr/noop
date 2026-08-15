@@ -356,11 +356,40 @@ final class SourceCoordinator: ObservableObject {
             persist: { [storeHandle] streams in
                 Task { if let store = await storeHandle() { _ = try? await store.insert(streams, deviceId: id) } }
             },
-            persistSleepSession: { [storeHandle] session in
+            persistSleepSession: { [storeHandle, straplog] session in
                 // The ring-PROVIDED hypnogram night, upserted under the ring's OWN id (the imported/measured
                 // side, NOT the "-noop" computed sibling) so SleepMerge's imported-over-computed rule makes
                 // Oura's SleepNet staging win over NOOP's sparse-motion computed night (#325).
-                Task { if let store = await storeHandle() { _ = try? await store.upsertSleepSessions([session], deviceId: id) } }
+                //
+                // #1284 residual 3: the ring serves >1 decode of one night (re-anchor / partial-drain), and
+                // PK=(deviceId,startTs) mints a row per 0x49 onset. Before banking, read the day's already
+                // stored sessions (the read that ALSO sees cross-connection duplicates a per-connection
+                // in-memory list can't, closing the #1297 blind spot) and let the pure reconciler decide:
+                // insert a distinct session, skip when a fuller same-night row is already stored, or replace
+                // the earlier/shorter duplicates with this fuller one. Validated on @pipiche38's four nights.
+                Task {
+                    guard let store = await storeHandle() else { return }
+                    let newWindow = OuraSessionReconciler.SessionWindow(
+                        startTs: session.startTs, endTs: session.endTs,
+                        codeCount: max(0, (session.endTs - session.startTs) / 30))
+                    let range = OuraSessionReconciler.candidateReadWindow(newStartTs: session.startTs, newEndTs: session.endTs)
+                    // Exclude a row at this exact startTs: a true re-persist is handled idempotently by the
+                    // upsert below, never a delete+insert (which would churn / drop userEdited).
+                    let candidates = ((try? await store.sleepSessions(deviceId: id, from: range.from, to: range.to, limit: 64)) ?? [])
+                        .filter { $0.startTs != session.startTs }
+                        .map { OuraSessionReconciler.SessionWindow(startTs: $0.startTs, endTs: $0.endTs,
+                                                                   codeCount: max(0, ($0.endTs - $0.startTs) / 30)) }
+                    switch OuraSessionReconciler.reconcile(new: newWindow, existing: candidates) {
+                    case .skip:
+                        straplog("Oura: reconcile(#1284) skip [\(session.startTs) → \(session.endTs)] - a fuller same-night session is already stored")
+                    case .insert:
+                        _ = try? await store.upsertSleepSessions([session], deviceId: id)
+                    case .replace(let superseded):
+                        for s in superseded { _ = try? await store.deleteSleepSession(deviceId: id, startTs: s) }
+                        _ = try? await store.upsertSleepSessions([session], deviceId: id)
+                        straplog("Oura: reconcile(#1284) replaced \(superseded.count) earlier duplicate row(s) with fuller [\(session.startTs) → \(session.endTs)]")
+                    }
+                }
             },
             log: straplog,
             onBattery: { [live] pct in live.setBattery(Double(pct)) },

@@ -421,11 +421,45 @@ class SourceCoordinator(
                 // The ring-PROVIDED hypnogram night, upserted under the ring's OWN id (imported/measured
                 // side, NOT the "-noop" computed sibling) so mergeSleepRichness surfaces Oura's SleepNet
                 // staging over NOOP's sparse-motion computed night (#325).
+                //
+                // #1284 residual 3: the ring serves >1 decode of one night (re-anchor / partial-drain), and
+                // PK=(deviceId,startTs) mints a row per 0x49 onset. Before banking, read the day's already
+                // stored sessions (the read that ALSO sees cross-connection duplicates a per-connection
+                // in-memory list can't, closing the #1297 blind spot) and let the pure reconciler decide:
+                // insert a distinct session, skip when a fuller same-night row is already stored, or replace
+                // the earlier/shorter duplicates with this fuller one. Validated on @pipiche38's four nights.
                 scope.launch {
                     runCatching {
-                        repo.upsertSleepSessions(listOf(com.noop.data.SleepSession(
+                        val session = com.noop.data.SleepSession(
                             deviceId = deviceId, startTs = s.startTs, endTs = s.endTs,
-                            efficiency = s.efficiency, stagesJSON = s.stagesJson)))
+                            efficiency = s.efficiency, stagesJSON = s.stagesJson)
+                        val newWindow = com.noop.oura.OuraSessionReconciler.SessionWindow(
+                            startTs = s.startTs, endTs = s.endTs,
+                            codeCount = maxOf(0L, (s.endTs - s.startTs) / 30).toInt())
+                        val range = com.noop.oura.OuraSessionReconciler.candidateReadWindow(s.startTs, s.endTs)
+                        // Exclude a row at this exact startTs: a true re-persist is handled idempotently by the
+                        // upsert below, never a delete+insert (which would churn / drop userEdited).
+                        val candidates = repo.sleepSessions(deviceId, range.first, range.second, 64)
+                            .filter { it.startTs != s.startTs }
+                        val windows = candidates.map {
+                            com.noop.oura.OuraSessionReconciler.SessionWindow(
+                                startTs = it.startTs, endTs = it.endTs,
+                                codeCount = maxOf(0L, (it.endTs - it.startTs) / 30).toInt())
+                        }
+                        when (val d = com.noop.oura.OuraSessionReconciler.reconcile(newWindow, windows)) {
+                            is com.noop.oura.OuraSessionReconciler.Decision.Skip ->
+                                straplog("Oura: reconcile(#1284) skip [${s.startTs} -> ${s.endTs}] - a fuller same-night session is already stored")
+                            is com.noop.oura.OuraSessionReconciler.Decision.Insert ->
+                                repo.upsertSleepSessions(listOf(session))
+                            is com.noop.oura.OuraSessionReconciler.Decision.Replace -> {
+                                // Tombstone-free row delete (same as the #899 heal): removing a duplicate
+                                // whose canonical copy stays must NOT suppress the surviving night's re-detection.
+                                candidates.filter { it.startTs in d.supersededStartTs }
+                                    .forEach { repo.deleteSleepSessionRowOnly(it) }
+                                repo.upsertSleepSessions(listOf(session))
+                                straplog("Oura: reconcile(#1284) replaced ${d.supersededStartTs.size} earlier duplicate row(s) with fuller [${s.startTs} -> ${s.endTs}]")
+                            }
+                        }
                     }
                 }
             },

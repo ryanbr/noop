@@ -17,15 +17,15 @@ class OuraSessionReconcilerTest {
 
     private val tz = 7200 // CEST, the corpus timezone (Europe/Paris, summer)
     // A UTC instant that is a LOCAL midnight (utc + tz is a multiple of 86400), so localTs() reads cleanly.
-    private val localMidnightUtc = 86_400 * 20_670 - tz
+    private val localMidnightUtc = 86_400L * 20_670 - tz
 
     /** Unix seconds for a local wall-clock time on day `d` (days after the reference local midnight). */
-    private fun localTs(d: Int, h: Int, m: Int, s: Int): Int =
-        localMidnightUtc + d * 86_400 + h * 3600 + m * 60 + s
+    private fun localTs(d: Int, h: Int, m: Int, s: Int): Long =
+        localMidnightUtc + d * 86_400L + h * 3600 + m * 60 + s
 
     /** codeCount ~ 30-s epochs, the completeness signal (a fuller drain of the same night has more). */
-    private fun win(start: Int, end: Int): SessionWindow =
-        SessionWindow(startTs = start, endTs = end, codeCount = (end - start) / 30)
+    private fun win(start: Long, end: Long): SessionWindow =
+        SessionWindow(startTs = start, endTs = end, codeCount = ((end - start) / 30).toInt())
 
     /** Replay a persist ORDER through the reconciler against the growing DB; return the final rows. */
     private fun simulate(order: List<SessionWindow>): List<SessionWindow> {
@@ -49,7 +49,6 @@ class OuraSessionReconcilerTest {
         val row1 = win(localTs(0, 4, 40, 55), localTs(0, 6, 50, 55)) // 130 min, fullest
         val row2 = win(localTs(0, 4, 50, 9), localTs(0, 6, 48, 9))  // 118 min
         val row3 = win(localTs(0, 6, 34, 9), localTs(0, 6, 48, 9))  // 14 min
-        // All three overlap and share the noon-anchored sleep-day.
         assertEquals(day(row1.startTs), day(row2.startTs))
         assertEquals(day(row1.startTs), day(row3.startTs))
         val db = simulate(listOf(row3, row2, row1)) // arrive shortest-first, worst case
@@ -60,13 +59,11 @@ class OuraSessionReconcilerTest {
     // ── Night 08-13/14 — mode 2 (partial drain): B nested in A, A genuinely fuller ────────────────────
     @Test
     fun mode2_partialDrain_completenessGuardKeepsFuller() {
-        val rowA = win(1786657310, 1786657310 + 494 * 60) // 494 min / 988 codes
-        val rowB = win(1786657552, 1786657552 + 234 * 60) // 234 min / 468 codes, inside A
+        val rowA = win(1786657310L, 1786657310L + 494 * 60) // 494 min / 988 codes
+        val rowB = win(1786657552L, 1786657552L + 234 * 60) // 234 min / 468 codes, inside A
         assertTrue("B is inside A", rowB.startTs >= rowA.startTs - 3600 && rowB.endTs <= rowA.endTs)
-        // Fuller-arrives-second and shorter-arrives-second both leave A standing.
         assertEquals(rowA.startTs, simulate(listOf(rowB, rowA)).single().startTs)
         assertEquals(rowA.startTs, simulate(listOf(rowA, rowB)).single().startTs)
-        // Direct: the guard skips the shorter and replaces for the fuller.
         assertEquals(Decision.Skip, OuraSessionReconciler.reconcile(rowB, listOf(rowA)))
         assertEquals(Decision.Replace(listOf(rowB.startTs)), OuraSessionReconciler.reconcile(rowA, listOf(rowB)))
     }
@@ -76,9 +73,7 @@ class OuraSessionReconcilerTest {
     fun gridStraddle_stillCollapsesUnderProximity() {
         val real = win(localTs(0, 22, 26, 14), localTs(1, 7, 6, 14))   // the real session, fuller
         val nested = win(localTs(0, 22, 32, 30), localTs(0, 23, 50, 30)) // 78 min, nested
-        // 376 s apart — a 30-min grid puts 22:26→22:00 and 22:32→22:30 in different buckets (would NOT
-        // collapse); proximity does.
-        assertTrue(nested.startTs - real.startTs in 1..3600)
+        assertTrue(nested.startTs - real.startTs in 1L..3600L)
         assertEquals(1, simulate(listOf(nested, real)).size)
     }
 
@@ -87,12 +82,10 @@ class OuraSessionReconcilerTest {
     fun fragmentEndingBeforeMidnight_sharesNoonSleepDayNotWakeDay() {
         val fragment = win(localTs(0, 22, 9, 40), localTs(0, 22, 49, 40)) // ends 22:49, before midnight
         val main = win(localTs(0, 22, 50, 49), localTs(1, 7, 30, 49))
-        // Noon-anchored sleep-day is equal…
         assertEquals(day(fragment.startTs), day(main.startTs))
-        // …but the WAKE-day (the day each session ENDS) differs: the fragment ends before midnight
-        // (Aug 10), the main night ends next morning (Aug 11) — the wake-day bug the noon anchor fixes.
+        // The WAKE-day (the day each session ENDS) differs: the fragment ends before midnight (Aug 10),
+        // the main night ends next morning (Aug 11) — the wake-day bug the noon anchor fixes.
         assertNotEquals(midnightDay(fragment.endTs), midnightDay(main.endTs))
-        // 69 s apart → proximity collapses to the fuller main session.
         assertEquals(1, simulate(listOf(fragment, main)).size)
         assertEquals(main.startTs, simulate(listOf(fragment, main)).single().startTs)
     }
@@ -103,7 +96,6 @@ class OuraSessionReconcilerTest {
         val nap = win(localTs(0, 14, 24, 4), localTs(0, 14, 46, 4))    // 22 min afternoon nap
         val night = win(localTs(0, 22, 23, 7), localTs(1, 6, 30, 0))
         assertEquals("nap and night share the noon-anchored sleep-day", day(nap.startTs), day(night.startTs))
-        // ~7.5 h apart → NOT the same session → both persist.
         assertEquals(2, simulate(listOf(nap, night)).size)
         assertEquals(Decision.Insert, OuraSessionReconciler.reconcile(night, listOf(nap)))
     }
@@ -114,6 +106,6 @@ class OuraSessionReconcilerTest {
         assertEquals("re-persisting the exact same window keeps one row", 1, simulate(listOf(s, s, s)).size)
     }
 
-    private fun day(ts: Int) = OuraSessionReconciler.noonAnchoredSleepDay(ts, tz)
-    private fun midnightDay(ts: Int) = Math.floorDiv(ts + tz, 86_400)
+    private fun day(ts: Long) = OuraSessionReconciler.noonAnchoredSleepDay(ts, tz)
+    private fun midnightDay(ts: Long) = Math.floorDiv(ts + tz, 86_400L)
 }

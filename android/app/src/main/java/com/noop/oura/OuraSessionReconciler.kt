@@ -37,7 +37,7 @@ object OuraSessionReconciler {
     /** A persisted (or about-to-persist) Oura sleep session, reduced to the fields the reconciler needs.
      *  `codeCount` is the number of laid 30-s stage epochs — the completeness signal. Ties break toward
      *  the NEW session (see [reconcile]). */
-    data class SessionWindow(val startTs: Int, val endTs: Int, val codeCount: Int)
+    data class SessionWindow(val startTs: Long, val endTs: Long, val codeCount: Int)
 
     /** What the caller should do with the new session relative to the day's existing rows. */
     sealed class Decision {
@@ -47,7 +47,7 @@ object OuraSessionReconciler {
         object Skip : Decision()
         /** The new session is the fullest decode of a same-session it collides with — persist it and
          *  delete the superseded rows at these `startTs` keys (the earlier/shorter duplicates). */
-        data class Replace(val supersededStartTs: List<Int>) : Decision()
+        data class Replace(val supersededStartTs: List<Long>) : Decision()
     }
 
     /** Default same-session proximity: within this many seconds (or overlapping) is the same night's
@@ -59,9 +59,9 @@ object OuraSessionReconciler {
      *  `date(startTs_local + 12h)`. Sessions sharing this value are candidates to be the same night; it
      *  is the grouping key the caller uses to read "this night's" existing rows. `tzOffsetSeconds` is the
      *  wearer's UTC offset at the session — the day boundary is LOCAL noon. */
-    fun noonAnchoredSleepDay(startTs: Int, tzOffsetSeconds: Int): Int {
+    fun noonAnchoredSleepDay(startTs: Long, tzOffsetSeconds: Int): Long {
         val local = startTs + tzOffsetSeconds + 12 * 3600
-        return Math.floorDiv(local, 86_400)
+        return Math.floorDiv(local, 86_400L)
     }
 
     /** Decide how to persist [new] given the ring's already-stored sessions FOR THE SAME NOON-ANCHORED
@@ -90,11 +90,18 @@ object OuraSessionReconciler {
         }
     }
 
+    /** The `[from, to]` startTs range the caller should read candidate sessions over, given the new
+     *  session's bounds. A hypnogram night is at most ~16 h and a same-session sits within [mergeGapS],
+     *  so a stored session outside this range cannot be proximate to `new`. Proximity-scoped (a superset
+     *  of the noon-anchored sleep-day, timezone-independent). */
+    fun candidateReadWindow(newStartTs: Long, newEndTs: Long, mergeGapS: Int = defaultMergeGapSeconds): Pair<Long, Long> =
+        Pair(newStartTs - 16 * 3600 - mergeGapS, newEndTs + mergeGapS)
+
     /** Two windows are the same session when they overlap, or the nearest edge gap is under [mergeGapS].
      *  Symmetric. */
     internal fun isSameSession(a: SessionWindow, b: SessionWindow, mergeGapS: Int): Boolean {
         if (a.startTs < b.endTs && b.startTs < a.endTs) return true // overlap
         val gap = if (a.startTs >= b.endTs) a.startTs - b.endTs else b.startTs - a.endTs
-        return gap < mergeGapS
+        return gap < mergeGapS.toLong()
     }
 }
