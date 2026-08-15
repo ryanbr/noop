@@ -45,6 +45,18 @@ class HrvCollapseOverCountTest {
     }
 
     @Test
+    fun collapseOverCount_exactDupOnlyKeepsTheChannelTwin() {
+        // rrTolMs=0 collapses ONLY exact same-second duplicates (the safe floor — no real-beat loss). The
+        // ~34 ms channel twin survives, so 180 (=60x[beat + exact-dup + twin]) → 120 (=60x[beat + twin])
+        // and coverage stays ~2x, not 1.0. This is the reference line the shadow logs beside the ~40 ms one.
+        val (ts, rr) = overCounted()
+        val (exTs, exRr) = HrvAnalyzer.collapseOverCount(ts, rr, 0.0)
+        assertEquals("exact-dup removed, channel twin kept", 120, exRr.size)
+        assertEquals(120, exTs.size)
+        assertTrue("exact-dup coverage stays ~2x (twins remain)", HrvAnalyzer.rrCoverage(exTs, exRr) > 1.8)
+    }
+
+    @Test
     fun collapseOverCount_leavesACleanStreamUntouched() {
         // A beat-accurate stream (one beat per second, no same-second duplicates) must pass through as-is.
         val ts = (0 until 60).map { it.toLong() }

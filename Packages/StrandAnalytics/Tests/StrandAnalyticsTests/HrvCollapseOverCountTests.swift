@@ -35,6 +35,18 @@ final class HrvCollapseOverCountTests: XCTestCase {
                        "deduped coverage collapses toward 1.0")
     }
 
+    func testCollapseOverCountExactDupOnlyKeepsTheChannelTwin() {
+        // rrTolMs 0 collapses ONLY exact same-second duplicates (safe floor — no real-beat loss). The
+        // ~34 ms channel twin survives, so 180 (=60x[beat + exact-dup + twin]) → 120 (=60x[beat + twin])
+        // and coverage stays ~2x. This is the reference line the shadow logs beside the ~40 ms one.
+        let (ts, rr) = overCounted()
+        let ex = HRVAnalyzer.collapseOverCount(tsSec: ts, rrMs: rr, rrTolMs: 0)
+        XCTAssertEqual(ex.rrMs.count, 120, "exact-dup removed, channel twin kept")
+        XCTAssertEqual(ex.tsSec.count, 120)
+        XCTAssertGreaterThan(HRVAnalyzer.rrCoverage(tsSec: ex.tsSec, rrMs: ex.rrMs), 1.8,
+                             "exact-dup coverage stays ~2x (twins remain)")
+    }
+
     func testCollapseOverCountLeavesACleanStreamUntouched() {
         // A beat-accurate stream (one beat per second, no same-second duplicates) passes through as-is.
         let ts = Array(0..<60)

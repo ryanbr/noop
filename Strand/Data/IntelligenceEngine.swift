@@ -931,13 +931,21 @@ final class IntelligenceEngine: ObservableObject {
                         // path. Instrumentation only — the shipped HRV/resp is unchanged. If de-dup works:
                         // coverage→~1.0, beatAccurate high (would pass #1127's RSA gate → resp returns, the
                         // #1331 fix), and rmssd/sdnn become physiological + should match WHOOP. Kotlin twin.
+                        // Two candidates so validation isn't confounded: EXACT-dup collapse (rrTolMs 0 —
+                        // same ts AND same value, provably no real-beat loss) is the safe floor; the ~40 ms
+                        // same-second collapse is the aggressive UPPER BOUND (it also catches the two-channel
+                        // twins but can over-merge two real neighbours whose values sit within 40 ms). The
+                        // real de-dup lives between them; the log shows both so we can see where.
+                        let ex = HRVAnalyzer.collapseOverCount(tsSec: ts, rrMs: sleepRr, rrTolMs: 0)
                         let dd = HRVAnalyzer.collapseOverCount(tsSec: ts, rrMs: sleepRr)
                         let hDd = HRVAnalyzer.analyze(rawRR: dd.rrMs)
+                        let covEx = HRVAnalyzer.rrCoverage(tsSec: ex.tsSec, rrMs: ex.rrMs)
                         let covDd = HRVAnalyzer.rrCoverage(tsSec: dd.tsSec, rrMs: dd.rrMs)
                         let accDd = HRVAnalyzer.beatAccurateFraction(tsSec: dd.tsSec, rrMs: dd.rrMs)
-                        diagLine += "\nhrv dedup day=\(res.daily.day) n=\(dd.rrMs.count)/\(sleepRr.count) "
-                            + "rmssd=\(ms(hDd.rmssd))ms sdnn=\(ms(hDd.sdnn))ms meanNN=\(ms(hDd.meanNN))ms "
-                            + "coverage=\(String(format: "%.2f", covDd)) beatAccurate=\(String(format: "%.2f", accDd))"
+                        diagLine += "\nhrv dedup day=\(res.daily.day) exactN=\(ex.rrMs.count)/\(sleepRr.count) "
+                            + "covExact=\(String(format: "%.2f", covEx)) | ch40N=\(dd.rrMs.count) "
+                            + "cov40=\(String(format: "%.2f", covDd)) beatAcc40=\(String(format: "%.2f", accDd)) "
+                            + "rmssd40=\(ms(hDd.rmssd))ms sdnn40=\(ms(hDd.sdnn))ms meanNN40=\(ms(hDd.meanNN))ms"
                     }
                     hrvDiag = diagLine
                     // #1118: flag this night's HRV as over-counted (same verdict the diag logs) so the

@@ -735,14 +735,21 @@ object IntelligenceEngine {
                     // before it becomes the read path. Instrumentation only — shipped HRV/resp unchanged.
                     // If de-dup works: coverage→~1.0, beatAccurate high (would pass #1127's RSA gate →
                     // resp returns = the #1331 fix), rmssd/sdnn physiological. Twin of the Swift line.
+                    // Two candidates so validation isn't confounded: EXACT-dup collapse (rrTolMs 0 — same
+                    // ts AND value, no real-beat loss) is the safe floor; the ~40 ms collapse is the
+                    // aggressive UPPER BOUND (catches the two-channel twins but can over-merge two real
+                    // neighbours within 40 ms). Log both so we can see where the real de-dup sits. Twin.
+                    val ex = HrvAnalyzer.collapseOverCount(ts, sleepRr, 0.0)
                     val dd = HrvAnalyzer.collapseOverCount(ts, sleepRr)
                     val hDd = HrvAnalyzer.analyzeRaw(dd.second)
+                    val covEx = HrvAnalyzer.rrCoverage(ex.first, ex.second)
                     val covDd = HrvAnalyzer.rrCoverage(dd.first, dd.second)
                     val accDd = HrvAnalyzer.beatAccurateFraction(dd.first, dd.second)
-                    diag("hrv dedup day=${res.daily.day} n=${dd.second.size}/${sleepRr.size} " +
-                        "rmssd=${ms(hDd.rmssd)}ms sdnn=${ms(hDd.sdnn)}ms meanNN=${ms(hDd.meanNN)}ms " +
-                        "coverage=${String.format(java.util.Locale.US, "%.2f", covDd)} " +
-                        "beatAccurate=${String.format(java.util.Locale.US, "%.2f", accDd)}")
+                    diag("hrv dedup day=${res.daily.day} exactN=${ex.second.size}/${sleepRr.size} " +
+                        "covExact=${String.format(java.util.Locale.US, "%.2f", covEx)} | ch40N=${dd.second.size} " +
+                        "cov40=${String.format(java.util.Locale.US, "%.2f", covDd)} " +
+                        "beatAcc40=${String.format(java.util.Locale.US, "%.2f", accDd)} " +
+                        "rmssd40=${ms(hDd.rmssd)}ms sdnn40=${ms(hDd.sdnn)}ms meanNN40=${ms(hDd.meanNN)}ms")
                 }
             } else if (res.sleepSessions.isEmpty()) {
                 // #1244: no in-sleep R-R AND no detected session (past the >=200-HR gate) = the "HR tracked,
