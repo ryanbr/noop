@@ -58,4 +58,15 @@ class StressIndexTest {
         val rr = raw.mapIndexed { i, v -> RrInterval(deviceId = "d", ts = 1000L + i, rrMs = v.toInt()) }
         assertEquals(StressIndex.stressIndexRaw(raw)!!, StressIndex.stressIndex(rr)!!, 1e-9)
     }
+
+    @Test
+    fun mostlyRejectedSpotCaptureReturnsNull() {
+        // A varied 22-beat capture that alone yields a reading, padded with out-of-range (>2000 ms) beats
+        // so >35% are rejected — too noisy to label as stress (#585 spot-honesty gate).
+        val valid = listOf(700.0, 720.0, 740.0, 760.0, 780.0, 800.0, 820.0, 840.0, 860.0, 800.0, 800.0,
+            800.0, 800.0, 820.0, 780.0, 800.0, 810.0, 790.0, 800.0, 800.0, 805.0, 795.0)
+        assertNotNull("baseline: the valid beats alone yield a reading", StressIndex.componentsRaw(valid))
+        assertNull("39% rejected (14/36) is too noisy", StressIndex.componentsRaw(valid + List(14) { 2500.0 }))
+        assertNotNull("24% rejected (7/29) still reads", StressIndex.componentsRaw(valid + List(7) { 2500.0 }))
+    }
 }

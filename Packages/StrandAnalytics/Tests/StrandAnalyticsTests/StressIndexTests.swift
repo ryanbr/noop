@@ -55,4 +55,14 @@ final class StressIndexTests: XCTestCase {
         let rr = raw.enumerated().map { RRInterval(ts: 1000 + $0.offset, rrMs: Int($0.element)) }
         XCTAssertEqual(StressIndex.stressIndex(rr: rr)!, StressIndex.stressIndex(rawRR: raw)!, accuracy: 1e-9)
     }
+
+    func testMostlyRejectedSpotCaptureReturnsNil() {
+        // A varied 22-beat capture that alone yields a reading, padded with out-of-range (>2000 ms) beats
+        // so >35% are rejected — too noisy to label as stress (#585 spot-honesty gate).
+        let valid: [Double] = [700, 720, 740, 760, 780, 800, 820, 840, 860, 800, 800,
+                               800, 800, 820, 780, 800, 810, 790, 800, 800, 805, 795]
+        XCTAssertNotNil(StressIndex.components(rawRR: valid), "baseline: the valid beats alone yield a reading")
+        XCTAssertNil(StressIndex.components(rawRR: valid + Array(repeating: 2500, count: 14)), "39% rejected (14/36) is too noisy")
+        XCTAssertNotNil(StressIndex.components(rawRR: valid + Array(repeating: 2500, count: 7)), "24% rejected (7/29) still reads")
+    }
 }

@@ -68,6 +68,9 @@ public enum StressIndex {
     public static func components(rawRR: [Double]) -> Components? {
         let clean = HRVAnalyzer.cleanRR(rawRR)
         guard clean.count >= minBeats else { return nil }
+        // #585 spot-honesty gate, matching HRVAnalyzer.analyze: a mostly-rejected capture (out-of-range or
+        // ectopic beats) is too noisy to label as stress. clean.count >= minBeats > 0 => rawRR non-empty.
+        guard 1.0 - Double(clean.count) / Double(rawRR.count) <= HRVAnalyzer.defaultSpotMaxRejectedFraction else { return nil }
 
         // Work in seconds (Baevsky's convention).
         let sec = clean.map { $0 / 1000.0 }

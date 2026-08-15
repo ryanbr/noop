@@ -52,6 +52,9 @@ object StressIndex {
     fun componentsRaw(rawRR: List<Double>): Components? {
         val clean = HrvAnalyzer.cleanRR(rawRR)
         if (clean.size < MIN_BEATS) return null
+        // #585 spot-honesty gate, matching HrvAnalyzer.analyzeRaw: a mostly-rejected capture (out-of-range
+        // or ectopic beats) is too noisy to label as stress. clean.size >= MIN_BEATS > 0 => rawRR non-empty.
+        if (1.0 - clean.size.toDouble() / rawRR.size.toDouble() > HrvAnalyzer.DEFAULT_SPOT_MAX_REJECTED_FRACTION) return null
 
         val sec = clean.map { it / 1000.0 }
         val minV = sec.min()
