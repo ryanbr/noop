@@ -925,6 +925,19 @@ final class IntelligenceEngine: ObservableObject {
                         let sample = HRVAnalyzer.densestSecondWindowSample(
                             tsSec: ts, rrMs: sleepRr, srcCodes: sleepRrRows.map { $0.srcChannel?.rawValue })
                         if !sample.isEmpty { diagLine += "\nhrv rrsample day=\(res.daily.day) \(sample)" }
+                        // #1331/#1008/#1118 SHADOW: log the DEDUPED stream's HRV + coverage + beat-accuracy
+                        // beside the raw (above), so the candidate two-channel de-dup can be validated
+                        // against WHOOP's own numbers and @artemc's Polar H10 BEFORE it becomes the read
+                        // path. Instrumentation only — the shipped HRV/resp is unchanged. If de-dup works:
+                        // coverage→~1.0, beatAccurate high (would pass #1127's RSA gate → resp returns, the
+                        // #1331 fix), and rmssd/sdnn become physiological + should match WHOOP. Kotlin twin.
+                        let dd = HRVAnalyzer.collapseOverCount(tsSec: ts, rrMs: sleepRr)
+                        let hDd = HRVAnalyzer.analyze(rawRR: dd.rrMs)
+                        let covDd = HRVAnalyzer.rrCoverage(tsSec: dd.tsSec, rrMs: dd.rrMs)
+                        let accDd = HRVAnalyzer.beatAccurateFraction(tsSec: dd.tsSec, rrMs: dd.rrMs)
+                        diagLine += "\nhrv dedup day=\(res.daily.day) n=\(dd.rrMs.count)/\(sleepRr.count) "
+                            + "rmssd=\(ms(hDd.rmssd))ms sdnn=\(ms(hDd.sdnn))ms meanNN=\(ms(hDd.meanNN))ms "
+                            + "coverage=\(String(format: "%.2f", covDd)) beatAccurate=\(String(format: "%.2f", accDd))"
                     }
                     hrvDiag = diagLine
                     // #1118: flag this night's HRV as over-counted (same verdict the diag logs) so the

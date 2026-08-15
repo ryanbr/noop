@@ -561,6 +561,37 @@ public enum HRVAnalyzer {
     /// deliberately same-second-ONLY: R-R ts are stored at second resolution, and at rest genuine
     /// consecutive beats are ~1 s apart, so collapsing ACROSS a second would drop real beats. Deterministic
     /// (ts, rr, index) ordering. Byte-parity twin of Kotlin `HrvAnalyzer.collapsedCoverage`.
+    /// #1008/#1118/#1331 SHADOW de-dup: collapse the WHOOP 4.0 R-R over-count. A same-second beat whose
+    /// value is within `rrTolMs` of one already kept in that second (the exact duplicates AND the
+    /// two-optical-channel ~34 ms pairs — hence a wider default tol than `collapsedCoverage`'s 30 ms) is
+    /// dropped, keeping one representative. Returns the deduped `(tsSec, rrMs)` in ts-ASC order.
+    ///
+    /// INSTRUMENTATION ONLY — the shipped HRV/resp path is unchanged; the always-on `hrv diag` line logs
+    /// RMSSD / coverage / beat-accuracy of BOTH the raw and the deduped stream so the de-dup can be
+    /// validated against WHOOP's own numbers and @artemc's Polar H10 (#1118) BEFORE it ever becomes the
+    /// read path (the "validate against the artifact, not one match" rule). Pure. Mirrors Kotlin
+    /// `HrvAnalyzer.collapseOverCount`.
+    public static func collapseOverCount(tsSec: [Int], rrMs: [Double], rrTolMs: Double = 40)
+        -> (tsSec: [Int], rrMs: [Double]) {
+        let n = min(tsSec.count, rrMs.count)
+        guard n >= 2 else { return (tsSec, rrMs) }
+        let order = (0..<n).sorted { a, b in (tsSec[a], rrMs[a], a) < (tsSec[b], rrMs[b], b) }
+        var keptTs: [Int] = []
+        var keptRr: [Double] = []
+        for idx in order {
+            let t = tsSec[idx]
+            let r = rrMs[idx]
+            var dup = false
+            var j = keptTs.count - 1
+            while j >= 0 && keptTs[j] == t {      // only beats already kept in the SAME second
+                if abs(keptRr[j] - r) <= rrTolMs { dup = true; break }
+                j -= 1
+            }
+            if !dup { keptTs.append(t); keptRr.append(r) }
+        }
+        return (keptTs, keptRr)
+    }
+
     public static func collapsedCoverage(tsSec: [Int], rrMs: [Double], rrTolMs: Double = 30) -> Double {
         let n = min(tsSec.count, rrMs.count)
         guard n >= 2 else { return 0 }

@@ -510,6 +510,35 @@ object HrvAnalyzer {
      *  deliberately same-second-ONLY: R-R ts are stored at second resolution, and at rest genuine
      *  consecutive beats are ~1 s apart, so collapsing ACROSS a second would drop real beats. Deterministic
      *  (ts, rr, index) ordering. Byte-parity twin of Swift `HRVAnalyzer.collapsedCoverage`. */
+    /**
+     * #1008/#1118/#1331 SHADOW de-dup: collapse the WHOOP 4.0 R-R over-count. A same-second beat whose
+     * value is within [rrTolMs] of one already kept that second (exact duplicates AND the two-optical-
+     * channel ~34 ms pairs — hence a wider default tol than [collapsedCoverage]'s 30 ms) is dropped,
+     * keeping one representative. Returns the deduped (tsSec, rrMs) in ts-ASC order. INSTRUMENTATION ONLY:
+     * the shipped HRV/resp path is unchanged; the always-on `hrv diag` logs BOTH raw and deduped so the
+     * de-dup can be validated vs WHOOP + @artemc's Polar (#1118) before it becomes the read path. Pure.
+     * Mirrors Swift `HRVAnalyzer.collapseOverCount`.
+     */
+    fun collapseOverCount(tsSec: List<Long>, rrMs: List<Double>, rrTolMs: Double = 40.0): Pair<List<Long>, List<Double>> {
+        val n = minOf(tsSec.size, rrMs.size)
+        if (n < 2) return Pair(tsSec, rrMs)
+        val order = (0 until n).sortedWith(compareBy({ tsSec[it] }, { rrMs[it] }, { it }))
+        val keptTs = ArrayList<Long>(n)
+        val keptRr = ArrayList<Double>(n)
+        for (idx in order) {
+            val t = tsSec[idx]
+            val r = rrMs[idx]
+            var dup = false
+            var j = keptTs.size - 1
+            while (j >= 0 && keptTs[j] == t) {      // only beats already kept in the SAME second
+                if (abs(keptRr[j] - r) <= rrTolMs) { dup = true; break }
+                j--
+            }
+            if (!dup) { keptTs.add(t); keptRr.add(r) }
+        }
+        return Pair(keptTs, keptRr)
+    }
+
     fun collapsedCoverage(tsSec: List<Long>, rrMs: List<Double>, rrTolMs: Double = 30.0): Double {
         val n = minOf(tsSec.size, rrMs.size)
         if (n < 2) return 0.0
