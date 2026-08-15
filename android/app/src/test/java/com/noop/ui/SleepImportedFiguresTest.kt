@@ -134,10 +134,13 @@ class SleepImportedFiguresTest {
             deviceId = "my-whoop", startTs = 1780351200L, endTs = 1780387200L, efficiency = 90.0,
         )
         val m = buildSleepModel(days, session = session, todayKey = pinnedToday)!!
-        // need = max(450, mean asleep[420,410]=415) = 450. hours-vs-needed reads ASLEEP 410, not 600.
+        // hours-vs-needed (DESCRIPTIVE) still uses the mean need = max(450, mean[420,410]=415) = 450,
+        // and reads ASLEEP 410, not the 600-min in-bed window.
         assertEquals(410.0 / 450.0 * 100.0, m.hoursVsNeeded.latest!!, 1e-9)
-        // Debt tile reads ASLEEP too: max(0, 450 − 410) = 40, never max(0, 450 − 600) = 0.
-        assertEquals(40.0, m.sleepDebt.latest!!, 1e-9)
+        // Debt tile reads ASLEEP too, but against the NORMATIVE need now (#242): only 2 nights < the
+        // 7-night minimum, so personalizedNeedHours cold-starts to the 8 h population target = 480, and
+        // debt = max(0, 480 − 410) = 70, never max(0, 480 − 600) = 0.
+        assertEquals(70.0, m.sleepDebt.latest!!, 1e-9)
         // The debt TILE and the LEDGER agree (both asleep over the full history) — the #5 symptom.
         assertEquals(m.sleepDebt.latest, -m.sleepDebtLedger.nights.last().deltaMin, 1e-9)
     }

@@ -2,6 +2,7 @@ package com.noop.ui
 
 import com.noop.analytics.AnalyticsEngine
 import com.noop.analytics.Baselines
+import com.noop.analytics.RestScorer
 import com.noop.analytics.SleepDebt
 import com.noop.analytics.SleepStageTotals
 import com.noop.data.DailyMetric
@@ -182,6 +183,14 @@ internal fun buildSleepModel(
 
     // Personal sleep need (minutes): mean asleep, floored at 7.5h (450 min).
     val needMin = max(450.0, typicalTotalMin ?: 450.0)
+    // #242: NORMATIVE need (min) the DEBT surfaces measure against — population-anchored, age-floored,
+    // upper-quartile personalizedNeedHours (the SAME estimator Rest/Intelligence score against), NOT the
+    // descriptive `needMin` mean which drifts toward a chronic under-sleeper's own deficit and quietly
+    // erases their debt. Age isn't plumbed here (null → adult target). One need across the debt tile +
+    // ledger + trend, agreeing with the engine. Need-unification from #464 by @vishk23; the descriptive
+    // `needMin` still drives the "hours vs needed" performance tile.
+    val debtNeedMin = RestScorer.personalizedNeedHours(
+        days.mapNotNull { it.totalSleepMin?.let { m -> m / 60.0 } }, null) * 60.0
 
     // Per-tile metrics — each a full pass over the FULL day history (asleep totals, no in-bed
     // substitution), latest = the most-recent day. Mirrors iOS SleepView, where every tile series
@@ -222,8 +231,8 @@ internal fun buildSleepModel(
         val series = days.mapNotNull { d ->
             imported.debtMin[d.day]   // minutes, export-verbatim
                 ?: SleepDebt.creditedSleepMin(d.totalSleepMin, napSleepMinByDay[d.day] ?: 0.0)
-                    ?.takeIf { needMin > 0.0 }
-                    ?.let { max(0.0, needMin - it) }   // APPROXIMATE fallback
+                    ?.takeIf { debtNeedMin > 0.0 }
+                    ?.let { max(0.0, debtNeedMin - it) }   // #242: normative need, not the self-referential mean
         }
         Metric(series.lastOrNull(), mean(series), series)
     }
@@ -232,10 +241,10 @@ internal fun buildSleepModel(
     // not the browsed night). Mirrors iOS's trailing trend over repo.days.
     val trendRows = days.filter { (it.totalSleepMin ?: 0.0) > 0.0 }.takeLast(14)
     val trendHours = trendRows.mapNotNull { it.totalSleepMin?.let { minutes -> minutes / 60.0 } }
-    val trendNeedHours = trendRows.map { row -> ((imported.needMin[row.day] ?: needMin) / 60.0) }
+    val trendNeedHours = trendRows.map { row -> ((imported.needMin[row.day] ?: debtNeedMin) / 60.0) }
     val trendDebtHours = trendRows.map { row ->
         val sleptMin = SleepDebt.creditedSleepMin(row.totalSleepMin, napSleepMinByDay[row.day] ?: 0.0) ?: 0.0
-        val neededMin = imported.needMin[row.day] ?: needMin
+        val neededMin = imported.needMin[row.day] ?: debtNeedMin   // #242: normative need, not the mean
         ((imported.debtMin[row.day] ?: max(0.0, neededMin - sleptMin)) / 60.0)
     }
     val trendDates = trendRows.map { it.day }
@@ -256,16 +265,16 @@ internal fun buildSleepModel(
     val realSegments = hypnogramSegments?.map { seg -> seg.stage to ((seg.end - seg.start) / 60f) }
 
     // Rolling 14-night sleep-debt ledger over the FULL day history (the analytics caps to the
-    // most-recent 14 counted nights and skips no-data nights), using the SAME personal need the
-    // tiles use (`needMin`, ≥ 7.5 h — the per-user override over the 8 h default). Full history,
-    // not the browsed-night window: the ledger is a "Last 14 nights" at-a-glance summary that
-    // matches the debt TILE (both read main-night totals plus separately decoded nap credit),
-    // and mirrors iOS's debtLedger over repo.days. (#242, #5)
+    // most-recent 14 counted nights and skips no-data nights), using the normative `debtNeedMin`
+    // (the engine's personalizedNeedHours) — the SAME need the debt TILE + trend use, so all debt
+    // surfaces agree. Full history, not the browsed-night window: the ledger is a "Last 14 nights"
+    // at-a-glance summary that matches the debt TILE (both read main-night totals plus separately
+    // decoded nap credit), and mirrors iOS's debtLedger over repo.days. (#242, #5)
     val sleepDebtLedger = SleepDebt.ledger(
         series = days.map { d ->
             d.day to SleepDebt.creditedSleepMin(d.totalSleepMin, napSleepMinByDay[d.day] ?: 0.0)
         },
-        needHours = needMin / 60.0,
+        needHours = debtNeedMin / 60.0,
     )
 
     return SleepModel(
