@@ -294,6 +294,29 @@ public enum HRVAnalyzer {
                          nInput: nInput, nClean: clean.count)
     }
 
+    /// SDNN index (Task Force 1996): the MEAN of SDNN computed over consecutive fixed-length segments
+    /// (default 5 min) of the R-R series, each segment cleaned with the SAME range + Malik ectopic
+    /// rejection the nightly path uses. Unlike whole-night SDNN — which is dominated by the slow HR drift
+    /// ACROSS sleep stages and can read 2-3× higher — the index reflects SHORT-TERM variability, so it is
+    /// window-comparable to a wearable's short SDNN reading (e.g. Apple Watch's ~1-min
+    /// `heartRateVariabilitySDNN` samples) and is the value that can be honestly cross-checked against one.
+    /// Segments with fewer than `minBeats` clean intervals are skipped; nil when no segment qualifies.
+    /// Pure, deterministic. Kotlin twin: `HrvAnalyzer.sdnnIndex`.
+    public static func sdnnIndex(_ rr: [RRInterval], segmentSec: Int = 300) -> Double? {
+        guard segmentSec > 0, let first = rr.map(\.ts).min(), let last = rr.map(\.ts).max(),
+              last >= first else { return nil }
+        var segStart = first
+        var segmentSDNNs: [Double] = []
+        while segStart <= last {
+            if let sd = analyze(rr, windowStart: segStart, windowEnd: segStart + segmentSec - 1).sdnn {
+                segmentSDNNs.append(sd)
+            }
+            segStart += segmentSec
+        }
+        guard !segmentSDNNs.isEmpty else { return nil }
+        return segmentSDNNs.reduce(0, +) / Double(segmentSDNNs.count)
+    }
+
     // MARK: - Rolling / windowed rMSSD timeline (#803)
 
     /// One windowed rMSSD point: the rMSSD (ms) over the trailing `windowSec` of R-R intervals ending at

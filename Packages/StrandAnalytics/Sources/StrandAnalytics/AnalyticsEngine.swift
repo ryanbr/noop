@@ -607,6 +607,18 @@ public enum AnalyticsEngine {
             return weight > 0 ? total / weight : nil
         }()
 
+        // Daily SDNN (ms) = the 5-min SDNN INDEX (Task Force) over the in-bed R-R across matched sessions —
+        // the mean of per-5-min-segment SDNN, the BROAD autonomic-variability metric (both branches) and the
+        // slow twin of the vagal RMSSD `avgHRVDaily` above. The index (not a single whole-night SD) is used
+        // deliberately: whole-night SD is dominated by the slow HR drift across sleep stages and reads 2-3×
+        // high, which would mislabel Apple Health (its SDNN samples are short-window) and make any cross-check
+        // against a watch meaningless. The 5-min index is window-comparable to those. nil when no segment has
+        // enough clean beats (HRVAnalyzer's own gate). Keeps the R-R timestamps (segmentation needs them).
+        let avgSDNNDaily: Double? = {
+            let inBed = rr.filter { r in matched.contains { r.ts >= $0.start && r.ts < $0.end } }
+            return inBed.isEmpty ? nil : HRVAnalyzer.sdnnIndex(inBed, segmentSec: 300)
+        }()
+
         // ── HRV & Autonomic nightly trace (#141) ──────────────────────────────
         // Per-5-min-window RMSSD tagged by the sleep stage at its center, then a night summary comparing
         // NOOP's whole-night mean (what it reports) against a deep-only mean and a WHOOP-style
@@ -796,7 +808,8 @@ public enum AnalyticsEngine {
             steps: stepsTotal,
             activeKcalEst: activeKcalEst,
             spo2Red: nightlySpo2Raw?.red,
-            spo2Ir: nightlySpo2Raw?.ir)
+            spo2Ir: nightlySpo2Raw?.ir,
+            avgSdnn: avgSDNNDaily)
         _ = sleepStart; _ = sleepEnd  // available for callers wiring sleep_start/end columns
 
         // ── Cache rows ────────────────────────────────────────────────────────

@@ -214,6 +214,50 @@ final class HRVAnalyzerTests: XCTestCase {
         XCTAssertEqual(HRVAnalyzer.duplicateBeatCount(tsSec: [100, 100], rrMs: [1000, 1010]), 0)  // diff rr = distinct
     }
 
+    // MARK: - SDNN index (5-min segmented SDNN, the Apple-comparable window)
+
+    func testSdnnIndexExcludesInterSegmentDrift() {
+        // Three 100 s segments, each internally near-steady (±5 ms) but at very different levels
+        // (800 / 900 / 1000 ms). Whole-night SDNN sees the big 800→1000 drift and reads large; the SDNN
+        // index averages each segment's OWN (small) SDNN, so it stays small — the exact property that makes
+        // it comparable to a watch's short-window reading instead of the drift-inflated whole-night value.
+        var rr: [RRInterval] = []
+        for t in 0..<50   { rr.append(RRInterval(ts: 0   + t, rrMs: t.isMultiple(of: 2) ? 795 : 805)) }
+        for t in 0..<50   { rr.append(RRInterval(ts: 100 + t, rrMs: t.isMultiple(of: 2) ? 895 : 905)) }
+        for t in 0..<50   { rr.append(RRInterval(ts: 200 + t, rrMs: t.isMultiple(of: 2) ? 995 : 1005)) }
+
+        let index = HRVAnalyzer.sdnnIndex(rr, segmentSec: 100)
+        let wholeNight = HRVAnalyzer.analyze(rawRR: rr.map { Double($0.rrMs) }).sdnn
+        let idx = try! XCTUnwrap(index)
+        let whole = try! XCTUnwrap(wholeNight)
+        XCTAssertEqual(idx, 5.05, accuracy: 1.5, "each segment's own SDNN is ~5 ms")
+        XCTAssertGreaterThan(whole, 50, "whole-night SDNN is inflated by the 800→1000 drift")
+        XCTAssertLessThan(idx, whole / 5, "the index must strip out the inter-segment drift")
+    }
+
+    func testSdnnIndexSteadySeriesIsSmallPositive() {
+        // A single steady segment (±5 ms) → a small, sane, non-nil index.
+        let rr = (0..<60).map { RRInterval(ts: $0, rrMs: $0.isMultiple(of: 2) ? 795 : 805) }
+        let idx = try! XCTUnwrap(HRVAnalyzer.sdnnIndex(rr, segmentSec: 100))
+        XCTAssertEqual(idx, 5.05, accuracy: 1.5)
+    }
+
+    func testSdnnIndexSingleSegmentEqualsWholeSdnn() {
+        // When all beats fall in ONE segment, the index is just that segment's SDNN = the whole SDNN.
+        let rr = (0..<60).map { RRInterval(ts: $0, rrMs: [800, 820, 780, 810, 790][$0 % 5]) }
+        let index = try! XCTUnwrap(HRVAnalyzer.sdnnIndex(rr, segmentSec: 1000))
+        let whole = try! XCTUnwrap(HRVAnalyzer.analyze(rr, windowStart: 0, windowEnd: 999).sdnn)
+        XCTAssertEqual(index, whole, accuracy: 1e-9)
+    }
+
+    func testSdnnIndexSparseSeriesIsNil() {
+        // Fewer than minBeats in the only segment → no qualifying segment → nil (honest absence).
+        let rr = (0..<10).map { RRInterval(ts: $0, rrMs: 800) }
+        XCTAssertNil(HRVAnalyzer.sdnnIndex(rr, segmentSec: 100))
+        XCTAssertNil(HRVAnalyzer.sdnnIndex([], segmentSec: 100))
+        XCTAssertNil(HRVAnalyzer.sdnnIndex(rr, segmentSec: 0), "non-positive segment length is rejected")
+    }
+
     // #550 — collapsedCoverage: previews a SAME-SECOND R-R de-dup so the always-on diag reveals whether
     // the #257 over-count is same-second (collapsible) or cross-second (needs an ingest-path fix).
 

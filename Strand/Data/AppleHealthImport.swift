@@ -48,7 +48,8 @@ enum AppleHealthImport {
                         // #89: Apple Health steps must land in DailyMetric.steps too — the sourced-daily
                         // arbitration resolves "steps" via metricValue(d) = d.steps, so leaving it nil (the
                         // pre-fix state) meant imported Apple steps never surfaced there.
-                        steps: d.steps.map { Int($0) })
+                        steps: d.steps.map { Int($0) },
+                        avgSdnn: d.hrvSDNN)   // Apple HRV is SDNN — mirror into the SDNN field
         }
         let dmWritten = try await store.upsertDailyMetrics(dm, deviceId: deviceId)
 

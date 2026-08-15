@@ -822,6 +822,20 @@ extension WhoopStore {
                 }
             }
         }
+
+        // v37: persist nightly SDNN — the 5-min SDNN index (broad-variability twin of avgHrv=RMSSD),
+        // window-matched to a watch's short SDNN rather than the drift-inflated whole-night SD. Additive,
+        // nullable; computed by HRVAnalyzer.sdnnIndex during the nightly analysis.
+        //
+        // Numbered v37: upstream migrations advanced to v36 (`v36-whoop-caps-no-spo2`) while this branch
+        // was open, so this branch-local, never-shipped identifier is renumbered to the next free slot.
+        // Renumbering an unshipped identifier is free (GRDB tracks applied migrations by id, not number);
+        // renaming a SHIPPED one is not, so only this id moves.
+        migrator.registerMigration("v37-daily-avg-sdnn") { db in
+            try db.alter(table: "dailyMetric") { t in
+                t.add(column: "avgSdnn", .double)
+            }
+        }
         return migrator
     }
 }

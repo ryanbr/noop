@@ -511,6 +511,63 @@ final class MetricsCacheTests: XCTestCase {
         XCTAssertNil(bareRow.activeKcalEst)
     }
 
+    // MARK: - v31 nightly SDNN column (avgSdnn, alongside avgHrv=RMSSD)
+
+    func testV31AvgSdnnColumnPresent() async throws {
+        let store = try await WhoopStore.inMemory()
+        let cols = try await store.columnNamesForTest(table: "dailyMetric")
+        XCTAssertTrue(cols.contains("avgSdnn"), "dailyMetric missing v31 avgSdnn column")
+    }
+
+    func testV31AvgSdnnRoundTrip() async throws {
+        let store = try await WhoopStore.inMemory()
+        // avgHrv carries RMSSD; avgSdnn carries the whole-night SDNN — distinct values on the same row.
+        let d = DailyMetric(day: "2026-05-29", totalSleepMin: 415, efficiency: 0.9,
+                            deepMin: 88, remMin: 108, lightMin: 219, disturbances: 2,
+                            restingHr: 50, avgHrv: 62.0, recovery: 0.73, strain: 10.5,
+                            exerciseCount: 1, spo2Pct: 96.2, skinTempDevC: 0.0, respRateBpm: 14.7,
+                            steps: 7_900, activeKcalEst: 2_180.0, avgSdnn: 88.4)
+        try await store.upsertDailyMetrics([d], deviceId: "devA")
+
+        let rows = try await store.dailyMetrics(deviceId: "devA", from: "2026-05-01", to: "2026-05-31")
+        XCTAssertEqual(rows.count, 1)
+        let row = try XCTUnwrap(rows.first)
+        XCTAssertEqual(try XCTUnwrap(row.avgHrv), 62.0, accuracy: 0.001, "RMSSD must survive intact")
+        XCTAssertEqual(try XCTUnwrap(row.avgSdnn), 88.4, accuracy: 0.001, "SDNN must persist distinctly")
+
+        // Omitting avgSdnn keeps it nil (defaulted init — old call sites unchanged).
+        let bare = DailyMetric(day: "2026-05-30", totalSleepMin: nil, efficiency: nil,
+                               deepMin: nil, remMin: nil, lightMin: nil, disturbances: nil,
+                               restingHr: nil, avgHrv: 55.0, recovery: nil, strain: nil, exerciseCount: nil)
+        try await store.upsertDailyMetrics([bare], deviceId: "devA")
+        let bareRows = try await store.dailyMetrics(deviceId: "devA", from: "2026-05-30", to: "2026-05-30")
+        let bareRow = try XCTUnwrap(bareRows.first)
+        XCTAssertEqual(try XCTUnwrap(bareRow.avgHrv), 55.0, accuracy: 0.001)
+        XCTAssertNil(bareRow.avgSdnn, "avgSdnn defaults to nil when the source has no whole-night SDNN")
+    }
+
+    func testV31AvgSdnnUpsertUpdates() async throws {
+        let store = try await WhoopStore.inMemory()
+        // Insert with nil SDNN, then re-upsert the same day with SDNN populated (WHOOP backfill path).
+        let d1 = DailyMetric(day: "2026-05-31", totalSleepMin: 400, efficiency: 0.88,
+                             deepMin: 80, remMin: 100, lightMin: 220, disturbances: 3,
+                             restingHr: 54, avgHrv: 60.0, recovery: 0.65, strain: 13.0, exerciseCount: 0)
+        try await store.upsertDailyMetrics([d1], deviceId: "devA")
+        let preRows = try await store.dailyMetrics(deviceId: "devA", from: "2026-05-31", to: "2026-05-31")
+        var row = try XCTUnwrap(preRows.first)
+        XCTAssertNil(row.avgSdnn)
+
+        let d2 = DailyMetric(day: "2026-05-31", totalSleepMin: 400, efficiency: 0.88,
+                             deepMin: 80, remMin: 100, lightMin: 220, disturbances: 3,
+                             restingHr: 54, avgHrv: 60.0, recovery: 0.65, strain: 13.0, exerciseCount: 0,
+                             avgSdnn: 91.2)
+        try await store.upsertDailyMetrics([d2], deviceId: "devA")
+        let rows = try await store.dailyMetrics(deviceId: "devA", from: "2026-05-31", to: "2026-05-31")
+        XCTAssertEqual(rows.count, 1, "upsert must not duplicate")
+        row = try XCTUnwrap(rows.first)
+        XCTAssertEqual(try XCTUnwrap(row.avgSdnn), 91.2, accuracy: 0.001)
+    }
+
     // MARK: - read highwater cursor (distinct prefix from upload highwater)
 
     func testReadHighwaterRoundTripsUnderDistinctPrefix() async throws {

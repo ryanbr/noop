@@ -457,7 +457,8 @@ final class HealthKitBridge: ObservableObject {
                         deepMin: a.deepMin, remMin: a.remMin, lightMin: a.coreMin, disturbances: nil,
                         restingHr: a.restingHr.map { Int($0.rounded()) }, avgHrv: a.hrv,
                         recovery: nil, strain: nil, exerciseCount: nil,
-                        spo2Pct: a.spo2, skinTempDevC: nil, respRateBpm: a.respRate)
+                        spo2Pct: a.spo2, skinTempDevC: nil, respRateBpm: a.respRate,
+                        avgSdnn: a.hrv)   // Apple's HRV IS SDNN — mirror it into the SDNN field too
         }
         // Flatten to the generic metricSeries the shared Apple Health screen, the Today apple-health
         // sparklines, and the Metric Explorer read from — repo.series(key:source:"apple-health")
@@ -682,8 +683,16 @@ final class HealthKitBridge: ObservableObject {
             if let rhr = row.restingHr {
                 add(.restingHeartRate, HKUnit.count().unitDivided(by: .minute()), Double(rhr), row.day, at)
             }
-            if let hrv = row.avgHrv {
-                add(.heartRateVariabilitySDNN, .secondUnit(with: .milli), hrv, row.day, at)
+            // Export the GENUINE SDNN (v31) when present — the strap's `avgHrv` is RMSSD, which HealthKit
+            // has no field for, so writing it under `.heartRateVariabilitySDNN` mislabels it. `avgSdnn` is the
+            // 5-min SDNN index, deliberately window-matched to Apple's own short-window SDNN samples so the
+            // written values sit consistently in the user's Health SDNN history (a whole-night SD would land
+            // 2-3× high). WHOOP rows backfill `avgSdnn` from stored raw R-R on the next re-score; Apple rows'
+            // `avgHrv` already IS SDNN. The `avgHrv` fallback fires for those two before re-scoring, and
+            // permanently for summary-only sources (Oura) that give RMSSD with no raw R-R to derive SDNN from
+            // — HealthKit's single HRV type leaves no better label there.
+            if let sdnn = row.avgSdnn ?? row.avgHrv {
+                add(.heartRateVariabilitySDNN, .secondUnit(with: .milli), sdnn, row.day, at)
             }
             if let spo2 = row.spo2Pct {
                 add(.oxygenSaturation, .percent(), spo2 / 100, row.day, at)
