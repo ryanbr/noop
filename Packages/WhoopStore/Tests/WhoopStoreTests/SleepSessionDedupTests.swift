@@ -122,4 +122,36 @@ final class SleepSessionDedupTests: XCTestCase {
         let one = session(start: midnight, end: midnight + 3600)
         XCTAssertEqual(SleepSessionDedup.dedupe([one]).kept.map(\.startTs), [one.startTs])
     }
+
+    // MARK: - #1284 residual 3: a non-overlapping pre-onset fragment collapses; a real nap does not
+
+    func testOura1284PreOnsetFragmentCollapsesDespiteNoOverlap() {
+        // The anchored night 22:00 → 06:00, and the Oura SleepNet pre-onset fragment ending 69 s before
+        // the night starts (measured on 08-10/11) — a 40 min piece with NO overlap with the night.
+        let night = session(start: midnight - 2 * 3600, end: midnight + 6 * 3600)
+        let fragEnd = (midnight - 2 * 3600) - 69
+        let fragment = session(start: fragEnd - 40 * 60, end: fragEnd)
+        XCTAssertEqual(SleepSessionDedup.overlapSeconds(fragment, night), 0)   // disjoint
+        XCTAssertTrue(SleepSessionDedup.isDuplicate(fragment, night), "a 69 s edge gap is one interrupted night")
+        let result = SleepSessionDedup.dedupe([fragment, night], freshStarts: [night.startTs])
+        XCTAssertEqual(result.kept.count, 1, "fragment + night collapse to one")
+        XCTAssertEqual(result.kept.first?.startTs, night.startTs, "the fuller anchored night survives")
+    }
+
+    func testOura1284RealNapStaysSeparate() {
+        // A genuine afternoon nap hours before the night is never near-adjacent.
+        let nap = session(start: midnight - 9 * 3600, end: midnight - 8 * 3600)
+        let night = session(start: midnight - 2 * 3600, end: midnight + 6 * 3600)
+        XCTAssertFalse(SleepSessionDedup.isDuplicate(nap, night))
+        XCTAssertEqual(SleepSessionDedup.dedupe([nap, night]).kept.count, 2)
+    }
+
+    func testOura1284GapBeyondNearAdjacentStaysSeparate() {
+        // Two disjoint sessions 20 min apart (> the 15 min near-adjacent bar) are not merged.
+        let a = session(start: midnight - 3 * 3600, end: midnight - 2 * 3600)
+        let b = session(start: midnight - 2 * 3600 + 20 * 60, end: midnight + 4 * 3600)
+        XCTAssertEqual(SleepSessionDedup.overlapSeconds(a, b), 0)
+        XCTAssertFalse(SleepSessionDedup.isDuplicate(a, b))
+        XCTAssertEqual(SleepSessionDedup.dedupe([a, b]).kept.count, 2)
+    }
 }

@@ -25,19 +25,37 @@ public enum SleepSessionDedup {
     /// the absolute overlap is under the 30 min bar (e.g. a 40 min fragment 60% inside the night).
     public static let minOverlapFractionOfShorter = 0.5
 
+    /// Edge gap (seconds) at or below which two DISJOINT sessions are still one night (#1284 residual 3).
+    /// The Oura SleepNet burst runs a few epochs before the `0x49` onset, so its pre-onset piece can bank
+    /// as a short session ending seconds before the anchored night begins with NO overlap — the overlap
+    /// rule above misses it (measured 69 s on 08-10/11; the pre-onset run is ~7 min / 14 codes per
+    /// `OuraLiveSource`). A gap this small can only be one interrupted night, never two real sleeps: a
+    /// genuine nap is hours from the main sleep, so it never trips this. 15 min is ~2× the observed
+    /// pre-onset span, catching the fragment with margin while staying far below any real inter-sleep gap.
+    public static let nearAdjacentSeconds = 15 * 60
+
     /// Seconds of overlap between the two sessions' EFFECTIVE spans (edited onsets honoured,
     /// mirroring how display / day assignment place the block). 0 when disjoint.
     static func overlapSeconds(_ a: CachedSleepSession, _ b: CachedSleepSession) -> Int {
         max(0, min(a.endTs, b.endTs) - max(a.effectiveStartTs, b.effectiveStartTs))
     }
 
-    /// True when `a` and `b` are overlapping copies of the same night: overlap of at least
-    /// `minOverlapSeconds` absolute, OR at least `minOverlapFractionOfShorter` of the shorter
-    /// session's duration. Both terms use only (effectiveStartTs, endTs), the only time fields
-    /// the data model carries (there is no banked-at column to compare).
+    /// Edge gap (seconds) between two DISJOINT sessions (the later start minus the earlier end); 0 when
+    /// they touch or overlap. Only meaningful when `overlapSeconds == 0`.
+    static func edgeGapSeconds(_ a: CachedSleepSession, _ b: CachedSleepSession) -> Int {
+        max(0, max(a.effectiveStartTs, b.effectiveStartTs) - min(a.endTs, b.endTs))
+    }
+
+    /// True when `a` and `b` are copies of the same night: overlap of at least `minOverlapSeconds`
+    /// absolute, OR at least `minOverlapFractionOfShorter` of the shorter session's duration, OR (when
+    /// disjoint) an edge gap within `nearAdjacentSeconds` (#1284, the non-overlapping pre-onset fragment).
+    /// All terms use only (effectiveStartTs, endTs), the only time fields the data model carries.
     public static func isDuplicate(_ a: CachedSleepSession, _ b: CachedSleepSession) -> Bool {
         let overlap = overlapSeconds(a, b)
-        guard overlap > 0 else { return false }
+        if overlap <= 0 {
+            // Disjoint: a same-night fragment banked just before/after the anchored night (#1284).
+            return edgeGapSeconds(a, b) <= nearAdjacentSeconds
+        }
         if overlap >= minOverlapSeconds { return true }
         let shorter = min(max(a.endTs - a.effectiveStartTs, 0), max(b.endTs - b.effectiveStartTs, 0))
         return shorter > 0 && Double(overlap) >= minOverlapFractionOfShorter * Double(shorter)

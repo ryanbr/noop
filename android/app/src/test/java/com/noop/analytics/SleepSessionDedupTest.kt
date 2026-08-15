@@ -132,4 +132,39 @@ class SleepSessionDedupTest {
         val one = session(midnight, midnight + 3600L)
         assertEquals(listOf(one.startTs), SleepSessionDedup.dedupe(listOf(one)).kept.map { it.startTs })
     }
+
+    // ── #1284 residual 3: a non-overlapping pre-onset fragment collapses; a real nap does not ────────
+
+    @Test
+    fun oura1284_preOnsetFragment_collapsesDespiteNoOverlap() {
+        // The anchored night 22:00 -> 06:00, and the Oura SleepNet pre-onset fragment ending 69 s before
+        // the night starts (measured on 08-10/11) — a 40 min piece with NO overlap with the night.
+        val night = session(midnight - 2 * 3600L, midnight + 6 * 3600L)
+        val fragEnd = (midnight - 2 * 3600L) - 69L
+        val fragment = session(fragEnd - 40 * 60L, fragEnd)
+        assertEquals(0L, SleepSessionDedup.overlapSeconds(fragment, night)) // disjoint
+        assertTrue("a 69 s edge gap is one interrupted night", SleepSessionDedup.isDuplicate(fragment, night))
+        val result = SleepSessionDedup.dedupe(listOf(fragment, night), freshStarts = setOf(night.startTs))
+        assertEquals("fragment + night collapse to one", 1, result.kept.size)
+        assertEquals("the fuller anchored night survives", night.startTs, result.kept.first().startTs)
+    }
+
+    @Test
+    fun oura1284_realNap_staysSeparate() {
+        // A genuine afternoon nap hours before the night is never near-adjacent.
+        val nap = session(midnight - 9 * 3600L, midnight - 8 * 3600L)
+        val night = session(midnight - 2 * 3600L, midnight + 6 * 3600L)
+        assertTrue(!SleepSessionDedup.isDuplicate(nap, night))
+        assertEquals(2, SleepSessionDedup.dedupe(listOf(nap, night)).kept.size)
+    }
+
+    @Test
+    fun oura1284_gapBeyondNearAdjacent_staysSeparate() {
+        // Two disjoint sessions 20 min apart (> the 15 min near-adjacent bar) are not merged.
+        val a = session(midnight - 3 * 3600L, midnight - 2 * 3600L)
+        val b = session(midnight - 2 * 3600L + 20 * 60L, midnight + 4 * 3600L)
+        assertEquals(0L, SleepSessionDedup.overlapSeconds(a, b))
+        assertTrue(!SleepSessionDedup.isDuplicate(a, b))
+        assertEquals(2, SleepSessionDedup.dedupe(listOf(a, b)).kept.size)
+    }
 }

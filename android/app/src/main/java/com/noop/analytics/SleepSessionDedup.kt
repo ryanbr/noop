@@ -33,6 +33,16 @@ object SleepSessionDedup {
      */
     const val MIN_OVERLAP_FRACTION_OF_SHORTER: Double = 0.5
 
+    /**
+     * Edge gap (seconds) at or below which two DISJOINT sessions are still one night (#1284 residual 3).
+     * The Oura SleepNet burst runs a few epochs before the `0x49` onset, so its pre-onset piece can bank
+     * as a short session ending seconds before the anchored night begins with NO overlap — the overlap
+     * rule misses it (measured 69 s on 08-10/11; the pre-onset run is ~7 min / 14 codes per OuraLiveSource).
+     * A gap this small can only be one interrupted night, never two real sleeps: a genuine nap is hours
+     * from the main sleep, so it never trips this. 15 min is ~2x the observed pre-onset span.
+     */
+    const val NEAR_ADJACENT_SECONDS: Long = 15L * 60L
+
     /** The collapse outcome: canonical survivors + the duplicates dropped, both sorted by startTs. */
     data class Result(val kept: List<SleepSession>, val dropped: List<SleepSession>)
 
@@ -41,15 +51,23 @@ object SleepSessionDedup {
     internal fun overlapSeconds(a: SleepSession, b: SleepSession): Long =
         maxOf(0L, minOf(a.endTs, b.endTs) - maxOf(a.effectiveStartTs, b.effectiveStartTs))
 
+    /** Edge gap (seconds) between two DISJOINT sessions (the later start minus the earlier end); 0 when
+     *  they touch or overlap. Only meaningful when [overlapSeconds] is 0. */
+    internal fun edgeGapSeconds(a: SleepSession, b: SleepSession): Long =
+        maxOf(0L, maxOf(a.effectiveStartTs, b.effectiveStartTs) - minOf(a.endTs, b.endTs))
+
     /**
-     * True when [a] and [b] are overlapping copies of the same night: overlap of at least
-     * [MIN_OVERLAP_SECONDS] absolute, OR at least [MIN_OVERLAP_FRACTION_OF_SHORTER] of the shorter
-     * session's duration. Both terms use only (effectiveStartTs, endTs), the only time fields the
-     * data model carries (there is no banked-at column to compare).
+     * True when [a] and [b] are copies of the same night: overlap of at least [MIN_OVERLAP_SECONDS]
+     * absolute, OR at least [MIN_OVERLAP_FRACTION_OF_SHORTER] of the shorter session's duration, OR (when
+     * disjoint) an edge gap within [NEAR_ADJACENT_SECONDS] (#1284, the non-overlapping pre-onset fragment).
+     * All terms use only (effectiveStartTs, endTs), the only time fields the data model carries.
      */
     fun isDuplicate(a: SleepSession, b: SleepSession): Boolean {
         val overlap = overlapSeconds(a, b)
-        if (overlap <= 0L) return false
+        if (overlap <= 0L) {
+            // Disjoint: a same-night fragment banked just before/after the anchored night (#1284).
+            return edgeGapSeconds(a, b) <= NEAR_ADJACENT_SECONDS
+        }
         if (overlap >= MIN_OVERLAP_SECONDS) return true
         val shorter = minOf(
             maxOf(a.endTs - a.effectiveStartTs, 0L),
