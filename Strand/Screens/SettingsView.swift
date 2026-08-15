@@ -318,10 +318,11 @@ struct SettingsView: View {
                 // Backup & restore) stays one tap away. Modelled on the Test Centre "Advanced" group.
                 SettingsDisclosureGroup(
                     title: "Advanced",
-                    subtitle: "Recovery, Test Centre, experimental probes, and backup. Tucked away to keep the everyday screen tidy.",
+                    subtitle: "Recovery, HRV tuning, Test Centre, experimental probes, and backup. Tucked away to keep the everyday screen tidy.",
                     isExpanded: $advancedOpen
                 ) {
                     recoveryCard
+                    hrvCard   // #518: Continuous HRV capture + HRV window moved here out of the always-visible Strap card
                     testCentreCard
                     experimentalCard
                     backupCard
@@ -1356,74 +1357,9 @@ struct SettingsView: View {
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                rowDivider
-
-                // MARK: Continuous HRV capture — keep the dense beat-to-beat (R-R) stream armed 24/7.
-                Toggle(isOn: $continuousHrvEnabled) {
-                    Text("Continuous HRV capture")
-                        .font(StrandFont.subhead)
-                        .foregroundStyle(StrandPalette.textPrimary)
-                }
-                .toggleStyle(.switch)
-                .tint(StrandPalette.accent)
-                .onChangeCompat(of: continuousHrvEnabled) { on in model.ble.setKeepRealtimeForData(on) }
-                Text("Keeps the detailed beat-to-beat heart-rate stream running all day and night, not just while a live screen is open, so NOOP captures much more for overnight HRV, recovery and sleep. Uses more battery: your strap streams heart rate continuously while connected.")
-                    .font(StrandFont.caption)
-                    .foregroundStyle(StrandPalette.textTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                // #927 Overnight only: window-gate the continuous stream to the nightly quiet-hours
-                // window. Re-pushing the UNCHANGED base preference just re-runs the BLE reconciler,
-                // which re-derives the window gate and arms/disarms on the edge immediately.
-                if continuousHrvEnabled {
-                    Toggle(isOn: $continuousHrvOvernightOnly) {
-                        Text("Overnight only")
-                            .font(StrandFont.subhead)
-                            .foregroundStyle(StrandPalette.textPrimary)
-                    }
-                    .toggleStyle(.switch)
-                    .tint(StrandPalette.accent)
-                    .onChangeCompat(of: continuousHrvOvernightOnly) { _ in
-                        model.ble.setKeepRealtimeForData(PuffinExperiment.keepRealtimeForDataEnabled)
-                    }
-                    Text("Runs the continuous HRV stream only during your quiet hours window (22:00–07:00 by default), roughly halving the battery cost. Daytime Stress readings will be sparser. Note: continuous background HRV capture (including daytime naps) is paused outside this window. For on-demand daytime HRV readings (including naps), use the \"Take an HRV reading\" button on the Live screen.")
-                        .font(StrandFont.caption)
-                        .foregroundStyle(StrandPalette.textTertiary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                // HRV window (#141) — grouped with the other HRV settings (#155). Whole night (NOOP's
-                // long-standing value) or DEEP sleep only (WHOOP-style, reads lower and more comparable to
-                // WHOOP/Polar). Unlike the Effort scale this CHANGES the number, so a switch re-scores +
-                // re-baselines (like a sleep edit).
-                FormRow(label: "HRV window") {
-                    Picker("HRV window", selection: $hrvWindowRaw) {
-                        // #153: "Night" (not "Whole night") — a single short word so the two-segment
-                        // control doesn't truncate once it sizes to the row (some locales' longer
-                        // translations overflowed), matching the Temperature/Theme pickers above.
-                        Text("Night").tag(HrvWindow.whole.rawValue)
-                        Text("Deep sleep").tag(HrvWindow.deep.rawValue)
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .tint(StrandPalette.accent)
-                    .accessibilityLabel("HRV window")
-                    .onChangeCompat(of: hrvWindowRaw) { _ in
-                        // #201: the new window shifts every night's avgHrv, so the HRV baseline must reflect it
-                        // too — but a plain re-score already achieves that. analyzeRecent re-scores the recent
-                        // ~21 nights' avgHrv under the new window AND re-folds the HRV baseline from them in the
-                        // same pass, and the baseline's 14-night-half-life EWMA is dominated by that fresh
-                        // re-scored tail. So DON'T re-anchor the baseline epoch: doing so would drop all history
-                        // and force a multi-night "calibrating" reset for someone who already has plenty of nights
-                        // (that reset reading as "the setting is broken" was #195). A genuine cold-start user
-                        // (<4 valid nights) still calibrates honestly; established users see the switch immediately.
-                        Task { await model.intelligence.analyzeRecent(); await model.repo.refresh() }
-                    }
-                }
-                Text("Whole night is NOOP's default measure; Deep sleep pools HRV over slow-wave sleep only, reading lower and matching WHOOP. Switching re-scores your recent nights over the new window and takes effect right away once you have a few nights of data.")
-                    .font(StrandFont.caption)
-                    .foregroundStyle(StrandPalette.textTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
+                // #518: Continuous HRV capture, "Overnight only" and the HRV window picker moved to the
+                // "HRV" card under Advanced (see `hrvCard`) — same @AppStorage bindings, same BLE + re-score
+                // wiring, just relocated as power-user tuning rather than shown here at all times.
 
                 // MARK: Strap name — rename the WHOOP 4.0's BLE advertising name (Harvard command set).
                 if live.connected && selectedWhoopModelRaw == WhoopModel.whoop4.rawValue {
@@ -1721,6 +1657,76 @@ struct SettingsView: View {
     // MARK: - Backup & restore
 
     // MARK: - Experimental (WHOOP 5 / MG)
+
+    // #518 (declutter): HRV tuning relocated out of the always-visible Strap card into Advanced. Same
+    // @AppStorage bindings and the same BLE + re-score wiring — just tucked away as power-user tuning.
+    private var hrvCard: some View {
+        SettingsSection(
+            icon: "waveform.path.ecg",
+            title: "HRV",
+            blurb: "Tune how NOOP captures and windows your heart-rate-variability reading."
+        ) {
+            VStack(alignment: .leading, spacing: NoopMetrics.rowSpacing) {
+                // MARK: Continuous HRV capture — keep the dense beat-to-beat (R-R) stream armed 24/7.
+                Toggle(isOn: $continuousHrvEnabled) {
+                    Text("Continuous HRV capture")
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textPrimary)
+                }
+                .toggleStyle(.switch)
+                .tint(StrandPalette.accent)
+                .onChangeCompat(of: continuousHrvEnabled) { on in model.ble.setKeepRealtimeForData(on) }
+                Text("Keeps the detailed beat-to-beat heart-rate stream running all day and night, not just while a live screen is open, so NOOP captures much more for overnight HRV, recovery and sleep. Uses more battery: your strap streams heart rate continuously while connected.")
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                // #927 Overnight only: window-gate the continuous stream to the nightly quiet-hours window.
+                if continuousHrvEnabled {
+                    Toggle(isOn: $continuousHrvOvernightOnly) {
+                        Text("Overnight only")
+                            .font(StrandFont.subhead)
+                            .foregroundStyle(StrandPalette.textPrimary)
+                    }
+                    .toggleStyle(.switch)
+                    .tint(StrandPalette.accent)
+                    .onChangeCompat(of: continuousHrvOvernightOnly) { _ in
+                        model.ble.setKeepRealtimeForData(PuffinExperiment.keepRealtimeForDataEnabled)
+                    }
+                    Text("Runs the continuous HRV stream only during your quiet hours window (22:00–07:00 by default), roughly halving the battery cost. Daytime Stress readings will be sparser. Note: continuous background HRV capture (including daytime naps) is paused outside this window. For on-demand daytime HRV readings (including naps), use the \"Take an HRV reading\" button on the Live screen.")
+                        .font(StrandFont.caption)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                // HRV window (#141) — Whole night (NOOP's long-standing value) or DEEP sleep only
+                // (WHOOP-style, reads lower). Unlike the Effort scale this CHANGES the number, so a switch
+                // re-scores + re-baselines (like a sleep edit).
+                FormRow(label: "HRV window") {
+                    Picker("HRV window", selection: $hrvWindowRaw) {
+                        // #153: "Night" (not "Whole night") — a single short word so the two-segment control
+                        // doesn't truncate once it sizes to the row.
+                        Text("Night").tag(HrvWindow.whole.rawValue)
+                        Text("Deep sleep").tag(HrvWindow.deep.rawValue)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .tint(StrandPalette.accent)
+                    .accessibilityLabel("HRV window")
+                    .onChangeCompat(of: hrvWindowRaw) { _ in
+                        // #201/#195: analyzeRecent re-scores the recent ~21 nights' avgHrv under the new
+                        // window AND re-folds the HRV baseline in the same pass, so DON'T re-anchor the
+                        // baseline epoch (that reset read as "the setting is broken").
+                        Task { await model.intelligence.analyzeRecent(); await model.repo.refresh() }
+                    }
+                }
+                Text("Whole night is NOOP's default measure; Deep sleep pools HRV over slow-wave sleep only, reading lower and matching WHOOP. Switching re-scores your recent nights over the new window and takes effect right away once you have a few nights of data.")
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
 
     /// Entry point used by `body`. The 5/MG probe card only renders for a 5/MG (see `showFiveMGControls`,
     /// #22); the raw-sensor CSV diagnostic is split into its own card so it stays available on every
