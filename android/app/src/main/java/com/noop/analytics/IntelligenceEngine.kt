@@ -231,10 +231,13 @@ object IntelligenceEngine {
         // The Context-aware caller reads NoopPrefs.spo2CandidateDisplay(context) and passes it down.
         spo2CandidateDisplay: Boolean = false,
     ): List<Computed> = withContext(Dispatchers.Default) {
+        // #1005: time the whole pass so a re-score STORM is visible in the strap log (the trigger lines
+        // record WHY each pass runs; this records how many nights and how long — the CPU cost per run).
+        val reScoreStart = System.nanoTime()
         // Serialise the whole pass so overlapping callers never run two rescores in parallel (see
         // [analyzeGate]). The heavy scoring already ran off the caller's thread via withContext above; the
         // lock is held only for this engine's own passes, never across an unrelated suspension.
-        analyzeGate.withLock {
+        val scored = analyzeGate.withLock {
             val (out, healed) = analyzeRecentOnCpu(repo, profile, maxDays, importedDeviceId, maxHROverride,
                 nowSeconds, ownerSource, manualStepCoefficient, persistStepsCalibration, baselineEpoch,
                 recoveryEpoch, diag, useExperimentalSleepV2, useMotionAwareWake, sleepTraceSink, recoveryTraceSink,
@@ -250,6 +253,8 @@ object IntelligenceEngine {
                 recoveryEpoch, diag, useExperimentalSleepV2, useMotionAwareWake, sleepTraceSink, recoveryTraceSink,
                 stepsTraceSink, universalSink, workoutsTraceSink, hrvTraceSink, deepHrvWindow, spo2CandidateDisplay).first
         }
+        diag("re-score: done — scored ${scored.size} night(s) in ${(System.nanoTime() - reScoreStart) / 1_000_000} ms (#1005)")
+        scored
     }
 
     /** History span for the one-shot Effort rescore , large enough to cover any real wear history,

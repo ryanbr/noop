@@ -461,6 +461,9 @@ final class IntelligenceEngine: ObservableObject {
             diagnosticSink?("re-score: trigger=forced newData=\(hadNew ? "yes" : "no (nothing changed since last run)")", nil)
         }
 
+        // #1005: time the whole pass — the trigger line above records WHY; this records how many nights
+        // and how long (the CPU cost per run), so a re-score STORM is visible in the strap log.
+        let reScoreStart = Date()
         computing = true
         // #899-A re-arm: clear the lock, then if a forced rescore was dropped while this pass held it,
         // run it ONCE. The flag is cleared BEFORE the re-invoke (a single re-arm), so a forced call landing
@@ -1784,6 +1787,7 @@ final class IntelligenceEngine: ObservableObject {
         // short-circuit while it's unchanged. Written ONLY here at the end of a completed run (never on an
         // early guard-return), so an interrupted/failed run can't advance the watermark past unscored data.
         if !wmKey.isEmpty { UserDefaults.standard.set(wmKey, forKey: Self.analyzeWatermarkKey) }
+        diagnosticSink?("re-score: done — scored \(scoredNights.count) night(s) in \(Int(Date().timeIntervalSince(reScoreStart) * 1000)) ms (#1005)", nil)
     }
 
     /// UserDefaults key for the #836 idle-tick gate: the `(count:maxTs)` HR fingerprint the last completed
