@@ -575,9 +575,17 @@ final class Backfiller {
                 // prefix — v25/v26 records run ~84 B and the truncated tail is exactly where the
                 // unmapped motion/HR fields sit), and sample a few more so one log carries enough
                 // records to triangulate offsets. These only ever fire for unmapped firmware.
-                for (i, f) in rejected.prefix(8).enumerated() {
+                let sample = Array(rejected.prefix(8))
+                var emptySkipped = 0
+                for (i, f) in sample.enumerated() {
+                    // #1007: an all-zero frame has no record layout to map, so its hex dump is pure log
+                    // bloat (a strap emitting these produced ~4 MB of all-00). Keep the WARNING count above.
+                    if isEmptyRecordFrame(f) { emptySkipped += 1; continue }
                     let hex = f.map { String(format: "%02x", $0) }.joined()
                     log?("Backfill: rejected frame[\(i)] \(f.count)B: \(hex)")
+                }
+                if emptySkipped > 0 {
+                    log?("Backfill: #1007 \(emptySkipped)/\(sample.count) sampled frame(s) all-zero (empty payload) - hex dump skipped")
                 }
             }
             // Commit the decoded rows FIRST (durable). Doing this before the reject archive means a

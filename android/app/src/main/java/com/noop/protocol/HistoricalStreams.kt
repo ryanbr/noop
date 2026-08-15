@@ -574,6 +574,19 @@ fun rejectedHistoricalRecords(
     }
 }
 
+/**
+ * A rejected history frame whose entire record PAYLOAD is zero — a valid header + trailing CRC wrapping
+ * nothing. Such a frame carries no field layout to reverse-engineer, so the Backfiller skips its (large)
+ * hex dump (#1007: a strap emitting these produced ~4 MB of all-00 in the strap log, ~8 dumps/chunk).
+ * Only the payload between the ~21-byte header and the 4-byte trailing CRC is examined; the size guard
+ * keeps a runt frame from ever reading as "empty". Mirrors the Swift `isEmptyRecordFrame`.
+ */
+fun isEmptyRecordFrame(frame: ByteArray): Boolean {
+    if (frame.size <= 25) return false
+    for (i in 21 until frame.size - 4) if (frame[i].toInt() != 0) return false
+    return true
+}
+
 // MARK: - METADATA classification (port of HistoricalMeta.swift)
 
 /** Classification of a METADATA frame (type 49) for the historical-offload state machine. */

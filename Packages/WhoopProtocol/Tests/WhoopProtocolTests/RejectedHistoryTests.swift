@@ -97,4 +97,17 @@ final class RejectedHistoryTests: XCTestCase {
         let rejected = rejectedHistoricalRecords([good, bad, console], family: .whoop4)
         XCTAssertEqual(rejected, [bad])
     }
+
+    func testIsEmptyRecordFrameFlagsAllZeroPayloadOnly() {
+        // A 104 B frame with header + CRC bytes set but the record payload (21..<count-4) all zero -> empty.
+        var empty = [UInt8](repeating: 0, count: 104)
+        empty[0] = 0xAA; empty[103] = 0x78
+        XCTAssertTrue(isEmptyRecordFrame(empty))
+        // One non-zero byte inside the payload -> not empty.
+        var nonEmpty = empty
+        nonEmpty[50] = 0x01
+        XCTAssertFalse(isEmptyRecordFrame(nonEmpty))
+        // A runt frame (no room for a payload past header+CRC) is never treated as empty.
+        XCTAssertFalse(isEmptyRecordFrame([UInt8](repeating: 0, count: 20)))
+    }
 }

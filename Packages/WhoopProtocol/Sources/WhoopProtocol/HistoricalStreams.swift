@@ -118,6 +118,16 @@ public func rejectedHistoricalRecords(_ rawFrames: [[UInt8]], family: DeviceFami
     }
 }
 
+/// A rejected history frame whose entire record PAYLOAD is zero — a valid header + trailing CRC wrapping
+/// nothing. Such a frame carries no field layout to reverse-engineer, so the Backfiller skips its (large)
+/// hex dump (#1007: a strap emitting these produced ~4 MB of all-`00` in the strap log, ~8 dumps/chunk).
+/// Only the payload between the ~21-byte header and the 4-byte trailing CRC is examined; the size guard
+/// keeps a runt frame from ever reading as "empty". Mirrors the Android `isEmptyRecordFrame`.
+public func isEmptyRecordFrame(_ frame: [UInt8]) -> Bool {
+    guard frame.count > 25 else { return false }
+    return frame[21..<(frame.count - 4)].allSatisfy { $0 == 0 }
+}
+
 /// Turn historical (offload) parsed frames into datastore rows. Port of
 /// interpreter.extract_historical_streams.
 ///

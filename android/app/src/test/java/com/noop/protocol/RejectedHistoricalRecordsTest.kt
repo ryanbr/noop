@@ -92,4 +92,15 @@ class RejectedHistoricalRecordsTest {
         assertEquals(1, rejected.size)
         assertTrue(rejected[0].contentEquals(bad))
     }
+
+    @Test
+    fun isEmptyRecordFrame_flagsAllZeroPayloadOnly() {
+        // A 104 B frame with header + CRC bytes set but the record payload (21..end-4) all zero -> empty.
+        val empty = ByteArray(104).also { it[0] = 0xAA.toByte(); it[103] = 0x78 }
+        assertTrue(isEmptyRecordFrame(empty))
+        // One non-zero byte inside the payload -> not empty.
+        assertTrue(!isEmptyRecordFrame(empty.copyOf().also { it[50] = 0x01 }))
+        // A runt frame (no room for a payload past header+CRC) is never treated as empty.
+        assertTrue(!isEmptyRecordFrame(ByteArray(20)))
+    }
 }

@@ -12,6 +12,7 @@ import com.noop.protocol.HistoricalMeta
 import com.noop.protocol.classifyHistoricalMeta
 import com.noop.protocol.decodeHistorical
 import com.noop.protocol.extractHistoricalStreams
+import com.noop.protocol.isEmptyRecordFrame
 import com.noop.protocol.rejectedHistoricalRecords
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -501,9 +502,17 @@ class Backfiller(
                 // records run ~84 B and the truncated tail is exactly where the unmapped motion/HR
                 // fields sit), and sample a few more so one log carries enough records to triangulate
                 // offsets. These only ever fire for unmapped firmware.
-                rejected.take(8).forEachIndexed { i, f ->
+                val sample = rejected.take(8)
+                var emptySkipped = 0
+                sample.forEachIndexed { i, f ->
+                    // #1007: an all-zero frame has no record layout to map, so its hex dump is pure log
+                    // bloat (a strap emitting these produced ~4 MB of all-00). Keep the WARNING count above.
+                    if (isEmptyRecordFrame(f)) { emptySkipped++; return@forEachIndexed }
                     val hex = f.joinToString("") { "%02x".format(it) }
                     log("Backfill: rejected frame[$i] ${f.size}B: $hex")
+                }
+                if (emptySkipped > 0) {
+                    log("Backfill: #1007 $emptySkipped/${sample.size} sampled frame(s) all-zero (empty payload) - hex dump skipped")
                 }
             }
             // Commit the decoded rows FIRST (durable) — BEFORE the reject archive (#1006, matching the
