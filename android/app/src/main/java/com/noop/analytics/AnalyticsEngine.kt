@@ -43,6 +43,38 @@ import kotlin.math.roundToLong
 object AnalyticsEngine {
 
     /**
+     * Skip the redundant calendar-day re-read in [IntelligenceEngine.analyzeRecent]'s per-day scan
+     * (#997, ryanbr). For a PAST day the night window [nightLo, nightHi] reads through to the NEXT
+     * local midnight, so the calendar day [dayLo, dayHi] is a strict SUBSET of the hr/steps/gravity
+     * streams already in memory — the dayHr/daySteps/dayGravity re-reads (~60 per pass, including the
+     * big ~86k-row HR ones) re-query rows the caller already holds. When the day span is a
+     * non-truncated subset of the night window, return the day's samples by filtering the night list
+     * in memory; return null when the shortcut is unsafe and the caller must read the store directly:
+     *   - TODAY: its calendar day runs past the 18 h night cap ([dayHi] > [nightHi]).
+     *   - a night read that came back at [limit] rows may be truncated INSIDE the day span (ORDER BY
+     *     ts ASC LIMIT drops the LATE rows — exactly where the day sits).
+     * Byte-identical to the direct read: same owner (the caller reads both windows from one device),
+     * same INCLUSIVE [dayLo, dayHi] bounds (matching the DAO's `ts >= from AND ts <= to` range), same
+     * ts-ASC order (the night list came from the SAME ts-ASC DAO method, and filtering preserves
+     * order), and the store's HR coalesce (measured ∪ v26 PPG, #172/#219) dedups on a
+     * range-INDEPENDENT `ts` anti-join, so coalescing-then-filtering equals coalescing over the day
+     * range. The guards are self-protecting — a DST-shifted [dayLo]/[dayHi] simply falls outside the
+     * window and declines — so the shortcut can only ever DECLINE to a direct read, never return wrong
+     * data. Mirrors Swift `AnalyticsEngine.daySliceFromNight`; lives here (like [offWristIntervals]) so
+     * the pure logic is unit-testable. (#997)
+     */
+    fun <T> daySliceFromNight(
+        night: List<T>,
+        nightLo: Long, nightHi: Long,
+        dayLo: Long, dayHi: Long,
+        limit: Int = 200_000,
+        ts: (T) -> Long,
+    ): List<T>? {
+        if (dayLo < nightLo || dayHi > nightHi || night.size >= limit) return null
+        return night.filter { ts(it) in dayLo..dayHi }
+    }
+
+    /**
      * Pair the strap's WRIST_OFF/WRIST_ON events into off-wrist [start, end) intervals for the sleep
      * detector's fractional wear filter (#500; design credited to j0b-dev's #504). Each WRIST_OFF opens
      * an interval that closes at the next WRIST_ON, or at [windowEnd] if the strap is still off at the

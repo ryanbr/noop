@@ -189,7 +189,7 @@ public enum AnalyticsEngine {
     /// `h.ts = p.ts` anti-join, so coalescing-then-filtering equals coalescing over the day range. The
     /// guards are self-protecting — a DST-shifted `dayLo`/`dayHi` simply falls outside the window and
     /// declines — so the shortcut can only ever DECLINE to a direct read, never return wrong data.
-    /// Mirrors Kotlin `IntelligenceEngine.daySliceFromNight`; lives here (like `offWristIntervals`)
+    /// Mirrors Kotlin `AnalyticsEngine.daySliceFromNight`; lives here (like `offWristIntervals`)
     /// so the pure logic is package-testable. (#997)
     public static func daySliceFromNight<T>(_ night: [T],
                                             nightLo: Int, nightHi: Int,

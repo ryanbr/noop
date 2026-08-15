@@ -8,7 +8,7 @@ import XCTest
 /// And the shortcut must DECLINE (nil → the caller reads directly) in the unsafe cases: TODAY's calendar
 /// day runs past the 18 h night cap, and a night read at the stream limit may be truncated inside the day
 /// span. If any of that drifts, samples get attributed to the wrong day / dropped, so this is the safety
-/// net for the read-skip. Mirrors the Android `IntelligenceEngineDaySliceTest` (same bounds fixture).
+/// net for the read-skip. Mirrors the Android `AnalyticsEngineDaySliceTest` (same bounds fixture).
 final class DaySliceFromNightTests: XCTestCase {
 
     private struct S: Equatable { let ts: Int }

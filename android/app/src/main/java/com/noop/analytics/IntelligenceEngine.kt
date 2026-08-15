@@ -566,14 +566,21 @@ object IntelligenceEngine {
             val dayEnd = dayMidnight + SECONDS_PER_DAY - 1
             // Same [owner] as the night window above (I2): the additive day totals must come from the one
             // device that owns the day, never a mix.
-            val dayHr = repo.hrSamples(owner, dayMidnight, dayEnd, STREAM_LIMIT)
-            val daySteps = repo.stepSamples(owner, dayMidnight, dayEnd, STREAM_LIMIT)
-            // Full calendar-day gravity for WORKOUT detection. The night window above ends at
-            // dayStart+12h (≈ noon), so an afternoon/evening workout sits outside it and was only
-            // detected once a later pass re-read it through the next night window , a ~day lag. This
-            // [localMidnight, +24h) read (today: clamped to now by the DAO) lets the detector see the
-            // whole day, so a 5 pm run shows up the same day.
-            val dayGrav = repo.gravitySamples(owner, dayMidnight, dayEnd, STREAM_LIMIT)
+            // #997: for a PAST day the [from, to] night read above already spans this calendar day (to =
+            // nextMidnight ≥ dayEnd), so derive the day streams by filtering the in-memory night lists
+            // instead of re-reading them from the store (~60 redundant reads/pass, incl. the big HR ones).
+            // TODAY (dayEnd past the 18 h cap) and a limit-truncated night read DECLINE (null) → direct
+            // read, so the shortcut only ever skips work, never changes data. Twin of Swift's #997.
+            val dayHr = AnalyticsEngine.daySliceFromNight(hr, from, to, dayMidnight, dayEnd) { it.ts.toLong() }
+                ?: repo.hrSamples(owner, dayMidnight, dayEnd, STREAM_LIMIT)
+            val daySteps = AnalyticsEngine.daySliceFromNight(steps, from, to, dayMidnight, dayEnd) { it.ts }
+                ?: repo.stepSamples(owner, dayMidnight, dayEnd, STREAM_LIMIT)
+            // Full calendar-day gravity for WORKOUT detection. For a PAST day the night window runs to the
+            // next local midnight so the afternoon/evening is already in `grav`; only TODAY (18 h cap) reads
+            // directly, which the slice's `dayHi > nightHi` guard handles — a 5 pm run still shows up the
+            // same day.
+            val dayGrav = AnalyticsEngine.daySliceFromNight(grav, from, to, dayMidnight, dayEnd) { it.ts }
+                ?: repo.gravitySamples(owner, dayMidnight, dayEnd, STREAM_LIMIT)
 
             // CONSUME (#531 / #175): the strap's OWN band sleep_state for the night window as (ts, state)
             // samples, so the H7 morning-stillness guard can confirm a borderline re-onset against the strap's
