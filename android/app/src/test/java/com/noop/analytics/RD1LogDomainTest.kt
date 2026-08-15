@@ -34,8 +34,12 @@ class RD1LogDomainTest {
         days.add(d(29, hrv = 50.0, rhr = 52))   // today: a typical night
 
         val hrv = ReadinessEngine.evaluate(days).signals.first { it.key == "hrv" }
-        // Log domain baselines against the geometric mean (51). Raw-ms z would report "50 vs 54 ms".
-        assertEquals("50 vs 51 ms", hrv.evidence)
+        // Log domain baselines against a GEOMETRIC center (49 ms), well below the arithmetic mean (54)
+        // a raw-ms z would report. Under RD2 the center is the recency-weighted, Winsor-clamped EWMA
+        // (Baselines spine, reject off): the 8 recent 85 ms nights nudge it up from the 42 ms cluster
+        // but Winsorization caps their pull, so it lands at 49 — still geometric, not the tail-inflated
+        // arithmetic 54. Byte-identical to the Swift RD1LogDomainTests value.
+        assertEquals("50 vs 49 ms", hrv.evidence)
         // 50 sits at the typical night → neutral, read against a representative (not tail-inflated) baseline.
         assertEquals(ReadinessEngine.Flag.NEUTRAL, hrv.flag)
     }

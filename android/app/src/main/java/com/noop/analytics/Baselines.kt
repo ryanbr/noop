@@ -162,6 +162,18 @@ object Baselines {
             minVal = 0.0, maxVal = 100.0, floorSpread = 5.0,
             halfLifeB = 14.0, halfLifeS = 21.0,
         ),
+        // Readiness HRV baseline, folded in the LOG domain (ln ms) with hard-outlier rejection OFF
+        // (RD2 · the window-fold spine mode — see update's `rejectHardOutliers`). ReadinessEngine
+        // z-scores lnRMSSD (RD1: HRV is right-skewed), so these bounds/floor are in LN(ms) units — NOT
+        // the raw-ms "hrv" config above (which the RecoveryScorer folds linearly, untouched).
+        // minVal/maxVal = ln(8)/ln(250), the plausible HRV band in ln. floorSpread 0.08 (ln) sits just
+        // below a real wearer's own ln-HRV night-to-night spread (~0.10), so personal spread drives the
+        // z while an ultra-stable baseline is floored against saturation. Byte-identical to the Swift
+        // `readiness_hrv_ln` config.
+        "readiness_hrv_ln" to MetricCfg(
+            minVal = 2.079, maxVal = 5.521, floorSpread = 0.08,
+            halfLifeB = 14.0, halfLifeS = 21.0,
+        ),
     )
 
     /** Convenience accessor for the standard HRV config. */
@@ -169,6 +181,10 @@ object Baselines {
 
     /** Convenience accessor for the standard resting-HR config. */
     val restingHRCfg: MetricCfg get() = metricCfg.getValue("resting_hr")
+
+    /** Readiness HRV baseline config — folded in the LOG domain (ln ms) with hard-outlier rejection
+     *  OFF. See the `readiness_hrv_ln` comment above; distinct from the raw-ms [hrvCfg]. */
+    val readinessHRVLnCfg: MetricCfg get() = metricCfg.getValue("readiness_hrv_ln")
 
     /** Convenience accessor for the standard respiration config. */
     val respCfg: MetricCfg get() = metricCfg.getValue("resp")
@@ -234,8 +250,17 @@ object Baselines {
      * - `value == null` or out-of-range: skip-and-hold (carry forward).
      * - hard outlier (> HARD_OUTLIER_K × spread): seen but not folded.
      * - otherwise: Winsorized EWMA center + EWMA-abs-dev spread update.
+     *
+     * `rejectHardOutliers` (default true) can turn the hard-outlier gate OFF for a TRAILING-WINDOW
+     * re-fold — where the same window is re-folded every call and a *recent sustained* shift lands at
+     * the window's end (past the young grace period), so rejection would discard a real new normal as a
+     * string of "outliers" (Readiness's device-swap / supplement-onset failure mode). With it off the
+     * Winsorization below STILL damps a single freak night (clamped, not folded raw) but a sustained
+     * shift is followed instead of rejected — the incremental-fold (reject on, RecoveryScorer) vs
+     * window-fold (reject off, Readiness) distinction. Byte-identical to the Swift `rejectHardOutliers`.
      */
-    fun update(state: BaselineState?, value: Double?, cfg: MetricCfg): BaselineState {
+    fun update(state: BaselineState?, value: Double?, cfg: MetricCfg,
+               rejectHardOutliers: Boolean = true): BaselineState {
         val lb = lambda(cfg.halfLifeB)
         val ls = lambda(cfg.halfLifeS)
 
@@ -284,7 +309,7 @@ object Baselines {
         // Suspending this during early life is the core anti-anchoring fix — a high seed with a
         // floor-tight spread would otherwise reject the user's real, lower readings as "outliers"
         // (a true 54ms vs an anchored ~90ms baseline is >5× the floor spread).
-        if (state.nValid >= minNightsSeed && !isYoung) {
+        if (rejectHardOutliers && state.nValid >= minNightsSeed && !isYoung) {
             val dev = abs(value - state.baseline)
             if (dev > hardOutlierK * state.spread) {
                 return BaselineState(
@@ -330,9 +355,10 @@ object Baselines {
      * Replay an ordered sequence of nightly values (oldest first) to build state.
      * `null` entries are treated as missing nights (skip-and-hold).
      */
-    fun foldHistory(values: List<Double?>, cfg: MetricCfg): BaselineState {
+    fun foldHistory(values: List<Double?>, cfg: MetricCfg,
+                    rejectHardOutliers: Boolean = true): BaselineState {
         var state: BaselineState? = null
-        for (v in values) state = update(state, v, cfg)
+        for (v in values) state = update(state, v, cfg, rejectHardOutliers)
         state?.let { return it }
         val seed = (cfg.minVal + cfg.maxVal) / 2.0
         return BaselineState(

@@ -176,6 +176,7 @@ object ReadinessEngine {
             key = "hrv", label = "HRV",
             unit = "ms", decimals = 0,
             higherIsBetter = true,
+            cfg = Baselines.readinessHRVLnCfg,   // RD2: ln-space spine, reject off
             logDomain = true,   // RD1: lnRMSSD — HRV is right-skewed
             goodText = "above your baseline - well recovered",
             neutralText = "in your normal range",
@@ -191,6 +192,7 @@ object ReadinessEngine {
             key = "rhr", label = "Resting HR",
             unit = "bpm", decimals = 0,
             higherIsBetter = false,
+            cfg = Baselines.restingHRCfg,   // RD2: raw-bpm spine, reject off
             goodText = "at or below baseline",
             neutralText = "in your normal range",
             watchText = "running a little high",
@@ -289,6 +291,7 @@ object ReadinessEngine {
     private fun zSignal(
         value: Double?, baseline: List<Double>,
         key: String, label: String, unit: String, decimals: Int, higherIsBetter: Boolean,
+        cfg: MetricCfg,
         logDomain: Boolean = false,
         goodText: String, neutralText: String,
         watchText: String, badText: String,
@@ -302,11 +305,21 @@ object ReadinessEngine {
         // outlier-inflated arithmetic mean.
         val tv = if (logDomain) ln(maxOf(value, 1.0)) else value
         val tb = if (logDomain) baseline.map { ln(maxOf(it, 1.0)) } else baseline
-        val m = mean(tb) ?: return null
-        val sd = sampleSD(tb) ?: return null
-        if (sd <= 0) return null
+        // RD2: fold the trailing baseline through the shared Winsorized-EWMA spine — recency-weighted,
+        // σ-floored (a tight baseline can't saturate the z), and Winsor-clamped so a single freak night
+        // is DAMPED not folded raw — instead of a flat mean + sample SD. Hard-outlier REJECTION is off
+        // (`rejectHardOutliers = false`): a re-folded trailing window must ADAPT to a recent sustained
+        // shift (fitness change / device swap) rather than reject the new normal as a run of outliers —
+        // the window-fold vs incremental-fold distinction, validated on real HRV history. `cfg` is in
+        // the SAME space as `tb` (ln for HRV, linear for RHR); center + spread come back σ-floored.
+        // Mirrors Swift ReadinessEngine.zSignal.
+        val state = Baselines.foldHistory(tb, cfg, rejectHardOutliers = false)
+        if (!state.usable) return null
+        val sigma = maxOf(1.253 * state.spread, 1e-9)   // robust σ from the EWMA-abs-dev spread
+        if (sigma <= 0) return null
+        val m = state.baseline
         // Orient z so positive always means "better".
-        val z = (if (higherIsBetter) (tv - m) else (m - tv)) / sd
+        val z = (if (higherIsBetter) (tv - m) else (m - tv)) / sigma
         val flag: Flag
         val text: String
         when {
