@@ -820,10 +820,9 @@ struct LiquidTodayView: View {
                      value: unitText(displayDay?.restingHr.map(Double.init), card.unit),
                      tint: StrandPalette.metricRose, frac: fracOver(displayDay?.restingHr.map(Double.init), 100))
         case .respiratory:
-            let resp = displayDay?.respRateBpm ?? vitalsDay?.respRateBpm ?? respDay?.respRateBpm
             cardLink(.metric("resp_rate"), title: card.title, sub: card.subtitle,
-                     value: unitText(resp, card.unit, decimals: 1),
-                     tint: StrandPalette.accent, frac: fracOver(resp, 24))
+                     value: unitText(displayDay?.respRateBpm, card.unit, decimals: 1),
+                     tint: StrandPalette.accent, frac: fracOver(displayDay?.respRateBpm, 24))
         case .steps:
             // Route by the EXACT (key, source) the tile chose to display — measured my-whoop, imported
             // apple-health, or the my-whoop estimate — NOT by bare key (bare "steps" resolves to
