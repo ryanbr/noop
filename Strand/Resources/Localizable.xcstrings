@@ -199486,6 +199486,70 @@
           }
         }
       }
+    },
+    "Add your waist to unlock your VO₂max": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Taille eintragen, um deine VO₂max freizuschalten"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add your waist to unlock your VO₂max"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añade tu cintura para desbloquear tu VO₂máx"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajoute ton tour de taille pour débloquer ta VO₂max"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiungi il girovita per sbloccare la tua VO₂max"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Podaj obwód talii, aby odblokować VO₂max"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adiciona a tua cintura para desbloquear a tua VO₂máx"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Укажите обхват талии, чтобы открыть VO₂max"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加腰围以解锁你的最大摄氧量"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新增腰圍以解鎖你的最大攝氧量"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

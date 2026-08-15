@@ -1973,4 +1973,6 @@
     <string name="l10n_settings_screen_custom_hr_zones_84736ca5">Zonas de RH personalizadas</string>
     <string name="l10n_settings_screen_custom_hr_zones_hint_f7fa3bae">Define os batimentos em que cada zona começa. Desativa para repor as zonas predefinidas por percentagem da frequência máxima.</string>
     <string name="l10n_settings_screen_zone_starts_a0a60d45">Início da zona %1$d</string>
+    <string name="l10n_health_screen_add_your_waist_to_unlock_your_vo_max_94c646cb">Adiciona a tua cintura para desbloquear a tua VO₂máx</string>
+    <string name="l10n_health_screen_fix_in_settings_d7472915">Corrigir nas Definições</string>
 </resources>

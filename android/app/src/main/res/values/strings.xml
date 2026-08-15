@@ -2006,4 +2006,6 @@
     <string name="l10n_settings_screen_custom_hr_zones_84736ca5">Custom HR zones</string>
     <string name="l10n_settings_screen_custom_hr_zones_hint_f7fa3bae">Set the BPM where each zone begins. Turn off to restore the default percentage-of-max zones.</string>
     <string name="l10n_settings_screen_zone_starts_a0a60d45">Zone %1$d starts</string>
+    <string name="l10n_health_screen_add_your_waist_to_unlock_your_vo_max_94c646cb">Add your waist to unlock your VO₂max</string>
+    <string name="l10n_health_screen_fix_in_settings_d7472915">Fix in Settings</string>
 </resources>

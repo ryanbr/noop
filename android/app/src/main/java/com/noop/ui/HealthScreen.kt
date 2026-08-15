@@ -6,6 +6,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -109,6 +111,7 @@ fun HealthScreen(
     onVitalClick: (String) -> Unit = {},
     onOpenLabBook: () -> Unit = {},
     onOpenFusedRecord: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val profile = remember { ProfileStore.from(context.applicationContext) }
@@ -196,7 +199,7 @@ fun HealthScreen(
             // age), with an honest readiness checklist behind a tap. Authoritative value comes from the
             // metricSeries the IntelligenceEngine writes; readiness is derived from what this screen sees.
             item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
-            item { FitnessAgeSection(vm = vm, days = days, profile = profile) }
+            item { FitnessAgeSection(vm = vm, days = days, profile = profile, onOpenSettings = onOpenSettings) }
             item { VitalitySection(vm = vm, days = days, profile = profile) }
             // SKIN TEMPERATURE (v5 pillar) — Cycle awareness (opt-in), Body clock + an illness heads-up,
             // each from a pure engine RESULT the ViewModel publishes. A section of Health, never its own
@@ -642,7 +645,7 @@ private fun rememberFitnessReadiness(days: List<DailyMetric>, profile: ProfileSt
 }
 
 @Composable
-private fun FitnessAgeSection(vm: AppViewModel, days: List<DailyMetric>, profile: ProfileStore) {
+private fun FitnessAgeSection(vm: AppViewModel, days: List<DailyMetric>, profile: ProfileStore, onOpenSettings: () -> Unit = {}) {
     val context = LocalContext.current
     // Latest weekly value + its optional VO₂max companion, read once (metricSeries has no Flow, so we
     // re-read whenever the merged history changes — a fresh sync/import is what moves these).
@@ -685,8 +688,32 @@ private fun FitnessAgeSection(vm: AppViewModel, days: List<DailyMetric>, profile
                 onHowAccurate = { showChecklist = !showChecklist },
                 checklistOpen = showChecklist,
             )
+            // #1: the weekly Fitness Age computed but VO₂max didn't — the one missing input is a waist
+            // measurement. Key on waist being unset (not vo2max == null, which is transiently null right
+            // after waist is set) — prompt for it (tap → Settings) instead of silently omitting the number.
+            if (profile.waistCm <= 0.0) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable(onClick = onOpenSettings)
+                        .padding(vertical = Metrics.space8),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Metrics.space8),
+                ) {
+                    Icon(Icons.Filled.MonitorHeart, contentDescription = null,
+                        tint = Palette.metricCyan, modifier = Modifier.size(16.dp))
+                    Text(
+                        uiString(R.string.l10n_health_screen_add_your_waist_to_unlock_your_vo_max_94c646cb),
+                        style = NoopType.footnote, color = Palette.textSecondary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null,
+                        tint = Palette.textTertiary, modifier = Modifier.size(16.dp))
+                }
+            }
             if (showChecklist) {
-                FitnessReadinessCard(readiness = readiness, headed = false)
+                FitnessReadinessCard(readiness = readiness, headed = false, onOpenSettings = onOpenSettings)
             }
         } else {
             // No weekly value yet — lead with a concrete countdown, then the checklist. The refresh button
@@ -1002,6 +1029,7 @@ private fun FitnessReadinessCard(
     // immediate Fitness Age recompute; [refreshing] swaps it for a spinner while that runs.
     onRefresh: (() -> Unit)? = null,
     refreshing: Boolean = false,
+    onOpenSettings: (() -> Unit)? = null,
 ) {
     val drivesAge = readiness.items
         .filter { it.role == FitnessReadinessRole.DRIVES_AGE }
@@ -1050,8 +1078,8 @@ private fun FitnessReadinessCard(
                 }
             }
 
-            ReadinessGroup(title = uiString(R.string.l10n_health_screen_drives_your_fitness_age_9d0d1219), items = drivesAge)
-            ReadinessGroup(title = uiString(R.string.l10n_health_screen_unlocks_your_vo_max_b3c67dda), items = unlocksVo2)
+            ReadinessGroup(title = uiString(R.string.l10n_health_screen_drives_your_fitness_age_9d0d1219), items = drivesAge, onOpenSettings = onOpenSettings)
+            ReadinessGroup(title = uiString(R.string.l10n_health_screen_unlocks_your_vo_max_b3c67dda), items = unlocksVo2, onOpenSettings = onOpenSettings)
 
             Text(
                 uiString(R.string.l10n_health_screen_weight_height_and_waist_add_a_fd2699f5),
@@ -1071,16 +1099,20 @@ private fun readinessSortKey(item: FitnessReadinessItem): Int = when {
 }
 
 @Composable
-private fun ReadinessGroup(title: String, items: List<FitnessReadinessItem>) {
+private fun ReadinessGroup(title: String, items: List<FitnessReadinessItem>, onOpenSettings: (() -> Unit)? = null) {
     if (items.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.space8)) {
         Overline(title)
-        items.forEach { ReadinessRow(it) }
+        items.forEach { ReadinessRow(it, onOpenSettings) }
     }
 }
 
 @Composable
-private fun ReadinessRow(item: FitnessReadinessItem) {
+private fun ReadinessRow(item: FitnessReadinessItem, onOpenSettings: (() -> Unit)? = null) {
+    // #2: a still-unsatisfied input that CAN be filled in Settings (age/sex/body metrics/waist) gets a
+    // "Fix in Settings" tap; strap-driven inputs (resting-HR/activity coverage) don't. Mirrors iOS.
+    val fixable = onOpenSettings != null && item.status != FitnessReadinessStatus.SATISFIED &&
+        item.key in setOf("age", "sex", "bodyMetrics", "waist")
     val glyph = when (item.status) {
         FitnessReadinessStatus.SATISFIED -> "✓"
         FitnessReadinessStatus.PARTIAL -> "⚠"
@@ -1110,13 +1142,22 @@ private fun ReadinessRow(item: FitnessReadinessItem) {
             color = Palette.textPrimary,
             modifier = Modifier.weight(1f),
         )
-        Text(
-            item.detail,
-            style = NoopType.footnote,
-            color = Palette.textTertiary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        if (fixable) {
+            Text(
+                uiString(R.string.l10n_health_screen_fix_in_settings_d7472915),
+                style = NoopType.footnote,
+                color = Palette.accent,
+                modifier = Modifier.clickable { onOpenSettings?.invoke() },
+            )
+        } else {
+            Text(
+                item.detail,
+                style = NoopType.footnote,
+                color = Palette.textTertiary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 

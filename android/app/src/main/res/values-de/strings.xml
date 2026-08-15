@@ -1994,4 +1994,6 @@
     <string name="l10n_settings_screen_custom_hr_zones_84736ca5">Eigene HF-Zonen</string>
     <string name="l10n_settings_screen_custom_hr_zones_hint_f7fa3bae">Lege die Herzfrequenz fest, bei der jede Zone beginnt. Ausschalten, um die Standardzonen in Prozent der maximalen Herzfrequenz wiederherzustellen.</string>
     <string name="l10n_settings_screen_zone_starts_a0a60d45">Beginn Zone %1$d</string>
+    <string name="l10n_health_screen_add_your_waist_to_unlock_your_vo_max_94c646cb">Taille eintragen, um deine VO₂max freizuschalten</string>
+    <string name="l10n_health_screen_fix_in_settings_d7472915">In Einstellungen beheben</string>
 </resources>

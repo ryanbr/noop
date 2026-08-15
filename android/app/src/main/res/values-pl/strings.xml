@@ -1973,4 +1973,6 @@
     <string name="l10n_settings_screen_custom_hr_zones_84736ca5">Własne strefy HR</string>
     <string name="l10n_settings_screen_custom_hr_zones_hint_f7fa3bae">Ustaw tętno, przy którym zaczyna się każda strefa. Wyłącz, aby przywrócić domyślne strefy oparte na procencie tętna maksymalnego.</string>
     <string name="l10n_settings_screen_zone_starts_a0a60d45">Początek strefy %1$d</string>
+    <string name="l10n_health_screen_add_your_waist_to_unlock_your_vo_max_94c646cb">Podaj obwód talii, aby odblokować VO₂max</string>
+    <string name="l10n_health_screen_fix_in_settings_d7472915">Popraw w Ustawieniach</string>
 </resources>

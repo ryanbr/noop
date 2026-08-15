@@ -725,6 +725,9 @@ private struct FitnessAgeSection: View {
     @ViewBuilder private var content: some View {
         if let age = fitnessAge {
             heroCard(age: age)
+            // Prompt on WAIST being unset (the sole gate), not on vo2max == nil — the latter can be
+            // transiently nil right after waist is set, before the recompute writes vo2max_est.
+            if profile.waistCm <= 0 { vo2maxUnlockPrompt }
             if showReadiness {
                 ReadinessChecklistCard(readiness: readiness,
                                        lead: nil,
@@ -777,6 +780,29 @@ private struct FitnessAgeSection: View {
     /// The shown-value hero: a scenic Charge-world backdrop, the big Fitness Age number, a
     /// younger/older-than-your-age subtitle, the optional VO₂max, the ±band disclaimer, and the two
     /// affordances (tap-through to the trend + the "How accurate is this?" disclosure).
+    /// Shown when the Fitness Age computes but VO₂max doesn't — the one missing input is a waist
+    /// measurement (the Nes waist-variant needs it). Tapping opens Settings so it's a one-step fix,
+    /// instead of the number silently never appearing (a common "where's my VO₂max?" question).
+    private var vo2maxUnlockPrompt: some View {
+        Button { fitnessSheet = .settings } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "lungs.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(StrandPalette.metricCyan)
+                Text("Add your waist to unlock your VO₂max")
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(StrandPalette.textTertiary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens Settings to add your waist measurement")
+    }
+
     private func heroCard(age: Double) -> some View {
         let shown = Int(age.rounded())
         let delta = Double(profile.age) - age        // +ve = fitness age younger than chronological
