@@ -68,7 +68,13 @@ object OuraSessionReconciler {
      *  SLEEP-DAY ([existing]). The caller must pass only same-sleep-day rows; this does the proximity +
      *  completeness adjudication. Overlap OR gap < [mergeGapS] => same session; [new] at least as complete
      *  (`codeCount >=`) as every same-session it hits => Replace them (ties break toward [new]); else a
-     *  stored same-session is fuller => Skip; no same-session => Insert. */
+     *  stored same-session is fuller => Skip; no same-session => Insert.
+     *
+     *  Known limitation (not in the corpus, needs an implausible shape): a [new] that reaches within
+     *  [mergeGapS] of TWO mutually-distinct stored sessions AND is fuller than both would Replace them
+     *  both — merging a nap and a night. That needs one session spanning the nap->night gap and longer
+     *  than the night, which Oura hypnograms don't produce; if hardware ever shows it, gate Replace on
+     *  the matched set being mutually same-session too. */
     fun reconcile(
         new: SessionWindow,
         existing: List<SessionWindow>,

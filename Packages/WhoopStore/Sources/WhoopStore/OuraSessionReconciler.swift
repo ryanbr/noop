@@ -86,6 +86,12 @@ public enum OuraSessionReconciler {
     ///   (ties break toward `new`, so the re-anchor mode collapses to the latest/refined onset).
     /// - otherwise a stored same-session is fuller ⇒ `.skip` `new`.
     /// - no same-session ⇒ `.insert` (a distinct session — e.g. a nap hours away).
+    ///
+    /// Known limitation (not seen in the corpus, requires an implausible shape): a `new` that reaches
+    /// within `mergeGapS` of TWO mutually-distinct stored sessions AND is fuller than both would
+    /// `.replace` them both — merging a nap and a night. That needs a single session spanning the
+    /// nap→night gap and longer than the night, which Oura hypnograms don't produce; if a hardware
+    /// capture ever shows it, gate `.replace` on the matched set being mutually same-session too.
     public static func reconcile(new: SessionWindow,
                                  existing: [SessionWindow],
                                  mergeGapS: Int = defaultMergeGapSeconds) -> Decision {
