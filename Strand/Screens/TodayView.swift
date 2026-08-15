@@ -202,6 +202,13 @@ struct TodayView: View {
     // Imperial/Metric display preference (D#103). Only the Weight tile carries a convertible unit here.
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
     private var unitSystem: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .metric }
+    /// °C / °F for the Skin Temp card, resolved the way every other screen resolves it (`FullDayChartView`,
+    /// `MetricExplorerView`, Liquid Today): the explicit override when set, else derived from the unit
+    /// system. This screen used to print a bare `%+.1f°` and was the last one ignoring the preference.
+    @AppStorage(UnitPrefs.temperatureKey) private var temperatureRaw = ""
+    private var temperatureUnit: TemperatureUnit {
+        UnitPrefs.resolveTemperature(system: unitSystem, override: temperatureRaw)
+    }
     // Day-cycle scene backdrop (#698). Default ON. When the user turns it off in Settings → Appearance,
     // Today drops the SceneScreenBackground and falls back to the plain dark surfaceBase canvas. The
     // cards already sit on an opaque canvas, so readability is unchanged either way.
@@ -550,6 +557,15 @@ struct TodayView: View {
     private var lastSkinTempDay: DailyMetric? {
         guard selectedDayOffset == 0 else { return nil }
         return Repository.lastSkinTempDay(days: repo.days, todayKey: displayDay?.day ?? selectedDayKey)
+    }
+
+    /// PER-FIELD respiratory carry, and the only one of these that is STALENESS-BOUNDED
+    /// (`Baselines.vitalCarryDays`). SpO₂ and skin temperature are sparse or import-fed, so last-known-of-
+    /// any-age is the honest answer for them. Respiration is measured every night, so a value that old is
+    /// not a missed night — it is a number nobody measured, printed where today's belongs (#1331).
+    private var lastRespDay: DailyMetric? {
+        guard selectedDayOffset == 0 else { return nil }
+        return Repository.lastRespDay(days: repo.days, todayKey: displayDay?.day ?? selectedDayKey)
     }
 
     /// Pure carry-over selector behind `lastScoredRecoveryDay`, extracted so the gate + selection can be
@@ -2380,14 +2396,19 @@ struct TodayView: View {
             #endif
             return withUnit(d?.restingHr.map { "\($0)" } ?? "—")
         case .respiratory:
-            // PER-FIELD carry: today → recovery-INDEPENDENT vitals carry → the sparkline tail. The
-            // vitals carry (not the recovery-gated `lastScoredRecoveryDay`) feeds respiratory so a
-            // night with real R-R but a null recovery still carries, matching the Android dashboard
-            // card (`day?.respRateBpm ?: vitalsDay?.respRateBpm`). The sparkline tail is the last
-            // resort so a sparse-but-recent value still reads.
+            // PER-FIELD carry: today → the STALENESS-BOUNDED prior night (`lastRespDay`). Recovery-
+            // independent, so a night with real R-R but a null recovery still carries.
+            //
+            // Both older fallbacks are gone on purpose. `lastVitalsDay` picks the newest row with ANY
+            // vital and has no age bound at all, and `sparks["resp_rate"].last` is the same
+            // `DailyMetric.respRateBpm` column reached through the series, also unbounded — the two
+            // "latest vital" resolvers that between them printed one CSV import's last value, 15.6, as
+            // today's respiratory rate for a fortnight (#1331). Nothing within the bound is lost: the
+            // bounded carry reads the same column, so anything the tail could still surface is by
+            // definition older than the window deliberately excludes. A gap now reads "—", which is the
+            // truthful answer when nobody measured.
             return withUnit(d?.respRateBpm.map { String(format: "%.1f", $0) }
-                            ?? lastVitalsDay?.respRateBpm.map { String(format: "%.1f", $0) }
-                            ?? sparks["resp_rate"]?.last.map { String(format: "%.1f", $0) } ?? "—")
+                            ?? lastRespDay?.respRateBpm.map { String(format: "%.1f", $0) } ?? "—")
         case .bloodOxygen:
             // PER-FIELD carry: today → whole-row vitals carry → the last row that actually HAS a reading
             // (computed "-noop" rows write spo2Pct = nil), so this card agrees with the Key Metrics tile
@@ -2401,10 +2422,18 @@ struct TodayView: View {
             }
             return "—"
         case .skinTemp:
-            // Stored as a deviation from baseline (°C); show it signed so +/- reads honestly. Same per-field
-            // carry as Blood Oxygen.
-            return (d?.skinTempDevC ?? lastVitalsDay?.skinTempDevC ?? lastSkinTempDay?.skinTempDevC)
-                .map { String(format: "%+.1f°", $0) } ?? "—"
+            // The column is BIMODAL (#622): the live BLE pipeline stores a signed deviation from the
+            // personal baseline (±°C), while CSV / Health imports store an absolute wrist reading (~30-35 °C).
+            // The old `%+.1f°` here printed both as a deviation, so an imported night read "+33.4°" — a
+            // deviation nobody could have — and it ignored the °C/°F preference this screen was the last
+            // one not to honour. `SkinTempDisplay` is the shared resolver every other surface already uses
+            // (Liquid Today, VitalSignsSummary, MetricCatalog): it tells the two kinds apart, signs only the
+            // deviation, and converts a DELTA by the scale factor alone rather than the absolute formula.
+            // The card's own unit is deliberately empty — the value carries "°C" / "Δ°F" itself.
+            // Same per-field carry as Blood Oxygen; both are sparse enough that an old reading is honest.
+            return Self.skinTempCardValue(
+                d?.skinTempDevC ?? lastVitalsDay?.skinTempDevC ?? lastSkinTempDay?.skinTempDevC,
+                fahrenheit: temperatureUnit == .fahrenheit)
         case .sleep:
             return sleepValue(d)
         case .steps:
@@ -4586,6 +4615,13 @@ struct TodayView: View {
     static func emptyVitalCaption(unit: String, isToday: Bool) -> String? {
         guard isToday else { return nil }
         return String(localized: "After tonight's sleep")
+    }
+
+    /// The Skin Temp card's value, extracted so the bimodal-column decision can be unit-tested without a
+    /// live view. Nil (no reading anywhere in the carry chain) reads as an em-dash rather than a number.
+    static func skinTempCardValue(_ value: Double?, fahrenheit: Bool) -> String {
+        guard let value else { return "—" }
+        return SkinTempDisplay.format(value, fahrenheit: fahrenheit)
     }
 
     /// Pure copy/gate behind `buildingHint`, extracted so it can be unit-tested without a live view.
