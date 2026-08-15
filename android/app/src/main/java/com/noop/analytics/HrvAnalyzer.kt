@@ -500,16 +500,6 @@ object HrvAnalyzer {
         return dups
     }
 
-    /** #550: coverage AFTER collapsing SAME-SECOND near-duplicate beats (equal ts AND |Δrr| ≤ [rrTolMs])
-     *  to a single representative — a PREVIEW of what an R-R de-duplication fix would achieve, for the
-     *  always-on #257 diag ONLY. It does NOT feed the shipped nightly HRV. On clean data (no same-second
-     *  duplicates) it equals [rrCoverage]; when a live+historical merge double-stamps the same beat WITHIN
-     *  one second, it falls toward ~1. If it stays well above 1, the duplication is CROSS-second (the two
-     *  copies land in adjacent seconds), which a same-second collapse cannot catch — telling us the real
-     *  fix must reconcile the two ingest paths rather than dedup within a second. The collapse is
-     *  deliberately same-second-ONLY: R-R ts are stored at second resolution, and at rest genuine
-     *  consecutive beats are ~1 s apart, so collapsing ACROSS a second would drop real beats. Deterministic
-     *  (ts, rr, index) ordering. Byte-parity twin of Swift `HRVAnalyzer.collapsedCoverage`. */
     /**
      * #1008/#1118/#1331 SHADOW de-dup: collapse the WHOOP 4.0 R-R over-count. A same-second beat whose
      * value is within [rrTolMs] of one already kept that second (exact duplicates AND the two-optical-
@@ -539,6 +529,16 @@ object HrvAnalyzer {
         return Pair(keptTs, keptRr)
     }
 
+    /** #550: coverage AFTER collapsing SAME-SECOND near-duplicate beats (equal ts AND |Δrr| ≤ [rrTolMs])
+     *  to a single representative — a PREVIEW of what an R-R de-duplication fix would achieve, for the
+     *  always-on #257 diag ONLY. It does NOT feed the shipped nightly HRV. On clean data (no same-second
+     *  duplicates) it equals [rrCoverage]; when a live+historical merge double-stamps the same beat WITHIN
+     *  one second, it falls toward ~1. If it stays well above 1, the duplication is CROSS-second (the two
+     *  copies land in adjacent seconds), which a same-second collapse cannot catch — telling us the real
+     *  fix must reconcile the two ingest paths rather than dedup within a second. The collapse is
+     *  deliberately same-second-ONLY: R-R ts are stored at second resolution, and at rest genuine
+     *  consecutive beats are ~1 s apart, so collapsing ACROSS a second would drop real beats. Deterministic
+     *  (ts, rr, index) ordering. Byte-parity twin of Swift `HRVAnalyzer.collapsedCoverage`. */
     fun collapsedCoverage(tsSec: List<Long>, rrMs: List<Double>, rrTolMs: Double = 30.0): Double {
         val n = minOf(tsSec.size, rrMs.size)
         if (n < 2) return 0.0
