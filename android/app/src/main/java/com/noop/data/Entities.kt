@@ -619,6 +619,12 @@ data class PpgWaveformSampleEntity(
  * Instrument-first + bounded: written only when raw capture is enabled, and pruned to a rolling recent
  * window ([WhoopRepository.RAW_IMU_RETENTION_ROWS]). Twin of the GRDB `rawImuSample` table. Natural key
  * (deviceId, ts) = one row per strap-second.
+ *
+ * CONSUMER STATUS (#978): deliberately none yet — instrument-first, the same stance as `v18AuxSample`. The
+ * writer runs only with raw capture enabled + a 5/MG deep-data unlock; nothing scores, gates or shows a row.
+ * The [WhoopRepository.rawImuSamples] / [WhoopDao.rawImuSamples] reader is intentionally dormant (zero
+ * callers) — the eventual cross-check seam, NOT dead code, so do not delete it. The GRDB twin has no reader
+ * yet by the same rule: one lands WITH a validated consumer, not before.
  */
 @Entity(tableName = "rawImuSample", primaryKeys = ["deviceId", "ts"])
 data class RawImuSampleEntity(

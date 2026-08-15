@@ -117,7 +117,9 @@ interface WhoopDao : DeviceRegistryDao {
     )
     suspend fun pruneRawImu(deviceId: String, keep: Int)
 
-    /** RAW 5/MG IMU buffers in [from, to] (ascending), packed i16 BLOB. (#423) */
+    /** RAW 5/MG IMU buffers in [from, to] (ascending), packed i16 BLOB. (#423)
+     *  Intentionally dormant — zero callers, retained for the eventual cross-check (see [RawImuSampleEntity]
+     *  CONSUMER STATUS, #978). Not dead code; do not delete. */
     @Query(
         "SELECT * FROM rawImuSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
             "ORDER BY ts ASC LIMIT :limit"

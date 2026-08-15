@@ -922,7 +922,9 @@ class WhoopRepository(
         dao.pruneRawImu(deviceId, RAW_IMU_RETENTION_ROWS)
     }
 
-    /** #423: raw 5/MG IMU buffers in [from, to] as the decoded i16 columns [ax…az,gx…gz] (100/axis). */
+    /** #423: raw 5/MG IMU buffers in [from, to] as the decoded i16 columns [ax…az,gx…gz] (100/axis).
+     *  Intentionally dormant — zero callers, retained for the eventual cross-check (see [RawImuSampleEntity]
+     *  CONSUMER STATUS, #978). Not dead code; do not delete. */
     suspend fun rawImuSamples(deviceId: String, from: Long, to: Long, limit: Int = DEFAULT_LIMIT):
         List<Pair<Long, ShortArray>> =
         dao.rawImuSamples(deviceId, from, to, limit)
