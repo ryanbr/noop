@@ -1221,12 +1221,14 @@ private struct VitalsSection: View {
     // #103: SpO₂ candidate @82 nightly means from metricSeries, loaded when the experimental toggle is ON.
     // Empty when the toggle is OFF or no candidate data exists (WHOOP 4.0 has no v18 aux stream).
     @State private var spo2CandidateByDay: [String: Double] = [:]
+    @State private var hrvOverCountByDay: [String: Double] = [:]   // #1118
 
     var body: some View {
         let readings = BodyVitalSigns.readings(
             sourceRows: repo.vitalMetricRows,
             temperatureUnit: temperatureUnit,
-            spo2CandidateByDay: spo2CandidateByDay
+            spo2CandidateByDay: spo2CandidateByDay,
+            hrvOverCountByDay: hrvOverCountByDay
         )
         VStack(alignment: .leading, spacing: NoopMetrics.gap) {
             SectionHeader("Vital Signs", overline: "Latest", trailing: BodyVitalSigns.latestDayLabel(readings))
@@ -1251,6 +1253,12 @@ private struct VitalsSection: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .task(id: PuffinExperiment.spo2CandidateDisplayEnabled) {
+            // #1118: load the per-night HRV over-count flags (always — no toggle) so the HRV tile can
+            // caption an over-counted 4.0 night's reading "unverified". The engine writes "hrv_rr_overcount"
+            // (1/0) under the "-noop" computed device ID; `exploreSeries` with source "my-whoop" reads it
+            // from the computed metricSeries. Absent/0 on a clean or imported night → no caveat.
+            let ocPts = await repo.exploreSeries(key: "hrv_rr_overcount", source: "my-whoop", days: 14)
+            hrvOverCountByDay = Dictionary(ocPts.map { ($0.day, $0.value) }, uniquingKeysWith: { a, _ in a })
             // #103: load the SpO₂ candidate @82 nightly means from metricSeries when the toggle is ON.
             // The engine writes "spo2_candidate" under the "-noop" computed device ID; `exploreSeries`
             // with source "my-whoop" reads it from Layer 2 (computed metricSeries). Empty when the toggle

@@ -36,6 +36,11 @@ internal data class Vital(
      *  Drives the "Estimate (unverified)" caption so the user knows this is an unverified value.
      *  Defaulted false so every other vital is unaffected. */
     val isEstimate: Boolean = false,
+    /** #1118: an "unverified" caveat appended to the caption when the value is present but the strap's own
+     *  capture is known-unreliable for it (a WHOOP 4.0 R-R over-count contaminating HRV). null = none.
+     *  Kotlin twin of `BodyVitalReading.caveat` (VitalSignsSummary.swift). Defaulted so other vitals are
+     *  unaffected. */
+    val caveat: String? = null,
 ) {
     /** Value with its unit appended, or null when no data. */
     val formattedValue: String? = value?.let { "${format(it)} $unit" }
@@ -50,7 +55,7 @@ internal data class Vital(
 
     /** The in-range caption that stands in for a StatePill inside the fixed-height tile.
      *  The wording says which yardstick judged it: your baseline vs typical ranges. */
-    val stateCaption: String = when {
+    private val baseCaption: String = when {
         // #103: when the Blood O₂ tile is showing the spo2_candidate_82 strap estimate (not a
         // calibrated spo2Pct), label it "estimate" so the user knows this is an unverified value.
         isEstimate && banding.band != VitalBands.Band.NO_DATA -> "Estimate (unverified)"
@@ -67,6 +72,12 @@ internal data class Vital(
         else ->
             if (banding.band == VitalBands.Band.IN_RANGE) "In typical range" else "Outside typical range"
     }
+
+    /** #1118: the base caption plus any "unverified" caveat (an over-counted HRV night), so the caveat
+     *  rides the same line the user already reads. Never on an empty tile. Twin of Swift's stateCaption
+     *  append in VitalSignsSummary.swift. */
+    val stateCaption: String =
+        if (caveat != null && banding.band != VitalBands.Band.NO_DATA) "$baseCaption · $caveat" else baseCaption
 
     val accessibilityText: String =
         formattedValue?.let {
@@ -113,6 +124,7 @@ internal fun vitalsFor(
     tempUnit: TemperatureUnit = TemperatureUnit.CELSIUS,
     spo2CandidateByDay: Map<String, Double> = emptyMap(),
     spo2ToggleOn: Boolean = false,
+    hrvOverCountByDay: Map<String, Double> = emptyMap(),   // #1118
 ): List<Vital> {
     val todayKey = d?.day
     // History strictly before the displayed day, oldest→newest (recentDays is already
@@ -282,6 +294,11 @@ internal fun vitalsFor(
             banding = VitalBands.band(d?.avgHrv, series { it.avgHrv }, 40.0..120.0, Baselines.hrvCfg),
             metricColor = Palette.metricPurple,
             sparkline = trail(d?.avgHrv) { it.avgHrv },
+            // #1118: mark HRV "unverified" on an over-counted night — the WHOOP 4.0 two-optical-channel
+            // artifact inflates R-R and contaminates RMSSD, so NOOP's HRV won't match WHOOP until the
+            // de-dup fix lands. The flag is written only for NOOP's own measured capture, so an imported
+            // night never sets it. Gated on the flag alone (no source check) — twin of the Swift caveat.
+            caveat = if ((d?.day?.let { hrvOverCountByDay[it] } ?: 0.0) >= 0.5) "unverified · over-reports R-R" else null,
         ),
         Vital(
             key = "skin", label = skinTitle, unit = skinUnitLabel,
@@ -312,8 +329,9 @@ internal fun latestVitals(
     tempUnit: TemperatureUnit,
     spo2CandidateByDay: Map<String, Double> = emptyMap(),
     spo2ToggleOn: Boolean = false,
+    hrvOverCountByDay: Map<String, Double> = emptyMap(),   // #1118
 ): List<Vital> {
-    val emptyByKey = vitalsFor(null, days, tempUnit, spo2CandidateByDay, spo2ToggleOn).associateBy { it.key }
+    val emptyByKey = vitalsFor(null, days, tempUnit, spo2CandidateByDay, spo2ToggleOn, hrvOverCountByDay).associateBy { it.key }
     return listOf(
         latestVital("resp", days, tempUnit, emptyByKey, spo2CandidateByDay, spo2ToggleOn) { it.respRateBpm != null },
         latestVital("spo2", days, tempUnit, emptyByKey, spo2CandidateByDay, spo2ToggleOn) {
@@ -321,7 +339,7 @@ internal fun latestVitals(
         },
         latestVital("spo2raw", days, tempUnit, emptyByKey, spo2CandidateByDay, spo2ToggleOn) { it.spo2Red != null && it.spo2Ir != null },
         latestVital("rhr", days, tempUnit, emptyByKey, spo2CandidateByDay, spo2ToggleOn) { it.restingHr != null },
-        latestVital("hrv", days, tempUnit, emptyByKey) { it.avgHrv != null },
+        latestVital("hrv", days, tempUnit, emptyByKey, hrvOverCountByDay = hrvOverCountByDay) { it.avgHrv != null },
         latestVital("skin", days, tempUnit, emptyByKey) { it.skinTempDevC != null },
     )
 }
@@ -341,6 +359,7 @@ private fun latestVital(
     emptyByKey: Map<String, Vital>,
     spo2CandidateByDay: Map<String, Double> = emptyMap(),
     spo2ToggleOn: Boolean = false,
+    hrvOverCountByDay: Map<String, Double> = emptyMap(),   // #1118
     todayKey: String = logicalDayKeyNow(),
     hasValue: (DailyMetric) -> Boolean,
 ): Vital {
@@ -349,7 +368,7 @@ private fun latestVital(
         todayKey,
     )?.second
     return row
-        ?.let { latestRow -> vitalsFor(latestRow, days, tempUnit, spo2CandidateByDay, spo2ToggleOn).firstOrNull { it.key == key } }
+        ?.let { latestRow -> vitalsFor(latestRow, days, tempUnit, spo2CandidateByDay, spo2ToggleOn, hrvOverCountByDay).firstOrNull { it.key == key } }
         ?.copy(asOfLabel = asOfLabel(row.day))
         ?: emptyByKey.getValue(key)
 }

@@ -146,6 +146,7 @@ fun HealthScreen(
     // #103: collect reactively (not .value) so the Latest-readings card recomposes on its own when the
     // SpO₂ candidate map updates, matching VitalSignsScreen — not only incidentally via `days`.
     val spo2CandidateByDay by vm.spo2CandidateByDay.collectAsStateWithLifecycle()
+    val hrvOverCountByDay by vm.hrvOverCountByDay.collectAsStateWithLifecycle()   // #1118
     val hasLiveHr by remember { derivedStateOf { displayHr(bpm, live) != null } }
 
     // LIQUID SKY BACKDROP (the pilot pattern — LiquidScreenSky.kt): the time-of-day liquid sky settles into
@@ -190,6 +191,7 @@ fun HealthScreen(
                         UnitPrefs.temperature(LocalContext.current),
                         spo2CandidateByDay,
                         NoopPrefs.spo2CandidateDisplay(LocalContext.current),
+                        hrvOverCountByDay = hrvOverCountByDay,   // #1118
                     ),
                     onVitalClick = onVitalClick,
                     captionMode = VitalCaptionMode.AS_OF,
@@ -1167,6 +1169,7 @@ private fun yearWord(years: Int): String = if (kotlin.math.abs(years) == 1) "yea
 fun VitalSignsScreen(vm: AppViewModel, onVitalClick: (String) -> Unit = {}) {
     val days by vm.recentDays.collectAsStateWithLifecycle()
     val spo2CandidateByDay by vm.spo2CandidateByDay.collectAsStateWithLifecycle()
+    val hrvOverCountByDay by vm.hrvOverCountByDay.collectAsStateWithLifecycle()   // #1118
     var selectedDayOffset by remember { mutableIntStateOf(0) }
     val selectedDay = remember(selectedDayOffset) { LocalDate.now().minusDays(selectedDayOffset.toLong()) }
     val selectedDayKey = remember(selectedDay) { selectedDay.toString() }
@@ -1175,8 +1178,8 @@ fun VitalSignsScreen(vm: AppViewModel, onVitalClick: (String) -> Unit = {}) {
     // Read the toggle here in the composable body, NOT inside remember{} — LocalContext.current is a
     // @Composable read and is illegal inside the calculation lambda; pass the resolved value in + key on it.
     val spo2CandidateDisplay = NoopPrefs.spo2CandidateDisplay(LocalContext.current)
-    val vitals = remember(selectedMetric, days, tempUnit, spo2CandidateByDay, spo2CandidateDisplay) {
-        selectedMetric?.let { vitalsFor(it, days, tempUnit, spo2CandidateByDay, spo2CandidateDisplay) }.orEmpty()
+    val vitals = remember(selectedMetric, days, tempUnit, spo2CandidateByDay, spo2CandidateDisplay, hrvOverCountByDay) {
+        selectedMetric?.let { vitalsFor(it, days, tempUnit, spo2CandidateByDay, spo2CandidateDisplay, hrvOverCountByDay) }.orEmpty()
     }
 
     ScreenScaffold(

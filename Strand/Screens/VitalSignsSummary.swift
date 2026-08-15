@@ -23,6 +23,10 @@ struct BodyVitalReading: Identifiable {
     /// the resolved value, banding and source are unchanged — this is just the trend for the trail.
     /// Defaulted so existing call sites (previews/tests) keep compiling unchanged.
     var sparkline: [Double]? = nil
+    /// #1118: an "unverified" caveat appended to the caption when the resolved value is present but the
+    /// strap's own capture is known-unreliable for it (e.g. a WHOOP 4.0 R-R over-count contaminating HRV).
+    /// nil = no caveat. Defaulted so existing call sites keep compiling unchanged.
+    var caveat: String? = nil
 
     var id: String { key }
 
@@ -49,6 +53,7 @@ struct BodyVitalReading: Identifiable {
             parts.append(sourceText)
         }
         parts.append(stateText)
+        if let caveat { parts.append(caveat) }   // #1118: e.g. "unverified · over-reports R-R"
         return parts.joined(separator: " · ")
     }
 
@@ -117,7 +122,8 @@ enum BodyVitalSigns {
     static func readings(sourceRows: [SourcedDailyMetric],
                          temperatureUnit: TemperatureUnit,
                          now: Date = Date(),
-                         spo2CandidateByDay: [String: Double] = [:]) -> [BodyVitalReading] {
+                         spo2CandidateByDay: [String: Double] = [:],
+                         hrvOverCountByDay: [String: Double] = [:]) -> [BodyVitalReading] {
         let logicalDay = logicalDayKey(now)
 
         // Resolve one metric to a per-day series, taking the FIRST source (by precedence) that carries
@@ -185,6 +191,15 @@ enum BodyVitalSigns {
         let rhrRow = latest(rhrPoints)
         let hrvRow = latest(hrvPoints)
         let skinRow = latest(skinPoints)
+        // #1118: mark HRV "unverified" when this night's in-sleep R-R was over-counted — the WHOOP 4.0
+        // two-optical-channel artifact that inflates R-R and contaminates RMSSD, so NOOP's HRV won't match
+        // WHOOP until the de-dup fix lands. The flag is written only for NOOP's OWN measured capture (an
+        // imported WHOOP-app night never sets it), so a pure-import night is never caveated. Gated on the
+        // flag ALONE — no source check — to stay behaviourally identical to Android, whose DailyMetric
+        // carries no per-row source (feature-level parity). (#1118)
+        let hrvCaveat: String? = (hrvRow.map { (hrvOverCountByDay[$0.day] ?? 0) >= 0.5 } ?? false)
+            ? String(localized: "unverified · over-reports R-R")
+            : nil
 
         // Trailing values (oldest → newest) feeding each tile's sparkline trail. A 2+ point series
         // draws; the tile hides the trail otherwise. Presentation-only — built from the same resolved
@@ -335,7 +350,8 @@ enum BodyVitalSigns {
                 day: hrvRow?.day,
                 source: hrvRow?.source,
                 missingCaption: String(localized: "No HRV value"),
-                sparkline: trail(hrvPoints)
+                sparkline: trail(hrvPoints),
+                caveat: hrvCaveat   // #1118
             ),
             BodyVitalReading(
                 key: "skin",

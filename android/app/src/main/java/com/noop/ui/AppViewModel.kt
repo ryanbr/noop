@@ -665,6 +665,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     /**
+     * #1118: per-night HRV over-count flags (1/0), loaded from the "hrv_rr_overcount" metricSeries key
+     * (written by IntelligenceEngine for every scored night with in-sleep R-R). Drives the HRV tile's
+     * "unverified · over-reports R-R" caveat on a WHOOP 4.0 over-counted night. Always loaded (no toggle,
+     * unlike the SpO₂ candidate). Mirrors iOS HealthView loading `hrv_rr_overcount`.
+     */
+    val hrvOverCountByDay: StateFlow<Map<String, Double>> =
+        recentDays.map { days ->
+            if (days.isEmpty()) emptyMap()
+            else repository.metricSeriesComputedUnion(deviceId, "hrv_rr_overcount", days.first().day, days.last().day)
+                .associate { it.day to it.value }
+        }.flowOn(Dispatchers.IO)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    /**
      * #386 self-heal: a "kick" the app-resume hook sends to wake the 15-min analyze loop early, so an
      * OEM-killed overnight re-score tick catches up the moment the user opens NOOP instead of showing a
      * stale Today card until the next sync/tick. The loop re-runs its EXISTING fingerprint-gated
