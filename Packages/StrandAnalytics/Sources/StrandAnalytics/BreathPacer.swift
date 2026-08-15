@@ -15,7 +15,7 @@ import Foundation
 //
 // A breath cycle of `bpm` breaths/min lasts 60000/bpm ms; `inhaleFraction` splits it into inhale vs
 // exhale (the calming long-exhale ratio Breathe's "Relax" preset uses is ~0.4 inhale : 0.6 exhale).
-// Mirrors `HapticClockEncoder.pulses` in shape: a pure `(params) -> [Cue]` list, walkable by the BLE seam.
+// Mirrors `HapticClock.pulses` in shape: a pure `(params) -> [Cue]` list, walkable by the BLE seam.
 
 /// Which phase of the breath a cue marks. The on-screen orb (when the screen is on) is driven by the
 /// same phase clock; screen-off, the buzz is the whole cue.
