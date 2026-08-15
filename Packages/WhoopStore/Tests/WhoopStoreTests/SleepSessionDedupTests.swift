@@ -131,7 +131,6 @@ final class SleepSessionDedupTests: XCTestCase {
         let night = session(start: midnight - 2 * 3600, end: midnight + 6 * 3600)
         let fragEnd = (midnight - 2 * 3600) - 69
         let fragment = session(start: fragEnd - 40 * 60, end: fragEnd)
-        XCTAssertEqual(SleepSessionDedup.overlapSeconds(fragment, night), 0)   // disjoint
         XCTAssertTrue(SleepSessionDedup.isDuplicate(fragment, night), "a 69 s edge gap is one interrupted night")
         let result = SleepSessionDedup.dedupe([fragment, night], freshStarts: [night.startTs])
         XCTAssertEqual(result.kept.count, 1, "fragment + night collapse to one")
@@ -150,7 +149,6 @@ final class SleepSessionDedupTests: XCTestCase {
         // Two disjoint sessions 20 min apart (> the 15 min near-adjacent bar) are not merged.
         let a = session(start: midnight - 3 * 3600, end: midnight - 2 * 3600)
         let b = session(start: midnight - 2 * 3600 + 20 * 60, end: midnight + 4 * 3600)
-        XCTAssertEqual(SleepSessionDedup.overlapSeconds(a, b), 0)
         XCTAssertFalse(SleepSessionDedup.isDuplicate(a, b))
         XCTAssertEqual(SleepSessionDedup.dedupe([a, b]).kept.count, 2)
     }

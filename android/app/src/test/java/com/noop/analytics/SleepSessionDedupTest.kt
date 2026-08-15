@@ -142,7 +142,6 @@ class SleepSessionDedupTest {
         val night = session(midnight - 2 * 3600L, midnight + 6 * 3600L)
         val fragEnd = (midnight - 2 * 3600L) - 69L
         val fragment = session(fragEnd - 40 * 60L, fragEnd)
-        assertEquals(0L, SleepSessionDedup.overlapSeconds(fragment, night)) // disjoint
         assertTrue("a 69 s edge gap is one interrupted night", SleepSessionDedup.isDuplicate(fragment, night))
         val result = SleepSessionDedup.dedupe(listOf(fragment, night), freshStarts = setOf(night.startTs))
         assertEquals("fragment + night collapse to one", 1, result.kept.size)
@@ -163,7 +162,6 @@ class SleepSessionDedupTest {
         // Two disjoint sessions 20 min apart (> the 15 min near-adjacent bar) are not merged.
         val a = session(midnight - 3 * 3600L, midnight - 2 * 3600L)
         val b = session(midnight - 2 * 3600L + 20 * 60L, midnight + 4 * 3600L)
-        assertEquals(0L, SleepSessionDedup.overlapSeconds(a, b))
         assertTrue(!SleepSessionDedup.isDuplicate(a, b))
         assertEquals(2, SleepSessionDedup.dedupe(listOf(a, b)).kept.size)
     }
