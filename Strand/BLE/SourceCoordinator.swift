@@ -378,7 +378,7 @@ final class SourceCoordinator: ObservableObject {
                     for e in stored where SleepSessionDedup.isDuplicate(session, e) {
                         let newCodes = max(0, (session.endTs - session.startTs) / 30)
                         let storedCodes = max(0, (e.endTs - e.startTs) / 30)
-                        straplog("Oura: dup-gen(#1284) persist [\(session.startTs)→\(session.endTs)] codes=\(newCodes) duplicates stored [\(e.startTs)→\(e.endTs)] codes=\(storedCodes) startΔ=\(session.startTs - e.startTs)s (≈0x49 onset jitter) - cross-connection DB read")
+                        straplog("Oura: dup-gen(#1284) persist [\(session.startTs) -> \(session.endTs)] codes=\(newCodes) duplicates stored [\(e.startTs) -> \(e.endTs)] codes=\(storedCodes) startDelta=\(session.startTs - e.startTs)s (~0x49 onset jitter) - cross-connection DB read")
                     }
                     _ = try? await store.upsertSleepSessions([session], deviceId: id)
                 }
