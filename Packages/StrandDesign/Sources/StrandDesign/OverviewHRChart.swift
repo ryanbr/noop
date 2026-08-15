@@ -608,6 +608,9 @@ private struct SleepBandLabel: View {
 
 private struct ZoomPanModifier: ViewModifier {
     let isActive: Bool
+    /// #1342: true while a touch scrub is engaged, so the pan drag is masked off (`.subviews`) and can't
+    /// ALSO slide the window sideways out from under the crosshair. Always false on macOS (no touch scrub).
+    let scrubActive: () -> Bool
     /// True while the window is zoomed in (a reset is meaningful). Read at double-tap time so a tap on the
     /// already-full-day chart does nothing rather than re-triggering a no-op animation.
     let isZoomed: () -> Bool
@@ -619,9 +622,6 @@ private struct ZoomPanModifier: ViewModifier {
     let reset: () -> Void
     let zoom: (ClosedRange<Date>, Double, Double, ClosedRange<Date>) -> ClosedRange<Date>
     let pan: (ClosedRange<Date>, CGFloat, CGFloat, ClosedRange<Date>) -> ClosedRange<Date>
-    /// #1342: true while a touch scrub is engaged, so the pan drag is masked off (`.subviews`) and can't
-    /// ALSO slide the window sideways out from under the crosshair. Always false on macOS (no touch scrub).
-    let scrubActive: () -> Bool
 
     @State private var plotWidth: CGFloat = 1
     // Reduce Motion: the reset snaps instantly when on, otherwise it eases out (the gesture frames
