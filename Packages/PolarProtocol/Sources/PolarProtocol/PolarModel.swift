@@ -57,12 +57,13 @@ public enum PolarModel: String, Sendable, Equatable, CaseIterable {
         }
         let n = raw.lowercased()
         guard n.hasPrefix("polar ") else { return .unknown }
-        // Order matters only where one name prefixes another; these four don't, so a `contains` on the
-        // model token is enough and tolerant of the trailing serial.
-        if n.contains("h10") { return .h10 }
-        if n.contains("h9") { return .h9 }
-        if n.contains("oh1") { return .oh1 }
-        if n.contains("sense") { return .veritySense }
+        // Anchor on the model token — the word right after "Polar " — NOT a substring of the whole name.
+        // A `contains` would misidentify a device whose serial happened to carry a model token (e.g. a
+        // "Polar OH1 H10…" serial matching h10). `hasPrefix` is also order-independent here.
+        if n.hasPrefix("polar h10") { return .h10 }
+        if n.hasPrefix("polar h9") { return .h9 }
+        if n.hasPrefix("polar oh1") { return .oh1 }
+        if n.hasPrefix("polar sense") { return .veritySense }
         return .unknown
     }
 }

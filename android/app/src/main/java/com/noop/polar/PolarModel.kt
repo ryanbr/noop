@@ -53,11 +53,14 @@ enum class PolarModel {
             if (raw.isEmpty()) return UNKNOWN
             val n = raw.lowercase()
             if (!n.startsWith("polar ")) return UNKNOWN
+            // Anchor on the model token — the word right after "Polar " — NOT a substring of the whole
+            // name, so a device whose serial happened to carry a model token (e.g. a "Polar OH1 H10…"
+            // serial matching h10) can't misidentify. startsWith is also order-independent here.
             return when {
-                n.contains("h10") -> H10
-                n.contains("h9") -> H9
-                n.contains("oh1") -> OH1
-                n.contains("sense") -> VERITY_SENSE
+                n.startsWith("polar h10") -> H10
+                n.startsWith("polar h9") -> H9
+                n.startsWith("polar oh1") -> OH1
+                n.startsWith("polar sense") -> VERITY_SENSE
                 else -> UNKNOWN
             }
         }

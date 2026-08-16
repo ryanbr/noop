@@ -44,4 +44,10 @@ class PolarModelTest {
         assertNull(PolarModel.H9.hrvPmdStream)
         assertNull(PolarModel.UNKNOWN.hrvPmdStream)
     }
+
+    @Test fun serialContainingModelTokenDoesNotMisidentify() {
+        // The matcher anchors on the model position, not a whole-name substring: an OH1 whose serial
+        // happens to contain "h10" must stay an OH1 (a `contains` matcher wrongly returned H10 here).
+        assertEquals(PolarModel.OH1, PolarModel.fromAdvertisedName("Polar OH1 H10ABCDE"))
+    }
 }

@@ -39,4 +39,10 @@ final class PolarModelTests: XCTestCase {
         XCTAssertNil(PolarModel.h9.hrvPmdStream)
         XCTAssertNil(PolarModel.unknown.hrvPmdStream)
     }
+
+    func testSerialContainingModelTokenDoesNotMisidentify() {
+        // The matcher anchors on the model position, not a whole-name substring: an OH1 whose serial
+        // happens to contain "h10" must stay an OH1 (a `contains` matcher wrongly returned .h10 here).
+        XCTAssertEqual(PolarModel.from(advertisedName: "Polar OH1 H10ABCDE"), .oh1)
+    }
 }
