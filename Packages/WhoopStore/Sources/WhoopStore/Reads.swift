@@ -80,6 +80,25 @@ extension WhoopStore {
         }
     }
 
+    /// Cross-device raw-HR fingerprint: `(count, maxTs)` over EVERY `hrSample` row, no `deviceId` filter.
+    /// The `analyzeRecent` re-score gate (#1392) only needs to answer "did the raw stream change AT ALL",
+    /// so it must see HR that lands under ANY id — an Oura ring, an Apple Watch, or a WHOOP re-added under a
+    /// fresh `whoop-<uuid>` — not only the literal "my-whoop" the engine is constructed with. The per-device
+    /// `hrFingerprint(deviceId:from:to:)` above stayed pinned to that literal (there is no setter to
+    /// re-point it when the active strap changes), so on a non-WHOOP install the fingerprint read 0 rows,
+    /// the watermark never advanced, and the idle-tick / post-offload gates always skipped. This mirrors the
+    /// Kotlin twin `WhoopRepository.hrFingerprint()`, which already has no device filter.
+    public func hrFingerprint() async throws -> (count: Int, maxTs: Int) {
+        try syncRead { db in
+            guard let row = try Row.fetchOne(db, sql: """
+                SELECT COUNT(*) AS c, COALESCE(MAX(ts), 0) AS m FROM hrSample
+                """) else { return (0, 0) }
+            let c: Int = row["c"]
+            let m: Int = row["m"]
+            return (c, m)
+        }
+    }
+
     /// Aggregate HR over a window: `(n, avg, max)` computed in SQLite over the same measured-∪-PPG rows
     /// [hrSamples] returns, WITHOUT materialising them and WITHOUT a row limit.
     ///

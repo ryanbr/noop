@@ -53,6 +53,21 @@ final class ReadTests: XCTestCase {
         XCTAssertEqual(empty.maxTs, 0)
     }
 
+    // #1392 — the CROSS-DEVICE change-detector the re-score gate must use: NO deviceId filter, so it folds
+    // EVERY device's HR (dev1's 100/200/300 + the "other" decoy's 200). This is what lets a night landing
+    // under a non-"my-whoop" id (an Oura ring, an Apple Watch, a re-added WHOOP) still advance the analyze
+    // watermark — the device-scoped variant read 0 rows for such an install and the gate never fired.
+    func testHrFingerprintCrossDeviceFoldsEveryDevice() async throws {
+        let store = try await seeded()
+        let fp = try await store.hrFingerprint()   // no deviceId → across all devices
+        XCTAssertEqual(fp.count, 4)                 // dev1 (3) + "other" (1)
+        XCTAssertEqual(fp.maxTs, 300)               // dev1's 300 > other's 200
+        // Contrast: the device-scoped variant sees only dev1's rows — the #1392 blind spot when the pinned
+        // id ("my-whoop") doesn't match where the HR actually landed.
+        let scoped = try await store.hrFingerprint(deviceId: "dev1", from: 0, to: 9_999_999_999)
+        XCTAssertEqual(scoped.count, 3)
+    }
+
     func testHrBucketsAveragePerBucketOrderedAndDeviceScoped() async throws {
         let store = try await seeded()
         // 200s buckets over dev1's ts 100/200/300 (bpm 60/61/62):

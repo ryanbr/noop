@@ -460,7 +460,12 @@ final class IntelligenceEngine: ObservableObject {
         // workout delete) is untouched and no computed history is dropped. Every real update path (sync
         // backfill, import, sleep/workout edit, baseline recalibrate, timestamp heal) calls with the default
         // `force: true` and always rescores, so a skipped tick can never hide new data.
-        let wmKey: String = (try? await store.hrFingerprint(deviceId: deviceId, from: 0, to: 9_999_999_999))
+        // #1392: fingerprint the raw HR stream ACROSS ALL DEVICES, not the engine's construction-time
+        // `deviceId` (a `let` pinned to "my-whoop", never re-pointed when the active strap changes). On an
+        // Oura / Apple Watch / re-added-WHOOP install the per-device read returned 0, so this gate never
+        // fired and a night finishing after launch stayed unscored until relaunch. Scoring below still reads
+        // the registry's ACTIVE device (`owner`); only this change-detector needed to be cross-device.
+        let wmKey: String = (try? await store.hrFingerprint())
             .map { "\($0.count):\($0.maxTs)" } ?? ""
         if !force, !wmKey.isEmpty,
            UserDefaults.standard.string(forKey: Self.analyzeWatermarkKey) == wmKey {
