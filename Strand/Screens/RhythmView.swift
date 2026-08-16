@@ -247,14 +247,20 @@ struct RhythmView: View {
     /// The per-window results for the night, in time order. Their `poincare` clouds are
     /// pooled for the plot and their stats drive the descriptive tiles. May be empty.
     let windows: [RhythmScreener.WindowResult]
+    /// Why the night is empty (#1360) — picks WHICH honest empty-state copy shows when there is nothing
+    /// to plot. `.gatheringData` (the "try again" state) is the default for previews and any caller that
+    /// doesn't diagnose the reason.
+    let emptyReason: RhythmEmptyState
     /// Optional dismissal hook when presented as a sheet.
     var onClose: (() -> Void)? = nil
 
     init(night: RhythmScreener.NightRhythmSummary?,
          windows: [RhythmScreener.WindowResult],
+         emptyReason: RhythmEmptyState = .gatheringData,
          onClose: (() -> Void)? = nil) {
         self.night = night
         self.windows = windows
+        self.emptyReason = emptyReason
         self.onClose = onClose
     }
 
@@ -519,12 +525,25 @@ struct RhythmView: View {
 
     // MARK: Empty / thin-night state
 
+    /// #1360: a TRUTHFUL empty state. When every window was refused for a *capture* reason the device can
+    /// never satisfy — its beats arrive banked, or it records no stillness signal at all — say so, instead
+    /// of the "try again after a settled night" copy that is a lie when tomorrow is structurally identical.
+    /// `.gatheringData`/`.none` keep the original "no clear reading yet" wording (a genuine try-again).
     private var emptyState: some View {
-        DataPendingNote(
-            title: "No clear reading yet",
-            message: "Rhythm only looks during quiet, still, resting windows, so it needs a calm night's worth of steady beats. Once there's a clean window, the scatter and its description show here.",
-            symbol: "waveform.path"
-        )
+        let title: LocalizedStringKey
+        let message: LocalizedStringKey
+        switch emptyReason {
+        case .deviceBanksBeats:
+            title = "This device can't support a rhythm reading"
+            message = "Rhythm needs beat-to-beat timing measured one beat at a time. Your device stores its heartbeats in batches, so the exact spacing between them isn't recoverable. Nothing is wrong with your night."
+        case .deviceNoMotion:
+            title = "This device can't support a rhythm reading"
+            message = "Rhythm reads only during still, resting windows, and this device doesn't record the stillness signal it needs to find them. Nothing is wrong with your night."
+        case .none, .gatheringData:
+            title = "No clear reading yet"
+            message = "Rhythm only looks during quiet, still, resting windows, so it needs a calm night's worth of steady beats. Once there's a clean window, the scatter and its description show here."
+        }
+        return DataPendingNote(title: title, message: message, symbol: "waveform.path")
     }
 
     // MARK: Methodology

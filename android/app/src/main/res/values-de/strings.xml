@@ -758,6 +758,7 @@
     <string name="l10n_rhythm_screen_extra_skipped_4a153489">Extra / übersprungen</string>
     <string name="l10n_rhythm_screen_long_axis_02300830">Langachse</string>
     <string name="l10n_rhythm_screen_no_clear_reading_yet_92f40443">Noch keine klare Messung</string>
+    <string name="l10n_rhythm_screen_this_device_can_t_support_a_bb41aada">Dieses Gerät unterstützt keine Rhythmus-Messung</string>
     <string name="l10n_rhythm_screen_rhythm_c715bb28">Rhythmus</string>
     <string name="l10n_rhythm_screen_short_axis_66a0b7bf">Kurzachse</string>
     <string name="l10n_rhythm_screen_the_numbers_7b3cbf64">Die Zahlen</string>

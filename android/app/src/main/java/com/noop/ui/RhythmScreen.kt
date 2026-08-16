@@ -48,6 +48,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
 import com.noop.analytics.RhythmConfidence
+import com.noop.analytics.RhythmEmptyState
 import com.noop.analytics.RhythmRegularity
 import com.noop.analytics.RhythmScreener
 import kotlin.math.min
@@ -214,6 +215,7 @@ fun RhythmConsentGate(
 fun RhythmScreen(
     night: RhythmScreener.NightRhythmSummary?,
     windows: List<RhythmScreener.WindowResult>,
+    emptyReason: RhythmEmptyState = RhythmEmptyState.GATHERING_DATA,
     onClose: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
@@ -232,13 +234,14 @@ fun RhythmScreen(
         return
     }
 
-    RhythmVisualization(night = night, windows = windows, onClose = onClose)
+    RhythmVisualization(night = night, windows = windows, emptyReason = emptyReason, onClose = onClose)
 }
 
 @Composable
 private fun RhythmVisualization(
     night: RhythmScreener.NightRhythmSummary?,
     windows: List<RhythmScreener.WindowResult>,
+    emptyReason: RhythmEmptyState,
     onClose: (() -> Unit)?,
 ) {
     // The headline window: prefer the most-varied readable window so the "what a diffuse
@@ -268,12 +271,7 @@ private fun RhythmVisualization(
         item { SourceBadge("Experimental", tint = Palette.restColor) }
 
         if (allPoints.isEmpty()) {
-            item {
-            DataPendingNote(
-                title = uiString(R.string.l10n_rhythm_screen_no_clear_reading_yet_92f40443),
-                body = "Rhythm only looks during quiet, still, resting windows, so it needs a calm night's worth of steady beats. Once there's a clean window, the scatter and its description show here.",
-            )
-            }
+            item { RhythmEmptyStateNote(emptyReason) }
         } else {
             item { SummaryCard(night = night, headline = headline) }
             item { PlotCard(points = allPoints) }
@@ -285,6 +283,32 @@ private fun RhythmVisualization(
 
         item { MethodologyCard() }
         item { RhythmDisclaimerNote() }
+    }
+}
+
+/**
+ * #1360: a TRUTHFUL empty state. When every window was refused for a *capture* reason the device can
+ * never satisfy — its beats arrive banked, or it records no stillness signal at all — say so, instead of
+ * the "try again after a settled night" copy that is a lie when tomorrow is structurally identical.
+ * GATHERING_DATA/NONE keep the original "no clear reading yet" wording (a genuine try-again). The bodies
+ * are English literals matching the screen's existing empty-state body (localized copy follows when the
+ * Android rhythm loader lands — the screen is not yet fed real windows). Twin of the Swift `emptyState`.
+ */
+@Composable
+private fun RhythmEmptyStateNote(reason: RhythmEmptyState) {
+    when (reason) {
+        RhythmEmptyState.DEVICE_BANKS_BEATS -> DataPendingNote(
+            title = uiString(R.string.l10n_rhythm_screen_this_device_can_t_support_a_bb41aada),
+            body = "Rhythm needs beat-to-beat timing measured one beat at a time. Your device stores its heartbeats in batches, so the exact spacing between them isn't recoverable. Nothing is wrong with your night.",
+        )
+        RhythmEmptyState.DEVICE_NO_MOTION -> DataPendingNote(
+            title = uiString(R.string.l10n_rhythm_screen_this_device_can_t_support_a_bb41aada),
+            body = "Rhythm reads only during still, resting windows, and this device doesn't record the stillness signal it needs to find them. Nothing is wrong with your night.",
+        )
+        RhythmEmptyState.NONE, RhythmEmptyState.GATHERING_DATA -> DataPendingNote(
+            title = uiString(R.string.l10n_rhythm_screen_no_clear_reading_yet_92f40443),
+            body = "Rhythm only looks during quiet, still, resting windows, so it needs a calm night's worth of steady beats. Once there's a clean window, the scatter and its description show here.",
+        )
     }
 }
 

@@ -247,6 +247,58 @@ object RhythmScreener {
         )
     }
 
+    // ── Empty-state diagnosis (#1360 — a TRUTHFUL empty state) ────────────────────────
+    //
+    // When a night produces nothing to plot, the screen must say WHY honestly. A device that can NEVER
+    // satisfy the read (a structural capture limit) is not the same as a night that merely lacked a calm,
+    // still window — and telling a ring owner "try again tomorrow" every night, when tomorrow is identical,
+    // is the misleading empty state #1360 fixes. These helpers name the refusal WITHOUT relaxing any gate.
+    // Twins of the Swift helpers.
+
+    /**
+     * Measured over the whole night: are the stored beats BANKED onto record timestamps, so the exact
+     * per-beat spacing isn't recoverable? Reuses [HrvAnalyzer.beatAccurateFraction] — the fill ratio comes
+     * from the RECORD TIMESTAMPS, never from the interval values being judged, so it can't be gamed by
+     * laying beats out cumulatively (the #194 trap the gate exists to avoid). Returns false when timestamps
+     * are absent or length-mismatched: a live spot capture carries none and is perfectly time-accurate, not
+     * "banked". The device-class (#1108) signal, independent of the motion gate. Twin of the Swift helper.
+     */
+    fun nightBeatsAreBanked(rrMs: List<Double>, tsSec: List<Int>): Boolean {
+        if (tsSec.size != rrMs.size || tsSec.isEmpty()) return false
+        val accurate = HrvAnalyzer.beatAccurateFraction(tsSec.map { it.toLong() }, rrMs)
+        return !HrvAnalyzer.beatValuesAreTrustworthy(accurate)
+    }
+
+    /**
+     * Diagnose WHY a night has nothing to show, so the empty state reads truthfully (#1360). Names the
+     * refusal the gates already made — consults no gate and relaxes none:
+     *   • [RhythmEmptyState.NONE]           — a window was readable; the caller shows the plot.
+     *   • [RhythmEmptyState.GATHERING_DATA] — the honest default: a device that DOES record a stillness
+     *                                         signal (so it can read in principle), a no-data night, or a
+     *                                         genuine restless one. The only "try again" state.
+     *   • [RhythmEmptyState.DEVICE_BANKS_BEATS] / [RhythmEmptyState.DEVICE_NO_MOTION] — a STRUCTURAL limit,
+     *                                         reached ONLY when the device recorded dense R-R yet NO stillness
+     *                                         signal at ALL (gravitySample empty for the whole DB, #804 — the
+     *                                         ring signature). Gating both on !hadMotionSignal is deliberate:
+     *                                         a WHOOP always writes an accelerometer track, so a WHOOP night
+     *                                         whose banked R-R measures over-counted (#1118) is NEVER
+     *                                         mislabelled "can't support it". When structurally incapable,
+     *                                         [beatsAreBanked] picks the more informative copy.
+     * [hadMotionSignal] = any stillness/gravity sample existed; [beatsAreBanked] = [nightBeatsAreBanked].
+     * Twin of the Swift helper.
+     */
+    fun classifyEmptyState(
+        windows: List<WindowResult>,
+        hadMotionSignal: Boolean,
+        beatsAreBanked: Boolean,
+    ): RhythmEmptyState {
+        if (windows.any { it.label != RhythmRegularity.UNREADABLE }) return RhythmEmptyState.NONE
+        // A device WITH a motion signal (WHOOP), or a night with no dense window yet, gets the honest
+        // "try again" — never a permanent "can't support" verdict. Only the ring signature is structural.
+        if (hadMotionSignal || windows.isEmpty()) return RhythmEmptyState.GATHERING_DATA
+        return if (beatsAreBanked) RhythmEmptyState.DEVICE_BANKS_BEATS else RhythmEmptyState.DEVICE_NO_MOTION
+    }
+
     // ── Statistics ──────────────────────────────────────────────────────────────────
 
     /** Bundle of the descriptive statistics over a clean window. Mirrors Swift `Stats`. */
@@ -391,4 +443,22 @@ enum class RhythmConfidence(val raw: String) {
     CALIBRATING("calibrating"),
     BUILDING("building"),
     SOLID("solid"),
+}
+
+/**
+ * Why the Rhythm screen has nothing to plot, so its empty state can be TRUTHFUL instead of always
+ * reading "try again tomorrow" (#1360). A structural capture limit ([DEVICE_BANKS_BEATS] /
+ * [DEVICE_NO_MOTION]) is PERMANENT for that device and must not be phrased as a one-off bad night;
+ * [GATHERING_DATA] is the only state that means "try again". Produced by [RhythmScreener.classifyEmptyState].
+ * The [raw] string matches Swift's enum raw value.
+ */
+enum class RhythmEmptyState(val raw: String) {
+    /** A window was readable — the caller shows the plot, not an empty state. */
+    NONE("none"),
+    /** Not enough evidence yet, or a genuine restless night. The only "try again" state. */
+    GATHERING_DATA("gatheringData"),
+    /** The device records no stillness signal at all, so the motion gate can never pass (#804). */
+    DEVICE_NO_MOTION("deviceNoMotion"),
+    /** The device banks its beats onto record timestamps, so per-beat spacing is unrecoverable (#1108). */
+    DEVICE_BANKS_BEATS("deviceBanksBeats"),
 }

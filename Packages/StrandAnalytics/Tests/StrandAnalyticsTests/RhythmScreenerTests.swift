@@ -303,4 +303,82 @@ final class RhythmScreenerTests: XCTestCase {
         XCTAssertEqual(withoutTs.label, withTs.label)
         XCTAssertEqual(withoutTs.sd2, withTs.sd2)
     }
+
+    // MARK: - Empty-state diagnosis (#1360)
+
+    /// A readable window read via the real screener (steady sinus, still) — for building the mix.
+    private func readableWindow() -> RhythmScreener.WindowResult {
+        RhythmScreener.screenWindow(
+            RhythmScreener.WindowInput(rrMs: Self.regularSinus(), motionStill: true, meanHR: 60))
+    }
+
+    /// An unreadable window (motion gate refused) — the shape every empty night is made of.
+    private func unreadableWindow() -> RhythmScreener.WindowResult {
+        RhythmScreener.screenWindow(
+            RhythmScreener.WindowInput(rrMs: Self.regularSinus(), motionStill: false, meanHR: 60))
+    }
+
+    func testNightBeatsAreBankedDetectsBankedButNotHonestOrAbsentTimestamps() {
+        let rr = Self.regularSinus()
+        // Banked: 6 beats per record, records 5 s apart (mirrors the gate-4 banked fixture).
+        let bankedTs = (0..<rr.count).map { ($0 / 6) * 5 }
+        XCTAssertTrue(RhythmScreener.nightBeatsAreBanked(rrMs: rr, tsSec: bankedTs),
+                      "beats stamped in record batches are banked")
+        // Honestly stamped ~1 s apart (mean ~1000 ms) — a real per-beat train.
+        let honestTs = (0..<rr.count).map { $0 }
+        XCTAssertFalse(RhythmScreener.nightBeatsAreBanked(rrMs: rr, tsSec: honestTs),
+                       "an honestly-stamped train is not banked")
+        // No timestamps / a length mismatch → unmeasurable, which is NOT 'banked'.
+        XCTAssertFalse(RhythmScreener.nightBeatsAreBanked(rrMs: rr, tsSec: []))
+        XCTAssertFalse(RhythmScreener.nightBeatsAreBanked(rrMs: rr, tsSec: [0, 1, 2]))
+    }
+
+    func testClassifyEmptyStateNoneWhenAnyWindowReadable() {
+        let windows = [unreadableWindow(), readableWindow()]
+        // Even with structural flags set, a readable window means the caller shows the plot, not empty copy.
+        XCTAssertEqual(
+            RhythmScreener.classifyEmptyState(windows: windows, hadMotionSignal: false, beatsAreBanked: true),
+            .none)
+    }
+
+    func testClassifyEmptyStateBankedBeatsWhenStructurallyIncapable() {
+        let windows = [unreadableWindow(), unreadableWindow()]
+        // No stillness signal at all (the ring) AND banked beats → the more informative structural copy.
+        XCTAssertEqual(
+            RhythmScreener.classifyEmptyState(windows: windows, hadMotionSignal: false, beatsAreBanked: true),
+            .deviceBanksBeats, "banked capture is the most informative structural answer")
+    }
+
+    /// Regression guard (#1118 × #1360): a WHOOP night reads BANKED R-R too, so `beatsAreBanked` can be
+    /// true — but WHOOP always writes an accelerometer track, so its motion signal is present and it must
+    /// keep the honest "try again", NEVER "this device can't support it".
+    func testClassifyEmptyStateWhoopBankedNightStaysGathering() {
+        let windows = [unreadableWindow(), unreadableWindow()]
+        XCTAssertEqual(
+            RhythmScreener.classifyEmptyState(windows: windows, hadMotionSignal: true, beatsAreBanked: true),
+            .gatheringData, "a device with a motion signal is never declared structurally incapable")
+    }
+
+    func testClassifyEmptyStateNoMotionWhenDenseWindowsButNoStillnessSignal() {
+        let windows = [unreadableWindow(), unreadableWindow()]
+        XCTAssertEqual(
+            RhythmScreener.classifyEmptyState(windows: windows, hadMotionSignal: false, beatsAreBanked: false),
+            .deviceNoMotion)
+    }
+
+    func testClassifyEmptyStateGatheringWhenMotionPresentButNightRefused() {
+        let windows = [unreadableWindow(), unreadableWindow()]
+        // Motion signal exists (a moving/restless night) and beats aren't banked → the genuine 'try again'.
+        XCTAssertEqual(
+            RhythmScreener.classifyEmptyState(windows: windows, hadMotionSignal: true, beatsAreBanked: false),
+            .gatheringData)
+    }
+
+    func testClassifyEmptyStateNoDataIsGatheringNotStructural() {
+        // No dense windows at all (feature just enabled, or a thin night) must NEVER read as a permanent
+        // device limit, even though hadMotionSignal is false because there was nothing to record.
+        XCTAssertEqual(
+            RhythmScreener.classifyEmptyState(windows: [], hadMotionSignal: false, beatsAreBanked: false),
+            .gatheringData)
+    }
 }

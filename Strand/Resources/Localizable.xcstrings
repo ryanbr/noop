@@ -199792,6 +199792,180 @@
           }
         }
       }
+    },
+    "This device can't support a rhythm reading": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Gerät unterstützt keine Rhythmus-Messung"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este dispositivo no admite una lectura de ritmo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cet appareil ne peut pas fournir de lecture du rythme"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questo dispositivo non supporta una lettura del ritmo"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To urządzenie nie obsługuje odczytu rytmu"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este dispositivo não suporta uma leitura de ritmo"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Это устройство не поддерживает измерение ритма"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此设备不支持节律读数"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此裝置不支援節律讀數"
+          }
+        }
+      }
+    },
+    "Rhythm needs beat-to-beat timing measured one beat at a time. Your device stores its heartbeats in batches, so the exact spacing between them isn't recoverable. Nothing is wrong with your night.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rhythm benötigt eine Schlag-zu-Schlag-Zeitmessung, die jeden Herzschlag einzeln erfasst. Dein Gerät speichert die Herzschläge in Blöcken, sodass der genaue Abstand zwischen ihnen nicht rekonstruierbar ist. Mit deiner Nacht ist alles in Ordnung."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rhythm necesita una medición latido a latido, tomada de uno en uno. Tu dispositivo guarda los latidos en lotes, así que el espaciado exacto entre ellos no se puede recuperar. No pasa nada con tu noche."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rhythm a besoin d'une mesure battement par battement, prise un battement à la fois. Ton appareil enregistre les battements par lots, si bien que l'espacement exact entre eux n'est pas récupérable. Il n'y a rien d'anormal avec ta nuit."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rhythm ha bisogno di una misurazione battito per battito, presa un battito alla volta. Il tuo dispositivo memorizza i battiti in blocchi, quindi la spaziatura esatta tra loro non è recuperabile. Non c'è nulla che non vada nella tua notte."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rhythm potrzebuje pomiaru uderzenie po uderzeniu, rejestrowanego pojedynczo. Twoje urządzenie zapisuje uderzenia serca partiami, więc dokładnych odstępów między nimi nie da się odtworzyć. Z Twoją nocą wszystko jest w porządku."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Rhythm precisa de uma medição batida a batida, feita uma batida de cada vez. O teu dispositivo guarda as batidas em lotes, pelo que o espaçamento exato entre elas não é recuperável. Não há nada de errado com a tua noite."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rhythm нужны интервалы между отдельными ударами, измеренные по одному удару за раз. Ваше устройство сохраняет удары сердца пакетами, поэтому точные промежутки между ними восстановить невозможно. С вашей ночью всё в порядке."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rhythm 需要逐拍测量的心跳间隔，一次记录一次心跳。你的设备将心跳成批存储，因此无法还原它们之间的精确间隔。你的睡眠没有任何问题。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rhythm 需要逐拍測量的心跳間隔，一次記錄一次心跳。你的裝置將心跳成批儲存，因此無法還原它們之間的精確間隔。你的睡眠沒有任何問題。"
+          }
+        }
+      }
+    },
+    "Rhythm reads only during still, resting windows, and this device doesn't record the stillness signal it needs to find them. Nothing is wrong with your night.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rhythm misst nur in ruhigen, bewegungslosen Phasen, und dieses Gerät zeichnet das dafür nötige Ruhesignal nicht auf. Mit deiner Nacht ist alles in Ordnung."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rhythm solo mide durante ventanas quietas y en reposo, y este dispositivo no registra la señal de quietud que necesita para encontrarlas. No pasa nada con tu noche."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rhythm ne mesure que pendant des fenêtres calmes et immobiles, et cet appareil n'enregistre pas le signal d'immobilité dont il a besoin pour les repérer. Il n'y a rien d'anormal avec ta nuit."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rhythm misura solo durante finestre tranquille e a riposo, e questo dispositivo non registra il segnale di immobilità che gli serve per individuarle. Non c'è nulla che non vada nella tua notte."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rhythm mierzy tylko podczas spokojnych, nieruchomych okien, a to urządzenie nie rejestruje sygnału bezruchu potrzebnego do ich wykrycia. Z Twoją nocą wszystko jest w porządku."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Rhythm só mede durante janelas calmas e em repouso, e este dispositivo não regista o sinal de imobilidade de que precisa para as encontrar. Não há nada de errado com a tua noite."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rhythm измеряет только в спокойные, неподвижные периоды, а это устройство не записывает сигнал неподвижности, необходимый для их поиска. С вашей ночью всё в порядке."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rhythm 只在安静、静息的时段进行测量，而此设备不记录用于识别这些时段所需的静止信号。你的睡眠没有任何问题。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rhythm 只在安靜、靜息的時段進行測量，而此裝置不記錄用於識別這些時段所需的靜止信號。你的睡眠沒有任何問題。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

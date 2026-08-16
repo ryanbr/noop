@@ -321,6 +321,54 @@ public enum RhythmScreener {
                                   overall: overall)
     }
 
+    // MARK: - Empty-state diagnosis (#1360 — a TRUTHFUL empty state)
+    //
+    // When a night produces nothing to plot, the screen must say WHY honestly. A device that can NEVER
+    // satisfy the read (a structural capture limit) is not the same as a night that merely lacked a
+    // calm, still window — and telling a ring owner "try again tomorrow" every night, when tomorrow is
+    // identical, is the misleading empty state #1360 fixes. These helpers turn the raw night into that
+    // distinction WITHOUT relaxing any gate: the gates stay exactly as strict; we only name the refusal.
+
+    /// Measured over the whole night: are the stored beats BANKED onto record timestamps, so the exact
+    /// per-beat spacing isn't recoverable? Reuses `HRVAnalyzer.beatAccurateFraction` — the fill ratio
+    /// comes from the RECORD TIMESTAMPS, never from the interval values being judged, so it can't be
+    /// gamed by laying beats out cumulatively (the #194 trap the gate exists to avoid). Returns false
+    /// when timestamps are absent or length-mismatched: a live spot capture carries none and is
+    /// perfectly time-accurate, not "banked". This is the device-class (#1108) signal, and it is
+    /// independent of the motion gate — so it is still measurable on a night the motion gate refused.
+    public static func nightBeatsAreBanked(rrMs: [Double], tsSec: [Int]) -> Bool {
+        guard tsSec.count == rrMs.count, !tsSec.isEmpty else { return false }
+        let accurate = HRVAnalyzer.beatAccurateFraction(tsSec: tsSec, rrMs: rrMs)
+        return !HRVAnalyzer.beatValuesAreTrustworthy(beatAccurateFraction: accurate)
+    }
+
+    /// Diagnose WHY a night has nothing to show, so the empty state reads truthfully (#1360). It names
+    /// the refusal the gates already made — it consults no gate and relaxes none:
+    ///   • `.none`             — at least one window was readable (the caller shows the plot, not an empty state).
+    ///   • `.gatheringData`    — the honest default: a device that DOES record a stillness signal (so it can read
+    ///                            in principle), a no-data night, or a genuine restless one. The ONLY state that
+    ///                            means "try again after a settled night".
+    ///   • `.deviceBanksBeats` / `.deviceNoMotion` — a STRUCTURAL limit, reached ONLY when the device recorded
+    ///                            dense R-R yet NO stillness signal at ALL (`gravitySample` empty for the whole
+    ///                            DB, #804 — the ring signature). Gating both verdicts on `!hadMotionSignal` is
+    ///                            deliberate: a WHOOP always writes an accelerometer track, so a WHOOP night
+    ///                            whose banked R-R happens to measure over-counted (#1118) is NEVER mislabelled
+    ///                            "this device can't support it" — it stays on the honest "try again". When the
+    ///                            device is structurally incapable, `beatsAreBanked` picks the more informative
+    ///                            copy (its beats arrive batched) over the plain no-stillness one.
+    /// `hadMotionSignal` = any stillness/gravity sample existed for the night; `beatsAreBanked` = the result
+    /// of `nightBeatsAreBanked` over the night's stored R-R.
+    public static func classifyEmptyState(windows: [WindowResult],
+                                          hadMotionSignal: Bool,
+                                          beatsAreBanked: Bool) -> RhythmEmptyState {
+        if windows.contains(where: { $0.label != .unreadable }) { return .none }
+        // A device WITH a motion signal (WHOOP), or a night with no dense window yet, gets the honest
+        // "try again" — never a permanent "can't support" verdict. Only the ring signature (dense R-R, zero
+        // stillness signal) is structural.
+        guard !hadMotionSignal, !windows.isEmpty else { return .gatheringData }
+        return beatsAreBanked ? .deviceBanksBeats : .deviceNoMotion
+    }
+
     // MARK: - Statistics
 
     /// Bundle of the descriptive statistics over a clean window.
@@ -461,4 +509,19 @@ public enum RhythmConfidence: String, Codable, Sendable, Equatable {
     case calibrating
     case building
     case solid
+}
+
+/// Why the Rhythm screen has nothing to plot, so its empty state can be TRUTHFUL instead of always
+/// reading "try again tomorrow" (#1360). A structural capture limit (`.deviceBanksBeats` /
+/// `.deviceNoMotion`) is PERMANENT for that device and must not be phrased as a one-off bad night;
+/// `.gatheringData` is the only state that means "try again". Produced by `RhythmScreener.classifyEmptyState`.
+public enum RhythmEmptyState: String, Codable, Sendable, Equatable {
+    /// At least one window was readable — the caller shows the plot, not an empty state.
+    case none
+    /// Not enough evidence yet, or a genuine restless night. The only "try again" state.
+    case gatheringData
+    /// The device records no stillness signal at all, so the motion gate can never pass (#804).
+    case deviceNoMotion
+    /// The device banks its beats onto record timestamps, so per-beat spacing is unrecoverable (#1108).
+    case deviceBanksBeats
 }

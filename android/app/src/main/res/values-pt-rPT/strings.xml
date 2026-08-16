@@ -741,6 +741,7 @@
     <string name="l10n_rhythm_screen_extra_skipped_4a153489">Extra/ignorado</string>
     <string name="l10n_rhythm_screen_long_axis_02300830">Eixo longo</string>
     <string name="l10n_rhythm_screen_no_clear_reading_yet_92f40443">Nenhuma leitura clara ainda</string>
+    <string name="l10n_rhythm_screen_this_device_can_t_support_a_bb41aada">Este dispositivo não suporta uma leitura de ritmo</string>
     <string name="l10n_rhythm_screen_rhythm_c715bb28">Ritmo</string>
     <string name="l10n_rhythm_screen_short_axis_66a0b7bf">Eixo curto</string>
     <string name="l10n_rhythm_screen_the_numbers_7b3cbf64">Os números</string>

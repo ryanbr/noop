@@ -723,6 +723,7 @@
     <string name="l10n_rhythm_screen_extra_skipped_4a153489">早搏 / 漏搏 (推测)</string>
     <string name="l10n_rhythm_screen_long_axis_02300830">长轴</string>
     <string name="l10n_rhythm_screen_no_clear_reading_yet_92f40443">尚未获得清晰读数</string>
+    <string name="l10n_rhythm_screen_this_device_can_t_support_a_bb41aada">此设备不支持节律读数</string>
     <string name="l10n_rhythm_screen_rhythm_c715bb28">心跳节律</string>
     <string name="l10n_rhythm_screen_short_axis_66a0b7bf">短轴</string>
     <string name="l10n_rhythm_screen_the_numbers_7b3cbf64">具体数值</string>

@@ -573,6 +573,7 @@
     <string name="l10n_rhythm_screen_extra_skipped_4a153489">Extra / décroché</string>
     <string name="l10n_rhythm_screen_long_axis_02300830">Axe long</string>
     <string name="l10n_rhythm_screen_no_clear_reading_yet_92f40443">Aucune lecture claire pour l\'instant</string>
+    <string name="l10n_rhythm_screen_this_device_can_t_support_a_bb41aada">Cet appareil ne peut pas fournir de lecture du rythme</string>
     <string name="l10n_rhythm_screen_rhythm_c715bb28">Rythme</string>
     <string name="l10n_rhythm_screen_short_axis_66a0b7bf">Axe court</string>
     <string name="l10n_rhythm_screen_the_numbers_7b3cbf64">Les chiffres</string>

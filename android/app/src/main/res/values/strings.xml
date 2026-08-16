@@ -759,6 +759,7 @@
     <string name="l10n_rhythm_screen_extra_skipped_4a153489">Extra / skipped</string>
     <string name="l10n_rhythm_screen_long_axis_02300830">Long axis</string>
     <string name="l10n_rhythm_screen_no_clear_reading_yet_92f40443">No clear reading yet</string>
+    <string name="l10n_rhythm_screen_this_device_can_t_support_a_bb41aada">This device can\'t support a rhythm reading</string>
     <string name="l10n_rhythm_screen_rhythm_c715bb28">Rhythm</string>
     <string name="l10n_rhythm_screen_short_axis_66a0b7bf">Short axis</string>
     <string name="l10n_rhythm_screen_the_numbers_7b3cbf64">The numbers</string>
