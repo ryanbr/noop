@@ -398,5 +398,39 @@ class Baseline(unittest.TestCase):
         self.assertIn((finding[0], finding[2]), baseline["android"])
 
 
+class EchoDetectionWordFilter(unittest.TestCase):
+    """`_has_translatable_words` is the false-positive guard for the echo gate: it decides whether a
+    string identical across languages is a suspicious untranslated ECHO or a legitimately-identical
+    term. It backs both the iOS (key == source) and Android (base value) echo counts."""
+
+    def test_real_phrase_is_translatable(self):
+        self.assertTrue(ia._has_translatable_words("Add a daily action"))
+        self.assertTrue(ia._has_translatable_words("Predictive runtime warning"))
+
+    def test_format_only_string_is_not(self):
+        # Placeholders + punctuation with nothing to translate — a locale repeating them is CORRECT.
+        self.assertFalse(ia._has_translatable_words("%@ · %lld"))
+        self.assertFalse(ia._has_translatable_words("%1$s: %2$s. %3$s"))
+
+    def test_single_word_term_is_not(self):
+        # One word is very often a term of art / brand that legitimately travels.
+        self.assertFalse(ia._has_translatable_words("HRV"))
+        self.assertFalse(ia._has_translatable_words("Yoga"))
+
+    def test_symbols_and_punctuation_are_not(self):
+        self.assertFalse(ia._has_translatable_words("· • —"))
+
+    def test_android_positional_specifiers_are_stripped(self):
+        # "vs prev %1$s" keeps the words "vs"/"prev" — a Spanish copy repeating it verbatim is an echo.
+        self.assertTrue(ia._has_translatable_words("vs prev %1$s"))
+        # "%1$d%%" is pure format + literal percent — nothing to translate.
+        self.assertFalse(ia._has_translatable_words("%1$d%%"))
+
+    def test_two_word_brand_is_flagged(self):
+        # Deliberately True: "Apple Health" IS caught, and the ratchet baseline absorbs it as an allowed
+        # legitimate echo — the gate's job is to block GROWTH, not to pre-judge every identical string.
+        self.assertTrue(ia._has_translatable_words("Apple Health"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,25 @@
+# Echo baseline: localizations whose value is still the English source verbatim (i18n_audit.py
+# `echoed_translation_counts`). Ratchets DOWN — lower a number as echoes get real translations;
+# a NEW echo that pushes a count above its line fails CI. Format: <catalog-or-strings.xml> <lang> <count>.
+NOOPWatch/Localizable.xcstrings pl 1
+NOOPWatch/Localizable.xcstrings pt-PT 1
+NOOPWatchComplications/Localizable.xcstrings es 1
+Packages/StrandDesign/Sources/StrandDesign/Resources/Localizable.xcstrings de 2
+Packages/StrandDesign/Sources/StrandDesign/Resources/Localizable.xcstrings es 4
+Packages/StrandDesign/Sources/StrandDesign/Resources/Localizable.xcstrings fr 1
+Packages/StrandDesign/Sources/StrandDesign/Resources/Localizable.xcstrings pt-PT 1
+Strand/Resources/Localizable.xcstrings de 16
+Strand/Resources/Localizable.xcstrings es 20
+Strand/Resources/Localizable.xcstrings fr 16
+Strand/Resources/Localizable.xcstrings it 15
+Strand/Resources/Localizable.xcstrings pl 17
+Strand/Resources/Localizable.xcstrings pt-PT 11
+Strand/Resources/Localizable.xcstrings ru 7
+Strand/Resources/Localizable.xcstrings zh-Hans 8
+Strand/Resources/Localizable.xcstrings zh-Hant 7
+android/app/src/main/res/values-de/strings.xml de 16
+android/app/src/main/res/values-es/strings.xml es 42
+android/app/src/main/res/values-fr/strings.xml fr 12
+android/app/src/main/res/values-pl/strings.xml pl 11
+android/app/src/main/res/values-pt-rPT/strings.xml pt-rPT 8
+android/app/src/main/res/values-zh/strings.xml zh 16
