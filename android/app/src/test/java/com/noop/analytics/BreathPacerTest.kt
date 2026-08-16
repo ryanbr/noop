@@ -2,6 +2,7 @@ package com.noop.analytics
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
 /**
@@ -44,8 +45,9 @@ class BreathPacerTest {
     @Test fun inhale_lighter_than_exhale_always() {
         for (cue in BreathPacer.schedule(bpm = 4.5, cycles = 4)) {
             when (cue.phase) {
-                BreathPhase.INHALE -> assertEquals(1, cue.loops)
-                BreathPhase.EXHALE -> assertEquals(2, cue.loops)
+            BreathPhase.INHALE -> assertEquals(1, cue.loops)
+            BreathPhase.EXHALE -> assertEquals(2, cue.loops)
+            BreathPhase.HOLD, BreathPhase.TEXT_ONLY -> fail("unexpected phase ${cue.phase}")
             }
         }
     }

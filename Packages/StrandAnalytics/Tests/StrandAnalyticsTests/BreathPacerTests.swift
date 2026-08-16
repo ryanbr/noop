@@ -38,6 +38,7 @@ final class BreathPacerTests: XCTestCase {
             switch cue.phase {
             case .inhale: XCTAssertEqual(cue.loops, 1)
             case .exhale: XCTAssertEqual(cue.loops, 2)
+            case .hold, .textOnly: XCTFail("unexpected phase \(cue.phase)")
             }
         }
     }

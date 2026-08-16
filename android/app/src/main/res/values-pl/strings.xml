@@ -1978,4 +1978,23 @@
     <string name="l10n_settings_screen_zone_starts_a0a60d45">Początek strefy %1$d</string>
     <string name="l10n_health_screen_add_your_waist_to_unlock_your_vo_max_94c646cb">Podaj obwód talii, aby odblokować VO₂max</string>
     <string name="l10n_health_screen_fix_in_settings_d7472915">Popraw w Ustawieniach</string>
+    <string name="l10n_breathe_screen_about_pace_o3p4q5r6">O tym tempie</string>
+    <string name="l10n_breathe_screen_breathe_in_a5b6c7d8">Wdech…</string>
+    <string name="l10n_breathe_screen_breathe_out_e9f0a1b2">Wydech…</string>
+    <string name="l10n_breathe_screen_disclaimer_w1x2y3z4">Tylko szacunek — to nie porada medyczna. Przerwij, jeśli źle się czujesz.</string>
+    <string name="l10n_breathe_screen_done_s7t8u9v0">Gotowe</string>
+    <string name="l10n_breathe_screen_follow_cue_c3d4e5f6">Podążaj za wskazówką…</string>
+    <string name="l10n_breathe_screen_guided_k9l0m1n2">Prowadzone</string>
+    <string name="l10n_breathe_screen_guided_timer_g7h8i9j0">Timer prowadzony</string>
+    <string name="l10n_breathe_screen_hold_g5h6i7j8">Wstrzymaj…</string>
+    <string name="l10n_breathe_screen_locked_pace_o5p6q7r8">Twoje zapisane tempo · %1$.1f br/min</string>
+    <string name="l10n_breathe_screen_protocol_info_c1d2e3f4">Info o protokole</string>
+    <string name="l10n_breathe_screen_resonance_edu_s9t0u1v2">Twoje zapisane tempo rezonansu z przebiegu Resonansu.</string>
+    <string name="l10n_breathe_screen_resonance_k1l2m3n4">Rezonans</string>
+    <string name="l10n_breathe_screen_session_10_min_a3b4c5d6">10 min</string>
+    <string name="l10n_breathe_screen_session_15_min_e7f8a9b0">15 min</string>
+    <string name="l10n_breathe_screen_session_5_min_c9d0e1f2">5 min</string>
+    <string name="l10n_breathe_screen_session_length_a1b2c3d4">Długość sesji</string>
+    <string name="l10n_breathe_screen_session_open_e5f6a7b8">Otwarte</string>
+    <string name="l10n_breathe_screen_elapsed_target_b1c2d3e4">%1$s / %2$s</string>
 </resources>

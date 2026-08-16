@@ -1978,4 +1978,23 @@
     <string name="l10n_health_screen_add_your_waist_to_unlock_your_vo_max_94c646cb">Adiciona a tua cintura para desbloquear a tua VO₂máx</string>
     <string name="l10n_health_screen_fix_in_settings_d7472915">Corrigir nas Definições</string>
     <string name="l10n_app_changelog_personalized_heart_rate_zones_compare_and_8d89ee2a">Zonas de frequência cardíaca personalizadas, comparar e trocar de faixa, e leituras mais honestas de HRV, sono e Oura</string>
+    <string name="l10n_breathe_screen_about_pace_o3p4q5r6">Sobre este ritmo</string>
+    <string name="l10n_breathe_screen_breathe_in_a5b6c7d8">Inspira…</string>
+    <string name="l10n_breathe_screen_breathe_out_e9f0a1b2">Expira…</string>
+    <string name="l10n_breathe_screen_disclaimer_w1x2y3z4">Apenas uma estimativa — não é aconselhamento médico. Para se te sentires mal.</string>
+    <string name="l10n_breathe_screen_done_s7t8u9v0">Concluído</string>
+    <string name="l10n_breathe_screen_follow_cue_c3d4e5f6">Segue a indicação…</string>
+    <string name="l10n_breathe_screen_guided_k9l0m1n2">Guiado</string>
+    <string name="l10n_breathe_screen_guided_timer_g7h8i9j0">Temporizador guiado</string>
+    <string name="l10n_breathe_screen_hold_g5h6i7j8">Segura…</string>
+    <string name="l10n_breathe_screen_locked_pace_o5p6q7r8">O teu ritmo guardado · %1$.1f br/min</string>
+    <string name="l10n_breathe_screen_protocol_info_c1d2e3f4">Info do protocolo</string>
+    <string name="l10n_breathe_screen_resonance_edu_s9t0u1v2">O teu ritmo de ressonância guardado do varrimento de Ressonância.</string>
+    <string name="l10n_breathe_screen_resonance_k1l2m3n4">Ressonância</string>
+    <string name="l10n_breathe_screen_session_10_min_a3b4c5d6">10 min</string>
+    <string name="l10n_breathe_screen_session_15_min_e7f8a9b0">15 min</string>
+    <string name="l10n_breathe_screen_session_5_min_c9d0e1f2">5 min</string>
+    <string name="l10n_breathe_screen_session_length_a1b2c3d4">Duração da sessão</string>
+    <string name="l10n_breathe_screen_session_open_e5f6a7b8">Livre</string>
+    <string name="l10n_breathe_screen_elapsed_target_b1c2d3e4">%1$s / %2$s</string>
 </resources>

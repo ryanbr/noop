@@ -6,6 +6,9 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,14 +27,17 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -42,7 +48,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -69,6 +77,13 @@ import kotlin.math.PI
 import kotlin.math.sin
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.noop.analytics.BreathPacer
+import com.noop.analytics.BreathPhase
+import com.noop.analytics.BreathProtocol
+import com.noop.analytics.BreathProtocolCatalog
+import com.noop.analytics.BreathProtocolCategory
+import com.noop.analytics.BreathProtocolMode
+import com.noop.analytics.BreathProtocolPlayer
+import com.noop.analytics.BreathStage
 import com.noop.analytics.Hrv
 import com.noop.analytics.ResonanceEngine
 import kotlinx.coroutines.delay
@@ -79,48 +94,103 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
 
-// MARK: - Pace presets (ported from BreathingView.Pace)
+// MARK: - Pace presets (catalog + locked resonance — mirrors BreathingView.PaceSelection)
 
-private enum class Pace(val label: String) {
-    Relax("Relax 4-6"),
-    Coherence("Coherence 5.5"),
-    Box("Box 4-4"),
-    Resonance("Resonance");   // the user's locked pace (br/min) — only offered once a pace is locked
+private sealed class PaceSelection {
+    data class Catalog(val id: String) : PaceSelection()
+    data object Resonance : PaceSelection()
+}
 
-    /** Inhale seconds — for [Resonance] it derives from the locked bpm at a 40:60 inhale:exhale split
-     *  (mirrors macOS Pace.inhale(lockedBpm:)). */
-    fun inhale(lockedBpm: Double? = null): Double = when (this) {
-        Relax -> 4.0
-        Coherence -> 5.5
-        Box -> 4.0
-        Resonance -> {
-            val cycle = 60.0 / (lockedBpm ?: ResonanceEngine.FALLBACK_BPM)
-            cycle * BreathPacer.DEFAULT_INHALE_FRACTION
+private enum class SessionLength(val targetSeconds: Int?) {
+    Open(null),
+    Five(5 * 60),
+    Ten(10 * 60),
+    Fifteen(15 * 60);
+
+    companion object {
+        fun fromRecommended(recommendedMs: Int): SessionLength = when {
+            recommendedMs < 7 * 60_000 -> Five
+            recommendedMs < 12 * 60_000 -> Ten
+            else -> Fifteen
         }
-    }
-
-    fun exhale(lockedBpm: Double? = null): Double = when (this) {
-        Relax -> 6.0
-        Coherence -> 5.5
-        Box -> 4.0
-        Resonance -> {
-            val cycle = 60.0 / (lockedBpm ?: ResonanceEngine.FALLBACK_BPM)
-            cycle * (1 - BreathPacer.DEFAULT_INHALE_FRACTION)
-        }
-    }
-
-    fun cycle(lockedBpm: Double? = null): Double = inhale(lockedBpm) + exhale(lockedBpm)
-    fun bpm(lockedBpm: Double? = null): Double = 60.0 / cycle(lockedBpm)
-
-    fun tagline(lockedBpm: Double? = null): String = when (this) {
-        Relax -> "Long exhale · downshift to rest"
-        Coherence -> "Equal breath · ~5.5 br/min coherence"
-        Box -> "Square breath · steady focus"
-        Resonance -> String.format(Locale.US, "Your locked pace · %.1f br/min", lockedBpm ?: ResonanceEngine.FALLBACK_BPM)
     }
 }
 
-private enum class Phase { Inhale, Exhale }
+private fun sessionLengthLabel(length: SessionLength): String = when (length) {
+    SessionLength.Open -> uiString(R.string.l10n_breathe_screen_session_open_e5f6a7b8)
+    SessionLength.Five -> uiString(R.string.l10n_breathe_screen_session_5_min_c9d0e1f2)
+    SessionLength.Ten -> uiString(R.string.l10n_breathe_screen_session_10_min_a3b4c5d6)
+    SessionLength.Fifteen -> uiString(R.string.l10n_breathe_screen_session_15_min_e7f8a9b0)
+}
+
+private enum class UiPhase { Inhale, Hold, Exhale, TextOnly }
+
+private fun selectedProtocol(pace: PaceSelection): BreathProtocol? = when (pace) {
+    is PaceSelection.Catalog -> BreathProtocolCatalog.protocolById(pace.id)
+    PaceSelection.Resonance -> null
+}
+
+private fun isGuided(pace: PaceSelection): Boolean =
+    selectedProtocol(pace)?.mode == BreathProtocolMode.GUIDED
+
+private fun selectedBpm(pace: PaceSelection, lockedBpm: Double?): Double = when (pace) {
+    PaceSelection.Resonance -> lockedBpm ?: ResonanceEngine.FALLBACK_BPM
+    is PaceSelection.Catalog -> {
+        val proto = selectedProtocol(pace)
+        if (proto == null || proto.cycleDurationMs <= 0) 0.0
+        else 60_000.0 / proto.cycleDurationMs
+    }
+}
+
+private fun resonanceStages(lockedBpm: Double?): List<BreathStage> {
+    val bpm = lockedBpm ?: ResonanceEngine.FALLBACK_BPM
+    val cycleMs = (60_000.0 / bpm).roundToInt()
+    val inhaleMs = (cycleMs * BreathPacer.DEFAULT_INHALE_FRACTION).roundToInt()
+    val exhaleMs = maxOf(1, cycleMs - inhaleMs)
+    return listOf(
+        BreathStage(BreathPhase.INHALE, inhaleMs),
+        BreathStage(BreathPhase.EXHALE, exhaleMs),
+    )
+}
+
+private fun currentStages(pace: PaceSelection, lockedBpm: Double?): List<BreathStage> = when (pace) {
+    PaceSelection.Resonance -> resonanceStages(lockedBpm)
+    is PaceSelection.Catalog -> selectedProtocol(pace)?.stages?.filter { it.durationMs > 0 }.orEmpty()
+}
+
+private fun paceSelectionLabel(pace: PaceSelection, lockedBpm: Double?): String = when (pace) {
+    is PaceSelection.Catalog -> selectedProtocol(pace)?.title ?: pace.id
+    PaceSelection.Resonance -> uiString(R.string.l10n_breathe_screen_resonance_k1l2m3n4)
+}
+
+private fun selectedTagline(pace: PaceSelection, lockedBpm: Double?): String = when (pace) {
+    PaceSelection.Resonance -> uiString(
+        R.string.l10n_breathe_screen_locked_pace_o5p6q7r8,
+        lockedBpm ?: ResonanceEngine.FALLBACK_BPM,
+    )
+    is PaceSelection.Catalog -> selectedProtocol(pace)?.subtitle.orEmpty()
+}
+
+private fun paceCaption(pace: PaceSelection, lockedBpm: Double?): String = when (pace) {
+    PaceSelection.Resonance -> {
+        val cycle = 60.0 / (lockedBpm ?: ResonanceEngine.FALLBACK_BPM)
+        val inn = cycle * BreathPacer.DEFAULT_INHALE_FRACTION
+        val out = cycle * (1 - BreathPacer.DEFAULT_INHALE_FRACTION)
+        String.format(Locale.US, "%.0f / %.0fs", inn, out)
+    }
+    is PaceSelection.Catalog -> {
+        val proto = selectedProtocol(pace)
+        if (proto == null || proto.stages.isEmpty()) {
+            if (isGuided(pace)) "guided" else "—"
+        } else {
+            proto.stages.joinToString(" · ") {
+                String.format(Locale.US, "%.1f", it.durationMs / 1000.0)
+            } + "s"
+        }
+    }
+}
+
+private const val REDUCED_STEADY_ORB = 0.5f
 
 // MARK: - Liquid hero tokens (the liquid Breathe restyle)
 //
@@ -153,7 +223,9 @@ fun BreatheScreen(viewModel: AppViewModel) {
     // The user's locked resonance pace (br/min), or null — read fresh; the sweep writes it.
     var lockedBpm by remember { mutableStateOf(BiofeedbackPrefs.lockedPace(context)) }
 
-    var pace by remember { mutableStateOf(Pace.Coherence) }
+    var pace by remember { mutableStateOf<PaceSelection>(PaceSelection.Catalog("coherence_5_5")) }
+    var sessionLength by remember { mutableStateOf(SessionLength.Ten) }
+    var showEdu by remember { mutableStateOf(false) }
     var running by remember { mutableStateOf(false) }
 
     // Opt-in audio pacer — a soft tone at each phase change (a brighter note on the inhale, a lower one
@@ -165,7 +237,12 @@ fun BreatheScreen(viewModel: AppViewModel) {
     }
     val tonePlayer = remember { BreathTonePlayer(context) }
     DisposableEffect(Unit) { onDispose { tonePlayer.release() } }
-    var phase by remember { mutableStateOf(Phase.Inhale) }
+    var phase by remember { mutableStateOf(UiPhase.Inhale) }
+    var phaseLabel by remember { mutableStateOf<String?>(null) }
+    var stageIndex by remember { mutableIntStateOf(0) }
+    var phaseDeadlineMs by remember { mutableLongStateOf(Long.MAX_VALUE) }
+    var orbTarget by remember { mutableFloatStateOf(0f) }
+    var currentStageDurationMs by remember { mutableIntStateOf(800) }
     var sessionSeconds by remember { mutableIntStateOf(0) }
     var breathCount by remember { mutableIntStateOf(0) }
 
@@ -187,6 +264,10 @@ fun BreatheScreen(viewModel: AppViewModel) {
         mutableStateOf(NoopPrefs.of(context).getString(KEY_BREATHE_LAST_OUTCOME, "").orEmpty())
     }
 
+    val proto = selectedProtocol(pace)
+    val guided = isGuided(pace)
+    val bpmSelected = selectedBpm(pace, lockedBpm)
+
     // Bank the just-ended session's outcome (mirrors BreathingView.captureOutcome):
     // null below the 2-minute floor; "—" stays display-only, never persisted.
     fun endSession() {
@@ -204,12 +285,84 @@ fun BreatheScreen(viewModel: AppViewModel) {
         }
     }
 
+    fun armCurrentStage(fromMs: Long, buzz: Boolean) {
+        val stages = currentStages(pace, lockedBpm)
+        if (stages.isEmpty()) return
+        val stage = stages[stageIndex % stages.size]
+        phase = when (stage.type) {
+            BreathPhase.INHALE -> UiPhase.Inhale
+            BreathPhase.HOLD -> UiPhase.Hold
+            BreathPhase.EXHALE -> UiPhase.Exhale
+            BreathPhase.TEXT_ONLY -> UiPhase.TextOnly
+        }
+        phaseLabel = stage.label
+        currentStageDurationMs = stage.durationMs
+        phaseDeadlineMs = fromMs + stage.durationMs
+        when (phase) {
+            UiPhase.Inhale -> orbTarget = 1f
+            UiPhase.Exhale -> orbTarget = 0f
+            UiPhase.Hold, UiPhase.TextOnly -> Unit
+        }
+        if (buzz) {
+            val loops = BreathProtocolPlayer.loops(stage.type)
+            if (loops > 0) viewModel.buzz(loops = loops, gate = HapticPrefs.BREATHING)
+            if (audioCues) {
+                when (phase) {
+                    UiPhase.Inhale -> tonePlayer.play(BreathTone.Inhale)
+                    UiPhase.Exhale -> tonePlayer.play(BreathTone.Exhale)
+                    else -> Unit
+                }
+            }
+        }
+    }
+
+    fun advanceStage(nowMs: Long) {
+        if (guided) return
+        val stages = currentStages(pace, lockedBpm)
+        if (stages.isEmpty()) return
+        val completed = stages[stageIndex % stages.size]
+        stageIndex += 1
+        if (completed.type == BreathPhase.EXHALE) breathCount += 1
+        armCurrentStage(nowMs, buzz = true)
+    }
+
+    fun startSession() {
+        running = true
+        sessionSeconds = 0
+        breathCount = 0
+        stageIndex = 0
+        phaseLabel = null
+        endedOutcome = null
+        baselineRmssd = rmssd
+        sessionRmssdSum = 0.0
+        sessionRmssdCount = 0
+        sessionRmssdPeak = 0.0
+        if (guided) {
+            phase = UiPhase.TextOnly
+            phaseLabel = proto?.title
+            phaseDeadlineMs = Long.MAX_VALUE
+            orbTarget = REDUCED_STEADY_ORB
+        } else {
+            armCurrentStage(System.currentTimeMillis(), buzz = true)
+        }
+    }
+
+    fun stopSession() {
+        val wasRunning = running
+        running = false
+        phaseDeadlineMs = Long.MAX_VALUE
+        phaseLabel = null
+        if (wasRunning) {
+            endSession()
+            viewModel.stopHaptics()
+        }
+        orbTarget = 0f
+    }
+
     // Orb expansion 0..1; driven by an eased animation per breath phase.
-    val orbTarget = if (running && phase == Phase.Inhale) 1f else 0f
-    val phaseDurationMs = ((if (phase == Phase.Inhale) pace.inhale(lockedBpm) else pace.exhale(lockedBpm)) * 1000).toInt()
     val orbProgress by animateFloatAsState(
         targetValue = orbTarget,
-        animationSpec = tween(if (running) phaseDurationMs else 800, easing = Motion.easeInOut),
+        animationSpec = tween(if (running) currentStageDurationMs else 800, easing = Motion.easeInOut),
         label = "orb",
     )
 
@@ -237,31 +390,38 @@ fun BreatheScreen(viewModel: AppViewModel) {
             }
     }
 
-    // Session clock — ticks only while running.
-    LaunchedEffect(running) {
+    // Session clock — ticks only while running; auto-stops at session length target.
+    LaunchedEffect(running, sessionLength) {
         if (!running) return@LaunchedEffect
-        while (true) {
+        while (running) {
             delay(1000)
             sessionSeconds += 1
+            sessionLength.targetSeconds?.let { target ->
+                if (sessionSeconds >= target) {
+                    stopSession()
+                    return@LaunchedEffect
+                }
+            }
         }
     }
 
-    // The breath engine: alternate phases, firing the haptic cue at the START of
-    // each phase (1 pulse on inhale, 2 on exhale) — mirrors BreathingView.armPhase.
-    LaunchedEffect(running, pace) {
-        if (!running) return@LaunchedEffect
-        while (true) {
-            // Inhale: cue, then hold for the inhale duration.
-            phase = Phase.Inhale
-            viewModel.buzz(loops = 1, gate = HapticPrefs.BREATHING)
-            if (audioCues) tonePlayer.play(BreathTone.Inhale)
-            delay((pace.inhale(lockedBpm) * 1000).toLong())
-            // Exhale: cue, then hold for the exhale duration.
-            phase = Phase.Exhale
-            viewModel.buzz(loops = 2, gate = HapticPrefs.BREATHING)
-            if (audioCues) tonePlayer.play(BreathTone.Exhale)
-            delay((pace.exhale(lockedBpm) * 1000).toLong())
-            breathCount += 1
+    // Stage advance clock — 50 ms tick mirrors BreathingView phaseTimer.
+    LaunchedEffect(running, pace, guided) {
+        if (!running || guided) return@LaunchedEffect
+        while (running) {
+            delay(50)
+            val now = System.currentTimeMillis()
+            if (now >= phaseDeadlineMs) advanceStage(now)
+        }
+    }
+
+    // When pace changes: stop any live session and reset session length from catalog recommendation.
+    LaunchedEffect(pace) {
+        if (running) stopSession()
+        if (pace is PaceSelection.Catalog) {
+            selectedProtocol(pace)?.let { p ->
+                sessionLength = SessionLength.fromRecommended(p.recommendedDurationMs)
+            }
         }
     }
 
@@ -270,8 +430,6 @@ fun BreatheScreen(viewModel: AppViewModel) {
             // Leaving mid-session still banks the outcome (mirrors macOS onDisappear → stop()).
             if (running) {
                 endSession()
-                // #769: also tell the strap to stop haptics on the way out so a leftover pattern can't
-                // wedge the strap if the link drops after we navigate away. Best-effort (guarded send).
                 viewModel.stopHaptics()
             }
             running = false
@@ -279,15 +437,16 @@ fun BreatheScreen(viewModel: AppViewModel) {
     }
 
     // #769: if the strap drops WHILE a session is live, end the session AND fire the stop-haptics clear.
-    // The breath-engine LaunchedEffect already stops scheduling pulses once `running` flips false; this
-    // adds the strap-side clear (best-effort) and banks the outcome, mirroring the macOS
-    // BiofeedbackController bond watch.
     LaunchedEffect(live.bonded) {
-        if (!live.bonded && running) {
-            running = false
-            endSession()
-            viewModel.stopHaptics()
-        }
+        if (!live.bonded && running) stopSession()
+    }
+
+    if (showEdu) {
+        ProtocolEduDialog(
+            pace = pace,
+            lockedBpm = lockedBpm,
+            onDismiss = { showEdu = false },
+        )
     }
 
     // Day-cycle sky + sky-behind-cards: the SAME two Appearance gates every other screen honours.
@@ -314,7 +473,7 @@ fun BreatheScreen(viewModel: AppViewModel) {
             selection = mode,
             label = { it.label },
             onSelect = {
-                if (running) { running = false; endSession() }
+                if (running) stopSession()
                 mode = it
                 lockedBpm = BiofeedbackPrefs.lockedPace(context)
             },
@@ -326,11 +485,8 @@ fun BreatheScreen(viewModel: AppViewModel) {
                 // Switch to Breathe and start a one-minute session. Coherence (5.5 br/min) is the
                 // resonance fallback pace; the felt cue is identical (one buzz in, two out).
                 mode = BreatheMode.Breathe
-                pace = Pace.Coherence
-                sessionSeconds = 0; breathCount = 0; endedOutcome = null
-                baselineRmssd = rmssd
-                sessionRmssdSum = 0.0; sessionRmssdCount = 0; sessionRmssdPeak = 0.0
-                running = true
+                pace = PaceSelection.Catalog("coherence_5_5")
+                startSession()
             },
         )
 
@@ -361,7 +517,20 @@ fun BreatheScreen(viewModel: AppViewModel) {
                 StatePill("Visual only", tone = StrandTone.Warning)
             }
             Spacer(Modifier.weight(1f))
-            Text(timeString(sessionSeconds), style = NoopType.number(15f), color = Palette.textPrimary)
+            val target = sessionLength.targetSeconds
+            Text(
+                if (target != null) {
+                    uiString(
+                        R.string.l10n_breathe_screen_elapsed_target_b1c2d3e4,
+                        timeString(sessionSeconds),
+                        timeString(target),
+                    )
+                } else {
+                    timeString(sessionSeconds)
+                },
+                style = NoopType.number(15f),
+                color = Palette.textPrimary,
+            )
             Spacer(Modifier.width(6.dp))
             Text(uiString(R.string.l10n_breathe_screen_breathcount_breaths_ce036831, breathCount), style = NoopType.captionNumber, color = Palette.textSecondary)
         }
@@ -382,12 +551,29 @@ fun BreatheScreen(viewModel: AppViewModel) {
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Overline(pace.label)
+                    Overline(paceSelectionLabel(pace, lockedBpm))
                     Spacer(Modifier.weight(1f))
-                    Text(
-                        String.format(Locale.US, "%.1f br/min", pace.bpm(lockedBpm)),
-                        style = NoopType.captionNumber, color = Palette.textSecondary,
-                    )
+                    IconButton(
+                        onClick = { showEdu = true },
+                        enabled = pace !is PaceSelection.Resonance || proto != null,
+                    ) {
+                        Icon(
+                            Icons.Filled.Info,
+                            contentDescription = uiString(R.string.l10n_breathe_screen_protocol_info_c1d2e3f4),
+                            tint = Palette.textSecondary,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                    when {
+                        bpmSelected > 0 -> Text(
+                            String.format(Locale.US, "%.1f br/min", bpmSelected),
+                            style = NoopType.captionNumber, color = Palette.textSecondary,
+                        )
+                        guided -> Text(
+                            uiString(R.string.l10n_breathe_screen_guided_k9l0m1n2),
+                            style = NoopType.captionNumber, color = Palette.textSecondary,
+                        )
+                    }
                 }
 
                 // The breathe pacer is now a liquid VESSEL: it FILLS on the inhale and EMPTIES on the exhale,
@@ -423,24 +609,46 @@ fun BreatheScreen(viewModel: AppViewModel) {
                 }
 
                 Text(
-                    text = if (running) phaseWord(phase) else pace.tagline(lockedBpm),
+                    text = if (running) phaseWord(phase, phaseLabel) else selectedTagline(pace, lockedBpm),
                     style = NoopType.subhead,
                     color = if (running) Palette.restBright else Palette.textSecondary,
+                    textAlign = TextAlign.Center,
                 )
 
-                // The locked-resonance pill only appears once a pace has been locked (mirrors macOS
-                // availablePaces) so a locked pace is selectable here.
-                val availablePaces = if (lockedBpm != null) {
-                    listOf(Pace.Relax, Pace.Coherence, Pace.Box, Pace.Resonance)
-                } else {
-                    listOf(Pace.Relax, Pace.Coherence, Pace.Box)
+                val availablePaces = buildList {
+                    BreathProtocolCatalog.pickerProtocols.forEach { add(PaceSelection.Catalog(it.id)) }
+                    if (lockedBpm != null) add(PaceSelection.Resonance)
                 }
-                SegmentedPillControl(
-                    items = availablePaces,
-                    selection = pace,
-                    label = { it.label },
-                    onSelect = { pace = it },
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                ) {
+                    SegmentedPillControl(
+                        items = availablePaces,
+                        selection = pace,
+                        label = { paceSelectionLabel(it, lockedBpm) },
+                        onSelect = { newPace ->
+                            if (running) stopSession()
+                            pace = newPace
+                        },
+                    )
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        uiString(R.string.l10n_breathe_screen_session_length_a1b2c3d4),
+                        style = NoopType.caption,
+                        color = Palette.textTertiary,
+                    )
+                    SegmentedPillControl(
+                        items = SessionLength.entries.toList(),
+                        selection = sessionLength,
+                        label = { sessionLengthLabel(it) },
+                        onSelect = { sessionLength = it },
+                        enabled = { !running },
+                    )
+                }
 
                 // Opt-in audio pacer toggle — soft tone on each phase, honours the ringer mode.
                 AudioCueToggle(
@@ -456,26 +664,7 @@ fun BreatheScreen(viewModel: AppViewModel) {
         // Controls.
         Row(horizontalArrangement = Arrangement.spacedBy(Metrics.gap), modifier = Modifier.fillMaxWidth()) {
             Button(
-                onClick = {
-                    if (running) {
-                        running = false
-                        endSession()
-                        // #769: clear any pattern the strap is mid-way through so a drop right after stop
-                        // can't wedge its haptic manager. Best-effort (no-op when unbonded / on a 5/MG).
-                        viewModel.stopHaptics()
-                    } else {
-                        sessionSeconds = 0
-                        breathCount = 0
-                        endedOutcome = null
-                        // Baseline: prefer the pre-session rolling value; otherwise the
-                        // R-R collector locks the first value inside the first ~60s.
-                        baselineRmssd = rmssd
-                        sessionRmssdSum = 0.0
-                        sessionRmssdCount = 0
-                        sessionRmssdPeak = 0.0
-                        running = true
-                    }
-                },
+                onClick = { if (running) stopSession() else startSession() },
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (running) Palette.statusCritical else Palette.accent,
@@ -560,10 +749,18 @@ fun BreatheScreen(viewModel: AppViewModel) {
             ReadoutTile(
                 modifier = Modifier.weight(1f),
                 label = uiString(R.string.l10n_breathe_screen_pace_7a9a6226),
-                value = String.format(Locale.US, "%.1f", pace.bpm(lockedBpm)),
+                value = when {
+                    bpmSelected > 0 -> String.format(Locale.US, "%.1f", bpmSelected)
+                    guided -> "—"
+                    else -> "—"
+                },
                 unit = "br/min",
                 accent = Palette.restBright,
-                caption = String.format(Locale.US, "%.0f / %.0fs", pace.inhale(lockedBpm), pace.exhale(lockedBpm)),
+                caption = when {
+                    guided -> uiString(R.string.l10n_breathe_screen_guided_timer_g7h8i9j0)
+                    paceCaption(pace, lockedBpm) == "guided" -> uiString(R.string.l10n_breathe_screen_guided_timer_g7h8i9j0)
+                    else -> paceCaption(pace, lockedBpm)
+                },
             )
         }
 
@@ -732,9 +929,66 @@ private fun HapticHint() {
     }
 }
 
-private fun phaseWord(phase: Phase): String = when (phase) {
-    Phase.Inhale -> "Breathe in…"
-    Phase.Exhale -> "Breathe out…"
+@Composable
+private fun phaseWord(phase: UiPhase, label: String?): String {
+    if (!label.isNullOrEmpty()) return label
+    return when (phase) {
+        UiPhase.Inhale -> uiString(R.string.l10n_breathe_screen_breathe_in_a5b6c7d8)
+        UiPhase.Hold -> uiString(R.string.l10n_breathe_screen_hold_g5h6i7j8)
+        UiPhase.Exhale -> uiString(R.string.l10n_breathe_screen_breathe_out_e9f0a1b2)
+        UiPhase.TextOnly -> uiString(R.string.l10n_breathe_screen_follow_cue_c3d4e5f6)
+    }
+}
+
+@Composable
+private fun ProtocolEduDialog(
+    pace: PaceSelection,
+    lockedBpm: Double?,
+    onDismiss: () -> Unit,
+) {
+    val proto = selectedProtocol(pace)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(uiString(R.string.l10n_breathe_screen_about_pace_o3p4q5r6), style = NoopType.headline) },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                if (proto != null) {
+                    Text(proto.title, style = NoopType.title2, color = Palette.textPrimary)
+                    Text(proto.subtitle, style = NoopType.subhead, color = Palette.textSecondary)
+                    if (proto.category == BreathProtocolCategory.PRESENCE) {
+                        Text(BreathProtocolCatalog.presenceIntroTitle, style = NoopType.headline, color = Palette.textPrimary)
+                        Text(BreathProtocolCatalog.presenceIntroBody, style = NoopType.body, color = Palette.textSecondary)
+                    }
+                    Text(proto.edu, style = NoopType.body, color = Palette.textPrimary)
+                    proto.sessionHint?.let {
+                        Text(it, style = NoopType.footnote, color = Palette.textSecondary)
+                    }
+                    proto.caution?.let {
+                        Text(it, style = NoopType.footnote, color = Palette.statusWarning)
+                    }
+                    Text(
+                        uiString(R.string.l10n_breathe_screen_disclaimer_w1x2y3z4),
+                        style = NoopType.caption,
+                        color = Palette.textTertiary,
+                    )
+                } else {
+                    Text(
+                        uiString(R.string.l10n_breathe_screen_resonance_edu_s9t0u1v2),
+                        style = NoopType.body,
+                        color = Palette.textSecondary,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(uiString(R.string.l10n_breathe_screen_done_s7t8u9v0))
+            }
+        },
+    )
 }
 
 private fun timeString(total: Int): String =

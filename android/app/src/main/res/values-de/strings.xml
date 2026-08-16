@@ -315,6 +315,24 @@
     <string name="l10n_breathe_screen_turn_off_8807c2b3">Ausschalten</string>
     <string name="l10n_breathe_screen_waiting_for_a_resting_heart_rate_980cedbf">Warte auf eine Ruheherzfrequenz. Starte zuerst eine Live-Messung oder komm zurück, wenn du still bist.</string>
     <string name="l10n_breathe_screen_your_hrv_dipped_while_you_were_231d3c7a">Deine HRV ist gesunken, während du still warst. Eine Minute zum Atmen?</string>
+    <string name="l10n_breathe_screen_session_length_a1b2c3d4">Sitzungsdauer</string>
+    <string name="l10n_breathe_screen_session_open_e5f6a7b8">Offen</string>
+    <string name="l10n_breathe_screen_session_5_min_c9d0e1f2">5 Min</string>
+    <string name="l10n_breathe_screen_session_10_min_a3b4c5d6">10 Min</string>
+    <string name="l10n_breathe_screen_session_15_min_e7f8a9b0">15 Min</string>
+    <string name="l10n_breathe_screen_protocol_info_c1d2e3f4">Protokoll-Info</string>
+    <string name="l10n_breathe_screen_hold_g5h6i7j8">Halten…</string>
+    <string name="l10n_breathe_screen_guided_k9l0m1n2">Geführt</string>
+    <string name="l10n_breathe_screen_about_pace_o3p4q5r6">Über dieses Tempo</string>
+    <string name="l10n_breathe_screen_done_s7t8u9v0">Fertig</string>
+    <string name="l10n_breathe_screen_disclaimer_w1x2y3z4">Nur Schätzung — keine medizinische Beratung. Bei Unwohlsein stoppen.</string>
+    <string name="l10n_breathe_screen_breathe_in_a5b6c7d8">Einatmen…</string>
+    <string name="l10n_breathe_screen_breathe_out_e9f0a1b2">Ausatmen…</string>
+    <string name="l10n_breathe_screen_follow_cue_c3d4e5f6">Hinweis folgen…</string>
+    <string name="l10n_breathe_screen_guided_timer_g7h8i9j0">Geführter Timer</string>
+    <string name="l10n_breathe_screen_resonance_k1l2m3n4">Resonanz</string>
+    <string name="l10n_breathe_screen_locked_pace_o5p6q7r8">Dein gespeichertes Tempo · %1$.1f br/min</string>
+    <string name="l10n_breathe_screen_resonance_edu_s9t0u1v2">Dein gespeichertes Resonanz-Tempo aus dem Resonanz-Sweep.</string>
     <string name="l10n_caffeine_log_after_your_clocklabel_cutoffminutes_cutoff_may_3c023900">Nach Ihrem %1$s Cutoff - kann noch im Bett aktiv sein.</string>
     <string name="l10n_caffeine_log_amount_in_mg_optional_f0749888">Menge in mg (optional)</string>
     <string name="l10n_caffeine_log_bedtime_e3cb8bd6">Schlafenszeit</string>
@@ -1999,4 +2017,5 @@
     <string name="l10n_health_screen_add_your_waist_to_unlock_your_vo_max_94c646cb">Taille eintragen, um deine VO₂max freizuschalten</string>
     <string name="l10n_health_screen_fix_in_settings_d7472915">In Einstellungen beheben</string>
     <string name="l10n_app_changelog_personalized_heart_rate_zones_compare_and_8d89ee2a">Personalisierte Herzfrequenzzonen, Gurte vergleichen und wechseln, und ehrlichere HRV-, Schlaf- und Oura-Werte</string>
+    <string name="l10n_breathe_screen_elapsed_target_b1c2d3e4">%1$s / %2$s</string>
 </resources>

@@ -130,6 +130,24 @@
     <string name="l10n_breathe_screen_turn_off_8807c2b3">Désactiver</string>
     <string name="l10n_breathe_screen_waiting_for_a_resting_heart_rate_980cedbf">En attente d\'une fréquence cardiaque au repos. Démarrez d\'abord une lecture en direct, ou revenez lorsque vous êtes immobile.</string>
     <string name="l10n_breathe_screen_your_hrv_dipped_while_you_were_231d3c7a">Votre VFC a baissé pendant que vous étiez immobile. Une minute pour respirer ?</string>
+    <string name="l10n_breathe_screen_session_length_a1b2c3d4">Durée de séance</string>
+    <string name="l10n_breathe_screen_session_open_e5f6a7b8">Libre</string>
+    <string name="l10n_breathe_screen_session_5_min_c9d0e1f2">5 min</string>
+    <string name="l10n_breathe_screen_session_10_min_a3b4c5d6">10 min</string>
+    <string name="l10n_breathe_screen_session_15_min_e7f8a9b0">15 min</string>
+    <string name="l10n_breathe_screen_protocol_info_c1d2e3f4">Info protocole</string>
+    <string name="l10n_breathe_screen_hold_g5h6i7j8">Retenez…</string>
+    <string name="l10n_breathe_screen_guided_k9l0m1n2">Guidé</string>
+    <string name="l10n_breathe_screen_about_pace_o3p4q5r6">À propos de ce rythme</string>
+    <string name="l10n_breathe_screen_done_s7t8u9v0">Terminé</string>
+    <string name="l10n_breathe_screen_disclaimer_w1x2y3z4">Estimation uniquement — pas un avis médical. Arrêtez si vous vous sentez mal.</string>
+    <string name="l10n_breathe_screen_breathe_in_a5b6c7d8">Inspirez…</string>
+    <string name="l10n_breathe_screen_breathe_out_e9f0a1b2">Expirez…</string>
+    <string name="l10n_breathe_screen_follow_cue_c3d4e5f6">Suivez l’indication…</string>
+    <string name="l10n_breathe_screen_guided_timer_g7h8i9j0">Minuteur guidé</string>
+    <string name="l10n_breathe_screen_resonance_k1l2m3n4">Résonance</string>
+    <string name="l10n_breathe_screen_locked_pace_o5p6q7r8">Votre rythme enregistré · %1$.1f br/min</string>
+    <string name="l10n_breathe_screen_resonance_edu_s9t0u1v2">Votre rythme de résonance enregistré depuis le balayage Résonance.</string>
     <string name="l10n_caffeine_log_after_your_clocklabel_cutoffminutes_cutoff_may_3c023900">Après votre coupure %1$s - peut encore être actif au lit.</string>
     <string name="l10n_caffeine_log_amount_in_mg_optional_f0749888">Quantité en mg (facultatif)</string>
     <string name="l10n_caffeine_log_bedtime_e3cb8bd6">Heure du coucher</string>
@@ -1984,4 +2002,5 @@
     <string name="l10n_health_screen_add_your_waist_to_unlock_your_vo_max_94c646cb">Ajoute ton tour de taille pour débloquer ta VO₂max</string>
     <string name="l10n_health_screen_fix_in_settings_d7472915">Corriger dans les réglages</string>
     <string name="l10n_app_changelog_personalized_heart_rate_zones_compare_and_8d89ee2a">Zones de fréquence cardiaque personnalisées, comparer et changer de sangle, et des lectures HRV, sommeil et Oura plus honnêtes</string>
+    <string name="l10n_breathe_screen_elapsed_target_b1c2d3e4">%1$s / %2$s</string>
 </resources>

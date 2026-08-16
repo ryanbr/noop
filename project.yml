@@ -431,6 +431,7 @@ targets:
         SWIFT_EMIT_LOC_STRINGS: YES
     dependencies:
       - package: StrandDesign
+      - package: StrandAnalytics
       # The complication WidgetKit extension is embedded inside the watch app.
       - target: NOOPWatchComplications
 
