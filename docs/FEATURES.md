@@ -1,3 +1,4 @@
+
 # NOOP — Feature Guide
 
 NOOP is a standalone, fully **offline** companion app for WHOOP straps (4.0 and 5.0). It pairs
@@ -141,24 +142,37 @@ stops the realtime stream (the lightweight standard HR keeps recording).
 
 **Sidebar: Breathe · works visually without a strap; needs a bonded strap for haptic cues.**
 
-`BreathingView.swift` — an **HRV haptic breathing biofeedback** trainer, and NOOP's flagship
-novel feature. Because the strap both *measures* HRV (from R-R intervals) and *buzzes*, NOOP can
-pace your breath with a felt cue and watch your HRV respond in real time.
+`BreathingView.swift` / `BreatheScreen.kt` / `WatchBreatheView.swift` — an **HRV haptic breathing
+biofeedback** trainer (NOOP's flagship novel feature), now also a **content-driven protocol
+catalog**. Because the strap both *measures* HRV (from R-R intervals) and *buzzes*, NOOP can pace
+your breath with a felt cue and watch your HRV respond in real time.
 
-- **Pick a pace**: Relax 4-6 (4 s inhale / 6 s exhale), Coherence 5.5 (equal ~5.5 breaths/min),
-  or Box 4-4.
-- **Start a session** — a soft orb expands on the inhale and contracts on the exhale, with your
-  live BPM in its centre. With a strap bonded you feel **one pulse on the inhale, two on the
-  exhale**, so you can breathe with your eyes closed. Without a strap it's visual-only ("Visual
-  only" pill).
-- **Live readouts**: heart rate, a rolling **HRV (RMSSD)** over the last ~30 beats, and the
-  current pace.
-- **Coherence estimate** — a normalized bar (RMSSD mapped 0–120 ms) with a band word (Building /
-  Settling / Coherent / Deep calm). This is an estimate, not a clinical reading — trends across a
-  session matter more than any single number.
-- **Pre/post outcome** — at the end of a session NOOP shows a **before vs after HRV (RMSSD)**
-  read, so you can see how much the breathing actually settled you. An estimate, not a clinical
-  reading.
+- **Pick a pace** from the in-place pill row:
+  - Built-in: Relax 4-6, Coherence 5.5, plus a **catalog** of ANS protocols (Deep, Box 4-4-4-4 with
+    holds, Diaphragmatic, Alternate Nostril, 4-7-8, Buteyko, Tummo, Ujjayi, Bhastrika, Qi Gong,
+    Soma, Coherent 6-6, …) and **Presence Process** tempos (Regular / Mid / Punching Through —
+    consciously connected breathing, no holds).
+  - **Guided** entries (Kapalabhati, Holotropic, Wim Hof, Shamanic) give education + a session timer
+    without an aggressive auto-pacer.
+  - Locked **Resonance** pill still appears after a Resonance sweep.
+- **Session length**: Open (until Stop) or **5 / 10 / 15 min** with auto-stop; defaults follow each
+  protocol's recommended duration (e.g. Presence → 15 min).
+- **ⓘ Protocol info** — background, session hint, and cautions (localized; non-clinical). Presence
+  paces include a short Presence Process / CCB intro.
+- **Start a session** — liquid vessel fills on inhale, holds steady on hold, drains on exhale; live
+  BPM in the centre. Bonded strap: **one pulse on inhale, two on exhale** (holds are silent).
+  Without a strap it's visual-only ("Visual only" pill).
+- **Live readouts**: heart rate, rolling **HRV (RMSSD)**, and stage timing.
+- **Coherence estimate** and **pre/post RMSSD outcome** unchanged (estimates, not clinical).
+- Modes **Resonance** and **Calm me** stay on the existing mode strip.
+
+Pure schedule math lives in `Packages/StrandAnalytics` (`BreathProtocol` / `BreathProtocolCatalog` /
+`BreathProtocolPlayer`) with a Kotlin twin under `com.noop.analytics` — golden-vector tested.
+
+Technique list and timing hints are inspired by publicly documented ANS breath protocols (including
+[Ultrahuman's ANS breath protocols blog](https://www.ultrahuman.com/blog/harness-the-power-of-breath-protocols-for-your-autonomic-nervous-system/));
+NOOP is not affiliated with Ultrahuman. Education copy is original. Presence tempos were measured
+from public Presence Process guide audio.
 
 A "Test buzz" button fires a single pulse (bonded only).
 

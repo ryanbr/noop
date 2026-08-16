@@ -62,70 +62,67 @@ private struct BreathingContent: View {
     }
     @State private var mode: Mode = .breathe
 
-    // MARK: Pace presets
+    // MARK: Pace presets (catalog + locked resonance)
 
-    private enum Pace: Hashable {
-        case relax          // 4s inhale / 6s exhale
-        case coherence      // 5.5s / 5.5s
-        case box            // 4s / 4s
-        case resonance      // the user's locked pace (br/min)
+    private enum PaceSelection: Hashable {
+        case catalog(String)
+        case resonance
 
         var label: String {
             switch self {
-            case .relax:      return String(localized: "Relax 4-6")
-            case .coherence:  return String(localized: "Coherence 5.5")
-            case .box:        return String(localized: "Box 4-4")
-            case .resonance:  return String(localized: "Resonance")
-            }
-        }
-
-        /// Inhale seconds — for `.resonance` it derives from the locked bpm at a 40:60 inhale:exhale split.
-        func inhale(lockedBpm: Double?) -> Double {
-            switch self {
-            case .relax:     return 4.0
-            case .coherence: return 5.5
-            case .box:       return 4.0
+            case .catalog(let id):
+                return String(localized: String.LocalizationValue(
+                    BreathProtocolCatalog.protocolById(id)?.title ?? id))
             case .resonance:
-                let cycle = 60.0 / (lockedBpm ?? ResonanceEngine.fallbackBpm)
-                return cycle * BreathPacer.defaultInhaleFraction
-            }
-        }
-
-        func exhale(lockedBpm: Double?) -> Double {
-            switch self {
-            case .relax:     return 6.0
-            case .coherence: return 5.5
-            case .box:       return 4.0
-            case .resonance:
-                let cycle = 60.0 / (lockedBpm ?? ResonanceEngine.fallbackBpm)
-                return cycle * (1 - BreathPacer.defaultInhaleFraction)
-            }
-        }
-
-        func cycle(lockedBpm: Double?) -> Double { inhale(lockedBpm: lockedBpm) + exhale(lockedBpm: lockedBpm) }
-        func bpm(lockedBpm: Double?) -> Double { 60.0 / cycle(lockedBpm: lockedBpm) }
-
-        func tagline(lockedBpm: Double?) -> String {
-            switch self {
-            case .relax:     return String(localized: "Long exhale · downshift to rest")
-            case .coherence: return String(localized: "Equal breath · ~5.5 br/min coherence")
-            case .box:       return String(localized: "Square breath · steady focus")
-            case .resonance:
-                return String(localized: "Your locked pace · \(String(format: "%.1f", lockedBpm ?? ResonanceEngine.fallbackBpm)) br/min")
+                return String(localized: "Resonance")
             }
         }
     }
 
-    private enum Phase { case inhale, exhale }
+    private enum SessionLength: Hashable, CaseIterable {
+        case open, five, ten, fifteen
 
-    // MARK: State (fixed-pace Breathe — unchanged behaviour)
+        var label: String {
+            switch self {
+            case .open: return String(localized: "Open")
+            case .five: return String(localized: "5 min")
+            case .ten: return String(localized: "10 min")
+            case .fifteen: return String(localized: "15 min")
+            }
+        }
 
-    @State private var pace: Pace = .coherence
+        var targetSeconds: Int? {
+            switch self {
+            case .open: return nil
+            case .five: return 5 * 60
+            case .ten: return 10 * 60
+            case .fifteen: return 15 * 60
+            }
+        }
+
+        static func from(recommendedMs: Int) -> SessionLength {
+            switch recommendedMs {
+            case ..<(7 * 60_000): return .five
+            case ..<(12 * 60_000): return .ten
+            default: return .fifteen
+            }
+        }
+    }
+
+    private enum Phase { case inhale, hold, exhale, textOnly }
+
+    // MARK: State (fixed-pace Breathe — catalog-driven)
+
+    @State private var pace: PaceSelection = .catalog("coherence_5_5")
+    @State private var sessionLength: SessionLength = .ten
+    @State private var showEdu = false
     @State private var running = false
 
     /// 0 = fully contracted, 1 = fully expanded. Drives the orb scale.
     @State private var orbProgress: CGFloat = 0
     @State private var phase: Phase = .inhale
+    @State private var phaseLabel: String? = nil
+    @State private var stageIndex: Int = 0
     @State private var phaseDeadline: Date = .distantFuture
 
     @State private var sessionSeconds: Int = 0
@@ -159,6 +156,28 @@ private struct BreathingContent: View {
     /// The user's locked resonance pace, read fresh each render (set by the sweep).
     private var lockedBpm: Double? { BiofeedbackPrefs.lockedPace }
 
+    private var selectedProtocol: BreathProtocol? {
+        if case .catalog(let id) = pace { return BreathProtocolCatalog.protocolById(id) }
+        return nil
+    }
+
+    private var isGuided: Bool { selectedProtocol?.mode == .guided }
+
+    private var selectedBpm: Double {
+        if case .resonance = pace {
+            return lockedBpm ?? ResonanceEngine.fallbackBpm
+        }
+        guard let proto = selectedProtocol, proto.cycleDurationMs > 0 else { return 0 }
+        return 60_000.0 / Double(proto.cycleDurationMs)
+    }
+
+    private var selectedTagline: String {
+        if case .resonance = pace {
+            return String(localized: "Your locked pace · \(String(format: "%.1f", lockedBpm ?? ResonanceEngine.fallbackBpm)) br/min")
+        }
+        return String(localized: String.LocalizationValue(selectedProtocol?.subtitle ?? ""))
+    }
+
     var body: some View {
         ScreenScaffold(title: "Breathe",
                        subtitle: "Haptic-paced breathing · find your pace · calm down",
@@ -182,12 +201,22 @@ private struct BreathingContent: View {
         .onReceive(secondTimer) { _ in
             guard running else { return }
             sessionSeconds += 1
+            if let target = sessionLength.targetSeconds, sessionSeconds >= target {
+                stop()
+            }
         }
         .onChangeCompat(of: live.rr) { rr in
             ingest(rr)
         }
-        .onChangeCompat(of: pace) { _ in
-            if running { armPhase(.inhale, from: Date(), buzz: false) }
+        .onChangeCompat(of: pace) { newPace in
+            if running { stop() }
+            if case .catalog(let id) = newPace,
+               let proto = BreathProtocolCatalog.protocolById(id) {
+                sessionLength = SessionLength.from(recommendedMs: proto.recommendedDurationMs)
+            }
+        }
+        .sheet(isPresented: $showEdu) {
+            breathEduSheet
         }
         .onChangeCompat(of: mode) { _ in
             // Leaving a mode stops any session it owns so two clocks never run at once.
@@ -252,9 +281,15 @@ private struct BreathingContent: View {
             Spacer()
 
             HStack(spacing: 6) {
-                Text(timeString(sessionSeconds))
-                    .font(StrandFont.number(15))
-                    .foregroundStyle(StrandPalette.textPrimary)
+                if let target = sessionLength.targetSeconds {
+                    Text("\(timeString(sessionSeconds)) / \(timeString(target))")
+                        .font(StrandFont.number(15))
+                        .foregroundStyle(StrandPalette.textPrimary)
+                } else {
+                    Text(timeString(sessionSeconds))
+                        .font(StrandFont.number(15))
+                        .foregroundStyle(StrandPalette.textPrimary)
+                }
                 Text("·").foregroundStyle(StrandPalette.textTertiary)
                 Text("\(breathCount) breaths")
                     .font(StrandFont.captionNumber)
@@ -271,9 +306,23 @@ private struct BreathingContent: View {
                 HStack {
                     Text(pace.label.uppercased()).strandOverline()
                     Spacer()
-                    Text(String(format: "%.1f br/min", pace.bpm(lockedBpm: lockedBpm)))
-                        .font(StrandFont.captionNumber)
-                        .foregroundStyle(StrandPalette.textSecondary)
+                    Button {
+                        showEdu = true
+                    } label: {
+                        Image(systemName: "info.circle")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(StrandPalette.textSecondary)
+                    }
+                    .accessibilityLabel(String(localized: "Protocol info"))
+                    if selectedBpm > 0 {
+                        Text(String(format: "%.1f br/min", selectedBpm))
+                            .font(StrandFont.captionNumber)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                    } else if isGuided {
+                        Text(String(localized: "Guided"))
+                            .font(StrandFont.captionNumber)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                    }
                 }
 
                 ZStack {
@@ -285,13 +334,15 @@ private struct BreathingContent: View {
                 .frame(height: 320)
                 .frame(maxWidth: .infinity)
 
-                Text(running ? phaseWord : pace.tagline(lockedBpm: lockedBpm))
+                Text(running ? phaseWord : selectedTagline)
                     .font(StrandFont.subhead)
                     .foregroundStyle(running ? StrandPalette.restBright : StrandPalette.textSecondary)
+                    .multilineTextAlignment(.center)
                     .animation(.easeInOut(duration: 0.2), value: phaseWord)
                     .animation(.easeInOut(duration: 0.2), value: running)
 
                 pacePills
+                durationPills
                 audioCueToggle
             }
         }
@@ -322,24 +373,90 @@ private struct BreathingContent: View {
         }
     }
 
-    /// Preset pills — the locked-resonance pill only shows once a pace has been locked (it reads the
-    /// stored value), so a never-swept user sees the three shipped presets exactly as before.
-    private var availablePaces: [Pace] {
-        lockedBpm != nil ? [.relax, .coherence, .box, .resonance] : [.relax, .coherence, .box]
+    private var availablePaces: [PaceSelection] {
+        var items = BreathProtocolCatalog.pickerProtocols.map { PaceSelection.catalog($0.id) }
+        if lockedBpm != nil { items.append(.resonance) }
+        return items
     }
 
     private var pacePills: some View {
-        // Up to four pills (incl. locked Resonance) overflow a narrow iPhone — let a
-        // horizontal scroll govern the width rather than truncating inside a fixed frame.
         ScrollView(.horizontal, showsIndicators: false) {
             SegmentedPillControl(availablePaces, selection: $pace) { $0.label }
         }
     }
 
+    private var durationPills: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(String(localized: "Session length"))
+                .font(StrandFont.caption)
+                .foregroundStyle(StrandPalette.textTertiary)
+            ScrollView(.horizontal, showsIndicators: false) {
+                SegmentedPillControl(SessionLength.allCases, selection: $sessionLength) { $0.label }
+            }
+            .disabled(running)
+        }
+    }
+
     private var phaseWord: String {
+        if let phaseLabel, !phaseLabel.isEmpty {
+            return String(localized: String.LocalizationValue(phaseLabel))
+        }
         switch phase {
         case .inhale: return String(localized: "Breathe in…")
+        case .hold: return String(localized: "Hold…")
         case .exhale: return String(localized: "Breathe out…")
+        case .textOnly: return String(localized: "Follow the cue…")
+        }
+    }
+
+    private var breathEduSheet: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    if let proto = selectedProtocol {
+                        Text(String(localized: String.LocalizationValue(proto.title)))
+                            .font(StrandFont.title2)
+                        Text(String(localized: String.LocalizationValue(proto.subtitle)))
+                            .font(StrandFont.subhead)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                        if proto.category == .presence {
+                            Text(String(localized: String.LocalizationValue(BreathProtocolCatalog.presenceIntroTitle)))
+                                .font(StrandFont.headline)
+                            Text(String(localized: String.LocalizationValue(BreathProtocolCatalog.presenceIntroBody)))
+                                .font(StrandFont.body)
+                        }
+                        Text(String(localized: String.LocalizationValue(proto.edu)))
+                            .font(StrandFont.body)
+                        if let hint = proto.sessionHint {
+                            Text(String(localized: String.LocalizationValue(hint)))
+                                .font(StrandFont.footnote)
+                                .foregroundStyle(StrandPalette.textSecondary)
+                        }
+                        if let caution = proto.caution {
+                            Text(String(localized: String.LocalizationValue(caution)))
+                                .font(StrandFont.footnote)
+                                .foregroundStyle(StrandPalette.statusWarning)
+                        }
+                        Text(String(localized: "Estimate only — not medical advice. Stop if you feel unwell."))
+                            .font(StrandFont.caption)
+                            .foregroundStyle(StrandPalette.textTertiary)
+                    } else {
+                        Text(String(localized: "Your locked resonance pace from the Resonance sweep."))
+                            .font(StrandFont.body)
+                    }
+                }
+                .padding(20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .navigationTitle(String(localized: "About this pace"))
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(String(localized: "Done")) { showEdu = false }
+                }
+            }
         }
     }
 
@@ -467,12 +584,25 @@ private struct BreathingContent: View {
                         caption: rrBuffer.isEmpty ? String(localized: "Waiting for R-R") : String(localized: "Last \(rrBuffer.count) beats"))
 
             readoutTile(label: String(localized: "Pace"),
-                        value: String(format: "%.1f", pace.bpm(lockedBpm: lockedBpm)),
+                        value: selectedBpm > 0 ? String(format: "%.1f", selectedBpm) : (isGuided ? "—" : "—"),
                         unit: "br/min",
                         accent: StrandPalette.restBright,
-                        caption: String(format: "%.0f / %.0fs",
-                                        pace.inhale(lockedBpm: lockedBpm), pace.exhale(lockedBpm: lockedBpm)))
+                        caption: paceCaption)
         }
+    }
+
+    private var paceCaption: String {
+        if case .resonance = pace {
+            let cycle = 60.0 / (lockedBpm ?? ResonanceEngine.fallbackBpm)
+            let inn = cycle * BreathPacer.defaultInhaleFraction
+            let out = cycle * (1 - BreathPacer.defaultInhaleFraction)
+            return String(format: "%.0f / %.0fs", inn, out)
+        }
+        guard let proto = selectedProtocol, !proto.stages.isEmpty else {
+            return isGuided ? String(localized: "Guided timer") : "—"
+        }
+        let parts = proto.stages.map { String(format: "%.1f", Double($0.durationMs) / 1000.0) }
+        return parts.joined(separator: " · ") + "s"
     }
 
     private func readoutTile(label: String, value: String, unit: String,
@@ -573,19 +703,28 @@ private struct BreathingContent: View {
         )
     }
 
-    // MARK: - Session control (fixed-pace Breathe — unchanged)
+    // MARK: - Session control (catalog stages + guided timer)
 
     private func start() {
         running = true
         ScreenIdle.keepAwake(true)
         sessionSeconds = 0
         breathCount = 0
+        stageIndex = 0
+        phaseLabel = nil
         endedOutcome = nil
         baselineRmssd = rmssd
         sessionRmssdSum = 0
         sessionRmssdCount = 0
         sessionRmssdPeak = 0
-        armPhase(.inhale, from: Date(), buzz: true)
+        if isGuided {
+            phase = .textOnly
+            phaseLabel = selectedProtocol?.title
+            phaseDeadline = .distantFuture
+            if !reduceMotion { orbProgress = reducedSteadyOrb }
+        } else {
+            armCurrentStage(from: Date(), buzz: true)
+        }
     }
 
     private func stop() {
@@ -593,6 +732,7 @@ private struct BreathingContent: View {
         running = false
         ScreenIdle.keepAwake(false)
         phaseDeadline = .distantFuture
+        phaseLabel = nil
         // #769: this trainer fires per-phase buzzes (armPhase -> model.buzz). Stopping halts NEW pulses but
         // can't recall one the strap is mid-pattern on, which could wedge the strap if the link drops. Tell
         // the strap to stop haptics too (best-effort; no-op when unbonded / on a 5/MG). Only when we were
@@ -625,38 +765,76 @@ private struct BreathingContent: View {
         lastStoredOutcome = core
     }
 
-    private func armPhase(_ newPhase: Phase, from now: Date, buzz: Bool) {
-        phase = newPhase
-        let duration = (newPhase == .inhale)
-            ? pace.inhale(lockedBpm: lockedBpm)
-            : pace.exhale(lockedBpm: lockedBpm)
+    private func resonanceStages() -> [BreathStage] {
+        let bpm = lockedBpm ?? ResonanceEngine.fallbackBpm
+        let cycleMs = Int((60_000.0 / bpm).rounded())
+        let inhaleMs = Int((Double(cycleMs) * BreathPacer.defaultInhaleFraction).rounded())
+        let exhaleMs = max(1, cycleMs - inhaleMs)
+        return [
+            BreathStage(type: .inhale, durationMs: inhaleMs),
+            BreathStage(type: .exhale, durationMs: exhaleMs),
+        ]
+    }
+
+    private func currentStages() -> [BreathStage] {
+        if case .resonance = pace { return resonanceStages() }
+        return selectedProtocol?.stages.filter { $0.durationMs > 0 } ?? []
+    }
+
+    private func armCurrentStage(from now: Date, buzz: Bool) {
+        let stages = currentStages()
+        guard !stages.isEmpty else { return }
+        let stage = stages[stageIndex % stages.count]
+        let mapped: Phase
+        switch stage.type {
+        case .inhale: mapped = .inhale
+        case .hold: mapped = .hold
+        case .exhale: mapped = .exhale
+        case .textOnly: mapped = .textOnly
+        }
+        phase = mapped
+        phaseLabel = stage.label
+        let duration = Double(stage.durationMs) / 1000.0
         phaseDeadline = now.addingTimeInterval(duration)
 
         if reduceMotion {
             orbProgress = reducedSteadyOrb
         } else {
             withAnimation(.easeInOut(duration: duration)) {
-                orbProgress = (newPhase == .inhale) ? 1.0 : 0.0
+                switch mapped {
+                case .inhale: orbProgress = 1.0
+                case .exhale: orbProgress = 0.0
+                case .hold, .textOnly: break // keep current fill
+                }
             }
         }
 
         if buzz {
-            model.buzz(loops: newPhase == .inhale ? 1 : 2, gate: HapticPrefs.breathing)
+            let loops = BreathProtocolPlayer.loops(for: stage.type)
+            if loops > 0 {
+                model.buzz(loops: UInt8(clamping: loops), gate: HapticPrefs.breathing)
+            }
             if audioCues {
-                tonePlayer.play(newPhase == .inhale ? .inhale : .exhale)
+                switch mapped {
+                case .inhale: tonePlayer.play(.inhale)
+                case .exhale: tonePlayer.play(.exhale)
+                case .hold, .textOnly: break
+                }
             }
         }
     }
 
     private func advance(now: Date) {
+        guard !isGuided else { return }
         guard now >= phaseDeadline else { return }
-        switch phase {
-        case .inhale:
-            armPhase(.exhale, from: now, buzz: true)
-        case .exhale:
+        let stages = currentStages()
+        guard !stages.isEmpty else { return }
+        let completed = stages[stageIndex % stages.count]
+        stageIndex += 1
+        if completed.type == .exhale {
             breathCount += 1
-            armPhase(.inhale, from: now, buzz: true)
         }
+        armCurrentStage(from: now, buzz: true)
     }
 
     // MARK: - HRV (RMSSD)

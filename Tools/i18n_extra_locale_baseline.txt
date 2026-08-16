@@ -7,10 +7,10 @@ Packages/StrandDesign/Sources/StrandDesign/Resources/Localizable.xcstrings:it 81
 Packages/StrandDesign/Sources/StrandDesign/Resources/Localizable.xcstrings:ru 54
 Packages/StrandDesign/Sources/StrandDesign/Resources/Localizable.xcstrings:zh-Hans 75
 Packages/StrandDesign/Sources/StrandDesign/Resources/Localizable.xcstrings:zh-Hant 81
-NOOPWatch/Localizable.xcstrings:it 3
-NOOPWatch/Localizable.xcstrings:ru 2
-NOOPWatch/Localizable.xcstrings:zh-Hans 3
-NOOPWatch/Localizable.xcstrings:zh-Hant 3
+NOOPWatch/Localizable.xcstrings:it 0
+NOOPWatch/Localizable.xcstrings:ru 0
+NOOPWatch/Localizable.xcstrings:zh-Hans 0
+NOOPWatch/Localizable.xcstrings:zh-Hant 0
 NOOPWatchComplications/Localizable.xcstrings:it 25
 NOOPWatchComplications/Localizable.xcstrings:zh-Hans 25
 NOOPWatchComplications/Localizable.xcstrings:zh-Hant 25

@@ -26,8 +26,14 @@ enum class BreathPhase {
     /** The start of an inhale — a single light pulse. */
     INHALE,
 
+    /** A breath hold — no buzz by default. */
+    HOLD,
+
     /** The start of an exhale — a heavier (two-pulse) cue. */
     EXHALE,
+
+    /** Instruction-only beat — no buzz. */
+    TEXT_ONLY,
 }
 
 /**
@@ -39,8 +45,10 @@ data class BreathCue(
     val offsetMs: Int,
     /** Which breath phase this cue marks (inhale = light, exhale = heavy). */
     val phase: BreathPhase,
-    /** How many buzz loops to play — the felt-strength language (1 = inhale, 2 = exhale). */
+    /** How many buzz loops to play — the felt-strength language (1 = inhale, 2 = exhale, 0 = silent). */
     val loops: Int,
+    /** Optional UI label for text-only / nostril cues. */
+    val label: String? = null,
 )
 
 object BreathPacer {
