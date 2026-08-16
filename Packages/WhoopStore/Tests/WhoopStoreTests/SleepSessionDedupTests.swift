@@ -195,4 +195,33 @@ final class SleepSessionDedupTests: XCTestCase {
                            "the night is the sole survivor whatever the input order")
         }
     }
+
+    // MARK: - #1284 residual 3: survivor selection (mode-2 partial drain · mode-1 identical re-anchors)
+
+    func testOura1284PartialDrainKeepsTheFullerOverlappingDecode() {
+        // Mode 2 (08-13/14): two OVERLAPPING decodes of one night at different completeness — a full 494 min
+        // decode and a 234 min partial from an earlier burst (nested inside it). Both are the same night; the
+        // FULLER one must survive (rank rule 3, longest duration) so a partial re-drain never clobbers a
+        // complete night. This is the "completeness adjudication" the generation-side keying will lean on.
+        let full = session(start: midnight, end: midnight + 494 * 60)
+        let partial = session(start: midnight + 242, end: midnight + 242 + 234 * 60)   // nested in `full`
+        XCTAssertTrue(SleepSessionDedup.isDuplicate(full, partial))
+        let result = SleepSessionDedup.dedupe([partial, full])   // no freshStarts → longest-wins decides
+        XCTAssertEqual(result.kept.map(\.startTs), [full.startTs], "the fuller decode of the night survives")
+        XCTAssertEqual(result.dropped.map(\.startTs), [partial.startTs])
+    }
+
+    func testOura1284IdenticalReAnchorsResolveByLatestEnd() {
+        // Mode 1 (08-16): one rigid block re-anchored at several onsets — same duration, same shape, only the
+        // END chases wall-clock. Duration can't adjudicate (all equal), so the tie-break (latest endTs) picks
+        // the row whose wake edge is latest — the one that matched WHOOP's wake on the day it was measured.
+        // Pins that load-bearing order so a future change never retunes the survivor away from ground truth.
+        let r1 = session(start: midnight, end: midnight + 368 * 60)
+        let r2 = session(start: midnight + 15 * 60, end: midnight + 15 * 60 + 368 * 60)
+        let r3 = session(start: midnight + 30 * 60, end: midnight + 30 * 60 + 368 * 60)   // latest end
+        let result = SleepSessionDedup.dedupe([r2, r3, r1])
+        XCTAssertEqual(result.kept.map(\.startTs), [r3.startTs],
+                       "among equal-length re-anchors, the latest-waking row wins")
+        XCTAssertEqual(result.dropped.count, 2)
+    }
 }

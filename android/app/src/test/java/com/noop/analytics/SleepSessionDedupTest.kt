@@ -211,4 +211,32 @@ class SleepSessionDedupTest {
             assertEquals(listOf(night.startTs), result.kept.map { it.startTs })
         }
     }
+
+    // ── #1284 residual 3: survivor selection (mode-2 partial drain · mode-1 identical re-anchors) ──
+
+    @Test
+    fun oura1284_partialDrain_keepsTheFullerOverlappingDecode() {
+        // Mode 2 (08-13/14): a full 494 min decode and a 234 min partial (nested inside it) are the same
+        // night; the FULLER one must survive (rank rule 3, longest duration) so a partial re-drain never
+        // clobbers a complete night — the completeness adjudication the generation-side keying will lean on.
+        val full = session(midnight, midnight + 494 * 60L)
+        val partial = session(midnight + 242L, midnight + 242L + 234 * 60L) // nested in full
+        assertTrue(SleepSessionDedup.isDuplicate(full, partial))
+        val result = SleepSessionDedup.dedupe(listOf(partial, full)) // no freshStarts → longest-wins decides
+        assertEquals(listOf(full.startTs), result.kept.map { it.startTs })
+        assertEquals(listOf(partial.startTs), result.dropped.map { it.startTs })
+    }
+
+    @Test
+    fun oura1284_identicalReAnchors_resolveByLatestEnd() {
+        // Mode 1 (08-16): one rigid block re-anchored at several onsets — same duration, same shape, only the
+        // END chases wall-clock. Duration can't adjudicate, so the tie-break (latest endTs) picks the row
+        // whose wake edge is latest — the one that matched WHOOP's wake. Pins that load-bearing order.
+        val r1 = session(midnight, midnight + 368 * 60L)
+        val r2 = session(midnight + 15 * 60L, midnight + 15 * 60L + 368 * 60L)
+        val r3 = session(midnight + 30 * 60L, midnight + 30 * 60L + 368 * 60L) // latest end
+        val result = SleepSessionDedup.dedupe(listOf(r2, r3, r1))
+        assertEquals(listOf(r3.startTs), result.kept.map { it.startTs })
+        assertEquals(2, result.dropped.size)
+    }
 }

@@ -1462,17 +1462,34 @@ object IntelligenceEngine {
         // witness) only matches the computedId rows; the others fall back to longest-wins, the read-side
         // dedup's own default. Sorted for a deterministic order. Mirrors the Swift analyzeRecent heal.
         val healDeviceIds = healDeviceIds(computedId, candidatePriorities.map { it.first })
+        // Compact shape of a row for the #1284 heal log — the two measures that adjudicate WHICH copy is
+        // fuller (stage-segment count + decoded JSON length), in the SAME format as the dup-gen diagnostic
+        // (dupGenShape) so the two lines parse identically. Window + shape counts only, never stage content
+        // or vitals; the strap log stays local and is shared only when the user exports it (as dup-gen does).
+        fun sleepShape(s: SleepSession): String {
+            val json = s.stagesJSON ?: ""
+            val segs = json.split("\"stage\"").size - 1
+            return "[${s.startTs} -> ${s.endTs}] min=${(s.endTs - s.effectiveStartTs) / 60} segs=$segs json=${json.length}"
+        }
         val healDropped = ArrayList<SleepSession>()
         for (healId in healDeviceIds) {
             val storedSessions = repo.sleepSessions(healId, windowStart, nowSeconds, 4000)
             val healable = storedSessions.filter {
                 AnalyticsEngine.dayString(it.endTs, tzOffsetSeconds) in oldestDay..newestDay
             }
-            val dropped = SleepSessionDedup.dedupe(healable, freshStarts = keptStarts).dropped
+            val sweep = SleepSessionDedup.dedupe(healable, freshStarts = keptStarts)
             // Row-only delete: the user-facing deleteSleepSession writes a #33 dismissal tombstone, which
             // would overlap the SURVIVING night's window and permanently suppress its re-detection.
-            for (stale in dropped) repo.deleteSleepSessionRowOnly(stale)
-            healDropped.addAll(dropped)
+            for (stale in sweep.dropped) {
+                repo.deleteSleepSessionRowOnly(stale)
+                // #1284: log which copy was dropped and which survived, so the corpus can confirm the heal
+                // keeps the fuller / end-correct row (the survivor the collapse resolved this stale into).
+                val survivor = sweep.kept.firstOrNull { SleepSessionDedup.isDuplicate(it, stale) }
+                if (survivor != null) {
+                    diag("Dedup(#1284): dropped ${sleepShape(stale)} kept ${sleepShape(survivor)} - heal")
+                }
+            }
+            healDropped.addAll(sweep.dropped)
         }
         // #1284: log the sweep ALWAYS, even at zero removals — a heal that collapsed rows was previously
         // silent (the line below only fired on a non-empty drop), so from the strap log alone it was
