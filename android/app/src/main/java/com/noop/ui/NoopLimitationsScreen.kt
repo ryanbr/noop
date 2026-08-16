@@ -47,7 +47,11 @@ private val LIMIT_ROWS: List<LimitRow> = listOf(
     LimitRow("HRV (rMSSD)", LimitState.FULL, LimitState.FULL),
     LimitRow("Sleep staging", LimitState.FULL, LimitState.FULL),
     LimitRow("Recovery & strain", LimitState.FULL, LimitState.FULL),
-    LimitRow("Respiratory rate", LimitState.FULL, LimitState.FULL),
+    // 5.0/MG: PARTIAL, not FULL. The v18 wire carries no respiratory channel at all —
+    // Whoop5HistoricalDecodeTest pins resp_rate_raw as null — so the displayed value is always
+    // SleepStager.respRateFromRR, an on-device RSA estimate off the R-R stream, which is what
+    // PARTIAL means. Twin of the Swift NoopLimitationsView row.
+    LimitRow("Respiratory rate", LimitState.FULL, LimitState.PARTIAL),
     LimitRow("Stress (on-device)", LimitState.FULL, LimitState.FULL),
     LimitRow("Workout detection", LimitState.FULL, LimitState.FULL),
     LimitRow("Skin temperature", LimitState.PARTIAL, LimitState.FULL),

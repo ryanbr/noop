@@ -58,7 +58,11 @@ struct NoopLimitationsView: View {
         LimitRow(feature: "HRV (rMSSD)", spokenFeature: "HRV", whoop4: .full, whoop5: .full),
         LimitRow(feature: "Sleep staging", spokenFeature: "Sleep staging", whoop4: .full, whoop5: .full),
         LimitRow(feature: "Recovery & strain", spokenFeature: "Recovery and strain", whoop4: .full, whoop5: .full),
-        LimitRow(feature: "Respiratory rate", spokenFeature: "Respiratory rate", whoop4: .full, whoop5: .full),
+        // 5.0/MG: `.partial`, not `.full`. The v18 wire carries no respiratory channel at all —
+        // `Whoop5HistoricalTests.testHistoricalV18OpticalFieldsAreNotNamedPhysiologically` pins
+        // `resp_rate_raw` as nil — so the displayed value is always `SleepStager.respRateFromRR`,
+        // an on-device RSA estimate off the R-R stream, which is what `.partial` means.
+        LimitRow(feature: "Respiratory rate", spokenFeature: "Respiratory rate", whoop4: .full, whoop5: .partial),
         LimitRow(feature: "Stress (on-device)", spokenFeature: "Stress", whoop4: .full, whoop5: .full),
         LimitRow(feature: "Workout detection", spokenFeature: "Workout detection", whoop4: .full, whoop5: .full),
         LimitRow(feature: "Skin temperature", spokenFeature: "Skin temperature", whoop4: .partial, whoop5: .full),
