@@ -95,6 +95,15 @@ object SleepSessionDedup {
         return isFragment && (overlap > 0L || edgeGapSeconds(a, b) <= NEAR_ADJACENT_SECONDS)
     }
 
+    /** The canonical preference comparator (see [dedupe]): higher ranks first (descending). Shared by
+     *  [dedupe] and the at-persist keying ([planBank]) so both adjudicate a night with the IDENTICAL rule. */
+    private fun rankComparator(freshStarts: Set<Long>): Comparator<SleepSession> =
+        compareByDescending<SleepSession> { it.userEdited }
+            .thenByDescending { it.startTs in freshStarts }
+            .thenByDescending { it.endTs - it.effectiveStartTs }
+            .thenByDescending { it.endTs }
+            .thenByDescending { it.startTs }
+
     /**
      * Collapse overlapping duplicates to one canonical survivor per night, deterministically.
      *
@@ -115,18 +124,59 @@ object SleepSessionDedup {
      */
     fun dedupe(sessions: List<SleepSession>, freshStarts: Set<Long> = emptySet()): Result {
         if (sessions.size < 2) return Result(sessions, emptyList())
-        val ordered = sessions.sortedWith(
-            compareByDescending<SleepSession> { it.userEdited }
-                .thenByDescending { it.startTs in freshStarts }
-                .thenByDescending { it.endTs - it.effectiveStartTs }
-                .thenByDescending { it.endTs }
-                .thenByDescending { it.startTs },
-        )
+        val ordered = sessions.sortedWith(rankComparator(freshStarts))
         val kept = ArrayList<SleepSession>()
         val dropped = ArrayList<SleepSession>()
         for (s in ordered) {
             if (!s.userEdited && kept.any { isDuplicate(it, s) }) dropped.add(s) else kept.add(s)
         }
         return Result(kept.sortedBy { it.startTs }, dropped.sortedBy { it.startTs })
+    }
+
+    // ── #1284 residual 3: generation-side 0x49-onset keying (at-persist, no schema migration) ─────
+
+    /**
+     * The grid (seconds) the 0x49 onset is rounded to before it becomes a session's startTs. The ring
+     * re-serves one night's 0x49 summary many times as its END chases wall-clock; the ONSET is stable
+     * across those re-serves (measured 21 s spread over 11 servings on 08-16), so rounding it to a coarse
+     * grid gives every re-serve of one night the SAME startTs → the (deviceId, startTs) PK collapses them
+     * instead of minting a row per drain. 60 s >> the 21 s jitter (re-serves land in one bucket) yet keeps
+     * the displayed bedtime accurate to the minute — and the bedtime becomes the TRUE onset, fixing the
+     * current end-anchored drift (startTs = end - laidCodes*30 s).
+     */
+    const val ONSET_KEY_GRID_SECONDS: Long = 60L
+
+    /** Round a 0x49 onset (Unix seconds) to [ONSET_KEY_GRID_SECONDS] — the stable per-night key. Rounds to
+     *  nearest so a jittering onset lands in one bucket; a rare straddle at a bucket edge is caught by the
+     *  completeness guard ([planBank]), which matches the night by overlap, not by the PK. */
+    fun keyedStart(onsetUnixSeconds: Long, gridSeconds: Long = ONSET_KEY_GRID_SECONDS): Long {
+        val g = maxOf(1L, gridSeconds)
+        return ((onsetUnixSeconds + g / 2) / g) * g
+    }
+
+    /** The bank decision, mirroring the Swift twin. */
+    data class BankPlan(val bank: Boolean, val supersededStarts: List<Long>)
+
+    /**
+     * Decide, at persist time, whether a freshly reconstructed [candidate] night should be banked and which
+     * already-stored rows it supersedes — the generation-side twin of the [dedupe] heal, so a duplicate is
+     * suppressed BEFORE it is banked (closing the window where the wrong night shows until the next analyze
+     * pass). Same collapse rule as [dedupe] with NO bank-recency witness (ring rows fall back to longest-,
+     * then latest-end-wins): bank the candidate unless an existing same-night row is at least as complete
+     * (ties keep the stored row); when it wins, delete the same-night rows it supersedes. Pure; the caller
+     * does the store delete + upsert only when [BankPlan.bank] is true.
+     *
+     * [existing] MUST be the UNFILTERED stored set for the night's window — INCLUDING a row already at the
+     * candidate's keyed startTs. Keying rounds re-serves of one night to the same bucket, so that same-PK
+     * row is the common collision and must be weighed here, else the upsert would replace a fuller stored
+     * night with a partial re-drain by PK. [BankPlan.supersededStarts] EXCLUDE the candidate's own startTs —
+     * the upsert replaces that row in place, so listing it would delete the row just banked.
+     */
+    fun planBank(candidate: SleepSession, existing: List<SleepSession>): BankPlan {
+        val sameNight = existing.filter { isDuplicate(candidate, it) }
+        val cmp = rankComparator(emptySet())
+        // Suppress the candidate if any stored same-night row (same PK or not) ties or outranks it.
+        if (sameNight.any { cmp.compare(it, candidate) <= 0 }) return BankPlan(false, emptyList())
+        return BankPlan(true, sameNight.filter { it.startTs != candidate.startTs }.map { it.startTs })
     }
 }

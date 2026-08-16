@@ -45,6 +45,15 @@ public struct CachedSleepSession: Equatable, Codable {
         self.startTsAdjusted = startTsAdjusted
         self.stagingSparse = stagingSparse
     }
+
+    /// A copy re-keyed to `newStartTs`, every other field (including the stage segments) unchanged. Used by
+    /// the #1284 generation-side onset keying to set the session's PK to the rounded 0x49 onset (the stable
+    /// per-night anchor); the onset key differs from the end-anchored first-code time by at most the grid.
+    public func withStartTs(_ newStartTs: Int) -> CachedSleepSession {
+        CachedSleepSession(startTs: newStartTs, endTs: endTs, efficiency: efficiency, restingHr: restingHr,
+                           avgHrv: avgHrv, stagesJSON: stagesJSON, userEdited: userEdited,
+                           startTsAdjusted: startTsAdjusted, stagingSparse: stagingSparse)
+    }
 }
 
 /// One cached daily-metrics row pulled from the server's /v1/daily. Natural key (deviceId, day).

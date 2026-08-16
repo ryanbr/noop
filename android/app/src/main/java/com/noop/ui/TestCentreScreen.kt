@@ -352,10 +352,13 @@ private fun DiagnosticToolsCard(vm: AppViewModel) {
     // non-Polar user never sees Polar debug. Loaded once from the registry.
     var polarIdentity by remember { mutableStateOf<String?>(null) }
     var polarDebugLogging by remember { mutableStateOf(NoopPrefs.polarDebugLogging(context)) }
+    // #1284 residual 3: the experimental Oura onset-keying toggle, shown only when an Oura ring is paired.
+    var ouraPaired by remember { mutableStateOf(false) }
+    var ouraOnsetKeying by remember { mutableStateOf(NoopPrefs.ouraOnsetKeying(context)) }
     LaunchedEffect(Unit) {
-        val name = runCatching { vm.pairedDevices() }.getOrDefault(emptyList())
-            .firstOrNull { PolarModel.isPolar(it.model) }?.model
-        polarIdentity = PolarModel.debugIdentification(name)
+        val paired = runCatching { vm.pairedDevices() }.getOrDefault(emptyList())
+        polarIdentity = PolarModel.debugIdentification(paired.firstOrNull { PolarModel.isPolar(it.model) }?.model)
+        ouraPaired = paired.any { it.brand.equals("Oura", ignoreCase = true) }
     }
     var detailedCapture by remember { mutableStateOf(NoopPrefs.detailedCapture(context)) }
     var captureShareBusy by remember { mutableStateOf(false) }
@@ -431,6 +434,18 @@ private fun DiagnosticToolsCard(vm: AppViewModel) {
                         "so a Polar bug report shows the model NOOP resolved your strap to.",
                     checked = polarDebugLogging,
                     onCheckedChange = { polarDebugLogging = it; vm.setPolarDebugLogging(it) },
+                )
+            }
+            // #1284 residual 3: experimental Oura 0x49-onset keying, only when an Oura ring is paired.
+            if (ouraPaired) {
+                ToggleRowTC(
+                    title = "Oura onset keying (experimental)",
+                    description = "Keys each Oura sleep night on its stable 0x49 onset and suppresses " +
+                        "duplicate re-serves at the source, instead of the shipped end-anchored persist " +
+                        "(#1284). Off by default — a hardware-validation toggle. Watch the strap log for " +
+                        "'onset-key(#1284)' lines.",
+                    checked = ouraOnsetKeying,
+                    onCheckedChange = { ouraOnsetKeying = it; vm.setOuraOnsetKeying(it) },
                 )
             }
             // #1121 Detailed capture: an adb-like rolling on-device log, no computer needed. Off by default.

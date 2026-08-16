@@ -227,6 +227,105 @@ class SleepSessionDedupTest {
         assertEquals(listOf(partial.startTs), result.dropped.map { it.startTs })
     }
 
+    // ── #1284 residual 3: generation-side onset keying (keyedStart · planBank) ────────────────────
+
+    @Test
+    fun keyedStart_collapsesOnsetJitterToOneBucket() {
+        val a = SleepSessionDedup.keyedStart(midnight + 55L)
+        val b = SleepSessionDedup.keyedStart(midnight + 76L) // +21 s
+        assertEquals(a, b)
+        assertEquals(0L, a % SleepSessionDedup.ONSET_KEY_GRID_SECONDS)
+    }
+
+    @Test
+    fun planBank_supersedesAShorterStoredCopy() {
+        val candidate = session(midnight, midnight + 494 * 60L)
+        val stored = session(midnight + 60L, midnight + 60L + 234 * 60L)
+        val plan = SleepSessionDedup.planBank(candidate, listOf(stored))
+        assertTrue(plan.bank)
+        assertEquals(listOf(stored.startTs), plan.supersededStarts)
+    }
+
+    @Test
+    fun planBank_suppressesAPartialAgainstAFullerStoredNight() {
+        val stored = session(midnight, midnight + 494 * 60L)
+        val candidate = session(midnight + 60L, midnight + 60L + 234 * 60L)
+        val plan = SleepSessionDedup.planBank(candidate, listOf(stored))
+        assertTrue(!plan.bank)
+        assertTrue(plan.supersededStarts.isEmpty())
+    }
+
+    @Test
+    fun planBank_laterWakingReAnchorSupersedesTheEarlier() {
+        val stored = session(midnight, midnight + 368 * 60L)
+        val candidate = session(midnight + 15 * 60L, midnight + 15 * 60L + 368 * 60L)
+        val plan = SleepSessionDedup.planBank(candidate, listOf(stored))
+        assertTrue(plan.bank)
+        assertEquals(listOf(stored.startTs), plan.supersededStarts)
+    }
+
+    @Test
+    fun planBank_freshNightWithNoStoredMatchBanksClean() {
+        val candidate = session(midnight, midnight + 400 * 60L)
+        val lastNight = session(midnight - 24 * 3600L, midnight - 16 * 3600L)
+        val plan = SleepSessionDedup.planBank(candidate, listOf(lastNight))
+        assertTrue(plan.bank)
+        assertTrue(plan.supersededStarts.isEmpty())
+    }
+
+    @Test
+    fun planBank_identicalReserveIsANoOp() {
+        val stored = session(midnight, midnight + 400 * 60L)
+        val candidate = session(midnight, midnight + 400 * 60L)
+        assertTrue(!SleepSessionDedup.planBank(candidate, listOf(stored)).bank)
+    }
+
+    @Test
+    fun keyedStart_roundsHalfUpAndClampsGrid() {
+        assertEquals(1020L, SleepSessionDedup.keyedStart(1000L, 60L))
+        assertEquals(1020L, SleepSessionDedup.keyedStart(990L, 60L))   // +30 rounds up
+        assertEquals(960L, SleepSessionDedup.keyedStart(989L, 60L))    // just under → down
+        assertEquals(1234L, SleepSessionDedup.keyedStart(1234L, 0L))   // grid clamp >=1 = identity
+    }
+
+    @Test
+    fun planBank_sameBucketFullerStoredRow_suppressesAPartialReserve() {
+        // F1 regression: a partial re-drain at the SAME keyed PK as a fuller banked night must be suppressed.
+        val fuller = session(midnight, midnight + 494 * 60L)
+        val partial = session(midnight, midnight + 234 * 60L)
+        assertTrue(!SleepSessionDedup.planBank(partial, listOf(fuller)).bank)
+    }
+
+    @Test
+    fun planBank_sameBucketFullerCandidate_banksWithoutSelfDeleting() {
+        val stored = session(midnight, midnight + 234 * 60L)
+        val candidate = session(midnight, midnight + 494 * 60L)
+        val plan = SleepSessionDedup.planBank(candidate, listOf(stored))
+        assertTrue(plan.bank)
+        assertTrue(plan.supersededStarts.isEmpty())
+    }
+
+    @Test
+    fun planBank_supersedesOtherKeyRowsButNotItsOwn() {
+        val candidate = session(midnight, midnight + 494 * 60L)
+        val sameKeyPartial = session(midnight, midnight + 200 * 60L)
+        val otherKeyFrag = session(midnight - 120L, midnight - 120L + 180 * 60L)
+        val plan = SleepSessionDedup.planBank(candidate, listOf(sameKeyPartial, otherKeyFrag))
+        assertTrue(plan.bank)
+        assertEquals(listOf(otherKeyFrag.startTs), plan.supersededStarts)
+    }
+
+    @Test
+    fun planBank_neverClobbersAUserEditedNight() {
+        // Data safety: a hand-corrected night outranks any fresh ring persist (even a fuller one), so the
+        // candidate is suppressed and the edited row is never replaced OR deleted.
+        val edited = session(midnight, midnight + 400 * 60L, edited = true)
+        val candidate = session(midnight + 30L, midnight + 30L + 420 * 60L)
+        val plan = SleepSessionDedup.planBank(candidate, listOf(edited))
+        assertTrue(!plan.bank)
+        assertTrue(plan.supersededStarts.isEmpty())
+    }
+
     @Test
     fun oura1284_identicalReAnchors_resolveByLatestEnd() {
         // Mode 1 (08-16): one rigid block re-anchored at several onsets — same duration, same shape, only the

@@ -476,10 +476,34 @@ class SourceCoordinator(
                                     straplog("Oura: dup-gen(#1284) persist ${dupGenShape(s.startTs, s.endTs, s.stagesJson)} duplicates stored ${dupGenShape(e.startTs, e.endTs, e.stagesJSON)} startDelta=${s.startTs - e.startTs}s (end-anchor drift) - cross-connection DB read")
                                 }
                         }
-                        repo.upsertSleepSessions(listOf(session))
+                        if (NoopPrefs.ouraOnsetKeying(ctx)) {
+                            // #1284 residual 3 (EXPERIMENTAL): completeness-guarded onset keying — suppress or
+                            // replace a duplicate re-serve BEFORE banking. UNFILTERED read so a fuller row at the
+                            // candidate's keyed PK suppresses it; a read failure falls back to empty → bank the
+                            // candidate (safe default). Mirrors the Swift twin's structure + FAILED log.
+                            val from = s.startTs - 16 * 3600 - 3600
+                            val to = s.endTs + 3600
+                            val nearby = runCatching { repo.sleepSessions(deviceId, from, to, 64) }.getOrDefault(emptyList())
+                            val plan = com.noop.analytics.SleepSessionDedup.planBank(session, nearby)
+                            if (plan.bank) {
+                                // Bank the survivor FIRST, retire what it supersedes only after it lands — so a
+                                // failed upsert never leaves the night with neither the candidate nor its deleted
+                                // duplicates; on failure the stored rows are kept and the heal reconciles next pass.
+                                runCatching {
+                                    repo.upsertSleepSessions(listOf(session))
+                                    nearby.filter { it.startTs in plan.supersededStarts }.forEach { row -> runCatching { repo.deleteSleepSessionRowOnly(row) } }
+                                    straplog("Oura: onset-key(#1284) banked ${dupGenShape(s.startTs, s.endTs, s.stagesJson)} superseded ${plan.supersededStarts.size} stored row(s) - generation keying")
+                                }.onFailure { straplog("Oura: onset-key(#1284) bank FAILED (${it.message}) - kept ${nearby.size} stored row(s); heal will reconcile") }
+                            } else {
+                                straplog("Oura: onset-key(#1284) suppressed ${dupGenShape(s.startTs, s.endTs, s.stagesJson)} - a stored same-night row is at least as complete")
+                            }
+                        } else {
+                            repo.upsertSleepSessions(listOf(session))
+                        }
                     }
                 }
             },
+            onsetKeying = { NoopPrefs.ouraOnsetKeying(ctx) },  // #1284 residual 3
             log = straplog,           // Oura connect/auth/stream lifecycle → the SAME exported strap log (#421)
             onBattery = batterySink,  // ring battery → the same live state the WHOOP strap battery uses
             onModel = { model -> scope.launch { runCatching { registry.setModel(id, model) } } },  // #772: correct a name-guessed gen

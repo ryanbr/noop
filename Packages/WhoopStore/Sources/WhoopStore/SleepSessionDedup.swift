@@ -78,6 +78,16 @@ public enum SleepSessionDedup {
         return isFragment && (overlap > 0 || edgeGapSeconds(a, b) <= nearAdjacentSeconds)
     }
 
+    /// The canonical preference key (see `dedupe`): higher tuple wins. Shared by `dedupe` and the
+    /// at-persist keying (`planBank`) so both adjudicate a night with the IDENTICAL rule.
+    static func rankKey(_ s: CachedSleepSession, freshStarts: Set<Int>) -> (Int, Int, Int, Int, Int) {
+        (s.userEdited ? 1 : 0,
+         freshStarts.contains(s.startTs) ? 1 : 0,
+         s.endTs - s.effectiveStartTs,
+         s.endTs,
+         s.startTs)
+    }
+
     /// Collapse overlapping duplicates to one canonical survivor per night, deterministically.
     ///
     /// Canonical preference, highest first:
@@ -96,14 +106,7 @@ public enum SleepSessionDedup {
     public static func dedupe(_ sessions: [CachedSleepSession], freshStarts: Set<Int> = [])
         -> (kept: [CachedSleepSession], dropped: [CachedSleepSession]) {
         guard sessions.count > 1 else { return (sessions, []) }
-        func rank(_ s: CachedSleepSession) -> (Int, Int, Int, Int, Int) {
-            (s.userEdited ? 1 : 0,
-             freshStarts.contains(s.startTs) ? 1 : 0,
-             s.endTs - s.effectiveStartTs,
-             s.endTs,
-             s.startTs)
-        }
-        let ordered = sessions.sorted { rank($0) > rank($1) }
+        let ordered = sessions.sorted { rankKey($0, freshStarts: freshStarts) > rankKey($1, freshStarts: freshStarts) }
         var kept: [CachedSleepSession] = []
         var dropped: [CachedSleepSession] = []
         for s in ordered {
@@ -115,5 +118,53 @@ public enum SleepSessionDedup {
         }
         return (kept.sorted { $0.startTs < $1.startTs },
                 dropped.sorted { $0.startTs < $1.startTs })
+    }
+
+    // MARK: - #1284 residual 3: generation-side 0x49-onset keying (at-persist, no schema migration)
+
+    /// The grid (seconds) the 0x49 onset is rounded to before it becomes a session's `startTs`. The ring
+    /// re-serves one night's `0x49` summary many times as its END chases wall-clock; the ONSET is stable
+    /// across those re-serves (measured 21 s spread over 11 servings on 08-16), so rounding it to a coarse
+    /// grid gives every re-serve of one night the SAME `startTs` → the `(deviceId, startTs)` PK collapses
+    /// them instead of minting a row per drain. 60 s ≫ the 21 s jitter (re-serves land in one bucket) yet
+    /// keeps the displayed bedtime accurate to the minute — and the bedtime becomes the TRUE onset, fixing
+    /// the current end-anchored drift (`startTs = end − laidCodes·30 s`).
+    public static let onsetKeyGridSeconds = 60
+
+    /// Round a `0x49` onset (Unix seconds) to `onsetKeyGridSeconds` — the stable per-night key. Rounds to
+    /// nearest so a jittering onset lands in one bucket; a rare straddle at a bucket edge is caught by the
+    /// completeness guard (`planBank`), which matches the night by overlap, not by the PK.
+    public static func keyedStart(onsetUnixSeconds: Int, gridSeconds: Int = onsetKeyGridSeconds) -> Int {
+        let g = max(1, gridSeconds)
+        return ((onsetUnixSeconds + g / 2) / g) * g
+    }
+
+    /// Decide, at persist time, whether a freshly reconstructed `candidate` night should be banked and
+    /// which already-stored rows it supersedes — the generation-side twin of the `dedupe` heal, so a
+    /// duplicate is suppressed BEFORE it is banked (closing the window where the wrong night shows until
+    /// the next analyze pass). Same collapse rule as `dedupe` with NO bank-recency witness (ring rows fall
+    /// back to longest-, then latest-end-wins):
+    ///   • bank the candidate unless an existing same-night row is at least as complete (ties keep the
+    ///     stored row — an exact re-serve is a no-op; a partial re-drain never clobbers a fuller night);
+    ///   • when the candidate wins (fuller, or a later-waking copy of the same night), delete the
+    ///     same-night rows it supersedes so exactly one row per night survives.
+    /// Pure; the caller does the actual store delete + upsert only when `bank` is true.
+    /// `existing` MUST be the UNFILTERED stored set for the night's window — INCLUDING a row that already
+    /// sits at the candidate's keyed `startTs`. Since keying rounds re-serves of one night to the same
+    /// bucket, that same-PK row is the *common* collision, and it has to be weighed here: otherwise the
+    /// upsert would replace a fuller stored night with a partial re-drain by PK (the exact clobber this
+    /// guard exists to prevent). The `supersededStarts` deliberately EXCLUDE the candidate's own `startTs` —
+    /// the upsert replaces that row in place, so listing it would delete the row we just banked.
+    public static func planBank(candidate: CachedSleepSession, existing: [CachedSleepSession])
+        -> (bank: Bool, supersededStarts: [Int]) {
+        let sameNight = existing.filter { isDuplicate(candidate, $0) }
+        let candidateRank = rankKey(candidate, freshStarts: [])
+        // Suppress the candidate if any stored same-night row (same PK or not) ties or outranks it.
+        if sameNight.contains(where: { rankKey($0, freshStarts: []) >= candidateRank }) {
+            return (bank: false, supersededStarts: [])
+        }
+        // Candidate is the fullest: bank it (the upsert replaces any same-PK row) and retire the OTHER
+        // same-night rows it supersedes.
+        return (bank: true, supersededStarts: sameNight.filter { $0.startTs != candidate.startTs }.map(\.startTs))
     }
 }

@@ -2056,6 +2056,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         NoopPrefs.setPolarDebugLogging(appContext, enabled)
     }
 
+    /** #1284 residual 3: toggle EXPERIMENTAL Oura 0x49-onset keying. Read live at persist by the Oura source
+     *  (via [SourceCoordinator]); no restart needed. Off = the shipped end-anchored persist. */
+    fun setOuraOnsetKeying(enabled: Boolean) {
+        NoopPrefs.setOuraOnsetKeying(appContext, enabled)
+    }
+
     /** #1121: toggle the opt-in rolling "detailed capture" strap-log file. Persisted so it survives a
      *  process kill (re-armed in [init] below). */
     fun setDetailedCapture(enabled: Boolean) {

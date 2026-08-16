@@ -105,6 +105,9 @@ class OuraLiveSource(
      *  Oura's SleepNet staging win over NOOP's sparse-motion computed night. Wired to
      *  `repository.upsertSleepSessions`; default no-op so the discovery-only scanner + tests stay inert. */
     private val persistSleepSession: (OuraSleepSession, String) -> Unit = { _, _ -> },
+    /** #1284 residual 3 (default OFF): read live at persist — when true, an Oura hypnogram night is keyed on
+     *  its rounded 0x49 onset (stable per-night anchor) instead of the end-anchored first-code time. */
+    private val onsetKeying: () -> Boolean = { false },
     /** Diagnostic sink for the connect/auth/stream lifecycle - the SAME exportable strap log (#421).
      *  Every line is prefixed "Oura: ". Statuses / UUIDs / counts only, NEVER a device address. Default
      *  no-op keeps existing call sites compiling and tests silent. */
@@ -742,8 +745,18 @@ class OuraLiveSource(
         // breakdown) under the ring's own deviceId, so mergeSleepRichness surfaces Oura's SleepNet staging
         // over NOOP's computed night (#325 persist). Uses the anchored+0x49-refined `end` via `laid`. The
         // confirmation line makes the persist self-evident in the strap log for on-device validation.
-        OuraSleepSessionMapping.session(laid.map { it.ts to it.phase.stage })?.let {
-            val start = laid.first().ts
+        OuraSleepSessionMapping.session(laid.map { m -> m.ts to m.phase.stage })?.let { mapped ->
+            // #1284 residual 3: when onset keying is on and a 0x49 onset was applied, key the session's
+            // startTs on the ROUNDED onset (stable across the ring's re-serves) rather than the end-anchored
+            // first-code time — so re-serves of one night share a PK and the bedtime is the true onset. The
+            // completeness guard in the persist closure then suppresses/replaces any duplicate.
+            val onset = sleepStart
+            val session = if (onsetKeying() && onset != null) {
+                mapped.copy(startTs = com.noop.analytics.SleepSessionDedup.keyedStart(onset))
+            } else {
+                mapped
+            }
+            val start = session.startTs
             // #1284 residual 3: log when this persist lands wholly inside — or overlapping — a session already
             // banked this connection. That is the duplicate GENERATION (an early partial drain banked a short
             // session; this fuller burst nests it), which the #899 heal only cleans up afterward. Include the
@@ -759,17 +772,17 @@ class OuraLiveSource(
             if (recentPersistedSessionWindows.size > RECENT_PERSISTED_SESSIONS_CAP) {
                 recentPersistedSessionWindows.subList(0, recentPersistedSessionWindows.size - RECENT_PERSISTED_SESSIONS_CAP).clear()
             }
-            persistSleepSession(it, deviceId)
-            val effStr = it.efficiency?.let { e -> "${(e * 100).toInt()}%" } ?: "n/a"
+            persistSleepSession(session, deviceId)
+            val effStr = session.efficiency?.let { e -> "${(e * 100).toInt()}%" } ?: "n/a"
             // #1284 residual 3: stamp the 0x49 anchor state on EVERY persist, so an unanchored early-drain row
             // (the prime suspect for the short nested duplicate) is self-evident even when it is the FIRST
             // persist, before the duplicate-gen line above can fire.
             // #1284: log the SESSION's STORED window, not the pre-trim burst window. The #1293
             // trailing-run trim shortens the persisted end, so [$start -> $end] (from the burst) reads
             // ~tens of minutes wider than the row — every future capture then reads the wrong window out
-            // of the log. it.startTs/it.endTs are exactly what persistSleepSession banks.
+            // of the log. session.startTs/.endTs are exactly what persistSleepSession banks.
             val anchorTag = if (sleepStart != null) "0x49-onset" else "no-0x49-onset"
-            log("Oura: sleep session persisted [${it.startTs} -> ${it.endTs}] eff=$effStr [$anchorTag] -> $deviceId (ring-provided night; wins merge over computed)")
+            log("Oura: sleep session persisted [${session.startTs} -> ${session.endTs}] eff=$effStr [$anchorTag] -> $deviceId (ring-provided night; wins merge over computed)")
         }
     }
 

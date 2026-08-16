@@ -1676,6 +1676,17 @@ final class AppModel: ObservableObject {
         set { UserDefaults.standard.set(newValue, forKey: Self.polarDebugLoggingKey) }
     }
 
+    /// #1284 residual 3 (EXPERIMENTAL, default OFF): generation-side 0x49-onset keying for Oura sleep. When
+    /// on, an Oura hypnogram persist keys its startTs on the rounded 0x49 onset (the stable per-night anchor)
+    /// and a completeness guard suppresses/replaces a duplicate re-serve BEFORE it is banked — closing the
+    /// window where the wrong night shows until the next analyze pass. Off = the shipped end-anchored persist.
+    /// A hardware-validation toggle (Test Centre); no effect for a user with no Oura ring.
+    static let ouraOnsetKeyingKey = "noopOuraOnsetKeying"
+    var ouraOnsetKeying: Bool {
+        get { UserDefaults.standard.bool(forKey: Self.ouraOnsetKeyingKey) }
+        set { UserDefaults.standard.set(newValue, forKey: Self.ouraOnsetKeyingKey) }
+    }
+
     /// Recompute the v5 skin-temp suite snapshots (cycle phase + body clock) from the current history.
     /// Called from the analytics pass and when the cycle opt-in flips. Honest-nil throughout: cycle is
     /// nil unless opted in; circadian is nil unless a usable activity profile exists.

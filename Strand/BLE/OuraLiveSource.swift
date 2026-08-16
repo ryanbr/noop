@@ -141,6 +141,9 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     /// Wired at the composition root to `store.upsertSleepSessions([_], deviceId:)`; default no-op so the
     /// discovery-only scanner and tests take the byte-identical inert path.
     private let persistSleepSession: (CachedSleepSession) -> Void
+    /// #1284 residual 3 (default OFF): read live at persist — when true, an Oura hypnogram night is keyed on
+    /// its rounded 0x49 onset (stable per-night anchor) instead of the end-anchored first-code time.
+    private let onsetKeying: () -> Bool
     private let log: (String) -> Void
     private let onBattery: (Int) -> Void
     /// Fired with the ring's TRUE model label ("Oura Ring 3/4/5") once the GetProductInfo hardware id resolves
@@ -797,8 +800,16 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         // imported-over-computed rule surfaces Oura's SleepNet staging as the night's stages (#325 persist).
         // Reuses the anchored+0x49-refined `end` via `laid`, so the session end IS the true sleep end. The
         // confirmation line makes the persist self-evident in the strap log for on-device validation.
-        if let session = OuraSleepSessionMapping.session(fromCodes: laid.map { (ts: $0.ts, stage: $0.phase.stage) }) {
-            let start = laid.first!.ts
+        if let mapped = OuraSleepSessionMapping.session(fromCodes: laid.map { (ts: $0.ts, stage: $0.phase.stage) }) {
+            // #1284 residual 3: when onset keying is on and a 0x49 onset was applied, key the session's
+            // startTs on the ROUNDED onset (stable across the ring's re-serves) rather than the end-anchored
+            // first-code time — so re-serves of one night share a PK and the displayed bedtime is the true
+            // onset. The completeness guard in the persist closure then suppresses/replaces any duplicate.
+            let session: CachedSleepSession = {
+                guard onsetKeying(), let onset = sleepStart else { return mapped }
+                return mapped.withStartTs(SleepSessionDedup.keyedStart(onsetUnixSeconds: onset))
+            }()
+            let start = session.startTs
             // #1284 residual 3: log when this persist lands wholly inside — or overlapping — a session already
             // banked this connection (the duplicate GENERATION an early partial drain creates, which the #899
             // heal only cleans up afterward). `sleepStart != nil` = a 0x49 anchor was applied; a persist with
@@ -938,6 +949,7 @@ public final class OuraLiveSource: NSObject, ObservableObject {
                 onBattery: @escaping (Int) -> Void = { _ in },
                 onModel: @escaping (String) -> Void = { _ in },
                 onSerial: @escaping (String) -> Void = { _ in },
+                onsetKeying: @escaping () -> Bool = { false },
                 feedsLive: Bool = true,
                 adoptIntent: Bool = false) {
         self.live = live
@@ -950,6 +962,7 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         self.onBattery = onBattery
         self.onModel = onModel
         self.onSerial = onSerial
+        self.onsetKeying = onsetKeying
         self.feedsLive = feedsLive
         self.adoptIntent = adoptIntent
         // Tier-B MET research corpus: only on a live/persisting source, never the discovery-only scanner.

@@ -50,6 +50,10 @@ struct TestCentreView: View {
         return PolarModel.debugIdentification(advertisedName: name)
     }
 
+    // #1284 residual 3: experimental Oura 0x49-onset keying, only offered when an Oura ring is paired.
+    @AppStorage(AppModel.ouraOnsetKeyingKey) private var ouraOnsetKeying = false
+    private var ouraPaired: Bool { model.deviceRegistry?.devices.contains { $0.brand == "Oura" } ?? false }
+
     // Section 4: Experimental algorithms. Bound to the SAME PuffinExperiment keys the Android card writes, so
     // the platforms stay in lockstep. The PPG-HR sub-lag interpolation variant and the HRV-readiness readout,
     // both default OFF.
@@ -182,6 +186,20 @@ struct TestCentreView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Polar debug logging").font(StrandFont.body)
                             Text("\(identity). Logs this to the strap log on each connect, so a Polar bug report shows the model NOOP resolved your strap to.")
+                                .font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .tint(StrandPalette.accent)
+                }
+
+                // #1284 residual 3: experimental Oura onset keying, only when an Oura ring is paired.
+                if ouraPaired {
+                    Divider().overlay(StrandPalette.hairline)
+                    Toggle(isOn: $ouraOnsetKeying) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Oura onset keying (experimental)").font(StrandFont.body)
+                            Text("Keys each Oura sleep night on its stable 0x49 onset and suppresses duplicate re-serves at the source, instead of the shipped end-anchored persist (#1284). Off by default — a hardware-validation toggle. Watch the strap log for \u{201C}onset-key(#1284)\u{201D} lines.")
                                 .font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }

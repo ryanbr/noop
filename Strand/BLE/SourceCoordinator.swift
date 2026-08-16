@@ -396,18 +396,44 @@ final class SourceCoordinator: ObservableObject {
                     // this is the corpus the generation-side 0x49-onset keying will be designed against.
                     let from = session.startTs - 16 * 3600 - 3600
                     let to = session.endTs + 3600
-                    let stored = ((try? await store.sleepSessions(deviceId: id, from: from, to: to, limit: 64)) ?? [])
-                        .filter { $0.startTs != session.startTs }
-                    for e in stored where SleepSessionDedup.isDuplicate(session, e) {
+                    // UNFILTERED window read: the keying guard MUST see a row already at the candidate's keyed
+                    // startTs (the common same-bucket collision). The dup-gen diagnostic excludes it inline.
+                    let stored = (try? await store.sleepSessions(deviceId: id, from: from, to: to, limit: 64)) ?? []
+                    for e in stored where e.startTs != session.startTs && SleepSessionDedup.isDuplicate(session, e) {
                         straplog("Oura: dup-gen(#1284) persist \(SourceCoordinator.dupGenShape(session)) duplicates stored \(SourceCoordinator.dupGenShape(e)) startDelta=\(session.startTs - e.startTs)s (end-anchor drift) - cross-connection DB read")
                     }
-                    _ = try? await store.upsertSleepSessions([session], deviceId: id)
+                    if UserDefaults.standard.bool(forKey: AppModel.ouraOnsetKeyingKey) {
+                        // #1284 residual 3 (EXPERIMENTAL): completeness-guarded onset keying — suppress or
+                        // replace a duplicate re-serve BEFORE banking, so the wrong night never shows between
+                        // wake and the next analyze pass. Same collapse rule as the heal (`planBank`); `stored`
+                        // is UNFILTERED so a fuller row at the same keyed PK suppresses this candidate.
+                        let plan = SleepSessionDedup.planBank(candidate: session, existing: stored)
+                        if plan.bank {
+                            // Bank the survivor FIRST, retire the rows it supersedes only after it lands — so a
+                            // failed upsert never leaves the night with NEITHER the candidate nor its (deleted)
+                            // duplicates. On failure the stored rows are kept and the heal reconciles next pass.
+                            do {
+                                try await store.upsertSleepSessions([session], deviceId: id)
+                                for s in plan.supersededStarts {
+                                    _ = try? await store.deleteSleepSession(deviceId: id, startTs: s)
+                                }
+                                straplog("Oura: onset-key(#1284) banked \(SourceCoordinator.dupGenShape(session)) superseded \(plan.supersededStarts.count) stored row(s) - generation keying")
+                            } catch {
+                                straplog("Oura: onset-key(#1284) bank FAILED (\(error.localizedDescription)) - kept \(stored.count) stored row(s); heal will reconcile")
+                            }
+                        } else {
+                            straplog("Oura: onset-key(#1284) suppressed \(SourceCoordinator.dupGenShape(session)) - a stored same-night row is at least as complete")
+                        }
+                    } else {
+                        _ = try? await store.upsertSleepSessions([session], deviceId: id)
+                    }
                 }
             },
             log: straplog,
             onBattery: { [live] pct in live.setBattery(Double(pct)) },
             onModel: { [registry] model in registry.setModel(id, model: model) },   // #772: correct a name-guessed gen
             onSerial: { [weak self] serial in self?.adoptOuraSerial(currentId: id, serial: serial) },  // #771
+            onsetKeying: { UserDefaults.standard.bool(forKey: AppModel.ouraOnsetKeyingKey) },  // #1284 residual 3
             adoptIntent: adoptIntent)
         if adoptIntent { straplog("Oura: adopt consent granted - this session may install NOOP's key") }
         ouraSource = source   // the published typed handle for the adopt mirror (same object as activeSource)

@@ -481,6 +481,19 @@ object NoopPrefs {
         of(context).edit().putBoolean(KEY_POLAR_DEBUG_LOGGING, enabled).apply()
     }
 
+    /** #1284 residual 3 (EXPERIMENTAL, default OFF): generation-side 0x49-onset keying for Oura sleep. When
+     *  on, an Oura hypnogram persist keys its startTs on the rounded 0x49 onset and a completeness guard
+     *  suppresses/replaces a duplicate re-serve BEFORE it is banked. A hardware-validation toggle; no effect
+     *  without an Oura ring. Twin of iOS AppModel.ouraOnsetKeyingKey. */
+    const val KEY_OURA_ONSET_KEYING = "noop.ouraOnsetKeying"
+
+    fun ouraOnsetKeying(context: Context): Boolean =
+        of(context).getBoolean(KEY_OURA_ONSET_KEYING, false)
+
+    fun setOuraOnsetKeying(context: Context, enabled: Boolean) {
+        of(context).edit().putBoolean(KEY_OURA_ONSET_KEYING, enabled).apply()
+    }
+
     /** #1121: whether the opt-in "detailed capture" rolling strap-log file is on. Persisted so capture
      *  RESUMES after the process is killed (AppViewModel re-arms the BLE client from this on launch). */
     const val KEY_DETAILED_CAPTURE = "noop.detailedCapture"
