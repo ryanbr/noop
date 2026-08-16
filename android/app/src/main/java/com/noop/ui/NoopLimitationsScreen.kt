@@ -47,11 +47,14 @@ private val LIMIT_ROWS: List<LimitRow> = listOf(
     LimitRow("HRV (rMSSD)", LimitState.FULL, LimitState.FULL),
     LimitRow("Sleep staging", LimitState.FULL, LimitState.FULL),
     LimitRow("Recovery & strain", LimitState.FULL, LimitState.FULL),
-    // 5.0/MG: PARTIAL, not FULL. The v18 wire carries no respiratory channel at all —
-    // Whoop5HistoricalDecodeTest pins resp_rate_raw as null — so the displayed value is always
-    // SleepStager.respRateFromRR, an on-device RSA estimate off the R-R stream, which is what
-    // PARTIAL means. Twin of the Swift NoopLimitationsView row.
-    LimitRow("Respiratory rate", LimitState.FULL, LimitState.PARTIAL),
+    // PARTIAL on BOTH generations: the displayed respiratory rate is always SleepStager.respRateFromRR
+    // — an on-device RSA estimate off the R-R stream, which is what PARTIAL means — computed with NO
+    // family branch (AnalyticsEngine respRateDaily). The 5.0/MG v18 wire carries no respiratory channel
+    // (Whoop5HistoricalDecodeTest pins resp_rate_raw null); the 4.0 v24 layout DOES carry resp_rate_raw,
+    // but it is a raw ADC stored unconverted (schema: "resp rate computed server-side") and never shown.
+    // Neither is "read live off the strap" (FULL) — also why an over-counted-R-R 4.0 night (#1331) blanks
+    // it. Twin of the Swift NoopLimitationsView row.
+    LimitRow("Respiratory rate", LimitState.PARTIAL, LimitState.PARTIAL),
     LimitRow("Stress (on-device)", LimitState.FULL, LimitState.FULL),
     LimitRow("Workout detection", LimitState.FULL, LimitState.FULL),
     LimitRow("Skin temperature", LimitState.PARTIAL, LimitState.FULL),
