@@ -1,5 +1,5 @@
 import XCTest
-import WhoopStore
+@testable import WhoopStore   // reaches the internal overlapSeconds / edgeGapSeconds helpers the #1284 tests assert on
 
 /// #899: an unstable strap clock re-banks the SAME night under a shifted timebase, so the store
 /// accumulates two (or more) OVERLAPPING sleep sessions with different timestamps. The exact

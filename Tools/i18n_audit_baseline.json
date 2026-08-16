@@ -706,6 +706,10 @@
     ],
     [
       "android/app/src/main/java/com/noop/ui/TestCentreScreen.kt",
+      "Polar debug logging"
+    ],
+    [
+      "android/app/src/main/java/com/noop/ui/TestCentreScreen.kt",
       "Share captured log"
     ],
     [
@@ -1129,6 +1133,14 @@
     [
       "Strand/Screens/StressView.swift",
       "Today's value is your recorded daily stress score (0-3)."
+    ],
+    [
+      "Strand/Screens/TestCentreView.swift",
+      "Polar debug logging"
+    ],
+    [
+      "Strand/Screens/TestCentreView.swift",
+      "\\(identity). Logs this to the strap log on each connect, so a Polar bug report shows the model NOOP resolved your strap to."
     ],
     [
       "Strand/Screens/TodayView.swift",
