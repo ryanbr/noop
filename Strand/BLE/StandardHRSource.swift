@@ -35,7 +35,7 @@ public final class StandardHRSource: NSObject, ObservableObject {
     /// newest RSSI) and keep it ordered by proximity — strongest RSSI first. Pure so the dedup + ordering
     /// contract is unit-testable without CoreBluetooth. Live RSSI is noisy, so a busy list can reorder as
     /// signals fluctuate; that's the accepted cost of "closest first" and matches every BLE scanner UI.
-    static func upsertByProximity(_ list: [DiscoveredStrap], _ strap: DiscoveredStrap) -> [DiscoveredStrap] {
+    nonisolated static func upsertByProximity(_ list: [DiscoveredStrap], _ strap: DiscoveredStrap) -> [DiscoveredStrap] {
         var out = list
         if let idx = out.firstIndex(where: { $0.id == strap.id }) {
             out[idx] = strap
