@@ -59,6 +59,13 @@ public enum BackupSettings {
         "units.temperature": .string,
         "effort.scale": .string,
         "today.hostedCards": .string,
+        // #1361: the user's own custom journal BEHAVIOURS (newline-joined names). Deliberately NOT in
+        // `appleDefaultsKey` below — it isn't a flat UserDefaults key (customs are derived from the
+        // catalog items blob), so the app layer (`DataBackup`) bridges this one on export and restore.
+        // Byte-identical newline value to the Android bridge.
+        // SCOPE: NAMES only — the wire carries no kind/group, so a numeric custom behaviour restores as a
+        // plain .bool toggle (identical on both platforms; historical entries keep their DB numericValue).
+        "journal.customBehaviors": .string,
     ]
 
     /// Canonical JSON key → this platform's UserDefaults key. Identity everywhere except

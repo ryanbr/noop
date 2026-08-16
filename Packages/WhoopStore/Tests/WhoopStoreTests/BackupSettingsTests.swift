@@ -23,6 +23,9 @@ final class BackupSettingsTests: XCTestCase {
             "effort.scale": "whoop",
             // #today-hosted-cards: the one layout pref carried, a JSON [String] stored under the String kind.
             "today.hostedCards": "[\"sleep.sleepMarks\"]",
+            // #1361: custom journal behaviours, a newline-joined name list — the embedded newline must
+            // survive the JSON round-trip (and stay byte-identical to Android's pref value).
+            "journal.customBehaviors": "Cold plunge\nMagnesium",
         ]
         let data = try XCTUnwrap(BackupSettings.encode(values))
         let back = BackupSettings.decode(data)
@@ -38,6 +41,7 @@ final class BackupSettingsTests: XCTestCase {
         XCTAssertEqual(back["units.temperature"] as? String, "celsius")
         XCTAssertEqual(back["effort.scale"] as? String, "whoop")
         XCTAssertEqual(back["today.hostedCards"] as? String, "[\"sleep.sleepMarks\"]")
+        XCTAssertEqual(back["journal.customBehaviors"] as? String, "Cold plunge\nMagnesium")
         XCTAssertEqual(back.count, values.count, "Nothing extra should appear")
     }
 

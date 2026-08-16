@@ -61,6 +61,13 @@ object BackupSettingsCodec {
         // built and expects across a restore. Its POSITION (the addedCards slot in today.sectionOrder) is
         // not carried, so on restore the set + internal order return but the section sits at its default.
         HostedCardPrefs.KEY_SELECTION to Kind.STRING,
+        // #1361: the user's own custom journal BEHAVIOURS (a newline-joined list of names). The journal
+        // EFFECTS ride the DB backup, but the behaviour DEFINITIONS live only in prefs, so a restore left
+        // the entries referencing behaviours the logging catalog no longer offered. Platform-neutral key;
+        // the same newline value is bridged out of the catalog on both platforms.
+        // SCOPE: NAMES only — the wire carries no kind/group, so a numeric custom behaviour restores as a
+        // plain .bool toggle (identical on both platforms; historical entries keep their DB numericValue).
+        "journal.customBehaviors" to Kind.STRING,
     )
 
     /**
@@ -117,6 +124,16 @@ object BackupSettingsCodec {
  */
 object BackupSettingsBridge {
 
+    /** Journal-catalog storage keys in `noop_prefs` (#1361). The v2 items blob is the LIVE store; the
+     *  legacy custom/hidden keys are read ONCE by `JournalCatalog.loadJournalCatalogItems` to migrate into
+     *  v2, then never again. So export pulls custom names out of the v2 blob (parsed raw here to avoid a
+     *  data→ui dependency — the JSON shape mirrors `JournalCatalog.encodeJournalCatalog`), and restore
+     *  writes the names to the legacy custom key and CLEARS the v2 blob so the next load re-migrates them
+     *  (a restore requires an app restart, #57). Must match `JournalCatalog`. Mirrors the iOS bridge. */
+    private const val JOURNAL_CATALOG_V2_PREF = "noop.journalCatalogV2"
+    private const val JOURNAL_LEGACY_CUSTOM_PREF = "noop.journalCustomQuestions"
+    private const val JOURNAL_LEGACY_HIDDEN_PREF = "noop.journalHiddenQuestions"
+
     /** The whitelisted, user-SET settings of this device as the `settings.json` string, or null. */
     fun snapshotJson(context: Context): String? {
         val values = LinkedHashMap<String, Any>()
@@ -133,6 +150,18 @@ object BackupSettingsBridge {
         }
         if (noop.contains(HostedCardPrefs.KEY_SELECTION)) {
             noop.getString(HostedCardPrefs.KEY_SELECTION, null)?.let { values[HostedCardPrefs.KEY_SELECTION] = it }
+        }
+        // #1361: custom journal behaviours from the LIVE v2 catalog blob (the legacy key is read-once-
+        // then-stale). Parse raw to avoid a data→ui dependency; shape mirrors JournalCatalog.
+        noop.getString(JOURNAL_CATALOG_V2_PREF, null)?.let { blob ->
+            val names = runCatching {
+                val arr = org.json.JSONArray(blob)
+                (0 until arr.length()).mapNotNull { i ->
+                    arr.optJSONObject(i)?.takeIf { it.optBoolean("custom", false) }
+                        ?.optString("canonical", "")?.takeIf { it.isNotEmpty() }
+                }
+            }.getOrDefault(emptyList())
+            if (names.isNotEmpty()) values["journal.customBehaviors"] = names.joinToString("\n")
         }
         return BackupSettingsCodec.encode(values)
     }
@@ -158,6 +187,13 @@ object BackupSettingsBridge {
         }
         (values["effort.scale"] as? String)?.let { editor.putString(UnitPrefs.KEY_EFFORT_SCALE, it) }
         (values[HostedCardPrefs.KEY_SELECTION] as? String)?.let { editor.putString(HostedCardPrefs.KEY_SELECTION, it) }
+        // #1361: restore custom behaviours — write the names to the legacy custom key, clear stale hidden,
+        // and drop the v2 blob so the next catalog load re-migrates them (restart-gated, #57). Mirrors iOS.
+        (values["journal.customBehaviors"] as? String)?.let { joined ->
+            editor.putString(JOURNAL_LEGACY_CUSTOM_PREF, joined)
+            editor.remove(JOURNAL_LEGACY_HIDDEN_PREF)
+            editor.remove(JOURNAL_CATALOG_V2_PREF)
+        }
         editor.apply()
     }
 }

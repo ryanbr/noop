@@ -190,7 +190,18 @@ enum DataBackup {
     /// exports a legacy DB-only ZIP, which is the right degrade). UserDefaults is thread-safe, so
     /// the detached export tasks may call this off the main actor.
     private static func currentSettingsJSON() -> Data? {
-        BackupSettings.encode(BackupSettings.snapshot(from: .standard))
+        var values = BackupSettings.snapshot(from: .standard)
+        // #1361: bridge the user's custom journal BEHAVIOURS into the whitelisted `journal.customBehaviors`
+        // as a newline-joined name list (byte-identical to Android's `noop.journalCustomQuestions`). The
+        // journal EFFECTS ride the DB backup, but the DEFINITIONS live only here. `JournalCatalogStore`
+        // is @MainActor and this may run off it, so decode the items blob directly and take the custom
+        // canonicals. Skipped when there are none.
+        if let blob = UserDefaults.standard.data(forKey: JournalCatalogBackupKeys.items),
+           let items = try? JSONDecoder().decode([JournalCatalogItem].self, from: blob) {
+            let customs = items.filter(\.custom).map(\.canonical)
+            if !customs.isEmpty { values["journal.customBehaviors"] = customs.joined(separator: "\n") }
+        }
+        return BackupSettings.encode(values)
     }
 
     /// (Backup & Sync) Write a `.noopbak` to a SPECIFIC `dest` URL with NO save panel: the folder /
@@ -438,7 +449,19 @@ enum DataBackup {
             if let extractedDir {
                 let settingsURL = extractedDir.appendingPathComponent(BackupSettings.entryName)
                 if let data = try? Data(contentsOf: settingsURL) {
-                    BackupSettings.apply(BackupSettings.decode(data), to: settingsDefaults)
+                    let decoded = BackupSettings.decode(data)
+                    BackupSettings.apply(decoded, to: settingsDefaults)
+                    // #1361: restore custom journal behaviours. `JournalCatalogStore` is @MainActor and
+                    // this runs off it, so write the restored names to the legacy `journal.customQuestions`
+                    // array, clear any stale hidden list, and drop the v2 items blob — on the relaunch a
+                    // restore forces, the store's init migrates those names into fresh v2 items (the same
+                    // path a pre-v2 install takes). Only when the backup carried them.
+                    if let joined = decoded["journal.customBehaviors"] as? String {
+                        let names = joined.split(separator: "\n").map(String.init).filter { !$0.isEmpty }
+                        settingsDefaults.set(names, forKey: JournalCatalogBackupKeys.legacyCustom)
+                        settingsDefaults.set([String](), forKey: JournalCatalogBackupKeys.legacyHidden)
+                        settingsDefaults.removeObject(forKey: JournalCatalogBackupKeys.items)
+                    }
                 }
             }
             // #57 debug: record when a restore swapped the DB, so the export can correlate a restore with a
