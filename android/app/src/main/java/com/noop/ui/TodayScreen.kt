@@ -522,7 +522,9 @@ fun TodayScreen(
                 // A wide window: SoC readings are sparse (~8 min apart), so a few days back is plenty for the
                 // estimator to find the trailing discharge run and still cheap to load.
                 val from = now - 14L * 86_400
-                val samples = viewModel.repo.batterySamples("my-whoop", from, now, limit = 2_000)
+                // #1304/#512: a 2nd active strap banks its SoC under "whoop-<uuid>", so a "my-whoop" read
+                // returned empty and the runtime estimate went blank. Read the active strap's own battery.
+                val samples = viewModel.repo.batterySamples(viewModel.activeStrapId, from, now, limit = 2_000)
                     .mapNotNull { s -> s.soc?.let { s.ts to it } }
                 val rated = if (liveSnap.whoop5) BatteryEstimator.ratedLifeHoursWhoop5
                             else BatteryEstimator.ratedLifeHoursWhoop4
@@ -5147,9 +5149,12 @@ private fun HeartRateTrendCard(
         // that could disagree with the Sleep tab and the Coupled view's bed-wake read for a night stored
         // as more than one block (#294).
         sleepToday = runCatching {
-            val overlapping = viewModel.repo.sleepSessions("my-whoop", start - 18 * 3600L, end)
+            // #1304/#512: union across the active strap (like the hrBucketsUnion read just above) — a 2nd
+            // strap's night is banked under "whoop-<uuid>" and a raw "my-whoop" read misses it, so the
+            // hero showed no sleep band. Single-WHOOP collapses to "my-whoop", byte-identical.
+            val overlapping = viewModel.repo.sleepSessionsUnion(viewModel.activeStrapId, start - 18 * 3600L, end)
                 .filter { it.startTs <= end && it.endTs >= start }   // overlaps the window
-            val habitualMidsleepSec = viewModel.repo.habitualMidsleepSec("my-whoop")
+            val habitualMidsleepSec = viewModel.repo.habitualMidsleepSec(viewModel.activeStrapId)
             mainSleepSpan(overlapping, habitualMidsleepSec)?.let { (spanStart, spanEnd) ->
                 SleepSession(deviceId = "my-whoop", startTs = spanStart, endTs = spanEnd)
             }

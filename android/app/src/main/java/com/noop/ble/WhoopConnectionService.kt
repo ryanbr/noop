@@ -284,7 +284,9 @@ class WhoopConnectionService : Service() {
                 // flow completes; combine keeps running on ble.state with days frozen.
                 // #797: the bounded merge (recentDaysMergedFlow) is enough here, the notification only reads
                 // today's row; this stops a years-deep import re-merging the whole history on every change.
-                repo.recentDaysMergedFlow("my-whoop").catch { emit(emptyList()) },
+                // #1304/#512: the active strap's live day is under its own id ("whoop-<uuid>"); a raw
+                // "my-whoop" read (which the union method collapses to) misses it. Same accessor as :606.
+                repo.recentDaysMergedFlow((application as NoopApplication).activeDeviceId).catch { emit(emptyList()) },
             ) { state, days ->
                 // #911: resolve the day the way the dashboard does, via the LOGICAL local day (rolls at
                 // 04:00, with the #304 pre-04:00 carve-out), NOT a naive LocalDate.now() that rolls at
@@ -365,7 +367,9 @@ class WhoopConnectionService : Service() {
                     lastRuntimeEvalPct = runtimePct
                     runCatching {
                         val nowS = System.currentTimeMillis() / 1000
-                        val samples = repo.batterySamples("my-whoop", nowS - 14L * 86_400, nowS, limit = 2_000)
+                        // #1304/#512: read the active strap's own SoC (banked under "whoop-<uuid>" for a
+                        // 2nd strap), not the hardcoded canonical id. Same accessor as :606.
+                        val samples = repo.batterySamples((application as NoopApplication).activeDeviceId, nowS - 14L * 86_400, nowS, limit = 2_000)
                             .mapNotNull { s -> s.soc?.let { s.ts to it } }
                         val rated = if (state.whoop5Detected) BatteryEstimator.ratedLifeHoursWhoop5
                                     else BatteryEstimator.ratedLifeHoursWhoop4

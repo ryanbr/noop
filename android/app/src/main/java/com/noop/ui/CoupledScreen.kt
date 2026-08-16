@@ -104,8 +104,11 @@ fun CoupledScreen(
     LaunchedEffect(days) {
         sleeps = runCatching {
             val now = System.currentTimeMillis() / 1000L
-            val imported = vm.repo.sleepSessions("my-whoop", 0L, now)
-            val computed = vm.repo.sleepSessions(vm.repo.computedDeviceId("my-whoop"), 0L, now)
+            // #1304/#512: read across the active-strap UNION (active ∪ canonical "my-whoop"), exactly as
+            // SleepScreen does — a 2nd strap's sleep is banked under "whoop-<uuid>", invisible to a raw
+            // "my-whoop" read. A single-WHOOP install collapses to "my-whoop" only, byte-identical.
+            val imported = vm.repo.sleepSessionsUnion(vm.activeStrapId, 0L, now)
+            val computed = vm.repo.computedSleepSessionsUnion(vm.activeStrapId, 0L, now)
             val importedEnds = imported.map { it.endTs }.toHashSet()
             (imported + computed.filter { it.endTs !in importedEnds }).sortedBy { it.effectiveStartTs }
         }.getOrDefault(emptyList())
@@ -115,7 +118,9 @@ fun CoupledScreen(
     // span below resolves the IDENTICAL block (#294) instead of a screen-local heuristic.
     var habitualMidsleepSec by remember { mutableStateOf<Long?>(null) }
     LaunchedEffect(days) {
-        habitualMidsleepSec = runCatching { vm.repo.habitualMidsleepSec("my-whoop") }.getOrNull()
+        // #1304/#512: thread the active strap id — `habitualMidsleepSec` unions internally, but the
+        // literal "my-whoop" collapses that union and re-drops a 2nd strap's nights (matches SleepScreen).
+        habitualMidsleepSec = runCatching { vm.repo.habitualMidsleepSec(vm.activeStrapId) }.getOrNull()
     }
 
     // Imported export-verbatim sleep figures (sleep_performance / need), preferred over the on-device

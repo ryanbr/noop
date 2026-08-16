@@ -32,11 +32,22 @@ import kotlin.math.roundToInt
  * Anonymous: the only branding is the provider name the user selected. The system prompt does
  * not name any app author or model vendor.
  */
-class AiCoach(private val repo: WhoopRepository) {
+class AiCoach(
+    private val repo: WhoopRepository,
+    /** #1304/#512: resolves the ACTIVE strap id. A lambda (not a plain `String`) so it is read at
+     *  call time rather than frozen when `AiCoach` is constructed — the app's active id resolves lazily
+     *  at startup, and the coach may be built first. The strap-telemetry reads below
+     *  ([WhoopRepository.daysMerged] / [WhoopRepository.rrIntervals] / Lab markers) union the active strap
+     *  with the canonical "my-whoop"; a live-BLE strap banks under "whoop-<uuid>", so a raw "my-whoop"
+     *  read would leave the coach reasoning off the wrong strap. Defaults to canonical so an import-only
+     *  install (and any test) is byte-identical to the old behaviour. */
+    private val activeStrapId: () -> String = { WhoopRepository.WHOOP_SOURCE },
+) {
 
-    /** The device key the rest of the app reads/writes daily metrics under. Coach reads go
-     *  through the MERGED raw+computed view ([WhoopRepository.daysMerged]), the same per-field
-     *  coalesce every screen uses, so on-device "-noop" scores are visible too (#124). */
+    /** The canonical bucket the imported journal answers ([WhoopRepository.journal]) live under — the app
+     *  keys journal to "my-whoop" everywhere (it is user-global, not strap telemetry), matching Swift
+     *  `AICoach.journalEntries()`. Daily metrics, R-R and Lab Book markers read the active strap via
+     *  [activeStrapId]. */
     private val deviceId = "my-whoop"
 
     /** The source id native (in-app) journal answers are stored under (matches the UI's
@@ -89,7 +100,7 @@ class AiCoach(private val repo: WhoopRepository) {
         val groundedFull = if (consent) {
             // Merged read, NOT raw days(): a live-strap user's scores live under "my-whoop-noop"
             // and a raw read misses them, the coach then claimed it had no data. (#124)
-            val days = runCatching { repo.daysMerged(deviceId) }.getOrDefault(emptyList())
+            val days = runCatching { repo.daysMerged(activeStrapId()) }.getOrDefault(emptyList())
             // Derived stress: a single Baevsky Stress Index summary line over TODAY's R-R, read the
             // same way StressScreen does (repo.rrIntervals over the local day) and gated UNDER this same
             // `consent` block as the HRV/RHR summary, a derived number, never raw R-R egress. Absent
@@ -148,7 +159,7 @@ class AiCoach(private val repo: WhoopRepository) {
         val tzOffset = java.util.TimeZone.getDefault().getOffset(nowSeconds * 1_000L) / 1_000L
         val localNow = nowSeconds + tzOffset
         val from = (localNow - Math.floorMod(localNow, 86_400L)) - tzOffset
-        val rr = repo.rrIntervals(deviceId, from, nowSeconds, limit = 200_000)
+        val rr = repo.rrIntervals(activeStrapId(), from, nowSeconds, limit = 200_000)
         return stressIndexLine(rr)
     }
 
@@ -297,7 +308,7 @@ class AiCoach(private val repo: WhoopRepository) {
 
         // --- Strongest associations on the user's own logged days (recovery as the outcome) ---
         val behaviours = runCatching { journalBehaviours() }.getOrDefault(emptyMap())
-        val days = runCatching { repo.daysMerged(deviceId) }.getOrDefault(emptyList())
+        val days = runCatching { repo.daysMerged(activeStrapId()) }.getOrDefault(emptyList())
         if (behaviours.isNotEmpty() && days.isNotEmpty()) {
             val recoveryByDay = days.mapNotNull { d -> d.recovery?.let { d.day to it } }.toMap()
             val ranked = runCatching { EffectRanker.rank(behaviours, recoveryByDay, "Charge") }
@@ -341,11 +352,13 @@ class AiCoach(private val repo: WhoopRepository) {
         return out.mapValues { it.value.toSet() }
     }
 
-    /** The latest reading per Lab Book marker key (stored under the strap deviceId). */
+    /** The latest reading per Lab Book marker key (stored under the ACTIVE strap deviceId). #1304/#512:
+     *  read under the active strap id — matching Swift `AICoach` (`labMarkers(deviceId: repo.deviceId)`) —
+     *  so a 2nd strap's markers under "whoop-<uuid>" aren't missed. */
     private suspend fun latestLabMarkers(): List<LabMarkerRow> {
         val all = ArrayList<LabMarkerRow>()
         for (category in LabMarkerCategory.entries) {
-            all += runCatching { repo.labMarkersByCategory(deviceId, category.raw) }.getOrDefault(emptyList())
+            all += runCatching { repo.labMarkersByCategory(activeStrapId(), category.raw) }.getOrDefault(emptyList())
         }
         return all.groupBy { it.markerKey }.values.map { rows -> rows.maxByOrNull { it.takenAt }!! }
             .sortedBy { it.markerKey }

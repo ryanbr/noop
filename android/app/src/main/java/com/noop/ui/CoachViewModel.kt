@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.noop.NoopApplication
 import com.noop.ai.AiCoach
 import com.noop.ai.AiKeyStore
 import com.noop.ai.AiProvider
@@ -33,7 +34,11 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
     // The networked coach, over the local store. No key is held here; the engine reads it from
     // the encrypted store at call time.
     private val aiCoach = AiCoach(
-        WhoopRepository(WhoopDatabase.get(app.applicationContext))
+        WhoopRepository(WhoopDatabase.get(app.applicationContext)),
+        // #1304/#512: thread the active strap id (resolved lazily by NoopApplication) so the coach reasons
+        // off the active strap's data — daysMerged/R-R/Lab markers union active ∪ canonical — instead of a
+        // hardcoded "my-whoop" that misses a strap banked under "whoop-<uuid>".
+        activeStrapId = { (app as NoopApplication).activeDeviceId },
     )
 
     // MARK: - Transcript
