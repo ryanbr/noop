@@ -634,6 +634,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var todayStressCache: Double? = null
     var todayFitnessAgeCache: Double? = null
     var todayVitalityCache: Double? = null
+    var todayVo2maxCache: Double? = null
 
     /**
      * Recent daily metrics (newest last), backing the Today grid + illness watch.

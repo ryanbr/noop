@@ -50,6 +50,7 @@ enum class DashboardCard(
     STEPS("steps", "Steps", "Today", "", Icons.AutoMirrored.Filled.DirectionsWalk),
     STRESS("stress", "Stress", "Autonomic load", "", Icons.Filled.Bolt),
     FITNESS_AGE("fitnessAge", "Fitness Age", "Updated weekly", "yrs", Icons.AutoMirrored.Filled.DirectionsRun),
+    VO2MAX("vo2max", "VO₂ Max", "Estimated, updated weekly", "", Icons.Filled.Air),
     VITALITY("vitality", "Vitality", "Wellness score", "", Icons.Filled.AutoAwesome),
     BLOOD_OXYGEN("bloodOxygen", "Blood Oxygen", "Blood oxygen", "", Icons.Filled.WaterDrop),
     SKIN_TEMP("skinTemp", "Skin Temp", "Skin temperature", "", Icons.Filled.Thermostat),

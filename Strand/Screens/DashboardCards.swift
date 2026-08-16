@@ -24,6 +24,7 @@ enum DashboardCard: String, CaseIterable, Identifiable {
     case steps
     case stress
     case fitnessAge
+    case vo2max
     case vitality
     case bloodOxygen
     case skinTemp
@@ -49,6 +50,7 @@ enum DashboardCard: String, CaseIterable, Identifiable {
         case .steps:       return String(localized: "Steps")
         case .stress:      return String(localized: "Stress")
         case .fitnessAge:  return String(localized: "Fitness Age")
+        case .vo2max:      return String(localized: "VO₂ Max")
         case .vitality:    return String(localized: "Vitality")
         case .bloodOxygen: return String(localized: "Blood Oxygen")
         case .skinTemp:    return String(localized: "Skin Temp")
@@ -69,6 +71,7 @@ enum DashboardCard: String, CaseIterable, Identifiable {
         case .steps:       return String(localized: "Today")
         case .stress:      return String(localized: "Autonomic load")
         case .fitnessAge:  return String(localized: "Updated weekly")
+        case .vo2max:      return String(localized: "Estimated, updated weekly")
         case .vitality:    return String(localized: "Wellness score")
         case .bloodOxygen: return String(localized: "Blood oxygen")
         case .skinTemp:    return String(localized: "Skin temperature")
@@ -88,6 +91,7 @@ enum DashboardCard: String, CaseIterable, Identifiable {
         case .steps:       return "figure.walk"
         case .stress:      return "bolt.heart"
         case .fitnessAge:  return "figure.run"
+        case .vo2max:      return "lungs"
         case .vitality:    return "sparkles"
         case .bloodOxygen: return "drop.fill"
         case .skinTemp:    return "thermometer.medium"
@@ -107,6 +111,7 @@ enum DashboardCard: String, CaseIterable, Identifiable {
         case .steps:       return ""
         case .stress:      return ""
         case .fitnessAge:  return "yrs"
+        case .vo2max:      return ""    // the estimated VO₂max number alone; ml/kg/min is too long for a tile
         case .vitality:    return ""
         case .bloodOxygen: return ""    // value carries the % itself
         case .skinTemp:    return ""    // value carries the ° itself

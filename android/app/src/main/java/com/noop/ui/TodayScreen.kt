@@ -465,6 +465,7 @@ fun TodayScreen(
     // dashes while the heavy history-wide read is (now) skipped for unchanged data.
     var stressToday by remember { mutableStateOf(viewModel.todayStressCache) }
     var fitnessAgeToday by remember { mutableStateOf(viewModel.todayFitnessAgeCache) }
+    var vo2maxToday by remember { mutableStateOf(viewModel.todayVo2maxCache) }
     var vitalityToday by remember { mutableStateOf(viewModel.todayVitalityCache) }
     LaunchedEffect(days) {
         // #849 re-mount guard: skip the whole-history scan when `days` is content-identical to the last load
@@ -495,6 +496,9 @@ fun TodayScreen(
         fitnessAgeToday = runCatching {
             viewModel.repo.latestMetricComputedUnion(viewModel.activeStrapId, "fitness_age")?.value
         }.getOrNull()
+        vo2maxToday = runCatching {
+            viewModel.repo.latestMetricComputedUnion(viewModel.activeStrapId, "vo2max_est")?.value
+        }.getOrNull()
         vitalityToday = runCatching {
             viewModel.repo.latestMetricComputedUnion(viewModel.activeStrapId, "vitality")?.value
         }.getOrNull()
@@ -502,6 +506,7 @@ fun TodayScreen(
         // short-circuits the history-wide read above.
         viewModel.todayStressCache = stressToday
         viewModel.todayFitnessAgeCache = fitnessAgeToday
+        viewModel.todayVo2maxCache = vo2maxToday
         viewModel.todayVitalityCache = vitalityToday
         viewModel.todayCardsLoadedSig = sig
     }
@@ -1564,6 +1569,7 @@ fun TodayScreen(
                             respDay = lastRespDay,
                             stress = stressToday,
                             fitnessAge = fitnessAgeToday,
+                            vo2max = vo2maxToday,
                             vitality = vitalityToday,
                             importedStepsForDay = importedStepsForDay,
                             estimatedStepsForDay = stepsEstForDay,
@@ -3160,6 +3166,7 @@ private fun YourCardsSection(
     respDay: DailyMetric?,
     stress: Double?,
     fitnessAge: Double?,
+    vo2max: Double?,
     vitality: Double?,
     importedStepsForDay: Int?,
     estimatedStepsForDay: Int?,
@@ -3202,6 +3209,7 @@ private fun YourCardsSection(
                         fahrenheit = fahrenheit,
                         stress = stress,
                         fitnessAge = fitnessAge,
+                        vo2max = vo2max,
                         vitality = vitality,
                         importedStepsForDay = importedStepsForDay,
                         estimatedStepsForDay = estimatedStepsForDay,
@@ -3219,6 +3227,7 @@ private fun YourCardsSection(
                         respDay = respDay,
                         stress = stress,
                         fitnessAge = fitnessAge,
+                        vo2max = vo2max,
                         vitality = vitality,
                         importedStepsForDay = importedStepsForDay,
                         estimatedStepsForDay = estimatedStepsForDay,
@@ -3273,6 +3282,7 @@ private fun dashboardCardMetricKey(card: DashboardCard): String? = when (card) {
     DashboardCard.BLOOD_OXYGEN -> "spo2"
     DashboardCard.SKIN_TEMP -> "skin"
     DashboardCard.FITNESS_AGE -> "fitness_age"
+    DashboardCard.VO2MAX -> "vo2max_est"
     DashboardCard.VITALITY -> "vitality"
     DashboardCard.STEPS -> "steps_est"
     DashboardCard.CALORIES -> "active_kcal"
@@ -3313,6 +3323,7 @@ private fun dashboardCardTint(card: DashboardCard): Color = when (card) {
     // iOS `liquidCard`: stress → StrandPalette.accent (blue), not the Effort orange.
     DashboardCard.STRESS -> Palette.accent
     DashboardCard.FITNESS_AGE -> Palette.chargeColor
+    DashboardCard.VO2MAX -> Palette.chargeColor
     // iOS vitality → liquidPurple (#9b7bff).
     DashboardCard.VITALITY -> LIQUID_PURPLE
     // iOS hrv → metricCyan (this theme's metricPurple is a blue, cyan reads as the iOS HRV teal).
@@ -3347,6 +3358,7 @@ private fun dashboardCardFraction(
     respDay: DailyMetric?,
     stress: Double?,
     fitnessAge: Double?,
+    vo2max: Double?,
     vitality: Double?,
     importedStepsForDay: Int?,
     estimatedStepsForDay: Int?,
@@ -3356,6 +3368,7 @@ private fun dashboardCardFraction(
     return when (card) {
         DashboardCard.STRESS -> over(stress, 3.0)
         DashboardCard.FITNESS_AGE -> if (fitnessAge != null) 0.5 else null
+        DashboardCard.VO2MAX -> if (vo2max != null) 0.5 else null
         DashboardCard.VITALITY -> over(vitality, 100.0)
         DashboardCard.HRV -> over(day?.avgHrv ?: vitalsDay?.avgHrv, 120.0)
         DashboardCard.RESTING_HR -> over((day?.restingHr ?: vitalsDay?.restingHr)?.toDouble(), 100.0)
@@ -3399,6 +3412,7 @@ private fun dashboardCardValue(
     respDay: DailyMetric?,
     stress: Double?,
     fitnessAge: Double?,
+    vo2max: Double?,
     vitality: Double?,
     importedStepsForDay: Int?,
     estimatedStepsForDay: Int?,
@@ -3458,6 +3472,8 @@ private fun dashboardCardValue(
             stress?.let { it.roundToInt().toString() } ?: STRESS_CALIBRATING
         DashboardCard.FITNESS_AGE ->
             withUnit(fitnessAge?.let { it.roundToInt().toString() } ?: NO_DATA)
+        DashboardCard.VO2MAX ->
+            vo2max?.let { it.roundToInt().toString() } ?: NO_DATA
         DashboardCard.VITALITY ->
             vitality?.let { it.roundToInt().toString() } ?: NO_DATA
         DashboardCard.HYDRATION ->

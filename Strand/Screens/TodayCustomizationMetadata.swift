@@ -69,6 +69,7 @@ extension DashboardCard {
         switch self {
         case .stress, .respiratory: return StrandPalette.accent
         case .fitnessAge: return StrandPalette.chargeColor
+        case .vo2max: return StrandPalette.chargeColor
         case .vitality, .hrv: return StrandPalette.metricPurple
         case .restingHr: return StrandPalette.metricRose
         case .steps, .bloodOxygen, .hydration: return StrandPalette.metricCyan
