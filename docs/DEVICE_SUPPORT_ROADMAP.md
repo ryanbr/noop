@@ -39,14 +39,29 @@ Polar H10 / Verity Sense / OH1 the user owns, account-free, on top of the standa
 - **Per-model streams:** **H10** = ECG (130 Hz) + ACC + HR + RR (no PPG); **Verity Sense / OH1** =
   PPG + PPI + ACC + GYRO + HR (no ECG).
 
-**Decoder status.** The pure PPI decoder is built and tested on both platforms
-(`Packages/PolarProtocol` / `com.noop.polar.PmdDecoder`): frame header (type `& 0x3F`, ns timestamp,
-frame-type/compressed bit) + PPI samples (HR + peak-to-peak interval + error estimate + flags). PPI is
-the one NOOP needs — HR + inter-beat interval for HRV, no ECG peak detection required. **Still to build:**
-the live `PolarPMDSource: LiveHRSource` (CoreBluetooth / android.bluetooth — hardware-gated, validate on
-an H10/Verity), and ECG/PPG/ACC decode if ever needed. **Confirm on hardware:** the PPI flags' bit1/bit2
-skin-contact polarity — the decoder names them per the Polar SDK, but this doc phrases them oppositely, so
-no consumer should gate on them until a real device settles it.
+- **Control-point response:** the control point INDICATES a reply prefixed `0xF0`:
+  `[0xF0, requestOpcode, measType, status, more, params…]`, `status == 0` = success (a GET_SETTINGS reply
+  then carries the supported setting blocks in `params`). SDK layout — **confirm on hardware** before any
+  consumer trusts a parsed status.
+- **Model catalog (public advertised names → PMD streams):** **H10** `Polar H10 …` = ECG + ACC (R-R on the
+  standard HR service); **H9** `Polar H9 …` = HR + R-R only, no PMD; **OH1** `Polar OH1 …` = PPG + PPI + ACC
+  (no gyroscope); **Verity Sense** `Polar Sense …` = PPG + PPI + ACC + GYRO. R-R for HRV also arrives on the
+  standard HR service for every model, so a no-PMD model is still a first-class HR/R-R source.
+
+**Decoder status.** Built and tested on both platforms (`Packages/PolarProtocol` / `com.noop.polar`):
+- `PmdDecoder` — frame header (type `& 0x3F`, ns timestamp, frame-type/compressed bit) + PPI samples (HR +
+  peak-to-peak interval + error estimate + flags). PPI is the one NOOP needs — HR + inter-beat interval for
+  HRV, no ECG peak detection.
+- `PmdControl` — the control-point command builder (GET_SETTINGS / REQUEST_START / STOP, u16-LE setting
+  blocks, the `(recording<<7)|type` start byte) + `0xF0` response parse. Pure byte work, no BLE.
+- `PolarModel` — advertised-name → model + per-model PMD stream capabilities (the catalog above).
+
+**Still to build:** the live `PolarPMDSource: LiveHRSource` (CoreBluetooth / android.bluetooth — a thin
+wrapper: discover the PMD service, write `PmdControl.start(model.hrvPmdStream)`, subscribe to the data
+char, feed `PmdDecoder`; hardware-gated, validate on an H10/Verity), plus ECG/PPG/ACC decode if ever needed.
+**Confirm on hardware:** (1) the PPI flags' bit1/bit2 skin-contact polarity — the decoder names them per the
+Polar SDK, but this doc phrases them oppositely; (2) the `0xF0` control-point response layout. No consumer
+should gate on either until a real device settles it.
 
 **Open item — #421** ("Polar H10 paired, no live data", Android): the generic-HR plumbing is correct
 (CCCD write + both notification callbacks); the leading theory is the WHOOP auto-reconnect reclaiming
