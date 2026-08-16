@@ -8,7 +8,8 @@ import Foundation
 // PMD data notifications (on the PMD Data characteristic FB005C82-…) share a 10-byte header:
 //
 //   byte  0      measurement type   (0x00 ECG, 0x01 PPG, 0x02 ACC, 0x03 PPI, 0x05 GYRO, 0x06 MAG, …)
-//   bytes 1…8    timestamp          (uint64 LE, nanoseconds, of the LAST sample in the frame)
+//   bytes 1…8    timestamp          (uint64 LE, nanoseconds since 2000-01-01 UTC — the PMD epoch, NOT
+//                                    Unix; of the LAST sample in the frame)
 //   byte  9      frame type         (bit 7 = compressed/delta flag; bits 0…6 = data-format id)
 //   bytes 10…    sample data        (format depends on measurement type + frame type)
 //
@@ -39,12 +40,22 @@ public enum PolarPmdMeasurement: UInt8, Sendable, Equatable, CaseIterable {
 public struct PolarPmdFrameHeader: Equatable, Sendable {
     /// The measurement stream this frame belongs to.
     public let measurement: PolarPmdMeasurement
-    /// Frame timestamp in nanoseconds (applies to the LAST sample in the frame).
+    /// Frame timestamp in nanoseconds since **2000-01-01 UTC** — the PMD epoch, NOT the Unix epoch (a raw
+    /// read is ~30 years behind wall clock). Applies to the LAST sample in the frame. Use `unixTimestampNs`
+    /// for wall clock. Only load-bearing for the fixed-rate streams (ECG/ACC/PPG) when those land — for PPI,
+    /// samples are event-based and callers timestamp on arrival.
     public let timestampNs: UInt64
     /// The data-format id (frame type bits 0…6).
     public let frameType: UInt8
     /// True when the compressed/delta bit (0x80) is set on the frame-type byte.
     public let isCompressed: Bool
+
+    /// Nanoseconds between the Unix epoch (1970-01-01) and the PMD epoch (2000-01-01): 946 684 800 s. Add
+    /// to a PMD `timestampNs` to re-base it onto the Unix epoch.
+    public static let pmdEpochUnixOffsetNs: UInt64 = 946_684_800_000_000_000
+
+    /// `timestampNs` re-based to the Unix epoch (ns since 1970-01-01 UTC), for wall-clock use.
+    public var unixTimestampNs: UInt64 { timestampNs &+ Self.pmdEpochUnixOffsetNs }
 
     public init(measurement: PolarPmdMeasurement, timestampNs: UInt64, frameType: UInt8, isCompressed: Bool) {
         self.measurement = measurement

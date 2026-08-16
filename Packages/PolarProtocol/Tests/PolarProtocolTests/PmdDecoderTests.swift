@@ -87,4 +87,12 @@ final class PmdDecoderTests: XCTestCase {
         XCTAssertNotNil(PolarPmdDecoder.header(acc))
         XCTAssertNil(PolarPmdDecoder.decodePPI(acc))
     }
+
+    func testPmdEpochToUnixConversion() {
+        // PMD counts ns since 2000-01-01 UTC, not the Unix epoch; the offset re-bases it to wall clock.
+        XCTAssertEqual(PolarPmdFrameHeader.pmdEpochUnixOffsetNs, 946_684_800_000_000_000)
+        let h = PolarPmdFrameHeader(measurement: .ppi, timestampNs: 1_000_000_000,
+                                    frameType: 0, isCompressed: false)
+        XCTAssertEqual(h.unixTimestampNs, 1_000_000_000 + PolarPmdFrameHeader.pmdEpochUnixOffsetNs)
+    }
 }

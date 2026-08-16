@@ -7,7 +7,8 @@ package com.noop.polar
 // parser of the documented byte layout — no Polar code, no firmware, nothing fabricated.
 //
 // PMD data notifications share a 10-byte header: byte 0 = measurement type, bytes 1..8 = timestamp
-// (uint64 LE ns, of the last sample), byte 9 = frame type (bit 7 = compressed flag; bits 0..6 = format).
+// (uint64 LE ns since 2000-01-01 UTC — the PMD epoch, NOT Unix — of the last sample), byte 9 = frame type
+// (bit 7 = compressed flag; bits 0..6 = format).
 // This decodes the PPI stream (0x03): heart rate + peak-to-peak (inter-beat) interval per beat — NOOP's
 // HRV input, the same signal WHOOP R-R gives — so a Polar H10 / OH1 / Verity Sense needs no ECG peak
 // detection. PPI is never compressed: each sample is a fixed 6-byte record (hr u8, ppi u16 LE, error u16
@@ -30,13 +31,25 @@ enum class PolarPmdMeasurement(val raw: Int) {
 /** The parsed 10-byte PMD data-frame header, common to every measurement type. */
 data class PolarPmdFrameHeader(
     val measurement: PolarPmdMeasurement,
-    /** Frame timestamp in nanoseconds (applies to the last sample in the frame). */
+    /** Frame timestamp in nanoseconds since **2000-01-01 UTC** — the PMD epoch, NOT the Unix epoch (a raw
+     *  read is ~30 years behind wall clock). Applies to the last sample in the frame. Use [unixTimestampNs]
+     *  for wall clock. Only load-bearing for the fixed-rate streams (ECG/ACC/PPG) when those land — for PPI,
+     *  samples are event-based and callers timestamp on arrival. */
     val timestampNs: Long,
     /** The data-format id (frame type bits 0..6). */
     val frameType: Int,
     /** True when the compressed/delta bit (0x80) is set on the frame-type byte. */
     val isCompressed: Boolean,
-)
+) {
+    /** [timestampNs] re-based to the Unix epoch (ns since 1970-01-01 UTC), for wall-clock use. */
+    val unixTimestampNs: Long get() = timestampNs + PMD_EPOCH_UNIX_OFFSET_NS
+
+    companion object {
+        /** Nanoseconds between the Unix epoch (1970-01-01) and the PMD epoch (2000-01-01): 946 684 800 s.
+         *  Add to a PMD [timestampNs] to re-base it onto the Unix epoch. */
+        const val PMD_EPOCH_UNIX_OFFSET_NS: Long = 946_684_800_000_000_000L
+    }
+}
 
 /** One decoded PPI (peak-to-peak interval) sample. */
 data class PolarPpiSample(

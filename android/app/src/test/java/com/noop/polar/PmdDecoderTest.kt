@@ -95,4 +95,11 @@ class PmdDecoderTest {
         assertNotNull(PmdDecoder.header(acc))
         assertNull(PmdDecoder.decodePPI(acc))
     }
+
+    @Test fun pmdEpochToUnixConversion() {
+        // PMD counts ns since 2000-01-01 UTC, not the Unix epoch; the offset re-bases it to wall clock.
+        assertEquals(946_684_800_000_000_000L, PolarPmdFrameHeader.PMD_EPOCH_UNIX_OFFSET_NS)
+        val h = PolarPmdFrameHeader(PolarPmdMeasurement.PPI, 1_000_000_000L, 0, false)
+        assertEquals(1_000_000_000L + PolarPmdFrameHeader.PMD_EPOCH_UNIX_OFFSET_NS, h.unixTimestampNs)
+    }
 }
