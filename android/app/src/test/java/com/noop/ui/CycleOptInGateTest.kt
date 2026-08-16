@@ -29,4 +29,21 @@ class CycleOptInGateTest {
         assertTrue(cycleOptInApplies(""))
         assertTrue(cycleOptInApplies("unspecified"))
     }
+
+    /**
+     * #hide-cycle: the user's "not for me" opt-out ([cycleAwarenessVisible]) suppresses the offer for an
+     * otherwise-eligible profile, and the gate is INDEPENDENT of age — it composes sex + the hidden flag,
+     * never a birth date. Twin of iOS ProfileStore.cycleAwarenessVisible(sex:hidden:).
+     */
+    @Test fun hiddenSuppressesTheOfferForEligibleProfiles() {
+        // Eligible + not hidden → visible (the default).
+        assertTrue(cycleAwarenessVisible("female", hidden = false))
+        assertTrue(cycleAwarenessVisible("nonbinary", hidden = false))
+        // Eligible + hidden → suppressed by the user's own choice.
+        assertFalse(cycleAwarenessVisible("female", hidden = true))
+        assertFalse(cycleAwarenessVisible("nonbinary", hidden = true))
+        // Ineligible (male) stays ineligible whatever the flag — the two conditions compose.
+        assertFalse(cycleAwarenessVisible("male", hidden = false))
+        assertFalse(cycleAwarenessVisible("male", hidden = true))
+    }
 }

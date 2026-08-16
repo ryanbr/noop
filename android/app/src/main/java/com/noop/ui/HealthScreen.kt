@@ -122,6 +122,7 @@ fun HealthScreen(
     // analytics pass and published by the ViewModel. Cycle awareness gates on its opt-in pref.
     val v5Signals by vm.v5Signals.collectAsStateWithLifecycle()
     val cycleEnabled by vm.cycleTrackingEnabled.collectAsStateWithLifecycle()
+    val cycleHidden by vm.cycleAwarenessHidden.collectAsStateWithLifecycle()
     val periodStarts by vm.periodStarts.collectAsStateWithLifecycle()
     var showCycleTracker by remember { mutableStateOf(false) }
     val hrMax = profile.hrMax
@@ -214,7 +215,7 @@ fun HealthScreen(
                     // #801: gate the cycle-awareness OPT-IN to profiles it can apply to (sex-gated, pure
                     // helper). Cycle phase is read from the menstrual skin-temperature shift, so the
                     // invitation is NOT offered for male profiles. Matches iOS SkinTempSection.cycleOptInApplies.
-                    cycleOptInApplies = cycleOptInApplies(profile.sex),
+                    cycleOptInApplies = cycleAwarenessVisible(profile.sex, cycleHidden),
                     onEnableCycle = { vm.setCycleTrackingEnabled(true) },
                     onLogPeriod = { vm.logPeriodStart() },
                     onOpenCycleTracker = { showCycleTracker = true },
@@ -456,6 +457,12 @@ private fun RecordRow(
  * (`profile.sex.lowercased() != "male"`). ProfileStore.sex is "male" | "female" | "nonbinary".
  */
 internal fun cycleOptInApplies(sex: String): Boolean = sex.lowercase(Locale.US) != "male"
+
+/** #hide-cycle: whether the cycle-awareness OFFER is VISIBLE — eligible by sex AND not hidden by the
+ *  user's "not for me" opt-out. USER-controlled, never age-based. Pure, unit-tested; twin of iOS
+ *  ProfileStore.cycleAwarenessVisible(sex:hidden:). */
+internal fun cycleAwarenessVisible(sex: String, hidden: Boolean): Boolean =
+    cycleOptInApplies(sex) && !hidden
 
 @Composable
 private fun SkinTempSuiteSection(

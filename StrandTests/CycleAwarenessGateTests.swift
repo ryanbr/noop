@@ -45,4 +45,18 @@ final class CycleAwarenessGateTests: XCTestCase {
         store.sex = "female"
         XCTAssertTrue(store.cycleAwarenessApplies)
     }
+
+    /// #hide-cycle: the user's "not for me" opt-out suppresses the offer for an otherwise-eligible profile,
+    /// and the gate is INDEPENDENT of age — it takes only sex + the hidden flag, never a birth date.
+    func testHiddenSuppressesTheOfferForEligibleProfiles() {
+        // Eligible + not hidden → visible (the default).
+        XCTAssertTrue(ProfileStore.cycleAwarenessVisible(sex: "female", hidden: false))
+        XCTAssertTrue(ProfileStore.cycleAwarenessVisible(sex: "nonbinary", hidden: false))
+        // Eligible + hidden → suppressed by the user's own choice.
+        XCTAssertFalse(ProfileStore.cycleAwarenessVisible(sex: "female", hidden: true))
+        XCTAssertFalse(ProfileStore.cycleAwarenessVisible(sex: "nonbinary", hidden: true))
+        // Ineligible (male) stays ineligible whatever the flag — the two conditions compose.
+        XCTAssertFalse(ProfileStore.cycleAwarenessVisible(sex: "male", hidden: false))
+        XCTAssertFalse(ProfileStore.cycleAwarenessVisible(sex: "male", hidden: true))
+    }
 }

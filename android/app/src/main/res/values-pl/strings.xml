@@ -1440,6 +1440,7 @@
     <string name="l10n_settings_screen_continuous_hrv_capture_1f0805d8">Ciągłe przechwytywanie HRV</string>
     <string name="l10n_settings_screen_couldn_t_check_try_again_b3c885d9">Nie udało się sprawdzić. Spróbuj ponownie.</string>
     <string name="l10n_settings_screen_counter_ticks_per_step_leave_at_3ce8c1d5">Licznik taktów na krok. Zostaw na 1,0, chyba że Twoje kroki będą wysokie. Na WHOOP 5/MG mogą biegać bardzo wysoko (10× lub więcej), więc liczba ta wzrasta do 30. Przejdź znane 1000 kroków i podziel liczbę NOOP przez liczbę rzeczywistą, aby otrzymać wartość.</string>
+    <string name="l10n_settings_screen_show_cycle_awareness_59709019">Pokaż świadomość cyklu</string>
     <string name="l10n_settings_screen_cycle_awareness_ffb94783">Świadomość rowerowa</string>
     <string name="l10n_settings_screen_day_cycle_background_8c254f01">Tło cyklu dnia</string>
     <string name="l10n_settings_screen_diagnostics_3af2279f">Diagnostyka</string>

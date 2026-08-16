@@ -620,6 +620,7 @@ fun SettingsScreen(
     // the engines pick up on the next analytics pass / offload. All opt-in / safe-default per spec.
     var illnessWatch by remember { mutableStateOf(NoopPrefs.illnessWatch(context)) }
     var cycleTracking by remember { mutableStateOf(NoopPrefs.cycleTracking(context)) }
+    var cycleHidden by remember { mutableStateOf(NoopPrefs.cycleAwarenessHidden(context)) }
     var hydrationTracking by remember { mutableStateOf(NoopPrefs.hydrationTracking(context)) }
     var stressCheckIn by remember { mutableStateOf(BiofeedbackPrefs.checkInEnabled(context)) }
     var stressAutoNudge by remember { mutableStateOf(BiofeedbackPrefs.autoNudge(context)) }
@@ -2789,16 +2790,33 @@ fun SettingsScreen(
                 // sister surfaces (Health opt-in, the card's off-control) were sex-gated in v7.3.2; this
                 // Settings toggle was the one surface that was missed, so a male profile could enable it here.
                 if (cycleTracking || cycleOptInApplies(profile.sex)) {
+                    // #hide-cycle — the master "not for me" opt-out. Offered to eligible profiles (and any
+                    // profile that already has it on) so the card can be hidden entirely by choice, never by
+                    // age. Turning it off hides the card AND stops tracking; it stays reversible right here.
+                    // Twin of the iOS Automations "Show cycle awareness" toggle.
                     SettingsToggleRow(
-                        title = uiString(R.string.l10n_settings_screen_cycle_awareness_ffb94783),
-                        detail = "Reads a coarse menstrual-cycle phase from your nightly skin-temperature shift, on this device only. Awareness only: not contraception, not a fertility predictor, not a medical service.",
-                        checked = cycleTracking,
-                        onCheckedChange = {
-                            cycleTracking = it
-                            vm.setCycleTrackingEnabled(it)
+                        title = uiString(R.string.l10n_settings_screen_show_cycle_awareness_59709019),
+                        detail = "Shows the cycle-awareness card on Today and in Health. Turn off to hide it entirely — a private choice, never based on your age. You can turn it back on here any time.",
+                        checked = !cycleHidden,
+                        onCheckedChange = { show ->
+                            cycleHidden = !show
+                            vm.setCycleAwarenessHidden(!show)
+                            if (!show) cycleTracking = false // vm also clears the pref; keep local state in step
                         },
                     )
                     SettingsRowDivider()
+                    if (!cycleHidden) {
+                        SettingsToggleRow(
+                            title = uiString(R.string.l10n_settings_screen_cycle_awareness_ffb94783),
+                            detail = "Reads a coarse menstrual-cycle phase from your nightly skin-temperature shift, on this device only. Awareness only: not contraception, not a fertility predictor, not a medical service.",
+                            checked = cycleTracking,
+                            onCheckedChange = {
+                                cycleTracking = it
+                                vm.setCycleTrackingEnabled(it)
+                            },
+                        )
+                        SettingsRowDivider()
+                    }
                 }
                 SettingsToggleRow(
                     title = uiString(R.string.l10n_settings_screen_hydration_tracking_579a2b32),

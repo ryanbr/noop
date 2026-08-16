@@ -700,6 +700,18 @@ object NoopPrefs {
         of(context).edit().putBoolean(KEY_CYCLE_TRACKING, enabled).apply()
     }
 
+    /** #hide-cycle: the user's "not for me" opt-out. When true, the cycle-awareness offer is suppressed on
+     *  Today + Health (reversible from Settings). USER-controlled, never age-based. Twin of the iOS
+     *  `AppModel.cycleAwarenessHiddenKey`. */
+    const val KEY_CYCLE_AWARENESS_HIDDEN = "noop.cycleAwarenessHidden"
+
+    fun cycleAwarenessHidden(context: Context): Boolean =
+        of(context).getBoolean(KEY_CYCLE_AWARENESS_HIDDEN, false)
+
+    fun setCycleAwarenessHidden(context: Context, hidden: Boolean) {
+        of(context).edit().putBoolean(KEY_CYCLE_AWARENESS_HIDDEN, hidden).apply()
+    }
+
     /** Hydration tracking (MVP): an opt-in, on-device-only fluid log with a daily goal + quick-add
      *  buttons. OPT-IN, default OFF (manual-first ethos), the Today "Hydration" card and the detail
      *  feature only appear once this is on. Nothing is synced; the day total lives in the local

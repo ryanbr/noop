@@ -1474,6 +1474,7 @@
     <string name="l10n_settings_screen_continuous_hrv_capture_1f0805d8">Continuous HRV capture</string>
     <string name="l10n_settings_screen_couldn_t_check_try_again_b3c885d9">Couldn\'t check. Try again.</string>
     <string name="l10n_settings_screen_counter_ticks_per_step_leave_at_3ce8c1d5">Counter ticks per step. Leave at 1.0 unless your steps run high. On a WHOOP 5/MG they can run very high (10× or more), so this goes up to 30. Walk a known 1,000 steps and divide NOOP\'s count by the real count to get your value.</string>
+    <string name="l10n_settings_screen_show_cycle_awareness_59709019">Show cycle awareness</string>
     <string name="l10n_settings_screen_cycle_awareness_ffb94783">Cycle awareness</string>
     <string name="l10n_settings_screen_day_cycle_background_8c254f01">Day-cycle background</string>
     <string name="l10n_settings_screen_diagnostics_3af2279f">Diagnostics</string>

@@ -1465,6 +1465,7 @@
     <string name="l10n_settings_screen_continuous_hrv_capture_1f0805d8">Kontinuierliche HRV-Erfassung</string>
     <string name="l10n_settings_screen_couldn_t_check_try_again_b3c885d9">Prüfung fehlgeschlagen. Versuch es erneut.</string>
     <string name="l10n_settings_screen_counter_ticks_per_step_leave_at_3ce8c1d5">Zählerticks pro Schritt. Lass es auf 1,0, außer deine Schritte fallen zu hoch aus. Auf einem WHOOP 5/MG können sie sehr hoch ausfallen (10× oder mehr), daher geht das hier bis 30. Geh bekannte 1.000 Schritte und teile NOOPs Zählung durch die echte Zahl, um deinen Wert zu erhalten.</string>
+    <string name="l10n_settings_screen_show_cycle_awareness_59709019">Zyklusbewusstsein anzeigen</string>
     <string name="l10n_settings_screen_cycle_awareness_ffb94783">Zyklusbewusstsein</string>
     <string name="l10n_settings_screen_day_cycle_background_8c254f01">Tageszyklus-Hintergrund</string>
     <string name="l10n_settings_screen_diagnostics_3af2279f">Diagnose</string>

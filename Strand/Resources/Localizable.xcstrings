@@ -199966,6 +199966,122 @@
           }
         }
       }
+    },
+    "Show cycle awareness": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zyklusbewusstsein anzeigen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar conciencia del ciclo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afficher la conscience du cycle"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostra consapevolezza del ciclo"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pokaż świadomość cyklu"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar consciência do ciclo"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показывать осведомлённость о цикле"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示周期感知"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "顯示週期感知"
+          }
+        }
+      }
+    },
+    "Shows the cycle-awareness card on Today and in Health. Turn off to hide it entirely — a private choice, never based on your age. You can turn it back on here any time.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zeigt die Zyklus-Karte auf „Heute“ und in „Gesundheit“. Schalte sie aus, um sie ganz auszublenden – eine private Entscheidung, nie auf Basis deines Alters. Du kannst sie hier jederzeit wieder einschalten."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Muestra la tarjeta del ciclo en Hoy y en Salud. Desactívala para ocultarla por completo: una decisión privada, nunca basada en tu edad. Puedes volver a activarla aquí cuando quieras."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Affiche la carte de suivi du cycle dans Aujourd’hui et Santé. Désactivez-la pour la masquer entièrement — un choix privé, jamais basé sur votre âge. Vous pouvez la réactiver ici à tout moment."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostra la scheda del ciclo in Oggi e in Salute. Disattivala per nasconderla del tutto: una scelta privata, mai basata sulla tua età. Puoi riattivarla qui in qualsiasi momento."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pokazuje kartę cyklu na ekranie Dziś i w sekcji Zdrowie. Wyłącz, aby ukryć ją całkowicie — to prywatny wybór, nigdy oparty na wieku. Możesz włączyć ją tu z powrotem w każdej chwili."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostra o cartão do ciclo em Hoje e na Saúde. Desativa para o ocultar por completo — uma escolha privada, nunca com base na tua idade. Podes voltar a ativá-lo aqui quando quiseres."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показывает карточку цикла на экране «Сегодня» и в разделе «Здоровье». Выключите, чтобы полностью скрыть её — это личный выбор, никогда не зависящий от возраста. Вы можете снова включить её здесь в любое время."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在“今天”和“健康”中显示周期卡片。关闭即可完全隐藏——这是个人选择，绝不基于年龄。你可以随时在此重新开启。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在「今天」和「健康」中顯示週期卡片。關閉即可完全隱藏——這是個人選擇，絕不基於年齡。你可以隨時在此重新開啟。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

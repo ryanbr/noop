@@ -1656,6 +1656,16 @@ final class AppModel: ObservableObject {
         set { UserDefaults.standard.set(newValue, forKey: Self.cycleAwarenessKey) }
     }
 
+    /// The user's "not for me" opt-out of cycle awareness — a respectful, USER-controlled hide, never
+    /// age-based (menopause age varies too widely to infer). When true, the cycle-awareness OFFER is
+    /// suppressed on Today and Health; the Automations toggle stays visible so it's reversible. Default
+    /// false. Distinct from `cycleAwarenessEnabled` (active tracking): this hides the invitation itself.
+    static let cycleAwarenessHiddenKey = "noopCycleAwarenessHidden"
+    var cycleAwarenessHidden: Bool {
+        get { UserDefaults.standard.bool(forKey: Self.cycleAwarenessHiddenKey) }
+        set { UserDefaults.standard.set(newValue, forKey: Self.cycleAwarenessHiddenKey) }
+    }
+
     /// Recompute the v5 skin-temp suite snapshots (cycle phase + body clock) from the current history.
     /// Called from the analytics pass and when the cycle opt-in flips. Honest-nil throughout: cycle is
     /// nil unless opted in; circadian is nil unless a usable activity profile exists.

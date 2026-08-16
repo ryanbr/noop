@@ -1359,12 +1359,15 @@ private struct SkinTempSection: View {
 
     /// The cycle-awareness opt-in (default OFF). The same key AppModel reads, so a flip is consistent.
     @AppStorage(AppModel.cycleAwarenessKey) private var cycleEnabled = false
+    /// #hide-cycle: the user's "not for me" opt-out. When set, the cycle opt-in invitation is suppressed
+    /// here (the section falls back to the generic skin-temp state); reversible from Automations.
+    @AppStorage(AppModel.cycleAwarenessHiddenKey) private var cycleHidden = false
     @State private var cycleTrackerPresented = false
 
     /// Whether the cycle-awareness opt-in is offered for this profile (#801). Delegates to the shared
     /// ``ProfileStore/cycleAwarenessApplies`` gate so Health + Automations stay in lockstep: cycle phase
     /// is read from the menstrual skin-temperature shift, so the opt-in is NOT shown for male profiles.
-    private var cycleOptInApplies: Bool { model.profile.cycleAwarenessApplies }
+    private var cycleOptInApplies: Bool { model.profile.cycleAwarenessApplies && !cycleHidden }
 
     var body: some View {
         VStack(alignment: .leading, spacing: NoopMetrics.gap) {

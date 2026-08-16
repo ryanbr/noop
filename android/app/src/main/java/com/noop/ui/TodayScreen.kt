@@ -284,6 +284,7 @@ fun TodayScreen(
     val spo2CandidateByDay by viewModel.spo2CandidateByDay.collectAsStateWithLifecycle()
     val v5Signals by viewModel.v5Signals.collectAsStateWithLifecycle()
     val cycleEnabled by viewModel.cycleTrackingEnabled.collectAsStateWithLifecycle()
+    val cycleHidden by viewModel.cycleAwarenessHidden.collectAsStateWithLifecycle()
     val periodStarts by viewModel.periodStarts.collectAsStateWithLifecycle()
     var showCycleTracker by remember { mutableStateOf(false) }
     val live by viewModel.live.collectAsStateWithLifecycle()
@@ -1371,7 +1372,7 @@ fun TodayScreen(
                 TodaySection.YOUR_CARDS ->
                     selectedDayOffset == 0 && visibleDashboardCards.isNotEmpty()
                 TodaySection.MENSTRUAL_CYCLE ->
-                    selectedDayOffset == 0 &&
+                    selectedDayOffset == 0 && !cycleHidden &&
                         (cycleOptInApplies(profileStore.sex) || cycleEnabled || periodStarts.isNotEmpty())
                 TodaySection.JOURNAL ->
                     selectedDayOffset == 0 && journalReminderOn

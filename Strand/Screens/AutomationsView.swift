@@ -16,6 +16,9 @@ struct AutomationsView: View {
 
     /// v5 cycle-awareness opt-in (default OFF — the most sensitive health category, manual-first).
     @AppStorage(AppModel.cycleAwarenessKey) private var cycleAwareness = false
+    /// #hide-cycle: the user's "not for me" opt-out (never age-based). Master visibility control lives here
+    /// so it stays reachable to un-hide even after the offer is gone from Today + Health.
+    @AppStorage(AppModel.cycleAwarenessHiddenKey) private var cycleHidden = false
 
     /// Whether the cycle-awareness opt-in is offered for this profile (#801). Delegates to the shared
     /// ``ProfileStore/cycleAwarenessApplies`` gate (mirrors HealthView's opt-in gate) so a male profile
@@ -352,14 +355,31 @@ struct AutomationsView: View {
                 // not shown for male profiles). Keeps the two surfaces consistent: a profile that can't
                 // see the Health card can't enable the feature from here either.
                 if cycleOptInApplies {
-                    ToggleRow(label: String(localized: "Cycle awareness"),
-                              help: String(localized: "Reads a coarse menstrual-cycle phase from your nightly skin temperature, entirely on \(Platform.deviceNounPhrase). Awareness only: not contraception, not a fertility predictor, not a medical service. The card appears in Health."),
-                              isOn: $cycleAwareness)
-                        .onChangeCompat(of: cycleAwareness) { on in
-                            model.cycleAwarenessEnabled = on
-                            Task { await model.refreshV5Signals() }
-                        }
+                    // #hide-cycle: the master visibility control — a USER opt-out, never age-based. Turning
+                    // it off hides the cycle-awareness offer on Today + Health AND stops active tracking;
+                    // turning it back on re-offers it. Reversible, so it is never a one-way door.
+                    ToggleRow(label: String(localized: "Show cycle awareness"),
+                              help: String(localized: "Shows the cycle-awareness card on Today and in Health. Turn off to hide it entirely — a private choice, never based on your age. You can turn it back on here any time."),
+                              isOn: Binding(get: { !cycleHidden },
+                                            set: { show in
+                                                cycleHidden = !show
+                                                if !show {
+                                                    cycleAwareness = false
+                                                    model.cycleAwarenessEnabled = false
+                                                    Task { await model.refreshV5Signals() }
+                                                }
+                                            }))
                     rowDivider
+                    if !cycleHidden {
+                        ToggleRow(label: String(localized: "Cycle awareness"),
+                                  help: String(localized: "Reads a coarse menstrual-cycle phase from your nightly skin temperature, entirely on \(Platform.deviceNounPhrase). Awareness only: not contraception, not a fertility predictor, not a medical service. The card appears in Health."),
+                                  isOn: $cycleAwareness)
+                            .onChangeCompat(of: cycleAwareness) { on in
+                                model.cycleAwarenessEnabled = on
+                                Task { await model.refreshV5Signals() }
+                            }
+                        rowDivider
+                    }
                 }
                 ToggleRow(label: String(localized: "Rhythm visualization (experimental)"),
                           help: String(localized: "An experimental picture of your beat-to-beat heart timing. Not an ECG and not a diagnosis. You'll read and accept an experimental note before it shows anything."),

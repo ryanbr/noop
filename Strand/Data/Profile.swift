@@ -234,6 +234,13 @@ final class ProfileStore: ObservableObject {
         sex.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != "male"
     }
 
+    /// Whether the cycle-awareness OFFER should be VISIBLE for a profile: eligible by sex AND not hidden
+    /// by the user's "not for me" opt-out. `hidden` is USER-controlled and never age-derived — a
+    /// respectful hide, not an assumption about menopause. Pure, so the combined gate is unit-testable.
+    nonisolated static func cycleAwarenessVisible(sex: String, hidden: Bool) -> Bool {
+        cycleAwarenessApplies(sex: sex) && !hidden
+    }
+
     /// Allowed range for the step-calibration divisor (#132). 5/MG straps overcount by
     /// up to ~24×, so the old 4.0 ceiling could never reach the truth.
     static let stepScaleRange: ClosedRange<Double> = 0.5...30.0

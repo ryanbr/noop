@@ -1280,6 +1280,7 @@
     <string name="l10n_settings_screen_continuous_hrv_capture_1f0805d8">Capture continue de la VFC</string>
     <string name="l10n_settings_screen_couldn_t_check_try_again_b3c885d9">Impossible de vérifier. Réessayez.</string>
     <string name="l10n_settings_screen_counter_ticks_per_step_leave_at_3ce8c1d5">Impulsions du compteur par pas. Laissez à 1,0 sauf si vos pas sont très élevés. Sur un WHOOP 5/MG, ils peuvent être très élevés (10× ou plus), donc ceci va jusqu\'à 30. Marchez un nombre connu de 1 000 pas et divisez le comptage de NOOP par le comptage réel pour obtenir votre valeur.</string>
+    <string name="l10n_settings_screen_show_cycle_awareness_59709019">Afficher la conscience du cycle</string>
     <string name="l10n_settings_screen_cycle_awareness_ffb94783">Conscience du cycle</string>
     <string name="l10n_settings_screen_day_cycle_background_8c254f01">Fond du cycle journalier</string>
     <string name="l10n_settings_screen_diagnostics_3af2279f">Diagnostics</string>

@@ -1426,6 +1426,7 @@
     <string name="l10n_settings_screen_continuous_hrv_capture_1f0805d8">全天候 HRV 捕获</string>
     <string name="l10n_settings_screen_couldn_t_check_try_again_b3c885d9">检查更新失败。请重试。</string>
     <string name="l10n_settings_screen_counter_ticks_per_step_leave_at_3ce8c1d5">每一步对应的传感器计数(Tick)比例。除非您的计步数据偏高，否则请保持默认值 1.0。在 WHOOP 5/MG 上，传感器数据可能会非常高（是实际步数的 10 倍甚至更多），所以这里的上限可调至 30。您可以走一段已知的 1000 步，用 NOOP 统计出的数字除以 1000，就能得出您专属的比例值了。</string>
+    <string name="l10n_settings_screen_show_cycle_awareness_59709019">显示生理周期感知</string>
     <string name="l10n_settings_screen_cycle_awareness_ffb94783">生理周期感知</string>
     <string name="l10n_settings_screen_day_cycle_background_8c254f01">日夜交替背景</string>
     <string name="l10n_settings_screen_diagnostics_3af2279f">诊断信息</string>

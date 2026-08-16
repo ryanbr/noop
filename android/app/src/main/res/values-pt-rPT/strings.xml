@@ -1446,6 +1446,7 @@
     <string name="l10n_settings_screen_continuous_hrv_capture_1f0805d8">Captura contínua de HRV</string>
     <string name="l10n_settings_screen_couldn_t_check_try_again_b3c885d9">Não foi possível verificar. Tente novamente.</string>
     <string name="l10n_settings_screen_counter_ticks_per_step_leave_at_3ce8c1d5">Contador de ticks por etapa. Deixe em 1,0, a menos que os teus passos sejam altos. Num WHOOP 5/MG podem correr muito alto (10× ou mais), por isso isto vai até 30. Caminhe 1.000 passos conhecidos e divida a contagem do NOOP pela contagem real para obter o teu valor.</string>
+    <string name="l10n_settings_screen_show_cycle_awareness_59709019">Mostrar consciência do ciclo</string>
     <string name="l10n_settings_screen_cycle_awareness_ffb94783">Consciência do ciclo</string>
     <string name="l10n_settings_screen_day_cycle_background_8c254f01">Histórico do ciclo diário</string>
     <string name="l10n_settings_screen_diagnostics_3af2279f">Diagnóstico</string>
