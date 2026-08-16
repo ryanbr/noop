@@ -434,8 +434,9 @@ sealed class OuraEvent {
      * (see [OuraSleepPeriodInfo] doc) - split out of the raw-bytes [TierB] wrapper for the same reason
      * [ActivityInfo] was: a cited third-party layout worth surfacing as real numbers instead of hex.
      * Same gate (`allowTierB`); its `breathsPerMin` - alone among the record's fields - is mapped to a
-     * durable `respSample` row and, on a ring night, supplies `dailyMetric.respRateBpm` (see the type
-     * doc). Every other field of the record stays diagnostic-only.
+     * durable `respSample` row and shown on the respiration track. It is NOT scored: `dailyMetric.respRateBpm`
+     * is untouched, and `OuraRespScale.forScoring` refuses the ring's rows at every scoring read (see the
+     * type doc). Every other field of the record stays diagnostic-only.
      */
     data class SleepPeriodInfo(val value: OuraSleepPeriodInfo) : OuraEvent()
 

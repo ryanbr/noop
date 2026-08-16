@@ -94,7 +94,9 @@ public enum OuraEventTag: UInt8, Sendable, CaseIterable, Codable {
              // ([open_ring]); NOOP's own captures confirm the layout's declared invariants and the
              // fixed-point scales. Tier B on DECODE PROVENANCE — third-party names, not Oura
              // documentation — not on doubt that the ring measures respiration: `breath` is the ring's
-             // own value read off the wire, and it feeds respRateBpm (see OuraSleepPeriodInfo).
+             // own value read off the wire. It is INSTRUMENTATION — stored as a `respSample` row and shown
+             // on the respiration track, but NOT scored: `dailyMetric.respRateBpm` is untouched (see
+             // OuraSleepPeriodInfo).
              .sleepPeriodInfo,
              // #287: 0x71 green_ibi_and_amp is NOT corpus-verified — there is no captured 0x71 fixture,
              // and OURA_PROTOCOL.md §6.2 documents a DIFFERENT layout (5 IBI deltas + 6 amplitudes,
