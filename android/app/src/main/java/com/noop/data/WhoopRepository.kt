@@ -1337,6 +1337,12 @@ class WhoopRepository(
     /** Scalar COUNT twin of [days] for count badges. */
     suspend fun daysCount(deviceId: String): Int = dao.daysCount(deviceId)
 
+    /** #1304/#512: the newest HR-sample ts across the active-strap union, or null — the union twin of
+     *  [latestHrSampleTs] for the Data Sources "has HR" badge (a 2nd strap banks HR under its own id, so a
+     *  raw "my-whoop" read reported no HR). Collapses to a single id for an import-only install. */
+    suspend fun latestHrSampleTsUnion(activeStrapId: String): Long? =
+        importedSourceIds(activeStrapId).mapNotNull { dao.latestHrSampleTs(it) }.maxOrNull()
+
     /** Every distinct source id with at least one cached daily row. Feeds the Health Connect
      *  backfill's strap-coverage gate (see HealthConnectImporter.isStrapNativeSourceId). */
     suspend fun dailyMetricDeviceIds(): List<String> = dao.dailyMetricDeviceIds()

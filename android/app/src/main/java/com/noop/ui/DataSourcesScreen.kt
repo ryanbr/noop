@@ -150,9 +150,14 @@ fun DataSourcesScreen(vm: AppViewModel) {
     // reads per screen visit. Workout counts are now exact (the row read was capped at DEFAULT_LIMIT).
     suspend fun refreshCounts() {
         val nowS = System.currentTimeMillis() / 1000
-        whoopDays = vm.repo.daysCount("my-whoop")
-        whoopWorkouts = vm.repo.workoutsCount("my-whoop", 0L, nowS)
-        whoopHasHr = vm.repo.latestHrSampleTs("my-whoop") != null
+        // #1304/#512: count across the active-strap UNION (active ∪ canonical), so a 2nd strap's data
+        // under "whoop-<uuid>" is included instead of silently under-reported. `daysMerged` is the exact
+        // twin of Swift's `repo.days` (mergeActivityFileSteps(mergeDaily(imported, computed))) — so this
+        // matches the iOS badge count, including a strap-only user's computed-only ("-noop") days that an
+        // imported-only count would miss. workoutsUnion mirrors Swift's dataVolumeSnapshot workout union.
+        whoopDays = vm.repo.daysMerged(vm.activeStrapId).size
+        whoopWorkouts = vm.repo.workoutsUnion(vm.activeStrapId, 0L, nowS).size
+        whoopHasHr = vm.repo.latestHrSampleTsUnion(vm.activeStrapId) != null
         appleDays = vm.repo.appleDailyCount("apple-health", "0000-01-01", "9999-12-31")
         appleWorkouts = vm.repo.workoutsCount("apple-health", 0L, nowS)
         hcDays = vm.repo.appleDailyCount("health-connect", "0000-01-01", "9999-12-31")

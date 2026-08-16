@@ -1,7 +1,9 @@
 package com.noop.data
 
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.lang.reflect.Proxy
 
 /**
  * #1304 / #512-class: the read-path resolvers that every multi-WHOOP-safe read threads. A user's SECOND
@@ -42,5 +44,29 @@ class MultiWhoopSourceUnionTest {
             WhoopRepository.importedSourceIdsFor("my-whoop"),
             WhoopRepository.importedSourceIdsFor(WhoopRepository.WHOOP_SOURCE),
         )
+    }
+
+    // ── Data Sources badge union counts (#1304) — dao-backed via a fake WhoopDao ──────
+
+    /** A fake [WhoopDao] returning canned `latestHrSampleTs` per source id; every other method throws
+     *  (the union HR read must touch only this). Same Proxy technique as AiCoachContextTest. The days
+     *  badge uses [WhoopRepository.daysMerged] (already tested — the Swift `repo.days` twin), so it needs
+     *  no bespoke fake here. */
+    private fun fakeDao(latestHrById: Map<String, Long?> = emptyMap()): WhoopDao = Proxy.newProxyInstance(
+        WhoopDao::class.java.classLoader, arrayOf(WhoopDao::class.java),
+    ) { _, method, args ->
+        val id = args?.getOrNull(0) as? String
+        when (method.name) {
+            "latestHrSampleTs" -> latestHrById[id]
+            else -> throw UnsupportedOperationException(method.name)
+        }
+    } as WhoopDao
+
+    @Test fun `latestHrSampleTsUnion takes the newest across straps`() = runBlocking {
+        val repo = WhoopRepository(fakeDao(latestHrById = mapOf("my-whoop" to 100L, second to 200L)))
+        assertEquals(200L, repo.latestHrSampleTsUnion(second))       // newest across the union
+        assertEquals(100L, repo.latestHrSampleTsUnion("my-whoop"))   // canonical only
+        // No HR under any union id → null (the "has HR" badge reads false).
+        assertEquals(null, WhoopRepository(fakeDao()).latestHrSampleTsUnion(second))
     }
 }
