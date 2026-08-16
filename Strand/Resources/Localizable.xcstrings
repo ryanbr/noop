@@ -206594,6 +206594,198 @@
           }
         }
       }
+    },
+    "Regular tempo (~3.8s in / 3.8s out) is the default sustainable pace for a first pass and for staying the full 15 minutes.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\n\nRegular tempo (~3.8s in / 3.8s out) is the default sustainable pace for a first pass and for staying the full 15 minutes."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regular-Tempo (~3,8 s ein / 3,8 s aus) ist das nachhaltige Standardtempo für den ersten Durchgang und für volle 15 Minuten."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El tempo Regular (~3,8 s in / 3,8 s out) es el ritmo sostenible por defecto para el primer pase y para mantener los 15 minutos completos."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le tempo Regular (~3,8 s in / 3,8 s out) est le rythme durable par défaut pour un premier passage et pour tenir les 15 minutes complètes."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O ritmo Regular (~3,8 s in / 3,8 s out) é o ritmo sustentável predefinido para a primeira passagem e para aguentar os 15 minutos completos."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il tempo Regular (~3,8 s in / 3,8 s out) è il ritmo sostenibile predefinito per il primo passaggio e per restare i 15 minuti interi."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tempo Regular (~3,8 s in / 3,8 s out) to domyślne, zrównoważone tempo na pierwszy przebieg i na pełne 15 minut."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Темп Regular (~3,8 с in / 3,8 с out) — устойчивый темп по умолчанию для первого прохода и для полных 15 минут."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regular 节奏（约 3.8 秒吸 / 3.8 秒呼）是首次练习与坚持满 15 分钟的可持续默认节奏。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regular 節奏（約 3.8 秒吸 / 3.8 秒呼）是首次練習與堅持滿 15 分鐘的可持續預設節奏。"
+          }
+        }
+      }
+    },
+    "Mid session tempo (~2.4s / 2.4s) is a starting pace for later passes through the procedure; once settled you may slow deeper or switch to Punching Through.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\n\nMid session tempo (~2.4s / 2.4s) is a starting pace for later passes through the procedure; once settled you may slow deeper or switch to Punching Through."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mittleres Session-Tempo (~2,4 s / 2,4 s) ist ein Einstiegstempo für spätere Durchgänge; wenn du ruhig bist, kannst du langsamer und tiefer gehen oder auf Punching Through wechseln."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El tempo medio (~2,4 s / 2,4 s) es un ritmo de arranque para pases posteriores; cuando te asientes, puedes ir más lento y profundo o pasar a Punching Through."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le tempo Mid (~2,4 s / 2,4 s) est un rythme de départ pour les passages suivants ; une fois installé·e, vous pouvez ralentir et approfondir ou passer en Punching Through."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O ritmo Mid (~2,4 s / 2,4 s) é um ritmo inicial para passagens posteriores; quando estiveres estável, podes ir mais lento e profundo ou mudar para Punching Through."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il tempo Mid (~2,4 s / 2,4 s) è un ritmo di partenza per passaggi successivi; una volta assestato, puoi rallentare e approfondire o passare a Punching Through."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tempo Mid (~2,4 s / 2,4 s) to rytm startowy na późniejsze przebiegi; gdy się ustabilizujesz, możesz zwolnić i pogłębić oddech albo przejść na Punching Through."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Средний темп (~2,4 с / 2,4 с) — стартовый ритм для следующих проходов; когда успокоитесь, можно замедлиться и углубить дыхание или перейти к Punching Through."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中段节奏（约 2.4 秒 / 2.4 秒）适合后续练习的起步；稳定后可放慢加深，或切换到 Punching Through。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中段節奏（約 2.4 秒 / 2.4 秒）適合後續練習的起步；穩定後可放慢加深，或切換到 Punching Through。"
+          }
+        }
+      }
+    },
+    "Punching Through (~1.9s / 1.9s) is for sleepiness or feeling stuck — not the beginner default. After you are “in it”, you may return to a slower, deeper connected breath.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\n\nPunching Through (~1.9s / 1.9s) is for sleepiness or feeling stuck — not the beginner default. After you are “in it”, you may return to a slower, deeper connected breath."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Punching Through (~1,9 s / 1,9 s) ist für Müdigkeit oder das Gefühl, festzustecken — nicht der Anfänger-Standard. Wenn du „drin“ bist, kannst du zu einem langsameren, tieferen verbundenen Atem zurückkehren."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Punching Through (~1,9 s / 1,9 s) es para somnolencia o bloqueo — no el valor por defecto para principiantes. Cuando ya estés “dentro”, puedes volver a un aliento conectado más lento y profundo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Punching Through (~1,9 s / 1,9 s) est pour la somnolence ou le blocage — pas le défaut débutant. Une fois « dedans », vous pouvez revenir à un souffle connecté plus lent et plus profond."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Punching Through (~1,9 s / 1,9 s) é para sonolência ou bloqueio — não o padrão para principiantes. Quando estiveres “dentro”, podes voltar a um fôlego ligado mais lento e profundo."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Punching Through (~1,9 s / 1,9 s) è per sonnolenza o blocco — non il default per principianti. Quando sei “dentro”, puoi tornare a un respiro connesso più lento e profondo."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Punching Through (~1,9 s / 1,9 s) jest na senność lub zablokowanie — nie domyślne dla początkujących. Gdy już „w tym jesteś”, możesz wrócić do wolniejszego, głębszego połączonego oddechu."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Punching Through (~1,9 с / 1,9 с) — при сонливости или застревании, не стартовый режим. Когда вы «внутри», можно вернуться к более медленному и глубокому связному дыханию."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Punching Through（约 1.9 秒 / 1.9 秒）用于困倦或卡住时——不是初学者默认。进入状态后，可回到更慢、更深的连贯呼吸。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Punching Through（約 1.9 秒 / 1.9 秒）用於困倦或卡住時——不是初學者預設。進入狀態後，可回到更慢、更深的連貫呼吸。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

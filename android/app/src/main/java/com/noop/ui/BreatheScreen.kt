@@ -159,7 +159,7 @@ private fun currentStages(pace: PaceSelection, lockedBpm: Double?): List<BreathS
 }
 
 private fun paceSelectionLabel(pace: PaceSelection, lockedBpm: Double?): String = when (pace) {
-    is PaceSelection.Catalog -> selectedProtocol(pace)?.title ?: pace.id
+    is PaceSelection.Catalog -> localizedBreathTitle(pace.id)
     PaceSelection.Resonance -> uiString(R.string.l10n_breathe_screen_resonance_k1l2m3n4)
 }
 
@@ -168,7 +168,7 @@ private fun selectedTagline(pace: PaceSelection, lockedBpm: Double?): String = w
         R.string.l10n_breathe_screen_locked_pace_o5p6q7r8,
         lockedBpm ?: ResonanceEngine.FALLBACK_BPM,
     )
-    is PaceSelection.Catalog -> selectedProtocol(pace)?.subtitle.orEmpty()
+    is PaceSelection.Catalog -> localizedBreathSubtitle(pace.id)
 }
 
 private fun paceCaption(pace: PaceSelection, lockedBpm: Double?): String = when (pace) {
@@ -201,10 +201,16 @@ private const val REDUCED_STEADY_ORB = 0.5f
 private val LIQUID_HERO_RADIUS = 26.dp
 
 /** The three biofeedback layers as a mode switch (mirrors BreathingView.Mode). */
-private enum class BreatheMode(val label: String) {
-    Breathe("Breathe"),
-    Resonance("Resonance"),
-    Calm("Calm me"),
+private enum class BreatheMode {
+    Breathe,
+    Resonance,
+    Calm,
+}
+
+private fun breatheModeLabel(mode: BreatheMode): String = when (mode) {
+    BreatheMode.Breathe -> uiString(R.string.l10n_breathe_screen_breathe_282be568)
+    BreatheMode.Resonance -> uiString(R.string.l10n_breathe_screen_resonance_k1l2m3n4)
+    BreatheMode.Calm -> uiString(R.string.l10n_breathe_screen_calm_me_a1b2c3d4)
 }
 
 /**
@@ -339,7 +345,7 @@ fun BreatheScreen(viewModel: AppViewModel) {
         sessionRmssdPeak = 0.0
         if (guided) {
             phase = UiPhase.TextOnly
-            phaseLabel = proto?.title
+            phaseLabel = proto?.let { localizedBreathTitle(it.id) }
             phaseDeadlineMs = Long.MAX_VALUE
             orbTarget = REDUCED_STEADY_ORB
         } else {
@@ -471,7 +477,7 @@ fun BreatheScreen(viewModel: AppViewModel) {
         SegmentedPillControl(
             items = BreatheMode.entries.toList(),
             selection = mode,
-            label = { it.label },
+            label = { breatheModeLabel(it) },
             onSelect = {
                 if (running) stopSession()
                 mode = it
@@ -931,7 +937,7 @@ private fun HapticHint() {
 
 @Composable
 private fun phaseWord(phase: UiPhase, label: String?): String {
-    if (!label.isNullOrEmpty()) return label
+    if (!label.isNullOrEmpty()) return localizedBreathStageLabel(label)
     return when (phase) {
         UiPhase.Inhale -> uiString(R.string.l10n_breathe_screen_breathe_in_a5b6c7d8)
         UiPhase.Hold -> uiString(R.string.l10n_breathe_screen_hold_g5h6i7j8)
@@ -947,6 +953,7 @@ private fun ProtocolEduDialog(
     onDismiss: () -> Unit,
 ) {
     val proto = selectedProtocol(pace)
+    val copy = proto?.let { breathProtocolCopyIds(it.id) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(uiString(R.string.l10n_breathe_screen_about_pace_o3p4q5r6), style = NoopType.headline) },
@@ -955,19 +962,19 @@ private fun ProtocolEduDialog(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                if (proto != null) {
-                    Text(proto.title, style = NoopType.title2, color = Palette.textPrimary)
-                    Text(proto.subtitle, style = NoopType.subhead, color = Palette.textSecondary)
+                if (proto != null && copy != null) {
+                    Text(uiString(copy.title), style = NoopType.title2, color = Palette.textPrimary)
+                    Text(uiString(copy.subtitle), style = NoopType.subhead, color = Palette.textSecondary)
                     if (proto.category == BreathProtocolCategory.PRESENCE) {
-                        Text(BreathProtocolCatalog.presenceIntroTitle, style = NoopType.headline, color = Palette.textPrimary)
-                        Text(BreathProtocolCatalog.presenceIntroBody, style = NoopType.body, color = Palette.textSecondary)
+                        Text(uiString(breathPresenceIntroTitleRes()), style = NoopType.headline, color = Palette.textPrimary)
+                        Text(uiString(breathPresenceIntroBodyRes()), style = NoopType.body, color = Palette.textSecondary)
                     }
-                    Text(proto.edu, style = NoopType.body, color = Palette.textPrimary)
-                    proto.sessionHint?.let {
-                        Text(it, style = NoopType.footnote, color = Palette.textSecondary)
+                    Text(uiString(copy.edu), style = NoopType.body, color = Palette.textPrimary)
+                    copy.sessionHint?.let {
+                        Text(uiString(it), style = NoopType.footnote, color = Palette.textSecondary)
                     }
-                    proto.caution?.let {
-                        Text(it, style = NoopType.footnote, color = Palette.statusWarning)
+                    copy.caution?.let {
+                        Text(uiString(it), style = NoopType.footnote, color = Palette.statusWarning)
                     }
                     Text(
                         uiString(R.string.l10n_breathe_screen_disclaimer_w1x2y3z4),
