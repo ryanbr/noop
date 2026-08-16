@@ -485,15 +485,12 @@ object IntelligenceEngine {
             val day = AnalyticsEngine.dayString(dayStart, tzOffsetSeconds)
             // Read a generous window around the night that ends on `day`; the stager finds the span.
             val from = dayStart - 30 * 3_600L
-            // Sleep read-window END. For a PAST day the night may end any time before the NEXT local
-            // midnight (late sleepers / weekend lie-ins / shift workers wake well after noon), so a
-            // hard `dayStart + 18h` (6 PM) bound TRUNCATED the read at exactly 18:00 , and a real wake
-            // past it was reported as a flat 18:00 wake (#500). Read a PAST day through to the next
-            // local midnight so the stager sees the whole night; TODAY keeps the 18:00 cap (the DAO
-            // clamps to now anyway, and an in-progress nap shouldn't be read as a finished night).
-            // Matches the Swift window.
-            val nextMidnight = dayStart + SECONDS_PER_DAY
-            val to = if (dayStart < nowLocalMidnight) nextMidnight else dayStart + 18 * 3_600L
+            // Sleep read-window END — see `sleepReadWindowEnd`. A PAST day reads through to the next
+            // local midnight so the stager sees the whole night; TODAY is capped at `now` (never read
+            // the future), NOT a fixed `dayStart + 18h` — that cap reported a flat 18:00 wake for a
+            // day-sleeper (still inside today when they wake) until local midnight flipped the day to
+            // past and it silently re-scored (#500 follow-up). Byte-twin of the Swift window.
+            val to = sleepReadWindowEnd(dayStart, nowLocalMidnight, nowSeconds)
 
             // I2: pick the single device that OWNS this day, and read ITS streams below. With one device
             // this resolves to [importedDeviceId] (active strap, has data → priority 0), so nothing
@@ -2005,6 +2002,20 @@ object IntelligenceEngine {
      */
     internal fun midnightLocal(ts: Long, offsetSec: Long): Long =
         ts - Math.floorMod(ts + offsetSec, SECONDS_PER_DAY)
+
+    /**
+     * The END of the sleep-read window for the night that finishes on [dayStart]'s day. A PAST day reads
+     * through to the next local midnight (late/shift sleepers wake well after noon); TODAY is capped at
+     * [now] — never read the future — NOT a fixed `dayStart + 18h`, which reported a flat 18:00 wake for a
+     * day-sleeper (asleep ~12:00, awake ~20:00, still inside today) until local midnight flipped the day
+     * to past and it silently re-scored to the real time (#500 follow-up). `minOf(nextMidnight, now)`
+     * keeps the window inside the day AND never past the present. Byte-twin of the Swift
+     * `IntelligenceEngine.sleepReadWindowEnd`.
+     */
+    internal fun sleepReadWindowEnd(dayStart: Long, nowLocalMidnight: Long, now: Long): Long {
+        val nextMidnight = dayStart + SECONDS_PER_DAY
+        return if (dayStart < nowLocalMidnight) nextMidnight else minOf(nextMidnight, now)
+    }
 
     /**
      * The per-day diagnostic source token from the imported day-key sets. A WHOOP export covering [day]
