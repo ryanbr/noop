@@ -272,10 +272,7 @@ class StandardHrSource(
                 ?: "Heart Rate Strap"
             if (firstSight) log("HR-strap: found $name ($address) rssi ${result.rssi}")
             val strap = DiscoveredStrap(address = address, name = name, rssi = result.rssi)
-            val list = _discovered.value.toMutableList()
-            val i = list.indexOfFirst { it.address == address }
-            if (i >= 0) list[i] = strap else list.add(strap)
-            _discovered.value = list
+            _discovered.value = upsertByProximity(_discovered.value, strap)
             // Replay a connect intent that arrived before the device was discovered.
             if (pendingConnectAddress == address) {
                 pendingConnectAddress = null
@@ -512,6 +509,18 @@ class StandardHrSource(
     }
 
     companion object {
+        /** Upsert a freshly-seen strap into the discovered list (same address updates in place with the
+         *  newest RSSI) and keep it ordered by proximity — strongest RSSI (closest) FIRST — so the strap
+         *  the user is next to surfaces at the top of a crowded gym list. Pure so the dedup + ordering
+         *  contract is unit-testable without android.bluetooth. `sortedByDescending` is stable, so straps
+         *  at equal RSSI keep their relative order (no needless churn). Twin of the Swift helper. */
+        fun upsertByProximity(list: List<DiscoveredStrap>, strap: DiscoveredStrap): List<DiscoveredStrap> {
+            val out = list.toMutableList()
+            val idx = out.indexOfFirst { it.address == strap.address }
+            if (idx >= 0) out[idx] = strap else out.add(strap)
+            return out.sortedByDescending { it.rssi }
+        }
+
         /** Standard BLE Heart Rate service + measurement characteristic + the CCCD. */
         val HEART_RATE_SERVICE: UUID = UUID.fromString("0000180d-0000-1000-8000-00805f9b34fb")
         val HEART_RATE_CHAR: UUID = UUID.fromString("00002a37-0000-1000-8000-00805f9b34fb")

@@ -26,8 +26,26 @@ public final class StandardHRSource: NSObject, ObservableObject {
         public let rssi: Int
     }
 
-    /// Straps discovered during the current scan, keyed by peripheral identifier.
+    /// Straps discovered during the current scan, keyed by peripheral identifier, ordered by proximity —
+    /// strongest signal (closest) FIRST — so the strap the user is standing next to surfaces at the top of
+    /// a crowded gym list. Maintained by `upsertByProximity`.
     @Published public private(set) var discovered: [DiscoveredStrap] = []
+
+    /// Upsert a freshly-seen strap into the discovered list (same peripheral id updates in place with the
+    /// newest RSSI) and keep it ordered by proximity — strongest RSSI first. Pure so the dedup + ordering
+    /// contract is unit-testable without CoreBluetooth. Live RSSI is noisy, so a busy list can reorder as
+    /// signals fluctuate; that's the accepted cost of "closest first" and matches every BLE scanner UI.
+    static func upsertByProximity(_ list: [DiscoveredStrap], _ strap: DiscoveredStrap) -> [DiscoveredStrap] {
+        var out = list
+        if let idx = out.firstIndex(where: { $0.id == strap.id }) {
+            out[idx] = strap
+        } else {
+            out.append(strap)
+        }
+        // Stable descending by RSSI: a higher (less negative) dBm is closer. `sorted` is a stable sort in
+        // Swift, so straps at equal RSSI keep their existing relative order (no needless churn).
+        return out.sorted { $0.rssi > $1.rssi }
+    }
     /// True while a scan is running (UI affordance).
     @Published public private(set) var scanning: Bool = false
     /// The connected strap's standard Battery Service (0x180F) level, 0–100, once read. nil until then
@@ -275,11 +293,7 @@ extension StandardHRSource: @preconcurrency CBCentralManagerDelegate {
         let name = advName ?? peripheral.name ?? "Heart Rate Strap"
         if firstSight { log("HR-strap: found \(name) (\(id)) rssi \(RSSI.intValue)") }
         let strap = DiscoveredStrap(id: id, name: name, rssi: RSSI.intValue)
-        if let idx = discovered.firstIndex(where: { $0.id == id }) {
-            discovered[idx] = strap
-        } else {
-            discovered.append(strap)
-        }
+        discovered = Self.upsertByProximity(discovered, strap)
         // If we were scanning specifically to reach this strap (a not-yet-cached active strap), connect now
         // that it's been seen — the switchToStrap path (#421).
         if pendingConnectID == id {
