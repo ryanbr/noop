@@ -72,7 +72,8 @@ final class HealthKitBridge: ObservableObject {
 
     private var writeTypes: Set<HKSampleType> {
         var s = Set<HKSampleType>()
-        for id in HealthKitBridge.quantityWriteIds + HealthKitBridge.highResQuantityWriteIds {
+        for id in HealthKitBridge.quantityWriteIds + HealthKitBridge.highResQuantityWriteIds
+            where !HealthKitBridge.writeDenied.contains(id) {
             if let t = HKObjectType.quantityType(forIdentifier: id) { s.insert(t) }
         }
         if let sleep = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) { s.insert(sleep) }
@@ -86,7 +87,9 @@ final class HealthKitBridge: ObservableObject {
     /// because the new types are still `.notDetermined`.
     private var legacyCoreWriteTypes: Set<HKSampleType> {
         var s = Set<HKSampleType>()
-        for id in HealthKitBridge.quantityWriteIds { if let t = HKObjectType.quantityType(forIdentifier: id) { s.insert(t) } }
+        for id in HealthKitBridge.quantityWriteIds where !HealthKitBridge.writeDenied.contains(id) {
+            if let t = HKObjectType.quantityType(forIdentifier: id) { s.insert(t) }
+        }
         if let sleep = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) { s.insert(sleep) }
         return s
     }
@@ -115,6 +118,16 @@ final class HealthKitBridge: ObservableObject {
     private static let quantityWriteIds: [HKQuantityTypeIdentifier] = [
         .restingHeartRate, .heartRateVariabilitySDNN, .oxygenSaturation, .respiratoryRate
     ]
+    /// Identifiers that must NEVER enter a `requestAuthorization(toShare:)` set, filtered out of every
+    /// write set below (#1366). HealthKit reserves some quantity types to Apple Watch —
+    /// `.appleSleepingWristTemperature`, the only type that fits a worn wrist skin temperature, is one —
+    /// and asking to SHARE such a type does not fail softly: it raises an uncatchable ObjC
+    /// `NSInvalidArgumentException` ("Authorization to share the following types is disallowed") that
+    /// terminates the app on launch (verified on device, iOS 27). Swift `try/catch` cannot intercept an
+    /// `NSException`, so the ONLY defense is to keep read-only ids out of the share set. Filtering here
+    /// makes that structural: a read-only id added to a write list by mistake is dropped from the ask
+    /// instead of bricking launch, turning a ship-and-crash into a no-op.
+    private static let writeDenied: Set<HKQuantityTypeIdentifier> = [.appleSleepingWristTemperature]
     // High-res write-back shares: the continuous 1-minute HR stream, and the energy/distance samples
     // attached to written workouts. Kept out of `quantityWriteIds` so `legacyCoreWriteTypes` (the
     // auth-resume set) stays exactly what pre-update users granted.
