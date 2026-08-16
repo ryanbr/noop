@@ -5580,6 +5580,18 @@ class WhoopBleClient(
                 }
                 val respCmd = parsed.parsed["resp_cmd"] as? String
                 val result = parsed.parsed["result"] as? String
+                // #1303: capture aid for WHOOP-4.0 stable-serial identity — the strap serial lives in the
+                // GET_HELLO_HARVARD (cmd 35) response but its byte offset is undocumented, so dump the raw
+                // payload ONCE per connect to locate it against the serial the app shows. Gated behind Test
+                // Centre → Connection so the full serial + device key never reach a DEFAULT (shareable) strap
+                // log; only an opted-in diagnostic session sees it. Log-only; decodes/persists nothing. Twin
+                // of the Swift FrameRouter dump.
+                if (connectedFamily == DeviceFamily.WHOOP4 && respCmd?.startsWith("GET_HELLO_HARVARD") == true &&
+                    testCentre.active(com.noop.testcentre.TestDomain.CONNECTION)) {
+                    val raw = whoop4CommandResponsePayload(frame)?.takeIf { it.isNotEmpty() }
+                        ?.joinToString(" ") { "%02x".format(it) } ?: "empty"
+                    log("HELLO_HARVARD(35) resp raw: $raw — locate the strap serial offset (#1303)")
+                }
                 // Reboot ack (#166): log the COMMAND_RESPONSE result for a user reboot on BOTH families —
                 // the accept/reject signal (the same one that exposed 5/MG haptics rejection). So a 5/MG
                 // owner's strap log confirms whether the (unverified) puffin reboot frame is accepted. The

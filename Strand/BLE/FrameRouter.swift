@@ -181,6 +181,13 @@ public final class FrameRouter {
                     let r = Self.commandResultByte(in: frame)
                     let rhex = r.map { String(format: "0x%02x", UInt8(truncatingIfNeeded: $0)) } ?? "none"
                     state.append(log: "Alarm: strap answered the arm (SET_ALARM_TIME) with result=\(rhex) — log-only, 4.0 result-code meaning unverified")
+                } else if cmd.hasPrefix("GET_HELLO_HARVARD"), TestCentre.active(.connection) {
+                    // #1303: capture aid for WHOOP-4.0 stable-serial identity. The strap serial lives in this
+                    // GET_HELLO_HARVARD (cmd 35) response, but its byte offset is undocumented — so dump the
+                    // raw payload ONCE per connect to locate it against the serial the app shows. Gated behind
+                    // Test Centre → Connection so the full serial + device key never reach a DEFAULT (shareable)
+                    // strap log; only an opted-in diagnostic session sees it. Log-only; decodes/persists nothing.
+                    state.append(log: "HELLO_HARVARD(35) resp raw: \(Self.commandResponsePayloadHex(in: frame) ?? "empty") — locate the strap serial offset (#1303)")
                 }
             }
 
