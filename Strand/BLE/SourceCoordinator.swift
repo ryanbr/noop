@@ -387,16 +387,19 @@ final class SourceCoordinator: ObservableObject {
                     // blind to the common case: an overnight with link drops mints the duplicate across
                     // DIFFERENT connections. Read the day's stored sessions here instead (cross-connection,
                     // survives an app restart) and log — using the SAME `SleepSessionDedup.isDuplicate` rule
-                    // the heal uses — when this persist duplicates one. `startDelta` ≈ the 0x49 onset jitter
-                    // (a session's startTs IS its anchored onset); the two shapes say WHICH row is fuller.
-                    // One compact line per duplicate, to survive the log head-clip. This is the corpus the
-                    // generation-side 0x49/sleep-day keying will be designed against.
+                    // the heal uses — when this persist duplicates one. `startDelta` is END-ANCHOR DRIFT, NOT
+                    // 0x49 onset jitter: startTs is `end − laidCodes·30 s`, and the 0x49 onset is applied only
+                    // as a one-way PRE-onset clip (OuraLiveSource `sleepStart`), which does not bind when the
+                    // backward lay never reaches it — so every row can be tagged `[0x49-onset]` yet none start
+                    // AT the onset (08-16: 4,206 s startDelta over 21 s of real onset jitter). The two shapes
+                    // say WHICH row is fuller. One compact line per duplicate, to survive the log head-clip;
+                    // this is the corpus the generation-side 0x49-onset keying will be designed against.
                     let from = session.startTs - 16 * 3600 - 3600
                     let to = session.endTs + 3600
                     let stored = ((try? await store.sleepSessions(deviceId: id, from: from, to: to, limit: 64)) ?? [])
                         .filter { $0.startTs != session.startTs }
                     for e in stored where SleepSessionDedup.isDuplicate(session, e) {
-                        straplog("Oura: dup-gen(#1284) persist \(SourceCoordinator.dupGenShape(session)) duplicates stored \(SourceCoordinator.dupGenShape(e)) startDelta=\(session.startTs - e.startTs)s (~0x49 onset jitter) - cross-connection DB read")
+                        straplog("Oura: dup-gen(#1284) persist \(SourceCoordinator.dupGenShape(session)) duplicates stored \(SourceCoordinator.dupGenShape(e)) startDelta=\(session.startTs - e.startTs)s (end-anchor drift) - cross-connection DB read")
                     }
                     _ = try? await store.upsertSleepSessions([session], deviceId: id)
                 }

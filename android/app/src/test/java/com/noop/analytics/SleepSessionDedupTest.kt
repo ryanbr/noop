@@ -165,4 +165,50 @@ class SleepSessionDedupTest {
         assertTrue(!SleepSessionDedup.isDuplicate(a, b))
         assertEquals(2, SleepSessionDedup.dedupe(listOf(a, b)).kept.size)
     }
+
+    // ── #1284 residual 3 (cont.): the overlap==0 cliff, and the adjacent-nap guard ───────────────
+
+    @Test
+    fun oura1284_grazingFragment_collapsesAcrossTheOverlapSeam() {
+        // 08-13/14: a 26 min re-decode fragment whose backward lay overshot the onset, so it GRAZES the
+        // 390 min anchored night by 121 s. The old rule collapsed a fragment ending 69 s SHORT but not one
+        // grazing 121 s IN — a discontinuity at overlap==0. The fragment (6.7% of the night) now collapses.
+        val night = session(midnight, midnight + 390 * 60L)
+        val fragEnd = midnight + 121L
+        val fragment = session(fragEnd - 26 * 60L, fragEnd) // 26 min, 121 s into the night
+        assertEquals(121L, SleepSessionDedup.overlapSeconds(fragment, night))
+        assertTrue(SleepSessionDedup.isDuplicate(fragment, night))
+        val result = SleepSessionDedup.dedupe(listOf(fragment, night), freshStarts = setOf(night.startTs))
+        assertEquals(listOf(night.startTs), result.kept.map { it.startTs })
+    }
+
+    @Test
+    fun oura1284_adjacentNapsOfComparableLength_areKept() {
+        // The guard against over-collapse: two GENUINE consecutive naps (20 min then 33 min, a 471 s gap,
+        // seen in the oura-import corpus) are comparable in length — the shorter is 61% of the longer, far
+        // above the fragment ratio — so they must NOT merge, even though the gap is within the near bar.
+        val nap1 = session(midnight, midnight + 20 * 60L)
+        val nap2 = session(midnight + 20 * 60L + 471L, midnight + 20 * 60L + 471L + 33 * 60L)
+        assertTrue(SleepSessionDedup.edgeGapSeconds(nap1, nap2) <= SleepSessionDedup.NEAR_ADJACENT_SECONDS)
+        assertTrue(!SleepSessionDedup.isDuplicate(nap1, nap2))
+        assertEquals(2, SleepSessionDedup.dedupe(listOf(nap1, nap2)).kept.size)
+    }
+
+    @Test
+    fun oura1284_multiplePhantomFragments_allCollapseToTheNight() {
+        // 08-14/15: one night re-decoded into several short phantom copies at drifting offsets. Every
+        // phantom is a fragment of the night, so all collapse to it regardless of how they relate to EACH
+        // other — closing the non-transitive, sort-order-dependent survivor set the cliff produced.
+        val night = session(midnight, midnight + 390 * 60L)
+        val phantomA = session(midnight - 24 * 60L, midnight + 2 * 60L) // grazes in by 2 min
+        val phantomB = session(midnight + 12 * 60L, midnight + 38 * 60L) // fully inside the head
+        val phantomC = session(midnight + 27 * 60L, midnight + 53 * 60L) // fully inside the head
+        for (order in listOf(
+            listOf(night, phantomA, phantomB, phantomC),
+            listOf(phantomC, phantomA, night, phantomB),
+        )) {
+            val result = SleepSessionDedup.dedupe(order, freshStarts = setOf(night.startTs))
+            assertEquals(listOf(night.startTs), result.kept.map { it.startTs })
+        }
+    }
 }

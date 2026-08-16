@@ -34,14 +34,24 @@ object SleepSessionDedup {
     const val MIN_OVERLAP_FRACTION_OF_SHORTER: Double = 0.5
 
     /**
-     * Edge gap (seconds) at or below which two DISJOINT sessions are still one night (#1284 residual 3).
-     * The Oura SleepNet burst runs a few epochs before the `0x49` onset, so its pre-onset piece can bank
-     * as a short session ending seconds before the anchored night begins with NO overlap — the overlap
-     * rule misses it (measured 69 s on 08-10/11; the pre-onset run is ~7 min / 14 codes per OuraLiveSource).
-     * A gap this small can only be one interrupted night, never two real sleeps: a genuine nap is hours
-     * from the main sleep, so it never trips this. 15 min is ~2x the observed pre-onset span.
+     * Edge distance (seconds) at or below which a same-night FRAGMENT is still one night (#1284 residual 3).
+     * The Oura SleepNet burst runs a few epochs before the `0x49` onset, so its pre-onset piece can bank as
+     * a short session ending just before — or, when the backward lay overshoots the onset, grazing just
+     * into — the anchored night. This bar catches it on EITHER side of the touch point (see the fragment
+     * rule in [isDuplicate]); 15 min is ~2x the observed pre-onset span, well below any real inter-sleep gap.
      */
     const val NEAR_ADJACENT_SECONDS: Long = 15L * 60L
+
+    /**
+     * A shorter session at or below this fraction of the longer one is a re-decode FRAGMENT of that night,
+     * not a second sleep (#1284 residual 3). It separates a fragment hugging a night (26 min beside a
+     * 390 min night = 6.7 % -> collapse; a 40 min pre-onset piece beside an 8 h night = 8.3 % -> collapse)
+     * from two GENUINE adjacent naps of comparable length (20 min beside 33 min = 61 % -> kept), which must
+     * never merge. Ratio, not an absolute cap: real naps and re-decode fragments overlap in absolute length
+     * (both ~20-30 min), so only the ratio to the partner night tells them apart. Deliberately conservative
+     * (0.10): the durable fix is generation-side `0x49`-onset keying — this only heals what still slips through.
+     */
+    const val FRAGMENT_FRACTION_OF_LONGER: Double = 0.10
 
     /** The collapse outcome: canonical survivors + the duplicates dropped, both sorted by startTs. */
     data class Result(val kept: List<SleepSession>, val dropped: List<SleepSession>)
@@ -57,23 +67,32 @@ object SleepSessionDedup {
         maxOf(0L, maxOf(a.effectiveStartTs, b.effectiveStartTs) - minOf(a.endTs, b.endTs))
 
     /**
-     * True when [a] and [b] are copies of the same night: overlap of at least [MIN_OVERLAP_SECONDS]
-     * absolute, OR at least [MIN_OVERLAP_FRACTION_OF_SHORTER] of the shorter session's duration, OR (when
-     * disjoint) an edge gap within [NEAR_ADJACENT_SECONDS] (#1284, the non-overlapping pre-onset fragment).
+     * True when [a] and [b] are copies of the same night: a substantial overlap ([MIN_OVERLAP_SECONDS]
+     * absolute, OR [MIN_OVERLAP_FRACTION_OF_SHORTER] of the shorter session), OR a same-night FRAGMENT — a
+     * session no more than [FRAGMENT_FRACTION_OF_LONGER] of the longer one — sitting at its edge, whether it
+     * grazes in (small overlap) or falls just short (gap within [NEAR_ADJACENT_SECONDS]).
+     *
+     * The fragment term is deliberately continuous across the overlap==0 seam: a pre-onset piece that
+     * overshoots the anchored onset by seconds must not be treated as MORE distinct than one ending seconds
+     * short of it (that discontinuity left a 121 s-grazing fragment un-collapsed on 08-13/14 while a 69 s gap
+     * collapsed — #1284). The ratio gate keeps two GENUINE adjacent naps (comparable length) apart.
      * All terms use only (effectiveStartTs, endTs), the only time fields the data model carries.
      */
     fun isDuplicate(a: SleepSession, b: SleepSession): Boolean {
         val overlap = overlapSeconds(a, b)
-        if (overlap <= 0L) {
-            // Disjoint: a same-night fragment banked just before/after the anchored night (#1284).
-            return edgeGapSeconds(a, b) <= NEAR_ADJACENT_SECONDS
-        }
         if (overlap >= MIN_OVERLAP_SECONDS) return true
-        val shorter = minOf(
-            maxOf(a.endTs - a.effectiveStartTs, 0L),
-            maxOf(b.endTs - b.effectiveStartTs, 0L),
-        )
-        return shorter > 0L && overlap.toDouble() >= MIN_OVERLAP_FRACTION_OF_SHORTER * shorter.toDouble()
+        val aDur = maxOf(a.endTs - a.effectiveStartTs, 0L)
+        val bDur = maxOf(b.endTs - b.effectiveStartTs, 0L)
+        val shorter = minOf(aDur, bDur)
+        if (overlap > 0L && shorter > 0L &&
+            overlap.toDouble() >= MIN_OVERLAP_FRACTION_OF_SHORTER * shorter.toDouble()
+        ) {
+            return true
+        }
+        // Same-night fragment: short relative to the longer night AND hugging its edge (either side).
+        val longer = maxOf(aDur, bDur)
+        val isFragment = shorter > 0L && shorter.toDouble() <= FRAGMENT_FRACTION_OF_LONGER * longer.toDouble()
+        return isFragment && (overlap > 0L || edgeGapSeconds(a, b) <= NEAR_ADJACENT_SECONDS)
     }
 
     /**

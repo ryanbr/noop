@@ -454,10 +454,13 @@ class SourceCoordinator(
                         // the common case: an overnight with link drops mints the duplicate across DIFFERENT
                         // connections. Read the day's stored sessions here (cross-connection, survives an app
                         // restart) and log — using the SAME SleepSessionDedup.isDuplicate rule the heal uses —
-                        // when this persist duplicates one. startDelta ~ the 0x49 onset jitter (a session's
-                        // startTs IS its anchored onset); the two shapes say WHICH row is fuller. One compact
-                        // line per duplicate, to survive the log head-clip. This is the corpus the
-                        // generation-side 0x49/sleep-day keying will be designed against.
+                        // when this persist duplicates one. startDelta is END-ANCHOR DRIFT, NOT 0x49 onset
+                        // jitter: startTs is `end - laidCodes*30 s`, and the 0x49 onset is applied only as a
+                        // one-way PRE-onset clip (OuraLiveSource sleepStart), which does not bind when the
+                        // backward lay never reaches it — so every row can be tagged [0x49-onset] yet none
+                        // start AT the onset (08-16: 4,206 s startDelta over 21 s of real onset jitter). The
+                        // two shapes say WHICH row is fuller. One compact line per duplicate, to survive the
+                        // log head-clip; this is the corpus the generation-side 0x49-onset keying targets.
                         //
                         // ISOLATED in its own runCatching: log-only means log-only. The read below is a DB
                         // round-trip on the BLE persist path and CAN throw (locked DB, disk I/O, a store
@@ -470,7 +473,7 @@ class SourceCoordinator(
                             repo.sleepSessions(deviceId, from, to, 64)
                                 .filter { it.startTs != s.startTs && com.noop.analytics.SleepSessionDedup.isDuplicate(session, it) }
                                 .forEach { e ->
-                                    straplog("Oura: dup-gen(#1284) persist ${dupGenShape(s.startTs, s.endTs, s.stagesJson)} duplicates stored ${dupGenShape(e.startTs, e.endTs, e.stagesJSON)} startDelta=${s.startTs - e.startTs}s (~0x49 onset jitter) - cross-connection DB read")
+                                    straplog("Oura: dup-gen(#1284) persist ${dupGenShape(s.startTs, s.endTs, s.stagesJson)} duplicates stored ${dupGenShape(e.startTs, e.endTs, e.stagesJSON)} startDelta=${s.startTs - e.startTs}s (end-anchor drift) - cross-connection DB read")
                                 }
                         }
                         repo.upsertSleepSessions(listOf(session))

@@ -152,4 +152,47 @@ final class SleepSessionDedupTests: XCTestCase {
         XCTAssertFalse(SleepSessionDedup.isDuplicate(a, b))
         XCTAssertEqual(SleepSessionDedup.dedupe([a, b]).kept.count, 2)
     }
+
+    // MARK: - #1284 residual 3 (cont.): the overlap==0 cliff, and the adjacent-nap guard
+
+    func testOura1284GrazingFragmentCollapsesAcrossTheOverlapSeam() {
+        // 08-13/14: a 26 min re-decode fragment whose backward lay overshot the onset, so it GRAZES the
+        // 390 min anchored night by 121 s. The old rule collapsed a fragment ending 69 s SHORT but not one
+        // grazing 121 s IN — a discontinuity at overlap==0. The fragment (6.7% of the night) now collapses.
+        let night = session(start: midnight, end: midnight + 390 * 60)
+        let fragEnd = midnight + 121
+        let fragment = session(start: fragEnd - 26 * 60, end: fragEnd)   // 26 min, 121 s into the night
+        XCTAssertEqual(SleepSessionDedup.overlapSeconds(fragment, night), 121, "grazes by 121 s, not disjoint")
+        XCTAssertTrue(SleepSessionDedup.isDuplicate(fragment, night),
+                      "a short fragment grazing the night is one interrupted night, not a second sleep")
+        let result = SleepSessionDedup.dedupe([fragment, night], freshStarts: [night.startTs])
+        XCTAssertEqual(result.kept.map(\.startTs), [night.startTs], "the fuller anchored night survives")
+    }
+
+    func testOura1284AdjacentNapsOfComparableLengthAreKept() {
+        // The guard against over-collapse: two GENUINE consecutive naps (20 min then 33 min, a 471 s gap,
+        // seen in the oura-import corpus) are comparable in length — the shorter is 61% of the longer, far
+        // above the fragment ratio — so they must NOT merge, even though the gap is within the near bar.
+        let nap1 = session(start: midnight, end: midnight + 20 * 60)
+        let nap2 = session(start: midnight + 20 * 60 + 471, end: midnight + 20 * 60 + 471 + 33 * 60)
+        XCTAssertLessThanOrEqual(SleepSessionDedup.edgeGapSeconds(nap1, nap2), SleepSessionDedup.nearAdjacentSeconds,
+                                 "the gap is within the near-adjacent bar — only the ratio keeps them apart")
+        XCTAssertFalse(SleepSessionDedup.isDuplicate(nap1, nap2), "comparable-length naps are two sleeps, not a fragment")
+        XCTAssertEqual(SleepSessionDedup.dedupe([nap1, nap2]).kept.count, 2)
+    }
+
+    func testOura1284MultiplePhantomFragmentsAllCollapseToTheNight() {
+        // 08-14/15: one night re-decoded into several short phantom copies at drifting offsets. Every
+        // phantom is a fragment of the night, so all collapse to it regardless of how they relate to EACH
+        // other — closing the non-transitive, sort-order-dependent survivor set the cliff produced.
+        let night = session(start: midnight, end: midnight + 390 * 60)
+        let phantomA = session(start: midnight - 24 * 60, end: midnight + 2 * 60)   // grazes in by 2 min
+        let phantomB = session(start: midnight + 12 * 60, end: midnight + 38 * 60)  // fully inside the head
+        let phantomC = session(start: midnight + 27 * 60, end: midnight + 53 * 60)  // fully inside the head
+        for order in [[night, phantomA, phantomB, phantomC], [phantomC, phantomA, night, phantomB]] {
+            let result = SleepSessionDedup.dedupe(order, freshStarts: [night.startTs])
+            XCTAssertEqual(result.kept.map(\.startTs), [night.startTs],
+                           "the night is the sole survivor whatever the input order")
+        }
+    }
 }
