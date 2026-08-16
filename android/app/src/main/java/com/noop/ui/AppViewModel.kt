@@ -2049,6 +2049,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         ble.debugLogcat = enabled
     }
 
+    /** #polar-debug: toggle the Polar strap-identity diagnostic. Read live at connect by the strap source
+     *  (via [SourceCoordinator]); no restart needed. Diagnostic-only — nothing gates behaviour on it. */
+    fun setPolarDebugLogging(enabled: Boolean) {
+        NoopPrefs.setPolarDebugLogging(appContext, enabled)
+    }
+
     /** #1121: toggle the opt-in rolling "detailed capture" strap-log file. Persisted so it survives a
      *  process kill (re-armed in [init] below). */
     fun setDetailedCapture(enabled: Boolean) {

@@ -34,6 +34,19 @@ public enum PolarPmdMeasurement: UInt8, Sendable, Equatable, CaseIterable {
     case ppi = 0x03
     case gyro = 0x05
     case magnetometer = 0x06
+
+    /// Short lower-case token for diagnostics / the debug strap log (e.g. "ecg", "ppi"). Engineer-facing,
+    /// not localised.
+    public var label: String {
+        switch self {
+        case .ecg:          return "ecg"
+        case .ppg:          return "ppg"
+        case .acc:          return "acc"
+        case .ppi:          return "ppi"
+        case .gyro:         return "gyro"
+        case .magnetometer: return "mag"
+        }
+    }
 }
 
 /// The parsed 10-byte PMD data-frame header, common to every measurement type.

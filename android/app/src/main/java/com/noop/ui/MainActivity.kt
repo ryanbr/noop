@@ -469,6 +469,18 @@ object NoopPrefs {
         of(context).edit().putBoolean(KEY_DEBUG_LOGGING, enabled).apply()
     }
 
+    /** Whether a connecting Polar strap logs the model NOOP identifies it as (+ its PMD/HRV capability
+     *  summary) to the strap log. Default off; the Test Centre only exposes it when a Polar strap is
+     *  paired. Diagnostic-only — nothing gates behaviour on it. Twin of iOS AppModel.polarDebugLoggingKey. */
+    const val KEY_POLAR_DEBUG_LOGGING = "noop.polarDebugLogging"
+
+    fun polarDebugLogging(context: Context): Boolean =
+        of(context).getBoolean(KEY_POLAR_DEBUG_LOGGING, false)
+
+    fun setPolarDebugLogging(context: Context, enabled: Boolean) {
+        of(context).edit().putBoolean(KEY_POLAR_DEBUG_LOGGING, enabled).apply()
+    }
+
     /** #1121: whether the opt-in "detailed capture" rolling strap-log file is on. Persisted so capture
      *  RESUMES after the process is killed (AppViewModel re-arms the BLE client from this on launch). */
     const val KEY_DETAILED_CAPTURE = "noop.detailedCapture"

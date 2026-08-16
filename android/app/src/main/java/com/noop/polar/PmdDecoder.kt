@@ -23,6 +23,18 @@ enum class PolarPmdMeasurement(val raw: Int) {
     GYRO(0x05),
     MAGNETOMETER(0x06);
 
+    /** Short lower-case token for diagnostics / the debug strap log (e.g. "ecg", "ppi"). Engineer-facing,
+     *  not localised. Twin of Swift PolarPmdMeasurement.label. */
+    val label: String
+        get() = when (this) {
+            ECG -> "ecg"
+            PPG -> "ppg"
+            ACC -> "acc"
+            PPI -> "ppi"
+            GYRO -> "gyro"
+            MAGNETOMETER -> "mag"
+        }
+
     companion object {
         fun fromRaw(raw: Int): PolarPmdMeasurement? = entries.firstOrNull { it.raw == raw }
     }

@@ -47,6 +47,7 @@ import com.noop.analytics.ReadinessTier
 import com.noop.ble.PuffinExperiment
 import com.noop.ble.WhoopModel
 import com.noop.data.DailyMetric
+import com.noop.polar.PolarModel
 import com.noop.testcentre.CaptureAccumulator
 import com.noop.testcentre.CaptureKind
 import com.noop.testcentre.DisplayPerformanceMonitor
@@ -346,6 +347,16 @@ private fun DiagnosticToolsCard(vm: AppViewModel) {
     var showRecalibrate by remember { mutableStateOf(false) }
     // "Debug logging" moved here from Settings: dev-only, mirrors the strap log to logcat over adb.
     var debugLogging by remember { mutableStateOf(NoopPrefs.debugLogging(context)) }
+    // #polar-debug: the model NOOP auto-detects for a PAIRED Polar strap, from its stored advertised name
+    // (no live connection needed). null when no Polar strap is paired → the whole toggle stays hidden, so a
+    // non-Polar user never sees Polar debug. Loaded once from the registry.
+    var polarIdentity by remember { mutableStateOf<String?>(null) }
+    var polarDebugLogging by remember { mutableStateOf(NoopPrefs.polarDebugLogging(context)) }
+    LaunchedEffect(Unit) {
+        val name = runCatching { vm.pairedDevices() }.getOrDefault(emptyList())
+            .firstOrNull { PolarModel.isPolar(it.model) }?.model
+        polarIdentity = PolarModel.debugIdentification(name)
+    }
     var detailedCapture by remember { mutableStateOf(NoopPrefs.detailedCapture(context)) }
     var captureShareBusy by remember { mutableStateOf(false) }
     // #646/#651: LogExport.shareStrapLog's file write now runs on Dispatchers.IO instead of blocking the
@@ -408,6 +419,18 @@ private fun DiagnosticToolsCard(vm: AppViewModel) {
                     checked = debugLogging,
                     onCheckedChange = { debugLogging = it; vm.setDebugLogging(it) },
                     colors = settingsSwitchColors(),
+                )
+            }
+            // #polar-debug: only shown when a Polar strap is paired (polarIdentity != null). The subtitle is
+            // the model auto-detected from the paired record; the toggle also writes it to the strap log on
+            // each connect. Off by default. Diagnostic-only — nothing gates behaviour on it.
+            polarIdentity?.let { identity ->
+                ToggleRowTC(
+                    title = "Polar debug logging",
+                    description = "$identity.\nLogs this identification to the strap log on each connect, " +
+                        "so a Polar bug report shows the model NOOP resolved your strap to.",
+                    checked = polarDebugLogging,
+                    onCheckedChange = { polarDebugLogging = it; vm.setPolarDebugLogging(it) },
                 )
             }
             // #1121 Detailed capture: an adb-like rolling on-device log, no computer needed. Off by default.

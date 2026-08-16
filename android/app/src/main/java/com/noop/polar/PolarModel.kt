@@ -44,6 +44,30 @@ enum class PolarModel {
     val hrvPmdStream: PolarPmdMeasurement?
         get() = if (pmdStreams.contains(PolarPmdMeasurement.PPI)) PolarPmdMeasurement.PPI else null
 
+    /** Engineer-facing model label for the debug strap log (not localised). UNKNOWN reads as
+     *  "(unrecognised model)" so it composes into "Polar (unrecognised model)". Twin of Swift displayLabel. */
+    val displayLabel: String
+        get() = when (this) {
+            H10 -> "H10"
+            H9 -> "H9"
+            OH1 -> "OH1"
+            VERITY_SENSE -> "Verity Sense"
+            UNKNOWN -> "(unrecognised model)"
+        }
+
+    /** One-line PMD / HRV-route capability summary for the debug strap log — a pure restatement of
+     *  pmdStreams / hrvPmdStream (no behaviour gates on it). Streams are ordered by their PMD type byte for
+     *  a stable, protocol-natural order. Twin of Swift pmdDebugSummary. */
+    val pmdDebugSummary: String
+        get() {
+            val streams = if (pmdStreams.isEmpty()) {
+                if (this == UNKNOWN) "PMD unknown (probe)" else "no PMD service"
+            } else {
+                "PMD " + pmdStreams.sortedBy { it.raw }.joinToString(",") { it.label }
+            }
+            return "$streams; ${if (hrvPmdStream == null) "HRV via standard R-R" else "HRV via PMD PPI"}"
+        }
+
     companion object {
         /** Identify the model from a peripheral's advertised name (case-insensitive on the "Polar <MODEL>"
          *  prefix). A non-Polar or unrecognised name → UNKNOWN. "Polar Sense" is the Verity Sense's
@@ -63,6 +87,26 @@ enum class PolarModel {
                 n.startsWith("polar sense") -> VERITY_SENSE
                 else -> UNKNOWN
             }
+        }
+
+        /** Whether an advertised name belongs to a Polar sensor AT ALL — the public "Polar " prefix.
+         *  Distinct from [fromAdvertisedName], which returns UNKNOWN for BOTH a non-Polar strap and an
+         *  unrecognised Polar one; this separates "not a Polar device" from "a Polar device we can't name
+         *  yet", so Polar-only diagnostics never fire for a Wahoo/Garmin strap. Works on a live scan name OR
+         *  a stored PairedDevice model, so a paired strap auto-detects without a live connection.
+         *  Twin of Swift PolarModel.isPolar. */
+        fun isPolar(name: String?): Boolean =
+            name?.trim()?.lowercase()?.startsWith("polar ") == true
+
+        /** The full one-line identification for the debug strap log / Test Centre when a Polar strap is
+         *  seen — e.g. "Polar H10 identified — PMD ecg,acc; HRV via standard R-R". Auto-detected from any
+         *  advertised name, whether a live scan result or a stored PairedDevice model. Returns null for a
+         *  non-Polar name, so a caller emits nothing for a Wahoo/Garmin strap. Twin of Swift
+         *  debugIdentification. */
+        fun debugIdentification(name: String?): String? {
+            if (!isPolar(name)) return null
+            val model = fromAdvertisedName(name)
+            return "Polar ${model.displayLabel} identified — ${model.pmdDebugSummary}"
         }
     }
 }

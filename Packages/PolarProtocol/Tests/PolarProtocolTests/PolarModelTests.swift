@@ -45,4 +45,45 @@ final class PolarModelTests: XCTestCase {
         // happens to contain "h10" must stay an OH1 (a `contains` matcher wrongly returned .h10 here).
         XCTAssertEqual(PolarModel.from(advertisedName: "Polar OH1 H10ABCDE"), .oh1)
     }
+
+    // MARK: - Debug identification (Test Centre / strap-log diagnostics)
+
+    func testIsPolarSeparatesPolarFromUnrecognisedAndForeign() {
+        // A Polar device we can't name yet is still a Polar device (unlike `from`, which collapses both to
+        // .unknown) — so the Polar-only diagnostics fire for it but never for a foreign strap.
+        XCTAssertTrue(PolarModel.isPolar(advertisedName: "Polar H10 A1B2C3D4"))
+        XCTAssertTrue(PolarModel.isPolar(advertisedName: "Polar Grit X"))       // real Polar, no catalog entry
+        XCTAssertTrue(PolarModel.isPolar(advertisedName: "polar sense 99AA"))   // case-insensitive
+        XCTAssertFalse(PolarModel.isPolar(advertisedName: "Wahoo TICKR"))
+        XCTAssertFalse(PolarModel.isPolar(advertisedName: "Polaris X"))         // prefix must be "polar " + space
+        XCTAssertFalse(PolarModel.isPolar(advertisedName: nil))
+        XCTAssertFalse(PolarModel.isPolar(advertisedName: ""))
+    }
+
+    func testPmdDebugSummaryStatesStreamsAndHrvRoute() {
+        // Chest strap: PMD ecg+acc (ordered by PMD type byte), HRV off the standard HR service.
+        XCTAssertEqual(PolarModel.h10.pmdDebugSummary, "PMD ecg,acc; HRV via standard R-R")
+        // HR-only strap: no PMD service at all, still HRV via standard R-R.
+        XCTAssertEqual(PolarModel.h9.pmdDebugSummary, "no PMD service; HRV via standard R-R")
+        // Optical bands: PPI is the HRV route; streams ordered by type byte (ppg,acc,ppi[,gyro]).
+        XCTAssertEqual(PolarModel.oh1.pmdDebugSummary, "PMD ppg,acc,ppi; HRV via PMD PPI")
+        XCTAssertEqual(PolarModel.veritySense.pmdDebugSummary, "PMD ppg,acc,ppi,gyro; HRV via PMD PPI")
+        // Unrecognised Polar: probe rather than assume; R-R route is the safe default.
+        XCTAssertEqual(PolarModel.unknown.pmdDebugSummary, "PMD unknown (probe); HRV via standard R-R")
+    }
+
+    func testDebugIdentificationAutoDetectsFromAnyName() {
+        // The same helper works on a live scan name OR a stored PairedDevice.model, so a paired strap
+        // auto-detects without a live connection.
+        XCTAssertEqual(PolarModel.debugIdentification(advertisedName: "Polar H10 A1B2C3D4"),
+                       "Polar H10 identified — PMD ecg,acc; HRV via standard R-R")
+        XCTAssertEqual(PolarModel.debugIdentification(advertisedName: "Polar Sense 99AABBCC"),
+                       "Polar Verity Sense identified — PMD ppg,acc,ppi,gyro; HRV via PMD PPI")
+        // Unrecognised Polar still identifies (as a probe candidate) — that's the useful debug signal.
+        XCTAssertEqual(PolarModel.debugIdentification(advertisedName: "Polar Grit X"),
+                       "Polar (unrecognised model) identified — PMD unknown (probe); HRV via standard R-R")
+        // Foreign / empty → nil, so the caller emits nothing at all.
+        XCTAssertNil(PolarModel.debugIdentification(advertisedName: "Wahoo TICKR"))
+        XCTAssertNil(PolarModel.debugIdentification(advertisedName: nil))
+    }
 }

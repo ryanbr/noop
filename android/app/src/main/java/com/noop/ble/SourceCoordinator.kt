@@ -9,6 +9,7 @@ import com.noop.data.StreamBatch
 import com.noop.data.WhoopRepository
 import com.noop.oura.OuraRingGen
 import com.noop.oura.OuraWearState
+import com.noop.ui.NoopPrefs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -387,6 +388,9 @@ class SourceCoordinator(
                         _sensorMetrics.value = metrics
                         sensorSink(metrics)
                     },
+                    // #polar-debug: read the toggle live at connect so a Polar strap logs its identified
+                    // model (default off; the Test Centre only exposes the toggle when a Polar strap is paired).
+                    polarDebug = { NoopPrefs.polarDebugLogging(ctx) },
                 )
             }
         }

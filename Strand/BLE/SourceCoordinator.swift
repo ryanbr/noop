@@ -303,7 +303,10 @@ final class SourceCoordinator: ObservableObject {
             log: straplog,   // generic-HR lifecycle → the SAME exported strap log (issue #421)
             // Surface the generic strap's standard Battery Service (0x180F) charge the SAME place the
             // WHOOP strap battery shows (the Live/device status), via the shared LiveState funnel.
-            onBattery: { [live] pct in live.setBattery(Double(pct)) })
+            onBattery: { [live] pct in live.setBattery(Double(pct)) },
+            // #polar-debug: read the toggle live at connect so a Polar strap logs its identified model
+            // (default off; the Test Centre only exposes the toggle when a Polar strap is paired).
+            polarDebug: { UserDefaults.standard.bool(forKey: AppModel.polarDebugLoggingKey) })
     }
 
     /// Build the isolated `FTMSSource` for a gym machine `id`. HR (when the machine reports it) rides the

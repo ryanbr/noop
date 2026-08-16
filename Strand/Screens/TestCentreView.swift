@@ -2,6 +2,7 @@ import SwiftUI
 import StrandDesign
 import StrandAnalytics
 import StrandImport
+import PolarProtocol
 import WhoopStore
 
 /// Settings -> Test Centre. The single home for every diagnostic, log and test control (spec section 7).
@@ -37,6 +38,17 @@ struct TestCentreView: View {
 
     /// The strap model the user last picked, the same key SettingsView's showFiveMGControls gate reads.
     @AppStorage("selectedWhoopModel") private var selectedWhoopModelRaw = WhoopModel.whoop4.rawValue
+
+    // #polar-debug: the Polar strap-identity diagnostic toggle. Only rendered when a Polar strap is paired.
+    @AppStorage(AppModel.polarDebugLoggingKey) private var polarDebugLogging = false
+
+    /// The model NOOP auto-detects for a PAIRED Polar strap, from its stored advertised name (no live
+    /// connection needed) — e.g. "Polar H10 identified — PMD ecg,acc; HRV via standard R-R". `nil` when no
+    /// Polar strap is paired, which hides the whole toggle so a non-Polar user never sees Polar debug.
+    private var polarIdentity: String? {
+        let name = model.deviceRegistry?.devices.first { PolarModel.isPolar(advertisedName: $0.model) }?.model
+        return PolarModel.debugIdentification(advertisedName: name)
+    }
 
     // Section 4: Experimental algorithms. Bound to the SAME PuffinExperiment keys the Android card writes, so
     // the platforms stay in lockstep. The PPG-HR sub-lag interpolation variant and the HRV-readiness readout,
@@ -160,6 +172,21 @@ struct TestCentreView: View {
                 // surfaced as a copyable readout (spec section 3.4).
                 NoopButton("Copy environment dump", systemImage: "info.circle", kind: .secondary) {
                     PlatformPasteboard.copy(live.exportableLogText())
+                }
+
+                // #polar-debug: only when a Polar strap is paired. The caption is the model auto-detected
+                // from the paired record; the toggle also writes it to the strap log on each connect.
+                if let identity = polarIdentity {
+                    Divider().overlay(StrandPalette.hairline)
+                    Toggle(isOn: $polarDebugLogging) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Polar debug logging").font(StrandFont.body)
+                            Text("\(identity). Logs this to the strap log on each connect, so a Polar bug report shows the model NOOP resolved your strap to.")
+                                .font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .tint(StrandPalette.accent)
                 }
             }
         }

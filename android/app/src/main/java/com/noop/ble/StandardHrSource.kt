@@ -22,6 +22,7 @@ import android.os.ParcelUuid
 import com.noop.data.HrRow
 import com.noop.data.RrRow
 import com.noop.data.StreamBatch
+import com.noop.polar.PolarModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -73,6 +74,11 @@ class StandardHrSource(
      *  in-exercise readout — it never touches HR/R-R/persistence/scoring. Called on the main looper.
      *  Mirrors [FtmsSource.readingSink]. Default no-op keeps existing call sites compiling. */
     private val sensorSink: (SensorMetrics) -> Unit = {},
+    /** #polar-debug: read live at connect. When true AND the connected strap identifies as Polar, the
+     *  model NOOP resolves it to (+ its PMD/HRV capability summary) is logged ONCE per connection. Gated by
+     *  the Test Centre "Polar debug logging" toggle (only shown when a Polar strap is paired). Diagnostic-
+     *  only — nothing gates behaviour on it. Default off keeps existing call sites / tests silent. */
+    private val polarDebug: () -> Boolean = { false },
 ) : LiveHrSource {
 
     /** Live instantaneous fitness-sensor metrics surfaced via [sensorSink]. Any field is null when it
@@ -123,6 +129,10 @@ class StandardHrSource(
     private var retried133 = false
     /** Logs the FIRST HR sample of a connection only (not every notification); reset on stop/disconnect. */
     private var loggedFirstHr = false
+
+    /** #polar-debug: guards the one-per-connection Polar identity line (reset on disconnect, like
+     *  [loggedFirstHr]). */
+    private var loggedPolarIdentity = false
 
     /** Derives instantaneous speed/cadence from successive CSC/CPS cumulative counters. Per-source so a
      *  reconnect starts fresh (reset on stop/disconnect). Pure value type. */
@@ -281,6 +291,18 @@ class StandardHrSource(
         }
     }
 
+    /** #polar-debug: when the toggle is on and the connected strap identifies as Polar, log the model NOOP
+     *  resolves it to (+ PMD/HRV capability summary) ONCE per connection. Auto-detected from the advertised
+     *  name via the pure [PolarModel] helper (same one the Test Centre uses on the paired record); a non-
+     *  Polar strap returns null and logs nothing. Diagnostic-only. Twin of the iOS StandardHRSource hook. */
+    private fun logPolarIdentityOnce(device: BluetoothDevice?) {
+        if (loggedPolarIdentity || !polarDebug()) return
+        val name = runCatching { device?.name }.getOrNull()
+        val line = PolarModel.debugIdentification(name) ?: return
+        loggedPolarIdentity = true
+        log("HR-strap: $line")
+    }
+
     // MARK: - GATT callback
 
     private val gattCallback = object : BluetoothGattCallback() {
@@ -293,11 +315,13 @@ class StandardHrSource(
                     }
                     retried133 = false   // a real connection clears the one-shot 133 retry guard
                     log("HR-strap: connected (status=$status) — discovering services")
+                    logPolarIdentityOnce(g.device)
                     g.discoverServices()
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     log("HR-strap: disconnected (status=$status)")
                     loggedFirstHr = false   // a reconnect should log its first sample again
+                    loggedPolarIdentity = false
                     loggedFirstSensor = false
                     _batteryPct.value = null // a stale charge must not outlive the link
                     flush()

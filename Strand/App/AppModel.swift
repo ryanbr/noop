@@ -1666,6 +1666,16 @@ final class AppModel: ObservableObject {
         set { UserDefaults.standard.set(newValue, forKey: Self.cycleAwarenessHiddenKey) }
     }
 
+    /// #polar-debug: whether a connecting Polar strap logs the model NOOP identifies it as (+ its PMD/HRV
+    /// capability summary) to the strap log. Default off; the Test Centre only exposes the toggle when a
+    /// Polar strap is paired. Diagnostic-only — nothing gates behaviour on it. Twin of Android
+    /// `NoopPrefs.KEY_POLAR_DEBUG_LOGGING`.
+    static let polarDebugLoggingKey = "noopPolarDebugLogging"
+    var polarDebugLogging: Bool {
+        get { UserDefaults.standard.bool(forKey: Self.polarDebugLoggingKey) }
+        set { UserDefaults.standard.set(newValue, forKey: Self.polarDebugLoggingKey) }
+    }
+
     /// Recompute the v5 skin-temp suite snapshots (cycle phase + body clock) from the current history.
     /// Called from the analytics pass and when the cycle opt-in flips. Honest-nil throughout: cycle is
     /// nil unless opted in; circadian is nil unless a usable activity profile exists.

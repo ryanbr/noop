@@ -66,4 +66,51 @@ public enum PolarModel: String, Sendable, Equatable, CaseIterable {
         if n.hasPrefix("polar sense") { return .veritySense }
         return .unknown
     }
+
+    /// Whether an advertised name belongs to a Polar sensor AT ALL — the public "Polar " name prefix.
+    /// Distinct from ``from(advertisedName:)``, which returns `.unknown` for BOTH a non-Polar strap and an
+    /// unrecognised Polar one; this separates "not a Polar device" from "a Polar device we can't name yet",
+    /// so Polar-only diagnostics never fire for a Wahoo/Garmin strap. Case- and whitespace-insensitive.
+    /// Works on either a live scan name or a stored `PairedDevice.model`, so a paired strap auto-detects
+    /// without a live connection.
+    public static func isPolar(advertisedName name: String?) -> Bool {
+        guard let n = name?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() else { return false }
+        return n.hasPrefix("polar ")
+    }
+
+    /// Engineer-facing model label for the debug strap log (not localised). `.unknown` reads as
+    /// "(unrecognised model)" so it composes into "Polar (unrecognised model)".
+    public var displayLabel: String {
+        switch self {
+        case .h10:         return "H10"
+        case .h9:          return "H9"
+        case .oh1:         return "OH1"
+        case .veritySense: return "Verity Sense"
+        case .unknown:     return "(unrecognised model)"
+        }
+    }
+
+    /// One-line PMD / HRV-route capability summary for the debug strap log — a pure restatement of
+    /// ``pmdStreams`` / ``hrvPmdStream`` (no behaviour gates on it). Streams are ordered by their PMD type
+    /// byte for a stable, protocol-natural order, e.g. "PMD ecg,acc; HRV via standard R-R" (H10) or
+    /// "PMD ppg,acc,ppi,gyro; HRV via PMD PPI" (Verity Sense).
+    public var pmdDebugSummary: String {
+        let streams: String
+        if pmdStreams.isEmpty {
+            streams = (self == .unknown) ? "PMD unknown (probe)" : "no PMD service"
+        } else {
+            streams = "PMD " + pmdStreams.sorted { $0.rawValue < $1.rawValue }.map(\.label).joined(separator: ",")
+        }
+        return "\(streams); \(hrvPmdStream == nil ? "HRV via standard R-R" : "HRV via PMD PPI")"
+    }
+
+    /// The full one-line identification for the debug strap log / Test Centre when a Polar strap is seen —
+    /// e.g. "Polar H10 identified — PMD ecg,acc; HRV via standard R-R". Auto-detected from any advertised
+    /// name, whether a live scan result or a stored `PairedDevice.model`. Returns `nil` for a non-Polar
+    /// name, so a caller emits nothing at all for a Wahoo/Garmin strap. The caller adds its own tag prefix.
+    public static func debugIdentification(advertisedName name: String?) -> String? {
+        guard isPolar(advertisedName: name) else { return nil }
+        let model = from(advertisedName: name)
+        return "Polar \(model.displayLabel) identified — \(model.pmdDebugSummary)"
+    }
 }

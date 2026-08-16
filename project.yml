@@ -60,6 +60,12 @@ packages:
   # zero CoreBluetooth, so it stays headless/JVM-testable; the app target imports it for OuraLiveSource.
   OuraProtocol:
     path: Packages/OuraProtocol
+  # Clean-room local Polar sensor facts: model identification + PMD stream capability catalog (pure value
+  # types, zero CoreBluetooth, headless/JVM-testable). The app target imports it so StandardHRSource can
+  # log which Polar model a connecting strap is, and the Test Centre can auto-detect it from the paired
+  # record. The live PMD data path is not wired yet — this is identification/diagnostics only.
+  PolarProtocol:
+    path: Packages/PolarProtocol
   # Compresses the full-database `.noopbak` backup (single-entry deflate ZIP) in DataBackup.swift.
   # Already resolved transitively via StrandImport; linked directly so the app target can
   # `import ZIPFoundation`. Same exact version as StrandImport's, so SPM resolves one copy.
@@ -148,6 +154,7 @@ targets:
       - package: MarkdownUI
       - package: ZIPFoundation
       - package: OuraProtocol
+      - package: PolarProtocol
   StrandTests:
     type: bundle.unit-test
     platform: macOS
@@ -314,6 +321,7 @@ targets:
       - package: StrandDesign
       - package: MarkdownUI
       - package: ZIPFoundation
+      - package: PolarProtocol
       - target: NOOPiOSWidgets
       # Embed the watchOS app so the iPhone app carries it (NOOP.app/Watch/NOOPWatch.app). A watch app
       # installs by riding inside its iOS companion; without this it would never reach a paired watch.
