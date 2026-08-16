@@ -3171,6 +3171,10 @@ private fun YourCardsSection(
     onCustomise: () -> Unit,
     spo2CandidateByDay: Map<String, Double> = emptyMap(),
 ) {
+    // #1331 parity: honor the °C/°F preference on the Skin Temp card, the way Health / Compare (and the
+    // Swift twin) do. The classic dashboard hardcoded Celsius here alone, so a °F user saw °C on this
+    // screen only.
+    val fahrenheit = UnitPrefs.temperature(LocalContext.current) == TemperatureUnit.FAHRENHEIT
     Box(modifier = Modifier.fillMaxWidth().staggeredAppear(2)) {
         Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
             // Header: "YOUR CARDS" overline + a right-aligned blue EDIT action (the WHOOP ✎ affordance).
@@ -3192,6 +3196,7 @@ private fun YourCardsSection(
                         spo2Day = spo2Day,
                         skinTempDay = skinTempDay,
                         respDay = respDay,
+                        fahrenheit = fahrenheit,
                         stress = stress,
                         fitnessAge = fitnessAge,
                         vitality = vitality,
@@ -3351,7 +3356,11 @@ private fun dashboardCardFraction(
         DashboardCard.VITALITY -> over(vitality, 100.0)
         DashboardCard.HRV -> over(day?.avgHrv ?: vitalsDay?.avgHrv, 120.0)
         DashboardCard.RESTING_HR -> over((day?.restingHr ?: vitalsDay?.restingHr)?.toDouble(), 100.0)
-        DashboardCard.RESPIRATORY -> over(day?.respRateBpm ?: vitalsDay?.respRateBpm ?: respDay?.respRateBpm, 24.0)
+        // PER-FIELD carry: today → the STALENESS-BOUNDED prior night (`respDay` = lastRespRow). The
+        // unbounded `vitalsDay?.respRateBpm` is dropped on purpose — it picks the newest row with ANY
+        // vital regardless of age and printed one CSV import's 15.6 as today's rate for a fortnight
+        // (#1331). Byte-twin of the Swift `lastRespDay` card.
+        DashboardCard.RESPIRATORY -> over(day?.respRateBpm ?: respDay?.respRateBpm, 24.0)
         DashboardCard.STEPS -> {
             val steps = (day?.steps ?: importedStepsForDay ?: estimatedStepsForDay)?.toDouble()
             over(steps, 10000.0)
@@ -3394,6 +3403,7 @@ private fun dashboardCardValue(
     hydrationTotalMl: Double,
     hydrationGoalMl: Int,
     spo2CandidateByDay: Map<String, Double> = emptyMap(),
+    fahrenheit: Boolean = false,
 ): String {
     fun withUnit(s: String): String =
         if (s == NO_DATA) NO_DATA else if (card.unit.isEmpty()) s else "$s ${card.unit}"
@@ -3407,7 +3417,11 @@ private fun dashboardCardValue(
         DashboardCard.RESTING_HR ->
             withUnit((day?.restingHr ?: vitalsDay?.restingHr)?.toString() ?: NO_DATA)
         DashboardCard.RESPIRATORY ->
-            withUnit((day?.respRateBpm ?: vitalsDay?.respRateBpm ?: respDay?.respRateBpm)?.let { String.format(Locale.US, "%.1f", it) } ?: NO_DATA)
+            // PER-FIELD carry: today → the STALENESS-BOUNDED `respDay` (lastRespRow). The unbounded
+            // `vitalsDay?.respRateBpm` is dropped on purpose (see the gauge site + Swift `lastRespDay`):
+            // it had no age bound and showed a fortnight-old imported 15.6 as today's rate (#1331). A gap
+            // past the window now reads NO_DATA — the truthful answer when nobody measured.
+            withUnit((day?.respRateBpm ?: respDay?.respRateBpm)?.let { String.format(Locale.US, "%.1f", it) } ?: NO_DATA)
         DashboardCard.BLOOD_OXYGEN ->
             // PER-FIELD carry: the whole-row carries (vd) land on rows whose spo2Pct is null (the engine
             // writes spo2Pct = null on computed rows), so fall through to the last row that HAS one.
@@ -3422,7 +3436,7 @@ private fun dashboardCardValue(
             // Always label the scale; bare "−0.1°" next to a 34° deep-timeline chart looked broken.
             val v = vd?.skinTempDevC ?: skinTempDay?.skinTempDevC
             if (v == null) NO_DATA
-            else com.noop.analytics.SkinTempDisplay.format(v, fahrenheit = false)
+            else com.noop.analytics.SkinTempDisplay.format(v, fahrenheit = fahrenheit)
         }
         DashboardCard.SLEEP -> sleepValue(vd)
         DashboardCard.STEPS -> {
