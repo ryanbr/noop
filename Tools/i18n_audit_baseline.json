@@ -706,6 +706,10 @@
     ],
     [
       "android/app/src/main/java/com/noop/ui/TestCentreScreen.kt",
+      "Oura onset keying (experimental)"
+    ],
+    [
+      "android/app/src/main/java/com/noop/ui/TestCentreScreen.kt",
       "Polar debug logging"
     ],
     [
@@ -1133,6 +1137,14 @@
     [
       "Strand/Screens/StressView.swift",
       "Today's value is your recorded daily stress score (0-3)."
+    ],
+    [
+      "Strand/Screens/TestCentreView.swift",
+      "Keys each Oura sleep night on its stable 0x49 onset and suppresses duplicate re-serves at the source, instead of the shipped end-anchored persist (#1284). Off by default — a hardware-validation toggle. Watch the strap log for \\u{201C}onset-key(#1284)\\u{201D} lines."
+    ],
+    [
+      "Strand/Screens/TestCentreView.swift",
+      "Oura onset keying (experimental)"
     ],
     [
       "Strand/Screens/TestCentreView.swift",
