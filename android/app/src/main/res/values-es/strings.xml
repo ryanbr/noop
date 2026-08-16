@@ -194,7 +194,7 @@
     <string name="l10n_data_sources_screen_auto_sync_periodically_5f3041e8">Auto-sinc periódicamente</string>
     <string name="l10n_data_sources_screen_broadcast_heart_rate_as_a_bluetooth_6a44fdb4">Difundir la frecuencia cardíaca como sensor Bluetooth</string>
     <string name="l10n_data_sources_screen_broadcast_hr_from_this_phone_10e5605c">Broadcast HR desde este teléfono</string>
-    <string name="l10n_data_sources_screen_broadcast_hr_is_on_your_strap_0ad5368a">RRHH está encendida. Su correa está publicando su frecuencia cardíaca continuamente,</string>
+    <string name="l10n_data_sources_screen_broadcast_hr_is_on_your_strap_0ad5368a">La transmisión de frecuencia cardíaca está ACTIVADA. Este teléfono transmite la frecuencia cardíaca continuamente, lo que mantiene Bluetooth activo y consume la batería más rápido. Desactívala cuando no la uses con otro dispositivo.</string>
     <string name="l10n_data_sources_screen_cancel_77dfd213">Cancelar</string>
     <string name="l10n_data_sources_screen_data_sources_5e43d6bb">Fuentes de datos</string>
     <string name="l10n_data_sources_screen_every_3560d90b">Cada uno</string>

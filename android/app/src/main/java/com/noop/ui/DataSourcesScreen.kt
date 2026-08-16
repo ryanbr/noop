@@ -741,7 +741,8 @@ fun DataSourcesScreen(vm: AppViewModel) {
             subtitle = "Re-share your live strap heart rate over Bluetooth as a standard heart-rate " +
                 "sensor, so a gym treadmill, bike, Zwift, Peloton or any fitness app nearby can read " +
                 "it. Works on any WHOOP (4.0 or 5.0/MG) because your phone does the broadcasting. " +
-                "Local Bluetooth only. Nothing leaves your phone. Off by default.",
+                "If your strap or watch already broadcasts heart rate directly to another device, " +
+                "you can leave this off. Local Bluetooth only. Nothing leaves your phone. Off by default.",
         ) {
             if (hrBroadcast) {
                 val (label, tone) =
@@ -815,9 +816,7 @@ fun DataSourcesScreen(vm: AppViewModel) {
                         modifier = Modifier.size(16.dp),
                     )
                     Text(
-                        uiString(R.string.l10n_data_sources_screen_broadcast_hr_is_on_your_strap_0ad5368a) +
-                            "which keeps its radio hot and drains the battery faster. Turn it off when " +
-                            "you're not using it with another device.",
+                        uiString(R.string.l10n_data_sources_screen_broadcast_hr_is_on_your_strap_0ad5368a),
                         style = NoopType.caption,
                         color = Palette.statusWarning,
                     )
