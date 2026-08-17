@@ -590,6 +590,10 @@
     ],
     [
       "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
+      "Scores today's hour-by-hour stress timeline against YOUR own cross-day baseline "
+    ],
+    [
+      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
       "Searching…"
     ],
     [
@@ -599,6 +603,10 @@
     [
       "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
       "Sleep chart"
+    ],
+    [
+      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
+      "Stress: personal daytime baseline"
     ],
     [
       "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
@@ -1093,6 +1101,14 @@
     [
       "Strand/Screens/SettingsView.swift",
       "NOOP estimates your steps from your WHOOP's motion, calibrated to your phone's step count. It's an estimate, not a step counter — a WHOOP 5.0 / MG streams motion (not a step count) only with deep data on."
+    ],
+    [
+      "Strand/Screens/SettingsView.swift",
+      "Scores your hour-by-hour stress timeline against YOUR own cross-day baseline (how your days usually run, Oura-style) instead of the day's own calm hours. Needs a few worn days; until then it stays on the default. The high-stress cutoff is tuned from a single-subject reference so far, so it's an alternative lens rather than the default. HR-only, and it never feeds recovery or illness scoring. Off by default."
+    ],
+    [
+      "Strand/Screens/SettingsView.swift",
+      "Stress: personal daytime baseline"
     ],
     [
       "Strand/Screens/SettingsView.swift",
