@@ -114,6 +114,19 @@ class StepsEstimateEngineTest {
         assertEquals("Need 1 more day where your phone also counted steps", status.headline)
     }
 
+    @Test fun statusHeadlineNoPhoneSourceIsActionableNotAFrozenCountdown() {
+        // #589 follow-up: ZERO usable days (no day had both strap motion and a phone step count) - the case a
+        // WHOOP 4.0 user with no phone step source connected hits. A "Need 3 more days" countdown would never
+        // advance, so the headline must say what actually unblocks it. Verified via an empty set and via a set
+        // whose only days are unusable (below-motion / zero-step), both of which yield have=0.
+        for (pts in listOf(emptyList<StepsEstimateEngine.CalibrationPoint>(), listOf(p(0.2, 5000.0), p(10.0, 0.0)))) {
+            val status = StepsEstimateEngine.status(pts)
+            status as StepsEstimateEngine.CalibrationStatus.NeedsMoreDays
+            assertEquals(0, status.have)
+            assertEquals("Connect your phone's step count to estimate steps", status.headline)
+        }
+    }
+
     @Test fun statusCalibratedOnceEnoughDays() {
         val pts = (0 until 3).map { p(10.0, 1000.0) }
         val status = StepsEstimateEngine.status(pts)

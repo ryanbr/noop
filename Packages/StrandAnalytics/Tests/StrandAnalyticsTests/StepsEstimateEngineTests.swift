@@ -136,6 +136,19 @@ final class StepsEstimateEngineTests: XCTestCase {
         XCTAssertEqual(status.headline, "Need 1 more day where your phone also counted steps")
     }
 
+    func testStatusHeadlineNoPhoneSourceIsActionableNotAFrozenCountdown() {
+        // #589 follow-up: ZERO usable days (no day had both strap motion and a phone step count) — the case a
+        // WHOOP 4.0 user with no phone step source connected hits. A "Need 3 more days" countdown would never
+        // advance, so the headline must say what actually unblocks it. Verified via an empty set and via a set
+        // whose only days are unusable (below-motion / zero-step), both of which yield have=0.
+        for pts in [[StepsEstimateEngine.CalibrationPoint](),
+                    [(0.2, 5000.0), (10.0, 0.0)].map { StepsEstimateEngine.CalibrationPoint(motion: $0.0, steps: $0.1) }] {
+            let status = StepsEstimateEngine.status(pts)
+            XCTAssertEqual(status, .needsMoreDays(have: 0, need: 3))
+            XCTAssertEqual(status.headline, "Connect your phone's step count to estimate steps")
+        }
+    }
+
     func testStatusCalibratedOnceEnoughDays() {
         let pts = (0..<3).map { _ in StepsEstimateEngine.CalibrationPoint(motion: 10, steps: 1000) }
         let status = StepsEstimateEngine.status(pts)

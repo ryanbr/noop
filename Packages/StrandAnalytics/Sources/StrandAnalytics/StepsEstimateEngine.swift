@@ -116,6 +116,13 @@ public enum StepsEstimateEngine {
             case let .calibrated(_, sampleDays, _):
                 return "Estimated from \(sampleDays) day\(sampleDays == 1 ? "" : "s") your phone also counted"
             case let .needsMoreDays(have, need):
+                // #589 follow-up: `have == 0` means NO day yet had BOTH strap motion and a phone-counted step
+                // total. A WHOOP 4.0 always streams motion, so on a 4.0 this is really "no phone step source
+                // connected" — the "Need N more days" countdown would never advance (no day will ever gain a
+                // phone step count). Say what actually unblocks it instead of a frozen counter.
+                if have == 0 {
+                    return "Connect your phone's step count to estimate steps"
+                }
                 let more = Swift.max(0, need - have)
                 return "Need \(more) more day\(more == 1 ? "" : "s") where your phone also counted steps"
             }
