@@ -31,8 +31,14 @@ class WidgetHrDisplayTest {
         assertEquals(null to false, HrDisplay.resolve(lastHr = 0, lastHrAtMs = now, live = true, nowMs = now))
     }
 
-    @Test fun liveSample_ignores_age_cap() {
-        // A live push is fresh by definition; show it undimmed even if the stored timestamp looks old.
-        assertEquals(72 to false, HrDisplay.resolve(lastHr = 72, lastHrAtMs = now - 60 * 60_000L, live = true, nowMs = now))
+    @Test fun staleLiveFlag_pastLiveWindow_isDimmed() {
+        // App killed mid-stream: `live` is still true but the sample is 5 min old — show it, but DIMMED,
+        // never as a fresh live reading.
+        assertEquals(72 to true, HrDisplay.resolve(lastHr = 72, lastHrAtMs = now - 5 * 60_000L, live = true, nowMs = now))
+    }
+
+    @Test fun staleLiveFlag_pastCap_isDropped() {
+        // A lingering `live = true` must NOT bypass the cap — an hour-old reading is dropped, not shown live.
+        assertEquals(null to false, HrDisplay.resolve(lastHr = 72, lastHrAtMs = now - 60 * 60_000L, live = true, nowMs = now))
     }
 }

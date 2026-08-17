@@ -108,14 +108,20 @@ object WidgetSnapshotStore {
  * than a fresh live sample, and DROPPED entirely once it's too old to stand for the wearer.
  */
 internal object HrDisplay {
-    /** Beyond this age a carried-over reading is dropped (widget shows "-") — too stale to represent HR. */
+    /** A reading counts as a fresh live sample only if the last live push was within this window; past it
+     *  (e.g. the app was killed mid-stream and never flipped `live` off) it's shown dimmed, not as live. */
+    const val LIVE_MS = 2 * 60_000L
+
+    /** Beyond this age the reading is dropped (widget shows "-") — too stale to represent HR at all. */
     const val STALE_CAP_MS = 15 * 60_000L
 
-    /** @return (bpm to show or null, stale) — stale = a carry-over reading, not a fresh live sample. */
+    /** @return (bpm to show or null, stale) — stale = shown but NOT a fresh live sample, so the widget dims it. */
     fun resolve(lastHr: Int?, lastHrAtMs: Long, live: Boolean, nowMs: Long): Pair<Int?, Boolean> {
         if (lastHr == null || lastHr <= 0) return null to false
-        if (!live && nowMs - lastHrAtMs > STALE_CAP_MS) return null to false
-        return lastHr to !live
+        val age = nowMs - lastHrAtMs
+        if (age > STALE_CAP_MS) return null to false          // too old regardless of the `live` flag
+        val fresh = live && age <= LIVE_MS                    // a live push AND recent — not a stale carry-over
+        return lastHr to !fresh
     }
 }
 
