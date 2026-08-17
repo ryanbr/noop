@@ -462,7 +462,9 @@ public enum Calories {
     /// with no resting baseline is scored exactly as before. A function of HRmax + resting HR ONLY,
     /// so every call site resolves it locally and day derivation stays deterministic (no cross-day
     /// dependency). (Uth et al. 2004, Eur. J. Appl. Physiol. 91.)
-    static func vo2maxFor(hrmax: Double, restingHR: Double?) -> Double? {
+    // `public`: the app-target IntelligenceEngine reads this shared Uth 2004 estimate for the waist-free
+    // VO₂max fallback (#1391), across the StrandAnalytics module boundary. The Kotlin twin is already public.
+    public static func vo2maxFor(hrmax: Double, restingHR: Double?) -> Double? {
         guard let rhr = restingHR, rhr > 0, hrmax > 0 else { return nil }
         return 15.3 * hrmax / rhr
     }
