@@ -402,6 +402,7 @@ final class AppModel: ObservableObject {
             #endif
             await self.repo.refresh()                          // surface any imported data at once
             await self.wireSourceCoordinator()                 // dormant unless a generic strap is active
+            await self.recordAppVersionChangeIfNeeded()        // #1410: stamp an update transition once
             try? await Task.sleep(nanoseconds: 6_000_000_000)  // give the first offload a moment
             // FIX 2(a): DEFER the heavy one-shot 4000-day heal/rescore while an import is in flight. A
             // large Apple Health import is the worst-case launch overlap , running a 4000-iteration heal
@@ -472,6 +473,22 @@ final class AppModel: ObservableObject {
     /// untouched. The coordinator only acts if/when a non-WHOOP strap becomes the active device.
     /// `startWhoop`/`stopWhoop` are thin closures over BLEManager's EXISTING public methods (via the
     /// model's `scan()` / `disconnect()`), so the coordinator never references BLEManager directly.
+    /// #1410: record an `APP_VERSION_CHANGED` event on the first launch after an update. UserDefaults holds
+    /// the last-seen version; `"noop-app"` is a synthetic non-strap deviceId sentinel (strap ids are UUIDs,
+    /// so it can't collide) — the same sentinel the Android twin uses.
+    private func recordAppVersionChangeIfNeeded() async {
+        let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        let last = UserDefaults.standard.string(forKey: "noop.lastSeenVersion")
+        if AppVersionEvent.shouldRecord(lastSeen: last, current: current), let last,
+           let store = await repo.storeHandle() {
+            let payload = AppVersionEvent.payloadJson(from: last, to: current,
+                                                      schemaVersion: WhoopStoreInfo.schemaVersion)
+            try? await store.recordEvent(deviceId: "noop-app", ts: Int(Date().timeIntervalSince1970),
+                                         kind: AppVersionEvent.kind, payloadJSON: payload)
+        }
+        UserDefaults.standard.set(current, forKey: "noop.lastSeenVersion")
+    }
+
     private func wireSourceCoordinator() async {
         guard sourceCoordinator == nil, let store = await repo.storeHandle() else { return }
         let registry = DeviceRegistry(store: DeviceRegistryStore(dbQueue: store.registryWriter))

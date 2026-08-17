@@ -854,6 +854,11 @@ class WhoopRepository(
         inBandSec = row.inBandSec, belowSec = row.belowSec, aboveSec = row.aboveSec,
         pushCount = row.pushCount, easeCount = row.easeCount, hrSource = row.hrSource,
     )
+
+    /** #1410: append one app-level event (e.g. APP_VERSION_CHANGED) onto the event table. */
+    suspend fun recordEvent(deviceId: String, ts: Long, kind: String, payloadJSON: String) {
+        dao.insertEvents(listOf(EventRow(deviceId, ts, kind, payloadJSON)))
+    }
     suspend fun recentLiveSessions(deviceId: String, limit: Int): List<LiveSessionRow> =
         dao.recentLiveSessions(deviceId, limit)
 

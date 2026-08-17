@@ -148,7 +148,7 @@ enum DataBackup {
         if let complaint = DatabaseIntegrity.quickCheckFailure(atPath: dbURL.path) {
             throw ExportIntegrityFailure(complaint: complaint)
         }
-        try writeBackupZip(dbURL: dbURL, to: dest, settingsJSON: settingsJSON)
+        try writeBackupZip(dbURL: dbURL, to: dest, settingsJSON: settingsJSON, manifestJSON: currentManifestJSON())
         // #1014 (write-side): the SOURCE is verified above, but the PRODUCED file can still be torn by a
         // full disk / dying filesystem / flaky cloud-sync mid-write, and such a truncated `.noopbak`
         // otherwise "restores" into an empty store — caught only by the import-side quick_check much later.
@@ -171,18 +171,37 @@ enum DataBackup {
     /// entry) and deflate compression match the Android exporter byte-for-byte at the container level,
     /// so a `.noopbak` produced on either platform imports on the other. `settingsJSON == nil` writes
     /// the legacy single-entry ZIP. Mirrors the `Archive` idiom in `WhoopCsvExporter`.
-    private static func writeBackupZip(dbURL: URL, to dest: URL, settingsJSON: Data?) throws {
+    /// #1410: this build's provenance manifest (Bundle version/build + GRDB schema + export time) as JSON.
+    private static func currentManifestJSON() -> Data {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        let json = BackupManifest.json(appVersion: version, appBuild: build, platform: "apple",
+                                       schemaVersion: WhoopStoreInfo.schemaVersion,
+                                       exportedAtMs: Int64(Date().timeIntervalSince1970 * 1000))
+        return Data(json.utf8)
+    }
+
+    private static func writeBackupZip(dbURL: URL, to dest: URL, settingsJSON: Data?, manifestJSON: Data) throws {
         let archive = try Archive(url: dest, accessMode: .create)
         try archive.addEntry(with: backupEntryName, fileURL: dbURL, compressionMethod: .deflate)
-        guard let settingsJSON else { return }
-        // Stage the JSON through a temp file so the settings entry uses the exact same file-URL
-        // addEntry idiom as the DB entry (one container code path, no provider-API variant to drift).
         let fm = FileManager.default
-        let tmpJSON = fm.temporaryDirectory
-            .appendingPathComponent("noop-settings-\(UUID().uuidString).json")
-        try settingsJSON.write(to: tmpJSON)
-        defer { try? fm.removeItem(at: tmpJSON) }
-        try archive.addEntry(with: BackupSettings.entryName, fileURL: tmpJSON, compressionMethod: .deflate)
+        // Stage each JSON through a temp file so it uses the exact same file-URL addEntry idiom as the DB
+        // entry (one container code path, no provider-API variant to drift).
+        if let settingsJSON {
+            let tmpJSON = fm.temporaryDirectory
+                .appendingPathComponent("noop-settings-\(UUID().uuidString).json")
+            try settingsJSON.write(to: tmpJSON)
+            defer { try? fm.removeItem(at: tmpJSON) }
+            try archive.addEntry(with: BackupSettings.entryName, fileURL: tmpJSON, compressionMethod: .deflate)
+        }
+        // #1410: manifest LAST (after the DB + optional settings) and ALWAYS written — even a legacy
+        // nil-settings backup states which build produced it.
+        let tmpManifest = fm.temporaryDirectory
+            .appendingPathComponent("noop-manifest-\(UUID().uuidString).json")
+        try manifestJSON.write(to: tmpManifest)
+        defer { try? fm.removeItem(at: tmpManifest) }
+        try archive.addEntry(with: BackupManifest.entryName, fileURL: tmpManifest, compressionMethod: .deflate)
     }
 
     /// This device's whitelisted profile/display settings (see `BackupSettings.whitelist`) as the
@@ -243,7 +262,8 @@ enum DataBackup {
         let fm = FileManager.default
         if fm.fileExists(atPath: dest.path) { try fm.removeItem(at: dest) }
         try writeBackupZip(dbURL: dbURL, to: dest,
-                           settingsJSON: settings.flatMap { BackupSettings.encode($0) })
+                           settingsJSON: settings.flatMap { BackupSettings.encode($0) },
+                           manifestJSON: currentManifestJSON())
     }
 
     // MARK: - Import

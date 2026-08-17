@@ -199,6 +199,27 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 com.noop.analytics.StreakCalculator.Streaks(0, 0),
             )
 
+    /** #1410: record an `APP_VERSION_CHANGED` event on the first launch after an update. `"noop-app"` is a
+     *  synthetic, non-strap deviceId sentinel (strap ids are BLE UUIDs, so it can't collide). */
+    private suspend fun recordAppVersionChange() {
+        val prefs = appContext.getSharedPreferences("noop_provenance", android.content.Context.MODE_PRIVATE)
+        val current = com.noop.BuildConfig.VERSION_NAME
+        val last = prefs.getString("lastSeenVersion", null)
+        if (com.noop.data.AppVersionEvent.shouldRecord(last, current)) {
+            runCatching {
+                repository.recordEvent(
+                    deviceId = "noop-app",
+                    ts = System.currentTimeMillis() / 1000,
+                    kind = com.noop.data.AppVersionEvent.KIND,
+                    payloadJSON = com.noop.data.AppVersionEvent.payloadJson(
+                        from = last!!, to = current, schemaVersion = com.noop.data.WhoopDatabase.SCHEMA_VERSION,
+                    ),
+                )
+            }
+        }
+        prefs.edit().putString("lastSeenVersion", current).apply()
+    }
+
     /** Re-read the active device row and republish its display name. Called at launch + after a setActive. */
     fun refreshActiveDeviceName() {
         viewModelScope.launch {
@@ -727,6 +748,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // existing WHOOP flow below runs unchanged; it only acts when a non-WHOOP strap is the active
         // device. The Devices screen (next task) calls onActiveDeviceChanged after a setActive.
         noopApp.sourceCoordinator.start()
+        // #1410: on the first launch after an update, append an APP_VERSION_CHANGED event so a single
+        // export can answer "what ran when". Idempotent — the stored last-seen version only advances
+        // once the transition is recorded, so a background-only launch is caught on the next UI open.
+        viewModelScope.launch { recordAppVersionChange() }
         // #1121: re-arm the opt-in detailed-capture rolling log on launch, so a capture the user started
         // keeps going across the process being killed (this phone class is not battery-exempt and Android
         // kills the background BLE overnight — the very window a battery capture needs to span).

@@ -67,6 +67,9 @@ abstract class WhoopDatabase : RoomDatabase() {
 
     companion object {
         const val DB_NAME = "noop_whoop.db"
+        /** Room schema version — MUST equal the `@Database(version = …)` above. Surfaced in the backup
+         *  manifest (#1410) so an export states its schema. Bump both together on a migration. */
+        const val SCHEMA_VERSION = 30
 
         @Volatile
         private var instance: WhoopDatabase? = null

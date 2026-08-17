@@ -46,6 +46,9 @@ object DataBackup {
 
     /** Entry name of the optional whitelisted-settings JSON (#1000). Matches the Apple exporter. */
     private const val SETTINGS_ENTRY_NAME = BackupSettingsCodec.ENTRY_NAME
+    // #1410: a `manifest.json` entry recording which build produced this file (read only to classify, never
+    // restored). Written LAST so older importers that stop at the first .sqlite entry are unaffected.
+    private const val MANIFEST_ENTRY_NAME = BackupManifest.ENTRY_NAME
 
     private const val MAX_BACKUP_SQLITE_BYTES = 2_147_483_648L
     private const val MAX_BACKUP_SETTINGS_BYTES = 1_048_576L
@@ -140,6 +143,14 @@ object DataBackup {
         // legacy single-entry ZIP. The DB entry stays FIRST — older importers stop at the first
         // `.sqlite` entry, so entry order is part of the cross-platform container contract.
         val settingsJson = BackupSettingsBridge.snapshotJson(appContext)
+        // #1410: build provenance for this export — which build wrote the file.
+        val manifestJson = BackupManifest.json(
+            appVersion = com.noop.BuildConfig.VERSION_NAME,
+            appBuild = com.noop.BuildConfig.VERSION_CODE.toString(),
+            platform = "android",
+            schemaVersion = WhoopDatabase.SCHEMA_VERSION,
+            exportedAtMs = System.currentTimeMillis(),
+        )
 
         val resolver = appContext.contentResolver
         val output = resolver.openOutputStream(uri)
@@ -162,6 +173,9 @@ object DataBackup {
                         zip.write(settingsJson.toByteArray(Charsets.UTF_8))
                         zip.closeEntry()
                     }
+                    zip.putNextEntry(ZipEntry(MANIFEST_ENTRY_NAME))
+                    zip.write(manifestJson.toByteArray(Charsets.UTF_8))
+                    zip.closeEntry()
                 }
             }
         }
