@@ -323,15 +323,24 @@ final class HealthKitBridge: ObservableObject {
     /// keeps every per-day average correct and idempotent — `sync` upserts are keyed by day.
     private func syncFromObserver(type: HKSampleType) async {
         guard auth == .authorized else { return }
-        let touched = await fetchTouchedDayWindow(type: type)
-        // No new samples since the last anchor (a spurious wake): nothing to do.
-        guard let touched else { return }
+        let (touched, newAnchor) = await fetchTouchedDayWindow(type: type)
+        // No new samples since the last anchor (a spurious wake): nothing to ingest, so advancing the
+        // anchor now loses nothing and skips a redundant re-query next wake.
+        guard let touched else {
+            if let newAnchor { persistAnchor(newAnchor, for: type) }
+            return
+        }
         let cal = Calendar.current
         let daysBack = cal.dateComponents([.day], from: cal.startOfDay(for: touched),
                                           to: cal.startOfDay(for: Date())).day ?? 0
         // Clamp to a sane window: at least today, and never re-walk more than a month from one wake.
         let window = max(1, min(31, daysBack + 1))
-        await sync(days: window)
+        // Advance the anchor ONLY after the ingestion commits (@bhelm). If sync() bails (another sync holds
+        // `syncing`, or the store is unavailable), the anchor stays put so the next wake re-fetches this
+        // window and re-ingests — sync re-reads aggregates, so the replay is idempotent.
+        if await sync(days: window), let newAnchor {
+            persistAnchor(newAnchor, for: type)
+        }
     }
 
     /// Advance this type's stored anchor over any new samples and return the OLDEST sample date seen,
@@ -339,29 +348,36 @@ final class HealthKitBridge: ObservableObject {
     /// deltas are neither re-ingested nor missed across launches. We don't consume the samples here —
     /// `sync(days:)` re-reads the aggregate for the affected window — the anchor's only job is to tell
     /// us how far back the change reached.
-    private func fetchTouchedDayWindow(type: HKSampleType) async -> Date? {
+    private func fetchTouchedDayWindow(type: HKSampleType) async -> (oldest: Date?, newAnchor: HKQueryAnchor?) {
         let key = HealthKitBridge.anchorDefaultsKey(for: type)
         let priorAnchor: HKQueryAnchor? = {
             guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
             return try? NSKeyedUnarchiver.unarchivedObject(ofClass: HKQueryAnchor.self, from: data)
         }()
 
-        return await withCheckedContinuation { (cont: CheckedContinuation<Date?, Never>) in
+        return await withCheckedContinuation { (cont: CheckedContinuation<(Date?, HKQueryAnchor?), Never>) in
             let q = HKAnchoredObjectQuery(
                 type: type, predicate: Self.notNoopAuthored,
                 anchor: priorAnchor, limit: HKObjectQueryNoLimit
             ) { _, samples, _, newAnchor, _ in
-                // Persist the advanced anchor so the next wake only sees genuinely-new samples. Skip the
-                // write on a query error (newAnchor nil) so we don't blow away a good cursor.
-                if let newAnchor,
-                   let data = try? NSKeyedArchiver.archivedData(withRootObject: newAnchor, requiringSecureCoding: true) {
-                    UserDefaults.standard.set(data, forKey: key)
-                }
+                // Return the advanced anchor but do NOT persist it here: the caller commits it only after
+                // the ensuing sync has actually stored the window (@bhelm). Persisting in this callback,
+                // before ingestion was known to run, advanced the cursor past samples a later-bailed
+                // sync() never stored — silently losing days for the background/watch-only path.
                 let oldest = (samples ?? []).map { $0.startDate }.min()
-                cont.resume(returning: oldest)
+                cont.resume(returning: (oldest, newAnchor))
             }
             store.execute(q)
         }
+    }
+
+    /// Commit a type's advanced HealthKit anchor to UserDefaults. Called only once the sync that consumes
+    /// the window has committed (or when there was nothing to ingest), so a bailed sync leaves the prior
+    /// anchor in place for the next observer wake to re-fetch. Skips a nil-archive rather than clobber a
+    /// good cursor. (@bhelm)
+    private func persistAnchor(_ anchor: HKQueryAnchor, for type: HKSampleType) {
+        guard let data = try? NSKeyedArchiver.archivedData(withRootObject: anchor, requiringSecureCoding: true) else { return }
+        UserDefaults.standard.set(data, forKey: HealthKitBridge.anchorDefaultsKey(for: type))
     }
 
     /// UserDefaults key for a type's persisted HealthKit anchor. Namespaced so it can't collide with
@@ -375,18 +391,19 @@ final class HealthKitBridge: ObservableObject {
     /// Pull the last `days` of Apple Health into the on-device store under the `apple-health` source,
     /// then write NOOP's own computed metrics back into Health. Safe to call repeatedly (idempotent
     /// upserts keyed by day).
-    func sync(days: Int = 30) async {
-        guard auth == .authorized, !syncing else { return }
+    @discardableResult
+    func sync(days: Int = 30) async -> Bool {
+        guard auth == .authorized, !syncing else { return false }
         syncing = true
         defer { syncing = false }
         // Before reading: pick up any read type this version added that the user was never asked about
         // (#949). No-op once the stored signature matches, which is every sync after the first.
         await requestNewReadTypesIfNeeded()
-        guard let store = await repo.storeHandle() else { return }
+        guard let store = await repo.storeHandle() else { return false }
 
         let cal = Calendar.current
         let end = Date()
-        guard let start = cal.date(byAdding: .day, value: -days, to: cal.startOfDay(for: end)) else { return }
+        guard let start = cal.date(byAdding: .day, value: -days, to: cal.startOfDay(for: end)) else { return false }
 
         var byDay: [String: DayAgg] = [:]
         func agg(_ day: String) -> DayAgg { byDay[day] ?? DayAgg() }
@@ -559,8 +576,10 @@ final class HealthKitBridge: ObservableObject {
             try await writeBack(whoopStore: store)
             lastSync = Date()
             lastError = nil
+            return true
         } catch {
             lastError = String(localized: "Apple Health sync failed: \(error.localizedDescription)")
+            return false
         }
     }
 
