@@ -558,6 +558,12 @@ class WhoopRepository(
      *  moves it (count or maxTs), so a real change always rescores; mirrors Swift WhoopStore.hrFingerprint. */
     suspend fun hrFingerprint(): String = "${dao.countHr()}:${dao.maxHrTs()}"
 
+    /** #1005 — per-day (device + window) HR fingerprint as (count, newestTs) for analyzeRecent's per-day
+     *  reuse cache. Cheap COUNT/MAX aggregate, never a row fetch; mirrors Swift
+     *  WhoopStore.hrFingerprint(deviceId:from:to:). */
+    suspend fun hrFingerprintWindow(deviceId: String, from: Long, to: Long): Pair<Int, Long> =
+        Pair(dao.countHrInWindow(deviceId, from, to), dao.maxHrTsInWindow(deviceId, from, to))
+
     // MARK: - Server-derived caches (latest value wins on conflict)
 
     suspend fun upsertDailyMetrics(days: List<DailyMetric>) = dao.upsertDailyMetrics(days)

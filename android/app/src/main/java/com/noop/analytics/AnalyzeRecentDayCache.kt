@@ -1,0 +1,47 @@
+package com.noop.analytics
+
+/**
+ * Per-day reuse identity for [IntelligenceEngine.analyzeRecent]'s pass-1 loop. Kotlin twin of the Swift
+ * `AnalyzeRecentDayCache`.
+ *
+ * The drain this closes (#1005): on a heavy user (21 nights of history, ~178 k HR rows/night, a 1.26 GB
+ * store) every re-score re-read *every* night's raw streams and re-ran `analyzeDay`, even though a
+ * post-offload only ever adds rows to the 1–2 most-recent days — a median ~4.6 min / pass, all CPU, fired
+ * back-to-back through an offload storm. Pass 1 already keeps only each night's small result (NOT the raw
+ * streams), and every field except recovery is baseline-independent, so a night whose scored inputs are
+ * unchanged since it was last scored re-produces a byte-identical result: the engine keeps an in-memory
+ * `day -> (key, scored night)` cache and reuses the night when this key matches, skipping the reads +
+ * `analyzeDay`. A miss is byte-for-byte the current full path; the cache never touches banking (every night
+ * still flows into pass 2), so there is no data-loss surface.
+ *
+ * The cache is in-memory and per-process — it never persists and never crosses the `.noopbak` boundary — so
+ * it only has to invalidate correctly within one platform; the two key strings are NOT required to match the
+ * Swift ones byte-for-byte. The set of changes that must / must not invalidate a reused night IS a shared
+ * contract (see the tests, kept in lockstep with the Swift oracle).
+ */
+object AnalyzeRecentDayCache {
+    /**
+     * The per-day reuse key. Reuse a cached night iff this string is unchanged since the scan was cached.
+     *
+     * - [hrCount] / [hrMaxTs]: the night-window HR fingerprint (row count + newest timestamp) — the SAME
+     *   change witness the whole-pass gate at the top of `analyzeRecent` already trusts, applied here at day
+     *   granularity. Any new/removed HR row moves one of the two.
+     * - [skinAnchorRaw]: the WHOOP 4.0 window-wide skin-temp anchor (null when unresolved). It is
+     *   window-wide, so a re-anchor caused by *another* night's skin data shifts this night's skin conversion
+     *   without moving this night's HR fingerprint — folding it in makes that invalidate reuse. Encoded by
+     *   raw bit-pattern so the equality check is exact and locale-free.
+     * - [owner]: the resolved owning device id the fingerprint was measured against. The fingerprint is
+     *   already device-scoped, so this is belt-and-suspenders for the **multi-strap** case (a user with both
+     *   a 4.0 and a 5/MG): when a day's resolved owner flips between straps, keying on the owner makes the
+     *   reuse invalidate **explicitly**, rather than relying on two different devices never producing an
+     *   identical `count`+`maxTs` for the same window.
+     *
+     * Inputs that feed `analyzeDay` but are pass-global rather than per-day (profile, baselines1, sleep need
+     * / consistency, habitual midsleep, tz, stager toggles) are NOT in this key — the engine drops the whole
+     * cache when its pass config signature changes, which covers them.
+     */
+    fun cacheKey(owner: String, hrCount: Int, hrMaxTs: Long, skinAnchorRaw: Double?): String {
+        val anchor = skinAnchorRaw?.toRawBits()?.toString() ?: "nil"
+        return "$owner|$hrCount:$hrMaxTs:$anchor"
+    }
+}

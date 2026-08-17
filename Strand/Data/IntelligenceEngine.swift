@@ -39,6 +39,26 @@ final class IntelligenceEngine: ObservableObject {
     /// re-pass; this mirrors it). Reset by any pass whose heal finds nothing, restoring the budget.
     private var healRearmedThisCycle = false
 
+    /// #1005 BATTERY: in-memory per-day reuse for `analyzeRecent`'s pass-1 loop, keyed by day → (per-day
+    /// cache key, the scored `DayScan`). On a heavy user (21 nights, ~178 k HR rows/night, a 1.26 GB store)
+    /// every `newData` re-score re-read *every* night's raw streams and re-ran `analyzeDay`, even though a
+    /// post-offload only ever adds rows to the 1–2 most-recent days — median ~4.6 min / pass, all CPU, fired
+    /// back-to-back through an offload storm. Pass 1 already keeps only each night's small result (NOT the
+    /// raw streams) and every field except recovery is baseline-independent, so a night whose scored inputs
+    /// are unchanged since it was last scored re-produces a byte-identical `DayScan`: reuse it and skip the 7
+    /// stream reads + `analyzeDay`. FAIL-SAFE — a miss, any un-cacheable owner, any active Test-Centre
+    /// trace, or a config change all fall through to the identical full path; the cache only ever skips the
+    /// analyzeDay STAGE, so pass 2 (baselines, recovery recompute, stale-day eviction, heal) is byte-
+    /// unaffected and there is no banking / data-loss surface. In-memory + per-device; never persisted,
+    /// never crosses `.noopbak`. The engine is a single long-lived instance (AppModel), so this survives the
+    /// storm's back-to-back passes the drain is made of. See `AnalyzeRecentDayCache` (StrandAnalytics).
+    private var dayScanCache: [String: (key: String, scan: DayScan)] = [:]
+    /// The scoring-config signature the `dayScanCache` entries were produced under (profile / baselines1 /
+    /// tz / sleep need+consistency / habitual midsleep / stager toggles). Those feed `analyzeDay` but are
+    /// pass-global, not in the per-day key, so when the current pass's signature differs every cached scan is
+    /// potentially stale and the whole cache is dropped. Empty until the first pass.
+    private var dayScanCacheConfigSig = ""
+
     /// Who supplies the dashboard headline for a By-Day row. The By-Day card always shows NOOP's OWN
     /// on-device numbers, but the WHOLE-DASHBOARD value for the same day can come from an IMPORTED row
     /// that won the per-day merge (imports win field-by-field over computed , see Repository.mergeDaily).
@@ -644,7 +664,45 @@ final class IntelligenceEngine: ObservableObject {
         // so the Blood Oxygen tile can surface it as a "strap estimate (unverified)" fallback. Default OFF
         // per the derived-biosignal rule (CLAUDE.md) — the @82 candidate has split cross-device evidence.
         let spo2CandidateDisplayOn = PuffinExperiment.spo2CandidateDisplayEnabled
-        let (scanned, skippedDayLines): ([DayScan], [String]) = await Task.detached(priority: .utility) {
+
+        // ── #1005 BATTERY: per-day reuse cache setup (see `dayScanCache`) ────────────────────────────
+        // The stager toggles are read per-day inside the loop below, but they are global (same value every
+        // day); read them ONCE here too so the config signature can fold them without reaching into the
+        // detached loop.
+        let useSleepStagerV2Global = PuffinExperiment.experimentalSleepV2Enabled
+        let useMotionAwareWakeGlobal = PuffinExperiment.motionAwareWakeEnabled
+        // Cache eligibility for the whole pass: never reuse while a Test-Centre trace is active (a cached
+        // scan carries no fresh gate trace). Owner-level eligibility (registered WHOOP) is checked per day.
+        let dayCacheEligible = !(sleepTraceActive || hrvTraceActive || stepsTraceActive)
+        // The pass config signature — every input that feeds `analyzeDay` but is NOT in the per-day key, so
+        // a change to any of them must invalidate every cached night. All are pass-global 28-night / profile
+        // / toggle values (stable across an offload storm; they move only on a settings/profile/import edit
+        // or at midnight), so the cache survives the back-to-back passes. baselines1 is signed structurally
+        // (any BaselineState field change ⇒ a different string); Doubles by raw bit-pattern (exact, locale-
+        // free). Only ever compared to itself in memory, so cross-platform string identity isn't required.
+        let dayCacheConfigSig = [
+            String(describing: baselines1.hrv),
+            String(describing: baselines1.restingHR),
+            String(up.age.bitPattern), up.sex, String(up.stepTicksPerStep.bitPattern),
+            maxHR.map { String($0.bitPattern) } ?? "nil",
+            "\(tzOffset)",
+            String(sleepNeedHours.bitPattern),
+            sleepConsistency.map { String($0.bitPattern) } ?? "nil",
+            habitualMidsleepSec.map { "\($0)" } ?? "nil",
+            "\(useSleepStagerV2Global)", "\(useMotionAwareWakeGlobal)", "\(deepHrvWindow)",
+            "\(spo2CandidateDisplayOn)",
+        ].joined(separator: "|")
+        // Drop the whole cache on a config change, then snapshot it into a Sendable `let` for the detached
+        // loop (the engine is @MainActor; the loop can't touch `self`). The loop returns the updated cache
+        // and we write it back after `.value`.
+        if dayCacheConfigSig != dayScanCacheConfigSig {
+            dayScanCache.removeAll()
+            dayScanCacheConfigSig = dayCacheConfigSig
+        }
+        let inDayScanCache = dayScanCache
+
+        let (scanned, skippedDayLines, updatedDayScanCache):
+            ([DayScan], [String], [String: (key: String, scan: DayScan)]) = await Task.detached(priority: .utility) {
             var out: [DayScan] = []
             // Days skipped below (too few HR samples) never get a DayScan, so this diagnostic can't ride
             // along on one; carried out alongside `out` and replayed through `diagnosticSink` on the main
@@ -656,6 +714,11 @@ final class IntelligenceEngine: ObservableObject {
             let skinAnchorScanTo = nowLocalMidnight + 18 * 3_600
             var skinAnchorByOwner: [String: Double] = [:]
             var skinAnchorResolvedOwners = Set<String>()
+            // #1005: the reuse cache, snapshotted in from the main-actor stored property; mutated here and
+            // returned so it can be written back after `.value`. `dayCacheReused` counts hits for a one-line
+            // diagnostic carried on `skippedDayLines`.
+            var dayScanCacheLocal = inDayScanCache
+            var dayCacheReused = 0
             for offset in 0..<maxDays {
                 let dayStart = nowLocalMidnight - offset * 86_400
                 let day = AnalyticsEngine.dayString(dayStart, offsetSec: tzOffset)
@@ -673,6 +736,50 @@ final class IntelligenceEngine: ObservableObject {
                 let owner = await Self.resolveDayOwner(day: day, from: from, to: to, store: store,
                                                        devices: regDevices, activeId: regActiveId,
                                                        registry: registry, fallbackDeviceId: ownerFallbackId)
+
+                // ── #1005 BATTERY: per-day reuse (see `dayScanCache`) ───────────────────────────────
+                // Reuse this night's already-scored `DayScan` when its scored inputs are provably unchanged
+                // since we last scored it THIS session, skipping the 7 stream reads + `analyzeDay`. Gated to a
+                // registered WHOOP 4.0 owner — the reported drain (a 4.0 with a 1.26 GB store) and the ONE
+                // family whose classification is unambiguous and identical on both platforms (a 4.0 always
+                // streams gravity, so its `providedSleep` is empty and the reuse is byte-identical; a ring's
+                // `providedSleep` could change a day without an HR move). 5/MG is a deliberate follow-up, not
+                // cached here, so this stays conservative on a data-loss-sensitive path. The per-day key folds
+                // the night's HR fingerprint (the SAME witness the whole-pass gate at the top trusts) and the
+                // window-wide skin anchor (a re-anchor from another night shifts this night's skin conversion
+                // without moving its HR). Pass-global inputs (profile/baselines1/toggles) already dropped the
+                // whole cache above on change. A miss falls straight through to the identical full path.
+                var dayCacheKey: String? = nil
+                if dayCacheEligible,
+                   DeviceFamily.forRegistryDevice(
+                        model: regDevices.first(where: { $0.id == owner })?.model,
+                        brand: regDevices.first(where: { $0.id == owner })?.brand) == .whoop4 {
+                    // Resolve the window-wide anchor BEFORE the gate (it's a key input); once per owner, reads
+                    // the sparse skin stream — not the big HR one. This pre-populates `skinAnchorByOwner`, so
+                    // the existing per-day anchor block below sees the owner already resolved and is a no-op —
+                    // byte-identical anchor either way.
+                    if !skinAnchorResolvedOwners.contains(owner) {
+                        let windowSkin = (try? await store.skinTempSamples(deviceId: owner,
+                                                                           from: skinAnchorScanFrom,
+                                                                           to: skinAnchorScanTo,
+                                                                           limit: 200_000)) ?? []
+                        if let anchor = Whoop4SkinTemp.deviceAnchorRaw(windowSkin.map { $0.raw }) {
+                            skinAnchorByOwner[owner] = anchor
+                        }
+                        skinAnchorResolvedOwners.insert(owner)
+                    }
+                    if let fp = try? await store.hrFingerprint(deviceId: owner, from: from, to: to) {
+                        let key = AnalyzeRecentDayCache.cacheKey(owner: owner, hrCount: fp.count,
+                                                                 hrMaxTs: fp.maxTs,
+                                                                 skinAnchorRaw: skinAnchorByOwner[owner])
+                        dayCacheKey = key
+                        if let cached = dayScanCacheLocal[day], cached.key == key {
+                            out.append(cached.scan)
+                            dayCacheReused += 1
+                            continue
+                        }
+                    }
+                }
 
                 let hr = (try? await store.hrSamples(deviceId: owner, from: from, to: to, limit: 200_000)) ?? []
                 guard hr.count >= 200 else {
@@ -1047,16 +1154,31 @@ final class IntelligenceEngine: ObservableObject {
                 // windowing + delegation lives in the byte-identical, tested `AnalyticsEngine`.
                 let (primarySessionRHR, primarySessionRHRCoverage) =
                     AnalyticsEngine.primarySessionRestingHRWithCoverage(sessions: res.sleepSessions, hr: hr)
-                out.append(DayScan(result: res, rhrLine: rhrLine, respLine: respLine,
+                let scan = DayScan(result: res, rhrLine: rhrLine, respLine: respLine,
                                    readOwner: owner, hrRows: hr.count,
                                    sleepTrace: sleepTrace, stepsTrace: stepsTrace, hrvTrace: hrvTrace,
                                    hrvDiag: hrvDiag, spo2Candidate: spo2CandidateMean,
                                    hrvOverCounted: hrvOverCounted,
                                    primarySessionRHR: primarySessionRHR,
-                                   primarySessionRHRCoverage: primarySessionRHRCoverage))
+                                   primarySessionRHRCoverage: primarySessionRHRCoverage)
+                // #1005: cache this freshly-scored scan under its per-day key (only when the day was
+                // cache-eligible this pass, i.e. a registered WHOOP owner with no trace active). Reused
+                // days `continue`d above and never reach here, so the cache only ever holds fresh scans.
+                if let key = dayCacheKey { dayScanCacheLocal[day] = (key: key, scan: scan) }
+                out.append(scan)
             }
-            return (out, skippedDayLines)
+            // #1005: prune the reuse cache to the current 21-day window (the oldest day ages out at
+            // midnight) and carry a one-line reuse diagnostic on the same channel as the skipped-day lines.
+            let dayCacheWindow = Set((0..<maxDays).map {
+                AnalyticsEngine.dayString(nowLocalMidnight - $0 * 86_400, offsetSec: tzOffset) })
+            dayScanCacheLocal = dayScanCacheLocal.filter { dayCacheWindow.contains($0.key) }
+            skippedDayLines.append("analyzeRecent dayCache reused=\(dayCacheReused)/\(maxDays) "
+                                   + "size=\(dayScanCacheLocal.count)")
+            return (out, skippedDayLines, dayScanCacheLocal)
         }.value
+        // #1005: write the loop's updated reuse cache back to the (main-actor) stored property. The pass ran
+        // to completion above (`.value` awaited), so there is no concurrent access.
+        dayScanCache = updatedDayScanCache
 
         // #714: replay each skipped day's diagnostic now that we're back on the main actor (diagnosticSink
         // is MainActor-bound). Always-on , not gated behind a test mode, mirroring the Kotlin `diag` sink.
