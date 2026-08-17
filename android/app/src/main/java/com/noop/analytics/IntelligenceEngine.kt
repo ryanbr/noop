@@ -121,6 +121,15 @@ object IntelligenceEngine {
          *  returns WHOOP5 (the prior /100 behaviour), so legacy/test sources are byte-identical;
          *  [RegistryDayOwnerSource] resolves a positively-identified 4.0 to WHOOP4. */
         suspend fun skinTempFamily(deviceId: String): DeviceFamily = DeviceFamily.WHOOP5
+
+        /** The registered WHOOP family for [deviceId] — WHOOP4 or WHOOP5 for a positively-identified strap,
+         *  or **null** for a non-WHOOP owner (ring / import / unknown). UNLIKE [skinTempFamily], which
+         *  coalesces an unknown to WHOOP5 for the skin-temp scale, this must NOT coalesce — the #1005 reuse
+         *  cache uses it to decide whether a day is safe to reuse, and treating a ring as a WHOOP would let a
+         *  `providedSleep` change slip past the HR fingerprint. The default returns null so legacy/test
+         *  sources are never cached; [RegistryDayOwnerSource] resolves it via DeviceFamily.forRegistryDevice.
+         *  Mirrors the Swift `DeviceFamily.forRegistryDevice(model:brand:)` used inline in the reuse gate. */
+        suspend fun registeredWhoopFamily(deviceId: String): DeviceFamily? = null
     }
 
     /** Minimum HR samples in a day's window before it is worth scoring. */
@@ -545,6 +554,10 @@ object IntelligenceEngine {
             dayScanCacheConfigSig = dayCacheConfigSig
         }
         var dayCacheReused = 0
+        // #1005: memoise the UN-coalesced registered WHOOP family per owner (null = non-WHOOP → never
+        // cached). Kept separate from [skinFamilyByOwner] (which coalesces unknown → WHOOP5 for the skin
+        // scale); this must NOT coalesce so a ring can't be cached as a WHOOP.
+        val cacheFamilyByOwner = HashMap<String, DeviceFamily?>()
 
         for (offset in 0 until maxDays) {
             val dayStart = nowLocalMidnight - offset * SECONDS_PER_DAY
@@ -573,23 +586,30 @@ object IntelligenceEngine {
 
             // ── #1005 BATTERY: per-day reuse (see [dayScanCache]) ───────────────────────────────────
             // Reuse this night's already-scored result when its scored inputs are provably unchanged since we
-            // last scored it THIS process, skipping the 7 stream reads + `analyzeDay`. Gated to a WHOOP 4.0
-            // owner — the reported drain and the one family classified unambiguously & identically on both
-            // platforms (a 4.0 always streams gravity, so its providedSleep is empty and the reuse is byte-
-            // identical). The per-day key folds the night's HR fingerprint (the SAME witness the whole-pass
-            // gate at the top trusts) and the window-wide skin anchor. Pass-global inputs (profile/
-            // baselines1/toggles) already dropped the whole cache above on change. A miss falls straight
-            // through to the identical full path.
+            // last scored it THIS process, skipping the 7 stream reads + `analyzeDay`. Gated to a registered
+            // WHOOP owner (4.0 or 5/MG) — a WHOOP always streams gravity, so its providedSleep is empty and
+            // the reuse is byte-identical, whereas a ring's providedSleep could change a day without an HR
+            // move (the un-coalesced family resolver returns null for non-WHOOP, so a ring is never cached).
+            // The per-day key folds the night's HR fingerprint (the SAME witness the whole-pass gate at the
+            // top trusts) and, for a 4.0, the window-wide skin anchor (a 5/MG banks centidegrees directly,
+            // no anchor). Pass-global inputs (profile/baselines1/toggles) already dropped the whole cache
+            // above on change. A miss falls straight through to the identical full path.
             var dayCacheKey: String? = null
-            if (dayCacheEligible &&
-                skinFamilyByOwner.getOrPut(owner) {
-                    ownerSource?.skinTempFamily(owner) ?: DeviceFamily.WHOOP5
-                } == DeviceFamily.WHOOP4
-            ) {
-                // Resolve the window-wide anchor BEFORE the gate (a key input); once per owner, reads the
+            // UN-coalesced registered WHOOP family (null for a ring/import/unknown → never cached; a ring's
+            // providedSleep could change a day without an HR move), memoised per owner. WHOOP4 and WHOOP5 are
+            // both cacheable. Mirrors the Swift gate's inline DeviceFamily.forRegistryDevice.
+            val cacheOwnerFamily: DeviceFamily? = if (dayCacheEligible) {
+                if (!cacheFamilyByOwner.containsKey(owner)) {
+                    cacheFamilyByOwner[owner] = ownerSource?.registeredWhoopFamily(owner)
+                }
+                cacheFamilyByOwner[owner]
+            } else null
+            if (cacheOwnerFamily != null) {
+                // Resolve the 4.0 window-wide anchor BEFORE the gate (a key input); once per owner, reads the
                 // sparse skin stream — not the big HR one. Pre-populates [skinAnchorByOwner] so the existing
-                // per-day anchor block below is a no-op — byte-identical anchor either way.
-                if (!skinAnchorResolvedOwners.contains(owner)) {
+                // per-day anchor block below is a no-op — byte-identical anchor either way. A 5/MG banks
+                // skin-temp centidegrees directly — no per-device anchor — so its anchor slot stays null.
+                if (cacheOwnerFamily == DeviceFamily.WHOOP4 && !skinAnchorResolvedOwners.contains(owner)) {
                     val windowSkin = repo.skinTempSamples(owner, skinAnchorScanFrom, skinAnchorScanTo, STREAM_LIMIT)
                     Whoop4SkinTemp.deviceAnchorRaw(windowSkin.map { it.raw })?.let { skinAnchorByOwner[owner] = it }
                     skinAnchorResolvedOwners.add(owner)

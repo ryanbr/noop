@@ -58,4 +58,13 @@ class RegistryDayOwnerSource(private val registry: DeviceRegistry) : Intelligenc
         // as before; brand-awareness just stops it claiming to be a WHOOP (#1086).
         return DeviceFamily.forRegistryDevice(d?.model, d?.brand) ?: DeviceFamily.WHOOP5
     }
+
+    // #1005: the UN-coalesced registered WHOOP family (null for a non-WHOOP owner), for the reuse-cache
+    // eligibility gate. Same registry lookup as skinTempFamily but WITHOUT the WHOOP5 fallback, so a ring /
+    // import / unknown owner resolves to null and is never cached. Mirrors the Swift reuse gate's inline
+    // DeviceFamily.forRegistryDevice(model:brand:).
+    override suspend fun registeredWhoopFamily(deviceId: String): DeviceFamily? {
+        val d = registry.all().firstOrNull { it.id == deviceId }
+        return DeviceFamily.forRegistryDevice(d?.model, d?.brand)
+    }
 }

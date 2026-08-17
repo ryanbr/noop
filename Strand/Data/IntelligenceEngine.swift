@@ -740,25 +740,26 @@ final class IntelligenceEngine: ObservableObject {
                 // ── #1005 BATTERY: per-day reuse (see `dayScanCache`) ───────────────────────────────
                 // Reuse this night's already-scored `DayScan` when its scored inputs are provably unchanged
                 // since we last scored it THIS session, skipping the 7 stream reads + `analyzeDay`. Gated to a
-                // registered WHOOP 4.0 owner — the reported drain (a 4.0 with a 1.26 GB store) and the ONE
-                // family whose classification is unambiguous and identical on both platforms (a 4.0 always
-                // streams gravity, so its `providedSleep` is empty and the reuse is byte-identical; a ring's
-                // `providedSleep` could change a day without an HR move). 5/MG is a deliberate follow-up, not
-                // cached here, so this stays conservative on a data-loss-sensitive path. The per-day key folds
-                // the night's HR fingerprint (the SAME witness the whole-pass gate at the top trusts) and the
-                // window-wide skin anchor (a re-anchor from another night shifts this night's skin conversion
-                // without moving its HR). Pass-global inputs (profile/baselines1/toggles) already dropped the
-                // whole cache above on change. A miss falls straight through to the identical full path.
+                // registered WHOOP owner (4.0 or 5/MG) via the UN-coalesced `forRegistryDevice` — which
+                // returns nil for a ring/import/unknown, so the cache never treats one as a WHOOP (a ring's
+                // `providedSleep` could change a day without an HR move; a WHOOP always streams gravity, so
+                // its `providedSleep` is empty and the reuse is byte-identical). The per-day key folds the
+                // night's HR fingerprint (the SAME witness the whole-pass gate at the top trusts) and, for a
+                // 4.0, the window-wide skin anchor (a re-anchor from another night shifts that night's skin
+                // conversion without moving its HR). A 5/MG banks skin-temp centidegrees directly — no
+                // per-device raw anchor — so its anchor slot stays nil. Pass-global inputs (profile/
+                // baselines1/toggles) already dropped the whole cache above on change. A miss falls straight
+                // through to the identical full path.
                 var dayCacheKey: String? = nil
                 if dayCacheEligible,
-                   DeviceFamily.forRegistryDevice(
+                   let ownerFamily = DeviceFamily.forRegistryDevice(
                         model: regDevices.first(where: { $0.id == owner })?.model,
-                        brand: regDevices.first(where: { $0.id == owner })?.brand) == .whoop4 {
-                    // Resolve the window-wide anchor BEFORE the gate (it's a key input); once per owner, reads
-                    // the sparse skin stream — not the big HR one. This pre-populates `skinAnchorByOwner`, so
-                    // the existing per-day anchor block below sees the owner already resolved and is a no-op —
-                    // byte-identical anchor either way.
-                    if !skinAnchorResolvedOwners.contains(owner) {
+                        brand: regDevices.first(where: { $0.id == owner })?.brand) {
+                    // Resolve the 4.0 window-wide anchor BEFORE the gate (it's a key input); once per owner,
+                    // reads the sparse skin stream — not the big HR one. This pre-populates `skinAnchorByOwner`,
+                    // so the existing per-day anchor block below sees the owner already resolved and is a
+                    // no-op — byte-identical anchor either way. Skipped for a 5/MG (anchor stays nil).
+                    if ownerFamily == .whoop4, !skinAnchorResolvedOwners.contains(owner) {
                         let windowSkin = (try? await store.skinTempSamples(deviceId: owner,
                                                                            from: skinAnchorScanFrom,
                                                                            to: skinAnchorScanTo,
