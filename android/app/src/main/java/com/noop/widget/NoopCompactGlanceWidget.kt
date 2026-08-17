@@ -131,7 +131,8 @@ private fun CompactWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = snap.heartRate?.let { "♥ $it" } ?: "♥ - ",
-                style = TextStyle(color = textPrimary, fontSize = 13.sp),
+                // Dim a carried-over reading so a stale HR can't masquerade as a live one.
+                style = TextStyle(color = if (snap.heartRateStale) textSecondary else textPrimary, fontSize = 13.sp),
             )
             Spacer(modifier = GlanceModifier.width(10.dp))
             Image(
