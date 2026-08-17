@@ -1607,6 +1607,13 @@ struct TodayView: View {
                                     .help("Acute (7-day) vs chronic (28-day) training load. 0.8-1.3 is the sweet spot.")
                             }
                         }
+                        // #1405: mark this as a DIFFERENT axis from the home Synthesis word (the Charge-%
+                        // band). Stated where the two get compared, so "Primed" here vs "Steady" there
+                        // doesn't read as one value contradicting itself. Keep parity with Kotlin.
+                        Text("A training read, separate from your Charge score.")
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
                         Text(LocalizedStringKey(r.summary)).font(StrandFont.subhead)
                             .foregroundStyle(StrandPalette.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)

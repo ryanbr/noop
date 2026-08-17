@@ -722,6 +722,10 @@
     ],
     [
       "android/app/src/main/java/com/noop/ui/TodayScreen.kt",
+      "A training read, separate from your Charge score."
+    ],
+    [
+      "android/app/src/main/java/com/noop/ui/TodayScreen.kt",
       "CALIBRATING"
     ],
     [

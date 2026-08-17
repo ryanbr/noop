@@ -206786,6 +206786,64 @@
           }
         }
       }
+    },
+    "A training read, separate from your Charge score.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein Trainingswert, unabhängig von deinem Charge-Score."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una lectura de entrenamiento, independiente de tu puntuación de Charge."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une lecture d'entraînement, distincte de votre score Charge."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una lettura per l'allenamento, separata dal tuo punteggio Charge."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odczyt treningowy, niezależny od Twojego wyniku Charge."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uma leitura de treino, separada da tua pontuação de Charge."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тренировочный показатель, отдельный от вашего показателя Charge."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "训练参考，与你的 Charge 分数无关。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "訓練參考，與你的 Charge 分數無關。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

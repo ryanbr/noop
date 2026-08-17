@@ -6096,6 +6096,15 @@ private fun ReadinessSection(days: List<DailyMetric>, carriedDay: DailyMetric? =
                 }
             }
 
+            // #1405: mark this card as a DIFFERENT axis from the home Synthesis word (which bands the
+            // Charge %). Stated at the point the two get compared, so "Primed" here vs "Steady" there
+            // doesn't read as one value contradicting itself. Raw string, matching this card's copy.
+            Text(
+                "A training read, separate from your Charge score.",
+                style = NoopType.footnote,
+                color = Palette.textTertiary,
+            )
+
             // Plain-English summary.
             Text(
                 readiness.summary,
