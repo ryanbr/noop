@@ -479,14 +479,23 @@ final class AppModel: ObservableObject {
     private func recordAppVersionChangeIfNeeded() async {
         let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
         let last = UserDefaults.standard.string(forKey: "noop.lastSeenVersion")
-        if AppVersionEvent.shouldRecord(lastSeen: last, current: current), let last,
-           let store = await repo.storeHandle() {
-            let payload = AppVersionEvent.payloadJson(from: last, to: current,
-                                                      schemaVersion: WhoopStoreInfo.schemaVersion)
-            try? await store.recordEvent(deviceId: "noop-app", ts: Int(Date().timeIntervalSince1970),
-                                         kind: AppVersionEvent.kind, payloadJSON: payload)
+        guard AppVersionEvent.shouldRecord(lastSeen: last, current: current), let last else {
+            // First launch (last == nil) or unchanged: nothing to record, just anchor the pointer.
+            UserDefaults.standard.set(current, forKey: "noop.lastSeenVersion")
+            return
         }
-        UserDefaults.standard.set(current, forKey: "noop.lastSeenVersion")
+        // A real transition: advance the pointer only once the event is durably recorded, so a not-yet-ready
+        // store or a failed insert retries next launch instead of silently dropping the change.
+        guard let store = await repo.storeHandle() else { return }
+        let payload = AppVersionEvent.payloadJson(from: last, to: current,
+                                                  schemaVersion: WhoopStoreInfo.schemaVersion)
+        do {
+            try await store.recordEvent(deviceId: "noop-app", ts: Int(Date().timeIntervalSince1970),
+                                        kind: AppVersionEvent.kind, payloadJSON: payload)
+            UserDefaults.standard.set(current, forKey: "noop.lastSeenVersion")
+        } catch {
+            // insert failed — leave last-seen so the transition is retried next launch
+        }
     }
 
     private func wireSourceCoordinator() async {

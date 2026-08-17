@@ -206,7 +206,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val current = com.noop.BuildConfig.VERSION_NAME
         val last = prefs.getString("lastSeenVersion", null)
         if (com.noop.data.AppVersionEvent.shouldRecord(last, current)) {
-            runCatching {
+            // A real transition: advance the pointer only once the event is durably recorded, so a failed
+            // insert (or a not-yet-ready store) retries next launch instead of silently dropping the change.
+            val recorded = runCatching {
                 repository.recordEvent(
                     deviceId = "noop-app",
                     ts = System.currentTimeMillis() / 1000,
@@ -215,9 +217,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         from = last!!, to = current, schemaVersion = com.noop.data.WhoopDatabase.SCHEMA_VERSION,
                     ),
                 )
-            }
+            }.isSuccess
+            if (recorded) prefs.edit().putString("lastSeenVersion", current).apply()
+        } else {
+            // First launch (last == null) or unchanged: nothing to record, just anchor the pointer.
+            prefs.edit().putString("lastSeenVersion", current).apply()
         }
-        prefs.edit().putString("lastSeenVersion", current).apply()
     }
 
     /** Re-read the active device row and republish its display name. Called at launch + after a setActive. */
