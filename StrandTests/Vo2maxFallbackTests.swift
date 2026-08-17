@@ -7,6 +7,10 @@ import WhoopStore
 /// waist-based estimate when a waist is set, else falls back to the Uth 2004 HR-ratio estimate
 /// (15.3·HRmax/RHR, HRmax = Tanaka(age)) — so a user past the age+RHR fitness-age gate gets a VO₂max
 /// instead of a blank. Twin of the Android Vo2maxFallbackTest.
+///
+/// `@MainActor`: `IntelligenceEngine.fitnessAgeRows` is main-actor-isolated, so the whole fixture
+/// runs on the main actor to call it from a synchronous test context.
+@MainActor
 final class Vo2maxFallbackTests: XCTestCase {
 
     /// ≥ minCoverageDays (4) RHR nights + strain so the fitness-age gate can compute.

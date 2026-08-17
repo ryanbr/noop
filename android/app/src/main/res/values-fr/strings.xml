@@ -1209,7 +1209,7 @@
     <string name="l10n_health_screen_skin_temperature_f59127f6">Température cutanée</string>
     <string name="l10n_health_screen_spo_respiratory_rate_and_skin_temperature_0ae0ad8f">SpO2, le taux respiratoire et la température de la peau sont la fenêtre du sommeil</string>
     <string name="l10n_health_screen_steps_cdde4f20">Pas</string>
-    <string name="l10n_health_screen_unlocks_your_vo_max_b3c67dda">Débloque votre VO₂max</string>
+    <string name="l10n_health_screen_sharpens_your_vo_max_c9d52991">Affine votre VO₂max</string>
     <string name="l10n_health_screen_vital_signs_e7d9e1b1">Signes vitaux</string>
     <string name="l10n_health_screen_vitality_be320b06">Vitalité</string>
     <string name="l10n_health_screen_vo2max_21214fb6">VO₂ max</string>
@@ -2000,7 +2000,7 @@
     <string name="l10n_settings_screen_custom_hr_zones_84736ca5">Zones FC personnalisées</string>
     <string name="l10n_settings_screen_custom_hr_zones_hint_f7fa3bae">Définis la fréquence cardiaque à laquelle chaque zone commence. Désactive pour rétablir les zones par défaut en pourcentage de la fréquence maximale.</string>
     <string name="l10n_settings_screen_zone_starts_a0a60d45">Début de la zone %1$d</string>
-    <string name="l10n_health_screen_add_your_waist_to_unlock_your_vo_max_94c646cb">Ajoute ton tour de taille pour débloquer ta VO₂max</string>
+    <string name="l10n_health_screen_add_your_waist_for_a_more_accurate_vo_max_829f5e1e">Ajoute ton tour de taille pour une VO₂max plus précise</string>
     <string name="l10n_health_screen_fix_in_settings_d7472915">Corriger dans les réglages</string>
     <string name="l10n_app_changelog_personalized_heart_rate_zones_compare_and_8d89ee2a">Zones de fréquence cardiaque personnalisées, comparer et changer de sangle, et des lectures HRV, sommeil et Oura plus honnêtes</string>
     <string name="l10n_breathe_screen_elapsed_target_b1c2d3e4">%1$s / %2$s</string>

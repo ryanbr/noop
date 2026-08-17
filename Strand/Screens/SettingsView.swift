@@ -459,10 +459,11 @@ struct SettingsView: View {
                     }
                 }
                 rowDivider
-                // Waist (optional). Unlike the rows above it, an empty waist is valid (0 = unset) —
-                // it's the ONE measurement that ADDS the VO₂max estimate alongside Fitness Age. It does
-                // NOT sharpen the Fitness Age itself (the body term cancels in the Nes model), so it sits
-                // apart with an honest "adds your VO₂max estimate" note rather than implying it tunes the age.
+                // Waist (optional). Unlike the rows above it, an empty waist is valid (0 = unset).
+                // VO₂max is ALWAYS offered (the Uth HR-ratio fallback needs no waist, #1391); a waist just
+                // upgrades it to the more accurate Nes waist-based estimate. It does NOT sharpen the Fitness
+                // Age itself (the body term cancels in the Nes model), so the note says it makes VO₂max more
+                // accurate rather than implying it tunes the age.
                 FormRow(label: "Waist (optional)") {
                     // Imperial mode steps in whole inches and stores the cm equivalent; metric steps in cm.
                     if unitSystem == .imperial {
@@ -471,7 +472,7 @@ struct SettingsView: View {
                         waistCentimetresField(waistCm: $profile.waistCm)
                     }
                 }
-                Text("Optional: adds your VO₂max estimate. The Fitness Age itself doesn't need it. Measure around your middle, at the navel.")
+                Text("Optional: VO₂max already uses your heart rate; a waist makes it more accurate. The Fitness Age itself doesn't need it. Measure around your middle, at the navel.")
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)

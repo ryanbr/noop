@@ -643,7 +643,7 @@ private struct ContributorBar: View {
 ///   • no value yet → the checklist card directly, with required-missing inputs deep-linking to Settings.
 ///
 /// The checklist groups inputs by ROLE exactly as the engine reports them: "Drives your Fitness Age"
-/// (age/sex/resting-HR/activity) vs "Unlocks your VO₂max" (height+weight/waist) — never implying the body
+/// (age/sex/resting-HR/activity) vs "Sharpens your VO₂max" (height+weight/waist) — never implying the body
 /// measurements sharpen the age (the body term cancels in the model).
 private struct FitnessAgeSection: View {
     @EnvironmentObject var repo: Repository
@@ -653,7 +653,8 @@ private struct FitnessAgeSection: View {
 
     /// Latest weekly Fitness Age (years) read from the "fitness_age" metricSeries, nil until loaded/computed.
     @State private var fitnessAge: Double?
-    /// Latest estimated VO₂max (ml/kg/min) from "vo2max_est" — only present once a waist is set.
+    /// Latest estimated VO₂max (ml/kg/min) from "vo2max_est" — present even without a waist (the Uth
+    /// HR-ratio fallback, #1391); a waist upgrades it to the more accurate Nes waist-based estimate.
     @State private var vo2max: Double?
     @State private var loaded = false
     /// True while a manual "refresh Fitness Age" recompute is running (spinner in the readiness card).
@@ -725,9 +726,9 @@ private struct FitnessAgeSection: View {
     @ViewBuilder private var content: some View {
         if let age = fitnessAge {
             heroCard(age: age)
-            // Prompt on WAIST being unset (the sole gate), not on vo2max == nil — the latter can be
-            // transiently nil right after waist is set, before the recompute writes vo2max_est.
-            if profile.waistCm <= 0 { vo2maxUnlockPrompt }
+            // Nudge on WAIST being unset (the sole gate). VO₂max is already shown (the Uth fallback), so
+            // the prompt offers to sharpen it to the Nes waist-based estimate, not to reveal a missing number.
+            if profile.waistCm <= 0 { vo2maxSharpenPrompt }
             if showReadiness {
                 ReadinessChecklistCard(readiness: readiness,
                                        lead: nil,
@@ -780,16 +781,16 @@ private struct FitnessAgeSection: View {
     /// The shown-value hero: a scenic Charge-world backdrop, the big Fitness Age number, a
     /// younger/older-than-your-age subtitle, the optional VO₂max, the ±band disclaimer, and the two
     /// affordances (tap-through to the trend + the "How accurate is this?" disclosure).
-    /// Shown when the Fitness Age computes but VO₂max doesn't — the one missing input is a waist
-    /// measurement (the Nes waist-variant needs it). Tapping opens Settings so it's a one-step fix,
-    /// instead of the number silently never appearing (a common "where's my VO₂max?" question).
-    private var vo2maxUnlockPrompt: some View {
+    /// VO₂max is already shown from heart rate alone (the Uth fallback), so this nudges the user to add a
+    /// waist to upgrade it to the more accurate Nes waist-based estimate. Tapping opens Settings — a
+    /// one-step sharpen, shown only while no waist is set.
+    private var vo2maxSharpenPrompt: some View {
         Button { fitnessSheet = .settings } label: {
             HStack(spacing: 8) {
                 Image(systemName: "lungs.fill")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(StrandPalette.metricCyan)
-                Text("Add your waist to unlock your VO₂max")
+                Text("Add your waist for a more accurate VO₂max")
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textSecondary)
                 Spacer(minLength: 0)
@@ -925,7 +926,7 @@ func fitnessReadyLeadCopy(rhrDays: Int, hasAge: Bool, hasSex: Bool) -> String {
 }
 
 /// The readiness checklist card: an optional lead line, then the engine's `items` as ✓/⚠/○ rows with
-/// their `detail` text, GROUPED by `.role` into "Drives your Fitness Age" and "Unlocks your VO₂max".
+/// their `detail` text, GROUPED by `.role` into "Drives your Fitness Age" and "Sharpens your VO₂max".
 /// A required-but-missing input shows a "Fix in Settings" affordance (the engine's required+missing
 /// rows are age/sex; resting-HR can only be earned by wearing the strap, so it gets no fix button).
 private struct ReadinessChecklistCard: View {
@@ -973,7 +974,7 @@ private struct ReadinessChecklistCard: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 group(title: "Drives your Fitness Age", items: drivesAge)
-                group(title: "Unlocks your VO₂max", items: unlocksVO2)
+                group(title: "Sharpens your VO₂max", items: unlocksVO2)
                 Text("Built from published methods (Nes/HUNT) on \(Platform.deviceNounPhrase). It's a fitness comparison against an average peer your age, not a biological or medical age.")
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textTertiary)

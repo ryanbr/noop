@@ -115584,60 +115584,60 @@
         }
       }
     },
-    "Optional: adds your VO₂max estimate. The Fitness Age itself doesn't need it. Measure around your middle, at the navel.": {
+    "Optional: VO₂max already uses your heart rate; a waist makes it more accurate. The Fitness Age itself doesn't need it. Measure around your middle, at the navel.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Optional: ergänzt deine VO₂max-Schätzung. Das Fitnessalter selbst braucht sie nicht. Miss um deine Mitte, auf Höhe des Bauchnabels."
+            "value": "Optional: Deine VO₂max nutzt bereits deinen Puls; ein Taillenmaß macht sie genauer. Das Fitnessalter selbst braucht sie nicht. Miss um deine Mitte, auf Höhe des Bauchnabels."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Opcional: añade tu estimación de VO₂max. La Edad fitness en sí no lo necesita. Mide alrededor de tu cintura, a la altura del ombligo."
+            "value": "Opcional: tu VO₂max ya usa tu frecuencia cardíaca; la cintura la hace más precisa. La Edad fitness en sí no lo necesita. Mide alrededor de tu cintura, a la altura del ombligo."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Facultatif : ajoute votre estimation de VO₂max. L'Âge fitness lui-même n'en a pas besoin. Mesurez autour de votre taille, au niveau du nombril."
+            "value": "Facultatif : votre VO₂max utilise déjà votre fréquence cardiaque ; le tour de taille la rend plus précise. L'Âge fitness lui-même n'en a pas besoin. Mesurez autour de votre taille, au niveau du nombril."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Facoltativo, aggiunge la tua stima del VO₂max. L'Età di fitness in sé non ne ha bisogno. Misura intorno al punto vita, all'altezza dell'ombelico."
+            "value": "Facoltativo: il tuo VO₂max usa già la frequenza cardiaca; il girovita lo rende più preciso. L'Età di fitness in sé non ne ha bisogno. Misura intorno al punto vita, all'altezza dell'ombelico."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Opcional: adiciona a tua estimativa de VO₂máx. A Idade do Fitness em si não precisa disso. Meça à volta do teu meio, no umbigo."
+            "value": "Opcional: a tua VO₂máx já usa a frequência cardíaca; a cintura torna-a mais precisa. A Idade do Fitness em si não precisa disso. Meça à volta do teu meio, no umbigo."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Необязательно: добавляет оценку VO₂max. Самому Фитнес-возрасту это не требуется. Измеряйте в районе талии, на уровне пупка."
+            "value": "Необязательно: VO₂max уже использует ваш пульс; обхват талии делает оценку точнее. Самому Фитнес-возрасту это не требуется. Измеряйте в районе талии, на уровне пупка."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "可选，会加上你的最大摄氧量估算。体能年龄本身并不需要它。请在腰部、肚脐位置测量。"
+            "value": "可选，最大摄氧量已使用你的心率；腰围会让它更准确。体能年龄本身并不需要它。请在腰部、肚脐位置测量。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "可選，會加上你的最大攝氧量估算。體能年齡本身並不需要它。請在腰部、肚臍位置測量。"
+            "value": "可選，最大攝氧量已使用你的心率；腰圍會讓它更準確。體能年齡本身並不需要它。請在腰部、肚臍位置測量。"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Opcjonalnie: dodaje szacunkową wartość VO₂max. Sam wiek fitness tego nie potrzebuje. Zmierz się wokół środka, w pępku."
+            "value": "Opcjonalnie: Twoje VO₂max już korzysta z tętna; obwód w talii zwiększa dokładność. Sam wiek fitness tego nie potrzebuje. Zmierz się wokół środka, w pępku."
           }
         }
       }
@@ -165150,60 +165150,60 @@
         }
       }
     },
-    "Unlocks your VO₂max": {
+    "Sharpens your VO₂max": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Schaltet deine VO₂max frei"
+            "value": "Schärft deine VO₂max"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Desbloquea tu VO₂max"
+            "value": "Afina tu VO₂max"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Débloque votre VO₂max"
+            "value": "Affine votre VO₂max"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sblocca il tuo VO₂max"
+            "value": "Affina il tuo VO₂max"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Desbloqueia o teu VO₂max"
+            "value": "Aprimora o teu VO₂max"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Разблокирует ваш VO₂max"
+            "value": "Уточняет ваш VO₂max"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "解锁你的最大摄氧量"
+            "value": "让你的最大摄氧量更准确"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "解鎖你的最大攝氧量"
+            "value": "讓你的最大攝氧量更準確"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Odblokowuje VO₂max"
+            "value": "Uściśla Twoje VO₂max"
           }
         }
       }
@@ -199713,66 +199713,66 @@
         }
       }
     },
-    "Add your waist to unlock your VO₂max": {
+    "Add your waist for a more accurate VO₂max": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Taille eintragen, um deine VO₂max freizuschalten"
+            "value": "Taille eintragen für eine genauere VO₂max"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Add your waist to unlock your VO₂max"
+            "value": "Add your waist for a more accurate VO₂max"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Añade tu cintura para desbloquear tu VO₂máx"
+            "value": "Añade tu cintura para una VO₂máx más precisa"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ajoute ton tour de taille pour débloquer ta VO₂max"
+            "value": "Ajoute ton tour de taille pour une VO₂max plus précise"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aggiungi il girovita per sbloccare la tua VO₂max"
+            "value": "Aggiungi il girovita per una VO₂max più precisa"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Podaj obwód talii, aby odblokować VO₂max"
+            "value": "Podaj obwód talii, aby uzyskać dokładniejszą VO₂max"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Adiciona a tua cintura para desbloquear a tua VO₂máx"
+            "value": "Adiciona a tua cintura para uma VO₂máx mais precisa"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Укажите обхват талии, чтобы открыть VO₂max"
+            "value": "Укажите обхват талии для более точного VO₂max"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "添加腰围以解锁你的最大摄氧量"
+            "value": "添加腰围以获得更准确的最大摄氧量"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "新增腰圍以解鎖你的最大攝氧量"
+            "value": "新增腰圍以獲得更準確的最大攝氧量"
           }
         }
       }

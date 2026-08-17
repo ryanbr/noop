@@ -1403,7 +1403,7 @@
     <string name="l10n_health_screen_skin_temperature_f59127f6">Skin Temperature</string>
     <string name="l10n_health_screen_spo_respiratory_rate_and_skin_temperature_0ae0ad8f">SpO₂, respiratory rate and skin temperature are sleep-window </string>
     <string name="l10n_health_screen_steps_cdde4f20">Steps</string>
-    <string name="l10n_health_screen_unlocks_your_vo_max_b3c67dda">Unlocks your VO₂max</string>
+    <string name="l10n_health_screen_sharpens_your_vo_max_c9d52991">Sharpens your VO₂max</string>
     <string name="l10n_health_screen_vital_signs_e7d9e1b1">Vital Signs</string>
     <string name="l10n_health_screen_vitality_be320b06">Vitality</string>
     <string name="l10n_health_screen_vo2max_21214fb6">VO₂ Max</string>
@@ -2027,7 +2027,7 @@
     <string name="l10n_settings_screen_custom_hr_zones_84736ca5">Custom HR zones</string>
     <string name="l10n_settings_screen_custom_hr_zones_hint_f7fa3bae">Set the BPM where each zone begins. Turn off to restore the default percentage-of-max zones.</string>
     <string name="l10n_settings_screen_zone_starts_a0a60d45">Zone %1$d starts</string>
-    <string name="l10n_health_screen_add_your_waist_to_unlock_your_vo_max_94c646cb">Add your waist to unlock your VO₂max</string>
+    <string name="l10n_health_screen_add_your_waist_for_a_more_accurate_vo_max_829f5e1e">Add your waist for a more accurate VO₂max</string>
     <string name="l10n_health_screen_fix_in_settings_d7472915">Fix in Settings</string>
     <string name="l10n_app_changelog_personalized_heart_rate_zones_compare_and_8d89ee2a">Personalized heart-rate zones, compare and switch between straps, and more honest HRV, sleep and Oura reads</string>
     <string name="l10n_breathe_screen_elapsed_target_b1c2d3e4">%1$s / %2$s</string>

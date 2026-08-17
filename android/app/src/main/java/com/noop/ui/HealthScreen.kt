@@ -628,7 +628,7 @@ private fun ContributorBar(
 // latest "fitness_age" the IntelligenceEngine writes into metricSeries under the computed "-noop"
 // source — this section only READS it; it never recomputes the headline. Honest framing throughout:
 // it's a fitness comparison (± 5 yr band), never a biological age, and weight/height/waist live under
-// "Unlocks your VO₂max", never as if they sharpen the age. When no value exists yet we show the
+// "Sharpens your VO₂max", never as if they sharpen the age. When no value exists yet we show the
 // readiness checklist instead, so the user knows exactly what's still needed.
 
 /** Fitness Age readiness from what a screen can see: RHR coverage over the last 7 merged daily rows
@@ -697,9 +697,9 @@ private fun FitnessAgeSection(vm: AppViewModel, days: List<DailyMetric>, profile
                 onHowAccurate = { showChecklist = !showChecklist },
                 checklistOpen = showChecklist,
             )
-            // #1: the weekly Fitness Age computed but VO₂max didn't — the one missing input is a waist
-            // measurement. Key on waist being unset (not vo2max == null, which is transiently null right
-            // after waist is set) — prompt for it (tap → Settings) instead of silently omitting the number.
+            // #1391: VO₂max is shown even without a waist (the Uth HR-ratio fallback), so a waist no longer
+            // "unlocks" the number — it upgrades it to the more accurate Nes waist-based estimate. Key on
+            // waist being unset and nudge for it (tap → Settings) to sharpen the figure already displayed.
             if (profile.waistCm <= 0.0) {
                 Row(
                     modifier = Modifier
@@ -713,7 +713,7 @@ private fun FitnessAgeSection(vm: AppViewModel, days: List<DailyMetric>, profile
                     Icon(Icons.Filled.MonitorHeart, contentDescription = null,
                         tint = Palette.metricCyan, modifier = Modifier.size(16.dp))
                     Text(
-                        uiString(R.string.l10n_health_screen_add_your_waist_to_unlock_your_vo_max_94c646cb),
+                        uiString(R.string.l10n_health_screen_add_your_waist_for_a_more_accurate_vo_max_829f5e1e),
                         style = NoopType.footnote, color = Palette.textSecondary,
                         modifier = Modifier.weight(1f),
                     )
@@ -1027,7 +1027,7 @@ private fun fitnessReadyLead(rhrDays: Int, hasAge: Boolean, hasSex: Boolean): St
 }
 
 /** The readiness checklist card: each input as a ✓ / ⚠ / ○ glyph + its detail, grouped by role into
- *  "Drives your Fitness Age" and "Unlocks your VO₂max". When [headed] (no value yet) it leads with the
+ *  "Drives your Fitness Age" and "Sharpens your VO₂max". When [headed] (no value yet) it leads with the
  *  [lead] countdown and floats the required-missing items to the top of their group. */
 @Composable
 private fun FitnessReadinessCard(
@@ -1088,7 +1088,7 @@ private fun FitnessReadinessCard(
             }
 
             ReadinessGroup(title = uiString(R.string.l10n_health_screen_drives_your_fitness_age_9d0d1219), items = drivesAge, onOpenSettings = onOpenSettings)
-            ReadinessGroup(title = uiString(R.string.l10n_health_screen_unlocks_your_vo_max_b3c67dda), items = unlocksVo2, onOpenSettings = onOpenSettings)
+            ReadinessGroup(title = uiString(R.string.l10n_health_screen_sharpens_your_vo_max_c9d52991), items = unlocksVo2, onOpenSettings = onOpenSettings)
 
             Text(
                 uiString(R.string.l10n_health_screen_weight_height_and_waist_add_a_fd2699f5),

@@ -1337,7 +1337,7 @@
     <string name="l10n_health_screen_skin_temperature_f59127f6">皮肤体温</string>
     <string name="l10n_health_screen_spo_respiratory_rate_and_skin_temperature_0ae0ad8f">血氧、呼吸频率和皮肤体温数据仅在睡眠期间有效</string>
     <string name="l10n_health_screen_steps_cdde4f20">步数</string>
-    <string name="l10n_health_screen_unlocks_your_vo_max_b3c67dda">解锁您的最大摄氧量(VO₂max)预估</string>
+    <string name="l10n_health_screen_sharpens_your_vo_max_c9d52991">让你的最大摄氧量(VO₂max)更准确</string>
     <string name="l10n_health_screen_vital_signs_e7d9e1b1">生命体征</string>
     <string name="l10n_health_screen_vitality_be320b06">生命力指数</string>
     <string name="l10n_health_screen_vo2max_21214fb6">VO₂max</string>
@@ -1910,7 +1910,7 @@
     <string name="l10n_settings_screen_custom_hr_zones_84736ca5">自定义心率区间</string>
     <string name="l10n_settings_screen_custom_hr_zones_hint_f7fa3bae">设置每个区间开始时的心率。关闭可恢复按最大心率百分比划分的默认区间。</string>
     <string name="l10n_settings_screen_zone_starts_a0a60d45">区间 %1$d 起点</string>
-    <string name="l10n_health_screen_add_your_waist_to_unlock_your_vo_max_94c646cb">添加腰围以解锁你的最大摄氧量</string>
+    <string name="l10n_health_screen_add_your_waist_for_a_more_accurate_vo_max_829f5e1e">添加腰围以获得更准确的最大摄氧量</string>
     <string name="l10n_health_screen_fix_in_settings_d7472915">在设置中修复</string>
     <string name="l10n_app_changelog_personalized_heart_rate_zones_compare_and_8d89ee2a">自定义心率区间、比较并切换设备，以及更真实的 HRV、睡眠与 Oura 读数</string>
     <string name="l10n_breathe_screen_about_pace_o3p4q5r6">关于此节奏</string>

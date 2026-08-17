@@ -1351,7 +1351,7 @@
     <string name="l10n_health_screen_skin_temperature_f59127f6">Temperatura skóry</string>
     <string name="l10n_health_screen_spo_respiratory_rate_and_skin_temperature_0ae0ad8f">SpO₂, częstość oddechów i temperatura skóry to okno snu</string>
     <string name="l10n_health_screen_steps_cdde4f20">Kroki</string>
-    <string name="l10n_health_screen_unlocks_your_vo_max_b3c67dda">Odblokowuje VO₂max</string>
+    <string name="l10n_health_screen_sharpens_your_vo_max_c9d52991">Uściśla Twoje VO₂max</string>
     <string name="l10n_health_screen_vital_signs_e7d9e1b1">Znaki życiowe</string>
     <string name="l10n_health_screen_vitality_be320b06">Witalność</string>
     <string name="l10n_health_screen_vo2max_21214fb6">VO₂max</string>
@@ -1977,7 +1977,7 @@
     <string name="l10n_settings_screen_custom_hr_zones_84736ca5">Własne strefy HR</string>
     <string name="l10n_settings_screen_custom_hr_zones_hint_f7fa3bae">Ustaw tętno, przy którym zaczyna się każda strefa. Wyłącz, aby przywrócić domyślne strefy oparte na procencie tętna maksymalnego.</string>
     <string name="l10n_settings_screen_zone_starts_a0a60d45">Początek strefy %1$d</string>
-    <string name="l10n_health_screen_add_your_waist_to_unlock_your_vo_max_94c646cb">Podaj obwód talii, aby odblokować VO₂max</string>
+    <string name="l10n_health_screen_add_your_waist_for_a_more_accurate_vo_max_829f5e1e">Podaj obwód talii, aby uzyskać dokładniejszą VO₂max</string>
     <string name="l10n_health_screen_fix_in_settings_d7472915">Popraw w Ustawieniach</string>
     <string name="l10n_breathe_screen_about_pace_o3p4q5r6">O tym tempie</string>
     <string name="l10n_breathe_screen_breathe_in_a5b6c7d8">Wdech…</string>

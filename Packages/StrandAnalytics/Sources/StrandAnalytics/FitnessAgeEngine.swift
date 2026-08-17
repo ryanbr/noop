@@ -230,7 +230,9 @@ extension FitnessAgeEngine {
                 detail: "\(activityDays) of last 7 days"),
             FitnessReadinessItem(key: "bodyMetrics", label: "Height & weight",
                 status: hasHeightWeight ? .satisfied : .missing, required: false, role: .unlocksVO2max,
-                detail: hasHeightWeight ? "Unlocks your VO₂max" : "Add to also see VO₂max"),
+                // Height/weight feed calories/BMI, not the VO₂max estimate (Nes uses waist; the Uth
+                // fallback uses HR only). So neutral "Set" — never implying they gate or sharpen VO₂max.
+                detail: hasHeightWeight ? "Set" : "Add it in Settings"),
             FitnessReadinessItem(key: "waist", label: "Waist (optional)",
                 status: hasWaist ? .satisfied : .missing, required: false, role: .unlocksVO2max,
                 detail: hasWaist ? "Sharpens VO₂max" : "Optional - sharpens VO₂max"),

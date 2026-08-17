@@ -155,7 +155,9 @@ object FitnessAgeEngine {
             FitnessReadinessItem("bodyMetrics", "Height & weight",
                 if (hasHeightWeight) FitnessReadinessStatus.SATISFIED else FitnessReadinessStatus.MISSING,
                 required = false, role = FitnessReadinessRole.UNLOCKS_VO2MAX,
-                detail = if (hasHeightWeight) "Unlocks your VO₂max" else "Add to also see VO₂max"),
+                // Height/weight feed calories/BMI, not the VO₂max estimate (Nes uses waist; the Uth
+                // fallback uses HR only). So neutral "Set" — never implying they gate or sharpen VO₂max.
+                detail = if (hasHeightWeight) "Set" else "Add it in Settings"),
             FitnessReadinessItem("waist", "Waist (optional)",
                 if (hasWaist) FitnessReadinessStatus.SATISFIED else FitnessReadinessStatus.MISSING,
                 required = false, role = FitnessReadinessRole.UNLOCKS_VO2MAX,

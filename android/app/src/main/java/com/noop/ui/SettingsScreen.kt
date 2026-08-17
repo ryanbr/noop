@@ -983,7 +983,11 @@ fun SettingsScreen(
                         }
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            text = if (hasWaist) "Adds your VO₂max estimate" else "Optional · adds your VO₂max estimate",
+                            // #1391: VO₂max is offered from heart rate alone (Uth HR-ratio) even without a
+                            // waist; a waist switches it to the more accurate body-composition estimate. So the
+                            // sub-text now says what's used + how a waist helps, not "adds/unlocks".
+                            text = if (hasWaist) "Your VO₂max uses your waist for a more accurate estimate"
+                                   else "Optional · VO₂max already uses your heart rate; a waist makes it more accurate",
                             style = NoopType.footnote,
                             color = if (hasWaist) Palette.accent else Palette.textTertiary,
                         )
