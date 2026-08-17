@@ -242,11 +242,15 @@ enum DebugDataDiagnostics {
         var parts: [String] = []
         var spine: [DailyMetric] = []
         var activeRows: [DailyMetric] = []
+        var computedActive: [DailyMetric] = []
+        var computedSpine: [DailyMetric] = []
         for id in ids {
             let rows = (try? await store.dailyMetrics(deviceId: id, from: "0000-01-01", to: "9999-12-31")) ?? []
             parts.append("\(id)=\(rows.count)")
             if id == "my-whoop" { spine = rows }
             if id == did { activeRows = rows }
+            if id == "\(did)-noop" { computedActive = rows }
+            if id == "my-whoop-noop" { computedSpine = rows }
         }
         lines.append("Days: " + parts.joined(separator: "  "))
         // #731: this line used to read ONLY "my-whoop" and label it "Recent 7d". For a live-BLE user whose
@@ -269,6 +273,11 @@ enum DebugDataDiagnostics {
         var emitted = false
         if let l = recentLine(activeRows, id: did) { lines.append(l); emitted = true }
         if did != "my-whoop", let l = recentLine(spine, id: "my-whoop") { lines.append(l); emitted = true }
+        // The COMPUTED "-noop" spine, where steps/activeKcalEst are actually written — compare with the raw
+        // lines above: kcal/steps populated here but 0 there ⇒ the raw merge/view drops them (cosmetic); 0 on
+        // BOTH ⇒ genuinely not computed (a real gap). Mirrors the Android twin.
+        if let l = recentLine(computedActive, id: "\(did)-noop") { lines.append(l); emitted = true }
+        if did != "my-whoop", let l = recentLine(computedSpine, id: "my-whoop-noop") { lines.append(l); emitted = true }
         if !emitted {
             lines.append("Recent: no day rows")
         }
