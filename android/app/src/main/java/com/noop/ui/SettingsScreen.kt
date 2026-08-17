@@ -987,7 +987,7 @@ fun SettingsScreen(
                             // waist; a waist switches it to the more accurate body-composition estimate. So the
                             // sub-text now says what's used + how a waist helps, not "adds/unlocks".
                             text = if (hasWaist) "Your VO₂max uses your waist for a more accurate estimate"
-                                   else "Optional · VO₂max already uses your heart rate; a waist makes it more accurate",
+                                   else "Optional · VO₂max builds from ~4 nights of heart rate; a waist makes it more accurate",
                             style = NoopType.footnote,
                             color = if (hasWaist) Palette.accent else Palette.textTertiary,
                         )

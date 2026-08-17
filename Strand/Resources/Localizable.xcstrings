@@ -115584,60 +115584,60 @@
         }
       }
     },
-    "Optional: VO₂max already uses your heart rate; a waist makes it more accurate. The Fitness Age itself doesn't need it. Measure around your middle, at the navel.": {
+    "Optional: VO₂max builds from about 4 nights of heart rate; a waist makes it more accurate. The Fitness Age itself doesn't need it. Measure around your middle, at the navel.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Optional: Deine VO₂max nutzt bereits deinen Puls; ein Taillenmaß macht sie genauer. Das Fitnessalter selbst braucht sie nicht. Miss um deine Mitte, auf Höhe des Bauchnabels."
+            "value": "Optional: Deine VO₂max entsteht aus etwa 4 Nächten Puls-Daten; ein Taillenmaß macht sie genauer. Das Fitnessalter selbst braucht sie nicht. Miss um deine Mitte, auf Höhe des Bauchnabels."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Opcional: tu VO₂max ya usa tu frecuencia cardíaca; la cintura la hace más precisa. La Edad fitness en sí no lo necesita. Mide alrededor de tu cintura, a la altura del ombligo."
+            "value": "Opcional: tu VO₂max se calcula con unas 4 noches de frecuencia cardíaca; la cintura la hace más precisa. La Edad fitness en sí no lo necesita. Mide alrededor de tu cintura, a la altura del ombligo."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Facultatif : votre VO₂max utilise déjà votre fréquence cardiaque ; le tour de taille la rend plus précise. L'Âge fitness lui-même n'en a pas besoin. Mesurez autour de votre taille, au niveau du nombril."
+            "value": "Facultatif : votre VO₂max se construit à partir d'environ 4 nuits de fréquence cardiaque ; le tour de taille la rend plus précise. L'Âge fitness lui-même n'en a pas besoin. Mesurez autour de votre taille, au niveau du nombril."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Facoltativo: il tuo VO₂max usa già la frequenza cardiaca; il girovita lo rende più preciso. L'Età di fitness in sé non ne ha bisogno. Misura intorno al punto vita, all'altezza dell'ombelico."
+            "value": "Facoltativo: il tuo VO₂max si basa su circa 4 notti di frequenza cardiaca; il girovita lo rende più preciso. L'Età di fitness in sé non ne ha bisogno. Misura intorno al punto vita, all'altezza dell'ombelico."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Opcional: a tua VO₂máx já usa a frequência cardíaca; a cintura torna-a mais precisa. A Idade do Fitness em si não precisa disso. Meça à volta do teu meio, no umbigo."
+            "value": "Opcional: a tua VO₂max forma-se a partir de cerca de 4 noites de frequência cardíaca; a cintura torna-a mais precisa. A Idade do Fitness em si não precisa disso. Meça à volta do teu meio, no umbigo."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Необязательно: VO₂max уже использует ваш пульс; обхват талии делает оценку точнее. Самому Фитнес-возрасту это не требуется. Измеряйте в районе талии, на уровне пупка."
+            "value": "Необязательно: VO₂max формируется примерно за 4 ночи данных пульса; обхват талии делает оценку точнее. Самому Фитнес-возрасту это не требуется. Измеряйте в районе талии, на уровне пупка."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "可选，最大摄氧量已使用你的心率；腰围会让它更准确。体能年龄本身并不需要它。请在腰部、肚脐位置测量。"
+            "value": "可选，最大摄氧量由大约 4 晚的心率数据得出；腰围会让它更准确。体能年龄本身并不需要它。请在腰部、肚脐位置测量。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "可選，最大攝氧量已使用你的心率；腰圍會讓它更準確。體能年齡本身並不需要它。請在腰部、肚臍位置測量。"
+            "value": "可選，最大攝氧量由大約 4 晚的心率數據得出；腰圍會讓它更準確。體能年齡本身並不需要它。請在腰部、肚臍位置測量。"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Opcjonalnie: Twoje VO₂max już korzysta z tętna; obwód w talii zwiększa dokładność. Sam wiek fitness tego nie potrzebuje. Zmierz się wokół środka, w pępku."
+            "value": "Opcjonalnie: Twoje VO₂max powstaje z około 4 nocy danych tętna; obwód w talii zwiększa dokładność. Sam wiek fitness tego nie potrzebuje. Zmierz się wokół środka, w pępku."
           }
         }
       }

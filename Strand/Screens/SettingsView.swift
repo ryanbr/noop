@@ -472,7 +472,7 @@ struct SettingsView: View {
                         waistCentimetresField(waistCm: $profile.waistCm)
                     }
                 }
-                Text("Optional: VO₂max already uses your heart rate; a waist makes it more accurate. The Fitness Age itself doesn't need it. Measure around your middle, at the navel.")
+                Text("Optional: VO₂max builds from about 4 nights of heart rate; a waist makes it more accurate. The Fitness Age itself doesn't need it. Measure around your middle, at the navel.")
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
