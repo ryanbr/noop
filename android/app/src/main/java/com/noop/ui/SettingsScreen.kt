@@ -2724,6 +2724,48 @@ fun SettingsScreen(
                     color = Palette.textTertiary,
                 )
 
+                // --- #463: Personal daytime-stress baseline — OFF by default. ---
+                // Scores today's intraday stress timeline against a PERSONAL cross-day rolling baseline
+                // (Oura-style) instead of the day's own calm hours. The validated r≈0.6 HR-only margin is
+                // single-subject so far, so it ships behind a default-off toggle per the derived-biosignal
+                // rule. Display-only: never fed into recovery/illness. Mirrors the iOS toggle.
+                SettingsRowDivider()
+                var stressPersonalBaseline by remember { mutableStateOf(NoopPrefs.stressPersonalBaseline(context)) }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Text(
+                        "Stress: personal daytime baseline",
+                        style = NoopType.subhead,
+                        color = Palette.textPrimary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(
+                        checked = stressPersonalBaseline,
+                        onCheckedChange = {
+                            stressPersonalBaseline = it
+                            NoopPrefs.setStressPersonalBaseline(context, it)
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Palette.surfaceBase,
+                            checkedTrackColor = Palette.accent,
+                            uncheckedThumbColor = Palette.textSecondary,
+                            uncheckedTrackColor = Palette.surfaceInset,
+                            uncheckedBorderColor = Palette.hairline,
+                        ),
+                    )
+                }
+                Text(
+                    "Scores today's hour-by-hour stress timeline against YOUR own cross-day baseline " +
+                        "(how your days usually run, Oura-style) instead of the day's own calm hours. The " +
+                        "cutoff is tuned from a single-subject reference so far, so it's an alternative lens, " +
+                        "not the default. HR-only; never fed into recovery or illness scoring. Off by default.",
+                    style = NoopType.caption,
+                    color = Palette.textTertiary,
+                )
+
                 // Diagnostics: dump the decoded per-sample sensor streams (last 24h) to one long-format
                 // CSV so power users / external devs can prototype sleep/activity/VBT algorithms on real
                 // data without a BLE stream (#308/#276/#322). On-device only; plain text, no BLE hex.

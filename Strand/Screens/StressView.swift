@@ -121,11 +121,16 @@ struct StressView: View {
         let gravity = (try? await repo.storeHandle()?.gravitySamples(
             deviceId: repo.deviceId, from: from, to: to, limit: 200_000)) ?? []
 
-        // Score today's hours against the PERSONAL cross-day daytime baseline when enough worn history
-        // exists (Oura-style `.baselineRelative`, validated r≈0.6), else the day's own calm hours
-        // (`.dayRelative`, the unchanged default). The mode is resolved only AFTER the HR-count guard
-        // above, so the trailing-history reads are never paid on a day with no scorable timeline.
-        let mode = await daytimeScoringMode(startOfToday: startOfDay)
+        // Score today's hours against the PERSONAL cross-day daytime baseline ONLY when the user has
+        // opted in (Settings → Experimental) AND enough worn history exists (Oura-style
+        // `.baselineRelative`), else the day's own calm hours (`.dayRelative`, the default). The opt-in
+        // gate is deliberate: the validated r≈0.6 margin is single-subject so far (#463), so this stays a
+        // chooseable lens, not a silent default. The mode is resolved only AFTER the HR-count guard above,
+        // so the trailing-history reads are never paid on a day with no scorable timeline — and are never
+        // paid at all while the toggle is OFF (the default), keeping the read byte-identical to before.
+        let mode = PuffinExperiment.stressPersonalBaselineEnabled
+            ? await daytimeScoringMode(startOfToday: startOfDay)
+            : .dayRelative
         if case .baselineRelative = mode { daytimeUsesPersonalBaseline = true }
         else { daytimeUsesPersonalBaseline = false }
         daytime = DaytimeStress.analyze(hr: hr, rr: rr, gravity: gravity, tzOffsetSeconds: tz, mode: mode)
