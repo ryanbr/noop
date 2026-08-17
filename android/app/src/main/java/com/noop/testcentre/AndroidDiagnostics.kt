@@ -222,10 +222,14 @@ object AndroidDiagnostics {
             val dayCounts = ids.map { it to repo.days(it).size }
             add("Days: " + dayCounts.joinToString("  ") { "${it.first}=${it.second}" })
             // Which metrics are actually populated over the recent week on the imported (raw) spine…
+            // The day-SPAN is stamped so a stale spine is visible: `takeLast(7)` can be the last 7 IMPORTED
+            // rows (months old), not the last 7 CALENDAR days — without the range they look identical. Twin
+            // of the Swift #731 fix.
             val recent = repo.days("my-whoop").takeLast(7)
             if (recent.isNotEmpty()) {
                 val n = recent.size
-                add("Recent ${n}d (my-whoop): " +
+                val span = "${recent.first().day}…${recent.last().day}"
+                add("Recent ${n}d (my-whoop, $span): " +
                     "sleep=${recent.count { (it.totalSleepMin ?: 0.0) > 0 }}/$n  " +
                     "recovery=${recent.count { it.recovery != null }}/$n  " +
                     "steps=${recent.count { it.steps != null }}/$n  " +
@@ -237,7 +241,8 @@ object AndroidDiagnostics {
             val recentNoop = repo.days("my-whoop-noop").takeLast(7)
             if (recentNoop.isNotEmpty()) {
                 val nn = recentNoop.size
-                add("Recent ${nn}d (my-whoop-noop, computed): " +
+                val spanNoop = "${recentNoop.first().day}…${recentNoop.last().day}"
+                add("Recent ${nn}d (my-whoop-noop, computed, $spanNoop): " +
                     "sleep=${recentNoop.count { (it.totalSleepMin ?: 0.0) > 0 }}/$nn  " +
                     "recovery=${recentNoop.count { it.recovery != null }}/$nn  " +
                     "steps=${recentNoop.count { it.steps != null }}/$nn  " +
