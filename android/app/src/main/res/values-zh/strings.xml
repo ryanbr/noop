@@ -1337,7 +1337,7 @@
     <string name="l10n_health_screen_skin_temperature_f59127f6">皮肤体温</string>
     <string name="l10n_health_screen_spo_respiratory_rate_and_skin_temperature_0ae0ad8f">血氧、呼吸频率和皮肤体温数据仅在睡眠期间有效</string>
     <string name="l10n_health_screen_steps_cdde4f20">步数</string>
-    <string name="l10n_health_screen_sharpens_your_vo_max_c9d52991">让你的最大摄氧量(VO₂max)更准确</string>
+    <string name="l10n_health_screen_sharpens_your_vo_max_c9d52991">让你的最大摄氧量更准确</string>
     <string name="l10n_health_screen_vital_signs_e7d9e1b1">生命体征</string>
     <string name="l10n_health_screen_vitality_be320b06">生命力指数</string>
     <string name="l10n_health_screen_vo2max_21214fb6">VO₂max</string>
