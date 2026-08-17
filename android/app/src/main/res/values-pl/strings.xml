@@ -1354,6 +1354,7 @@
     <string name="l10n_health_screen_unlocks_your_vo_max_b3c67dda">Odblokowuje VO₂max</string>
     <string name="l10n_health_screen_vital_signs_e7d9e1b1">Znaki życiowe</string>
     <string name="l10n_health_screen_vitality_be320b06">Witalność</string>
+    <string name="l10n_health_screen_vo2max_21214fb6">VO₂max</string>
     <string name="l10n_health_screen_weight_height_and_waist_add_a_fd2699f5">Waga, wzrost i talia uwzględniają szacunkową wartość VO₂max. Nie zmieniają samego Wieku Fitness.</string>
     <string name="l10n_how_noop_works_screen_how_your_scores_are_computed_1b2d6c30">Jak obliczane są Twoje wyniki</string>
     <string name="l10n_how_noop_works_screen_how_your_scores_work_21a0e2be">Jak działają Twoje wyniki</string>

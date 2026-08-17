@@ -1406,6 +1406,7 @@
     <string name="l10n_health_screen_unlocks_your_vo_max_b3c67dda">Unlocks your VO₂max</string>
     <string name="l10n_health_screen_vital_signs_e7d9e1b1">Vital Signs</string>
     <string name="l10n_health_screen_vitality_be320b06">Vitality</string>
+    <string name="l10n_health_screen_vo2max_21214fb6">VO₂ Max</string>
     <string name="l10n_health_screen_weight_height_and_waist_add_a_fd2699f5">Weight, height and waist add a VO₂max estimate. They don\'t change the Fitness Age itself.</string>
     <string name="l10n_how_noop_works_screen_how_your_scores_are_computed_1b2d6c30">How your scores are computed</string>
     <string name="l10n_how_noop_works_screen_how_your_scores_work_21a0e2be">How your scores work</string>

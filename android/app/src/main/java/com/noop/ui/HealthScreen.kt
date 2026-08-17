@@ -2142,6 +2142,21 @@ private suspend fun buildSeriesVitalDetail(vm: AppViewModel, key: String): Vital
             .map { VitalReading(it.day, it.value, it.deviceId) },
         format = { it.roundToInt().toString() },
     )
+    // #1391: the VO₂max card (opt-in, #1393) taps through here. Like its sibling computed metrics
+    // (fitness_age / vitality above), the weekly estimate is persisted under the "-noop" computed spine
+    // (IntelligenceEngine writes "vo2max_est"), so its trend reads the COMPUTED union — not the raw
+    // resolvedSeries the imported vitals use, which carries no vo2max_est. Without this case the tap-through
+    // fell to the default and the trend chart was empty (the reported bug). Parity with iOS, which handles
+    // `.vo2max` alongside `.fitnessAge` / `.vitality` and reads `exploreSeries("vo2max_est")`.
+    "vo2max_est" -> VitalDetailModel(
+        key = key,
+        title = uiString(R.string.l10n_health_screen_vo2max_21214fb6),
+        unit = "ml/kg",
+        color = Palette.chargeColor,
+        readings = vm.repo.metricSeriesComputedUnion(vm.activeStrapId, "vo2max_est", "0000-01-01", "9999-12-31")
+            .map { VitalReading(it.day, it.value, it.deviceId) },
+        format = { it.roundToInt().toString() },
+    )
     "steps_est" -> {
         // #377: the Today Steps tile resolves a REAL step count FIRST — the WHOOP 5/MG on-device @57
         // counter (DailyMetric.steps) ?: imported Health Connect / Apple Health ?: the motion-model

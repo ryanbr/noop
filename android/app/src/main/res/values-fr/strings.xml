@@ -1212,6 +1212,7 @@
     <string name="l10n_health_screen_unlocks_your_vo_max_b3c67dda">Débloque votre VO₂max</string>
     <string name="l10n_health_screen_vital_signs_e7d9e1b1">Signes vitaux</string>
     <string name="l10n_health_screen_vitality_be320b06">Vitalité</string>
+    <string name="l10n_health_screen_vo2max_21214fb6">VO₂ max</string>
     <string name="l10n_health_screen_weight_height_and_waist_add_a_fd2699f5">Poids, taille et taille ajouter une estimation de VO2max. Ils ne changent pas l\'âge de la condition physique.</string>
     <string name="l10n_how_noop_works_screen_how_your_scores_are_computed_1b2d6c30">Comment vos scores sont calculés</string>
     <string name="l10n_how_noop_works_screen_how_your_scores_work_21a0e2be">Comment fonctionnent vos scores</string>
