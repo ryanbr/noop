@@ -2670,6 +2670,10 @@ class WhoopBleClient(
     private val drainCccdRetryRunnable = Runnable { gatt?.let { drainCccdQueue(it) } }
     /** Set once startSession() has fired the first command, so it runs exactly once per connection. */
     private var sessionStarted = false
+    /** #900: resp_cmd names whose raw COMMAND_RESPONSE frame has already been dumped this connection, so the
+     *  provenance dump fires once per command per session (a 4.0's per-poll battery reads would otherwise
+     *  flood the strap log). Cleared in reset(). */
+    private val rawDumpedRespCmds = mutableSetOf<String>()
 
     // ====================================================================================
     // MARK: Public API  (port of BLEManager.connect / disconnect / send + buzz helper)
@@ -5638,6 +5642,15 @@ class WhoopBleClient(
                         ""
                     }
                     log("Command response: ${respCmd ?: "?"} → $result$note")
+                    // #900: dump the FULL raw frame once per command per connection, so a normal (shareable)
+                    // strap-log export carries the disputed [seq][result] prefix bytes with known provenance —
+                    // the one capture the issue is blocked on. Full frame (not whoop4CommandResponsePayload,
+                    // which skips those very bytes); matches the GET_DATA_RANGE raw-frame line (#451). Rate-
+                    // limited: a 4.0 hits this branch on every battery poll. Twin of the macOS FrameRouter dump.
+                    if (rawDumpedRespCmds.add(respCmd ?: "?")) {
+                        log("  raw frame (#900 — [seq][result] provenance): " +
+                            frame.joinToString("") { "%02x".format(it) })
+                    }
                 }
                 // Arm-readback diagnostic (#401 close-out): armStrapAlarm follows every WHOOP 4.0 arm
                 // with GET_ALARM_TIME (67) so the log proves what the STRAP believes is armed, not just
@@ -7932,6 +7945,7 @@ class WhoopBleClient(
         cccdInFlight = false
         cccdRetries = 0
         sessionStarted = false
+        rawDumpedRespCmds.clear()   // #900: re-arm the per-command raw-frame dump for the next connection
         serviceDiscoveryRunnable?.let { handler.removeCallbacks(it) }
         serviceDiscoveryRunnable = null
         // Clear the onMtuChanged dedup (#50) so the first MTU callback of the NEXT connection — even to

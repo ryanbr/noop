@@ -14,7 +14,17 @@ public final class FrameRouter {
     /// use the CRC16/offset-8 envelope; the biometric field decode for puffin is still a stub, so
     /// WHOOP 5 custom frames currently surface only their envelope (live HR/battery come from the
     /// standard 0x2A37/0x2A19 profiles instead).
-    var family: DeviceFamily = .whoop4
+    var family: DeviceFamily = .whoop4 {
+        // #900: a fresh connection is a fresh capture session — re-arm the per-command raw-frame dump so
+        // each connect can re-capture the disputed COMMAND_RESPONSE prefix once. `family` is set fresh per
+        // connection by BLEManager (connectCore), so this is the per-session reset hook.
+        didSet { rawDumpedRespCmds.removeAll() }
+    }
+
+    /// #900: resp command names (e.g. "GET_BATTERY_LEVEL(26)") whose raw COMMAND_RESPONSE frame has already
+    /// been dumped this connection. The provenance dump fires once per command per session so a 4.0's
+    /// per-poll battery reads don't flood the strap log. Reset when `family` is set at connect.
+    private var rawDumpedRespCmds: Set<String> = []
 
     public init(state: LiveState) {
         self.state = state
@@ -190,6 +200,33 @@ public final class FrameRouter {
                     state.append(log: "HELLO_HARVARD(35) resp raw: \(Self.commandResponsePayloadHex(in: frame) ?? "empty") — locate the strap serial offset (#1303)")
                 }
             }
+            // #900: surface a non-SUCCESS COMMAND_RESPONSE on BOTH families (a result=UNSUPPORTED here is how
+            // the MG haptics rejection #48 would show), and — the key part — annotate a reply that DELIVERED
+            // ITS VALUE rather than reporting a bare failure. The 4.0 GET_BATTERY_LEVEL replies on record carry
+            // a zeroed [seq][result] prefix, so a battery read that returned a good percentage logs as
+            // "FAILURE(0)"; a failure line next to a gauge reading 42% is the artefact that gets quoted as a
+            // fault that isn't there — that is how #900 started. The line still prints (hiding it would hide the
+            // anomaly), it just no longer reads as a failure. Twin of the Kotlin WhoopBleClient annotation (#923).
+            if let result = parsed.parsed["result"]?.stringValue, !result.hasPrefix("SUCCESS") {
+                let cmdName = parsed.cmdName ?? "?"
+                let note: String
+                if let pct = parsed.parsed["battery_pct"]?.doubleValue {
+                    note = " (the reply still carried a value: battery \(String(format: "%.1f", pct))%"
+                         + " — the result byte on this reply is not established, see #900)"
+                } else {
+                    note = ""
+                }
+                state.append(log: "Command response: \(cmdName) → \(result)\(note)")
+                // #900: dump the FULL raw frame once per command per connection, so a normal (shareable)
+                // strap-log export carries the disputed [seq][result] prefix bytes with known provenance — the
+                // one capture the issue is blocked on. Full frame (not the post-prefix payload, which hides
+                // those very bytes); matches the GET_DATA_RANGE raw-frame line (#451) and the format #900's
+                // fixtures are quoted in. Rate-limited: a 4.0 hits this branch on every battery poll.
+                if !rawDumpedRespCmds.contains(cmdName) {
+                    rawDumpedRespCmds.insert(cmdName)
+                    state.append(log: "  raw frame (#900 — [seq][result] provenance): \(Self.fullFrameHex(frame))")
+                }
+            }
 
         case "EVENT":
             if let ev = parsed.parsed["event"]?.stringValue {
@@ -308,6 +345,14 @@ public final class FrameRouter {
     nonisolated static func commandResponsePayloadHex(in frame: [UInt8]) -> String? {
         guard let payload = commandResponsePayload(in: frame), !payload.isEmpty else { return nil }
         return payload.map { String(format: "%02x", $0) }.joined(separator: " ")
+    }
+
+    /// #900: the entire frame (0xAA SOF through the crc32 trailer) as contiguous lowercase hex — the
+    /// provenance format #900's fixtures are quoted in (e.g. "aa0f00c324141a0000…"). Unlike
+    /// `commandResponsePayloadHex`, this keeps the [type,seq,cmd,origin_seq,result] prefix, which is the
+    /// exact region #900 needs to inspect. Mirrors the Android `frame.joinToString("") { "%02x" }` dump.
+    nonisolated static func fullFrameHex(_ frame: [UInt8]) -> String {
+        frame.map { String(format: "%02x", $0) }.joined()
     }
 
     /// Plausibility gate for a readback epoch: a real armed alarm is near-now, so anything outside
