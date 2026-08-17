@@ -871,6 +871,14 @@ interface WhoopDao : DeviceRegistryDao {
     @Query("SELECT COUNT(*) FROM spo2Sample") suspend fun countSpo2(): Int
     @Query("SELECT COUNT(*) FROM skinTempSample") suspend fun countSkinTemp(): Int
     @Query("SELECT COUNT(*) FROM stepSample") suspend fun countSteps(): Int
+    // The remaining accumulating decoded raw streams, so the Test-Centre footprint counts ALL of them
+    // (keep in sync with Swift storageStats / TimestampHeal's raw-table list). ppgHrSample (#156 v26
+    // PPG-derived HR), ppgWaveformSample (raw v26 optical waveform) and rawImuSample can each bank a lot.
+    @Query("SELECT COUNT(*) FROM ppgHrSample") suspend fun countPpgHr(): Int
+    @Query("SELECT COUNT(*) FROM sleepStateSample") suspend fun countSleepState(): Int
+    @Query("SELECT COUNT(*) FROM ppgWaveformSample") suspend fun countPpgWaveform(): Int
+    @Query("SELECT COUNT(*) FROM rawImuSample") suspend fun countRawImu(): Int
+    @Query("SELECT COUNT(*) FROM v18AuxSample") suspend fun countV18Aux(): Int
     @Query("SELECT COUNT(*) FROM respSample") suspend fun countResp(): Int
     @Query("SELECT COUNT(*) FROM gravitySample") suspend fun countGravity(): Int
 

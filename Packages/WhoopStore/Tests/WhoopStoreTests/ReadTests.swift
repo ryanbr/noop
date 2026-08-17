@@ -256,22 +256,33 @@ final class ReadTests: XCTestCase {
 
     func testStorageStats() async throws {
         let store = try await seeded()
-        // Add one of each biometric stream so the count proves all 8 tables are summed.
+        // Add one of each decoded raw stream so the count proves ALL of them are summed — including the
+        // ones the old hand-listed footprint omitted (stepSample, sleepStateSample, ppgHrSample,
+        // ppgWaveformSample, v18AuxSample, and rawImuSample below).
         _ = try await store.insert(
             Streams(spo2: [SpO2Sample(ts: 400, red: 1, ir: 2)],
                     skinTemp: [SkinTempSample(ts: 400, raw: 930)],
                     resp: [RespSample(ts: 400, raw: 3073)],
-                    gravity: [GravitySample(ts: 400, x: 0.1, y: 0.2, z: 0.3)]),
+                    gravity: [GravitySample(ts: 400, x: 0.1, y: 0.2, z: 0.3)],
+                    steps: [StepSample(ts: 400, counter: 5)],
+                    sleepState: [SleepStateSample(ts: 400, state: 1)],
+                    ppgHr: [PpgHrSample(ts: 400, bpm: 60, conf: 0.9)],
+                    ppgWaveform: [PpgWaveformSample(ts: 400, samples: [1, 2, 3])],
+                    v18Aux: [V18AuxSample(ts: 400, slotValues: [1, 2])]),
             deviceId: "dev1")
+        _ = try await store.insertRawImu(deviceId: "dev1",
+                                         rows: [(ts: 400, cols: [Int16(1), Int16(2)])],
+                                         retentionRows: 1000)
         try await store.enqueueRawBatch(
             RawBatchMeta(batchId: "b1", deviceId: "dev1",
                          clockRef: ClockRef(device: 0, wall: 0), capturedAt: 1,
                          startTs: 0, endTs: 0, frameCount: 1, byteSize: 4),
             frames: [[0xAA, 0x00, 0x01, 0x02]])
         let stats = try await store.storageStats()
-        // dev1: 3 hr + 2 rr + 1 event + 1 battery + 1 spo2 + 1 skinTemp + 1 resp + 1 gravity = 11
-        // other: 1 hr = 1 → 12 decoded rows across all 8 tables.
-        XCTAssertEqual(stats.decodedRows, 12)
+        // dev1: 3 hr + 2 rr + 1 event + 1 battery + 1 spo2 + 1 skinTemp + 1 resp + 1 gravity
+        //       + 1 step + 1 sleepState + 1 ppgHr + 1 ppgWaveform + 1 v18Aux + 1 rawImu = 17
+        // other: 1 hr = 1 → 18 decoded rows across all 14 raw tables.
+        XCTAssertEqual(stats.decodedRows, 18)
         XCTAssertEqual(stats.rawBatches, 1)
         XCTAssertEqual(stats.rawBytes, 4)
     }

@@ -1456,6 +1456,12 @@ class WhoopRepository(
             "battery" to dao.countBattery(), "spo2" to dao.countSpo2(),
             "skinTemp" to dao.countSkinTemp(), "steps" to dao.countSteps(),
             "resp" to dao.countResp(), "gravity" to dao.countGravity(),
+            // The rest of the accumulating decoded raw streams, so the Test-Centre footprint counts ALL of
+            // them (keep in sync with Swift storageStats / TimestampHeal's raw-table list). ppgHr/ppgWaveform
+            // /rawImu can each be large.
+            "ppgHr" to dao.countPpgHr(), "sleepState" to dao.countSleepState(),
+            "ppgWaveform" to dao.countPpgWaveform(), "rawImu" to dao.countRawImu(),
+            "v18Aux" to dao.countV18Aux(),
         )
     }.getOrDefault(emptyMap())
 
