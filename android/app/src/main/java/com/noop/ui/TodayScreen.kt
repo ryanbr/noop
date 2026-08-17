@@ -6369,11 +6369,16 @@ private fun greetingWord(): String {
 
 private fun synthesisWord(score: Double?): String {
     if (score == null) return "No Data"
+    // #1405: these are CHARGE/recovery-level words, a different axis from the ReadinessEngine training
+    // verdict (Run down / Strained / Balanced / Primed). They must NOT share a word, or the Synthesis
+    // card ("Steady") and the Charge-breakdown Readiness card ("Primed") read as the same thing
+    // contradicting itself. So the [70,88) band is "Strong" (which also matches this card's own "Charge is
+    // strong" detail copy), leaving "Primed" exclusively to the readiness engine. Keep parity with Swift.
     return when {
         score < 25 -> "Depleted"
         score < 50 -> "Low"
         score < 70 -> "Steady"
-        score < 88 -> "Primed"
+        score < 88 -> "Strong"
         else -> "Peak"
     }
 }

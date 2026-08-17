@@ -4523,11 +4523,16 @@ struct TodayView: View {
     /// A short recovery state word for the synthesis hero.
     private func synthesisWord(_ score: Double?) -> String {
         guard let s = score else { return String(localized: "No Data") }
+        // #1405: these are CHARGE/recovery-level words, a different axis from the ReadinessEngine training
+        // verdict (Run down / Strained / Balanced / Primed). They must NOT share a word, or the Synthesis
+        // card ("Steady") and the Charge-breakdown Readiness card ("Primed") read as the same thing
+        // contradicting itself. So the [70,88) band is "Strong" (which also matches this card's own "Charge
+        // is strong" detail copy), leaving "Primed" exclusively to the readiness engine. Keep parity with Kotlin.
         switch s {
         case ..<25:  return String(localized: "Depleted")
         case ..<50:  return String(localized: "Low")
         case ..<70:  return String(localized: "Steady")
-        case ..<88:  return String(localized: "Primed")
+        case ..<88:  return String(localized: "Strong")
         default:     return String(localized: "Peak")
         }
     }
