@@ -1718,7 +1718,11 @@ private data class VitalDetailModel(
  *  (Fitness Age + Vitality under the computed strap, Steps estimate, Apple active energy). Each Today
  *  dashboard card taps through to ITS OWN focused trend here (2026-07-03), so these load their
  *  series from the repo on demand rather than off the cached `days` columns. Mirrors iOS metricDetail. */
-private val SERIES_BACKED_VITAL_KEYS = setOf("fitness_age", "vitality", "steps_est", "active_kcal", "rest")
+// #1391/#1404: vo2max_est is a COMPUTED weekly series under the "-noop" spine, like fitness_age/vitality —
+// so its detail must route to buildSeriesVitalDetail (which reads metricSeriesComputedUnion), NOT the
+// DailyMetric-backed buildVitalDetail. #1404 added the vo2max_est CASE to the series builder but omitted it
+// here, so isSeriesBacked was false and the tap-through fell to the DailyMetric builder → empty trend.
+private val SERIES_BACKED_VITAL_KEYS = setOf("fitness_age", "vitality", "steps_est", "active_kcal", "rest", "vo2max_est")
 
 @Composable
 fun VitalDetailScreen(vm: AppViewModel, key: String) {
