@@ -3698,13 +3698,15 @@ public final class BLEManager: NSObject, ObservableObject {
         enableLiveNotifications(reason: "keepalive")
         // Liveness watchdog: if NOTHING has arrived for a while, the stream/link stalled.
         // Bounce the connection — the auto-rescan on disconnect re-bonds and resumes streaming.
-        // #580: a known history-empty 5/MG (firmware serves no offload) gets a far longer fuse. The
-        // standard 0x2A37 HR profile keeps the link genuinely alive, but its packets can lull for >120s
-        // when the strap is off-wrist / resting, and an empty offload leaves the data channel quiet — so
-        // the old 120s rule disconnected/rescanned a perfectly healthy link every ~2 min (the thrash this
-        // fixes). A WHOOP 4 (real "not recording" path) keeps the tight 120s fuse unchanged.
+        // #580 / #1414: the standard 0x2A37 HR profile keeps the link genuinely alive, but its packets can
+        // lull for >120s when the wearer is at rest / off-wrist, so the old 120s rule disconnected/rescanned
+        // a perfectly healthy 5/MG link every ~2 min (the thrash #580 fixed). That lull is a FAMILY trait of
+        // the 5/MG HR profile, independent of whether history offload serves data — #580 mistakenly gated the
+        // wide fuse on `historyEmpty`, so a 5/MG that DID serve history still thrashed on the 120s fuse
+        // (#1414). Widen to the whole 5/MG family; WHOOP 4 (real "not recording" path) keeps the tight 120s.
+        // (`historyEmpty` still gates the battery-backfill interval below — a separate concern, left as-is.)
         let bounceFuse: TimeInterval =
-            (selectedModel.deviceFamily == .whoop5 && whoop5EmptyOffload.historyEmpty) ? 600 : 120
+            selectedModel.deviceFamily == .whoop5 ? 600 : 120
         if Date().timeIntervalSince(lastDataAt) > bounceFuse {
             log("No data for >\(Int(bounceFuse))s — bouncing link to resume streaming")
             if let p = peripheral { central.cancelPeripheralConnection(p) }
