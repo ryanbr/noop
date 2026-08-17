@@ -126,9 +126,15 @@ public final class FrameRouter {
             // POWER_CYCLE_STRAP is matched too: it's the 4.0 reboot probe's candidate B (#235), and its
             // result byte is exactly what tells "opcode rejected (recognized, wrong args)" from "ignored".
             if let cmd = parsed.cmdName, cmd.hasPrefix("REBOOT_STRAP") || cmd.hasPrefix("POWER_CYCLE_STRAP") {
-                let r = Self.commandResultByte(in: frame)
+                // bhelm/noop#4: read the result at the FAMILY's offset (4.0 @8, 5/MG @12) and judge it with
+                // the family's own polarity. 5/MG's CommandResult table is 1=SUCCESS / 0=FAILURE (BodyLocation
+                // Probe, MG vectors), so a raw byte at the fixed 4.0 offset read the inner *type* byte on 5/MG
+                // and printed REJECTED on a successful reboot — the Kotlin twin already judged the decoded
+                // result name and was correct. 4.0's result-code meaning stays the probe's (unverified) 0=accepted.
+                let r = Self.commandResultByte(in: frame, family: family)
                 let rhex = r.map { String(format: "0x%02x", UInt8(truncatingIfNeeded: $0)) } ?? "none"
-                let verdict = r == nil ? "no result byte" : (r == 0 ? "accepted" : "REJECTED")
+                let accepted = (family == .whoop5) ? (r == 1) : (r == 0)
+                let verdict = r == nil ? "no result byte" : (accepted ? "accepted" : "REJECTED")
                 state.append(log: "reboot: strap acked result=\(rhex) (\(verdict))")
             }
             if family == .whoop4, let cmd = parsed.cmdName {
@@ -321,9 +327,14 @@ public final class FrameRouter {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// The result byte of a COMMAND_RESPONSE: inner offset + 4 ([type,seq,cmd,origin_seq] then result).
-    static func commandResultByte(in frame: [UInt8]) -> Int? {
-        let idx = whoop4InnerOffset + 4
+    /// The result byte of a COMMAND_RESPONSE: the family's inner offset + 4 ([type,seq,cmd,origin_seq]
+    /// then result). WHOOP 4.0's inner starts at offset 4 (result @8); WHOOP 5/MG's starts at 8 (result
+    /// @12 — the "+4 shift", Framing/Interpreter). Defaults to `.whoop4` so the WHOOP-4-only callers
+    /// (rename, alarm-SET ack) stay untouched; only the both-families reboot ack passes the live family
+    /// (bhelm/noop#4 — reading @8 on a 5/MG frame hit the inner type byte, not the result).
+    static func commandResultByte(in frame: [UInt8], family: DeviceFamily = .whoop4) -> Int? {
+        let inner = (family == .whoop5) ? 8 : whoop4InnerOffset
+        let idx = inner + 4
         return idx < frame.count ? Int(frame[idx]) : nil
     }
 
