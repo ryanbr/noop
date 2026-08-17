@@ -848,7 +848,12 @@ class WhoopRepository(
 
     // MARK: - Live Sessions (silent guardian, v22). The runner banks the row at start (endTs null) and
     // again at end (totals); the summary reads the recent rows for its guarded-count / streak line.
-    suspend fun upsertLiveSession(row: LiveSessionRow) = dao.upsertLiveSession(row)
+    suspend fun upsertLiveSession(row: LiveSessionRow) = dao.upsertLiveSession(
+        deviceId = row.deviceId, startTs = row.startTs, endTs = row.endTs,
+        chargeAtStart = row.chargeAtStart, floorBpm = row.floorBpm, ceilingBpm = row.ceilingBpm,
+        inBandSec = row.inBandSec, belowSec = row.belowSec, aboveSec = row.aboveSec,
+        pushCount = row.pushCount, easeCount = row.easeCount, hrSource = row.hrSource,
+    )
     suspend fun recentLiveSessions(deviceId: String, limit: Int): List<LiveSessionRow> =
         dao.recentLiveSessions(deviceId, limit)
 

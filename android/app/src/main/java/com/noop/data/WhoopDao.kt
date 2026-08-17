@@ -65,9 +65,46 @@ interface WhoopDao : DeviceRegistryDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertSleepState(rows: List<SleepStateSampleEntity>): List<Long>
 
-    /** Upsert one Live Session (v22). Natural key (deviceId, startTs) — start (endTs null) then end. */
-    @Upsert
-    suspend fun upsertLiveSession(row: LiveSessionRow)
+    /** Upsert one Live Session (v22). Natural key (deviceId, startTs) — start (endTs null) then end.
+     *  The `WHERE excluded.endTs IS NOT NULL OR liveSession.endTs IS NULL` guard makes a start-write
+     *  refuse to overwrite an already-ended row: start/end persist as independent, unordered coroutines,
+     *  so a late start-write would otherwise clobber the final row back to "in progress" and lose the
+     *  totals. Ordering-independent. Byte-parity with the Swift LiveSessionStore upsert. (@bhelm) */
+    @Query(
+        """
+        INSERT INTO liveSession
+            (deviceId, startTs, endTs, chargeAtStart, floorBpm, ceilingBpm,
+             inBandSec, belowSec, aboveSec, pushCount, easeCount, hrSource)
+        VALUES (:deviceId, :startTs, :endTs, :chargeAtStart, :floorBpm, :ceilingBpm,
+                :inBandSec, :belowSec, :aboveSec, :pushCount, :easeCount, :hrSource)
+        ON CONFLICT(deviceId, startTs) DO UPDATE SET
+            endTs = excluded.endTs,
+            chargeAtStart = excluded.chargeAtStart,
+            floorBpm = excluded.floorBpm,
+            ceilingBpm = excluded.ceilingBpm,
+            inBandSec = excluded.inBandSec,
+            belowSec = excluded.belowSec,
+            aboveSec = excluded.aboveSec,
+            pushCount = excluded.pushCount,
+            easeCount = excluded.easeCount,
+            hrSource = excluded.hrSource
+        WHERE excluded.endTs IS NOT NULL OR liveSession.endTs IS NULL
+        """
+    )
+    suspend fun upsertLiveSession(
+        deviceId: String,
+        startTs: Long,
+        endTs: Long?,
+        chargeAtStart: Double?,
+        floorBpm: Double,
+        ceilingBpm: Double,
+        inBandSec: Double,
+        belowSec: Double,
+        aboveSec: Double,
+        pushCount: Int,
+        easeCount: Int,
+        hrSource: String,
+    )
 
     /** Most-recent Live Sessions first, for the look-back summary + streak. */
     @Query("SELECT * FROM liveSession WHERE deviceId = :deviceId ORDER BY startTs DESC LIMIT :limit")

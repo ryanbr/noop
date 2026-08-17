@@ -27,6 +27,44 @@ final class LiveSessionStoreTests: XCTestCase {
         XCTAssertEqual(rows.first?.inBandSec, 1800)
     }
 
+    func test_late_start_write_cannot_overwrite_an_ended_row() async throws {
+        // The start/end persists race as independent tasks. If the start-write (endTs nil) lands AFTER the
+        // end-write, the endTs-guard must refuse it — otherwise the session reverts to "in progress" and
+        // the totals are lost. (@bhelm)
+        let store = try await WhoopStore.inMemory()
+        _ = try await store.upsertLiveSession(started(1000), deviceId: "my-whoop")
+        let ended = LiveSessionRow(startTs: 1000, endTs: 3400, chargeAtStart: 41, floorBpm: 128, ceilingBpm: 148,
+                                   inBandSec: 1800, belowSec: 300, aboveSec: 120, pushCount: 2, easeCount: 1,
+                                   hrSource: "whoop")
+        _ = try await store.upsertLiveSession(ended, deviceId: "my-whoop")
+
+        // Replay the stale start-write against the already-ended row: the guard makes it a no-op.
+        let changed = try await store.upsertLiveSession(started(1000), deviceId: "my-whoop")
+        XCTAssertEqual(changed, 0, "a start-write against an ended row changes nothing")
+
+        let rows = try await store.recentLiveSessions(deviceId: "my-whoop", limit: 10)
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows.first, ended, "the final row survives intact")
+        XCTAssertEqual(rows.first?.endTs, 3400)
+        XCTAssertEqual(rows.first?.inBandSec, 1800)
+    }
+
+    func test_in_progress_row_still_accepts_updates() async throws {
+        // The guard must NOT block legitimate writes while the row is still open (endTs nil): a re-persisted
+        // start row updates, and the end-write then fills the totals.
+        let store = try await WhoopStore.inMemory()
+        _ = try await store.upsertLiveSession(started(2000), deviceId: "my-whoop")
+        _ = try await store.upsertLiveSession(started(2000), deviceId: "my-whoop")   // re-persist while open → OK
+        let ended = LiveSessionRow(startTs: 2000, endTs: 4000, chargeAtStart: 41, floorBpm: 128, ceilingBpm: 148,
+                                   inBandSec: 900, belowSec: 60, aboveSec: 30, pushCount: 1, easeCount: 0,
+                                   hrSource: "whoop")
+        _ = try await store.upsertLiveSession(ended, deviceId: "my-whoop")
+        let rows = try await store.recentLiveSessions(deviceId: "my-whoop", limit: 10)
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows.first?.endTs, 4000)
+        XCTAssertEqual(rows.first?.inBandSec, 900)
+    }
+
     func test_recent_is_newest_first_and_device_scoped() async throws {
         let store = try await WhoopStore.inMemory()
         _ = try await store.upsertLiveSession(started(1000), deviceId: "my-whoop")

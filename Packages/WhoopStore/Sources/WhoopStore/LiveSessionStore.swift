@@ -40,6 +40,12 @@ extension WhoopStore {
 
     /// Upsert one Live Session. Natural key (deviceId, startTs) — called once at start (endTs nil) and
     /// again at end with the final totals. Returns rows changed.
+    ///
+    /// The `WHERE excluded.endTs IS NOT NULL OR liveSession.endTs IS NULL` guard makes a start-write
+    /// (endTs nil) refuse to overwrite an already-ended row: start/end persist as independent, unordered
+    /// tasks, so a late start-write could otherwise clobber the final row back to "in progress" and lose
+    /// the totals. Ordering-independent; the normal start→end order still updates (the row's endTs was
+    /// nil). Byte-parity with the Android Room upsert. (@bhelm)
     @discardableResult
     public func upsertLiveSession(_ r: LiveSessionRow, deviceId: String) async throws -> Int {
         try syncWrite { db in
@@ -59,6 +65,7 @@ extension WhoopStore {
                     pushCount = excluded.pushCount,
                     easeCount = excluded.easeCount,
                     hrSource = excluded.hrSource
+                WHERE excluded.endTs IS NOT NULL OR liveSession.endTs IS NULL
                 """, arguments: [deviceId, r.startTs, r.endTs, r.chargeAtStart, r.floorBpm, r.ceilingBpm,
                                  r.inBandSec, r.belowSec, r.aboveSec, r.pushCount, r.easeCount, r.hrSource])
             return db.changesCount
