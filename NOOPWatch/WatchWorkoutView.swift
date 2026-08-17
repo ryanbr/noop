@@ -147,13 +147,15 @@ struct WatchWorkoutView: View {
     @ViewBuilder
     private var elapsed: some View {
         if workout.phase == .paused {
-            Text(Self.clock(workout.elapsed))
+            // Frozen while paused: builder.elapsedTime freezes on pause, so liveElapsed() reads the same
+            // pause-accurate value the active clock last showed — no reliance on the pause event's timing.
+            Text(Self.clock(workout.liveElapsed()))
                 .font(StrandFont.rounded(18, weight: .semibold))
                 .monospacedDigit()
                 .foregroundStyle(StrandPalette.textPrimary)
         } else {
             TimelineView(.periodic(from: .now, by: 1)) { _ in
-                Text(Self.clock(workout.elapsed))
+                Text(Self.clock(workout.liveElapsed()))
                     .font(StrandFont.rounded(18, weight: .semibold))
                     .monospacedDigit()
                     .foregroundStyle(StrandPalette.textPrimary)
@@ -449,6 +451,19 @@ final class WatchWorkoutSession: NSObject, ObservableObject {
         #endif
     }
 
+    /// Live elapsed time for the ticking clock. `HKLiveWorkoutBuilder.elapsedTime` is pause-aware and
+    /// advances continuously while recording — independent of whether samples arrive — so read it live on
+    /// each TimelineView tick rather than only in the sample/event callbacks, which left the clock frozen
+    /// at 0:00 when no samples landed (loose watch, denied HR-read). Falls back to the last stored value
+    /// once the builder is gone (the saved recap, where `elapsed` holds the finalized duration). (@bhelm)
+    func liveElapsed() -> TimeInterval {
+        #if canImport(HealthKit) && os(watchOS)
+        return builder?.elapsedTime ?? elapsed
+        #else
+        return elapsed
+        #endif
+    }
+
     /// Stop the session, finalize collection, and save the workout to HealthKit. The recap appears on save.
     func end() {
         #if canImport(HealthKit) && os(watchOS)
@@ -456,9 +471,14 @@ final class WatchWorkoutSession: NSObject, ObservableObject {
         phase = .ending
         let stop = Date()
         session.stopActivity(with: stop)
+        // Freeze the final duration for the recap NOW: the builder is niled below, and the stored `elapsed`
+        // was otherwise only ever advanced by sample callbacks — so a sparse-sample session showed a
+        // too-short recap. finishWorkout's authoritative HKWorkout.duration overrides it just below. (@bhelm)
+        elapsed = builder.elapsedTime
         builder.endCollection(withEnd: stop) { [weak self] _, _ in
-            builder.finishWorkout { [weak self] _, _ in
+            builder.finishWorkout { [weak self] hkWorkout, _ in
                 DispatchQueue.main.async {
+                    if let duration = hkWorkout?.duration { self?.elapsed = duration }
                     StrandHaptic.success.play()  // milestone: the workout is banked to HealthKit
                     self?.phase = .saved
                     self?.session = nil
