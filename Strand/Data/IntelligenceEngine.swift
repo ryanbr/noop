@@ -347,7 +347,15 @@ final class IntelligenceEngine: ObservableObject {
                     activeDaysPerWeek: strains.count, meanActiveStrain: meanStrain),
                 waistCm: waist) else { return [] }
         var rows = [MetricPoint(day: satKey, key: "fitness_age", value: res.fitnessAge)]
-        if let v = res.vo2max { rows.append(MetricPoint(day: satKey, key: "vo2max_est", value: v)) }
+        // #1391: offer a VO₂max even without a waist. res.vo2max is the Nes 2011 waist-based estimate (nil
+        // when no waist is set). Fall back to the Uth 2004 HR-ratio estimate (15.3·HRmax/RHR — waist-free,
+        // the SAME formula the calorie path already uses), so any user past the age+RHR fitness-age gate gets
+        // a (rougher) VO₂max instead of a blank. HRmax via the shared Tanaka estimator (no HR history here →
+        // age-predicted); RHR = the same median the Nes value used. Both persist under "vo2max_est"; the card
+        // labels it "Estimated". Mirrors the Android twin.
+        let vo2 = res.vo2max
+            ?? Calories.vo2maxFor(hrmax: StrainScorer.estimateHRmax([], age: Double(age)).0, restingHR: medianOf(rhrs))
+        if let v = vo2 { rows.append(MetricPoint(day: satKey, key: "vo2max_est", value: v)) }
         return rows
     }
 

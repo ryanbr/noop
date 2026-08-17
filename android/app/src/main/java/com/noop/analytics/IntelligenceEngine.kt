@@ -2071,7 +2071,17 @@ object IntelligenceEngine {
             paIndex = FitnessAgeEngine.physicalActivityIndexFromStrain(strains.size, meanStrain),
             waistCm = waist) ?: return emptyList()
         val rows = mutableListOf(MetricSeriesRow(deviceId = computedId, day = satKey, key = "fitness_age", value = res.fitnessAge))
-        res.vo2max?.let { rows.add(MetricSeriesRow(deviceId = computedId, day = satKey, key = "vo2max_est", value = it)) }
+        // #1391: offer a VO₂max even without a waist. res.vo2max is the Nes 2011 waist-based estimate (null
+        // when no waist is set). Fall back to the Uth 2004 HR-ratio estimate (15.3·HRmax/RHR — waist-free,
+        // the SAME formula the calorie path already uses), so any user past the age+RHR fitness-age gate gets
+        // a (rougher) VO₂max instead of a blank. HRmax via the shared Tanaka estimator (no HR history here →
+        // age-predicted); RHR = the same median the Nes value used. Both persist under "vo2max_est"; the card
+        // labels it "Estimated". Mirrors the Swift twin.
+        val vo2: Double? = res.vo2max ?: run {
+            val hrmax: Double = StrainScorer.estimateHRmax(emptyList<Double>(), profile.age).first
+            Calories.vo2maxFor(hrmax, medianOfDoubles(rhrs))
+        }
+        if (vo2 != null) rows.add(MetricSeriesRow(deviceId = computedId, day = satKey, key = "vo2max_est", value = vo2))
         return rows
     }
 
