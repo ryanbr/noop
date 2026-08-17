@@ -875,6 +875,106 @@ public final class BLEManager: NSObject, ObservableObject {
     /// successful connect; grows the reschedule delay so a strap that's genuinely out of range doesn't
     /// hammer Bluetooth (vs the disconnect path's flat 3s, which is fine for an already-bonded drop).
     private var failedConnectAttempts = 0
+
+    // MARK: - Standing-connect reconnect regime (#1413 — twin of OuraLiveSource's #1286 fix)
+    //
+    // The old reconnect armed a `DispatchQueue.main.asyncAfter` backoff, which does not fire in a suspended
+    // app AND — the real damage — left NOTHING outstanding with CoreBluetooth after a failed connect, so iOS
+    // had no reason to ever wake the app. Overnight that meant the strap stayed unreachable for hours
+    // (measured 10h46m on a 5/MG). After a few quick timed retries (the app is demonstrably awake there) the
+    // reconnect now hands off to a STANDING `central.connect`, which has no timeout, stays outstanding, and
+    // lets iOS wake the app when the strap re-advertises — including from suspension.
+
+    /// After this many consecutive failures, stop scheduling timed retries and leave a standing connect.
+    nonisolated static let standingConnectAfterAttempts = 3
+    /// Floor between two standing connects, used ONLY for a near-instant failure (proves the app is awake).
+    nonisolated static let standingConnectRetryFloor: TimeInterval = 30
+    /// A standing connect that stayed outstanding at least this long before failing was not a hot loop —
+    /// re-issue it immediately so something is ALWAYS outstanding, even heading into suspension.
+    nonisolated static let standingConnectFastFailureS: TimeInterval = 2
+    /// When the current standing connect was issued, nil when none is outstanding.
+    private var standingConnectAt: Date?
+
+    /// What to do after an involuntary drop or a failed connect. Pure so the policy is unit-testable with no
+    /// CoreBluetooth (`BLEManagerReconnectPolicyTests`). Twin of `OuraLiveSource.ReconnectStep`.
+    enum ReconnectStep: Equatable, Sendable {
+        case timedRetry(delay: TimeInterval)
+        case standingConnect
+        case standingConnectAfter(delay: TimeInterval)
+    }
+
+    /// - Parameters:
+    ///   - attempt: 1-based consecutive failure count (`failedConnectAttempts` after incrementing).
+    ///   - secondsSinceStandingConnect: age of the outstanding standing connect, or nil when none is.
+    nonisolated static func reconnectStep(attempt: Int,
+                                          secondsSinceStandingConnect: TimeInterval?) -> ReconnectStep {
+        guard attempt >= standingConnectAfterAttempts else {
+            return .timedRetry(delay: min(60.0, 3.0 * pow(2.0, Double(max(0, attempt - 1)))))
+        }
+        // No standing connect outstanding reads as "long ago", so the first time here we hand off immediately.
+        let since = secondsSinceStandingConnect ?? .greatestFiniteMagnitude
+        // Anything but a near-instant failure re-issues NOW, so suspension can never catch us holding nothing.
+        guard since < standingConnectFastFailureS else { return .standingConnect }
+        return .standingConnectAfter(delay: standingConnectRetryFloor - since)
+    }
+
+    /// The single reconnect entry after an involuntary drop or a failed connect. Both callback sites route
+    /// through here so the standing-connect handoff applies to both (the disconnect path is where the night
+    /// died). Preserves the intentional-teardown and bond-loop-pause guards.
+    private func scheduleReconnect() {
+        guard !intentionalDisconnect, !autoReconnectPausedForBondLoop else { return }
+        failedConnectAttempts += 1
+        switch Self.reconnectStep(attempt: failedConnectAttempts,
+                                  secondsSinceStandingConnect: standingConnectAt.map { Date().timeIntervalSince($0) }) {
+        case .timedRetry(let delay):
+            log("Reconnecting in \(Int(delay))s (attempt \(failedConnectAttempts))")
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self, !self.intentionalDisconnect, !self.autoReconnectPausedForBondLoop else { return }
+                self.connectFromSystem()
+            }
+        case .standingConnect:
+            issueStandingConnect()
+        case .standingConnectAfter(let wait):
+            // A standing connect failed NEAR-INSTANTLY — the one shape that can hot-loop, and it only
+            // happens with the app awake. Break it with a timer, safe precisely because the app is awake.
+            log("Standing connect failed instantly — re-issuing in \(Int(wait))s (attempt \(failedConnectAttempts))")
+            standingConnectAt = nil
+            DispatchQueue.main.asyncAfter(deadline: .now() + wait) { [weak self] in
+                guard let self, !self.intentionalDisconnect, !self.autoReconnectPausedForBondLoop else { return }
+                self.issueStandingConnect()
+            }
+        }
+    }
+
+    /// Hand the reconnect to CoreBluetooth: `central.connect` has NO timeout, so it stays outstanding and iOS
+    /// wakes the app when the strap advertises again, including while SUSPENDED — the whole point. Same call
+    /// `connectFromSystem`'s targeted path already makes: no new outbound command, nothing written to the
+    /// strap, so the BLE safety contract is unaffected. Twin of `OuraLiveSource.issueStandingConnect`.
+    private func issueStandingConnect() {
+        guard !intentionalDisconnect, !autoReconnectPausedForBondLoop else { return }
+        guard central.state == .poweredOn else {
+            log("Standing reconnect deferred — Bluetooth not powered on (state=\(central.state.rawValue))")
+            return
+        }
+        // Resolve the target: the held peripheral if it's the pinned strap, else retrieve the pinned UUID.
+        let target: CBPeripheral? = {
+            if let p = peripheral, isPreferredPeripheral(p) { return p }
+            if let id = preferredPeripheralUUID { return central.retrievePeripherals(withIdentifiers: [id]).first }
+            return peripheral
+        }()
+        guard let p = target else {
+            // No cached peripheral to hand CoreBluetooth — fall back to the scanning connect path.
+            log("No cached strap for a standing connect — scanning instead")
+            connectFromSystem()
+            return
+        }
+        preparePeripheral(p)
+        standingConnectAt = Date()
+        log("Leaving a STANDING connect outstanding for \(p.identifier) — CoreBluetooth will reconnect "
+            + "whenever the strap is reachable, including while the app is suspended (#1413)")
+        central.connect(p, options: nil)
+    }
+
     /// Multi-WHOOP stale-pin recovery (#52). The identifier of the last peripheral that reached a GENUINE
     /// encrypted bond this run. When the pinned strap keeps refusing the bond but THIS one bonds fine, it's
     /// the live working strap the registry pin should point at. nil until any strap genuinely bonds.
@@ -1250,8 +1350,9 @@ public final class BLEManager: NSObject, ObservableObject {
         readoptingTo = nil   // #52: a clean teardown abandons any in-flight pin handoff
         standardHRFallback = false
         state.standardHRMode = nil
+        standingConnectAt = nil   // #1413: drop the standing-connect marker; the cancel below also cancels a pending one
         if let p = peripheral {
-            central.cancelPeripheralConnection(p)
+            central.cancelPeripheralConnection(p)   // cancels a live OR a pending (standing) connect
         }
         central.stopScan()
     }
@@ -4498,6 +4599,7 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         cancelScanFallback()
         cancelPendingConnectProbe()   // #730: the connect resolved; no pending-connect log needed
         failedConnectAttempts = 0   // a successful connect clears the reconnect backoff (#414)
+        standingConnectAt = nil     // #1413: a live link means no standing connect is outstanding
         restoredPeripheral = nil
         preparePeripheral(peripheral)
         // Clear the per-connection bond BEFORE publishing the connected uuid below. SourceCoordinator's #52
@@ -4746,7 +4848,7 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
                 state.append(log: "reconnect paused=bondLoop (strap refusing bond)", domain: .connection)
             }
         } else if !intentionalDisconnect {
-            log("Disconnected\(error.map { " — \($0.localizedDescription)" } ?? ""); rescanning in 3s")
+            log("Disconnected\(error.map { " — \($0.localizedDescription)" } ?? "")")
             // Connection test mode: count + describe the involuntary reconnect churn, and mark the link
             // down for the uptime readout. Gated zero-cost (the .connection bool is read before any string
             // is built). Diagnostic only - the rescan above is unchanged. The count increments only on an
@@ -4762,12 +4864,10 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
                 state.append(log: "connect down (uptime ends\(held))", domain: .connection)
                 state.append(log: "reconnect n=\(connReconnectCount) reason=\(reason)", domain: .connection)
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
-                // #78 hole-3: a timer in flight when the give-up trips must not fire an extra attempt
-                // (and, via connectFromSystem, can never reset the pause the way the old connect() did).
-                guard let self, !self.intentionalDisconnect, !self.autoReconnectPausedForBondLoop else { return }
-                self.connectFromSystem()
-            }
+            // #1413: route through the standing-connect regime, not a bare timer, so a suspension in the
+            // reconnect window can't leave the link dead until the phone is next picked up. The regime keeps
+            // the same guards (#78 hole-3): the give-up pause and an intentional teardown both stop it.
+            scheduleReconnect()
         } else {
             log("Disconnected (intentional)")
             // A user-initiated teardown ends the churn count for the run and marks the link down so the
@@ -4815,16 +4915,10 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         // did, so the loop died here until a manual reconnect. Reschedule with a capped exponential
         // backoff (3, 6, 12, 24, 48, 60s…) so a strap that's genuinely out of range doesn't hammer BLE.
         // #747: don't reschedule while the bond-loop pause is active; the user must free the strap first.
-        guard !intentionalDisconnect, !autoReconnectPausedForBondLoop else { return }
-        failedConnectAttempts += 1
-        let delay = min(60.0, 3.0 * pow(2.0, Double(failedConnectAttempts - 1)))
-        log("Reconnecting in \(Int(delay))s (attempt \(failedConnectAttempts))")
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            // #78 hole-3: a backoff timer in flight when the give-up trips must not fire an extra
-            // attempt (and connectFromSystem never resets the pause the way the old connect() did).
-            guard let self, !self.intentionalDisconnect, !self.autoReconnectPausedForBondLoop else { return }
-            self.connectFromSystem()
-        }
+        // #1413: hand off to the shared standing-connect regime. The first few failures still get the short
+        // timed backoff (the app is awake), then a standing central.connect stays outstanding so a suspended
+        // app is still woken when the strap returns — this callback is where the overnight reconnect died.
+        scheduleReconnect()
     }
 
     /// State restoration entry point (M3 background collection).
