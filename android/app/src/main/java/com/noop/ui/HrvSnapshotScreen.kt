@@ -60,9 +60,8 @@ import com.noop.analytics.HrvAnalyzerTrace
 import com.noop.analytics.SpotHrvReading
 import com.noop.data.MetricSeriesRow
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlin.time.TimeSource
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -79,9 +78,9 @@ import java.util.TimeZone
  * the generic metric series ("hrv_snapshot", source "manual-hrv") so it sits beside every other
  * source for the explorer/trends.
  *
- * The live ingest mirrors BreatheScreen exactly — a flow collector appends onto a buffer — so this
- * reuses the proven path rather than touching BLE. The capture buffer is uncapped (unlike Breathe's
- * rolling 30) because the analysis wants every clean beat in the window.
+ * The live ingest uses the shared [rrPackets] stream; the capture buffer is uncapped (unlike
+ * Breathe's rolling 30) because the analysis wants every clean beat. The window is a monotonic
+ * 60-second deadline — countdown display and ingest cutoff both derive from it.
  */
 @Composable
 fun HrvSnapshotScreen(
@@ -98,6 +97,9 @@ fun HrvSnapshotScreen(
     // analyzer wants the whole window.
     val captureBuffer = remember { mutableStateOf<List<Int>>(emptyList()) }
     var secondsRemaining by remember { mutableIntStateOf(HRV_CAPTURE_SECONDS) }
+    // Monotonic start of the active capture — the single time base for the countdown display, the
+    // ingest cutoff, and the finish deadline. Null outside a capture.
+    var captureStart by remember { mutableStateOf<TimeSource.Monotonic.ValueTimeMark?>(null) }
     // Live RMSSD over the beats gathered so far (a running indicator while capturing; the final figure
     // comes from the cleaned HrvAnalyzer.analyzeRaw).
     var runningRmssd by remember { mutableStateOf<Double?>(null) }
@@ -114,29 +116,44 @@ fun HrvSnapshotScreen(
         onDispose { viewModel.releaseRealtimeHr() }
     }
 
-    // Pull new R-R intervals into the capture buffer as they arrive — same path as BreatheScreen.
+    // Pull new R-R intervals into the capture buffer as they arrive. rrSeq-keyed: equal
+    // consecutive packets both count (see LiveRrPackets.kt).
     LaunchedEffect(Unit) {
         viewModel.live
-            .map { it.rr }
-            .distinctUntilChanged()
+            .rrPackets()
             .collect { rr ->
-                if (rr.isEmpty()) return@collect
                 if (phase != HrvPhase.Capturing) return@collect
+                // Deadline gate: intervals on or after the 60-second mark stay out.
+                val start = captureStart ?: return@collect
+                if (!captureWindowOpen(start.elapsedNow().inWholeMilliseconds)) return@collect
                 val merged = captureBuffer.value + rr
                 captureBuffer.value = merged
                 runningRmssd = HrvAnalyzer.rmssdRaw(merged.map { it.toDouble() })
             }
     }
 
-    // Capture countdown — only ticks while capturing. On reaching 0, run the cleaning analysis.
+    // Capture countdown — only ticks while capturing; on the deadline, run the cleaning analysis.
+    // Derived from the monotonic clock: a late resume jumps to the correct remaining value instead
+    // of stretching the window (the old per-callback decrement did).
     LaunchedEffect(phase) {
         if (phase != HrvPhase.Capturing) return@LaunchedEffect
-        while (secondsRemaining > 0) {
-            delay(1000)
-            secondsRemaining -= 1
+        val start = captureStart ?: return@LaunchedEffect
+        while (true) {
+            val elapsedMs = start.elapsedNow().inWholeMilliseconds
+            secondsRemaining = remainingCaptureSeconds(elapsedMs)
+            if (secondsRemaining <= 0) break
+            delay(1000 - elapsedMs % 1000)   // sleep to the next whole-second boundary
         }
         // End the capture and run the full cleaning analysis over everything collected.
+        val captureMs = start.elapsedNow().inWholeMilliseconds
         val raw = captureBuffer.value.map { it.toDouble() }
+        // A capture whose collected beat time exceeds the wall clock it ran for held duplicated
+        // beats (e.g. overlapping live sources) — refuse the number rather than publish it.
+        if (HrvAnalyzer.spotCaptureOverCounted(raw.sum(), captureMs)) {
+            result = HrvAnalyzer.HrvResult.empty(raw.size)
+            phase = HrvPhase.Done
+            return@LaunchedEffect
+        }
         // HRV & Autonomic test mode (Test Centre Group G): when the mode is on, emit the cleaning trace
         // (nInput / nClean / rejected fraction, the range + Malik ectopic counts, the minBeats + spot
         // gates, RMSSD/SDNN/meanNN) tagged HRV. analyzeTrace returns the SAME HrvResult analyzeRaw would
@@ -237,6 +254,7 @@ fun HrvSnapshotScreen(
                     if (phase == HrvPhase.Capturing) {
                         // Cancel.
                         phase = HrvPhase.Idle
+                        captureStart = null
                         secondsRemaining = HRV_CAPTURE_SECONDS
                         runningRmssd = null
                     } else {
@@ -246,6 +264,7 @@ fun HrvSnapshotScreen(
                         runningRmssd = null
                         result = null
                         saved = false
+                        captureStart = TimeSource.Monotonic.markNow()
                         phase = HrvPhase.Capturing
                     }
                 },
@@ -482,6 +501,19 @@ const val HRV_SNAPSHOT_METRIC_KEY = "hrv_snapshot"
  * the per-source explorer (matches Swift `HRVSnapshot.sourceId`).
  */
 const val HRV_SNAPSHOT_SOURCE_ID = "manual-hrv"
+
+/**
+ * Whole seconds left for a monotonic elapsed time, never negative. Mirrors
+ * HRVSnapshotView.remainingSeconds.
+ */
+fun remainingCaptureSeconds(elapsedMs: Long): Int =
+    (HRV_CAPTURE_SECONDS - elapsedMs / 1000).coerceAtLeast(0L).toInt()
+
+/**
+ * The ingest gate: intervals on or after the 60-second deadline stay out, however late the
+ * countdown coroutine runs. Mirrors HRVSnapshotView.captureWindowOpen.
+ */
+fun captureWindowOpen(elapsedMs: Long): Boolean = elapsedMs < HRV_CAPTURE_SECONDS * 1000L
 
 private fun captureFraction(phase: HrvPhase, secondsRemaining: Int): Float = when (phase) {
     HrvPhase.Idle -> 0f

@@ -218,4 +218,31 @@ final class RrCoverageVerdictTests: XCTestCase {
         XCTAssertFalse(HRVAnalyzer.beatValuesAreTrustworthy(
             beatAccurateFraction: HRVAnalyzer.beatAccuracyMinFraction - 0.01))
     }
+
+    // MARK: - Spot-capture beat time vs. wall clock
+
+    /// ~700 beats of ~850 ms ≈ 595 s of beat time — impossible in a 60-second window. Twin of
+    /// Kotlin `spotCaptureRejectsMoreBeatTimeThanElapsedTime`.
+    func testSpotCaptureRejectsMoreBeatTimeThanElapsedTime() {
+        let beatTimeMs = (0..<700).reduce(0.0) { sum, i in sum + 830.0 + Double(i % 5) * 10.0 }
+        XCTAssertTrue(HRVAnalyzer.spotCaptureOverCounted(beatTimeMs: beatTimeMs, captureMs: 60_000))
+    }
+
+    /// ~70 beats of 850 ms ≈ 59.5 s of beat time in 60 s — a normal seated reading stays trusted.
+    func testSpotCaptureAcceptsAPlausibleWindow() {
+        XCTAssertFalse(HRVAnalyzer.spotCaptureOverCounted(beatTimeMs: 70 * 850.0, captureMs: 60_000))
+    }
+
+    /// Exactly at the shared `coveragePlausibleCeiling` stays trusted — the ceiling is a rounding
+    /// allowance and the gate uses strict `>` like `classifyCoverage`.
+    func testSpotCaptureToleratesTheRoundingAllowance() {
+        let atCeiling = 60_000 * HRVAnalyzer.coveragePlausibleCeiling
+        XCTAssertFalse(HRVAnalyzer.spotCaptureOverCounted(beatTimeMs: atCeiling, captureMs: 60_000))
+        XCTAssertTrue(HRVAnalyzer.spotCaptureOverCounted(beatTimeMs: atCeiling + 1, captureMs: 60_000))
+    }
+
+    /// No wall clock to hold the beats against — never reject on a degenerate duration.
+    func testSpotCaptureWithZeroElapsedTimeIsNotJudged() {
+        XCTAssertFalse(HRVAnalyzer.spotCaptureOverCounted(beatTimeMs: 1_000, captureMs: 0))
+    }
 }

@@ -54,6 +54,10 @@ public final class LiveState: ObservableObject {
     /// surface for stress/breathing logic that reacts to the most recent arrival (and the standard
     /// 0x2A37 profile, which is the reliable R-R source). Drive it ONLY via `setRRIntervals(_:)`.
     @Published public var rr: [Int] = []
+    /// Monotonic count of R-R packet arrivals, bumped by every `setRRIntervals(_:)` call. Consume
+    /// packets via `onRRPackets` (keyed on this), never by watching `rr` — see RRPacketObserver.swift.
+    /// Twin of Android LiveState.rrSeq.
+    @Published public private(set) var rrSeq: Int = 0
     /// Rolling UI buffer of recent R-R intervals (capped, oldest dropped first). Standard BLE HR
     /// notifications usually carry only one or two intervals per packet, so the Live console needs a
     /// separate short history to render an actually-moving R-R strip / rolling RMSSD. Appended (never
@@ -519,6 +523,7 @@ public final class LiveState: ObservableObject {
     /// rolling buffer. `recentLimit` caps the buffer; the oldest intervals fall off first.
     public func setRRIntervals(_ intervals: [Int], recentLimit: Int = 60) {
         rr = intervals
+        rrSeq += 1
         let valid = intervals.filter { $0 > 0 }
         guard !valid.isEmpty else { return }
         rrRecent.append(contentsOf: valid)

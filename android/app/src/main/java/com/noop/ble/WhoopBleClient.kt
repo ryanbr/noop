@@ -128,6 +128,10 @@ data class LiveState(
     val streamingLiveHR: Boolean = false,
     val heartRate: Int? = null,
     val rr: List<Int> = emptyList(),
+    /** Monotonic count of R-R packet arrivals, bumped by every [withRRIntervals] call. Consume
+     *  packets via `Flow<LiveState>.rrPackets()` (keyed on this), never by watching [rr] — see
+     *  LiveRrPackets.kt. Twin of macOS LiveState.rrSeq. */
+    val rrSeq: Long = 0,
     /** Rolling UI buffer of recent R-R intervals (capped, oldest dropped first). The standard BLE HR
      *  notification usually carries only one or two intervals per packet, so the Live console needs a
      *  short history to render a moving R-R strip / rolling RMSSD. Appended (never replaced) via
@@ -228,10 +232,10 @@ data class LiveState(
      *  Twin of macOS LiveState.setRRIntervals (PR#191). */
     fun withRRIntervals(intervals: List<Int>, recentLimit: Int = 60): LiveState {
         val valid = intervals.filter { it > 0 }
-        if (valid.isEmpty()) return copy(rr = intervals)
+        if (valid.isEmpty()) return copy(rr = intervals, rrSeq = rrSeq + 1)
         val merged = rrRecent + valid
         val capped = if (merged.size > recentLimit) merged.takeLast(recentLimit) else merged
-        return copy(rr = intervals, rrRecent = capped)
+        return copy(rr = intervals, rrSeq = rrSeq + 1, rrRecent = capped)
     }
 
     /** Blank all live biometric readouts (HR + R-R + the rolling buffer) so a stale heart rate or R-R

@@ -391,6 +391,15 @@ object HrvAnalyzer {
     }
 
     /**
+     * Whether a live spot capture collected more beat time than the wall clock allows (no per-beat
+     * timestamps for [rrCoverage], but the capture knows how long it ran). Only over-count rejects;
+     * sparse windows stay with the [MIN_BEATS] gate. Pure. Byte-parity twin of Swift
+     * `spotCaptureOverCounted`.
+     */
+    fun spotCaptureOverCounted(beatTimeMs: Double, captureMs: Long): Boolean =
+        captureMs > 0 && beatTimeMs > captureMs * COVERAGE_PLAUSIBLE_CEILING
+
+    /**
      * How closely a beat's own wall-clock gap matches its own R-R value: the fraction of consecutive
      * beats whose `ts` step is within [BEAT_ACCURACY_TOLERANCE_S] of their interval. Pure. Byte-parity
      * twin of Swift `beatAccurateFraction`. Returns 1.0 for fewer than 2 beats — absence of evidence is

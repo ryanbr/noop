@@ -87,8 +87,6 @@ import com.noop.analytics.BreathStage
 import com.noop.analytics.Hrv
 import com.noop.analytics.ResonanceEngine
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -372,14 +370,12 @@ fun BreatheScreen(viewModel: AppViewModel) {
         label = "orb",
     )
 
-    // Ingest new R-R intervals into the rolling buffer and recompute RMSSD.
-    // Collect the BLE state flow directly so updates are observed reactively.
+    // Ingest new R-R intervals into the rolling buffer and recompute RMSSD. rrSeq-keyed: equal
+    // consecutive packets both count (see LiveRrPackets.kt).
     LaunchedEffect(Unit) {
         viewModel.live
-            .map { it.rr }
-            .distinctUntilChanged()
+            .rrPackets()
             .collect { rr ->
-                if (rr.isEmpty()) return@collect
                 val merged = (rrBuffer.value + rr).takeLast(rrWindow)
                 rrBuffer.value = merged
                 val r = if (merged.size >= 2) Hrv.rmssd(merged) else null

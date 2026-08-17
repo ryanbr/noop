@@ -429,6 +429,14 @@ public enum HRVAnalyzer {
         }
     }
 
+    /// Whether a live spot capture collected more beat time than the wall clock allows (no per-beat
+    /// timestamps for `rrCoverage`, but the capture knows how long it ran). Only over-count rejects;
+    /// sparse windows stay with the `minBeats` gate. Pure. Byte-parity twin of Kotlin
+    /// `spotCaptureOverCounted`.
+    public static func spotCaptureOverCounted(beatTimeMs: Double, captureMs: Double) -> Bool {
+        captureMs > 0 && beatTimeMs > captureMs * coveragePlausibleCeiling
+    }
+
     /// How closely a beat's own wall-clock gap matches its own R-R value: the fraction of consecutive
     /// beats whose `ts` step is within `beatAccuracyToleranceS` of their interval. Pure. Byte-parity twin
     /// of Kotlin `beatAccurateFraction`. Returns 1.0 for fewer than 2 beats — absence of evidence is not

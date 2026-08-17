@@ -34,6 +34,27 @@ final class HRVSnapshotViewTests: XCTestCase {
         XCTAssertEqual(HRVSnapshotView.format(42.6, "%.0f"), "43")
     }
 
+    // MARK: - Capture window (monotonic deadline)
+
+    func testRemainingSecondsDerivesFromElapsedTime() {
+        XCTAssertEqual(HRVSnapshotView.remainingSeconds(elapsedMs: 0), 60)
+        XCTAssertEqual(HRVSnapshotView.remainingSeconds(elapsedMs: 1_000), 59)
+        XCTAssertEqual(HRVSnapshotView.remainingSeconds(elapsedMs: 59_999), 1)
+        XCTAssertEqual(HRVSnapshotView.remainingSeconds(elapsedMs: 60_000), 0)
+    }
+
+    func testACallbackDelayedPastTheDeadlineFinishesImmediately() {
+        // A delayed callback at 75 s jumps to done — no decrementing a stale counter.
+        XCTAssertEqual(HRVSnapshotView.remainingSeconds(elapsedMs: 75_000), 0)
+    }
+
+    func testIngestWindowClosesExactlyAtTheDeadline() {
+        XCTAssertTrue(HRVSnapshotView.captureWindowOpen(elapsedMs: 0))
+        XCTAssertTrue(HRVSnapshotView.captureWindowOpen(elapsedMs: 59_999))
+        XCTAssertFalse(HRVSnapshotView.captureWindowOpen(elapsedMs: 60_000))
+        XCTAssertFalse(HRVSnapshotView.captureWindowOpen(elapsedMs: 75_000))
+    }
+
     // MARK: - Snapshot constants match the Android twin
 
     func testSnapshotKeyAndSourceAreStable() {

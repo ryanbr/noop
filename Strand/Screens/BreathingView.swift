@@ -205,7 +205,8 @@ private struct BreathingContent: View {
                 stop()
             }
         }
-        .onChangeCompat(of: live.rr) { rr in
+        // rrSeq-keyed: equal consecutive packets both count (see RRPacketObserver.swift).
+        .onRRPackets(live) { rr in
             ingest(rr)
         }
         .onChangeCompat(of: pace) { newPace in

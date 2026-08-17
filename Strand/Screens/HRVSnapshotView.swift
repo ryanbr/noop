@@ -13,9 +13,9 @@ import WhoopStore
 /// the generic metric series ("hrv_snapshot", source "manual-hrv") so it sits beside every other
 /// source for the explorer/trends.
 ///
-/// The live ingest mirrors BreathingView exactly — `.onChangeCompat(of: live.rr)` appends onto a
-/// `@State` buffer — so this reuses the proven path rather than touching BLE. The capture buffer is
-/// uncapped (unlike Breathe's rolling 30) because the analysis wants every clean beat in the window.
+/// The live ingest uses the shared `onRRPackets` observer; the capture buffer is uncapped (unlike
+/// Breathe's rolling 30) because the analysis wants every clean beat. The window is a monotonic
+/// 60-second deadline — countdown display and ingest cutoff both derive from it.
 struct HRVSnapshotView: View {
 
     @EnvironmentObject private var model: AppModel
@@ -50,6 +50,10 @@ struct HRVSnapshotView: View {
     @State private var captureBuffer: [Int] = []
     @State private var secondsRemaining = HRVSnapshotView.captureSeconds
 
+    /// Monotonic start of the active capture — the single time base for the countdown display, the
+    /// ingest cutoff, and the finish deadline. Nil outside a capture.
+    @State private var captureStart: ContinuousClock.Instant? = nil
+
     /// Live RMSSD over the beats gathered so far (a running indicator while capturing; the final
     /// figure comes from the cleaned `HRVAnalyzer.analyze`).
     @State private var runningRMSSD: Double? = nil
@@ -74,8 +78,8 @@ struct HRVSnapshotView: View {
             methodologyCard
             if !bonded { notBondedHint }
         }
-        // Pull new R-R intervals into the capture buffer as they arrive — same path as BreathingView.
-        .onChangeCompat(of: live.rr) { rr in
+        // rrSeq-keyed: equal consecutive packets both count (see RRPacketObserver.swift).
+        .onRRPackets(live) { rr in
             ingest(rr)
         }
         // Capture countdown — only ticks while capturing.
@@ -384,6 +388,7 @@ struct HRVSnapshotView: View {
 
     private func start() {
         guard bonded else { return }
+        captureStart = ContinuousClock().now
         phase = .capturing
         captureBuffer.removeAll()
         secondsRemaining = Self.captureSeconds
@@ -395,14 +400,24 @@ struct HRVSnapshotView: View {
 
     private func cancel() {
         phase = .idle
+        captureStart = nil
         secondsRemaining = Self.captureSeconds
         runningRMSSD = nil
         ScreenIdle.keepAwake(false)
     }
 
+    /// Milliseconds of monotonic time since the capture started (nil outside a capture).
+    private func captureElapsedMs() -> Int? {
+        guard let start = captureStart else { return nil }
+        let c = (ContinuousClock().now - start).components
+        return Int(c.seconds) * 1000 + Int(c.attoseconds / 1_000_000_000_000_000)
+    }
+
+    /// Derive the countdown from the monotonic clock — a late timer fire jumps to the correct
+    /// remaining value instead of stretching the window (the old per-callback decrement did).
     private func tick() {
-        guard secondsRemaining > 0 else { return }
-        secondsRemaining -= 1
+        guard let ms = captureElapsedMs() else { return }
+        secondsRemaining = Self.remainingSeconds(elapsedMs: ms)
         if secondsRemaining == 0 {
             finish()
         }
@@ -411,7 +426,18 @@ struct HRVSnapshotView: View {
     /// End the capture and run the full cleaning analysis over everything collected.
     private func finish() {
         ScreenIdle.keepAwake(false)
+        let captureMs = captureElapsedMs() ?? Self.captureSeconds * 1000
+        captureStart = nil
         let raw = captureBuffer.map(Double.init)
+        // A capture whose collected beat time exceeds the wall clock it ran for held duplicated
+        // beats (e.g. overlapping live sources) — refuse the number rather than publish it.
+        if HRVAnalyzer.spotCaptureOverCounted(beatTimeMs: raw.reduce(0, +),
+                                              captureMs: Double(captureMs)) {
+            result = HRVAnalyzer.HRVResult(rmssd: nil, sdnn: nil, meanNN: nil, pnn50: nil,
+                                           nInput: raw.count, nClean: 0)
+            phase = .done
+            return
+        }
         // HRV & Autonomic test mode (Group G): when the mode is on, emit the cleaning trace (nInput /
         // nClean / rejected fraction, the range + Malik ectopic counts, the minBeats + spot gates,
         // RMSSD/SDNN/meanNN) tagged `.hrv`. analyzeTrace returns the SAME HRVResult `analyze` would
@@ -435,7 +461,8 @@ struct HRVSnapshotView: View {
     /// Append newly-arrived R-R intervals to the capture buffer (only while capturing) and refresh the
     /// running RMSSD indicator. The published `rr` is the latest set of intervals.
     private func ingest(_ rr: [Int]) {
-        guard phase == .capturing, !rr.isEmpty else { return }
+        guard phase == .capturing, !rr.isEmpty,
+              let ms = captureElapsedMs(), Self.captureWindowOpen(elapsedMs: ms) else { return }
         captureBuffer.append(contentsOf: rr)
         runningRMSSD = HRVAnalyzer.rmssdRaw(captureBuffer.map(Double.init))
     }
@@ -476,6 +503,18 @@ struct HRVSnapshotView: View {
     static func meanHR(meanNN: Double?) -> Double? {
         guard let meanNN, meanNN > 0 else { return nil }
         return 60_000.0 / meanNN
+    }
+
+    /// Whole seconds left for a monotonic elapsed time, never negative. Mirrors Android
+    /// `remainingCaptureSeconds`.
+    static func remainingSeconds(elapsedMs: Int) -> Int {
+        max(0, captureSeconds - elapsedMs / 1000)
+    }
+
+    /// The ingest gate: intervals on or after the 60-second deadline stay out, however late the
+    /// countdown timer fires. Mirrors Android `captureWindowOpen`.
+    static func captureWindowOpen(elapsedMs: Int) -> Bool {
+        elapsedMs < captureSeconds * 1000
     }
 }
 
