@@ -55,4 +55,26 @@ final class HrvCollapseOverCountTests: XCTestCase {
         XCTAssertEqual(dd.rrMs.count, 60)
         XCTAssertEqual(dd.tsSec, ts)
     }
+
+    func testWindowSecCrossSecondIsAnAggressiveUpperBoundThatOverMergesRealBeats() {
+        // #1331: the cross-second window (windowSec > 0) catches boundary-straddling twins a same-second
+        // collapse can't reach — but it is a strict UPPER BOUND, not a shippable de-dup: it also over-merges
+        // a STEADY real HR whose intervals repeat one second apart. That's why it's shadow-instrumentation
+        // only (sizing how much of a night is cross-second), never the read path.
+
+        // Steady 60 bpm — one real beat/sec at 1000 ms, beat-accurate, nothing legitimately to remove.
+        let steadyTs = Array(0..<10)
+        let steadyRr = [Double](repeating: 1000.0, count: 10)
+        XCTAssertEqual(HRVAnalyzer.collapseOverCount(tsSec: steadyTs, rrMs: steadyRr, windowSec: 0).rrMs.count,
+                       10, "windowSec 0 leaves a steady stream untouched (the safe default)")
+        XCTAssertEqual(HRVAnalyzer.collapseOverCount(tsSec: steadyTs, rrMs: steadyRr, windowSec: 1).rrMs.count,
+                       5, "windowSec 1 over-merges every other real beat — an upper bound, not shippable")
+
+        // A boundary-straddling duplicate (the crossSecondOverCount signature): the same 500 ms beat emitted
+        // at second 0 AND second 1. Same-second keeps both (different seconds); the 1-second window drops it.
+        XCTAssertEqual(HRVAnalyzer.collapseOverCount(tsSec: [0, 1], rrMs: [500, 500], windowSec: 0).rrMs.count, 2)
+        XCTAssertEqual(HRVAnalyzer.collapseOverCount(tsSec: [0, 1], rrMs: [500, 500], windowSec: 1).rrMs.count, 1)
+        // Distinct values one second apart are real neighbours (|Δ| > tol) — never merged, even cross-second.
+        XCTAssertEqual(HRVAnalyzer.collapseOverCount(tsSec: [0, 1], rrMs: [500, 900], windowSec: 1).rrMs.count, 2)
+    }
 }

@@ -65,4 +65,24 @@ class HrvCollapseOverCountTest {
         assertEquals(60, ddRr.size)
         assertEquals(ts, ddTs)
     }
+
+    @Test
+    fun collapseOverCount_windowSecCrossSecondIsAnAggressiveUpperBound() {
+        // #1331: the cross-second window (windowSec > 0) catches boundary-straddling twins a same-second
+        // collapse can't reach — but it is a strict UPPER BOUND, not a shippable de-dup: it also over-merges
+        // a STEADY real HR whose intervals repeat one second apart. Shadow-instrumentation only. Twin of Swift.
+        val steadyTs = (0L until 10L).toList()
+        val steadyRr = List(10) { 1000.0 }
+        assertEquals("windowSec 0 leaves a steady stream untouched (safe default)",
+            10, HrvAnalyzer.collapseOverCount(steadyTs, steadyRr, 40.0, 0L).second.size)
+        assertEquals("windowSec 1 over-merges every other real beat — upper bound, not shippable",
+            5, HrvAnalyzer.collapseOverCount(steadyTs, steadyRr, 40.0, 1L).second.size)
+
+        // Boundary-straddling duplicate (the crossSecondOverCount signature): same 500 ms beat at second 0
+        // AND second 1. Same-second keeps both; the 1-second window drops the twin.
+        assertEquals(2, HrvAnalyzer.collapseOverCount(listOf(0L, 1L), listOf(500.0, 500.0), 40.0, 0L).second.size)
+        assertEquals(1, HrvAnalyzer.collapseOverCount(listOf(0L, 1L), listOf(500.0, 500.0), 40.0, 1L).second.size)
+        // Distinct values one second apart are real neighbours (|Δ| > tol) — never merged, even cross-second.
+        assertEquals(2, HrvAnalyzer.collapseOverCount(listOf(0L, 1L), listOf(500.0, 900.0), 40.0, 1L).second.size)
+    }
 }

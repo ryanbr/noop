@@ -508,8 +508,16 @@ object HrvAnalyzer {
      * the shipped HRV/resp path is unchanged; the always-on `hrv diag` logs BOTH raw and deduped so the
      * de-dup can be validated vs WHOOP + @artemc's Polar (#1118) before it becomes the read path. Pure.
      * Mirrors Swift `HRVAnalyzer.collapseOverCount`.
+     *
+     * [windowSec] widens the de-dup horizon: 0 (the default) compares only beats in the SAME second (the
+     * original behaviour, byte-identical for every existing caller); > 0 also collapses a near-identical
+     * interval that recurs within [windowSec] seconds — the CROSS-second twins the `crossSecondOverCount`
+     * verdict flags and a same-second collapse structurally cannot reach. INSTRUMENTATION ONLY, and a
+     * cross-second window is an AGGRESSIVE UPPER BOUND: a steady real HR has near-identical intervals one
+     * second apart, so [windowSec] > 0 WILL over-merge real neighbours — it exists to SIZE how much of a
+     * night's over-count is cross-second, NOT as a shippable de-dup. (#1118/#1331)
      */
-    fun collapseOverCount(tsSec: List<Long>, rrMs: List<Double>, rrTolMs: Double = 40.0): Pair<List<Long>, List<Double>> {
+    fun collapseOverCount(tsSec: List<Long>, rrMs: List<Double>, rrTolMs: Double = 40.0, windowSec: Long = 0L): Pair<List<Long>, List<Double>> {
         val n = minOf(tsSec.size, rrMs.size)
         if (n < 2) return Pair(tsSec, rrMs)
         val order = (0 until n).sortedWith(compareBy({ tsSec[it] }, { rrMs[it] }, { it }))
@@ -520,7 +528,7 @@ object HrvAnalyzer {
             val r = rrMs[idx]
             var dup = false
             var j = keptTs.size - 1
-            while (j >= 0 && keptTs[j] == t) {      // only beats already kept in the SAME second
+            while (j >= 0 && t - keptTs[j] <= windowSec) {   // beats kept within `windowSec` (0 ⇒ same second)
                 if (abs(keptRr[j] - r) <= rrTolMs) { dup = true; break }
                 j--
             }

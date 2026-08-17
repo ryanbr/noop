@@ -571,7 +571,16 @@ public enum HRVAnalyzer {
     /// validated against WHOOP's own numbers and @artemc's Polar H10 (#1118) BEFORE it ever becomes the
     /// read path (the "validate against the artifact, not one match" rule). Pure. Mirrors Kotlin
     /// `HrvAnalyzer.collapseOverCount`.
-    public static func collapseOverCount(tsSec: [Int], rrMs: [Double], rrTolMs: Double = 40)
+    /// `windowSec` widens the de-dup horizon: `0` (the default) compares only beats in the SAME second (the
+    /// original behaviour, byte-identical for every existing caller); `> 0` also collapses a near-identical
+    /// interval that recurs within `windowSec` seconds — the CROSS-second twins the `crossSecondOverCount`
+    /// verdict flags and a same-second collapse structurally cannot reach. INSTRUMENTATION ONLY, and a
+    /// cross-second window is an AGGRESSIVE UPPER BOUND: a steady real HR has near-identical intervals one
+    /// second apart, so `windowSec > 0` WILL over-merge real neighbours — it exists to size how much of a
+    /// night's over-count is cross-second (does coverage fall to ~1.0, does beat-accuracy clear #1127's
+    /// gate?), NOT as a shippable de-dup. The real fix is density/timeline-based and must be validated
+    /// against ground truth (@artemc's H10) before it becomes the read path. (#1118/#1331)
+    public static func collapseOverCount(tsSec: [Int], rrMs: [Double], rrTolMs: Double = 40, windowSec: Int = 0)
         -> (tsSec: [Int], rrMs: [Double]) {
         let n = min(tsSec.count, rrMs.count)
         guard n >= 2 else { return (tsSec, rrMs) }
@@ -583,7 +592,7 @@ public enum HRVAnalyzer {
             let r = rrMs[idx]
             var dup = false
             var j = keptTs.count - 1
-            while j >= 0 && keptTs[j] == t {      // only beats already kept in the SAME second
+            while j >= 0 && t - keptTs[j] <= windowSec {   // beats kept within `windowSec` (0 ⇒ same second)
                 if abs(keptRr[j] - r) <= rrTolMs { dup = true; break }
                 j -= 1
             }

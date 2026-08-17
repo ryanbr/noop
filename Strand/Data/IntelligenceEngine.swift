@@ -1078,16 +1078,30 @@ final class IntelligenceEngine: ObservableObject {
                         // same-second collapse is the aggressive UPPER BOUND (it also catches the two-channel
                         // twins but can over-merge two real neighbours whose values sit within 40 ms). The
                         // real de-dup lives between them; the log shows both so we can see where.
+                        // #1331: a THIRD candidate, `xsec` — the 40 ms collapse widened to a 1-second WINDOW.
+                        // Every night here reads `crossSecondOverCount`, meaning the same-second collapses
+                        // above CAN'T reach the duplicates (they straddle the second boundary), so `cov40`
+                        // stays ~1.7-2.0 on the heavy nights and respiratory stays blanked. `xsec` measures
+                        // how far a cross-second collapse WOULD get (does coverage fall to ~1.0, does
+                        // beat-accuracy clear #1127's 0.5 gate?). It is a strict UPPER BOUND, not a shippable
+                        // de-dup: a steady real HR has ~identical intervals one second apart, so this
+                        // over-merges real beats. Sizing only; the real fix is density/timeline-based +
+                        // ground-truth-validated (@artemc's H10). Instrumentation, shipped path unchanged.
                         let ex = HRVAnalyzer.collapseOverCount(tsSec: ts, rrMs: sleepRr, rrTolMs: 0)
                         let dd = HRVAnalyzer.collapseOverCount(tsSec: ts, rrMs: sleepRr)
+                        let xs = HRVAnalyzer.collapseOverCount(tsSec: ts, rrMs: sleepRr, rrTolMs: 40, windowSec: 1)
                         let hDd = HRVAnalyzer.analyze(rawRR: dd.rrMs)
                         let covEx = HRVAnalyzer.rrCoverage(tsSec: ex.tsSec, rrMs: ex.rrMs)
                         let covDd = HRVAnalyzer.rrCoverage(tsSec: dd.tsSec, rrMs: dd.rrMs)
                         let accDd = HRVAnalyzer.beatAccurateFraction(tsSec: dd.tsSec, rrMs: dd.rrMs)
+                        let covXs = HRVAnalyzer.rrCoverage(tsSec: xs.tsSec, rrMs: xs.rrMs)
+                        let accXs = HRVAnalyzer.beatAccurateFraction(tsSec: xs.tsSec, rrMs: xs.rrMs)
                         diagLine += "\nhrv dedup day=\(res.daily.day) exactN=\(ex.rrMs.count)/\(sleepRr.count) "
                             + "covExact=\(String(format: "%.2f", covEx)) | ch40N=\(dd.rrMs.count) "
                             + "cov40=\(String(format: "%.2f", covDd)) beatAcc40=\(String(format: "%.2f", accDd)) "
-                            + "rmssd40=\(ms(hDd.rmssd))ms sdnn40=\(ms(hDd.sdnn))ms meanNN40=\(ms(hDd.meanNN))ms"
+                            + "rmssd40=\(ms(hDd.rmssd))ms sdnn40=\(ms(hDd.sdnn))ms meanNN40=\(ms(hDd.meanNN))ms "
+                            + "| xsecN=\(xs.rrMs.count) covXsec=\(String(format: "%.2f", covXs)) "
+                            + "beatAccXsec=\(String(format: "%.2f", accXs)) (1s upper bound)"
                     }
                     hrvDiag = diagLine
                     // #1118: flag this night's HRV as over-counted (same verdict the diag logs) so the

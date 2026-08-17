@@ -885,17 +885,29 @@ object IntelligenceEngine {
                     // ts AND value, no real-beat loss) is the safe floor; the ~40 ms collapse is the
                     // aggressive UPPER BOUND (catches the two-channel twins but can over-merge two real
                     // neighbours within 40 ms). Log both so we can see where the real de-dup sits. Twin.
+                    // #1331: a THIRD candidate, `xsec` — the 40 ms collapse widened to a 1-second WINDOW.
+                    // crossSecondOverCount means the same-second collapses above can't reach the boundary-
+                    // straddling twins (cov40 stays ~1.7-2.0 on heavy nights, resp blanked); `xsec` sizes how
+                    // far a cross-second collapse WOULD get (coverage → ~1.0? beat-accuracy clears the 0.5
+                    // gate?). Strict UPPER BOUND, not shippable (a steady HR has ~identical intervals one
+                    // second apart, so it over-merges real beats); the real fix is density/timeline-based +
+                    // H10-validated. Instrumentation only, shipped path unchanged. Twin of the Swift line.
                     val ex = HrvAnalyzer.collapseOverCount(ts, sleepRr, 0.0)
                     val dd = HrvAnalyzer.collapseOverCount(ts, sleepRr)
+                    val xs = HrvAnalyzer.collapseOverCount(ts, sleepRr, 40.0, 1L)
                     val hDd = HrvAnalyzer.analyzeRaw(dd.second)
                     val covEx = HrvAnalyzer.rrCoverage(ex.first, ex.second)
                     val covDd = HrvAnalyzer.rrCoverage(dd.first, dd.second)
                     val accDd = HrvAnalyzer.beatAccurateFraction(dd.first, dd.second)
+                    val covXs = HrvAnalyzer.rrCoverage(xs.first, xs.second)
+                    val accXs = HrvAnalyzer.beatAccurateFraction(xs.first, xs.second)
                     dayDiag("hrv dedup day=${res.daily.day} exactN=${ex.second.size}/${sleepRr.size} " +
                         "covExact=${String.format(java.util.Locale.US, "%.2f", covEx)} | ch40N=${dd.second.size} " +
                         "cov40=${String.format(java.util.Locale.US, "%.2f", covDd)} " +
                         "beatAcc40=${String.format(java.util.Locale.US, "%.2f", accDd)} " +
-                        "rmssd40=${ms(hDd.rmssd)}ms sdnn40=${ms(hDd.sdnn)}ms meanNN40=${ms(hDd.meanNN)}ms")
+                        "rmssd40=${ms(hDd.rmssd)}ms sdnn40=${ms(hDd.sdnn)}ms meanNN40=${ms(hDd.meanNN)}ms " +
+                        "| xsecN=${xs.second.size} covXsec=${String.format(java.util.Locale.US, "%.2f", covXs)} " +
+                        "beatAccXsec=${String.format(java.util.Locale.US, "%.2f", accXs)} (1s upper bound)")
                 }
             } else if (res.sleepSessions.isEmpty()) {
                 // #1244: no in-sleep R-R AND no detected session (past the >=200-HR gate) = the "HR tracked,
