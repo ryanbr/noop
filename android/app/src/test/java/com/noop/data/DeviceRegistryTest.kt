@@ -100,6 +100,7 @@ class DeviceRegistryTest {
         override suspend fun deleteJournalFor(deviceId: String) { deletedTables += "journal" to deviceId }
         override suspend fun deleteWorkoutsFor(deviceId: String) { deletedTables += "workout" to deviceId }
         override suspend fun deleteAppleDailyFor(deviceId: String) { deletedTables += "appleDaily" to deviceId }
+        override suspend fun deleteAppleStepHoursFor(deviceId: String) { deletedTables += "appleStepHour" to deviceId }
         override suspend fun deleteMetricSeriesFor(deviceId: String) { deletedTables += "metricSeries" to deviceId }
         override suspend fun deleteDayOwnershipFor(deviceId: String) {
             deletedTables += "dayOwnership" to deviceId
@@ -136,6 +137,7 @@ class DeviceRegistryTest {
         override suspend fun reKeyJournal(from: String, to: String) {}
         override suspend fun reKeyWorkouts(from: String, to: String) {}
         override suspend fun reKeyAppleDaily(from: String, to: String) {}
+        override suspend fun reKeyAppleStepHour(from: String, to: String) {}
         override suspend fun reKeyMetricSeries(from: String, to: String) {}
         override suspend fun reKeyDayOwnership(from: String, to: String) {
             for ((day, row) in owners) if (row.deviceId == from) owners[day] = row.copy(deviceId = to)
@@ -309,6 +311,10 @@ class DeviceRegistryTest {
             "journal", "workout", "appleDaily", "metricSeries", "dayOwnership",
             "scoreInputProvenance",
             "sleepStateSample", "labMarker", "liveSession", "dismissedWorkout", "dismissedSleep",
+            // v38-apple-step-hour: hourly Apple-Health steps. No Android importer writes this table, but a
+            // `.noopbak` restored from iOS carries its rows — and THIS path is "Remove Apple Health
+            // imported data", so leaving them behind would be the plainest form of the defect.
+            "appleStepHour",
         )
         assertEquals(expectedTables, dao.deletedTables.map { it.first }.toSet())
         // Every delete was scoped to the requested device, not the seeded my-whoop.

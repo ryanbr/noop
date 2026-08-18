@@ -83,6 +83,7 @@ class SourceCoordinatorAdoptionTest {
         override suspend fun deleteJournalFor(deviceId: String) {}
         override suspend fun deleteWorkoutsFor(deviceId: String) {}
         override suspend fun deleteAppleDailyFor(deviceId: String) {}
+        override suspend fun deleteAppleStepHoursFor(deviceId: String) {}
         override suspend fun deleteMetricSeriesFor(deviceId: String) {}
         override suspend fun deleteSleepStatesFor(deviceId: String) {}
         override suspend fun deleteLabMarkersFor(deviceId: String) {}
@@ -115,6 +116,7 @@ class SourceCoordinatorAdoptionTest {
         override suspend fun reKeyJournal(from: String, to: String) {}
         override suspend fun reKeyWorkouts(from: String, to: String) {}
         override suspend fun reKeyAppleDaily(from: String, to: String) {}
+        override suspend fun reKeyAppleStepHour(from: String, to: String) {}
         override suspend fun reKeyMetricSeries(from: String, to: String) {}
         override suspend fun reKeyDayOwnership(from: String, to: String) {
             for ((day, row) in owners) if (row.deviceId == from) owners[day] = row.copy(deviceId = to)

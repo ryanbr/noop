@@ -140,6 +140,11 @@ final class HealthKitBridge: ObservableObject {
     /// UserDefaults key holding the read set the user was last asked about.
     private static let readTypeSignatureKey = "noop.health.readTypeSignature"
 
+    /// UserDefaults key gating the one-time 90-day hourly-step backfill (see the hourly collection
+    /// below). Set once the first hourly-step HealthKit query actually returns rows; every later
+    /// `sync()` only walks the same window the daily collectors already use.
+    private static let hourlyStepsBackfilledKey = "applehealth.hourlySteps.backfilled"
+
     /// A stable fingerprint of the read types currently requested.
     private static var readTypeSignature: String {
         quantityReadIds.map(\.rawValue).sorted().joined(separator: ",")
@@ -571,6 +576,31 @@ final class HealthKitBridge: ObservableObject {
                 // nil means the READ failed; only an actual empty result is allowed to clear the set.
                 if let imported = await collectCaffeine(start: caffeineStart, end: end) {
                     CaffeineLogStore.shared.replaceImported(imported)
+                }
+            }
+            // Hourly step counts (v38-apple-step-hour). `appleDaily.steps` above flattens a whole day to
+            // one total, so an hour the phone spent dead/on a desk is invisible — the day just reads low.
+            // Walk the same window at HOURLY granularity into `appleStepHour` so a UI can show the shape
+            // of the day. First run ever (flag unset) widens to 90 days back: HealthKit keeps hourly
+            // statistics historically, so this answers PAST days retroactively rather than only from the
+            // day it ships; later syncs re-cover the normal start...end window like the daily collectors.
+            //
+            // Collected HERE (not earlier) so a transient HealthKit error throws into the existing catch
+            // below and the backfill flag is never set — a failed first run retries next sync instead of
+            // permanently skipping the one-time 90-day widen.
+            let hourlyStepsBackfilled = UserDefaults.standard.bool(forKey: Self.hourlyStepsBackfilledKey)
+            let hourlyStepsStart: Date = hourlyStepsBackfilled ? start
+                : (cal.date(byAdding: .day, value: -90, to: cal.startOfDay(for: end)) ?? start)
+            let hourlySteps = try await collectHourlySteps(start: hourlyStepsStart, end: end)
+            // Only mark the backfill done once hourly data actually lands. HealthKit returns EMPTY (not
+            // an error) when step read-access is denied, and users grant Health scopes incrementally — so
+            // gating on non-empty, not merely on no-throw, stops a deny-then-grant sequence from burning
+            // the one-time 90-day widen before the user ever authorises steps. A genuinely step-less
+            // window just re-scans next sync: cheap, bounded, self-healing.
+            if !hourlySteps.isEmpty {
+                try await store.upsertAppleStepHours(hourlySteps, deviceId: appleDeviceId)
+                if !hourlyStepsBackfilled {
+                    UserDefaults.standard.set(true, forKey: Self.hourlyStepsBackfilledKey)
                 }
             }
             try await writeBack(whoopStore: store)
@@ -1007,6 +1037,51 @@ final class HealthKitBridge: ObservableObject {
     /// the same empty result — and treating a failed query as an authoritative zero would wipe the
     /// stored figure for the whole window.
     @discardableResult
+    /// Hourly cumulative step counts over `[start, end)`, mirroring `collect()`'s
+    /// `HKStatisticsCollectionQuery` shape but bucketed by HOUR instead of day, so a backfill can show
+    /// the shape of a day rather than one flattened total. `anchorDate` is local midnight — the same
+    /// anchor `collect()` uses for its daily buckets — so hour buckets fall on local-clock hour
+    /// boundaries, not UTC ones.
+    ///
+    /// WHAT A MISSING HOUR MEANS. Only hours with at least one step sample produce a row (HealthKit's
+    /// `sumQuantity()` is nil for an empty bucket). So an absent hour means "no steps were recorded" —
+    /// which covers a dead/left-behind phone AND an hour the wearer simply sat still. Step data carries
+    /// no separate "was recording" signal, so a consumer must not label a gap as "phone off" on its own;
+    /// it is evidence, not proof. Rows are never fabricated for empty hours.
+    ///
+    /// Throws on a HealthKit query error (distinguished from a genuinely-empty window, which returns
+    /// zero rows) so a transient failure propagates to `sync()`'s existing `catch` instead of being
+    /// mistaken for "no data".
+    private func collectHourlySteps(start: Date, end: Date) async throws -> [(ts: Int, steps: Int)] {
+        guard let type = HKQuantityType.quantityType(forIdentifier: .stepCount) else { return [] }
+        let cal = Calendar.current
+        let anchor = cal.startOfDay(for: start)
+        let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate),
+            Self.notNoopAuthored,
+        ])
+        return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<[(ts: Int, steps: Int)], Error>) in
+            let q = HKStatisticsCollectionQuery(quantityType: type, quantitySamplePredicate: predicate,
+                                                options: .cumulativeSum, anchorDate: anchor,
+                                                intervalComponents: DateComponents(hour: 1))
+            q.initialResultsHandler = { _, results, error in
+                if let error {
+                    cont.resume(throwing: error)
+                    return
+                }
+                var rows: [(ts: Int, steps: Int)] = []
+                results?.enumerateStatistics(from: start, to: end) { stats, _ in
+                    if let sum = stats.sumQuantity() {
+                        let steps = Int(sum.doubleValue(for: .count()).rounded())
+                        rows.append((ts: Int(stats.startDate.timeIntervalSince1970), steps: steps))
+                    }
+                }
+                cont.resume(returning: rows)
+            }
+            store.execute(q)
+        }
+    }
+
     private func collect(_ id: HKQuantityTypeIdentifier, unit: HKUnit, start: Date, end: Date,
                          op: HKStatisticsOptions, sink: @escaping (String, Double) -> Void) async -> Bool {
         guard let type = HKQuantityType.quantityType(forIdentifier: id) else { return false }

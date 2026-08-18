@@ -124,6 +124,10 @@ public struct DeviceRegistryStore: Sendable {
         // v31-deep-capture-channels: the banked 5/MG v18 auxiliary fields are deviceId-keyed per-second
         // rows like every stream above, so a "delete all of this device's data" must clear them too.
         "v18AuxSample",
+        // v38-apple-step-hour: the hourly Apple Health step buckets are deviceId-keyed ("apple-health"),
+        // so forgetting that source must clear them — otherwise an imported phone's hour-by-hour step
+        // history survives the delete (the same privacy defect this list exists to close).
+        "appleStepHour",
     ]
 
     /// Permanently delete every recorded sample/derived row belonging to one device, across all

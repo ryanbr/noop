@@ -85,6 +85,10 @@ interface DeviceRegistryDao {
     @Query("DELETE FROM journal WHERE deviceId = :deviceId") suspend fun deleteJournalFor(deviceId: String)
     @Query("DELETE FROM workout WHERE deviceId = :deviceId") suspend fun deleteWorkoutsFor(deviceId: String)
     @Query("DELETE FROM appleDaily WHERE deviceId = :deviceId") suspend fun deleteAppleDailyFor(deviceId: String)
+    // v38-apple-step-hour: no Android importer writes this table, but a `.noopbak` restored FROM iOS
+    // carries its rows, so "delete this device's data" must clear them here too — otherwise the hourly
+    // step history survives a delete on Android alone (the defect this set exists to close).
+    @Query("DELETE FROM appleStepHour WHERE deviceId = :deviceId") suspend fun deleteAppleStepHoursFor(deviceId: String)
     @Query("DELETE FROM metricSeries WHERE deviceId = :deviceId") suspend fun deleteMetricSeriesFor(deviceId: String)
     @Query("DELETE FROM dayOwnership WHERE deviceId = :deviceId") suspend fun deleteDayOwnershipFor(deviceId: String)
     @Query("DELETE FROM scoreInputProvenance WHERE deviceId = :deviceId OR sourceId = :deviceId")
@@ -122,6 +126,7 @@ interface DeviceRegistryDao {
     @Query("UPDATE OR IGNORE journal SET deviceId = :to WHERE deviceId = :from") suspend fun reKeyJournal(from: String, to: String)
     @Query("UPDATE OR IGNORE workout SET deviceId = :to WHERE deviceId = :from") suspend fun reKeyWorkouts(from: String, to: String)
     @Query("UPDATE OR IGNORE appleDaily SET deviceId = :to WHERE deviceId = :from") suspend fun reKeyAppleDaily(from: String, to: String)
+    @Query("UPDATE OR IGNORE appleStepHour SET deviceId = :to WHERE deviceId = :from") suspend fun reKeyAppleStepHour(from: String, to: String)
     @Query("UPDATE OR IGNORE metricSeries SET deviceId = :to WHERE deviceId = :from") suspend fun reKeyMetricSeries(from: String, to: String)
     @Query("UPDATE OR IGNORE dayOwnership SET deviceId = :to WHERE deviceId = :from") suspend fun reKeyDayOwnership(from: String, to: String)
     @Query("UPDATE OR IGNORE sleepStateSample SET deviceId = :to WHERE deviceId = :from") suspend fun reKeySleepStates(from: String, to: String)

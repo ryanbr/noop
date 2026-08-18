@@ -576,6 +576,28 @@ data class AppleDaily(
 )
 
 /**
+ * Cached hourly Apple-Health step count (v38 / MIGRATION_30_31). Swift `appleStepHour` (WhoopStore
+ * Database.swift `v38-apple-step-hour` migration). `ts` is the hour-BUCKET START (wall-clock unix
+ * seconds, local-hour aligned by the HealthKit collection query); `steps` is the cumulative step sum
+ * within that hour. Natural key (deviceId, ts) mirrors every other per-sample table so the hourly
+ * upsert is idempotent. [AppleDaily.steps] answers "how many steps that day"; this table answers
+ * "which HOURS were recorded", so a dead/absent phone for part of a day is visible instead of a single
+ * flattened daily total.
+ *
+ * Fields are declared in the SAME order as the Swift GRDB schema (deviceId, ts, steps) so the
+ * migration's CREATE TABLE column order matches Room's generated shape. SCHEMA-ONLY twin: the
+ * Apple-Health IMPORT that populates it is iOS-only (HealthKit has no Android analogue), so Android
+ * carries the table for `.noopbak` byte-parity but no importer writes to it — exactly as it already
+ * does for [AppleDaily].
+ */
+@Entity(tableName = "appleStepHour", primaryKeys = ["deviceId", "ts"])
+data class AppleStepHour(
+    val deviceId: String,
+    val ts: Long,
+    val steps: Int,
+)
+
+/**
  * The RAW WHOOP 5.0 v26 optical PPG waveform, one record per second (v27 / MIGRATION_18_19, issue #156
  * follow-up). Swift `ppgWaveformSample` (WhoopStore Database.swift `v27-ppg-waveform` migration). The
  * strap's 24 Hz buffer was fully decoded but only ever used to derive [PpgHrSample]; the samples
