@@ -2542,6 +2542,11 @@ class WhoopBleClient(
     /** Newest unix the strap reports having (from GET_DATA_RANGE); refreshed each connect. */
     @Volatile
     private var strapNewestTs: Long? = null
+    /** Wall-clock (unix s) captured at the SAME instant [strapNewestTs] was read from a GET_DATA_RANGE
+     *  reply. The backfiller clock correlation must pair the strap's device time with the wall time of
+     *  that same reading — pairing it with a later `now` inflates the offset by all the elapsed wall time
+     *  since the fetch (WHOOP4 doesn't re-fetch the range at each offload). */
+    private var strapNewestTsWall: Long? = null
 
     // --- Live-persistence buffer (port of Swift Collector: custom realtime/event/battery frames) ---
 
@@ -5372,6 +5377,9 @@ class WhoopBleClient(
                         }
                         dataRangeNewestUnix(frame)?.let {
                             strapNewestTs = it
+                            // Capture the wall clock of THIS reading so the backfiller correlation pairs
+                            // the strap's device time with the wall time of the same instant (see field doc).
+                            strapNewestTsWall = System.currentTimeMillis() / 1000L
                             // #34: persist the strap's newest banked record so the debug export can flag a reset clock.
                             runCatching { NoopPrefs.of(context).edit().putLong("strap.newestRecordTs", it).apply() }
                             // #928: flag an implausibly FUTURE "newest" (strap clock set ahead) right where
@@ -6999,7 +7007,12 @@ class WhoopBleClient(
         // mis-date nights when the strap's RTC has drifted. No-op when strapNewestTs is null (no Data
         // Range received yet) — the Backfiller keeps its identity default, same as today.
         strapNewestTs?.let { newest ->
-            val wall = (System.currentTimeMillis() / 1000L).toInt()
+            // Pair the strap's newest-record device time with the wall clock CAPTURED WHEN IT WAS READ,
+            // not `now`. WHOOP4 doesn't re-fetch the Data Range at each offload, so `now` inflated the
+            // offset by all the elapsed wall time since the last fetch (observed 46s → ~3700s over 30 min).
+            // Pairing with the capture wall keeps the offset at the strap's true RTC skew regardless of how
+            // stale [strapNewestTs] is. Fallback to now only if we somehow have the ts without its wall.
+            val wall = (strapNewestTsWall ?: (System.currentTimeMillis() / 1000L)).toInt()
             backfiller.clockRef = ClockRef(device = newest.toInt(), wall = wall)
             log("Clock: seeded backfiller correlation from Data Range (device=$newest wall=$wall, offset ${wall - newest}s)")
         }
@@ -7985,6 +7998,7 @@ class WhoopBleClient(
         backfilling = false
         backfillDrain.reset()
         strapNewestTs = null
+        strapNewestTsWall = null
         offloadFramesThisSession = 0
         lastOffloadFrameAtMs = 0L   // #174: don't carry a stale cooldown reference into the next session
         historicalKickSent = false
