@@ -558,10 +558,6 @@
     ],
     [
       "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Optional · VO₂max builds from ~4 nights of heart rate; a waist makes it more accurate"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
       "Put the strap on first. The deep stream is on-wrist only."
     ],
     [
@@ -625,10 +621,6 @@
       "Wear the strap, tap once, then let it sync and share your strap log."
     ],
     [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Your VO₂max uses your waist for a more accurate estimate"
-    ],
-    [
       "android/app/src/main/java/com/noop/ui/SkinTempCardsScreen.kt",
       "Plan a trip or shift"
     ],
@@ -647,14 +639,6 @@
     [
       "android/app/src/main/java/com/noop/ui/SleepScreen.kt",
       "Raw on-device stages"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SleepScreen.kt",
-      "Removes this recorded sleep and recomputes the day without it. NOOP won't re-detect sleep in this window. You can undo for a few seconds after."
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SleepScreen.kt",
-      "Removes this sleep and recomputes the day without it. You can undo for a few seconds after."
     ],
     [
       "android/app/src/main/java/com/noop/ui/SleepScreen.kt",

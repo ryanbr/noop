@@ -2126,4 +2126,6 @@
     <string name="trends_tl_form">Forme</string>
     <string name="sleep_delete_user_edited_body">Supprime ce sommeil et recalcule la journée sans lui. Vous pouvez annuler pendant quelques secondes.</string>
     <string name="sleep_delete_recorded_body">Supprime ce sommeil enregistré et recalcule la journée sans lui. NOOP ne redétectera pas de sommeil dans cette fenêtre. Vous pouvez annuler pendant quelques secondes.</string>
+    <string name="settings_waist_footnote_unset">Facultatif · La VO₂max se construit à partir d’environ 4 nuits de fréquence cardiaque ; le tour de taille la rend plus précise. L’Âge de forme n’en a pas besoin. Mesurez autour de votre taille, au niveau du nombril.</string>
+    <string name="settings_waist_footnote_set">Votre VO₂max utilise votre tour de taille pour une estimation plus précise</string>
 </resources>

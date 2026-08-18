@@ -165,7 +165,17 @@ internal fun SettingsToggleRow(
 
 // MARK: - Two-column form row (ports SettingsView's private FormRow)
 
-/** Label on the left, control on the right — the two-column form feel. */
+/**
+ * Label on the left, control on the right — the two-column form feel.
+ *
+ * KEEP THE CONTROL NARROW. Only the label is weighted, so Compose measures [control] FIRST against the
+ * full row width and the label gets whatever is left. A control that wants the whole width (e.g. a
+ * full-sentence helper text stacked under a stepper) starves the label to ~0 width, where it wraps one
+ * character per line — rendering blank while inflating the row into a screen of dead space. Put
+ * sentence-length copy in a sibling `Text` BELOW the row instead (see the Step-calibration and Waist
+ * rows in SettingsScreen); a SHORT right-aligned sub-value under the control (e.g. "Auto · 173 bpm") is
+ * fine.
+ */
 @Composable
 internal fun SettingsFormRow(label: String, control: @Composable () -> Unit) {
     Row(

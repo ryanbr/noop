@@ -2120,4 +2120,6 @@
     <string name="trends_tl_form">Forma</string>
     <string name="sleep_delete_user_edited_body">Remove este sono e recalcula o dia sem ele. Podes anular durante alguns segundos.</string>
     <string name="sleep_delete_recorded_body">Remove este sono registado e recalcula o dia sem ele. O NOOP não vai voltar a detetar sono nesta janela. Podes anular durante alguns segundos.</string>
+    <string name="settings_waist_footnote_unset">Opcional · O VO₂max é construído a partir de ~4 noites de frequência cardíaca; a cintura torna-o mais preciso. A Idade de forma física não precisa dela. Mede à volta da tua cintura, à altura do umbigo.</string>
+    <string name="settings_waist_footnote_set">O teu VO₂max usa a tua cintura para uma estimativa mais precisa</string>
 </resources>

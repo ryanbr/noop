@@ -2153,4 +2153,6 @@
     <string name="trends_tl_form">Form</string>
     <string name="sleep_delete_user_edited_body">Removes this sleep and recomputes the day without it. You can undo for a few seconds after.</string>
     <string name="sleep_delete_recorded_body">Removes this recorded sleep and recomputes the day without it. NOOP won\'t re-detect sleep in this window. You can undo for a few seconds after.</string>
+    <string name="settings_waist_footnote_unset">Optional · VO₂max builds from ~4 nights of heart rate; a waist makes it more accurate. The Fitness Age itself doesn’t need it. Measure around your middle, at the navel.</string>
+    <string name="settings_waist_footnote_set">Your VO₂max uses your waist for a more accurate estimate</string>
 </resources>

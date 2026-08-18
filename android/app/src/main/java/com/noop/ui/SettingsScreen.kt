@@ -951,9 +951,13 @@ fun SettingsScreen(
                 // estimate. Unset (0) by design — the headline Fitness Age never needs it — so it shows
                 // "Add" until entered, then steps like Height (inches in imperial, cm in metric).
                 // First tap from unset seeds a typical adult waist rather than 1 cm.
+                // The footnote sits BELOW the row (like Step calibration), never inside the control
+                // column: SettingsFormRow weights the LABEL and measures the control first, so a
+                // full-width helper text in the control starves the label to ~0 width — it then wrapped
+                // one character per line, rendering blank while inflating the row to ~300dp of dead space.
+                val hasWaist = profile.waistCm > 0.0
                 SettingsFormRow(label = uiString(R.string.l10n_settings_screen_waist_optional_d5356703)) {
                     Column(horizontalAlignment = Alignment.End) {
-                        val hasWaist = profile.waistCm > 0.0
                         if (unitSystem == UnitSystem.IMPERIAL) {
                             val totalInches = UnitFormatter.cmToInches(profile.waistCm).roundToInt()
                             StepperField(
@@ -961,7 +965,10 @@ fun SettingsScreen(
                                 accessibility = if (hasWaist) {
                                     "Waist, $totalInches inches"
                                 } else {
-                                    "Waist, not set. Optional: adds your VO₂max estimate"
+                                    // #1391: a waist does NOT unlock VO₂max (the Uth HR-ratio fallback
+                                    // needs none) — it upgrades it. The visible footnote was corrected
+                                    // for this; this screen-reader copy had been left behind.
+                                    "Waist, not set. Optional: your VO₂max is more accurate with it"
                                 },
                                 valueColor = if (hasWaist) Palette.textPrimary else Palette.textTertiary,
                                 onMinus = { mutate { profile.waistCm = waistInchesStep(profile.waistCm, up = false) } },
@@ -974,25 +981,32 @@ fun SettingsScreen(
                                 accessibility = if (hasWaist) {
                                     "Waist in centimetres"
                                 } else {
-                                    "Waist, not set. Optional: adds your VO₂max estimate"
+                                    // #1391: a waist does NOT unlock VO₂max (the Uth HR-ratio fallback
+                                    // needs none) — it upgrades it. The visible footnote was corrected
+                                    // for this; this screen-reader copy had been left behind.
+                                    "Waist, not set. Optional: your VO₂max is more accurate with it"
                                 },
                                 valueColor = if (hasWaist) Palette.textPrimary else Palette.textTertiary,
                                 onMinus = { mutate { profile.waistCm = waistCmStep(profile.waistCm, up = false) } },
                                 onPlus = { mutate { profile.waistCm = waistCmStep(profile.waistCm, up = true) } },
                             )
                         }
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            // #1391: VO₂max is offered from heart rate alone (Uth HR-ratio) even without a
-                            // waist; a waist switches it to the more accurate body-composition estimate. So the
-                            // sub-text now says what's used + how a waist helps, not "adds/unlocks".
-                            text = if (hasWaist) "Your VO₂max uses your waist for a more accurate estimate"
-                                   else "Optional · VO₂max builds from ~4 nights of heart rate; a waist makes it more accurate",
-                            style = NoopType.footnote,
-                            color = if (hasWaist) Palette.accent else Palette.textTertiary,
-                        )
                     }
                 }
+                Text(
+                    // #1391: VO₂max is offered from heart rate alone (Uth HR-ratio) even without a
+                    // waist; a waist switches it to the more accurate body-composition estimate. So the
+                    // sub-text says what's used + how a waist helps, not "adds/unlocks". The unset copy
+                    // now also carries the Apple twin's two missing beats: the Fitness Age doesn't need a
+                    // waist, and WHERE to measure.
+                    text = if (hasWaist) {
+                        uiString(R.string.settings_waist_footnote_set)
+                    } else {
+                        uiString(R.string.settings_waist_footnote_unset)
+                    },
+                    style = NoopType.footnote,
+                    color = if (hasWaist) Palette.accent else Palette.textTertiary,
+                )
                 SettingsRowDivider()
                 SettingsFormRow(label = uiString(R.string.l10n_settings_screen_max_heart_rate_3d4ed858)) {
                     Column(horizontalAlignment = Alignment.End) {
