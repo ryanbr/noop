@@ -2118,4 +2118,6 @@
     <string name="trends_tl_unavailable">Carga crónica vs aguda</string>
     <string name="trends_tl_needs">Precisa de %1$d+ dias consecutivos de Esforço para começar. %2$d até agora.</string>
     <string name="trends_tl_form">Forma</string>
+    <string name="sleep_delete_user_edited_body">Remove este sono e recalcula o dia sem ele. Podes anular durante alguns segundos.</string>
+    <string name="sleep_delete_recorded_body">Remove este sono registado e recalcula o dia sem ele. O NOOP não vai voltar a detetar sono nesta janela. Podes anular durante alguns segundos.</string>
 </resources>

@@ -2118,4 +2118,6 @@
     <string name="trends_tl_unavailable">Obciążenie przewlekłe vs ostre</string>
     <string name="trends_tl_needs">Wymaga %1$d+ kolejnych dni Wysiłku, aby zacząć. Na razie %2$d.</string>
     <string name="trends_tl_form">Forma</string>
+    <string name="sleep_delete_user_edited_body">Usuwa ten sen i przelicza dzień bez niego. Możesz cofnąć przez kilka sekund.</string>
+    <string name="sleep_delete_recorded_body">Usuwa ten zarejestrowany sen i przelicza dzień bez niego. NOOP nie wykryje ponownie snu w tym oknie. Możesz cofnąć przez kilka sekund.</string>
 </resources>

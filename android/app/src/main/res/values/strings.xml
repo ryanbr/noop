@@ -2151,4 +2151,6 @@
     <string name="trends_tl_unavailable">Chronic vs acute load</string>
     <string name="trends_tl_needs">Needs %1$d+ consecutive days of Effort to begin. %2$d so far.</string>
     <string name="trends_tl_form">Form</string>
+    <string name="sleep_delete_user_edited_body">Removes this sleep and recomputes the day without it. You can undo for a few seconds after.</string>
+    <string name="sleep_delete_recorded_body">Removes this recorded sleep and recomputes the day without it. NOOP won\'t re-detect sleep in this window. You can undo for a few seconds after.</string>
 </resources>

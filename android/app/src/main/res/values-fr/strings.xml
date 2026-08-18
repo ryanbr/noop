@@ -2124,4 +2124,6 @@
     <string name="trends_tl_unavailable">Charge chronique vs aiguë</string>
     <string name="trends_tl_needs">Nécessite %1$d+ jours consécutifs d’Effort pour démarrer. %2$d jusqu’ici.</string>
     <string name="trends_tl_form">Forme</string>
+    <string name="sleep_delete_user_edited_body">Supprime ce sommeil et recalcule la journée sans lui. Vous pouvez annuler pendant quelques secondes.</string>
+    <string name="sleep_delete_recorded_body">Supprime ce sommeil enregistré et recalcule la journée sans lui. NOOP ne redétectera pas de sommeil dans cette fenêtre. Vous pouvez annuler pendant quelques secondes.</string>
 </resources>

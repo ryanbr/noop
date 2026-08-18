@@ -2044,4 +2044,6 @@
     <string name="breath_proto_presence_punching_caution">除非目标是突破困倦，否则不建议作为初学者默认。</string>
     <!-- /breath protocol catalog -->
     <string name="l10n_breathe_screen_calm_me_a1b2c3d4">让我平静</string>
+    <string name="sleep_delete_user_edited_body">移除此次睡眠并重新计算当天数据。之后几秒内可以撤销。</string>
+    <string name="sleep_delete_recorded_body">移除此次已记录的睡眠并重新计算当天数据。NOOP 不会在此时间段内重新检测睡眠。之后几秒内可以撤销。</string>
 </resources>

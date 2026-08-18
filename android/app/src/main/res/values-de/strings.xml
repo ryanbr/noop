@@ -2139,4 +2139,6 @@
     <string name="trends_tl_unavailable">Chronische vs. akute Last</string>
     <string name="trends_tl_needs">Benötigt %1$d+ aufeinanderfolgende Tage mit Anstrengung, um zu starten. Bisher %2$d.</string>
     <string name="trends_tl_form">Tagesform</string>
+    <string name="sleep_delete_user_edited_body">Entfernt diesen Schlaf und berechnet den Tag ohne ihn neu. Du kannst dies für ein paar Sekunden rückgängig machen.</string>
+    <string name="sleep_delete_recorded_body">Entfernt diesen aufgezeichneten Schlaf und berechnet den Tag ohne ihn neu. NOOP erkennt in diesem Zeitfenster keinen Schlaf mehr. Du kannst dies für ein paar Sekunden rückgängig machen.</string>
 </resources>

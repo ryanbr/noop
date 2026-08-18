@@ -2125,4 +2125,6 @@
     <string name="trends_tl_unavailable">Carga crónica frente a aguda</string>
     <string name="trends_tl_needs">Necesita %1$d+ días consecutivos de Esfuerzo para empezar. %2$d hasta ahora.</string>
     <string name="trends_tl_form">Forma</string>
+    <string name="sleep_delete_user_edited_body">Elimina este sueño y recalcula el día sin él. Puedes deshacerlo durante unos segundos.</string>
+    <string name="sleep_delete_recorded_body">Elimina este sueño registrado y recalcula el día sin él. NOOP no volverá a detectar sueño en esta ventana. Puedes deshacerlo durante unos segundos.</string>
 </resources>
