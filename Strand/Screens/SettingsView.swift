@@ -145,12 +145,9 @@ struct SettingsView: View {
     /// false and get the 24/7 behaviour they were trying to avoid.
     @AppStorage(PuffinExperiment.continuousHrvOvernightOnlyKey) private var continuousHrvOvernightOnly = true
 
-    // #477 Power saving (parity with Android). Battery-adaptive sync cadence + an HRV-pause sub-option.
-    @AppStorage(PuffinExperiment.powerSavingKey) private var powerSavingEnabled = false
-    @AppStorage(PuffinExperiment.lowRefreshKey) private var lowRefreshEnabled = false
-    @AppStorage(PuffinExperiment.powerSavingBatteryPctKey) private var powerSavingPct = 20
-    /// Stored INVERTED so the default (absent = false) reads as "HRV pause on". The toggle shows `!this`.
-    @AppStorage(PuffinExperiment.pauseHrvDisabledKey) private var pauseHrvDisabled = false
+    // #477 Power saving moved OUT of this screen into `PowerSavingView` — a first-class More row on
+    // iPhone (between Test Centre and Settings) and its own sidebar item on macOS. Its `@AppStorage`
+    // keys live there now; nothing here reads them.
 
     /// "Experimental sleep staging (V2)" (ON by default, promoted after the 44-subject cross-subject
     /// benchmark). When on, detected nights are re-staged with `SleepStagerV2` (the transparent
@@ -315,9 +312,8 @@ struct SettingsView: View {
                 unitsCard.staggeredAppear(index: 1)
                 appearanceCard.staggeredAppear(index: 2)
                 strapCard.staggeredAppear(index: 3)
-                powerSavingCard.staggeredAppear(index: 4)
-                streakCard.staggeredAppear(index: 5)
-                featuresCard.staggeredAppear(index: 6)
+                streakCard.staggeredAppear(index: 4)
+                featuresCard.staggeredAppear(index: 5)
 
                 // Lower-frequency sections collapse behind a single default-closed disclosure so the
                 // screen opens at ~6 sections instead of 11. Nothing is removed; every section here
@@ -1394,78 +1390,6 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Power saving (#477)
-    private var powerSavingCard: some View {
-        SettingsSection(
-            icon: "battery.25",
-            title: "Power saving",
-            blurb: "Ease the load on your strap when its battery is running low. The strap keeps banking data on its own, so nothing is lost — NOOP just talks to it less often to help it last until you can charge it."
-        ) {
-            VStack(alignment: .leading, spacing: 16) {
-                Toggle(isOn: $powerSavingEnabled) {
-                    Text("Power saving mode")
-                        .font(StrandFont.subhead)
-                        .foregroundStyle(StrandPalette.textPrimary)
-                }
-                .toggleStyle(.switch)
-                .tint(StrandPalette.accent)
-                .onChangeCompat(of: powerSavingEnabled) { _ in model.applyPowerSaving() }
-                Text("Slows background strap-sync (every 45 min instead of 15) while your strap's battery is low. No data loss — the strap banks everything, so sync just batches into larger, less frequent pulls.")
-                    .font(StrandFont.caption)
-                    .foregroundStyle(StrandPalette.textTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if powerSavingEnabled {
-                    rowDivider
-                    HStack {
-                        Text("Kick in at (strap battery)")
-                            .font(StrandFont.subhead)
-                            .foregroundStyle(StrandPalette.textPrimary)
-                        Spacer()
-                        Text(verbatim: "\(powerSavingPct)%")
-                            .font(StrandFont.subhead)
-                            .foregroundStyle(StrandPalette.accent)
-                    }
-                    Slider(
-                        value: Binding(get: { Double(powerSavingPct) }, set: { powerSavingPct = Int($0) }),
-                        in: 10...30, step: 5,
-                        onEditingChanged: { editing in if !editing { model.applyPowerSaving() } }
-                    )
-                    .tint(StrandPalette.accent)
-
-                    rowDivider
-                    // HRV pause: a sub-option, ON by default when the master is on (stored inverted).
-                    Toggle(isOn: Binding(get: { !pauseHrvDisabled }, set: { pauseHrvDisabled = !$0 })) {
-                        Text("Pause HRV capture")
-                            .font(StrandFont.subhead)
-                            .foregroundStyle(StrandPalette.textPrimary)
-                    }
-                    .toggleStyle(.switch)
-                    .tint(StrandPalette.accent)
-                    .onChangeCompat(of: pauseHrvDisabled) { _ in model.applyPowerSaving() }
-                    Text("While your strap's battery is low, stop the always-on background HRV stream — the biggest continuous drain on the strap. A Live screen still shows heart rate, and it re-arms automatically once the strap is charged.")
-                        .font(StrandFont.caption)
-                        .foregroundStyle(StrandPalette.textTertiary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    rowDivider
-                    // Low refresh: a sub-option that applies at ANY charge, not just below the threshold.
-                    Toggle(isOn: $lowRefreshEnabled) {
-                        Text("Low refresh")
-                            .font(StrandFont.subhead)
-                            .foregroundStyle(StrandPalette.textPrimary)
-                    }
-                    .toggleStyle(.switch)
-                    .tint(StrandPalette.accent)
-                    .onChangeCompat(of: lowRefreshEnabled) { _ in model.applyPowerSaving() }
-                    Text("Sync in the background every hour instead of every 15 minutes, whatever the strap's charge — fewer reconnections is the biggest saving on a WHOOP 4.0. Nothing is lost: the strap banks everything and hands it over in larger batches. Pull to sync still runs straight away, and live heart rate is untouched.")
-                        .font(StrandFont.caption)
-                        .foregroundStyle(StrandPalette.textTertiary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        }
-    }
 
     /// Rename the WHOOP 4.0's BLE advertising name. Shows the current name (read back from firmware in
     /// the connect handshake → `LiveState.advertisingName`) and writes a new one via `renameStrap`. The

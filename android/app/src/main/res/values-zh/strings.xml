@@ -2050,4 +2050,5 @@
     <string name="settings_waist_footnote_set">你的 VO₂max 使用腰围来获得更准确的估算</string>
     <string name="power_saving_low_refresh">低频刷新</string>
     <string name="power_saving_low_refresh_desc">无论手环电量如何，后台同步改为每小时一次而非每 15 分钟一次——减少重新连接是 WHOOP 4.0 上最大的省电项。不会丢失任何数据：手环会记录全部内容，并以更大的批次交付。手动同步仍会立即运行，实时心率不受影响。</string>
+    <string name="nav_power_saving">省电模式</string>
 </resources>

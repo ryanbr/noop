@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.automirrored.filled.Rule
 import androidx.compose.material.icons.filled.Sensors
+import androidx.compose.material.icons.filled.BatteryStd
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material.icons.filled.Storage
@@ -168,6 +169,7 @@ private enum class Destination(
     BackupSync("backup_sync", R.string.nav_backup_sync, Icons.Filled.CloudSync),
     FusedRecord("fused_record", R.string.nav_fused_record, Icons.AutoMirrored.Filled.CompareArrows),
     Notifications("notifications", R.string.nav_notifications, Icons.Filled.Notifications),
+    PowerSaving("power_saving", R.string.nav_power_saving, Icons.Filled.BatteryStd),
     Settings("settings", R.string.nav_settings, Icons.Filled.Settings),
     TestCentre("test_centre", R.string.nav_test_centre, Icons.Filled.BugReport),
 
@@ -218,7 +220,7 @@ private val drawerGroups: List<DrawerGroup> = listOf(
     ), defaultExpanded = false),
     DrawerGroup("App", R.string.more_group_app, listOf(
         Destination.Automations, Destination.SmartAlarm, Destination.Notifications,
-        Destination.TestCentre, Destination.Settings,
+        Destination.TestCentre, Destination.PowerSaving, Destination.Settings,
     ), defaultExpanded = false),
 )
 
@@ -434,6 +436,7 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                 composable(Destination.NoopLimitations.route) { NoopLimitationsScreen() }
                 composable(Destination.BackupSync.route) { BackupSyncScreen() }
                 composable(Destination.Notifications.route) { NotificationsSettingsScreen(viewModel) }
+                composable(Destination.PowerSaving.route) { PowerSavingScreen(viewModel) }
                 composable(Destination.Settings.route) {
                     SettingsScreen(
                         viewModel,

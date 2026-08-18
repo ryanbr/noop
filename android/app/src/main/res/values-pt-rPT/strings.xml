@@ -2124,4 +2124,5 @@
     <string name="settings_waist_footnote_set">O teu VO₂max usa a tua cintura para uma estimativa mais precisa</string>
     <string name="power_saving_low_refresh">Atualização reduzida</string>
     <string name="power_saving_low_refresh_desc">Sincroniza em segundo plano a cada hora em vez de a cada 15 minutos, seja qual for a carga da pulseira — menos religações é a maior poupança numa WHOOP 4.0. Nada se perde: a pulseira guarda tudo e entrega em lotes maiores. A sincronização manual continua imediata e a frequência cardíaca em direto não é afetada.</string>
+    <string name="nav_power_saving">Poupança de energia</string>
 </resources>

@@ -2130,4 +2130,5 @@
     <string name="settings_waist_footnote_set">Votre VO₂max utilise votre tour de taille pour une estimation plus précise</string>
     <string name="power_saving_low_refresh">Rafraîchissement réduit</string>
     <string name="power_saving_low_refresh_desc">Synchronise en arrière-plan toutes les heures au lieu de toutes les 15 minutes, quelle que soit la charge du bracelet : moins de reconnexions, c\'est la plus grosse économie sur une WHOOP 4.0. Rien n\'est perdu : le bracelet enregistre tout et le transmet par lots plus importants. La synchro manuelle reste immédiate et la fréquence cardiaque en direct n\'est pas affectée.</string>
+    <string name="nav_power_saving">Économie d’énergie</string>
 </resources>

@@ -432,6 +432,9 @@ struct RootTabView: View {
                     // just buried in Settings, so the feedback loop is one tap from the More tab.
                     MoreRow("Test Centre", "stethoscope", .testCentre)
                     MoreRow("Siri & Shortcuts", "mic.fill", .siriShortcuts)
+                    // #477 lives here rather than inside Settings: the strap-battery levers are the
+                    // ones people reach for when a strap is running down, so they get their own row.
+                    MoreRow("Power saving", "battery.25", .powerSaving)
                     MoreRow("Settings", "gearshape.fill", .settings)
                 }
             }
@@ -517,7 +520,7 @@ private enum MoreDestination: Hashable {
     case insightsHub, intelligence, coach, insights, explore, compare
     case live, workouts, health, labBook, stress, breathe, intervals, rhythm
     case fusedRecord, appleHealth, miBand, dataSources, backupSync, shortcutsExport, noopLimitations
-    case alarms, automations, testCentre, siriShortcuts, settings
+    case alarms, automations, testCentre, siriShortcuts, powerSaving, settings
 
     @ViewBuilder var destination: some View {
         switch self {
@@ -546,6 +549,7 @@ private enum MoreDestination: Hashable {
         case .automations:     AutomationsView()
         case .testCentre:      TestCentreView()
         case .siriShortcuts:   SiriShortcutsSettingsView()
+        case .powerSaving:     PowerSavingView()
         case .settings:        SettingsView()
         }
     }

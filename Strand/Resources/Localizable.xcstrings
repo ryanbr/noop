@@ -207218,6 +207218,108 @@
           }
         }
       }
+    },
+    "Power saving": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Energiesparen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ahorro de energía"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Économie d’énergie"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poupança de energia"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oszczędzanie energii"
+          }
+        }
+      }
+    },
+    "Ease the load on your strap when its battery is running low.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entlaste dein Band, wenn sein Akku zur Neige geht."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reduce la carga de tu banda cuando le queda poca batería."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allégez la charge de votre bracelet quand sa batterie faiblit."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alivia a carga da tua pulseira quando a bateria está a acabar."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odciąż opaskę, gdy jej bateria się kończy."
+          }
+        }
+      }
+    },
+    "The strap keeps banking data on its own, so nothing is lost — NOOP just talks to it less often to help it last until you can charge it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Band speichert seine Daten weiterhin selbst, es geht also nichts verloren — NOOP spricht nur seltener mit ihm, damit es bis zum Laden durchhält."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La banda sigue guardando los datos por su cuenta, así que no se pierde nada: NOOP simplemente habla con ella menos a menudo para que aguante hasta que puedas cargarla."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le bracelet continue d’enregistrer ses données de son côté, donc rien n’est perdu — NOOP lui parle simplement moins souvent pour qu’il tienne jusqu’à la recharge."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A pulseira continua a guardar os dados sozinha, por isso nada se perde — o NOOP apenas fala com ela menos vezes para durar até a poderes carregar."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opaska nadal zapisuje dane samodzielnie, więc nic nie ginie — NOOP po prostu rzadziej się z nią komunikuje, aby wystarczyła do naładowania."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
