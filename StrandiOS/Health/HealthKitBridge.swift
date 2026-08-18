@@ -29,6 +29,10 @@ final class HealthKitBridge: ObservableObject {
     @Published private(set) var auth: AuthState = .unknown
     @Published private(set) var lastSync: Date?
     @Published private(set) var syncing = false
+    /// Coalesces a fresh-data notification that arrives while another HealthKit pass owns the bridge.
+    /// Without this, a strap offload finishing during the foreground read/write pass was deferred until
+    /// the next app open even though the newly-banked rows were already available locally.
+    private var writeBackPending = false
     /// The most recent failure surfaced by `sync` / `writeBack`. Cleared on a successful run. UI binds
     /// here so an Apple Health auth revoke, quota hit, or invalid sample is visible instead of silent.
     @Published private(set) var lastError: String?
@@ -81,19 +85,6 @@ final class HealthKitBridge: ObservableObject {
         return s
     }
 
-    /// The write set as it existed before the high-res write-back (4 nightly vitals + sleep). A
-    /// returning user granted THIS set; `refreshAuthIfPreviouslyGranted` must resume off it — checking
-    /// the full `writeTypes` would leave every pre-existing grant stuck at `.unknown` after the update
-    /// because the new types are still `.notDetermined`.
-    private var legacyCoreWriteTypes: Set<HKSampleType> {
-        var s = Set<HKSampleType>()
-        for id in HealthKitBridge.quantityWriteIds where !HealthKitBridge.writeDenied.contains(id) {
-            if let t = HKObjectType.quantityType(forIdentifier: id) { s.insert(t) }
-        }
-        if let sleep = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) { s.insert(sleep) }
-        return s
-    }
-
     // Every id here ends up in the HealthKit permission dialog. Only request what `sync` actually
     // aggregates into `DayAgg`; adding read scopes the app never consumes makes the consent prompt
     // noisier and surfaces a privacy ask we don't honour.
@@ -129,8 +120,8 @@ final class HealthKitBridge: ObservableObject {
     /// instead of bricking launch, turning a ship-and-crash into a no-op.
     private static let writeDenied: Set<HKQuantityTypeIdentifier> = [.appleSleepingWristTemperature]
     // High-res write-back shares: the continuous 1-minute HR stream, and the energy/distance samples
-    // attached to written workouts. Kept out of `quantityWriteIds` so `legacyCoreWriteTypes` (the
-    // auth-resume set) stays exactly what pre-update users granted.
+    // attached to written workouts. Kept separate from the four nightly-vital ids so the permission
+    // expansion and each independently-authorized writer remain explicit.
     private static let highResQuantityWriteIds: [HKQuantityTypeIdentifier] = [
         .heartRate, .activeEnergyBurned, .distanceWalkingRunning, .distanceCycling
     ]
@@ -229,7 +220,10 @@ final class HealthKitBridge: ObservableObject {
     /// status, so no system permission sheet is shown.
     func refreshAuthIfPreviouslyGranted() {
         guard auth == .unknown, HKHealthStore.isHealthDataAvailable() else { return }
-        let granted = legacyCoreWriteTypes.allSatisfy { store.authorizationStatus(for: $0) == .sharingAuthorized }
+        // Share authorization is per type. Resume when at least one write type is granted so a person
+        // who intentionally declined (for example) workouts still gets sleep/vitals exported after a
+        // relaunch. Requiring every legacy type made partial grants look wholly disconnected.
+        let granted = writeTypes.contains { store.authorizationStatus(for: $0) == .sharingAuthorized }
         if granted {
             auth = .authorized
             // A returning user who already granted access should get the live stream re-armed for this
@@ -398,9 +392,15 @@ final class HealthKitBridge: ObservableObject {
     /// upserts keyed by day).
     @discardableResult
     func sync(days: Int = 30) async -> Bool {
-        guard auth == .authorized, !syncing else { return false }
+        guard auth == .authorized else { return false }
+        guard !syncing else {
+            // A full sync includes write-back. If new strap data is landing concurrently, guarantee one
+            // final write-only reconciliation after the current owner releases the bridge.
+            writeBackPending = true
+            return false
+        }
         syncing = true
-        defer { syncing = false }
+        defer { finishHealthPass() }
         // Before reading: pick up any read type this version added that the user was never asked about
         // (#949). No-op once the stored signature matches, which is every sync after the first.
         await requestNewReadTypesIfNeeded()
@@ -629,26 +629,44 @@ final class HealthKitBridge: ObservableObject {
     /// would misreport when NOOP last READ from Health.
     ///
     /// Shares the `syncing` flag with `sync()` on purpose: two write-backs must never interleave, because
-    /// the vitals dedup deletes our prior samples for a key before saving the fresh batch. The cost is
-    /// that a foreground `sync()` arriving during a background write skips that one read pass and picks
-    /// up on the next open - a few seconds' window, and nothing is lost.
-    func writeBackAfterNewData() async {
+    /// the vitals dedup deletes our prior samples for a key before saving the fresh batch. A call that
+    /// arrives while another pass owns the bridge is coalesced into one final reconciliation rather than
+    /// being dropped until the next app open.
+    @discardableResult
+    func writeBackAfterNewData() async -> Bool {
         // A backfill routinely completes in a process that was never foregrounded (a background offload,
         // or a BLE relaunch) - the case this exists for. `auth` is still `.unknown` there, because the
         // only resume runs on scenePhase == .active, so without this the guard below would silently drop
         // exactly the writes this is meant to deliver. Idempotent, and never prompts: it reads share
         // status, and its re-request for new types is foreground-gated.
         refreshAuthIfPreviouslyGranted()
-        guard auth == .authorized, !syncing else { return }
+        // No authorization is a successful no-op for a background task. The scheduler is cancelled by
+        // its app-owned operation after observing this state, so it does not keep waking unnecessarily.
+        guard auth == .authorized else { return true }
+        guard !syncing else {
+            writeBackPending = true
+            return true
+        }
         syncing = true
-        defer { syncing = false }
-        guard let store = await repo.storeHandle() else { return }
+        defer { finishHealthPass() }
+        guard let store = await repo.storeHandle() else { return false }
         do {
             try await writeBack(whoopStore: store)
             lastError = nil
+            return true
         } catch {
             lastError = String(localized: "Apple Health sync failed: \(error.localizedDescription)")
+            return false
         }
+    }
+
+    /// Release the single-flight gate and service one coalesced fresh-data signal. Scheduling a new task
+    /// (rather than recursing in the defer) guarantees the current pass has fully returned first.
+    private func finishHealthPass() {
+        syncing = false
+        guard writeBackPending else { return }
+        writeBackPending = false
+        Task { await writeBackAfterNewData() }
     }
 
     // MARK: - Write back (NOOP → Health)

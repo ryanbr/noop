@@ -264,12 +264,13 @@ targets:
           # launch in StrandiOSApp.init) or the submit fails gracefully and only the foreground/"Run now"
           # paths run.
           - fetch
-        # #510: permit the scheduled debug auto-export's BGAppRefreshTask identifier. Built from
-        # $(PRODUCT_BUNDLE_IDENTIFIER) so it tracks BUNDLE_ID_PREFIX automatically; MUST still match
-        # ScheduledDebugExport.bgTaskIdentifier EXACTLY (which derives it from Bundle.main the same
-        # way) and be registered at launch (StrandiOSApp.init), or iOS refuses to schedule/deliver it.
+        # Permit both BGAppRefreshTask identifiers. Each derives from Bundle.main at runtime so it
+        # tracks BUNDLE_ID_PREFIX, and each is registered from StrandiOSApp.init before launch finishes.
         BGTaskSchedulerPermittedIdentifiers:
           - $(PRODUCT_BUNDLE_IDENTIFIER).debugexport
+          # Best-effort fallback that writes already-banked WHOOP data to HealthKit when iOS grants
+          # background time. Fresh offloads also write immediately from their completion hook.
+          - $(PRODUCT_BUNDLE_IDENTIFIER).healthwriteback
         NSBluetoothAlwaysUsageDescription: "NOOP connects directly to your WHOOP strap over Bluetooth to read heart rate, R-R intervals, battery, and sensor data locally on your iPhone. Nothing leaves your device."
         NSLocationWhenInUseUsageDescription: "NOOP records your route during an outdoor workout to show distance, pace, and a map, and keeps recording while the screen is off. The route stays on your device. Nothing leaves it."
         NSHealthShareUsageDescription: "NOOP reads your own Apple Health data on-device to compute recovery, strain, and sleep. Nothing leaves your device."
@@ -299,6 +300,8 @@ targets:
       path: StrandiOS/Resources/NOOP.entitlements
       properties:
         com.apple.developer.healthkit: true
+        # Required by HealthKit on iOS 15+ for the observer queries registered by HealthKitBridge.
+        com.apple.developer.healthkit.background-delivery: true
         com.apple.developer.healthkit.access: []
         com.apple.security.application-groups:
           - $(APP_GROUP_ID)

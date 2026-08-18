@@ -446,7 +446,7 @@ struct AppleHealthView: View {
                             .font(StrandFont.subhead)
                             .foregroundStyle(StrandPalette.textSecondary)
                     } else {
-                        Text("Connected. Reading on launch and when you return to NOOP.")
+                        Text("Connected. New strap data is written automatically, with periodic background refresh when iOS allows it.")
                             .font(StrandFont.subhead)
                             .foregroundStyle(StrandPalette.textSecondary)
                     }

@@ -415,7 +415,7 @@ This is the biggest *additive* opportunity on iOS.
 |---|---|
 | **Read** | Query HealthKit live (`HKHealthStore`, `HKSampleQuery`, anchored/observer queries) for HR, RHR, HRV SDNN, SpO₂, wrist/body temperature, respiratory rate, sleep stages, workouts, body composition — the same types `relevantTypes` already enumerates in `AppleHealthImporter`. No manual export needed. |
 | **Write** | Write NOOP-computed values back into Apple Health: HR / HRV / SpO₂ / temperature samples decoded from the strap, sleep analysis from `StrandAnalytics.SleepStager`, and workouts from `WorkoutDetector` — so NOOP data shows up across the user's Health ecosystem. |
-| **Background delivery** | `HKObserverQuery` + `enableBackgroundDelivery` to keep the on-device store in sync without opening the app. |
+| **Background delivery** | `HKObserverQuery` + `enableBackgroundDelivery` keep the on-device store current, while a best-effort `BGAppRefreshTaskRequest` periodically writes already-banked strap data back to Health. Fresh WHOOP offloads write immediately from their completion hook. iOS chooses the actual refresh time. |
 
 Because `AppleHealthImporter` already defines the canonical type set, units, and
 `SleepStage` mapping, an iOS `HealthKitImporter` can map `HKSample` objects onto the
@@ -562,10 +562,8 @@ targets:
 - [x] `MenuBarExtra` replaced by a WidgetKit widget + Live Activity (`StrandiOSWidgets`), reusing `StrandDesign`.
 - [x] iOS action layer: `lockScreen` returns false on iOS, `buzzBack`/`markMoment` portable, **App Intents** exposed (`StrandiOS/System/NOOPAppIntents.swift`).
 - [x] Clipboard + URL-open routed through `Platform.swift` (`PlatformPasteboard`/`PlatformOpen`).
-- [x] `HealthKitBridge` two-way Apple Health (read live + write NOOP metrics). _(See the device-id follow-up flagged below.)_
+- [x] `HealthKitBridge` two-way Apple Health (read live + immediate post-offload and periodic background write-back of NOOP metrics).
 - [ ] **Still TODO (needs hardware):** verify BLE on a **physical iPhone** with a real strap — CoreBluetooth has no Simulator. This is the one thing CI/compile can't cover.
-
-> **Open follow-up:** `HealthKitBridge.writeBack` reads NOOP-computed metrics under `deviceId = "my-whoop"`, but the on-device *computed* scores (recovery/HRV/…) are persisted under the **computed** id `"my-whoop-noop"` — so the Apple-Health write-back may read little/nothing for a strap-only user. Behavioural (not a compile issue); fix when the iOS HealthKit path gets device-tested.
 
 ---
 

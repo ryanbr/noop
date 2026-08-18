@@ -74,11 +74,26 @@ struct StrandiOSApp: App {
             noopDeviceId: model.deviceId
         )
         _health = StateObject(wrappedValue: bridge)
+        // Register a separate, always-on-while-authorized refresh task for Apple Health write-back.
+        // The operation is write-only and bounded to the bridge's recent window; fresh BLE offloads still
+        // use the immediate hook below. BGTaskScheduler chooses the actual wake time.
+        HealthWritebackBackgroundScheduler.register { [weak bridge] in
+            guard let bridge else { return false }
+            let succeeded = await bridge.writeBackAfterNewData()
+            // A person can revoke every write type in Settings while NOOP is closed. Stop requesting
+            // wakes once the cold-launched bridge can no longer resume a prior share grant.
+            if bridge.auth != .authorized {
+                HealthWritebackBackgroundScheduler.cancel()
+            }
+            return succeeded
+        }
         // #1021: publish to Apple Health when an offload lands, not only on foreground entry - the
         // scenePhase pass below starts the offload and wrote to Health in parallel with it, so a night
         // synced on open only reached Health at the next launch. Weak so the scene owns the bridge's
         // lifetime; the bridge no-ops unless Health was authorized.
-        model.healthWriteBack = { [weak bridge] in await bridge?.writeBackAfterNewData() }
+        model.healthWriteBack = { [weak bridge] in
+            _ = await bridge?.writeBackAfterNewData()
+        }
     }
 
     var body: some Scene {
@@ -188,6 +203,11 @@ struct StrandiOSApp: App {
                     guard scenePhase == .active else { return }
                     Task { await WidgetSnapshot.publish(from: model) }
                 }
+                // Apple Health is explicitly opt-in. Once any write type is authorized, keep one
+                // best-effort BGAppRefresh request armed; revoking all write access cancels it.
+                .onChange(of: health.auth) { _, auth in
+                    HealthWritebackBackgroundScheduler.updateSchedule(isAuthorized: auth == .authorized)
+                }
                 // #581: the `noop://import-health` deep link the iOS Shortcut opens after building the
                 // HealthKit-free payload. Filter on the host so other future schemes don't trip the
                 // importer; macOS never registers the scheme so this stays iOS-only.
@@ -240,6 +260,8 @@ struct StrandiOSApp: App {
                 model.ble.requestSync(.foreground)
                 Task {
                     health.refreshAuthIfPreviouslyGranted()
+                    HealthWritebackBackgroundScheduler.updateSchedule(
+                        isAuthorized: health.auth == .authorized)
                     await HealthSyncRefreshCoordinator.run(
                         sync: { await health.sync() },
                         refresh: {
@@ -254,6 +276,9 @@ struct StrandiOSApp: App {
                     await watch.pushLatest(from: model)
                 }
             } else if phase == .background {
+                // Re-submit on every transition because iOS may discard an old best-effort request.
+                HealthWritebackBackgroundScheduler.updateSchedule(
+                    isAuthorized: health.auth == .authorized)
                 // #114: capture the LAST in-app live state on the way out so the Home widget matches what
                 // the user just saw — its battery/HR/score otherwise lag to the last FOREGROUND refreshSeq
                 // bump. One reload per app-exit is low-frequency and well within WidgetKit's daily budget.
