@@ -2122,4 +2122,6 @@
     <string name="sleep_delete_recorded_body">Usuwa ten zarejestrowany sen i przelicza dzień bez niego. NOOP nie wykryje ponownie snu w tym oknie. Możesz cofnąć przez kilka sekund.</string>
     <string name="settings_waist_footnote_unset">Opcjonalnie · VO₂max powstaje z ~4 nocy pomiaru tętna; obwód talii zwiększa dokładność. Wiek sprawnościowy go nie potrzebuje. Zmierz w pasie, na wysokości pępka.</string>
     <string name="settings_waist_footnote_set">Twój VO₂max korzysta z obwodu talii, aby oszacowanie było dokładniejsze</string>
+    <string name="power_saving_low_refresh">Rzadsze odświeżanie</string>
+    <string name="power_saving_low_refresh_desc">Synchronizuje w tle co godzinę zamiast co 15 minut, niezależnie od poziomu naładowania opaski — mniej ponownych połączeń to największa oszczędność w WHOOP 4.0. Nic nie ginie: opaska zapisuje wszystko i przekazuje w większych paczkach. Ręczna synchronizacja nadal działa od razu, a tętno na żywo pozostaje bez zmian.</string>
 </resources>

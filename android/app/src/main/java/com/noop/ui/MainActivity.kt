@@ -250,6 +250,7 @@ object NoopPrefs {
      *  Benign — the strap banks to flash meanwhile, so sync just batches; no data loss, no link risk.
      *  Default OFF. Drives [com.noop.ble.WhoopBleClient.setLowBatteryOffloadThrottle] via [AppViewModel]. */
     const val KEY_POWER_SAVING = "noop.powerSaving"
+    const val KEY_LOW_REFRESH = "low_refresh"
     /** Battery-% threshold for [KEY_POWER_SAVING] (10/15/20/25/30). Default 20. */
     const val KEY_POWER_SAVING_BATTERY_PCT = "noop.powerSavingBatteryPct"
     /** "Pause HRV capture when the strap is low" (#477): when on, NOOP releases the held-open background
@@ -279,6 +280,14 @@ object NoopPrefs {
 
     fun setPowerSaving(context: Context, enabled: Boolean) {
         of(context).edit().putBoolean(KEY_POWER_SAVING, enabled).apply()
+    }
+
+    /** "Low refresh": sub-option of Power saving. Hourly background sync at ANY strap charge. Default off. */
+    fun lowRefresh(context: Context): Boolean =
+        of(context).getBoolean(KEY_LOW_REFRESH, false)
+
+    fun setLowRefresh(context: Context, enabled: Boolean) {
+        of(context).edit().putBoolean(KEY_LOW_REFRESH, enabled).apply()
     }
 
     /** Battery-% threshold for power saving (default 20). */

@@ -462,6 +462,8 @@ final class AppModel: ObservableObject {
     /// The riskier connection-priority idle throttle is intentionally not wired (Android-only, and dormant).
     func applyPowerSaving() {
         let on = PuffinExperiment.powerSavingEnabled
+        // Sub-option: only in effect while the Power-saving master is on, like the HRV-pause lever below.
+        ble.setLowRefreshMode(on && PuffinExperiment.lowRefreshEnabled)
         ble.setLowBatteryOffloadThrottle(on ? PuffinExperiment.powerSavingBatteryPct : 0)
         // HRV pause is battery-%-aware like the offload lever — pass the same threshold.
         ble.setPauseCaptureOnPowerSave(on && PuffinExperiment.pauseHrvOnPowerSaveEnabled,

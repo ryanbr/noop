@@ -2048,4 +2048,6 @@
     <string name="sleep_delete_recorded_body">移除此次已记录的睡眠并重新计算当天数据。NOOP 不会在此时间段内重新检测睡眠。之后几秒内可以撤销。</string>
     <string name="settings_waist_footnote_unset">可选 · VO₂max 由约 4 晚的心率数据构建；腰围可让它更准确。健康年龄本身并不需要它。请在肚脐高度绕腰一周测量。</string>
     <string name="settings_waist_footnote_set">你的 VO₂max 使用腰围来获得更准确的估算</string>
+    <string name="power_saving_low_refresh">低频刷新</string>
+    <string name="power_saving_low_refresh_desc">无论手环电量如何，后台同步改为每小时一次而非每 15 分钟一次——减少重新连接是 WHOOP 4.0 上最大的省电项。不会丢失任何数据：手环会记录全部内容，并以更大的批次交付。手动同步仍会立即运行，实时心率不受影响。</string>
 </resources>

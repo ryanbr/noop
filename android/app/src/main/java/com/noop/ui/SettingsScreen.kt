@@ -612,6 +612,7 @@ fun SettingsScreen(
     // #477 Power saving: battery-adaptive strap-sync cadence + optional HRV-capture pause. Local mirrors.
     var powerSaving by remember { mutableStateOf(NoopPrefs.powerSaving(context)) }
     var powerSavingBatteryPct by remember { mutableStateOf(NoopPrefs.powerSavingBatteryPct(context)) }
+    var lowRefresh by remember { mutableStateOf(NoopPrefs.lowRefresh(context)) }
     var pauseHrvOnPowerSave by remember { mutableStateOf(NoopPrefs.pauseHrvOnPowerSave(context)) }
 
     // --- v5 Health & wellness toggle group. All SharedPreferences-backed (not reactive), so each Switch
@@ -2220,6 +2221,36 @@ fun SettingsScreen(
                         onCheckedChange = {
                             pauseHrvOnPowerSave = it
                             vm.setPauseHrvOnPowerSave(it)
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Palette.surfaceBase,
+                            checkedTrackColor = Palette.accent,
+                            uncheckedThumbColor = Palette.textSecondary,
+                            uncheckedTrackColor = Palette.surfaceInset,
+                            uncheckedBorderColor = Palette.hairline,
+                        ),
+                    )
+                }
+                SettingsRowDivider()
+                // Low refresh: a sub-option that applies at ANY charge, not just below the threshold.
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.power_saving_low_refresh), style = NoopType.subhead, color = Palette.textPrimary)
+                        Text(
+                            stringResource(R.string.power_saving_low_refresh_desc),
+                            style = NoopType.footnote,
+                            color = Palette.textTertiary,
+                        )
+                    }
+                    Switch(
+                        checked = lowRefresh,
+                        onCheckedChange = {
+                            lowRefresh = it
+                            vm.setLowRefresh(it)
                         },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Palette.surfaceBase,

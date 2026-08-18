@@ -537,6 +537,8 @@ public final class BLEManager: NSObject, ObservableObject {
     /// high-freq-sync), so each periodic tick just routes through requestSync(.periodic) → beginBackfill
     /// (SEND_HISTORICAL_DATA + watchdog), subject to the BackfillPolicy floor.
     private var backfillTimer: DispatchSourceTimer?
+    /// User-elected hourly background-sync cadence (Settings → Power saving → "Low refresh"). Default off.
+    private var lowRefreshMode = false
     // The timer fires this often, but BackfillPolicy.periodicFloorSeconds is the real floor (a recent
     // event-triggered sync defers the next periodic tick). 900s = 15 min, matching WHOOP.
     static let backfillIntervalSeconds = 900
@@ -548,6 +550,15 @@ public final class BLEManager: NSObject, ObservableObject {
     /// so this only delays sync (larger batches), never loses data. Mirrors Android
     /// `LOW_BATTERY_BACKFILL_INTERVAL_MS`.
     static let lowBatteryBackfillIntervalSeconds = 2700
+    /// Low-refresh cadence (60 min): the user-elected sub-option of Power saving. Unlike the battery
+    /// lever above it is NOT battery-gated — once chosen it is the baseline the other levers stretch
+    /// FROM, so a quiet strap stays quiet at any charge. Same no-loss property: the strap banks to flash
+    /// and only trims on our ack, so this delays sync into larger batches, it never drops history.
+    /// Deliberately cadence-ONLY: it does not touch the keep-alive (that tick re-arms the WHOOP 4
+    /// realtime burst every cycle and evaluates the 120 s stall fuse — see `startKeepAlive`) and it does
+    /// not touch continuous HRV capture (that is what "Pause HRV capture" and #927's overnight window
+    /// are for). Fewer periodic offloads = fewer reconnect bursts, which is the measured 4.0 drain.
+    static let lowRefreshBackfillIntervalSeconds = 3600
 
     /// Pure battery-adaptive gate (#477), the twin of Android `WhoopBleClient.idleThrottleActive`. Keyed
     /// on the STRAP's battery: armed by `thresholdPct` > 0, engages while the strap is discharging at/below
@@ -561,6 +572,13 @@ public final class BLEManager: NSObject, ObservableObject {
                                 batteryPct: Int, charging: Bool, thresholdPct: Int) -> Int {
         lowPowerThrottleActive(batteryPct: batteryPct, charging: charging, thresholdPct: thresholdPct)
             ? max(baseSeconds, lowSeconds) : baseSeconds
+    }
+
+    /// Pure baseline-cadence decision: low refresh replaces the 15-min BASE with the hourly one, and every
+    /// other lever composes on top with `max`, so a lever can only ever make the cadence QUIETER, never
+    /// restore a faster one the user asked to slow down. Unit-testable without a CoreBluetooth seam.
+    static func baseBackfillInterval(lowRefresh: Bool) -> Int {
+        lowRefresh ? lowRefreshBackfillIntervalSeconds : backfillIntervalSeconds
     }
 
     /// #battery: pure 5/MG battery-read throttle decision, unit-testable without a CoreBluetooth seam.
@@ -2502,6 +2520,13 @@ public final class BLEManager: NSObject, ObservableObject {
         lowBatteryOffloadPct = thresholdPct
     }
 
+    /// Settings sub-option of Power saving: the user-elected hourly background cadence. Applies on the
+    /// NEXT re-arm exactly like the battery lever beside it, so a sync already in flight is never
+    /// interrupted (the cadence is re-read at each re-arm). Twin of Android `setLowRefreshMode`.
+    public func setLowRefreshMode(_ enabled: Bool) {
+        lowRefreshMode = enabled
+    }
+
     /// #477 (Settings): pause the background continuous-HRV stream when the strap is low. Keyed on the
     /// STRAP's battery like the offload lever — pass the same threshold; engages at/below it (0 = off).
     /// Reconciles now.
@@ -2530,19 +2555,22 @@ public final class BLEManager: NSObject, ObservableObject {
     /// tracker's quietThreshold is 2) and at a fixed 45-min floor that stacks with it. Twin of Android
     /// `nextBackfillDelayMs`. Resets with `whoop5EmptyOffload` on disconnect (a fresh connect re-probes).
     private func nextBackfillInterval() -> Int {
+        // Low refresh moves the BASE the other levers stretch from; each one composes with `max`, so the
+        // cadence can only get quieter, never faster than the user asked for.
+        let base = BLEManager.baseBackfillInterval(lowRefresh: lowRefreshMode)
         // #battery: known-empty-history 5/MG → stretch to the 45-min floor before any battery lever.
         if selectedModel.deviceFamily == .whoop5 {
             let stretched = BLEManager.whoop5EmptyHistoryBackfillInterval(
-                baseSeconds: BLEManager.backfillIntervalSeconds,
-                lowSeconds: BLEManager.lowBatteryBackfillIntervalSeconds,
+                baseSeconds: base,
+                lowSeconds: max(base, BLEManager.lowBatteryBackfillIntervalSeconds),
                 historyEmpty: whoop5EmptyOffload.historyEmpty)
-            if stretched != BLEManager.backfillIntervalSeconds { return stretched }
+            if stretched != base { return stretched }
         }
-        guard lowBatteryOffloadPct > 0 else { return BLEManager.backfillIntervalSeconds }
+        guard lowBatteryOffloadPct > 0 else { return base }
         let (pct, charging) = batteryPctAndCharging()
         return BLEManager.offloadInterval(
-            baseSeconds: BLEManager.backfillIntervalSeconds,
-            lowSeconds: BLEManager.lowBatteryBackfillIntervalSeconds,
+            baseSeconds: base,
+            lowSeconds: max(base, BLEManager.lowBatteryBackfillIntervalSeconds),
             batteryPct: pct, charging: charging, thresholdPct: lowBatteryOffloadPct)
     }
 

@@ -2129,4 +2129,6 @@
     <string name="sleep_delete_recorded_body">Elimina este sueño registrado y recalcula el día sin él. NOOP no volverá a detectar sueño en esta ventana. Puedes deshacerlo durante unos segundos.</string>
     <string name="settings_waist_footnote_unset">Opcional · El VO₂max se construye a partir de ~4 noches de frecuencia cardíaca; la cintura lo hace más preciso. La Edad de forma física no la necesita. Mide alrededor de tu cintura, a la altura del ombligo.</string>
     <string name="settings_waist_footnote_set">Tu VO₂max usa tu cintura para una estimación más precisa</string>
+    <string name="power_saving_low_refresh">Actualización lenta</string>
+    <string name="power_saving_low_refresh_desc">Sincroniza en segundo plano cada hora en vez de cada 15 minutos, sea cual sea la carga de la banda: menos reconexiones es el mayor ahorro en una WHOOP 4.0. No se pierde nada: la banda lo guarda todo y lo entrega en lotes más grandes. Sincronizar manualmente sigue siendo inmediato y la frecuencia cardíaca en vivo no cambia.</string>
 </resources>

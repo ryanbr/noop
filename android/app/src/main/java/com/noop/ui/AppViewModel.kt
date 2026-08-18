@@ -1154,6 +1154,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // independent of the Power-saving master, and its own toggle so a field report can tell the two
         // apart (they have opposite battery profiles). No-op unless on.
         ble.setFastLinkPhy(NoopPrefs.fastLinkPhy(appContext))
+        // Low refresh is a sub-option too: only in effect while the master is on. Unlike the levers
+        // around it, it is NOT battery-gated once chosen — it moves the BASE cadence to hourly.
+        ble.setLowRefreshMode(on && NoopPrefs.lowRefresh(appContext))
         ble.setLowBatteryOffloadThrottle(if (on) NoopPrefs.powerSavingBatteryPct(appContext) else 0)
         // HRV pause is a sub-option: only effective while the master is on (defaults on when it is), and
         // now battery-%-aware like the offload lever — pass the same threshold.
@@ -1172,6 +1175,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Set the power-saving battery-% threshold (Settings). Persists + applies immediately. */
     fun setPowerSavingBatteryPct(pct: Int) {
         NoopPrefs.setPowerSavingBatteryPct(appContext, pct)
+        applyPowerSaving()
+    }
+
+    /** Flip "Low refresh" (Settings). Persists + applies immediately. */
+    fun setLowRefresh(enabled: Boolean) {
+        NoopPrefs.setLowRefresh(appContext, enabled)
         applyPowerSaving()
     }
 

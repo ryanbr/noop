@@ -158,6 +158,12 @@ enum PuffinExperiment {
     static let powerSavingKey = "noopPowerSaving"
     static var powerSavingEnabled: Bool { UserDefaults.standard.bool(forKey: powerSavingKey) }
 
+    /// "Low refresh": a sub-option of Power saving (only meaningful while that master is on). Stretches
+    /// the periodic history offload to hourly at ANY strap charge, instead of only while the battery is
+    /// low. Default off. Cadence only — no data is lost (the strap banks to flash and trims on our ack).
+    static let lowRefreshKey = "noopLowRefresh"
+    static var lowRefreshEnabled: Bool { UserDefaults.standard.bool(forKey: lowRefreshKey) }
+
     /// Battery-% threshold for power saving (10–30). Default 20 (0 in the store means "unset" → 20).
     static let powerSavingBatteryPctKey = "noopPowerSavingBatteryPct"
     static var powerSavingBatteryPct: Int {

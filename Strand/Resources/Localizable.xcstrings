@@ -207150,6 +207150,74 @@
           }
         }
       }
+    },
+    "Low refresh": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seltener aktualisieren"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualización lenta"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rafraîchissement réduit"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualização reduzida"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rzadsze odświeżanie"
+          }
+        }
+      }
+    },
+    "Sync in the background every hour instead of every 15 minutes, whatever the strap's charge — fewer reconnections is the biggest saving on a WHOOP 4.0. Nothing is lost: the strap banks everything and hands it over in larger batches. Pull to sync still runs straight away, and live heart rate is untouched.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Synchronisiert im Hintergrund stündlich statt alle 15 Minuten, unabhängig vom Ladestand — weniger Verbindungsaufbauten sind die größte Ersparnis bei einer WHOOP 4.0. Es geht nichts verloren: Das Band speichert alles und übergibt es in größeren Paketen. Manuelles Synchronisieren läuft weiterhin sofort, die Live-Herzfrequenz bleibt unberührt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sincroniza en segundo plano cada hora en vez de cada 15 minutos, sea cual sea la carga de la banda: menos reconexiones es el mayor ahorro en una WHOOP 4.0. No se pierde nada: la banda lo guarda todo y lo entrega en lotes más grandes. Sincronizar manualmente sigue siendo inmediato y la frecuencia cardíaca en vivo no cambia."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Synchronise en arrière-plan toutes les heures au lieu de toutes les 15 minutes, quelle que soit la charge du bracelet : moins de reconnexions, c'est la plus grosse économie sur une WHOOP 4.0. Rien n'est perdu : le bracelet enregistre tout et le transmet par lots plus importants. La synchro manuelle reste immédiate et la fréquence cardiaque en direct n'est pas affectée."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sincroniza em segundo plano a cada hora em vez de a cada 15 minutos, seja qual for a carga da pulseira — menos religações é a maior poupança numa WHOOP 4.0. Nada se perde: a pulseira guarda tudo e entrega em lotes maiores. A sincronização manual continua imediata e a frequência cardíaca em direto não é afetada."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Synchronizuje w tle co godzinę zamiast co 15 minut, niezależnie od poziomu naładowania opaski — mniej ponownych połączeń to największa oszczędność w WHOOP 4.0. Nic nie ginie: opaska zapisuje wszystko i przekazuje w większych paczkach. Ręczna synchronizacja nadal działa od razu, a tętno na żywo pozostaje bez zmian."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

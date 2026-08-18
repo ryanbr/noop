@@ -2128,4 +2128,6 @@
     <string name="sleep_delete_recorded_body">Supprime ce sommeil enregistré et recalcule la journée sans lui. NOOP ne redétectera pas de sommeil dans cette fenêtre. Vous pouvez annuler pendant quelques secondes.</string>
     <string name="settings_waist_footnote_unset">Facultatif · La VO₂max se construit à partir d’environ 4 nuits de fréquence cardiaque ; le tour de taille la rend plus précise. L’Âge de forme n’en a pas besoin. Mesurez autour de votre taille, au niveau du nombril.</string>
     <string name="settings_waist_footnote_set">Votre VO₂max utilise votre tour de taille pour une estimation plus précise</string>
+    <string name="power_saving_low_refresh">Rafraîchissement réduit</string>
+    <string name="power_saving_low_refresh_desc">Synchronise en arrière-plan toutes les heures au lieu de toutes les 15 minutes, quelle que soit la charge du bracelet : moins de reconnexions, c\'est la plus grosse économie sur une WHOOP 4.0. Rien n\'est perdu : le bracelet enregistre tout et le transmet par lots plus importants. La synchro manuelle reste immédiate et la fréquence cardiaque en direct n\'est pas affectée.</string>
 </resources>

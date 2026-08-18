@@ -717,6 +717,21 @@ class WhoopBleClient(
          *  meanwhile, so this only delays sync (larger batches), never loses data. Gated on the discharging
          *  battery-% threshold; 0 = disabled → always [BACKFILL_INTERVAL_MS]. */
         private const val LOW_BATTERY_BACKFILL_INTERVAL_MS = 2_700_000L
+
+        /** Low-refresh cadence (60 min): the user-elected sub-option of Power saving. NOT battery-gated —
+         *  once chosen it is the BASE the other levers stretch from, at any strap charge. Same no-loss
+         *  property as the lever above: the strap banks to flash and only trims on our ack, so this delays
+         *  sync into larger batches, it never drops history. Cadence ONLY — deliberately does not touch the
+         *  keep-alive (that tick re-arms realtime and evaluates the stall fuse) or continuous HRV capture
+         *  (that is [setPauseCaptureOnPowerSave] / the overnight window). Twin of Swift
+         *  `BLEManager.lowRefreshBackfillIntervalSeconds`. */
+        internal const val LOW_REFRESH_BACKFILL_INTERVAL_MS = 3_600_000L
+
+        /** Pure baseline-cadence decision: low refresh swaps the 15-min BASE for the hourly one; every other
+         *  lever composes on top with `max`, so a lever can only make the cadence quieter, never restore a
+         *  faster one the user asked to slow down. Twin of Swift `BLEManager.baseBackfillInterval`. */
+        internal fun baseBackfillIntervalMs(lowRefresh: Boolean): Long =
+            if (lowRefresh) LOW_REFRESH_BACKFILL_INTERVAL_MS else BACKFILL_INTERVAL_MS
         /** How far back the inactivity check reads gravity on each offload completion (4 h comfortably
          *  spans the threshold + re-nudge cadence and a separating Active break for bout continuity). */
         private const val INACTIVITY_LOOKBACK_S = 4 * 3600L
@@ -1882,10 +1897,22 @@ class WhoopBleClient(
      *  OFF, so this ships dormant. The Settings picker offers 10/15/20/25/30. */
     @Volatile private var lowBatteryOffloadPct: Int = 0
 
+    /** User-elected hourly background-sync cadence (Settings -> Power saving -> "Low refresh"). Default
+     *  off. Like [lowBatteryOffloadPct] it takes effect on the NEXT re-arm. */
+    @Volatile private var lowRefreshMode: Boolean = false
+
     /** Opt into the low-battery offload-cadence stretch (#477). Applies on the NEXT re-arm; a live sync
      *  in flight is never interrupted. */
     fun setLowBatteryOffloadThrottle(thresholdPct: Int) {
         lowBatteryOffloadPct = thresholdPct
+    }
+
+    /** Settings sub-option of Power saving: the user-elected hourly background cadence. Applies on the
+     *  next re-arm like the battery lever above; a sync already in flight is never interrupted. Twin of
+     *  Swift `BLEManager.setLowRefreshMode`. */
+    fun setLowRefreshMode(enabled: Boolean) {
+        if (lowRefreshMode == enabled) return
+        lowRefreshMode = enabled
     }
 
     /** #477: pause BACKGROUND continuous-HRV capture while the STRAP's battery is low (own toggle,
@@ -1911,20 +1938,23 @@ class WhoopBleClient(
      *  quietThreshold = 2) at a fixed 45-min floor that stacks with it. Twin of iOS
      *  `BLEManager.nextBackfillInterval`. Resets with [whoop5EmptyOffload] on disconnect. */
     private fun nextBackfillDelayMs(): Long {
+        // Low refresh moves the BASE the other levers stretch from; each composes with `max`, so the
+        // cadence can only get quieter, never faster than the user asked for.
+        val base = baseBackfillIntervalMs(lowRefreshMode)
         // #battery: known-empty-history 5/MG → stretch to the 45-min floor before any battery lever.
         if (connectedFamily == DeviceFamily.WHOOP5) {
             val stretched = whoop5EmptyHistoryBackfillIntervalMs(
-                baseMs = BACKFILL_INTERVAL_MS,
-                lowBatteryMs = LOW_BATTERY_BACKFILL_INTERVAL_MS,
+                baseMs = base,
+                lowBatteryMs = maxOf(base, LOW_BATTERY_BACKFILL_INTERVAL_MS),
                 historyEmpty = whoop5EmptyOffload.historyEmpty,
             )
-            if (stretched != BACKFILL_INTERVAL_MS) return stretched
+            if (stretched != base) return stretched
         }
-        if (lowBatteryOffloadPct <= 0) return BACKFILL_INTERVAL_MS   // dormant: no battery read, unchanged cadence
+        if (lowBatteryOffloadPct <= 0) return base   // dormant: no battery read, unchanged cadence
         val (batteryPct, charging) = batteryPctAndCharging()
         return offloadIntervalMsFor(
-            baseMs = BACKFILL_INTERVAL_MS,
-            lowBatteryMs = LOW_BATTERY_BACKFILL_INTERVAL_MS,
+            baseMs = base,
+            lowBatteryMs = maxOf(base, LOW_BATTERY_BACKFILL_INTERVAL_MS),
             batteryPct = batteryPct,
             charging = charging,
             thresholdPct = lowBatteryOffloadPct,
