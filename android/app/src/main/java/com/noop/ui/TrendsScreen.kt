@@ -309,9 +309,16 @@ fun TrendsScreen(vm: AppViewModel) {
             }
         }
 
+        // --- Long-horizon training load (CTL/ATL/TSB). Full history, not the range window — chronic
+        // load is inherently a 42-day horizon. Shows an honest "needs N more days" state until enough
+        // contiguous Effort history exists. Twin of the Apple TrainingLoadCard. ---
+        item {
+            TrainingLoadCard(days = days, modifier = Modifier.staggeredAppear(index = 5))
+        }
+
         // --- Recovery history strip (stands in for the macOS YearHeatStrip) ---
         item {
-            Column(modifier = Modifier.staggeredAppear(index = 5)) {
+            Column(modifier = Modifier.staggeredAppear(index = 6)) {
                 RecoveryHistoryCard(days = days, range = range)
             }
         }
@@ -320,7 +327,7 @@ fun TrendsScreen(vm: AppViewModel) {
         // TrendsView.exportReportRow footer; the same composable Settings hosts, so both surfaces
         // offer it. Routed through NoopButton like every other CTA (no gold). ---
         item {
-            Column(modifier = Modifier.staggeredAppear(index = 6)) {
+            Column(modifier = Modifier.staggeredAppear(index = 7)) {
                 TrendsReportExportSection(vm)
             }
         }

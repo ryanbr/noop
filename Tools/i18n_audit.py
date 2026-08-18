@@ -46,6 +46,8 @@ ANDROID_LOCALE_DIRS = {
 UNIVERSAL = {
     "", "-", "–", "—", "·", "•", "✓", "→", "↔",
     "NOOP", "bpm", "BPM", "HRV", "SpO2", "SpO₂", "OK", "ID",
+    # Training-load acronyms — universal training-science terms, identical in every language (like HRV).
+    "CTL", "ATL", "TSB",
 }
 
 # A bare printf/String.format conversion specifier, e.g. "%.1f" or "%02d" — a

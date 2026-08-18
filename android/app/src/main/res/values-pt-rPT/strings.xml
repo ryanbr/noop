@@ -2110,4 +2110,12 @@
     <string name="breath_proto_presence_punching_caution">Não recomendado como padrão para principiantes, salvo se o objetivo for ultrapassar a sonolência.</string>
     <!-- /breath protocol catalog -->
     <string name="l10n_breathe_screen_calm_me_a1b2c3d4">Acalma-me</string>
+    <string name="trends_training_load">Carga de treino</string>
+    <string name="trends_tl_legend_ctl">CTL · Forma física</string>
+    <string name="trends_tl_legend_atl">ATL · Fadiga</string>
+    <string name="trends_tl_established">Forma de 42 dias vs fadiga de 7 dias</string>
+    <string name="trends_tl_building">A construir — %1$d de %2$d dias</string>
+    <string name="trends_tl_unavailable">Carga crónica vs aguda</string>
+    <string name="trends_tl_needs">Precisa de %1$d+ dias consecutivos de Esforço para começar. %2$d até agora.</string>
+    <string name="trends_tl_form">Forma</string>
 </resources>

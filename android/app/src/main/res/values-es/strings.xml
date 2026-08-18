@@ -2117,4 +2117,12 @@
     <string name="breath_proto_presence_punching_caution">No recomendado como valor por defecto para principiantes salvo que el objetivo sea superar la somnolencia.</string>
     <!-- /breath protocol catalog -->
     <string name="l10n_breathe_screen_calm_me_a1b2c3d4">Cálmame</string>
+    <string name="trends_training_load">Carga de entrenamiento</string>
+    <string name="trends_tl_legend_ctl">CTL · Forma física</string>
+    <string name="trends_tl_legend_atl">ATL · Fatiga</string>
+    <string name="trends_tl_established">Forma de 42 días frente a fatiga de 7 días</string>
+    <string name="trends_tl_building">Generando — %1$d de %2$d días</string>
+    <string name="trends_tl_unavailable">Carga crónica frente a aguda</string>
+    <string name="trends_tl_needs">Necesita %1$d+ días consecutivos de Esfuerzo para empezar. %2$d hasta ahora.</string>
+    <string name="trends_tl_form">Forma</string>
 </resources>

@@ -2110,4 +2110,12 @@
     <string name="breath_proto_presence_punching_caution">Niezalecane jako domyślne dla początkujących, chyba że celem jest przebicie senności.</string>
     <!-- /breath protocol catalog -->
     <string name="l10n_breathe_screen_calm_me_a1b2c3d4">Uspokój mnie</string>
+    <string name="trends_training_load">Obciążenie treningowe</string>
+    <string name="trends_tl_legend_ctl">CTL · Kondycja</string>
+    <string name="trends_tl_legend_atl">ATL · Zmęczenie</string>
+    <string name="trends_tl_established">Kondycja 42-dniowa vs zmęczenie 7-dniowe</string>
+    <string name="trends_tl_building">Budowanie — %1$d z %2$d dni</string>
+    <string name="trends_tl_unavailable">Obciążenie przewlekłe vs ostre</string>
+    <string name="trends_tl_needs">Wymaga %1$d+ kolejnych dni Wysiłku, aby zacząć. Na razie %2$d.</string>
+    <string name="trends_tl_form">Forma</string>
 </resources>

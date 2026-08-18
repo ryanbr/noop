@@ -2116,4 +2116,12 @@
     <string name="breath_proto_presence_punching_caution">Non recommandé comme défaut débutant sauf si le but est de vaincre la somnolence.</string>
     <!-- /breath protocol catalog -->
     <string name="l10n_breathe_screen_calm_me_a1b2c3d4">Calmez-moi</string>
+    <string name="trends_training_load">Charge d’entraînement</string>
+    <string name="trends_tl_legend_ctl">CTL · Forme</string>
+    <string name="trends_tl_legend_atl">ATL · Fatigue</string>
+    <string name="trends_tl_established">Forme sur 42 jours vs fatigue sur 7 jours</string>
+    <string name="trends_tl_building">En cours — %1$d sur %2$d jours</string>
+    <string name="trends_tl_unavailable">Charge chronique vs aiguë</string>
+    <string name="trends_tl_needs">Nécessite %1$d+ jours consécutifs d’Effort pour démarrer. %2$d jusqu’ici.</string>
+    <string name="trends_tl_form">Forme</string>
 </resources>

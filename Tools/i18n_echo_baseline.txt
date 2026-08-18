@@ -10,7 +10,7 @@ Packages/StrandDesign/Sources/StrandDesign/Resources/Localizable.xcstrings fr 1
 Packages/StrandDesign/Sources/StrandDesign/Resources/Localizable.xcstrings pt-PT 1
 Strand/Resources/Localizable.xcstrings de 16
 Strand/Resources/Localizable.xcstrings es 20
-Strand/Resources/Localizable.xcstrings fr 16
+Strand/Resources/Localizable.xcstrings fr 17
 Strand/Resources/Localizable.xcstrings it 15
 Strand/Resources/Localizable.xcstrings pl 17
 Strand/Resources/Localizable.xcstrings pt-PT 11
@@ -19,7 +19,7 @@ Strand/Resources/Localizable.xcstrings zh-Hans 8
 Strand/Resources/Localizable.xcstrings zh-Hant 7
 android/app/src/main/res/values-de/strings.xml de 16
 android/app/src/main/res/values-es/strings.xml es 42
-android/app/src/main/res/values-fr/strings.xml fr 12
+android/app/src/main/res/values-fr/strings.xml fr 13
 android/app/src/main/res/values-pl/strings.xml pl 11
 android/app/src/main/res/values-pt-rPT/strings.xml pt-rPT 8
 android/app/src/main/res/values-zh/strings.xml zh 16

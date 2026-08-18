@@ -2131,4 +2131,12 @@
     <string name="breath_proto_presence_punching_caution">Als Anfänger-Standard nicht empfohlen, außer Ziel ist, Müdigkeit zu durchbrechen.</string>
     <!-- /breath protocol catalog -->
     <string name="l10n_breathe_screen_calm_me_a1b2c3d4">Beruhige mich</string>
+    <string name="trends_training_load">Trainingslast</string>
+    <string name="trends_tl_legend_ctl">CTL · Kondition</string>
+    <string name="trends_tl_legend_atl">ATL · Ermüdung</string>
+    <string name="trends_tl_established">42-Tage-Fitness vs. 7-Tage-Ermüdung</string>
+    <string name="trends_tl_building">Wird aufgebaut — %1$d von %2$d Tagen</string>
+    <string name="trends_tl_unavailable">Chronische vs. akute Last</string>
+    <string name="trends_tl_needs">Benötigt %1$d+ aufeinanderfolgende Tage mit Anstrengung, um zu starten. Bisher %2$d.</string>
+    <string name="trends_tl_form">Tagesform</string>
 </resources>

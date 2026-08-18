@@ -2143,4 +2143,12 @@
     <string name="breath_proto_presence_punching_caution">Not recommended as a beginner default unless the goal is to overcome drowsiness.</string>
     <!-- /breath protocol catalog -->
     <string name="l10n_breathe_screen_calm_me_a1b2c3d4">Calm me</string>
+    <string name="trends_training_load">Training Load</string>
+    <string name="trends_tl_legend_ctl">CTL · Fitness</string>
+    <string name="trends_tl_legend_atl">ATL · Fatigue</string>
+    <string name="trends_tl_established">42-day fitness vs 7-day fatigue</string>
+    <string name="trends_tl_building">Building — %1$d of %2$d days</string>
+    <string name="trends_tl_unavailable">Chronic vs acute load</string>
+    <string name="trends_tl_needs">Needs %1$d+ consecutive days of Effort to begin. %2$d so far.</string>
+    <string name="trends_tl_form">Form</string>
 </resources>
