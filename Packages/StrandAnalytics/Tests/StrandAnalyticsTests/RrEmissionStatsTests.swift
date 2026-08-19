@@ -74,6 +74,35 @@ final class RrEmissionStatsTests: XCTestCase {
         XCTAssertEqual(RrEmissionStats.compute(rr).perSecond, [0, 0, 0, 1])
     }
 
+    /// #1451: a strap banking one record every 5 s is HEALTHY, but its reporting-second ratio reads ~5.
+    /// `modalGap` states the cadence so that ratio is read against the right baseline instead of against
+    /// 1.0, and `fill` shows each record's beat-time fits the slot it covers. Kotlin twin:
+    /// `modalGapReportsRecordCadenceAndFillFitsOnAHealthyMultiSecondStrap`.
+    func testModalGapReportsRecordCadenceAndFillFitsOnAHealthyMultiSecondStrap() {
+        // Six records, 5 s apart, each carrying 5 s of beat-time in 6 intervals (~833 ms each).
+        var rr: [(ts: Int, rrMs: Int)] = []
+        for rec in 0..<6 { for _ in 0..<6 { rr.append((ts: rec * 5, rrMs: 833)) } }
+        let r = RrEmissionStats.compute(rr)
+        XCTAssertEqual(r.modalGapSec, 5)               // cadence discovered, not assumed
+        XCTAssertEqual(r.fill, [5, 0, 0, 0])           // every bounded record fits its own slot
+        let line = RrEmissionStats.logLine(path: "historical", offered: rr.count, inserted: rr.count, r)
+        XCTAssertTrue(line.contains("modalGap=5s"), line)
+        XCTAssertTrue(line.contains("fill[<=1/<=1.5/<=2/>2]=5/0/0/0"), line)
+    }
+
+    /// #1451: the measurement a timeline fix needs. Records 1 s apart each carrying ~1.7 s of beat-time
+    /// overflow the interval they cover, so no scheme that places beats inside a record's own slot can be
+    /// correct. Kotlin twin: `fillCatchesRecordsCarryingMoreBeatTimeThanTheirSlot`.
+    func testFillCatchesRecordsCarryingMoreBeatTimeThanTheirSlot() {
+        var rr: [(ts: Int, rrMs: Int)] = []
+        for t in 0..<5 { rr.append((ts: t, rrMs: 850)); rr.append((ts: t, rrMs: 850)) }
+        let r = RrEmissionStats.compute(rr)
+        XCTAssertEqual(r.modalGapSec, 1)
+        XCTAssertEqual(r.fill, [0, 0, 4, 0])           // 1.7 lands in the <=2.0 bucket, four bounded records
+        let line = RrEmissionStats.logLine(path: "historical", offered: 10, inserted: 10, r)
+        XCTAssertTrue(line.contains("fill[<=1/<=1.5/<=2/>2]=0/0/4/0"), line)
+    }
+
     /// The log line is what a strap capture actually carries, so its shape is pinned too.
     func testLogLineShape() {
         let r = RrEmissionStats.compute([(ts: 10, rrMs: 800), (ts: 10, rrMs: 820), (ts: 11, rrMs: 810)])

@@ -40,7 +40,32 @@ object RrEmissionStats {
         val ratio: Double,
         /** Intervals-per-second histogram: index 0 = exactly 1, 1 = 2, 2 = 3, 3 = 4 or more. */
         val perSecond: List<Int>,
-    )
+        /**
+         * Gap between CONSECUTIVE record timestamps, in seconds: index 0 = 1 s … index 7 = 8 s or more.
+         * Its mode is the strap's record cadence, which is the baseline [ratio]'s reporting-second twin has
+         * to be read against — a strap banking one record every 5 s reads ratioRep ~5 while healthy (#1451).
+         */
+        val gapHist: List<Int> = listOf(0, 0, 0, 0, 0, 0, 0, 0),
+        /**
+         * Per-record FILL: that record's sum of rrMs over its own slot (the gap to the next record).
+         * Index 0 = <=1.0, 1 = <=1.5, 2 = <=2.0, 3 = >2.0. This is the measurement a timeline fix needs and
+         * no aggregate can supply: whether ONE record carries more beat-time than the interval it covers.
+         * Fill ~1.0 means records tile the timeline and each interval can be placed at its own
+         * reconstructed beat time; a fat tail means the records themselves overflow and no placement scheme
+         * built on the record timestamp can be correct. The final record has no successor and is excluded.
+         */
+        val fill: List<Int> = listOf(0, 0, 0, 0),
+    ) {
+        /**
+         * Modal record gap in seconds — the mode of [gapHist], 8 meaning "8 or more". 0 when the batch held
+         * fewer than two records. This is the healthy baseline for the reporting-second ratio.
+         */
+        val modalGapSec: Int
+            get() {
+                val m = gapHist.maxOrNull() ?: 0
+                return if (m <= 0) 0 else gapHist.indexOf(m) + 1
+            }
+    }
 
     /** Census a decoded batch. [rr] is the decoder's output order; nothing is mutated or sorted in place. */
     fun compute(rr: List<Pair<Int, Int>>): Result {
@@ -64,8 +89,22 @@ object RrEmissionStats {
             val i = minOf(vals.size, 4) - 1
             if (i >= 0) hist[i] = hist[i] + 1
         }
+        // Per-record cadence and fill (#1451). A record's SLOT is the gap to the next record, so the last
+        // record is excluded — it has no successor to bound it.
+        val stamps = bySecond.keys.sorted()
+        val gapHist = mutableListOf(0, 0, 0, 0, 0, 0, 0, 0)
+        val fill = mutableListOf(0, 0, 0, 0)
+        for (i in 0 until maxOf(stamps.size - 1, 0)) {
+            val gap = stamps[i + 1] - stamps[i]
+            if (gap < 1) continue
+            gapHist[minOf(gap, 8) - 1] = gapHist[minOf(gap, 8) - 1] + 1
+            val recSum = bySecond[stamps[i]]?.sum() ?: 0
+            val f = recSum / 1000.0 / gap
+            val b = if (f <= 1.0) 0 else if (f <= 1.5) 1 else if (f <= 2.0) 2 else 3
+            fill[b] = fill[b] + 1
+        }
         val ratio = if (span > 0) sum / 1000.0 / span else 0.0
-        return Result(bySecond.size, rr.size, sum, span, ratio, hist)
+        return Result(bySecond.size, rr.size, sum, span, ratio, hist, gapHist, fill)
     }
 
     /**
@@ -88,6 +127,8 @@ object RrEmissionStats {
         return "rr emit path=$path offered=$offered inserted=$inserted secs=${r.secondsWithRr} " +
             "sumRr=${r.sumRrMs / 1000}s span=${r.spanSec}s ratio=$ratio " +
             "ratioRep=${String.format(java.util.Locale.US, "%.2f", rep)} " +
-            "perSec[1/2/3/4+]=${h[0]}/${h[1]}/${h[2]}/${h[3]}"
+            "perSec[1/2/3/4+]=${h[0]}/${h[1]}/${h[2]}/${h[3]} " +
+            "modalGap=${r.modalGapSec}s " +
+            "fill[<=1/<=1.5/<=2/>2]=${r.fill[0]}/${r.fill[1]}/${r.fill[2]}/${r.fill[3]}"
     }
 }

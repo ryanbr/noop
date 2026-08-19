@@ -74,6 +74,45 @@ class RrEmissionStatsTest {
         assertEquals(listOf(0, 0, 0, 1), RrEmissionStats.compute(rr).perSecond)
     }
 
+    /**
+     * #1451: a strap banking one record every 5 s is HEALTHY, but its reporting-second ratio reads ~5.
+     * modalGap states the cadence so that ratio is read against the right baseline instead of against 1.0,
+     * and fill shows each record's beat-time fits the slot it covers. Twin of Swift
+     * `testModalGapReportsRecordCadenceAndFillFitsOnAHealthyMultiSecondStrap`.
+     */
+    @Test
+    fun modalGapReportsRecordCadenceAndFillFitsOnAHealthyMultiSecondStrap() {
+        // Six records, 5 s apart, each carrying 5 s of beat-time in 6 intervals (~833 ms each).
+        val rr = mutableListOf<Pair<Int, Int>>()
+        for (rec in 0 until 6) {
+            repeat(6) { rr.add(rec * 5 to 833) }
+        }
+        val r = RrEmissionStats.compute(rr)
+        assertEquals(5, r.modalGapSec)                 // cadence discovered, not assumed
+        assertEquals(listOf(5, 0, 0, 0), r.fill)       // every bounded record fits its own slot
+        val line = RrEmissionStats.logLine("historical", rr.size, rr.size, r)
+        assertTrue(line, line.contains("modalGap=5s"))
+        assertTrue(line, line.contains("fill[<=1/<=1.5/<=2/>2]=5/0/0/0"))
+    }
+
+    /**
+     * #1451: the measurement a timeline fix needs. Records 1 s apart each carrying ~1.7 s of beat-time
+     * overflow the interval they cover, so no scheme that places beats inside a record's own slot can be
+     * correct. Twin of Swift `testFillCatchesRecordsCarryingMoreBeatTimeThanTheirSlot`.
+     */
+    @Test
+    fun fillCatchesRecordsCarryingMoreBeatTimeThanTheirSlot() {
+        val rr = mutableListOf<Pair<Int, Int>>()
+        for (t in 0 until 5) {
+            rr.add(t to 850)
+            rr.add(t to 850)   // two full beats stamped on one 1 s record = 1.7x fill
+        }
+        val r = RrEmissionStats.compute(rr)
+        assertEquals(1, r.modalGapSec)
+        assertEquals(listOf(0, 0, 4, 0), r.fill)       // 1.7 lands in the <=2.0 bucket, four bounded records
+        assertTrue(RrEmissionStats.logLine("historical", 10, 10, r).contains("fill[<=1/<=1.5/<=2/>2]=0/0/4/0"))
+    }
+
     @Test
     fun logLineShape() {
         val r = RrEmissionStats.compute(listOf(Pair(10, 800), Pair(10, 820), Pair(11, 810)))

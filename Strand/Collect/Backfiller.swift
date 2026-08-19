@@ -96,6 +96,8 @@ final class Backfiller {
     private(set) var sessionRrMinTs: Int?
     private(set) var sessionRrMaxTs: Int?
     private(set) var sessionRrHist = [0, 0, 0, 0]
+    private(set) var sessionRrGapHist = [0, 0, 0, 0, 0, 0, 0, 0]
+    private(set) var sessionRrFill = [0, 0, 0, 0]
 
     /// "persisted N rows (M with motion) across K night(s)". Nights are day-keys (ts / 86400).
     private(set) var sessionRowsPersisted = 0
@@ -251,6 +253,8 @@ final class Backfiller {
         sessionRrMinTs = nil
         sessionRrMaxTs = nil
         sessionRrHist = [0, 0, 0, 0]
+        sessionRrGapHist = [0, 0, 0, 0, 0, 0, 0, 0]
+        sessionRrFill = [0, 0, 0, 0]
         sessionMotionRows = 0
         sessionSkinTempRows = 0
         sessionNightKeys.removeAll(keepingCapacity: true)
@@ -333,7 +337,8 @@ final class Backfiller {
         let ratio = Double(sessionRrSumMs) / 1000.0 / Double(span)
         let r = RrEmissionStats.Result(secondsWithRr: sessionRrHist.reduce(0, +),
                                        intervals: sessionRrOffered, sumRrMs: sessionRrSumMs,
-                                       spanSec: span, ratio: ratio, perSecond: sessionRrHist)
+                                       spanSec: span, ratio: ratio, perSecond: sessionRrHist,
+                                       gapHist: sessionRrGapHist, fill: sessionRrFill)
         return RrEmissionStats.logLine(path: "historical", offered: sessionRrOffered,
                                        inserted: sessionRrInserted, r)
     }
@@ -651,6 +656,8 @@ final class Backfiller {
                 sessionRrMinTs = min(sessionRrMinTs ?? lo, lo)
                 sessionRrMaxTs = max(sessionRrMaxTs ?? hi, hi)
                 for i in 0..<4 { sessionRrHist[i] += rrCensus.perSecond[i] }
+                for i in 0..<8 { sessionRrGapHist[i] += rrCensus.gapHist[i] }
+                for i in 0..<4 { sessionRrFill[i] += rrCensus.fill[i] }
             }
             sessionMotionRows += tally.motion
             sessionSkinTempRows += counts.skinTemp

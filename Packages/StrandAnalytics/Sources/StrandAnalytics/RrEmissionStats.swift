@@ -45,15 +45,38 @@ public enum RrEmissionStats {
         /// Histogram of intervals-per-second: index 0 = seconds with exactly 1, 1 = exactly 2,
         /// 2 = exactly 3, 3 = 4 or more.
         public let perSecond: [Int]
+        /// Histogram of the gap between CONSECUTIVE record timestamps, in seconds: index 0 = 1 s,
+        /// … index 6 = 7 s, index 7 = 8 s or more. Its mode is the strap's record cadence, which is the
+        /// baseline `ratioRep` has to be read against — a strap banking one record every 5 s reads
+        /// `ratioRep` ≈ 5 while perfectly healthy (#1451).
+        public let gapHist: [Int]
+        /// Histogram of per-record FILL: that record's Σ(rrMs) over its own slot (the gap to the next
+        /// record). Index 0 = ≤1.0, 1 = ≤1.5, 2 = ≤2.0, 3 = >2.0. This is the measurement a timeline fix
+        /// needs and no aggregate can supply: whether ONE record carries more beat-time than the interval
+        /// it covers. Fill ~1.0 means records tile the timeline and each interval can be placed at its own
+        /// reconstructed beat time; a fat tail means the records themselves overflow and no placement
+        /// scheme built on the record timestamp can be correct. The final record has no successor and is
+        /// excluded.
+        public let fill: [Int]
 
         public init(secondsWithRr: Int, intervals: Int, sumRrMs: Int, spanSec: Int,
-                    ratio: Double, perSecond: [Int]) {
+                    ratio: Double, perSecond: [Int],
+                    gapHist: [Int] = [0, 0, 0, 0, 0, 0, 0, 0], fill: [Int] = [0, 0, 0, 0]) {
             self.secondsWithRr = secondsWithRr
             self.intervals = intervals
             self.sumRrMs = sumRrMs
             self.spanSec = spanSec
             self.ratio = ratio
             self.perSecond = perSecond
+            self.gapHist = gapHist
+            self.fill = fill
+        }
+
+        /// The modal record gap in seconds — the mode of `gapHist`, with 8 meaning "8 or more".
+        /// 0 when the batch held fewer than two records. This is the healthy baseline for `ratioRep`.
+        public var modalGapSec: Int {
+            guard let m = gapHist.max(), m > 0, let i = gapHist.firstIndex(of: m) else { return 0 }
+            return i + 1
         }
     }
 
@@ -80,9 +103,24 @@ public enum RrEmissionStats {
             let i = min(vals.count, 4) - 1
             if i >= 0 { hist[i] += 1 }
         }
+        // Per-record cadence and fill (#1451). A record's SLOT is the gap to the next record, so the last
+        // record is excluded — it has no successor to bound it.
+        let stamps = bySecond.keys.sorted()
+        var gapHist = [0, 0, 0, 0, 0, 0, 0, 0]
+        var fill = [0, 0, 0, 0]
+        if stamps.count >= 2 {
+            for i in 0..<(stamps.count - 1) {
+                let gap = stamps[i + 1] - stamps[i]
+                guard gap >= 1 else { continue }
+                gapHist[min(gap, 8) - 1] += 1
+                let recSum = (bySecond[stamps[i]] ?? []).reduce(0, +)
+                let f = Double(recSum) / 1000.0 / Double(gap)
+                fill[f <= 1.0 ? 0 : (f <= 1.5 ? 1 : (f <= 2.0 ? 2 : 3))] += 1
+            }
+        }
         let ratio = span > 0 ? Double(sum) / 1000.0 / Double(span) : 0
         return Result(secondsWithRr: bySecond.count, intervals: rr.count, sumRrMs: sum,
-                      spanSec: span, ratio: ratio, perSecond: hist)
+                      spanSec: span, ratio: ratio, perSecond: hist, gapHist: gapHist, fill: fill)
     }
 
     /// One compact log line. `offered`/`inserted` come from the caller: `inserted` is what the store
@@ -105,6 +143,8 @@ public enum RrEmissionStats {
         return "rr emit path=\(path) offered=\(offered) inserted=\(inserted) secs=\(r.secondsWithRr) "
             + "sumRr=\(r.sumRrMs / 1000)s span=\(r.spanSec)s ratio=\(ratio) "
             + "ratioRep=\(String(format: "%.2f", rep)) "
-            + "perSec[1/2/3/4+]=\(h[0])/\(h[1])/\(h[2])/\(h[3])"
+            + "perSec[1/2/3/4+]=\(h[0])/\(h[1])/\(h[2])/\(h[3]) "
+            + "modalGap=\(r.modalGapSec)s "
+            + "fill[<=1/<=1.5/<=2/>2]=\(r.fill[0])/\(r.fill[1])/\(r.fill[2])/\(r.fill[3])"
     }
 }

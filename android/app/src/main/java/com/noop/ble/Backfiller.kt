@@ -190,6 +190,8 @@ class Backfiller(
     var sessionRrMinTs: Int? = null
     var sessionRrMaxTs: Int? = null
     val sessionRrHist = mutableListOf(0, 0, 0, 0)
+    val sessionRrGapHist = mutableListOf(0, 0, 0, 0, 0, 0, 0, 0)
+    val sessionRrFill = mutableListOf(0, 0, 0, 0)
 
     /** #42: set by [begin] when this session continues an auto-continue burst (#364) that already banked
      *  rows in an earlier session, so a trim=0xFFFFFFFF END here reads as "caught up", not "no history".
@@ -304,6 +306,8 @@ class Backfiller(
         sessionRrMinTs = null
         sessionRrMaxTs = null
         for (i in 0 until 4) sessionRrHist[i] = 0
+        for (i in 0 until 8) sessionRrGapHist[i] = 0
+        for (i in 0 until 4) sessionRrFill[i] = 0
         sessionMotionRows = 0
         sessionSkinTempRows = 0
         sessionNightKeys.clear()
@@ -560,6 +564,8 @@ class Backfiller(
                     sessionRrMinTs = minOf(sessionRrMinTs ?: lo, lo)
                     sessionRrMaxTs = maxOf(sessionRrMaxTs ?: hi, hi)
                     for (i in 0 until 4) sessionRrHist[i] = sessionRrHist[i] + rrCensus.perSecond[i]
+                    for (i in 0 until 8) sessionRrGapHist[i] = sessionRrGapHist[i] + rrCensus.gapHist[i]
+                    for (i in 0 until 4) sessionRrFill[i] = sessionRrFill[i] + rrCensus.fill[i]
                 }
                 sessionMotionRows += motion
                 sessionSkinTempRows += counts.skinTemp
@@ -677,6 +683,8 @@ class Backfiller(
             spanSec = span,
             ratio = ratio,
             perSecond = sessionRrHist.toList(),
+            gapHist = sessionRrGapHist.toList(),
+            fill = sessionRrFill.toList(),
         )
         return com.noop.analytics.RrEmissionStats.logLine("historical", sessionRrOffered, sessionRrInserted, r)
     }
