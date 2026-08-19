@@ -179,6 +179,18 @@ class Backfiller(
      */
     var sessionRowsPersisted = 0
         private set
+
+    /** #1008/#1118 PRE-STORAGE R-R census, accumulated across the session. Twin of the Swift fields.
+     *  `offered` is what the decoder handed over; `inserted` is what survived the store's conflict key.
+     *  The per-second histogram sums per chunk (a second split across chunks counts in both — an edge
+     *  artifact only); `ratio`, built from exact sums over the exact span, is the decisive number. */
+    var sessionRrOffered = 0
+    var sessionRrInserted = 0
+    var sessionRrSumMs = 0
+    var sessionRrMinTs: Int? = null
+    var sessionRrMaxTs: Int? = null
+    val sessionRrHist = mutableListOf(0, 0, 0, 0)
+
     /** #42: set by [begin] when this session continues an auto-continue burst (#364) that already banked
      *  rows in an earlier session, so a trim=0xFFFFFFFF END here reads as "caught up", not "no history".
      *  Without it, the fresh session's `sessionRowsPersisted` is 0 and the scary "charge to 100%" line
@@ -286,6 +298,12 @@ class Backfiller(
         this.continuedAfterRows = continuedAfterRows
         isBackfilling = true
         sessionRowsPersisted = 0
+        sessionRrOffered = 0
+        sessionRrInserted = 0
+        sessionRrSumMs = 0
+        sessionRrMinTs = null
+        sessionRrMaxTs = null
+        for (i in 0 until 4) sessionRrHist[i] = 0
         sessionMotionRows = 0
         sessionSkinTempRows = 0
         sessionNightKeys.clear()
@@ -522,12 +540,27 @@ class Backfiller(
             // later firmware-layout mapping triangulates against. (The old archive-first order was a
             // port slip: no data loss either way, but the insert-failure retry archived twice.)
             try {
+                // #1008/#1118: census the batch BEFORE it is stored — the only place the decoder's own
+                // emission can be measured, since every existing R-R number is taken after the conflict
+                // key has already absorbed part of it.
+                val rrCensus = com.noop.analytics.RrEmissionStats.compute(decoded.rr.map { it.ts.toInt() to it.rrMs })
                 val counts = repository.insert(decoded, deviceId)
                 committed = decoded
                 // Success-side observability (#150): tally what actually persisted so the session can emit
                 // "persisted N rows (M with motion) across K night(s)" — the win-rate signal we never logged.
                 val (rows, motion, nights) = chunkTally(counts, decoded.gravity.map { it.ts } + decoded.hr.map { it.ts })
                 sessionRowsPersisted += rows
+                // #1008/#1118 census accumulation (pre-storage offered vs post-key inserted).
+                sessionRrOffered += rrCensus.intervals
+                sessionRrInserted += counts.rr
+                sessionRrSumMs += rrCensus.sumRrMs
+                if (rrCensus.intervals > 0) {
+                    val lo = decoded.rr.minOf { it.ts.toInt() }
+                    val hi = decoded.rr.maxOf { it.ts.toInt() }
+                    sessionRrMinTs = minOf(sessionRrMinTs ?: lo, lo)
+                    sessionRrMaxTs = maxOf(sessionRrMaxTs ?: hi, hi)
+                    for (i in 0 until 4) sessionRrHist[i] = sessionRrHist[i] + rrCensus.perSecond[i]
+                }
                 sessionMotionRows += motion
                 sessionSkinTempRows += counts.skinTemp
                 sessionNightKeys.addAll(nights)
@@ -621,6 +654,31 @@ class Backfiller(
             chunk.clear()
             chunkOpen = false
         }
+    }
+
+
+    /**
+     * #1008/#1118: the session's PRE-STORAGE R-R census. `ratio` is beat-time per second of wall time
+     * over the whole session — above 1.0 is physically impossible, and because it is measured on what the
+     * DECODER produced it separates an emission/decode defect (ratio already high here) from an ingest one
+     * (ratio ~1 here while the stored night still reads high). Null when the session banked no R-R.
+     * Twin of Swift `sessionRrEmissionLine`.
+     */
+    fun sessionRrEmissionLine(): String? {
+        val lo = sessionRrMinTs ?: return null
+        val hi = sessionRrMaxTs ?: return null
+        if (sessionRrOffered <= 0) return null
+        val span = maxOf(hi - lo + 1, 1)
+        val ratio = sessionRrSumMs / 1000.0 / span
+        val r = com.noop.analytics.RrEmissionStats.Result(
+            secondsWithRr = sessionRrHist.sum(),
+            intervals = sessionRrOffered,
+            sumRrMs = sessionRrSumMs,
+            spanSec = span,
+            ratio = ratio,
+            perSecond = sessionRrHist.toList(),
+        )
+        return com.noop.analytics.RrEmissionStats.logLine("historical", sessionRrOffered, sessionRrInserted, r)
     }
 
     companion object {

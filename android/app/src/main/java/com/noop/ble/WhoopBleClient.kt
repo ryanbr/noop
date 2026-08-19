@@ -7467,6 +7467,9 @@ class WhoopBleClient(
             backfiller.sessionNights,
         )?.let {
             log(it)
+            // #1008/#1118: the pre-storage R-R census for this offload, next to the persisted tally so one
+            // line pair says what the decoder OFFERED and what the store KEPT. Twin of the Swift emit.
+            backfiller.sessionRrEmissionLine()?.let { rrLine -> log(rrLine) }
             // #990: fold this session's drained rows into the persisted ALL-TIME tally at the single
             // summary emit point, so the Connection readout can show install-lifetime progress beside
             // the per-session count (which resets on every reconnect). Unconditional, like the summary

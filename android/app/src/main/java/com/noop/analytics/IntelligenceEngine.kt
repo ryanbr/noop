@@ -908,6 +908,18 @@ object IntelligenceEngine {
                         "rmssd40=${ms(hDd.rmssd)}ms sdnn40=${ms(hDd.sdnn)}ms meanNN40=${ms(hDd.meanNN)}ms " +
                         "| xsecN=${xs.second.size} covXsec=${String.format(java.util.Locale.US, "%.2f", covXs)} " +
                         "beatAccXsec=${String.format(java.util.Locale.US, "%.2f", accXs)} (1s upper bound)")
+                    // #1118 sweep: the same-second collapse at a range of tolerances, so a capture shows
+                    // WHICH tolerance the over-count actually responds to instead of only the one 40 ms
+                    // point. 34 ms is the two-optical-channel twin spacing; 0 is exact-duplicates-only.
+                    // Instrumentation, and cheap — the same pure function, no extra reads.
+                    val sweep = listOf(0, 20, 34, 40, 60).joinToString(" ") { tol ->
+                        val c = HrvAnalyzer.collapseOverCount(ts, sleepRr, tol.toDouble())
+                        val cov = HrvAnalyzer.rrCoverage(c.first, c.second)
+                        val acc = HrvAnalyzer.beatAccurateFraction(c.first, c.second)
+                        "t$tol=${String.format(java.util.Locale.US, "%.2f", cov)}/" +
+                            String.format(java.util.Locale.US, "%.2f", acc)
+                    }
+                    dayDiag("hrv sweep day=${res.daily.day} n=${sleepRr.size} cov/acc by same-second tol: $sweep")
                 }
             } else if (res.sleepSessions.isEmpty()) {
                 // #1244: no in-sleep R-R AND no detected session (past the >=200-HR gate) = the "HR tracked,

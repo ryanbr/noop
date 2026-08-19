@@ -1110,6 +1110,18 @@ final class IntelligenceEngine: ObservableObject {
                             + "rmssd40=\(ms(hDd.rmssd))ms sdnn40=\(ms(hDd.sdnn))ms meanNN40=\(ms(hDd.meanNN))ms "
                             + "| xsecN=\(xs.rrMs.count) covXsec=\(String(format: "%.2f", covXs)) "
                             + "beatAccXsec=\(String(format: "%.2f", accXs)) (1s upper bound)"
+                        // #1118 sweep: the same-second collapse at a range of tolerances, so a capture shows
+                        // WHICH tolerance the over-count actually responds to instead of only the one 40 ms
+                        // point. 34 ms is the two-optical-channel twin spacing; 0 is exact-duplicates-only.
+                        // Instrumentation, and cheap — the same pure function, no extra reads. Twin of Kotlin.
+                        let sweep = [0, 20, 34, 40, 60].map { tol -> String in
+                            let c = HRVAnalyzer.collapseOverCount(tsSec: ts, rrMs: sleepRr, rrTolMs: Double(tol))
+                            let cov = HRVAnalyzer.rrCoverage(tsSec: c.tsSec, rrMs: c.rrMs)
+                            let acc = HRVAnalyzer.beatAccurateFraction(tsSec: c.tsSec, rrMs: c.rrMs)
+                            return "t\(tol)=\(String(format: "%.2f", cov))/\(String(format: "%.2f", acc))"
+                        }.joined(separator: " ")
+                        diagLine += "\nhrv sweep day=\(res.daily.day) n=\(sleepRr.count) "
+                            + "cov/acc by same-second tol: \(sweep)"
                     }
                     hrvDiag = diagLine
                     // #1118: flag this night's HRV as over-counted (same verdict the diag logs) so the

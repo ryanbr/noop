@@ -85,6 +85,18 @@ final class Backfiller {
     /// Per-session persistence tally — the success-side observability the log forensics flagged as the
     /// blind spot (#150): we logged FAILURES (decoded-to-0) but never SUCCESSES, so a strap log couldn't
     /// tell a banking strap from a broken one. Reset at begin(); read by BLEManager at session end to emit
+    /// #1008/#1118 PRE-STORAGE R-R census, accumulated across the session. `offered` is what the decoder
+    /// handed over; `inserted` is what survived the store's ON CONFLICT key, so the gap is how much the
+    /// primary key already absorbs. The per-second histogram sums per chunk, so a second split across two
+    /// chunks is counted in both — a rounding artifact at chunk edges only, and the ratio below (exact
+    /// sums over the exact span) is the number that decides emission-vs-ingest. Instrumentation only.
+    private(set) var sessionRrOffered = 0
+    private(set) var sessionRrInserted = 0
+    private(set) var sessionRrSumMs = 0
+    private(set) var sessionRrMinTs: Int?
+    private(set) var sessionRrMaxTs: Int?
+    private(set) var sessionRrHist = [0, 0, 0, 0]
+
     /// "persisted N rows (M with motion) across K night(s)". Nights are day-keys (ts / 86400).
     private(set) var sessionRowsPersisted = 0
     /// #42: set by `begin` when this session continues an auto-continue burst (#364) that already banked
@@ -233,6 +245,12 @@ final class Backfiller {
         chunk.removeAll(keepingCapacity: true)
         chunkOpen = true
         sessionRowsPersisted = 0
+        sessionRrOffered = 0
+        sessionRrInserted = 0
+        sessionRrSumMs = 0
+        sessionRrMinTs = nil
+        sessionRrMaxTs = nil
+        sessionRrHist = [0, 0, 0, 0]
         sessionMotionRows = 0
         sessionSkinTempRows = 0
         sessionNightKeys.removeAll(keepingCapacity: true)
@@ -303,6 +321,21 @@ final class Backfiller {
     nonisolated static func sessionSummaryLine(rows: Int, motion: Int, skinTemp: Int, nights: Int) -> String? {
         guard rows > 0 else { return nil }
         return "Backfill: session persisted \(rows) rows (\(motion) with motion, \(skinTemp) skin-temp) across \(nights) night(s)."
+    }
+
+    /// #1008/#1118: the session's PRE-STORAGE R-R census. `ratio` is beat-time per second of wall time
+    /// over the whole session — above 1.0 is physically impossible, and because it is measured on what the
+    /// DECODER produced it separates an emission/decode defect (ratio already high here) from an ingest
+    /// one (ratio ~1 here while the stored night still reads high). nil when the session banked no R-R.
+    func sessionRrEmissionLine() -> String? {
+        guard sessionRrOffered > 0, let lo = sessionRrMinTs, let hi = sessionRrMaxTs else { return nil }
+        let span = max(hi - lo + 1, 1)
+        let ratio = Double(sessionRrSumMs) / 1000.0 / Double(span)
+        let r = RrEmissionStats.Result(secondsWithRr: sessionRrHist.reduce(0, +),
+                                       intervals: sessionRrOffered, sumRrMs: sessionRrSumMs,
+                                       spanSec: span, ratio: ratio, perSecond: sessionRrHist)
+        return RrEmissionStats.logLine(path: "historical", offered: sessionRrOffered,
+                                       inserted: sessionRrInserted, r)
     }
 
     /// #67 diag: the persisted-nights DATE RANGE plus the offload's effective clock state — the two facts
@@ -592,6 +625,10 @@ final class Backfiller {
             // rare insert failure — which returns and re-sends the whole chunk next session — can't
             // leave duplicate lines in the append-only reject archive.
             let counts: (hr: Int, rr: Int, events: Int, battery: Int, spo2: Int, skinTemp: Int, resp: Int, gravity: Int)
+            // #1008/#1118: census the batch BEFORE it is stored — the only place the decoder's own
+            // emission can be measured, since every existing R-R number is taken after the ON CONFLICT key
+            // has already absorbed part of it.
+            let rrCensus = RrEmissionStats.compute(decoded.rr.map { (ts: $0.ts, rrMs: $0.rrMs) })
             do { counts = try await store.insert(decoded, deviceId: deviceId) } catch {
                 // Diag (#601): the decoded rows couldn't be written — this is the "history stalls but live HR
                 // works" class. We return WITHOUT acking so the strap keeps this chunk and re-sends it next
@@ -604,6 +641,17 @@ final class Backfiller {
             // "persisted N rows (M with motion) across K night(s)" — the win-rate signal a log never had.
             let tally = Backfiller.chunkTally(counts: counts, timestamps: decoded.gravity.map(\.ts) + decoded.hr.map(\.ts))
             sessionRowsPersisted += tally.rows
+            // #1008/#1118 census accumulation (pre-storage `offered` vs post-key `inserted`).
+            sessionRrOffered += rrCensus.intervals
+            sessionRrInserted += counts.rr
+            sessionRrSumMs += rrCensus.sumRrMs
+            if rrCensus.intervals > 0 {
+                let lo = decoded.rr.map(\.ts).min() ?? 0
+                let hi = decoded.rr.map(\.ts).max() ?? 0
+                sessionRrMinTs = min(sessionRrMinTs ?? lo, lo)
+                sessionRrMaxTs = max(sessionRrMaxTs ?? hi, hi)
+                for i in 0..<4 { sessionRrHist[i] += rrCensus.perSecond[i] }
+            }
             sessionMotionRows += tally.motion
             sessionSkinTempRows += counts.skinTemp
             sessionNightKeys.formUnion(tally.nights)

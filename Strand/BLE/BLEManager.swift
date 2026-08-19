@@ -2109,6 +2109,9 @@ public final class BLEManager: NSObject, ObservableObject {
         if let bf = backfiller,
            let summary = Backfiller.sessionSummaryLine(rows: bf.sessionRowsPersisted, motion: bf.sessionMotionRows, skinTemp: bf.sessionSkinTempRows, nights: bf.sessionNights) {
             log(summary)
+            // #1008/#1118: the pre-storage R-R census for this offload. Emitted next to the persisted
+            // tally so one line pair says what the decoder OFFERED and what the store KEPT.
+            if let rrLine = bf.sessionRrEmissionLine() { log(rrLine) }
             // #67: WHERE the rows landed + WHY (the clock ref that decoded them). A reset-RTC strap banks
             // last night into the past; this line makes the misdating self-evident in the strap log instead
             // of leaving "persisted N rows across 1 night(s)" looking like a clean sync.
