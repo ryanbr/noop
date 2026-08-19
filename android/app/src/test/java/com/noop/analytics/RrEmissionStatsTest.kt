@@ -110,6 +110,9 @@ class RrEmissionStatsTest {
         val r = RrEmissionStats.compute(rr)
         assertEquals(1, r.modalGapSec)
         assertEquals(listOf(0, 0, 4, 0), r.fill)       // 1.7 lands in the <=2.0 bucket, four bounded records
+        // The two measures are coupled, and that is the point: if every record fitted its slot the totals
+        // could not exceed the span either. `ratio` says the session over-counts; `fill` says WHICH records.
+        assertTrue("ratio=${r.ratio}", r.ratio > 1.0)
         assertTrue(RrEmissionStats.logLine("historical", 10, 10, r).contains("fill[<=1/<=1.5/<=2/>2]=0/0/4/0"))
     }
 

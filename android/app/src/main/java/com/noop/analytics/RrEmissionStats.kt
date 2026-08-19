@@ -41,9 +41,12 @@ object RrEmissionStats {
         /** Intervals-per-second histogram: index 0 = exactly 1, 1 = 2, 2 = 3, 3 = 4 or more. */
         val perSecond: List<Int>,
         /**
-         * Gap between CONSECUTIVE record timestamps, in seconds: index 0 = 1 s … index 7 = 8 s or more.
-         * Its mode is the strap's record cadence, which is the baseline [ratio]'s reporting-second twin has
-         * to be read against — a strap banking one record every 5 s reads ratioRep ~5 while healthy (#1451).
+         * Gap between consecutive records THAT CARRIED R-R, in seconds: index 0 = 1 s … index 7 = 8 s or
+         * more. Not the strap's raw record cadence — a record banking no interval is invisible here — but
+         * that is exactly the right set, because ratioRep divides by the same one: healthy ratioRep ~ the
+         * mean of these gaps, whose mode this reports. A strap banking R-R every 5 s reads ratioRep ~5
+         * while perfectly healthy, so reading it against 1.0 would invent a defect (#1451). Ties resolve to
+         * the smaller gap on both platforms.
          */
         val gapHist: List<Int> = listOf(0, 0, 0, 0, 0, 0, 0, 0),
         /**
@@ -53,6 +56,9 @@ object RrEmissionStats {
          * Fill ~1.0 means records tile the timeline and each interval can be placed at its own
          * reconstructed beat time; a fat tail means the records themselves overflow and no placement scheme
          * built on the record timestamp can be correct. The final record has no successor and is excluded.
+         * Known bias: the slot is the gap to the next R-R-carrying record, so if a strap interleaves
+         * records without intervals the slot spans more than one record period and fill reads LOW. It can
+         * therefore understate overflow, never manufacture it.
          */
         val fill: List<Int> = listOf(0, 0, 0, 0),
     ) {

@@ -45,10 +45,12 @@ public enum RrEmissionStats {
         /// Histogram of intervals-per-second: index 0 = seconds with exactly 1, 1 = exactly 2,
         /// 2 = exactly 3, 3 = 4 or more.
         public let perSecond: [Int]
-        /// Histogram of the gap between CONSECUTIVE record timestamps, in seconds: index 0 = 1 s,
-        /// … index 6 = 7 s, index 7 = 8 s or more. Its mode is the strap's record cadence, which is the
-        /// baseline `ratioRep` has to be read against — a strap banking one record every 5 s reads
-        /// `ratioRep` ≈ 5 while perfectly healthy (#1451).
+        /// Histogram of the gap between consecutive records THAT CARRIED R-R, in seconds: index 0 = 1 s,
+        /// … index 6 = 7 s, index 7 = 8 s or more. Not the strap's raw record cadence — a record banking
+        /// no interval is invisible here — but that is exactly the right set, because `ratioRep` divides
+        /// by the same one: healthy `ratioRep` ≈ the mean of these gaps, whose mode this reports. A strap
+        /// banking R-R every 5 s reads `ratioRep` ≈ 5 while perfectly healthy, so reading it against 1.0
+        /// would invent a defect (#1451). Ties resolve to the smaller gap on both platforms.
         public let gapHist: [Int]
         /// Histogram of per-record FILL: that record's Σ(rrMs) over its own slot (the gap to the next
         /// record). Index 0 = ≤1.0, 1 = ≤1.5, 2 = ≤2.0, 3 = >2.0. This is the measurement a timeline fix
@@ -56,7 +58,9 @@ public enum RrEmissionStats {
         /// it covers. Fill ~1.0 means records tile the timeline and each interval can be placed at its own
         /// reconstructed beat time; a fat tail means the records themselves overflow and no placement
         /// scheme built on the record timestamp can be correct. The final record has no successor and is
-        /// excluded.
+        /// excluded. Known bias: the slot is the gap to the next R-R-carrying record, so if a strap
+        /// interleaves records without intervals the slot spans more than one record period and fill reads
+        /// LOW. It can therefore understate overflow, never manufacture it.
         public let fill: [Int]
 
         public init(secondsWithRr: Int, intervals: Int, sumRrMs: Int, spanSec: Int,

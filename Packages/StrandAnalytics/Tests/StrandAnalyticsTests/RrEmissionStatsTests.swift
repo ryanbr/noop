@@ -99,6 +99,9 @@ final class RrEmissionStatsTests: XCTestCase {
         let r = RrEmissionStats.compute(rr)
         XCTAssertEqual(r.modalGapSec, 1)
         XCTAssertEqual(r.fill, [0, 0, 4, 0])           // 1.7 lands in the <=2.0 bucket, four bounded records
+        // The two measures are coupled, and that is the point: if every record fitted its slot the totals
+        // could not exceed the span either. `ratio` says the session over-counts; `fill` says WHICH records.
+        XCTAssertGreaterThan(r.ratio, 1.0)
         let line = RrEmissionStats.logLine(path: "historical", offered: 10, inserted: 10, r)
         XCTAssertTrue(line.contains("fill[<=1/<=1.5/<=2/>2]=0/0/4/0"), line)
     }
