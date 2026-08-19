@@ -68,8 +68,19 @@ struct CoupledView: View {
 
     /// The last strictly-prior scored recovery day, so a just-rolled-over morning carries yesterday's read
     /// rather than blanking, exactly the anchor Today uses for readiness (#543).
+    ///
+    /// #1458: through the SAME selector Today uses, not a local re-derivation. This read
+    /// `repo.days.last(where: { $0.recovery != nil && $0.day < todayKey })`, which has no `todayScored`
+    /// guard — so on a day that HAS a score it still returned a prior day, and the hero's Charge sheet
+    /// opened that older night while the card beside it showed today's number. It also skipped the
+    /// calibrating gate, so a cold-start install could carry a value Today refuses. Reported on Android,
+    /// but the defect was identical here: the twins agreed with each other and were both wrong.
     private var carriedRecoveryDay: DailyMetric? {
-        repo.days.last(where: { $0.recovery != nil && $0.day < todayKey })
+        TodayView.lastScoredRecoveryDay(
+            days: repo.days, selectedDayKey: todayKey,
+            isToday: true,   // the Coupled view has no day selector; it is always today
+            todayScored: day?.recovery != nil,
+            isCalibrating: calibrationNights != nil)
     }
 
     /// The recovery value the ring shows: today's if scored, else the carried prior day's (never fabricated).
