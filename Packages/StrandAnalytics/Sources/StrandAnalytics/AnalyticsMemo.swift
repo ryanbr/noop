@@ -94,6 +94,11 @@ struct StreamFingerprint: Hashable {
     /// Lives here, called by all three stager key sites, because the summed version was duplicated at
     /// each of them and so was wrong at all three at once.
     ///
+    /// NOT used by `DaytimeStress`, which folds gravity its own way — a radix-257 packing of ×128
+    /// quantised axes (`x &+ y &* 257 &+ z &* 66049`). That one gives each axis a distinct positional
+    /// weight, so it never had this aliasing bug and is deliberately left alone: unifying it would change
+    /// its keys to no benefit. Checked rather than assumed when this was extracted.
+    ///
     /// The mixer is FNV-1a in SHAPE, seeded with this file's existing basis rather than the canonical
     /// 64-bit one — the project's constant is a digit short of it, and `of` and
     /// `ReadinessEngine.rowsFingerprint` have always used it. Consistency beats correcting it: the value
