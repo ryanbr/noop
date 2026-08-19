@@ -531,6 +531,22 @@ class WorkoutEditingTest {
         assertEquals(138, m?.avgHr)              // (150*3600 + 120*2400) / 6000
     }
 
+    /**
+     * #1444: steps is cumulative per session, exactly like distance, so a merge must SUM it rather than
+     * drop it. It was dropped until the Swift twin's explicit-field audit forced the question. Twin of
+     * Swift `testMergeSumsStepsLikeDistance`.
+     */
+    @Test
+    fun merge_sumsStepsLikeDistance() {
+        val a = fullRow(1000, 4600, "Running", "manual", dist = 10_000.0).copy(steps = 6_200)
+        val b = fullRow(5000, 7400, "Running", "manual", dist = 5_000.0).copy(steps = 3_100)
+        assertEquals(9_300, WorkoutMerge.merge(listOf(a, b))?.steps)
+        // Nothing carried steps -> null, never a fake 0 (same rule energy and distance follow).
+        val c = fullRow(1000, 4600, "Running", "manual")
+        val d = fullRow(5000, 7400, "Running", "manual")
+        assertNull(WorkoutMerge.merge(listOf(c, d))?.steps)
+    }
+
     @Test
     fun merge_weightsOnlyRowsWithHr() {
         val a = fullRow(1000, 4600, "Cycling", "manual", avgHr = 140)

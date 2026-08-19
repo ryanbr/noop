@@ -502,6 +502,11 @@ object WorkoutMerge {
         val energyKcal = if (kcals.isEmpty()) null else kcals.sum()
         val dists = rows.mapNotNull { it.distanceM }
         val distanceM = if (dists.isEmpty()) null else dists.sum()
+        // #1444: steps is cumulative per session exactly like distance, so a merge sums it too. It was
+        // silently dropped here (copy() does not help: this builds a NEW row), which the Swift twin's
+        // explicit-field audit surfaced.
+        val stepCounts = rows.mapNotNull { it.steps }
+        val mergedSteps = if (stepCounts.isEmpty()) null else stepCounts.sum()
 
         var hrWeight = 0.0
         var hrSum = 0.0
@@ -534,6 +539,7 @@ object WorkoutMerge {
             zonesJSON = null,
             notes = mergedNotes,
             routePolyline = null,
+            steps = mergedSteps,
         )
     }
 }

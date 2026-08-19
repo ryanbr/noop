@@ -432,6 +432,21 @@ final class WorkoutSourceTests: XCTestCase {
         XCTAssertEqual(m?.avgHr, 138)
     }
 
+    /// #1444: steps is cumulative per session, exactly like distance, so a merge must SUM it rather
+    /// than drop it. It was dropped until making the field explicit forced the question. Kotlin twin:
+    /// `merge_sumsStepsLikeDistance`.
+    func testMergeSumsStepsLikeDistance() {
+        let a = fullRow(start: 1000, end: 4600, sport: "Running", source: "manual",
+                        dist: 10_000, steps: 6_200)
+        let b = fullRow(start: 5000, end: 7400, sport: "Running", source: "manual",
+                        dist: 5_000, steps: 3_100)
+        XCTAssertEqual(WorkoutMerge.merge([a, b])?.steps, 9_300)
+        // Nothing carried steps -> nil, never a fake 0 (same rule energy and distance follow).
+        let c = fullRow(start: 1000, end: 4600, sport: "Running", source: "manual")
+        let d = fullRow(start: 5000, end: 7400, sport: "Running", source: "manual")
+        XCTAssertNil(WorkoutMerge.merge([c, d])?.steps)
+    }
+
     func testMergeWeightsOnlyRowsWithHr() {
         // One row has no avg HR — it must NOT drag the weighted mean toward zero.
         let a = fullRow(start: 1000, end: 4600, sport: "Cycling", source: "manual", avgHr: 140)

@@ -472,11 +472,15 @@ enum WorkoutMerge {
         // Duration = sum of each session's active duration (fall back to its own span when nil).
         let durationS = rows.reduce(0.0) { $0 + ($1.durationS ?? Double(max(0, $1.endTs - $1.startTs))) }
 
-        // Energy + distance sum only the present values; nil when NOTHING carried one (never a fake 0).
+        // Energy + distance + steps sum only the present values; nil when NOTHING carried one (never a
+        // fake 0). #1444: steps is cumulative per session exactly like distance, so a merge sums it too —
+        // it was silently dropped here until making the field explicit forced the question.
         let kcals = rows.compactMap(\.energyKcal)
         let energyKcal = kcals.isEmpty ? nil : kcals.reduce(0, +)
         let dists = rows.compactMap(\.distanceM)
         let distanceM = dists.isEmpty ? nil : dists.reduce(0, +)
+        let stepCounts = rows.compactMap(\.steps)
+        let mergedSteps = stepCounts.isEmpty ? nil : stepCounts.reduce(0, +)
 
         // Avg HR = duration-weighted mean over the rows that HAVE an avg; weight = that row's duration
         // (fall back to its span). maxHr = the max present peak. Both nil when no row carried the field.
@@ -500,6 +504,7 @@ enum WorkoutMerge {
 
         return WorkoutRow(startTs: start, endTs: end, sport: mergedSport, source: "manual",
                           durationS: durationS, energyKcal: energyKcal, avgHr: avgHr, maxHr: maxHr,
-                          strain: nil, distanceM: distanceM, zonesJSON: nil, notes: mergedNotes, steps: nil)
+                          strain: nil, distanceM: distanceM, zonesJSON: nil, notes: mergedNotes,
+                          steps: mergedSteps)
     }
 }
