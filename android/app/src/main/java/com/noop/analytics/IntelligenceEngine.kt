@@ -878,6 +878,7 @@ object IntelligenceEngine {
                     verdict == HrvAnalyzer.RrCoverageVerdict.SAME_SECOND_OVER_COUNT) {
                     val sample = HrvAnalyzer.densestSecondWindowSample(
                         ts, sleepRr, sleepRrRows.map { it.srcChannel },
+                        sleepRrRows.map { it.ord },
                     )
                     if (sample.isNotEmpty()) dayDiag("hrv rrsample day=${res.daily.day} $sample")
                     // #1331/#1008/#1118 SHADOW: log the DEDUPED stream's HRV + coverage + beat-accuracy

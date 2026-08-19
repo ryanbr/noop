@@ -47,8 +47,18 @@ public struct RRInterval: Equatable, Codable {
     /// The sensor channel this beat came from, or nil when the source does not distinguish one (every
     /// WHOOP row, and every row written before the column existed). See `RRSourceChannel`.
     public let srcChannel: RRSourceChannel?
-    public init(ts: Int, rrMs: Int, srcChannel: RRSourceChannel? = nil) {
-        self.ts = ts; self.rrMs = rrMs; self.srcChannel = srcChannel
+    /// #1008 diagnostics: this beat's EMISSION ORDER within the batch that delivered it, as stored in
+    /// `rrInterval.ord`. nil on a decode (nothing has been stored yet) and on rows written before the
+    /// column was surfaced to reads.
+    ///
+    /// It is the one field that separates the two remaining explanations for a second carrying seven
+    /// beats: contiguous ords mean ONE record's array carried them all, so the over-count is in the
+    /// record's contents; repeated or non-monotonic ords mean SEPARATE deliveries each contributed to
+    /// that second, so the over-count is accumulation across offloads. WHOOP's wire format has no
+    /// channel field, so `srcChannel` can never answer this for a strap — `ord` is what is left.
+    public let ord: Int?
+    public init(ts: Int, rrMs: Int, srcChannel: RRSourceChannel? = nil, ord: Int? = nil) {
+        self.ts = ts; self.rrMs = rrMs; self.srcChannel = srcChannel; self.ord = ord
     }
 }
 

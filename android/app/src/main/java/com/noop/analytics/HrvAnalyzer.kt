@@ -604,6 +604,7 @@ object HrvAnalyzer {
         tsSec: List<Long>,
         rrMs: List<Double>,
         srcCodes: List<Int?>,
+        ords: List<Int?> = emptyList(),
         halfWindowSec: Int = 3,
         maxRowsPerSecond: Int = 24,
     ): String {
@@ -648,6 +649,12 @@ object HrvAnalyzer {
                 val idx = rows[k]
                 sb.append((rrMs[idx] + 0.5).toLong())
                 srcCodes.getOrNull(idx)?.let { sb.append('@').append(it) }
+                // #1008: `ord` is the per-TIMESTAMP occurrence counter the store assigned when the row was
+                // written, so it restarts at 0 for every delivery. A second delivered ONCE reads 0,1,2,...;
+                // a second built across two offloads reads 0,1,2,0,1 - the repeat is the tell. It is the
+                // only field that can answer this for a strap: WHOOP's wire format has no channel marker,
+                // so srcChannel is always null on a WHOOP row.
+                ords.getOrNull(idx)?.let { sb.append('#').append(it) }
             }
             if (rows.size > shown) sb.append(",+").append(rows.size - shown)
             sb.append(']')

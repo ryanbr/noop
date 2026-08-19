@@ -667,6 +667,7 @@ public enum HRVAnalyzer {
         tsSec: [Int],
         rrMs: [Double],
         srcCodes: [Int?],
+        ords: [Int?] = [],
         halfWindowSec: Int = 3,
         maxRowsPerSecond: Int = 24
     ) -> String {
@@ -707,6 +708,12 @@ public enum HRVAnalyzer {
                 let idx = rows[k]
                 out += "\(Int(rrMs[idx] + 0.5))"
                 if idx < srcCodes.count, let c = srcCodes[idx] { out += "@\(c)" }
+                // #1008: `ord` is the per-TIMESTAMP occurrence counter the store assigned when the row
+                // was written, so it restarts at 0 for every delivery. A second delivered ONCE therefore
+                // reads 0,1,2,…; a second built across two offloads reads 0,1,2,0,1 — the repeat is the
+                // tell. This is the only field that can answer it for a strap: WHOOP's wire format has
+                // no channel marker, so `srcChannel` is always nil on a WHOOP row.
+                if idx < ords.count, let o = ords[idx] { out += "#\(o)" }
             }
             if rows.count > shown { out += ",+\(rows.count - shown)" }
             out += "]"

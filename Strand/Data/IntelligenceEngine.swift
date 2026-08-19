@@ -1080,7 +1080,8 @@ final class IntelligenceEngine: ObservableObject {
                     // srcChannel rides from the read model. Byte-identical to the Kotlin `hrv rrsample` line.
                     if verdict == .crossSecondOverCount || verdict == .sameSecondOverCount {
                         let sample = HRVAnalyzer.densestSecondWindowSample(
-                            tsSec: ts, rrMs: sleepRr, srcCodes: sleepRrRows.map { $0.srcChannel?.rawValue })
+                            tsSec: ts, rrMs: sleepRr, srcCodes: sleepRrRows.map { $0.srcChannel?.rawValue },
+                            ords: sleepRrRows.map { $0.ord })
                         if !sample.isEmpty { diagLine += "\nhrv rrsample day=\(res.daily.day) \(sample)" }
                         // #1331/#1008/#1118 SHADOW: log the DEDUPED stream's HRV + coverage + beat-accuracy
                         // beside the raw (above), so the candidate two-channel de-dup can be validated
