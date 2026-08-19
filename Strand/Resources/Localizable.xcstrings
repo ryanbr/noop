@@ -50415,60 +50415,60 @@
         }
       }
     },
-    "Connected. Reading on launch and when you return to NOOP.": {
+    "Connected. New strap data is written automatically, with periodic background refresh when iOS allows it.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Verbunden. Wird beim Start gelesen und wenn du zu NOOP zurückkehrst."
+            "value": "Verbunden. Neue Strap-Daten werden automatisch geschrieben, mit regelmäßiger Aktualisierung im Hintergrund, wenn iOS es zulässt."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Conectada. Se lee al abrir y cuando vuelves a NOOP."
+            "value": "Conectada. Los datos nuevos de la pulsera se escriben automáticamente, con actualización periódica en segundo plano cuando iOS lo permite."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Connecté. Lecture au lancement et lorsque vous revenez sur NOOP."
+            "value": "Connecté. Les nouvelles données du bracelet sont écrites automatiquement, avec une actualisation périodique en arrière-plan lorsque iOS l'autorise."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Collegata. Lettura all'avvio e quando torni in NOOP."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ligado. Leitura no lançamento e quando regressa ao NOOP."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Подключено. Чтение при запуске и при возврате в NOOP."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已连接。在启动时以及你返回 NOOP 时读取。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已連接。在啟動時以及你返回 NOOP 時讀取。"
+            "value": "Collegata. I nuovi dati della fascia vengono scritti automaticamente, con aggiornamento periodico in background quando iOS lo consente."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Połączony. Odczyt przy uruchomieniu i po powrocie do NOOP."
+            "value": "Połączono. Nowe dane z paska są zapisywane automatycznie, z okresowym odświeżaniem w tle, gdy iOS na to pozwoli."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ligado. Os novos dados da bracelete são escritos automaticamente, com atualização periódica em segundo plano quando o iOS o permitir."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подключено. Новые данные браслета записываются автоматически, с периодическим фоновым обновлением, когда iOS это позволяет."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已连接。新的手环数据会自动写入，并在 iOS 允许时定期在后台刷新。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已連線。新的手環資料會自動寫入，並在 iOS 允許時定期在背景重新整理。"
           }
         }
       }
