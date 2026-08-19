@@ -986,10 +986,7 @@ public enum SleepStager {
         // Match Android's raw-axis semantics: mix x/y/z IEEE-754 bits in order, never their lossy sum.
         let key = DetectKey(
             grav: StreamFingerprint.of(gravity, ts: { $0.ts }, quant: {
-                var bits = (1469598103934665603 ^ $0.x.bitPattern) &* 1099511628211
-                bits = (bits ^ $0.y.bitPattern) &* 1099511628211
-                bits = (bits ^ $0.z.bitPattern) &* 1099511628211
-                return Int(bitPattern: UInt(bits))
+                StreamFingerprint.gravityQuant(x: $0.x, y: $0.y, z: $0.z)
             }),
             hr: StreamFingerprint.of(hr, ts: { $0.ts }, quant: { Int($0.bpm) }),
             rr: StreamFingerprint.of(rr, ts: { $0.ts }, quant: { Int($0.rrMs) }),
@@ -1280,10 +1277,7 @@ public enum SleepStager {
         let key = V1StageKey(
             start: start, end: end,
             grav: StreamFingerprint.of(grav, ts: { $0.ts }, quant: {
-                var bits = (1469598103934665603 ^ $0.x.bitPattern) &* 1099511628211
-                bits = (bits ^ $0.y.bitPattern) &* 1099511628211
-                bits = (bits ^ $0.z.bitPattern) &* 1099511628211
-                return Int(bitPattern: UInt(bits))
+                StreamFingerprint.gravityQuant(x: $0.x, y: $0.y, z: $0.z)
             }),
             hr: StreamFingerprint.of(hr, ts: { $0.ts }, quant: { Int($0.bpm) }),
             rr: StreamFingerprint.of(rr, ts: { $0.ts }, quant: { Int($0.rrMs) }),

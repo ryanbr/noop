@@ -86,18 +86,48 @@ struct StreamFingerprint: Hashable {
     /// Build from any sample sequence given a `ts` accessor and a `quant` accessor that maps a sample to an
     /// integer carrying its value (e.g. bpm, or a scaled gravity component). Folds EVERY sample — O(n), the
     /// same order as the `count` it already needs — so no interior change can alias onto a stale entry.
+    /// Fold one gravity sample's three axes into a quant value, from their RAW IEEE-754 bits and in
+    /// axis order, so two postures sharing a component sum cannot alias (#1453 — the summed
+    /// `Int((x + y + z) * 1024)` this replaced aliased (1,0,0), (0,1,0) and (0.5,0.5,0) onto one key,
+    /// and returned another window's cached staging).
+    ///
+    /// Lives here, called by all three stager key sites, because the summed version was duplicated at
+    /// each of them and so was wrong at all three at once.
+    ///
+    /// The mixer is FNV-1a in SHAPE, seeded with this file's existing basis rather than the canonical
+    /// 64-bit one — the project's constant is a digit short of it, and `of` and
+    /// `ReadinessEngine.rowsFingerprint` have always used it. Consistency beats correcting it: the value
+    /// only ever keys an in-process `AnalyticsMemoCache`, never persists, and never crosses the
+    /// `.noopbak` boundary, so no external spec depends on the seed. For the same reason it need NOT
+    /// equal the Kotlin twin, which mixes multiply-add — a fingerprint that differs across platforms can
+    /// only cost one of them a recompute, never change a value.
+    static func gravityQuant(x: Double, y: Double, z: Double) -> Int {
+        var bits = (fnvBasis ^ x.bitPattern) &* fnvPrime
+        bits = (bits ^ y.bitPattern) &* fnvPrime
+        bits = (bits ^ z.bitPattern) &* fnvPrime
+        return Int(bitPattern: UInt(bits))
+    }
+
+    /// This file's long-standing fold seed. NOT the canonical FNV-1a 64-bit offset basis
+    /// (14695981039346656037) — it is that value with the trailing digit dropped. Kept because every
+    /// fingerprint here has always used it and none of them leave the process; named so the next reader
+    /// does not have to re-derive that it is deliberate.
+    static let fnvBasis: UInt64 = 1469598103934665603
+    /// The canonical FNV-1a 64-bit prime, which this one IS.
+    static let fnvPrime: UInt64 = 1099511628211
+
     static func of<S: Collection>(_ samples: S, ts: (S.Element) -> Int,
                                   quant: (S.Element) -> Int) -> StreamFingerprint {
         var count = 0
         var firstTs = 0, lastTs = 0
-        var sum: UInt64 = 1469598103934665603   // FNV offset basis
+        var sum: UInt64 = fnvBasis
         for e in samples {
             let t = ts(e)
             if count == 0 { firstTs = t }
             lastTs = t
             count += 1
-            sum = (sum ^ UInt64(bitPattern: Int64(t))) &* 1099511628211
-            sum = (sum ^ UInt64(bitPattern: Int64(quant(e)))) &* 1099511628211
+            sum = (sum ^ UInt64(bitPattern: Int64(t))) &* fnvPrime
+            sum = (sum ^ UInt64(bitPattern: Int64(quant(e)))) &* fnvPrime
         }
         if count == 0 { return StreamFingerprint(count: 0, firstTs: 0, lastTs: 0, checksum: 0) }
         return StreamFingerprint(count: count, firstTs: firstTs, lastTs: lastTs, checksum: sum)

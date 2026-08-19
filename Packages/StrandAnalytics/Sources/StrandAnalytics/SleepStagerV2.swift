@@ -63,10 +63,7 @@ public enum SleepStagerV2 {
         let key = V2Key(
             start: start, end: end,
             grav: StreamFingerprint.of(gravW, ts: { $0.ts }, quant: {
-                var bits = (1469598103934665603 ^ $0.x.bitPattern) &* 1099511628211
-                bits = (bits ^ $0.y.bitPattern) &* 1099511628211
-                bits = (bits ^ $0.z.bitPattern) &* 1099511628211
-                return Int(bitPattern: UInt(bits))
+                StreamFingerprint.gravityQuant(x: $0.x, y: $0.y, z: $0.z)
             }),
             hr: StreamFingerprint.of(hrW, ts: { $0.ts }, quant: { Int($0.bpm) }),
             rr: StreamFingerprint.of(rrW, ts: { $0.ts }, quant: { Int($0.rrMs) }))
