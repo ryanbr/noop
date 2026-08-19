@@ -1617,7 +1617,7 @@ public final class BLEManager: NSObject, ObservableObject {
         central.stopScan()
         // Allow duplicates so the wizard's RSSI/signal readout updates as straps move.
         central.scanForPeripherals(
-            withServices: [selectedModel.scanService],
+            withServices: selectedModel.advertisedScanServices,
             options: [CBCentralManagerScanOptionAllowDuplicatesKey: true]
         )
         log("Add-a-WHOOP scan: presenting nearby \(selectedModel.displayName) straps")
@@ -4006,7 +4006,7 @@ public final class BLEManager: NSObject, ObservableObject {
         configureCollectorFamily()
         central.stopScan()
         log("Scanning for \(model.displayName)…")
-        let diagnosticServices = [model.scanService] + WhoopGattServiceFamily.unsupportedServiceUUIDStrings
+        let diagnosticServices = model.advertisedScanServices + WhoopGattServiceFamily.unsupportedServiceUUIDStrings
             .map { CBUUID(string: $0) }
         central.scanForPeripherals(
             withServices: diagnosticServices,

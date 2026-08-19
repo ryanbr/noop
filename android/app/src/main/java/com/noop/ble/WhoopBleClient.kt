@@ -2803,7 +2803,7 @@ class WhoopBleClient(
         // Filter to the strap we're targeting plus diagnostic-only WHOOP service families. The callback
         // explicitly refuses unsupported families before any persist/connect path, so this broadens
         // visibility without routing unknown framing into GATT.
-        val filters = (listOf(model.service.toString()) + WhoopGattServiceFamily.unsupportedServiceUuidStrings)
+        val filters = (model.advertisedScanUuids.map { it.toString() } + WhoopGattServiceFamily.unsupportedServiceUuidStrings)
             .distinct()
             .map { uuid ->
                 ScanFilter.Builder().setServiceUuid(ParcelUuid(UUID.fromString(uuid))).build()
@@ -3094,9 +3094,9 @@ class WhoopBleClient(
             val n = try { d.name } catch (se: SecurityException) { null }
             _discoveredWhoops.value = listOf(DiscoveredWhoop(address = d.address, name = n, rssi = 0))
         }
-        val filters = listOf(
-            ScanFilter.Builder().setServiceUuid(ParcelUuid(model.service)).build(),
-        )
+        val filters = model.advertisedScanUuids.map {
+            ScanFilter.Builder().setServiceUuid(ParcelUuid(it)).build()
+        }
         // LOW_LATENCY for a snappy wizard; the in-callback accumulation refreshes RSSI as straps move.
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)

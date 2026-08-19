@@ -50,4 +50,29 @@ public enum WhoopModel: String, CaseIterable, Identifiable, Hashable {
         case .whoop5mg: return CBUUID(string: "fd4b0001-cce1-4033-93ce-002d5875f58a")
         }
     }
+
+    /// The UUIDs that may appear in a strap's ADVERTISEMENT, which is not the same set as `scanService`.
+    ///
+    /// A 128-bit UUID often does not fit the 31-byte advertising payload, so a peripheral may advertise
+    /// the 16-bit SIG member form instead and CoreBluetooth surfaces that as its Bluetooth-base expansion
+    /// (`0000FD4B-…`) — which does NOT equal the vendor UUID `fd4b0001-…`. A scan filtered only on the
+    /// vendor UUID would then never see the strap, and it would read to the owner as "NOOP cannot find my
+    /// 5.0" rather than as a discovery bug.
+    ///
+    /// Advertisement-only, deliberately: after connecting, the strap exposes the real 128-bit service in
+    /// GATT, so `retrieveConnectedPeripherals` and `discoverServices` must keep using `scanService` alone.
+    /// Widening those would be wrong, not merely redundant.
+    ///
+    /// UNCONFIRMED against hardware. The 16-bit `0xFD4B` possibility is a fact re-derived from
+    /// OpenStrap/edge#255 (Dart; no code taken), which ships the same widening while its own test plan
+    /// still asks for the nRF Connect capture that would settle it. NOOP straps do pair today, so the
+    /// vendor UUID demonstrably works at least often — this only removes a way for discovery to fail
+    /// silently, and the discovery log records which form actually matched so the first 5/MG capture
+    /// answers the question for both projects.
+    public var advertisedScanServices: [CBUUID] {
+        switch self {
+        case .whoop4:   return [scanService]
+        case .whoop5mg: return [scanService, CBUUID(string: "FD4B")]
+        }
+    }
 }
