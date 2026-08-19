@@ -378,6 +378,20 @@ class WorkoutEditingTest {
         assertNull(WorkoutEditing.preservingCaptured(cleared, old).distanceM)
     }
 
+    /**
+     * #1444: per-session steps (#1058) has NO sheet field, so buildManualRow leaves it null and copy()
+     * carries the NEW row's null rather than the stored value — copy() only protects a field when the
+     * row being copied IS the stored one. Renaming the sport silently wiped a value the user never saw
+     * and never touched. Twin of Swift `testPreservingCapturedCarriesStepsFromOld`.
+     */
+    @Test
+    fun preservingCaptured_carriesStepsFromOld() {
+        val old = row("my-whoop", 100, 3700, "Running", "manual").copy(steps = 4_200)
+        val edited = row("my-whoop", 100, 3700, "Trail Running", "manual")
+        assertNull(edited.steps)   // the sheet cannot supply steps
+        assertEquals(4_200, WorkoutEditing.preservingCaptured(edited, old).steps)
+    }
+
     @Test
     fun preservingCaptured_carriesUnexposedFieldsOnEdit() {
         val old = row("my-whoop", 100, 3700, "Workout", "manual", avgHr = 130, maxHr = 175, strain = 13.5)

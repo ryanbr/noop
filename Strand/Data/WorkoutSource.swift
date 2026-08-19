@@ -320,19 +320,20 @@ enum WorkoutSource: Equatable {
 
     // MARK: - Building / preserving rows
 
-    /// Carry the captured fields the add/edit sheet does NOT expose (maxHr, strain, zonesJSON, notes)
-    /// over from the row being edited. A v1.67 live-tracked session has real captured strain/maxHr;
-    /// rebuilding the row from the sheet's inputs alone would silently wipe them on an edit. No-op for a
-    /// fresh add (`old == nil`). `distanceM` is NOW a sheet field (#1195), so it comes from the freshly
-    /// built `row` (the sheet pre-fills it from the edited row, so an untouched field preserves the
-    /// captured GPS distance and a cleared one clears it) rather than being force-carried from `old`.
+    /// Carry the captured fields the add/edit sheet does NOT expose (maxHr, strain, zonesJSON, notes,
+    /// steps) over from the row being edited. A v1.67 live-tracked session has real captured
+    /// strain/maxHr; rebuilding the row from the sheet's inputs alone would silently wipe them on an
+    /// edit. No-op for a fresh add (`old == nil`). `distanceM` is NOW a sheet field (#1195), so it comes
+    /// from the freshly built `row` (the sheet pre-fills it from the edited row, so an untouched field
+    /// preserves the captured GPS distance and a cleared one clears it) rather than being force-carried
+    /// from `old`. `steps` (#1058) has no sheet field at all, so it is carried like the others (#1444).
     static func preservingCaptured(_ row: WorkoutRow, from old: WorkoutRow?) -> WorkoutRow {
         guard let old else { return row }
         return WorkoutRow(startTs: row.startTs, endTs: row.endTs, sport: row.sport,
                           source: row.source, durationS: row.durationS,
                           energyKcal: row.energyKcal, avgHr: row.avgHr,
                           maxHr: old.maxHr, strain: old.strain, distanceM: row.distanceM,
-                          zonesJSON: old.zonesJSON, notes: old.notes)
+                          zonesJSON: old.zonesJSON, notes: old.notes, steps: old.steps)
     }
 
     /// Build a retroactive manual workout (source "manual", persisted under the strap deviceId by the

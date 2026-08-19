@@ -2177,7 +2177,8 @@ final class IntelligenceEngine: ObservableObject {
             updated.append(WorkoutRow(
                 startTs: row.startTs, endTs: row.endTs, sport: row.sport, source: row.source,
                 durationS: row.durationS, energyKcal: energyKcal, avgHr: s.avgHr, maxHr: s.maxHr,
-                strain: s.strain, distanceM: row.distanceM, zonesJSON: row.zonesJSON, notes: row.notes))
+                strain: s.strain, distanceM: row.distanceM, zonesJSON: row.zonesJSON, notes: row.notes,
+                steps: row.steps))
         }
         if !updated.isEmpty { _ = try? await store.upsertWorkouts(updated, deviceId: deviceId) }
     }

@@ -323,6 +323,17 @@ final class WorkoutSourceTests: XCTestCase {
         XCTAssertNil(WorkoutSource.preservingCaptured(cleared, from: old).distanceM)
     }
 
+    /// #1444: per-session steps (#1058) has NO sheet field, so an edit rebuilds the row without it and
+    /// the merged row used to come back with `steps` nil — silently wiping a value the user never saw
+    /// and never touched, just by renaming the sport. Kotlin twin:
+    /// `preservingCaptured_carriesStepsFromOld`.
+    func testPreservingCapturedCarriesStepsFromOld() {
+        let old = fullRow(start: 100, end: 3700, sport: "Running", source: "manual", steps: 4_200)
+        let edited = fullRow(start: 100, end: 3700, sport: "Trail Running", source: "manual")
+        XCTAssertNil(edited.steps, "the sheet cannot supply steps, so the rebuilt row starts without it")
+        XCTAssertEqual(WorkoutSource.preservingCaptured(edited, from: old).steps, 4_200)
+    }
+
     func testPreservingCapturedCarriesUnexposedFieldsOnEdit() {
         // The sheet rebuilds a row from its 5 inputs; an edit must keep the original's captured
         // maxHr/strain (a live-tracked session has real values the sheet never shows).
@@ -345,10 +356,11 @@ final class WorkoutSourceTests: XCTestCase {
 
     private func fullRow(start: Int, end: Int, sport: String, source: String,
                          avgHr: Int? = nil, kcal: Double? = nil, dist: Double? = nil,
-                         strain: Double? = nil, maxHr: Int? = nil, notes: String? = nil) -> WorkoutRow {
+                         strain: Double? = nil, maxHr: Int? = nil, notes: String? = nil,
+                         steps: Int? = nil) -> WorkoutRow {
         WorkoutRow(startTs: start, endTs: end, sport: sport, source: source,
                    durationS: Double(end - start), energyKcal: kcal, avgHr: avgHr, maxHr: maxHr,
-                   strain: strain, distanceM: dist, zonesJSON: nil, notes: notes)
+                   strain: strain, distanceM: dist, zonesJSON: nil, notes: notes, steps: steps)
     }
 
     func testFilterInactiveWhenEmptyPassesEverythingUntouched() {

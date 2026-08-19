@@ -327,6 +327,11 @@ object WorkoutEditing {
             zonesJSON = old.zonesJSON,
             notes = old.notes,
             routePolyline = old.routePolyline,
+            // #1444: `row` here is the sheet-built row, NOT the stored one, so copy() alone does not
+            // carry this — buildManualRow has no steps input and leaves it null. Per-session steps
+            // (#1058) is a captured field the sheet never exposes, so it is restored from `old` like
+            // the rest. Twin of Swift WorkoutSource.preservingCaptured.
+            steps = old.steps,
         )
     }
 

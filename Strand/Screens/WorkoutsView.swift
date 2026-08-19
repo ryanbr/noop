@@ -1584,7 +1584,7 @@ struct WorkoutsView: View {
         WorkoutRow(startTs: row.startTs, endTs: row.endTs, sport: WorkoutSource.displaySport(row.sport),
                    source: "manual", durationS: row.durationS, energyKcal: row.energyKcal,
                    avgHr: row.avgHr, maxHr: row.maxHr, strain: row.strain, distanceM: row.distanceM,
-                   zonesJSON: row.zonesJSON, notes: row.notes)
+                   zonesJSON: row.zonesJSON, notes: row.notes, steps: row.steps)
     }
 
     /// #796 - the per-session Effort cell label: the stored 0-100 strain mapped to the user's Effort scale
