@@ -716,11 +716,19 @@ object HrvAnalyzer {
             if (stepSec > 0 && last != null && tEnd - last < stepSec) continue
             // Clean this raw window in place. Timestamps stay on the samples used to define the window,
             // so no value-based matching back to timestamps is needed after cleaning.
-            val clean = cleanRR(sorted.subList(lo, hi + 1).map { it.rrMs.toDouble() })
+            //
+            // #1448: GAP-AWARE, exactly as the nightly [analyze] above already is. Dropping a beat joins
+            // two intervals that were never adjacent, and their difference is a splice rather than a
+            // physiological delta — the spurious large delta this analyzer's gap-aware pair exists to
+            // exclude. [CleanSeries.nn] is byte-identical to [cleanRR] over the same input, so the
+            // survivor gate is unchanged, and [rmssdGapAware] equals [rmssdRaw] on a window with no gaps:
+            // only windows that actually lost a beat move. A window whose survivors share NO adjacent
+            // pair now emits nothing rather than a number built entirely from splices.
+            val cleaned = cleanRRGapAware(sorted.subList(lo, hi + 1).map { it.rrMs.toDouble() })
             // A window with too few clean beats is a noisy spike, not a trustworthy rMSSD — require
             // [minBeatsPerWindow] survivors (#1035), matching the Swift HRVAnalyzer.rollingRmssd default (8).
-            if (clean.size < minBeatsPerWindow) continue
-            val r = rmssdRaw(clean) ?: continue
+            if (cleaned.nn.size < minBeatsPerWindow) continue
+            val r = rmssdGapAware(cleaned.nn, cleaned.contiguous) ?: continue
             out.add(tEnd to r)
             lastEmitTs = tEnd
         }

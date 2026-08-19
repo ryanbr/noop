@@ -156,6 +156,32 @@ final class HRVAnalyzerTests: XCTestCase {
         for p in pts { XCTAssertEqual(p.rmssd, 0.0, accuracy: 1e-9, "the 1400 ms artifact must be filtered, never spiking a window") }
     }
 
+    /// #1448: a difference that STRADDLES a dropped beat is a splice, not a physiological delta, and the
+    /// nightly `analyze` already excludes it via the gap-aware pair. The rolling trace must too. The
+    /// 2400 ms beat is out of range and removed, joining a 1000 ms run to a 1150 ms run that were never
+    /// adjacent; counting that 150 ms jump yields 50.0 ms of "variability" invented entirely by the
+    /// filter. Kotlin twin: `excludesDifferencesStraddlingADroppedBeat`.
+    func testRollingRmssdExcludesDifferencesStraddlingADroppedBeat() {
+        let raw = [1000, 1000, 1000, 1000, 1000, 2400, 1150, 1150, 1150, 1150, 1150]
+        let rr = raw.enumerated().map { RRInterval(ts: $0.offset, rrMs: $0.element) }
+        let pts = HRVAnalyzer.rollingRmssd(rr: rr, windowSec: 300, stepSec: 0, minBeatsPerWindow: 8)
+        XCTAssertFalse(pts.isEmpty)
+        // Ten survivors, every counted pair identical: the only non-zero difference was the splice.
+        XCTAssertEqual(pts.last!.rmssd, 0.0, accuracy: 1e-9)
+    }
+
+    /// #1448 control: a window with NO dropped beat must be byte-identical to the old behaviour, so this
+    /// is not a numbers-move for clean data. Same two runs without the out-of-range beat between them —
+    /// the 1000 → 1150 step is now a REAL adjacent difference and is counted, giving sqrt(150²/9) = 50.
+    /// Kotlin twin: `gaplessWindowIsUnchanged`.
+    func testRollingRmssdGaplessWindowIsUnchanged() {
+        let raw = [1000, 1000, 1000, 1000, 1000, 1150, 1150, 1150, 1150, 1150]
+        let rr = raw.enumerated().map { RRInterval(ts: $0.offset, rrMs: $0.element) }
+        let pts = HRVAnalyzer.rollingRmssd(rr: rr, windowSec: 300, stepSec: 0, minBeatsPerWindow: 8)
+        XCTAssertFalse(pts.isEmpty)
+        XCTAssertEqual(pts.last!.rmssd, 50.0, accuracy: 1e-9)
+    }
+
     func testRollingRmssdSparseSeriesEmitsNothing() {
         // Fewer beats than minBeatsPerWindow → no point at all (honest absence, no fabricated value).
         let rr = (0..<5).map { RRInterval(ts: 3000 + $0, rrMs: 800) }

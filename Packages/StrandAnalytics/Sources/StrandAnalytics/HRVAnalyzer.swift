@@ -363,9 +363,18 @@ public enum HRVAnalyzer {
             if stepSec > 0, let last = lastEmitTs, edgeTs - last < stepSec { continue }
             // Clean the window's raw R-R values with the shared range + Malik ectopic pipeline, then
             // require enough survivors before trusting a windowed rMSSD.
+            //
+            // #1448: GAP-AWARE, exactly as the nightly `analyze` above already is. Dropping a beat joins
+            // two intervals that were never adjacent, and their difference is a splice rather than a
+            // physiological delta — the spurious large delta this analyzer's gap-aware pair (#204/#195)
+            // exists to exclude. `cleaned.nn` is byte-identical to `cleanRR` over the same input, so the
+            // survivor gate is unchanged, and `rmssdGapAware` equals `rmssdRaw` on a window with no gaps:
+            // only windows that actually lost a beat move. A window whose survivors share NO adjacent
+            // pair now emits nothing rather than a number built entirely from splices.
             let windowRaw = sorted[left...right].map { Double($0.rrMs) }
-            let clean = cleanRR(windowRaw)
-            guard clean.count >= minBeatsPerWindow, let r = rmssdRaw(clean) else { continue }
+            let cleaned = cleanRRGapAware(windowRaw)
+            guard cleaned.nn.count >= minBeatsPerWindow,
+                  let r = rmssdGapAware(cleaned.nn, cleaned.contiguous) else { continue }
             out.append(RollingRmssdPoint(ts: edgeTs, rmssd: r))
             lastEmitTs = edgeTs
         }

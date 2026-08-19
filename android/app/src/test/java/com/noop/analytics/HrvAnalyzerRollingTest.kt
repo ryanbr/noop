@@ -61,6 +61,36 @@ class HrvAnalyzerRollingTest {
         }
     }
 
+    /**
+     * #1448: a difference that STRADDLES a dropped beat is a splice, not a physiological delta, and the
+     * nightly [HrvAnalyzer.analyze] already excludes it via the gap-aware pair. The rolling trace must
+     * too. The 2400 ms beat is out of range and removed, joining a 1000 ms run to a 1150 ms run that were
+     * never adjacent; counting that 150 ms jump yields 50.0 ms of "variability" invented entirely by the
+     * filter. Twin of Swift `testRollingRmssdExcludesDifferencesStraddlingADroppedBeat`.
+     */
+    @Test fun excludesDifferencesStraddlingADroppedBeat() {
+        val raw = listOf(1000, 1000, 1000, 1000, 1000, 2400, 1150, 1150, 1150, 1150, 1150)
+        val series = raw.mapIndexed { i, ms -> rr(i.toLong(), ms) }
+        val out = HrvAnalyzer.rollingRmssd(series, windowSec = 300, stepSec = 0, minBeatsPerWindow = 8)
+        assertTrue(out.isNotEmpty())
+        // Ten survivors, every counted pair identical: the only non-zero difference was the splice.
+        assertEquals(0.0, out.last().second, 1e-9)
+    }
+
+    /**
+     * #1448 control: a window with NO dropped beat must be byte-identical to the old behaviour, so this
+     * is not a numbers-move for clean data. Same two runs, without the out-of-range beat between them —
+     * the 1000 -> 1150 step is now a REAL adjacent difference and is counted, giving sqrt(150^2/9) = 50.
+     * Twin of Swift `testRollingRmssdGaplessWindowIsUnchanged`.
+     */
+    @Test fun gaplessWindowIsUnchanged() {
+        val raw = listOf(1000, 1000, 1000, 1000, 1000, 1150, 1150, 1150, 1150, 1150)
+        val series = raw.mapIndexed { i, ms -> rr(i.toLong(), ms) }
+        val out = HrvAnalyzer.rollingRmssd(series, windowSec = 300, stepSec = 0, minBeatsPerWindow = 8)
+        assertTrue(out.isNotEmpty())
+        assertEquals(50.0, out.last().second, 1e-9)
+    }
+
     @Test fun rangeFilterDropsOutOfRangeBeatsFromWindows() {
         // Inject a physiologically-impossible 50 ms RR between clean beats. It must be range-filtered out,
         // so the rMSSD never sees the huge artifact jump (which would spike a raw-RR plot).
