@@ -151,8 +151,25 @@ fun CoupledScreen(
                 .toString() == todayKey
         }
     }
-    val carriedRecoveryDay = remember(days, todayKey) {
-        days.lastOrNull { it.recovery != null && it.day < todayKey }
+    val context = LocalContext.current
+    val hrvEpoch = remember { NoopPrefs.of(context).getLong(Baselines.hrvBaselineEpochKey, 0L).toDouble() }
+    // #1458: carry through the SAME helper Today uses, not a local re-derivation. The local copy was
+    // `days.lastOrNull { it.recovery != null && it.day < todayKey }`, which has no `todayScored` guard —
+    // so on a day that HAS a score it still returned a prior day, and the hero's Charge sheet opened that
+    // older night while the card beside it showed today's number. It also missed the #547 upper bound
+    // (a future-dated row from a bad strap clock is how that bug read "12 Jul") and the calibrating gate.
+    // One helper, one answer: the card and its own detail sheet cannot disagree again.
+    val carriedRecoveryDay = remember(days, todayKey, todayRow, hrvEpoch, logicalKey, localKey) {
+        lastScoredRecoveryDay(
+            days = days,
+            selectedDayKey = todayKey,
+            isToday = true,   // the Coupled view has no day selector; it is always today
+            todayScored = todayRow?.recovery != null,
+            isCalibrating = recoveryCalibrationNights(
+                days, hasRecovery = todayRow?.recovery != null, hrvBaselineEpoch = hrvEpoch,
+            ) != null,
+            today = maxOf(logicalKey, localKey),
+        )
     }
     val recovery = todayRow?.recovery ?: carriedRecoveryDay?.recovery
     val isCarrying = todayRow?.recovery == null && carriedRecoveryDay?.recovery != null
@@ -178,8 +195,6 @@ fun CoupledScreen(
     // Recovery cold-start nights (the SAME pure helper Today's ring reads), for the honest calibrating
     // caption + accessibility copy while the HRV baseline still seeds. Threads the persisted
     // "Recalibrate HRV baseline" epoch so N folds the SAME epoch-aware history the engine folds (Bug B).
-    val context = LocalContext.current
-    val hrvEpoch = remember { NoopPrefs.of(context).getLong(Baselines.hrvBaselineEpochKey, 0L).toDouble() }
     val calibrationNights = remember(days, todayRow, hrvEpoch) {
         recoveryCalibrationNights(days, hasRecovery = todayRow?.recovery != null, hrvBaselineEpoch = hrvEpoch)
     }
