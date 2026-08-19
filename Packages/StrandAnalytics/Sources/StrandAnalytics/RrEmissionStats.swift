@@ -88,11 +88,23 @@ public enum RrEmissionStats {
     /// One compact log line. `offered`/`inserted` come from the caller: `inserted` is what the store
     /// actually wrote after its `ON CONFLICT` key, so `offered - inserted` is how much the primary key
     /// already absorbs — the third number needed to tell emission from ingest.
+    ///
+    /// TWO ratios are printed because `ratio` alone can be read the wrong way round on a whole SESSION.
+    /// A session that drains a gap — the strap off the wrist, or on the charger — spans wall time that
+    /// carries no beats at all, which inflates the denominator and pulls `ratio` DOWN. That is the
+    /// dangerous direction of error here: a diluted 0.9 reads as "emission is fine" on the one number
+    /// this instrumentation exists to answer. `ratioRep` divides by the seconds that actually REPORTED
+    /// R-R instead of by the wall span, so it is immune to gaps; the two agreeing means the batch is
+    /// gapless, and `ratioRep` is the one to trust when they disagree. (`ratioRep`'s denominator can
+    /// double-count at most one second per chunk boundary when a session's counts are summed, which is
+    /// negligible against thousands of seconds — and errs the same safe way, low.)
     public static func logLine(path: String, offered: Int, inserted: Int, _ r: Result) -> String {
         let ratio = String(format: "%.2f", r.ratio)
+        let rep = r.secondsWithRr > 0 ? Double(r.sumRrMs) / 1000.0 / Double(r.secondsWithRr) : 0
         let h = r.perSecond
         return "rr emit path=\(path) offered=\(offered) inserted=\(inserted) secs=\(r.secondsWithRr) "
             + "sumRr=\(r.sumRrMs / 1000)s span=\(r.spanSec)s ratio=\(ratio) "
+            + "ratioRep=\(String(format: "%.2f", rep)) "
             + "perSec[1/2/3/4+]=\(h[0])/\(h[1])/\(h[2])/\(h[3])"
     }
 }

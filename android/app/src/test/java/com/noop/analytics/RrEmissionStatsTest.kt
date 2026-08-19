@@ -81,4 +81,21 @@ class RrEmissionStatsTest {
         assertTrue(line, line.startsWith("rr emit path=historical offered=3 inserted=2 secs=2 "))
         assertTrue(line, line.contains("perSec[1/2/3/4+]=1/1/0/0"))
     }
+
+    /**
+     * A GAP must not read as healthy emission. Two doubled seconds an hour apart carry a 2.0 emission
+     * defect, but the wall span between them dilutes `ratio` to almost nothing — so `ratio` alone would
+     * report the OPPOSITE of the truth on exactly the session this instrumentation exists to judge.
+     * `ratioRep` divides by the seconds that reported and holds at ~1.6. Twin of the Swift vector.
+     */
+    @Test
+    fun gapDilutesSpanRatioButNotReportingRatio() {
+        val rr = listOf(Pair(0, 800), Pair(0, 800), Pair(3_600, 800), Pair(3_600, 800))
+        val r = RrEmissionStats.compute(rr)
+        assertEquals(2, r.secondsWithRr)
+        assertEquals(3_601, r.spanSec)
+        assertTrue("span ratio is diluted by the gap, as documented", r.ratio < 0.01)
+        val line = RrEmissionStats.logLine("historical", 4, 4, r)
+        assertTrue(line, line.contains("ratio=0.00 ratioRep=1.60"))
+    }
 }

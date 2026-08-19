@@ -72,12 +72,22 @@ object RrEmissionStats {
      * One compact log line. [offered]/[inserted] come from the caller: [inserted] is what the store
      * actually wrote after its conflict key, so `offered - inserted` is how much the primary key already
      * absorbs — the third number needed to tell emission from ingest.
+     *
+     * TWO ratios are printed because [Result.ratio] alone can be read the wrong way round on a whole
+     * SESSION. A session that drains a gap — the strap off the wrist, or on the charger — spans wall time
+     * carrying no beats at all, which inflates the denominator and pulls `ratio` DOWN. That is the
+     * dangerous direction of error: a diluted 0.9 reads as "emission is fine" on the one number this
+     * instrumentation exists to answer. `ratioRep` divides by the seconds that actually REPORTED R-R
+     * rather than by the wall span, so it is immune to gaps; the two agreeing means the batch is gapless,
+     * and `ratioRep` is the one to trust when they disagree.
      */
     fun logLine(path: String, offered: Int, inserted: Int, r: Result): String {
         val ratio = String.format(java.util.Locale.US, "%.2f", r.ratio)
+        val rep = if (r.secondsWithRr > 0) r.sumRrMs / 1000.0 / r.secondsWithRr else 0.0
         val h = r.perSecond
         return "rr emit path=$path offered=$offered inserted=$inserted secs=${r.secondsWithRr} " +
             "sumRr=${r.sumRrMs / 1000}s span=${r.spanSec}s ratio=$ratio " +
+            "ratioRep=${String.format(java.util.Locale.US, "%.2f", rep)} " +
             "perSec[1/2/3/4+]=${h[0]}/${h[1]}/${h[2]}/${h[3]}"
     }
 }

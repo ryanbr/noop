@@ -911,11 +911,24 @@ object IntelligenceEngine {
                     // #1118 sweep: the same-second collapse at a range of tolerances, so a capture shows
                     // WHICH tolerance the over-count actually responds to instead of only the one 40 ms
                     // point. 34 ms is the two-optical-channel twin spacing; 0 is exact-duplicates-only.
-                    // Instrumentation, and cheap — the same pure function, no extra reads.
-                    val sweep = listOf(0, 20, 34, 40, 60).joinToString(" ") { tol ->
+                    // The 0 and 40 points are NOT recomputed: `ex` and `dd` above ARE those collapses
+                    // (collapseOverCount's default tolerance is 40), and each collapse sorts the night's
+                    // intervals — ~50k on an over-count night. Reusing them keeps the sweep to three extra
+                    // passes instead of five on a block that runs for EVERY night of an affected strap.
+                    val accEx = HrvAnalyzer.beatAccurateFraction(ex.first, ex.second)
+                    fun sweepPoint(tol: Int): Pair<Double, Double> {
                         val c = HrvAnalyzer.collapseOverCount(ts, sleepRr, tol.toDouble())
-                        val cov = HrvAnalyzer.rrCoverage(c.first, c.second)
-                        val acc = HrvAnalyzer.beatAccurateFraction(c.first, c.second)
+                        return HrvAnalyzer.rrCoverage(c.first, c.second) to
+                            HrvAnalyzer.beatAccurateFraction(c.first, c.second)
+                    }
+                    val p20 = sweepPoint(20)
+                    val p34 = sweepPoint(34)
+                    val p60 = sweepPoint(60)
+                    val sweep = listOf(
+                        Triple(0, covEx, accEx), Triple(20, p20.first, p20.second),
+                        Triple(34, p34.first, p34.second), Triple(40, covDd, accDd),
+                        Triple(60, p60.first, p60.second),
+                    ).joinToString(" ") { (tol, cov, acc) ->
                         "t$tol=${String.format(java.util.Locale.US, "%.2f", cov)}/" +
                             String.format(java.util.Locale.US, "%.2f", acc)
                     }

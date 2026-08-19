@@ -81,4 +81,18 @@ final class RrEmissionStatsTests: XCTestCase {
         XCTAssertTrue(line.hasPrefix("rr emit path=historical offered=3 inserted=2 secs=2 "), line)
         XCTAssertTrue(line.contains("perSec[1/2/3/4+]=1/1/0/0"), line)
     }
+
+    /// A GAP must not read as healthy emission. Two doubled seconds an hour apart carry a 2.0 emission
+    /// defect, but the wall span between them dilutes `ratio` to almost nothing — so `ratio` alone would
+    /// report the *opposite* of the truth on exactly the session this instrumentation is meant to judge.
+    /// `ratioRep` divides by the seconds that reported and holds at ~1.6, which is the readable signal.
+    func testGapDilutesSpanRatioButNotReportingRatio() {
+        let rr = [(ts: 0, rrMs: 800), (ts: 0, rrMs: 800), (ts: 3_600, rrMs: 800), (ts: 3_600, rrMs: 800)]
+        let r = RrEmissionStats.compute(rr)
+        XCTAssertEqual(r.secondsWithRr, 2)
+        XCTAssertEqual(r.spanSec, 3_601)
+        XCTAssertLessThan(r.ratio, 0.01, "span ratio is diluted by the gap, as documented")
+        let line = RrEmissionStats.logLine(path: "historical", offered: 4, inserted: 4, r)
+        XCTAssertTrue(line.contains("ratio=0.00 ratioRep=1.60"), line)
+    }
 }
