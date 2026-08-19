@@ -100,6 +100,22 @@ final class RecoveryScorerTraceTests: XCTestCase {
         )
     }
 
+    /// The second trap in the same helper: an exact -0.0 cannot be routed by a sign COMPARISON, because
+    /// `-0.0 < 0.0` is false. It is reachable — a skin-temp deviation of exactly 0.0 (skin temp sitting
+    /// on the personal baseline) gives z = -|dev| = -0.0. Swift's `.rounded()` carries the sign for
+    /// free; this pins that the Kotlin twin does too. Twin: `traceKeepsExactNegativeZeroTerm`.
+    func testTraceKeepsExactNegativeZeroTerm() {
+        let hrvB = baseline(mean: 50, sigma: 6)
+        let (_, lines) = RecoveryScorer.recoveryTrace(
+            hrv: 50, rhr: 55, resp: nil,
+            hrvBaseline: hrvB, rhrBaseline: nil, respBaseline: nil,
+            sleepPerf: nil, skinTempDev: 0.0)
+        XCTAssertEqual(
+            lines.first { $0.hasPrefix("charge term skinTempDev ") },
+            "charge term skinTempDev z=-0.0 w=0.05 (dev=0.0C penalty=-|dev|/1.0)"
+        )
+    }
+
     func testTraceRoundsHalfTiesAwayFromZeroWithoutChangingScore() {
         let hrvB = baseline(mean: 50, sigma: 6)
         let plain = RecoveryScorer.recovery(

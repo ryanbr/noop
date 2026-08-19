@@ -113,6 +113,25 @@ class RecoveryScorerTraceTest {
         )
     }
 
+    /**
+     * The second trap in the same helper: an exact -0.0 cannot be routed by a sign COMPARISON, because
+     * `-0.0 < 0.0` is false. It is reachable — a skin-temp deviation of exactly 0.0 (skin temp sitting
+     * on the personal baseline) gives z = -|dev| = -0.0 — and Swift prints `z=-0.0` for it. Twin of
+     * Swift `testTraceKeepsExactNegativeZeroTerm`.
+     */
+    @Test fun traceKeepsExactNegativeZeroTerm() {
+        val hrvB = baseline(50.0, 6.0)
+        val (_, lines) = RecoveryScorerTrace.recoveryTrace(
+            hrv = 50.0, rhr = 55.0, resp = null,
+            hrvBaseline = hrvB, rhrBaseline = null, respBaseline = null,
+            sleepPerf = null, skinTempDev = 0.0,
+        )
+        assertEquals(
+            "charge term skinTempDev z=-0.0 w=0.05 (dev=0.0C penalty=-|dev|/1.0)",
+            lines.first { it.startsWith("charge term skinTempDev ") },
+        )
+    }
+
     @Test fun traceRoundsHalfTiesAwayFromZeroWithoutChangingScore() {
         val hrvB = baseline(50.0, 6.0)
         val plain = RecoveryScorer.recovery(

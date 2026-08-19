@@ -14,15 +14,24 @@ import kotlin.math.abs
 
 object RecoveryScorerTrace {
 
-    /** Trace numbers use nearest rounding with half-ties away from zero on both platforms. */
+    /**
+     * Trace numbers use nearest rounding with half-ties away from zero on both platforms.
+     *
+     * Round the MAGNITUDE and reapply the sign, rather than branching on `scaled < 0.0`. Two traps sit
+     * here, and Swift's `.rounded(.toNearestOrAwayFromZero)` avoids both for free:
+     *
+     *  * Math.round returns a Long, which has no negative zero, so negating it before the division
+     *    collapses -0.0 to +0.0 for any value that rounds to zero;
+     *  * `-0.0 < 0.0` is FALSE, so a sign test cannot even route an exact -0.0 to a negating branch —
+     *    and -0.0 is reachable here, since a skin-temp deviation of exactly 0.0 gives z = -|dev| = -0.0.
+     *
+     * These values are interpolated straight into the trace, so either trap printed `z=0.0` on Android
+     * against `z=-0.0` on Apple. copySign carries the IEEE sign bit itself and handles both (#1437
+     * follow-up).
+     */
     private fun r2(x: Double): Double {
         val scaled = x * 100.0
-        // Negate the DOUBLE, not the Long. Math.round returns a Long, which has no negative zero, so
-        // `-Math.round(0.1) / 100.0` collapses to +0.0 while Swift's .rounded() keeps -0.0 — and these
-        // values are interpolated straight into the trace, so a z just below baseline printed `z=0.0`
-        // on Android against `z=-0.0` on Apple. Parenthesising the division restores the sign without
-        // touching any other case (#1437 follow-up).
-        return if (scaled < 0.0) -(Math.round(-scaled) / 100.0) else Math.round(scaled) / 100.0
+        return Math.copySign(Math.round(abs(scaled)) / 100.0, scaled)
     }
 
     /**
