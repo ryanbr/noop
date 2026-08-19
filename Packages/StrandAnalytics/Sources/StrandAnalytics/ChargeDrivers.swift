@@ -284,11 +284,12 @@ extension RecoveryScorer {
     }
 
     static func skinTempDevText(_ dev: Double) -> String {
-        // Negative zero needs the sign taken from the IEEE bit, not from a comparison: `-0.0 >= 0` is
-        // TRUE, so the hand-built sign this replaced prepended "+" to a value that formatted as "-0.0"
-        // and printed "+-0.0". `%+.1f` alone renders -0.0 correctly, but it cannot distinguish the two
-        // zeroes for the "+0.0" case, so both are handled explicitly here — byte-identical to what Java
-        // Formatter produces for the Kotlin twin.
+        // Negative zero needs its sign taken from the IEEE bit, never from a comparison: `-0.0 >= 0` is
+        // TRUE, so the hand-built sign this replaced prepended "+" to a value that already formatted as
+        // "-0.0", printing "+-0.0". `%+.1f` on its own gets BOTH zeroes right (checked against C printf
+        // and Java's Formatter, which the Kotlin twin uses); the explicit branch is redundant there and
+        // kept only to pin this edge, so the two zeroes cannot drift apart from the twin on a Foundation
+        // whose formatter we have not checked.
         if dev == 0 {
             return dev.sign == .minus ? "-0.0 C vs baseline" : "+0.0 C vs baseline"
         }
