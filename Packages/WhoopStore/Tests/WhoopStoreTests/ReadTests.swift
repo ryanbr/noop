@@ -86,7 +86,12 @@ final class ReadTests: XCTestCase {
     func testRrIntervalsReturnsBothTiedRows() async throws {
         let store = try await seeded()
         let rr = try await store.rrIntervals(deviceId: "dev1", from: 0, to: 1000, limit: 100)
-        XCTAssertEqual(rr, [RRInterval(ts: 100, rrMs: 800), RRInterval(ts: 100, rrMs: 820)])
+        // #1008: `ord` is the per-TIMESTAMP occurrence counter assigned at write time, so two beats
+        // stamped on the same second read back as 0 then 1. Asserting it here rather than dropping to a
+        // field projection pins the property the `hrv rrsample` diagnostic depends on — one delivery
+        // counts 0,1,2,…, whereas a second rebuilt across two offloads repeats (0,1,0,1).
+        XCTAssertEqual(rr, [RRInterval(ts: 100, rrMs: 800, ord: 0),
+                            RRInterval(ts: 100, rrMs: 820, ord: 1)])
     }
 
     // MARK: - hrWindowStats (#836)
