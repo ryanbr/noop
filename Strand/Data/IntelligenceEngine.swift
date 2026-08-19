@@ -1582,7 +1582,7 @@ final class IntelligenceEngine: ObservableObject {
                                               durationS: s.durationS, energyKcal: s.caloriesKcal,
                                               avgHr: avgBpm, maxHr: s.peakHR,
                                               strain: s.strain, distanceM: nil,
-                                              zonesJSON: nil, notes: nil))
+                                              zonesJSON: nil, notes: nil, steps: nil))
                 if workoutsTraceActive {
                     diagnosticSink?(WorkoutsTrace.detectedBoutLine(
                         verdict: "persisted", durMin: durMin, avgBpm: avgBpm), .workouts)

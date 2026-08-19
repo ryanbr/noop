@@ -129,7 +129,7 @@ if let whoopExport, FileManager.default.fileExists(atPath: whoopExport.path) {
             sport: w.activityName ?? "Workout", source: "whoop", durationS: e.timeIntervalSince(s),
             energyKcal: w.energyKcal, avgHr: w.avgHeartRate.map { Int($0.rounded()) },
             maxHr: w.maxHeartRate.map { Int($0.rounded()) }, strain: w.activityStrain,
-            distanceM: w.distanceMeters, zonesJSON: zjson, notes: nil)
+            distanceM: w.distanceMeters, zonesJSON: zjson, notes: nil, steps: nil)
     }
     try await store.upsertWorkouts(workouts, deviceId: "my-whoop")
     print("Whoop: \(metrics.count) days · \(points.count) metric points · \(journal.count) journal · \(workouts.count) workouts")

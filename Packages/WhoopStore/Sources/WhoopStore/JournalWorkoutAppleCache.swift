@@ -41,9 +41,18 @@ public struct WorkoutRow: Equatable, Codable {
     public let zonesJSON: String?
     public let notes: String?
     public let steps: Int?               // #1058: per-session steps (activity-file foot sports); nil otherwise
+    /// NO DEFAULTS HERE, deliberately (#1444). Swift rebuilds a row field by field, so a defaulted
+    /// parameter lets an existing call site keep compiling while it silently starts writing nothing.
+    /// That is exactly how `steps` was dropped at six sites — two of which persisted the loss — with
+    /// nothing in the read path able to tell "never had steps" from "had steps, then lost them".
+    /// Requiring every field makes each call site state its intent and turns the next added column into
+    /// a compile error instead of silent data loss. Keep it that way: add a field WITHOUT a default and
+    /// fix the call sites the compiler points at. (Kotlin needs no equivalent rule because `copy()`
+    /// carries unmentioned fields — but note that only protects a rebuild whose receiver IS the stored
+    /// row, which is why the Android edit sheet lost `steps` anyway.)
     public init(startTs: Int, endTs: Int, sport: String, source: String, durationS: Double?,
                 energyKcal: Double?, avgHr: Int?, maxHr: Int?, strain: Double?, distanceM: Double?,
-                zonesJSON: String?, notes: String?, steps: Int? = nil) {
+                zonesJSON: String?, notes: String?, steps: Int?) {
         self.startTs = startTs; self.endTs = endTs; self.sport = sport; self.source = source
         self.durationS = durationS; self.energyKcal = energyKcal; self.avgHr = avgHr
         self.maxHr = maxHr; self.strain = strain; self.distanceM = distanceM

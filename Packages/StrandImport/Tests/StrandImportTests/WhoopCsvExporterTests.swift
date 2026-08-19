@@ -55,7 +55,7 @@ final class WhoopCsvExporterTests: XCTestCase {
                            durationS: 3600, energyKcal: 540, avgHr: 158, maxHr: 182,
                            strain: 11.2, distanceM: 8000,
                            zonesJSON: #"{"z1":5.0,"z2":20.0,"z3":40.0,"z4":30.0,"z5":5.0}"#,
-                           notes: nil)
+                           notes: nil, steps: nil)
         let csv = WhoopCsvExporter.workoutsCSV([w], sourceLabel: { _ in "import" })
         let back = WhoopExportImporter().parseWorkouts(CSVTable(text: csv))
         XCTAssertEqual(back.count, 1)

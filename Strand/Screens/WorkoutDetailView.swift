@@ -720,7 +720,7 @@ struct WorkoutRouteMap: View {
             endTs: Int(Date().timeIntervalSince1970),
             sport: "Running", source: "whoop", durationS: 3600, energyKcal: 712,
             avgHr: 152, maxHr: 178, strain: 14.2, distanceM: 10_400,
-            zonesJSON: #"{"z1":12.5,"z2":28.0,"z3":33.5,"z4":18.0,"z5":6.0}"#, notes: nil))
+            zonesJSON: #"{"z1":12.5,"z2":28.0,"z3":33.5,"z4":18.0,"z5":6.0}"#, notes: nil, steps: nil))
             .environmentObject(Repository(deviceId: "preview"))
     }
     .frame(width: 1040, height: 940)

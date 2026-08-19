@@ -1235,7 +1235,7 @@ final class HealthKitBridge: ObservableObject {
                         strain: nil,
                         distanceM: workout.totalDistance?.doubleValue(for: .meter()),
                         zonesJSON: nil,
-                        notes: nil))
+                        notes: nil, steps: nil))
                 }
                 cont.resume(returning: rows)
             }

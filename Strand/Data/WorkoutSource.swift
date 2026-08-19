@@ -362,7 +362,7 @@ enum WorkoutSource: Equatable {
         return WorkoutRow(startTs: s, endTs: end, sport: trimmed, source: "manual",
                           durationS: Double(durationSeconds), energyKcal: energyKcal,
                           avgHr: avgHr, maxHr: nil, strain: nil, distanceM: distanceM,
-                          zonesJSON: nil, notes: nil)
+                          zonesJSON: nil, notes: nil, steps: nil)
     }
 }
 
@@ -500,6 +500,6 @@ enum WorkoutMerge {
 
         return WorkoutRow(startTs: start, endTs: end, sport: mergedSport, source: "manual",
                           durationS: durationS, energyKcal: energyKcal, avgHr: avgHr, maxHr: maxHr,
-                          strain: nil, distanceM: distanceM, zonesJSON: nil, notes: mergedNotes)
+                          strain: nil, distanceM: distanceM, zonesJSON: nil, notes: mergedNotes, steps: nil)
     }
 }

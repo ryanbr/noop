@@ -28,7 +28,7 @@ final class WorkoutZonesTests: XCTestCase {
         func row(_ start: Int, _ durS: Double, _ zones: String?) -> WorkoutRow {
             WorkoutRow(startTs: start, endTs: start + Int(durS), sport: "Running", source: "whoop",
                        durationS: durS, energyKcal: nil, avgHr: nil, maxHr: nil, strain: nil,
-                       distanceM: nil, zonesJSON: zones, notes: nil)
+                       distanceM: nil, zonesJSON: zones, notes: nil, steps: nil)
         }
         let s = WorkoutZones.summary(from: [
             row(0, 3600, #"{"z1":100}"#),          // 60 min all Z1

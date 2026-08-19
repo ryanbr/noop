@@ -255,7 +255,7 @@ enum ShortcutHealthImport {
                        source: WorkoutSource.appleHealthSource,
                        durationS: w.durationS, energyKcal: w.energyKcal,
                        avgHr: nil, maxHr: nil, strain: nil,
-                       distanceM: w.distanceM, zonesJSON: nil, notes: nil)
+                       distanceM: w.distanceM, zonesJSON: nil, notes: nil, steps: nil)
         }
     }
 

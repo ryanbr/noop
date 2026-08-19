@@ -71,7 +71,7 @@ enum OuraSyncWriter {
             WorkoutRow(startTs: Int(w.start.timeIntervalSince1970), endTs: Int(w.end.timeIntervalSince1970),
                        sport: w.activity, source: w.source, durationS: w.end.timeIntervalSince(w.start),
                        energyKcal: w.energyKcal, avgHr: nil, maxHr: nil, strain: nil,
-                       distanceM: w.distanceM, zonesJSON: nil, notes: nil)
+                       distanceM: w.distanceM, zonesJSON: nil, notes: nil, steps: nil)
         }
         summary.workouts = try await store.upsertWorkouts(workouts, deviceId: deviceId)
 

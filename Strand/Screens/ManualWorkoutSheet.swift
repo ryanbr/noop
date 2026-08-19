@@ -439,7 +439,7 @@ struct ManualWorkoutSheet: View {
     ManualWorkoutSheet(editing: WorkoutRow(
         startTs: Int(Date().timeIntervalSince1970) - 3600, endTs: Int(Date().timeIntervalSince1970),
         sport: "Running", source: "manual", durationS: 3600, energyKcal: 540,
-        avgHr: 148, maxHr: 172, strain: 12.4, distanceM: nil, zonesJSON: nil, notes: nil)) { _, _ in }
+        avgHr: 148, maxHr: 172, strain: 12.4, distanceM: nil, zonesJSON: nil, notes: nil, steps: nil)) { _, _ in }
         .preferredColorScheme(.dark)
 }
 #endif
