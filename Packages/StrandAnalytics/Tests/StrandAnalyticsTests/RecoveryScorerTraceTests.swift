@@ -83,6 +83,23 @@ final class RecoveryScorerTraceTests: XCTestCase {
         XCTAssertTrue(base!.contains("status=provisional"))
     }
 
+    /// #1437 follow-up: a term just below baseline rounds to zero but must keep its SIGN. Swift's
+    /// `.rounded()` yields -0.0 here and interpolates as "-0.0"; the Kotlin twin negated a Long (which
+    /// has no negative zero) and printed "0.0", so the two traces disagreed on the one line whose whole
+    /// purpose is being byte-identical across platforms. Twin:
+    /// `traceKeepsNegativeZeroOnNearBaselineTerm`.
+    func testTraceKeepsNegativeZeroOnNearBaselineTerm() {
+        let hrvB = baseline(mean: 50, sigma: 6)
+        let (_, lines) = RecoveryScorer.recoveryTrace(
+            hrv: 50, rhr: 55, resp: nil,
+            hrvBaseline: hrvB, rhrBaseline: nil, respBaseline: nil,
+            sleepPerf: nil, skinTempDev: 0.001)
+        XCTAssertEqual(
+            lines.first { $0.hasPrefix("charge term skinTempDev ") },
+            "charge term skinTempDev z=-0.0 w=0.05 (dev=0.0C penalty=-|dev|/1.0)"
+        )
+    }
+
     func testTraceRoundsHalfTiesAwayFromZeroWithoutChangingScore() {
         let hrvB = baseline(mean: 50, sigma: 6)
         let plain = RecoveryScorer.recovery(

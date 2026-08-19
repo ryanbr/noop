@@ -284,8 +284,11 @@ extension RecoveryScorer {
     }
 
     static func skinTempDevText(_ dev: Double) -> String {
-        // Foundation's `%+f` renders negative zero as "-+0.0" on some runtimes. Preserve the
-        // IEEE sign explicitly so this edge stays byte-identical to Java Formatter.
+        // Negative zero needs the sign taken from the IEEE bit, not from a comparison: `-0.0 >= 0` is
+        // TRUE, so the hand-built sign this replaced prepended "+" to a value that formatted as "-0.0"
+        // and printed "+-0.0". `%+.1f` alone renders -0.0 correctly, but it cannot distinguish the two
+        // zeroes for the "+0.0" case, so both are handled explicitly here — byte-identical to what Java
+        // Formatter produces for the Kotlin twin.
         if dev == 0 {
             return dev.sign == .minus ? "-0.0 C vs baseline" : "+0.0 C vs baseline"
         }

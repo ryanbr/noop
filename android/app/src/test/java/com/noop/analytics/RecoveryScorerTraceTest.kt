@@ -93,6 +93,26 @@ class RecoveryScorerTraceTest {
         assertTrue(base.contains("status=provisional"))
     }
 
+    /**
+     * #1437 follow-up: a term just below baseline rounds to zero but must keep its SIGN. Math.round
+     * returns a Long, which has no negative zero, so negating it before the division collapsed -0.0 to
+     * +0.0 and this line printed `z=0.0` while Swift's .rounded() kept `z=-0.0` — a disagreement on the
+     * one line whose whole purpose is being byte-identical across platforms. Twin of Swift
+     * `testTraceKeepsNegativeZeroOnNearBaselineTerm`.
+     */
+    @Test fun traceKeepsNegativeZeroOnNearBaselineTerm() {
+        val hrvB = baseline(50.0, 6.0)
+        val (_, lines) = RecoveryScorerTrace.recoveryTrace(
+            hrv = 50.0, rhr = 55.0, resp = null,
+            hrvBaseline = hrvB, rhrBaseline = null, respBaseline = null,
+            sleepPerf = null, skinTempDev = 0.001,
+        )
+        assertEquals(
+            "charge term skinTempDev z=-0.0 w=0.05 (dev=0.0C penalty=-|dev|/1.0)",
+            lines.first { it.startsWith("charge term skinTempDev ") },
+        )
+    }
+
     @Test fun traceRoundsHalfTiesAwayFromZeroWithoutChangingScore() {
         val hrvB = baseline(50.0, 6.0)
         val plain = RecoveryScorer.recovery(

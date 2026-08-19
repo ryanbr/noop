@@ -17,7 +17,12 @@ object RecoveryScorerTrace {
     /** Trace numbers use nearest rounding with half-ties away from zero on both platforms. */
     private fun r2(x: Double): Double {
         val scaled = x * 100.0
-        return if (scaled < 0.0) -Math.round(-scaled) / 100.0 else Math.round(scaled) / 100.0
+        // Negate the DOUBLE, not the Long. Math.round returns a Long, which has no negative zero, so
+        // `-Math.round(0.1) / 100.0` collapses to +0.0 while Swift's .rounded() keeps -0.0 — and these
+        // values are interpolated straight into the trace, so a z just below baseline printed `z=0.0`
+        // on Android against `z=-0.0` on Apple. Parenthesising the division restores the sign without
+        // touching any other case (#1437 follow-up).
+        return if (scaled < 0.0) -(Math.round(-scaled) / 100.0) else Math.round(scaled) / 100.0
     }
 
     /**
