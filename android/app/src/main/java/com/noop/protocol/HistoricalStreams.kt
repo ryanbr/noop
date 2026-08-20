@@ -19,6 +19,15 @@ import com.noop.data.StreamBatch
 import com.noop.data.StreamPersistence
 
 /**
+ * How stale the strap RTC must be before the `(wall - device)` offset is applied to a historical record's
+ * own unix second. BELOW this the offset is discarded and the raw stamp is kept verbatim, so an everyday
+ * drift of seconds-to-minutes never reaches stored timestamps. Shared with [ChunkClockDiag] so the strap
+ * log's `corr=on|off` cannot disagree with what the decoder actually did. Twin of the Swift
+ * `histStaleClockThresholdSec`.
+ */
+const val HIST_STALE_CLOCK_THRESHOLD_SEC = 86_400   // 1 day
+
+/**
  * #891: packet types an offload legitimately carries that [extractHistoricalStreams] has no rows for, so
  * reaching the `else` branch is expected rather than a finding. Both decode to zero rows BY DESIGN —
  * CONSOLE_LOGS is strap-side debug text, METADATA is envelope bookkeeping — and counting them on every sync
@@ -710,7 +719,7 @@ fun extractHistoricalStreams(
     // record re-syncs to the SAME corrected ts (offloaded rows dedupe by (deviceId, ts); an un-snapped,
     // slightly-different offset on re-sync would duplicate every row). A normal/identity clockRef has
     // offset ~0 (< threshold) → rawTs unchanged (current behavior).
-    val staleThreshold = 86_400          // 1 day
+    val staleThreshold = HIST_STALE_CLOCK_THRESHOLD_SEC
     val snapGranularity = 300            // 5 min
     val clockOffset = wallClockRef - deviceClockRef
     // #547: now NULLABLE. After resolving the final candidate ts (BOTH the raw pass-through branch AND the

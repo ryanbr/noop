@@ -132,6 +132,9 @@ final class Backfiller {
     private(set) var sessionClockDevice: Int?
     private(set) var sessionClockWall: Int?
     private(set) var sessionUsedIdentityRef = false
+    /// #1008: 1-based chunk counter for the per-chunk `hist clock` diag line, so a strap log can be read
+    /// as a trajectory across one offload. Reset per session alongside the clock ref above.
+    private var chunkIndex = 0
     /// Logged once per session when the strap reports trim=0xFFFFFFFF — the "no valid flash cursor"
     /// sentinel: it has no banked history to offload (a clock/charge state, not a decode bug).
     private var loggedNoCursor = false
@@ -261,6 +264,7 @@ final class Backfiller {
         sessionClockDevice = nil          // #67: re-capture the decode clock ref for this session
         sessionClockWall = nil
         sessionUsedIdentityRef = false
+        chunkIndex = 0
         loggedNoCursor = false
         loggedFutureRtc = false
         sessionDroppedImplausible = 0
@@ -481,6 +485,16 @@ final class Backfiller {
                 return DecodedChunk(parsed: parsed, decoded: decoded, rejected: rejected)
             }.value
             let parsed = d.parsed
+            // #1008: per-chunk clock basis + R-R packing. The session summary logs only the FIRST chunk's
+            // correlation, which cannot show the offset moving across a long offload nor separate "the same
+            // beats arrived twice" from "one record stamped 8 intervals on one second". Log-only.
+            chunkIndex += 1
+            if let l = ChunkClockDiag.line(chunk: chunkIndex,
+                                           deviceClockRef: ref.device,
+                                           wallClockRef: ref.wall,
+                                           rrTimestamps: d.decoded.rr.map(\.ts)) {
+                log?(l)
+            }
             // Observability (PR #241): log which layout this strap emits on a HEALTHY sync too — the
             // unmapped-version path below only fires for layouts NOOP can't decode, so a normal log
             // never revealed v18/v24/v25/v26. Once per distinct layout this session.

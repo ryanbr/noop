@@ -8,6 +8,12 @@ import Foundation
 /// Keep in lockstep with the Android `EXPECTED_UNHANDLED_HISTORICAL_TYPES`.
 let expectedUnhandledHistoricalTypes: Set<String> = ["METADATA", "CONSOLE_LOGS"]
 
+/// How stale the strap RTC must be before the `(wall - device)` offset is applied to a historical
+/// record's own unix second. BELOW this the offset is discarded and the raw stamp is kept verbatim, so
+/// an everyday drift of seconds-to-minutes never reaches stored timestamps. Shared with `ChunkClockDiag`
+/// so the strap log's `corr=on|off` cannot disagree with what the decoder actually did.
+public let histStaleClockThresholdSec = 86_400   // 1 day
+
 /// Shared plausibility bounds for a type-47 record's own unix timestamp (#547). A WHOOP strap with a
 /// bad clock/flash (repeated trim=0xFFFFFFFF no-cursor) emits records whose decoded unix is scattered
 /// garbage — far-past (2024/2029), a bogus 2027=1827642881, and even FUTURE dates. NOOP used to trust
@@ -159,7 +165,7 @@ public func extractHistoricalStreams(_ parsed: [ParsedFrame],
     // grid so the same record re-syncs to the SAME corrected ts (offloaded rows dedupe by (deviceId, ts);
     // an un-snapped, slightly-different offset on re-sync would duplicate every row). For a normal or
     // identity clockRef the offset is ~0 (< threshold) → rawTs is returned unchanged (current behavior).
-    let staleThreshold = 86_400          // 1 day
+    let staleThreshold = histStaleClockThresholdSec
     let snapGranularity = 300            // 5 min
     let clockOffset = wallClockRef - deviceClockRef
     // The wall "now" the plausibility gate's FUTURE bound measures against. A record genuinely can't

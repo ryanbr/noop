@@ -6,6 +6,7 @@ import com.noop.data.InsertCounts
 import com.noop.data.StreamBatch
 import com.noop.data.WhoopRepository
 import com.noop.protocol.BadClockDiagnostics
+import com.noop.protocol.ChunkClockDiag
 import com.noop.protocol.DeviceFamily
 import com.noop.protocol.Framing
 import com.noop.protocol.HistoricalMeta
@@ -253,6 +254,9 @@ class Backfiller(
      * [begin]; each distinct layout is logged once per session. (PR #241, ryanbr.)
      */
     private val loggedLayoutVersions = HashSet<Int>()
+    /** #1008: 1-based chunk counter for the per-chunk `hist clock` diag line, so a strap log can be read
+     *  as a trajectory across one offload. Reset per session. Twin of the Swift `chunkIndex`. */
+    private var chunkIndex = 0
 
     /** SpO2 RE dump (PR #945, reimplemented): how many full-record dumps this session emitted, bounded by
      *  [com.noop.analytics.Spo2ReTrace.MAX_SAMPLES]. Session-scoped so the cap spans chunks; reset in begin. */
@@ -315,6 +319,7 @@ class Backfiller(
         loggedNoCursor = false
         loggedFutureRtc = false
         loggedLayoutVersions.clear()
+        chunkIndex = 0
         spo2Dumped = 0
         loggedImplausibleClock = false
         sessionDroppedImplausible = 0
@@ -397,6 +402,13 @@ class Backfiller(
                 sessionOldestUnix = sessionOldestUnix, sessionNewestUnix = sessionNewestUnix,
                 ppgHrSubLagInterp = ppgHrSubLagInterp(),
             )
+            // #1008: per-chunk clock basis + R-R packing. The session summary logs only the FIRST chunk's
+            // correlation, which cannot show the offset moving across a long offload nor separate "the same
+            // beats arrived twice" from "one record stamped 8 intervals on one second". Log-only. Twin of
+            // the Swift Backfiller emit.
+            chunkIndex += 1
+            ChunkClockDiag.line(chunkIndex, ref.device, ref.wall, decoded.rr.map { it.ts })
+                ?.let { log(it) }
             // Observability (PR #241): which historical layout does this strap emit? Only the unmapped/
             // reject path logged a version before, so a healthy sync never revealed v24/v25 (4.0) or
             // v18/v26 (5/MG). Sample the chunk's first genuine record (null ⇒ console/CRC-fail); log
