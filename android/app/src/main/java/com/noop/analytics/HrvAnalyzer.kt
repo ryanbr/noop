@@ -585,6 +585,11 @@ object HrvAnalyzer {
      * aggregates it over the night, because the fix turns on a question a sample cannot answer: is the
      * over-count mostly seconds touched by SEVERAL deliveries, or genuinely too many beats inside one?
      *
+     * `multiMs` is the share of attributable BEAT-TIME on those seconds, and it is the number the fix is
+     * sized against: coverage is Σ(rrMs) over wall span, so beat-time is what inflates it. A high
+     * `multiRows` with a low `multiMs` would mean the extra rows are short and barely move coverage —
+     * a different problem from the one this is chasing.
+     *
      * `multiRows` is a share of ATTRIBUTABLE rows (those carrying an `ord`), not of every row — dividing
      * by the total would let a night that half-predates `ord` read artificially benign, which is precisely
      * the conclusion this exists to prevent.
@@ -601,20 +606,25 @@ object HrvAnalyzer {
         if (n == 0) return ""
         val deliveriesPerSec = HashMap<Long, Int>()
         val knownRowsPerSec = HashMap<Long, Int>()   // rows we can attribute (ord present)
+        val knownMsPerSec = HashMap<Long, Double>()  // and their beat-time, which is what coverage counts
         val secsSeen = HashSet<Long>()
         var unknown = 0
         var known = 0
+        var knownMs = 0.0
         for (i in 0 until n) {
             secsSeen.add(tsSec[i])
             val o = ords.getOrNull(i)
             if (o == null) { unknown += 1; continue }
             known += 1
+            knownMs += rrMs[i]
             knownRowsPerSec[tsSec[i]] = (knownRowsPerSec[tsSec[i]] ?: 0) + 1
+            knownMsPerSec[tsSec[i]] = (knownMsPerSec[tsSec[i]] ?: 0.0) + rrMs[i]
             if (o == 0) deliveriesPerSec[tsSec[i]] = (deliveriesPerSec[tsSec[i]] ?: 0) + 1
         }
         val hist = intArrayOf(0, 0, 0, 0) // 1, 2, 3, 4+
         var multiSecs = 0
         var multiRows = 0
+        var multiMs = 0.0
         var maxDeliv = 0
         for ((sec, count) in deliveriesPerSec) {
             if (count <= 0) continue
@@ -623,6 +633,7 @@ object HrvAnalyzer {
             if (count >= 2) {
                 multiSecs += 1
                 multiRows += knownRowsPerSec[sec] ?: 0
+                multiMs += knownMsPerSec[sec] ?: 0.0
             }
         }
         val secs = deliveriesPerSec.size
@@ -633,6 +644,7 @@ object HrvAnalyzer {
         val secsNoStart = secsSeen.size - secs
         return "rr deliveries secs[1/2/3/4+]=${hist[0]}/${hist[1]}/${hist[2]}/${hist[3]}" +
             " multiSec=${pct(multiSecs, secs)}% multiRows=${pct(multiRows, known)}%" +
+            " multiMs=${pct(kotlin.math.round(multiMs).toInt(), kotlin.math.round(knownMs).toInt())}%" +
             " maxDeliv=$maxDeliv secsNoStart=$secsNoStart ordUnknown=$unknown"
     }
 

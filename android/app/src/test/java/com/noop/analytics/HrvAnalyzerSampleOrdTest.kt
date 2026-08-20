@@ -56,7 +56,7 @@ class HrvAnalyzerSampleOrdTest {
         val rr = listOf(872.0, 893.0, 800.0, 500.0, 537.0, 1309.0)
         val ords = listOf<Int?>(0, 0, 0, 0, 1, 2)
         assertEquals(
-            "rr deliveries secs[1/2/3/4+]=2/1/0/0 multiSec=33% multiRows=33% maxDeliv=2 secsNoStart=0 ordUnknown=0",
+            "rr deliveries secs[1/2/3/4+]=2/1/0/0 multiSec=33% multiRows=33% multiMs=36% maxDeliv=2 secsNoStart=0 ordUnknown=0",
             HrvAnalyzer.deliveryHistogram(ts, rr, ords),
         )
     }
@@ -65,7 +65,7 @@ class HrvAnalyzerSampleOrdTest {
     @Test fun singleDeliveryPerSecondReadsClean() {
         val ts = (200L until 210L).toList()
         assertEquals(
-            "rr deliveries secs[1/2/3/4+]=10/0/0/0 multiSec=0% multiRows=0% maxDeliv=1 secsNoStart=0 ordUnknown=0",
+            "rr deliveries secs[1/2/3/4+]=10/0/0/0 multiSec=0% multiRows=0% multiMs=0% maxDeliv=1 secsNoStart=0 ordUnknown=0",
             HrvAnalyzer.deliveryHistogram(ts, ts.map { 1000.0 }, ts.map { 0 }),
         )
     }
@@ -76,7 +76,7 @@ class HrvAnalyzerSampleOrdTest {
      */
     @Test fun nilOrdsAreExcludedNotAssumedFirst() {
         assertEquals(
-            "rr deliveries secs[1/2/3/4+]=1/0/0/0 multiSec=0% multiRows=0% maxDeliv=1 secsNoStart=1 ordUnknown=2",
+            "rr deliveries secs[1/2/3/4+]=1/0/0/0 multiSec=0% multiRows=0% multiMs=0% maxDeliv=1 secsNoStart=1 ordUnknown=2",
             HrvAnalyzer.deliveryHistogram(
                 listOf(300L, 300L, 301L), listOf(900.0, 910.0, 920.0), listOf(null, null, 0),
             ),

@@ -43,7 +43,7 @@ final class HRVAnalyzerSampleOrdTests: XCTestCase {
         let ords: [Int?] = [0, 0, 0, 0, 1, 2]   // 100 written twice; 102 is one delivery of three beats
         let line = HRVAnalyzer.deliveryHistogram(tsSec: ts, rrMs: rr, ords: ords)
         XCTAssertEqual(line, "rr deliveries secs[1/2/3/4+]=2/1/0/0 multiSec=33% multiRows=33%"
-                       + " maxDeliv=2 secsNoStart=0 ordUnknown=0")
+                       + " multiMs=36% maxDeliv=2 secsNoStart=0 ordUnknown=0")
     }
 
     /// A clean night: every second written by exactly one delivery, so nothing is flagged.
@@ -52,7 +52,7 @@ final class HRVAnalyzerSampleOrdTests: XCTestCase {
         let line = HRVAnalyzer.deliveryHistogram(tsSec: ts, rrMs: ts.map { _ in 1000.0 },
                                                  ords: ts.map { _ in Int?(0) })
         XCTAssertEqual(line, "rr deliveries secs[1/2/3/4+]=10/0/0/0 multiSec=0% multiRows=0%"
-                       + " maxDeliv=1 secsNoStart=0 ordUnknown=0")
+                       + " multiMs=0% maxDeliv=1 secsNoStart=0 ordUnknown=0")
     }
 
     /// Rows predating the `ord` column must NOT read as "written once" — that would argue against the
@@ -62,7 +62,7 @@ final class HRVAnalyzerSampleOrdTests: XCTestCase {
                                                  rrMs: [900.0, 910.0, 920.0],
                                                  ords: [nil, nil, 0])
         XCTAssertEqual(line, "rr deliveries secs[1/2/3/4+]=1/0/0/0 multiSec=0% multiRows=0%"
-                       + " maxDeliv=1 secsNoStart=1 ordUnknown=2")
+                       + " multiMs=0% maxDeliv=1 secsNoStart=1 ordUnknown=2")
     }
 
     /// Percentages round half-up by integer maths, so a tie cannot render differently per platform.

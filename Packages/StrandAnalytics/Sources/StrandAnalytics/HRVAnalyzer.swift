@@ -647,6 +647,11 @@ public enum HRVAnalyzer {
     /// aggregates it over the night, because the fix turns on a question a sample cannot answer: is the
     /// over-count mostly seconds touched by SEVERAL deliveries, or genuinely too many beats inside one?
     ///
+    /// `multiMs` is the share of attributable BEAT-TIME on those seconds, and it is the number the fix is
+    /// sized against: coverage is Σ(rrMs) over wall span, so beat-time is what inflates it. A high
+    /// `multiRows` with a low `multiMs` would mean the extra rows are short and barely move coverage —
+    /// a different problem from the one this is chasing.
+    ///
     /// `multiRows` is a share of ATTRIBUTABLE rows (those carrying an `ord`), not of every row — dividing
     /// by the total would let a night that half-predates `ord` read artificially benign, which is precisely
     /// the conclusion this exists to prevent.
@@ -662,19 +667,24 @@ public enum HRVAnalyzer {
         guard n > 0 else { return "" }
         var deliveriesPerSec: [Int: Int] = [:]   // second -> count of ord==0 rows
         var knownRowsPerSec: [Int: Int] = [:]    // rows we can attribute (ord present)
+        var knownMsPerSec: [Int: Double] = [:]   // and their beat-time, which is what coverage counts
         var unknown = 0
         var known = 0
+        var knownMs = 0.0
         var secsSeen = Set<Int>()
         for i in 0 ..< n {
             secsSeen.insert(tsSec[i])
             guard i < ords.count, let o = ords[i] else { unknown += 1; continue }
             known += 1
+            knownMs += rrMs[i]
             knownRowsPerSec[tsSec[i], default: 0] += 1
+            knownMsPerSec[tsSec[i], default: 0] += rrMs[i]
             if o == 0 { deliveriesPerSec[tsSec[i], default: 0] += 1 }
         }
         var hist = [0, 0, 0, 0]      // 1, 2, 3, 4+
         var multiSecs = 0
         var multiRows = 0
+        var multiMs = 0.0
         var maxDeliv = 0
         for (sec, count) in deliveriesPerSec where count > 0 {
             hist[min(count, 4) - 1] += 1
@@ -682,6 +692,7 @@ public enum HRVAnalyzer {
             if count >= 2 {
                 multiSecs += 1
                 multiRows += knownRowsPerSec[sec] ?? 0
+                multiMs += knownMsPerSec[sec] ?? 0
             }
         }
         let secs = deliveriesPerSec.count
@@ -692,6 +703,7 @@ public enum HRVAnalyzer {
         let secsNoStart = secsSeen.count - secs
         return "rr deliveries secs[1/2/3/4+]=\(hist[0])/\(hist[1])/\(hist[2])/\(hist[3])"
             + " multiSec=\(pct(multiSecs, secs))% multiRows=\(pct(multiRows, known))%"
+            + " multiMs=\(pct(Int(multiMs.rounded()), Int(knownMs.rounded())))%"
             + " maxDeliv=\(maxDeliv) secsNoStart=\(secsNoStart) ordUnknown=\(unknown)"
     }
 
