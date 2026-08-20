@@ -20,10 +20,15 @@ final class TimeoutSyncErrorTests: XCTestCase {
                        wentQuiet)
     }
 
-    /// The near-miss this exists to prevent. A stall still RECEIVES frames — three sessions in one field
-    /// log ran 66–109s and took 42, 51 and 59 frames while banking zero rows. So "did we bank anything"
-    /// must be chunks/rows/deep-packets, never a frame count, or the banner goes silent on real stalls.
-    func testFramesWithoutChunksOrRowsIsNotBanked() {
+    /// Pins the predicate: banked iff at least one counter moved.
+    ///
+    /// What this does NOT do is stop a caller passing the wrong counter, which is the mistake that nearly
+    /// shipped — Kotlin's neighbouring `bankedThisOffload` counts offload FRAMES, and a stall still
+    /// receives them (three sessions in one field log ran 66–109s and took 42, 51 and 59 frames while
+    /// banking zero rows). No test over this function can catch that, because a frame count is not one of
+    /// its inputs. The guard is the signature plus named arguments at both call sites: `chunks:`, `rows:`
+    /// and `deepPackets:` make a frame count visibly wrong where it is passed, not here.
+    func testBankedIffSomeCounterMoved() {
         XCTAssertFalse(BLEManager.offloadBankedAnything(chunks: 0, rows: 0, deepPackets: 0))
         // ...and the productive night from the same log is banked on rows alone.
         XCTAssertTrue(BLEManager.offloadBankedAnything(chunks: 0, rows: 17_205, deepPackets: 0))

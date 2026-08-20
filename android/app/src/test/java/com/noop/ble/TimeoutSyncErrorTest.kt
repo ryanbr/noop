@@ -29,14 +29,17 @@ class TimeoutSyncErrorTest {
     }
 
     /**
-     * The near-miss this exists to prevent. A stall still RECEIVES frames — three sessions in one field log
-     * ran 66–109s and took 42, 51 and 59 frames while banking zero rows — and this platform has a
-     * frame-counting `bankedThisOffload` right next door, feeding the 5/MG tracker. Gating the banner on
-     * that would have silenced it on exactly those stalls. Twin of the Swift
-     * `framesWithoutChunksOrRowsIsNotBanked`.
+     * Pins the predicate: banked iff at least one counter moved.
+     *
+     * What this does NOT do is stop a caller passing the wrong counter, which is the mistake that nearly
+     * shipped — the neighbouring `bankedThisOffload` counts offload FRAMES, and a stall still receives them
+     * (three sessions in one field log ran 66–109s and took 42, 51 and 59 frames while banking zero rows).
+     * No test over this function can catch that, because a frame count is not one of its inputs. The guard
+     * is the signature plus named arguments at both call sites: `chunks`, `rows` and `deepPackets` make a
+     * frame count visibly wrong where it is passed, not here. Twin of the Swift `bankedIffSomeCounterMoved`.
      */
     @Test
-    fun framesWithoutChunksOrRowsIsNotBanked() {
+    fun bankedIffSomeCounterMoved() {
         assertFalse(WhoopBleClient.offloadBankedAnything(chunks = 0, rows = 0, deepPackets = 0))
         // ...and the productive night from the same log is banked on rows alone.
         assertTrue(WhoopBleClient.offloadBankedAnything(chunks = 0, rows = 17_205, deepPackets = 0))
