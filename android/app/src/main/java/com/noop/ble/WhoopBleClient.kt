@@ -7464,16 +7464,19 @@ class WhoopBleClient(
                 // routinely ends a full, successful night on the idle timeout rather than HISTORY_COMPLETE —
                 // one field log shows a session banking 17,205 rows and still exiting reason=timeout.
                 // Announcing "sync interrupted" there tells the user a sync that worked had failed, which
-                // trains them to distrust the banner that matters when a sync really does stall.
-                // #1466: NOT `bankedThisOffload` — that counts frames (see [offloadBankedAnything]) and a
-                // stall still receives them. Chunks/rows/deep-packets is the twin of what Swift asks.
+                // trains them to distrust the banner that matters when a sync really does stall. NOT
+                // `bankedThisOffload` — that counts frames (see [offloadBankedAnything]) and a stall still
+                // receives them; chunks/rows/deep-packets is the twin of what Swift asks. Deep packets come
+                // from `it`, the snapshot being copied, NOT a fresh `_state.value` read: `update` re-runs
+                // this lambda on a CAS retry, so a fresh read could answer from a different state than the
+                // one this copy is built from.
                 lastSyncError = if (isWhoop5) null
                     else timeoutSyncError(
                         futureClockBanner,
                         offloadBankedAnything(
                             chunks = ackedChunksThisSession,
                             rows = rowsThisSession,
-                            deepPackets = _state.value.deepPacketsThisSession,
+                            deepPackets = it.deepPacketsThisSession,
                         ),
                     ),
                 historySyncExperimental = whoop5HistoryExperimental,
