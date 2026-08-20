@@ -602,6 +602,18 @@ class WhoopBleClient(
             else -> "status$status"
         }
 
+        /** #battery: is a keep-alive tick due to poll the strap's battery?
+         *
+         *  Normally every SECOND 30 s tick (~60 s), which is plenty while the charge only creeps downward.
+         *  A CHARGING strap is the exception: the value climbs visibly, the user is usually watching it on
+         *  the puck, and the window is short and bounded — so poll every tick (~30 s) instead. It costs one
+         *  extra read per minute, only while charging, and nothing at all the rest of the time.
+         *
+         *  The charge state itself rides bit 0 of the BATTERY_LEVEL event, so it is only learned FROM a
+         *  poll: docking is still noticed on the ordinary ~60 s cadence, and the faster rate applies from
+         *  the next tick onward. Twin of the Swift `BLEManager.batteryPollDue`. */
+        fun batteryPollDue(tick: Int, charging: Boolean): Boolean = charging || tick % 2 == 0
+
         /** Pure battery-adaptive gate (#477), unit-testable without a BLE stack. Keyed on the STRAP's
          *  battery (WHOOP/Oura/Fitbit): the lever is ARMED by [thresholdPct] > 0 and engages while the
          *  strap is DISCHARGING at/below [thresholdPct]. The
@@ -6147,8 +6159,11 @@ class WhoopBleClient(
                 }
                 if (connectedFamily == DeviceFamily.WHOOP4) {
                     if (wantsRealtime) { realtimeArmed = true; send(CommandNumber.TOGGLE_REALTIME_HR, byteArrayOf(1)) }
-                    if (keepAliveTick % 2 == 0) send(CommandNumber.GET_BATTERY_LEVEL)
-                } else if (connectedFamily == DeviceFamily.WHOOP5 && keepAliveTick % 2 == 0) {
+                    // #battery: ~60 s normally, ~30 s while charging (see [batteryPollDue]).
+                    if (batteryPollDue(keepAliveTick, s.charging == true)) send(CommandNumber.GET_BATTERY_LEVEL)
+                } else if (connectedFamily == DeviceFamily.WHOOP5 &&
+                    batteryPollDue(keepAliveTick, s.charging == true)
+                ) {
                     // 5/MG battery comes only from a 0x2A19 read and the strap sends no unsolicited battery
                     // notification, so poll it here (about every 60s) rather than only while the Live screen
                     // is open. The ring then stays current on any screen without a manual sync, and the read

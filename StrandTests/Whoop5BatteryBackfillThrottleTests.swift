@@ -91,4 +91,32 @@ final class Whoop5BatteryBackfillThrottleTests: XCTestCase {
             BLEManager.whoop5EmptyHistoryBackfillInterval(baseSeconds: 900, lowSeconds: 300, historyEmpty: true),
             900)
     }
+
+    // MARK: - #battery: charging cadence
+
+    /// A discharging strap keeps the ~60 s cadence: only every SECOND 30 s tick polls.
+    func testDischargingPollsEveryOtherTick() {
+        XCTAssertFalse(BLEManager.batteryPollDue(tick: 1, charging: false))
+        XCTAssertTrue(BLEManager.batteryPollDue(tick: 2, charging: false))
+        XCTAssertFalse(BLEManager.batteryPollDue(tick: 3, charging: false))
+    }
+
+    /// A charging strap polls on EVERY tick (~30 s): the value is climbing and the user is watching it on
+    /// the puck. Bounded to the charging window, so it costs nothing the rest of the time.
+    func testChargingPollsEveryTick() {
+        XCTAssertTrue(BLEManager.batteryPollDue(tick: 1, charging: true))
+        XCTAssertTrue(BLEManager.batteryPollDue(tick: 2, charging: true))
+        XCTAssertTrue(BLEManager.batteryPollDue(tick: 3, charging: true))
+    }
+
+    /// The 5/MG time throttle follows the same rule, so the two families do not sit a minute apart while
+    /// charging. At 35 s elapsed a discharging strap is NOT due (60 s floor) but a charging one IS (30 s).
+    func testWhoop5ThrottleHalvesWhileCharging() {
+        let now = Date()
+        let last = now.addingTimeInterval(-35)
+        XCTAssertFalse(BLEManager.shouldPollWhoop5Battery(lastReadAt: last, now: now, charging: false))
+        XCTAssertTrue(BLEManager.shouldPollWhoop5Battery(lastReadAt: last, now: now, charging: true))
+        // The first read of a connection still always fires, charging or not.
+        XCTAssertTrue(BLEManager.shouldPollWhoop5Battery(lastReadAt: nil, now: now, charging: false))
+    }
 }

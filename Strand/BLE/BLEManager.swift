@@ -581,14 +581,35 @@ public final class BLEManager: NSObject, ObservableObject {
         lowRefresh ? lowRefreshBackfillIntervalSeconds : backfillIntervalSeconds
     }
 
+    /// #battery: is a keep-alive tick due to poll the strap's battery?
+    ///
+    /// Normally every SECOND 30 s tick (~60 s), which is plenty while the charge only creeps downward. A
+    /// CHARGING strap is the exception: the value climbs visibly, the user is usually watching it on the
+    /// puck, and the window is short and bounded — so poll every tick (~30 s) instead. It costs one extra
+    /// read per minute, only while charging, and nothing at all the rest of the time.
+    ///
+    /// The charge state itself rides bit 0 of the BATTERY_LEVEL event, so it is only learned FROM a poll:
+    /// docking is still noticed on the ordinary ~60 s cadence, and the faster rate applies from the next
+    /// tick onward. Twin of the Kotlin `batteryPollDue`.
+    static func batteryPollDue(tick: Int, charging: Bool) -> Bool {
+        charging || tick % 2 == 0
+    }
+
     /// #battery: pure 5/MG battery-read throttle decision, unit-testable without a CoreBluetooth seam.
     /// Returns true when no prior read exists (the first read of a connection, or post-disconnect re-seed)
-    /// OR when at least `whoop5BatteryReadMinIntervalSeconds` has elapsed since the last read. Stops the
-    /// 30 s keep-alive tick from re-reading 0x2A19 every cycle. Twin of the Android `keepAliveTick % 2 == 0`
+    /// OR when at least `whoop5BatteryReadMinIntervalSeconds` has elapsed since the last read — HALVED
+    /// while the strap is charging, for the reason given on `batteryPollDue` above. Stops the 30 s
+    /// keep-alive tick from re-reading 0x2A19 every cycle. Twin of the Android `keepAliveTick % 2 == 0`
     /// ~60 s cadence (WhoopBleClient keepAliveFire).
-    static func shouldPollWhoop5Battery(lastReadAt: Date?, now: Date = Date()) -> Bool {
+    static func shouldPollWhoop5Battery(lastReadAt: Date?, now: Date = Date(),
+                                        charging: Bool = false) -> Bool {
         guard let last = lastReadAt else { return true }
-        return now.timeIntervalSince(last) >= whoop5BatteryReadMinIntervalSeconds
+        // #battery: same reasoning as `batteryPollDue` — a charging strap earns the finer cadence, so the
+        // 5/MG time throttle halves while charging rather than leaving it a minute behind the 4.0.
+        let minInterval = charging
+            ? whoop5BatteryReadMinIntervalSeconds / 2
+            : whoop5BatteryReadMinIntervalSeconds
+        return now.timeIntervalSince(last) >= minInterval
     }
 
     /// #battery: pure periodic-offload interval for a 5/MG whose history is known-empty, unit-testable
@@ -3918,7 +3939,10 @@ public final class BLEManager: NSObject, ObservableObject {
             send(.toggleRealtimeHR, payload: [0x01])
         }   // re-arm so it can't lapse
         keepAliveTick += 1
-        if keepAliveTick % 2 == 0 { send(.getBatteryLevel, payload: []) }  // ~every 60s
+        // #battery: ~60 s normally, ~30 s while charging (see `batteryPollDue`).
+        if BLEManager.batteryPollDue(tick: keepAliveTick, charging: state.charging == true) {
+            send(.getBatteryLevel, payload: [])
+        }
     }
 
     private func startBackfillTimer() {
@@ -4139,7 +4163,8 @@ public final class BLEManager: NSObject, ObservableObject {
         // revert the true reading, #77). The 600 s same-% throttle in LiveState guards the estimator.
         if let b = batteryCharacteristic, b.properties.contains(.read),
            selectedModel.deviceFamily != .whoop4,
-           BLEManager.shouldPollWhoop5Battery(lastReadAt: lastBatteryReadAt) {
+           BLEManager.shouldPollWhoop5Battery(lastReadAt: lastBatteryReadAt,
+                                              charging: state.charging == true) {
             p.readValue(for: b)
             lastBatteryReadAt = Date()
         }
