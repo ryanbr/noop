@@ -298,9 +298,14 @@ object AndroidDiagnostics {
             when (reportedModel(context)) {
                 com.noop.ble.WhoopModel.WHOOP5_MG -> {
                     val exp = com.noop.ble.PuffinExperiment.from(context).isEnabled
-                    add("Model: WHOOP 5.0/MG · experimental: ${if (exp) "on" else "off → firmware alarm NOT armed"}")
+                    // displayName, not a literal: this block spelled it "WHOOP 5.0/MG" while the enum (and
+                    // the header a few lines up) says "WHOOP 5.0 / MG", so one export disagreed with itself.
+                    add(
+                        "Model: ${com.noop.ble.WhoopModel.WHOOP5_MG.displayName} · experimental: " +
+                            if (exp) "on" else "off → firmware alarm NOT armed",
+                    )
                 }
-                com.noop.ble.WhoopModel.WHOOP4 -> add("Model: WHOOP 4.0")
+                com.noop.ble.WhoopModel.WHOOP4 -> add("Model: ${com.noop.ble.WhoopModel.WHOOP4.displayName}")
                 null -> add("Model: unknown (family not yet detected)")
             }
             // #4: strap clock health — a reset/stale OR future-dated clock (the #34 / #928 causes) breaks

@@ -303,11 +303,17 @@ enum DebugDataDiagnostics {
         lines.append("Enabled: \(on ? "yes" : "no") · set \(String(format: "%02d:%02d", mins / 60, mins % 60))")
         // #3: model + the 5/MG experimental gate — a 5/MG firmware alarm is NOT armed unless Experimental is on.
         // (selectedWhoopModel stores the WhoopModel rawValue — "WHOOP 5.0 / MG" / "WHOOP 4.0" — not "whoop5".)
-        let model = d.string(forKey: "selectedWhoopModel") ?? WhoopModel.whoop4.rawValue
-        if model == WhoopModel.whoop5mg.rawValue {
-            lines.append("Model: \(model) · experimental: \(PuffinExperiment.isEnabled ? "on" : "off → firmware alarm NOT armed")")
-        } else {
-            lines.append("Model: \(model)")
+        // Same rule as the header above: parse through the enum, and ABSTAIN when nothing is known. This
+        // defaulted to `whoop4.rawValue`, so an unknown family was reported as a WHOOP 4.0 — the very
+        // fabrication this change removes on Android, and it would have left the two platforms disagreeing
+        // about the one case that matters. Three arms, mirroring the Kotlin `when`.
+        switch WhoopModel(rawValue: d.string(forKey: "selectedWhoopModel") ?? "") {
+        case .whoop5mg:
+            lines.append("Model: \(WhoopModel.whoop5mg.displayName) · experimental: \(PuffinExperiment.isEnabled ? "on" : "off → firmware alarm NOT armed")")
+        case .whoop4:
+            lines.append("Model: \(WhoopModel.whoop4.displayName)")
+        case nil:
+            lines.append("Model: unknown (family not yet detected)")
         }
         // #4 / #67: strap clock health — a reset/stale OR future-dated clock (the #34 / #928 causes) breaks
         // the alarm even when armed, AND misdates offloaded sleep: the strap banks last night with its wrong
