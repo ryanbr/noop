@@ -207368,13 +207368,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "已同步 %@"
+            "value": "%@已同步"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "已同步 %@"
+            "value": "%@已同步"
           }
         }
       }

@@ -1,10 +1,13 @@
 import XCTest
 @testable import Strand
 
-/// #245: `SyncChipState.resolve` is the one place both the classic `SyncStatusChip` and the Liquid
-/// header's `LiquidSyncChip` decide which of the three sync states to show, so a mistake here would
-/// desync the two headers. Covers priority order (backfilling wins over a stale last-sync, which wins
+/// #245: `SyncChipState.resolve` is the one place the sync status is decided, so a mistake here changes
+/// what every consumer shows. Covers priority order (backfilling wins over a stale last-sync, which wins
 /// over the 5/MG experimental fallback) and the cold-start `.hidden` case.
+///
+/// The sole consumer is `DevicesView`'s status card, which wraps `agoText` in "Synced %@ ago" — so every
+/// value the token can take must read correctly with a trailing "ago" (#1472). There is no bare-token
+/// renderer on Apple; the Android twin's chip is the one place a bare token is shown.
 @MainActor
 final class SyncChipStateTests: XCTestCase {
 
