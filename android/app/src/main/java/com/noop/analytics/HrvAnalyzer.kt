@@ -577,6 +577,16 @@ object HrvAnalyzer {
     }
 
     /**
+     * One second's tallies for [deliveryHistogram] — kept in a single map so each row costs one hash lookup
+     * rather than one per metric. Twin of the Swift `SecondTally`.
+     */
+    internal class SecondTally {
+        var knownRows = 0
+        var ms = 0.0
+        var deliveries = 0
+    }
+
+    /**
      * #1331/#1008: how many separate DELIVERIES wrote each stored second, across a whole night.
      *
      * `ord` restarts at 0 on every delivery, so two rows on one second both carrying `ord == 0` came from
@@ -604,44 +614,49 @@ object HrvAnalyzer {
     fun deliveryHistogram(tsSec: List<Long>, rrMs: List<Double>, ords: List<Int?>): String {
         val n = minOf(tsSec.size, rrMs.size)
         if (n == 0) return ""
-        val deliveriesPerSec = HashMap<Long, Int>()
-        val knownRowsPerSec = HashMap<Long, Int>()   // rows we can attribute (ord present)
-        val knownMsPerSec = HashMap<Long, Double>()  // and their beat-time, which is what coverage counts
-        val secsSeen = HashSet<Long>()
+        // ONE map keyed by the second, not four. An earlier revision kept `secsSeen`, `knownRowsPerSec`,
+        // `knownMsPerSec` and `deliveriesPerSec` in parallel — 3-4 hash lookups per row, on a path that runs
+        // once per over-counted night and so ~21 times per analyzeRecent cycle, every 15 minutes. At ~70k
+        // rows a night that is several million redundant lookups for a diagnostic.
+        val bySec = HashMap<Long, SecondTally>()
         var unknown = 0
         var known = 0
         var knownMs = 0.0
         for (i in 0 until n) {
-            secsSeen.add(tsSec[i])
+            val tally = bySec.getOrPut(tsSec[i]) { SecondTally() }
             val o = ords.getOrNull(i)
-            if (o == null) { unknown += 1; continue }
-            known += 1
-            knownMs += rrMs[i]
-            knownRowsPerSec[tsSec[i]] = (knownRowsPerSec[tsSec[i]] ?: 0) + 1
-            knownMsPerSec[tsSec[i]] = (knownMsPerSec[tsSec[i]] ?: 0.0) + rrMs[i]
-            if (o == 0) deliveriesPerSec[tsSec[i]] = (deliveriesPerSec[tsSec[i]] ?: 0) + 1
+            if (o == null) {
+                unknown += 1
+            } else {
+                known += 1
+                knownMs += rrMs[i]
+                tally.knownRows += 1
+                tally.ms += rrMs[i]
+                if (o == 0) tally.deliveries += 1
+            }
         }
         val hist = intArrayOf(0, 0, 0, 0) // 1, 2, 3, 4+
         var multiSecs = 0
         var multiRows = 0
         var multiMs = 0.0
         var maxDeliv = 0
-        for ((sec, count) in deliveriesPerSec) {
-            if (count <= 0) continue
-            hist[minOf(count, 4) - 1] += 1
-            if (count > maxDeliv) maxDeliv = count
-            if (count >= 2) {
+        var secs = 0
+        for (tally in bySec.values) {
+            if (tally.deliveries <= 0) continue
+            secs += 1
+            hist[minOf(tally.deliveries, 4) - 1] += 1
+            if (tally.deliveries > maxDeliv) maxDeliv = tally.deliveries
+            if (tally.deliveries >= 2) {
                 multiSecs += 1
-                multiRows += knownRowsPerSec[sec] ?: 0
-                multiMs += knownMsPerSec[sec] ?: 0.0
+                multiRows += tally.knownRows
+                multiMs += tally.ms
             }
         }
-        val secs = deliveriesPerSec.size
         // Seconds carrying rows but NO ord==0 row at all. Reachable: the primary key absorbs a cross-batch
         // exact duplicate, and the row it drops can be the delivery's first on that second. Reported rather
         // than folded into the histogram, so `secs` staying below the night's real second count is visible
         // instead of quietly shrinking the denominator underneath `multiSec`.
-        val secsNoStart = secsSeen.size - secs
+        val secsNoStart = bySec.size - secs
         return "rr deliveries secs[1/2/3/4+]=${hist[0]}/${hist[1]}/${hist[2]}/${hist[3]}" +
             " multiSec=${pct(multiSecs, secs)}% multiRows=${pct(multiRows, known)}%" +
             " multiMs=${pct(msToInt(multiMs), msToInt(knownMs))}%" +

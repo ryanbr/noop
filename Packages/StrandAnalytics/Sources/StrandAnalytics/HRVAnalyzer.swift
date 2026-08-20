@@ -639,6 +639,18 @@ public enum HRVAnalyzer {
         return rrCoverage(tsSec: keptTs, rrMs: keptRr)
     }
 
+    /// One second's tallies for `deliveryHistogram` — kept in a single dictionary so each row costs one
+    /// hash lookup rather than one per metric.
+    ///
+    /// A CLASS, not a struct, deliberately: a struct is a value type, so accumulating into it would mean
+    /// read-modify-write-back — two lookups per row, which is half the saving thrown away. Mutating through
+    /// a reference keeps it at one, and matches the Kotlin twin's shape exactly.
+    final class SecondTally {
+        var knownRows = 0
+        var ms = 0.0
+        var deliveries = 0
+    }
+
     /// #1331/#1008: how many separate DELIVERIES wrote each stored second, across a whole night.
     ///
     /// `ord` restarts at 0 on every delivery, so two rows on one second both carrying `ord == 0` came from
@@ -665,42 +677,53 @@ public enum HRVAnalyzer {
     public static func deliveryHistogram(tsSec: [Int], rrMs: [Double], ords: [Int?]) -> String {
         let n = min(tsSec.count, rrMs.count)
         guard n > 0 else { return "" }
-        var deliveriesPerSec: [Int: Int] = [:]   // second -> count of ord==0 rows
-        var knownRowsPerSec: [Int: Int] = [:]    // rows we can attribute (ord present)
-        var knownMsPerSec: [Int: Double] = [:]   // and their beat-time, which is what coverage counts
+        // ONE dictionary keyed by the second, not four. An earlier revision kept `secsSeen`,
+        // `knownRowsPerSec`, `knownMsPerSec` and `deliveriesPerSec` in parallel — 3-4 hash lookups per row,
+        // on a path that runs once per over-counted night and so ~21 times per `analyzeRecent` cycle, every
+        // 15 minutes. At ~70k rows a night that is several million redundant lookups for a diagnostic.
+        var bySec: [Int: SecondTally] = [:]
         var unknown = 0
         var known = 0
         var knownMs = 0.0
-        var secsSeen = Set<Int>()
         for i in 0 ..< n {
-            secsSeen.insert(tsSec[i])
-            guard i < ords.count, let o = ords[i] else { unknown += 1; continue }
-            known += 1
-            knownMs += rrMs[i]
-            knownRowsPerSec[tsSec[i], default: 0] += 1
-            knownMsPerSec[tsSec[i], default: 0] += rrMs[i]
-            if o == 0 { deliveriesPerSec[tsSec[i], default: 0] += 1 }
+            let tally: SecondTally
+            if let existing = bySec[tsSec[i]] {
+                tally = existing
+            } else {
+                tally = SecondTally()
+                bySec[tsSec[i]] = tally
+            }
+            if i < ords.count, let o = ords[i] {
+                known += 1
+                knownMs += rrMs[i]
+                tally.knownRows += 1
+                tally.ms += rrMs[i]
+                if o == 0 { tally.deliveries += 1 }
+            } else {
+                unknown += 1
+            }
         }
         var hist = [0, 0, 0, 0]      // 1, 2, 3, 4+
         var multiSecs = 0
         var multiRows = 0
         var multiMs = 0.0
         var maxDeliv = 0
-        for (sec, count) in deliveriesPerSec where count > 0 {
-            hist[min(count, 4) - 1] += 1
-            if count > maxDeliv { maxDeliv = count }
-            if count >= 2 {
+        var secs = 0
+        for (_, tally) in bySec where tally.deliveries > 0 {
+            secs += 1
+            hist[min(tally.deliveries, 4) - 1] += 1
+            if tally.deliveries > maxDeliv { maxDeliv = tally.deliveries }
+            if tally.deliveries >= 2 {
                 multiSecs += 1
-                multiRows += knownRowsPerSec[sec] ?? 0
-                multiMs += knownMsPerSec[sec] ?? 0
+                multiRows += tally.knownRows
+                multiMs += tally.ms
             }
         }
-        let secs = deliveriesPerSec.count
         // Seconds carrying rows but NO ord==0 row at all. Reachable: the primary key absorbs a cross-batch
         // exact duplicate, and the row it drops can be the delivery's first on that second. Reported rather
         // than folded into the histogram, so `secs` staying below the night's real second count is visible
         // instead of quietly shrinking the denominator underneath `multiSec`.
-        let secsNoStart = secsSeen.count - secs
+        let secsNoStart = bySec.count - secs
         return "rr deliveries secs[1/2/3/4+]=\(hist[0])/\(hist[1])/\(hist[2])/\(hist[3])"
             + " multiSec=\(pct(multiSecs, secs))% multiRows=\(pct(multiRows, known))%"
             + " multiMs=\(pct(msToInt(multiMs), msToInt(knownMs)))%"
