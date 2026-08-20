@@ -65,6 +65,17 @@ final class HRVAnalyzerSampleOrdTests: XCTestCase {
                        + " multiMs=0% maxDeliv=1 secsNoStart=1 ordUnknown=2")
     }
 
+    /// Beat-time rounds half-UP on both platforms. `.rounded()` (Swift, half-away-from-zero) and
+    /// `kotlin.math.round` (half-toward-+infinity) agree only for positive values; this pins the explicit
+    /// behaviour so the agreement cannot quietly become a coincidence again (#1473).
+    func testMsRoundsHalfUpWithoutStdlibRounding() {
+        XCTAssertEqual(HRVAnalyzer.msToInt(0.5), 1)
+        XCTAssertEqual(HRVAnalyzer.msToInt(1.5), 2)
+        XCTAssertEqual(HRVAnalyzer.msToInt(2.5), 3)   // half-to-even would give 2
+        XCTAssertEqual(HRVAnalyzer.msToInt(2.4), 2)
+        XCTAssertEqual(HRVAnalyzer.msToInt(0), 0)
+    }
+
     /// Percentages round half-up by integer maths, so a tie cannot render differently per platform.
     func testPercentIsIntegerHalfUp() {
         XCTAssertEqual(HRVAnalyzer.pct(1, 8), 13)    // 12.5 -> 13, not 12

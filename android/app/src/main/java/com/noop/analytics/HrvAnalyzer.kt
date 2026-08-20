@@ -644,9 +644,20 @@ object HrvAnalyzer {
         val secsNoStart = secsSeen.size - secs
         return "rr deliveries secs[1/2/3/4+]=${hist[0]}/${hist[1]}/${hist[2]}/${hist[3]}" +
             " multiSec=${pct(multiSecs, secs)}% multiRows=${pct(multiRows, known)}%" +
-            " multiMs=${pct(kotlin.math.round(multiMs).toInt(), kotlin.math.round(knownMs).toInt())}%" +
+            " multiMs=${pct(msToInt(multiMs), msToInt(knownMs))}%" +
             " maxDeliv=$maxDeliv secsNoStart=$secsNoStart ordUnknown=$unknown"
     }
+
+    /**
+     * Beat-time milliseconds to a whole number, half-up, WITHOUT `round()` or `.rounded()`.
+     *
+     * `kotlin.math.round` is half-toward-positive-infinity and Swift's `.rounded()` is half-away-from-zero.
+     * They agree here only because these sums are positive — the same "agrees until it doesn't" shape as
+     * the `%.1f` divergence in #1473, where one platform's formatter rounded a tie the other way.
+     * `x + 0.5` truncated is half-up on both, with no stdlib rounding involved, so the agreement is by
+     * construction rather than by luck. Byte-parity twin of Swift `HRVAnalyzer.msToInt`.
+     */
+    internal fun msToInt(ms: Double): Int = if (ms > 0) (ms + 0.5).toInt() else 0
 
     /** Whole-percent, integer half-up, so both platforms round a tie the same way. 0 when [total] is 0. */
     internal fun pct(part: Int, total: Int): Int =

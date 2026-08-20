@@ -83,6 +83,19 @@ class HrvAnalyzerSampleOrdTest {
         )
     }
 
+    /**
+     * Beat-time rounds half-UP on both platforms. `kotlin.math.round` (half-toward-+infinity) and Swift's
+     * `.rounded()` (half-away-from-zero) agree only for positive values; this pins the explicit behaviour
+     * so the agreement cannot quietly become a coincidence again (#1473).
+     */
+    @Test fun msRoundsHalfUpWithoutStdlibRounding() {
+        assertEquals(1, HrvAnalyzer.msToInt(0.5))
+        assertEquals(2, HrvAnalyzer.msToInt(1.5))
+        assertEquals(3, HrvAnalyzer.msToInt(2.5))   // half-to-even would give 2
+        assertEquals(2, HrvAnalyzer.msToInt(2.4))
+        assertEquals(0, HrvAnalyzer.msToInt(0.0))
+    }
+
     /** Percentages round half-up by integer maths, so a tie cannot render differently per platform. */
     @Test fun percentIsIntegerHalfUp() {
         assertEquals(13, HrvAnalyzer.pct(1, 8))
