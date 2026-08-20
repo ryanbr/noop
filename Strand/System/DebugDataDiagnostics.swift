@@ -27,12 +27,15 @@ enum DebugDataDiagnostics {
         lines.append(String(repeating: "─", count: 40))
         lines.append("Strap & data")
         let d = UserDefaults.standard
-        let model: String
-        switch d.string(forKey: "selectedWhoopModel") {
-        case "whoop5": model = "WHOOP 5.0 / MG"
-        case "whoop4": model = "WHOOP 4.0"
-        default:       model = "unknown (never paired)"
-        }
+        // Parse through the enum, never against string literals. `selectedWhoopModel` stores
+        // `WhoopModel.rawValue` ("WHOOP 4.0" / "WHOOP 5.0 / MG") — both writers use `.rawValue` — but this
+        // switch tested for "whoop5"/"whoop4", which are the CASE names, not the raw values. Neither ever
+        // matched, so this header reported "unknown (never paired)" for every strap, forever, including one
+        // actively syncing. The sibling block ~270 lines below already compares `.rawValue` and carries a
+        // comment warning about this exact trap; this site never got the same treatment. Going through
+        // `WhoopModel(rawValue:)` makes the enum the single parser, so a future rename cannot re-open it.
+        let model = WhoopModel(rawValue: d.string(forKey: "selectedWhoopModel") ?? "")?.displayName
+            ?? "unknown (never paired)"
         lines.append("Model:       \(model)")
         lines.append("Firmware:    \(d.string(forKey: "noop.lastFirmware") ?? "unknown (connect to record)")")
         let syncSec = d.double(forKey: "lastSyncedAt")
