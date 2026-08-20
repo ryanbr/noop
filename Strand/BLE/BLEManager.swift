@@ -2270,9 +2270,10 @@ public final class BLEManager: NSObject, ObservableObject {
             // 5/MG case isn't a failure — live HR is streaming fine over 0x2A37, the history offload is
             // just experimental/empty on that firmware. "Banked" = this offload made ANY offload progress
             // (chunks acked, rows persisted, or deep packets seen); an empty 5/MG offload has none.
-            let bankedThisOffload = state.syncChunksThisSession > 0
-                || (backfiller?.sessionRowsPersisted ?? 0) > 0
-                || state.deepPacketsThisSession > 0
+            let bankedThisOffload = BLEManager.offloadBankedAnything(
+                chunks: state.syncChunksThisSession,
+                rows: backfiller?.sessionRowsPersisted ?? 0,
+                deepPackets: state.deepPacketsThisSession)
             if selectedModel.deviceFamily == .whoop5 {
                 let crossed = whoop5EmptyOffload.recordOffload(bankedRecords: bankedThisOffload)
                 if whoop5EmptyOffload.historyEmpty {
@@ -2447,6 +2448,17 @@ public final class BLEManager: NSObject, ObservableObject {
     /// (that flag guards the once-per-connect INITIAL kick); the periodic re-trigger is separate.
     static func shouldRunPeriodicBackfill(connected: Bool, bonded: Bool, backfilling: Bool) -> Bool {
         connected && bonded && !backfilling
+    }
+
+    /// #1466: did this offload hand over anything at all? Acked chunks, persisted rows, or deep packets.
+    ///
+    /// Deliberately NOT a frame count. A stalled session still receives frames — three in one field log ran
+    /// 66–109s and took 42, 51 and 59 frames while banking ZERO rows. Gating the "strap went quiet" banner
+    /// on frames would therefore silence it on exactly the sessions it exists for. Twin of the Kotlin
+    /// `offloadBankedAnything`; both platforms must answer this the same way or one of them goes quiet on a
+    /// real stall.
+    nonisolated static func offloadBankedAnything(chunks: Int, rows: Int, deepPackets: Int) -> Bool {
+        chunks > 0 || rows > 0 || deepPackets > 0
     }
 
     /// #1466: the banner (if any) for an offload that ended on the idle TIMEOUT rather than

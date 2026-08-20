@@ -20,6 +20,17 @@ final class TimeoutSyncErrorTests: XCTestCase {
                        wentQuiet)
     }
 
+    /// The near-miss this exists to prevent. A stall still RECEIVES frames — three sessions in one field
+    /// log ran 66–109s and took 42, 51 and 59 frames while banking zero rows. So "did we bank anything"
+    /// must be chunks/rows/deep-packets, never a frame count, or the banner goes silent on real stalls.
+    func testFramesWithoutChunksOrRowsIsNotBanked() {
+        XCTAssertFalse(BLEManager.offloadBankedAnything(chunks: 0, rows: 0, deepPackets: 0))
+        // ...and the productive night from the same log is banked on rows alone.
+        XCTAssertTrue(BLEManager.offloadBankedAnything(chunks: 0, rows: 17_205, deepPackets: 0))
+        XCTAssertTrue(BLEManager.offloadBankedAnything(chunks: 3, rows: 0, deepPackets: 0))
+        XCTAssertTrue(BLEManager.offloadBankedAnything(chunks: 0, rows: 0, deepPackets: 5))
+    }
+
     /// #324/#928: a future-dated strap times out BECAUSE of its clock, so that banner names the real cause
     /// and must outrank the generic one — including on a stalled session.
     func testFutureClockBannerOutranksTheGenericWarning() {

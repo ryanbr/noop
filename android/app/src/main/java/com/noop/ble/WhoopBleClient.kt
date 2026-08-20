@@ -1141,6 +1141,17 @@ class WhoopBleClient(
                 statusNote = null,
             )
 
+        /** #1466: did this offload hand over anything at all? Acked chunks, persisted rows, or deep packets.
+         *
+         *  Deliberately NOT a frame count, and deliberately NOT the neighbouring [bankedThisOffload] used by
+         *  the 5/MG empty-offload tracker — that one counts offload FRAMES, and a stalled session still
+         *  receives frames: three in one field log ran 66–109s and took 42, 51 and 59 frames while banking
+         *  ZERO rows. Reusing it here would silence the "strap went quiet" banner on exactly the sessions it
+         *  exists for. Twin of the Swift `offloadBankedAnything`; both platforms must answer this the same
+         *  way or one of them goes quiet on a real stall. */
+        fun offloadBankedAnything(chunks: Int, rows: Int, deepPackets: Int): Boolean =
+            chunks > 0 || rows > 0 || deepPackets > 0
+
         /** #1466: the banner (if any) for an offload that ended on the idle TIMEOUT rather than
          *  HISTORY_COMPLETE, for a non-5/MG strap. Pure so the decision is unit-testable — the surrounding
          *  method is a long side-effecting BLE callback.
@@ -7454,8 +7465,17 @@ class WhoopBleClient(
                 // one field log shows a session banking 17,205 rows and still exiting reason=timeout.
                 // Announcing "sync interrupted" there tells the user a sync that worked had failed, which
                 // trains them to distrust the banner that matters when a sync really does stall.
+                // #1466: NOT `bankedThisOffload` — that counts frames (see [offloadBankedAnything]) and a
+                // stall still receives them. Chunks/rows/deep-packets is the twin of what Swift asks.
                 lastSyncError = if (isWhoop5) null
-                    else timeoutSyncError(futureClockBanner, bankedThisOffload),
+                    else timeoutSyncError(
+                        futureClockBanner,
+                        offloadBankedAnything(
+                            chunks = ackedChunksThisSession,
+                            rows = rowsThisSession,
+                            deepPackets = _state.value.deepPacketsThisSession,
+                        ),
+                    ),
                 historySyncExperimental = whoop5HistoryExperimental,
             )
             else -> it.copy(
