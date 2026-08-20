@@ -2449,15 +2449,6 @@ public final class BLEManager: NSObject, ObservableObject {
         connected && bonded && !backfilling
     }
 
-    /// Pure classification of a COMPLETED (HISTORY_COMPLETE) offload, extracted from exitBackfilling so
-    /// it's unit-testable without a CoreBluetooth seam (EmptyBankingClassifierTests).
-    /// - `bankedSensorRecords`: the strap handed over real sensor records — decoded, or
-    ///   undecodable-but-archived (either way its clock is banking to flash).
-    /// - `bankedNothing` (#77/#120/#214): the offload completed but banked NO sensor records at all,
-    ///   in EITHER shape — console-only across ≥3 diagnostic chunks, OR a near-empty metadata-only
-    ///   completion (zero rows persisted) with fewer than 3 console frames. The #214 broadening is the
-    ///   `rowsPersisted == 0` arm: before it, a metadata-only completion slipped through silently. The
-    ///   sustained-streak gate (EmptySyncTracker) still decides whether the banner fires.
     /// #1466: the banner (if any) for an offload that ended on the idle TIMEOUT rather than
     /// HISTORY_COMPLETE, for a non-5/MG strap. Pure so the decision is unit-testable — the surrounding
     /// method is a long side-effecting BLE callback.
@@ -2477,6 +2468,15 @@ public final class BLEManager: NSObject, ObservableObject {
             : "Sync interrupted - the strap went quiet. It will retry on the next sync."
     }
 
+    /// Pure classification of a COMPLETED (HISTORY_COMPLETE) offload, extracted from exitBackfilling so
+    /// it's unit-testable without a CoreBluetooth seam (EmptyBankingClassifierTests).
+    /// - `bankedSensorRecords`: the strap handed over real sensor records — decoded, or
+    ///   undecodable-but-archived (either way its clock is banking to flash).
+    /// - `bankedNothing` (#77/#120/#214): the offload completed but banked NO sensor records at all,
+    ///   in EITHER shape — console-only across ≥3 diagnostic chunks, OR a near-empty metadata-only
+    ///   completion (zero rows persisted) with fewer than 3 console frames. The #214 broadening is the
+    ///   `rowsPersisted == 0` arm: before it, a metadata-only completion slipped through silently. The
+    ///   sustained-streak gate (EmptySyncTracker) still decides whether the banner fires.
     nonisolated static func classifyCompletedOffload(decodedChunks: Int, archivedFrames: Int,
                                                      unarchivedFrames: Int, consoleChunks: Int,
                                                      rowsPersisted: Int)
