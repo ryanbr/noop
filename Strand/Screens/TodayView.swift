@@ -4805,12 +4805,16 @@ enum SyncChipState: Equatable {
         return .hidden
     }
 
-    /// Compact relative age for the status card ("now" / "Nm" / "Nh" / "Nd") — deliberately terse.
-    /// "now" is the only word in here (the rest is digits + a unit letter), so it's the only piece that
-    /// needs a catalog entry to translate; localized here rather than at each of the two call sites.
+    /// Compact relative age for the status card ("<1m" / "Nm" / "Nh" / "Nd") — deliberately terse.
+    ///
+    /// EVERY branch must read correctly with a trailing "ago", because that is the only way this value is
+    /// ever consumed (`DevicesView` wraps it in "Synced %@ ago" and "Strap history synced %@ ago"). The
+    /// sub-minute branch used to return the word "now", which produced the user-visible "Synced now ago"
+    /// for the first minute after any sync (#1472). "<1m" composes; it also needs no catalog entry, being
+    /// digits and symbols in every language.
     private static func shortAgo(_ ts: TimeInterval) -> String {
         let secs = max(0, Int(Date().timeIntervalSince1970 - ts))
-        if secs < 60 { return String(localized: "now") }
+        if secs < 60 { return "<1m" }
         let mins = secs / 60
         if mins < 60 { return "\(mins)m" }
         let hrs = mins / 60

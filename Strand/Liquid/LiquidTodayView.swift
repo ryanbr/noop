@@ -2426,7 +2426,7 @@ private struct LiquidSyncStatusRow: View {
             row(String(localized: "Strap history"), value: chunks, tone: StrandPalette.accent)
         } else if let ts = live.lastSyncedAt {
             row(String(localized: "Strap history"),
-                value: String(localized: "Synced \(relativeAgo(ts)) ago"), tone: StrandPalette.textPrimary)
+                value: String(localized: "Synced \(relativeAgo(ts))"), tone: StrandPalette.textPrimary)
         }
     }
 

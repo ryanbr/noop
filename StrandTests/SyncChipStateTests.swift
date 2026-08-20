@@ -21,6 +21,16 @@ final class SyncChipStateTests: XCTestCase {
         XCTAssertEqual(SyncChipState.resolve(live: live), .synced(agoText: "1m"))
     }
 
+    /// #1472 regression guard. The sub-minute token is wrapped by `DevicesView` in "Synced %@ ago" and
+    /// "Strap history synced %@ ago", so it must compose with a trailing "ago". It used to be the word
+    /// "now", which rendered the user-visible "Synced now ago" for the first minute after every sync;
+    /// "<1m" is the fix and this pins it. Twin of the Android `lastSyncedUnderAMinute_usesSubMinuteToken`.
+    func testLastSyncedUnderAMinute_usesSubMinuteToken() {
+        let live = LiveState()
+        live.lastSyncedAt = Date().timeIntervalSince1970 - 5
+        XCTAssertEqual(SyncChipState.resolve(live: live), .synced(agoText: "<1m"))
+    }
+
     func testHistorySyncExperimental_withNoLastSync_isExperimentalLive() {
         let live = LiveState()
         live.historySyncExperimental = true

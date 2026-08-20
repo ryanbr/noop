@@ -403,42 +403,42 @@ sealed class SyncChipState {
         /** Pure + unit-tested. Mirrors Swift `SyncChipState.resolve` exactly: backfilling wins over a
          *  known last-sync, which wins over the 5/MG experimental fallback.
          *
-         *  [nowSec] (unix seconds) and [nowLabel] (the already-translated "now" word) are PARAMETERS
-         *  rather than things this function reaches for, which is what keeps "pure" true. Resolving the
-         *  word in here instead cost the twin its own test: it goes through `NoopApplication`, which
-         *  throws `IllegalStateException: NoopApplication is not attached` under a plain JVM unit test —
-         *  these run without Robolectric, so no Application is ever attached. Only the `< 60s` branch of
-         *  [shortSyncAgo] wants a word, so the failure was invisible until a case landed in it. Same
-         *  injected-clock style as [recordingStateFor] just above.
+         *  [nowSec] (unix seconds) is a PARAMETER rather than something this function reaches for, which
+         *  is what keeps "pure" true — same injected-clock style as [recordingStateFor] just above.
          *
-         *  Swift's twin keeps both inside its own `shortAgo` and is fine there — XCTest runs against a
-         *  real bundle, so `String(localized:)` resolves. The two SIGNATURES therefore differ on purpose;
-         *  the decision they encode does not. Don't "restore parity" by moving the lookup back in here. */
+         *  There used to be a `nowLabel` parameter too, carrying the already-translated "now" word for the
+         *  `< 60s` branch, because resolving it in here goes through `NoopApplication` and throws under a
+         *  plain JVM unit test (no Robolectric, so no Application is ever attached). #1472 removed the
+         *  word itself — see [shortSyncAgo] — so there is no lookup left to inject, and this signature now
+         *  matches Swift's. */
         fun resolve(
             backfilling: Boolean,
             chunks: Int,
             lastSyncAtSec: Long?,
             historySyncExperimental: Boolean,
             nowSec: Long,
-            nowLabel: String,
         ): SyncChipState = when {
             backfilling -> Syncing(chunks)
-            lastSyncAtSec != null -> Synced(shortSyncAgo(lastSyncAtSec, nowSec, nowLabel))
+            lastSyncAtSec != null -> Synced(shortSyncAgo(lastSyncAtSec, nowSec))
             historySyncExperimental -> ExperimentalLive
             else -> Hidden
         }
     }
 }
 
-/** Compact relative age for the header chip ("now" / "Nm" / "Nh" / "Nd") from a unix-SECONDS timestamp —
- *  deliberately terse. "now" is the only word in here (the rest is digits + a unit letter), so it's the
- *  only piece that needs a catalog entry to translate; it arrives as [nowLabel], resolved by the
- *  composable that owns the chip, so the bucketing stays framework-free. [nowSec] is unix seconds,
- *  injected for the same reason. Mirrors the iOS `SyncChipState.shortAgo`. */
-internal fun shortSyncAgo(unixSec: Long, nowSec: Long, nowLabel: String): String {
+/** Compact relative age for the header chip ("<1m" / "Nm" / "Nh" / "Nd") from a unix-SECONDS timestamp —
+ *  deliberately terse, and now wordless in every branch.
+ *
+ *  EVERY branch must read correctly with a trailing "ago", because the chip's accessibility description
+ *  wraps it in "Strap history synced %1$s ago". The sub-minute branch used to return the translated word
+ *  "now", which read "Strap history synced now ago" to a screen reader (#1472). "<1m" composes, and being
+ *  digits and symbols it needs no catalog entry in any language — which is what let the `nowLabel`
+ *  parameter and its string resource go. [nowSec] is unix seconds, injected to keep this pure.
+ *  Mirrors the iOS `SyncChipState.shortAgo`. */
+internal fun shortSyncAgo(unixSec: Long, nowSec: Long): String {
     val secs = (nowSec - unixSec).coerceAtLeast(0)
     return when {
-        secs < 60 -> nowLabel
+        secs < 60 -> "<1m"
         secs < 3600 -> "${secs / 60}m"
         secs < 86_400 -> "${secs / 3600}h"
         else -> "${secs / 86_400}d"

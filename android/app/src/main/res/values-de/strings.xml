@@ -1677,7 +1677,6 @@
     <string name="l10n_today_screen_pct_ee63e247">%1$s%%</string>
     <string name="l10n_today_screen_profile_and_settings_9b3d12f2">Profil und Einstellungen</string>
     <string name="l10n_today_screen_recovery_ea924f72">Erholung</string>
-    <string name="l10n_today_screen_sync_chip_now_c9bc849a">jetzt</string>
     <string name="l10n_today_screen_sync_chip_live_98aadb37">Live</string>
     <string name="l10n_today_screen_sync_chip_syncing_desc_bfc290e7">Verlaufssynchronisierung des Straps läuft, %1$d Chunks</string>
     <string name="l10n_today_screen_sync_chip_synced_desc_4d255944">Verlauf des Straps vor %1$s synchronisiert</string>

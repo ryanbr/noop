@@ -2248,7 +2248,6 @@ private fun SyncStatusChip(
         lastSyncAtSec = lastSyncAt,
         historySyncExperimental = historySyncExperimental,
         nowSec = System.currentTimeMillis() / 1000L,
-        nowLabel = uiString(R.string.l10n_today_screen_sync_chip_now_c9bc849a),
     )
     when (state) {
         is SyncChipState.Syncing -> ChipCapsule(
