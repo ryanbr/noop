@@ -130,8 +130,15 @@ final class ConnectionReadoutTests: XCTestCase {
     }
 
     func testLastOffloadResultStalled() {
-        let tail = ["[connection] offload result=stalled (idle timeout, rows=12 so far)"]
-        XCTAssertEqual(ConnectionReadout.lastOffloadResult(taggedTail: tail), "stalled (idle timeout, rows=12 so far)")
+        // #1466: a stall is now specifically rows=0 — an idle timeout that banked rows is reported as a
+        // productive end instead (below), so this fixture tracks what the producer actually emits.
+        let tail = ["[connection] offload result=stalled (idle timeout, rows=0)"]
+        XCTAssertEqual(ConnectionReadout.lastOffloadResult(taggedTail: tail), "stalled (idle timeout, rows=0)")
+    }
+
+    func testLastOffloadResultIdleTimeoutAfterRows() {
+        let tail = ["[connection] offload result=idle-timeout after rows=17205"]
+        XCTAssertEqual(ConnectionReadout.lastOffloadResult(taggedTail: tail), "idle-timeout after rows=17205")
     }
 
     func testLastOffloadResultNilWhenNone() {

@@ -159,7 +159,9 @@ public enum ConnectionReadout {
 
     /// Last offload result for the readout's `lastOffloadResult` id: the most recent "offload result=<...>"
     /// fragment the offload-progress emitter writes (e.g. "complete rows=42 nights=2", "empty (console
-    /// only)", "stalled (idle timeout)"). nil when no offload has finished this session.
+    /// only)", "idle-timeout after rows=17205", "stalled (idle timeout, rows=0)"). #1466: the last two are
+    /// distinct on purpose — an idle timeout that banked rows is a productive end, and only rows=0 is a
+    /// stall. nil when no offload has finished this session.
     public static func lastOffloadResult(taggedTail: [String]) -> String? {
         for line in taggedTail.reversed() {
             if let r = line.range(of: "offload result=") {
