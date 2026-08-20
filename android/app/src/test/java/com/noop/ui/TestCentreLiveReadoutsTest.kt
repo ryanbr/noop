@@ -14,7 +14,7 @@ class TestCentreLiveReadoutsTest {
             mode = mode,
             active = true,
             snapshot = TestCentreLiveSnapshot(
-                logText = "[recovery] charge day=2026-08-19 score=62.5 band=yellow",
+                logLines = listOf("[recovery] charge day=2026-08-19 score=62.5 band=yellow"),
             ),
         )
 
@@ -30,11 +30,11 @@ class TestCentreLiveReadoutsTest {
             mode = mode,
             active = true,
             snapshot = TestCentreLiveSnapshot(
-                logText = listOf(
+                logLines = listOf(
                     "2026-08-19 12:00:00 [recovery] charge day=2026-08-19 score=62.5 band=yellow",
                     "[connection] payload=[recovery] charge day=2026-08-20 score=99.0 band=green",
                     "message payload=[recovery] charge day=2026-08-21 score=100.0 band=green",
-                ).joinToString("\n"),
+                ),
             ),
         )
 

@@ -60,12 +60,22 @@ object CaptureAccumulator {
     fun capturedDays(domain: TestDomain, reportText: String, tzOffsetSeconds: Long): Int =
         capturedDayKeys(domain, reportText, tzOffsetSeconds).size
 
+    /** Line-form twin of [capturedDays]. */
+    fun capturedDays(domain: TestDomain, reportLines: List<String>, tzOffsetSeconds: Long): Int =
+        capturedDayKeys(domain, reportLines, tzOffsetSeconds).size
+
     /** The SET of distinct local day keys [domain] captured (yyyy-MM-dd). Empty when the mode has no
      *  day-bearing trace / captured none. */
-    fun capturedDayKeys(domain: TestDomain, reportText: String, tzOffsetSeconds: Long): Set<String> {
+    fun capturedDayKeys(domain: TestDomain, reportText: String, tzOffsetSeconds: Long): Set<String> =
+        capturedDayKeys(domain, reportText.split("\n"), tzOffsetSeconds)
+
+    /** #1468 follow-up: the same scan over lines the caller already has. The string form splits and
+     *  delegates here, so both paths walk identical content — callers holding a line list no longer join
+     *  it just so this can split it again. */
+    fun capturedDayKeys(domain: TestDomain, reportLines: List<String>, tzOffsetSeconds: Long): Set<String> {
         val marker = markers[domain] ?: return emptySet()
         val days = HashSet<String>()
-        for (line in reportText.split("\n")) {
+        for (line in reportLines) {
             if (marker.tokens.none { line.contains(it) }) continue
             when (marker) {
                 is DayMarker.DayKey ->

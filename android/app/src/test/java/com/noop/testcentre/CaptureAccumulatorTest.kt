@@ -79,4 +79,27 @@ class CaptureAccumulatorTest {
         assertEquals(setOf("2026-07-02"), CaptureAccumulator.capturedDayKeys(TestDomain.BATTERY, one, 0L))
         assertEquals(setOf("2026-07-01"), CaptureAccumulator.capturedDayKeys(TestDomain.BATTERY, one, -32400L))
     }
+
+    /**
+     * #1468 follow-up: the String and List overloads must find the same days. The Test Centre now scans the
+     * line list it already holds rather than joining it so this could split it again; if the two ever
+     * disagreed, a guided capture's "K of N days" would depend on which caller asked.
+     */
+    @Test
+    fun stringAndLineOverloadsAgree() {
+        val lines = listOf(
+            "[recovery] charge day=2026-08-18 score=61.0 band=yellow",
+            "noise that carries no marker",
+            "[recovery] charge day=2026-08-19 score=62.5 band=yellow",
+            "[recovery] charge day=2026-08-19 score=63.0 band=yellow",
+        )
+        val fromLines = CaptureAccumulator.capturedDayKeys(TestDomain.RECOVERY, lines, 0L)
+        val fromText = CaptureAccumulator.capturedDayKeys(TestDomain.RECOVERY, lines.joinToString("\n"), 0L)
+        assertEquals(fromText, fromLines)
+        assertEquals(setOf("2026-08-18", "2026-08-19"), fromLines)
+        assertEquals(
+            CaptureAccumulator.capturedDays(TestDomain.RECOVERY, lines.joinToString("\n"), 0L),
+            CaptureAccumulator.capturedDays(TestDomain.RECOVERY, lines, 0L),
+        )
+    }
 }

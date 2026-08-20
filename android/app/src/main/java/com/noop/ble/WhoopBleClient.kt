@@ -2146,6 +2146,10 @@ class WhoopBleClient(
      *  offload re-read prefs and re-rendered historical sessions four times a second. Guarded by [genLock],
      *  the same lock the roll uses, so the memo cannot be filled from a pre-roll read. */
     private var cachedPreviousSessionsText: String? = null
+
+    /** Line-form twin of [cachedPreviousSessionsText], memoised for the same reason and under
+     *  the same [genLock]. Built from the generations directly — see [buildPreviousSessionsLines]. */
+    private var cachedPreviousSessionsLines: List<String>? = null
     /** Durable-tail mirror counter, mutated only under [logBuffer]'s monitor (like [logBuffer] itself). */
     private var logsSincePersist = 0
 
@@ -8519,6 +8523,40 @@ class WhoopBleClient(
     private fun emitConnectionBondState(detail: String) {
         if (!testCentre.active(com.noop.testcentre.TestDomain.CONNECTION)) return
         log("bondState $detail", com.noop.testcentre.TestDomain.CONNECTION)
+    }
+
+    /** #1468 follow-up: the export as LINES, without ever building the joined string.
+     *
+     *  Every in-app consumer of the log immediately splits it again — `TestCentreLiveReadouts.rows` filters
+     *  to a single domain tag, `CaptureAccumulator.capturedDayKeys` does `split("\n")` — so joining 5,000
+     *  buffered lines plus every past session into one string, only for the caller to tear it back apart, is
+     *  pure overhead. It became a per-tick cost with the live readouts (#1468), which refresh every 250 ms
+     *  while a panel is open.
+     *
+     *  Same lines, same order as [exportLogText] splits into. The one difference is a trailing empty
+     *  segment: with an empty in-memory buffer, `exportLogText` ends in the newline after the session marker
+     *  and splitting it yields a final `""`, which this omits. No consumer can see that — an empty line
+     *  matches no domain tag and no day marker — but it is stated rather than glossed, because "identical"
+     *  would be a stronger claim than the code makes.
+     *
+     *  Only the share/export paths, which genuinely need one string, pay for the join. */
+    fun exportLogLines(): List<String> {
+        rollLogGenerationsIfNeeded()
+        val previous = synchronized(genLock) {
+            cachedPreviousSessionsLines
+                ?: buildPreviousSessionsLines().also { cachedPreviousSessionsLines = it }
+        }
+        val snapshot = synchronized(logBuffer) { logBuffer.toList() }
+        return if (previous.isEmpty()) snapshot else previous + snapshot
+    }
+
+    /** The previous-session lines exactly as [com.noop.ui.StrapLogGenerations.previousSessionsText] would
+     *  render them, taken from the generations themselves so no string is built and re-split. Empty when
+     *  there are no previous sessions, matching that function's empty-string case. */
+    private fun buildPreviousSessionsLines(): List<String> {
+        val gens = persistedLogGenerations()
+        if (gens.isEmpty()) return emptyList()
+        return gens.flatten() + com.noop.ui.StrapLogGenerations.CURRENT_SESSION_MARKER
     }
 
     /**

@@ -258,6 +258,8 @@ private val MASTER_REPORT_MODE = TestMode(
 private suspend fun buildPending(
     context: android.content.Context,
     mode: TestMode,
+    // Stays a STRING: TestBundleAssembler renders a report file, the one consumer that genuinely wants the
+    // joined text. Its two callers are user taps, not the 250 ms refresh.
     logText: String,
     vm: AppViewModel,
 ): PendingReport {
@@ -317,7 +319,9 @@ private fun TestModeRow(
     val refreshSources = TestCentreLiveRefreshPolicy.sources(mode, on)
     // An active row observes the log's own revision, coalesced during bursty offloads. An inactive row
     // creates no collector and never snapshots/export-formats the log.
-    val logText = if (refreshSources.observeLogRevision) rememberActiveLogText(vm.ble) else ""
+    // #1468 follow-up: LINES, not a joined string. Both consumers below immediately work line-wise, so the
+    // string this replaced was built (and re-split) on every 250 ms tick for nothing.
+    val logLines = if (refreshSources.observeLogRevision) rememberActiveLogLines(vm.ble) else emptyList()
     // #965: HONEST per-mode captured-day count for a guided row (distinct days THIS mode produced its own
     // trace on), read from the same log the report exports, so each active mode accumulates its OWN count
     // instead of every guided row sharing one elapsed number. null for a toggle mode (no "K of N") / when off.
@@ -325,7 +329,7 @@ private fun TestModeRow(
         if (on && mode.capture is CaptureKind.Guided) {
             CaptureAccumulator.capturedDays(
                 domain = mode.domain,
-                reportText = logText,
+                reportLines = logLines,
                 tzOffsetSeconds =
                     (java.util.TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 1000).toLong(),
             )
@@ -352,7 +356,7 @@ private fun TestModeRow(
         if (on) {
             TestCentreLiveReadoutPanel(
                 mode = mode,
-                logText = logText,
+                logLines = logLines,
                 live = live,
                 is5MG = is5MG,
                 activeStrapId = activeStrapId,
@@ -374,7 +378,7 @@ private fun TestModeRow(
 @Composable
 private fun TestCentreLiveReadoutPanel(
     mode: TestMode,
-    logText: String,
+    logLines: List<String>,
     live: LiveState,
     is5MG: Boolean,
     activeStrapId: String,
@@ -437,7 +441,7 @@ private fun TestCentreLiveReadoutPanel(
         mode = mode,
         active = true,
         snapshot = TestCentreLiveSnapshot(
-            logText = logText,
+            logLines = logLines,
             nowUnix = nowUnix,
             connected = live.connected,
             batteryPct = live.batteryPct,
@@ -472,9 +476,9 @@ private fun boundedRevision(flow: StateFlow<Long>, coalesceMs: Long): Long {
 }
 
 @Composable
-private fun rememberActiveLogText(ble: WhoopBleClient): String {
+private fun rememberActiveLogLines(ble: WhoopBleClient): List<String> {
     val revision = boundedRevision(ble.logRevision, coalesceMs = 250)
-    return remember(ble, revision) { ble.exportLogText() }
+    return remember(ble, revision) { ble.exportLogLines() }
 }
 
 @Composable

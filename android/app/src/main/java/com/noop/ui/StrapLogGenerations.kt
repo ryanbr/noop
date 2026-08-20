@@ -65,6 +65,12 @@ object StrapLogGenerations {
         return gens
     }
 
+    /** The marker separating banked previous sessions from this process's live tail. ONE definition:
+     *  `WhoopBleClient.exportLogLines` emits the same marker when it builds the line form without going
+     *  through [previousSessionsText], and two copies of this literal could drift apart silently — the
+     *  export would still render, just with a boundary the log parsers no longer agree on. */
+    const val CURRENT_SESSION_MARKER = "===== current app session ====="
+
     /**
      * The previous processes' lines, oldest-first, ready to sit AHEAD of the current session in an export.
      * Each generation is its own newline-joined block (its first line is its own separator header), and a
@@ -75,6 +81,6 @@ object StrapLogGenerations {
     fun previousSessionsText(generations: List<List<String>>): String {
         if (generations.isEmpty()) return ""
         return generations.joinToString("\n") { it.joinToString("\n") } + "\n" +
-            "===== current app session =====\n"
+            CURRENT_SESSION_MARKER + "\n"
     }
 }

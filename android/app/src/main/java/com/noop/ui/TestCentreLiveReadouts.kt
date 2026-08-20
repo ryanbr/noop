@@ -18,7 +18,9 @@ import kotlin.math.roundToInt
 /** Inputs shared by the Test Centre row and its report: the exported tagged log, plus the small set of
  * live values that are not log-derived. Repository-backed samples are loaded only while their row is on. */
 internal data class TestCentreLiveSnapshot(
-    val logText: String = "",
+    /** #1468 follow-up: the log as LINES. Every consumer here filters by domain tag, so the joined
+     *  string this replaced was built only to be split again. */
+    val logLines: List<String> = emptyList(),
     val nowUnix: Long = System.currentTimeMillis() / 1_000,
     val connected: Boolean = false,
     val batteryPct: Double? = null,
@@ -63,7 +65,7 @@ internal object TestCentreLiveReadouts {
 
     fun rows(mode: TestMode, active: Boolean, snapshot: TestCentreLiveSnapshot): List<LiveReadoutRow> {
         if (!active) return emptyList()
-        val tail by lazy { taggedTail(snapshot.logText, mode.id) }
+        val tail by lazy { taggedTail(snapshot.logLines, mode.id) }
         return mode.liveReadout.map { id ->
             require(id in mappedIds) { "Unmapped Test Centre liveReadout id: $id" }
             when (id) {
@@ -132,10 +134,10 @@ internal object TestCentreLiveReadouts {
         }
     }
 
-    private fun taggedTail(logText: String, domainId: String): List<String> {
-        return logText.lineSequence().filter { line ->
+    private fun taggedTail(logLines: List<String>, domainId: String): List<String> {
+        return logLines.filter { line ->
             firstDomainTag.find(line)?.groupValues?.get(1) == domainId
-        }.toList()
+        }
     }
 
     // Match only a real leading TestDomain marker: raw test lines start with it; exported production lines
