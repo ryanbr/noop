@@ -1,6 +1,5 @@
 package com.noop.protocol
 
-import java.util.Locale
 import kotlin.math.abs
 
 /**
@@ -59,20 +58,33 @@ object ChunkClockDiag {
         val stampedSeconds = perSecond.size
         val maxPerSecond = perSecond.values.maxOrNull() ?: 0
         val spanSeconds = newest - oldest + 1          // inclusive; a single-second chunk spans 1
-        val pack = rrTimestamps.size.toDouble() / stampedSeconds.toDouble()
-        val dens = rrTimestamps.size.toDouble() / spanSeconds.toDouble()
 
         return "Backfill: hist clock chunk=$chunk offset=${signed(offset)}s corr=${if (corrected) "on" else "off"}" +
-            " rr=${rrTimestamps.size} secs=$stampedSeconds pack=${fixed2(pack)} max=$maxPerSecond" +
-            " span=${spanSeconds}s dens=${fixed2(dens)}"
+            " rr=${rrTimestamps.size} secs=$stampedSeconds" +
+            " pack=${fixed2(rrTimestamps.size.toLong(), stampedSeconds.toLong())} max=$maxPerSecond" +
+            " span=${spanSeconds}s dens=${fixed2(rrTimestamps.size.toLong(), spanSeconds)}"
     }
 
     /** Always-signed so a drift trajectory reads at a glance across chunks (`+15s` -> `+48s` -> `+200s`). */
     internal fun signed(v: Int): String = if (v >= 0) "+$v" else "$v"
 
     /**
-     * Locale-independent 2dp — a strap log is parsed by tooling, so a comma decimal separator (the default
-     * on a German/French device) would break it. Twin of the Swift en_US_POSIX format.
+     * `numerator/denominator` to 2dp, by INTEGER half-up rounding — deliberately NOT [String.format].
+     *
+     * Two traps this sidesteps, both of which would silently desync the Kotlin and Swift logs that the
+     * tests assert are byte-identical:
+     *  - **Rounding mode.** Java's `String.format` rounds half-UP; C/Swift `printf("%.2f")` rounds
+     *    half-to-EVEN. They disagree on any exact tie, and ties are ordinary here — `pack` of 9/8 renders
+     *    `1.13` on Kotlin and `1.12` on Swift.
+     *  - **Locale.** A comma decimal separator on a German/French device would break a log parser.
+     *
+     * Integer math has neither problem: `+denominator` before the divide is the half-up bias, and the
+     * operands are small (interval counts), nowhere near overflow.
      */
-    internal fun fixed2(v: Double): String = String.format(Locale.US, "%.2f", v)
+    internal fun fixed2(numerator: Long, denominator: Long): String {
+        if (denominator <= 0L) return "0.00"
+        val hundredths = (numerator * 200L + denominator) / (denominator * 2L)
+        val frac = hundredths % 100L
+        return "${hundredths / 100}." + if (frac < 10L) "0$frac" else "$frac"
+    }
 }

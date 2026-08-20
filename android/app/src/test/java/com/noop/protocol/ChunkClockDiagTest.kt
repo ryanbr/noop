@@ -82,6 +82,20 @@ class ChunkClockDiagTest {
     }
 
     /**
+     * PARITY REGRESSION. `pack` of 9/8 is an exact binary tie (1.125). Java's [String.format] rounds
+     * half-UP and would render `1.13`, while Swift's `printf("%.2f")` rounds half-to-EVEN and renders
+     * `1.12` — the two strap logs would silently disagree. Both platforms now round half-UP by integer
+     * math, so this asserts `1.13` and its Swift twin asserts the identical string.
+     */
+    @Test
+    fun `exact tie rounds half up not half even`() {
+        // 9 intervals over 8 stamped seconds: one second carries 2, the rest 1.
+        val ts = (1_700_000_000L until 1_700_000_008L).toList() + listOf(1_700_000_000L)
+        val line = ChunkClockDiag.line(1, 0, 0, ts)!!
+        assertTrue(line, line.contains("pack=1.13"))
+    }
+
+    /**
      * Timestamps arrive in emission order, which is not guaranteed sorted across a record boundary; the
      * span must come from the true min/max, not the first/last element.
      */

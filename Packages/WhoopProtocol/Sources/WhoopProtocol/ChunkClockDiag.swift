@@ -54,18 +54,31 @@ public enum ChunkClockDiag {
         let stampedSeconds = perSecond.count
         let maxPerSecond = perSecond.values.max() ?? 0
         let spanSeconds = newest - oldest + 1          // inclusive; a single-second chunk spans 1
-        let pack = Double(rrTimestamps.count) / Double(stampedSeconds)
-        let dens = Double(rrTimestamps.count) / Double(spanSeconds)
 
         return "Backfill: hist clock chunk=\(chunk) offset=\(signed(offset))s corr=\(corrected ? "on" : "off")"
-            + " rr=\(rrTimestamps.count) secs=\(stampedSeconds) pack=\(fixed2(pack)) max=\(maxPerSecond)"
-            + " span=\(spanSeconds)s dens=\(fixed2(dens))"
+            + " rr=\(rrTimestamps.count) secs=\(stampedSeconds)"
+            + " pack=\(fixed2(rrTimestamps.count, stampedSeconds)) max=\(maxPerSecond)"
+            + " span=\(spanSeconds)s dens=\(fixed2(rrTimestamps.count, spanSeconds))"
     }
 
     /// Always-signed so a drift trajectory reads at a glance across chunks (`+15s` → `+48s` → `+200s`).
     static func signed(_ v: Int) -> String { v >= 0 ? "+\(v)" : "\(v)" }
 
-    /// Locale-independent 2dp — a strap log is parsed by tooling, so a comma decimal separator would
-    /// break it on a non-English device.
-    static func fixed2(_ v: Double) -> String { String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), v) }
+    /// `numerator/denominator` to 2dp, by INTEGER half-up rounding — deliberately NOT `String(format:)`.
+    ///
+    /// Two traps this sidesteps, both of which would silently desync the Swift and Kotlin logs that the
+    /// tests assert are byte-identical:
+    ///  - **Rounding mode.** C/Swift `printf("%.2f")` rounds half-to-EVEN; Java's `String.format` rounds
+    ///    half-UP. They disagree on any exact tie, and ties are ordinary here — `pack` of 9/8 renders
+    ///    `1.12` on Swift and `1.13` on Kotlin.
+    ///  - **Locale.** A comma decimal separator on a German/French device would break a log parser.
+    ///
+    /// Integer math has neither problem: `+denominator` before the divide is the half-up bias, and the
+    /// operands are small (interval counts), nowhere near overflow.
+    static func fixed2(_ numerator: Int, _ denominator: Int) -> String {
+        guard denominator > 0 else { return "0.00" }
+        let hundredths = (numerator * 200 + denominator) / (denominator * 2)
+        let frac = hundredths % 100
+        return "\(hundredths / 100)." + (frac < 10 ? "0\(frac)" : "\(frac)")
+    }
 }
