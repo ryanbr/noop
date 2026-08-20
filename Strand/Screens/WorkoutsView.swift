@@ -132,6 +132,12 @@ struct WorkoutsView: View {
     /// Wraps the optional edited row so `.sheet(item:)` can present add (editing == nil) or edit.
     private struct WorkoutSheetTarget: Identifiable {
         let editing: WorkoutRow?
+        /// True for "Duplicate as manual": the form pre-fills FROM a read-only row, but the save is a pure
+        /// ADD. The pre-fill row is not a stored manual row, so it must never travel on as `replacing:` —
+        /// it carries the ORIGINAL's natural key while claiming source "manual", and the repository would
+        /// take that as an edit and retire the row it was copied from. `Repository.saveManualWorkout`
+        /// documents that an imported row is never passed as `replacing`; this is what makes that true.
+        var isCopy = false
         let id = UUID()
     }
 
@@ -235,7 +241,8 @@ struct WorkoutsView: View {
         .sheet(item: $sheet) { target in
             ManualWorkoutSheet(editing: target.editing) { row, replacing in
                 Task {
-                    await repo.saveManualWorkout(row, replacing: replacing)
+                    // A copy pre-fills the form but replaces nothing — see `WorkoutSheetTarget.isCopy`.
+                    await repo.saveManualWorkout(row, replacing: target.isCopy ? nil : replacing)
                     // #598: rescore the just-added workout from the strap's HR for its window NOW, so its
                     // average / peak HR, strain and calories appear immediately (from your own strap data)
                     // instead of waiting up to 15 minutes for the next analyze tick. No-ops when the strap
@@ -429,7 +436,9 @@ struct WorkoutsView: View {
 
     // MARK: - Row actions (edit · relabel · dismiss · delete)
 
-    private func editWorkout(_ row: WorkoutRow) { sheet = WorkoutSheetTarget(editing: row) }
+    private func editWorkout(_ row: WorkoutRow, isCopy: Bool = false) {
+        sheet = WorkoutSheetTarget(editing: row, isCopy: isCopy)
+    }
 
     private func relabel(_ row: WorkoutRow, to sport: String) {
         Task {
@@ -1574,7 +1583,7 @@ struct WorkoutsView: View {
             Button("Delete", role: .destructive) { delete(row) }
         case .whoop, .apple, .lifting, .activityFile:
             // Imported history is read-only; offer a copy-to-manual edit path that doesn't touch it.
-            Button("Duplicate as manual…") { editWorkout(asManualCopy(row)) }
+            Button("Duplicate as manual…") { editWorkout(asManualCopy(row), isCopy: true) }
         }
     }
 
