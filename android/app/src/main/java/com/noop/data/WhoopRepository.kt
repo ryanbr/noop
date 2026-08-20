@@ -1167,14 +1167,19 @@ class WhoopRepository(
      * edit started from:
      *  - editing a DETECTED bout replaces it with this manual row , the detected original is dismissed
      *    durably so the re-detector doesn't bring it back (else both would show);
-     *  - editing a MANUAL row whose natural key (startTs/sport) changed deletes the stale row first
-     *    (the (deviceId, startTs, sport) PK upsert would otherwise orphan it);
+     *  - editing a MANUAL row whose PRIMARY KEY moved deletes the stale row first (the
+     *    (deviceId, startTs, sport) PK upsert would otherwise orphan it). deviceId is part of that key,
+     *    so a row stored under a re-paired strap's active id counts as moved even when startTs and sport
+     *    are untouched: the edit lands on the "my-whoop" seed while the original stays put, and
+     *    `workoutsUnion` reads [activeDeviceId, "my-whoop"] keeping the FIRST row per (startTs, sport),
+     *    so the stale copy would shadow the edit forever. Comparing only startTs/sport missed exactly
+     *    that case and made a save look successful while changing nothing (#1488);
      *  - an IMPORTED row is never passed here as `replacing` (duplicating one is a pure add).
      */
     suspend fun saveManualWorkout(row: WorkoutRow, replacing: WorkoutRow? = null) {
         if (replacing != null && replacing.source.lowercase().endsWith("-noop")) {
             dismissDetected(replacing)
-        } else if (replacing != null && (replacing.startTs != row.startTs || replacing.sport != row.sport)) {
+        } else if (replacing != null && supersedesStoredRow(replacing, row)) {
             dao.deleteWorkoutByKey(replacing.deviceId, replacing.startTs, replacing.sport)
         }
         dao.upsertWorkouts(listOf(row))
@@ -1990,6 +1995,16 @@ class WhoopRepository(
             val seen = HashSet<Pair<Long, Long>>()
             return sessions.filter { seen.add(it.startTs to it.endTs) }
         }
+
+        /** True when [replacing] is stored under a DIFFERENT primary key than the row about to be written,
+         *  so the upsert would leave it orphaned beside the new one instead of overwriting it. The key is
+         *  (deviceId, startTs, sport) — all three, which is the point: an edit whose startTs and sport are
+         *  untouched still moves when the original sits under a re-paired strap's active id and the edit is
+         *  built on the "my-whoop" seed. [dedupWorkoutsByKey] then hides the newer row behind the stale one,
+         *  so the save silently does nothing. (#1488) */
+        internal fun supersedesStoredRow(replacing: WorkoutRow, row: WorkoutRow): Boolean =
+            replacing.deviceId != row.deviceId || replacing.startTs != row.startTs ||
+                replacing.sport != row.sport
 
         /** Drop exact-duplicate workouts sharing an identical (startTs, sport) natural key — the same
          *  session read under two #814 union ids — keeping the FIRST seen (callers pass active-strap-first

@@ -38,6 +38,18 @@ object WorkoutEditing {
     }
 
     /**
+     * The pre-fill row behind "Duplicate as manual" on a READ-ONLY session (strap, Apple, lifting, file).
+     *
+     * Re-seeds `deviceId` to the manual namespace as well as `source`. deviceId is part of the workout
+     * primary key, so a copy that kept the original's id would hand [WhoopRepository.saveManualWorkout] a
+     * `replacing` key pointing INTO the source being copied from, and the save would retire the very row
+     * the menu promises not to touch — a strap session lives under the active strap id, which the delete
+     * path can reach. Re-seeding keeps every delete that save can issue inside "my-whoop". (#1488)
+     */
+    fun asManualCopy(row: WorkoutRow): WorkoutRow =
+        row.copy(source = "manual", deviceId = "my-whoop", sport = displaySport(row.sport))
+
+    /**
      * Sport-cell text. "detected" reads as a neutral "Activity". WHOOP sport names arrive as
      * concatenated camelCase (e.g. "TraditionalStrengthTraining"), which reads as one long
      * unbreakable word and truncates badly — split it into words on the lower→Upper boundary so it
