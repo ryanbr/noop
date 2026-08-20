@@ -158,7 +158,15 @@ enum DebugDataDiagnostics {
         }
         let det = SleepSession(start: cs.startTs, end: cs.endTs, efficiency: cs.efficiency ?? 0,
                                stages: [], restingHR: cs.restingHr, avgHRV: cs.avgHrv)
-        let family: DeviceFamily = (UserDefaults.standard.string(forKey: "selectedWhoopModel") == "whoop5") ? .whoop5 : .whoop4
+        // Third instance of the same literal bug in this file: "whoop5" is the enum CASE name, while the
+        // pref stores `WhoopModel.rawValue` ("WHOOP 5.0 / MG"). It never matched, so this resolved to
+        // `.whoop4` for EVERY strap — and unlike the two header sites, that is not a label. It picks the
+        // WHOOP-4 device anchor and runs `skinTempFunnel` under the wrong family, so the skin-temp funnel
+        // diagnostic has been reporting 4.0 numbers for every 5/MG on Apple. Parse through the enum.
+        // Unknown still resolves to `.whoop4`: this chooses an analysis default, matching the Kotlin twin.
+        let family: DeviceFamily =
+            WhoopModel(rawValue: UserDefaults.standard.string(forKey: "selectedWhoopModel") ?? "") == .whoop5mg
+            ? .whoop5 : .whoop4
         // Mirror the real per-device anchor (#404): learn it from the WHOLE recent window's raws — not just
         // this night — so a single sparse night (<100 in-band) can't misreport under the global fallback when
         // the window as a whole has enough in-band samples for analyzeDay to learn a device anchor.
