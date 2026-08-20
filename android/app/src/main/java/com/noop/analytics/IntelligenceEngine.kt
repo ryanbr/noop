@@ -909,29 +909,33 @@ object IntelligenceEngine {
                     // ts AND value, no real-beat loss) is the safe floor; the ~40 ms collapse is the
                     // aggressive UPPER BOUND (catches the two-channel twins but can over-merge two real
                     // neighbours within 40 ms). Log both so we can see where the real de-dup sits. Twin.
-                    // #1331: a THIRD candidate, `xsec` — the 40 ms collapse widened to a 1-second WINDOW.
-                    // crossSecondOverCount means the same-second collapses above can't reach the boundary-
-                    // straddling twins (cov40 stays ~1.7-2.0 on heavy nights, resp blanked); `xsec` sizes how
-                    // far a cross-second collapse WOULD get (coverage → ~1.0? beat-accuracy clears the 0.5
-                    // gate?). Strict UPPER BOUND, not shippable (a steady HR has ~identical intervals one
-                    // second apart, so it over-merges real beats); the real fix is density/timeline-based +
-                    // H10-validated. Instrumentation only, shipped path unchanged. Twin of the Swift line.
+                    // #1331 RETIRED (two of them). `xsec` — the 40 ms collapse widened to a 1-second
+                    // window — was a strict UPPER BOUND that over-merges real beats, kept only to size how
+                    // far a cross-second collapse COULD get. It has now produced that number in the field:
+                    // covXsec 0.80 with beatAccXsec 0.26, i.e. it eats real beats exactly as its own
+                    // comment predicted. And the same-second TOLERANCE SWEEP (20/34/60) was sizing a fix
+                    // already ruled out — every affected night reads CROSS_SECOND_OVER_COUNT, so no
+                    // same-second tolerance can reach duplicates that straddle the boundary.
+                    //
+                    // Both cost real work on the phones least able to spare it: this block runs for EVERY
+                    // night of an affected strap, analyzeRecent re-scores ~21 days every 15 minutes, and
+                    // each collapseOverCount SORTS the night's ~50-70k intervals. Six sorts per night
+                    // became two. What survives is the honest floor (`ex`, exact duplicates only —
+                    // provably no real-beat loss) and the incumbent candidate (`dd`, 40 ms same-second).
+                    // The delivery histogram below supersedes what both retired measurements reached for,
+                    // and costs one pass instead of nine. Twin of the Swift block.
                     val ex = HrvAnalyzer.collapseOverCount(ts, sleepRr, 0.0)
                     val dd = HrvAnalyzer.collapseOverCount(ts, sleepRr)
-                    val xs = HrvAnalyzer.collapseOverCount(ts, sleepRr, 40.0, 1L)
                     val hDd = HrvAnalyzer.analyzeRaw(dd.second)
                     val covEx = HrvAnalyzer.rrCoverage(ex.first, ex.second)
                     val covDd = HrvAnalyzer.rrCoverage(dd.first, dd.second)
                     val accDd = HrvAnalyzer.beatAccurateFraction(dd.first, dd.second)
-                    val covXs = HrvAnalyzer.rrCoverage(xs.first, xs.second)
-                    val accXs = HrvAnalyzer.beatAccurateFraction(xs.first, xs.second)
                     dayDiag("hrv dedup day=${res.daily.day} exactN=${ex.second.size}/${sleepRr.size} " +
                         "covExact=${String.format(java.util.Locale.US, "%.2f", covEx)} | ch40N=${dd.second.size} " +
                         "cov40=${String.format(java.util.Locale.US, "%.2f", covDd)} " +
                         "beatAcc40=${String.format(java.util.Locale.US, "%.2f", accDd)} " +
                         "rmssd40=${ms(hDd.rmssd)}ms sdnn40=${ms(hDd.sdnn)}ms meanNN40=${ms(hDd.meanNN)}ms " +
-                        "| xsecN=${xs.second.size} covXsec=${String.format(java.util.Locale.US, "%.2f", covXs)} " +
-                        "beatAccXsec=${String.format(java.util.Locale.US, "%.2f", accXs)} (1s upper bound)")
+                        "| collapse candidates only; the DELIVERY histogram below sizes the fix")
                     // #1118 sweep: the same-second collapse at a range of tolerances, so a capture shows
                     // WHICH tolerance the over-count actually responds to instead of only the one 40 ms
                     // point. 34 ms is the two-optical-channel twin spacing; 0 is exact-duplicates-only.
@@ -939,24 +943,6 @@ object IntelligenceEngine {
                     // (collapseOverCount's default tolerance is 40), and each collapse sorts the night's
                     // intervals — ~50k on an over-count night. Reusing them keeps the sweep to three extra
                     // passes instead of five on a block that runs for EVERY night of an affected strap.
-                    val accEx = HrvAnalyzer.beatAccurateFraction(ex.first, ex.second)
-                    fun sweepPoint(tol: Int): Pair<Double, Double> {
-                        val c = HrvAnalyzer.collapseOverCount(ts, sleepRr, tol.toDouble())
-                        return HrvAnalyzer.rrCoverage(c.first, c.second) to
-                            HrvAnalyzer.beatAccurateFraction(c.first, c.second)
-                    }
-                    val p20 = sweepPoint(20)
-                    val p34 = sweepPoint(34)
-                    val p60 = sweepPoint(60)
-                    val sweep = listOf(
-                        Triple(0, covEx, accEx), Triple(20, p20.first, p20.second),
-                        Triple(34, p34.first, p34.second), Triple(40, covDd, accDd),
-                        Triple(60, p60.first, p60.second),
-                    ).joinToString(" ") { (tol, cov, acc) ->
-                        "t$tol=${String.format(java.util.Locale.US, "%.2f", cov)}/" +
-                            String.format(java.util.Locale.US, "%.2f", acc)
-                    }
-                    dayDiag("hrv sweep day=${res.daily.day} n=${sleepRr.size} cov/acc by same-second tol: $sweep")
                 }
             } else if (res.sleepSessions.isEmpty()) {
                 // #1244: no in-sleep R-R AND no detected session (past the >=200-HR gate) = the "HR tracked,

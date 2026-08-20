@@ -1103,30 +1103,32 @@ final class IntelligenceEngine: ObservableObject {
                         // same-second collapse is the aggressive UPPER BOUND (it also catches the two-channel
                         // twins but can over-merge two real neighbours whose values sit within 40 ms). The
                         // real de-dup lives between them; the log shows both so we can see where.
-                        // #1331: a THIRD candidate, `xsec` — the 40 ms collapse widened to a 1-second WINDOW.
-                        // Every night here reads `crossSecondOverCount`, meaning the same-second collapses
-                        // above CAN'T reach the duplicates (they straddle the second boundary), so `cov40`
-                        // stays ~1.7-2.0 on the heavy nights and respiratory stays blanked. `xsec` measures
-                        // how far a cross-second collapse WOULD get (does coverage fall to ~1.0, does
-                        // beat-accuracy clear #1127's 0.5 gate?). It is a strict UPPER BOUND, not a shippable
-                        // de-dup: a steady real HR has ~identical intervals one second apart, so this
-                        // over-merges real beats. Sizing only; the real fix is density/timeline-based +
-                        // ground-truth-validated (@artemc's H10). Instrumentation, shipped path unchanged.
+                        // #1331 RETIRED (two of them). `xsec` — the 40 ms collapse widened to a 1-second
+                        // window — was a strict UPPER BOUND that over-merges real beats, kept only to size
+                        // how far a cross-second collapse COULD get. It has now produced that number in the
+                        // field: covXsec 0.80 with beatAccXsec 0.26, i.e. it eats real beats exactly as its
+                        // own comment predicted. And the same-second TOLERANCE SWEEP (20/34/60) was sizing a
+                        // fix already ruled out — every affected night reads `crossSecondOverCount`, so no
+                        // same-second tolerance can reach duplicates that straddle the boundary.
+                        //
+                        // Both cost real work on the phones least able to spare it: this block runs for
+                        // EVERY night of an affected strap, `analyzeRecent` re-scores ~21 days every 15
+                        // minutes, and each `collapseOverCount` SORTS the night's ~50-70k intervals. Six
+                        // sorts per night became two. What survives is the honest floor (`ex`, exact
+                        // duplicates only — provably no real-beat loss) and the incumbent candidate (`dd`,
+                        // 40 ms same-second). The delivery histogram below supersedes what both retired
+                        // measurements were reaching for, and costs one pass instead of nine.
                         let ex = HRVAnalyzer.collapseOverCount(tsSec: ts, rrMs: sleepRr, rrTolMs: 0)
                         let dd = HRVAnalyzer.collapseOverCount(tsSec: ts, rrMs: sleepRr)
-                        let xs = HRVAnalyzer.collapseOverCount(tsSec: ts, rrMs: sleepRr, rrTolMs: 40, windowSec: 1)
                         let hDd = HRVAnalyzer.analyze(rawRR: dd.rrMs)
                         let covEx = HRVAnalyzer.rrCoverage(tsSec: ex.tsSec, rrMs: ex.rrMs)
                         let covDd = HRVAnalyzer.rrCoverage(tsSec: dd.tsSec, rrMs: dd.rrMs)
                         let accDd = HRVAnalyzer.beatAccurateFraction(tsSec: dd.tsSec, rrMs: dd.rrMs)
-                        let covXs = HRVAnalyzer.rrCoverage(tsSec: xs.tsSec, rrMs: xs.rrMs)
-                        let accXs = HRVAnalyzer.beatAccurateFraction(tsSec: xs.tsSec, rrMs: xs.rrMs)
                         diagLine += "\nhrv dedup day=\(res.daily.day) exactN=\(ex.rrMs.count)/\(sleepRr.count) "
                             + "covExact=\(String(format: "%.2f", covEx)) | ch40N=\(dd.rrMs.count) "
                             + "cov40=\(String(format: "%.2f", covDd)) beatAcc40=\(String(format: "%.2f", accDd)) "
                             + "rmssd40=\(ms(hDd.rmssd))ms sdnn40=\(ms(hDd.sdnn))ms meanNN40=\(ms(hDd.meanNN))ms "
-                            + "| xsecN=\(xs.rrMs.count) covXsec=\(String(format: "%.2f", covXs)) "
-                            + "beatAccXsec=\(String(format: "%.2f", accXs)) (1s upper bound)"
+                            + "| collapse candidates only; the DELIVERY histogram below sizes the fix"
                         // #1118 sweep: the same-second collapse at a range of tolerances, so a capture shows
                         // WHICH tolerance the over-count actually responds to instead of only the one 40 ms
                         // point. 34 ms is the two-optical-channel twin spacing; 0 is exact-duplicates-only.
@@ -1135,22 +1137,6 @@ final class IntelligenceEngine: ObservableObject {
                         // intervals — ~50k on an over-count night. Reusing them keeps the sweep to three extra
                         // passes instead of five on a block that runs for EVERY night of an affected strap,
                         // inside the per-day rescore loop #836 already had to slim down. Twin of Kotlin.
-                        let accEx = HRVAnalyzer.beatAccurateFraction(tsSec: ex.tsSec, rrMs: ex.rrMs)
-                        func sweepPoint(_ tol: Int) -> (cov: Double, acc: Double) {
-                            let c = HRVAnalyzer.collapseOverCount(tsSec: ts, rrMs: sleepRr, rrTolMs: Double(tol))
-                            return (HRVAnalyzer.rrCoverage(tsSec: c.tsSec, rrMs: c.rrMs),
-                                    HRVAnalyzer.beatAccurateFraction(tsSec: c.tsSec, rrMs: c.rrMs))
-                        }
-                        let p20 = sweepPoint(20), p34 = sweepPoint(34), p60 = sweepPoint(60)
-                        let points: [(tol: Int, cov: Double, acc: Double)] = [
-                            (0, covEx, accEx), (20, p20.cov, p20.acc), (34, p34.cov, p34.acc),
-                            (40, covDd, accDd), (60, p60.cov, p60.acc),
-                        ]
-                        let sweep = points.map { p -> String in
-                            "t\(p.tol)=\(String(format: "%.2f", p.cov))/\(String(format: "%.2f", p.acc))"
-                        }.joined(separator: " ")
-                        diagLine += "\nhrv sweep day=\(res.daily.day) n=\(sleepRr.count) "
-                            + "cov/acc by same-second tol: \(sweep)"
                     }
                     hrvDiag = diagLine
                     // #1118: flag this night's HRV as over-counted (same verdict the diag logs) so the
