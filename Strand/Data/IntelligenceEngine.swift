@@ -1116,7 +1116,7 @@ final class IntelligenceEngine: ObservableObject {
                         // minutes, and each `collapseOverCount` SORTS the night's ~50-70k intervals. Six
                         // sorts per night became two. What survives is the honest floor (`ex`, exact
                         // duplicates only — provably no real-beat loss) and the incumbent candidate (`dd`,
-                        // 40 ms same-second). The delivery histogram below supersedes what both retired
+                        // 40 ms same-second). The delivery histogram above supersedes what both retired
                         // measurements were reaching for, and costs one pass instead of nine.
                         let ex = HRVAnalyzer.collapseOverCount(tsSec: ts, rrMs: sleepRr, rrTolMs: 0)
                         let dd = HRVAnalyzer.collapseOverCount(tsSec: ts, rrMs: sleepRr)
@@ -1128,7 +1128,7 @@ final class IntelligenceEngine: ObservableObject {
                             + "covExact=\(String(format: "%.2f", covEx)) | ch40N=\(dd.rrMs.count) "
                             + "cov40=\(String(format: "%.2f", covDd)) beatAcc40=\(String(format: "%.2f", accDd)) "
                             + "rmssd40=\(ms(hDd.rmssd))ms sdnn40=\(ms(hDd.sdnn))ms meanNN40=\(ms(hDd.meanNN))ms "
-                            + "| collapse candidates only; the DELIVERY histogram below sizes the fix"
+                            + "| collapse candidates only; the DELIVERY histogram above sizes the fix"
                         // #1118 sweep: the same-second collapse at a range of tolerances, so a capture shows
                         // WHICH tolerance the over-count actually responds to instead of only the one 40 ms
                         // point. 34 ms is the two-optical-channel twin spacing; 0 is exact-duplicates-only.
