@@ -639,6 +639,67 @@ public enum HRVAnalyzer {
         return rrCoverage(tsSec: keptTs, rrMs: keptRr)
     }
 
+    /// #1331/#1008: how many separate DELIVERIES wrote each stored second, across a whole night.
+    ///
+    /// `ord` restarts at 0 on every delivery, so two rows on one second both carrying `ord == 0` came from
+    /// two different offloads writing the same wall second. `densestSecondWindowSample` already shows that
+    /// — but only for the 5-8 seconds around the densest one, which is a sample, not a measurement. This
+    /// aggregates it over the night, because the fix turns on a question a sample cannot answer: is the
+    /// over-count mostly seconds touched by SEVERAL deliveries, or genuinely too many beats inside one?
+    ///
+    /// `multiRows` is a share of ATTRIBUTABLE rows (those carrying an `ord`), not of every row — dividing
+    /// by the total would let a night that half-predates `ord` read artificially benign, which is precisely
+    /// the conclusion this exists to prevent.
+    ///
+    /// Rows whose `ord` is nil are counted in `ordUnknown` and excluded from the histogram rather than
+    /// assumed to be first-of-delivery: `ord` was added later, so a night that predates it would otherwise
+    /// read as "every second written once" and quietly argue against the mechanism it cannot see.
+    ///
+    /// Percentages are integer half-up on both platforms — no float formatting, so the two logs cannot
+    /// disagree on a tie (the #1473 lesson). Byte-parity twin of Kotlin `HrvAnalyzer.deliveryHistogram`.
+    public static func deliveryHistogram(tsSec: [Int], rrMs: [Double], ords: [Int?]) -> String {
+        let n = min(tsSec.count, rrMs.count)
+        guard n > 0 else { return "" }
+        var deliveriesPerSec: [Int: Int] = [:]   // second -> count of ord==0 rows
+        var knownRowsPerSec: [Int: Int] = [:]    // rows we can attribute (ord present)
+        var unknown = 0
+        var known = 0
+        var secsSeen = Set<Int>()
+        for i in 0 ..< n {
+            secsSeen.insert(tsSec[i])
+            guard i < ords.count, let o = ords[i] else { unknown += 1; continue }
+            known += 1
+            knownRowsPerSec[tsSec[i], default: 0] += 1
+            if o == 0 { deliveriesPerSec[tsSec[i], default: 0] += 1 }
+        }
+        var hist = [0, 0, 0, 0]      // 1, 2, 3, 4+
+        var multiSecs = 0
+        var multiRows = 0
+        var maxDeliv = 0
+        for (sec, count) in deliveriesPerSec where count > 0 {
+            hist[min(count, 4) - 1] += 1
+            if count > maxDeliv { maxDeliv = count }
+            if count >= 2 {
+                multiSecs += 1
+                multiRows += knownRowsPerSec[sec] ?? 0
+            }
+        }
+        let secs = deliveriesPerSec.count
+        // Seconds carrying rows but NO ord==0 row at all. Reachable: the primary key absorbs a cross-batch
+        // exact duplicate, and the row it drops can be the delivery's first on that second. Reported rather
+        // than folded into the histogram, so `secs` staying below the night's real second count is visible
+        // instead of quietly shrinking the denominator underneath `multiSec`.
+        let secsNoStart = secsSeen.count - secs
+        return "rr deliveries secs[1/2/3/4+]=\(hist[0])/\(hist[1])/\(hist[2])/\(hist[3])"
+            + " multiSec=\(pct(multiSecs, secs))% multiRows=\(pct(multiRows, known))%"
+            + " maxDeliv=\(maxDeliv) secsNoStart=\(secsNoStart) ordUnknown=\(unknown)"
+    }
+
+    /// Whole-percent, integer half-up, so both platforms round a tie the same way. 0 when `total` is 0.
+    static func pct(_ part: Int, _ total: Int) -> Int {
+        total > 0 ? (part * 200 + total) / (total * 2) : 0
+    }
+
     /// #1008: a compact, deterministic RAW-ROW sample of the beats around the DENSEST second, for the
     /// always-on `hrv diag` log — emitted ONLY on an over-count night, so the mechanism of a `coverage>1`
     /// verdict can be READ off the log instead of guessed at. The coverage stats above say THAT a night is

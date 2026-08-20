@@ -1086,6 +1086,12 @@ final class IntelligenceEngine: ObservableObject {
                             tsSec: ts, rrMs: sleepRr, srcCodes: sleepRrRows.map { $0.srcChannel?.rawValue },
                             ords: sleepRrRows.map { $0.ord })
                         if !sample.isEmpty { diagLine += "\nhrv rrsample day=\(res.daily.day) \(sample)" }
+                        // #1331/#1008: the sample above shows ords for a handful of seconds; this counts
+                        // them across the WHOLE night, which is what decides whether the fix belongs at
+                        // ingest. Kotlin twin.
+                        let deliveries = HRVAnalyzer.deliveryHistogram(
+                            tsSec: ts, rrMs: sleepRr, ords: sleepRrRows.map { $0.ord })
+                        if !deliveries.isEmpty { diagLine += "\n\(deliveries) day=\(res.daily.day)" }
                         // #1331/#1008/#1118 SHADOW: log the DEDUPED stream's HRV + coverage + beat-accuracy
                         // beside the raw (above), so the candidate two-channel de-dup can be validated
                         // against WHOOP's own numbers and @artemc's Polar H10 BEFORE it becomes the read

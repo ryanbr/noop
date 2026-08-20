@@ -896,6 +896,10 @@ object IntelligenceEngine {
                         sleepRrRows.map { it.ord },
                     )
                     if (sample.isNotEmpty()) dayDiag("hrv rrsample day=${res.daily.day} $sample")
+                    // #1331/#1008: the sample above shows ords for a handful of seconds; this counts them
+                    // across the WHOLE night, which is what decides whether the fix belongs at ingest.
+                    val deliveries = HrvAnalyzer.deliveryHistogram(ts, sleepRr, sleepRrRows.map { it.ord })
+                    if (deliveries.isNotEmpty()) dayDiag("$deliveries day=${res.daily.day}")
                     // #1331/#1008/#1118 SHADOW: log the DEDUPED stream's HRV + coverage + beat-accuracy
                     // beside the raw so the candidate de-dup can be validated vs WHOOP + @artemc's Polar
                     // before it becomes the read path. Instrumentation only — shipped HRV/resp unchanged.
