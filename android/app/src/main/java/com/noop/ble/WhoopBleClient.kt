@@ -1153,6 +1153,23 @@ class WhoopBleClient(
          *    the `rowsPersisted == 0` arm; before it a metadata-only completion slipped through silently.
          *    The sustained-streak gate (EmptySyncTracker) still decides whether the banner fires.
          */
+        /** #1466: the banner (if any) for an offload that ended on the idle TIMEOUT rather than
+         *  HISTORY_COMPLETE, for a non-5/MG strap. Pure so the decision is unit-testable — the surrounding
+         *  method is a long side-effecting BLE callback.
+         *
+         *  A WHOOP 4.0 routinely ends a full, successful night this way: a field log shows a session
+         *  banking 17,205 rows across a night and still exiting `reason=timeout`. So "the strap went quiet"
+         *  is only honest when the offload handed over NOTHING; saying it after a productive sync reports a
+         *  success as a failure, and teaches the user to ignore the banner that matters when a sync really
+         *  does stall.
+         *
+         *  A future-dated clock still wins: it names a cause and a remedy, and #324/#928 showed that strap
+         *  times out precisely BECAUSE of the bad clock. Twin of the Swift `timeoutSyncError`. */
+        fun timeoutSyncError(futureClockBanner: String?, bankedThisOffload: Boolean): String? =
+            futureClockBanner
+                ?: if (bankedThisOffload) null
+                else "Sync interrupted - the strap went quiet. It will retry on the next sync."
+
         fun classifyCompletedOffload(
             decodedChunks: Int,
             consoleChunks: Int,
@@ -7432,8 +7449,13 @@ class WhoopBleClient(
                 // error (it's just the empty offload), and surface the experimental flag instead.
                 // #324/#928: a future-dated WHOOP-4 TIMES OUT on its deep future-dated backlog — prefer the
                 // honest future-clock banner over "strap went quiet" (the reporter's #324 case timed out).
+                // #1466: only claim the strap went quiet when this offload handed over NOTHING. A WHOOP 4.0
+                // routinely ends a full, successful night on the idle timeout rather than HISTORY_COMPLETE —
+                // one field log shows a session banking 17,205 rows and still exiting reason=timeout.
+                // Announcing "sync interrupted" there tells the user a sync that worked had failed, which
+                // trains them to distrust the banner that matters when a sync really does stall.
                 lastSyncError = if (isWhoop5) null
-                    else futureClockBanner ?: "Sync interrupted - the strap went quiet. It will retry on the next sync.",
+                    else timeoutSyncError(futureClockBanner, bankedThisOffload),
                 historySyncExperimental = whoop5HistoryExperimental,
             )
             else -> it.copy(
@@ -7489,7 +7511,10 @@ class WhoopBleClient(
         if (testCentre.active(com.noop.testcentre.TestDomain.CONNECTION)) {
             val rows = backfiller.sessionRowsPersisted
             val result = when {
-                reason == "timeout" -> "stalled (idle timeout, rows=$rows so far)"
+                // #1466: an idle timeout that banked rows is a productive end, not a stall. Only rows=0 is
+                // a genuine stall; calling both "stalled" made a healthy night read as a failure.
+                reason == "timeout" && rows > 0 -> "idle-timeout after rows=$rows"
+                reason == "timeout" -> "stalled (idle timeout, rows=0)"
                 reason == "HISTORY_COMPLETE" && rows > 0 -> "complete rows=$rows nights=${backfiller.sessionNights}"
                 reason == "HISTORY_COMPLETE" -> "empty (console only, no sensor records)"
                 else -> "$reason rows=$rows"

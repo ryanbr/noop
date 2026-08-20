@@ -2138,7 +2138,12 @@ public final class BLEManager: NSObject, ObservableObject {
             let rows = bf.sessionRowsPersisted
             let result: String
             if reason == "timeout" {
-                result = "stalled (idle timeout, rows=\(rows) so far)"
+                // #1466: an idle timeout that banked rows is a productive end, not a stall — the strap
+                // simply went quiet after handing everything over. Only rows=0 is a genuine stall. Calling
+                // both "stalled" made a healthy 17k-row night read as a failure in the log.
+                result = rows > 0
+                    ? "idle-timeout after rows=\(rows)"
+                    : "stalled (idle timeout, rows=0)"
             } else if reason == "HISTORY_COMPLETE" {
                 result = rows > 0
                     ? "complete rows=\(rows) nights=\(bf.sessionNights)"
@@ -2288,8 +2293,16 @@ public final class BLEManager: NSObject, ObservableObject {
                 // #324/#928: a future-dated strap TIMES OUT on its deep future-dated backlog — that's not
                 // "the strap went quiet", it's the clock being set ahead. Prefer the honest future-clock
                 // banner so the reporter's timeout case (the common one) names the real cause + remedy.
-                state.lastSyncError = futureClockBanner
-                    ?? "Sync interrupted - the strap went quiet. It will retry on the next sync."
+                //
+                // #1466: past that, only claim the strap went quiet when this offload actually handed over
+                // NOTHING. A WHOOP 4.0 routinely ends a full, successful night on the idle timeout rather
+                // than HISTORY_COMPLETE — one field log shows a session banking 17,205 rows across a night
+                // and still exiting reason=timeout. Announcing "sync interrupted" there tells the user a
+                // sync that worked had failed, which is worse than saying nothing: it trains them to
+                // distrust the one banner that matters when a sync really does stall. `bankedThisOffload`
+                // was already computed above for the 5/MG path and simply never consulted here.
+                state.lastSyncError = BLEManager.timeoutSyncError(futureClockBanner: futureClockBanner,
+                                                                  bankedThisOffload: bankedThisOffload)
             }
         }
         checkStrapLiveness()         // safety-net: strap ahead of us AND our frontier frozen ⇒ stuck?
@@ -2445,6 +2458,25 @@ public final class BLEManager: NSObject, ObservableObject {
     ///   completion (zero rows persisted) with fewer than 3 console frames. The #214 broadening is the
     ///   `rowsPersisted == 0` arm: before it, a metadata-only completion slipped through silently. The
     ///   sustained-streak gate (EmptySyncTracker) still decides whether the banner fires.
+    /// #1466: the banner (if any) for an offload that ended on the idle TIMEOUT rather than
+    /// HISTORY_COMPLETE, for a non-5/MG strap. Pure so the decision is unit-testable — the surrounding
+    /// method is a long side-effecting BLE callback.
+    ///
+    /// A WHOOP 4.0 routinely ends a full, successful night this way: a field log shows a session banking
+    /// 17,205 rows across a night and still exiting `reason=timeout`. So "the strap went quiet" is only
+    /// honest when the offload handed over NOTHING; saying it after a productive sync reports a success as
+    /// a failure, and teaches the user to ignore the banner that matters when a sync really does stall.
+    ///
+    /// A future-dated clock still wins: it names a cause and a remedy, and #324/#928 showed that strap
+    /// times out precisely BECAUSE of the bad clock. Twin of the Kotlin `timeoutSyncError`.
+    nonisolated static func timeoutSyncError(futureClockBanner: String?,
+                                             bankedThisOffload: Bool) -> String? {
+        if let futureClockBanner { return futureClockBanner }
+        return bankedThisOffload
+            ? nil
+            : "Sync interrupted - the strap went quiet. It will retry on the next sync."
+    }
+
     nonisolated static func classifyCompletedOffload(decodedChunks: Int, archivedFrames: Int,
                                                      unarchivedFrames: Int, consoleChunks: Int,
                                                      rowsPersisted: Int)
