@@ -2133,6 +2133,19 @@ class WhoopBleClient(
      *  the surviving tail, and exactly once, or a second roll would push this process's own partial tail in
      *  as a "previous" session. Guarded by [genLock]. */
     private var didRollGenerations = false
+
+    /** #1468 follow-up: the PREVIOUS-sessions half of [exportLogText], memoised for the process.
+     *
+     *  It is invariant once [rollLogGenerationsIfNeeded] has run: [persistLogGenerations] is called from
+     *  exactly one place, inside that latched roll, so nothing rewrites the generations again while the app
+     *  lives. Recomputing it was pure waste — and not free, since it re-reads SharedPreferences and
+     *  re-formats every past session.
+     *
+     *  That waste only became visible with the Test Centre live readouts (#1468), which call [exportLogText]
+     *  on every 250 ms coalesce tick while a panel is open, so a screen the user leaves open during an
+     *  offload re-read prefs and re-rendered historical sessions four times a second. Guarded by [genLock],
+     *  the same lock the roll uses, so the memo cannot be filled from a pre-roll read. */
+    private var cachedPreviousSessionsText: String? = null
     /** Durable-tail mirror counter, mutated only under [logBuffer]'s monitor (like [logBuffer] itself). */
     private var logsSincePersist = 0
 
@@ -8520,9 +8533,18 @@ class WhoopBleClient(
      */
     fun exportLogText(): String {
         rollLogGenerationsIfNeeded()
-        val previous = com.noop.ui.StrapLogGenerations.previousSessionsText(persistedLogGenerations())
-        val current = synchronized(logBuffer) { logBuffer.joinToString("\n") }
-        return previous + current
+        val previous = synchronized(genLock) {
+            cachedPreviousSessionsText
+                ?: com.noop.ui.StrapLogGenerations.previousSessionsText(persistedLogGenerations())
+                    .also { cachedPreviousSessionsText = it }
+        }
+        // #1468 follow-up: COPY the buffer under the lock and join outside it. The join allocates one string
+        // per line plus the result — thousands of lines during an offload — and `log()` is called from the
+        // GATT binder thread, which blocks on this same lock for every line it writes. Holding it only for a
+        // reference copy keeps a readout refresh from throttling the writer it is reading. Output is
+        // byte-identical either way.
+        val snapshot = synchronized(logBuffer) { logBuffer.toList() }
+        return previous + snapshot.joinToString("\n")
     }
 }
 

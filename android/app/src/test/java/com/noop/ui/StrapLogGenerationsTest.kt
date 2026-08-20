@@ -1,6 +1,7 @@
 package com.noop.ui
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -126,6 +127,30 @@ class StrapLogGenerationsTest {
 
     @Test
     fun noGenerationsRendersNothing() {
+        assertEquals("", StrapLogGenerations.previousSessionsText(emptyList()))
+    }
+
+    /**
+     * #1468 follow-up: [StrapLogGenerations.previousSessionsText] must be a PURE function of its argument.
+     *
+     * `WhoopBleClient.exportLogText` memoises this half of the export for the process lifetime — safe only
+     * because the generations are written exactly once (inside the latched roll) and this formatting reads
+     * no clock and no other state. If someone later folds a timestamp or a live counter in here, the memo
+     * would start serving a stale string and nothing else would notice: the strap log would simply stop
+     * updating that section, which is far harder to spot than a crash.
+     */
+    @Test
+    fun previousSessionsTextIsPureSoItCanBeMemoised() {
+        val generations = listOf(
+            listOf("===== session 2026-08-19 =====", "line a", "line b"),
+            listOf("===== session 2026-08-20 =====", "line c"),
+        )
+        val first = StrapLogGenerations.previousSessionsText(generations)
+        repeat(3) { assertEquals(first, StrapLogGenerations.previousSessionsText(generations)) }
+
+        // A DIFFERENT input must still produce a different string — the equality above must come from
+        // purity, not from the function ignoring its argument.
+        assertNotEquals(first, StrapLogGenerations.previousSessionsText(generations.take(1)))
         assertEquals("", StrapLogGenerations.previousSessionsText(emptyList()))
     }
 }
