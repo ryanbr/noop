@@ -80,7 +80,28 @@ object StrapLogGenerations {
      */
     fun previousSessionsText(generations: List<List<String>>): String {
         if (generations.isEmpty()) return ""
-        return generations.joinToString("\n") { it.joinToString("\n") } + "\n" +
-            CURRENT_SESSION_MARKER + "\n"
+        return previousSessionsLines(generations).joinToString("\n") + "\n"
+    }
+
+    /**
+     * The same block as [previousSessionsText], as LINES — for callers that immediately split it again
+     * (`WhoopBleClient.exportLogLines`, feeding readouts that filter by domain tag).
+     *
+     * [previousSessionsText] is DERIVED from this, rather than the two being written separately, so they
+     * cannot drift. An earlier revision built the line form with `flatten()` and that was already wrong:
+     * `joinToString` renders an EMPTY generation as a blank line, while `flatten()` drops it, so a corrupt
+     * or legacy empty block would have shifted every line after it in one form but not the other. Empty
+     * generations are not supposed to be stored — `roll` never pushes one — but `persistedLogGenerations`
+     * decodes an empty block to `emptyList()`, so the case is representable and must be rendered the same
+     * way by both forms.
+     */
+    fun previousSessionsLines(generations: List<List<String>>): List<String> {
+        if (generations.isEmpty()) return emptyList()
+        val out = ArrayList<String>()
+        for (generation in generations) {
+            if (generation.isEmpty()) out.add("") else out.addAll(generation)
+        }
+        out.add(CURRENT_SESSION_MARKER)
+        return out
     }
 }

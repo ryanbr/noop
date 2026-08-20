@@ -174,7 +174,7 @@ class StrapLogGenerationsTest {
         val rendered = StrapLogGenerations.previousSessionsText(generations)
         // The rendered form ends in a newline, so splitting yields one trailing empty segment.
         val renderedLines = rendered.split("\n").dropLast(1)
-        val lineForm = generations.flatten() + StrapLogGenerations.CURRENT_SESSION_MARKER
+        val lineForm = StrapLogGenerations.previousSessionsLines(generations)
 
         assertEquals(lineForm, renderedLines)
         assertEquals("", rendered.split("\n").last())
@@ -182,5 +182,35 @@ class StrapLogGenerationsTest {
         assertEquals(StrapLogGenerations.CURRENT_SESSION_MARKER, renderedLines.last())
         // Empty generations render empty on both sides, so a caller can concatenate unconditionally.
         assertEquals("", StrapLogGenerations.previousSessionsText(emptyList()))
+    }
+
+    /**
+     * The rendering must still match what `joinToString` produced before [previousSessionsText] was
+     * rewritten to derive from [StrapLogGenerations.previousSessionsLines] — including for an EMPTY
+     * generation, which renders as a blank line.
+     *
+     * This is the case that caught a real bug: the line form was first built with `flatten()`, which DROPS
+     * an empty generation instead of rendering its blank line, so every line after it would have shifted in
+     * one form but not the other. `roll` never stores an empty generation, but `persistedLogGenerations`
+     * decodes an empty block to `emptyList()`, so the shape is representable.
+     */
+    @Test
+    fun anEmptyGenerationRendersAsABlankLineInBothForms() {
+        val generations = listOf(listOf("a"), emptyList(), listOf("b"))
+
+        // The pre-rewrite expression, spelled out, as the reference.
+        val legacy = generations.joinToString("\n") { it.joinToString("\n") } + "\n" +
+            StrapLogGenerations.CURRENT_SESSION_MARKER + "\n"
+        assertEquals(legacy, StrapLogGenerations.previousSessionsText(generations))
+
+        assertEquals(
+            listOf("a", "", "b", StrapLogGenerations.CURRENT_SESSION_MARKER),
+            StrapLogGenerations.previousSessionsLines(generations),
+        )
+        // flatten() would have produced ["a", "b", MARKER] — one line short, and misaligned from here on.
+        assertNotEquals(
+            generations.flatten() + StrapLogGenerations.CURRENT_SESSION_MARKER,
+            StrapLogGenerations.previousSessionsLines(generations),
+        )
     }
 }

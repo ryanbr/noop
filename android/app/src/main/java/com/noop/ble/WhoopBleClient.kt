@@ -8553,11 +8553,8 @@ class WhoopBleClient(
     /** The previous-session lines exactly as [com.noop.ui.StrapLogGenerations.previousSessionsText] would
      *  render them, taken from the generations themselves so no string is built and re-split. Empty when
      *  there are no previous sessions, matching that function's empty-string case. */
-    private fun buildPreviousSessionsLines(): List<String> {
-        val gens = persistedLogGenerations()
-        if (gens.isEmpty()) return emptyList()
-        return gens.flatten() + com.noop.ui.StrapLogGenerations.CURRENT_SESSION_MARKER
-    }
+    private fun buildPreviousSessionsLines(): List<String> =
+        com.noop.ui.StrapLogGenerations.previousSessionsLines(persistedLogGenerations())
 
     /**
      * Snapshot of the recent strap log, newest last, for the "Share strap log" diagnostics export.
