@@ -15,7 +15,7 @@ final class ChunkClockDiagTests: XCTestCase {
         let ts = Array(1_700_000_000 ..< 1_700_000_010)
         let line = ChunkClockDiag.line(chunk: 1, deviceClockRef: 1_000, wallClockRef: 1_000,
                                        rrTimestamps: ts)
-        XCTAssertEqual(line, "Backfill: hist clock chunk=1 offset=+0s corr=off"
+        XCTAssertEqual(line, "Backfill: hist clock chunk=1 offset=+0s staleGate=closed"
                        + " rr=10 secs=10 pack=1.00 max=1 span=10s dens=1.00")
     }
 
@@ -30,7 +30,7 @@ final class ChunkClockDiagTests: XCTestCase {
         }
         let line = ChunkClockDiag.line(chunk: 4, deviceClockRef: 1_000, wallClockRef: 1_048,
                                        rrTimestamps: ts)
-        XCTAssertEqual(line, "Backfill: hist clock chunk=4 offset=+48s corr=off"
+        XCTAssertEqual(line, "Backfill: hist clock chunk=4 offset=+48s staleGate=closed"
                        + " rr=24 secs=3 pack=8.00 max=8 span=21s dens=1.14")
     }
 
@@ -40,20 +40,20 @@ final class ChunkClockDiagTests: XCTestCase {
         let once = Array(1_700_000_000 ..< 1_700_000_010)
         let line = ChunkClockDiag.line(chunk: 2, deviceClockRef: 1_000, wallClockRef: 1_000,
                                        rrTimestamps: once + once)
-        XCTAssertEqual(line, "Backfill: hist clock chunk=2 offset=+0s corr=off"
+        XCTAssertEqual(line, "Backfill: hist clock chunk=2 offset=+0s staleGate=closed"
                        + " rr=20 secs=10 pack=2.00 max=2 span=10s dens=2.00")
     }
 
-    /// `corr` must mirror `extractHistoricalStreams`: an everyday drift of minutes is DISCARDED by the
+    /// `staleGate` must mirror `extractHistoricalStreams`: an everyday drift of minutes is DISCARDED by the
     /// decoder, so it must not read as a correction the stored stamps never received.
-    func testCorrOffBelowThresholdAndOnAboveIt() {
+    func testStaleGateClosedBelowThresholdAndOpenAboveIt() {
         let ts = [1_700_000_000]
         let below = ChunkClockDiag.line(chunk: 1, deviceClockRef: 0,
                                         wallClockRef: histStaleClockThresholdSec, rrTimestamps: ts)
-        XCTAssertTrue(below!.contains("corr=off"), "at exactly the threshold the decoder keeps rawTs")
+        XCTAssertTrue(below!.contains("staleGate=closed"), "at exactly the threshold the decoder keeps rawTs")
         let above = ChunkClockDiag.line(chunk: 1, deviceClockRef: 0,
                                         wallClockRef: histStaleClockThresholdSec + 1, rrTimestamps: ts)
-        XCTAssertTrue(above!.contains("corr=on"))
+        XCTAssertTrue(above!.contains("staleGate=open"))
     }
 
     /// A strap RTC AHEAD of the phone must render as a negative offset, not an unsigned number — the

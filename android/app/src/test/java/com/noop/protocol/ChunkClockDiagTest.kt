@@ -22,7 +22,7 @@ class ChunkClockDiagTest {
     fun `honest stream packs and densifies at one`() {
         val ts = (1_700_000_000L until 1_700_000_010L).toList()
         assertEquals(
-            "Backfill: hist clock chunk=1 offset=+0s corr=off" +
+            "Backfill: hist clock chunk=1 offset=+0s staleGate=closed" +
                 " rr=10 secs=10 pack=1.00 max=1 span=10s dens=1.00",
             ChunkClockDiag.line(1, 1_000, 1_000, ts),
         )
@@ -38,7 +38,7 @@ class ChunkClockDiagTest {
         // 3 records, 10s apart, 8 intervals each — 24 beats over a 21s span (~1.14 beats/s).
         val ts = (0 until 3).flatMap { record -> List(8) { 1_700_000_000L + record * 10 } }
         assertEquals(
-            "Backfill: hist clock chunk=4 offset=+48s corr=off" +
+            "Backfill: hist clock chunk=4 offset=+48s staleGate=closed" +
                 " rr=24 secs=3 pack=8.00 max=8 span=21s dens=1.14",
             ChunkClockDiag.line(4, 1_000, 1_048, ts),
         )
@@ -52,23 +52,23 @@ class ChunkClockDiagTest {
     fun `duplicated delivery moves pack and density together`() {
         val once = (1_700_000_000L until 1_700_000_010L).toList()
         assertEquals(
-            "Backfill: hist clock chunk=2 offset=+0s corr=off" +
+            "Backfill: hist clock chunk=2 offset=+0s staleGate=closed" +
                 " rr=20 secs=10 pack=2.00 max=2 span=10s dens=2.00",
             ChunkClockDiag.line(2, 1_000, 1_000, once + once),
         )
     }
 
     /**
-     * `corr` must mirror [extractHistoricalStreams]: an everyday drift of minutes is DISCARDED by the
+     * `staleGate` must mirror [extractHistoricalStreams]: an everyday drift of minutes is DISCARDED by the
      * decoder, so it must not read as a correction the stored stamps never received.
      */
     @Test
-    fun `corr off below threshold and on above it`() {
+    fun `stale gate closed below threshold and open above it`() {
         val ts = listOf(1_700_000_000L)
         val below = ChunkClockDiag.line(1, 0, HIST_STALE_CLOCK_THRESHOLD_SEC, ts)!!
-        assertTrue("at exactly the threshold the decoder keeps rawTs", below.contains("corr=off"))
+        assertTrue("at exactly the threshold the decoder keeps rawTs", below.contains("staleGate=closed"))
         val above = ChunkClockDiag.line(1, 0, HIST_STALE_CLOCK_THRESHOLD_SEC + 1, ts)!!
-        assertTrue(above.contains("corr=on"))
+        assertTrue(above.contains("staleGate=open"))
     }
 
     /**

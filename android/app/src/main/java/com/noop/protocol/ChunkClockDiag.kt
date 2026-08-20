@@ -41,11 +41,18 @@ object ChunkClockDiag {
         if (rrTimestamps.isEmpty()) return null
 
         val offset = wallClockRef - deviceClockRef
-        // Mirrors the gate inside extractHistoricalStreams: below the threshold the offset is DISCARDED
-        // and each record keeps its own raw unix second. Logging `corr` makes it explicit that a small
-        // drift (tens of seconds) never reaches the stored timestamps — the drift is baked into the
-        // strap's own stamps instead, which is a different problem with a different fix.
-        val corrected = abs(offset) > HIST_STALE_CLOCK_THRESHOLD_SEC
+        // Mirrors the FIRST gate inside extractHistoricalStreams: below the threshold the offset is
+        // DISCARDED and each record keeps its own raw unix second, so a small drift (tens of seconds) never
+        // reaches the stored timestamps — the drift is baked into the strap's own stamps instead, which is
+        // a different problem with a different fix.
+        //
+        // Named for the GATE, not the outcome, and deliberately so: an open gate does NOT prove the
+        // correction was applied. Past it, the #471 overshoot guard re-checks EVERY record and keeps the
+        // raw ts whenever the corrected value would post-date wall time — which is exactly the field case
+        // that motivated it (a drained strap whose RTC reset to ~epoch has an offset of decades, so every
+        // record overshoots and none are corrected). That decision is per-record and depends on each raw
+        // stamp, so no single per-chunk flag can state it; reporting the gate is the honest half.
+        val staleGateOpen = abs(offset) > HIST_STALE_CLOCK_THRESHOLD_SEC
 
         val perSecond = HashMap<Long, Int>()
         var oldest = rrTimestamps[0]
@@ -59,7 +66,7 @@ object ChunkClockDiag {
         val maxPerSecond = perSecond.values.maxOrNull() ?: 0
         val spanSeconds = newest - oldest + 1          // inclusive; a single-second chunk spans 1
 
-        return "Backfill: hist clock chunk=$chunk offset=${signed(offset)}s corr=${if (corrected) "on" else "off"}" +
+        return "Backfill: hist clock chunk=$chunk offset=${signed(offset)}s staleGate=${if (staleGateOpen) "open" else "closed"}" +
             " rr=${rrTimestamps.size} secs=$stampedSeconds" +
             " pack=${fixed2(rrTimestamps.size.toLong(), stampedSeconds.toLong())} max=$maxPerSecond" +
             " span=${spanSeconds}s dens=${fixed2(rrTimestamps.size.toLong(), spanSeconds)}"
