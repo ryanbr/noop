@@ -621,4 +621,4 @@ protocol alongside us — this project is built on it.
 
 If NOOP's useful to you, a ⭐ genuinely helps it reach more WHOOP users — and it's the single best free way to support the project.
 
-[![Star History Chart](https://api.star-history.com/svg?repos=ryanbr/noop&type=Date)](https://star-history.com/#ryanbr/noop&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=ryanbr/noop&type=Date)](https://star-history.dera.page/#ryanbr/noop&type=Date)
