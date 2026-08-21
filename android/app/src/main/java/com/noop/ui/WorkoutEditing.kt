@@ -82,6 +82,21 @@ object WorkoutEditing {
         classify(row.source) == WorkoutSource.DETECTED &&
             markers.any { row.startTs < it.endTs && it.startTs < row.endTs }
 
+    /**
+     * What the edit dialog should hand [WhoopRepository.saveManualWorkout] as `replacing`.
+     *
+     * Only a stored MANUAL or DETECTED row is genuinely being replaced. [isCopy] marks "Duplicate as
+     * manual", where the form pre-fills FROM a read-only session but the save is a pure ADD — and it has to
+     * be passed in, because the copy is built with source "manual" so the form treats it as editable, and
+     * so classifies as MANUAL. Testing the source alone silently let every duplicate through carrying the
+     * ORIGINAL's startTs. (#1488)
+     */
+    fun replacingRowFor(editing: WorkoutRow?, isCopy: Boolean): WorkoutRow? =
+        if (isCopy) null else editing?.takeIf {
+            val c = classify(it.source)
+            c == WorkoutSource.MANUAL || c == WorkoutSource.DETECTED
+        }
+
     /** The durable marker for a detected [row] (caller inserts it into `dismissedWorkout`). */
     fun dismissedMarker(row: WorkoutRow): DismissedWorkout =
         DismissedWorkout(deviceId = row.deviceId, startTs = row.startTs, endTs = row.endTs)

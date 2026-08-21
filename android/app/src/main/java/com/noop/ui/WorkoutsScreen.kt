@@ -345,7 +345,7 @@ fun WorkoutsScreen(vm: AppViewModel) {
                     selectionMode = false; selectedKeys = emptySet()
                 },
                 onCancelSelect = { selectionMode = false; selectedKeys = emptySet() },
-                onEdit = { dialog = DialogTarget(it) },
+                onEdit = { editRow, isCopy -> dialog = DialogTarget(editRow, isCopy) },
                 onRelabel = { row, sport ->
                     vm.relabelDetected(row, sport)
                     pendingNoteSport = WorkoutEditing.displaySport(sport)
@@ -372,6 +372,7 @@ fun WorkoutsScreen(vm: AppViewModel) {
     dialog?.let { target ->
         ManualWorkoutDialog(
             editing = target.editing,
+            isCopy = target.isCopy,
             onDismiss = { dialog = null },
             onSave = { row, replacing ->
                 vm.saveManualWorkout(row, replacing)
@@ -382,8 +383,11 @@ fun WorkoutsScreen(vm: AppViewModel) {
     }
 }
 
-/** Drives the manual add/edit dialog. [editing] null = add a new workout, non-null = edit it. */
-private data class DialogTarget(val editing: WorkoutRow?)
+/** Drives the manual add/edit dialog. [editing] null = add a new workout, non-null = edit it.
+ *  [isCopy] marks "Duplicate as manual": the dialog pre-fills FROM a read-only row, but the save is a
+ *  pure ADD and must not travel on as `replacing`. Source alone cannot express this — the copy claims
+ *  "manual" precisely so the form treats it as editable. (#1488) */
+private data class DialogTarget(val editing: WorkoutRow?, val isCopy: Boolean = false)
 
 private data class WorkoutRecoveryTrendPoint(
     val startTs: Long,
@@ -1149,7 +1153,7 @@ private fun SessionsSection(
     onMerge: (List<WorkoutRow>) -> Unit,
     onBulkDelete: (List<WorkoutRow>) -> Unit,
     onCancelSelect: () -> Unit,
-    onEdit: (WorkoutRow) -> Unit,
+    onEdit: (WorkoutRow, Boolean) -> Unit,
     onRelabel: (WorkoutRow, String) -> Unit,
     onDismiss: (WorkoutRow) -> Unit,
     onDelete: (WorkoutRow) -> Unit,
@@ -1349,7 +1353,7 @@ private fun SessionRow(
     selectionMode: Boolean,
     selected: Boolean,
     onToggleRow: (WorkoutRow) -> Unit,
-    onEdit: (WorkoutRow) -> Unit,
+    onEdit: (WorkoutRow, Boolean) -> Unit,
     onRelabel: (WorkoutRow, String) -> Unit,
     onDismiss: (WorkoutRow) -> Unit,
     onDelete: (WorkoutRow) -> Unit,
@@ -1905,7 +1909,7 @@ private fun DetailRow(label: String, value: String) {
 @Composable
 private fun RowActionsMenu(
     row: WorkoutRow,
-    onEdit: (WorkoutRow) -> Unit,
+    onEdit: (WorkoutRow, Boolean) -> Unit,
     onRelabel: (WorkoutRow, String) -> Unit,
     onDismiss: (WorkoutRow) -> Unit,
     onDelete: (WorkoutRow) -> Unit,
@@ -1926,7 +1930,7 @@ private fun RowActionsMenu(
                     )
                     DropdownMenuItem(
                         text = { Text(uiString(R.string.l10n_workouts_screen_edit_details_9e62bb59), style = NoopType.body, color = Palette.textPrimary) },
-                        onClick = { open = false; onEdit(row) },
+                        onClick = { open = false; onEdit(row, false) },
                     )
                     DropdownMenuItem(
                         text = { Text(uiString(R.string.l10n_workouts_screen_dismiss_not_a_workout_560c7bb5), style = NoopType.body, color = Palette.statusCritical) },
@@ -1936,7 +1940,7 @@ private fun RowActionsMenu(
                 WorkoutSource.MANUAL -> {
                     DropdownMenuItem(
                         text = { Text(uiString(R.string.l10n_workouts_screen_edit_b454359e), style = NoopType.body, color = Palette.textPrimary) },
-                        onClick = { open = false; onEdit(row) },
+                        onClick = { open = false; onEdit(row, false) },
                     )
                     DropdownMenuItem(
                         text = { Text(uiString(R.string.l10n_workouts_screen_delete_f6fdbe48), style = NoopType.body, color = Palette.statusCritical) },
@@ -1946,7 +1950,7 @@ private fun RowActionsMenu(
                 WorkoutSource.WHOOP, WorkoutSource.APPLE, WorkoutSource.LIFTING, WorkoutSource.ACTIVITY_FILE -> {
                     DropdownMenuItem(
                         text = { Text(uiString(R.string.l10n_workouts_screen_duplicate_as_manual_2d580d46), style = NoopType.body, color = Palette.textPrimary) },
-                        onClick = { open = false; onEdit(WorkoutEditing.asManualCopy(row)) },
+                        onClick = { open = false; onEdit(WorkoutEditing.asManualCopy(row), true) },
                     )
                 }
             }
@@ -1987,6 +1991,7 @@ private fun Cell(text: String, modifier: Modifier, color: Color? = null) {
 @Composable
 private fun ManualWorkoutDialog(
     editing: WorkoutRow?,
+    isCopy: Boolean = false,
     onDismiss: () -> Unit,
     onSave: (row: WorkoutRow, replacing: WorkoutRow?) -> Unit,
 ) {
@@ -2108,10 +2113,14 @@ private fun ManualWorkoutDialog(
             // it: a manual key change deletes the stale row; a detected original is durably dismissed).
             // Duplicating an imported WHOOP/Apple row is a pure ADD — never pass it, or a changed key
             // would delete the imported original.
-            val replacing = editing?.takeIf {
-                val c = WorkoutEditing.classify(it.source)
-                c == WorkoutSource.MANUAL || c == WorkoutSource.DETECTED
-            }
+            //
+            // The source test alone never enforced that. A duplicate is built with source "manual" so the
+            // form treats it as editable, so it classified as MANUAL and passed straight through, carrying
+            // the ORIGINAL's startTs. That reaches the Health Connect write-back, which deletes by startTs
+            // ALONE (`noop-workout-<startTs>`, no deviceId in the key) — so duplicating a strap session
+            // removed the original's records, and a duplicate saved at a new start left them deleted with
+            // nothing to restore them. [DialogTarget.isCopy] carries what the source cannot. (#1488)
+            val replacing = WorkoutEditing.replacingRowFor(editing, isCopy)
             val context = LocalContext.current
             TextButton(onClick = {
                 built?.let {
