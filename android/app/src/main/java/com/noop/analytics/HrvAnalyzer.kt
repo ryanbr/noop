@@ -664,6 +664,55 @@ object HrvAnalyzer {
     }
 
     /**
+     * #1505: when two deliveries wrote the same second, how do their two intervals COMPARE?
+     *
+     * [deliveryHistogram] counts how many deliveries wrote each second; it never looks at what they wrote.
+     * That is the measurement the R-R unit question turns on. A WHOOP 5 emits the beat train live over
+     * `0x2A37` (spec-fixed 1/1024-second units, converted on the way in) and again inside its v18
+     * historical record (stored as read). If those are the same beat in two units, a duplicated second
+     * holds two values 1024/1000 apart. If they are genuinely different beats, the ratios scatter.
+     *
+     * Restricted to the unambiguous case: seconds carrying EXACTLY two rows, both `ord == 0`. `ord`
+     * restarts per delivery, so that is two deliveries each contributing their first beat — not two
+     * consecutive beats from one record's array, which would read `0` then `1`.
+     *
+     * A single such pair proves nothing: 872 vs 893 ms is both the 1024/1000 ratio and an utterly ordinary
+     * beat-to-beat difference. A POPULATION of them separates the two — a tight cluster at 1.024 is a unit
+     * mismatch, a broad spread is normal variability. This reports the distribution and takes no view.
+     *
+     * Parts-per-thousand in integer arithmetic so Kotlin and Swift cannot round a tie differently.
+     * Twin of Swift `HRVAnalyzer.duplicatePairRatios`.
+     */
+    fun duplicatePairRatios(tsSec: List<Long>, rrMs: List<Double>, ords: List<Int?>): String {
+        val n = minOf(tsSec.size, rrMs.size, ords.size)
+        if (n == 0) return ""
+        val bySec = HashMap<Long, MutableList<Pair<Int, Int>>>()
+        for (i in 0 until n) {
+            val o = ords[i] ?: continue
+            val ms = msToInt(rrMs[i])
+            if (ms <= 0) continue
+            bySec.getOrPut(tsSec[i]) { ArrayList() }.add(ms to o)
+        }
+        val ppts = ArrayList<Int>()
+        for ((_, rows) in bySec) {
+            if (rows.size != 2 || rows[0].second != 0 || rows[1].second != 0) continue
+            val lo = minOf(rows[0].first, rows[1].first)
+            val hi = maxOf(rows[0].first, rows[1].first)
+            if (lo <= 0) continue
+            ppts.add((hi * 1000 + lo / 2) / lo)   // integer half-up, parts per thousand
+        }
+        if (ppts.isEmpty()) return "rr dupPairs n=0"
+        ppts.sort()
+        // Identical (both deliveries stored the same number), the 1024/1000 signature, or neither.
+        val same = ppts.count { it <= 1_005 }
+        val tick = ppts.count { it in 1_019..1_029 }
+        val med = if (ppts.size % 2 == 1) ppts[ppts.size / 2]
+                  else (ppts[ppts.size / 2 - 1] + ppts[ppts.size / 2]) / 2
+        return "rr dupPairs n=${ppts.size} same=$same tick=$tick" +
+            " other=${ppts.size - same - tick} medPPT=$med spread=${ppts[0]}-${ppts[ppts.size - 1]}"
+    }
+
+    /**
      * Beat-time milliseconds to a whole number, half-up, WITHOUT `round()` or `.rounded()`.
      *
      * `kotlin.math.round` is half-toward-positive-infinity and Swift's `.rounded()` is half-away-from-zero.

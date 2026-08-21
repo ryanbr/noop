@@ -737,6 +737,52 @@ public enum HRVAnalyzer {
     /// shape as the `%.1f` divergence in #1473, where one platform's formatter rounded a tie the other way.
     /// `x + 0.5` truncated is half-up on both, with no stdlib rounding involved, so the agreement is by
     /// construction rather than by luck. Byte-parity twin of Kotlin `HrvAnalyzer.msToInt`.
+    /// #1505: when two deliveries wrote the same second, how do their two intervals COMPARE?
+    ///
+    /// `deliveryHistogram` counts how many deliveries wrote each second; it never looks at what they wrote.
+    /// That is the measurement the R-R unit question turns on. A WHOOP 5 emits the beat train live over
+    /// `0x2A37` (spec-fixed 1/1024-second units, converted on the way in) and again inside its v18
+    /// historical record (stored as read). If those are the same beat in two units, a duplicated second
+    /// holds two values 1024/1000 apart. If they are genuinely different beats, the ratios scatter.
+    ///
+    /// Restricted to the unambiguous case: seconds carrying EXACTLY two rows, both `ord == 0`. `ord`
+    /// restarts per delivery, so that is two deliveries each contributing their first beat — not two
+    /// consecutive beats from one record's array, which would read `0` then `1`.
+    ///
+    /// A single such pair proves nothing: 872 vs 893 ms is both the 1024/1000 ratio and an utterly ordinary
+    /// beat-to-beat difference. A POPULATION of them separates the two — a tight cluster at 1.024 is a unit
+    /// mismatch, a broad spread is normal variability. This reports the distribution and takes no view.
+    ///
+    /// Parts-per-thousand in integer arithmetic so Swift and Kotlin cannot round a tie differently.
+    public static func duplicatePairRatios(tsSec: [Int], rrMs: [Double], ords: [Int?]) -> String {
+        let n = min(tsSec.count, rrMs.count, ords.count)
+        guard n > 0 else { return "" }
+        var bySec: [Int: [(ms: Int, ord: Int)]] = [:]
+        for i in 0 ..< n {
+            guard let o = ords[i] else { continue }
+            let ms = msToInt(rrMs[i])
+            guard ms > 0 else { continue }
+            bySec[tsSec[i], default: []].append((ms, o))
+        }
+        var ppts: [Int] = []
+        for (_, rows) in bySec where rows.count == 2 && rows[0].ord == 0 && rows[1].ord == 0 {
+            let lo = min(rows[0].ms, rows[1].ms)
+            let hi = max(rows[0].ms, rows[1].ms)
+            guard lo > 0 else { continue }
+            ppts.append((hi * 1000 + lo / 2) / lo)   // integer half-up, parts per thousand
+        }
+        guard !ppts.isEmpty else { return "rr dupPairs n=0" }
+        ppts.sort()
+        // Identical (both deliveries stored the same number), the 1024/1000 signature, or neither.
+        let same = ppts.filter { $0 <= 1_005 }.count
+        let tick = ppts.filter { $0 >= 1_019 && $0 <= 1_029 }.count
+        let med = ppts.count % 2 == 1
+            ? ppts[ppts.count / 2]
+            : (ppts[ppts.count / 2 - 1] + ppts[ppts.count / 2]) / 2
+        return "rr dupPairs n=\(ppts.count) same=\(same) tick=\(tick)"
+            + " other=\(ppts.count - same - tick) medPPT=\(med) spread=\(ppts[0])-\(ppts[ppts.count - 1])"
+    }
+
     static func msToInt(_ ms: Double) -> Int { ms > 0 ? Int(ms + 0.5) : 0 }
 
     /// Whole-percent, integer half-up, so both platforms round a tie the same way. 0 when `total` is 0.

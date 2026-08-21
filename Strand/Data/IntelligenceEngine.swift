@@ -1092,6 +1092,14 @@ final class IntelligenceEngine: ObservableObject {
                         let deliveries = HRVAnalyzer.deliveryHistogram(
                             tsSec: ts, rrMs: sleepRr, ords: sleepRrRows.map { $0.ord })
                         if !deliveries.isEmpty { diagLine += "\n\(deliveries) day=\(res.daily.day)" }
+                        // #1505: the histogram above counts deliveries per second but never compares what
+                        // they wrote. If the live and historical copies are the same beat in two units, a
+                        // duplicated second holds two values 1024/1000 apart; if they are different beats,
+                        // the ratios scatter. One pair cannot tell those apart — a night's worth can.
+                        // Measurement only, takes no view on the answer. Kotlin twin.
+                        let dupPairs = HRVAnalyzer.duplicatePairRatios(
+                            tsSec: ts, rrMs: sleepRr, ords: sleepRrRows.map { $0.ord })
+                        if !dupPairs.isEmpty { diagLine += "\n\(dupPairs) day=\(res.daily.day)" }
                         // #1331/#1008/#1118 SHADOW: log the DEDUPED stream's HRV + coverage + beat-accuracy
                         // beside the raw (above), so the candidate two-channel de-dup can be validated
                         // against WHOOP's own numbers and @artemc's Polar H10 BEFORE it becomes the read

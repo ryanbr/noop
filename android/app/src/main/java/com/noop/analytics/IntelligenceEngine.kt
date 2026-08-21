@@ -900,6 +900,13 @@ object IntelligenceEngine {
                     // across the WHOLE night, which is what decides whether the fix belongs at ingest.
                     val deliveries = HrvAnalyzer.deliveryHistogram(ts, sleepRr, sleepRrRows.map { it.ord })
                     if (deliveries.isNotEmpty()) dayDiag("$deliveries day=${res.daily.day}")
+                    // #1505: the histogram above counts deliveries per second but never compares what they
+                    // wrote. If the live and historical copies are the same beat in two units, a duplicated
+                    // second holds two values 1024/1000 apart; if they are different beats, the ratios
+                    // scatter. One pair cannot tell those apart — a night's worth can. Measurement only,
+                    // takes no view on the answer. Swift twin.
+                    val dupPairs = HrvAnalyzer.duplicatePairRatios(ts, sleepRr, sleepRrRows.map { it.ord })
+                    if (dupPairs.isNotEmpty()) dayDiag("$dupPairs day=${res.daily.day}")
                     // #1331/#1008/#1118 SHADOW: log the DEDUPED stream's HRV + coverage + beat-accuracy
                     // beside the raw so the candidate de-dup can be validated vs WHOOP + @artemc's Polar
                     // before it becomes the read path. Instrumentation only — shipped HRV/resp unchanged.
