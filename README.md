@@ -616,9 +616,3 @@ protocol alongside us — this project is built on it.
 </p>
 
 ![Repobeats analytics image](https://repobeats.axiom.co/api/embed/97acba228c083adca8453a1ebf15f18dad2894be.svg "Repobeats analytics image")
-
-### Star history
-
-If NOOP's useful to you, a ⭐ genuinely helps it reach more WHOOP users — and it's the single best free way to support the project.
-
-[![Star History Chart](https://api.star-history.com/svg?repos=ryanbr/noop&type=Date)](https://star-history.com/#ryanbr/noop&Date)
