@@ -478,7 +478,7 @@ fun SleepScreen(
                     onUndo = {
                         sleepUndo = null
                         scope.launch {
-                            undo.sessions.forEach { vm.undoDeleteSleepSession(it) }
+                            vm.undoDeleteSleepSessions(undo.sessions)
                             // Re-read so the restored night reappears in the ◀/▶ browse. Same
                             // active∪canonical union as the main loader (#814/#1008), so the undo
                             // reload can't snap the browse back to a canonical-only night set.
@@ -858,7 +858,12 @@ internal fun SleepMarkCard(onMark: (SleepMarkType) -> Unit) {
 
 /** What the undo strip is holding: the retired sessions, plus whether they went as an outright delete or
  *  as fragments a bed/wake correction left outside a bridged night (#1492). A delete carries exactly one;
- *  a correction can retire several at once, and every one of them must come back on Undo. */
+ *  a correction can retire several at once, and every one of them must come back on Undo.
+ *
+ *  Undo reverses the REMOVAL, not the whole correction: the retired fragments return with their original
+ *  bounds while the surviving ones keep their corrected ones. That is what the strip offers in words
+ *  ("sleep outside the new times was removed"), and it is the more useful half to be able to take back —
+ *  the corrected bed and wake times were the point of the edit, and only the deletion is unrecoverable. */
 private data class SleepUndoState(val sessions: List<SleepSession>, val fromEdit: Boolean)
 
 /**
@@ -869,7 +874,10 @@ private data class SleepUndoState(val sessions: List<SleepSession>, val fromEdit
  */
 @Composable
 private fun SleepUndoBanner(undo: SleepUndoState, onUndo: () -> Unit) {
-    val session = undo.sessions.first()
+    // Both construction sites are non-empty (a delete carries one row, a correction only raises this when
+    // it retired something), but `first()` on an empty list would take the whole Sleep tab down — too
+    // steep a price for a strip that is only ever informational. Render nothing instead.
+    val session = undo.sessions.firstOrNull() ?: return
     val timeFmt = SimpleDateFormat("HH:mm", Locale.US)
     // effectiveStartTs is the displayed onset (a userEdited night's corrected bed time), matching iOS.
     val startText = timeFmt.format(java.util.Date(session.effectiveStartTs * 1000L))

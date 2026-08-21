@@ -1574,6 +1574,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         rescoreAfterEdit()
     }
 
+    /** Restore EVERY session the undo strip is holding, then re-score ONCE (#1492).
+     *
+     *  A bed/wake correction can retire several fragments of a bridged night, and the single-session call
+     *  above re-scores on each invocation — looping it would run a full analyzeRecent per restored
+     *  fragment, back to back, on the exact pass #1005/#836 found to be the heaviest thing NOOP does in the
+     *  background. The restores are independent; only the scoring needs to see the finished set. */
+    suspend fun undoDeleteSleepSessions(sessions: List<com.noop.data.SleepSession>) {
+        if (sessions.isEmpty()) return
+        sessions.forEach { runCatching { repository.undoDeleteSleepSession(it) } }
+        rescoreAfterEdit()
+    }
+
     /** Re-open one deliberately deleted sleep window (#515): remove its durable tombstone first, then
      *  immediately run the normal detector/scorer over the stored raw data. Unlike optimistic edits, this
      *  returns false when the marker could not be removed — rescoring while it is still present would keep
