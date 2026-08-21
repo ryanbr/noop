@@ -2477,6 +2477,12 @@ private fun ScoreHeroRow(
             // enlarged centre, filling the width as one balanced row. Ring stroke 0.10 (WHOOP weight).
             val ringGap = 14.dp
             val ring = ((maxWidth - ringGap * 2) / 3.1f).coerceIn(90.dp, 112.dp)
+            // #1502: ONE width for all three columns. Charge and Effort used to size to their own label
+            // rows while Rest alone was pinned to `ring` (its box anchors the source badge), so the three
+            // columns came out different widths — read as "the rings aren't the same size" — and Rest's
+            // label had the least room of the three despite REST being the shortest word, which is why it
+            // was the one ellipsising to "R…".
+            val col = (maxWidth - ringGap * 2) / 3
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(ringGap, Alignment.CenterHorizontally),
@@ -2485,6 +2491,7 @@ private fun ScoreHeroRow(
                 // CHARGE, recovery 0–100, as a liquid VESSEL with the value counting up over it. Honest
                 // empty / calibrating overlay; badges its recovery winner.
                 HeroRingColumn(
+                    modifier = Modifier.width(col),
                     domain = DomainTheme.Charge,
                     onInfo = { onScoreInfo(ScoreSection.CHARGE) },
                     onRingTap = onChargeTap,
@@ -2523,7 +2530,11 @@ private fun ScoreHeroRow(
                     }
                 }
                 // EFFORT, strain on the gauge, on the user's selected scale, as a liquid vessel.
-                HeroRingColumn(domain = DomainTheme.Effort, onInfo = { onScoreInfo(ScoreSection.EFFORT) }) {
+                HeroRingColumn(
+                    modifier = Modifier.width(col),
+                    domain = DomainTheme.Effort,
+                    onInfo = { onScoreInfo(ScoreSection.EFFORT) },
+                ) {
                     Box(contentAlignment = Alignment.Center) {
                         HeroScoreVessel(
                             fraction = if (effortOutOf > 0) effortVal / effortOutOf else 0.0,
@@ -2539,8 +2550,9 @@ private fun ScoreHeroRow(
                 }
                 // REST, sleep composite 0–100. Its fixed-width box also anchors the card-level source badge:
                 // the badge may grow leftward, but its trailing edge always matches the Rest vessel.
-                Box(modifier = Modifier.width(ring)) {
+                Box(modifier = Modifier.width(col)) {
                     HeroRingColumn(
+                        modifier = Modifier.width(col),
                         domain = DomainTheme.Rest,
                         onInfo = { onScoreInfo(ScoreSection.REST) },
                     ) {
@@ -2574,6 +2586,10 @@ private fun ScoreHeroRow(
                                 // Measure the full label even when it is wider than the Rest vessel, then
                                 // let it overflow left while preserving the vessel-aligned trailing edge.
                                 .wrapContentWidth(unbounded = true, align = Alignment.End)
+                                // #1502: the box is now the shared column width rather than the vessel's,
+                                // so inset by the slack to keep the badge's trailing edge on the VESSEL —
+                                // the alignment this anchor exists for.
+                                .padding(end = (col - ring) / 2)
                                 // Match iOS: centre the pill on the card border, aligned with the Rest vessel.
                                 .offset(y = -(Metrics.space16 + Metrics.sourceBadgeHeight / 2))
                                 .semantics { contentDescription = uiString(R.string.l10n_today_screen_source_herosourcelabel_d3363687, heroSourceLabel) },
@@ -2592,6 +2608,7 @@ private fun ScoreHeroRow(
  */
 @Composable
 private fun HeroRingColumn(
+    modifier: Modifier = Modifier,
     domain: DomainTheme,
     onInfo: () -> Unit,
     // A1: when non-null (Charge), the ring is tappable and opens the breakdown sheet. The chevron cue is
@@ -2600,6 +2617,7 @@ private fun HeroRingColumn(
     ring: @Composable () -> Unit,
 ) {
     Column(
+        modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -2621,38 +2639,34 @@ private fun HeroRingColumn(
         } else {
             ring()
         }
-        Row(
+        // #937 wanted the WORD centred on the ring's axis, not the word-plus-chevron block, and got there
+        // by balancing the row with an invisible LEADING twin of the chevron. That worked, but it spent a
+        // second 14.dp slot plus its gap on nothing — and inside Rest's ring-width box that left the label
+        // barely 50.dp on a compact screen, so "REST" ellipsised to "R…" at a larger font scale (#1502).
+        //
+        // Centring in a Box gets the same axis for free: the column is symmetric, so a centred word sits on
+        // the ring's centre by construction, and the chevron floats at the trailing edge instead of paying
+        // for a counterweight. The word reserves 16.dp each side so it can never run under the chevron
+        // (which needs 14.dp), keeping the layout honest at any label length, and the whole box is the tap
+        // target. RTL still mirrors: Box alignments and the AutoMirrored icon both flip.
+        Box(
             modifier = Modifier
+                .fillMaxWidth()
                 .clip(RoundedCornerShape(50))
                 .clickable { onInfo() }
-                .padding(horizontal = 6.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(3.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .padding(vertical = 2.dp),
+            contentAlignment = Alignment.Center,
         ) {
-            // #937 parity: an invisible LEADING twin of the trailing chevron. The word + chevron used to
-            // centre as ONE block, which sat the word visibly off the ring's axis (worst on short labels
-            // like REST). Balancing the row with a same-sized alpha-0 chevron re-centres the WORD itself
-            // under the ring while the real chevron stays on the trailing side. alpha(0f) keeps its layout
-            // slot, the clickable Row (the tap target) only ever grows, and the Row stays plain
-            // start-to-end content, no offset maths, so RTL mirrors identically (the icon is AutoMirrored
-            // anyway). Null description keeps it out of TalkBack: it is a spacer, not content.
-            Icon(
-                Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = Palette.textSecondary.copy(alpha = 0.6f),
-                modifier = Modifier
-                    .size(14.dp)
-                    .alpha(0f),
-            )
             // #74: never wrap the hero label onto a second line — at a larger font/screen-zoom (Samsung
             // One UI defaults) "REST" could wrap, growing the whole hero card. One line, ellipsis if forced.
             Text(domain.label.uppercase(), style = NoopType.overline, color = Palette.textSecondary,
-                 maxLines = 1, overflow = TextOverflow.Ellipsis)
+                 maxLines = 1, overflow = TextOverflow.Ellipsis,
+                 modifier = Modifier.padding(horizontal = 16.dp))
             Icon(
                 Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = uiString(R.string.l10n_today_screen_how_domain_label_is_calculated_8897768c, domain.label),
                 tint = Palette.textSecondary.copy(alpha = 0.6f),
-                modifier = Modifier.size(14.dp),
+                modifier = Modifier.align(Alignment.CenterEnd).size(14.dp),
             )
         }
     }
