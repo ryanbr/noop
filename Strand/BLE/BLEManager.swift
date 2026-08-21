@@ -5012,12 +5012,13 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         }
         // Any other connect failure (e.g. a weak-signal encrypted-handshake timeout on a 5/MG at the
         // edge of range — #414). The disconnect path reschedules a rescan, but didFailToConnect never
-        // did, so the loop died here until a manual reconnect. Reschedule with a capped exponential
-        // backoff (3, 6, 12, 24, 48, 60s…) so a strap that's genuinely out of range doesn't hammer BLE.
+        // did, so the loop died here until a manual reconnect.
         // #747: don't reschedule while the bond-loop pause is active; the user must free the strap first.
-        // #1413: hand off to the shared standing-connect regime. The first few failures still get the short
-        // timed backoff (the app is awake), then a standing central.connect stays outstanding so a suspended
-        // app is still woken when the strap returns — this callback is where the overnight reconnect died.
+        // #1413: hand off to the shared standing-connect regime — from the FIRST failure, not after a few
+        // timed retries. A standing central.connect stays outstanding, so a suspended app is still woken
+        // when the strap returns; this callback is where the overnight reconnect died. Out-of-range
+        // hammering is held off by the bond-loop pause and the refusal streak rather than by a timer,
+        // because a passive `central.connect` is not what hammers a strap.
         scheduleReconnect()
     }
 
