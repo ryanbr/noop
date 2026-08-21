@@ -3610,7 +3610,17 @@ private fun stepsCalibrationPrompt(context: Context, profileStore: ProfileStore)
     // not move enough to earn a number, and there is nothing for the user to go and do. Saying otherwise
     // would render "Need 0 more days where your phone also counted steps", because the headline's
     // countdown is max(0, need - have) and a calibrated user is already past `need`.
-    if (profileStore.stepsCalibrationCoefficient > 0.0 || profileStore.stepsCalibrationManual) return null
+    // All three, because the first two are ENGINE outputs — written on the next analyze pass — while
+    // [ProfileStore.stepsManualCoefficient] is what the user just typed. Checking only the outputs told
+    // someone who had hand-set a coefficient to go connect a phone step source, for up to a scoring cycle
+    // afterwards. That is the same shape as the bug this whole prompt exists to fix (#1491): gating on
+    // evidence the app produces later, rather than on what the user has already done.
+    if (profileStore.stepsCalibrationCoefficient > 0.0 ||
+        profileStore.stepsCalibrationManual ||
+        profileStore.stepsManualCoefficient > 0.0
+    ) {
+        return null
+    }
     return StepsEstimateEngine.CalibrationStatus.NeedsMoreDays(
         have = profileStore.stepsCalibrationSampleDays,
         need = StepsEstimateEngine.MIN_CALIBRATION_DAYS,
