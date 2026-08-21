@@ -1525,7 +1525,14 @@ fun TodayScreen(
                                     caloriesSpark = caloriesSpark,                    // #616: imported-first trend
                                     stepActivityClassForDay = stepActivityClassForDay,
                                     stepsEstimateCaption = stepsEstimateCaption(profileStore),
-                                    stepsCalibrationPrompt = stepsCalibrationPrompt(context, profileStore),
+                                    // Remembered on the calibration state it reads, matching the same
+                                    // preference lookup in SettingsScreen: this is a SharedPreferences
+                                    // read and the Today body recomposes with live HR.
+                                    stepsCalibrationPrompt = remember(
+                                        profileStore.stepsCalibrationSampleDays,
+                                        profileStore.stepsCalibrationCoefficient,
+                                        profileStore.stepsCalibrationManual,
+                                    ) { stepsCalibrationPrompt(context, profileStore) },
                                     restScore = restScoreForDay,
                                     restSpark = restCompositeSpark,
                                     enabledMetrics = enabledKeyMetrics,
@@ -3599,6 +3606,11 @@ private fun stepsCalibrationPrompt(context: Context, profileStore: ProfileStore)
     val model = context.getSharedPreferences(NoopPrefs.NAME, Context.MODE_PRIVATE)
         .getString("noop.selectedWhoopModel", null) ?: return null
     if (model != WhoopModel.WHOOP4.name) return null
+    // Already calibrated? Then a blank day is just a quiet one — the estimate exists, this day simply did
+    // not move enough to earn a number, and there is nothing for the user to go and do. Saying otherwise
+    // would render "Need 0 more days where your phone also counted steps", because the headline's
+    // countdown is max(0, need - have) and a calibrated user is already past `need`.
+    if (profileStore.stepsCalibrationCoefficient > 0.0 || profileStore.stepsCalibrationManual) return null
     return StepsEstimateEngine.CalibrationStatus.NeedsMoreDays(
         have = profileStore.stepsCalibrationSampleDays,
         need = StepsEstimateEngine.MIN_CALIBRATION_DAYS,
