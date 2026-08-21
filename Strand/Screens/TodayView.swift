@@ -3606,10 +3606,13 @@ struct TodayView: View {
             // H6, only an ESTIMATED day (no real strap/phone count, so the on-device estimate filled in)
             // gets the calibration entry; a real measured count needs no calibration.
             let isEstimated = realSteps == nil && estSteps != nil
-            // #589, when the tile would be BLANK on a strap that estimates steps (WHOOP 4.0: the steps
-            // pipeline has run, so there's calibration state recorded) explain WHY rather than a bare ", ",
-            // and still expose the ⚙︎ so the user can reach the sheet to set a manual coefficient.
-            let needsCalibration = realSteps == nil && estSteps == nil && stepsPipelineActive
+            // #589, when the tile would be BLANK on a strap that estimates steps (a WHOOP 4.0 sends no
+            // step count) explain WHY rather than a bare "—", and still expose the ⚙︎ so the user can reach
+            // the sheet to set a manual coefficient. #1491: this used to require calibration state to
+            // already exist, which excluded every 4.0 owner who had not calibrated yet — see
+            // `stepsPipelineActive`.
+            let needsCalibration = realSteps == nil && estSteps == nil
+                && stepsPipelineActive(hasDayData: d != nil)
             StatTile(
                 label: "Steps",
                 value: realSteps ?? estSteps.map { intString(Double($0)) } ?? "—",
@@ -3863,13 +3866,32 @@ struct TodayView: View {
             .help(label)
     }
 
-    /// #589, true once the WHOOP-4.0 steps-ESTIMATE pipeline has run for this user, i.e. the
-    /// IntelligenceEngine has mirrored some calibration state into the profile (a fitted/manual
-    /// coefficient, OR a recorded count of overlapping phone-counted days while still gathering).
-    /// Gates the "needs calibration" affordance so a user whose strap reports real steps (5/MG) or who
-    /// has no strap at all never sees a steps-calibration prompt on a blank tile.
-    private var stepsPipelineActive: Bool {
-        profile.stepsCalibrationCoefficient > 0
+    /// #589, true when the WHOOP-4.0 steps-ESTIMATE pipeline applies to this user. Gates the "needs
+    /// calibration" affordance so a user whose strap reports real steps (5/MG) or who has no strap at all
+    /// never sees a steps-calibration prompt on a blank tile.
+    ///
+    /// #1491: the three profile fields below are all OUTPUTS of calibration — a fitted coefficient, a
+    /// manual one, or a count of overlapping phone-counted days. Testing only those made the affordance
+    /// unreachable for the exact user it was written for: a fresh 4.0 owner with no phone step history has
+    /// all three at zero, so the tile went blank with no explanation and no way through to the sheet that
+    /// would let them set a coefficient by hand. The prompt was gated on evidence that only exists once
+    /// the thing it is prompting for has already started.
+    ///
+    /// The strap itself answers the question that gate was reaching for — a 4.0 sends no step count, so it
+    /// always estimates — and it answers it on day one. The calibration state it is OR-ed with is
+    /// profile-global rather than per-strap, so both halves are measuring the same user either way.
+    ///
+    /// Read straight off the persisted selection rather than through `BLEManager.isWhoop4`: `TodayView`
+    /// holds no `AppModel`, and `BLEManager` writes this same key whenever the model changes
+    /// (`BLEManager.persistSelectedModel`), so the static is the same answer without the dependency.
+    ///
+    /// [hasDayData] is why the family term is not used alone: `WhoopModel.persisted` falls back to
+    /// `.whoop4` when nothing has been selected, so a user who has never paired anything reads as a 4.0
+    /// owner. Requiring a scored day for the date being shown keeps the "no strap at all" case the
+    /// original gate protected — a user with nothing recorded still sees no prompt.
+    private func stepsPipelineActive(hasDayData: Bool) -> Bool {
+        (WhoopModel.persisted.deviceFamily == .whoop4 && hasDayData)
+            || profile.stepsCalibrationCoefficient > 0
             || profile.stepsManualCoefficient > 0
             || profile.stepsCalibrationSampleDays > 0
     }
