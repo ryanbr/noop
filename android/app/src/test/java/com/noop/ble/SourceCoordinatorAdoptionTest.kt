@@ -493,6 +493,24 @@ class SourceCoordinatorAdoptionTest {
                      100, dao.devices["whoop-b"]!!.lastSeenAt)
     }
 
+    /**
+     * The disconnect must resolve identity the way the connect path does. That comparison is
+     * `ignoreCase` — a stored address differing only in case is the SAME strap to the adopt guard — so a
+     * stricter lookup here would adopt on connect and then quietly stamp nothing on disconnect.
+     */
+    @Test
+    fun aDisconnectResolvesTheStrapCaseInsensitivelyLikeTheAdoptGuard() = runBlocking {
+        val dao = FakeRegistryDao().apply {
+            devices["my-whoop"] = whoopRow("my-whoop", peripheralId = "aa:bb:cc:dd:ee:01")
+        }
+        val coordinator = coordinatorOver(dao)
+        coordinator.connectedPeripheralChanged("AA:BB:CC:DD:EE:01")   // same strap, upper-cased
+        dao.devices["my-whoop"] = dao.devices["my-whoop"]!!.copy(lastSeenAt = 100)
+        coordinator.connectedPeripheralChanged(null)
+        assertTrue("a case-different address is the same strap to the adopt guard, so it must stamp",
+                   dao.devices["my-whoop"]!!.lastSeenAt > 100)
+    }
+
     /** An address no row has adopted stamps nothing rather than guessing at the active row. */
     @Test
     fun aDisconnectFromAnUnadoptedStrapStampsNothing() = runBlocking {

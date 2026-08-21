@@ -216,9 +216,16 @@ class SourceCoordinator(
      *  rather than by whatever is active now. On a multi-WHOOP install those are not the same row: make
      *  another strap active while this one is live, and stamping "the active row" would record a sighting of
      *  a strap that was never connected — the same mis-mapping the peripheralId guard below exists to
-     *  prevent. An address no row has adopted stamps nothing. Twin of the Swift helper. (#1527) */
+     *  prevent. An address no row has adopted stamps nothing.
+     *
+     *  Matched the way the connect path below matches — `ignoreCase` — and NOT through
+     *  [DeviceRegistry.deviceForPeripheralId], whose `WHERE peripheralId = ?` is case-SENSITIVE in SQLite.
+     *  A stored address differing only in case is the same strap to the guard below, so resolving it more
+     *  strictly here would adopt on connect and then silently stamp nothing on disconnect — the same
+     *  quiet staleness this whole change exists to remove. The Swift twin keeps its exact lookup because
+     *  its connect path compares exactly too; each side matches ITS OWN adopt rule. (#1527) */
     private suspend fun touchLastSeenForStrap(address: String) {
-        val row = registry.deviceForPeripheralId(address) ?: return
+        val row = registry.all().firstOrNull { it.peripheralId.equals(address, ignoreCase = true) } ?: return
         registry.touchLastSeen(row.id)
     }
 
