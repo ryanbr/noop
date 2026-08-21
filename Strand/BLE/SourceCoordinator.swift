@@ -489,13 +489,14 @@ final class SourceCoordinator: ObservableObject {
 
     // MARK: - Identity adoption
 
-    /// Stamp the ACTIVE WHOOP row as seen now, for the disconnect edge where there is no uuid left to
-    /// resolve against. Guarded on the row still being a WHOOP so a strap-switch mid-session cannot stamp
-    /// whatever happens to be active now. (#1527)
-    private func touchActiveWhoopLastSeen() {
-        let activeId = registry.activeDeviceId
-        guard isWhoop(activeId) else { return }
-        registry.touchLastSeen(activeId)
+    /// Stamp the row belonging to the strap that just DISCONNECTED, resolved by the identity it adopted
+    /// rather than by whatever is active now. On a multi-WHOOP install those are not the same row: make
+    /// another strap active while this one is live, and stamping "the active row" would record a sighting
+    /// of a strap that was never connected — the same mis-mapping the peripheralId guard above exists to
+    /// prevent. A uuid no row has adopted stamps nothing. (#1527)
+    private func touchLastSeen(forStrap uuid: String) {
+        guard let device = registry.device(forPeripheralId: uuid) else { return }
+        registry.touchLastSeen(device.id)
     }
 
     /// The BLE engine connected to a WHOOP peripheral (`uuid`). Persist that stable identity onto the
@@ -524,7 +525,7 @@ final class SourceCoordinator: ObservableObject {
             // leaving the connect-time value: after a ten-hour overnight session that would have the card
             // reading "Last seen 10 h ago" the moment the link dropped. Only when we were actually
             // connected — a nil republish with no prior link is not a sighting. (#1527)
-            if previouslyConnectedTo != nil { touchActiveWhoopLastSeen() }
+            if let previouslyConnectedTo { touchLastSeen(forStrap: previouslyConnectedTo) }
             return
         }
 

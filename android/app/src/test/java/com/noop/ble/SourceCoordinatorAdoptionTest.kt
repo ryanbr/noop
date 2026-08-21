@@ -463,6 +463,50 @@ class SourceCoordinatorAdoptionTest {
     }
 
     /**
+     * The disconnect stamps the strap that was CONNECTED, not whatever is active by the time it drops.
+     * Make another WHOOP active while this one is live — a multi-WHOOP install can — and resolving "the
+     * active row" would record a sighting of a strap nobody connected. That is the same mis-mapping the
+     * peripheralId guard exists to prevent, so the disconnect resolves by adopted identity instead.
+     */
+    @Test
+    fun theDisconnectStampsTheStrapThatWasConnectedNotWhateverIsActiveNow() = runBlocking {
+        val dao = FakeRegistryDao().apply {
+            devices["whoop-a"] = whoopRow("whoop-a", peripheralId = "AA:BB:CC:DD:EE:01")
+            devices["whoop-b"] = whoopRow("whoop-b", peripheralId = "AA:BB:CC:DD:EE:02")
+                .copy(status = DeviceStatus.paired.name)
+        }
+        val coordinator = coordinatorOver(dao)
+        coordinator.connectedPeripheralChanged("AA:BB:CC:DD:EE:01")
+
+        // whoop-b becomes active while whoop-a is still the live link; rewind both stamps so the
+        // assertions can only be satisfied by the disconnect's own write.
+        dao.devices["whoop-a"] = dao.devices["whoop-a"]!!.copy(
+            status = DeviceStatus.paired.name, lastSeenAt = 100)
+        dao.devices["whoop-b"] = dao.devices["whoop-b"]!!.copy(
+            status = DeviceStatus.active.name, lastSeenAt = 100)
+
+        coordinator.connectedPeripheralChanged(null)
+
+        assertTrue("the strap that was connected must be the one stamped",
+                   dao.devices["whoop-a"]!!.lastSeenAt > 100)
+        assertEquals("a strap that was never connected must not be stamped",
+                     100, dao.devices["whoop-b"]!!.lastSeenAt)
+    }
+
+    /** An address no row has adopted stamps nothing rather than guessing at the active row. */
+    @Test
+    fun aDisconnectFromAnUnadoptedStrapStampsNothing() = runBlocking {
+        val dao = FakeRegistryDao().apply {
+            devices["my-whoop"] = whoopRow("my-whoop", peripheralId = "AA:BB:CC:DD:EE:01")
+        }
+        val coordinator = coordinatorOver(dao)
+        coordinator.connectedPeripheralChanged("AA:BB:CC:DD:EE:77")   // different strap, never adopted
+        dao.devices["my-whoop"] = dao.devices["my-whoop"]!!.copy(lastSeenAt = 100)
+        coordinator.connectedPeripheralChanged(null)
+        assertEquals(100, dao.devices["my-whoop"]!!.lastSeenAt)
+    }
+
+    /**
      * "Removed - data kept" is a deliberate resting state: a stray connect must not quietly resurrect an
      * archived row into looking live. The real guard is the query's `AND status != 'archived'`; the fake
      * reproduces it, so this pins the CONTRACT callers rely on rather than Room's SQL.

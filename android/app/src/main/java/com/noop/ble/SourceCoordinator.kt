@@ -212,13 +212,14 @@ class SourceCoordinator(
             }
         }
 
-    /** Stamp the ACTIVE WHOOP row as seen now, for the disconnect edge where there is no address left to
-     *  resolve against. Guarded on the row still being a WHOOP so a strap switch mid-session cannot stamp
-     *  whatever happens to be active now. Twin of the Swift helper. (#1527) */
-    private suspend fun touchActiveWhoopLastSeen() {
-        val activeId = registry.activeDeviceId() ?: return
-        if (!isWhoop(activeId, registry.all())) return
-        registry.touchLastSeen(activeId)
+    /** Stamp the row belonging to the strap that just DISCONNECTED, resolved by the identity it adopted
+     *  rather than by whatever is active now. On a multi-WHOOP install those are not the same row: make
+     *  another strap active while this one is live, and stamping "the active row" would record a sighting of
+     *  a strap that was never connected — the same mis-mapping the peripheralId guard below exists to
+     *  prevent. An address no row has adopted stamps nothing. Twin of the Swift helper. (#1527) */
+    private suspend fun touchLastSeenForStrap(address: String) {
+        val row = registry.deviceForPeripheralId(address) ?: return
+        registry.touchLastSeen(row.id)
     }
 
     /**
@@ -247,7 +248,7 @@ class SourceCoordinator(
             // reading "Last seen 10 h ago" the moment the link dropped. Only when we were actually
             // connected — a null republish with no prior link is not a sighting. (#1527)
             if (previouslyConnectedTo != null) {
-                scope.launch { runCatching { touchActiveWhoopLastSeen() } }
+                scope.launch { runCatching { touchLastSeenForStrap(previouslyConnectedTo) } }
             }
             return
         }
