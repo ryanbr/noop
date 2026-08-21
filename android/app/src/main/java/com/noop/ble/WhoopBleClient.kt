@@ -65,7 +65,6 @@ import com.noop.analytics.NapPrefs
 import com.noop.analytics.NapVerdict
 import com.noop.analytics.SedentaryDetector
 import com.noop.analytics.StressOnsetDetector
-import com.noop.analytics.UserProfile
 import com.noop.analytics.WorkoutDetector
 import com.noop.data.NapStore
 import com.noop.ingest.HealthConnectWriter
@@ -2339,13 +2338,10 @@ class WhoopBleClient(
             try {
                 delay(POST_BACKFILL_ANALYZE_DELAY_MS) // let trailing chunks of the same session land
                 val profileStore = ProfileStore.from(context)
-                val profile = UserProfile(
-                    weightKg = profileStore.weightKg,
-                    heightCm = profileStore.heightCm,
-                    age = profileStore.age.toDouble(),
-                    sex = profileStore.sex,
-                    stepTicksPerStep = profileStore.stepTicksPerStep,
-                )
+                // #1493: was built longhand here and silently omitted waistCm, so this pass scored VO₂max
+                // with the Uth fallback while the 15-minute pass used the waist-based Nes estimate — the
+                // card flipped between two estimators depending on which ran last.
+                val profile = profileStore.toUserProfile()
                 // #836: the post-backfill pass is a real update path, so it ALWAYS re-scores (mirroring the
                 // Swift `analyzeRecent(force: true)` call `refreshAfterCompletedBackfill` makes) — but it must
                 // ADVANCE the shared HR-fingerprint watermark on success, which it previously did NOT. That

@@ -1235,14 +1235,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Snapshot the user's body profile from SharedPreferences as an analytics [UserProfile]. */
-    private fun currentProfile(): UserProfile = UserProfile(
-        weightKg = profileStore.weightKg,
-        heightCm = profileStore.heightCm,
-        age = profileStore.age.toDouble(),
-        sex = profileStore.sex,
-        stepTicksPerStep = profileStore.stepTicksPerStep,
-        waistCm = profileStore.waistCm,
-    )
+    private fun currentProfile(): UserProfile = profileStore.toUserProfile()
 
     // MARK: - HR smoothing (median filter)
 

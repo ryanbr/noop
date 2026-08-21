@@ -121,6 +121,7 @@ import com.noop.BuildConfig
 import com.noop.analytics.Baselines
 import com.noop.analytics.HrZoneSet
 import com.noop.analytics.HrZones
+import com.noop.analytics.UserProfile
 import com.noop.analytics.Zones
 import com.noop.R
 import com.noop.ble.PuffinExperiment
@@ -244,6 +245,26 @@ class ProfileStore(private val prefs: SharedPreferences) {
         set(v) = prefs.edit()
             .putFloat(KEY_STEP_SCALE, v.coerceIn(STEP_SCALE_MIN, STEP_SCALE_MAX).toFloat())
             .apply()
+
+    /**
+     * The analytics [UserProfile] for this store — the ONE place the mapping lives.
+     *
+     * Every field matters somewhere and a missing one fails silently rather than loudly. Dropping
+     * [waistCm] does not blank VO₂max, it swaps the estimator: `FitnessAgeEngine.compute` returns a
+     * waist-based Nes value only when a waist is supplied, and `fitnessAgeRows` otherwise falls back to
+     * the Uth HR-ratio formula and writes THAT under the same "vo2max_est" key. Two passes built two
+     * profiles, one of them lost the waist, and the card alternated between the two estimators with no
+     * visible cause — a fit user with a low resting HR saw it swing by ~14 (#1493). Build the profile
+     * here so a caller cannot omit a field by writing one out longhand.
+     */
+    fun toUserProfile(): UserProfile = UserProfile(
+        weightKg = weightKg,
+        heightCm = heightCm,
+        age = age.toDouble(),
+        sex = sex,
+        stepTicksPerStep = stepTicksPerStep,
+        waistCm = waistCm,
+    )
 
     // ── Steps ESTIMATE calibration (WHOOP 4.0; StepsEstimateEngine) ─────────────────────────────
     // Mirror of the macOS ProfileStore fields: the engine writes the auto-fit each analytics pass and
