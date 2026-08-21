@@ -661,6 +661,31 @@ class WhoopRepository(
         )
     }
 
+    /** Apply a hand-corrected bed/wake window across a BRIDGED night — every fragment, not just one.
+     *
+     *  A split night displays as one group whose bedtime is the FIRST fragment's onset and whose wake is
+     *  the group's LATEST end, while [updateSleepSessionTimes] edits the single winning fragment. On a
+     *  fragmented night that fragment is usually neither end, so correcting a night "detected too long"
+     *  narrowed an interior block and left both displayed bounds untouched: the save worked and nothing
+     *  the user could see changed. (#1492)
+     *
+     *  Fragments overlapping the new window are clipped to it and marked `userEdited`; fragments left
+     *  entirely outside are retired through [deleteSleepSession], so a DETECTED one is tombstoned and the
+     *  next analyzeRecent cannot re-detect it straight back into the night — without that, a shortened
+     *  night simply grows again on the next pass.
+     *
+     *  A one-fragment group reproduces [updateSleepSessionTimes] exactly (the lone fragment takes both
+     *  drawn bounds), so an unfragmented night keeps its previous behaviour through the same code. */
+    suspend fun updateSleepGroupTimes(group: List<SleepSession>, newStartTs: Long, newEndTs: Long) {
+        val (safeStartTs, safeEndTs) = com.noop.analytics.SleepEditGuard.clampedEditWindow(
+            newStartTs, newEndTs, System.currentTimeMillis() / 1000L,
+        ) ?: return
+        val plan = com.noop.analytics.SleepGroupEdit.plan(group, safeStartTs, safeEndTs)
+        if (plan.clipped.isEmpty()) return
+        dao.upsertSleepSessions(plan.clipped)
+        plan.dropped.forEach { deleteSleepSession(it) }
+    }
+
     /** Remove a sleep session entirely , the delete half of [updateSleepSessionTimes] with no
      *  re-insert. (deviceId, startTs) is the primary key, so it uniquely identifies the row, letting
      *  the user clear a misread or spurious night so the day recomputes without it (#281).

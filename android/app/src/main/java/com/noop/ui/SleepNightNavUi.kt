@@ -44,6 +44,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.noop.analytics.SleepEditGuard
+import com.noop.analytics.SleepGroupEdit
 import com.noop.data.SleepSession
 import java.time.LocalDate
 import java.text.SimpleDateFormat
@@ -129,6 +130,9 @@ internal fun NightNavHeader(
     clock: String?,
     onNavigate: (Int) -> Unit,
     session: SleepSession? = null,
+    // #1492: the bridged night's fragments. The editor seeds, coverage-tests and writes across the WHOLE
+    // night; `session` alone is the winning fragment and on a split night defines neither displayed bound.
+    heroGroup: List<SleepSession> = emptyList(),
     onUpdateTimes: (SleepSession, Long, Long) -> Unit = { _, _, _ -> },
     onDeleteSession: (SleepSession) -> Unit = {},
     onAddNap: (Long, Long) -> Unit = { _, _ -> },
@@ -159,8 +163,13 @@ internal fun NightNavHeader(
     // only Save reaches this function, so an edited bedtime can never be persisted against the old
     // wake (or vice versa). A window outside the recorded coverage still uses #940's explicit confirm.
     fun commitTimes(s: SleepSession, newStart: Long, newEnd: Long) {
-        val coverageStart = minOf(s.startTs, s.effectiveStartTs)
-        if (SleepEditGuard.isDisjoint(newStart, newEnd, coverageStart, s.endTs)) {
+        // #1492: coverage is the WHOLE bridged night, not the winning fragment. Testing one fragment made a
+        // window matching the night the user could see read as disjoint from it, diverting an ordinary edit
+        // into the "outside the recorded coverage" confirm instead of saving it.
+        val groupWindow = SleepGroupEdit.groupWindow(heroGroup)
+        val coverageStart = groupWindow?.first ?: minOf(s.startTs, s.effectiveStartTs)
+        val coverageEnd = groupWindow?.second ?: s.endTs
+        if (SleepEditGuard.isDisjoint(newStart, newEnd, coverageStart, coverageEnd)) {
             pendingDisjointTimes = newStart to newEnd
         } else {
             onUpdateTimes(s, newStart, newEnd)
@@ -507,7 +516,14 @@ internal fun NightNavHeader(
                     contentDescription = uiString(R.string.l10n_sleep_screen_adjust_sleep_times_1e325561),
                     tint = Palette.textTertiary,
                     modifier = Modifier.size(14.dp).clickable {
-                        sleepEditDraft = SleepTimeEditDraft(session.effectiveStartTs, session.endTs)
+                        // #1492: open on the window the header shows (the whole bridged night), not the
+                        // winning fragment's — otherwise a split night's pickers pre-fill with times the
+                        // user never saw and is not trying to correct.
+                        val shown = SleepGroupEdit.groupWindow(heroGroup)
+                        sleepEditDraft = SleepTimeEditDraft(
+                            shown?.first ?: session.effectiveStartTs,
+                            shown?.second ?: session.endTs,
+                        )
                         showTimeChoice = true
                     },
                 )

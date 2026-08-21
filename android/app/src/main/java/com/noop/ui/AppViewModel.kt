@@ -1547,6 +1547,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         rescoreAfterEdit()
     }
 
+    /** Persist a bed/wake edit across a BRIDGED night's fragments (#1492), then re-score as
+     *  [updateSleepSessionTimes] does. The single-row call edits the winning fragment only, which on a
+     *  split night defines neither the displayed bedtime nor the displayed wake. */
+    suspend fun updateSleepGroupTimes(
+        group: List<com.noop.data.SleepSession>, newStartTs: Long, newEndTs: Long,
+    ) {
+        runCatching { repository.updateSleepGroupTimes(group, newStartTs, newEndTs) }
+        rescoreAfterEdit()
+    }
+
     /** Delete one sleep session, then re-score the affected day immediately so the dashboard aggregates
      *  recompute as if the misread night were never recorded — matching Swift SleepView's analyzeRecent()
      *  after deleteSleepSession. Swallows persist failures — the Sleep screen already removed it

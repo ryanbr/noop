@@ -115,7 +115,7 @@ internal fun selectNight(
         heroGroup.sumOf { (it.endTs - it.effectiveStartTs).coerceAtLeast(0L) } / 60.0
     } else null
     return HeroNight(session, dayKey, segments, clockLabelFor(heroOnsetTs, heroWakeTs), napBlocks, groupStages,
-        groupSegments, groupMotion, groupInBedMin, heroOnsetTs, heroWakeTs)
+        groupSegments, groupMotion, groupInBedMin, heroOnsetTs, heroWakeTs, heroGroup)
 }
 
 /**

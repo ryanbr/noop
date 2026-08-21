@@ -71,6 +71,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.noop.analytics.AnalyticsEngine
 import com.noop.analytics.SleepEditGuard
+import com.noop.analytics.SleepGroupEdit
 import com.noop.analytics.SleepStageTotals
 import com.noop.analytics.StagePercentages
 import com.noop.data.DismissedSleep
@@ -627,6 +628,7 @@ fun SleepScreen(
                 nightLabel = nightLabel,
                 onNavigate = { nightOffset = it },
                 session = night?.session,
+                heroGroup = night?.heroGroup.orEmpty(),
                 onUpdateTimes = { s, start, end ->
                     // #940 belt-and-braces: never apply (optimistically OR durably) a future-ending
                     // or inverted window, whatever the pickers produced. The editor's own guards
@@ -643,16 +645,24 @@ fun SleepScreen(
                         // edit while the (deviceId,startTs) key never moves. (PR #260 + #395)
                         // Reclip stagesJSON in-memory so the hypnogram strip updates instantly (same
                         // reclip logic runs again in WhoopRepository for the durable DB copy).
-                        sleeps = sleeps.map {
-                            if (it.deviceId == s.deviceId && it.startTs == s.startTs) {
-                                val reclipped = SleepWindowReclip.reclip(it.stagesJSON, it.effectiveStartTs, it.endTs, safeStart, safeEnd)
-                                it.copy(startTsAdjusted = safeStart, endTs = safeEnd, userEdited = true,
-                                        stagesJSON = reclipped ?: it.stagesJSON)
-                            } else {
-                                it
+                        // #1492: apply across the WHOLE bridged night. Editing only `s` (the winning
+                        // fragment) left the fragments defining the displayed bedtime and wake exactly
+                        // where they were, so a corrected night looked unchanged. ONE plan drives both the
+                        // optimistic copy and the durable write, so they cannot disagree.
+                        val group = night?.heroGroup.orEmpty().ifEmpty { listOf(s) }
+                        val plan = SleepGroupEdit.plan(group, safeStart, safeEnd)
+                        if (plan.clipped.isNotEmpty()) {
+                            val edited = plan.clipped.associateBy { it.deviceId to it.startTs }
+                            val gone = plan.dropped.map { it.deviceId to it.startTs }.toSet()
+                            sleeps = sleeps.mapNotNull { row ->
+                                val key = row.deviceId to row.startTs
+                                when {
+                                    key in gone -> null
+                                    else -> edited[key] ?: row
+                                }
                             }
+                            scope.launch { vm.updateSleepGroupTimes(group, safeStart, safeEnd) }
                         }
-                        scope.launch { vm.updateSleepSessionTimes(s, safeStart, safeEnd) }
                     } else {
                         // The clamp refused a future/inverted window. Never drop an edit silently (the nap
                         // pickers used to do exactly that): tell the user why nothing changed. (#940)
@@ -1092,6 +1102,9 @@ private fun Hero(
     nightLabel: String,
     onNavigate: (Int) -> Unit,
     session: SleepSession? = null,
+    // #1492: the bridged night's fragments, forwarded to the editor so it frames itself on the whole
+    // night rather than on `session` (the winning fragment, which defines neither displayed bound).
+    heroGroup: List<SleepSession> = emptyList(),
     onUpdateTimes: (SleepSession, Long, Long) -> Unit = { _, _, _ -> },
     onDeleteSession: (SleepSession) -> Unit = {},
     onAddNap: (Long, Long) -> Unit = { _, _ -> },
@@ -1121,7 +1134,9 @@ private fun Hero(
     windowWakeTs: Long? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
-        NightNavHeader(nightOffset, nightLabel, lastIndex, clock, onNavigate, session, onUpdateTimes, onDeleteSession, onAddNap, onPickNightDate)
+        NightNavHeader(nightOffset, nightLabel, lastIndex, clock, onNavigate, session,
+            heroGroup = heroGroup, onUpdateTimes = onUpdateTimes, onDeleteSession = onDeleteSession,
+            onAddNap = onAddNap, onPickNightDate = onPickNightDate)
         // The night's clock window — when you fell asleep and when you woke — as its own clearly
         // labelled row. These were only ever in the nav-header's trailing caption, which truncates
         // between the two chevrons on a phone, so in practice the two times people look for first

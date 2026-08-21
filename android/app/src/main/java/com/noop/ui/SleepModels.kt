@@ -100,6 +100,10 @@ internal data class HeroNight(
     // window row and axis were already whole-night. Null only via the default → session fallback.
     val heroOnsetTs: Long? = null,
     val heroWakeTs: Long? = null,
+    // The bridged night's fragments themselves (#1492). `session` is only the winning one, so an edit
+    // anchored to it moved neither displayed bound on a split night. The editor frames itself on this
+    // list — seeding, coverage-testing and writing across the whole night — instead of one block of it.
+    val heroGroup: List<SleepSession> = emptyList(),
 )
 
 /** What the hero card draws for the selected night — null means no usable stage data
