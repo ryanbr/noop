@@ -230,7 +230,21 @@ public struct DeviceRegistryStore: Sendable {
     }
 
     private static func decode(_ row: Row) -> PairedDevice {
-        var caps = Set((row["capabilities"] as String).split(separator: ",").compactMap { Metric(rawValue: String($0)) })
+        // #1518: TRIM before matching. `Metric(rawValue:)` is exact, so a stored `"hr, hrv"` decoded to
+        // `{hr}` — the whitespace-bearing token simply failed to parse and `compactMap` dropped it, losing
+        // a real capability with nothing reporting it. Writes here are always canonical
+        // (`map(\.rawValue).sorted().joined`), so a spaced token can only arrive from history: rows the
+        // v36 migration rewrote before #1495 taught it to trim, or a restored backup.
+        //
+        // Fixing it on READ rather than with another migration is deliberate. A migration repairs the rows
+        // that exist when it runs, once; trimming here self-heals every row every time it is read, including
+        // any that arrive later from a restore. Kotlin never needed this — it keeps `capabilities` as a
+        // String and normalises it at the registry layer, so it has no typed decode to lose anything in.
+        var caps = Set(
+            (row["capabilities"] as String)
+                .split(separator: ",")
+                .compactMap { Metric(rawValue: $0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        )
         // #548: calibrated SpO₂ % is never produced from a live WHOOP path — drop a stale registry bit
         // so Devices / day-owner UI never advertise a capability AnalyticsEngine will not fill.
         let brand = row["brand"] as String
