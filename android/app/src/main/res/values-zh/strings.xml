@@ -2051,4 +2051,5 @@
     <string name="power_saving_low_refresh_desc">无论手环电量如何，后台同步改为每小时一次而非每 15 分钟一次——减少重新连接是 WHOOP 4.0 上最大的省电项。不会丢失任何数据：手环会记录全部内容，并以更大的批次交付。手动同步仍会立即运行，实时心率不受影响。</string>
     <string name="nav_power_saving">省电模式</string>
     <string name="l10n_app_changelog_training_load_a_vo_max_without_f9205a67">训练负荷、无需量腰围的 VO₂max，以及大幅降低的重算耗电</string>
+    <string name="l10n_sleep_screen_sleep_outside_the_new_times_was_6229881e">新时间范围之外的睡眠已移除。NOOP 不会再次检测到它。</string>
 </resources>

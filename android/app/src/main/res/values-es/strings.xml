@@ -2132,4 +2132,5 @@
     <string name="power_saving_low_refresh_desc">Sincroniza en segundo plano cada hora en vez de cada 15 minutos, sea cual sea la carga de la banda: menos reconexiones es el mayor ahorro en una WHOOP 4.0. No se pierde nada: la banda lo guarda todo y lo entrega en lotes más grandes. Sincronizar manualmente sigue siendo inmediato y la frecuencia cardíaca en vivo no cambia.</string>
     <string name="nav_power_saving">Ahorro de energía</string>
     <string name="l10n_app_changelog_training_load_a_vo_max_without_f9205a67">Carga de entrenamiento, VO₂max sin cinta métrica y mucha menos batería recalculando</string>
+    <string name="l10n_sleep_screen_sleep_outside_the_new_times_was_6229881e">Se ha eliminado el sueño fuera del nuevo horario. NOOP no volverá a detectarlo.</string>
 </resources>

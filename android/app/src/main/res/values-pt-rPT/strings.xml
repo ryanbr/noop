@@ -2125,4 +2125,5 @@
     <string name="power_saving_low_refresh_desc">Sincroniza em segundo plano a cada hora em vez de a cada 15 minutos, seja qual for a carga da pulseira — menos religações é a maior poupança numa WHOOP 4.0. Nada se perde: a pulseira guarda tudo e entrega em lotes maiores. A sincronização manual continua imediata e a frequência cardíaca em direto não é afetada.</string>
     <string name="nav_power_saving">Poupança de energia</string>
     <string name="l10n_app_changelog_training_load_a_vo_max_without_f9205a67">Carga de treino, VO₂max sem fita métrica e muito menos bateria a recalcular</string>
+    <string name="l10n_sleep_screen_sleep_outside_the_new_times_was_6229881e">O sono fora dos novos horários foi removido. O NOOP não o voltará a detetar.</string>
 </resources>

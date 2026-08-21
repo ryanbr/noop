@@ -2125,4 +2125,5 @@
     <string name="power_saving_low_refresh_desc">Synchronizuje w tle co godzinę zamiast co 15 minut, niezależnie od poziomu naładowania opaski — mniej ponownych połączeń to największa oszczędność w WHOOP 4.0. Nic nie ginie: opaska zapisuje wszystko i przekazuje w większych paczkach. Ręczna synchronizacja nadal działa od razu, a tętno na żywo pozostaje bez zmian.</string>
     <string name="nav_power_saving">Oszczędzanie energii</string>
     <string name="l10n_app_changelog_training_load_a_vo_max_without_f9205a67">Obciążenie treningowe, VO₂max bez centymetra i znacznie mniej baterii na przeliczanie</string>
+    <string name="l10n_sleep_screen_sleep_outside_the_new_times_was_6229881e">Sen poza nowymi godzinami został usunięty. NOOP nie wykryje go ponownie.</string>
 </resources>

@@ -2146,4 +2146,5 @@
     <string name="power_saving_low_refresh_desc">Synchronisiert im Hintergrund stündlich statt alle 15 Minuten, unabhängig vom Ladestand — weniger Verbindungsaufbauten sind die größte Ersparnis bei einer WHOOP 4.0. Es geht nichts verloren: Das Band speichert alles und übergibt es in größeren Paketen. Manuelles Synchronisieren läuft weiterhin sofort, die Live-Herzfrequenz bleibt unberührt.</string>
     <string name="nav_power_saving">Energiesparen</string>
     <string name="l10n_app_changelog_training_load_a_vo_max_without_f9205a67">Trainingsbelastung, VO₂max ohne Maßband und deutlich weniger Akku fürs Neuberechnen</string>
+    <string name="l10n_sleep_screen_sleep_outside_the_new_times_was_6229881e">Schlaf außerhalb der neuen Zeiten wurde entfernt. NOOP erkennt ihn nicht erneut.</string>
 </resources>

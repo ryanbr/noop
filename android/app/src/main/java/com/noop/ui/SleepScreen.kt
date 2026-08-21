@@ -197,7 +197,9 @@ fun SleepScreen(
     // (which still carries its OWNING deviceId + userEdited), so Undo restores it into the original
     // namespace and lifts the tombstone. Auto-cleared after ~7s by a keyed LaunchedEffect; a new delete
     // replaces it. Mirrors the macOS SleepView sleepUndoBanner + WorkoutsView postLogNote idiom.
-    var sleepUndo by remember { mutableStateOf<SleepSession?>(null) }
+    // #1492: a LIST, because a bed/wake correction can retire more than one fragment of a bridged night.
+    // `fromEdit` distinguishes those from an outright delete so the banner says what actually happened.
+    var sleepUndo by remember { mutableStateOf<SleepUndoState?>(null) }
     LaunchedEffect(sleepUndo) {
         if (sleepUndo != null) {
             kotlinx.coroutines.delay(7_000)
@@ -469,14 +471,14 @@ fun SleepScreen(
     ) {
         // #65: the transient UNDO banner after a suppressing delete. Restores the deleted row into its
         // ORIGINAL namespace + lifts the tombstone. Mirrors the macOS SleepView sleepUndoBanner.
-        sleepUndo?.let { deleted ->
+        sleepUndo?.let { undo ->
             item {
                 SleepUndoBanner(
-                    session = deleted,
+                    undo = undo,
                     onUndo = {
                         sleepUndo = null
                         scope.launch {
-                            vm.undoDeleteSleepSession(deleted)
+                            undo.sessions.forEach { vm.undoDeleteSleepSession(it) }
                             // Re-read so the restored night reappears in the ◀/▶ browse. Same
                             // active∪canonical union as the main loader (#814/#1008), so the undo
                             // reload can't snap the browse back to a canonical-only night set.
@@ -661,6 +663,9 @@ fun SleepScreen(
                                     else -> edited[key] ?: row
                                 }
                             }
+                            if (plan.dropped.isNotEmpty()) {
+                                sleepUndo = SleepUndoState(plan.dropped, fromEdit = true)
+                            }
                             scope.launch { vm.updateSleepGroupTimes(group, safeStart, safeEnd) }
                         }
                     } else {
@@ -681,7 +686,7 @@ fun SleepScreen(
                     // #65: offer a transient UNDO. `s` still carries its owning deviceId + userEdited,
                     // everything undo needs to restore it into the original namespace.
                     sleeps = sleeps.filterNot { it.deviceId == s.deviceId && it.startTs == s.startTs }
-                    sleepUndo = s
+                    sleepUndo = SleepUndoState(listOf(s), fromEdit = false)
                     scope.launch {
                         vm.deleteSleepSession(s)
                         dismissedSleeps = runCatching {
@@ -851,6 +856,11 @@ internal fun SleepMarkCard(onMark: (SleepMarkType) -> Unit) {
     }
 }
 
+/** What the undo strip is holding: the retired sessions, plus whether they went as an outright delete or
+ *  as fragments a bed/wake correction left outside a bridged night (#1492). A delete carries exactly one;
+ *  a correction can retire several at once, and every one of them must come back on Undo. */
+private data class SleepUndoState(val sessions: List<SleepSession>, val fromEdit: Boolean)
+
 /**
  * #65: the transient UNDO strip after a suppressing sleep delete. A Rest-tinted card stating the window
  * NOOP won't re-detect + a real Undo button. The banner auto-clears after ~7s (the caller's keyed
@@ -858,7 +868,8 @@ internal fun SleepMarkCard(onMark: (SleepMarkType) -> Unit) {
  * Mirrors the macOS SleepView.sleepUndoBanner (role-alert-ish, explicit Undo label).
  */
 @Composable
-private fun SleepUndoBanner(session: SleepSession, onUndo: () -> Unit) {
+private fun SleepUndoBanner(undo: SleepUndoState, onUndo: () -> Unit) {
+    val session = undo.sessions.first()
     val timeFmt = SimpleDateFormat("HH:mm", Locale.US)
     // effectiveStartTs is the displayed onset (a userEdited night's corrected bed time), matching iOS.
     val startText = timeFmt.format(java.util.Date(session.effectiveStartTs * 1000L))
@@ -866,10 +877,15 @@ private fun SleepUndoBanner(session: SleepSession, onUndo: () -> Unit) {
     // Branch the copy on userEdited: a hand-edited/added (nap) night writes NO tombstone (it is never
     // re-detected), so the suppression promise would be false for it. Only a DETECTED delete tombstones,
     // so only it gets the "won't detect ... again" wording. Mirrors the macOS branch. (#65 banner honesty.)
-    val message = if (session.userEdited) {
-        "Sleep deleted."
-    } else {
-        "Sleep deleted. NOOP won't detect sleep between $startText and $endText again."
+    // #1492: a correction that narrows a bridged night RETIRES the fragments left outside it — otherwise
+    // they keep defining the night's displayed start or end and the edit looks like it did nothing. That is
+    // real recorded sleep going away from an action that reads as "adjust the times", so it must be as
+    // reversible, and as clearly stated, as an outright delete. Count-free wording so one dropped fragment
+    // and several read the same (no plural forms in the Android catalogue yet).
+    val message = when {
+        undo.fromEdit -> uiString(R.string.l10n_sleep_screen_sleep_outside_the_new_times_was_6229881e)
+        session.userEdited -> "Sleep deleted."
+        else -> "Sleep deleted. NOOP won't detect sleep between $startText and $endText again."
     }
     NoopCard(tint = Palette.restColor) {
         Row(

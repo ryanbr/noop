@@ -2158,4 +2158,5 @@
     <string name="power_saving_low_refresh_desc">Sync in the background every hour instead of every 15 minutes, whatever the strap\'s charge — fewer reconnections is the biggest saving on a WHOOP 4.0. Nothing is lost: the strap banks everything and hands it over in larger batches. Pull to sync still runs straight away, and live heart rate is untouched.</string>
     <string name="nav_power_saving">Power saving</string>
     <string name="l10n_app_changelog_training_load_a_vo_max_without_f9205a67">Training load, a VO₂max without a tape measure, and far less battery spent re-scoring</string>
+    <string name="l10n_sleep_screen_sleep_outside_the_new_times_was_6229881e">Sleep outside the new times was removed. NOOP won\'t detect it again.</string>
 </resources>
