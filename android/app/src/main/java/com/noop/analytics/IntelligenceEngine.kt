@@ -891,21 +891,25 @@ object IntelligenceEngine {
                         verdict == HrvAnalyzer.RrCoverageVerdict.SAME_SECOND_OVER_COUNT)
                 if (verdict == HrvAnalyzer.RrCoverageVerdict.CROSS_SECOND_OVER_COUNT ||
                     verdict == HrvAnalyzer.RrCoverageVerdict.SAME_SECOND_OVER_COUNT) {
+                    // Built ONCE for all three diagnostics below. Each call materialised its own copy of
+                    // the night's ords — ~70k elements, on a path that runs ~21 times per analyzeRecent,
+                    // every 15 minutes — so two of the three were pure waste. (#1510) Twin of the Swift hoist.
+                    val rrOrds = sleepRrRows.map { it.ord }
                     val sample = HrvAnalyzer.densestSecondWindowSample(
                         ts, sleepRr, sleepRrRows.map { it.srcChannel },
-                        sleepRrRows.map { it.ord },
+                        rrOrds,
                     )
                     if (sample.isNotEmpty()) dayDiag("hrv rrsample day=${res.daily.day} $sample")
                     // #1331/#1008: the sample above shows ords for a handful of seconds; this counts them
                     // across the WHOLE night, which is what decides whether the fix belongs at ingest.
-                    val deliveries = HrvAnalyzer.deliveryHistogram(ts, sleepRr, sleepRrRows.map { it.ord })
+                    val deliveries = HrvAnalyzer.deliveryHistogram(ts, sleepRr, rrOrds)
                     if (deliveries.isNotEmpty()) dayDiag("$deliveries day=${res.daily.day}")
                     // #1505: the histogram above counts deliveries per second but never compares what they
                     // wrote. If the live and historical copies are the same beat in two units, a duplicated
                     // second holds two values 1024/1000 apart; if they are different beats, the ratios
                     // scatter. One pair cannot tell those apart — a night's worth can. Measurement only,
                     // takes no view on the answer. Swift twin.
-                    val dupPairs = HrvAnalyzer.duplicatePairRatios(ts, sleepRr, sleepRrRows.map { it.ord })
+                    val dupPairs = HrvAnalyzer.duplicatePairRatios(ts, sleepRr, rrOrds)
                     if (dupPairs.isNotEmpty()) dayDiag("$dupPairs day=${res.daily.day}")
                     // #1331/#1008/#1118 SHADOW: log the DEDUPED stream's HRV + coverage + beat-accuracy
                     // beside the raw so the candidate de-dup can be validated vs WHOOP + @artemc's Polar

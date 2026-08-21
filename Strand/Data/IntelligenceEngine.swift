@@ -1082,15 +1082,19 @@ final class IntelligenceEngine: ObservableObject {
                     // over-count's MECHANISM is readable from the always-on log — clean nights stay quiet.
                     // srcChannel rides from the read model. Byte-identical to the Kotlin `hrv rrsample` line.
                     if verdict == .crossSecondOverCount || verdict == .sameSecondOverCount {
+                        // Built ONCE for all three diagnostics below. Each call materialised its own copy
+                        // of the night's ords — ~70k elements, on a path that runs ~21 times per
+                        // analyzeRecent, every 15 minutes — so two of the three were pure waste. (#1510)
+                        let rrOrds = sleepRrRows.map { $0.ord }
                         let sample = HRVAnalyzer.densestSecondWindowSample(
                             tsSec: ts, rrMs: sleepRr, srcCodes: sleepRrRows.map { $0.srcChannel?.rawValue },
-                            ords: sleepRrRows.map { $0.ord })
+                            ords: rrOrds)
                         if !sample.isEmpty { diagLine += "\nhrv rrsample day=\(res.daily.day) \(sample)" }
                         // #1331/#1008: the sample above shows ords for a handful of seconds; this counts
                         // them across the WHOLE night, which is what decides whether the fix belongs at
                         // ingest. Kotlin twin.
                         let deliveries = HRVAnalyzer.deliveryHistogram(
-                            tsSec: ts, rrMs: sleepRr, ords: sleepRrRows.map { $0.ord })
+                            tsSec: ts, rrMs: sleepRr, ords: rrOrds)
                         if !deliveries.isEmpty { diagLine += "\n\(deliveries) day=\(res.daily.day)" }
                         // #1505: the histogram above counts deliveries per second but never compares what
                         // they wrote. If the live and historical copies are the same beat in two units, a
@@ -1098,7 +1102,7 @@ final class IntelligenceEngine: ObservableObject {
                         // the ratios scatter. One pair cannot tell those apart — a night's worth can.
                         // Measurement only, takes no view on the answer. Kotlin twin.
                         let dupPairs = HRVAnalyzer.duplicatePairRatios(
-                            tsSec: ts, rrMs: sleepRr, ords: sleepRrRows.map { $0.ord })
+                            tsSec: ts, rrMs: sleepRr, ords: rrOrds)
                         if !dupPairs.isEmpty { diagLine += "\n\(dupPairs) day=\(res.daily.day)" }
                         // #1331/#1008/#1118 SHADOW: log the DEDUPED stream's HRV + coverage + beat-accuracy
                         // beside the raw (above), so the candidate two-channel de-dup can be validated

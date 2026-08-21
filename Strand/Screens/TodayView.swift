@@ -224,6 +224,12 @@ struct TodayView: View {
     // Editable Key-Metrics layout (#251), an ordered list of the enabled tiles, persisted display-only.
     // Empty/unset shows the full default order. Every edit affordance routes into one customization sheet.
     @AppStorage(KeyMetricPrefs.layoutKey) private var keyMetricsRaw = ""
+    // #1502/#1512: the strap family behind the steps-calibration prompt. Read through @AppStorage rather
+    // than `WhoopModel.persisted` because `stepsPipelineActive` is evaluated inside `keyMetricTile`, once
+    // per metric per body pass, and this body recomposes with live heart rate — that made it a
+    // UserDefaults lookup on a ~1 Hz path. The Android twin remembers the equivalent read; this is the
+    // same fix. Also makes the value observed, so a strap-model change re-renders the tile.
+    @AppStorage("selectedWhoopModel") private var selectedWhoopModelRaw = ""
     @AppStorage("today.keyMetricsDetailed") private var keyMetricsDetailed = false
     @AppStorage("today.keyMetricsWindowDays") private var keyMetricsWindowDays = 14
     private var enabledKeyMetrics: [KeyMetric] { KeyMetricPrefs.decodeEnabled(keyMetricsRaw) }
@@ -3881,16 +3887,18 @@ struct TodayView: View {
     /// always estimates — and it answers it on day one. The calibration state it is OR-ed with is
     /// profile-global rather than per-strap, so both halves are measuring the same user either way.
     ///
-    /// Read straight off the persisted selection rather than through `BLEManager.isWhoop4`: `TodayView`
-    /// holds no `AppModel`, and `BLEManager` writes this same key whenever the model changes
-    /// (`BLEManager.persistSelectedModel`), so the static is the same answer without the dependency.
+    /// Read off the persisted selection rather than through `BLEManager.isWhoop4`: `TodayView` holds no
+    /// `AppModel`, and `BLEManager` writes this same key whenever the model changes
+    /// (`BLEManager.persistSelectedModel`), so the stored value is the same answer without the dependency.
     ///
     /// [hasDayData] is why the family term is not used alone: `WhoopModel.persisted` falls back to
     /// `.whoop4` when nothing has been selected, so a user who has never paired anything reads as a 4.0
     /// owner. Requiring a scored day for the date being shown keeps the "no strap at all" case the
     /// original gate protected — a user with nothing recorded still sees no prompt.
     private func stepsPipelineActive(hasDayData: Bool) -> Bool {
-        (WhoopModel.persisted.deviceFamily == .whoop4 && hasDayData)
+        // Same fallback `WhoopModel.persisted` applies, so a never-set key still reads as a 4.0 and the
+        // `hasDayData` guard is what keeps a strapless user out — behaviour is unchanged, only the read is.
+        ((WhoopModel(rawValue: selectedWhoopModelRaw) ?? .whoop4).deviceFamily == .whoop4 && hasDayData)
             || profile.stepsCalibrationCoefficient > 0
             || profile.stepsManualCoefficient > 0
             || profile.stepsCalibrationSampleDays > 0
