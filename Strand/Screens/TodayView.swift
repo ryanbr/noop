@@ -224,7 +224,7 @@ struct TodayView: View {
     // Editable Key-Metrics layout (#251), an ordered list of the enabled tiles, persisted display-only.
     // Empty/unset shows the full default order. Every edit affordance routes into one customization sheet.
     @AppStorage(KeyMetricPrefs.layoutKey) private var keyMetricsRaw = ""
-    // #1502/#1512: the strap family behind the steps-calibration prompt. Read through @AppStorage rather
+    // #1512: the strap family behind the steps-calibration prompt. Read through @AppStorage rather
     // than `WhoopModel.persisted` because `stepsPipelineActive` is evaluated inside `keyMetricTile`, once
     // per metric per body pass, and this body recomposes with live heart rate — that made it a
     // UserDefaults lookup on a ~1 Hz path. Android memoises the analogous preference reads on this same
@@ -3892,14 +3892,20 @@ struct TodayView: View {
     /// `AppModel`, and `BLEManager` writes this same key whenever the model changes
     /// (`BLEManager.persistSelectedModel`), so the stored value is the same answer without the dependency.
     ///
-    /// [hasDayData] is why the family term is not used alone: `WhoopModel.persisted` falls back to
-    /// `.whoop4` when nothing has been selected, so a user who has never paired anything reads as a 4.0
-    /// owner. Requiring a scored day for the date being shown keeps the "no strap at all" case the
-    /// original gate protected — a user with nothing recorded still sees no prompt.
+    /// The family term requires the key to have actually been SET. It is written by
+    /// `BLEManager.persistSelectedModel` the moment a strap is identified, so every real 4.0 owner has one
+    /// and #1491's intent is untouched — what it excludes is the user who has never paired anything, whose
+    /// unset key used to read as a 4.0 through the default and earn them a prompt to calibrate a strap
+    /// nobody has seen. Android's twin has always required the key (`?: return null` in
+    /// `stepsCalibrationPrompt`); this is the Apple side matching it — the two halves of #1512 disagreed
+    /// about the unset case from the day it landed.
+    ///
+    /// [hasDayData] stays as the second guard: it is what keeps the prompt off a date with nothing scored
+    /// on it, which is a different question from whether a strap is known.
     private func stepsPipelineActive(hasDayData: Bool) -> Bool {
-        // Same fallback `WhoopModel.persisted` applies, so a never-set key still reads as a 4.0 and the
-        // `hasDayData` guard is what keeps a strapless user out — behaviour is unchanged, only the read is.
-        ((WhoopModel(rawValue: selectedWhoopModelRaw) ?? .whoop4).deviceFamily == .whoop4 && hasDayData)
+        // Optional-chained deliberately: an unset (or unparseable) key is NOT a 4.0. The key only ever
+        // holds a `WhoopModel` rawValue, so nil here means "no strap has been identified", not "4.0".
+        (WhoopModel(rawValue: selectedWhoopModelRaw)?.deviceFamily == .whoop4 && hasDayData)
             || profile.stepsCalibrationCoefficient > 0
             || profile.stepsManualCoefficient > 0
             || profile.stepsCalibrationSampleDays > 0
