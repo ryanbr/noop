@@ -76,6 +76,20 @@ public struct DeviceRegistryStore: Sendable {
         }
     }
 
+    /// Stamp a row as seen right now. Called when a strap actually connects or drops, because nothing
+    /// else in the BLE path writes `lastSeenAt` — before #1527 it was only ever set when the row was
+    /// created or promoted to active, so the Devices card reported time-since-ADDED and a strap syncing
+    /// every day could read "Last seen 45 d ago".
+    ///
+    /// Archived rows are excluded: "Removed - data kept" is a deliberate resting state, and a stray
+    /// connect must not quietly resurrect one into looking live.
+    public func touchLastSeen(_ id: String, at ts: Int) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "UPDATE pairedDevice SET lastSeenAt = ? WHERE id = ? AND status != 'archived'",
+                           arguments: [ts, id])
+        }
+    }
+
     /// Adopt (or clear) the stable BLE identity for a registry row. `peripheralId` is the
     /// CBPeripheral.identifier.uuidString on iOS/Mac; passing nil un-adopts it.
     public func setPeripheralId(_ id: String, peripheralId: String?) throws {

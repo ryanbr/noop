@@ -44,6 +44,12 @@ class RegistryDayOwnerSourceTest {
             devices[id]?.let { devices[id] = it.copy(model = model) }
         }
         override suspend fun renameDevice(id: String, nickname: String?) {}
+        override suspend fun touchLastSeen(id: String, now: Long) {
+            // #1527, mirrors the query's `AND status != 'archived'`.
+            devices[id]?.let {
+                if (it.status != DeviceStatus.archived.name) devices[id] = it.copy(lastSeenAt = now)
+            }
+        }
         override suspend fun setPeripheralId(id: String, peripheralId: String?) {
             devices[id]?.let { devices[id] = it.copy(peripheralId = peripheralId) }
         }

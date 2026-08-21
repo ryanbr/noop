@@ -121,6 +121,11 @@ class DeviceRegistry(
         }
     }
 
+    /** Stamp a device as seen right now — a real connect or disconnect, not every inbound packet, which
+     *  would be a write per second for no more truth. Twin of Swift `DeviceRegistry.touchLastSeen`. (#1527) */
+    suspend fun touchLastSeen(id: String, now: Long = System.currentTimeMillis() / 1000) =
+        dao.touchLastSeen(id, now)
+
     /** Archive a device — keeps its row and samples (invariant I4). */
     suspend fun archive(id: String) = dao.archiveDevice(id)
 

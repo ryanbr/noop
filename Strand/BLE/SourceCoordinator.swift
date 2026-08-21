@@ -489,6 +489,15 @@ final class SourceCoordinator: ObservableObject {
 
     // MARK: - Identity adoption
 
+    /// Stamp the ACTIVE WHOOP row as seen now, for the disconnect edge where there is no uuid left to
+    /// resolve against. Guarded on the row still being a WHOOP so a strap-switch mid-session cannot stamp
+    /// whatever happens to be active now. (#1527)
+    private func touchActiveWhoopLastSeen() {
+        let activeId = registry.activeDeviceId
+        guard isWhoop(activeId) else { return }
+        registry.touchLastSeen(activeId)
+    }
+
     /// The BLE engine connected to a WHOOP peripheral (`uuid`). Persist that stable identity onto the
     /// CURRENTLY ACTIVE device when it's a WHOOP and hasn't adopted one yet — so the legacy "my-whoop"
     /// learns its strap's id on first connect, and a freshly-paired WHOOP confirms its identity.
@@ -508,8 +517,16 @@ final class SourceCoordinator: ObservableObject {
         // Track the live strap's uuid for the WHOOP->WHOOP adopt-in-place skip (#74). nil is a
         // disconnect/never-connected republish: clear it so a later make-active can't wrongly match a stale
         // link, then fall through to the existing ignore.
+        let previouslyConnectedTo = connectedWhoopUuid
         connectedWhoopUuid = uuid
-        guard let uuid else { return }
+        guard let uuid else {
+            // Disconnect edge. The strap was in hand right up to this instant, so stamp it NOW rather than
+            // leaving the connect-time value: after a ten-hour overnight session that would have the card
+            // reading "Last seen 10 h ago" the moment the link dropped. Only when we were actually
+            // connected — a nil republish with no prior link is not a sighting. (#1527)
+            if previouslyConnectedTo != nil { touchActiveWhoopLastSeen() }
+            return
+        }
 
         let activeId = registry.activeDeviceId
         guard isWhoop(activeId),
@@ -519,8 +536,9 @@ final class SourceCoordinator: ObservableObject {
         case .none:
             // First connect for this WHOOP row → adopt the strap's stable identity.
             registry.setPeripheralId(activeId, peripheralId: uuid)
+            registry.touchLastSeen(activeId)
         case .some(uuid):
-            break                               // already adopted this exact strap → nothing to do
+            registry.touchLastSeen(activeId)    // already adopted this exact strap → only the sighting is new
         case .some(let existing):
             // A DIFFERENT strap connected under this WHOOP row. Re-adopt ONLY when this is the #52 stale-pin
             // handoff — i.e. the engine is genuinely encrypted-bonded to the strap whose id just arrived.
@@ -531,6 +549,7 @@ final class SourceCoordinator: ObservableObject {
             if live.encryptedBond {
                 live.append(log: "Multi-WHOOP (#52): active device \(activeId) was pinned to strap \(existing) which refused to bond — re-adopting the working strap \(uuid).")
                 registry.setPeripheralId(activeId, peripheralId: uuid)
+                registry.touchLastSeen(activeId)
             } else {
                 live.append(log: "Multi-WHOOP: active device \(activeId) is registered to strap \(existing) but \(uuid) connected — not overwriting.")
             }

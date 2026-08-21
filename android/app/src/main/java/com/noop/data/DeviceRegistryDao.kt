@@ -34,6 +34,15 @@ interface DeviceRegistryDao {
     @Query("UPDATE pairedDevice SET status = 'active', lastSeenAt = :now WHERE id = :id")
     suspend fun promote(id: String, now: Long)
 
+    /** Stamp a device as seen right now. Nothing in the BLE path wrote `lastSeenAt` before #1527 — it was
+     *  set only when the row was created or promoted to active — so the Devices card reported
+     *  time-since-ADDED, and a strap syncing daily could read "Last seen 45 d ago".
+     *
+     *  Archived rows are excluded: "Removed - data kept" is a deliberate resting state and a stray connect
+     *  must not quietly resurrect one into looking live. Twin of the Swift store's `touchLastSeen`. */
+    @Query("UPDATE pairedDevice SET lastSeenAt = :now WHERE id = :id AND status != 'archived'")
+    suspend fun touchLastSeen(id: String, now: Long)
+
     /** Archive a device (keeps the row + its samples — invariant I4). */
     @Query("UPDATE pairedDevice SET status = 'archived' WHERE id = :id")
     suspend fun archiveDevice(id: String)

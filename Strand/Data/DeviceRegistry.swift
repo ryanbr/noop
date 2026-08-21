@@ -125,6 +125,13 @@ final class DeviceRegistry: ObservableObject {
         reload()
     }
 
+    /// Stamp a device as seen right now — a real connect or disconnect, not every inbound packet, which
+    /// would be a write per second for no more truth. Refreshes the published list. Best-effort. (#1527)
+    func touchLastSeen(_ id: String, at ts: Int = Int(Date().timeIntervalSince1970)) {
+        try? store.touchLastSeen(id, at: ts)
+        reload()
+    }
+
     /// Find the paired device that has adopted a given BLE peripheral, if any. A plain read of the
     /// store (no reload) — returns nil on any error or when no row has adopted that peripheral yet.
     func device(forPeripheralId peripheralId: String) -> PairedDevice? {
