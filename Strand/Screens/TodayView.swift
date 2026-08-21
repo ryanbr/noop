@@ -227,8 +227,9 @@ struct TodayView: View {
     // #1502/#1512: the strap family behind the steps-calibration prompt. Read through @AppStorage rather
     // than `WhoopModel.persisted` because `stepsPipelineActive` is evaluated inside `keyMetricTile`, once
     // per metric per body pass, and this body recomposes with live heart rate — that made it a
-    // UserDefaults lookup on a ~1 Hz path. The Android twin remembers the equivalent read; this is the
-    // same fix. Also makes the value observed, so a strap-model change re-renders the tile.
+    // UserDefaults lookup on a ~1 Hz path. Android memoises the analogous preference reads on this same
+    // body for the same reason. Also makes the value observed, so a strap-model change re-renders the
+    // tile rather than waiting on an unrelated recomposition.
     @AppStorage("selectedWhoopModel") private var selectedWhoopModelRaw = ""
     @AppStorage("today.keyMetricsDetailed") private var keyMetricsDetailed = false
     @AppStorage("today.keyMetricsWindowDays") private var keyMetricsWindowDays = 14

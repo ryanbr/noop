@@ -1528,10 +1528,19 @@ fun TodayScreen(
                                     // Remembered on the calibration state it reads, matching the same
                                     // preference lookup in SettingsScreen: this is a SharedPreferences
                                     // read and the Today body recomposes with live HR.
+                                    //
+                                    // The strap model is a key too, because the prompt returns null for
+                                    // anything but a 4.0 -- and that key is rewritten under a composed
+                                    // Today, by Settings and by live detection in WhoopBleClient. Keyed
+                                    // only on the calibration values, a strap switch left the previous
+                                    // answer on screen until one of those happened to move. Re-reading
+                                    // the key per pass is a loaded-map lookup; what stays memoised is
+                                    // the rest of the prompt.
                                     stepsCalibrationPrompt = remember(
                                         profileStore.stepsCalibrationSampleDays,
                                         profileStore.stepsCalibrationCoefficient,
                                         profileStore.stepsCalibrationManual,
+                                        NoopPrefs.of(context).getString("noop.selectedWhoopModel", null),
                                     ) { stepsCalibrationPrompt(context, profileStore) },
                                     restScore = restScoreForDay,
                                     restSpark = restCompositeSpark,
