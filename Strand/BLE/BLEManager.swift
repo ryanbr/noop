@@ -920,12 +920,22 @@ public final class BLEManager: NSObject, ObservableObject {
     // The old reconnect armed a `DispatchQueue.main.asyncAfter` backoff, which does not fire in a suspended
     // app AND — the real damage — left NOTHING outstanding with CoreBluetooth after a failed connect, so iOS
     // had no reason to ever wake the app. Overnight that meant the strap stayed unreachable for hours
-    // (measured 10h46m on a 5/MG). After a few quick timed retries (the app is demonstrably awake there) the
-    // reconnect now hands off to a STANDING `central.connect`, which has no timeout, stays outstanding, and
-    // lets iOS wake the app when the strap re-advertises — including from suspension.
+    // (measured 10h46m on a 5/MG). The reconnect hands off to a STANDING `central.connect`, which has no
+    // timeout, stays outstanding, and lets iOS wake the app when the strap re-advertises — from suspension.
+    //
+    // #1413 follow-up: it hands off on the FIRST drop, not the third. Gating the handoff behind three
+    // consecutive failures made it unreachable in the case it was written for. A drop while suspended wakes
+    // the app just long enough to run the disconnect callback; that armed a 3-second timer and returned to
+    // suspension, where the timer never fires — so the attempt counter never reached two, let alone three,
+    // and nothing was outstanding with CoreBluetooth in the meantime. The escalation could only be reached
+    // by an app that was already awake, which is exactly when it is least needed. Reported with a measured
+    // overnight failure and this diagnosis by @justinjor-bit.
+    //
+    // A standing connect is passive — no timeout, no scan, nothing written to the strap — so issuing it
+    // immediately costs nothing that a timed retry was protecting against. The one shape that can hot-loop,
+    // a connect that fails near-instantly, is still broken by `standingConnectAfter`, and that can only
+    // happen with the app awake.
 
-    /// After this many consecutive failures, stop scheduling timed retries and leave a standing connect.
-    nonisolated static let standingConnectAfterAttempts = 3
     /// Floor between two standing connects, used ONLY for a near-instant failure (proves the app is awake).
     nonisolated static let standingConnectRetryFloor: TimeInterval = 30
     /// A standing connect that stayed outstanding at least this long before failing was not a hot loop —
@@ -937,20 +947,16 @@ public final class BLEManager: NSObject, ObservableObject {
     /// What to do after an involuntary drop or a failed connect. Pure so the policy is unit-testable with no
     /// CoreBluetooth (`BLEManagerReconnectPolicyTests`). Twin of `OuraLiveSource.ReconnectStep`.
     enum ReconnectStep: Equatable, Sendable {
-        case timedRetry(delay: TimeInterval)
         case standingConnect
         case standingConnectAfter(delay: TimeInterval)
     }
 
-    /// - Parameters:
-    ///   - attempt: 1-based consecutive failure count (`failedConnectAttempts` after incrementing).
-    ///   - secondsSinceStandingConnect: age of the outstanding standing connect, or nil when none is.
-    nonisolated static func reconnectStep(attempt: Int,
-                                          secondsSinceStandingConnect: TimeInterval?) -> ReconnectStep {
-        guard attempt >= standingConnectAfterAttempts else {
-            return .timedRetry(delay: min(60.0, 3.0 * pow(2.0, Double(max(0, attempt - 1)))))
-        }
-        // No standing connect outstanding reads as "long ago", so the first time here we hand off immediately.
+    /// - Parameter secondsSinceStandingConnect: age of the outstanding standing connect, nil when none is.
+    ///
+    /// The consecutive-failure count used to gate this and no longer does: see the note above. It is not a
+    /// parameter any more precisely so the handoff cannot be made conditional on being awake again.
+    nonisolated static func reconnectStep(secondsSinceStandingConnect: TimeInterval?) -> ReconnectStep {
+        // No standing connect outstanding reads as "long ago", so the first drop hands off immediately.
         let since = secondsSinceStandingConnect ?? .greatestFiniteMagnitude
         // Anything but a near-instant failure re-issues NOW, so suspension can never catch us holding nothing.
         guard since < standingConnectFastFailureS else { return .standingConnect }
@@ -963,14 +969,8 @@ public final class BLEManager: NSObject, ObservableObject {
     private func scheduleReconnect() {
         guard !intentionalDisconnect, !autoReconnectPausedForBondLoop else { return }
         failedConnectAttempts += 1
-        switch Self.reconnectStep(attempt: failedConnectAttempts,
-                                  secondsSinceStandingConnect: standingConnectAt.map { Date().timeIntervalSince($0) }) {
-        case .timedRetry(let delay):
-            log("Reconnecting in \(Int(delay))s (attempt \(failedConnectAttempts))")
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                guard let self, !self.intentionalDisconnect, !self.autoReconnectPausedForBondLoop else { return }
-                self.connectFromSystem()
-            }
+        switch Self.reconnectStep(
+            secondsSinceStandingConnect: standingConnectAt.map { Date().timeIntervalSince($0) }) {
         case .standingConnect:
             issueStandingConnect()
         case .standingConnectAfter(let wait):
