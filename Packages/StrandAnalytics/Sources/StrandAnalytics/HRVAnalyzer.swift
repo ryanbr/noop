@@ -737,6 +737,22 @@ public enum HRVAnalyzer {
     /// shape as the `%.1f` divergence in #1473, where one platform's formatter rounded a tie the other way.
     /// `x + 0.5` truncated is half-up on both, with no stdlib rounding involved, so the agreement is by
     /// construction rather than by luck. Byte-parity twin of Kotlin `HrvAnalyzer.msToInt`.
+    /// One second's worth of duplicate-pair bookkeeping: how many rows landed on it, the first two
+    /// intervals, and whether every row claimed `ord == 0`. Only a second with EXACTLY two rows, both
+    /// `ord 0`, is an unambiguous two-delivery pair — see `duplicatePairRatios`.
+    final class PairTally {
+        var count = 0
+        var first = 0
+        var second = 0
+        var allOrdZero = true
+        var qualifies: Bool { count == 2 && allOrdZero }
+        func add(ms: Int, ord: Int) {
+            count += 1
+            if count == 1 { first = ms } else if count == 2 { second = ms }
+            if ord != 0 { allOrdZero = false }
+        }
+    }
+
     /// #1505: when two deliveries wrote the same second, how do their two intervals COMPARE?
     ///
     /// `deliveryHistogram` counts how many deliveries wrote each second; it never looks at what they wrote.
@@ -757,19 +773,25 @@ public enum HRVAnalyzer {
     public static func duplicatePairRatios(tsSec: [Int], rrMs: [Double], ords: [Int?]) -> String {
         let n = min(tsSec.count, rrMs.count, ords.count)
         guard n > 0 else { return "" }
-        var bySec: [Int: [(ms: Int, ord: Int)]] = [:]
+        // A tally per second rather than an array per second, matching `SecondTally` above: this runs over
+        // a whole night's beats on the same path, and the histogram beside it was deliberately reduced to
+        // one dictionary and no per-second allocation for exactly that reason.
+        var bySec: [Int: PairTally] = [:]
         for i in 0 ..< n {
             guard let o = ords[i] else { continue }
             let ms = msToInt(rrMs[i])
             guard ms > 0 else { continue }
-            bySec[tsSec[i], default: []].append((ms, o))
+            let tally: PairTally
+            if let t = bySec[tsSec[i]] { tally = t } else { tally = PairTally(); bySec[tsSec[i]] = tally }
+            tally.add(ms: ms, ord: o)
         }
         var ppts: [Int] = []
-        for (_, rows) in bySec where rows.count == 2 && rows[0].ord == 0 && rows[1].ord == 0 {
-            let lo = min(rows[0].ms, rows[1].ms)
-            let hi = max(rows[0].ms, rows[1].ms)
+        for (_, t) in bySec where t.qualifies {
+            let lo = min(t.first, t.second), hi = max(t.first, t.second)
             guard lo > 0 else { continue }
-            ppts.append((hi * 1000 + lo / 2) / lo)   // integer half-up, parts per thousand
+            // Int64 so the multiply cannot overflow on a corrupt row — Kotlin's Int is 32-bit and would
+            // wrap where Swift's would not, and a diagnostic that disagrees across platforms is worthless.
+            ppts.append(Int((Int64(hi) * 1_000 + Int64(lo) / 2) / Int64(lo)))   // half-up, parts per thousand
         }
         guard !ppts.isEmpty else { return "rr dupPairs n=0" }
         ppts.sort()

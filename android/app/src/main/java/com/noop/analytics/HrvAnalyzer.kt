@@ -664,6 +664,24 @@ object HrvAnalyzer {
     }
 
     /**
+     * One second's worth of duplicate-pair bookkeeping: how many rows landed on it, the first two
+     * intervals, and whether every row claimed `ord == 0`. Only a second with EXACTLY two rows, both
+     * `ord 0`, is an unambiguous two-delivery pair — see [duplicatePairRatios]. Twin of Swift `PairTally`.
+     */
+    private class PairTally {
+        var count = 0
+        var first = 0
+        var second = 0
+        var allOrdZero = true
+        fun qualifies(): Boolean = count == 2 && allOrdZero
+        fun add(ms: Int, ord: Int) {
+            count += 1
+            if (count == 1) first = ms else if (count == 2) second = ms
+            if (ord != 0) allOrdZero = false
+        }
+    }
+
+    /**
      * #1505: when two deliveries wrote the same second, how do their two intervals COMPARE?
      *
      * [deliveryHistogram] counts how many deliveries wrote each second; it never looks at what they wrote.
@@ -686,20 +704,25 @@ object HrvAnalyzer {
     fun duplicatePairRatios(tsSec: List<Long>, rrMs: List<Double>, ords: List<Int?>): String {
         val n = minOf(tsSec.size, rrMs.size, ords.size)
         if (n == 0) return ""
-        val bySec = HashMap<Long, MutableList<Pair<Int, Int>>>()
+        // A tally per second rather than a list per second, matching `SecondTally` above: this runs over a
+        // whole night's beats on the same path, and the histogram beside it was deliberately reduced to one
+        // map and no per-second allocation for exactly that reason.
+        val bySec = HashMap<Long, PairTally>()
         for (i in 0 until n) {
             val o = ords[i] ?: continue
             val ms = msToInt(rrMs[i])
             if (ms <= 0) continue
-            bySec.getOrPut(tsSec[i]) { ArrayList() }.add(ms to o)
+            bySec.getOrPut(tsSec[i]) { PairTally() }.add(ms, o)
         }
         val ppts = ArrayList<Int>()
-        for ((_, rows) in bySec) {
-            if (rows.size != 2 || rows[0].second != 0 || rows[1].second != 0) continue
-            val lo = minOf(rows[0].first, rows[1].first)
-            val hi = maxOf(rows[0].first, rows[1].first)
+        for ((_, t) in bySec) {
+            if (!t.qualifies()) continue
+            val lo = minOf(t.first, t.second)
+            val hi = maxOf(t.first, t.second)
             if (lo <= 0) continue
-            ppts.add((hi * 1000 + lo / 2) / lo)   // integer half-up, parts per thousand
+            // Long so the multiply cannot overflow on a corrupt row — Kotlin's Int is 32-bit and would wrap
+            // where Swift's would not, and a diagnostic that disagrees across platforms is worthless.
+            ppts.add(((hi.toLong() * 1000L + lo / 2L) / lo.toLong()).toInt())   // half-up, parts per thousand
         }
         if (ppts.isEmpty()) return "rr dupPairs n=0"
         ppts.sort()
