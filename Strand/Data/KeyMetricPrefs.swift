@@ -72,7 +72,17 @@ enum KeyMetricPrefs {
         var seen = Set<KeyMetric>()
         var result: [KeyMetric] = []
         for token in trimmed.split(separator: ",") {
-            if let m = KeyMetric(rawValue: String(token)), seen.insert(m).inserted {
+            // #1518: trim EACH token, not just the whole string. `KeyMetric(rawValue:)` matches exactly, so
+            // "charge, effort" dropped `effort` on the space alone. Kotlin's twin already does this
+            // (`KeyMetric.fromRaw(token.trim())`), as does `DashboardCards.decodeEnabled`, so Swift was the
+            // only decoder that could lose a tile the user had enabled.
+            //
+            // Latent rather than live: `encode` joins rawValues with no spaces, and this key is not in the
+            // `.noopbak` whitelist, so nothing in the app writes a spaced value today. It is fixed because
+            // a decoder that silently drops what it cannot parse should not also be picky about a space —
+            // the capabilities decoder in this same change was exactly that, and there it WAS reachable.
+            let raw = token.trimmingCharacters(in: .whitespaces)
+            if let m = KeyMetric(rawValue: raw), seen.insert(m).inserted {
                 result.append(m)
             }
         }
