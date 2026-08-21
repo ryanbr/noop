@@ -2476,13 +2476,16 @@ private fun ScoreHeroRow(
             // iOS parity (TodayView.scoreHeroRow): three EQUAL rings in CHARGE · EFFORT · REST order, no
             // enlarged centre, filling the width as one balanced row. Ring stroke 0.10 (WHOOP weight).
             val ringGap = 14.dp
-            val ring = ((maxWidth - ringGap * 2) / 3.1f).coerceIn(90.dp, 112.dp)
             // #1502: ONE width for all three columns. Charge and Effort used to size to their own label
             // rows while Rest alone was pinned to `ring` (its box anchors the source badge), so the three
             // columns came out different widths — read as "the rings aren't the same size" — and Rest's
             // label had the least room of the three despite REST being the shortest word, which is why it
-            // was the one ellipsising to "R…".
+            // was the one ellipsising to "R…". Three of these plus two gaps is exactly maxWidth.
             val col = (maxWidth - ringGap * 2) / 3
+            // The 90.dp floor can exceed `col` once the hero is under ~298.dp wide — a small phone, a
+            // split-screen pane, a foldable's cover display. Unbounded, that overflowed the column; bounded,
+            // the vessel simply shrinks with its column instead of spilling out of it.
+            val ring = ((maxWidth - ringGap * 2) / 3.1f).coerceIn(90.dp, 112.dp).coerceAtMost(col)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(ringGap, Alignment.CenterHorizontally),
@@ -2589,7 +2592,7 @@ private fun ScoreHeroRow(
                                 // #1502: the box is now the shared column width rather than the vessel's,
                                 // so inset by the slack to keep the badge's trailing edge on the VESSEL —
                                 // the alignment this anchor exists for.
-                                .padding(end = (col - ring) / 2)
+                                .padding(end = ((col - ring) / 2).coerceAtLeast(0.dp))
                                 // Match iOS: centre the pill on the card border, aligned with the Rest vessel.
                                 .offset(y = -(Metrics.space16 + Metrics.sourceBadgeHeight / 2))
                                 .semantics { contentDescription = uiString(R.string.l10n_today_screen_source_herosourcelabel_d3363687, heroSourceLabel) },
@@ -2608,9 +2611,9 @@ private fun ScoreHeroRow(
  */
 @Composable
 private fun HeroRingColumn(
-    modifier: Modifier = Modifier,
     domain: DomainTheme,
     onInfo: () -> Unit,
+    modifier: Modifier = Modifier,
     // A1: when non-null (Charge), the ring is tappable and opens the breakdown sheet. The chevron cue is
     // overlaid by the caller INSIDE the ring box so it adds no stacked height (#762 self-sizing parity).
     onRingTap: (() -> Unit)? = null,
