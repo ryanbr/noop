@@ -7,6 +7,21 @@ import StrandImport
 /// consensus. Populates appleDaily, dailyMetric, the generic metricSeries, and workouts.
 enum AppleHealthImport {
 
+    /// Apple's per-day aggregates arrive as `Double`, and a step total genuinely can be fractional: the
+    /// aggregator accumulates per source (`stepsBySource[…] += v`) before taking the winning source's
+    /// figure, and nothing constrains a source to whole counts.
+    ///
+    /// ROUNDS, for two reasons. It matches every other count/rate converted on the same rows — `avgHr`,
+    /// `maxHr`, `walkingHr`, `restingHr` all use `Int($0.rounded())` — and it matches the Kotlin twin's
+    /// `Math.round(it).toInt()`. Truncating made the same Apple export store a step total one LOWER on
+    /// Apple than on Android for any fractional day, which is stored-data divergence on an imported
+    /// column. (#1535 follow-up)
+    ///
+    /// The two rules agree here because step counts are non-negative: Swift's `.rounded()` is
+    /// half-away-from-zero and Kotlin's `Math.round` is half-up, which differ only for negatives.
+    static func stepsInt(_ v: Double) -> Int { Int(v.rounded()) }
+
+
     /// The Apple Health mapping revision, stamped into the Import test-mode parser line. Bump when this
     /// importer's aggregate->store mapping changes.
     static let importerVersion = 1
@@ -25,7 +40,7 @@ enum AppleHealthImport {
         // Apple-specific daily aggregates (steps/energy/vo2/hr/weight).
         let appleRows = daily.map { d in
             AppleDaily(day: d.day,
-                       steps: d.steps.map { Int($0) },
+                       steps: d.steps.map(stepsInt),
                        activeKcal: d.activeKcal, basalKcal: d.basalKcal, vo2max: d.vo2max,
                        avgHr: d.avgHr.map { Int($0.rounded()) },
                        maxHr: d.maxHr.map { Int($0.rounded()) },
@@ -48,7 +63,7 @@ enum AppleHealthImport {
                         // #89: Apple Health steps must land in DailyMetric.steps too — the sourced-daily
                         // arbitration resolves "steps" via metricValue(d) = d.steps, so leaving it nil (the
                         // pre-fix state) meant imported Apple steps never surfaced there.
-                        steps: d.steps.map { Int($0) },
+                        steps: d.steps.map(stepsInt),
                         avgSdnn: d.hrvSDNN)   // Apple HRV is SDNN — mirror into the SDNN field
         }
         let dmWritten = try await store.upsertDailyMetrics(dm, deviceId: deviceId)
