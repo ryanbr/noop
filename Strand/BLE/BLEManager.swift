@@ -1005,6 +1005,14 @@ public final class BLEManager: NSObject, ObservableObject {
             return peripheral
         }()
         guard let p = target else {
+            // #1539: while the bond-loop pause is latched this must stay PASSIVE. The scanning fallback is
+            // active radio work, which is precisely what the pause exists to stop, so with no cached
+            // peripheral to park against there is nothing safe to do here — the foreground probe remains
+            // the escape, exactly as on Android. Outside the pause the fallback is unchanged.
+            guard !whilePausedForBondLoop else {
+                log("Bond-loop pause: no cached strap to park a standing connect against — staying passive (#1539)")
+                return
+            }
             // No cached peripheral to hand CoreBluetooth — fall back to the scanning connect path.
             log("No cached strap for a standing connect — scanning instead")
             connectFromSystem()
@@ -5069,6 +5077,12 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         // when the strap returns; this callback is where the overnight reconnect died. Out-of-range
         // hammering is held off by the bond-loop pause and the refusal streak rather than by a timer,
         // because a passive `central.connect` is not what hammers a strap.
+        // #1539: while the pause is latched `scheduleReconnect` below is a no-op, so a parked connect that
+        // FAILED — rather than staying parked, which is what happens when the strap is reachable but the
+        // handshake dies — would consume the request and strand us again with no disconnect callback ever
+        // coming to re-arm it. Re-park it here, floored, so the instantly-failing shape this callback warns
+        // about above cannot hot-loop. Inert when the pause is not latched (the gate checks it).
+        standingConnectWhilePausedIfDue()
         scheduleReconnect()
     }
 
