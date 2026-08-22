@@ -65259,65 +65259,6 @@
         }
       }
     },
-    "Every pattern buzzes the same on a WHOOP 5/MG — the repeat count isn't sent to that strap. Your choice is saved and applies to a WHOOP 4.0.": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Auf einer WHOOP 5/MG vibriert jedes Muster gleich — die Wiederholungszahl wird an dieses Band nicht gesendet. Deine Auswahl wird gespeichert und gilt für eine WHOOP 4.0."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "En una WHOOP 5/MG todos los patrones vibran igual: el número de repeticiones no se envía a esa correa. Tu elección se guarda y se aplica a una WHOOP 4.0."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sur un WHOOP 5/MG, tous les motifs vibrent de la même façon — le nombre de répétitions n'est pas envoyé à ce bracelet. Votre choix est enregistré et s'applique à un WHOOP 4.0."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Su un WHOOP 5/MG ogni schema vibra allo stesso modo — il numero di ripetizioni non viene inviato a quel cinturino. La tua scelta viene salvata e si applica a un WHOOP 4.0."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Numa WHOOP 5/MG todos os padrões vibram igual — a contagem de repetições não é enviada para essa bracelete. A tua escolha fica guardada e aplica-se a uma WHOOP 4.0."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "На WHOOP 5/MG все шаблоны вибрируют одинаково — число повторов не отправляется на этот ремешок. Ваш выбор сохраняется и применяется к WHOOP 4.0."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在 WHOOP 5/MG 上所有模式的震动都相同——重复次数不会发送到该手环。你的选择会被保存，并在 WHOOP 4.0 上生效。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在 WHOOP 5/MG 上所有模式的震動都相同——重複次數不會傳送到該手環。你的選擇會被儲存，並在 WHOOP 4.0 上生效。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Każdy wzór brzęczy tak samo na WHOOP 5/MG — liczba powtórzeń nie jest wysyłana do tego paska. Twój wybór został zapisany i dotyczy WHOOP 4.0."
-          }
-        }
-      }
-    },
     "Every release, mirrored. A fallback if GitHub is ever down.": {
       "localizations": {
         "de": {
