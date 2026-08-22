@@ -465,6 +465,36 @@ class WhoopBleClient(
          */
         const val DEFAULT_DEVICE_ID = "my-whoop"
 
+        /**
+         * Build the WHOOP 5/MG ("maverick") haptic body from a 4.0-shaped `[patternId, loops, 0, 0, 0]`
+         * payload, carrying the repeat count through to the wire.
+         *
+         * Layout (docs/BLE_REVERSE_ENGINEERING.md:771):
+         * ```
+         *   [0]      REVISION_1 = 0x01
+         *   [1..8]   effects x8 — the "notify" preset (47, 152, then 0)
+         *   [9..10]  loopControl, u16 LE  — left 0, as in the shipped alarm body
+         *   [11]     overallLoop          — the repeat count (was hardcoded 0)
+         * ```
+         *
+         * EXPERIMENT (#926): byte 11 used to be 0 unconditionally, which is why every BuzzPattern felt
+         * the same on a 5/MG. `AlarmPayload` already ships this exact effects pair with overallLoop=7
+         * (pinned by AlarmPayloadTest), so a non-zero overallLoop is established in a real body — but
+         * that it drives the *notify* buzz's repeat count is HARDWARE-UNVERIFIED. A malformed/oversized
+         * value is not written: the count is clamped to 1..7, the range the alarm body is known to use.
+         *
+         * Defensive: a payload shorter than 2 bytes (never emitted by [buzz], but [send] is generic)
+         * falls back to 1 rather than indexing out of bounds.
+         */
+        internal fun maverickHapticBody(payload: ByteArray): ByteArray {
+            val loops = if (payload.size >= 2) (payload[1].toInt() and 0xFF).coerceIn(1, 7) else 1
+            return byteArrayOf(
+                0x01,                                   // [0]     REVISION_1
+                47, 152.toByte(), 0, 0, 0, 0, 0, 0,     // [1..8]  effects x8 ("notify" preset)
+                0, 0,                                   // [9..10] loopControl u16 LE
+                loops.toByte(),                         // [11]    overallLoop
+            )
+        }
 
         // MARK: GATT UUIDs (authoritative, from BLEManager.swift / FINDINGS.md).
         //
@@ -3327,10 +3357,17 @@ class WhoopBleClient(
             // haptic body [0x01, effects(8), loopControl(u16 LE), overallLoop] — here the "notify" preset
             // (effects 47,152), NOT the 4.0 [patternId, loops, …]. puffinCommandFrame pads the inner to a
             // 4-byte boundary, which this 12-byte payload needs. WHOOP 4.0 is untouched (79 + its own frame).
+            //
+            // EXPERIMENT (#926): the literal above pinned overallLoop (byte 11) to 0, so the caller's
+            // repeat count never reached the wire and every BuzzPattern — plus the Breathe inhale/exhale
+            // and live-session long/short cues — felt identical on a 5/MG. This carries `loops` through
+            // into overallLoop instead. The prior is not a guess: AlarmPayload already ships the SAME
+            // effects (47,152) with loopControl=0 and overallLoop=7 (AlarmPayloadTest:62), so a non-zero
+            // overallLoop is an established part of a real maverick body. HARDWARE-UNVERIFIED until a
+            // real 5/MG confirms the buzz count actually changes — see mavericHapticBody.
             val isHaptics = cmd == CommandNumber.RUN_HAPTICS_PATTERN
             val puffinCmd = if (isHaptics) 0x13 else cmd.rawValue
-            val puffinPayload = if (isHaptics)
-                byteArrayOf(0x01, 47, 152.toByte(), 0, 0, 0, 0, 0, 0, 0, 0, 0) else payload
+            val puffinPayload = if (isHaptics) maverickHapticBody(payload) else payload
             val s = seq.incrementAndGet() and 0xFF
             val frame = Framing.puffinCommandFrame(cmd = puffinCmd, seq = s, payload = puffinPayload)
             enqueueWrite(PendingWrite(frame, withResponse, cmd))
