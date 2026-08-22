@@ -463,6 +463,10 @@ struct CycleTrackerView: View {
                 }
                 .padding(NoopMetrics.screenPadding)
             }
+            #if os(iOS)
+            // #697/#horizontal-swipe parity, see ScreenScaffold.
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            #endif
             .background(StrandPalette.surfaceBase)
             .navigationTitle("Cycle tracker")
             .toolbar {

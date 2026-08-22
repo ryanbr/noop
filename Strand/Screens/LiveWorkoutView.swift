@@ -69,6 +69,11 @@ struct LiveWorkoutView: View {
             .padding(.bottom, NoopMetrics.space8)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        #if os(iOS)
+        // #697/#horizontal-swipe parity, see ScreenScaffold. This is the full-screen in-exercise
+        // tracker, up for the whole workout, so worth the same defensive fix.
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+        #endif
         // Floating end / elapsed / sport-type controls sit in the bottom safe area so the scroll
         // content never owns the chrome and the timer can stay screen-centered.
         .safeAreaInset(edge: .bottom, spacing: 0) {

@@ -156,6 +156,9 @@ struct MarkerEditorView: View {
                 }
             }
         }
+        #if os(iOS)
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+        #endif
         .frame(maxHeight: 280)
     }
 

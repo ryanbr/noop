@@ -821,6 +821,9 @@ private struct ReportReviewSheet: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .textSelection(.enabled)
                     }
+                    #if os(iOS)
+                    .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+                    #endif
                     .frame(maxHeight: 360)
                 }
                 HStack(spacing: NoopMetrics.space3) {

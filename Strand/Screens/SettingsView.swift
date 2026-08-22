@@ -2764,6 +2764,10 @@ struct SettingsView: View {
                                         .foregroundStyle(StrandPalette.textSecondary)
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                 }
+                                #if os(iOS)
+                                // #697/#horizontal-swipe parity, see ScreenScaffold.
+                                .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+                                #endif
                                 .frame(maxHeight: 150)
                             }
                         }
@@ -3128,6 +3132,10 @@ private struct DiagnosticsSheet: View {
                             in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .padding(20)
             }
+            #if os(iOS)
+            // #697/#horizontal-swipe parity, see ScreenScaffold.
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            #endif
 
             Divider().overlay(StrandPalette.hairline)
 
@@ -3226,6 +3234,10 @@ struct StepsCalibrationSheet: View {
                 }
                 .padding(20)
             }
+            #if os(iOS)
+            // #697/#horizontal-swipe parity, see ScreenScaffold.
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            #endif
             Divider().overlay(StrandPalette.hairline)
             footerBar
         }

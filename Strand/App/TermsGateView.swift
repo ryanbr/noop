@@ -73,6 +73,11 @@ struct TermsGateView: View {
                     .padding(.horizontal, 30)
                     .padding(.bottom, 18)
                 }
+                #if os(iOS)
+                // #697/#horizontal-swipe parity, see ScreenScaffold. Shown before onboarding/pairing,
+                // on top of everything, so this is the very first screen a new install sees.
+                .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+                #endif
 
                 Rectangle()
                     .fill(StrandPalette.hairline)

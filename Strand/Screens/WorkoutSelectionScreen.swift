@@ -78,6 +78,10 @@ struct WorkoutSelectionScreen: View {
                 .padding(.top, NoopMetrics.space2)
                 .padding(.bottom, NoopMetrics.space10)
             }
+            #if os(iOS)
+            // #697/#horizontal-swipe parity, see ScreenScaffold.
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            #endif
             .scrollDismissesKeyboard(.interactively)
             .background {
                 StrandPalette.surfaceBase.ignoresSafeArea()

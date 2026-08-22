@@ -506,6 +506,10 @@ struct TrendsReportSheet: View {
             .screenPadding()
             .padding(.vertical, NoopMetrics.space6)
         }
+        #if os(iOS)
+        // #697/#horizontal-swipe parity, see ScreenScaffold.
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+        #endif
         .background(StrandPalette.surfaceBase)
         .frame(width: 460, height: 640)
         #if os(iOS)

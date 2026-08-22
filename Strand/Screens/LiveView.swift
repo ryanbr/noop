@@ -1138,6 +1138,9 @@ private struct LiveLogCard: View {
                         }
                     }
                 }
+                #if os(iOS)
+                .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+                #endif
                 .frame(height: 200)
                 .onChangeCompat(of: live.log.count) { _ in
                     if let last = live.log.indices.last { proxy.scrollTo(last, anchor: .bottom) }

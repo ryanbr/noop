@@ -140,6 +140,10 @@ struct RhythmConsentGate: View {
                     .padding(.horizontal, 30)
                     .padding(.bottom, 18)
                 }
+                #if os(iOS)
+                // #697/#horizontal-swipe parity, see ScreenScaffold.
+                .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+                #endif
 
                 Rectangle()
                     .fill(StrandPalette.hairline)

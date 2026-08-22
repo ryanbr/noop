@@ -105,6 +105,10 @@ struct ScoringGuideView: View {
                     }
                     .padding(20)
                 }
+                #if os(iOS)
+                // #697/#horizontal-swipe parity, see ScreenScaffold.
+                .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+                #endif
                 .onAppear { jump(to: initialSection, using: proxy) }
             }
             Divider().overlay(StrandPalette.hairline)

@@ -1114,6 +1114,11 @@ private struct StepShell<Content: View>: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 24)
         }
+        #if os(iOS)
+        // #697/#horizontal-swipe parity, see ScreenScaffold. First-run wizard, every step routes
+        // through this one shell, so a single fix here covers the whole onboarding flow.
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+        #endif
     }
 }
 
