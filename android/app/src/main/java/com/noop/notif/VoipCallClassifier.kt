@@ -1,12 +1,15 @@
 package com.noop.notif
 
 import android.app.Notification
+import android.os.Build
 
 /**
- * Strict VoIP call detection for NotificationListenerService.
+ * Strict, privacy-preserving VoIP call detection for NotificationListenerService.
  *
- * The classifier intentionally uses only package name, category, and flags. It does not
- * inspect title, text, people, sender, or extras that may contain caller/message content.
+ * We intentionally inspect only package identity, notification category/flags, and the public
+ * Notification.CallStyle type. We never inspect title, text, people, caller names, or extras.
+ * Android documents CATEGORY_CALL as the category for incoming voice/video calls, while CallStyle
+ * is the platform's dedicated call notification style on API 31+.
  */
 internal object VoipCallClassifier {
     const val CATEGORY_CALL = "call"
@@ -20,6 +23,8 @@ internal object VoipCallClassifier {
         "com.google.android.apps.tachyon",
         "com.google.android.apps.meetings",
         "com.facebook.orca",
+        "com.discord",
+        "com.instagram.android",
     )
 
     data class Metadata(
@@ -27,17 +32,17 @@ internal object VoipCallClassifier {
         val isOngoing: Boolean,
         val isForegroundService: Boolean,
         val isGroupSummary: Boolean,
+        val isCallStyle: Boolean,
     )
 
-    fun isKnownVoipPackage(packageName: String): Boolean =
-        packageName in knownVoipPackages
+    fun isKnownVoipPackage(packageName: String): Boolean = packageName in knownVoipPackages
 
     fun isIncomingCallNotification(packageName: String, metadata: Metadata): Boolean {
         if (!isKnownVoipPackage(packageName)) return false
-        if (metadata.isForegroundService || metadata.isGroupSummary) return false
-        // Do not read CallStyle extras here: this trades VoIP recall for the documented
-        // wrist-alert privacy contract that notification extras are not inspected.
-        return metadata.category == CATEGORY_CALL && !metadata.isOngoing
+        if (metadata.isForegroundService || metadata.isGroupSummary || metadata.isOngoing) return false
+        // Prefer Android's explicit CallStyle signal when available; otherwise fall back to the
+        // documented CATEGORY_CALL contract used by older Android and third-party VoIP apps.
+        return metadata.isCallStyle || metadata.category == CATEGORY_CALL
     }
 
     fun metadataOf(notification: Notification, isOngoing: Boolean): Metadata =
@@ -46,5 +51,6 @@ internal object VoipCallClassifier {
             isOngoing = isOngoing,
             isForegroundService = (notification.flags and Notification.FLAG_FOREGROUND_SERVICE) != 0,
             isGroupSummary = (notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0,
+            isCallStyle = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && notification.style is Notification.CallStyle,
         )
 }
