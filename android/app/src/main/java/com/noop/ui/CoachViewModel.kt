@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 /**
  * View model for the AI Coach screen.
@@ -275,6 +276,10 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
 
     // MARK: - Send
 
+    /** Local day ([LocalDate.toEpochDay]) the current transcript was last written on; null while it is
+     *  empty. Drives the day boundary in [send] — see [isStaleConversation]. */
+    private var conversationDay: Long? = null
+
     /** Append [msg] to the transcript, trimming to the newest [MAX_STORED_MESSAGES] so the in-memory list
      *  (and the Compose transcript) stays bounded over a long-lived session. (parity with Swift) */
     private fun appendMessage(msg: ChatMsg) {
@@ -288,6 +293,20 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
     fun send(ctx: Context, text: String) {
         val question = text.trim()
         if (question.isEmpty() || _sending.value) return
+
+        // A transcript from an earlier local day is retired before the new turn is appended. The
+        // ViewModel outlives a night (Android keeps the process around for days), so without this the
+        // coach answers TODAY's question inside YESTERDAY's conversation: buildContext() re-reads the
+        // store on every send, so the numbers are current, but the assistant's own earlier turns state
+        // yesterday's figures and the model stays consistent with them. Reported as "the coach only
+        // talks about my imported data" after a night of fresh strap data — force-quitting the app
+        // (which destroys the ViewModel) was the only cure. MAX_STORED_MESSAGES bounds the transcript's
+        // SIZE; this bounds its AGE.
+        val today = LocalDate.now().toEpochDay()
+        if (isStaleConversation(conversationDay, today)) {
+            _messages.value = emptyList()
+        }
+        conversationDay = today
 
         val appCtx = ctx.applicationContext
         _error.value = null
@@ -332,6 +351,20 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
          * what's sent. (parity with Swift `maxStoredMessages`)
          */
         private const val MAX_STORED_MESSAGES = 40
+
+        /**
+         * True when a transcript last written on [lastEpochDay] should be retired before a question
+         * asked on [todayEpochDay] — i.e. the conversation crossed into a new local day.
+         *
+         * STRICTLY forward (`>`), never `!=`: a clock that moves BACKWARDS — the user flying west, a
+         * timezone change, an NTP correction — must not wipe a conversation the user is in the middle
+         * of. Only real elapsed days retire a transcript; going back in time leaves it alone.
+         *
+         * Null [lastEpochDay] (nothing sent yet this session) is never stale. Pure companion so the
+         * rule is pinned by [com.noop.ui.CoachConversationDayTest] without a ViewModel or a framework.
+         */
+        internal fun isStaleConversation(lastEpochDay: Long?, todayEpochDay: Long): Boolean =
+            lastEpochDay != null && todayEpochDay > lastEpochDay
 
         /**
          * Initial model list for [provider]: its curated ids, plus [selected] appended if it's a
