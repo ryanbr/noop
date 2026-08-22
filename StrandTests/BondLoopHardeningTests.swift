@@ -104,4 +104,50 @@ final class BondLoopHardeningTests: XCTestCase {
                                                      intentionalDisconnect: true,
                                                      secondsSincePauseTripped: floor))
     }
+
+    // MARK: shouldStandingConnectWhilePaused (#1539)
+
+    /// The regression: a pause tripped while the app is backgrounded had no escape at all. The salvage
+    /// probe fires on app-foreground, so a phone in a pocket never ran it, and the paused branch suppressed
+    /// the one passive mechanism that could end the pause. `nil` elapsed means "just tripped" — that is the
+    /// moment the parked connect must be armed, not skipped.
+    func testJustTrippedArmsTheParkedConnectImmediately() {
+        XCTAssertTrue(BLEManager.shouldStandingConnectWhilePaused(
+            pausedForBondLoop: true, connected: false, intentionalDisconnect: false,
+            secondsSincePauseTripped: nil))
+    }
+
+    /// Refreshes are floored, so a reachable strap that keeps refusing gets one attempt per window instead
+    /// of spinning connect -> refuse -> pause -> connect. This is the anti-hammering property the pause was
+    /// added for, and it has to survive the escape.
+    func testARefreshInsideTheFloorIsRefused() {
+        XCTAssertFalse(BLEManager.shouldStandingConnectWhilePaused(
+            pausedForBondLoop: true, connected: false, intentionalDisconnect: false,
+            secondsSincePauseTripped: 0))
+        XCTAssertFalse(BLEManager.shouldStandingConnectWhilePaused(
+            pausedForBondLoop: true, connected: false, intentionalDisconnect: false,
+            secondsSincePauseTripped: BLEManager.bondLoopSalvageFloorSeconds - 1))
+    }
+
+    /// ...and is allowed once the floor has elapsed, which is what makes recovery eventual rather than
+    /// dependent on the user.
+    func testARefreshAtOrPastTheFloorIsAllowed() {
+        XCTAssertTrue(BLEManager.shouldStandingConnectWhilePaused(
+            pausedForBondLoop: true, connected: false, intentionalDisconnect: false,
+            secondsSincePauseTripped: BLEManager.bondLoopSalvageFloorSeconds))
+    }
+
+    /// Never parks a connect when the pause is not latched, when a link is already up, or when the user
+    /// tore the link down deliberately — the same three refusals the foreground probe makes.
+    func testTheThreeRefusalsMatchTheForegroundProbe() {
+        XCTAssertFalse(BLEManager.shouldStandingConnectWhilePaused(
+            pausedForBondLoop: false, connected: false, intentionalDisconnect: false,
+            secondsSincePauseTripped: nil))
+        XCTAssertFalse(BLEManager.shouldStandingConnectWhilePaused(
+            pausedForBondLoop: true, connected: true, intentionalDisconnect: false,
+            secondsSincePauseTripped: nil))
+        XCTAssertFalse(BLEManager.shouldStandingConnectWhilePaused(
+            pausedForBondLoop: true, connected: false, intentionalDisconnect: true,
+            secondsSincePauseTripped: nil))
+    }
 }

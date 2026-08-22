@@ -710,6 +710,30 @@ class WhoopBleClient(
         ): Boolean = pausedForBondLoop && !connected && !intentionalDisconnect &&
             msSincePauseTripped != null && msSincePauseTripped >= BOND_LOOP_SALVAGE_FLOOR_MS
 
+        /**
+         * #1539: may the bond-loop pause hand the OS a STANDING connect right now?
+         *
+         * The pause deliberately stops active rescanning, but it also suppressed the one passive mechanism
+         * capable of ending it without the user: [salvageProbeIfBondLoopPaused] runs from
+         * onActivityResumed, so a phone in a pocket never reaches it. A strap freed at midnight then stays
+         * unclaimed until someone opens the app, which becomes real data loss once the gap outlives the
+         * strap's own buffer.
+         *
+         * A standing connect is the right escape because it is not hammering: connectGatt(autoConnect=true)
+         * is one request the OS parks until the strap is reachable, writing nothing to the strap. The floor
+         * still applies to REFRESHES, so a reachable strap that keeps refusing cannot spin
+         * connect -> refuse -> pause -> connect. A null elapsed time means the pause has only just tripped,
+         * which is exactly when the first parked connect must be armed. Twin of the Swift
+         * `BLEManager.shouldStandingConnectWhilePaused`.
+         */
+        fun shouldStandingConnectWhilePaused(
+            pausedForBondLoop: Boolean,
+            connected: Boolean,
+            intentionalDisconnect: Boolean,
+            msSincePauseTripped: Long?,
+        ): Boolean = pausedForBondLoop && !connected && !intentionalDisconnect &&
+            (msSincePauseTripped == null || msSincePauseTripped >= BOND_LOOP_SALVAGE_FLOOR_MS)
+
         /** Give up a scan after this long with no strap found, and tell the user why. */
         private const val SCAN_TIMEOUT_MS = 20_000L
         /** Rotate to the other WHOOP family after this long with no discovery, in case the persisted
@@ -3022,6 +3046,34 @@ class WhoopBleClient(
     }
 
     /**
+     * #1539: park a standing connect while the bond-loop pause is latched, so the pause can end without the
+     * user. Called from every trip site and from the paused branch of [handleDisconnect] — all of which run
+     * with the app backgrounded, which is exactly where [salvageProbeIfBondLoopPaused] cannot reach
+     * (onActivityResumed never fires for a phone in a pocket).
+     *
+     * PASSIVE ONLY. Unlike the foreground probe this never falls back to [connect]'s scan: a scan is active
+     * radio work and the pause exists to stop exactly that. If there is no preferred last device to park a
+     * connect against, this does nothing and the foreground probe remains the escape. Re-stamps
+     * [bondLoopPausedAtMs] so a reachable strap that keeps refusing gets one attempt per window rather than
+     * a connect/refuse spin. Twin of Swift `BLEManager.standingConnectWhilePausedIfDue`.
+     */
+    fun standingConnectWhilePausedIfDue(justTripped: Boolean = false) {
+        handler.post {
+            val since =
+                if (justTripped) null else bondLoopPausedAtMs?.let { System.currentTimeMillis() - it }
+            if (!shouldStandingConnectWhilePaused(autoReconnectPausedForBondLoop, _state.value.connected,
+                                                  intentionalDisconnect, since)) return@post
+            if (gatt != null || scanning) return@post   // an attempt is already in flight - never stack one
+            val dev = lastDevice ?: return@post
+            if (!isPreferred(dev)) return@post
+            bondLoopPausedAtMs = System.currentTimeMillis()
+            log("Bond-loop pause: parking a standing connect so the strap is claimed the moment it is reachable (#1539) - the give-up stays latched")
+            intentionalDisconnect = false
+            connectToDevice(dev, autoConnect = true)
+        }
+    }
+
+    /**
      * Switch which strap we'll connect to next: drop the current strap and clear the **sticky** bond
      * state so a newly-picked model bonds fresh. Without this, `bonded` stayed true from the first strap,
      * which hid the strap picker and kept the scan pointed at the old family's service — so a user with
@@ -4563,6 +4615,8 @@ class WhoopBleClient(
                 bondWatchdogContext() + " — pausing auto-reconnect and surfacing the re-pair guide (#971)")
             autoReconnectPausedForBondLoop = true
             bondLoopPausedAtMs = System.currentTimeMillis()   // the #78 hole-4 salvage probe covers this pause too
+                // #1539: park the connect in the same breath as the pause, so this can end while backgrounded.
+                standingConnectWhilePausedIfDue(justTripped = true)
             if (_state.value.reconnectGuide == null) {
                 _state.update { it.copy(
                     reconnectGuide = """
@@ -4772,6 +4826,8 @@ class WhoopBleClient(
         if (bondGiveUp.recordRefusal()) {
             autoReconnectPausedForBondLoop = true
             bondLoopPausedAtMs = System.currentTimeMillis()   // starts the #78 hole-4 salvage-probe floor
+                // #1539: park the connect in the same breath as the pause, so this can end while backgrounded.
+                standingConnectWhilePausedIfDue(justTripped = true)
             val opaque = BondRefusalGiveUp.opaqueId(failedAddress ?: "device")
             log(BondRefusalGiveUp.epitaphLine(bondGiveUp.refusals, opaque))
             _state.update { it.copy(pairingHint = BondRefusalGiveUp.pausedHint()) }
@@ -7846,6 +7902,8 @@ class WhoopBleClient(
             // Swift BLEManager #844 fix.
             autoReconnectPausedForBondLoop = true
             bondLoopPausedAtMs = System.currentTimeMillis()   // the #78 hole-4 salvage probe covers this pause too (one bounded cycle)
+                // #1539: park the connect in the same breath as the pause, so this can end while backgrounded.
+                standingConnectWhilePausedIfDue(justTripped = true)
             if (_state.value.reconnectGuide == null) {
                 _state.update { it.copy(
                     reconnectGuide = """
@@ -7882,6 +7940,8 @@ class WhoopBleClient(
                 bondWatchdogContext() + " — pausing auto-reconnect and surfacing the re-pair guide (#982/#971)")
             autoReconnectPausedForBondLoop = true
             bondLoopPausedAtMs = System.currentTimeMillis()   // the #78 hole-4 salvage probe covers this pause too
+                // #1539: park the connect in the same breath as the pause, so this can end while backgrounded.
+                standingConnectWhilePausedIfDue(justTripped = true)
             if (_state.value.reconnectGuide == null) {
                 _state.update { it.copy(
                     reconnectGuide = """
@@ -7960,6 +8020,9 @@ class WhoopBleClient(
             // can't bond (the epitaph + paused hint were already surfaced when the give-up tripped). The user
             // re-arms it by tapping Connect (clearPairingHintForUserConnect). We do NOT schedule a reconnect.
             log("Disconnected (status=$status); auto-reconnect paused (strap keeps refusing to pair; tap Connect once it's free)")
+            // #1539: a connect attempt CONSUMES the parked request, so re-park it — floored, so a reachable
+            // strap that keeps refusing gets one attempt per window instead of a connect/refuse spin.
+            standingConnectWhilePausedIfDue()
             if (testCentre.active(com.noop.testcentre.TestDomain.CONNECTION)) {
                 log("connect down (uptime ends)", com.noop.testcentre.TestDomain.CONNECTION)
                 log("reconnect paused=bondLoop (strap refusing bond)", com.noop.testcentre.TestDomain.CONNECTION)

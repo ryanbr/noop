@@ -62,4 +62,55 @@ class BondLoopSalvageProbeTest {
             pausedForBondLoop = true, connected = false,
             intentionalDisconnect = true, msSincePauseTripped = floor))
     }
+
+    // #1539: the background escape.
+
+    /**
+     * The regression: a pause tripped while backgrounded had no escape at all. The foreground probe runs
+     * from onActivityResumed, so a phone in a pocket never reaches it, and the paused branch suppressed the
+     * one passive mechanism that could end the pause. A null elapsed time means "just tripped" — the moment
+     * the parked connect must be armed, not skipped, which is where this gate differs from the probe's.
+     */
+    @Test
+    fun justTrippedArmsTheParkedConnectImmediately() {
+        assertTrue(WhoopBleClient.shouldStandingConnectWhilePaused(
+            pausedForBondLoop = true, connected = false,
+            intentionalDisconnect = false, msSincePauseTripped = null))
+        // The foreground probe refuses the same input: it has no "first" attempt to arm.
+        assertFalse(WhoopBleClient.shouldSalvageProbe(
+            pausedForBondLoop = true, connected = false,
+            intentionalDisconnect = false, msSincePauseTripped = null))
+    }
+
+    /**
+     * Refreshes stay floored, so a reachable strap that keeps refusing gets one attempt per window rather
+     * than spinning connect -> refuse -> pause -> connect. The anti-hammering property the pause exists for
+     * has to survive the escape.
+     */
+    @Test
+    fun refreshesRemainFloored() {
+        assertFalse(WhoopBleClient.shouldStandingConnectWhilePaused(
+            pausedForBondLoop = true, connected = false,
+            intentionalDisconnect = false, msSincePauseTripped = 0L))
+        assertFalse(WhoopBleClient.shouldStandingConnectWhilePaused(
+            pausedForBondLoop = true, connected = false,
+            intentionalDisconnect = false, msSincePauseTripped = floor - 1))
+        assertTrue(WhoopBleClient.shouldStandingConnectWhilePaused(
+            pausedForBondLoop = true, connected = false,
+            intentionalDisconnect = false, msSincePauseTripped = floor))
+    }
+
+    /** The same three refusals the foreground probe makes: not paused, already linked, user teardown. */
+    @Test
+    fun theThreeRefusalsMatchTheForegroundProbe() {
+        assertFalse(WhoopBleClient.shouldStandingConnectWhilePaused(
+            pausedForBondLoop = false, connected = false,
+            intentionalDisconnect = false, msSincePauseTripped = null))
+        assertFalse(WhoopBleClient.shouldStandingConnectWhilePaused(
+            pausedForBondLoop = true, connected = true,
+            intentionalDisconnect = false, msSincePauseTripped = null))
+        assertFalse(WhoopBleClient.shouldStandingConnectWhilePaused(
+            pausedForBondLoop = true, connected = false,
+            intentionalDisconnect = true, msSincePauseTripped = null))
+    }
 }
