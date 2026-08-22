@@ -1821,7 +1821,6 @@
     <string name="l10n_settings_screen_r22disable_confirm_cancel">Apenas parar de enviar</string>
     <string name="l10n_settings_screen_r22_accepted_all">✓ A pulseira aceitou as %1$d marcas R22</string>
     <string name="l10n_settings_screen_r22_accepted_partial">A pulseira aceitou %1$d/%2$d marcas R22…</string>
-    <string name="l10n_notifications_settings_screen_every_pattern_buzzes_the_same_on_34e873f6">Numa WHOOP 5/MG todos os padrões vibram igual — a contagem de repetições não é enviada para essa bracelete. A tua escolha fica guardada e aplica-se a uma WHOOP 4.0.</string>
     <string name="l10n_app_changelog_water_and_caffeine_from_apple_health_5123b6b0">Água e cafeína a partir do Apple Health, uma pontuação de Effort mais precisa e uma correção da FC em repouso do Oura</string>
     <!-- Textos da configuração inicial. -->
     <string name="onboarding_cta_begin">Começar</string>

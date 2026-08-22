@@ -18,19 +18,28 @@ import Foundation
 private let waveformEffects: [UInt8] = [47, 152, 0, 0, 0, 0, 0, 0]
 
 public enum MaverickHaptics {
-    /// 12-byte payload for RUN_HAPTIC_PATTERN_MAVERICK (cmd 19/0x13) — a one-shot buzz on a 5/MG
-    /// strap: `[REVISION_1][waveFormEffect1..8][loopControlForEffects u16 LE = 0][overallLoop]`.
-    /// `loops` maps to overallWaveformLoopControl; the official "buzz once" notification is 1.
+    /// 12-byte payload for RUN_HAPTIC_PATTERN_MAVERICK (cmd 19/0x13) — a buzz on a 5/MG strap:
+    /// `[REVISION_1][waveFormEffect1..8][loopControlForEffects u16 LE = 0][overallLoop]`.
     ///
-    /// NOTHING SHIPS THIS (#926). `BLEManager.send` / `WhoopBleClient.send` substitute their own literal
-    /// `[0x01, 47, 152, 0, …, 0]` for a 5/MG buzz, whose `overallLoop` is 0 — so the caller's repeat count
-    /// never reaches the wire and this function's only callers are two assertions in
-    /// `DeviceFamilyFramingTests`. There is no Kotlin twin. Kept because it is the only code that knows how
-    /// to build a VARIABLE-loop buzz body, which is exactly what a future test of `overallLoop != 0` would
-    /// need; the shipped literal is hardware-confirmed at 0 and deliberately unchanged until someone probes
-    /// it (the alarm path already ships 7, so the field itself is accepted non-zero).
+    /// `overallLoop` counts the repeats that follow the FIRST pulse, not the total, so `loops` is written
+    /// as `loops - 1`. HARDWARE-CONFIRMED on a real WHOOP 5/MG by @dwehrmann (#926): writing 3 produced
+    /// FOUR buzzes. The model also explains the behaviour that shipped for years — the hardcoded `0` in
+    /// `BLEManager.send` / `WhoopBleClient.send` meant "no repeats", which is exactly the single identical
+    /// buzz every BuzzPattern used to give; a reading where 0 meant "zero buzzes" would predict silence.
+    ///
+    /// This function ENCODED THE OPPOSITE convention until that measurement existed — it wrote `loops`
+    /// straight into the byte, so asking it for one buzz would have produced two. It was documented as the
+    /// only code that knew how to build a variable-loop body, which is precisely why the error mattered:
+    /// the next caller to adopt it would have inherited a silent off-by-one from the file that claims
+    /// authority over this field.
+    ///
+    /// Clamped to 1...8 (`overallLoop` 0...7), 7 being the largest value any captured body evidences — the
+    /// alarm's long wake train (`AlarmPayload.setAlarmRev4`, pinned in `DeviceFamilyFramingTests`). The old
+    /// `UInt8(clamping:)` admitted 255, a value nothing has ever observed on the wire.
+    ///
+    /// Kotlin twin: `WhoopBleClient.maverickHapticBody`.
     public static func notificationBuzz(loops: Int) -> [UInt8] {
-        [0x01] + waveformEffects + [0x00, 0x00, UInt8(clamping: loops)]
+        [0x01] + waveformEffects + [0x00, 0x00, UInt8(min(max(loops, 1), 8) - 1)]
     }
 }
 

@@ -1756,7 +1756,6 @@
     <string name="l10n_settings_screen_r22disable_confirm_body">关闭此开关只会让 NOOP 停止发送解锁序列。已写入的标记会留在手环上，直到有东西清除它们。NOOP 现在可以向全部 16 个标记写入关闭值并逐一读回，让你看到手环实际存储的内容。需要手环已连接并完成配对。</string>
     <string name="l10n_settings_screen_r22disable_confirm_action">清除手环上的标记</string>
     <string name="l10n_settings_screen_r22disable_confirm_cancel">仅停止发送</string>
-    <string name="l10n_notifications_settings_screen_every_pattern_buzzes_the_same_on_34e873f6">在 WHOOP 5/MG 上所有模式的震动都相同——重复次数不会发送到该手环。你的选择会被保存，并在 WHOOP 4.0 上生效。</string>
     <string name="l10n_app_changelog_water_and_caffeine_from_apple_health_5123b6b0">从 Apple 健康导入饮水与咖啡因、更精确的 Effort 分数，以及 Oura 静息心率修复</string>
     <!-- 首次设置文本。 -->
     <string name="onboarding_cta_begin">开始</string>

@@ -319,9 +319,24 @@ final class DeviceFamilyFramingTests: XCTestCase {
         XCTAssertEqual(body, Self.hex("040100f15365be0f2f980000000000000000071e"))
         XCTAssertEqual(AlarmPayload.disableRev2(), [0x02, 0xFF])
         XCTAssertEqual(AlarmPayload.runAlarmRev2(), [0x02, 0x01])
+        // #926: overallLoop counts the repeats AFTER the first pulse (hardware-confirmed on a 5/MG by
+        // @dwehrmann), so ONE buzz is 0 — and that is byte-for-byte the literal both send() paths shipped
+        // for years, which is why the old single buzz was the observed behaviour.
         XCTAssertEqual(MaverickHaptics.notificationBuzz(loops: 1),
-                       [0x01, 47, 152, 0, 0, 0, 0, 0, 0, 0, 0, 1])
-        XCTAssertEqual(MaverickHaptics.notificationBuzz(loops: 999).last, 255)   // clamped
+                       [0x01, 47, 152, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+        // The SAME vectors the Kotlin twin pins (MaverickHapticBodyTest), so the two reimplementations
+        // cannot drift on what this byte means.
+        XCTAssertEqual(MaverickHaptics.notificationBuzz(loops: 2).last, 1)       // 2 buzzes = 1 repeat
+        XCTAssertEqual(MaverickHaptics.notificationBuzz(loops: 3).last, 2)       // 3 buzzes
+        XCTAssertEqual(MaverickHaptics.notificationBuzz(loops: 5).last, 4)       // BuzzPattern.Long
+        XCTAssertEqual(MaverickHaptics.notificationBuzz(loops: 999).last, 7)     // clamped to the alarm's 7
+        XCTAssertEqual(MaverickHaptics.notificationBuzz(loops: 0).last, 0)       // never underflows
+        // Everything except byte 11 is the shipped constant, at every loop count.
+        for n in 1...8 {
+            let body = MaverickHaptics.notificationBuzz(loops: n)
+            XCTAssertEqual(body.count, 12)
+            XCTAssertEqual(Array(body[0..<11]), [0x01, 47, 152, 0, 0, 0, 0, 0, 0, 0, 0])
+        }
     }
 
     func testPuffinAlarmFramesMatchKotlinParityGoldens() {

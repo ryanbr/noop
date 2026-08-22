@@ -1814,7 +1814,6 @@
     <string name="l10n_settings_screen_r22disable_confirm_cancel">Po prostu przestań wysyłać</string>
     <string name="l10n_settings_screen_r22_accepted_all">✓ Pasek akceptuje wszystkie flagi %1$d R22</string>
     <string name="l10n_settings_screen_r22_accepted_partial">Pasek akceptowany %1$d/%2$d Flagi R22…</string>
-    <string name="l10n_notifications_settings_screen_every_pattern_buzzes_the_same_on_34e873f6">Każdy wzór brzęczy tak samo na WHOOP 5/MG — liczba powtórzeń nie jest wysyłana do tego paska. Twój wybór został zapisany i dotyczy WHOOP 4.0.</string>
     <string name="l10n_app_changelog_water_and_caffeine_from_apple_health_5123b6b0">Woda i kofeina z Apple Health, ostrzejszy wynik Wysiłek i poprawka tętna spoczynkowego Oura</string>
     <string name="onboarding_cta_begin">Zaczynać</string>
     <string name="onboarding_cta_continue">Dalej</string>

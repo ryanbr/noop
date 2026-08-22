@@ -1827,7 +1827,6 @@
     <string name="l10n_settings_screen_r22disable_confirm_cancel">Solo dejar de enviar</string>
     <string name="l10n_settings_screen_r22_accepted_all">✓ La pulsera aceptó las %1$d marcas R22</string>
     <string name="l10n_settings_screen_r22_accepted_partial">La pulsera aceptó %1$d/%2$d marcas R22…</string>
-    <string name="l10n_notifications_settings_screen_every_pattern_buzzes_the_same_on_34e873f6">En una WHOOP 5/MG todos los patrones vibran igual: el número de repeticiones no se envía a esa correa. Tu elección se guarda y se aplica a una WHOOP 4.0.</string>
     <string name="l10n_app_changelog_water_and_caffeine_from_apple_health_5123b6b0">Agua y cafeína desde Apple Health, una puntuación de Effort más precisa y una corrección del pulso en reposo de Oura</string>
     <!-- Textos de la configuración inicial. -->
     <string name="onboarding_cta_begin">Empezar</string>

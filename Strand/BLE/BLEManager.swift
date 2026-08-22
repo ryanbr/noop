@@ -1885,7 +1885,16 @@ public final class BLEManager: NSObject, ObservableObject {
             // 4-byte boundary, which this 12-byte payload needs. WHOOP 4.0 is untouched (79 + its own frame).
             let isHaptics = command == .runHapticsPattern
             let puffinCmd: UInt8 = isHaptics ? 0x13 : command.rawValue
-            let puffinPayload: [UInt8] = isHaptics ? [0x01, 47, 152, 0, 0, 0, 0, 0, 0, 0, 0, 0] : payload
+            // #926: build the body through the shared `MaverickHaptics.notificationBuzz` rather than a
+            // literal, so the caller's repeat count reaches the wire. The literal that used to sit here
+            // pinned overallLoop to 0, which is why every BuzzPattern — and the Breathe inhale/exhale cue,
+            // and the live-session long/short cues — felt identical on a 5/MG. The 4.0 payload this
+            // substitutes for is `[patternId, loops, …]`, so the count is byte 1. A single buzz still
+            // rebuilds the old literal EXACTLY (overallLoop = 1 - 1 = 0), so nothing changes for a caller
+            // that asked for one. Kotlin twin: `WhoopBleClient.maverickHapticBody`.
+            let buzzLoops = payload.count >= 2 ? Int(payload[1]) : 1
+            let puffinPayload: [UInt8] = isHaptics
+                ? MaverickHaptics.notificationBuzz(loops: buzzLoops) : payload
             seq = seq &+ 1
             let frame = puffinCommandFrame(cmd: puffinCmd, seq: seq, payload: puffinPayload)
             p.writeValue(Data(frame), for: ch, type: writeType)

@@ -1845,7 +1845,6 @@
     <string name="l10n_settings_screen_r22disable_confirm_cancel">Cesser seulement d’envoyer</string>
     <string name="l10n_settings_screen_r22_accepted_all">✓ Le bracelet a accepté les %1$d indicateurs R22</string>
     <string name="l10n_settings_screen_r22_accepted_partial">Le bracelet a accepté %1$d/%2$d indicateurs R22…</string>
-    <string name="l10n_notifications_settings_screen_every_pattern_buzzes_the_same_on_34e873f6">Sur un WHOOP 5/MG, tous les motifs vibrent de la même façon — le nombre de répétitions n\'est pas envoyé à ce bracelet. Votre choix est enregistré et s\'applique à un WHOOP 4.0.</string>
     <string name="l10n_app_changelog_water_and_caffeine_from_apple_health_5123b6b0">L\'eau et la caféine depuis Apple Santé, un score Effort plus précis et un correctif de la FC au repos Oura</string>
     <!-- Textes de la configuration initiale. -->
     <string name="onboarding_cta_begin">Commencer</string>
