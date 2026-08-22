@@ -477,22 +477,30 @@ class WhoopBleClient(
          *   [11]     overallLoop          — the repeat count (was hardcoded 0)
          * ```
          *
-         * EXPERIMENT (#926): byte 11 used to be 0 unconditionally, which is why every BuzzPattern felt
-         * the same on a 5/MG. `AlarmPayload` already ships this exact effects pair with overallLoop=7
-         * (pinned by AlarmPayloadTest), so a non-zero overallLoop is established in a real body — but
-         * that it drives the *notify* buzz's repeat count is HARDWARE-UNVERIFIED. A malformed/oversized
-         * value is not written: the count is clamped to 1..7, the range the alarm body is known to use.
+         * #926: byte 11 used to be 0 unconditionally, which is why every BuzzPattern felt the same on a
+         * 5/MG.
          *
+         * HARDWARE-CONFIRMED on a WHOOP 5/MG: `overallLoop` counts the repeats that follow the FIRST
+         * pulse, not the total — writing 3 produced FOUR buzzes. So it is written as `loops - 1`, and
+         * the model explains the old behaviour exactly: the shipped 0 meant "no repeats" = the single
+         * buzz every pattern used to give. It also matches `AlarmPayload`, which ships this same effects
+         * pair with overallLoop=7 (pinned by AlarmPayloadTest) for an alarm's long buzz train.
+         *
+         * Note the consequence: `loops = 1` reproduces the previously shipped, hardware-verified
+         * constant byte-for-byte, so this change is strictly additive — it only moves byte 11, and only
+         * when the caller asked for more than one pulse.
+         *
+         * Clamped to 1..8 (overallLoop 0..7), 7 being the largest value evidenced by the alarm body.
          * Defensive: a payload shorter than 2 bytes (never emitted by [buzz], but [send] is generic)
-         * falls back to 1 rather than indexing out of bounds.
+         * falls back to a single pulse rather than indexing out of bounds.
          */
         internal fun maverickHapticBody(payload: ByteArray): ByteArray {
-            val loops = if (payload.size >= 2) (payload[1].toInt() and 0xFF).coerceIn(1, 7) else 1
+            val loops = if (payload.size >= 2) (payload[1].toInt() and 0xFF).coerceIn(1, 8) else 1
             return byteArrayOf(
                 0x01,                                   // [0]     REVISION_1
                 47, 152.toByte(), 0, 0, 0, 0, 0, 0,     // [1..8]  effects x8 ("notify" preset)
                 0, 0,                                   // [9..10] loopControl u16 LE
-                loops.toByte(),                         // [11]    overallLoop
+                (loops - 1).toByte(),                   // [11]    overallLoop = repeats AFTER the first
             )
         }
 
