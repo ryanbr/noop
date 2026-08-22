@@ -65,7 +65,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.noop.ble.WhoopModel
 import com.noop.notif.CallAlertController
 import com.noop.notif.CallAlertSource
 import java.util.Calendar
@@ -381,27 +380,12 @@ fun NotificationsSettingsScreen(vm: AppViewModel) {
             }
         }
 
-        // #926: on a 5/MG the buzz payload is a hardcoded 12-byte literal and byte[11] (overallLoop) is
-        // 0, so the caller's repeat count never reaches the wire — every BuzzPattern produces the same
-        // buzz. The picker still offers all four because the choice is stored per app and DOES apply to a
-        // WHOOP 4.0, so hiding it would lose a real setting. Say so instead, the way SmartAlarmScreen
-        // handles its own 5/MG-unconfirmed case, rather than leaving a control that silently does nothing.
-        // Match the Settings #22 gate (SettingsScreen showFiveMGControls, mirrored in TestCentreScreen:87):
-        // the stored model OR a live-detected 5/MG this session. `live.whoop5Detected` alone is reset on
-        // every scan and disconnect, so keying on it would hide this note whenever the strap is offline —
-        // which is exactly when someone browses notification settings. The Apple side reads `selectedModel`,
-        // which persists, so gating on live detection here would also make the two platforms disagree.
-        val fiveMgSelected = remember {
-            NoopPrefs.of(context).getString("noop.selectedWhoopModel", null) == WhoopModel.WHOOP5_MG.name
-        }
-        if (fiveMgSelected || live.whoop5Detected) {
-            Text(
-                uiString(R.string.l10n_notifications_settings_screen_every_pattern_buzzes_the_same_on_34e873f6),
-                style = NoopType.caption,
-                color = Palette.textSecondary,
-                modifier = Modifier.padding(horizontal = Metrics.space16, vertical = Metrics.space8),
-            )
-        }
+        // #926: the "every pattern buzzes the same on a 5/MG" note that used to sit here is GONE — the
+        // limitation it described is fixed. overallLoop (byte 11 of the maverick haptic body) is now
+        // written as `loops - 1` in WhoopBleClient.maverickHapticBody, hardware-confirmed on a real
+        // 5/MG, so all four patterns are distinct on that family too. Leaving the note would be worse
+        // than never having had it: a caption telling the user their setting does nothing, next to a
+        // control that now works.
 
         // MARK: Category cards
         activeCategories.forEach { cat ->

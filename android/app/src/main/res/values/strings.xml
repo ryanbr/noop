@@ -1870,7 +1870,6 @@
     <string name="l10n_settings_screen_r22disable_confirm_cancel">Just stop sending</string>
     <string name="l10n_settings_screen_r22_accepted_all">✓ Strap accepted all %1$d R22 flags</string>
     <string name="l10n_settings_screen_r22_accepted_partial">Strap accepted %1$d/%2$d R22 flags…</string>
-    <string name="l10n_notifications_settings_screen_every_pattern_buzzes_the_same_on_34e873f6">Every pattern buzzes the same on a WHOOP 5/MG — the repeat count isn\'t sent to that strap. Your choice is saved and applies to a WHOOP 4.0.</string>
     <string name="l10n_app_changelog_water_and_caffeine_from_apple_health_5123b6b0">Water and caffeine from Apple Health, a sharper Effort score, and an Oura resting-heart-rate fix</string>
     <!-- First-run onboarding copy. Kept in resources so every visible setup string is localizable. -->
     <string name="onboarding_cta_begin">Begin</string>
