@@ -1,7 +1,8 @@
 package com.noop.testcentre
 
 /**
- * The report-completeness guard (Kotlin twin of the Swift ReportCompleteness). A report is only useful
+ * The report-completeness guard. Swift's architectural counterpart is `CaptureCompleteness` (there is no
+ * Swift type named ReportCompleteness). A report is only useful
  * if the active mode's KILLER TRACE actually landed in report.txt. The Test Centre's whole point is that
  * each domain emits one upfront, hard-to-miss line that settles the bug; if a tester toggles a mode but
  * the emitter never fires (strap never connected, no scored day, the import never ran), the .zip looks
@@ -9,15 +10,23 @@ package com.noop.testcentre
  * whether its killer-trace token is present, so a maintainer (and the tester, via the review sheet) sees
  * "Sleep: MISSING" before the report ships rather than after a round-trip.
  *
- * The {domain -> token} map below is the SINGLE source of truth and is byte-identical to the Swift twin
- * (same domains, same token substrings). Each token is the distinctive, stable leading fragment of that
+ * The {domain -> token} map below is the SINGLE source of truth FOR THIS PLATFORM, and is deliberately
+ * NOT byte-identical to Swift's. It cannot be: each side keys on the tokens ITS OWN emitters actually
+ * write, and the two platforms word several of those lines differently. Of the ten killer tokens, four
+ * match Swift exactly, three differ only by a trailing fragment, and three have no counterpart in the
+ * Swift map at all -- import (`import parser=` vs `import stage=`), steps (`stepsEst ` vs `stepsRaw`)
+ * and battery (`battery series=` vs `bank soc=`). Aligning them would break this guard, because the
+ * token has to match the line Android emits. Each token is the distinctive, stable leading fragment of that
  * domain's killer trace (verified against the trace emitters and their unit tests): a SUBSTRING match is
  * deliberate so the per-day / per-record suffix (counts, ids, ISO dates) can vary without breaking the
  * check. The UNIVERSAL token (`dayOwner day=`) rides every export, so it is checked on every report.
  *
  * Pure + side-effect-free (no clock, no IO): the assembler passes the assembled report.txt text and the
  * active-domain set, and gets back the lines to append. No PII (tokens are fixed format fragments). No
- * em-dashes. Tested directly on the JVM, and a parity test pins the map against the Swift twin.
+ * em-dashes. Tested directly on the JVM by ReportCompletenessContractTest, which pins THIS map -- it
+ * does not read the Swift side and cannot detect drift there. Cross-platform parity of the SECTION the
+ * user reads (labels, ordering, present/MISSING wording) is the contract that matters here; identical
+ * tokens are not, and were never achievable.
  */
 object ReportCompleteness {
 

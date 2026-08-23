@@ -8,14 +8,23 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Parity + behaviour test for the report-completeness guard. The {domain -> killer-token} map and the
- * "Capture check" section labels MUST stay byte-identical to the Swift twin (the maintainer reads the
- * same section on every platform), so this pins the map, the section text, and the present/MISSING logic.
+ * Contract + behaviour test for the report-completeness guard.
+ *
+ * NOT a parity test, despite what this file was called until #1531 exposed the difference. It pins the
+ * Kotlin {domain -> killer-token} map against literals held HERE; it never reads the Swift side, so it
+ * cannot fail when the two platforms drift -- and it stayed green through a divergence in which three of
+ * the ten tokens ended up with no Swift counterpart at all (import, steps, battery). Claiming otherwise
+ * was worse than claiming nothing, because it invited a reader to trust a guarantee that did not exist.
+ *
+ * What it DOES guarantee is still worth having: that Android's own map, section ordering and
+ * present/MISSING wording cannot change by accident. Identical tokens across platforms are neither the
+ * contract nor achievable -- each side must key on the lines its own emitters write. See
+ * ReportCompleteness's header for the per-domain breakdown.
  */
-class ReportCompletenessParityTest {
+class ReportCompletenessContractTest {
 
     @Test fun killerTokenMapIsTheCanonicalContract() {
-        // Byte-identical to the Swift ReportCompleteness.killerTokens. UNIVERSAL plus the 9 wired domains;
+        // Android's own canonical map. UNIVERSAL plus the 9 wired domains;
         // the Phase-3 domains (notifications/sources/stress/longevity) are intentionally absent.
         assertEquals("dayOwner day=", ReportCompleteness.killerTokens[TestDomain.UNIVERSAL])
         assertEquals("gate run=", ReportCompleteness.killerTokens[TestDomain.SLEEP])
