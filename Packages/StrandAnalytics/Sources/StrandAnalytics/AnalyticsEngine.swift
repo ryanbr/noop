@@ -66,6 +66,10 @@ public enum AnalyticsEngine {
         public let cachedSleep: [CachedSleepSession]
         /// Detected workout/exercise sessions.
         public let workouts: [ExerciseSession]
+        /// #1545: where the detector lost every candidate workout on this day. nil only when detection did
+        /// not run. Always populated otherwise — including (especially) when `workouts` is empty, which is
+        /// the case the counts exist to explain.
+        public let detectionFunnel: WorkoutDetector.DetectionFunnel?
         /// Recovery / "Charge" score [0,100] or nil (cold-start / no HRV baseline).
         public let recovery: Double?
         /// Ordered Charge driver breakdown (one row per real term that fed the score, biggest
@@ -117,9 +121,11 @@ public enum AnalyticsEngine {
                     sessionMotionByStart: [Int: [Double]] = [:],
                     sessionSleepStateByStart: [Int: [Int]] = [:],
                     chargeDrivers: [ChargeDriver] = [],
-                    skinTempRelative: SkinTempRelative? = nil) {
+                    skinTempRelative: SkinTempRelative? = nil,
+                    detectionFunnel: WorkoutDetector.DetectionFunnel? = nil) {
             self.daily = daily; self.sleepSessions = sleepSessions
             self.cachedSleep = cachedSleep; self.workouts = workouts
+            self.detectionFunnel = detectionFunnel
             self.recovery = recovery; self.strain = strain
             self.chargeDrivers = chargeDrivers
             self.skinTempRelative = skinTempRelative
@@ -804,6 +810,7 @@ public enum AnalyticsEngine {
         // a later pass re-reads it through the next night window (which ends at ≈ noon). Falls back
         // to the night window for pure-function callers/tests. restingHR still comes from the night's
         // sleep sessions; nil → WorkoutDetector derives it from the day's own HR floor.
+        var detectionFunnel: WorkoutDetector.DetectionFunnel? = nil
         let workouts = WorkoutDetector.detect(
             hr: dayHr ?? hr, gravity: dayGravity ?? gravity,
             restingHR: restingHRDaily.map(Double.init),
@@ -826,7 +833,8 @@ public enum AnalyticsEngine {
             // #1545: the bouts inside a day MUST be scored by the same recipe as the day itself.
             // A day on Banister whose workouts were still on Edwards would show a session scoring
             // less than the day it sits inside, which is a worse inconsistency than either method.
-            effortMethod: effortMethod)
+            effortMethod: effortMethod,
+            funnel: { detectionFunnel = $0 })
 
         // ── Steps (APPROXIMATE) ───────────────────────────────────────────────
         // step_motion_counter@57 is a CUMULATIVE u16 running counter (it climbs while you move, holds
@@ -956,7 +964,8 @@ public enum AnalyticsEngine {
                          sessionMotionByStart: sessionMotionByStart,
                          sessionSleepStateByStart: sessionSleepStateByStart,
                          chargeDrivers: chargeDrivers,
-                         skinTempRelative: skinTempRelative)
+                         skinTempRelative: skinTempRelative,
+                         detectionFunnel: detectionFunnel)
     }
 
     // MARK: - Rest composite (Charge/Effort/Rest)

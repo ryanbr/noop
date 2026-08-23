@@ -142,6 +142,56 @@ public enum WorkoutDetector {
         return bpms[rank - 1]
     }
 
+    /// #1545: why a day produced no workout, counted at each gate the detector actually applies.
+    ///
+    /// The `effort bout` line explains a bout that EXISTS. It is silent when none does — and "no workouts
+    /// at all" is the harder report to answer, because every gate looks equally plausible from outside. A
+    /// reporter with 37 days and zero detected bouts previously had nothing to send that could distinguish
+    /// "the strap never registered motion" (a WHOOP 4.0 banks it coarsely, #345/#28) from "HR never cleared
+    /// resting + 15" from "the efforts were real but under five minutes".
+    ///
+    /// Counted during the detector's OWN walk, never recomputed alongside it: a funnel free to disagree
+    /// with the code it describes is worse than no funnel, because it will be believed.
+    public struct DetectionFunnel: Equatable, Sendable {
+        /// Inputs the day actually had.
+        public var hrSamples = 0
+        public var motionSamples = 0
+        /// The bar a sample had to clear, in bpm — resting + `hrMarginBPM`.
+        public var restingHR: Double? = nil
+        public var hrFloor: Double? = nil
+        /// Motion samples whose smoothed intensity cleared `motionThreshold`.
+        public var motionPassed = 0
+        /// Of those, how many had NO HR sample within `alignToleranceS` (a sensor gap, not a quiet body).
+        public var hrMissing = 0
+        /// Of those, how many had HR at or below `hrFloor` (moving, but not working).
+        public var hrTooLow = 0
+        /// Samples that cleared BOTH gates.
+        public var active = 0
+        /// Contiguous runs after gap-merging, and after the #303 HR-gated bridge.
+        public var runs = 0
+        public var bridged = 0
+        /// Runs rejected by each qualification gate, and the survivors.
+        public var droppedShort = 0
+        public var droppedNoHR = 0
+        public var droppedLowIntensity = 0
+        public var kept = 0
+
+        public init() {}
+    }
+
+    /// #1545: the always-on per-day line naming where the detector lost every candidate workout.
+    ///
+    /// Byte-identical string to the Kotlin twin. No PII: a day key and counts, plus the two bpm thresholds
+    /// the day was measured against — the same privacy class as the sibling `sleep day=` line.
+    public static func detectionFunnelLine(day: String, funnel f: DetectionFunnel) -> String {
+        "effort detect day=\(day) hr=\(f.hrSamples) motion=\(f.motionSamples) "
+            + "restHR=\(round0(f.restingHR)) floor=\(round0(f.hrFloor)) "
+            + "motionOK=\(f.motionPassed) hrMissing=\(f.hrMissing) hrTooLow=\(f.hrTooLow) "
+            + "active=\(f.active) runs=\(f.runs) bridged=\(f.bridged) "
+            + "short=\(f.droppedShort) noHR=\(f.droppedNoHR) lowIntensity=\(f.droppedLowIntensity) "
+            + "kept=\(f.kept)"
+    }
+
     /// #1545: how much of `[start, end]` the HR sensor actually covered, as a percentage of
     /// `bucketSeconds`-wide buckets holding at least one reading.
     ///
@@ -350,13 +400,27 @@ public enum WorkoutDetector {
                               // existing caller and test is byte-identical; the app threads the user's
                               // choice so a bout and the day it sits in are never scored by different
                               // recipes, which would be worse than either one being "wrong".
-                              effortMethod: StrainScorer.Method = .edwards) -> [ExerciseSession] {
+                              effortMethod: StrainScorer.Method = .edwards,
+                              // #1545: receives the gate-by-gate counts for THIS call. nil (the default)
+                              // keeps every existing caller and test byte-identical — nothing is computed
+                              // that the detector was not already computing, the counters just record it.
+                              funnel: ((DetectionFunnel) -> Void)? = nil) -> [ExerciseSession] {
+        // `defer` so the funnel is reported on EVERY exit, including the early returns below. A day that
+        // bails at "no motion rows at all" is precisely the day whose report matters most, and it is the
+        // one a happy-path-only emit would stay silent about.
+        var f = DetectionFunnel()
+        defer { funnel?(f) }
+
         let hrSeg = cleanHR(hr)
         let motion = activitySeries(gravity)
+        f.hrSamples = hrSeg.count
+        f.motionSamples = motion.count
         if hrSeg.isEmpty || motion.isEmpty { return [] }
 
         let restHR = restingHR ?? deriveRestingHR(hrSeg)
         let hrFloor = restHR + hrMarginBPM
+        f.restingHR = restHR
+        f.hrFloor = hrFloor
 
         let effMaxHR: Double?
         let hrmaxSource: String
@@ -377,9 +441,15 @@ public enum WorkoutDetector {
         var activeTs: [Int] = []
         for (p, inten) in zip(motion, smooth) {
             if inten <= motionThreshold { continue }
-            guard let bpm = nearest(hrTs, hrBpm, p.ts, alignToleranceS), bpm > hrFloor else { continue }
+            f.motionPassed += 1
+            // Split the HR rejection two ways: no sample within tolerance is a SENSOR GAP, a sample at or
+            // below the floor is a body that simply was not working. They read identically in a bout count
+            // of zero and call for opposite responses.
+            guard let bpm = nearest(hrTs, hrBpm, p.ts, alignToleranceS) else { f.hrMissing += 1; continue }
+            guard bpm > hrFloor else { f.hrTooLow += 1; continue }
             activeTs.append(p.ts)
         }
+        f.active = activeTs.count
         if activeTs.isEmpty { return [] }
 
         // Group contiguous active samples into runs, merging gaps < MERGE_GAP_S.
@@ -391,22 +461,24 @@ public enum WorkoutDetector {
             prev = ts
         }
         runs.append((runStart, prev))
+        f.runs = runs.count
 
         // Second pass (#303): bridge adjacent runs across a brief, still-elevated-HR
         // lull so a sustained effort isn't shattered by coasting / junctions / sensor
         // gaps. Runs over a genuine rest (HR falls to resting) are NOT bridged.
         runs = bridgeRuns(runs, hrSeg: hrSeg, hrFloor: hrFloor)
+        f.bridged = runs.count
 
         let minDurS = minExerciseMin * 60.0
         var sessions: [ExerciseSession] = []
         for (idx, run) in runs.enumerated() {
             let (start, end) = run
             // Onset latency tolerance equal to the smoothing window.
-            if Double(end - start) < minDurS - motionSmoothS { continue }
+            if Double(end - start) < minDurS - motionSmoothS { f.droppedShort += 1; continue }
             // Qualify on the HR-elevated CORE (unchanged gates) so the warm-up's low intensity
             // can't dilute a real workout below the zone-2 bar and drop it (#148).
             let core = hrSeg.filter { $0.ts >= start && $0.ts <= end }
-            if core.isEmpty { continue }
+            if core.isEmpty { f.droppedNoHR += 1; continue }
 
             var zonePct: [Int: Double] = [:]
             var avgHRR: Double? = nil
@@ -417,7 +489,7 @@ public enum WorkoutDetector {
             // Intensity qualification: require ≥ MIN_INTENSITY_Z2PLUS in zone 2+.
             if !zonePct.isEmpty {
                 let z2plus = (2...5).reduce(0.0) { $0 + (zonePct[$1] ?? 0.0) } / 100.0
-                if z2plus < minIntensityZ2Plus { continue }
+                if z2plus < minIntensityZ2Plus { f.droppedLowIntensity += 1; continue }
             }
 
             // Qualified → back-date the start over the warm-up and report stats on the full window (#148).
@@ -426,7 +498,7 @@ public enum WorkoutDetector {
             let floor = idx > 0 ? runs[idx - 1].1 + 1 : Int.min
             let effStart = max(Self.backdatedStart(start, motionTs, smooth), floor)
             let window = hrSeg.filter { $0.ts >= effStart && $0.ts <= end }
-            if window.isEmpty { continue }
+            if window.isEmpty { f.droppedNoHR += 1; continue }
             let bpms = window.map { $0.bpm }
             let hrSamples = window.map { HRSample(ts: $0.ts, bpm: Int($0.bpm.rounded())) }
 
@@ -438,7 +510,7 @@ public enum WorkoutDetector {
                 kcal = k; kj = j
             }
 
-            guard !bpms.isEmpty else { continue }   // skip a degenerate bout with no HR samples
+            guard !bpms.isEmpty else { f.droppedNoHR += 1; continue }   // degenerate bout, no HR samples
             let avg = bpms.reduce(0, +) / Double(bpms.count)
             let peak = Int(bpms.max()!.rounded())
             let strain = StrainScorer.strain(hrSamples, maxHR: effMaxHR, restingHR: restHR,
@@ -451,6 +523,7 @@ public enum WorkoutDetector {
                 hrCoveragePct: hrCoveragePct(sampleTs: hrSamples.map { $0.ts },
                                              start: effStart, end: end)))
         }
+        f.kept = sessions.count
         return sessions
     }
 

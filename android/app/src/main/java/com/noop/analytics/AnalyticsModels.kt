@@ -302,4 +302,10 @@ data class DayResult(
      * the value Swift's `analyzeDay` writes directly onto its `CachedSleepSession.stagingSparse`.
      */
     val gravitySparse: Boolean = false,
+    /**
+     * #1545: where the detector lost every candidate workout on this day. null only when detection did not
+     * run. Always populated otherwise — including (especially) when [workouts] is empty, which is the case
+     * the counts exist to explain. Trailing + defaulted so every existing construction site is unchanged.
+     */
+    val detectionFunnel: WorkoutDetector.DetectionFunnel? = null,
 )

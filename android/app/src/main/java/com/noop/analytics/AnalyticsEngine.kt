@@ -739,6 +739,7 @@ object AnalyticsEngine {
         // afternoon/evening workout is caught on its own day rather than lagging until a later pass
         // re-reads it through the next night window (which ends at ≈ noon). Falls back to the night
         // window for pure-function callers/tests.
+        var detectionFunnel: WorkoutDetector.DetectionFunnel? = null
         val workouts = WorkoutDetector.detect(
             hr = dayHr ?: hr,
             gravity = dayGravity ?: gravity,
@@ -762,6 +763,7 @@ object AnalyticsEngine {
             // on Banister whose workouts were still on Edwards would show a session scoring less than
             // the day it sits inside, which is a worse inconsistency than either method.
             effortMethod = effortMethod,
+            funnel = { detectionFunnel = it },
         )
 
         // ── Steps (APPROXIMATE) ───────────────────────────────────────────────
@@ -900,6 +902,7 @@ object AnalyticsEngine {
             sessionMotionByStart = sessionMotionByStart,
             sessionSleepStateByStart = sessionSleepStateByStart,
             gravitySparse = gravitySparse,
+            detectionFunnel = detectionFunnel,
         )
     }
 

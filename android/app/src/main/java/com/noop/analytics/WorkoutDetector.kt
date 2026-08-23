@@ -107,6 +107,58 @@ object WorkoutDetector {
     }
 
     /**
+     * #1545: why a day produced no workout, counted at each gate the detector actually applies.
+     *
+     * The `effort bout` line explains a bout that EXISTS. It is silent when none does — and "no workouts at
+     * all" is the harder report to answer, because every gate looks equally plausible from outside. A
+     * reporter with 37 days and zero detected bouts previously had nothing to send that could distinguish
+     * "the strap never registered motion" (a WHOOP 4.0 banks it coarsely, #345/#28) from "HR never cleared
+     * resting + 15" from "the efforts were real but under five minutes".
+     *
+     * Counted during the detector's OWN walk, never recomputed alongside it: a funnel free to disagree with
+     * the code it describes is worse than no funnel, because it will be believed. Byte-parity twin of Swift
+     * `WorkoutDetector.DetectionFunnel`.
+     */
+    data class DetectionFunnel(
+        /** Inputs the day actually had. */
+        var hrSamples: Int = 0,
+        var motionSamples: Int = 0,
+        /** The bar a sample had to clear, in bpm — resting + [hrMarginBPM]. */
+        var restingHR: Double? = null,
+        var hrFloor: Double? = null,
+        /** Motion samples whose smoothed intensity cleared [motionThreshold]. */
+        var motionPassed: Int = 0,
+        /** Of those, how many had NO HR sample within [alignToleranceS] (a sensor gap, not a quiet body). */
+        var hrMissing: Int = 0,
+        /** Of those, how many had HR at or below [hrFloor] (moving, but not working). */
+        var hrTooLow: Int = 0,
+        /** Samples that cleared BOTH gates. */
+        var active: Int = 0,
+        /** Contiguous runs after gap-merging, and after the #303 HR-gated bridge. */
+        var runs: Int = 0,
+        var bridged: Int = 0,
+        /** Runs rejected by each qualification gate, and the survivors. */
+        var droppedShort: Int = 0,
+        var droppedNoHR: Int = 0,
+        var droppedLowIntensity: Int = 0,
+        var kept: Int = 0,
+    )
+
+    /**
+     * #1545: the always-on per-day line naming where the detector lost every candidate workout.
+     *
+     * Byte-identical string to the Swift twin. No PII: a day key and counts, plus the two bpm thresholds the
+     * day was measured against — the same privacy class as the sibling `sleep day=` line.
+     */
+    fun detectionFunnelLine(day: String, f: DetectionFunnel): String =
+        "effort detect day=$day hr=${f.hrSamples} motion=${f.motionSamples} " +
+            "restHR=${round0(f.restingHR)} floor=${round0(f.hrFloor)} " +
+            "motionOK=${f.motionPassed} hrMissing=${f.hrMissing} hrTooLow=${f.hrTooLow} " +
+            "active=${f.active} runs=${f.runs} bridged=${f.bridged} " +
+            "short=${f.droppedShort} noHR=${f.droppedNoHR} lowIntensity=${f.droppedLowIntensity} " +
+            "kept=${f.kept}"
+
+    /**
      * #1545: how much of [start]..[end] the HR sensor actually covered, as a percentage of
      * [bucketSeconds]-wide buckets holding at least one reading.
      *
@@ -347,128 +399,153 @@ object WorkoutDetector {
         // test is byte-identical; the app threads the user's choice so a bout and the day it sits in are
         // never scored by different recipes, which would be worse than either one being "wrong".
         effortMethod: StrainScorer.Method = StrainScorer.Method.EDWARDS,
+        // #1545: receives the gate-by-gate counts for THIS call. null (the default) keeps every existing
+        // caller and test byte-identical — nothing is computed that the detector was not already
+        // computing, the counters just record it.
+        funnel: ((DetectionFunnel) -> Unit)? = null,
     ): List<ExerciseSession> {
-        val hrSeg = cleanHR(hr)
-        val motion = activitySeries(gravity)
-        if (hrSeg.isEmpty() || motion.isEmpty()) return emptyList()
+        // try/finally (Swift uses `defer`) so the funnel is reported on EVERY exit, including the early
+        // returns below. A day that bails at "no motion rows at all" is precisely the day whose report
+        // matters most, and it is the one a happy-path-only emit would stay silent about.
+        val f = DetectionFunnel()
+        try {
+            val hrSeg = cleanHR(hr)
+            val motion = activitySeries(gravity)
+            f.hrSamples = hrSeg.size
+            f.motionSamples = motion.size
+            if (hrSeg.isEmpty() || motion.isEmpty()) return emptyList()
 
-        val restHR = restingHR ?: deriveRestingHR(hrSeg)
-        val hrFloor = restHR + hrMarginBPM
+            val restHR = restingHR ?: deriveRestingHR(hrSeg)
+            val hrFloor = restHR + hrMarginBPM
+            f.restingHR = restHR
+            f.hrFloor = hrFloor
 
-        val effMaxHR: Double?
-        val hrmaxSource: String
-        if (maxHR != null) {
-            effMaxHR = maxHR
-            hrmaxSource = "caller"
-        } else {
-            val (est, src) = StrainScorer.estimateHRmax(hrSeg.map { it.bpm.toDouble() }, age)
-            effMaxHR = if (est == 0.0) null else est
-            hrmaxSource = src
-        }
-
-        val hrTs = hrSeg.map { it.ts }
-        val hrBpm = hrSeg.map { it.bpm.toDouble() }
-        val smooth = smoothedIntensity(motion, motionSmoothS)
-        val motionTs = motion.map { it.ts }
-
-        // Walk the gravity timeline; flag samples where BOTH gates hold.
-        val activeTs = ArrayList<Long>()
-        for (idx in motion.indices) {
-            val p = motion[idx]
-            val inten = smooth[idx]
-            if (inten <= motionThreshold) continue
-            val bpm = nearest(hrTs, hrBpm, p.ts, alignToleranceS) ?: continue
-            if (bpm <= hrFloor) continue
-            activeTs.add(p.ts)
-        }
-        if (activeTs.isEmpty()) return emptyList()
-
-        // Group contiguous active samples into runs, merging gaps < MERGE_GAP_S.
-        val rawRuns = ArrayList<Pair<Long, Long>>()
-        var runStart = activeTs[0]
-        var prev = activeTs[0]
-        for (k in 1 until activeTs.size) {
-            val ts = activeTs[k]
-            if ((ts - prev).toDouble() > mergeGapS) {
-                rawRuns.add(runStart to prev)
-                runStart = ts
-            }
-            prev = ts
-        }
-        rawRuns.add(runStart to prev)
-
-        // Second pass (#303): bridge adjacent runs across a brief, still-elevated-HR
-        // lull so a sustained effort isn't shattered by coasting / junctions / sensor
-        // gaps. Runs over a genuine rest (HR falls to resting) are NOT bridged.
-        val runs = bridgeRuns(rawRuns, hrSeg, hrFloor)
-
-        val minDurS = minExerciseMin * 60.0
-        val sessions = ArrayList<ExerciseSession>()
-        for ((idx, run) in runs.withIndex()) {
-            val (start, end) = run
-            // Onset latency tolerance equal to the smoothing window.
-            if ((end - start).toDouble() < minDurS - motionSmoothS) continue
-            // Qualify on the HR-elevated CORE (unchanged gates) so the warm-up's low intensity
-            // can't dilute a real workout below the zone-2 bar and drop it (#148).
-            val core = hrSeg.filter { it.ts in start..end }
-            if (core.isEmpty()) continue
-
-            var zonePct: Map<Int, Double> = emptyMap()
-            var avgHRR: Double? = null
-            val m = effMaxHR
-            if (m != null && m > restHR) {
-                val (zp, ah) = boutIntensity(core, restHR, m)
-                zonePct = zp
-                avgHRR = ah
+            val effMaxHR: Double?
+            val hrmaxSource: String
+            if (maxHR != null) {
+                effMaxHR = maxHR
+                hrmaxSource = "caller"
+            } else {
+                val (est, src) = StrainScorer.estimateHRmax(hrSeg.map { it.bpm.toDouble() }, age)
+                effMaxHR = if (est == 0.0) null else est
+                hrmaxSource = src
             }
 
-            // Intensity qualification: require ≥ MIN_INTENSITY_Z2PLUS in zone 2+.
-            if (zonePct.isNotEmpty()) {
-                val z2plus = (2..5).sumOf { zonePct[it] ?: 0.0 } / 100.0
-                if (z2plus < minIntensityZ2Plus) continue
+            val hrTs = hrSeg.map { it.ts }
+            val hrBpm = hrSeg.map { it.bpm.toDouble() }
+            val smooth = smoothedIntensity(motion, motionSmoothS)
+            val motionTs = motion.map { it.ts }
+
+            // Walk the gravity timeline; flag samples where BOTH gates hold.
+            val activeTs = ArrayList<Long>()
+            for (idx in motion.indices) {
+                val p = motion[idx]
+                val inten = smooth[idx]
+                if (inten <= motionThreshold) continue
+                f.motionPassed++
+                // Split the HR rejection two ways: no sample within tolerance is a SENSOR GAP, a sample at or
+                // below the floor is a body that simply was not working. They read identically in a bout count
+                // of zero and call for opposite responses.
+                val bpm = nearest(hrTs, hrBpm, p.ts, alignToleranceS)
+                if (bpm == null) { f.hrMissing++; continue }
+                if (bpm <= hrFloor) { f.hrTooLow++; continue }
+                activeTs.add(p.ts)
             }
+            f.active = activeTs.size
+            if (activeTs.isEmpty()) return emptyList()
 
-            // Qualified → back-date the start over the warm-up and report stats on the full window (#148).
-            // Never back-date past the previous run's end: a continuous-motion stretch whose HR dipped to
-            // resting BETWEEN two efforts (so bridgeRuns kept them separate) must not overlap the earlier one.
-            val floor = if (idx > 0) runs[idx - 1].second + 1 else Long.MIN_VALUE
-            val effStart = maxOf(backdatedStart(start, motionTs, smooth), floor)
-            val window = hrSeg.filter { it.ts in effStart..end }
-            if (window.isEmpty()) continue
-            val bpms = window.map { it.bpm.toDouble() }
-
-            var kcal: Double? = null
-            var kj: Double? = null
-            if (profile != null) {
-                val (k, j) = Calories.estimateBoutCalories(window, profile, effMaxHR, restHR)
-                kcal = k
-                kj = j
+            // Group contiguous active samples into runs, merging gaps < MERGE_GAP_S.
+            val rawRuns = ArrayList<Pair<Long, Long>>()
+            var runStart = activeTs[0]
+            var prev = activeTs[0]
+            for (k in 1 until activeTs.size) {
+                val ts = activeTs[k]
+                if ((ts - prev).toDouble() > mergeGapS) {
+                    rawRuns.add(runStart to prev)
+                    runStart = ts
+                }
+                prev = ts
             }
+            rawRuns.add(runStart to prev)
+            f.runs = rawRuns.size
 
-            val avg = bpms.sum() / bpms.size.toDouble()
-            val peak = window.maxOf { it.bpm }
-            val strain = StrainScorer.strain(
-                window, effMaxHR, restHR, effortMethod, profile?.sex ?: "male")
+            // Second pass (#303): bridge adjacent runs across a brief, still-elevated-HR
+            // lull so a sustained effort isn't shattered by coasting / junctions / sensor
+            // gaps. Runs over a genuine rest (HR falls to resting) are NOT bridged.
+            val runs = bridgeRuns(rawRuns, hrSeg, hrFloor)
+            f.bridged = runs.size
 
-            sessions.add(
-                ExerciseSession(
-                    start = effStart,
-                    end = end,
-                    avgHR = avg,
-                    peakHR = peak,
-                    strain = strain,
-                    durationS = (end - effStart).toDouble(),
-                    zoneTimePct = zonePct,
-                    avgHRRPct = avgHRR,
-                    hrmax = effMaxHR,
-                    hrmaxSource = hrmaxSource,
-                    caloriesKcal = kcal,
-                    caloriesKJ = kj,
-                    hrCoveragePct = hrCoveragePct(window.map { it.ts }, effStart, end),
+            val minDurS = minExerciseMin * 60.0
+            val sessions = ArrayList<ExerciseSession>()
+            for ((idx, run) in runs.withIndex()) {
+                val (start, end) = run
+                // Onset latency tolerance equal to the smoothing window.
+                if ((end - start).toDouble() < minDurS - motionSmoothS) { f.droppedShort++; continue }
+                // Qualify on the HR-elevated CORE (unchanged gates) so the warm-up's low intensity
+                // can't dilute a real workout below the zone-2 bar and drop it (#148).
+                val core = hrSeg.filter { it.ts in start..end }
+                if (core.isEmpty()) { f.droppedNoHR++; continue }
+
+                var zonePct: Map<Int, Double> = emptyMap()
+                var avgHRR: Double? = null
+                val m = effMaxHR
+                if (m != null && m > restHR) {
+                    val (zp, ah) = boutIntensity(core, restHR, m)
+                    zonePct = zp
+                    avgHRR = ah
+                }
+
+                // Intensity qualification: require ≥ MIN_INTENSITY_Z2PLUS in zone 2+.
+                if (zonePct.isNotEmpty()) {
+                    val z2plus = (2..5).sumOf { zonePct[it] ?: 0.0 } / 100.0
+                    if (z2plus < minIntensityZ2Plus) { f.droppedLowIntensity++; continue }
+                }
+
+                // Qualified → back-date the start over the warm-up and report stats on the full window (#148).
+                // Never back-date past the previous run's end: a continuous-motion stretch whose HR dipped to
+                // resting BETWEEN two efforts (so bridgeRuns kept them separate) must not overlap the earlier one.
+                val floor = if (idx > 0) runs[idx - 1].second + 1 else Long.MIN_VALUE
+                val effStart = maxOf(backdatedStart(start, motionTs, smooth), floor)
+                val window = hrSeg.filter { it.ts in effStart..end }
+                if (window.isEmpty()) { f.droppedNoHR++; continue }
+                val bpms = window.map { it.bpm.toDouble() }
+
+                var kcal: Double? = null
+                var kj: Double? = null
+                if (profile != null) {
+                    val (k, j) = Calories.estimateBoutCalories(window, profile, effMaxHR, restHR)
+                    kcal = k
+                    kj = j
+                }
+
+                val avg = bpms.sum() / bpms.size.toDouble()
+                val peak = window.maxOf { it.bpm }
+                val strain = StrainScorer.strain(
+                    window, effMaxHR, restHR, effortMethod, profile?.sex ?: "male")
+
+                sessions.add(
+                    ExerciseSession(
+                        start = effStart,
+                        end = end,
+                        avgHR = avg,
+                        peakHR = peak,
+                        strain = strain,
+                        durationS = (end - effStart).toDouble(),
+                        zoneTimePct = zonePct,
+                        avgHRRPct = avgHRR,
+                        hrmax = effMaxHR,
+                        hrmaxSource = hrmaxSource,
+                        caloriesKcal = kcal,
+                        caloriesKJ = kj,
+                        hrCoveragePct = hrCoveragePct(window.map { it.ts }, effStart, end),
+                    )
                 )
-            )
+            }
+            f.kept = sessions.size
+            return sessions
+        } finally {
+            funnel?.invoke(f)
         }
-        return sessions
     }
 }
 
