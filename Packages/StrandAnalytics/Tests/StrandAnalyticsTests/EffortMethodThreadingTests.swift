@@ -2,6 +2,10 @@ import XCTest
 import Foundation
 @testable import StrandAnalytics
 import WhoopProtocol
+// DailyMetric (read via DayResult.daily below) lives in WhoopStore; AnalyticsEngineTests imports it for
+// the same reason. Harmless if the transitive visibility would have sufficed — and this file already
+// cost one CI round by assuming a type's module was reachable without saying so.
+import WhoopStore
 
 /// #1545: the Effort recipe has to reach the score, and reach the WORKOUTS INSIDE the day by the same
 /// route.
