@@ -446,9 +446,10 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                 }
                 composable(Destination.TestCentre.route) { TestCentreScreen(viewModel) }
                 // The "More" page — the iOS More tab's twin: a navigated ScreenScaffold page hosting the
-                // full grouped destination list (was a pull-up sheet). A row navigates top-level.
+                // full grouped destination list (was a pull-up sheet). A row pushes its destination so
+                // Android Back returns to More instead of skipping straight to Today.
                 composable(Destination.More.route) {
-                    MoreScreen(onNavigate = { nav.navigateTopLevel(it) })
+                    MoreScreen(onNavigate = { nav.navigate(it) })
                 }
             }
         }
@@ -588,7 +589,7 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
 // ([drawerGroups]) inside a [ScreenScaffold], with the exact section-header + row styling the sheet
 // used (uppercase [Overline] group labels, icon + label [NavigationDrawerItem] rows) — now with a
 // trailing chevron so each row reads as a navigation push, matching the iOS disclosure rows. Tapping a
-// row navigates top-level; there is no sheet to dismiss. The floating bottom bar stays visible because
+// row pushes its destination; there is no sheet to dismiss. The floating bottom bar stays visible because
 // this is just another NavHost destination under the same Scaffold.
 
 /** The full grouped destination list as a navigated page (the iOS More tab's twin). */
