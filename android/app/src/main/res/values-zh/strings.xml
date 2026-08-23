@@ -2346,5 +2346,5 @@
     <string name="l10n_app_changelog_training_load_a_vo_max_without_f9205a67">训练负荷、无需量腰围的 VO₂max，以及大幅降低的重算耗电</string>
     <string name="l10n_sleep_screen_sleep_outside_the_new_times_was_6229881e">新时间范围之外的睡眠已移除。NOOP 不会再次检测到它。</string>
     <string name="l10n_settings_screen_effort_exponential_scale">消耗：指数强度曲线</string>
-    <string name="l10n_settings_screen_effort_exponential_scale_desc">以指数强度曲线（Banister TRIMP）计算消耗，而不是默认的心率区间（Edwards）。默认方式对低于心率储备 50%% 的部分完全不计分，因此一小时力量训练——组间休息拉低了平均强度——可能几乎得零分。指数曲线没有下限，会大幅提高短时高强度努力的权重。会重新计算你的历史数据，两种标度的最高值相同。默认关闭。</string>
+    <string name="l10n_settings_screen_effort_exponential_scale_desc">以指数强度曲线（Banister TRIMP）计算消耗，而不是默认的心率区间（Edwards）。默认方式对低于心率储备一半的部分完全不计分，因此一小时力量训练——组间休息拉低了平均强度——可能几乎得零分。指数曲线没有下限，会大幅提高短时高强度努力的权重。会重新计算你的历史数据，两种标度的最高值相同。默认关闭。</string>
 </resources>
