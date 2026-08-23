@@ -13,6 +13,7 @@ import androidx.health.connect.client.records.RespiratoryRateRecord
 import androidx.health.connect.client.records.RestingHeartRateRecord
 import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.records.Vo2MaxRecord
+import com.noop.data.MetricSeriesRow
 import androidx.health.connect.client.records.metadata.Metadata
 import androidx.health.connect.client.units.Length
 import androidx.health.connect.client.units.Percentage
@@ -329,20 +330,35 @@ object HealthConnectWriter {
         val cutoff = LocalDate.now().minusDays(WINDOW_DAYS).toString()
         val today = LocalDate.now().toString()
         val rows = repo.metricSeriesComputedUnion(deviceId, "vo2max_est", cutoff, today)
-        val records = rows.mapNotNull { row ->
-            val date = runCatching { LocalDate.parse(row.day) }.getOrNull() ?: return@mapNotNull null
-            if (row.value <= 0.0) return@mapNotNull null   // never export a zero as a fitness reading
-            val time = date.atTime(LocalTime.NOON).atZone(zone)
-            Vo2MaxRecord(
-                time = time.toInstant(),
-                zoneOffset = time.offset,
-                vo2MillilitersPerMinuteKilogram = row.value,
-                measurementMethod = Vo2MaxRecord.MEASUREMENT_METHOD_OTHER,
-                metadata = meta("vo2max", row.day, version),
-            )
-        }
+        val records = buildVo2MaxRecords(rows, version, zone)
         if (records.isEmpty()) return 0
         return insertChunked(client, records)
+    }
+
+    /**
+     * Pure: map `vo2max_est` series rows to records, testable without a client — the same split
+     * [buildExerciseRecords] uses below.
+     *
+     * Skips a day whose key will not parse, and any value at or below zero: a stored 0 means the estimator
+     * declined that week, and exporting it would publish "VO2 max: 0" as a fitness reading rather than
+     * saying nothing. Timestamped at local noon on the series' own day, matching the daily records, and
+     * keyed by day in the clientRecordId so a re-export upserts instead of duplicating.
+     */
+    internal fun buildVo2MaxRecords(
+        rows: List<MetricSeriesRow>,
+        version: Long,
+        zone: ZoneId,
+    ): List<Record> = rows.mapNotNull { row ->
+        val date = runCatching { LocalDate.parse(row.day) }.getOrNull() ?: return@mapNotNull null
+        if (row.value <= 0.0) return@mapNotNull null
+        val time = date.atTime(LocalTime.NOON).atZone(zone)
+        Vo2MaxRecord(
+            time = time.toInstant(),
+            zoneOffset = time.offset,
+            vo2MillilitersPerMinuteKilogram = row.value,
+            measurementMethod = Vo2MaxRecord.MEASUREMENT_METHOD_OTHER,
+            metadata = meta("vo2max", row.day, version),
+        )
     }
 
     // --- Workout (ExerciseSession) writeback (GPS workouts, v1.71) ---
