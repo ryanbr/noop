@@ -1211,14 +1211,13 @@ private fun Hero(
                         subtitle = subtitle,
                         trailing = durationText(s.asleep),
                         tint = Palette.restColor,
-                        // A colour-coded key in the chart's ramp so the bands are decodable (esp. the Garmin
-                        // ramp's two pinks), then the per-stage breakdown rows below.
-                        footer = {
-                            Column(verticalArrangement = Arrangement.spacedBy(Metrics.space6)) {
-                                SleepStageLegend(chartStyle.stagePalette)
-                                StageBreakdownRows(s)
-                            }
-                        },
+                        // #1536: the stage LEGEND that used to sit here is gone. It exists to decode an
+                        // unlabelled hypnogram's bands (the Garmin ramp's two pinks especially), but the
+                        // breakdown rows below carry their own text labels, so above them it decoded
+                        // something already named — in a different order than the rows list, and using the
+                        // chart RAMP's colours while the rows use fixed theme tokens, so on a non-NOOP ramp
+                        // its dots disagreed with the swatches directly beneath them.
+                        footer = { StageBreakdownRows(s) },
                     ) {
                         FilledHypnogram(
                             segments = filledSegments,

@@ -183,10 +183,13 @@ struct StageDetailView: View {
                 )
             },
             footer: {
-                VStack(alignment: .leading, spacing: NoopMetrics.space2) {
-                    SleepStageLegend(palette: style.stagePalette)
+                    // #1536: the stage LEGEND that used to sit here is gone. It decodes an unlabelled
+                    // hypnogram's bands (the Garmin ramp's two pinks especially), but the breakdown rows
+                    // below carry their own labels — so above them it named something already named, in a
+                    // different order than the rows list, and in the chart RAMP's colours while the rows
+                    // use fixed palette tokens, so on a non-NOOP ramp its dots disagreed with the swatches
+                    // directly beneath them.
                     stageBreakdownRows(s)
-                }
             }
         )
     }
