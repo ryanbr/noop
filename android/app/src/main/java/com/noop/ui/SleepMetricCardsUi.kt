@@ -306,13 +306,14 @@ internal fun StagesHostCard(m: SleepModel) {
                     subtitle = subtitle,
                     trailing = durationText(s.asleep),
                     tint = Palette.restColor,
-                    // #1536: the stage LEGEND that used to sit here is gone. It exists to decode an
-                    // unlabelled hypnogram's bands (the Garmin ramp's two pinks especially), but the
-                    // breakdown rows below carry their own text labels, so above them it decoded
-                    // something already named — in a different order than the rows list, and using the
-                    // chart RAMP's colours while the rows use fixed theme tokens, so on a non-NOOP ramp
-                    // its dots disagreed with the swatches directly beneath them.
-                    footer = { StageBreakdownRows(s) },
+                    // #1536: the stage LEGEND that used to sit here is gone, and the rows below now
+                    // take the chart's ramp. Those two go together. The legend decoded the hypnogram
+                    // above it, which is real work — but it listed the stages in a different order than
+                    // the rows, and the rows were drawing FIXED theme tokens while the chart drew ramp
+                    // colours, so on Oura/Garmin three things in one card disagreed. Making the rows
+                    // ramp-aware leaves them naming and colouring every stage correctly, which IS the
+                    // key; a separate legend above a correct key is the redundancy that was reported.
+                    footer = { StageBreakdownRows(s, chartStyle.stagePalette) },
                 ) {
                     FilledHypnogram(
                         segments = filledSegments,

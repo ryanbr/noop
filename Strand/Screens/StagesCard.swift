@@ -183,13 +183,14 @@ struct StageDetailView: View {
                 )
             },
             footer: {
-                    // #1536: the stage LEGEND that used to sit here is gone. It decodes an unlabelled
-                    // hypnogram's bands (the Garmin ramp's two pinks especially), but the breakdown rows
-                    // below carry their own labels — so above them it named something already named, in a
-                    // different order than the rows list, and in the chart RAMP's colours while the rows
-                    // use fixed palette tokens, so on a non-NOOP ramp its dots disagreed with the swatches
-                    // directly beneath them.
-                    stageBreakdownRows(s)
+                    // #1536: the stage LEGEND that used to sit here is gone, and the rows below now take
+                    // the chart's ramp. Those two go together. The legend decoded the hypnogram above it,
+                    // which is real work — but it listed the stages in a different order than the rows, and
+                    // the rows drew FIXED palette tokens while the chart drew ramp colours, so on
+                    // Oura/Garmin three things in one card disagreed. Ramp-aware rows name and colour every
+                    // stage correctly, which IS the key; a legend above a correct key is the redundancy
+                    // that was reported.
+                    stageBreakdownRows(s, palette: style.stagePalette)
             }
         )
     }
@@ -345,12 +346,12 @@ struct StageDetailView: View {
     /// proportional bar in the stage colour over a faint track, and the right-aligned duration. Same data
     /// as the prior footer (`s.rem` / `s.deep` / `s.light` / `s.awake` over `s.total`) — no new numbers.
     @ViewBuilder
-    private func stageBreakdownRows(_ s: Stages) -> some View {
+    private func stageBreakdownRows(_ s: Stages, palette: SleepStagePalette = .noop) -> some View {
         VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {
-            stageBreakdownRow(.rem,   minutes: s.rem,   total: s.total, percent: stageSharePercent(.rem, s))
-            stageBreakdownRow(.deep,  minutes: s.deep,  total: s.total, percent: stageSharePercent(.deep, s))
-            stageBreakdownRow(.light, minutes: s.light, total: s.total, percent: stageSharePercent(.light, s))
-            stageBreakdownRow(.awake, minutes: s.awake, total: s.total, percent: stageSharePercent(.awake, s))
+            stageBreakdownRow(.rem,   minutes: s.rem,   total: s.total, percent: stageSharePercent(.rem, s), palette: palette)
+            stageBreakdownRow(.deep,  minutes: s.deep,  total: s.total, percent: stageSharePercent(.deep, s), palette: palette)
+            stageBreakdownRow(.light, minutes: s.light, total: s.total, percent: stageSharePercent(.light, s), palette: palette)
+            stageBreakdownRow(.awake, minutes: s.awake, total: s.total, percent: stageSharePercent(.awake, s), palette: palette)
         }
     }
 
@@ -372,8 +373,9 @@ struct StageDetailView: View {
     /// apportioned share (so the four rows sum to 100). Tappable (WHOOP, ryanAtriumAi #988): selecting a
     /// row highlights that stage and recedes the rest; tapping the selected row again clears the highlight.
     @ViewBuilder
-    private func stageBreakdownRow(_ stage: SleepStage, minutes: Double, total: Double, percent: Int) -> some View {
-        let color = StrandPalette.sleepStageColor(stage)
+    private func stageBreakdownRow(_ stage: SleepStage, minutes: Double, total: Double, percent: Int,
+                                   palette: SleepStagePalette = .noop) -> some View {
+        let color = StrandPalette.sleepStageColor(stage, palette: palette)
         let fraction = total > 0 ? min(1, max(0, minutes / total)) : 0
         let isSelected = selectedStage == stage
         let othersSelected = selectedStage != nil && !isSelected

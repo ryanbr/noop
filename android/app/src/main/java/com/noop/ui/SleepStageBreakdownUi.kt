@@ -45,12 +45,12 @@ import kotlin.math.roundToInt
  * macOS SleepView.stageBreakdownRows. (PipBar)
  */
 @Composable
-internal fun StageBreakdownRows(s: Stages) {
+internal fun StageBreakdownRows(s: Stages, palette: SleepStagePalette = SleepStagePalette.NOOP) {
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.space12)) {
-        StageBreakdownRow("REM", s.rem, s.total, Palette.sleepREM, stageSharePercent("REM", s))
-        StageBreakdownRow("Deep", s.deep, s.total, Palette.sleepDeep, stageSharePercent("Deep", s))
-        StageBreakdownRow("Light", s.light, s.total, Palette.sleepLight, stageSharePercent("Light", s))
-        StageBreakdownRow("Awake", s.awake, s.total, Palette.sleepAwake, stageSharePercent("Awake", s))
+        StageBreakdownRow("REM", s.rem, s.total, stageColorForRamp("REM", palette), stageSharePercent("REM", s))
+        StageBreakdownRow("Deep", s.deep, s.total, stageColorForRamp("Deep", palette), stageSharePercent("Deep", s))
+        StageBreakdownRow("Light", s.light, s.total, stageColorForRamp("Light", palette), stageSharePercent("Light", s))
+        StageBreakdownRow("Awake", s.awake, s.total, stageColorForRamp("Awake", palette), stageSharePercent("Awake", s))
     }
 }
 
