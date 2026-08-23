@@ -1,4 +1,5 @@
 import Foundation
+import StrandAnalytics
 
 /// Opt-in switch for the EXPERIMENTAL WHOOP 5.0/MG ("puffin") protocol probes.
 ///
@@ -76,6 +77,27 @@ enum PuffinExperiment {
     static let stressPersonalBaselineKey = "noopStressPersonalBaseline"
 
     static var stressPersonalBaselineEnabled: Bool { UserDefaults.standard.bool(forKey: stressPersonalBaselineKey) }
+
+    /// Opt-in "Banister Effort" (#1545): score Effort with Banister's EXPONENTIAL TRIMP instead of the
+    /// default Edwards 5-zone summation.
+    ///
+    /// Edwards is time-in-zone and pays **nothing** below 50% HRR. A reporter's weightlifting session
+    /// scored 1.7 while a walk scored higher — working that number backwards gives a TRIMP of about 1,
+    /// i.e. the model saw essentially no time above the floor for the whole session. An hour held at 45%
+    /// HRR scores 0.00 under Edwards and about 43 under Banister; that is the difference between
+    /// under-rating intermittent work and not seeing it at all.
+    ///
+    /// Default OFF, and it must stay a choice rather than become the default: it re-scores every day in
+    /// the window against a different recipe, so flipping it silently would move a headline metric's
+    /// whole history. Each method maps a theoretical maximum day to exactly 100 via its own log
+    /// denominator (`StrainScorer.logMapDenominator`), so the two are on the same axis and switching does
+    /// not rescale the axis under the user. Mirrors the Android `NoopPrefs.KEY_BANISTER_EFFORT`.
+    static let banisterEffortKey = "noopBanisterEffort"
+
+    static var banisterEffortEnabled: Bool { UserDefaults.standard.bool(forKey: banisterEffortKey) }
+
+    /// The TRIMP recipe every Effort computation on this device should use.
+    static var effortMethod: StrainScorer.Method { banisterEffortEnabled ? .banister : .edwards }
 
     /// Opt-in "Continuous HRV capture": hold the dense realtime HR stream armed even with no Live screen
     /// open, so the strap banks beat-to-beat R-R intervals 24/7 for far better overnight HRV/recovery/

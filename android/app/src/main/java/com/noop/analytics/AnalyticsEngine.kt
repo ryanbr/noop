@@ -399,6 +399,12 @@ object AnalyticsEngine {
         // the whole-night mean. Display-only preference threaded from the caller (UnitPrefs.hrvWindow). The
         // default (false) is byte-identical to the historical whole-night value.
         deepHrvWindow: Boolean = false,
+        // #1545: which TRIMP recipe scores Effort. EDWARDS (the default) is time-in-zone and pays NOTHING
+        // below 50% HRR, so intermittent work — a lifting session, once the sets are averaged against the
+        // rests — can score near zero however long it lasts. BANISTER is exponential in %HRR with no floor.
+        // Threaded rather than read from a global so this stays a pure function, and defaulted so every
+        // existing caller and test is byte-identical.
+        effortMethod: StrainScorer.Method = StrainScorer.Method.EDWARDS,
     ): DayResult {
 
         // Precompute the day's UTC bounds ONCE (#996). isoDay is a FIXED-UTC formatter, so
@@ -724,6 +730,7 @@ object AnalyticsEngine {
             hr = dayHr ?: hr,
             maxHR = effMaxHR,
             restingHR = restForStrain,
+            method = effortMethod,
             sex = profile.sex,
         )
 
@@ -739,6 +746,10 @@ object AnalyticsEngine {
             maxHR = maxHROverride,
             age = if (profile.age > 0) profile.age else null,
             profile = profile,
+            // #1545: the bouts inside a day MUST be scored by the same recipe as the day itself. A day
+            // on Banister whose workouts were still on Edwards would show a session scoring less than
+            // the day it sits inside, which is a worse inconsistency than either method.
+            effortMethod = effortMethod,
         )
 
         // ── Steps (APPROXIMATE) ───────────────────────────────────────────────

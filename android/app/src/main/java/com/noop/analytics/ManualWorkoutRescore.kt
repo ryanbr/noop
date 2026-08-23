@@ -45,6 +45,8 @@ object ManualWorkoutRescore {
         profile: UserProfile,
         hrMax: Double,
         restingHR: Double? = null,
+        // #1545: see WorkoutDetector.detect — EDWARDS by default, threaded by the app.
+        effortMethod: StrainScorer.Method = StrainScorer.Method.EDWARDS,
     ): Scored? {
         if (windowSamples.size < 2) return null
         val bpms = windowSamples.map { it.bpm }
@@ -54,7 +56,8 @@ object ManualWorkoutRescore {
         val peak = bpms.maxOrNull() ?: 0
         val strain = StrainScorer.strain(
             windowSamples, maxHR = hrMax,
-            restingHR = restingHR ?: StrainScorer.defaultRestingHR, sex = profile.sex,
+            restingHR = restingHR ?: StrainScorer.defaultRestingHR,
+            method = effortMethod, sex = profile.sex,
         )
         val kcalRaw = Calories.estimateBoutCalories(windowSamples, profile, hrMax, restingHR).first
         return Scored(avg, peak, strain, if (kcalRaw > 0) kcalRaw else null)

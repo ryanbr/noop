@@ -283,6 +283,9 @@ object IntelligenceEngine {
         // Blood Oxygen tile can surface it as a "strap estimate (unverified)" fallback. Display-only.
         // The Context-aware caller reads NoopPrefs.spo2CandidateDisplay(context) and passes it down.
         spo2CandidateDisplay: Boolean = false,
+        // #1545: the Effort TRIMP recipe. The Context-aware caller reads NoopPrefs.effortMethod(context)
+        // and passes it down, keeping this layer Context-free. EDWARDS default = byte-identical.
+        effortMethod: StrainScorer.Method = StrainScorer.Method.EDWARDS,
     ): List<Computed> = withContext(Dispatchers.Default) {
         // #1005: time the whole pass so a re-score STORM is visible in the strap log (the trigger lines
         // record WHY each pass runs; this records how many nights and how long — the CPU cost per run).
@@ -294,7 +297,8 @@ object IntelligenceEngine {
             val (out, healed) = analyzeRecentOnCpu(repo, profile, maxDays, importedDeviceId, maxHROverride,
                 nowSeconds, ownerSource, manualStepCoefficient, persistStepsCalibration, baselineEpoch,
                 recoveryEpoch, diag, useExperimentalSleepV2, useMotionAwareWake, sleepTraceSink, recoveryTraceSink,
-                stepsTraceSink, universalSink, workoutsTraceSink, hrvTraceSink, deepHrvWindow, spo2CandidateDisplay)
+                stepsTraceSink, universalSink, workoutsTraceSink, hrvTraceSink, deepHrvWindow,
+                spo2CandidateDisplay, effortMethod)
             if (healed == 0) out
             // #899 heal re-pass: the pass above deleted overlapping duplicate sleep sessions AFTER its days
             // were scored, and the read-side dedup those days consumed had no bank-recency witness (the fresh
@@ -304,7 +308,8 @@ object IntelligenceEngine {
             else analyzeRecentOnCpu(repo, profile, maxDays, importedDeviceId, maxHROverride,
                 nowSeconds, ownerSource, manualStepCoefficient, persistStepsCalibration, baselineEpoch,
                 recoveryEpoch, diag, useExperimentalSleepV2, useMotionAwareWake, sleepTraceSink, recoveryTraceSink,
-                stepsTraceSink, universalSink, workoutsTraceSink, hrvTraceSink, deepHrvWindow, spo2CandidateDisplay).first
+                stepsTraceSink, universalSink, workoutsTraceSink, hrvTraceSink, deepHrvWindow,
+                spo2CandidateDisplay, effortMethod).first
         }
         diag("re-score: done — scored ${scored.size} night(s) in ${(System.nanoTime() - reScoreStart) / 1_000_000} ms (#1005)")
         scored
@@ -402,6 +407,8 @@ object IntelligenceEngine {
         // persisted as "spo2_candidate" in metricSeries. Default false — the @82 candidate has split
         // cross-device evidence and ships behind a default-off toggle (CLAUDE.md derived-biosignal rule).
         spo2CandidateDisplay: Boolean = false,
+        // #1545: the Effort TRIMP recipe, threaded from the public wrapper.
+        effortMethod: StrainScorer.Method = StrainScorer.Method.EDWARDS,
         // #899 heal re-pass: the second component of the return is how many overlapping duplicate sleep
         // sessions the heal below deleted this pass. The public wrapper re-runs ONCE when it is non-zero
         // so the affected days re-score against the cleaned store.
@@ -571,6 +578,10 @@ object IntelligenceEngine {
             sleepConsistency?.toString() ?: "nil", habitualMidsleepSec?.toString() ?: "nil",
             useExperimentalSleepV2.toString(), useMotionAwareWake.toString(),
             deepHrvWindow.toString(), spo2CandidateDisplay.toString(),
+            // #1545: MUST be here. The Effort recipe changes every day's strain, so a cached scan
+            // produced under one method is stale the moment the user switches — serving it would show a
+            // window of days scored by a recipe the user just turned off, with nothing to explain it.
+            effortMethod.toString(),
         ).joinToString("|")
         // Drop the whole cache on a config change. Under [analyzeGate] (this whole pass runs holding the
         // lock), so mutating the object-level cache here is race-free.
@@ -856,6 +867,7 @@ object IntelligenceEngine {
                 // so the 5000-line ring buffer isn't flooded; every night still emits the 1-line summary.
                 hrvWindowDetail = dayStart == nowLocalMidnight,
                 deepHrvWindow = deepHrvWindow,
+                effortMethod = effortMethod,
             )
             dayScoreNanos += System.nanoTime() - tScore0
 
@@ -1714,7 +1726,8 @@ object IntelligenceEngine {
         // so out[0] is today and the tail is the oldest day in the window. Taking the last match would have
         // scored today's workout against a resting HR up to `maxDays` old.
         val measuredResting = out.firstOrNull { it.rhr != null }?.rhr?.toDouble()
-        rescoreManualWorkouts(repo, profile, importedDeviceId, maxHROverride, nowSeconds, measuredResting)
+        rescoreManualWorkouts(repo, profile, importedDeviceId, maxHROverride, nowSeconds,
+            measuredResting, effortMethod)
 
         return out to healDropped.size
     }
@@ -1909,6 +1922,8 @@ object IntelligenceEngine {
         // #950: the wearer's measured resting HR (most recent scored day), threaded into scored() so the
         // rescore uses the same %HRR denominator as the day total. null → the scorer's default.
         restingHR: Double? = null,
+        // #1545: the pass's Effort recipe, so a rescored manual workout matches the day it sits in.
+        effortMethod: StrainScorer.Method = StrainScorer.Method.EDWARDS,
     ) {
         val since = nowSeconds - 14L * 86_400L
         val rows = runCatching { repo.workouts(deviceId, since, nowSeconds) }.getOrNull() ?: return
@@ -1922,7 +1937,8 @@ object IntelligenceEngine {
             if (!ManualWorkoutRescore.looksUnderScored(row.energyKcal) && row.strain != null) continue
             val samples = runCatching { repo.hrSamples(deviceId, row.startTs, row.endTs, 20_000) }
                 .getOrNull() ?: continue
-            val s = ManualWorkoutRescore.scored(samples, profile, hrMax, restingHR) ?: continue
+            val s = ManualWorkoutRescore.scored(
+                samples, profile, hrMax, restingHR, effortMethod) ?: continue
             if (!ManualWorkoutRescore.improves(s, row.energyKcal, row.strain, allowStrainOnlyFill = true)) continue
             // Never lower a summed kcal: only take the recomputed kcal when it genuinely beats the stored
             // value; a strain-only fill (merged row) keeps the existing summed energyKcal.

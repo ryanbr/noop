@@ -269,7 +269,12 @@ public enum WorkoutDetector {
                               restingHR: Double? = nil,
                               maxHR: Double? = nil,
                               age: Double? = nil,
-                              profile: UserProfile? = nil) -> [ExerciseSession] {
+                              profile: UserProfile? = nil,
+                              // #1545: TRIMP recipe for each bout's Effort. Defaults to Edwards so every
+                              // existing caller and test is byte-identical; the app threads the user's
+                              // choice so a bout and the day it sits in are never scored by different
+                              // recipes, which would be worse than either one being "wrong".
+                              effortMethod: StrainScorer.Method = .edwards) -> [ExerciseSession] {
         let hrSeg = cleanHR(hr)
         let motion = activitySeries(gravity)
         if hrSeg.isEmpty || motion.isEmpty { return [] }
@@ -360,7 +365,8 @@ public enum WorkoutDetector {
             guard !bpms.isEmpty else { continue }   // skip a degenerate bout with no HR samples
             let avg = bpms.reduce(0, +) / Double(bpms.count)
             let peak = Int(bpms.max()!.rounded())
-            let strain = StrainScorer.strain(hrSamples, maxHR: effMaxHR, restingHR: restHR)
+            let strain = StrainScorer.strain(hrSamples, maxHR: effMaxHR, restingHR: restHR,
+                                             method: effortMethod, sex: profile?.sex ?? "male")
 
             sessions.append(ExerciseSession(
                 start: effStart, end: end, avgHR: avg, peakHR: peak, strain: strain,

@@ -927,6 +927,7 @@ fun TodayScreen(
                 hr = todayHr,
                 maxHR = effMaxHR,
                 restingHR = displayMetric?.restingHr?.toDouble() ?: StrainScorer.defaultRestingHR,
+                method = NoopPrefs.effortMethod(context),
                 sex = profileStore.sex,
             )
         } else {
@@ -1106,7 +1107,8 @@ fun TodayScreen(
             // fillWorkoutHrFromStrap: imported sessions carry no HR, derive it from strap samples (#77).
             // #510: strap-native rows now read HR under their OWN recording strap (inside the fill), so a 2nd
             // WHOOP's workouts reconcile Avg HR + Effort from their own trace; imported rows keep the default.
-            recentWorkouts = viewModel.repo.fillWorkoutHrFromStrap(recentUnion),
+            recentWorkouts = viewModel.repo.fillWorkoutHrFromStrap(
+                recentUnion, effortMethod = NoopPrefs.effortMethod(context)),
             whoopDays = days.size,
             whoopWorkouts = whoopWorkouts.size,
             appleDays = appleDaysCount,

@@ -276,6 +276,10 @@ object WorkoutDetector {
         maxHR: Double? = null,
         age: Double? = null,
         profile: UserProfile? = null,
+        // #1545: TRIMP recipe for each bout's Effort. Defaults to EDWARDS so every existing caller and
+        // test is byte-identical; the app threads the user's choice so a bout and the day it sits in are
+        // never scored by different recipes, which would be worse than either one being "wrong".
+        effortMethod: StrainScorer.Method = StrainScorer.Method.EDWARDS,
     ): List<ExerciseSession> {
         val hrSeg = cleanHR(hr)
         val motion = activitySeries(gravity)
@@ -376,7 +380,8 @@ object WorkoutDetector {
 
             val avg = bpms.sum() / bpms.size.toDouble()
             val peak = window.maxOf { it.bpm }
-            val strain = StrainScorer.strain(window, effMaxHR, restHR)
+            val strain = StrainScorer.strain(
+                window, effMaxHR, restHR, effortMethod, profile?.sex ?: "male")
 
             sessions.add(
                 ExerciseSession(

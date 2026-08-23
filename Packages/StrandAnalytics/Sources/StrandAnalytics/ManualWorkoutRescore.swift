@@ -48,14 +48,16 @@ public enum ManualWorkoutRescore {
     /// under-scored relative to the very day it sat in. nil keeps the old default (a cold start with no
     /// measured resting yet), so existing callers are byte-identical until they thread one.
     public static func scored(windowSamples: [HRSample], profile: UserProfile, hrMax: Double,
-                              restingHR: Double? = nil) -> Scored? {
+                              restingHR: Double? = nil,
+                              // #1545: see WorkoutDetector.detect — Edwards by default, threaded by the app.
+                              effortMethod: StrainScorer.Method = .edwards) -> Scored? {
         guard windowSamples.count >= 2 else { return nil }
         let bpms = windowSamples.map(\.bpm)
         let avg = Int((Double(bpms.reduce(0, +)) / Double(bpms.count)).rounded())
         let peak = bpms.max() ?? 0
         let strain = StrainScorer.strain(windowSamples, maxHR: hrMax,
                                          restingHR: restingHR ?? StrainScorer.defaultRestingHR,
-                                         sex: profile.sex)
+                                         method: effortMethod, sex: profile.sex)
         let kcalRaw = Calories.estimateBoutCalories(windowSamples, profile: profile,
                                                     hrmax: hrMax, restingHR: restingHR).0
         return Scored(avgHr: avg, maxHr: peak, strain: strain, kcal: kcalRaw > 0 ? kcalRaw : nil)

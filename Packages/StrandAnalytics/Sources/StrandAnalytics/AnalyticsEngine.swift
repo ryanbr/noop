@@ -451,7 +451,15 @@ public enum AnalyticsEngine {
                                   // #141: when true, the nightly HRV is RMSSD over DEEP-sleep windows only
                                   // (WHOOP-style), instead of the whole-night mean. Threaded from the caller
                                   // (UnitPrefs.hrvWindowKey). Default false = byte-identical whole-night value.
-                                  deepHrvWindow: Bool = false) -> DayResult {
+                                  deepHrvWindow: Bool = false,
+                                  // #1545: which TRIMP recipe scores Effort. Edwards (the default) is
+                                  // time-in-zone and pays NOTHING below 50% HRR, so intermittent work —
+                                  // a lifting session, once the sets are averaged against the rests —
+                                  // can score near zero however long it lasts. Banister is exponential in
+                                  // %HRR with no floor. Threaded rather than read from a global so this
+                                  // stays a pure function, and defaulted so every existing caller and
+                                  // test is byte-identical.
+                                  effortMethod: StrainScorer.Method = .edwards) -> DayResult {
 
         // Precompute the day's UTC bounds ONCE (#996). `dayString(ts, offsetSec:)` formats the UTC
         // calendar day of (ts + offset) with a FIXED offset, so "== day" is exactly membership in
@@ -788,7 +796,7 @@ public enum AnalyticsEngine {
         let effMaxHR: Double? = maxHROverride ?? (profile.age > 0 ? StrainScorer.tanakaHRmax(age: profile.age) : nil)
         let restForStrain = restingHRDaily.map(Double.init) ?? StrainScorer.defaultRestingHR
         let strain = StrainScorer.strain(dayHr ?? hr, maxHR: effMaxHR, restingHR: restForStrain,
-                                         sex: profile.sex)
+                                         method: effortMethod, sex: profile.sex)
 
         // ── Workouts ──────────────────────────────────────────────────────────
         // Detect over the full CALENDAR day (dayHr/dayGravity) when the caller supplies it, so a
@@ -801,7 +809,11 @@ public enum AnalyticsEngine {
             restingHR: restingHRDaily.map(Double.init),
             maxHR: maxHROverride,
             age: profile.age > 0 ? profile.age : nil,
-            profile: profile)
+            profile: profile,
+            // #1545: the bouts inside a day MUST be scored by the same recipe as the day itself.
+            // A day on Banister whose workouts were still on Edwards would show a session scoring
+            // less than the day it sits inside, which is a worse inconsistency than either method.
+            effortMethod: effortMethod)
 
         // ── Steps (APPROXIMATE) ───────────────────────────────────────────────
         // step_motion_counter@57 is a CUMULATIVE u16 running counter (it climbs while you move, holds
