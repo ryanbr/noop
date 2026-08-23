@@ -996,6 +996,18 @@ class OuraLiveSource(
         hypnogramAssembler.flush()?.let { persistHypnogramBurst(it) }
         drainPendingAnchorEvents()
         dropUnanchoredHypnogramBursts()
+        // #1526 follow-up, twin of the Swift `stop()` call: cancelling the re-engage does NOT stop the
+        // ring. That is the "just stop poking it" assumption #1526's captures falsified -- daytime-HR
+        // left in mode 0x01 kept pushing green 0x80 all night, and the ring's ~20 s auto-revert never
+        // fired. A teardown that only cancels the timer therefore hands back a ring still in daytime
+        // mode, blocking its own sleep suite. Send the same disable + unsubscribe pair before the link
+        // goes, and BEFORE driver.stop() so the phase check below still sees Streaming.
+        //
+        // Best-effort by nature: WRITE_TYPE_NO_RESPONSE goes to the controller immediately, but the
+        // disconnect follows in the next statement and nothing guarantees a flush. It closes the common
+        // cases -- user disconnect, source switch, Bluetooth off -- and a process kill cannot be covered
+        // at all, which is a transport limit rather than a gap in this fix.
+        disableLiveHR()
         driver?.stop()
         gatt?.let { runCatching { it.disconnect(); it.close() } }
         gatt = null
@@ -1399,6 +1411,22 @@ class OuraLiveSource(
             log("Oura: the ring did not accept the key (status=${status ?: "none"}) - cannot adopt this ring")
             announceNeedsPairing(KEY_INSTALL_MESSAGE)
         }
+    }
+
+    /**
+     * Hand the ring back out of daytime-HR mode: the feature-mode write plus the unsubscribe the enable
+     * triplet leaves standing. Twin of Swift `OuraLiveSource.disableLiveHR`.
+     *
+     * `liveHRDisable` alone only touches the MODE byte, so without the unsubscribe the notification
+     * channel stays open for the ring's own adaptive sampling to push through -- which is why #1526
+     * corrected the byte (0x01 "automatic" was never "off") and added the pair. The Streaming guard
+     * covers the callers: there is nothing to disable if the session never got that far.
+     */
+    private fun disableLiveHR() {
+        val d = driver ?: return
+        if (d.phase != OuraDriverPhase.Streaming) return
+        write(OuraCommands.liveHRDisable())
+        write(OuraCommands.liveHRUnsubscribe())
     }
 
     /** Write one built command to the ring's write characteristic (Write Without Response). Logged by its

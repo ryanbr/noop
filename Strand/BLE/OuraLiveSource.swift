@@ -1015,7 +1015,7 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     private var loggedLiveHRSuspend = false
 
     /// Logged-once latch (per suspend episode) for a live-HR push arriving AFTER we believe the ring is
-    /// suspended — the direct falsification signal for `disableLiveHRForSuspend`. 08-17/18 found the
+    /// suspended — the direct falsification signal for `disableLiveHR`. 08-17/18 found the
     /// PREVIOUS design (stop re-engaging, rely on the ring's daytime-HR mode auto-reverting ~20 s after
     /// the last keep-alive per OURA_PROTOCOL.md s5.7) does not stop the stream: green 0x80 ran 1,700-3,600
     /// per hour all night, including inside a genuinely stable, reconnect-free 3.5 h stretch, so nothing
@@ -1270,6 +1270,20 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         pendingConnectID = nil
         stopReengageTimer()
         stopHistoryFetchTimer()
+        // #1526 follow-up: stopping the re-engage is NOT enough to stop the ring. That is the same
+        // "just stop poking it" assumption #1526's own captures falsified — with daytime-HR left in
+        // mode 0x01 the green 0x80 pushes kept arriving all night, and the ring's ~20 s auto-revert
+        // never fired on that build. So a teardown that only cancels the timer hands back a ring still
+        // in daytime mode, blocking its own sleep suite exactly as the unattended case did; the suspend
+        // path is simply the only exit that was wired to say so. Send the same disable + unsubscribe
+        // pair here before the link goes.
+        //
+        // Best-effort by nature: these are WRITE_WITHOUT_RESPONSE, so they are handed to the controller
+        // immediately, but an intentional teardown cancels the connection in the next statement and
+        // CoreBluetooth makes no flush guarantee. It costs two queued writes and closes the common
+        // cases -- user disconnect, source switch, Bluetooth off. A process kill cannot be covered at
+        // all, which is a limit of the transport rather than of this fix.
+        disableLiveHR()
         if let p = peripheral { central.cancelPeripheralConnection(p) }
         peripheral = nil
         writeCharacteristic = nil
@@ -1609,7 +1623,7 @@ public final class OuraLiveSource: NSObject, ObservableObject {
             switch e {
             case .hr(let hr):
                 guard hr.bpm >= 30, hr.bpm <= 220 else { continue }   // physiological gate
-                // Direct falsification signal for `disableLiveHRForSuspend`, AND the self-heal for the one
+                // Direct falsification signal for `disableLiveHR`, AND the self-heal for the one
                 // gap 2026-08-21's hardware run found: enforcement is polled on `reengageLiveHR`'s 15 s
                 // tick (deliberately, see that function's doc — a one-shot timer at grace-expiry is not
                 // trustworthy backgrounded on iOS), so there is an up-to-15 s window right as the grace
@@ -1620,7 +1634,7 @@ public final class OuraLiveSource: NSObject, ObservableObject {
                 // stop-and-disable transition `reengageLiveHR()` would eventually run anyway; calling it
                 // here just runs it now instead of up to 15 s late, closing the gap without touching the
                 // grace period itself. Log line stays latched once per suspend episode (strap log clip
-                // budget); the resend is not — safe to repeat, `disableLiveHRForSuspend` is a harmless
+                // budget); the resend is not — safe to repeat, `disableLiveHR` is a harmless
                 // read-only-shaped write when already streaming-or-not per its own doc.
                 if liveHRSuspended {
                     if !loggedUnexpectedLiveHRWhileSuspended {
@@ -1984,7 +1998,7 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         stopReengageTimer()
         guard !liveHRSuspended else {
             logLiveHRSuspendOnce()
-            disableLiveHRForSuspend()
+            disableLiveHR()
             return
         }
         let t = Timer.scheduledTimer(withTimeInterval: reengageInterval, repeats: true) { [weak self] _ in
@@ -2037,7 +2051,11 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     /// true but before the next tick gets here. Closed by having the push handler itself (the `.hr` case
     /// in `ingest`) call `startReengageTimer()` - which runs this exact stop-and-disable transition - the
     /// moment it sees a stale push, instead of waiting for the tick. Not yet hardware-validated.
-    private func disableLiveHRForSuspend() {
+    /// Also called from `stop()` (#1526 follow-up), so the name is no longer suspend-specific: an
+    /// intentional teardown must hand the ring back out of daytime mode for the same reason a suspend
+    /// must. The `.streaming` guard covers both callers -- there is nothing to disable if the session
+    /// never got that far.
+    private func disableLiveHR() {
         guard let driver, driver.phase == .streaming else { return }
         write([OuraCommands.liveHRDisable(), OuraCommands.liveHRUnsubscribe()])
         if feedsLive { live.streamingLiveHR = false }
@@ -2057,7 +2075,7 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         if liveHRSuspended {
             stopReengageTimer()
             logLiveHRSuspendOnce()
-            disableLiveHRForSuspend()
+            disableLiveHR()
             return
         }
         guard let driver, reachedStreaming, driver.phase != .fetchingHistory else { return }
