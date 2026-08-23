@@ -1,5 +1,7 @@
 import XCTest
+import Foundation
 @testable import StrandAnalytics
+import WhoopProtocol
 
 /// #1545: Banister TRIMP needs its OWN log-map denominator, and the reason is easy to get wrong.
 ///
