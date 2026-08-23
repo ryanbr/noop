@@ -1679,6 +1679,16 @@ final class IntelligenceEngine: ObservableObject {
             for s in night.workouts {
                 let durMin = max(0, (s.end - s.start) / 60)
                 let avgBpm = Int(s.avgHR)
+                // #1545: always-on, one line per detected bout naming what this Effort was SCORED AGAINST.
+                // A user reporting "my hard session scored 1.7" cannot currently see the HRmax that set the
+                // zone boundaries, where it came from, or whether the strap even saw most of the bout — and
+                // those three answers separate the three different causes ("the floor is doing its job",
+                // "your HRmax is wrong", "the sensor dropped out"). Reversing the arithmetic out of the
+                // displayed score is what diagnosing #1545 actually took. Same privacy class as the sibling
+                // `sleep day=` line: a day key, a duration, bpm and percentages.
+                diagnosticSink?(WorkoutDetector.boutCalibrationLine(
+                    day: daily.day, durMin: durMin, hrmax: s.hrmax, hrmaxSource: s.hrmaxSource,
+                    avgHRRPct: s.avgHRRPct, hrCoveragePct: s.hrCoveragePct, strain: s.strain), nil)
                 // The overlap test is bare time overlap (any source), so a detected bout collapses against a
                 // manual session even though their SPORTS differ ("detected" vs the user's sport) , the
                 // #975 "two workouts, one vanished" seam. Find the collider so the trace can name its source.

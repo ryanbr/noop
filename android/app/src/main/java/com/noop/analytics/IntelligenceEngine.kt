@@ -1418,6 +1418,19 @@ object IntelligenceEngine {
             for (s in res.workouts) {
                 val durMin = maxOf(0L, (s.end - s.start) / 60L).toInt()
                 val avgBpm = s.avgHR.toInt()
+                // #1545: always-on, one line per detected bout naming what this Effort was SCORED AGAINST.
+                // A user reporting "my hard session scored 1.7" cannot currently see the HRmax that set the
+                // zone boundaries, where it came from, or whether the strap even saw most of the bout — and
+                // those three answers separate the three different causes ("the floor is doing its job",
+                // "your HRmax is wrong", "the sensor dropped out"). Reversing the arithmetic out of the
+                // displayed score is what diagnosing #1545 actually took. Same privacy class as the sibling
+                // `sleep day=` line: a day key, a duration, bpm and percentages. Mirrors the Swift line.
+                diag(
+                    WorkoutDetector.boutCalibrationLine(
+                        day = daily.day, durMin = durMin, hrmax = s.hrmax, hrmaxSource = s.hrmaxSource,
+                        avgHRRPct = s.avgHRRPct, hrCoveragePct = s.hrCoveragePct, strain = s.strain,
+                    ),
+                )
                 // Bare time overlap (any source), so a detected bout collapses against a manual session even
                 // though their sports differ , the #975 "two workouts, one vanished" seam. Name the collider.
                 val collider = realWorkouts.firstOrNull { w -> s.start < w.endTs && w.startTs < s.end }

@@ -55,15 +55,23 @@ public struct ExerciseSession: Equatable, Sendable {
     public let hrmaxSource: String
     public let caloriesKcal: Double?
     public let caloriesKJ: Double?
+    /// #1545: how much of the bout the HR sensor actually saw, as a percentage of 60-second buckets that
+    /// contain at least one reading. nil when it was not measured. A WHOOP 4.0's optical sensor is weak
+    /// under gripping — which is exactly what lifting is — so a low Effort has two very different causes:
+    /// the metric genuinely not rating the work, or the strap not having seen it. Those deserve opposite
+    /// advice, and until now they were indistinguishable from the outside.
+    public let hrCoveragePct: Double?
 
     public init(start: Int, end: Int, avgHR: Double, peakHR: Int, strain: Double?,
                 durationS: Double, zoneTimePct: [Int: Double], avgHRRPct: Double?,
                 hrmax: Double?, hrmaxSource: String,
-                caloriesKcal: Double?, caloriesKJ: Double?) {
+                caloriesKcal: Double?, caloriesKJ: Double?,
+                hrCoveragePct: Double? = nil) {
         self.start = start; self.end = end; self.avgHR = avgHR; self.peakHR = peakHR
         self.strain = strain; self.durationS = durationS; self.zoneTimePct = zoneTimePct
         self.avgHRRPct = avgHRRPct; self.hrmax = hrmax; self.hrmaxSource = hrmaxSource
         self.caloriesKcal = caloriesKcal; self.caloriesKJ = caloriesKJ
+        self.hrCoveragePct = hrCoveragePct
     }
 }
 
@@ -132,6 +140,62 @@ public enum WorkoutDetector {
         precondition(!bpms.isEmpty, "deriveRestingHR called with empty segment")
         let rank = max(1, Int(ceil(restingPercentile / 100.0 * Double(bpms.count))))
         return bpms[rank - 1]
+    }
+
+    /// #1545: how much of `[start, end]` the HR sensor actually covered, as a percentage of
+    /// `bucketSeconds`-wide buckets holding at least one reading.
+    ///
+    /// Bucketed rather than sample-counted on purpose. A WHOOP 5/MG sends live HR only about every 30 s,
+    /// so counting samples against a 1 Hz expectation would report ~3% for a perfectly captured bout,
+    /// which is worse than no number. A bucket is either seen or not, so a 30 s cadence reads as full
+    /// coverage and a genuine dropout reads as the gap it is.
+    public static func hrCoveragePct(sampleTs: [Int], start: Int, end: Int,
+                                     bucketSeconds: Int = 60) -> Double? {
+        guard end > start, bucketSeconds > 0 else { return nil }
+        // Integer ceil, not `ceil(Double/Double)` — same expression as the Kotlin twin, with no float
+        // rounding to reason about at a bucket boundary. A partial trailing bucket counts as a whole one,
+        // so coverage can never exceed 100.
+        let buckets = max(1, ((end - start) + bucketSeconds - 1) / bucketSeconds)
+        var seen = Set<Int>()
+        for ts in sampleTs where ts >= start && ts < end {
+            seen.insert((ts - start) / bucketSeconds)
+        }
+        return Double(seen.count) / Double(buckets) * 100.0
+    }
+
+    /// #1545: the always-on per-bout line naming what this workout's Effort was actually scored against.
+    ///
+    /// HRmax is the single biggest determinant of an Effort score — it sets every zone boundary, so being
+    /// wrong by a few bpm can move real work across the 50% floor and score it zero — and until this line
+    /// existed a user could not see which number had been used, or whether it came from their own setting
+    /// or an age formula. Working that out previously meant reversing the arithmetic from the displayed
+    /// score, which is what #1545 took to diagnose.
+    ///
+    /// No PII: a day key, a duration, bpm and percentages.
+    public static func boutCalibrationLine(day: String, durMin: Int, hrmax: Double?, hrmaxSource: String,
+                                           avgHRRPct: Double?, hrCoveragePct: Double?,
+                                           strain: Double?) -> String {
+        return "effort bout day=\(day) durMin=\(durMin) hrmax=\(round0(hrmax)) src=\(hrmaxSource) "
+            + "avgHRR=\(round0(avgHRRPct)) cover=\(round0(hrCoveragePct)) effort=\(round1(strain))"
+    }
+
+    /// The two numeric formatters this line uses, written as integer arithmetic rather than `%.0f` /
+    /// `%.1f` on purpose.
+    ///
+    /// C `printf` (Swift) breaks a rounding tie to even; Java's `String.format` (Kotlin) breaks it up. So a
+    /// bout at exactly 52.5% HRR would print `52` on iOS and `53` on Android — a parity break in a line
+    /// whose entire job is being comparable between two users' logs. Rounding to an Int first (half away
+    /// from zero, which equals `Math.round` for the non-negative bpm and percentages here) and assembling
+    /// the digits by hand removes both the tie and the locale's decimal separator.
+    static func round0(_ v: Double?) -> String {
+        guard let v, v.isFinite else { return "nil" }
+        return String(Int(v.rounded()))
+    }
+
+    static func round1(_ v: Double?) -> String {
+        guard let v, v.isFinite else { return "nil" }
+        let t = Int((v * 10).rounded())
+        return "\(t / 10).\(abs(t % 10))"
     }
 
     /// Value whose ts is nearest to `ts` within `tol` seconds, else nil. Ties go
@@ -371,7 +435,9 @@ public enum WorkoutDetector {
             sessions.append(ExerciseSession(
                 start: effStart, end: end, avgHR: avg, peakHR: peak, strain: strain,
                 durationS: Double(end - effStart), zoneTimePct: zonePct, avgHRRPct: avgHRR,
-                hrmax: effMaxHR, hrmaxSource: hrmaxSource, caloriesKcal: kcal, caloriesKJ: kj))
+                hrmax: effMaxHR, hrmaxSource: hrmaxSource, caloriesKcal: kcal, caloriesKJ: kj,
+                hrCoveragePct: hrCoveragePct(sampleTs: hrSamples.map { $0.ts },
+                                             start: effStart, end: end)))
         }
         return sessions
     }
