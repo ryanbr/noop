@@ -53,6 +53,27 @@ public enum StrainScorer {
     public static let strainDenominator: Double = 7201.0
     static var lnStrainDenominator: Double { log(strainDenominator) }
 
+    /// Banister's daily ceiling: 24 h held at ΔHRR = 1.0. Unlike Edwards' 7200 this is SEX-DEPENDENT,
+    /// because the exponent `b` differs — which is the whole reason `strainDenominator` cannot be reused
+    /// for it. Feeding Banister TRIMP through the Edwards denominator would score every day against a
+    /// ceiling ~14% (men) or ~32% (women) higher than Banister can actually reach, so nobody would ever
+    /// see 100 and the two methods would not be on the same axis. (#1545)
+    static func banisterDailyCeiling(b: Double) -> Double {
+        24.0 * 60.0 * 1.0 * banisterScale * exp(b)
+    }
+
+    /// The log-map denominator for a method, so a caller never has to know which constant belongs to
+    /// which recipe. Ceiling + 1 in both cases, mirroring how `strainDenominator` was derived, so a
+    /// theoretical maximum day maps to exactly `maxStrain` under either method.
+    public static func logMapDenominator(method: Method, sex: String) -> Double {
+        switch method {
+        case .edwards:
+            return strainDenominator
+        case .banister:
+            return banisterDailyCeiling(b: sex.lowercased().hasPrefix("f") ? banisterBWomen : banisterBMen) + 1.0
+        }
+    }
+
     /// Fallback per-sample duration (minutes) — 1 s at 1 Hz.
     static let fallbackSampleMin: Double = 1.0 / 60.0
 
@@ -266,13 +287,17 @@ public enum StrainScorer {
     ///   - restingHR: resting HR (bpm) for the HRR denominator (default 60).
     ///   - method: `.edwards` (default) or `.banister`.
     ///   - sex: "male"/"female" — selects the Banister coefficient (ignored by Edwards).
-    ///   - denominator: log-map D (default STRAIN_DENOMINATOR).
+    ///   - denominator: log-map D. `nil` (the default) resolves to the denominator that BELONGS to
+    ///     `method` — Edwards' 7201, or Banister's sex-dependent ceiling. Pass a value only to override.
     public static func strain(_ hr: [HRSample],
                               maxHR: Double? = nil,
                               restingHR: Double = defaultRestingHR,
                               method: Method = .edwards,
                               sex: String = "male",
-                              denominator: Double = strainDenominator) -> Double? {
+                              denominator: Double? = nil) -> Double? {
+        // Resolve BEFORE the memo key is built, or a Banister request would be cached under Edwards'
+        // denominator and a later Edwards request could collide with it.
+        let resolvedDenominator = denominator ?? logMapDenominator(method: method, sex: sex)
         // v7.0.2 perf (#707): TRIMP integrates over the day's HR stream; called once per day in the post-sync
         // scoring loop AND from the Today view (which re-reads on each live-HR tick). Memoize on the HR
         // fingerprint + every scalar that steers the score, so an identical re-request is a lookup. The
@@ -280,9 +305,10 @@ public enum StrainScorer {
         let key = StrainKey(
             hr: StreamFingerprint.of(hr, ts: { $0.ts }, quant: { Int($0.bpm) }),
             maxHR: maxHR, restingHR: restingHR, method: method,
-            sexF: sex.lowercased().hasPrefix("f"), denom: denominator)
+            sexF: sex.lowercased().hasPrefix("f"), denom: resolvedDenominator)
         return strainCache.value(key) {
-            strainUncached(hr, maxHR: maxHR, restingHR: restingHR, method: method, sex: sex, denominator: denominator)
+            strainUncached(hr, maxHR: maxHR, restingHR: restingHR, method: method, sex: sex,
+                           denominator: resolvedDenominator)
         }
     }
 

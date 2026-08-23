@@ -69,6 +69,26 @@ object StrainScorer {
      * pure linear scaling of the whole curve).
      */
     const val strainDenominator: Double = 7201.0
+
+    /**
+     * Banister's daily ceiling: 24 h held at ΔHRR = 1.0. Unlike Edwards' 7200 this is SEX-DEPENDENT,
+     * because the exponent `b` differs — which is the whole reason [strainDenominator] cannot be reused
+     * for it. Feeding Banister TRIMP through the Edwards denominator would score every day against a
+     * ceiling ~14% (men) or ~32% (women) higher than Banister can actually reach, so nobody would ever
+     * see 100 and the two methods would not be on the same axis. (#1545)
+     */
+    fun banisterDailyCeiling(b: Double): Double = 24.0 * 60.0 * 1.0 * banisterScale * kotlin.math.exp(b)
+
+    /**
+     * The log-map denominator for a method, so a caller never has to know which constant belongs to
+     * which recipe. Ceiling + 1 in both cases, mirroring how [strainDenominator] was derived, so a
+     * theoretical maximum day maps to exactly [maxStrain] under either method.
+     */
+    fun logMapDenominator(method: Method, sex: String): Double = when (method) {
+        Method.EDWARDS -> strainDenominator
+        Method.BANISTER ->
+            banisterDailyCeiling(if (sex.lowercase().startsWith("f")) banisterBWomen else banisterBMen) + 1.0
+    }
     val lnStrainDenominator: Double get() = ln(strainDenominator)
 
     /** Fallback per-sample duration (minutes) — 1 s at 1 Hz. */
@@ -319,8 +339,11 @@ object StrainScorer {
         restingHR: Double = defaultRestingHR,
         method: Method = Method.EDWARDS,
         sex: String = "male",
-        denominator: Double = strainDenominator,
+        // null (the default) resolves to the denominator that BELONGS to [method] — Edwards' 7201, or
+        // Banister's sex-dependent ceiling. Pass a value only to override.
+        denominator: Double? = null,
     ): Double? {
+        val resolvedDenominator = denominator ?: logMapDenominator(method, sex)
         val effMax = maxHR ?: defaultMaxHR().toDouble()
         // Enough data to trust the score: a dense stream (≥ minReadings) OR a sparse-but-sustained
         // one spanning ≥ minSpanSeconds with a sample floor (#482 — the 5/MG's ~30 s HR cadence).
@@ -346,6 +369,6 @@ object StrainScorer {
                 edwardsTRIMP(hr, restingHR, hrReserve, durations)
             }
         }
-        return trimpToStrain(trimp, denominator)
+        return trimpToStrain(trimp, resolvedDenominator)
     }
 }
