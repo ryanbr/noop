@@ -342,13 +342,20 @@ fun DataSourcesScreen(vm: AppViewModel) {
             // Gate on vitals AND exercise perms so a user who enabled writeback before exercise
             // writeback shipped (vitals-only grant) still gets re-prompted for WRITE_EXERCISE/
             // WRITE_DISTANCE — otherwise their workouts silently never reach Health Connect (#412).
+            // #1525: VO2 max is ASKED FOR below but deliberately absent from this gate. Adding it here
+            // would mean every existing user, who granted the older set, fails `containsAll` and gets
+            // re-prompted — and blocks their whole writeback until they accept. Out of the gate, a decline
+            // costs only VO2 max, whose records are written in their own attempt.
             if (granted.containsAll(HealthConnectWriter.PERMISSIONS + HealthConnectWriter.EXERCISE_PERMISSIONS)) {
                 vm.writebackHealthConnectNow()
             } else {
                 // Request vitals + exercise-session write perms together so GPS workouts can write
                 // back too (the launcher-result handler stays keyed on the vital PERMISSIONS, so
                 // exercise writeback is opt-in + non-fatal if the user declines it). v1.71 / #412.
-                hcWritePermissionLauncher.launch(HealthConnectWriter.PERMISSIONS + HealthConnectWriter.EXERCISE_PERMISSIONS)
+                hcWritePermissionLauncher.launch(
+                    HealthConnectWriter.PERMISSIONS + HealthConnectWriter.EXERCISE_PERMISSIONS +
+                        HealthConnectWriter.VO2MAX_PERMISSIONS,
+                )
             }
         }
     }
