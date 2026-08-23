@@ -996,7 +996,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 // since the last COMPLETED run. Mirrors the Swift analyzeRecent(force:false) gate; the watermark
                 // advances only on success (below), so an interrupted run can never hide unscored data.
                 val analyzeFp = repository.hrFingerprint()
-                if (analyzeFp != NoopPrefs.analyzeWatermark(appContext)) runCatching {
+                // #1538: attribute the tick that is about to run. An idle-tick pass previously emitted NO
+                // trigger line at all — a "re-score: done" with nothing before it — so a strap log could not
+                // be read by pairing trigger->done, and a stalled background pass was easy to misattribute to
+                // the post-offload caller. Only logged when the gate lets the pass through, so a skipped tick
+                // stays silent and the 15-min cadence does not pad the log. newData is necessarily yes here:
+                // the gate IS the fingerprint-changed test. Twin of the Swift analyzeRecent(force:)
+                // attribution. Read the watermark ONCE — the gate and the log line must agree, and a second
+                // read could straddle a concurrent write from a completing pass.
+                val analyzeHasNewData = analyzeFp != NoopPrefs.analyzeWatermark(appContext)
+                if (analyzeHasNewData) ble.externalLog("re-score: trigger=idle newData=yes")
+                if (analyzeHasNewData) runCatching {
                     IntelligenceEngine.analyzeRecent(
                         repo = repository,
                         profile = currentProfile(),

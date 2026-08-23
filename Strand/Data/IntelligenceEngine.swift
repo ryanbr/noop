@@ -512,16 +512,26 @@ final class IntelligenceEngine: ObservableObject {
             diagnosticSink?("re-score: trigger=post-offload newData=no — skipped (nothing changed since last run)", nil)
             return
         }
-        // Attribute a FORCED re-score. A completed offload / edit / recalibrate always re-scores
-        // (force: true) past the gate above, so an empty/duplicate offload — nothing changed since the last
-        // run — still pays for a full maxDays pass over the whole raw store (#1146). `newData=no` means the
-        // fingerprint already equals the watermark the last run advanced: a re-score driven by the trigger,
-        // not by data (#1005 background battery). Diagnostic only; the pass still runs. Twin of the Android
-        // WhoopBleClient post-offload attribution.
-        if force {
-            let hadNew = wmKey.isEmpty || UserDefaults.standard.string(forKey: Self.analyzeWatermarkKey) != wmKey
-            diagnosticSink?("re-score: trigger=forced newData=\(hadNew ? "yes" : "no (nothing changed since last run)")", nil)
-        }
+        // Attribute the re-score that is ABOUT TO RUN. `trigger=post-offload` was previously logged only on
+        // the SKIP path above, so a post-offload pass that actually RAN was labelled `forced` — in the strap
+        // log it was indistinguishable from a settings edit or a recalibrate. #1538 lost three nights to
+        // that: every one of the reporter's stalled background passes read `trigger=forced`, which pointed
+        // the investigation at the wrong caller entirely. `skipIfUnchanged` is scoped to the post-offload
+        // caller ONLY (see the gate directly above), so it is an exact witness for that trigger.
+        //
+        // A non-forced pass is the AppModel idle tick, which previously emitted NO trigger line at all when
+        // it ran — a `re-score: done` with nothing before it. Every completed pass now carries one, so the
+        // log can be read by pairing trigger→done instead of by inference.
+        //
+        // A completed offload / edit / recalibrate always re-scores past the gate above, so an empty or
+        // duplicate offload still pays for a full maxDays pass over the whole raw store (#1146).
+        // `newData=no` means the fingerprint already equals the watermark the last run advanced: a re-score
+        // driven by the trigger, not by data (#1005 background battery). Diagnostic only; the pass runs
+        // either way. Twin of the Android WhoopBleClient / AppViewModel attribution.
+        let trigger = !force ? "idle" : (skipIfUnchanged ? "post-offload" : "forced")
+        let hadNew = wmKey.isEmpty || UserDefaults.standard.string(forKey: Self.analyzeWatermarkKey) != wmKey
+        diagnosticSink?("re-score: trigger=\(trigger) "
+                        + "newData=\(hadNew ? "yes" : "no (nothing changed since last run)")", nil)
 
         // #1005: time the whole pass — the trigger line above records WHY; this records how many nights
         // and how long (the CPU cost per run), so a re-score STORM is visible in the strap log.
@@ -727,6 +737,10 @@ final class IntelligenceEngine: ObservableObject {
             // diagnostic carried on `skippedDayLines`.
             var dayScanCacheLocal = inDayScanCache
             var dayCacheReused = 0
+            // #1538: days that were actually cacheable this pass (freshly scored AND stored under a key).
+            // Together with `dayCacheReused` this is the honest denominator for the reuse ratio — see the
+            // diagnostic at the end of the loop.
+            var dayCacheCacheable = 0
             for offset in 0..<maxDays {
                 let dayStart = nowLocalMidnight - offset * 86_400
                 let day = AnalyticsEngine.dayString(dayStart, offsetSec: tzOffset)
@@ -1226,7 +1240,10 @@ final class IntelligenceEngine: ObservableObject {
                 // #1005: cache this freshly-scored scan under its per-day key (only when the day was
                 // cache-eligible this pass, i.e. a registered WHOOP owner with no trace active). Reused
                 // days `continue`d above and never reach here, so the cache only ever holds fresh scans.
-                if let key = dayCacheKey { dayScanCacheLocal[day] = (key: key, scan: scan) }
+                if let key = dayCacheKey {
+                    dayScanCacheLocal[day] = (key: key, scan: scan)
+                    dayCacheCacheable += 1
+                }
                 out.append(scan)
             }
             // #1005: prune the reuse cache to the current 21-day window (the oldest day ages out at
@@ -1234,8 +1251,15 @@ final class IntelligenceEngine: ObservableObject {
             let dayCacheWindow = Set((0..<maxDays).map {
                 AnalyticsEngine.dayString(nowLocalMidnight - $0 * 86_400, offsetSec: tzOffset) })
             dayScanCacheLocal = dayScanCacheLocal.filter { dayCacheWindow.contains($0.key) }
-            skippedDayLines.append("analyzeRecent dayCache reused=\(dayCacheReused)/\(maxDays) "
-                                   + "size=\(dayScanCacheLocal.count)")
+            // #1538: the denominator is the number of CACHEABLE days this pass (reused + freshly cached),
+            // not `maxDays`. A day that never reaches the cache — an import/ring owner, an active Test-Centre
+            // trace, an unreadable fingerprint, or a night under the ≥200-sample floor — can never be reused,
+            // so counting it against the ratio made a healthy cache look broken and put a floor under how
+            // good the number could ever get. On a store with gaps the old form could not reach `21/21` even
+            // in principle, which is exactly the misreading #1538 opened with.
+            skippedDayLines.append("analyzeRecent dayCache reused=\(dayCacheReused)/"
+                                   + "\(dayCacheReused + dayCacheCacheable) "
+                                   + "size=\(dayScanCacheLocal.count) days=\(maxDays)")
             return (out, skippedDayLines, dayScanCacheLocal)
         }.value
         // #1005: write the loop's updated reuse cache back to the (main-actor) stored property. The pass ran

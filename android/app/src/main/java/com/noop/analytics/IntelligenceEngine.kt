@@ -564,6 +564,10 @@ object IntelligenceEngine {
             dayScanCacheConfigSig = dayCacheConfigSig
         }
         var dayCacheReused = 0
+        // #1538: days that were actually cacheable this pass (freshly scored AND stored under a key).
+        // Together with [dayCacheReused] this is the honest denominator for the reuse ratio — see the
+        // diagnostic at the end of the loop.
+        var dayCacheCacheable = 0
         // #1005: memoise the UN-coalesced registered WHOOP family per owner (null = non-WHOOP → never
         // cached). Kept separate from [skinFamilyByOwner] (which coalesces unknown → WHOOP5 for the skin
         // scale); this must NOT coalesce so a ring can't be cached as a WHOOP.
@@ -1052,6 +1056,7 @@ object IntelligenceEngine {
                     spo2Candidate = spo2CandidateByDay[day], hrvOverCount = hrvOverCountByDay[day],
                     diagLines = dayDiagLines.toList(),
                 )
+                dayCacheCacheable++
             }
         }
         // #1005: prune the reuse cache to the current window (the oldest day ages out at midnight) and log a
@@ -1059,7 +1064,13 @@ object IntelligenceEngine {
         val dayCacheWindow = (0 until maxDays)
             .map { AnalyticsEngine.dayString(nowLocalMidnight - it * SECONDS_PER_DAY, tzOffsetSeconds) }.toHashSet()
         dayScanCache.keys.retainAll(dayCacheWindow)
-        diag("analyzeRecent dayCache reused=$dayCacheReused/$maxDays size=${dayScanCache.size}")
+        // #1538: the denominator is the number of CACHEABLE days this pass (reused + freshly cached), not
+        // [maxDays]. A day that never reaches the cache — an import/ring owner, an active trace, an
+        // unreadable fingerprint, or a night under the >=200-sample floor — can never be reused, so counting
+        // it against the ratio made a healthy cache look broken and put a floor under how good the number
+        // could ever get. Byte-identical string to the Swift twin.
+        diag("analyzeRecent dayCache reused=$dayCacheReused/${dayCacheReused + dayCacheCacheable} " +
+            "size=${dayScanCache.size} days=$maxDays")
 
         // ── Seed the baseline from the UNION of imported nightly history + the nightly
         // values just computed. This is the recovery fix: the "-noop" nightly avgHrv/
