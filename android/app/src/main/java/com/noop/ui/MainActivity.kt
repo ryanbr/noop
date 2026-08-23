@@ -510,6 +510,10 @@ object NoopPrefs {
         of(context).edit().putBoolean(KEY_STRESS_PERSONAL_BASELINE, enabled).apply()
     }
 
+    fun setBanisterEffort(context: Context, enabled: Boolean) {
+        of(context).edit().putBoolean(KEY_BANISTER_EFFORT, enabled).apply()
+    }
+
     /** Whether the strap log is mirrored to logcat. Default false (normal users don't log to adb). */
     fun debugLogging(context: Context): Boolean =
         of(context).getBoolean(KEY_DEBUG_LOGGING, false)

@@ -2436,4 +2436,6 @@
     <string name="nav_power_saving">Oszczędzanie energii</string>
     <string name="l10n_app_changelog_training_load_a_vo_max_without_f9205a67">Obciążenie treningowe, VO₂max bez centymetra i znacznie mniej baterii na przeliczanie</string>
     <string name="l10n_sleep_screen_sleep_outside_the_new_times_was_6229881e">Sen poza nowymi godzinami został usunięty. NOOP nie wykryje go ponownie.</string>
+    <string name="l10n_settings_screen_effort_exponential_scale">Wysiłek: wykładnicza skala intensywności</string>
+    <string name="l10n_settings_screen_effort_exponential_scale_desc">Ocenia Wysiłek według wykładniczej krzywej intensywności (TRIMP Banistera) zamiast domyślnych stref tętna (Edwards). Ustawienie domyślne nie liczy niczego poniżej 50 %% rezerwy tętna, więc godzina treningu siłowego — gdzie ciężkie serie uśredniają się z przerwami — może dać wynik bliski zeru. Krzywa wykładnicza nie ma progu i znacznie mocniej waży krótkie, intensywne wysiłki. Przelicza historię, a obie skale osiągają to samo maksimum. Domyślnie wyłączone.</string>
 </resources>
