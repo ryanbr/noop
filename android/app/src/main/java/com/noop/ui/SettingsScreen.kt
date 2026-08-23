@@ -2722,7 +2722,7 @@ fun SettingsScreen(
                         checked = banisterEffort,
                         onCheckedChange = {
                             banisterEffort = it
-                            NoopPrefs.setBanisterEffort(context, it)
+                            vm.setBanisterEffort(it)
                         },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Palette.surfaceBase,

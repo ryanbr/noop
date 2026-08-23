@@ -2029,6 +2029,14 @@ struct SettingsView: View {
                 }
                 .toggleStyle(.switch)
                 .tint(StrandPalette.accent)
+                .onChangeCompat(of: banisterEffortEnabled) { _ in
+                    // Re-score immediately on the flip. The recipe changes stored Effort for EVERY day in
+                    // the window, so without this the user waits up to 30 min for the next analyze loop
+                    // while the screen still shows scores from the recipe they just turned off — and the
+                    // toggle's own copy promises the history is re-scored. Same pattern as the SpO2
+                    // candidate and HRV-window toggles (analyzeRecent → refresh).
+                    Task { await model.intelligence.analyzeRecent(); await model.repo.refresh() }
+                }
                 Text("Scores Effort on an exponential intensity curve (Banister TRIMP) instead of the default heart-rate zones (Edwards). The default earns nothing below half of your heart-rate reserve, so an hour of lifting — where hard sets average out against the rests — can score close to zero. The exponential curve has no floor and weights short, hard efforts far more heavily. Re-scores your history, and both scales reach the same maximum. Off by default.")
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textTertiary)

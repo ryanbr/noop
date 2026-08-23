@@ -2483,6 +2483,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { rescoreAfterEdit() }
     }
 
+    /** #1545: the Effort TRIMP recipe changes stored Effort for EVERY day in the window, so re-score on
+     *  the flip rather than leaving the user on the old recipe's numbers until the next analyze tick —
+     *  which the toggle's own copy promises. Twin of the iOS onChange handler. */
+    fun setBanisterEffort(enabled: Boolean) {
+        NoopPrefs.setBanisterEffort(appContext, enabled)
+        viewModelScope.launch { rescoreAfterEdit() }
+    }
+
     /** Log one local day as cycle day 1, then immediately re-run the classifier with the new anchor. */
     fun logPeriodStart(day: String = CycleTrackingStore.todayKey()) {
         viewModelScope.launch {
