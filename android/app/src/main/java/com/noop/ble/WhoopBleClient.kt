@@ -24,6 +24,7 @@ import android.os.Looper
 import android.os.ParcelUuid
 import android.os.SystemClock
 import android.util.Log
+import com.noop.NoopApplication
 import com.noop.data.HrRow
 import com.noop.data.RrRow
 import com.noop.data.StreamBatch
@@ -63,6 +64,7 @@ import com.noop.analytics.IntelligenceEngine
 import com.noop.analytics.NapDetector
 import com.noop.analytics.NapPrefs
 import com.noop.analytics.NapVerdict
+import com.noop.analytics.RegistryDayOwnerSource
 import com.noop.analytics.SedentaryDetector
 import com.noop.analytics.StressOnsetDetector
 import com.noop.analytics.WorkoutDetector
@@ -90,8 +92,6 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
-import com.noop.NoopApplication
-import com.noop.analytics.RegistryDayOwnerSource
 
 /**
  * Immutable snapshot of the live connection + biometric state.
