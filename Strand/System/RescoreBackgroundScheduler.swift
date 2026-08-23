@@ -82,7 +82,16 @@ enum RescoreBackgroundScheduler {
     /// `isBackground` defaults to the real application state and is a parameter only so a test can drive
     /// the deferral branch, which is unreachable on macOS (where `isBackgrounded` is always false) and is
     /// exactly where the work-is-owed bookkeeping lives.
+    /// - Parameter owesOnDefer: whether a deferral should record a debt for a background task to settle.
+    ///   True for a real update path — a completed offload MUST eventually be scored, so deferring it has
+    ///   to leave something behind or the work is dropped rather than moved. FALSE for the steady-state
+    ///   backstop tick, which by its own contract is not the thing that must happen: every real update
+    ///   forces its own pass, so the tick exists only to catch what those missed. Recording a debt for it
+    ///   would conjure a forced full pass for a processing task to run when very likely nothing changed,
+    ///   which is the churn #1146 exists to avoid. A debt an earlier real pass already recorded is
+    ///   untouched either way.
     static func run(isBackground: Bool? = nil,
+                    owesOnDefer: Bool = true,
                     log: @escaping (String) -> Void,
                     work: () async -> Void) async {
         let decision = RescoreBackgroundPolicy.decide(
@@ -92,6 +101,13 @@ enum RescoreBackgroundScheduler {
 
         switch decision {
         case .deferToBackgroundTask(let reason):
+            guard owesOnDefer else {
+                // Nothing is queued and nothing is owed: the backstop simply does not run here. Said
+                // plainly in the log, because "deferred" would promise a background task that is not
+                // coming.
+                log("re-score: backstop tick skipped while backgrounded — \(reason)")
+                return
+            }
             // Record the debt BEFORE scheduling. Without this the background task wakes, finds nothing
             // marked owed, and returns having done nothing — the deferral would silently drop the work
             // rather than move it.

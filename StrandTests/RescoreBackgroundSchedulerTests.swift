@@ -118,4 +118,51 @@ final class RescoreBackgroundSchedulerTests: XCTestCase {
         await RescoreBackgroundScheduler.run(isBackground: true, log: { _ in }) { ran = true }
         XCTAssertFalse(ran)
     }
+
+    // MARK: - The backstop tick owes nothing
+
+    /// The steady-state tick is a backstop: every real update forces its own pass, so a tick that cannot
+    /// run here is simply skipped. Recording a debt for it would send a processing task off to run a
+    /// forced full pass when most likely nothing changed — the churn #1146 exists to avoid.
+    func testASkippedBackstopDoesNotConjureADebt() async {
+        RescoreBackgroundScheduler.markRescoreCompleted(seconds: 474.778)
+
+        var ran = false
+        var logged: [String] = []
+        await RescoreBackgroundScheduler.run(isBackground: true, owesOnDefer: false,
+                                             log: { logged.append($0) }) { ran = true }
+
+        XCTAssertFalse(ran, "a backstop that cannot finish here must not start")
+        XCTAssertFalse(RescoreBackgroundScheduler.isRescoreOwed,
+                       "a skipped backstop owes nothing — no real update went unscored")
+        XCTAssertEqual(logged.count, 1)
+        XCTAssertTrue(logged[0].contains("backstop"), logged[0])
+        XCTAssertFalse(logged[0].contains("deferred"),
+                       "must not promise a background task that is not coming: \(logged[0])")
+    }
+
+    /// ...but a debt a REAL pass already recorded survives a skipped backstop untouched. Clearing it
+    /// here would strand the very work the mechanism exists to rescue.
+    func testASkippedBackstopLeavesAnExistingDebtAlone() async {
+        RescoreBackgroundScheduler.markRescoreOwed()
+
+        await RescoreBackgroundScheduler.run(isBackground: true, owesOnDefer: false, log: { _ in }) {}
+
+        XCTAssertTrue(RescoreBackgroundScheduler.isRescoreOwed)
+    }
+
+    /// A backstop still RUNS in the foreground, and in a background that can afford it — the flag changes
+    /// only what a deferral records, never whether the pass happens.
+    func testABackstopStillRunsWhenItCan() async {
+        var foreground = false
+        await RescoreBackgroundScheduler.run(isBackground: false, owesOnDefer: false,
+                                             log: { _ in }) { foreground = true }
+        XCTAssertTrue(foreground)
+
+        var affordable = false
+        RescoreBackgroundScheduler.markRescoreCompleted(seconds: 3)
+        await RescoreBackgroundScheduler.run(isBackground: true, owesOnDefer: false,
+                                             log: { _ in }) { affordable = true }
+        XCTAssertTrue(affordable)
+    }
 }

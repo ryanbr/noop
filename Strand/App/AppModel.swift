@@ -444,7 +444,27 @@ final class AppModel: ObservableObject {
                 // `force: false` skips the heavy 21-day rescore when the raw HR stream is unchanged since the
                 // last run, instead of re-reading ~21×54 h of HR every 15 min on a big-import library. A new
                 // sample (the heal above, or a sync) moves the fingerprint and the tick rescores as before.
-                await self.intelligence.analyzeRecent(force: false)
+                // #1538: the backstop is subject to the same background reality as the post-offload pass,
+                // and it was the LAST way the livelock could survive. This loop lives as long as the
+                // process, so it keeps ticking while backgrounded as a bluetooth-central, and its own
+                // `force: false` watermark gate cannot save it: a killed pass never advances the
+                // watermark, so the tick still reads the data as new and starts another full pass. The
+                // comment above says the gate also can't skip while the strap streams live HR. Wrapping
+                // it means a tick that cannot finish here does not start.
+                //
+                // `owesOnDefer: false` — a skipped BACKSTOP owes nothing. Every real update forces its
+                // own pass, so conjuring a debt here would send a processing task off to run a forced
+                // full pass when most likely nothing changed. A debt a real pass already recorded is
+                // untouched.
+                // `live = self.live` spelled out: this is nested inside the cadence `Task`, which
+                // requires explicit `self`, so the bare-name capture shorthand used elsewhere in this
+                // type would not resolve here.
+                await RescoreBackgroundScheduler.run(owesOnDefer: false,
+                                                     log: { [live = self.live] line in
+                                                         live.append(log: line)
+                                                     }) {
+                    await self.intelligence.analyzeRecent(force: false)
+                }
                 // v5: recompute the skin-temp suite snapshots (cycle phase + body clock) from the
                 // freshly-scored history so the Health hub cards read a ready result.
                 await self.refreshV5Signals()
