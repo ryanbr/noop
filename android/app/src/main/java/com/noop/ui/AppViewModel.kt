@@ -972,6 +972,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     maxHROverride = profileStore.hrMaxOverride.takeIf { it > 0 }?.toDouble(),
                     flagGet = { NoopPrefs.effortRescoreDone(appContext) },
                     flagSet = { NoopPrefs.setEffortRescoreDone(appContext) },
+                    // #1567: this rewrites the FULL history once, so a missing owner source would bake the
+                    // WHOOP5 skin-temp scale into every day of it.
+                    ownerSource = RegistryDayOwnerSource(noopApp.deviceRegistry),
                 )
             }.onFailure { if (it is kotlin.coroutines.cancellation.CancellationException) throw it }
             while (isActive) {

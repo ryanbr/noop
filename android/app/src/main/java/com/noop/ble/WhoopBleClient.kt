@@ -90,6 +90,8 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
+import com.noop.NoopApplication
+import com.noop.analytics.RegistryDayOwnerSource
 
 /**
  * Immutable snapshot of the live connection + biometric state.
@@ -2438,6 +2440,17 @@ class WhoopBleClient(
                         repo = repository,
                         profile = profile,
                         importedDeviceId = deviceId,
+                        // #1567: resolve the day's owner from the registry on THIS pass too. Until now the
+                        // post-backfill pass was the documented exception ("a null ownerSource ... skips
+                        // resolution entirely"), which was harmless while the parameter only chose a day's
+                        // owner — a single-WHOOP install resolves to importedDeviceId either way, byte for
+                        // byte. #938 then made the skin-temp raw->C SCALE read the same source, and that is
+                        // not byte-identical: with no owner source every day falls back to WHOOP5, so a
+                        // WHOOP 4.0's raw ADC (~772) is read as centidegrees (7.7 C), missing the 28-42 C
+                        // worn gate entirely. The sync pass would persist that, and the next UI pass would
+                        // silently correct it — so the stored value depended on which pass wrote last.
+                        ownerSource = (context.applicationContext as? NoopApplication)
+                            ?.deviceRegistry?.let { RegistryDayOwnerSource(it) },
                         maxHROverride = profileStore.hrMaxOverride.takeIf { it > 0 }?.toDouble(),
                         // Steps-estimate calibration: honor the user's manual override and persist the fit
                         // after a backfill too, so the Settings/Steps screen reflects the latest data.

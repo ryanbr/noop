@@ -168,6 +168,20 @@ object IntelligenceEngine {
     )
 
     /**
+     * #1567: the pass-level warning that this scoring run has no device registry behind it.
+     *
+     * Emitted once per pass, not per day. A pass without an owner source still produces numbers — it just
+     * produces them against fallbacks (the imported device id for ownership, WHOOP5 for the skin-temp
+     * scale), and the previous absence of any such line is precisely why a WHOOP 4.0 could be scored on the
+     * 5/MG temperature scale for months without it showing up anywhere. Naming the fallbacks makes the two
+     * kinds of pass distinguishable in an exported strap log.
+     *
+     * Counts and an id only, same privacy class as the sibling `sleep day=` line.
+     */
+    fun ownerSourceAbsentLine(importedDeviceId: String): String =
+        "analyzeRecent ownerSource=absent owner->$importedDeviceId skinTempScale->whoop5"
+
+    /**
      * Compute on-device scores for each of the last [maxDays] that actually has raw HR
      * data, persisting them under the computed "<importedDeviceId>-noop" source.
      *
@@ -345,6 +359,9 @@ object IntelligenceEngine {
         flagGet: () -> Boolean,
         flagSet: () -> Unit,
         historyDays: Int = EFFORT_RESCORE_HISTORY_DAYS,
+        // #1567: same reason as the sync path, over a WIDER window — this one rewrites the FULL history
+        // once. Without it every day of that rewrite reads the skin-temp scale as WHOOP5 (see analyzeRecent).
+        ownerSource: DayOwnerSource? = null,
     ) {
         if (flagGet()) return
         analyzeRecent(
@@ -353,6 +370,7 @@ object IntelligenceEngine {
             maxDays = historyDays,
             importedDeviceId = importedDeviceId,
             maxHROverride = maxHROverride,
+            ownerSource = ownerSource,
         )
         flagSet()
     }
@@ -432,10 +450,23 @@ object IntelligenceEngine {
         // exactly ONE source). Read ONCE before the loop: the paired-device list is stable for the run.
         // With only the seeded 'my-whoop' row paired (the default and every single-WHOOP install) the
         // active strap == [importedDeviceId], so [resolveDayOwner] returns [importedDeviceId] for every
-        // day and the per-day reads are BYTE-IDENTICAL to the pre-I2 path. A null [ownerSource] (the
-        // default, e.g. the backfill-triggered pass) skips resolution entirely. Mirrors the Swift
+        // day and the per-day reads are BYTE-IDENTICAL to the pre-I2 path. Mirrors the Swift
         // IntelligenceEngine.analyzeRecent registry snapshot + resolveDayOwner. (1B-4)
+        //
+        // #1567: a null [ownerSource] is no longer merely "skips owner resolution". That was true when this
+        // parameter only picked a day's owner, and it is why the backfill-triggered pass was documented here
+        // as an accepted exception. #938 then routed the skin-temp raw->C SCALE through the same source, and
+        // a missing source there is NOT byte-identical: every day falls back to WHOOP5, so a WHOOP 4.0's raw
+        // ADC is read as centidegrees and misses the worn gate. Every production caller now supplies one; the
+        // parameter stays nullable for tests and pure-JVM callers, and the pass says so out loud below rather
+        // than degrading in silence.
+        //
+        // The durable fix is the Swift shape — `analyzeRecent` reads `registry.all()` itself (:623), so no
+        // caller CAN omit it — but that changes this signature and every caller, so it is left as follow-up.
         val candidatePriorities = ownerSource?.candidatePriorities().orEmpty()
+        if (ownerSource == null) {
+            diag(ownerSourceAbsentLine(importedDeviceId))
+        }
 
         // CAPTURE-B: the registry's active strap id (the universal `writeActiveId`). Resolved ONCE; falls
         // back to [importedDeviceId] so a single-WHOOP install (or a null/legacy ownerSource) names the same
