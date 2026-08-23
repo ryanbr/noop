@@ -607,6 +607,19 @@ object NoopPrefs {
 
     /** Health Connect writeback (NOOP's computed metrics → HC, for other apps). Default OFF. */
     const val KEY_HC_WRITEBACK = "noop.hcWriteback"
+    const val KEY_HC_VO2MAX_ASKED = "noop.hcVo2MaxAsked"
+
+    /**
+     * #1525: have we already asked this install for the VO2 max write permission? Health Connect grants
+     * are per-permission, so a user who set NOOP up before VO2 max existed passes the writeback's own
+     * gate and is never prompted for it. We ask ONCE on the next writeback and remember that we did --
+     * a decline must not turn every subsequent sync into another dialog.
+     */
+    fun hcVo2MaxAsked(context: Context): Boolean = of(context).getBoolean(KEY_HC_VO2MAX_ASKED, false)
+
+    fun setHcVo2MaxAsked(context: Context, asked: Boolean) {
+        of(context).edit().putBoolean(KEY_HC_VO2MAX_ASKED, asked).apply()
+    }
 
     fun hcWriteback(context: Context): Boolean =
         of(context).getBoolean(KEY_HC_WRITEBACK, false)

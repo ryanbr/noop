@@ -325,6 +325,9 @@ fun DataSourcesScreen(vm: AppViewModel) {
     val hcWritePermissionLauncher = rememberLauncherForActivityResult(
         PermissionController.createRequestPermissionResultContract(),
     ) { granted ->
+        // #1525: this prompt already included VO2 max, so whatever the answer was, do not ask again
+        // through the targeted one-shot below.
+        NoopPrefs.setHcVo2MaxAsked(context, true)
         if (granted.containsAll(HealthConnectWriter.PERMISSIONS)) {
             vm.writebackHealthConnectNow()
         } else {
@@ -334,6 +337,20 @@ fun DataSourcesScreen(vm: AppViewModel) {
     }
 
     // Write immediately if the write permissions are already granted, otherwise request them first.
+    /**
+     * #1525: the one-shot ask for the VO2 max write permission, for installs that were set up before it
+     * existed. The outcome is deliberately ignored — VO2 max records are written in their own attempt, so
+     * a decline costs that metric and nothing else, and blocking the writeback on it would be the very
+     * regression keeping VO2 max out of the gate avoids. Either way we mark it asked, so a "no" is
+     * respected instead of re-prompted on every sync.
+     */
+    val hcVo2MaxPermissionLauncher = rememberLauncherForActivityResult(
+        PermissionController.createRequestPermissionResultContract(),
+    ) { _ ->
+        NoopPrefs.setHcVo2MaxAsked(context, true)
+        vm.writebackHealthConnectNow()
+    }
+
     fun startWriteback() {
         scope.launch {
             val granted = runCatching {
@@ -347,7 +364,16 @@ fun DataSourcesScreen(vm: AppViewModel) {
             // re-prompted — and blocks their whole writeback until they accept. Out of the gate, a decline
             // costs only VO2 max, whose records are written in their own attempt.
             if (granted.containsAll(HealthConnectWriter.PERMISSIONS + HealthConnectWriter.EXERCISE_PERMISSIONS)) {
-                vm.writebackHealthConnectNow()
+                // #1525: this branch is where an existing install lands — it granted everything that
+                // existed at the time, so it never reaches the launcher below and would never be offered
+                // VO2 max. Ask exactly once, then write regardless of the answer.
+                if (!granted.containsAll(HealthConnectWriter.VO2MAX_PERMISSIONS) &&
+                    !NoopPrefs.hcVo2MaxAsked(context)
+                ) {
+                    hcVo2MaxPermissionLauncher.launch(HealthConnectWriter.VO2MAX_PERMISSIONS)
+                } else {
+                    vm.writebackHealthConnectNow()
+                }
             } else {
                 // Request vitals + exercise-session write perms together so GPS workouts can write
                 // back too (the launcher-result handler stays keyed on the vital PERMISSIONS, so
