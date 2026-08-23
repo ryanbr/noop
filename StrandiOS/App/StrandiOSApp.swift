@@ -300,6 +300,13 @@ struct StrandiOSApp: App {
                 // Re-submit on every transition because iOS may discard an old best-effort request.
                 HealthWritebackBackgroundScheduler.updateSchedule(
                     isAuthorized: health.auth == .authorized)
+                // #1538: same reasoning for the re-score continuation, plus one case of its own. A pass
+                // can be left owed with NOTHING scheduled — a foreground pass killed by a force-quit
+                // never runs the deferral path that submits the request, and iOS can discard a request
+                // that was submitted. Without this the work would wait for the next offload to defer it
+                // or the next launch to drain it. Re-submitting on the way out costs nothing when
+                // nothing is owed, because it is skipped entirely.
+                if RescoreBackgroundScheduler.isRescoreOwed { RescoreBackgroundScheduler.schedule() }
                 // #114: capture the LAST in-app live state on the way out so the Home widget matches what
                 // the user just saw — its battery/HR/score otherwise lag to the last FOREGROUND refreshSeq
                 // bump. One reload per app-exit is low-frequency and well within WidgetKit's daily budget.

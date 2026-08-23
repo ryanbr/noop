@@ -32,7 +32,7 @@ enum RescoreBackgroundScheduler {
     /// killed), or a trigger deferred one to a background task. Survives process death, which is the
     /// entire point — the process being killed is the event we are trying to observe, and it is not an
     /// event the killed process gets any chance to write down.
-    static let owedKey = "noop.rescorePassPending"
+    static let owedKey = "noop.rescoreOwed"
     /// Seconds the last COMPLETED pass took. Only ever written by a pass that reached the end.
     static let lastPassSecondsKey = "noop.rescoreLastPassSeconds"
 
