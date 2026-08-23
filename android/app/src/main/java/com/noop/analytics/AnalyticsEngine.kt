@@ -743,7 +743,19 @@ object AnalyticsEngine {
             hr = dayHr ?: hr,
             gravity = dayGravity ?: gravity,
             restingHR = restingHRDaily?.toDouble(),
-            maxHR = maxHROverride,
+            // #1545: the DAY's effective HRmax, not just the override. Passing maxHROverride meant an
+            // install with no override left the detector to fall back to StrainScorer.estimateHRmax,
+            // which returns max(observed p99.5, Tanaka) -- so every bout was measured against a HRmax at
+            // least as high as, and usually higher than, the one its own day used. A higher HRmax is a
+            // bigger reserve and therefore a SMALLER %HRR, so bouts were held to a stricter yardstick
+            // than the day containing them: for age 30 / RHR 60 with an observed 195, a 125 bpm minute is
+            // zone 1 for the day and zone 0 for the bout. Same day-disagrees-with-its-own-workouts
+            // failure #1562 fixed for the TRIMP method.
+            //
+            // This also feeds the z2+ qualification gate below, so it changes which bouts are DETECTED,
+            // not only how they score -- in the direction of no longer dropping a workout by a standard
+            // its own day never applied. Still null for an age-less profile.
+            maxHR = effMaxHR,
             age = if (profile.age > 0) profile.age else null,
             profile = profile,
             // #1545: the bouts inside a day MUST be scored by the same recipe as the day itself. A day
