@@ -68,6 +68,16 @@ struct StrandiOSApp: App {
         UNUserNotificationCenter.current().delegate = NotificationPresenter.shared
         let model = AppModel()
         _model = StateObject(wrappedValue: model)
+        // #1538: a strap offload completes while the app is BACKGROUNDED — it stays alive as a
+        // bluetooth-central to receive it — and the re-score it triggers took nearly eight minutes on the
+        // reporter's install, far longer than that wake survives. The pass is all-or-nothing, so being
+        // suspended lost every scored night AND left the watermark unadvanced, which made the next offload
+        // start the same doomed pass again. This processing task is where that work is escalated to; it is
+        // the long, deferrable kind rather than the metered refresh kind the two schedulers above use.
+        // Registered before launch finishes and permitted in project.yml, or iOS never delivers it.
+        RescoreBackgroundScheduler.register { [weak model] in
+            await model?.runDeferredRescoreIfOwed()
+        }
         let bridge = HealthKitBridge(
             repo: model.repo,
             appleDeviceId: model.appleDeviceId,
@@ -259,6 +269,10 @@ struct StrandiOSApp: App {
                 // (BackfillPolicy.shouldRun's .foreground case), so this is a safe no-op on rapid re-opens.
                 model.ble.requestSync(.foreground)
                 Task {
+                    // #1538: a pass an earlier background attempt could not finish should not wait on the
+                    // 15-minute idle tick now that there is a foreground with no suspension deadline. A
+                    // no-op unless one is genuinely outstanding.
+                    await model.runDeferredRescoreIfOwed()
                     health.refreshAuthIfPreviouslyGranted()
                     HealthWritebackBackgroundScheduler.updateSchedule(
                         isAuthorized: health.auth == .authorized)

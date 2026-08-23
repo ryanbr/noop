@@ -577,6 +577,27 @@ final class AppModel: ObservableObject {
     var healthWriteBack: (() async -> Void)?
     #endif
 
+    /// Settle a re-score that is owed (#1538) — one an earlier attempt started and was killed partway
+    /// through, or one a background trigger deferred rather than start where it could not finish.
+    ///
+    /// Called from the iOS `BGProcessingTask` handler, which gets minutes rather than the seconds a
+    /// bluetooth-central background wake is worth, and from foreground entry, whichever comes first. A
+    /// no-op unless something is actually owed, so both callers are safe to invoke unconditionally.
+    ///
+    /// Forced rather than `skipIfUnchanged`: an interrupted pass never advanced the watermark — by design,
+    /// so that it cannot mark unscored data as scored — so gating on the fingerprint here would be asking
+    /// a question whose answer is already known to be "yes, there is work".
+    func runDeferredRescoreIfOwed() async {
+        guard RescoreBackgroundScheduler.isRescoreOwed else { return }
+        live.append(log: "re-score: resuming a pass an earlier attempt could not finish (#1538)")
+        await intelligence.analyzeRecent()
+        #if os(iOS)
+        // The deferred pass is the one that finally produces today's score, and it runs with no UI
+        // attached — so publish the snapshot here too, for the same reason the post-offload path does.
+        await WidgetSnapshot.publish(from: self)
+        #endif
+    }
+
     private func refreshAfterCompletedBackfill() async {
         live.append(log: "Backfill: refreshing dashboard cache from completed sync")
         await repo.refresh(days: 120)
@@ -588,7 +609,17 @@ final class AppModel: ObservableObject {
         // duplicate offload (nothing new banked, common on a flapping link) skips the whole-window rescore
         // instead of churning it, which was surfacing as a Trends/streak "0 days" flicker. Only this
         // post-offload caller opts in; every other analyzeRecent path still forces unconditionally.
-        await intelligence.analyzeRecent(skipIfUnchanged: true)
+        // #1538: this offload routinely completes while the app is BACKGROUNDED — it stays alive as a
+        // bluetooth-central to receive the offload at all — and the pass is all-or-nothing, so on a heavy
+        // install iOS suspends the process minutes before it can finish and every scored night is lost.
+        // Worse, the watermark advances only on completion, so the next trigger still sees new data and
+        // starts another doomed pass: a livelock that burned nearly eight minutes of CPU per attempt in
+        // the #1538 report while never producing a score. Decide first whether this pass can finish here,
+        // and hand it to a background-processing task when it cannot. A no-op on macOS, and on iOS a
+        // foreground pass is never deferred.
+        await RescoreBackgroundScheduler.run(log: { [live] line in live.append(log: line) }) {
+            await intelligence.analyzeRecent(skipIfUnchanged: true)
+        }
         await refreshV5Signals()
         #if os(iOS)
         // #980: a strap backfill routinely completes while the app is BACKGROUNDED (it runs as a
