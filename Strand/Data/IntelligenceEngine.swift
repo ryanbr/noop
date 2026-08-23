@@ -620,7 +620,20 @@ final class IntelligenceEngine: ObservableObject {
         // single-WHOOP install) the active strap is `deviceId`, so `resolveDayOwner` below returns
         // `deviceId` for every day and the per-day reads are byte-identical to the pre-I2 behaviour.
         let registry = DeviceRegistryStore(dbQueue: store.registryWriter)
-        let regDevices = (try? registry.all()) ?? []
+        // #1567: `try?` used to swallow this read, and an empty device list is NOT a neutral outcome —
+        // every day then resolves to `.whoop5` (see `skinTempFamily(forOwner:devices:)`), so a WHOOP 4.0's
+        // raw skin-temp ADC is read as centidegrees, misses the 28–42 °C worn gate, and the night yields
+        // nothing. `regDevices` also supplies the owner's model/brand below, so a failed read degrades more
+        // than skin temp alone. Still non-fatal — the pass proceeds on exactly the fallbacks it always did
+        // — but it no longer does so in silence. The Kotlin twin reaches this state by a different route (a
+        // caller omitting `ownerSource`), hence the different cause token; see `registryUnavailableLine`.
+        let regDevices: [PairedDevice]
+        do {
+            regDevices = try registry.all()
+        } catch {
+            regDevices = []
+            diagnosticSink?(AnalyticsEngine.registryUnavailableLine(importedDeviceId: deviceId), nil)
+        }
         let regActiveId = (try? registry.activeDeviceId()) ?? deviceId
 
         // Floor `now` to LOCAL midnight (#277) so each `dayStart` lands on a local-day boundary and the

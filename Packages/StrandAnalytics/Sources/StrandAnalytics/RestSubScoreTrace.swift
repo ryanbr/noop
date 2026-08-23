@@ -39,6 +39,25 @@ extension AnalyticsEngine {
             + "hoursAsleep=\(Int(hoursAsleepMin.rounded())) sourceRowId=\(sourceRowId)"
     }
 
+    /// #1567: the pass-level warning that this scoring run has no device registry behind it.
+    ///
+    /// Twin of Kotlin `IntelligenceEngine.ownerSourceAbsentLine` — same grammar, deliberately different
+    /// cause token, because the two platforms reach this state by genuinely different routes. Kotlin's
+    /// `analyzeRecent` takes an OPTIONAL owner source and a caller could omit it (`ownerSource=absent`);
+    /// Swift's reads the registry itself, so the only way in is that read FAILING (`registry=unavailable`).
+    /// Forcing one identical string would hide which of the two actually happened, which is the one thing a
+    /// reader of this line needs to know.
+    ///
+    /// Worth having on both because the underlying flaw is shared: an unresolvable device family does not
+    /// error, it silently becomes WHOOP5 — and on a WHOOP 4.0 that reads a raw skin-temp ADC as
+    /// centidegrees, missing the 28–42 °C worn gate, so the night yields nothing at all. A pass that scored
+    /// against fallbacks was previously indistinguishable from one that scored against the real registry.
+    ///
+    /// PURE. Counts and an id only, same privacy class as the sibling `sleep day=` line.
+    public static func registryUnavailableLine(importedDeviceId: String) -> String {
+        "analyzeRecent registry=unavailable owner->\(importedDeviceId) skinTempScale->whoop5"
+    }
+
     /// #319 diagnostic (Sleep & Rest test mode): the motion-coverage + staging context behind the Rest
     /// number, so a high score on a poor night can be explained straight from an export. `grav`/`hr` are the
     /// night-window sample counts; `sparse` is the gravity-sparse gate (WHOOP 4.0 banks motion coarsely, so

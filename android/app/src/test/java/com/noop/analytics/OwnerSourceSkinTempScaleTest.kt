@@ -4,6 +4,7 @@ import com.noop.data.HrSample
 import com.noop.data.SkinTempSample
 import com.noop.protocol.DeviceFamily
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -24,9 +25,11 @@ import org.junit.Test
  * Values are from the reported strap log (WHOOP 4.0, fw 41.17.6.0): `raw[min=577 p50=772 max=820]`,
  * `anchor=794 → p50 maps 31.9 °C`, worn gate 28–42 °C.
  *
- * There is no Swift twin because Swift cannot reach this state: `analyzeRecent` reads `registry.all()`
- * itself, so no caller is able to omit it. That asymmetry is the actual defect, and the reason the fix is
- * Kotlin-only.
+ * The *fix* is Kotlin-only, because Swift has no parameter to thread: its `analyzeRecent` reads
+ * `registry.all()` itself, so no caller is able to omit it. The *flaw* is shared, though — Swift reaches
+ * the identical silent WHOOP5 fallback when that read THROWS, since `(try? registry.all()) ?? []` used to
+ * swallow it and an empty device list resolves every day to WHOOP5. So the diagnostic half is twinned:
+ * see `RegistryUnavailableLineTests` and `AnalyticsEngine.registryUnavailableLine`.
  */
 class OwnerSourceSkinTempScaleTest {
 
@@ -108,6 +111,38 @@ class OwnerSourceSkinTempScaleTest {
         assertEquals(
             "analyzeRecent ownerSource=absent owner->my-whoop skinTempScale->whoop5",
             IntelligenceEngine.ownerSourceAbsentLine("my-whoop"),
+        )
+    }
+
+    /**
+     * The shared grammar with the Swift twin (`AnalyticsEngine.registryUnavailableLine`), pinned as a SHAPE
+     * rather than as one identical string.
+     *
+     * The two platforms reach this state by genuinely different routes — Kotlin by a caller omitting the
+     * optional owner source, Swift by its registry read failing — so the cause tokens differ on purpose.
+     * What must match is everything a reader needs to act on: the same prefix, and the same two fallbacks
+     * named the same way, so an Android log and an iOS log stay comparable.
+     *
+     * If someone later "fixes the parity" by making the strings identical, the cause is lost and the line
+     * stops answering the question it exists for. That is what this guards.
+     */
+    @Test
+    fun itNamesBothFallbacksTheReaderNeeds() {
+        val line = IntelligenceEngine.ownerSourceAbsentLine("my-whoop")
+        assertTrue(line, line.startsWith("analyzeRecent "))
+        assertTrue("must say which owner it fell back to: $line", line.contains("owner->my-whoop"))
+        assertTrue("must say which scale it used: $line", line.contains("skinTempScale->whoop5"))
+        // The cause token is what SEPARATES the twins — Kotlin can only get here via an omitted parameter.
+        assertTrue(line, line.contains("ownerSource=absent"))
+        assertFalse("that is the Swift route, not this one: $line", line.contains("registry=unavailable"))
+    }
+
+    /** The id is not assumed to be the seeded default — a renamed or second strap must read back honestly. */
+    @Test
+    fun theOwnerIsWhicheverIdThePassFellBackTo() {
+        assertEquals(
+            "analyzeRecent ownerSource=absent owner->my-whoop-2 skinTempScale->whoop5",
+            IntelligenceEngine.ownerSourceAbsentLine("my-whoop-2"),
         )
     }
 }
