@@ -1,0 +1,101 @@
+# Deletes branches that no longer have a reason to exist.
+#
+# The repository already sets `deleteBranchOnMerge`, and that setting is working — it just does far
+# less than its name suggests. It fires on MERGE only. A PR closed WITHOUT merging keeps its branch
+# forever, and a branch that never had a PR was never in scope to begin with. Both pile up invisibly,
+# because spotting them means cross-referencing every branch against every PR.
+#
+# An August 2026 sweep found the scale of that: 80 branches, 75 of them dead — 3 from closed-unmerged
+# PRs and 72 working branches from a three-week stretch in June/July that had never been opened as a
+# PR at all. Doing it by hand took an afternoon and a 164 MB recovery bundle. This runs it weekly.
+#
+# The scheduled run deliberately handles ONLY the safe categories: merged PRs whose branch survived,
+# and PRs closed unmerged a fortnight ago. It does NOT prune branches that never had a PR — that
+# category cannot be distinguished from someone's long-running private branch, so it stays a manual
+# decision behind the `prune_orphans` dispatch input. Manual runs default to a dry run.
+#
+# Pure Python + the REST API: no checkout of the work tree is needed beyond Tools/, and it runs in
+# seconds on ubuntu-latest, independent of the disabled-by-default compile workflows.
+name: Prune stale branches
+
+on:
+  schedule:
+    # Mondays, 04:17 UTC. Off the hour because everything else on GitHub runs on the hour and
+    # scheduled jobs are queued, not guaranteed, when the minute is busy.
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'List what would be deleted without deleting it'
+        type: boolean
+        default: true
+      prune_orphans:
+        description: 'Also delete branches that never had a PR (uses the orphan_days floor)'
+        type: boolean
+        default: false
+      orphan_days:
+        description: 'Age floor in days for branches that never had a PR'
+        type: string
+        default: '90'
+
+# contents: write is what permits ref deletion. Nothing here reads or writes any other scope.
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: prune-stale-branches
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          sparse-checkout: Tools
+          sparse-checkout-cone-mode: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify the refusal rules still hold
+        # The value of this tool is entirely in what it declines to delete, so the keep-rules are
+        # pinned by a test that runs immediately before the tool does. If the rules regress, the
+        # deletion step never executes.
+        run: python3 -m unittest test_prune_stale_branches -v
+        working-directory: Tools
+
+      - name: Prune
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # A scheduled run always executes; a manual one honours the dry_run checkbox.
+          EXECUTE: ${{ (github.event_name == 'schedule' || inputs.dry_run == false) && '--execute' || '' }}
+          ORPHANS: ${{ (github.event_name == 'workflow_dispatch' && inputs.prune_orphans) && '--prune-orphans' || '' }}
+          ORPHAN_DAYS: ${{ inputs.orphan_days || '90' }}
+        run: |
+          python3 Tools/prune-stale-branches.py \
+            --repo "${{ github.repository }}" \
+            --manifest deleted-branches.txt \
+            --orphan-days "$ORPHAN_DAYS" \
+            $ORPHANS $EXECUTE | tee summary.txt
+          {
+            echo '### Prune stale branches'
+            echo '```'
+            cat summary.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the recovery manifest
+        # The only record of what was deleted. GitHub keeps unreachable objects for a limited window,
+        # so a SHA from this file can still be fetched for a while after its ref is gone — which
+        # makes the artifact the difference between "recoverable" and "gone".
+        if: always() && hashFiles('deleted-branches.txt') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: deleted-branches-${{ github.run_number }}
+          path: deleted-branches.txt
+          retention-days: 90
