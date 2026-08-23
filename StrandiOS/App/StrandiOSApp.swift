@@ -268,11 +268,18 @@ struct StrandiOSApp: App {
                 // timer or an incidental reconnect. Floored at 90s and never clock/empty-streak-suppressed
                 // (BackfillPolicy.shouldRun's .foreground case), so this is a safe no-op on rapid re-opens.
                 model.ble.requestSync(.foreground)
+                // #1538: settle a re-score an earlier background attempt could not finish, rather than
+                // waiting on the 15-minute idle tick now that there is a foreground with no suspension
+                // deadline. A no-op unless one is genuinely outstanding.
+                //
+                // Its OWN task, deliberately. This pass is minutes long on the installs that need it —
+                // that is the whole reason it was deferred — and the sequential block below owns Health
+                // sync, the widget snapshot and the watch push. Awaiting it there would leave the widget
+                // and the watch showing stale numbers for the entire re-score every time the app is
+                // opened, which is a worse regression than the bug being fixed. `analyzeRecent`
+                // serialises itself, so overlapping with the sync this foreground also kicks off is safe.
+                Task { await model.runDeferredRescoreIfOwed() }
                 Task {
-                    // #1538: a pass an earlier background attempt could not finish should not wait on the
-                    // 15-minute idle tick now that there is a foreground with no suspension deadline. A
-                    // no-op unless one is genuinely outstanding.
-                    await model.runDeferredRescoreIfOwed()
                     health.refreshAuthIfPreviouslyGranted()
                     HealthWritebackBackgroundScheduler.updateSchedule(
                         isAuthorized: health.auth == .authorized)

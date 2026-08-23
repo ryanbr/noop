@@ -60,7 +60,13 @@ enum RescoreBackgroundScheduler {
         }
     }
 
-    /// Whether the app is currently backgrounded. Always false on macOS — see the type doc.
+    /// Whether the app is somewhere a long pass might not survive. Always false on macOS — see the type doc.
+    ///
+    /// Anything that is not `.active` counts, `.inactive` included, which is the conservative direction on
+    /// purpose. `.inactive` is the state on the way to suspension, so reading it as "foreground" is the
+    /// error that loses work; reading it as "background" costs at most a deferral that the very next
+    /// `.active` transition drains. The transient `.inactive` cases — app switcher, notification centre,
+    /// an incoming call — therefore self-correct within seconds, and the case that matters is never missed.
     static var isBackgrounded: Bool {
         #if os(iOS)
         return UIApplication.shared.applicationState != .active
