@@ -763,6 +763,11 @@ final class IntelligenceEngine: ObservableObject {
             // diagnostic carried on `skippedDayLines`.
             var dayScanCacheLocal = inDayScanCache
             var dayCacheReused = 0
+            // #1538: per-phase cost tally. `prep` brackets the nine windowed store reads plus the
+            // session matching that sits between them and `analyzeDay`; `score` brackets `analyzeDay`
+            // itself. Emitted once per pass beside the reuse line.
+            var dayPrepSeconds = 0.0
+            var dayScoreSeconds = 0.0
             // #1538: days that were actually cacheable this pass (freshly scored AND stored under a key).
             // Together with `dayCacheReused` this is the honest denominator for the reuse ratio — see the
             // diagnostic at the end of the loop.
@@ -830,8 +835,17 @@ final class IntelligenceEngine: ObservableObject {
                     }
                 }
 
+                // #1538: split the per-day cost into the READ+PREP phase and the SCORE phase. The pass has
+                // only ever timed itself end to end, so whether ~22.6 s per night is spent materialising
+                // ~2.25 windows' worth of rows or inside `analyzeDay` is unmeasured — and that split is
+                // what decides whether narrowing the read windows is worth building at all. Measured, not
+                // guessed, for the same reason the day-cache duration is.
+                let tPrep0 = Date()
                 let hr = (try? await store.hrSamples(deviceId: owner, from: from, to: to, limit: 200_000)) ?? []
                 guard hr.count >= 200 else {
+                    // This day still paid for its read; count it, or the tally under-reports exactly the
+                    // sparse-history installs where reads dominate most.
+                    dayPrepSeconds += Date().timeIntervalSince(tPrep0)
                     skippedDayLines.append("sleep day=\(day) SKIPPED hrSamples=\(hr.count) (need ≥200)")
                     continue
                 }
@@ -1008,6 +1022,8 @@ final class IntelligenceEngine: ObservableObject {
                 } else {
                     providedSleep = []
                 }
+                let tScore0 = Date()
+                dayPrepSeconds += tScore0.timeIntervalSince(tPrep0)
                 let res = AnalyticsEngine.analyzeDay(day: day, hr: hr, rr: rr, resp: resp,
                                                      vendorResp: vendorResp, gravity: grav,
                                                      steps: steps, dayHr: dayHr, daySteps: daySteps,
@@ -1039,6 +1055,7 @@ final class IntelligenceEngine: ObservableObject {
                                                      // ring buffer isn't flooded; every night keeps the summary.
                                                      hrvWindowDetail: dayStart == nowLocalMidnight,
                                                      deepHrvWindow: deepHrvWindow)
+                dayScoreSeconds += Date().timeIntervalSince(tScore0)
                 // #195: whole-night HRV cleaning-pipeline summary for the always-on strap log, so a "reads ~2x
                 // too high" report is triageable without the HRV test mode: RMSSD vs SDNN (rmssd >> sdnn =
                 // beat-to-beat jitter surviving the ectopic filter, not real HRV), meanNN as an HR sanity-check,
@@ -1286,6 +1303,14 @@ final class IntelligenceEngine: ObservableObject {
             skippedDayLines.append("analyzeRecent dayCache reused=\(dayCacheReused)/"
                                    + "\(dayCacheReused + dayCacheCacheable) "
                                    + "size=\(dayScanCacheLocal.count) days=\(maxDays)")
+            // #1538: where the pass actually goes. `prep` is the nine windowed store reads plus the
+            // session matching between them; `score` is `analyzeDay`. The two do not sum to the pass
+            // total — pass 2, the baseline folds and the reconciliation are outside this loop — so read
+            // them as a RATIO, which is the only thing the question needs. Reads dominating means the
+            // 54-hour window on a 24-hour stride (each row materialised ~2.25x per pass) is worth
+            // narrowing; `analyzeDay` dominating means it is not, whatever the row counts look like.
+            skippedDayLines.append("analyzeRecent cost prep=\(Int(dayPrepSeconds * 1000))ms "
+                                   + "score=\(Int(dayScoreSeconds * 1000))ms")
             return (out, skippedDayLines, dayScanCacheLocal)
         }.value
         // #1005: write the loop's updated reuse cache back to the (main-actor) stored property. The pass ran

@@ -579,6 +579,11 @@ object IntelligenceEngine {
             dayScanCacheConfigSig = dayCacheConfigSig
         }
         var dayCacheReused = 0
+        // #1538: per-phase cost tally. `prep` brackets the nine windowed store reads plus the session
+        // matching that sits between them and [AnalyticsEngine.analyzeDay]; `score` brackets analyzeDay
+        // itself. Emitted once per pass beside the reuse line. Byte-identical line to the Swift twin.
+        var dayPrepNanos = 0L
+        var dayScoreNanos = 0L
         // #1538: days that were actually cacheable this pass (freshly scored AND stored under a key).
         // Together with [dayCacheReused] this is the honest denominator for the reuse ratio — see the
         // diagnostic at the end of the loop.
@@ -671,6 +676,10 @@ object IntelligenceEngine {
                 }
             }
 
+            // #1538: split the per-day cost into READ+PREP and SCORE — the pass has only ever timed
+            // itself end to end, so whether the per-night cost is store reads or analyzeDay is unmeasured,
+            // and that split decides whether narrowing the read windows is worth building.
+            val tPrep0 = System.nanoTime()
             val hr = repo.hrSamples(owner, from, to, STREAM_LIMIT)
             // CAPTURE-B: capture this day's resolved read owner + HR-row count so PASS 2 can emit the
             // verbatim universal `dayOwner …` line per SCORED day (matching the iOS emit, which is in the
@@ -678,6 +687,9 @@ object IntelligenceEngine {
             // few rows is never scored, so it emits no line, byte-identical to the iOS behaviour.
             if (universalSink != null) readOwnerByDay[day] = OwnerRead(owner, hr.size)
             if (hr.size < MIN_HR_SAMPLES) {
+                // This day still paid for its read; count it, or the tally under-reports exactly the
+                // sparse-history installs where reads dominate most.
+                dayPrepNanos += System.nanoTime() - tPrep0
                 diag("sleep day=$day SKIPPED hrSamples=${hr.size} (need ≥$MIN_HR_SAMPLES)")
                 continue
             }
@@ -795,6 +807,8 @@ object IntelligenceEngine {
                     emptyList()
                 }
 
+            val tScore0 = System.nanoTime()
+            dayPrepNanos += tScore0 - tPrep0
             val res = AnalyticsEngine.analyzeDay(
                 day = day,
                 hr = hr,
@@ -843,6 +857,7 @@ object IntelligenceEngine {
                 hrvWindowDetail = dayStart == nowLocalMidnight,
                 deepHrvWindow = deepHrvWindow,
             )
+            dayScoreNanos += System.nanoTime() - tScore0
 
             // #195: whole-night HRV cleaning-pipeline summary to the always-on strap log, so a "reads ~2x too
             // high" report is triageable without the HRV test mode: RMSSD vs SDNN (rmssd >> sdnn = beat-to-beat
@@ -1086,6 +1101,13 @@ object IntelligenceEngine {
         // could ever get. Byte-identical string to the Swift twin.
         diag("analyzeRecent dayCache reused=$dayCacheReused/${dayCacheReused + dayCacheCacheable} " +
             "size=${dayScanCache.size} days=$maxDays")
+        // #1538: where the pass actually goes. `prep` is the nine windowed store reads plus the session
+        // matching between them; `score` is analyzeDay. The two do NOT sum to the pass total — pass 2, the
+        // baseline folds and the reconciliation are outside this loop — so read them as a RATIO, which is
+        // the only thing the question needs. Reads dominating means the 54-hour window on a 24-hour stride
+        // (each row materialised ~2.25x per pass) is worth narrowing; analyzeDay dominating means it is
+        // not, whatever the row counts look like. Byte-identical line to the Swift twin.
+        diag("analyzeRecent cost prep=${dayPrepNanos / 1_000_000}ms score=${dayScoreNanos / 1_000_000}ms")
 
         // ── Seed the baseline from the UNION of imported nightly history + the nightly
         // values just computed. This is the recovery fix: the "-noop" nightly avgHrv/
