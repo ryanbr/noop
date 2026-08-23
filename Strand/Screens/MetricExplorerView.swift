@@ -700,6 +700,14 @@ struct MetricDetailView: View {
             .padding(NoopMetrics.screenPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        // #697 parity: this screen builds its OWN ScrollView rather than going through
+        // ScreenScaffold, so it never inherited the scaffold's horizontal-bounce suppression and
+        // could still rubber-band left-right on a purely vertical scroll. Same modifier, same
+        // guard. `.basedOnSize` permits horizontal bounce only when content genuinely overflows
+        // the width, so nothing that is meant to scroll sideways is affected. (#1532 follow-up)
+        #if os(iOS)
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+        #endif
         // Day-cycle-aware backdrop (#430 parity): the top sky band every liquid screen uses when the
         // setting is on — or the FULL-viewport sky with the softer settle when "Sky behind cards" is also
         // on (the LiquidTodayView treatment, so the transparent cards reveal it the whole way down); the

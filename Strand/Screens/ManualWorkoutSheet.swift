@@ -252,6 +252,14 @@ struct ManualWorkoutSheet: View {
                 Color.clear.preference(key: SuggestionsHeightKey.self, value: geo.size.height)
             })
         }
+        // #697 parity: this screen builds its OWN ScrollView rather than going through
+        // ScreenScaffold, so it never inherited the scaffold's horizontal-bounce suppression and
+        // could still rubber-band left-right on a purely vertical scroll. Same modifier, same
+        // guard. `.basedOnSize` permits horizontal bounce only when content genuinely overflows
+        // the width, so nothing that is meant to scroll sideways is affected. (#1532 follow-up)
+        #if os(iOS)
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+        #endif
         .frame(height: min(max(suggestionsHeight, 1), 168))
         .onPreferenceChange(SuggestionsHeightKey.self) { suggestionsHeight = $0 }
         .background(StrandPalette.surfaceInset, in: inputShape)
