@@ -8,6 +8,7 @@
 	<array>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER).debugexport</string>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER).healthwriteback</string>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER).rescore</string>
 	</array>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
@@ -81,6 +82,7 @@
 		<string>bluetooth-central</string>
 		<string>location</string>
 		<string>fetch</string>
+		<string>processing</string>
 	</array>
 	<key>UIFileSharingEnabled</key>
 	<true/>

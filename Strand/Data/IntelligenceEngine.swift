@@ -540,6 +540,13 @@ final class IntelligenceEngine: ObservableObject {
         // and how long (the CPU cost per run), so a re-score STORM is visible in the strap log.
         let reScoreStart = Date()
         computing = true
+        // #1538: the pass is now past every gate and will do real work. Mark it started durably, so that a
+        // process killed mid-pass leaves evidence a LATER process can read — the killed process itself gets
+        // no chance to record anything. Cleared beside the watermark at the end; there is no early return
+        // between here and there, so "started and never finished" means exactly "killed", never a silent
+        // internal skip. `RescoreBackgroundPolicy` reads it to stop re-attempting a pass that cannot
+        // finish in the background, which is the livelock in #1538.
+        RescoreBackgroundScheduler.markRescoreOwed()
         // #899-A re-arm: clear the lock, then if a forced rescore was dropped while this pass held it,
         // run it ONCE. The flag is cleared BEFORE the re-invoke (a single re-arm), so a forced call landing
         // DURING the re-invoke re-arms it again but a quiet one does not , this can never recurse unbounded.
@@ -2126,7 +2133,13 @@ final class IntelligenceEngine: ObservableObject {
         // short-circuit while it's unchanged. Written ONLY here at the end of a completed run (never on an
         // early guard-return), so an interrupted/failed run can't advance the watermark past unscored data.
         if !wmKey.isEmpty { UserDefaults.standard.set(wmKey, forKey: Self.analyzeWatermarkKey) }
-        diagnosticSink?("re-score: done — scored \(scoredNights.count) night(s) in \(Int(Date().timeIntervalSince(reScoreStart) * 1000)) ms (#1005)", nil)
+        // #1538: clear the started-mark and bank how long a COMPLETED pass costs on this install. The
+        // measurement is what lets `RescoreBackgroundPolicy` tell an install that finishes comfortably in a
+        // background wake from one that never could, instead of guessing from a constant — the cost varies
+        // by more than an order of magnitude with history size.
+        let elapsed = Date().timeIntervalSince(reScoreStart)
+        RescoreBackgroundScheduler.markRescoreCompleted(seconds: elapsed)
+        diagnosticSink?("re-score: done — scored \(scoredNights.count) night(s) in \(Int(elapsed * 1000)) ms (#1005)", nil)
     }
 
     /// UserDefaults key for the #836 idle-tick gate: the `(count:maxTs)` HR fingerprint the last completed
