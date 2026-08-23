@@ -99,10 +99,42 @@ final class BoutCalibrationDiagnosticTests: XCTestCase {
         XCTAssertEqual(WorkoutDetector.round1(21.0), "21.0")
     }
 
+    /// The NEGATIVE tie, which breaks the other way: Swift's `.rounded()` is half-away-from-zero and
+    /// Java's `Math.round` is half-up, so they disagree on -4.5 (-5 vs -4). Rounding the magnitude and
+    /// re-applying the sign makes them agree — and these values are non-negative in production precisely
+    /// so that nobody notices when they stop agreeing, which is why it is pinned rather than assumed.
+    func testNegativesRoundSymmetricallyAndKeepTheirSign() {
+        XCTAssertEqual(WorkoutDetector.round1(-0.45), "-0.5")
+        XCTAssertEqual(WorkoutDetector.round1(-8.25), "-8.3")
+        XCTAssertEqual(WorkoutDetector.round0(-52.5), "-53")
+    }
+
+    /// The minus sign must survive. Integer `/` and `%` truncate toward zero, so a naive
+    /// `"\(t / 10).\(abs(t % 10))"` renders -0.4 as `0.4` — a diagnostic silently reporting the
+    /// opposite of the truth, which is worse than reporting nothing.
+    func testASmallNegativeDoesNotLoseItsSign() {
+        XCTAssertEqual(WorkoutDetector.round1(-0.4), "-0.4")
+        XCTAssertNotEqual(WorkoutDetector.round1(-0.4), "0.4")
+    }
+
     /// A non-finite value must not print `inf`/`nan` into a log people read as evidence.
     func testNonFiniteValuesAreNil() {
         XCTAssertEqual(WorkoutDetector.round0(.nan), "nil")
         XCTAssertEqual(WorkoutDetector.round1(.infinity), "nil")
+    }
+
+    /// And an absurd FINITE value must not take the process with it. `Int(1e300)` traps in Swift while
+    /// Kotlin's `Math.round` saturates to `Long.MAX_VALUE` — a crash on one platform and a nonsense
+    /// number on the other, from a line whose only job is explaining a bug. Both print `nil` instead.
+    ///
+    /// Not reachable through today's detector (it gates `maxHR > restingHR` before computing %HRR), but
+    /// these formatters are public API and a near-zero HR reserve is the obvious way in.
+    func testAnAbsurdFiniteValueIsNilRatherThanACrash() {
+        XCTAssertEqual(WorkoutDetector.round0(1e300), "nil")
+        XCTAssertEqual(WorkoutDetector.round1(-1e300), "nil")
+        XCTAssertEqual(WorkoutDetector.round0(Double(Int.max)), "nil")
+        // The bound is well clear of anything physiological — real values still print.
+        XCTAssertEqual(WorkoutDetector.round0(220.0), "220")
     }
 
     // MARK: end to end

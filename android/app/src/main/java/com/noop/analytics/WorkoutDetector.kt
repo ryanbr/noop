@@ -142,22 +142,35 @@ object WorkoutDetector {
             "avgHRR=${round0(avgHRRPct)} cover=${round0(hrCoveragePct)} effort=${round1(strain)}"
 
     /**
-     * The two numeric formatters this line uses, written as integer arithmetic rather than `%.0f` /
-     * `%.1f` on purpose.
+     * The two numeric formatters this line uses, written as integer arithmetic over the value's MAGNITUDE
+     * rather than %.0f / %.1f.
      *
-     * C `printf` (Swift) breaks a rounding tie to even; Java's `String.format` (Kotlin) breaks it up. So a
-     * bout at exactly 52.5% HRR would print `52` on iOS and `53` on Android — a parity break in a line
-     * whose entire job is being comparable between two users' logs. Rounding to an Int first (half away
-     * from zero, which equals `Math.round` for the non-negative bpm and percentages here) and assembling
-     * the digits by hand removes both the tie and the locale's decimal separator.
+     * Three things this shape avoids, all of which would break a line whose entire job is being comparable
+     * between two users' logs — and between an iOS log and an Android one:
+     *
+     * - The positive tie. C printf (Swift) breaks a rounding tie to even; Java's String.format
+     *   (Kotlin) breaks it up. A bout at exactly 52.5% HRR would print 52 on iOS and 53 on Android.
+     * - The negative tie. Swift's .rounded() is half-AWAY-from-zero and Java's Math.round is
+     *   half-UP, so they disagree on -4.5 (-5 vs -4). Rounding abs(v) and re-applying the sign makes the
+     *   two identical in both directions; it also keeps the minus sign, which integer / and % truncating
+     *   toward zero would otherwise drop (-0.4 printing as 0.4).
+     * - The trap. Swift's Int(_: Double) CRASHES on a finite value past Int.max while Kotlin's
+     *   Math.round silently saturates to Long.MAX_VALUE. Today's caller can't produce one (the detector
+     *   gates maxHR > restingHR before computing %HRR), but this is public API, and a diagnostic that kills
+     *   the process is the worst possible way for one to fail. Past the bound both platforms print nil,
+     *   which is also the more honest answer: such a value is not a heart rate, a percentage or an Effort.
      */
-    internal fun round0(v: Double?): String =
-        if (v == null || !v.isFinite()) "nil" else Math.round(v).toString()
+    internal const val PRINTABLE_MAGNITUDE_LIMIT = 1e15
+
+    internal fun round0(v: Double?): String {
+        if (v == null || !v.isFinite() || abs(v) >= PRINTABLE_MAGNITUDE_LIMIT) return "nil"
+        return (if (v < 0) "-" else "") + Math.round(abs(v)).toString()
+    }
 
     internal fun round1(v: Double?): String {
-        if (v == null || !v.isFinite()) return "nil"
-        val t = Math.round(v * 10.0)
-        return "${t / 10}.${kotlin.math.abs(t % 10)}"
+        if (v == null || !v.isFinite() || abs(v) >= PRINTABLE_MAGNITUDE_LIMIT) return "nil"
+        val t = Math.round(abs(v) * 10.0)
+        return "${if (v < 0) "-" else ""}${t / 10}.${t % 10}"
     }
 
     /**
