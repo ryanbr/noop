@@ -703,11 +703,27 @@ final class IntelligenceEngine: ObservableObject {
         // scan carries no fresh gate trace). Owner-level eligibility (registered WHOOP) is checked per day.
         let dayCacheEligible = !(sleepTraceActive || hrvTraceActive || stepsTraceActive)
         // The pass config signature — every input that feeds `analyzeDay` but is NOT in the per-day key, so
-        // a change to any of them must invalidate every cached night. All are pass-global 28-night / profile
-        // / toggle values (stable across an offload storm; they move only on a settings/profile/import edit
-        // or at midnight), so the cache survives the back-to-back passes. baselines1 is signed structurally
+        // a change to any of them must invalidate every cached night. baselines1 is signed structurally
         // (any BaselineState field change ⇒ a different string); Doubles by raw bit-pattern (exact, locale-
         // free). Only ever compared to itself in memory, so cross-platform string identity isn't required.
+        //
+        // These are NOT all "stable across an offload storm", as this comment claimed until #1538 went
+        // looking. #1402 already had to fix `baselines1` for exactly that wrong assumption, and three more
+        // fields have the same shape: `sleepNeedHours`, `sleepConsistency` and `habitualMidsleepSec` all
+        // come out of `computeHabitualSleep(windowEnd: now)`, which reads the computed `-noop` sleep
+        // sessions THE PREVIOUS PASS BANKED — a feedback loop from this pass's own output. Any night whose
+        // banked session moves changes them: `sleepConsistency` is 1−CV over 28 nights and
+        // `habitualMidsleepSec` a circular mean, so both shift with ANY night, while `sleepNeedHours` is a
+        // 75th percentile and usually does not.
+        //
+        // But that is CORRECT invalidation, not churn to be quantized away — a night going from
+        // half-loaded to complete really does change what every day should be scored against, and the
+        // swings are large rather than drift, so no tolerance both preserves scores and stops the drop.
+        // What keeps it affordable is that the post-backfill re-score is COALESCED on both platforms: iOS
+        // debounces `lastSyncedAt` by 2 s (#755), Android gates on `analyzeAfterBackfillScheduled` plus a
+        // trailing delay. So this fires once per completed backfill, not once per chunk. That coalescing is
+        // load-bearing for the cache — removing it would reintroduce the #1402 storm in a form no signature
+        // change can fix.
         let dayCacheConfigSig = [
             String(describing: baselines1.hrv),
             String(describing: baselines1.restingHR),

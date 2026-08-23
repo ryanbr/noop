@@ -543,11 +543,26 @@ object IntelligenceEngine {
         // (sleep/hrv/steps), so cache activation is identical on both platforms. (#1005)
         val dayCacheEligible = sleepTraceSink == null && hrvTraceSink == null && stepsTraceSink == null
         // The pass config signature — every input that feeds `analyzeDay` but is NOT in the per-day key, so a
-        // change to any of them must invalidate every cached night. All are pass-global 28-night / profile /
-        // toggle values (stable across an offload storm; they move only on a settings/profile/import edit or
-        // at midnight), so the cache survives the back-to-back passes. Deterministic within-process strings
+        // change to any of them must invalidate every cached night. Deterministic within-process strings
         // (compared only to itself in memory, so cross-platform identity isn't required); baselines1 is signed
         // via its data-class toString (any field change ⇒ a different string).
+        //
+        // These are NOT all "stable across an offload storm", as this comment claimed until #1538 went
+        // looking. #1402 already had to fix baselines1 for exactly that wrong assumption, and three more
+        // fields have the same shape: sleepNeedHours, sleepConsistency and habitualMidsleepSec all come out
+        // of computeHabitualSleep(windowEnd = now), which reads the computed "-noop" sleep sessions THE
+        // PREVIOUS PASS BANKED — a feedback loop from this pass's own output. Any night whose banked session
+        // moves changes them: sleepConsistency is 1−CV over 28 nights and habitualMidsleepSec a circular
+        // mean, so both shift with ANY night, while sleepNeedHours is a 75th percentile and usually does not.
+        //
+        // But that is CORRECT invalidation, not churn to be quantized away — a night going from half-loaded
+        // to complete really does change what every day should be scored against, and the swings are large
+        // rather than drift, so no tolerance both preserves scores and stops the drop. What keeps it
+        // affordable is that the post-backfill re-score is COALESCED on both platforms: Android gates on
+        // [analyzeAfterBackfillScheduled] plus POST_BACKFILL_ANALYZE_DELAY_MS, iOS debounces lastSyncedAt by
+        // 2 s (#755). So this fires once per completed backfill, not once per chunk. That coalescing is
+        // load-bearing for the cache — removing it would reintroduce the #1402 storm in a form no signature
+        // change can fix.
         val dayCacheConfigSig = listOf(
             baselines1.hrv.toString(), baselines1.restingHR.toString(),
             profile.age.toString(), profile.sex.toString(), profile.stepTicksPerStep.toString(),
