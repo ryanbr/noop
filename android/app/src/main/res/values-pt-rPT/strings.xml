@@ -797,6 +797,7 @@
     <string name="l10n_sleep_screen_sleep_debt_ledger_8cc9a992">Livro-razão da dívida do sono</string>
     <string name="l10n_sleep_screen_sleep_debt_trend_chart_9e178776">Gráfico de tendências da dívida do sono</string>
     <string name="l10n_sleep_screen_sleep_hours_trend_chart_a6fbc46d">Gráfico de tendências das horas de sono</string>
+    <string name="l10n_sleep_screen_sleep_heart_rate_chart_8ec47ae1">Gráfico da frequência cardíaca do sono</string>
     <string name="l10n_sleep_screen_sleep_marks_8e9b86f0">Marcas de sono</string>
     <string name="l10n_sleep_screen_sleep_window_over_recent_nights_cc5fd9b8">Janela de sono nas últimas noites</string>
     <string name="l10n_sleep_screen_spec_format_avgv_spec_unit_46bf7fdc">%1$s %2$s</string>

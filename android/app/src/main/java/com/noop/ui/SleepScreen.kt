@@ -48,6 +48,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import com.noop.data.HrBucket
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -621,9 +622,25 @@ fun SleepScreen(
                     SleepReorderableSection(k, sleepListState, sleepSectionDrag, persistSleepOrder) {
                     Column {
                     Spacer(Modifier.height(Metrics.selectorTopUp))
+                    // #1537: the night's heart rate for the Classic view's line chart. Loaded here
+                    // because Hero takes data rather than a repo, and keyed on the night so paging the
+                    // carousel refetches. 60-second buckets, matching the iOS Sleep tab's hrBuckets call.
+                    val hrFrom = night?.session?.effectiveStartTs
+                    val hrTo = night?.session?.endTs
+                    var nightHr by remember(hrFrom, hrTo) { mutableStateOf(emptyList<HrBucket>()) }
+                    LaunchedEffect(hrFrom, hrTo, vm.activeStrapId) {
+                        nightHr = if (hrFrom != null && hrTo != null && hrTo > hrFrom) {
+                            runCatching {
+                                vm.repo.hrBucketsUnion(vm.activeStrapId, hrFrom, hrTo, bucketSeconds = 60L)
+                            }.getOrDefault(emptyList())
+                        } else {
+                            emptyList()
+                        }
+                    }
                     Hero(
                 display = display,
                 activeIsOura = activeIsOura,
+                nightHr = nightHr,
                 clock = night?.clockLabel ?: model?.clockLabel,
                 nightOffset = nightOffset,
                 lastIndex = max(navDays.lastIndex, 0),
@@ -1126,6 +1143,9 @@ private fun Hero(
     nightLabel: String,
     onNavigate: (Int) -> Unit,
     session: SleepSession? = null,
+    // #1537: the night's HR buckets for the Classic view's heart-rate line, loaded by the caller (which
+    // holds the repo) and passed in like every other input here. Empty = nothing to draw.
+    nightHr: List<HrBucket> = emptyList(),
     // #1492: the bridged night's fragments, forwarded to the editor so it frames itself on the whole
     // night rather than on `session` (the winning fragment, which defines neither displayed bound).
     heroGroup: List<SleepSession> = emptyList(),
@@ -1259,6 +1279,25 @@ private fun Hero(
                     // Reconstructed architecture (light → deep → light → rem → light → awake) as the
                     // flat proportional strip. No MotionStrip and no fake steps here: invented
                     // architecture has no genuine timeline to anchor to (mirrors the iOS else-branch).
+                    // #1537: heart rate across the night, above the stage strip — the twin of the iOS
+                    // Classic view's `sleepHRChart`, which Android never had. Same window as the stage
+                    // strip below (the night's own onset..wake), and the same 60-second buckets iOS asks
+                    // for, so the two platforms plot the same shape from the same rows. Drawn only with
+                    // at least two buckets, matching iOS's `buckets.count >= 2`: one point is not a line,
+                    // and a night the strap never sampled should show nothing rather than a flat stub.
+                    if (nightHr.size >= 2) {
+                        LineChart(
+                            values = nightHr.map { it.avgBpm },
+                            modifier = Modifier.fillMaxWidth().height(Metrics.compactChartHeight)
+                                .semantics {
+                                    contentDescription = uiString(R.string.l10n_sleep_screen_sleep_heart_rate_chart_8ec47ae1)
+                                },
+                            color = Palette.metricRose,
+                            fill = false,
+                            timestamps = nightHr.map { it.bucket },
+                            formatValue = { "${Math.round(it)} bpm" },
+                        )
+                    }
                     val segments = stageSegments(s)
                     if (segments.isNotEmpty()) {
                         HypnogramWithAxis(
