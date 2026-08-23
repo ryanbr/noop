@@ -21,7 +21,10 @@ import WhoopProtocol
 //           (1..5 at 50/60/70/80/90 %HRR cut-offs) × duration.
 //        b. Banister exponential: sample contributes duration × x × 0.64 × e^(b·x).
 //   4. Logarithmic compression onto [0, 100]:
-//        strain = 100 × ln(TRIMP + 1) / ln(D),  D = STRAIN_DENOMINATOR.
+//        strain = 100 × ln(TRIMP + 1) / ln(D)
+//      D belongs to the METHOD, not to the scorer: Edwards uses `strainDenominator` (7201, from its
+//      sex-independent 7200 ceiling), Banister its own sex-dependent ceiling + 1. See
+//      `logMapDenominator(method:sex:)` — reusing one for the other silently rescales the axis (#1545).
 //
 // References: Karvonen 1957 (%HRR); Edwards 1993 (5-zone TRIMP); Banister 1991
 // (exponential TRIMP, b = 1.92 men / 1.67 women); Tanaka 2001 (HRmax = 208 − 0.7×age).
@@ -243,6 +246,10 @@ public enum StrainScorer {
 
     /// Map accumulated TRIMP onto [0, 100] via 100 × ln(TRIMP+1) / ln(D), 2 dp.
     /// TRIMP ≤ 0 → 0.
+    ///
+    /// The default D is **Edwards'**. A Banister TRIMP passed here without an explicit denominator is
+    /// scored against the wrong ceiling and reads low — prefer `strain(…)`, which resolves the
+    /// method's own denominator, or pass `logMapDenominator(method:sex:)` yourself. (#1545)
     public static func trimpToStrain(_ trimp: Double, denominator: Double = strainDenominator) -> Double {
         if trimp <= 0 { return 0 }
         let value = maxStrain * log(trimp + 1.0) / log(denominator)
