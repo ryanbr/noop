@@ -495,8 +495,12 @@ final class IntelligenceEngine: ObservableObject {
         // the registry's ACTIVE device (`owner`); only this change-detector needed to be cross-device.
         let wmKey: String = (try? await store.hrFingerprint())
             .map { "\($0.count):\($0.maxTs)" } ?? ""
-        if !force, !wmKey.isEmpty,
-           UserDefaults.standard.string(forKey: Self.analyzeWatermarkKey) == wmKey {
+        // #1538: read the stored watermark ONCE for both gates and the attribution line below. There is no
+        // suspension point between them, so the three reads this replaces could not disagree — but the log
+        // line asserting `newData` and the gate deciding whether to run must be the SAME comparison by
+        // construction, not by the reader checking for an `await`. Twin of the Android AppViewModel hoist.
+        let storedWatermark = UserDefaults.standard.string(forKey: Self.analyzeWatermarkKey)
+        if !force, !wmKey.isEmpty, storedWatermark == wmKey {
             return
         }
         // #1196/#1146: a FORCED post-offload pass can opt into the same fingerprint gate. An empty/duplicate
@@ -507,8 +511,7 @@ final class IntelligenceEngine: ObservableObject {
         // `skipIfUnchanged` to the post-offload caller (refreshAfterCompletedBackfill) ONLY, so an
         // import/edit/settings/recalibrate re-score — which changes scores WITHOUT changing the HR
         // fingerprint — always runs. Twin of the Android WhoopBleClient post-offload `newData` gate.
-        if force, skipIfUnchanged, !wmKey.isEmpty,
-           UserDefaults.standard.string(forKey: Self.analyzeWatermarkKey) == wmKey {
+        if force, skipIfUnchanged, !wmKey.isEmpty, storedWatermark == wmKey {
             diagnosticSink?("re-score: trigger=post-offload newData=no — skipped (nothing changed since last run)", nil)
             return
         }
@@ -529,7 +532,7 @@ final class IntelligenceEngine: ObservableObject {
         // driven by the trigger, not by data (#1005 background battery). Diagnostic only; the pass runs
         // either way. Twin of the Android WhoopBleClient / AppViewModel attribution.
         let trigger = !force ? "idle" : (skipIfUnchanged ? "post-offload" : "forced")
-        let hadNew = wmKey.isEmpty || UserDefaults.standard.string(forKey: Self.analyzeWatermarkKey) != wmKey
+        let hadNew = wmKey.isEmpty || storedWatermark != wmKey
         diagnosticSink?("re-score: trigger=\(trigger) "
                         + "newData=\(hadNew ? "yes" : "no (nothing changed since last run)")", nil)
 
