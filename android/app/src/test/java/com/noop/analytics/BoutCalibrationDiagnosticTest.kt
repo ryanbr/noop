@@ -156,6 +156,7 @@ class BoutCalibrationDiagnosticTest {
     fun nonFiniteValuesAreNil() {
         assertEquals("nil", WorkoutDetector.round0(Double.NaN))
         assertEquals("nil", WorkoutDetector.round1(Double.POSITIVE_INFINITY))
+        assertEquals("nil", WorkoutDetector.round1(Double.NEGATIVE_INFINITY))
     }
 
     /**

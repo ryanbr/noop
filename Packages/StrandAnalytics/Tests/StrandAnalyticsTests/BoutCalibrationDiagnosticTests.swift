@@ -119,8 +119,9 @@ final class BoutCalibrationDiagnosticTests: XCTestCase {
 
     /// A non-finite value must not print `inf`/`nan` into a log people read as evidence.
     func testNonFiniteValuesAreNil() {
-        XCTAssertEqual(WorkoutDetector.round0(.nan), "nil")
-        XCTAssertEqual(WorkoutDetector.round1(.infinity), "nil")
+        XCTAssertEqual(WorkoutDetector.round0(Double.nan), "nil")
+        XCTAssertEqual(WorkoutDetector.round1(Double.infinity), "nil")
+        XCTAssertEqual(WorkoutDetector.round1(-Double.infinity), "nil")
     }
 
     /// And an absurd FINITE value must not take the process with it. `Int(1e300)` traps in Swift while
