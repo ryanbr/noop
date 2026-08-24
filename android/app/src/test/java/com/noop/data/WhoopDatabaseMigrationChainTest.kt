@@ -63,6 +63,10 @@ class WhoopDatabaseMigrationChainTest {
      */
     @Test
     fun theChainReachesTheDeclaredSchemaVersion() {
+        // Guarded like theChainHasNoHoles: an empty chain should fail with this message rather than
+        // throw NoSuchElementException out of last(), which reads as a broken test rather than a
+        // broken chain — and an empty chain is exactly the catastrophic case worth naming clearly.
+        assertTrue("no migrations registered at all", chain.isNotEmpty())
         assertEquals(
             "chain ends at ${chain.last().endVersion} but SCHEMA_VERSION is ${WhoopDatabase.SCHEMA_VERSION}",
             WhoopDatabase.SCHEMA_VERSION, chain.last().endVersion,

@@ -911,7 +911,7 @@ abstract class WhoopDatabase : RoomDatabase() {
          * The consequence is bounded but real. There is deliberately no destructive fallback (see the
          * builder), so a hole makes Room throw on upgrade rather than silently rebuild — a loud failure for
          * every existing user on the version that ships it, and with `exportSchema=false` nothing catches
-         * it beforehand. [WhoopDatabaseMigrationChainTest] now does.
+         * it beforehand. Guarded by WhoopDatabaseMigrationChainTest.
          *
          * Starts at 2 -> 3 on purpose: v1 predates this regime and has no upgrade path, which is why the
          * test asserts NO HOLES up to [SCHEMA_VERSION] rather than coverage from 1.
