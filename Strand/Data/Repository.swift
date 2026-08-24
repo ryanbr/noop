@@ -849,13 +849,18 @@ final class Repository: ObservableObject {
         self.vitalRows = merged.vitalRows
         self.freshness = merged.freshness
         self.loaded = true
-        self.refreshSeq += 1
-        // Drop the Explorer's cross-catalog memo here rather than leaving it to be evicted lazily by a
-        // key mismatch. Its key has just gone stale, and a lazy eviction only frees the memory when the
-        // NEXT scan replaces it — so a user who opens Explore once and never returns keeps a whole
-        // catalog of series resident for the rest of the session. The key check stays: it still guards
-        // the case this line cannot, an active-strap re-point with no refresh behind it.
+        // Drop the Explorer's cross-catalog memo rather than leaving it to be evicted lazily by a key
+        // mismatch: its key is about to go stale, and lazy eviction only frees the memory when the NEXT
+        // scan replaces it — so a user who opens Explore once and never returns keeps a whole catalog of
+        // series resident for the rest of the session. The key check stays; it still guards what this
+        // line cannot, an active-strap re-point with no refresh behind it.
+        //
+        // BEFORE the bump, with the other caches, per this block's own ordering. Nothing can currently
+        // observe the gap — the assignments are synchronous on the main actor and a @Published bump only
+        // schedules SwiftUI work — but "clear every cache, then publish" is the invariant stated above,
+        // and an appended line after the bump is how that invariant quietly stops being true.
         self.exploreAllCache = nil
+        self.refreshSeq += 1
     }
 
     /// Per-source coverage counts for the Freshness Pipeline card. Pure over the rows already read.
