@@ -515,7 +515,6 @@ object NoopPrefs {
      */
     fun spo2CandidateDisplayFlow(context: Context): Flow<Boolean> = callbackFlow {
         val prefs = of(context)
-        trySend(prefs.getBoolean(KEY_SPO2_CANDIDATE_DISPLAY, false))
         // Strong local for the flow's lifetime: Android holds these listeners WEAKLY, so one referenced
         // only by the register call is collected and silently stops firing (same reason SettingsScreen's
         // experiment listener keeps one).
@@ -527,6 +526,12 @@ object NoopPrefs {
             }
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
+        // Seed AFTER registering, not before. A write landing between the read and the register would
+        // otherwise be missed entirely, and — since nothing re-reads until the NEXT change — the flow
+        // would serve a stale value indefinitely, which is the failure this whole function exists to
+        // remove. In this order the same interleaving costs at most a duplicate emit, and
+        // `distinctUntilChanged` drops it.
+        trySend(prefs.getBoolean(KEY_SPO2_CANDIDATE_DISPLAY, false))
         awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }.distinctUntilChanged()
 
