@@ -90,8 +90,10 @@ object HelloIdentityProbe {
         payload: ByteArray,
         knownNameOffset: Int = 16,
         minRun: Int = 4,
+        serialLenMin: Int = SERIAL_LEN_MIN,
+        serialLenMax: Int = SERIAL_LEN_MAX,
     ): String {
-        val lines = candidateLines(payload, knownNameOffset, minRun)
+        val lines = candidateLines(payload, knownNameOffset, minRun, serialLenMin, serialLenMax)
         val body = if (lines.isEmpty()) "none" else lines.joinToString("; ")
         return "HELLO(145) block len=${payload.size} runs: $body"
     }

@@ -104,6 +104,22 @@ class HelloIdentityProbeTest {
         assertEquals("HELLO(145) block len=42 runs: none", HelloIdentityProbe.report(ByteArray(42)))
     }
 
+    /**
+     * [HelloIdentityProbe.report] must THREAD its tuning through to the scan, not merely accept it.
+     *
+     * Every other test here calls candidateLines at its defaults, so a report that quietly dropped a
+     * parameter would pass all of them. The same call with a narrowed serial length must withhold what
+     * the default range prints — which is only observable if the value actually reaches the scan.
+     */
+    @Test fun reportThreadsItsTuningThrough() {
+        val p = payload(120, listOf(40 to "3A1B2405003655"))   // 14 chars: inside the default 6..20
+        assertTrue(HelloIdentityProbe.report(p).contains("\"3A1B2405003655\""))
+        assertEquals(
+            "HELLO(145) block len=120 runs: off=40 len=14 alnum (withheld)",
+            HelloIdentityProbe.report(p, serialLenMax = 10),
+        )
+    }
+
     /** An empty payload must not crash the scan. */
     @Test fun anEmptyPayloadIsSafe() {
         assertTrue(HelloIdentityProbe.candidateLines(ByteArray(0)).isEmpty())

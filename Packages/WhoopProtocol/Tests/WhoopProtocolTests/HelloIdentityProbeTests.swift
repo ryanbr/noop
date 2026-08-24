@@ -99,6 +99,18 @@ final class HelloIdentityProbeTests: XCTestCase {
                        "HELLO(145) block len=42 runs: none")
     }
 
+    /// `report` must THREAD its tuning through to the scan, not merely accept it.
+    ///
+    /// Every other test here calls `candidateLines` at its defaults, so a `report` that quietly dropped a
+    /// parameter would pass all of them. The same call with a narrowed serial length must withhold what
+    /// the default range prints — which is only observable if the value actually reaches the scan.
+    func testReportThreadsItsTuningThrough() {
+        let p = payload(length: 120, runs: [(40, "3A1B2405003655")])   // 14 chars: inside the default 6...20
+        XCTAssertTrue(HelloIdentityProbe.report(payload: p).contains(#""3A1B2405003655""#))
+        XCTAssertEqual(HelloIdentityProbe.report(payload: p, serialLength: 6...10),
+                       "HELLO(145) block len=120 runs: off=40 len=14 alnum (withheld)")
+    }
+
     /// An empty payload must not crash the scan.
     func testAnEmptyPayloadIsSafe() {
         XCTAssertTrue(HelloIdentityProbe.candidateLines(payload: []).isEmpty)
