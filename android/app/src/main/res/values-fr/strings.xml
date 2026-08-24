@@ -2432,4 +2432,6 @@
     <string name="l10n_sleep_screen_sleep_outside_the_new_times_was_6229881e">Le sommeil en dehors des nouveaux horaires a été supprimé. NOOP ne le détectera plus.</string>
     <string name="l10n_settings_screen_effort_exponential_scale">Effort : échelle d’intensité exponentielle</string>
     <string name="l10n_settings_screen_effort_exponential_scale_desc">Calcule l’Effort selon une courbe d’intensité exponentielle (TRIMP de Banister) au lieu des zones de fréquence cardiaque par défaut (Edwards). Le réglage par défaut ne compte rien en dessous de la moitié de votre réserve de fréquence cardiaque : une heure de musculation — où les séries dures se compensent avec les temps de repos — peut donc être notée presque zéro. La courbe exponentielle n’a pas de seuil et pondère bien davantage les efforts courts et intenses. Recalcule votre historique, et les deux échelles atteignent le même maximum. Désactivé par défaut.</string>
+    <string name="l10n_settings_screen_allow_3ad0e369">Autoriser</string>
+    <string name="l10n_settings_screen_manage_bf58d17e">Gérer</string>
 </resources>

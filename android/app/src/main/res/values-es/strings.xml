@@ -2433,4 +2433,6 @@
     <string name="l10n_sleep_screen_sleep_outside_the_new_times_was_6229881e">Se ha eliminado el sueño fuera del nuevo horario. NOOP no volverá a detectarlo.</string>
     <string name="l10n_settings_screen_effort_exponential_scale">Esfuerzo: escala de intensidad exponencial</string>
     <string name="l10n_settings_screen_effort_exponential_scale_desc">Puntúa el Esfuerzo con una curva de intensidad exponencial (TRIMP de Banister) en lugar de las zonas de frecuencia cardíaca predeterminadas (Edwards). La opción predeterminada no cuenta nada por debajo de la mitad de tu reserva de frecuencia cardíaca, así que una hora de pesas —donde las series duras se compensan con los descansos— puede puntuar casi cero. La curva exponencial no tiene umbral y pondera mucho más los esfuerzos cortos e intensos. Vuelve a puntuar tu historial y ambas escalas alcanzan el mismo máximo. Desactivado por defecto.</string>
+    <string name="l10n_settings_screen_allow_3ad0e369">Permitir</string>
+    <string name="l10n_settings_screen_manage_bf58d17e">Gestionar</string>
 </resources>
