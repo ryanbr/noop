@@ -137,6 +137,21 @@ object WorkoutDetector {
         /** Contiguous runs after gap-merging, and after the #303 HR-gated bridge. */
         var runs: Int = 0,
         var bridged: Int = 0,
+        /**
+         * The LONGEST and MEAN bridged run, in seconds, before any qualification gate drops anything.
+         *
+         * These separate the only two stories a `kept=0` day can tell, and the counts alone cannot.
+         * A field log showing 22 days of `kept=0` with ~100 runs and ~2 h of daily "active" time is
+         * equally consistent with normal life (stairs and walking brushing past `restHR+15` in
+         * one-minute bursts — an honest zero) and with a real session shattered into sub-threshold
+         * fragments (a bug). Telling them apart needed [longestRunS]: below [minExerciseMin] it is
+         * daily life, and a 25-minute run still dropped is a defect worth chasing.
+         *
+         * Without them the question could only be settled by asking the user whether they had trained,
+         * which is precisely the round-trip an always-on diagnostic exists to remove.
+         */
+        var longestRunS: Int = 0,
+        var meanRunS: Int = 0,
         /** Runs rejected by each qualification gate, and the survivors. */
         var droppedShort: Int = 0,
         var droppedNoHR: Int = 0,
@@ -155,6 +170,7 @@ object WorkoutDetector {
             "restHR=${round0(f.restingHR)} floor=${round0(f.hrFloor)} " +
             "motionOK=${f.motionPassed} hrMissing=${f.hrMissing} hrTooLow=${f.hrTooLow} " +
             "active=${f.active} runs=${f.runs} bridged=${f.bridged} " +
+            "longestRunS=${f.longestRunS} meanRunS=${f.meanRunS} " +
             "short=${f.droppedShort} noHR=${f.droppedNoHR} lowIntensity=${f.droppedLowIntensity} " +
             "kept=${f.kept}"
 
@@ -474,6 +490,13 @@ object WorkoutDetector {
             // gaps. Runs over a genuine rest (HR falls to resting) are NOT bridged.
             val runs = bridgeRuns(rawRuns, hrSeg, hrFloor)
             f.bridged = runs.size
+            // Measured on the BRIDGED runs, before any qualification gate: this is the shape of what the
+            // detector was offered, which is the thing a `kept=0` day has to be judged against.
+            if (runs.isNotEmpty()) {
+                val durs = runs.map { maxOf(0L, it.second - it.first) }
+                f.longestRunS = durs.max().toInt()
+                f.meanRunS = (durs.sum() / durs.size).toInt()
+            }
 
             val minDurS = minExerciseMin * 60.0
             val sessions = ArrayList<ExerciseSession>()

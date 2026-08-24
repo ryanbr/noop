@@ -162,13 +162,46 @@ class DetectionFunnelTest {
         val f = WorkoutDetector.DetectionFunnel(
             hrSamples = 34137, motionSamples = 34136, restingHR = 59.0, hrFloor = 74.0,
             motionPassed = 1203, hrMissing = 12, hrTooLow = 1103, active = 88,
-            runs = 6, bridged = 4, droppedShort = 4, droppedNoHR = 0, droppedLowIntensity = 0, kept = 0,
+            runs = 6, bridged = 4, longestRunS = 212, meanRunS = 74,
+            droppedShort = 4, droppedNoHR = 0, droppedLowIntensity = 0, kept = 0,
         )
         assertEquals(
             "effort detect day=2026-08-24 hr=34137 motion=34136 restHR=59 floor=74 " +
                 "motionOK=1203 hrMissing=12 hrTooLow=1103 active=88 runs=6 bridged=4 " +
+                "longestRunS=212 meanRunS=74 " +
                 "short=4 noHR=0 lowIntensity=0 kept=0",
             WorkoutDetector.detectionFunnelLine("2026-08-24", f),
+        )
+    }
+
+    /**
+     * The field case these two fields exist for.
+     *
+     * A real log showed 22 days of `kept=0` with ~100 runs a day and ~2 h of "active" time. The counts
+     * alone cannot say whether that is normal life clearing `restHR+15` in one-minute bursts (an honest
+     * zero) or a real session shattered into fragments (a bug) — settling it took asking the user whether
+     * they had trained. [WorkoutDetector.DetectionFunnel.longestRunS] answers it from the line: 74 s
+     * against a five-minute bar is daily life, and no threshold change would rescue it.
+     */
+    @Test
+    fun theLongestRunSeparatesAnHonestZeroFromAShatteredBout() {
+        val daily = WorkoutDetector.DetectionFunnel(
+            bridged = 79, longestRunS = 74, meanRunS = 41,
+            droppedShort = 64, droppedLowIntensity = 15, kept = 0,
+        )
+        assertTrue(WorkoutDetector.detectionFunnelLine("2026-08-24", daily).contains("longestRunS=74"))
+        assertTrue(
+            "74 s cannot clear a five-minute bar — kept=0 is correct, not a defect",
+            daily.longestRunS < (WorkoutDetector.minExerciseMin * 60).toInt(),
+        )
+
+        val shattered = WorkoutDetector.DetectionFunnel(
+            bridged = 79, longestRunS = 1500, meanRunS = 900,
+            droppedShort = 64, droppedLowIntensity = 15, kept = 0,
+        )
+        assertTrue(
+            "a 25-minute run dropped with kept=0 is the reading that IS worth chasing",
+            shattered.longestRunS > (WorkoutDetector.minExerciseMin * 60).toInt(),
         )
     }
 }

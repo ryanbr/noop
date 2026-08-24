@@ -137,11 +137,36 @@ final class DetectionFunnelTests: XCTestCase {
         f.restingHR = 59; f.hrFloor = 74
         f.motionPassed = 1203; f.hrMissing = 12; f.hrTooLow = 1103; f.active = 88
         f.runs = 6; f.bridged = 4
+        f.longestRunS = 212; f.meanRunS = 74
         f.droppedShort = 4; f.droppedNoHR = 0; f.droppedLowIntensity = 0; f.kept = 0
         XCTAssertEqual(
             WorkoutDetector.detectionFunnelLine(day: "2026-08-24", funnel: f),
             "effort detect day=2026-08-24 hr=34137 motion=34136 restHR=59 floor=74 "
                 + "motionOK=1203 hrMissing=12 hrTooLow=1103 active=88 runs=6 bridged=4 "
+                + "longestRunS=212 meanRunS=74 "
                 + "short=4 noHR=0 lowIntensity=0 kept=0")
+    }
+
+    /// The field case these two fields exist for.
+    ///
+    /// A real log showed 22 days of `kept=0` with ~100 runs a day and ~2 h of "active" time. The counts
+    /// alone cannot say whether that is normal life clearing `restHR+15` in one-minute bursts (an honest
+    /// zero) or a real session shattered into fragments (a bug) — settling it took asking the user
+    /// whether they had trained. `longestRunS` answers it from the line: 74 s against a five-minute bar
+    /// is daily life, and no threshold change would rescue it.
+    func testTheLongestRunSeparatesAnHonestZeroFromAShatteredBout() {
+        var daily = WorkoutDetector.DetectionFunnel()
+        daily.bridged = 79; daily.longestRunS = 74; daily.meanRunS = 41
+        daily.droppedShort = 64; daily.droppedLowIntensity = 15; daily.kept = 0
+        let dailyLine = WorkoutDetector.detectionFunnelLine(day: "2026-08-24", funnel: daily)
+        XCTAssertTrue(dailyLine.contains("longestRunS=74"))
+        XCTAssertLessThan(daily.longestRunS, Int(WorkoutDetector.minExerciseMin * 60),
+                          "74 s cannot clear a five-minute bar — kept=0 is correct, not a defect")
+
+        var shattered = WorkoutDetector.DetectionFunnel()
+        shattered.bridged = 79; shattered.longestRunS = 1500; shattered.meanRunS = 900
+        shattered.droppedShort = 64; shattered.droppedLowIntensity = 15; shattered.kept = 0
+        XCTAssertGreaterThan(shattered.longestRunS, Int(WorkoutDetector.minExerciseMin * 60),
+                             "a 25-minute run dropped with kept=0 is the reading that IS worth chasing")
     }
 }

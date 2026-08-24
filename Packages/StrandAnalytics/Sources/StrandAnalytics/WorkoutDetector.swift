@@ -170,6 +170,19 @@ public enum WorkoutDetector {
         /// Contiguous runs after gap-merging, and after the #303 HR-gated bridge.
         public var runs = 0
         public var bridged = 0
+        /// The LONGEST and MEAN bridged run, in seconds, before any qualification gate drops anything.
+        ///
+        /// These separate the only two stories a `kept=0` day can tell, and the counts alone cannot. A
+        /// field log showing 22 days of `kept=0` with ~100 runs and ~2 h of daily "active" time is equally
+        /// consistent with normal life (stairs and walking brushing past `restHR+15` in one-minute bursts
+        /// — an honest zero) and with a real session shattered into sub-threshold fragments (a bug).
+        /// Telling them apart needed `longestRunS`: below `minExerciseMin` it is daily life, and a
+        /// 25-minute run still dropped is a defect worth chasing.
+        ///
+        /// Without them the question could only be settled by asking the user whether they had trained,
+        /// which is precisely the round-trip an always-on diagnostic exists to remove.
+        public var longestRunS = 0
+        public var meanRunS = 0
         /// Runs rejected by each qualification gate, and the survivors.
         public var droppedShort = 0
         public var droppedNoHR = 0
@@ -188,6 +201,7 @@ public enum WorkoutDetector {
             + "restHR=\(round0(f.restingHR)) floor=\(round0(f.hrFloor)) "
             + "motionOK=\(f.motionPassed) hrMissing=\(f.hrMissing) hrTooLow=\(f.hrTooLow) "
             + "active=\(f.active) runs=\(f.runs) bridged=\(f.bridged) "
+            + "longestRunS=\(f.longestRunS) meanRunS=\(f.meanRunS) "
             + "short=\(f.droppedShort) noHR=\(f.droppedNoHR) lowIntensity=\(f.droppedLowIntensity) "
             + "kept=\(f.kept)"
     }
@@ -468,6 +482,13 @@ public enum WorkoutDetector {
         // gaps. Runs over a genuine rest (HR falls to resting) are NOT bridged.
         runs = bridgeRuns(runs, hrSeg: hrSeg, hrFloor: hrFloor)
         f.bridged = runs.count
+        // Measured on the BRIDGED runs, before any qualification gate: this is the shape of what the
+        // detector was offered, which is the thing a `kept=0` day has to be judged against.
+        if !runs.isEmpty {
+            let durs = runs.map { max(0, $0.1 - $0.0) }
+            f.longestRunS = durs.max() ?? 0
+            f.meanRunS = durs.reduce(0, +) / durs.count
+        }
 
         let minDurS = minExerciseMin * 60.0
         var sessions: [ExerciseSession] = []
