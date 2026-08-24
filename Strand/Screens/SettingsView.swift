@@ -979,6 +979,34 @@ struct SettingsView: View {
                         Text("0-100").tag(EffortScale.hundred.rawValue)
                         Text("0-21").tag(EffortScale.whoop.rawValue)
                     }
+                // #1545: placed directly under the Effort SCALE row on purpose. It shipped in the
+                // experimental block beside the SpO2 and stress-baseline toggles, where the person who
+                // asked for it could not find it — a setting built for a specific report is no use if
+                // the reporter cannot locate it. The two rows are different concepts (that one is the
+                // display AXIS, this the computation RECIPE) but a user asking "how is my Effort worked
+                // out" reaches for the same place for both, and each row's caption separates them.
+                // MARK: #1545 Effort scale — Banister exponential TRIMP instead of Edwards zones.
+                Divider().overlay(StrandPalette.hairline)
+
+                Toggle(isOn: $banisterEffortEnabled) {
+                    Text("Effort: exponential intensity scale")
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textPrimary)
+                }
+                .toggleStyle(.switch)
+                .tint(StrandPalette.accent)
+                .onChangeCompat(of: banisterEffortEnabled) { _ in
+                    // Re-score immediately on the flip. The recipe changes stored Effort for EVERY day in
+                    // the window, so without this the user waits up to 30 min for the next analyze loop
+                    // while the screen still shows scores from the recipe they just turned off — and the
+                    // toggle's own copy promises the history is re-scored. Same pattern as the SpO2
+                    // candidate and HRV-window toggles (analyzeRecent → refresh).
+                    Task { await model.intelligence.analyzeRecent(); await model.repo.refresh() }
+                }
+                Text("Scores Effort on an exponential intensity curve (Banister TRIMP) instead of the default heart-rate zones (Edwards). The default earns nothing below half of your heart-rate reserve, so an hour of lifting — where hard sets average out against the rests — can score close to zero. The exponential curve has no floor and weights short, hard efforts far more heavily. Re-scores your history, and both scales reach the same maximum. Off by default.")
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
                     .labelsHidden()
                     .pickerStyle(.menu)
                     .tint(StrandPalette.accent)
@@ -2019,28 +2047,6 @@ struct SettingsView: View {
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                // MARK: #1545 Effort scale — Banister exponential TRIMP instead of Edwards zones.
-                Divider().overlay(StrandPalette.hairline)
-
-                Toggle(isOn: $banisterEffortEnabled) {
-                    Text("Effort: exponential intensity scale")
-                        .font(StrandFont.subhead)
-                        .foregroundStyle(StrandPalette.textPrimary)
-                }
-                .toggleStyle(.switch)
-                .tint(StrandPalette.accent)
-                .onChangeCompat(of: banisterEffortEnabled) { _ in
-                    // Re-score immediately on the flip. The recipe changes stored Effort for EVERY day in
-                    // the window, so without this the user waits up to 30 min for the next analyze loop
-                    // while the screen still shows scores from the recipe they just turned off — and the
-                    // toggle's own copy promises the history is re-scored. Same pattern as the SpO2
-                    // candidate and HRV-window toggles (analyzeRecent → refresh).
-                    Task { await model.intelligence.analyzeRecent(); await model.repo.refresh() }
-                }
-                Text("Scores Effort on an exponential intensity curve (Banister TRIMP) instead of the default heart-rate zones (Edwards). The default earns nothing below half of your heart-rate reserve, so an hour of lifting — where hard sets average out against the rests — can score close to zero. The exponential curve has no floor and weights short, hard efforts far more heavily. Re-scores your history, and both scales reach the same maximum. Off by default.")
-                    .font(StrandFont.caption)
-                    .foregroundStyle(StrandPalette.textTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
 
                 // MARK: #891 ECG raw-data gate — the second device-config key this app may write, MG-only.
                 Divider().overlay(StrandPalette.hairline)

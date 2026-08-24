@@ -1214,6 +1214,49 @@ fun SettingsScreen(
                         },
                     )
                 }
+                // #1545: sits directly under the Effort SCALE row on purpose. It shipped in the
+                // experimental block beside the sleep-staging toggles, where @dofimn could not find it —
+                // a setting built for a specific report is no use if the person who asked for it cannot
+                // locate it. The two rows are different concepts (that one is the display AXIS, this one
+                // is the computation RECIPE) but a user asking "how is my Effort worked out" reaches for
+                // the same place for both, and each row's own caption separates them.
+                // #1545: Effort on Banister's EXPONENTIAL TRIMP instead of Edwards' heart-rate zones.
+                // Edwards pays nothing below 50% HRR, so an hour of lifting — hard sets averaged against
+                // the rests — can score near zero. Default OFF: it re-scores the whole window against a
+                // different recipe. Both scales top out at 100 via their own log denominator. Mirrors iOS.
+                SettingsRowDivider()
+                var banisterEffort by remember { mutableStateOf(NoopPrefs.banisterEffort(context)) }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Text(
+                        uiString(R.string.l10n_settings_screen_effort_exponential_scale),
+                        style = NoopType.subhead,
+                        color = Palette.textPrimary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(
+                        checked = banisterEffort,
+                        onCheckedChange = {
+                            banisterEffort = it
+                            vm.setBanisterEffort(it)
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Palette.surfaceBase,
+                            checkedTrackColor = Palette.accent,
+                            uncheckedThumbColor = Palette.textSecondary,
+                            uncheckedTrackColor = Palette.surfaceInset,
+                            uncheckedBorderColor = Palette.hairline,
+                        ),
+                    )
+                }
+                Text(
+                    uiString(R.string.l10n_settings_screen_effort_exponential_scale_desc),
+                    style = NoopType.caption,
+                    color = Palette.textTertiary,
+                )
             }
         }
 
@@ -2725,43 +2768,6 @@ fun SettingsScreen(
                     )
                 }
 
-                // #1545: Effort on Banister's EXPONENTIAL TRIMP instead of Edwards' heart-rate zones.
-                // Edwards pays nothing below 50% HRR, so an hour of lifting — hard sets averaged against
-                // the rests — can score near zero. Default OFF: it re-scores the whole window against a
-                // different recipe. Both scales top out at 100 via their own log denominator. Mirrors iOS.
-                SettingsRowDivider()
-                var banisterEffort by remember { mutableStateOf(NoopPrefs.banisterEffort(context)) }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    Text(
-                        uiString(R.string.l10n_settings_screen_effort_exponential_scale),
-                        style = NoopType.subhead,
-                        color = Palette.textPrimary,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Switch(
-                        checked = banisterEffort,
-                        onCheckedChange = {
-                            banisterEffort = it
-                            vm.setBanisterEffort(it)
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Palette.surfaceBase,
-                            checkedTrackColor = Palette.accent,
-                            uncheckedThumbColor = Palette.textSecondary,
-                            uncheckedTrackColor = Palette.surfaceInset,
-                            uncheckedBorderColor = Palette.hairline,
-                        ),
-                    )
-                }
-                Text(
-                    uiString(R.string.l10n_settings_screen_effort_exponential_scale_desc),
-                    style = NoopType.caption,
-                    color = Palette.textTertiary,
-                )
                 Text(
                     "Scores today's hour-by-hour stress timeline against YOUR own cross-day baseline " +
                         "(how your days usually run, Oura-style) instead of the day's own calm hours. The " +
