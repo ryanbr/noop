@@ -60,7 +60,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -688,7 +687,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      * Mirrors the iOS HealthView loading `spo2_candidate` from the repository.
      */
     val spo2CandidateByDay: StateFlow<Map<String, Double>> =
-        combine(recentDays, flowOf(NoopPrefs.spo2CandidateDisplay(appContext))) { days, toggleOn ->
+        combine(recentDays, NoopPrefs.spo2CandidateDisplayFlow(appContext)) { days, toggleOn ->
             if (!toggleOn || days.isEmpty()) emptyMap()
             else {
                 val from = days.first().day
