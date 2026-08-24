@@ -147,26 +147,33 @@ final class DetectionFunnelTests: XCTestCase {
                 + "short=4 noHR=0 lowIntensity=0 kept=0")
     }
 
-    /// The field case these two fields exist for.
+    /// The field case these two fields exist for, with the gate ORDER that makes them necessary.
     ///
-    /// A real log showed 22 days of `kept=0` with ~100 runs a day and ~2 h of "active" time. The counts
-    /// alone cannot say whether that is normal life clearing `restHR+15` in one-minute bursts (an honest
-    /// zero) or a real session shattered into fragments (a bug) — settling it took asking the user
-    /// whether they had trained. `longestRunS` answers it from the line: 74 s against a five-minute bar
-    /// is daily life, and no threshold change would rescue it.
-    func testTheLongestRunSeparatesAnHonestZeroFromAShatteredBout() {
-        var daily = WorkoutDetector.DetectionFunnel()
-        daily.bridged = 79; daily.longestRunS = 74; daily.meanRunS = 41
-        daily.droppedShort = 64; daily.droppedLowIntensity = 15; daily.kept = 0
-        let dailyLine = WorkoutDetector.detectionFunnelLine(day: "2026-08-24", funnel: daily)
-        XCTAssertTrue(dailyLine.contains("longestRunS=74"))
-        XCTAssertLessThan(daily.longestRunS, Int(WorkoutDetector.minExerciseMin * 60),
-                          "74 s cannot clear a five-minute bar — kept=0 is correct, not a defect")
+    /// `droppedShort` is tested first and short-circuits, so a non-zero `droppedLowIntensity` already
+    /// proves some run cleared the duration bar. What it cannot say is by how much — and that is the
+    /// whole difference between a five-minute stroll and an hour-long effort wrongly rejected.
+    ///
+    /// Both fixtures carry the SAME counts, taken from a real 22-day log (79 bridged, 64 short, 15
+    /// low-intensity, kept=0). Only `longestRunS` tells them apart.
+    func testTheLongestRunSizesWhatSurvivedTheDurationGate() {
+        let minDurS = Int(WorkoutDetector.minExerciseMin * 60)
 
-        var shattered = WorkoutDetector.DetectionFunnel()
-        shattered.bridged = 79; shattered.longestRunS = 1500; shattered.meanRunS = 900
-        shattered.droppedShort = 64; shattered.droppedLowIntensity = 15; shattered.kept = 0
-        XCTAssertGreaterThan(shattered.longestRunS, Int(WorkoutDetector.minExerciseMin * 60),
-                             "a 25-minute run dropped with kept=0 is the reading that IS worth chasing")
+        // A walk: the longest survivor barely clears five minutes, so kept=0 is an honest zero.
+        var walk = WorkoutDetector.DetectionFunnel()
+        walk.bridged = 79; walk.longestRunS = 312; walk.meanRunS = 41
+        walk.droppedShort = 64; walk.droppedLowIntensity = 15; walk.kept = 0
+        XCTAssertTrue(WorkoutDetector.detectionFunnelLine(day: "2026-08-24", funnel: walk)
+            .contains("longestRunS=312"))
+        XCTAssertLessThan(walk.longestRunS, 2 * minDurS, "barely over the bar — a walk")
+
+        // Identical counts, hour-long survivor: that is the reading worth chasing.
+        var suspicious = WorkoutDetector.DetectionFunnel()
+        suspicious.bridged = 79; suspicious.longestRunS = 3600; suspicious.meanRunS = 41
+        suspicious.droppedShort = 64; suspicious.droppedLowIntensity = 15; suspicious.kept = 0
+        XCTAssertEqual(walk.droppedShort, suspicious.droppedShort,
+                       "the counts alone cannot distinguish the two")
+        XCTAssertEqual(walk.droppedLowIntensity, suspicious.droppedLowIntensity)
+        XCTAssertGreaterThan(suspicious.longestRunS, 6 * minDurS,
+                             "an hour-long run rejected on intensity is what this field exists to surface")
     }
 }

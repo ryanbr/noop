@@ -172,15 +172,16 @@ public enum WorkoutDetector {
         public var bridged = 0
         /// The LONGEST and MEAN bridged run, in seconds, before any qualification gate drops anything.
         ///
-        /// These separate the only two stories a `kept=0` day can tell, and the counts alone cannot. A
-        /// field log showing 22 days of `kept=0` with ~100 runs and ~2 h of daily "active" time is equally
-        /// consistent with normal life (stairs and walking brushing past `restHR+15` in one-minute bursts
-        /// — an honest zero) and with a real session shattered into sub-threshold fragments (a bug).
-        /// Telling them apart needed `longestRunS`: below `minExerciseMin` it is daily life, and a
-        /// 25-minute run still dropped is a defect worth chasing.
+        /// They answer how SUBSTANTIAL the best candidate was, which the counts cannot. `droppedShort` is
+        /// checked first and short-circuits, so `droppedLowIntensity` already implies some run cleared the
+        /// duration bar — but not by how much, and that is the whole difference between a candidate
+        /// scraping five minutes and an hour-long effort rejected on intensity. The second is worth
+        /// investigating; the first is a walk.
         ///
-        /// Without them the question could only be settled by asking the user whether they had trained,
-        /// which is precisely the round-trip an always-on diagnostic exists to remove.
+        /// From the field log that motivated this: 22 days of `kept=0`, 1271 runs that never reached
+        /// `minExerciseMin` and 390 that did and failed the intensity bar instead. The counts said the
+        /// duration gate was not the whole story; only `longestRunS` says whether what survived it was a
+        /// five-minute stroll or something that should have scored.
         public var longestRunS = 0
         public var meanRunS = 0
         /// Runs rejected by each qualification gate, and the survivors.

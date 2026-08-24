@@ -175,33 +175,41 @@ class DetectionFunnelTest {
     }
 
     /**
-     * The field case these two fields exist for.
+     * The field case these two fields exist for, with the gate ORDER that makes them necessary.
      *
-     * A real log showed 22 days of `kept=0` with ~100 runs a day and ~2 h of "active" time. The counts
-     * alone cannot say whether that is normal life clearing `restHR+15` in one-minute bursts (an honest
-     * zero) or a real session shattered into fragments (a bug) — settling it took asking the user whether
-     * they had trained. [WorkoutDetector.DetectionFunnel.longestRunS] answers it from the line: 74 s
-     * against a five-minute bar is daily life, and no threshold change would rescue it.
+     * `droppedShort` is tested first and short-circuits, so a non-zero `droppedLowIntensity` already
+     * proves some run cleared the duration bar. What it cannot say is by how much — and that is the
+     * whole difference between a five-minute stroll and an hour-long effort wrongly rejected.
+     *
+     * Both fixtures below carry the SAME counts, taken from a real 22-day log (79 bridged, 64 short, 15
+     * low-intensity, kept=0). Only [WorkoutDetector.DetectionFunnel.longestRunS] tells them apart.
      */
     @Test
-    fun theLongestRunSeparatesAnHonestZeroFromAShatteredBout() {
-        val daily = WorkoutDetector.DetectionFunnel(
-            bridged = 79, longestRunS = 74, meanRunS = 41,
-            droppedShort = 64, droppedLowIntensity = 15, kept = 0,
-        )
-        assertTrue(WorkoutDetector.detectionFunnelLine("2026-08-24", daily).contains("longestRunS=74"))
-        assertTrue(
-            "74 s cannot clear a five-minute bar — kept=0 is correct, not a defect",
-            daily.longestRunS < (WorkoutDetector.minExerciseMin * 60).toInt(),
-        )
+    fun theLongestRunSizesWhatSurvivedTheDurationGate() {
+        val minDurS = (WorkoutDetector.minExerciseMin * 60).toInt()
 
-        val shattered = WorkoutDetector.DetectionFunnel(
-            bridged = 79, longestRunS = 1500, meanRunS = 900,
+        // A walk: the longest survivor barely clears five minutes, so kept=0 is an honest zero.
+        val walk = WorkoutDetector.DetectionFunnel(
+            bridged = 79, longestRunS = 312, meanRunS = 41,
             droppedShort = 64, droppedLowIntensity = 15, kept = 0,
         )
+        assertTrue(WorkoutDetector.detectionFunnelLine("2026-08-24", walk).contains("longestRunS=312"))
         assertTrue(
-            "a 25-minute run dropped with kept=0 is the reading that IS worth chasing",
-            shattered.longestRunS > (WorkoutDetector.minExerciseMin * 60).toInt(),
+            "the counts alone cannot distinguish this from the case below",
+            walk.droppedShort == 64 && walk.droppedLowIntensity == 15,
+        )
+        assertTrue("barely over the bar — a walk", walk.longestRunS < 2 * minDurS)
+
+        // Identical counts, hour-long survivor: that is the reading worth chasing.
+        val suspicious = WorkoutDetector.DetectionFunnel(
+            bridged = 79, longestRunS = 3600, meanRunS = 41,
+            droppedShort = 64, droppedLowIntensity = 15, kept = 0,
+        )
+        assertEquals(walk.droppedShort, suspicious.droppedShort)
+        assertEquals(walk.droppedLowIntensity, suspicious.droppedLowIntensity)
+        assertTrue(
+            "an hour-long run rejected on intensity is what this field exists to surface",
+            suspicious.longestRunS > 6 * minDurS,
         )
     }
 }
