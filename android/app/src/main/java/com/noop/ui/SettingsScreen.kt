@@ -1993,12 +1993,14 @@ fun SettingsScreen(
                         // asked for — "I can enable it but can't disable it" is a request for a working
                         // off, not for the switch to go away.
                         //
-                        // Both directions DO work; they route rather than write. Swiping ON fires the
-                        // one-tap grant dialog. Swiping OFF opens NOOP's system settings page — the only
-                        // place Android lets a user take the exemption back. `checked` stays bound to the
-                        // LIVE system state and is never flipped optimistically, so the switch always shows
-                        // what the OS actually thinks; the ON_RESUME observer above re-reads it the moment
-                        // the user comes back, whichever way they went.
+                        // Both directions DO work; they route rather than write. NOOP cannot set this flag
+                        // either way — "on" only opens a system dialog the user approves, which is why the
+                        // two directions were never symmetric in the first place. ON fires that grant
+                        // dialog; OFF opens the system Battery-optimisation list, whose entry for NOOP
+                        // carries the control. `checked` stays bound to the LIVE system state and is never
+                        // flipped optimistically, so the switch always shows what the OS actually thinks;
+                        // the ON_RESUME observer above re-reads it the moment the user comes back,
+                        // whichever way they went.
                         Switch(
                             checked = batteryExempt,
                             onCheckedChange = {
@@ -2021,7 +2023,7 @@ fun SettingsScreen(
                                     // NOOP carries the Optimise / Don't-optimise control itself — the
                                     // nearest thing to the switch the user just flipped. App-info is the
                                     // fallback, since it always resolves but buries the control a level down.
-                                    com.noop.ble.BackgroundHealth.BatteryRowAction.OpenAppSettings ->
+                                    com.noop.ble.BackgroundHealth.BatteryRowAction.OpenRevokeSettings ->
                                         runCatching {
                                             context.startActivity(com.noop.ble.BackgroundHealth.batteryOptimizationSettingsIntent())
                                         }.onFailure {

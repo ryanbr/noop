@@ -51,9 +51,9 @@ class BackgroundHealthTest {
      * battery-optimisation exemption, so the off direction did nothing and the switch sprang back.
      *
      * The row stays a Switch; what it needed was an off direction that goes somewhere. Every state maps
-     * to an action here, so neither swipe is a dead end: "off" resolves to the system settings page that
-     * genuinely can revoke the grant. That is what this pins — not the widget, but the guarantee that no
-     * state exists which the UI cannot act on.
+     * to an action here, so neither swipe is a dead end: "off" resolves to the screen that genuinely can
+     * revoke the grant. That is what this pins — not the widget, and not which screen, but the guarantee
+     * that no state exists which the UI cannot act on.
      */
     @Test
     fun bothStatesHaveAnAction() {
@@ -62,7 +62,7 @@ class BackgroundHealthTest {
             BackgroundHealth.batteryRowAction(isExempt = false),
         )
         assertEquals(
-            BackgroundHealth.BatteryRowAction.OpenAppSettings,
+            BackgroundHealth.BatteryRowAction.OpenRevokeSettings,
             BackgroundHealth.batteryRowAction(isExempt = true),
         )
     }
@@ -76,7 +76,7 @@ class BackgroundHealthTest {
     @Test
     fun theGrantedStateOffersAWayBack() {
         assertEquals(
-            BackgroundHealth.BatteryRowAction.OpenAppSettings,
+            BackgroundHealth.BatteryRowAction.OpenRevokeSettings,
             BackgroundHealth.batteryRowAction(isExempt = true),
         )
     }
