@@ -102,6 +102,34 @@ final class DetectionFunnelTests: XCTestCase {
         XCTAssertEqual(f.kept, 0)
     }
 
+    /// The funnel must ACCOUNT for everything, not merely count some things.
+    ///
+    /// Two arithmetic invariants hold by construction, because each gate is an exclusive `continue`:
+    ///   A. every motion sample that cleared its gate is then either a sensor gap, a too-low heart rate,
+    ///      or active — `motionOK == hrMissing + hrTooLow + active`;
+    ///   B. every run that survived bridging has exactly one outcome —
+    ///      `bridged == short + noHR + lowIntensity + kept`.
+    ///
+    /// This is the test that earns the funnel its trust. A future gate added to the detector without a
+    /// matching counter would silently make some rejections vanish from the line — and a diagnostic that
+    /// loses candidates without saying so is exactly the thing this whole feature exists to stop being.
+    func testEveryRejectedCandidateIsAccountedFor() throws {
+        let cases: [(String, [HRSample], [GravitySample])] = [
+            ("still", hrs(3600, 150), still(3600)),
+            ("unexerted", hrs(3600, 62), moving(3600)),
+            ("hr gap", hrs(60, 150), moving(3600)),
+            ("short", hrs(600, 60) + hrs(120, 150, from: 600) + hrs(2880, 60, from: 720), moving(3600)),
+            ("real", hrs(600, 60) + hrs(2400, 150, from: 600) + hrs(600, 60, from: 3000), moving(3600)),
+        ]
+        for (name, hr, grav) in cases {
+            let f = try funnelOf(hr, grav)
+            XCTAssertEqual(f.motionPassed, f.hrMissing + f.hrTooLow + f.active,
+                           "\(name): motionOK must equal hrMissing + hrTooLow + active (\(f))")
+            XCTAssertEqual(f.bridged, f.droppedShort + f.droppedNoHR + f.droppedLowIntensity + f.kept,
+                           "\(name): bridged runs must equal short + noHR + lowIntensity + kept (\(f))")
+        }
+    }
+
     /// The exact bytes. Compared between two users' logs and across platforms, so the shape is contract.
     func testTheLineIsExactlyThis() {
         var f = WorkoutDetector.DetectionFunnel()

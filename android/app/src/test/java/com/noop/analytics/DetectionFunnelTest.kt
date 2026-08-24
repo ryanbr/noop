@@ -121,6 +121,41 @@ class DetectionFunnelTest {
         assertEquals(0, f.kept)
     }
 
+    /**
+     * The funnel must ACCOUNT for everything, not merely count some things.
+     *
+     * Two arithmetic invariants hold by construction, because each gate is an exclusive `continue`:
+     *   A. every motion sample that cleared its gate is then either a sensor gap, a too-low heart rate,
+     *      or active — `motionOK == hrMissing + hrTooLow + active`;
+     *   B. every run that survived bridging has exactly one outcome —
+     *      `bridged == short + noHR + lowIntensity + kept`.
+     *
+     * This is the test that earns the funnel its trust. A future gate added to the detector without a
+     * matching counter would silently make some rejections vanish from the line — and a diagnostic that
+     * loses candidates without saying so is exactly the thing this whole feature exists to stop being.
+     */
+    @Test
+    fun everyRejectedCandidateIsAccountedFor() {
+        val cases = listOf(
+            "still" to Pair(hrs(3600, 150), still(3600)),
+            "unexerted" to Pair(hrs(3600, 62), moving(3600)),
+            "hr gap" to Pair(hrs(60, 150), moving(3600)),
+            "short" to Pair(hrs(600, 60) + hrs(120, 150, 600) + hrs(2880, 60, 720), moving(3600)),
+            "real" to Pair(hrs(600, 60) + hrs(2400, 150, 600) + hrs(600, 60, 3000), moving(3600)),
+        )
+        for ((name, io) in cases) {
+            val f = funnelOf(io.first, io.second)
+            assertEquals(
+                "$name: motionOK must equal hrMissing + hrTooLow + active ($f)",
+                f.motionPassed, f.hrMissing + f.hrTooLow + f.active,
+            )
+            assertEquals(
+                "$name: bridged runs must equal short + noHR + lowIntensity + kept ($f)",
+                f.bridged, f.droppedShort + f.droppedNoHR + f.droppedLowIntensity + f.kept,
+            )
+        }
+    }
+
     /** The exact bytes. Compared between two users' logs and across platforms, so the shape is contract. */
     @Test
     fun theLineIsExactlyThis() {
