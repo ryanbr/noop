@@ -2437,6 +2437,4 @@
     <string name="workout_delete_message">Isto interrompe a gravação e elimina permanentemente o treino.</string>
     <string name="l10n_settings_screen_effort_exponential_scale">Esforço: escala de intensidade exponencial</string>
     <string name="l10n_settings_screen_effort_exponential_scale_desc">Pontua o Esforço numa curva de intensidade exponencial (TRIMP de Banister) em vez das zonas de frequência cardíaca predefinidas (Edwards). A predefinição não conta nada abaixo de metade da tua reserva de frequência cardíaca, por isso uma hora de musculação — em que as séries duras se compensam com os descansos — pode pontuar quase zero. A curva exponencial não tem limiar e pondera muito mais os esforços curtos e intensos. Volta a pontuar o teu histórico e ambas as escalas atingem o mesmo máximo. Desativado por predefinição.</string>
-    <string name="l10n_settings_screen_allow_3ad0e369">Permitir</string>
-    <string name="l10n_settings_screen_manage_bf58d17e">Gerir</string>
 </resources>

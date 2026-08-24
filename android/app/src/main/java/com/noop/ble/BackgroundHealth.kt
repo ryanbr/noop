@@ -18,9 +18,12 @@ import android.provider.Settings
  * [oemAutostartIntent] only build Intents — the caller starts one exactly when the user taps, and the
  * row reflects live [isBatteryExempt] state so an already-exempt user is never prompted again.
  *
- * That row is a STATUS LINE PLUS ONE ACTION, deliberately not a switch: Android exposes no way to
- * revoke an app's own exemption, so a bidirectional control could never honour half its input. It was
- * a Switch once, and was reported as broken for exactly that reason. See [batteryRowAction].
+ * That row is a SWITCH whose two directions ROUTE rather than write. Android exposes no way to revoke
+ * an app's own exemption, so neither direction can change the state directly: [batteryRowAction] sends
+ * "on" to the grant dialog and "off" to NOOP's system settings page, which is where a user genuinely
+ * can take it back. The switch is bound to live [isBatteryExempt] and never flips optimistically, so
+ * it reports the OS's answer rather than the tap. (It was briefly a status line plus a "Manage"/"Allow"
+ * action; that deleted the control rather than fixing the reported "can't disable it".)
  *
  * The whitelist adds NO battery cost of its own: it removes a premature kill, it does not add work.
  * The real cost is the existing "Keep connected in the background" / "Continuous HRV" / "Overnight only"

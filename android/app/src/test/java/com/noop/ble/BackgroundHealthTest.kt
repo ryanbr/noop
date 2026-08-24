@@ -47,11 +47,13 @@ class BackgroundHealthTest {
     /**
      * The reported bug, at the level it actually lived.
      *
-     * The row was a Switch, and it could be turned on but not off — Android has no API to revoke an app's
-     * own battery-optimisation exemption, so the off direction did nothing and the switch sprang back. The
-     * fix is not a smarter Switch: a bidirectional control was the wrong shape for a one-way grant. The row
-     * is now a status line plus ONE action, and the action is defined for BOTH states — which is what stops
-     * a state existing that the UI cannot act on.
+     * The row could be turned on but not off — Android has no API to revoke an app's own
+     * battery-optimisation exemption, so the off direction did nothing and the switch sprang back.
+     *
+     * The row stays a Switch; what it needed was an off direction that goes somewhere. Every state maps
+     * to an action here, so neither swipe is a dead end: "off" resolves to the system settings page that
+     * genuinely can revoke the grant. That is what this pins — not the widget, but the guarantee that no
+     * state exists which the UI cannot act on.
      */
     @Test
     fun bothStatesHaveAnAction() {

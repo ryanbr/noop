@@ -2470,6 +2470,4 @@
     <string name="workout_delete_message">This stops recording and permanently discards the workout.</string>
     <string name="l10n_settings_screen_effort_exponential_scale">Effort: exponential intensity scale</string>
     <string name="l10n_settings_screen_effort_exponential_scale_desc">Scores Effort on an exponential intensity curve (Banister TRIMP) instead of the default heart-rate zones (Edwards). The default earns nothing below half of your heart-rate reserve, so an hour of lifting — where hard sets average out against the rests — can score close to zero. The exponential curve has no floor and weights short, hard efforts far more heavily. Re-scores your history, and both scales reach the same maximum. Off by default.</string>
-    <string name="l10n_settings_screen_allow_3ad0e369">Allow</string>
-    <string name="l10n_settings_screen_manage_bf58d17e">Manage</string>
 </resources>

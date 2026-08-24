@@ -2449,6 +2449,4 @@
     <string name="workout_delete_message">Spowoduje to zatrzymanie nagrywania i trwałe odrzucenie treningu.</string>
     <string name="l10n_settings_screen_effort_exponential_scale">Wysiłek: wykładnicza skala intensywności</string>
     <string name="l10n_settings_screen_effort_exponential_scale_desc">Ocenia Wysiłek według wykładniczej krzywej intensywności (TRIMP Banistera) zamiast domyślnych stref tętna (Edwards). Ustawienie domyślne nie liczy niczego poniżej połowy rezerwy tętna, więc godzina treningu siłowego — gdzie ciężkie serie uśredniają się z przerwami — może dać wynik bliski zeru. Krzywa wykładnicza nie ma progu i znacznie mocniej waży krótkie, intensywne wysiłki. Przelicza historię, a obie skale osiągają to samo maksimum. Domyślnie wyłączone.</string>
-    <string name="l10n_settings_screen_allow_3ad0e369">Zezwól</string>
-    <string name="l10n_settings_screen_manage_bf58d17e">Zarządzaj</string>
 </resources>

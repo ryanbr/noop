@@ -2458,6 +2458,4 @@
     <string name="workout_delete_message">Dadurch wird die Aufzeichnung beendet und das Workout endgültig verworfen.</string>
     <string name="l10n_settings_screen_effort_exponential_scale">Anstrengung: exponentielle Intensitätsskala</string>
     <string name="l10n_settings_screen_effort_exponential_scale_desc">Bewertet die Anstrengung mit einer exponentiellen Intensitätskurve (Banister-TRIMP) statt der voreingestellten Herzfrequenzzonen (Edwards). Die Voreinstellung zählt nichts unter der Hälfte deiner Herzfrequenzreserve, sodass eine Stunde Krafttraining – bei der sich harte Sätze mit den Pausen ausmitteln – nahezu null ergeben kann. Die exponentielle Kurve hat keine Untergrenze und gewichtet kurze, intensive Belastungen deutlich stärker. Bewertet deine Historie neu; beide Skalen erreichen dasselbe Maximum. Standardmäßig aus.</string>
-    <string name="l10n_settings_screen_allow_3ad0e369">Zulassen</string>
-    <string name="l10n_settings_screen_manage_bf58d17e">Verwalten</string>
 </resources>
