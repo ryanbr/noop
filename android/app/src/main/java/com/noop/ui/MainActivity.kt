@@ -514,7 +514,11 @@ object NoopPrefs {
      * cannot drift on the default.
      */
     fun spo2CandidateDisplayFlow(context: Context): Flow<Boolean> = callbackFlow {
-        val prefs = of(context)
+        // `applicationContext`, unlike every other accessor here. Those are point reads that return
+        // before the caller's Context can matter; this one captures it in a flow that lives as long as
+        // something collects, so an Activity passed by a future caller would be held across a rotation.
+        // The only caller today already passes an application Context — this makes it not depend on that.
+        val prefs = of(context.applicationContext)
         // Strong local for the flow's lifetime: Android holds these listeners WEAKLY, so one referenced
         // only by the register call is collected and silently stops firing (same reason SettingsScreen's
         // experiment listener keeps one).
