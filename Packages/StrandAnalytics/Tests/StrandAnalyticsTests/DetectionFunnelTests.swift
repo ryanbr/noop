@@ -156,6 +156,10 @@ final class DetectionFunnelTests: XCTestCase {
     /// Both fixtures carry the SAME counts, taken from a real 22-day log (79 bridged, 64 short, 15
     /// low-intensity, kept=0). Only `longestRunS` tells them apart.
     func testTheLongestRunSizesWhatSurvivedTheDurationGate() {
+        // The bar a run must clear is minDurS MINUS the smoothing window, not a round five minutes —
+        // pinned here so the 290 s quoted in the field's doc cannot go stale if either constant is tuned.
+        let effectiveBarS = Int(WorkoutDetector.minExerciseMin * 60 - WorkoutDetector.motionSmoothS)
+        XCTAssertEqual(effectiveBarS, 290)
         let minDurS = Int(WorkoutDetector.minExerciseMin * 60)
 
         // A walk: the longest survivor barely clears five minutes, so kept=0 is an honest zero.

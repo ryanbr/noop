@@ -182,6 +182,11 @@ public enum WorkoutDetector {
         /// `minExerciseMin` and 390 that did and failed the intensity bar instead. The counts said the
         /// duration gate was not the whole story; only `longestRunS` says whether what survived it was a
         /// five-minute stroll or something that should have scored.
+        ///
+        /// READ `longestRunS` AGAINST 290 s, NOT 300. The gate is `minDurS - motionSmoothS`
+        /// (5 min − 10 s), because the smoothing window costs a run its first samples. Comparing against
+        /// a round five minutes misjudges everything in the 290..300 window — a 295 s run cleared the
+        /// gate and would look as though it had not.
         public var longestRunS = 0
         public var meanRunS = 0
         /// Runs rejected by each qualification gate, and the survivors.

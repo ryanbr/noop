@@ -186,6 +186,11 @@ class DetectionFunnelTest {
      */
     @Test
     fun theLongestRunSizesWhatSurvivedTheDurationGate() {
+        // The bar a run must clear is minDurS MINUS the smoothing window, not a round five minutes —
+        // pinned here so the 290 s quoted in the field's doc cannot go stale if either constant is tuned.
+        val effectiveBarS =
+            (WorkoutDetector.minExerciseMin * 60 - WorkoutDetector.motionSmoothS).toInt()
+        assertEquals(290, effectiveBarS)
         val minDurS = (WorkoutDetector.minExerciseMin * 60).toInt()
 
         // A walk: the longest survivor barely clears five minutes, so kept=0 is an honest zero.
