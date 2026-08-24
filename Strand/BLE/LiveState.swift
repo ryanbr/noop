@@ -786,6 +786,10 @@ public final class LiveState: ObservableObject {
         #if os(iOS)
         let diagLines = IOSDiagnostics.capture().summaryLines()
         if !diagLines.isEmpty { header += diagLines.joined(separator: "\n") + "\n" }
+        // #1578: what the Apple Health observer path cost this session. Silent unless it ran, so a log from
+        // someone with Health off or unauthorized is unchanged.
+        let healthLines = HealthSyncStats.summaryLines()
+        if !healthLines.isEmpty { header += healthLines.joined(separator: "\n") + "\n" }
         #endif
         if !extraHeaderLines.isEmpty { header += extraHeaderLines.joined(separator: "\n") + "\n" }
         header += String(repeating: "-", count: 40) + "\n"

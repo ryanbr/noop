@@ -345,10 +345,14 @@ final class HealthKitBridge: ObservableObject {
     /// keeps every per-day average correct and idempotent — `sync` upserts are keyed by day.
     private func syncFromObserver(type: HKSampleType) async {
         guard auth == .authorized else { return }
+        // #1578: counted before any early return, so the ratio of wakes to syncs is honest. Coalescing
+        // cuts the work per wake, not the wakes — this is what shows whether the wake itself is the cost.
+        HealthSyncStats.recordWake()
         let (touched, newAnchor) = await fetchTouchedDayWindow(type: type)
         // No new samples since the last anchor (a spurious wake): nothing to ingest, so advancing the
         // anchor now loses nothing and skips a redundant re-query next wake.
         guard let touched else {
+            HealthSyncStats.recordEmptyWake()
             if let newAnchor { persistAnchor(newAnchor, for: type) }
             return
         }
@@ -369,6 +373,7 @@ final class HealthKitBridge: ObservableObject {
         let sinceLastSync = lastSync.map { Date().timeIntervalSince($0) }
         if let age = sinceLastSync, age >= 0, age < Self.observerCoalesceWindow,
            window <= lastSyncDays {
+            HealthSyncStats.recordCoalesced()
             // Deliberately do NOT advance the anchor here. Samples that landed AFTER that sync's reads but
             // before this wake are not in the store yet, and advancing past them would leave them to be
             // picked up only incidentally — by whatever later sync happens to re-read the same day. Leaving
@@ -443,7 +448,14 @@ final class HealthKitBridge: ObservableObject {
             return false
         }
         syncing = true
-        defer { finishHealthPass() }
+        // #1578: time the whole pass — the ~15 aggregate reads, the upserts and the write-back. Recorded in
+        // `defer` so an early or thrown exit still contributes; a pass that cost time and then failed is
+        // exactly the one a drain report needs to show.
+        let passStart = Date()
+        defer {
+            HealthSyncStats.recordSync(millis: Int(Date().timeIntervalSince(passStart) * 1000))
+            finishHealthPass()
+        }
         // Before reading: pick up any read type this version added that the user was never asked about
         // (#949). No-op once the stored signature matches, which is every sync after the first.
         await requestNewReadTypesIfNeeded()
