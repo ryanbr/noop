@@ -2126,8 +2126,8 @@ class WhoopBleClient(
                         useExperimentalSleepV2 = PuffinExperiment.from(context).experimentalSleepV2,
                         // Opt-in motion-aware wake refinement (#364 follow-up) — same Context-free threading.
                         useMotionAwareWake = PuffinExperiment.from(context).motionAwareWake,
-                        // HR-first sleep detection (experimental, default OFF) — same Context-free threading.
-                        useHrFirstSleep = PuffinExperiment.from(context).hrFirstSleep,
+                        // Wake-gap bridging (experimental, default OFF) — same Context-free threading.
+                        useWakeBridge = PuffinExperiment.from(context).sleepWakeBridge,
                         // Sleep & Rest test mode (Test Centre E5): when the SLEEP domain is on, route this
                         // post-backfill pass's per-day sleep gate trace into the .sleep-tagged strap log, so a
                         // shared report carries the staging proof from THIS scoring pass too, not only the UI

@@ -184,10 +184,10 @@ object IntelligenceEngine {
         // OWN observed gravity + step density (see [WakeMotionRefinement]), so existing callers / tests
         // and any night too sparse to trust (e.g. a WHOOP 4.0) are unaffected either way.
         useMotionAwareWake: Boolean = false,
-        // HR-first sleep detection (experimental, default OFF), threaded the same Context-free way: the
-        // Context-aware caller reads PuffinExperiment.from(context).hrFirstSleep and passes it down to
-        // AnalyticsEngine.analyzeDay. See [SleepStager.wakeBridgeMaxMin]'s section comment. Mirrors Swift.
-        useHrFirstSleep: Boolean = false,
+        // Wake-gap bridging (experimental, default OFF), threaded the same Context-free way: the
+        // Context-aware caller reads PuffinExperiment.from(context).sleepWakeBridge and passes it down
+        // to AnalyticsEngine.analyzeDay. See [SleepStager.wakeBridgeMaxMin]'s section comment. Mirrors Swift.
+        useWakeBridge: Boolean = false,
         // Sleep & Rest test-mode trace sink (Test Centre E5). The analytics layer is Context-free, so the
         // Context-aware caller (AppViewModel / WhoopBleClient) reads TestCentre.active(SLEEP) and passes a
         // non-null sink ONLY when the mode is on, routing each line to the .sleep-tagged strap log. null (the
@@ -235,7 +235,7 @@ object IntelligenceEngine {
         analyzeGate.withLock {
             val (out, healed) = analyzeRecentOnCpu(repo, profile, maxDays, importedDeviceId, maxHROverride,
                 nowSeconds, ownerSource, manualStepCoefficient, persistStepsCalibration, baselineEpoch,
-                recoveryEpoch, diag, useExperimentalSleepV2, useMotionAwareWake, useHrFirstSleep,
+                recoveryEpoch, diag, useExperimentalSleepV2, useMotionAwareWake, useWakeBridge,
                 sleepTraceSink, recoveryTraceSink,
                 stepsTraceSink, universalSink, workoutsTraceSink, hrvTraceSink, deepHrvWindow)
             if (healed == 0) out
@@ -246,7 +246,7 @@ object IntelligenceEngine {
             // are gone), so this can never loop. Mirrors the Swift pendingForcedRescore re-arm.
             else analyzeRecentOnCpu(repo, profile, maxDays, importedDeviceId, maxHROverride,
                 nowSeconds, ownerSource, manualStepCoefficient, persistStepsCalibration, baselineEpoch,
-                recoveryEpoch, diag, useExperimentalSleepV2, useMotionAwareWake, useHrFirstSleep,
+                recoveryEpoch, diag, useExperimentalSleepV2, useMotionAwareWake, useWakeBridge,
                 sleepTraceSink, recoveryTraceSink,
                 stepsTraceSink, universalSink, workoutsTraceSink, hrvTraceSink, deepHrvWindow).first
         }
@@ -313,8 +313,8 @@ object IntelligenceEngine {
         useExperimentalSleepV2: Boolean = false,
         // Opt-in motion-aware wake refinement (#364 follow-up), threaded the same way. Default false.
         useMotionAwareWake: Boolean = false,
-        // HR-first sleep detection (experimental, default OFF), threaded the same way. Default false.
-        useHrFirstSleep: Boolean = false,
+        // Wake-gap bridging (experimental, default OFF), threaded the same way. Default false.
+        useWakeBridge: Boolean = false,
         // Sleep & Rest test-mode trace sink (Test Centre E5). null = byte-identical default; when non-null
         // each scored day threads it into AnalyticsEngine.analyzeDay so detectSleep's gate trace + the Rest
         // sub-score line forward line-by-line to the .sleep-tagged strap log. Mirrors Swift.
@@ -600,8 +600,8 @@ object IntelligenceEngine {
                 useSleepStagerV2 = useExperimentalSleepV2,
                 // #364 follow-up: same threading for the motion-aware wake refinement post-pass.
                 useMotionAwareWake = useMotionAwareWake,
-                // HR-first sleep detection (experimental, default OFF).
-                useHrFirstSleep = useHrFirstSleep,
+                // Wake-gap bridging (experimental, default OFF).
+                useWakeBridge = useWakeBridge,
                 // Sleep & Rest test mode (Test Centre E5): thread the trace sink straight through. null (the
                 // default) keeps analyzeDay's byte-identical untraced path; when the caller passed a non-null
                 // sink (mode on), detectSleep's gate trace + the Rest sub-score line route to the .sleep-tagged

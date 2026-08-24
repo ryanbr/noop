@@ -201,22 +201,21 @@ enum PuffinExperiment {
 
     static var motionAwareWakeEnabled: Bool { UserDefaults.standard.bool(forKey: motionAwareWakeKey) }
 
-    /// Opt-in "HR-first sleep detection" (default OFF): weight the cardiac signal over wrist motion when
-    /// the two disagree, inside `SleepStager.detectSleep`. Two effects, both BEFORE the gate ladder:
-    /// a motion-"active" run whose median HR sits inside the same sleep band the ladder already trusts is
-    /// rescued as sleep (a restless-but-asleep night — periodic limb movement, an injured sleeper, or a
-    /// strap whose motion channel over-reports — is no longer collapsed to its quiescent morning
-    /// fragment), and adjacent sleep runs across a ≤ 45-min wake gap are assembled into ONE session with
-    /// the wake staged inside it (a brief get-up no longer splits the night into separate stored
-    /// sessions). Every existing guard (min duration, span cap, HR confirmation, off-wrist, daytime nap
-    /// bars) still applies to the assembled runs. Default OFF per the varying-input validation
-    /// discipline (#194/#345): an awake-in-bed stretch whose HR genuinely sits in the sleep band can be
-    /// scored asleep, the same limit the still-sedentary path already has. Read at the scoring call site
+    /// Opt-in "Bridge brief wakes" (default OFF): inside `SleepStager.detectSleep`, adjacent sleep runs
+    /// across a ≤ 45-min wake gap are assembled into ONE session with the wake staged inside it, so a
+    /// brief get-up (a bathroom trip smeared past the run-merge threshold by the centered rolling
+    /// stillness window) no longer splits the night into separate stored sessions, and sub-1h sleep
+    /// fragments between arousals are no longer dropped outright. Every existing guard (min duration,
+    /// the 16-h span cap — which the bridge also refuses to assemble past — HR confirmation, off-wrist,
+    /// daytime nap bars) still applies to the assembled run. Default OFF per the varying-input
+    /// validation discipline (#194/#345). NOTE: an HR-led rescue of restless-but-asleep nights was
+    /// prototyped behind this flag and WITHDRAWN after a real-data replay — see the history note above
+    /// `SleepStager.wakeBridgeMaxMin` before re-attempting it. Read at the scoring call site
     /// (IntelligenceEngine) and threaded through `AnalyticsEngine.analyzeDay`. Mirrors the Android
-    /// `PuffinExperiment.KEY_HR_FIRST_SLEEP`.
-    static let hrFirstSleepKey = "noopHrFirstSleep"
+    /// `PuffinExperiment.KEY_SLEEP_WAKE_BRIDGE`.
+    static let wakeBridgeKey = "noopSleepWakeBridge"
 
-    static var hrFirstSleepEnabled: Bool { UserDefaults.standard.bool(forKey: hrFirstSleepKey) }
+    static var wakeBridgeEnabled: Bool { UserDefaults.standard.bool(forKey: wakeBridgeKey) }
 
     /// Opt-in "WHOOP MG ECG (experimental)": unlock the gated, user-initiated ECG ("Labrador") probe that
     /// asks an MG strap to start its ECG subsystem. Default OFF, and OFF is not merely the default — with

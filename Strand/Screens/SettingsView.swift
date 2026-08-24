@@ -90,7 +90,7 @@ struct SettingsView: View {
     /// minutes. Self-gates on OBSERVED gravity + step density (#345) — a no-op on a sparse night (e.g.
     /// WHOOP 4.0) regardless of this switch. See [PuffinExperiment.motionAwareWakeKey].
     @AppStorage(PuffinExperiment.motionAwareWakeKey) private var motionAwareWakeEnabled = false
-    @AppStorage(PuffinExperiment.hrFirstSleepKey) private var hrFirstSleepEnabled = false
+    @AppStorage(PuffinExperiment.wakeBridgeKey) private var wakeBridgeEnabled = false
 
     // Imperial/Metric display preference (D#103). Stored data is always SI; this only changes how
     // distances/weights/heights/temperatures are SHOWN — and lets the profile fields below take
@@ -1435,15 +1435,15 @@ struct SettingsView: View {
 
                 Divider().overlay(StrandPalette.hairline)
 
-                // MARK: HR-first sleep detection — default OFF.
-                Toggle(isOn: $hrFirstSleepEnabled) {
-                    Text("HR-first sleep detection")
+                // MARK: Bridge brief wakes — default OFF.
+                Toggle(isOn: $wakeBridgeEnabled) {
+                    Text("Bridge brief wakes")
                         .font(StrandFont.subhead)
                         .foregroundStyle(StrandPalette.textPrimary)
                 }
                 .toggleStyle(.switch)
                 .tint(StrandPalette.accent)
-                Text("Trusts your heart rate over wrist movement when the two disagree about sleep. A restless night whose heart rate clearly sits at your sleep level is kept as sleep instead of being cut down to its calmest fragment, and a brief get-up (under ~45 minutes) stays inside one sleep with the wake scored inside it, rather than splitting the night into separate sleeps. Worth trying if your nights show up fragmented or mostly missing despite a normal sleeping heart rate. Trade-off: a long, deeply relaxed stretch awake in bed can be scored as sleep. Off by default; takes effect on the next nights scored.")
+                Text("Keeps a night interrupted by a brief get-up (under ~45 minutes) as one sleep, with the wake scored inside it, instead of splitting it into separate sleeps — and short sleep stretches between such wakes are no longer discarded for being under an hour on their own. Worth trying if your nights show up split into two or three pieces around bathroom trips or brief stirs. Off by default; takes effect on the next nights scored.")
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)

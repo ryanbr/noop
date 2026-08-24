@@ -502,9 +502,9 @@ fun SettingsScreen(
     // "Motion-aware wake refinement" (#364 follow-up) — OFF by default. Self-gates on observed gravity +
     // step density, so it is a no-op on a sparse (e.g. WHOOP 4.0) night regardless of this switch.
     var motionAwareWake by remember { mutableStateOf(puffinExperiment.motionAwareWake) }
-    // "HR-first sleep detection" — OFF by default. Weights HR over wrist motion in sleep DETECTION and
-    // bridges short (≤45 min) wake gaps into one session; see PuffinExperiment.hrFirstSleep.
-    var hrFirstSleep by remember { mutableStateOf(puffinExperiment.hrFirstSleep) }
+    // "Bridge brief wakes" — OFF by default. Bridges short (≤45 min) wake gaps into one detected
+    // session with the wake staged inside; see PuffinExperiment.sleepWakeBridge.
+    var sleepWakeBridge by remember { mutableStateOf(puffinExperiment.sleepWakeBridge) }
 
     // Whether to surface the WHOOP 5/MG-only probes (puffin / R22 / broadcast-HR / frame-capture). Gated
     // so a confident 4.0 owner never sees 5/MG controls that can't touch their strap (#22). The model
@@ -2207,23 +2207,23 @@ fun SettingsScreen(
                     color = Palette.textTertiary,
                 )
 
-                // --- HR-first sleep detection — OFF by default. ---
+                // --- Bridge brief wakes — OFF by default. ---
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     Text(
-                        "HR-first sleep detection",
+                        "Bridge brief wakes",
                         style = NoopType.subhead,
                         color = Palette.textPrimary,
                         modifier = Modifier.weight(1f),
                     )
                     Switch(
-                        checked = hrFirstSleep,
+                        checked = sleepWakeBridge,
                         onCheckedChange = {
-                            hrFirstSleep = it
-                            puffinExperiment.hrFirstSleep = it
+                            sleepWakeBridge = it
+                            puffinExperiment.sleepWakeBridge = it
                         },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Palette.surfaceBase,
@@ -2233,19 +2233,17 @@ fun SettingsScreen(
                             uncheckedBorderColor = Palette.hairline,
                         ),
                         modifier = Modifier.semantics {
-                            contentDescription = "HR-first sleep detection"
+                            contentDescription = "Bridge brief wakes"
                         },
                     )
                 }
                 Text(
-                    "Trusts your heart rate over wrist movement when the two disagree about sleep. A " +
-                        "restless night whose heart rate clearly sits at your sleep level is kept as sleep " +
-                        "instead of being cut down to its calmest fragment, and a brief get-up (under ~45 " +
-                        "minutes) stays inside one sleep with the wake scored inside it, rather than " +
-                        "splitting the night into separate sleeps. Worth trying if your nights show up " +
-                        "fragmented or mostly missing despite a normal sleeping heart rate. Trade-off: a " +
-                        "long, deeply relaxed stretch awake in bed can be scored as sleep. Off by default; " +
-                        "takes effect on the next nights scored.",
+                    "Keeps a night interrupted by a brief get-up (under ~45 minutes) as one sleep, " +
+                        "with the wake scored inside it, instead of splitting it into separate sleeps " +
+                        "-- and short sleep stretches between such wakes are no longer discarded for " +
+                        "being under an hour on their own. Worth trying if your nights show up split " +
+                        "into two or three pieces around bathroom trips or brief stirs. Off by " +
+                        "default; takes effect on the next nights scored.",
                     style = NoopType.caption,
                     color = Palette.textTertiary,
                 )

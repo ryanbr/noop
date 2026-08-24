@@ -702,10 +702,10 @@ final class IntelligenceEngine: ObservableObject {
                 // ever runs AFTER whichever stager above just ran, and self-gates on the night's observed
                 // gravity + step density, so flipping it on is a no-op for any night too sparse to trust.
                 let useMotionAwareWake = PuffinExperiment.motionAwareWakeEnabled
-                // HR-first sleep detection (experimental, default OFF): read once, off the detached
-                // executor, like the two flags above. Weights HR over motion in detection and bridges
-                // short wake gaps into one session — see `PuffinExperiment.hrFirstSleepEnabled`.
-                let useHrFirstSleep = PuffinExperiment.hrFirstSleepEnabled
+                // Wake-gap bridging (experimental, default OFF): read once, off the detached
+                // executor, like the two flags above. Assembles a night split by a brief get-up into
+                // one session with the wake staged inside — see `PuffinExperiment.wakeBridgeEnabled`.
+                let useWakeBridge = PuffinExperiment.wakeBridgeEnabled
 
                 // Already OFF the main actor , score directly (the prior nested `Task.detached` here only
                 // existed to hop off the main actor; the whole loop now runs off it, so the score is computed
@@ -737,8 +737,8 @@ final class IntelligenceEngine: ObservableObject {
                                                      // #364 follow-up: same threading for the motion-aware wake
                                                      // refinement post-pass.
                                                      useMotionAwareWake: useMotionAwareWake,
-                                                     // HR-first sleep detection (experimental, default OFF).
-                                                     useHrFirstSleep: useHrFirstSleep,
+                                                     // Wake-gap bridging (experimental, default OFF).
+                                                     useWakeBridge: useWakeBridge,
                                                      traceSink: traceSink,
                                                      hrvTraceSink: hrvTraceSink,
                                                      // Per-window HRV detail ONLY for the most-recent night

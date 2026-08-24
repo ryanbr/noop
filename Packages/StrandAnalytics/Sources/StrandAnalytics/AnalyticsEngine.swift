@@ -344,15 +344,14 @@ public enum AnalyticsEngine {
                                   // caller/test byte-identical; IntelligenceEngine threads
                                   // `PuffinExperiment.motionAwareWakeEnabled`.
                                   useMotionAwareWake: Bool = false,
-                                  // HR-first sleep detection (experimental, default OFF — see the
-                                  // section comment above `SleepStager.wakeBridgeMaxMin`). When true,
-                                  // detection weights HR over motion where the two disagree (an
-                                  // "active" run whose median HR sits in the sleep band is rescued as
-                                  // sleep) and assembles one session per sleep period across
-                                  // ≤ 45-min wake gaps. Default false keeps every pure-function
-                                  // caller/test byte-identical; IntelligenceEngine threads
-                                  // `PuffinExperiment.hrFirstSleepEnabled`.
-                                  useHrFirstSleep: Bool = false,
+                                  // Wake-gap bridging (experimental, default OFF — see the section
+                                  // comment above `SleepStager.wakeBridgeMaxMin`). When true,
+                                  // detection assembles one session per sleep period across ≤ 45-min
+                                  // wake gaps, so a brief get-up stays inside one session as staged
+                                  // wake. Default false keeps every pure-function caller/test
+                                  // byte-identical; IntelligenceEngine threads
+                                  // `PuffinExperiment.wakeBridgeEnabled`.
+                                  useWakeBridge: Bool = false,
                                   // Sleep PROVENANCE for the per-day sleep trace (CAPTURE-C / #799). The
                                   // measured BLE path is `.measured` (the default); the caller passes
                                   // `.imported(...)` when a previously-imported sleep row WON the daily merge,
@@ -394,7 +393,7 @@ public enum AnalyticsEngine {
                                                   tzOffsetSeconds: tzOffsetSeconds, wristOff: wristOff,
                                                   bandSleepState: bandSleepState,
                                                   useSleepStagerV2: useSleepStagerV2,
-                                                  hrFirstSleep: useHrFirstSleep,
+                                                  wakeBridge: useWakeBridge,
                                                   traceSink: traceSink)
         // Motion-aware wake refinement (#364 follow-up) runs AFTER V1/V2 staging, over every detected
         // session (naps included — the same eligibility gates apply). `steps` is the SAME calendar-day/

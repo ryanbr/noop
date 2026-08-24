@@ -943,8 +943,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         useExperimentalSleepV2 = PuffinExperiment.from(appContext).experimentalSleepV2,
                         // Opt-in motion-aware wake refinement (#364 follow-up) — same Context-free threading.
                         useMotionAwareWake = PuffinExperiment.from(appContext).motionAwareWake,
-                        // HR-first sleep detection (experimental, default OFF) — same Context-free threading.
-                        useHrFirstSleep = PuffinExperiment.from(appContext).hrFirstSleep,
+                        // Wake-gap bridging (experimental, default OFF) — same Context-free threading.
+                        useWakeBridge = PuffinExperiment.from(appContext).sleepWakeBridge,
                         // Sleep & Rest test mode (Test Centre E5): when the SLEEP domain is on, route the
                         // per-day sleep gate trace into the SAME shareable strap log, tagged .sleep so it
                         // lands under the profile in the export. Zero-cost when off: the gate is one
@@ -1564,8 +1564,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 useExperimentalSleepV2 = PuffinExperiment.from(appContext).experimentalSleepV2,
                 // Opt-in motion-aware wake refinement (#364 follow-up) — same flag the 15-min loop reads.
                 useMotionAwareWake = PuffinExperiment.from(appContext).motionAwareWake,
-                // HR-first sleep detection (experimental, default OFF) — same flag the 15-min loop reads.
-                useHrFirstSleep = PuffinExperiment.from(appContext).hrFirstSleep,
+                // Wake-gap bridging (experimental, default OFF) — same flag the 15-min loop reads.
+                useWakeBridge = PuffinExperiment.from(appContext).sleepWakeBridge,
             )
         }.onFailure { if (it is kotlin.coroutines.cancellation.CancellationException) throw it }
     }
