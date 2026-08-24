@@ -1930,7 +1930,17 @@ fun SettingsScreen(
                 //
                 // POPUP DISCIPLINE is unchanged: the tap fires exactly ONE system dialog, and the OEM
                 // auto-start screen stays a SEPARATE text-link, never chained onto it.
-                if (backgroundConnection) {
+                // The vendor gate comes FIRST, and it is a pure string test with no Context behind it.
+                // Everything below — the exempt read, the lifecycle observer, the auto-start resolve — is
+                // work done on behalf of a row that a Pixel or Samsung can never show, so it is scoped
+                // inside the gate rather than run for everyone and thrown away.
+                //
+                // The whitelist helps a little on any phone (it also exempts from Doze deferral), but NOOP
+                // already survives the night on a ROM that honours the AOSP foreground-service contract, so
+                // on those phones this row was noise about a permission the user did not need. Narrowing it
+                // to the dontkillmyapp set is what lets it be a prompt at all: it appears where there is a
+                // real problem to fix.
+                if (backgroundConnection && remember { com.noop.ble.BackgroundHealth.isAggressiveVendor() }) {
                     // Re-read the LIVE exempt state on every ON_RESUME. This is what makes the row vanish
                     // the moment the user returns from the grant dialog — and reappear if they later
                     // revoke it in system settings. Reading it plainly in composition wouldn't recompose
@@ -1949,15 +1959,9 @@ fun SettingsScreen(
                         lifecycleOwner.lifecycle.addObserver(obs)
                         onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
                     }
-                    // The vendor gate. The whitelist helps a little on any phone (it also exempts from Doze
-                    // deferral), but NOOP already survives the night on a ROM that honours the AOSP
-                    // foreground-service contract — so on those phones this row was pure noise about a
-                    // permission the user did not need. Narrowing it to the dontkillmyapp set is what lets
-                    // it be a prompt at all: it appears where there is a real problem to fix.
-                    val aggressiveVendor = remember { com.noop.ble.BackgroundHealth.isAggressiveVendor() }
                     val oemAutostart = remember { com.noop.ble.BackgroundHealth.oemAutostartIntent(context) }
 
-                    if (aggressiveVendor && !batteryExempt) {
+                    if (!batteryExempt) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
