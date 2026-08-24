@@ -361,7 +361,13 @@ final class HealthKitBridge: ObservableObject {
         // would burn ~15 HealthKit aggregate queries and a write-back to re-derive rows that sync just
         // wrote. Stand down. This is what collapses the hourly burst of six observers into one sync.
         // FOREGROUND catch-up deliberately does not consult this: an explicit resume should always read.
-        if let last = lastSync, Date().timeIntervalSince(last) < Self.observerCoalesceWindow,
+        // `age >= 0` is not defensive noise. This is WALL-CLOCK time, and it can move backwards — an NTP
+        // correction, or a user changing the date. A negative age satisfies `< window`, so every wake would
+        // skip; and because `lastSync` is only written by a sync that RAN, the skipping would keep it stale
+        // and background Health ingestion would stay dead until a foreground catch-up (which ignores this
+        // gate) broke the loop. Cheap to exclude, so exclude it.
+        let sinceLastSync = lastSync.map { Date().timeIntervalSince($0) }
+        if let age = sinceLastSync, age >= 0, age < Self.observerCoalesceWindow,
            window <= lastSyncDays {
             // Deliberately do NOT advance the anchor here. Samples that landed AFTER that sync's reads but
             // before this wake are not in the store yet, and advancing past them would leave them to be
