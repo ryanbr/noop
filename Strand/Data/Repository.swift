@@ -2141,6 +2141,39 @@ final class Repository: ObservableObject {
         return byDay.sorted { $0.key < $1.key }.map { (day: $0.key, value: $0.value) }
     }
 
+    /// Every catalog metric's Explore series at once, memoized — the cross-catalog scan behind the
+    /// Explorer's correlation card.
+    ///
+    /// `MetricExplorerView` ran this scan itself, per screen open, as 59 serial `exploreSeries` calls. On
+    /// the `my-whoop` partition (34 of the 60 descriptors) each of those walks `days` for the daily column
+    /// and then issues a store range query per entry in `computedReadIds` and `importedReadIds`, so one
+    /// open cost on the order of a couple of hundred store reads. The result was cached only in that
+    /// view's `@State`, and the data is the same whichever metric you opened — the view merely drops its
+    /// own descriptor from the list — so browsing N metric details paid the whole scan N times.
+    ///
+    /// Keyed on `deviceId` AND `refreshSeq`, not `refreshSeq` alone: `importedReadIds` / `computedReadIds`
+    /// are derived from the active strap id, and the only `refreshSeq` bump is inside the merge in
+    /// `refresh()`, so a re-point could otherwise change what these reads union without invalidating.
+    ///
+    /// Returns `nil` if cancelled, and a cancelled scan is NOT cached — the caller (which checks
+    /// `Task.isCancelled` per metric so navigating away mid-scan stops it) must not have a half-filled
+    /// catalog frozen in for the rest of the generation.
+    func exploreAllSeries() async -> [String: [(day: String, value: Double)]]? {
+        let key = "\(deviceId)|\(refreshSeq)"
+        if let cached = exploreAllCache, cached.key == key { return cached.byMetricID }
+        var byMetricID: [String: [(day: String, value: Double)]] = [:]
+        for descriptor in MetricCatalog.all {
+            if Task.isCancelled { return nil }
+            byMetricID[descriptor.id] = await exploreSeries(key: descriptor.key, source: descriptor.source)
+        }
+        exploreAllCache = (key, byMetricID)
+        return byMetricID
+    }
+
+    /// Backing store for [exploreAllSeries]. Main-actor isolated with the rest of the class, so it needs
+    /// no locking; one shared copy replaces the per-view-instance `@State` it supersedes.
+    private var exploreAllCache: (key: String, byMetricID: [String: [(day: String, value: Double)]])?
+
     /// The merged DailyMetric column backing an Explore metric key, for the days the imported/computed
     /// metricSeries doesn't cover (strap-only WHOOP 5 users). Mirrors InsightsView.dailyOutcome and
     /// Android's dailyPick, extended to every Explore "my-whoop" key that maps to a daily column.

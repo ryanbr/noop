@@ -850,11 +850,17 @@ struct MetricDetailView: View {
         // `Task.isCancelled` is checked per metric so navigating away mid-scan stops it: the task is
         // bound to `loadTaskID`, and without the check a quick in-and-out would keep 59 main-actor
         // merges running for a screen nobody is looking at.
+        // The scan itself is memoized on the Repository (`exploreAllSeries`), keyed by active strap +
+        // `refreshSeq`. It is the SAME data whichever metric is open — this view only drops its own
+        // descriptor — so opening five metric details used to pay the whole cross-catalog scan five
+        // times. Cancellation semantics are unchanged: the memo checks `Task.isCancelled` per metric and
+        // returns nil rather than caching a partial scan, so a quick in-and-out still stops the work and
+        // cannot leave a half-filled catalog frozen in for the rest of the generation.
+        guard let allSeries = await repo.exploreAllSeries() else { return }
         var loadedOthers: [(metric: MetricDescriptor, series: [(day: String, value: Double)])] = []
         for other in MetricCatalog.all where other.id != metric.id {
             guard !Task.isCancelled else { return }
-            let s = await repo.exploreSeries(key: other.key, source: other.source)
-            if !s.isEmpty { loadedOthers.append((other, s)) }
+            if let s = allSeries[other.id], !s.isEmpty { loadedOthers.append((other, s)) }
         }
         guard !Task.isCancelled else { return }
         others = loadedOthers
