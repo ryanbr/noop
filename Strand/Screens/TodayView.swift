@@ -4062,7 +4062,25 @@ struct TodayView: View {
                                     calibrationSampleDays: Int) -> Bool {
         // Optional-chained deliberately: an unset (or unparseable) key is NOT a 4.0. The key only ever
         // holds a `WhoopModel` rawValue, so nil here means "no strap has been identified", not "4.0".
-        (WhoopModel(rawValue: selectedModelRaw)?.deviceFamily == .whoop4 && hasDayData)
+        let family = WhoopModel(rawValue: selectedModelRaw)?.deviceFamily
+        // #1523 follow-up: a POSITIVELY identified 5/MG never sees this, whatever calibration state the
+        // profile carries from an earlier strap. #1579 stopped a partial sample-day count activating the
+        // affordance but left the coefficient paths able to, and those are profile-global — so a user who
+        // calibrated a 4.0 and then moved to a 5.0 still got the 4.0 prompt on any day the 5.0 logged no
+        // steps and no estimate existed. That is the same complaint #1523 opened, on a narrower trigger.
+        //
+        // The justification for the coefficient paths was preserving estimate behaviour across that
+        // migration, but this gate does not control the estimate: `estSteps` comes from `stepsEstByDay`
+        // and is computed independently. All this gate decides is whether a BLANK tile offers to
+        // calibrate — and a strap that reports steps natively has nothing to calibrate.
+        //
+        // Android has been immune by construction all along: `stepsCalibrationPrompt` returns early on
+        // `model != WhoopModel.WHOOP4.name` before reading any calibration state.
+        if family == .whoop5 { return false }
+        // The coefficient paths stay for everything else, and are NOT redundant with the family check: a
+        // legacy 4.0 owner whose `selectedWhoopModel` was never written still has a coefficient, and
+        // dropping these would silently take the gear away from them.
+        return (family == .whoop4 && hasDayData)
             || calibrationCoefficient > 0
             || manualCoefficient > 0
     }
