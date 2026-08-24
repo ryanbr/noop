@@ -720,7 +720,12 @@ final class IntelligenceEngine: ObservableObject {
         let useMotionAwareWakeGlobal = PuffinExperiment.motionAwareWakeEnabled
         // Cache eligibility for the whole pass: never reuse while a Test-Centre trace is active (a cached
         // scan carries no fresh gate trace). Owner-level eligibility (registered WHOOP) is checked per day.
-        let dayCacheEligible = !(sleepTraceActive || hrvTraceActive || stepsTraceActive)
+        // #1575: an active trace no longer disables reuse. Swift was already safe by construction here —
+        // `DayScan` carries `sleepTrace` / `hrvTrace` / `stepsTrace`, a cache hit appends the whole scan, and
+        // the main-actor loop replays all three — so the gate was the only thing costing a full 21-day
+        // re-read + re-score on every pass whenever a diagnostic was switched on. (Kotlin emits its trace
+        // inline in pass 1 and therefore needed per-day recorders to reach the same place.)
+        let dayCacheEligible = true
         // The pass config signature — every input that feeds `analyzeDay` but is NOT in the per-day key, so
         // a change to any of them must invalidate every cached night. baselines1 is signed structurally
         // (any BaselineState field change ⇒ a different string); Doubles by raw bit-pattern (exact, locale-
@@ -846,9 +851,10 @@ final class IntelligenceEngine: ObservableObject {
                         skinAnchorResolvedOwners.insert(owner)
                     }
                     if let fp = try? await store.hrFingerprint(deviceId: owner, from: from, to: to) {
-                        let key = AnalyzeRecentDayCache.cacheKey(owner: owner, hrCount: fp.count,
-                                                                 hrMaxTs: fp.maxTs,
-                                                                 skinAnchorRaw: skinAnchorByOwner[owner])
+                        let key = AnalyzeRecentDayCache.cacheKey(
+                            owner: owner, hrCount: fp.count, hrMaxTs: fp.maxTs,
+                            skinAnchorRaw: skinAnchorByOwner[owner],
+                            hrvWindowDetail: dayStart == nowLocalMidnight)
                         dayCacheKey = key
                         if let cached = dayScanCacheLocal[day], cached.key == key {
                             out.append(cached.scan)

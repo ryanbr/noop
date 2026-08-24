@@ -40,8 +40,18 @@ object AnalyzeRecentDayCache {
      * / consistency, habitual midsleep, tz, stager toggles) are NOT in this key — the engine drops the whole
      * cache when its pass config signature changes, which covers them.
      */
-    fun cacheKey(owner: String, hrCount: Int, hrMaxTs: Long, skinAnchorRaw: Double?): String {
+    fun cacheKey(
+        owner: String, hrCount: Int, hrMaxTs: Long, skinAnchorRaw: Double?,
+        // #1575: whether this day is the one that emits the PER-WINDOW HRV detail (`dayStart ==
+        // nowLocalMidnight`). Now that trace lines are recorded and replayed, this has to invalidate:
+        // the night cached as "today" with its detailed trace becomes an ordinary night after midnight,
+        // and a fresh scan would emit only the one-line summary for it. Without this, the reused night
+        // would keep replaying detail it is no longer entitled to — the cache's whole promise is that a
+        // reused night is indistinguishable from a freshly-scored one. Costs one day's re-score per
+        // midnight rollover, and only when a trace mode is on.
+        hrvWindowDetail: Boolean,
+    ): String {
         val anchor = skinAnchorRaw?.toRawBits()?.toString() ?: "nil"
-        return "$owner|$hrCount:$hrMaxTs:$anchor"
+        return "$owner|$hrCount:$hrMaxTs:$anchor:${if (hrvWindowDetail) "d" else "s"}"
     }
 }

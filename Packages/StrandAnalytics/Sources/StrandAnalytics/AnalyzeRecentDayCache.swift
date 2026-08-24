@@ -35,8 +35,18 @@ public enum AnalyzeRecentDayCache {
     /// Inputs that feed `analyzeDay` but are pass-global rather than per-day (profile, baselines1, sleep
     /// need / consistency, habitual midsleep, tz, stager toggles) are NOT in this key — the engine drops the
     /// whole cache when its pass config signature changes, which covers them.
-    public static func cacheKey(owner: String, hrCount: Int, hrMaxTs: Int, skinAnchorRaw: Double?) -> String {
+    public static func cacheKey(owner: String, hrCount: Int, hrMaxTs: Int, skinAnchorRaw: Double?,
+                                // #1575: whether this day is the one that emits the PER-WINDOW HRV detail
+                                // (`dayStart == nowLocalMidnight`). Now that an active trace no longer
+                                // disables reuse, this has to invalidate: the night cached as "today" with
+                                // its detailed trace becomes an ordinary night after midnight, and a fresh
+                                // scan would emit only the one-line summary for it. Without this the reused
+                                // night would keep replaying detail it is no longer entitled to — and the
+                                // cache's whole promise is that a reused night is indistinguishable from a
+                                // freshly-scored one. Costs one day's re-score per rollover, and only while
+                                // a trace mode is on.
+                                hrvWindowDetail: Bool) -> String {
         let anchor = skinAnchorRaw.map { String($0.bitPattern) } ?? "nil"
-        return "\(owner)|\(hrCount):\(hrMaxTs):\(anchor)"
+        return "\(owner)|\(hrCount):\(hrMaxTs):\(anchor):\(hrvWindowDetail ? "d" : "s")"
     }
 }
