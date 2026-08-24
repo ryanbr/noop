@@ -605,7 +605,10 @@ final class IntelligenceEngine: ObservableObject {
                             workouts: [ExerciseSession], nightlySkin: Double?,
                             sessionMotion: [Int: [Double]],
                             sessionSleepState: [Int: [Int]],
-                            hrvDiag: String?)] = []   // #195: carried from loop 1, emitted in the main-actor loop
+                            hrvDiag: String?,
+                            // #1545: carried beside `workouts` because it explains the times that list is
+                            // EMPTY, and the emit happens in the main-actor loop below, not here.
+                            detectionFunnel: WorkoutDetector.DetectionFunnel?)] = []   // #195: carried from loop 1
         // Nightly values harvested in pass 1, keyed by day, to seed the pass-2 baseline.
         var nightlyHrvByDay: [String: Double?] = [:]
         var nightlyRhrByDay: [String: Double?] = [:]
@@ -1401,7 +1404,8 @@ final class IntelligenceEngine: ObservableObject {
                                  workouts: res.workouts, nightlySkin: res.nightlySkinTempC,
                                  sessionMotion: res.sessionMotionByStart,
                                  sessionSleepState: res.sessionSleepStateByStart,
-                                 hrvDiag: scan.hrvDiag))
+                                 hrvDiag: scan.hrvDiag,
+                                 detectionFunnel: res.detectionFunnel))
         }
 
         // ── Seed the baseline from the UNION of imported nightly history + the values just computed.
