@@ -7,7 +7,7 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 /**
- * #386: the aggressive-OEM vendor classifier that gates the Settings "Keep NOOP alive overnight" toggle
+ * #386: the aggressive-OEM vendor classifier that gates the Settings "Keep NOOP alive overnight" row
  * and (via delegation) the Test Centre `oemKillHeuristic`. Pure + Context-free — the ONE canonical set,
  * so a phone that actually kills background apps is offered the whitelist. Case-insensitive, substring
  * match (real `Build.MANUFACTURER` values vary in casing and extra words).

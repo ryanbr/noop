@@ -391,7 +391,7 @@ object AndroidDiagnostics {
      *  internal so it unit-tests without a Context (the suite stays Robolectric-free). */
     internal fun oemKillHeuristic(manufacturer: String): String =
         // Single source of truth for the aggressive-vendor set (#386): the same list the Settings
-        // "Keep NOOP alive overnight" toggle gates on, so the diagnostic and the fix never disagree.
+        // "Keep NOOP alive overnight" row gates on, so the diagnostic and the fix never disagree.
         if (com.noop.ble.BackgroundHealth.isAggressiveVendor(manufacturer))
             "aggressive vendor (${manufacturer.lowercase()}), whitelist NOOP to keep it alive"
         else "standard"

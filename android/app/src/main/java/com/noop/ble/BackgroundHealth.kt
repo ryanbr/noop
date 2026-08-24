@@ -12,11 +12,15 @@ import android.provider.Settings
  * but aggressive OEM battery managers kill even those, so the reliable lever is a USER action:
  * whitelist NOOP from battery optimisation (and, on the worst vendors, enable auto-start). This
  * centralises the detection and the intents that fix it, so the Settings "Keep NOOP alive overnight"
- * toggle and the Test Centre diagnostics share ONE source of truth for the vendor set + exempt check.
+ * row and the Test Centre diagnostics share ONE source of truth for the vendor set + exempt check.
  *
  * POPUP DISCIPLINE: nothing here ever fires a system dialog on its own. [batteryExemptionIntent] and
  * [oemAutostartIntent] only build Intents — the caller starts one exactly when the user taps, and the
- * toggle reflects live [isBatteryExempt] state so an already-exempt user is never prompted again.
+ * row reflects live [isBatteryExempt] state so an already-exempt user is never prompted again.
+ *
+ * That row is a STATUS LINE PLUS ONE ACTION, deliberately not a switch: Android exposes no way to
+ * revoke an app's own exemption, so a bidirectional control could never honour half its input. It was
+ * a Switch once, and was reported as broken for exactly that reason. See [batteryRowAction].
  *
  * The whitelist adds NO battery cost of its own: it removes a premature kill, it does not add work.
  * The real cost is the existing "Keep connected in the background" / "Continuous HRV" / "Overnight only"
