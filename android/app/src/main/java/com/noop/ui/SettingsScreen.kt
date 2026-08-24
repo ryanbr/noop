@@ -1916,8 +1916,10 @@ fun SettingsScreen(
                 // PROMPT rather than a setting.
                 //
                 // Shown only where it can actually change the outcome — background connection on, a ROM
-                // known to kill background work, and the exemption not yet granted. A Pixel or Samsung
-                // never sees this row at all.
+                // known to kill background work, and the exemption not yet granted. The whitelist helps a
+                // little on any phone (it also exempts from Doze deferral), but NOOP already survives the
+                // night wherever the AOSP foreground-service contract is honoured, so on those phones the
+                // row was noise about a permission the user did not need. A Pixel or Samsung never sees it.
                 //
                 // Deliberately NOT a toggle. Android lets an app ASK for this exemption and never hand it
                 // back, so a switch advertised an off direction it could not honour — which is exactly how
@@ -1930,18 +1932,12 @@ fun SettingsScreen(
                 //
                 // POPUP DISCIPLINE is unchanged: the tap fires exactly ONE system dialog, and the OEM
                 // auto-start screen stays a SEPARATE text-link, never chained onto it.
-                // The vendor gate. The whitelist helps a little on any phone (it also exempts from Doze
-                // deferral), but NOOP already survives the night on a ROM that honours the AOSP
-                // foreground-service contract, so on those phones this row was noise about a permission the
-                // user did not need. Narrowing it to the dontkillmyapp set is what lets it be a prompt at
-                // all: it appears where there is a real problem to fix.
-                //
-                // Hoisted OUT of the `if` rather than folded into the condition. `&&` short-circuits, so
-                // `remember` inside it would go uncalled whenever background connection is off — a
-                // composable call in a conditionally-evaluated position, which is how a slot table gets
-                // corrupted when the condition later flips. It costs one string comparison to read it
-                // unconditionally, and the work actually worth avoiding — the exempt read, the lifecycle
-                // observer, the auto-start resolve — is inside the body regardless.
+
+                // Read unconditionally rather than folded into the `if`: `&&` short-circuits, so a
+                // `remember` inside the condition would go uncalled whenever background connection is off
+                // — a composable call in a conditionally-evaluated position, which is how a slot table
+                // gets corrupted once the condition flips. The gate is one string comparison; the work
+                // worth avoiding sits inside the body regardless.
                 val aggressiveVendor = remember { com.noop.ble.BackgroundHealth.isAggressiveVendor() }
                 if (backgroundConnection && aggressiveVendor) {
                     // Re-read the LIVE exempt state on every ON_RESUME. This is what makes the row vanish
