@@ -44,4 +44,17 @@ final class KeyMetricPrefsDecodeTests: XCTestCase {
         XCTAssertEqual(KeyMetricPrefs.decodeEnabled("   "), KeyMetric.defaultOrder)
         XCTAssertEqual(KeyMetricPrefs.decodeEnabled(""), KeyMetric.defaultOrder)
     }
+
+    /// Queue 11c follow-up (2026-08-24): `.skinTemp` is a NEW persisted case (Skin Temp was already a
+    /// "Your Cards" `DashboardCard` option, never a Key Metrics one). Pins the two contract points that
+    /// matter for adding a case without disturbing anyone's saved layout: the raw token round-trips
+    /// ("skinTemp", byte-identical to Kotlin's `KeyMetric.SKIN_TEMP.raw`), and it does NOT join
+    /// `defaultOrder` — a fresh install's default (and an existing user's saved layout) stays
+    /// byte-identical to before this case existed.
+    func testSkinTempRawTokenRoundTripsAndIsNotInDefaultOrder() {
+        XCTAssertEqual(KeyMetric(rawValue: "skinTemp"), .skinTemp)
+        XCTAssertEqual(KeyMetric.skinTemp.rawValue, "skinTemp")
+        XCTAssertFalse(KeyMetric.defaultOrder.contains(.skinTemp))
+        XCTAssertFalse(KeyMetricPrefs.decodeEnabled("").contains(.skinTemp))
+    }
 }

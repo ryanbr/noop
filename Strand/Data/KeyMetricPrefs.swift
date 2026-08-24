@@ -26,6 +26,11 @@ enum KeyMetric: String, CaseIterable, Identifiable {
     case steps
     case weight
     case calories
+    /// Added 2026-08-24 (queue 11c follow-up): Skin Temp was already a "Your Cards" (`DashboardCard`)
+    /// option, but was never offered as a Key Metrics tile — not a bug, just never added. New case, NOT
+    /// added to `defaultOrder` below, so an existing user's saved layout (and a fresh install's default)
+    /// is byte-identical to before; only opts in via the layout editor.
+    case skinTemp
 
     var id: String { rawValue }
 
@@ -42,6 +47,9 @@ enum KeyMetric: String, CaseIterable, Identifiable {
         case .steps:       return String(localized: "Steps")
         case .weight:      return String(localized: "Weight")
         case .calories:    return String(localized: "Calories")
+        // Same short label the sibling "Your Cards" tile (`DashboardCard.skinTemp`) already uses —
+        // reuses its translation key rather than adding a new "Skin Temperature" one for this tile.
+        case .skinTemp:    return String(localized: "Skin Temp")
         }
     }
 
