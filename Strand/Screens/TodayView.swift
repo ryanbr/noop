@@ -4075,8 +4075,11 @@ struct TodayView: View {
         // calibrate — and a strap that reports steps natively has nothing to calibrate.
         //
         // Android has been immune by construction all along: `stepsCalibrationPrompt` returns early on
-        // `model != WhoopModel.WHOOP4.name` before reading any calibration state.
-        if family == .whoop5 { return false }
+        // `model != WhoopModel.WHOOP4.name` before reading any calibration state — and this is written the
+        // same way round, "positively identified and NOT a 4.0", rather than "is a 5". Those are the same
+        // set today because `WhoopModel` has exactly two cases, but they stop being the same the moment a
+        // third is added, and the version that would then be wrong is the one naming a specific family.
+        if let family, family != .whoop4 { return false }
         // The coefficient paths stay for everything else, and are NOT redundant with the family check: a
         // legacy 4.0 owner whose `selectedWhoopModel` was never written still has a coefficient, and
         // dropping these would silently take the gear away from them.
