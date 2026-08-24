@@ -5812,6 +5812,31 @@ class WhoopBleClient(
                         ?.joinToString(" ") { "%02x".format(it) } ?: "empty"
                     log("HELLO_HARVARD(35) resp raw: $raw — locate the strap serial offset (#1303)")
                 }
+                // #1303: the 5/MG half of the same hunt. The 4.0 aid above is 4.0-only — correctly, since
+                // a 5/MG never answers cmd 35 — so this family had no capture at all, and it needs one
+                // just as much: a stable per-strap id is what multi-strap identity waits on, and the pack
+                // serial from cmd 151 identifies a REMOVABLE PART rather than the strap wearing it.
+                //
+                // No new traffic is sent. GET_HELLO already arrives on every connect and is already
+                // decoded — for the device name and the firmware version — and the rest of the block is
+                // discarded. If the serial is in there, it has been arriving all along.
+                //
+                // Reports STRUCTURE, not the block: the same response carries a session token the decoder
+                // deliberately never reads, so HelloIdentityProbe prints only serial-shaped runs and
+                // withholds the rest. Test Centre → Connection gated on top of that. Log-only. Twin of
+                // the Swift FrameRouter branch.
+                if (connectedFamily == DeviceFamily.WHOOP5 &&
+                    respCmd?.startsWith("GET_HELLO(") == true &&   // not GET_HELLO_HARVARD
+                    testCentre.active(com.noop.testcentre.TestDomain.CONNECTION)
+                ) {
+                    val pay = whoop5CommandResponsePayload(frame)
+                    if (pay != null) {
+                        log(
+                            com.noop.protocol.HelloIdentityProbe.report(pay) +
+                                " — locate the strap serial (#1303)",
+                        )
+                    }
+                }
                 // Reboot ack (#166): log the COMMAND_RESPONSE result for a user reboot on BOTH families —
                 // the accept/reject signal (the same one that exposed 5/MG haptics rejection). So a 5/MG
                 // owner's strap log confirms whether the (unverified) puffin reboot frame is accepted. The
@@ -8767,6 +8792,23 @@ internal fun whoop4CommandResponsePayload(frame: ByteArray): ByteArray? {
     if (frame.size < 3) return null
     val length = (frame[1].toInt() and 0xFF) or ((frame[2].toInt() and 0xFF) shl 8)
     val start = 9   // SOF(1) + len(2) + crc8(1) + type,seq,cmd,origin_seq,result(5)
+    if (length > frame.size || start >= length) return null
+    return frame.copyOfRange(start, length)
+}
+
+/**
+ * The 5/MG COMMAND_RESPONSE payload. Twin of Swift `commandResponsePayload(in:family: .whoop5)`.
+ *
+ * The 5/MG inner block starts at 8 rather than the 4.0's 4 (the "+4 shift"), so the payload begins at
+ * 13: SOF(1) + len(2) + crc8(1) + the shift, then [type,seq,cmd,origin_seq,result](5). Kept as its own
+ * function rather than a flag on the 4.0 one because reading a 5/MG frame with the 4.0 helper does not
+ * fail — it returns four bytes of envelope dressed as payload, which is the failure mode that made
+ * bhelm/noop#4 print REJECTED on a successful reboot.
+ */
+internal fun whoop5CommandResponsePayload(frame: ByteArray): ByteArray? {
+    if (frame.size < 3) return null
+    val length = (frame[1].toInt() and 0xFF) or ((frame[2].toInt() and 0xFF) shl 8)
+    val start = 13
     if (length > frame.size || start >= length) return null
     return frame.copyOfRange(start, length)
 }
