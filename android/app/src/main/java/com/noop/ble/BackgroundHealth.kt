@@ -91,6 +91,19 @@ object BackgroundHealth {
             .setData(Uri.parse("package:${context.packageName}"))
 
     /**
+     * Where the exemption can actually be TAKEN BACK — the system "Battery optimisation" list, whose
+     * per-app entry carries the Optimise / Don't-optimise control itself.
+     *
+     * This is the off direction's destination. [appBatterySettingsIntent] lands on NOOP's app-info page
+     * and leaves the user to find Battery and then the right sub-control; this lands on the screen that
+     * owns the setting. Takes NO package data URI — the action addresses the whole list, and attaching
+     * one makes some ROMs reject it. Caller falls back to [appBatterySettingsIntent] if it doesn't
+     * resolve.
+     */
+    fun batteryOptimizationSettingsIntent(): Intent =
+        Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+
+    /**
      * Best-effort deep-link to the OEM's proprietary auto-start / protected-app screen — the setting the
      * generic exemption can't reach on these ROMs. Component names DRIFT per ROM version, so each is tried
      * with [packageManager.resolveActivity] and the first that resolves wins; null → the caller uses the

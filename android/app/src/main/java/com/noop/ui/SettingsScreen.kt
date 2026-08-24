@@ -2017,9 +2017,17 @@ fun SettingsScreen(
                                                 context.startActivity(com.noop.ble.BackgroundHealth.appBatterySettingsIntent(context))
                                             }
                                         }
+                                    // Off: land on the system Battery-optimisation list, whose entry for
+                                    // NOOP carries the Optimise / Don't-optimise control itself — the
+                                    // nearest thing to the switch the user just flipped. App-info is the
+                                    // fallback, since it always resolves but buries the control a level down.
                                     com.noop.ble.BackgroundHealth.BatteryRowAction.OpenAppSettings ->
                                         runCatching {
-                                            context.startActivity(com.noop.ble.BackgroundHealth.appBatterySettingsIntent(context))
+                                            context.startActivity(com.noop.ble.BackgroundHealth.batteryOptimizationSettingsIntent())
+                                        }.onFailure {
+                                            runCatching {
+                                                context.startActivity(com.noop.ble.BackgroundHealth.appBatterySettingsIntent(context))
+                                            }
                                         }
                                 }
                             },
