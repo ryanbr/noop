@@ -211,9 +211,15 @@ object IntelligenceEngine {
         val sleep = ArrayList<String>()
         val hrv = ArrayList<String>()
         val steps = ArrayList<String>()
-        val sleepRec: ((String) -> Unit)? = sleepSink?.let { s -> { l: String -> sleep.add(l); s(l) } }
-        val hrvRec: ((String) -> Unit)? = hrvSink?.let { s -> { l: String -> hrv.add(l); s(l) } }
-        val stepsRec: ((String) -> Unit)? = stepsSink?.let { s -> { l: String -> steps.add(l); s(l) } }
+        // COLLECT ONLY — the lines are emitted once, grouped, by [replayDayTraces] after the day is
+        // scored. Forwarding live here instead would make a freshly-scored night interleave its sleep and
+        // HRV lines while a REUSED night emitted them grouped, so the same night would read differently
+        // depending on a cache hit — breaking the one thing the cache promises. It would also diverge from
+        // Swift, whose sink has always been collect-only (`traceSink = { sleepTrace.append($0) }`) with a
+        // grouped emit in its main-actor loop. One emit path now serves both hit and miss.
+        val sleepRec: ((String) -> Unit)? = sleepSink?.let { _ -> { l: String -> sleep.add(l) } }
+        val hrvRec: ((String) -> Unit)? = hrvSink?.let { _ -> { l: String -> hrv.add(l) } }
+        val stepsRec: ((String) -> Unit)? = stepsSink?.let { _ -> { l: String -> steps.add(l) } }
         fun snapshot() = DayTraces(sleep.toList(), hrv.toList(), steps.toList())
     }
 
@@ -239,12 +245,12 @@ object IntelligenceEngine {
 
     /** #1575: replay a reused night's recorded trace lines to their own channels, in emit order. */
     private fun replayDayTraces(
-        cached: CachedDayScan,
+        traces: DayTraces,
         sleepSink: ((String) -> Unit)?, hrvSink: ((String) -> Unit)?, stepsSink: ((String) -> Unit)?,
     ) {
-        for (line in cached.traces.sleep) sleepSink?.invoke(line)
-        for (line in cached.traces.hrv) hrvSink?.invoke(line)
-        for (line in cached.traces.steps) stepsSink?.invoke(line)
+        for (line in traces.sleep) sleepSink?.invoke(line)
+        for (line in traces.hrv) hrvSink?.invoke(line)
+        for (line in traces.steps) stepsSink?.invoke(line)
     }
 
     /**
@@ -798,7 +804,7 @@ object IntelligenceEngine {
                     for (line in cached.diagLines) diag(line)
                     // #1575: replay this night's trace lines to their own channels, so a reused night is
                     // indistinguishable from a freshly-scored one in the export as well as in the numbers.
-                    replayDayTraces(cached, sleepTraceSink, hrvTraceSink, stepsTraceSink)
+                    replayDayTraces(cached.traces, sleepTraceSink, hrvTraceSink, stepsTraceSink)
                     dayCacheReused++
                     continue
                 }
@@ -1201,13 +1207,18 @@ object IntelligenceEngine {
             // this pass — a WHOOP 4.0 owner with no trace active — hence dayCacheKey != null). Reused days
             // continue'd above and never reach here, so the cache only ever holds fresh scans. Carries the
             // per-day maps' values (read back from the maps just written) + the diag lines to replay.
+            // #1575: emit this night's trace through the SAME function the cache-hit path uses, so a
+            // freshly-scored night and a reused one are byte-identical in the log as well as in the
+            // numbers. Runs whether or not the day is cacheable.
+            val dayTraces = dayTrace.snapshot()
+            replayDayTraces(dayTraces, sleepTraceSink, hrvTraceSink, stepsTraceSink)
             dayCacheKey?.let { key ->
                 dayScanCache[day] = CachedDayScan(
                     key = key, res = res, owner = owner, hrRows = hr.size,
                     primaryRhr = primaryRhr, primaryRhrCoverage = primaryRhrCoverage,
                     spo2Candidate = spo2CandidateByDay[day], hrvOverCount = hrvOverCountByDay[day],
                     diagLines = dayDiagLines.toList(),
-                    traces = dayTrace.snapshot(),
+                    traces = dayTraces,
                 )
                 dayCacheCacheable++
             }
