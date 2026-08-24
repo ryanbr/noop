@@ -55,6 +55,17 @@ final class HelloIdentityProbeTests: XCTestCase {
         XCTAssertEqual(lines.first, "off=16 len=12 mixed (device name, already decoded)")
     }
 
+    /// The known-name offset must LABEL, not suppress.
+    ///
+    /// `knownNameOffset` is an assumption from one firmware capture. If a firmware moved the name and the
+    /// serial landed at 16, suppressing the value would hide the exact thing this probe exists to find —
+    /// and it would look like a clean negative result rather than a miss.
+    func testASerialShapedRunAtTheNameOffsetIsStillPrinted() {
+        let p = payload(length: 120, runs: [(16, "3A1B2405003655")])
+        XCTAssertEqual(HelloIdentityProbe.candidateLines(payload: p).first,
+                       #"off=16 len=14 alnum (device name, already decoded) "3A1B2405003655""#)
+    }
+
     /// Short runs are dropped. Binary payloads throw off two- and three-byte printable sequences by
     /// chance, and reporting them would bury the real candidate.
     func testShortRunsAreIgnored() {

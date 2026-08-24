@@ -56,6 +56,18 @@ class HelloIdentityProbeTest {
         assertEquals("off=16 len=12 mixed (device name, already decoded)", lines[0])
     }
 
+    /**
+     * The known-name offset must LABEL, not suppress.
+     *
+     * [HelloIdentityProbe.candidateLines]'s knownNameOffset is an assumption from one firmware capture.
+     * If a firmware moved the name and the serial landed at 16, suppressing the value would hide the
+     * exact thing this probe exists to find — and it would look like a clean negative rather than a miss.
+     */
+    @Test fun aSerialShapedRunAtTheNameOffsetIsStillPrinted() {
+        val lines = HelloIdentityProbe.candidateLines(payload(120, listOf(16 to "3A1B2405003655")))
+        assertEquals("off=16 len=14 alnum (device name, already decoded) \"3A1B2405003655\"", lines[0])
+    }
+
     /** Short runs are dropped. Binary payloads throw off two- and three-byte printable sequences by
      *  chance, and reporting them would bury the real candidate. */
     @Test fun shortRunsAreIgnored() {

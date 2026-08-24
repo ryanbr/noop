@@ -63,15 +63,19 @@ object HelloIdentityProbe {
             if (run.size < minRun) continue
 
             val alnum = run.all { isAlnum(it.toInt() and 0xFF) }
-            val head = "off=$start len=${run.size} ${if (alnum) "alnum" else "mixed"}"
-            out.add(
-                when {
-                    start == knownNameOffset -> "$head (device name, already decoded)"
-                    alnum && run.size in serialLenMin..serialLenMax ->
-                        "$head \"${String(run, Charsets.US_ASCII)}\""
-                    else -> "$head (withheld)"
-                },
-            )
+            // The known-name offset is LABELLED but not suppressed. [knownNameOffset] is an assumption
+            // taken from one firmware capture, and this is a discovery tool: if a firmware moved the name
+            // and the serial landed here, suppressing the value would hide the exact thing being hunted.
+            // Showing it costs nothing — the device name is already surfaced on the Devices card, so it is
+            // not what the withholding rule exists to protect.
+            var line = "off=$start len=${run.size} ${if (alnum) "alnum" else "mixed"}"
+            if (start == knownNameOffset) line += " (device name, already decoded)"
+            line += when {
+                alnum && run.size in serialLenMin..serialLenMax -> " \"${String(run, Charsets.US_ASCII)}\""
+                start != knownNameOffset -> " (withheld)"
+                else -> ""
+            }
+            out.add(line)
         }
         return out
     }

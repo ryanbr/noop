@@ -56,11 +56,15 @@ public enum HelloIdentityProbe {
 
             let alnum = run.allSatisfy(isAlnum)
             var line = "off=\(start) len=\(run.count) \(alnum ? "alnum" : "mixed")"
-            if start == knownNameOffset {
-                line += " (device name, already decoded)"
-            } else if alnum, serialLength.contains(run.count) {
+            // The known-name offset is LABELLED but not suppressed. `knownNameOffset` is an assumption
+            // taken from one firmware capture, and this is a discovery tool: if a firmware moved the name
+            // and the serial landed here, suppressing the value would hide the exact thing being hunted.
+            // Showing it costs nothing — the device name is already surfaced on the Devices card, so it is
+            // not what the withholding rule exists to protect.
+            if start == knownNameOffset { line += " (device name, already decoded)" }
+            if alnum, serialLength.contains(run.count) {
                 line += " \"\(String(decoding: run, as: UTF8.self))\""
-            } else {
+            } else if start != knownNameOffset {
                 line += " (withheld)"
             }
             out.append(line)
