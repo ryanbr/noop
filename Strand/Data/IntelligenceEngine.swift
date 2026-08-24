@@ -1302,7 +1302,14 @@ final class IntelligenceEngine: ObservableObject {
                 // boundary for the WHOOP path.
                 var spo2CandidateMean: Int? = nil
                 if spo2CandidateDisplayOn {
-                    let ownerIsOura = regDevices.first(where: { $0.id == owner })?.brand == "Oura"
+                    // Through the catalog, NOT `regDevices…?.brand == "Oura"`. Kotlin resolves this with
+                    // `DeviceBrandCatalog.isOura(owner)` — id-PREFIX to `sourceKind` — and the Swift twin is
+                    // byte-identical, so the brand-string compare that shipped here made the two platforms
+                    // key on different things: a device with an `oura-` id but no registry row (or a row
+                    // whose brand text differs) was Oura on Android and not on iOS, so Android computed the
+                    // ceiling@100 candidate and iOS did not. `Repository.activeDeviceIsOura` already routes
+                    // through the catalog for exactly this reason ("rather than an ad-hoc 'oura' literal").
+                    let ownerIsOura = DeviceBrandCatalog.isOura(owner)
                     if ownerIsOura {
                         if let cand = AnalyticsEngine.nightlySpo2CeilingMean(res.sleepSessions, spo2: spo2) {
                             spo2CandidateMean = cand.mean
