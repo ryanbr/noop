@@ -45,6 +45,35 @@ object BackgroundHealth {
             ?.isIgnoringBatteryOptimizations(context.packageName) == true
 
     /**
+     * What a tap on the "Keep NOOP alive overnight" switch should DO, given which way it was moved and
+     * whether the exemption is currently granted.
+     *
+     * A pure decision table rather than an `if` buried in the Compose handler, because the bug it fixes was
+     * a MISSING BRANCH and nothing could have caught it: the OFF direction matched no branch, no state
+     * moved, and the switch snapped back to on. Reported as "the toggle doesn't work, it won't let me turn
+     * it off" — the correct read, since a Switch is bidirectional and one that silently swallows half its
+     * input is broken however good the platform reason. Here the table is exhaustive and pinned by tests.
+     *
+     * Android has no API to revoke an app's own exemption ([Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS]
+     * can only ask), so neither direction flips it directly — both open the surface where the user can act.
+     */
+    enum class BatteryToggleAction {
+        /** Not yet exempt, user asked for ON: the one-tap system grant dialog. */
+        RequestExemption,
+        /** Already exempt, user asked for OFF: NOOP's system settings page, where Battery lives. */
+        OpenAppSettings,
+        /** The switch is already where the user just put it — do nothing, and never re-prompt. */
+        None,
+    }
+
+    /** Pure; see [BatteryToggleAction]. */
+    fun batteryToggleAction(wantOn: Boolean, isExempt: Boolean): BatteryToggleAction = when {
+        wantOn && !isExempt -> BatteryToggleAction.RequestExemption
+        !wantOn && isExempt -> BatteryToggleAction.OpenAppSettings
+        else -> BatteryToggleAction.None
+    }
+
+    /**
      * The one-tap system dialog to whitelist NOOP from battery optimisation. Sideload-only intent
      * (Play restricts it; NOOP doesn't ship there). Build-only — the caller starts it on a user tap and
      * falls back to [appBatterySettingsIntent] if a ROM hides this action.

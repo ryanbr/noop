@@ -1948,20 +1948,39 @@ fun SettingsScreen(
                         }
                         Switch(
                             checked = batteryExempt,
-                            // A system grant can't be toggled OFF from here (that's a system action): a tap
-                            // only ever REQUESTS it, and when already exempt the switch is inert (no re-prompt).
+                            // Android has no API to REVOKE an app's own battery-optimisation exemption —
+                            // ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS can only ask — so `checked` tracks the
+                            // live system state and neither direction can flip it from here directly.
+                            //
+                            // This used to mean the OFF direction did literally nothing: the handler matched no
+                            // branch, no state moved, and the switch snapped back to on. Reported as "the toggle
+                            // doesn't work, it won't let me turn it off", which is the correct read — a Switch is
+                            // a bidirectional control, and one that silently swallows half its input is broken
+                            // however good the reason. "Inert" was reasoning from the implementation's side of
+                            // the screen, not the user's.
+                            //
+                            // So BOTH directions now go where the user can actually act: ON opens the one-tap
+                            // grant dialog, OFF opens NOOP's own system settings page, where Battery lives. The
+                            // ON_RESUME observer above re-reads the live state on return, so the switch settles
+                            // to the truth by itself either way.
                             onCheckedChange = { wantOn ->
-                                if (wantOn && !batteryExempt) {
+                                when (com.noop.ble.BackgroundHealth.batteryToggleAction(wantOn, batteryExempt)) {
                                     // The whole feature exists for ROMs that strip things — so the fallback
                                     // is guarded too: if BOTH the exemption dialog and the app-settings page
                                     // are missing, no-op rather than crash (the OEM link below is another path).
-                                    runCatching {
-                                        context.startActivity(com.noop.ble.BackgroundHealth.batteryExemptionIntent(context))
-                                    }.onFailure {
+                                    com.noop.ble.BackgroundHealth.BatteryToggleAction.RequestExemption ->
+                                        runCatching {
+                                            context.startActivity(com.noop.ble.BackgroundHealth.batteryExemptionIntent(context))
+                                        }.onFailure {
+                                            runCatching {
+                                                context.startActivity(com.noop.ble.BackgroundHealth.appBatterySettingsIntent(context))
+                                            }
+                                        }
+                                    com.noop.ble.BackgroundHealth.BatteryToggleAction.OpenAppSettings ->
                                         runCatching {
                                             context.startActivity(com.noop.ble.BackgroundHealth.appBatterySettingsIntent(context))
                                         }
-                                    }
+                                    com.noop.ble.BackgroundHealth.BatteryToggleAction.None -> Unit
                                 }
                             },
                             colors = SwitchDefaults.colors(
