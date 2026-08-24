@@ -113,6 +113,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.semantics.Role
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -1967,25 +1968,33 @@ fun SettingsScreen(
                             },
                             style = NoopType.subhead,
                             color = Palette.accent,
-                            modifier = Modifier.clickable {
-                                when (com.noop.ble.BackgroundHealth.batteryRowAction(batteryExempt)) {
-                                    // The whole feature exists for ROMs that strip things — so the fallback
-                                    // is guarded too: if BOTH the exemption dialog and the app-settings page
-                                    // are missing, no-op rather than crash (the OEM link above is another path).
-                                    com.noop.ble.BackgroundHealth.BatteryRowAction.RequestExemption ->
-                                        runCatching {
-                                            context.startActivity(com.noop.ble.BackgroundHealth.batteryExemptionIntent(context))
-                                        }.onFailure {
+                            modifier = Modifier
+                                // This action REPLACED a Switch, which came with a comfortable touch
+                                // target for free. A bare Text is ~20dp — under the 48dp minimum, and
+                                // it is now the only way to act on this row, so it has to be padded
+                                // rather than merely present. `.clickable{}` BEFORE `.padding()`:
+                                // modifiers apply outside-in, so this puts the padding inside the
+                                // clickable node and grows the target; the reverse would not.
+                                .clickable(role = Role.Button) {
+                                    when (com.noop.ble.BackgroundHealth.batteryRowAction(batteryExempt)) {
+                                        // The whole feature exists for ROMs that strip things — so the fallback
+                                        // is guarded too: if BOTH the exemption dialog and the app-settings page
+                                        // are missing, no-op rather than crash (the OEM link above is another path).
+                                        com.noop.ble.BackgroundHealth.BatteryRowAction.RequestExemption ->
+                                            runCatching {
+                                                context.startActivity(com.noop.ble.BackgroundHealth.batteryExemptionIntent(context))
+                                            }.onFailure {
+                                                runCatching {
+                                                    context.startActivity(com.noop.ble.BackgroundHealth.appBatterySettingsIntent(context))
+                                                }
+                                            }
+                                        com.noop.ble.BackgroundHealth.BatteryRowAction.OpenAppSettings ->
                                             runCatching {
                                                 context.startActivity(com.noop.ble.BackgroundHealth.appBatterySettingsIntent(context))
                                             }
-                                        }
-                                    com.noop.ble.BackgroundHealth.BatteryRowAction.OpenAppSettings ->
-                                        runCatching {
-                                            context.startActivity(com.noop.ble.BackgroundHealth.appBatterySettingsIntent(context))
-                                        }
+                                    }
                                 }
-                            },
+                                .padding(vertical = 12.dp, horizontal = 8.dp),
                         )
                     }
                 }
