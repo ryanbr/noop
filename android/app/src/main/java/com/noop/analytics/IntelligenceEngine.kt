@@ -217,9 +217,9 @@ object IntelligenceEngine {
         // depending on a cache hit — breaking the one thing the cache promises. It would also diverge from
         // Swift, whose sink has always been collect-only (`traceSink = { sleepTrace.append($0) }`) with a
         // grouped emit in its main-actor loop. One emit path now serves both hit and miss.
-        val sleepRec: ((String) -> Unit)? = sleepSink?.let { _ -> { l: String -> sleep.add(l) } }
-        val hrvRec: ((String) -> Unit)? = hrvSink?.let { _ -> { l: String -> hrv.add(l) } }
-        val stepsRec: ((String) -> Unit)? = stepsSink?.let { _ -> { l: String -> steps.add(l) } }
+        val sleepRec: ((String) -> Unit)? = if (sleepSink == null) null else { l -> sleep.add(l) }
+        val hrvRec: ((String) -> Unit)? = if (hrvSink == null) null else { l -> hrv.add(l) }
+        val stepsRec: ((String) -> Unit)? = if (stepsSink == null) null else { l -> steps.add(l) }
         fun snapshot() = DayTraces(sleep.toList(), hrv.toList(), steps.toList())
     }
 
@@ -721,16 +721,6 @@ object IntelligenceEngine {
             // <200-HR SKIPPED line below stays a plain diag (that day is never cached).
             val dayDiagLines = ArrayList<String>()
             fun dayDiag(line: String) { dayDiagLines.add(line); diag(line) }
-            // #1575: the same record-and-forward shape for the three PER-DAY trace channels. Until now an
-            // active sleep/HRV/steps trace disabled the reuse cache outright, because a reused night would
-            // not re-emit those lines — so turning on a diagnostic cost a full 21-day re-read + re-score on
-            // every pass. Recording them per day makes a reused night replay its trace exactly like it
-            // already replays [dayDiagLines], and the diagnostic stops costing what it was measuring.
-            // Recorders are null when the mode is off, so the default path allocates nothing extra. Built
-            // by a small class rather than inline: `analyzeRecentOnCpu` sits close to the JVM's 64 KB
-            // per-method bytecode ceiling, and inline lambdas here pushed the JaCoCo-instrumented size past
-            // the budget #1524 guards (see IntelligenceEngineJacocoBudgetTest).
-            val dayTrace = DayTraceRecorders(sleepTraceSink, hrvTraceSink, stepsTraceSink)
             // Read a generous window around the night that ends on `day`; the stager finds the span.
             val from = dayStart - 30 * 3_600L
             // Sleep read-window END — see `sleepReadWindowEnd`. A PAST day reads through to the next
@@ -819,6 +809,18 @@ object IntelligenceEngine {
             // verbatim universal `dayOwner …` line per SCORED day (matching the iOS emit, which is in the
             // scored-days loop, NOT here). Only when the universal sink is on. A day skipped below for too
             // few rows is never scored, so it emits no line, byte-identical to the iOS behaviour.
+            // #1575: the same per-day collection shape for the three PER-DAY trace channels. Until now an
+            // active sleep/HRV/steps trace disabled the reuse cache outright, because a reused night would
+            // not re-emit those lines — so turning on a diagnostic cost a full 21-day re-read + re-score on
+            // every pass. Recording them per day makes a reused night replay its trace exactly like it
+            // already replays [dayDiagLines], and the diagnostic stops costing what it was measuring.
+            // Allocated AFTER the cache-hit `continue` above: a reused day replays from its cached
+            // snapshot and never needs recorders, so building them earlier was garbage on exactly the
+            // path this change exists to make cheap. Null when the mode is off. Built
+            // by a small class rather than inline: `analyzeRecentOnCpu` sits close to the JVM's 64 KB
+            // per-method bytecode ceiling, and inline lambdas here pushed the JaCoCo-instrumented size past
+            // the budget #1524 guards (see IntelligenceEngineJacocoBudgetTest).
+            val dayTrace = DayTraceRecorders(sleepTraceSink, hrvTraceSink, stepsTraceSink)
             if (universalSink != null) readOwnerByDay[day] = OwnerRead(owner, hr.size)
             if (hr.size < MIN_HR_SAMPLES) {
                 // This day still paid for its read; count it, or the tally under-reports exactly the
