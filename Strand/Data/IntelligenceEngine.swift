@@ -854,7 +854,12 @@ final class IntelligenceEngine: ObservableObject {
                         let key = AnalyzeRecentDayCache.cacheKey(
                             owner: owner, hrCount: fp.count, hrMaxTs: fp.maxTs,
                             skinAnchorRaw: skinAnchorByOwner[owner],
-                            hrvWindowDetail: dayStart == nowLocalMidnight)
+                            // #1575: `hrvTraceActive &&` matters. With the HRV trace OFF no detail
+                            // line is ever produced, so the flag describes nothing — but it would still
+                            // flip at midnight and invalidate yesterday, charging EVERY user an extra
+                            // day's re-score to protect lines they never see. Gating it keeps the default
+                            // path exactly as it was.
+                            hrvWindowDetail: hrvTraceActive && dayStart == nowLocalMidnight)
                         dayCacheKey = key
                         if let cached = dayScanCacheLocal[day], cached.key == key {
                             out.append(cached.scan)

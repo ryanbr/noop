@@ -770,7 +770,12 @@ object IntelligenceEngine {
                 val (fpCount, fpMaxTs) = repo.hrFingerprintWindow(owner, from, to)
                 val key = AnalyzeRecentDayCache.cacheKey(
                     owner, fpCount, fpMaxTs, skinAnchorByOwner[owner],
-                    hrvWindowDetail = dayStart == nowLocalMidnight)
+                    // #1575: `&& hrvTraceSink != null` matters. With the HRV trace OFF no detail line
+                    // is ever produced, so the flag describes nothing — but it would still flip at
+                    // midnight and invalidate yesterday, charging EVERY user an extra day's re-score to
+                    // protect lines they never see. Gating it keeps the default path exactly as it was and
+                    // makes the cost what this change claims: paid only while a trace is on.
+                    hrvWindowDetail = hrvTraceSink != null && dayStart == nowLocalMidnight)
                 dayCacheKey = key
                 val cached = dayScanCache[day]
                 if (cached != null && cached.key == key) {
