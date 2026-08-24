@@ -241,6 +241,13 @@ object AnalyticsEngine {
         // flag. Default false keeps every pure-function caller/test byte-identical; IntelligenceEngine
         // threads PuffinExperiment.from(context).motionAwareWake. Mirrors Swift.
         useMotionAwareWake: Boolean = false,
+        // HR-first sleep detection (experimental, default OFF — see the section comment above
+        // [SleepStager.wakeBridgeMaxMin]). When true, detection weights HR over motion where the two
+        // disagree (an "active" run whose median HR sits in the sleep band is rescued as sleep) and
+        // assembles one session per sleep period across ≤ 45-min wake gaps. Default false keeps every
+        // pure-function caller/test byte-identical; IntelligenceEngine threads
+        // PuffinExperiment.from(context).hrFirstSleep. Mirrors Swift.
+        useHrFirstSleep: Boolean = false,
         // Sleep & Rest test-mode trace sink (E11). null = byte-identical default. When non-null the gate
         // trace from detectSleep and the Rest sub-score line are forwarded line-by-line. Mirrors Swift.
         traceSink: ((String) -> Unit)? = null,
@@ -264,6 +271,7 @@ object AnalyticsEngine {
             hr = hr, rr = rr, resp = resp, gravity = gravity, tzOffsetSeconds = tzOffsetSeconds,
             wristOff = wristOff, bandSleepState = bandSleepState,
             useSleepStagerV2 = useSleepStagerV2,
+            hrFirstSleep = useHrFirstSleep,
             traceSink = traceSink,
         )
         // Motion-aware wake refinement (#364 follow-up) runs AFTER V1/V2 staging, over every detected

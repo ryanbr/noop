@@ -201,6 +201,23 @@ enum PuffinExperiment {
 
     static var motionAwareWakeEnabled: Bool { UserDefaults.standard.bool(forKey: motionAwareWakeKey) }
 
+    /// Opt-in "HR-first sleep detection" (default OFF): weight the cardiac signal over wrist motion when
+    /// the two disagree, inside `SleepStager.detectSleep`. Two effects, both BEFORE the gate ladder:
+    /// a motion-"active" run whose median HR sits inside the same sleep band the ladder already trusts is
+    /// rescued as sleep (a restless-but-asleep night — periodic limb movement, an injured sleeper, or a
+    /// strap whose motion channel over-reports — is no longer collapsed to its quiescent morning
+    /// fragment), and adjacent sleep runs across a ≤ 45-min wake gap are assembled into ONE session with
+    /// the wake staged inside it (a brief get-up no longer splits the night into separate stored
+    /// sessions). Every existing guard (min duration, span cap, HR confirmation, off-wrist, daytime nap
+    /// bars) still applies to the assembled runs. Default OFF per the varying-input validation
+    /// discipline (#194/#345): an awake-in-bed stretch whose HR genuinely sits in the sleep band can be
+    /// scored asleep, the same limit the still-sedentary path already has. Read at the scoring call site
+    /// (IntelligenceEngine) and threaded through `AnalyticsEngine.analyzeDay`. Mirrors the Android
+    /// `PuffinExperiment.KEY_HR_FIRST_SLEEP`.
+    static let hrFirstSleepKey = "noopHrFirstSleep"
+
+    static var hrFirstSleepEnabled: Bool { UserDefaults.standard.bool(forKey: hrFirstSleepKey) }
+
     /// Opt-in "WHOOP MG ECG (experimental)": unlock the gated, user-initiated ECG ("Labrador") probe that
     /// asks an MG strap to start its ECG subsystem. Default OFF, and OFF is not merely the default — with
     /// this key false the four ECG opcodes are dropped by the BLEManager allowlist, so no ECG byte can

@@ -190,6 +190,99 @@ public enum SleepStager {
     /// while still dropping an all-day desk strap (≈100% gap) or a session genuinely spent off-wrist.
     public static let maxOffWristSleepFraction: Double = 0.5
 
+    // MARK: - HR-first sleep detection (experimental, default OFF)
+
+    // The gravity-stillness spine reads a RESTLESS but genuinely asleep night — periodic limb
+    // movement, an injured/bedridden sleeper's tossing, or a strap whose motion channel over-reports
+    // — as "active", so whole hours of physiologically unambiguous sleep (sustained sub-baseline HR)
+    // never become candidate runs and the night collapses to whichever quiescent fragment survives.
+    // A real 5/MG user lost 6–8 h nights to 1–3 h morning fragments this way (hourly HR 47–58 bpm from
+    // ~01:00 through ~09:00 local scored nothing), while an ~8-min bathroom get-up — smeared past
+    // mergeMin by the CENTERED 15-min rolling stillness window — split the remaining night into
+    // separate stored sessions at a 16-min seam. The dense-gravity path has no HR-led recovery at all:
+    // HR only ever CONFIRMS gravity-derived runs (the #308 rescue is gated on gravity SPARSENESS,
+    // which a dense restless night never trips).
+    //
+    // The HR-first pass (default OFF; the live call site threads PuffinExperiment.hrFirstSleepEnabled)
+    // weights HR over motion when the two disagree, in two steps between the run spine and the ladder:
+    //   1. `hrRescueActiveRuns` — an "active" run whose MEDIAN in-run HR sits inside the SAME sleep
+    //      band the ladder already trusts (`confirmSleepWithHR`'s ≤ baseline × hrSleepBaselineMult,
+    //      same median statistic, same `sleepHRBaseline` override) is reclassified "sleep": motion
+    //      alone must not veto sleep the cardiac signal confirms.
+    //   2. `bridgeWakeGaps` — adjacent sleep runs separated by ≤ `wakeBridgeMaxMin` are merged into
+    //      ONE candidate run (the "same sleep period" convention — a brief mid-night wake belongs
+    //      INSIDE the night), so a short get-up yields one session whose stager scores the wake
+    //      inside it instead of two stored sessions — and so sub-minSleepMin sleep fragments between
+    //      arousals are no longer dropped outright before the selector-side bridges ever see them.
+    // Every downstream gate (minSleepMin, the H4 span cap, hrConfirm, off-wrist, the daytime/morning
+    // guards) still applies to the ASSEMBLED runs, so a rescued daytime stretch still needs a real
+    // cardiac dip to survive, and an off-wrist block is still dropped.
+    //
+    // KNOWN LIMIT (why this defaults OFF, per the #194/#345 discipline): an awake-in-bed stretch whose
+    // HR genuinely sits inside the sleep band (deep pre-sleep relaxation) can be scored asleep — the
+    // same limit the still-sedentary gravity path already has, extended to fidgety-sedentary. The
+    // synthetic tests (SleepStagerHrFirstTests + the Kotlin twin) prove the pass TRACKS varying
+    // injected inputs — rescue follows wherever the sleep-band HR actually is, and refuses an
+    // identical motion pattern whose HR is elevated — not a single matched night.
+
+    /// Adjacent sleep runs separated by at most this many minutes are assembled into ONE candidate
+    /// run (HR-first pass only). Below the selector-side `SleepStageTotals.gapBridgeMaxMin` (60) so
+    /// selection/aggregation behaviour is unchanged for anything this bridge leaves split; well above
+    /// the ~16-min smeared seam a brief real get-up produces.
+    public static let wakeBridgeMaxMin: Int = 45
+
+    /// HR-first step 1: reclassify an "active" run to "sleep" when its median in-run HR sits inside
+    /// the sleep band (≤ effective-baseline × `hrSleepBaselineMult` — the identical band + median
+    /// statistic `confirmSleepWithHR` trusts, with the same `sleepHRBaseline` personalised override).
+    /// Runs with fewer than `hrRefineMinSamples` in-run HR samples are left untouched (too little
+    /// cardiac evidence to overrule motion), as is everything when no baseline exists. Pure +
+    /// deterministic; mirrors Kotlin `hrRescueActiveRuns`.
+    static func hrRescueActiveRuns(_ periods: [Period], hr: [HRSample], baseline: Double?,
+                                   sleepHRBaseline: Double? = nil,
+                                   traceSink: ((String) -> Void)? = nil) -> [Period] {
+        guard let effBaseline = sleepHRBaseline ?? baseline else { return periods }
+        return periods.map { p in
+            guard p.stage == "active" else { return p }
+            let seg = rowsBetween(hr, start: p.start, end: p.end) { $0.ts }
+            guard seg.count >= hrRefineMinSamples else { return p }
+            let medHR = HRVAnalyzer.median(seg.map { Double($0.bpm) })
+            guard medHR <= effBaseline * hrSleepBaselineMult else { return p }
+            traceSink?(GateTrace.runLine(index: -1, startTs: p.start, endTs: p.end,
+                verdict: .kept, gate: "hrRescue",
+                detail: "medHR=\(Int(medHR)) band=\(round2(effBaseline * hrSleepBaselineMult))"))
+            return Period(stage: "sleep", start: p.start, end: p.end)
+        }
+    }
+
+    /// HR-first step 2: assemble adjacent sleep runs separated by at most `wakeBridgeMaxMin` minutes
+    /// (whatever lies between — an un-rescued active run, or a plain data hole) into one candidate
+    /// run; the intervening runs are absorbed and the stager later scores the wake INSIDE the single
+    /// session. A gap over the threshold (or a negative/overlapping gap — pinned `gap >= 0`
+    /// semantics, matching `bridgeSparseSleep`) never bridges. Pure + deterministic; mirrors Kotlin
+    /// `bridgeWakeGaps`.
+    static func bridgeWakeGaps(_ periods: [Period],
+                               traceSink: ((String) -> Void)? = nil) -> [Period] {
+        let bridgeS = wakeBridgeMaxMin * 60
+        var out: [Period] = []
+        for p in periods {
+            if p.stage == "sleep",
+               let j = out.lastIndex(where: { $0.stage == "sleep" }),
+               p.start - out[j].end >= 0, p.start - out[j].end <= bridgeS {
+                let gapMin = (p.start - out[j].end) / 60
+                if gapMin > 0 {
+                    traceSink?(GateTrace.runLine(index: -1, startTs: out[j].end, endTs: p.start,
+                        verdict: .kept, gate: "wakeBridge",
+                        detail: "gapMin=\(gapMin) max=\(wakeBridgeMaxMin)"))
+                }
+                out[j] = Period(stage: "sleep", start: out[j].start, end: max(out[j].end, p.end))
+                out.removeSubrange((j + 1)...)
+            } else {
+                out.append(p)
+            }
+        }
+        return out
+    }
+
     /// Minimum average HR-stream density for the off-wrist HR-gap proxy to be trusted (#507). The proxy
     /// reads a >`offWristHRGapMin`-minute hole in HR as "off the wrist" — valid only when HR is otherwise
     /// dense (live 5/MG, or a worn night with continuous HR), so a real gap is anomalous. A WHOOP 4.0's
@@ -849,6 +942,14 @@ public enum SleepStager {
                                    wristOff: [(start: Int, end: Int)] = [],
                                    bandSleepState: [(ts: Int, state: Int)] = [],
                                    useSleepStagerV2: Bool = false,
+                                   // HR-first sleep detection (experimental, default OFF — see the
+                                   // section comment above `wakeBridgeMaxMin`). When true, active runs
+                                   // whose median HR sits in the sleep band are rescued as sleep and
+                                   // adjacent sleep runs across ≤ wakeBridgeMaxMin wake gaps are
+                                   // assembled into one candidate run before the gate ladder. The
+                                   // default keeps every existing caller byte-identical; the live call
+                                   // site threads PuffinExperiment.hrFirstSleepEnabled.
+                                   hrFirstSleep: Bool = false,
                                    sleepHRBaseline: Double? = nil,
                                    traceSink: ((String) -> Void)? = nil) -> [SleepSession] {
         // Sleep & Rest test mode only: when a trace is requested we MUST run the live ladder, not a
@@ -860,6 +961,7 @@ public enum SleepStager {
             return detectSleepUncached(hr: hr, rr: rr, resp: resp, gravity: gravity,
                                        tzOffsetSeconds: tzOffsetSeconds, wristOff: wristOff,
                                        bandSleepState: bandSleepState, useSleepStagerV2: useSleepStagerV2,
+                                       hrFirstSleep: hrFirstSleep,
                                        sleepHRBaseline: sleepHRBaseline, traceSink: traceSink)
         }
         // v7.0.2 perf (#707): the single heaviest analytics call — it sorts the dense full-day gravity
@@ -879,11 +981,13 @@ public enum SleepStager {
             wristOff: StreamFingerprint.of(wristOff, ts: { $0.start }, quant: { $0.end }),
             band: StreamFingerprint.of(bandSleepState, ts: { $0.ts }, quant: { $0.state }),
             v2: useSleepStagerV2,
+            hrFirst: hrFirstSleep,
             sleepHRBaseline: sleepHRBaseline)
         return detectSleepCache.value(key) {
             detectSleepUncached(hr: hr, rr: rr, resp: resp, gravity: gravity,
                                 tzOffsetSeconds: tzOffsetSeconds, wristOff: wristOff,
                                 bandSleepState: bandSleepState, useSleepStagerV2: useSleepStagerV2,
+                                hrFirstSleep: hrFirstSleep,
                                 sleepHRBaseline: sleepHRBaseline, traceSink: nil)
         }
     }
@@ -894,6 +998,7 @@ public enum SleepStager {
         let tz: Int
         let wristOff: StreamFingerprint; let band: StreamFingerprint
         let v2: Bool
+        let hrFirst: Bool
         let sleepHRBaseline: Double?
     }
     /// ≈ the number of distinct days in a scoring window; FIFO-evicted, holds only small session arrays.
@@ -908,6 +1013,7 @@ public enum SleepStager {
                                             wristOff: [(start: Int, end: Int)],
                                             bandSleepState: [(ts: Int, state: Int)],
                                             useSleepStagerV2: Bool,
+                                            hrFirstSleep: Bool = false,
                                             sleepHRBaseline: Double? = nil,
                                             traceSink: ((String) -> Void)? = nil) -> [SleepSession] {
         let grav = gravity.sorted { $0.ts < $1.ts }
@@ -957,6 +1063,18 @@ public enum SleepStager {
                     detail: "pair=\(i) gapMin=\(a.gapMin) hrInSleepBand=\(a.hrInSleepBand) "
                         + "reason=\(a.reason)"))
             }
+        }
+
+        // HR-first pass (experimental, default OFF — see the section comment above `wakeBridgeMaxMin`):
+        // weight HR over motion where the two disagree (an active run whose median HR is in the sleep
+        // band is rescued as sleep), then assemble one candidate run per sleep period across short
+        // (≤ wakeBridgeMaxMin) wake gaps, BEFORE the ladder — so sub-minSleepMin fragments between
+        // arousals survive as part of the night instead of being dropped, and a brief get-up stays
+        // INSIDE one session as staged wake. Every gate below still applies to the assembled runs.
+        if hrFirstSleep {
+            runs = hrRescueActiveRuns(runs, hr: hrS, baseline: baseline,
+                                      sleepHRBaseline: sleepHRBaseline, traceSink: traceSink)
+            runs = bridgeWakeGaps(runs, traceSink: traceSink)
         }
 
         let minSleepS = minSleepMin * 60

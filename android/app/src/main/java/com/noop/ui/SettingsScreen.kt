@@ -502,6 +502,9 @@ fun SettingsScreen(
     // "Motion-aware wake refinement" (#364 follow-up) — OFF by default. Self-gates on observed gravity +
     // step density, so it is a no-op on a sparse (e.g. WHOOP 4.0) night regardless of this switch.
     var motionAwareWake by remember { mutableStateOf(puffinExperiment.motionAwareWake) }
+    // "HR-first sleep detection" — OFF by default. Weights HR over wrist motion in sleep DETECTION and
+    // bridges short (≤45 min) wake gaps into one session; see PuffinExperiment.hrFirstSleep.
+    var hrFirstSleep by remember { mutableStateOf(puffinExperiment.hrFirstSleep) }
 
     // Whether to surface the WHOOP 5/MG-only probes (puffin / R22 / broadcast-HR / frame-capture). Gated
     // so a confident 4.0 owner never sees 5/MG controls that can't touch their strap (#22). The model
@@ -2200,6 +2203,49 @@ fun SettingsScreen(
                         "into light sleep; a real get-up is left alone. Self-checks how much motion detail " +
                         "your strap actually recorded and stays off on a night that's too sparse to trust " +
                         "(older WHOOP 4.0 firmware, mainly). Off by default; takes effect on the next nights staged.",
+                    style = NoopType.caption,
+                    color = Palette.textTertiary,
+                )
+
+                // --- HR-first sleep detection — OFF by default. ---
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Text(
+                        "HR-first sleep detection",
+                        style = NoopType.subhead,
+                        color = Palette.textPrimary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(
+                        checked = hrFirstSleep,
+                        onCheckedChange = {
+                            hrFirstSleep = it
+                            puffinExperiment.hrFirstSleep = it
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Palette.surfaceBase,
+                            checkedTrackColor = Palette.accent,
+                            uncheckedThumbColor = Palette.textSecondary,
+                            uncheckedTrackColor = Palette.surfaceInset,
+                            uncheckedBorderColor = Palette.hairline,
+                        ),
+                        modifier = Modifier.semantics {
+                            contentDescription = "HR-first sleep detection"
+                        },
+                    )
+                }
+                Text(
+                    "Trusts your heart rate over wrist movement when the two disagree about sleep. A " +
+                        "restless night whose heart rate clearly sits at your sleep level is kept as sleep " +
+                        "instead of being cut down to its calmest fragment, and a brief get-up (under ~45 " +
+                        "minutes) stays inside one sleep with the wake scored inside it, rather than " +
+                        "splitting the night into separate sleeps. Worth trying if your nights show up " +
+                        "fragmented or mostly missing despite a normal sleeping heart rate. Trade-off: a " +
+                        "long, deeply relaxed stretch awake in bed can be scored as sleep. Off by default; " +
+                        "takes effect on the next nights scored.",
                     style = NoopType.caption,
                     color = Palette.textTertiary,
                 )

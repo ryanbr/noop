@@ -90,6 +90,7 @@ struct SettingsView: View {
     /// minutes. Self-gates on OBSERVED gravity + step density (#345) — a no-op on a sparse night (e.g.
     /// WHOOP 4.0) regardless of this switch. See [PuffinExperiment.motionAwareWakeKey].
     @AppStorage(PuffinExperiment.motionAwareWakeKey) private var motionAwareWakeEnabled = false
+    @AppStorage(PuffinExperiment.hrFirstSleepKey) private var hrFirstSleepEnabled = false
 
     // Imperial/Metric display preference (D#103). Stored data is always SI; this only changes how
     // distances/weights/heights/temperatures are SHOWN — and lets the profile fields below take
@@ -1428,6 +1429,21 @@ struct SettingsView: View {
                 .toggleStyle(.switch)
                 .tint(StrandPalette.accent)
                 Text("Reviews each scored wake block for real evidence of getting up (walking cadence, a change in body position) instead of just a heart-rate rise. A wake block with no locomotion and a stable posture — a hot night, a brief turn-over — is folded back into light sleep; a real get-up is left alone. Self-checks how much motion detail your strap actually recorded and stays off on a night that's too sparse to trust (older WHOOP 4.0 firmware, mainly). Off by default; takes effect on the next nights staged.")
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Divider().overlay(StrandPalette.hairline)
+
+                // MARK: HR-first sleep detection — default OFF.
+                Toggle(isOn: $hrFirstSleepEnabled) {
+                    Text("HR-first sleep detection")
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textPrimary)
+                }
+                .toggleStyle(.switch)
+                .tint(StrandPalette.accent)
+                Text("Trusts your heart rate over wrist movement when the two disagree about sleep. A restless night whose heart rate clearly sits at your sleep level is kept as sleep instead of being cut down to its calmest fragment, and a brief get-up (under ~45 minutes) stays inside one sleep with the wake scored inside it, rather than splitting the night into separate sleeps. Worth trying if your nights show up fragmented or mostly missing despite a normal sleeping heart rate. Trade-off: a long, deeply relaxed stretch awake in bed can be scored as sleep. Off by default; takes effect on the next nights scored.")
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)

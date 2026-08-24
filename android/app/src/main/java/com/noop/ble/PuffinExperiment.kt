@@ -96,6 +96,22 @@ class PuffinExperiment(private val prefs: SharedPreferences) {
         get() = prefs.getBoolean(KEY_MOTION_AWARE_WAKE, false)
         set(v) = prefs.edit().putBoolean(KEY_MOTION_AWARE_WAKE, v).apply()
 
+    /** Opt-in "HR-first sleep detection" (default OFF): weight the cardiac signal over wrist motion
+     *  when the two disagree, inside [com.noop.analytics.SleepStager.detectSleep]. Two effects, both
+     *  BEFORE the gate ladder: a motion-"active" run whose median HR sits inside the same sleep band
+     *  the ladder already trusts is rescued as sleep (a restless-but-asleep night is no longer
+     *  collapsed to its quiescent morning fragment), and adjacent sleep runs across a ≤ 45-min wake
+     *  gap are assembled into ONE session with the wake staged inside it (a brief get-up no longer
+     *  splits the night into separate stored sessions). Every existing guard (min duration, span cap,
+     *  HR confirmation, off-wrist, daytime nap bars) still applies to the assembled runs. Default OFF
+     *  per the varying-input validation discipline (#194/#345): an awake-in-bed stretch whose HR
+     *  genuinely sits in the sleep band can be scored asleep, the same limit the still-sedentary path
+     *  already has. Pure analysis flag (sends nothing to the strap), model-agnostic. Mirrors the
+     *  macOS `PuffinExperiment.hrFirstSleepKey`. */
+    var hrFirstSleep: Boolean
+        get() = prefs.getBoolean(KEY_HR_FIRST_SLEEP, false)
+        set(v) = prefs.edit().putBoolean(KEY_HR_FIRST_SLEEP, v).apply()
+
     /**
      * Turn OFF every 5/MG-only experimental probe: protocol probes ([isEnabled]), raw capture
      * ([isCaptureEnabled]), the R22 deep-data strap write ([isDeepDataEnabled]) and broadcast-HR
@@ -146,6 +162,7 @@ class PuffinExperiment(private val prefs: SharedPreferences) {
 
         /** "Motion-aware wake refinement" opt-in (mirrors macOS `PuffinExperiment.motionAwareWakeKey`). */
         const val KEY_MOTION_AWARE_WAKE = "noopMotionAwareWake"
+        const val KEY_HR_FIRST_SLEEP = "noopHrFirstSleep"
 
         fun from(context: Context): PuffinExperiment =
             PuffinExperiment(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE))
