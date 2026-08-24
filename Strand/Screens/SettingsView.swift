@@ -979,12 +979,17 @@ struct SettingsView: View {
                         Text("0-100").tag(EffortScale.hundred.rawValue)
                         Text("0-21").tag(EffortScale.whoop.rawValue)
                     }
-                // #1545: placed directly under the Effort SCALE row on purpose. It shipped in the
-                // experimental block beside the SpO2 and stress-baseline toggles, where the person who
-                // asked for it could not find it — a setting built for a specific report is no use if
-                // the reporter cannot locate it. The two rows are different concepts (that one is the
-                // display AXIS, this the computation RECIPE) but a user asking "how is my Effort worked
-                // out" reaches for the same place for both, and each row's caption separates them.
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .tint(StrandPalette.accent)
+                    .accessibilityLabel("Effort scale")
+                }
+
+                // #1545: directly under the Effort SCALE row on purpose. It shipped in the experimental
+                // block beside the SpO2 and stress-baseline toggles, where the person who asked for it
+                // could not find it. The two are different concepts — that row is the display AXIS,
+                // this the computation RECIPE — but a user asking "how is my Effort worked out" reaches
+                // for the same place for both, and each row's caption separates them.
                 // MARK: #1545 Effort scale — Banister exponential TRIMP instead of Edwards zones.
                 Divider().overlay(StrandPalette.hairline)
 
@@ -1007,11 +1012,6 @@ struct SettingsView: View {
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .tint(StrandPalette.accent)
-                    .accessibilityLabel("Effort scale")
-                }
             }
         }
     }
