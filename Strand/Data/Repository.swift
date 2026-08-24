@@ -850,6 +850,12 @@ final class Repository: ObservableObject {
         self.freshness = merged.freshness
         self.loaded = true
         self.refreshSeq += 1
+        // Drop the Explorer's cross-catalog memo here rather than leaving it to be evicted lazily by a
+        // key mismatch. Its key has just gone stale, and a lazy eviction only frees the memory when the
+        // NEXT scan replaces it — so a user who opens Explore once and never returns keeps a whole
+        // catalog of series resident for the rest of the session. The key check stays: it still guards
+        // the case this line cannot, an active-strap re-point with no refresh behind it.
+        self.exploreAllCache = nil
     }
 
     /// Per-source coverage counts for the Freshness Pipeline card. Pure over the rows already read.
@@ -2158,6 +2164,12 @@ final class Repository: ObservableObject {
     /// Returns `nil` if cancelled, and a cancelled scan is NOT cached — the caller (which checks
     /// `Task.isCancelled` per metric so navigating away mid-scan stops it) must not have a half-filled
     /// catalog frozen in for the rest of the generation.
+    ///
+    /// DEFAULT WINDOW ONLY. Every entry is `exploreSeries`' default `days`/`fullHistory`, and the key
+    /// does not record them, so this cannot serve a caller that wants a different window — it would hand
+    /// back the default one and look like it had honoured the request. The correlation sweep is the only
+    /// caller and uses the defaults; anything needing `fullHistory` must call `exploreSeries` directly or
+    /// this must gain a window-aware key.
     func exploreAllSeries() async -> [String: [(day: String, value: Double)]]? {
         let key = "\(deviceId)|\(refreshSeq)"
         if let cached = exploreAllCache, cached.key == key { return cached.byMetricID }
