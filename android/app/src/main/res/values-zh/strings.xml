@@ -156,7 +156,7 @@
     <string name="fast_link_phy_desc">在手环同步历史数据时，请求更快的蓝牙传输模式。这能在更短的传输时间内完成同步，不仅加快速度还能略微节省手环电量——但前提是手环必须支持该协议，且会牺牲一部分传输距离。这是一项未经完全验证的新功能：如果手机离手环较远时同步变得不稳定，请将其关闭。</string>
     <string name="fast_history_sync">历史数据高速同步 (实验性)</string>
     <string name="fast_history_sync_desc">在同步历史数据时请求 Android 系统提供更快的蓝牙连接权重，以便让大量堆积的数据快速同步完毕。仅在同步期间生效——您的实时心率和整夜数据流不受影响。这是一项未经完全验证的新功能：如果它没有改善同步速度，或者耗电过多，请将其关闭，并在我们的 Github 上反馈。</string>
-    <string name="keep_alive_allowed">已允许 — 您的手机不会为了省电而强制中断 NOOP 的整夜同步。该权限本身不会产生耗电；真正的耗电来源于您上方主动开启的整夜同步功能。</string>
+    <string name="keep_alive_allowed">已允许 — 您的手机不会为了省电而强制中断 NOOP 的整夜同步。该权限本身不会产生耗电；真正的耗电来源于您上方主动开启的整夜同步功能。 要关闭它，请关闭此开关，系统会打开 Android 的电池设置 — 在列表中找到 NOOP 并将其改回“优化”。Android 不允许应用自行交回该权限。</string>
     <string name="keep_alive_needed_vendor">您的手机 (%1$s) 可能会为了省电而强制杀掉后台应用，这会导致 NOOP 漏掉整夜的睡眠和恢复数据。请开启此选项将 NOOP 加入系统白名单。\\n\\n系统会弹窗询问“停止优化电池使用？”并警告 NOOP 可能会耗电——这是 Android 针对所有后台应用的统一标准话术，请放心点击允许。真正的耗电来自于您此前已开启的整夜同步；此选项仅用于防止 Android 系统中途切断它。</string>
     <string name="keep_alive_needed_generic">部分手机可能会为了省电而强制杀掉后台应用，这会导致 NOOP 漏掉整夜的睡眠和恢复数据。请开启此选项将 NOOP 加入系统白名单。\\n\\n系统会弹窗询问“停止优化电池使用？”并警告 NOOP 可能会耗电——这是 Android 针对所有后台应用的统一标准话术，请放心点击允许。真正的耗电来自于您此前已开启的整夜同步；此选项仅用于防止 Android 系统中途切断它。</string>
     <string name="power_saving">节能管理</string>
