@@ -1930,17 +1930,20 @@ fun SettingsScreen(
                 //
                 // POPUP DISCIPLINE is unchanged: the tap fires exactly ONE system dialog, and the OEM
                 // auto-start screen stays a SEPARATE text-link, never chained onto it.
-                // The vendor gate comes FIRST, and it is a pure string test with no Context behind it.
-                // Everything below — the exempt read, the lifecycle observer, the auto-start resolve — is
-                // work done on behalf of a row that a Pixel or Samsung can never show, so it is scoped
-                // inside the gate rather than run for everyone and thrown away.
+                // The vendor gate. The whitelist helps a little on any phone (it also exempts from Doze
+                // deferral), but NOOP already survives the night on a ROM that honours the AOSP
+                // foreground-service contract, so on those phones this row was noise about a permission the
+                // user did not need. Narrowing it to the dontkillmyapp set is what lets it be a prompt at
+                // all: it appears where there is a real problem to fix.
                 //
-                // The whitelist helps a little on any phone (it also exempts from Doze deferral), but NOOP
-                // already survives the night on a ROM that honours the AOSP foreground-service contract, so
-                // on those phones this row was noise about a permission the user did not need. Narrowing it
-                // to the dontkillmyapp set is what lets it be a prompt at all: it appears where there is a
-                // real problem to fix.
-                if (backgroundConnection && remember { com.noop.ble.BackgroundHealth.isAggressiveVendor() }) {
+                // Hoisted OUT of the `if` rather than folded into the condition. `&&` short-circuits, so
+                // `remember` inside it would go uncalled whenever background connection is off — a
+                // composable call in a conditionally-evaluated position, which is how a slot table gets
+                // corrupted when the condition later flips. It costs one string comparison to read it
+                // unconditionally, and the work actually worth avoiding — the exempt read, the lifecycle
+                // observer, the auto-start resolve — is inside the body regardless.
+                val aggressiveVendor = remember { com.noop.ble.BackgroundHealth.isAggressiveVendor() }
+                if (backgroundConnection && aggressiveVendor) {
                     // Re-read the LIVE exempt state on every ON_RESUME. This is what makes the row vanish
                     // the moment the user returns from the grant dialog — and reappear if they later
                     // revoke it in system settings. Reading it plainly in composition wouldn't recompose
