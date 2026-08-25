@@ -136,6 +136,8 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import kotlin.math.roundToInt
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.material3.ButtonDefaults
 
 /**
  * Workouts — the activity log, instrument-grade and uniform. Ports the macOS
@@ -436,12 +438,29 @@ private fun PostLogNoteBanner(text: String) {
     }
 }
 
-/** The "Add workout" pill — opens the manual add dialog. Shown on both the populated screen
- *  (in the range bar) and the empty state, so a user with no imports can still log a session. */
+/**
+ * The "Add workout" pill — opens the manual add dialog. Shown on both the populated screen
+ * (in the range bar) and the empty state, so a user with no imports can still log a session.
+ *
+ * #1602: this sits beside a Material3 [Button] in the Workouts action row, and the two are built by
+ * different mechanisms — so their metrics have to be matched deliberately or they drift. A `Button`
+ * carries `defaultMinSize(minHeight = ButtonDefaults.MinHeight)`; a bare `Row` has no minimum at all,
+ * so its height was whatever the content happened to be plus its padding, and the pair rendered at
+ * different heights with different label sizes.
+ *
+ * Both are pinned here: the same minimum height as a `Button`, and the same [NoopType.captionNumber]
+ * the Start button uses. iOS has never had this because both of its buttons come from ONE primitive
+ * (`NoopButton`, differing only by `kind`) — the real fix is an Android equivalent, and until that
+ * exists this is the seam that has to be held by hand.
+ */
 @Composable
 internal fun AddWorkoutButton(onAdd: () -> Unit, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
+            // Constraint first, decoration after: the shape and fill are then computed against the
+            // final height rather than reading as though they set it. (Compose measures the node the
+            // same either way here — this is ordering for legibility, not a fix for a real clip bug.)
+            .defaultMinSize(minHeight = ButtonDefaults.MinHeight)
             .clip(RoundedCornerShape(50))
             .background(Palette.accentMuted)
             .clickable(onClick = onAdd)
@@ -451,7 +470,11 @@ internal fun AddWorkoutButton(onAdd: () -> Unit, modifier: Modifier = Modifier) 
     ) {
         Icon(Icons.Filled.Add, contentDescription = null, tint = Palette.accent, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(6.dp))
-        Text(uiString(R.string.l10n_workouts_screen_add_workout_a196a2cc), style = NoopType.subhead, color = Palette.accent)
+        Text(
+            uiString(R.string.l10n_workouts_screen_add_workout_a196a2cc),
+            style = NoopType.captionNumber,
+            color = Palette.accent,
+        )
     }
 }
 
