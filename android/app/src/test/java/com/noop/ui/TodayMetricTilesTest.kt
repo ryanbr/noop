@@ -563,4 +563,47 @@ class TodayMetricTilesTest {
         )
         assertEquals("2026-06-16", lastSkinTempRow(days, todayKey = "2026-06-19")?.day)
     }
+
+    // MARK: spo2TrendSeries — the Blood Oxygen trend source (#1599)
+
+    private fun spo2Day(d: String, calibrated: Double?) =
+        com.noop.data.DailyMetric(deviceId = "my-whoop", day = d, spo2Pct = calibrated)
+
+    /**
+     * The reported case. `AnalyticsEngine` writes spo2Pct = null on every computed day, so a strap-only
+     * install has NO calibrated series — the tile drew a carried number above blank space while every
+     * neighbouring tile had a line. The candidate is what it has, and it must be enough to draw.
+     */
+    @Test fun strapOnlyDaysStillProduceATrendFromTheCandidate() {
+        val days = listOf(spo2Day("2026-08-22", null), spo2Day("2026-08-23", null), spo2Day("2026-08-24", null))
+        val candidate = mapOf("2026-08-22" to 95.0, "2026-08-23" to 96.0, "2026-08-24" to 94.0)
+        assertEquals(listOf(95.0, 96.0, 94.0), spo2TrendSeries(days, candidate))
+    }
+
+    /** Calibrated wins for a day that has one — the candidate is a fallback, never an override. */
+    @Test fun aCalibratedReadingBeatsTheCandidateForTheSameDay() {
+        val days = listOf(spo2Day("2026-08-23", 97.0))
+        assertEquals(listOf(97.0), spo2TrendSeries(days, mapOf("2026-08-23" to 91.0)))
+    }
+
+    /** Mixed history: imported days keep their own value, strap-only days are filled. Per-DAY, not
+     *  whole-series — a single import must not switch the whole window to calibrated-only. */
+    @Test fun theTwoSourcesInterleavePerDay() {
+        val days = listOf(spo2Day("2026-08-22", 98.0), spo2Day("2026-08-23", null), spo2Day("2026-08-24", 97.0))
+        assertEquals(listOf(98.0, 96.0, 97.0), spo2TrendSeries(days, mapOf("2026-08-23" to 96.0)))
+    }
+
+    /** Toggle OFF hands this an empty map (the flow returns emptyMap), and the series must then be
+     *  exactly what it always was — no candidate leaks in through a second path. */
+    @Test fun anEmptyCandidateMapLeavesTheCalibratedSeriesUntouched() {
+        val days = listOf(spo2Day("2026-08-22", 98.0), spo2Day("2026-08-23", null))
+        assertEquals(listOf(98.0), spo2TrendSeries(days, emptyMap()))
+    }
+
+    /** A day absent from both contributes nothing rather than a zero — a fabricated 0 % would plot as a
+     *  catastrophic desaturation. */
+    @Test fun aDayWithNeitherSourceIsDroppedNotZeroed() {
+        val days = listOf(spo2Day("2026-08-22", null), spo2Day("2026-08-23", 96.0))
+        assertEquals(listOf(96.0), spo2TrendSeries(days, mapOf("2026-08-24" to 95.0)))
+    }
 }

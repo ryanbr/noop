@@ -1070,7 +1070,7 @@ fun TodayScreen(
 
     // 14-day trailing calendar window ending on the phone's actual local day.
     // Old imports stay in history, but they do not fill the Today trend tiles.
-    val window = rememberTrendWindow(days, selectedDay, keyMetricsWindowDays)
+    val window = rememberTrendWindow(days, selectedDay, keyMetricsWindowDays, spo2CandidateByDay)
 
     LaunchedEffect(days) {
         // #849: this footer pass is the heavy one. It derives HR per imported workout from raw strap samples
@@ -1546,6 +1546,7 @@ fun TodayScreen(
                                     carriedDay = lastScoredRecoveryDay,
                                     spo2CarryDay = lastSpo2Day,
                                     respCarryDay = lastRespDay,
+                                    spo2CandidateByDay = spo2CandidateByDay,
                                     unitSystem = unitSystem,
                                     effortScale = effortScale,
                                     effortForDay = effortForDay,   // #1001: same figure as the hero ring
@@ -4882,6 +4883,10 @@ private fun MetricGrid(
     // PER-FIELD respiratory carry (#1331): same reason as spo2CarryDay — respiratory needs a longer
     // clean sleep R-R segment than HRV, so carriedDay can land on a night with HRV but no breaths/min.
     respCarryDay: DailyMetric? = null,
+    // #1599: the same candidate map the tile's sparkline is built from, so the NUMBER and the LINE under
+    // it come from one source. Two bugs fixed this week were a value and a chart on the same card reading
+    // different series (#1601, #1600); this tile is not going to be the third.
+    spo2CandidateByDay: Map<String, Double> = emptyMap(),
     unitSystem: UnitSystem = UnitSystem.METRIC,
     effortScale: EffortScale = EffortScale.HUNDRED,
     // #1001: the day's resolved Effort (live-preferring for today, floored at the stored row). Threaded
@@ -5004,7 +5009,14 @@ private fun MetricGrid(
             )
         },
         KeyMetric.BLOOD_OXYGEN to run {
-            val v = d?.spo2Pct ?: carriedDay?.spo2Pct ?: spo2CarryDay?.spo2Pct
+            // Today's OWN reading first — calibrated, else the candidate — and only then the carries.
+            // That ordering is what makes the number equal the last point of the line beside it, since
+            // the spark resolves each day the same way. The carries still cover a day with neither, which
+            // is what they were added for (a computed row never writes spo2Pct).
+            val v = d?.spo2Pct
+                ?: d?.day?.let { spo2CandidateByDay[it] }
+                ?: carriedDay?.spo2Pct
+                ?: spo2CarryDay?.spo2Pct
             KeyTileData(
                 label = uiString(R.string.l10n_today_screen_blood_oxygen_a8ad9ff5),
                 value = v?.let { String.format(Locale.getDefault(), "%.0f", it) } ?: NO_DATA,
@@ -6690,8 +6702,15 @@ private fun rememberTrendWindow(
     days: List<com.noop.data.DailyMetric>,
     anchorDay: LocalDate,
     windowDays: Int,
+    // #1599: the SpO2 candidate per day, so the Blood Oxygen tile has a series to draw at all.
+    // `AnalyticsEngine` writes `spo2Pct = null` on every computed day — a calibrated reading only ever
+    // arrives from an IMPORT — so on a strap-only install `series { it.spo2Pct }` is empty by
+    // construction and the tile rendered a value above blank space where every neighbour had a line.
+    // Already empty when the display toggle is off (the flow returns emptyMap), so reading it here needs
+    // no second gate.
+    spo2Candidate: Map<String, Double> = emptyMap(),
 ): Window =
-    androidx.compose.runtime.remember(days, anchorDay, windowDays) {
+    androidx.compose.runtime.remember(days, anchorDay, windowDays, spo2Candidate) {
         // Trailing CALENDAR days ending today, NOT the last N stored rows, which on an old import
         // were months-old data shown as a fresh trend (issue #23). ISO yyyy-MM-dd sorts chronologically.
         val cutoff = anchorDay.minusDays((windowDays - 1).toLong()).toString()
@@ -6704,7 +6723,10 @@ private fun rememberTrendWindow(
             sleepMin = series { it.totalSleepMin },
             hrv = series { it.avgHrv },
             rhr = series { it.restingHr?.toDouble() },
-            spo2 = series { it.spo2Pct },
+            // Calibrated wins per DAY, candidate fills the gaps — the same precedence the readings table
+            // and the "Your Cards" detail chart already use, so the three surfaces agree day for day.
+            // The rule lives in TodayScoring so it can be pinned by a test; this is a composable.
+            spo2 = spo2TrendSeries(recent, spo2Candidate),
             resp = series { it.respRateBpm },
             steps = series { it.steps?.toDouble() },   // #616
         )

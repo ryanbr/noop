@@ -464,3 +464,23 @@ internal fun buildingHint(metric: KeyMetric, isToday: Boolean): Int? {
         else -> null
     }
 }
+
+/**
+ * #1599: the Blood Oxygen trend series for a window of days — calibrated where it exists, the strap
+ * candidate where it does not.
+ *
+ * `AnalyticsEngine` writes `spo2Pct = null` on every computed day and banks the raw red/IR ADC instead,
+ * so a calibrated reading only ever arrives from an IMPORT. On a strap-only install a series built from
+ * `spo2Pct` alone is empty by construction, and the Key Metrics tile drew a value above blank space
+ * while every neighbouring tile had a line.
+ *
+ * Extracted from the composable that uses it because the PRECEDENCE is the part worth pinning: the same
+ * "calibrated wins per day, candidate fills the gap" rule governs the readings table and the "Your Cards"
+ * detail chart, and the three only agree while they resolve a day the same way. [candidate] arrives empty
+ * when the display toggle is off, so this needs no second gate.
+ */
+internal fun spo2TrendSeries(
+    recent: List<com.noop.data.DailyMetric>,
+    candidate: Map<String, Double>,
+): List<Double> = recent.mapNotNull { it.spo2Pct ?: candidate[it.day] }
+
