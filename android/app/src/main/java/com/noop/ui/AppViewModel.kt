@@ -60,7 +60,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -612,6 +611,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _phoneAlarmWindowMinutes = MutableStateFlow(phoneAlarmStore.windowMinutes)
     /** How long after the target the guaranteed hard deadline sits. */
     val phoneAlarmWindowMinutes: StateFlow<Int> = _phoneAlarmWindowMinutes.asStateFlow()
+    private val _phoneAlarmWeekdays = MutableStateFlow(phoneAlarmStore.weekdays)
+    /** Days the phone alarm fires on (Calendar.DAY_OF_WEEK). EMPTY = every day — see
+     *  [SmartAlarmStore.weekdays]; same encoding as the strap alarm's `smartAlarmWeekdays`. */
+    val phoneAlarmWeekdays: StateFlow<Set<Int>> = _phoneAlarmWeekdays.asStateFlow()
     // "Buzz WHOOP 4" companion (#536): arm the strap's firmware alarm at the phone alarm's EARLIEST wake
     // time, so the strap buzzes first and the OS alarm fires at the hard deadline as backup. Declared here
     // with the phone-alarm flows (BEFORE init) so the init bond collector can read it. Default OFF.
@@ -688,7 +691,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      * Mirrors the iOS HealthView loading `spo2_candidate` from the repository.
      */
     val spo2CandidateByDay: StateFlow<Map<String, Double>> =
-        combine(recentDays, flowOf(NoopPrefs.spo2CandidateDisplay(appContext))) { days, toggleOn ->
+        combine(recentDays, NoopPrefs.spo2CandidateDisplayFlow(appContext)) { days, toggleOn ->
             if (!toggleOn || days.isEmpty()) emptyMap()
             else {
                 val from = days.first().day
@@ -1283,6 +1286,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val liveStrain: Double = 0.0,
         val avgHr: Int = 0,
         val peakHr: Int = 0,
+        val pausedAtMs: Long? = null,
+        val pausedDurationMs: Long = 0L,
     )
 
     private val _activeWorkout = MutableStateFlow<ActiveWorkout?>(null)
@@ -1374,6 +1379,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     avgHr = w.avgHr,
                     peakHr = w.peakHr,
                     liveStrain = w.liveStrain,
+                    pausedAtMs = w.pausedAtMs,
+                    pausedDurationMs = w.pausedDurationMs,
                 ),
             )
         }
@@ -1404,6 +1411,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _activeWorkout.value = ActiveWorkout(
             startMs = s.startMs, sport = sport, gpsEnabled = true,
             track = s.track, distanceM = s.distanceM, paceSecPerKm = s.paceSecPerKm,
+            pausedAtMs = s.pausedAtMs, pausedDurationMs = s.pausedDurationMs,
         )
         observeGpsSession()
     }
@@ -1423,7 +1431,35 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _activeWorkout.value = ActiveWorkout(
             startMs = snap.startMs, sport = sport, gpsEnabled = false,
             samples = snap.samples, avgHr = snap.avgHr, peakHr = snap.peakHr, liveStrain = snap.liveStrain,
+            pausedAtMs = snap.pausedAtMs, pausedDurationMs = snap.pausedDurationMs,
         )
+    }
+
+    fun toggleWorkoutPause() {
+        val w = _activeWorkout.value ?: return
+        val now = System.currentTimeMillis()
+        val updated = if (w.pausedAtMs == null) {
+            if (w.gpsEnabled) GpsSession.pause()
+            w.copy(pausedAtMs = now)
+        } else {
+            if (w.gpsEnabled) GpsSession.resume()
+            w.copy(pausedAtMs = null, pausedDurationMs = w.pausedDurationMs + (now - w.pausedAtMs))
+        }
+        _activeWorkout.value = updated
+        persistNonGpsWorkout(updated)
+    }
+
+    /** Abort the active workout and discard all in-flight data. */
+    fun discardWorkout() {
+        val w = _activeWorkout.value ?: return
+        _activeWorkout.value = null
+        gpsJob?.cancel(); gpsJob = null
+        activeWorkoutStore.clear()
+        if (w.gpsEnabled) {
+            GpsSession.stop()
+            if (!NoopPrefs.backgroundConnection(appContext)) WhoopConnectionService.stop(appContext)
+        }
+        _lastWorkout.value = null
     }
 
     /** Finish the active workout: score the captured HR window + finalize the GPS route, save a
@@ -1461,6 +1497,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         val endMs = System.currentTimeMillis()
+        val pausedMs = w.pausedDurationMs + (w.pausedAtMs?.let { endMs - it } ?: 0L)
+        val activeDurationMs = (endMs - w.startMs - pausedMs).coerceAtLeast(0L)
         val avg = if (samples.isNotEmpty()) samples.sumOf { it.bpm } / samples.size else null
         val peak = if (samples.isNotEmpty()) samples.maxOf { it.bpm } else null
         // #983: score the SAVED workout with the wearer's measured resting HR, not the hardcoded
@@ -1486,7 +1524,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         else null
         val row = WorkoutRow(
             deviceId = deviceId, startTs = w.startMs / 1000, endTs = endMs / 1000,
-            sport = w.sport.name, source = "manual", durationS = (endMs - w.startMs) / 1000.0,
+            sport = w.sport.name, source = "manual", durationS = activeDurationMs / 1000.0,
             energyKcal = energyKcal,
             avgHr = avg, maxHr = peak, strain = strain,
             distanceM = distanceM.takeIf { it > 0 },
@@ -1499,7 +1537,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         emitWorkoutsTrace {
             com.noop.analytics.WorkoutsTrace.sessionLine(
                 event = "end", sportKey = WorkoutEditing.traceSportKey(w.sport.name), hrSamples = samples.size,
-                durationSec = ((endMs - w.startMs) / 1000L).toInt(),
+                durationSec = (activeDurationMs / 1000L).toInt(),
                 gpsPoints = if (w.gpsEnabled) track.size else null,
             )
         }
@@ -1530,6 +1568,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // never null. (Fixes the NPE in @maddognik's ADB: captureWorkoutSample -> getValue on null.)
         @Suppress("UNNECESSARY_SAFE_CALL")
         val w = _activeWorkout?.value ?: return
+        if (w.pausedAtMs != null) return
         val s = w.samples + HrSample(deviceId = deviceId, ts = System.currentTimeMillis() / 1000, bpm = bpm)
         val strain = StrainScorer.strain(
             s, maxHR = profileStore.hrMax.toDouble(),
@@ -1733,8 +1772,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             // manual rows already carry their own HR so they pass through unchanged. #961: also backfill a
             // strap-native row's Effort (strain) from the strap trace when it's null, so a live/manual
             // session that ended with sparse HR can't show a blank Effort while the day total counted it.
+            // #1601: pass the ACTIVE strap id. Left to its "my-whoop" default, the fill resolved
+            // `importedSourceIdsFor("my-whoop")` = the canonical id ALONE, while the detail sheet's chart,
+            // zones and HR-recovery all resolve `importedSourceIdsFor(deviceId)` = active ∪ canonical. On
+            // an install whose strap banks under a non-canonical id the chart therefore found HR and this
+            // fill did not, and an imported session rendered "AVG –" beside a populated graph, a full zone
+            // split and a peak — every one of them derived from the samples the average claimed not to
+            // have. The fill's own doc promises "display == graph == zones == effort by construction";
+            // this is the line that has to pass the same id for that to hold.
             val filled = repository.fillWorkoutHrFromStrap(
                 (whoop + apple + detected + activityFiles),
+                strapDeviceId = deviceId,
                 strainMaxHR = profileStore.hrMax.toDouble(),
                 strainSex = profileStore.sex,
                 effortMethod = NoopPrefs.effortMethod(appContext),
@@ -2411,6 +2459,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         reconcileStrapAlarm()
     }
 
+    /** Set the days the phone alarm fires on. EMPTY = every day (see [SmartAlarmStore.weekdays]).
+     *
+     *  Re-arms while enabled so deselecting today's day moves the alarm to the next selected one
+     *  immediately, rather than at the next fire. Also reconciles the strap: "Buzz WHOOP 4" arms the
+     *  band at THIS alarm's time, so a day switched off here must not leave the strap buzzing on it. */
+    fun setPhoneAlarmWeekdays(days: Set<Int>) {
+        phoneAlarmStore.weekdays = days
+        _phoneAlarmWeekdays.value = phoneAlarmStore.weekdays
+        if (phoneAlarmStore.enabled) SmartAlarmScheduler.arm(appContext, phoneAlarmStore)
+        reconcileStrapAlarm()
+    }
+
     /** Toggle the "Buzz WHOOP 4/5" companion (#536). Routes through the single strap-alarm reconciler so
      *  enabling/disabling it never clobbers a smart wake-alarm sharing the one firmware slot (#5): on the
      *  reconcile re-evaluates BOTH flags and arms the earliest, off it re-evaluates and keeps the slot for
@@ -2593,9 +2653,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 dayOverrides = _smartAlarmDayOverrides.value,
             )
         } else null
-        // Buzz-WHOOP-4 companion's requested time: the phone alarm's EARLIEST wake time, next occurrence.
+        // Buzz-WHOOP-4 companion's requested time: the phone alarm's EARLIEST wake time, next occurrence
+        // ON A DAY THAT ALARM ACTUALLY FIRES. This routes through the same weekday-aware resolver the
+        // smart alarm uses (with no per-day overrides — the phone alarm has none) rather than
+        // nextDailyEpochSec, which is unconditionally daily: leaving it daily would buzz the strap on a
+        // morning the phone alarm is switched off, which is precisely the day the user asked to sleep in.
+        // An empty weekday set still means every day, so the default behaviour is unchanged.
         val buzzEpoch = if (_buzzWhoop4Enabled.value) {
-            nextDailyEpochSec(phoneAlarmStore.targetMinutes)
+            nextSmartAlarmEpochSec(phoneAlarmStore.targetMinutes, phoneAlarmStore.weekdays)
         } else null
 
         val epochSec = earliestStrapAlarmEpochSec(smartEpoch, buzzEpoch)
@@ -2887,8 +2952,13 @@ internal fun nextSmartAlarmEpochSec(
 
 /**
  * Next strictly-future occurrence of a daily wake time (today, or tomorrow if already passed), as an
- * epoch-second. Used for the "Buzz WHOOP 4/5" companion, which fires every day at the phone alarm's
- * earliest wake time (no weekday selection). Pure + clock-injectable so it can be unit-tested.
+ * epoch-second. Pure + clock-injectable so it can be unit-tested.
+ *
+ * NO PRODUCTION CALLER as of the phone alarm gaining weekday selection: the "Buzz WHOOP 4/5" companion
+ * was its only one, and it now routes through [nextSmartAlarmEpochSec] so a day switched off on the
+ * phone alarm cannot leave the strap buzzing on that morning. Kept because it is the reference for what
+ * "unconditionally daily" means here — [nextSmartAlarmEpochSec] with an empty weekday set must stay
+ * equivalent to it, and its own test is what pins that. Delete it only alongside that equivalence.
  */
 internal fun nextDailyEpochSec(
     minuteOfDay: Int,

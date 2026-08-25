@@ -60,6 +60,7 @@ fun SmartAlarmScreen(vm: AppViewModel) {
     val enabled by vm.phoneAlarmEnabled.collectAsStateWithLifecycle()
     val targetMinutes by vm.phoneAlarmTargetMinutes.collectAsStateWithLifecycle()
     val windowMinutes by vm.phoneAlarmWindowMinutes.collectAsStateWithLifecycle()
+    val phoneAlarmWeekdays by vm.phoneAlarmWeekdays.collectAsStateWithLifecycle()
     val buzzWhoop4 by vm.buzzWhoop4Enabled.collectAsStateWithLifecycle()
     // #536: the hint adapts to bond state — the strap can only be armed when a WHOOP 4.0 is connected.
     val liveState = vm.live.collectAsStateWithLifecycle().value
@@ -151,6 +152,18 @@ fun SmartAlarmScreen(vm: AppViewModel) {
                         onChange = { vm.setPhoneAlarmWindowMinutes(it) },
                     )
                 }
+
+                // Days this alarm fires on. The SAME shared picker the strap alarm below uses, and the
+                // same empty-means-every-day contract, so identical-looking circles behave identically on
+                // one screen. Lets a weekend be switched off without disabling the alarm and having to
+                // remember to switch it back on.
+                RowDividerLocal()
+                AlarmWeekdayPicker(
+                    selected = phoneAlarmWeekdays,
+                    onToggle = { dow ->
+                        vm.setPhoneAlarmWeekdays(toggledSmartAlarmWeekday(dow, phoneAlarmWeekdays))
+                    },
+                )
             }
 
             // #536: companion strap-buzz, always visible so it's discoverable. Arms the strap's own firmware

@@ -50,6 +50,14 @@ final class GpsRouteMathTests: XCTestCase {
         XCTAssertNil(RouteMath.paceSecPerKm(meters: 0, seconds: 300))
     }
 
+    func testActiveElapsedSecondsExcludesCompletedPauses() {
+        XCTAssertEqual(
+            RouteMath.activeElapsedSeconds(startMs: 1_000, nowMs: 11_000, pausedDurationMs: 2_500),
+            7.5,
+            accuracy: 0.001
+        )
+    }
+
     // MARK: - Polyline codec (round-trip + cross-platform golden)
 
     func testPolylineRoundTrips() {

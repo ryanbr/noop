@@ -332,6 +332,26 @@ struct BackfillContinuation {
     /// legitimate banks records two days ahead of the phone's clock.
     static let defaultFutureSkewSeconds = 48 * 3600
 
+    /// #1598: may a GET_CLOCK correlation be chased and DERIVED for this family? WHOOP 4.0 only.
+    ///
+    /// A 5/MG never establishes one **by design**: its historical (type-47) and live (puffin REALTIME)
+    /// records both carry the strap RTC's own real-unix seconds, so the identity ref the Backfiller falls
+    /// back to (device == wall ⇒ offset 0) is the CORRECT decode for it, not a degraded one. Two things
+    /// followed from not knowing that here:
+    ///
+    ///  * `beginBackfill` re-sent GET_CLOCK up to 3× on every 5/MG offload, chasing a reply that is never
+    ///    coming, and logged each attempt as a failure — so every 5/MG strap log carried clock-retry noise
+    ///    plus an `IDENTITY fallback` line naming the #700 misdating bug it did NOT have.
+    ///  * worse, the #700 Data-Range fallback then installed a NON-identity ref derived from
+    ///    `strapNewestTs`. On a 4.0 that difference IS the RTC skew, which is the whole point. On a 5/MG
+    ///    `newest` is already real-unix, so `wall - newest` is merely HOW LONG THE STRAP WENT UNRECORDED
+    ///    (unworn, charging, flat). Applied as a clock offset it silently shifts that offload's history
+    ///    forward by exactly that gap once it clears `histStaleClockThresholdSec` (1 day) — a strap off
+    ///    the wrist for a weekend would land its next backfill on the wrong days.
+    ///
+    /// Pure so the Kotlin twin (`WhoopBleClient.derivesClockCorrelation`) can assert the same rule.
+    static func derivesClockCorrelation(_ family: DeviceFamily) -> Bool { family == .whoop4 }
+
     /// #1012: is the strap-reported "newest banked record" FUTURE-dated beyond the skew allowance — more
     /// than `futureSkewSeconds` past the wall clock? The strap's clock is then almost certainly set in the
     /// future (#928), so its range answer AND its freshly-persisted rows are untrustworthy as backlog
@@ -1983,26 +2003,31 @@ public final class BLEManager: NSObject, ObservableObject {
     /// flag, kick the strap with sendHistoricalData, and arm the idle timeout.
     @discardableResult
     private func beginBackfill() -> Bool {
-        // #700: if backfill is about to start and we STILL have no clock correlation, re-send
-        // GET_CLOCK. The strap may have silently dropped the first response (observed on a reporter's
-        // WHOOP 4.0 — GET_CLOCK sent, no reply, entire session decodes under IDENTITY fallback, all
-        // rows land on the current day). Capped at 3 retries to avoid flooding.
-        if clockRef == nil && clockRetries < 3 {
-            clockRetries += 1
-            log("Clock: no correlation yet — re-sending GET_CLOCK (retry \(clockRetries)/3)")
-            send(.getClock, payload: [])
-            send(.getClock, payload: [0x00])
-        } else if clockRef == nil, let newest = strapNewestTs {
-            // #700 fallback: GET_CLOCK never responded even after retries. Derive a rough correlation
-            // from the Data Range's newest-banked timestamp (already parsed, always answered). The
-            // offset is approximate (the newest record could be minutes old) but vastly better than
-            // identity (offset 0), which mis-dates entire nights.
-            let wall = Int(Date().timeIntervalSince1970)
-            let ref = ClockRef(device: newest, wall: wall)
-            clockRef = ref
-            collector?.clockRef = ref
-            backfiller?.clockRef = ref
-            log("Clock: GET_CLOCK unresponsive — derived rough correlation from Data Range (device=\(newest) wall=\(wall), offset \(wall - newest)s)")
+        // #1598: this whole block is WHOOP 4.0 ONLY. A 5/MG has no GET_CLOCK correlation to chase —
+        // identity is its correct decode — and deriving one from the Data Range would misdate its
+        // history. See BackfillContinuation.derivesClockCorrelation for why.
+        if BackfillContinuation.derivesClockCorrelation(selectedModel.deviceFamily) {
+            // #700: if backfill is about to start and we STILL have no clock correlation, re-send
+            // GET_CLOCK. The strap may have silently dropped the first response (observed on a reporter's
+            // WHOOP 4.0 — GET_CLOCK sent, no reply, entire session decodes under IDENTITY fallback, all
+            // rows land on the current day). Capped at 3 retries to avoid flooding.
+            if clockRef == nil && clockRetries < 3 {
+                clockRetries += 1
+                log("Clock: no correlation yet — re-sending GET_CLOCK (retry \(clockRetries)/3)")
+                send(.getClock, payload: [])
+                send(.getClock, payload: [0x00])
+            } else if clockRef == nil, let newest = strapNewestTs {
+                // #700 fallback: GET_CLOCK never responded even after retries. Derive a rough correlation
+                // from the Data Range's newest-banked timestamp (already parsed, always answered). The
+                // offset is approximate (the newest record could be minutes old) but vastly better than
+                // identity (offset 0), which mis-dates entire nights.
+                let wall = Int(Date().timeIntervalSince1970)
+                let ref = ClockRef(device: newest, wall: wall)
+                clockRef = ref
+                collector?.clockRef = ref
+                backfiller?.clockRef = ref
+                log("Clock: GET_CLOCK unresponsive — derived rough correlation from Data Range (device=\(newest) wall=\(wall), offset \(wall - newest)s)")
+            }
         }
         // Never offload before the connect handshake has run: a racing foreground/restore trigger
         // firing SEND_HISTORICAL ahead of hello/SET_CLOCK was part of the storm that stopped serving.
@@ -2199,7 +2224,8 @@ public final class BLEManager: NSObject, ObservableObject {
             if let diag = Backfiller.sessionClockDiagLine(nightKeys: bf.sessionNightKeys,
                                                           device: bf.sessionClockDevice,
                                                           wall: bf.sessionClockWall,
-                                                          usedIdentityRef: bf.sessionUsedIdentityRef) {
+                                                          usedIdentityRef: bf.sessionUsedIdentityRef,
+                                                          family: bf.family) {
                 log(diag)
             }
         }

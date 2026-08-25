@@ -199,12 +199,44 @@ public final class FrameRouter {
                     state.append(log: "Alarm: strap answered the arm (SET_ALARM_TIME) with result=\(rhex) — log-only, 4.0 result-code meaning unverified")
                 } else if cmd.hasPrefix("GET_HELLO_HARVARD"), TestCentre.active(.connection) {
                     // #1303: capture aid for WHOOP-4.0 stable-serial identity. The strap serial lives in this
-                    // GET_HELLO_HARVARD (cmd 35) response, but its byte offset is undocumented — so dump the
-                    // raw payload ONCE per connect to locate it against the serial the app shows. Gated behind
-                    // Test Centre → Connection so the full serial + device key never reach a DEFAULT (shareable)
-                    // strap log; only an opted-in diagnostic session sees it. Log-only; decodes/persists nothing.
-                    state.append(log: "HELLO_HARVARD(35) resp raw: \(Self.commandResponsePayloadHex(in: frame) ?? "empty") — locate the strap serial offset (#1303)")
+                    // GET_HELLO_HARVARD (cmd 35) response. This used to dump the payload RAW, which answered
+                    // the question — the serial is the 9-char alnum run at offset 14 — but a captured 4.0
+                    // response is 131 bytes carrying TWO alnum runs, and the second (offset 24, 54 chars) is
+                    // the device key. Reporters attach strap logs to public issues, and Test Centre is
+                    // normally enabled BECAUSE they were asked for one, so the gate below selects for the
+                    // logs most likely to be shared rather than the least.
+                    //
+                    // The structural probe answers the same question without that: it reports every printable
+                    // run by offset and length, and quotes only alnum runs 6...20 chars. The serial (9) is
+                    // still shown; the key (54) falls outside and is withheld by the probe rather than by
+                    // this caller, so the rule cannot be got wrong here. `knownNameOffset: -1` because 16 is
+                    // the 5/MG device-name offset and means nothing in a cmd-35 payload — passing it would
+                    // mislabel whatever run happened to start there. Log-only; decodes/persists nothing.
+                    let helloPay = Self.commandResponsePayload(in: frame) ?? []
+                    state.append(log: HelloIdentityProbe.report(payload: helloPay,
+                                                                block: "HELLO_HARVARD(35)",
+                                                                knownNameOffset: -1)
+                                 + " — locate the strap serial offset (#1303)")
                 }
+            }
+            // #1303: the 5/MG half of the same hunt. The 4.0 aid above is 4.0-only — correctly, since a
+            // 5/MG never answers cmd 35 — so this family had no capture at all, and it needs one just as
+            // much: a stable per-strap id is what multi-strap identity waits on, and the pack serial from
+            // cmd 151 identifies a REMOVABLE PART rather than the strap wearing it.
+            //
+            // No new traffic is sent. GET_HELLO already arrives on every connect and is already decoded —
+            // for the device name and the firmware version — and the rest of the block is discarded. If
+            // the serial is in there, it has been arriving all along.
+            //
+            // Reports STRUCTURE, not the block: the same response carries a session token the decoder
+            // deliberately never reads, so `HelloIdentityProbe` prints only serial-shaped runs and
+            // withholds the rest. Test Centre → Connection gated on top of that, so nothing here reaches a
+            // default (shareable) strap log. Log-only; decodes and persists nothing.
+            if family == .whoop5, let cmd = parsed.cmdName,
+               cmd.hasPrefix("GET_HELLO("),          // not GET_HELLO_HARVARD — Schema appends "(145)"
+               TestCentre.active(.connection),
+               let pay = Self.commandResponsePayload(in: frame, family: family) {
+                state.append(log: HelloIdentityProbe.report(payload: pay) + " — locate the strap serial (#1303)")
             }
             // #900: surface a non-SUCCESS COMMAND_RESPONSE on BOTH families (a result=UNSUPPORTED here is how
             // the MG haptics rejection #48 would show), and — the key part — annotate a reply that DELIVERED
@@ -228,7 +260,18 @@ public final class FrameRouter {
                 // one capture the issue is blocked on. Full frame (not the post-prefix payload, which hides
                 // those very bytes); matches the GET_DATA_RANGE raw-frame line (#451) and the format #900's
                 // fixtures are quoted in. Rate-limited: a 4.0 hits this branch on every battery poll.
-                if !rawDumpedRespCmds.contains(cmdName) {
+                // …with ONE command held back, DEFENSIVELY. A WHOOP 4.0 `GET_HELLO_HARVARD(35)` response is
+                // 131 bytes whose body carries the strap's DEVICE KEY (the 54-char alnum run at offset 24,
+                // beside the serial at 14), and this dump is ungated — "normal (shareable)" is the point of
+                // it. On the captures on record cmd 35 answers SUCCESS, so it does not reach this branch at
+                // all today; the skip is not fixing an observed leak. It exists because the branch's own
+                // premise is that a 4.0 misreports its result: the documented zeroed-[seq][result] artefact
+                // is exactly why GET_BATTERY_LEVEL lands here while carrying a good value, and nothing makes
+                // cmd 35 immune to the same artefact on another firmware. One command whose body is a secret
+                // is the one #900 can spare — it needs the PREFIX provenance, which every other command
+                // reaching here supplies. Cmd 35's content stays covered, structurally and with the key
+                // withheld, by the HelloIdentityProbe line above. Twin of the Android skip.
+                if !rawDumpedRespCmds.contains(cmdName), !cmdName.hasPrefix("GET_HELLO_HARVARD") {
                     rawDumpedRespCmds.insert(cmdName)
                     state.append(log: "  raw frame (#900 — [seq][result] provenance): \(Self.fullFrameHex(frame))")
                 }
@@ -340,13 +383,20 @@ public final class FrameRouter {
 
     // MARK: - Alarm-readback decode (WHOOP 4.0, GET_ALARM_TIME cmd 67 - #401 close-out)
 
-    /// The payload of a WHOOP 4.0 COMMAND_RESPONSE: the bytes after [type,seq,cmd,origin_seq,result]
-    /// (payload starts at inner+5) up to the crc32 trailer at `length`. Same envelope walk as
+    /// The payload of a COMMAND_RESPONSE: the bytes after [type,seq,cmd,origin_seq,result] (payload
+    /// starts at inner+5) up to the crc32 trailer at `length`. Same envelope walk as
     /// `advertisingName(in:)`. nil when the frame is too short to carry any payload.
-    nonisolated static func commandResponsePayload(in frame: [UInt8]) -> [UInt8]? {
+    ///
+    /// `family` defaults to `.whoop4` so every existing caller (alarm readback, advertising name, the
+    /// cmd-35 dump) is untouched, exactly as `commandResultByte` does — and for the same reason it had
+    /// to: the inner starts at 4 on a WHOOP 4.0 and at 8 on a 5/MG, so reading a 5/MG frame at the 4.0
+    /// offset returns four bytes of envelope dressed as payload rather than failing visibly.
+    nonisolated static func commandResponsePayload(in frame: [UInt8],
+                                                   family: DeviceFamily = .whoop4) -> [UInt8]? {
         guard frame.count > 2 else { return nil }
         let length = Int(frame[1]) | (Int(frame[2]) << 8)        // crc32 starts here
-        let start = whoop4InnerOffset + 5                        // skip type,seq,cmd,origin_seq,result
+        let inner = (family == .whoop5) ? 8 : whoop4InnerOffset
+        let start = inner + 5                                    // skip type,seq,cmd,origin_seq,result
         guard length <= frame.count, start < length else { return nil }
         return Array(frame[start..<length])
     }

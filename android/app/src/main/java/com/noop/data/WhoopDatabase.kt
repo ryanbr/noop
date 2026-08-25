@@ -53,7 +53,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         V18AuxSampleEntity::class,
         AppleStepHour::class,
     ],
-    version = 32,
+    version = 33,
     // #775: ON so Room's KSP processor writes the generated schema (every table's exact `CREATE TABLE`,
     // columns in declaration order with affinity/NOT NULL/default, PK and indices) as JSON. That export
     // is what lets a plain JVM test — no device, no Robolectric — read Android's REAL schema and compare
@@ -70,7 +70,7 @@ abstract class WhoopDatabase : RoomDatabase() {
         const val DB_NAME = "noop_whoop.db"
         /** Room schema version — MUST equal the `@Database(version = …)` above. Surfaced in the backup
          *  manifest (#1410) so an export states its schema. Bump both together on a migration. */
-        const val SCHEMA_VERSION = 32
+        const val SCHEMA_VERSION = 33
 
         @Volatile
         private var instance: WhoopDatabase? = null
@@ -888,6 +888,46 @@ abstract class WhoopDatabase : RoomDatabase() {
             }
         }
 
+        /** #979: append the nullable v26 burst counter beside its persisted waveform. */
+        internal val PPG_BURST_INDEX_MIGRATION_SQL: List<String> = listOf(
+            "ALTER TABLE `ppgWaveformSample` ADD COLUMN `burstIndex` INTEGER",
+        )
+
+        internal val MIGRATION_32_33 = object : Migration(32, 33) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                for (stmt in PPG_BURST_INDEX_MIGRATION_SQL) db.execSQL(stmt)
+            }
+        }
+
+        /**
+         * Every migration the builder registers, as a VALUE rather than an argument list.
+         *
+         * It was previously spelled inline in `addMigrations(...)`, which meant nothing could check it. A
+         * migration could be written, tested and still left out of the chain: the focused tests assert a
+         * migration's SQL and its start/end versions, not that it is registered. Sabotaging the chain —
+         * removing an entry — left the whole suite green, and removing an OLDER entry did too, so this was
+         * a property of the suite rather than of any one change.
+         *
+         * The consequence is bounded but real. There is deliberately no destructive fallback (see the
+         * builder), so a hole makes Room throw on upgrade rather than silently rebuild — a loud failure for
+         * every existing user on the version that ships it, and with `exportSchema=false` nothing catches
+         * it beforehand. Guarded by WhoopDatabaseMigrationChainTest.
+         *
+         * Starts at 2 -> 3 on purpose: v1 predates this regime and has no upgrade path, which is why the
+         * test asserts NO HOLES up to [SCHEMA_VERSION] rather than coverage from 1.
+         */
+        internal val ALL_MIGRATIONS: Array<Migration> = arrayOf(
+            MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
+            MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10,
+            MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
+            MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18,
+            MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22,
+            MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26,
+            MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30,
+            MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33,
+        )
+
+
         private fun build(appContext: Context): WhoopDatabase =
             Room.databaseBuilder(appContext, WhoopDatabase::class.java, DB_NAME)
                 // #1014: replace ONLY the corruption handling of the default open-helper. The
@@ -898,16 +938,7 @@ abstract class WhoopDatabase : RoomDatabase() {
                 // Real additive migration, NO destructive fallback (see the class doc): with
                 // exportSchema=false a silent rebuild would lose already-acked, non-resendable strap
                 // history on any schema mismatch. Room throws loudly instead; CI guards the SQL.
-                .addMigrations(
-                    MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
-                    MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10,
-                    MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
-                    MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18,
-                    MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22,
-                    MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26,
-                    MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30,
-                    MIGRATION_30_31, MIGRATION_31_32,
-                )
+                .addMigrations(*ALL_MIGRATIONS)
                 // #1037: a FRESH install builds the schema straight at the current version and runs NO
                 // migrations, so the MIGRATION_7_8 "my-whoop" registry seed never fires and the WHOOP,
                 // though paired and streaming fine, never appears in the Devices list. Seed the canonical

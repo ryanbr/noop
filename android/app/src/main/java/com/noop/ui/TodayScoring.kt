@@ -464,3 +464,37 @@ internal fun buildingHint(metric: KeyMetric, isToday: Boolean): Int? {
         else -> null
     }
 }
+
+/**
+ * #1599: which series the Blood Oxygen tile plots — the calibrated one, or the strap candidate.
+ *
+ * `AnalyticsEngine` writes `spo2Pct = null` on every computed day and banks the raw red/IR ADC instead,
+ * so a calibrated reading only ever arrives from an IMPORT. On a strap-only install [calibrated] is empty
+ * by construction, and the tile drew a value above a blank panel while every neighbour had a line.
+ *
+ * Gated on whether a series can be DRAWN, not on whether a value exists. The Apple tile asks the latter
+ * (`spo2.value == "—" && candidateTail != nil`), and that misses the case this issue was actually
+ * reported from: one old imported reading carries the tile's VALUE forward indefinitely, so the value is
+ * never "—", so the swap never fires — while the 14-day window it would have to plot still holds nothing.
+ * A number with no line, which is the bug. The sparkline's question is "have I got two points", so that
+ * is what decides it.
+ *
+ * Falls back to [calibrated] when NEITHER can be drawn, so a tile with no data anywhere behaves exactly
+ * as it did — nothing is drawn, and nothing is invented to fill the space.
+ */
+internal fun spo2SparkSeries(
+    calibrated: List<Double>,
+    candidate: List<Double>,
+): List<Double> = if (calibrated.size >= 2 || candidate.size < 2) calibrated else candidate
+
+/**
+ * True when the tile's VALUE is the strap estimate rather than a measured reading, so the caption can
+ * say so.
+ *
+ * Deliberately about the value, not the line: the caption renders directly under the number, so it must
+ * describe the number. The two can differ — an unbounded carry can keep a measured value on a tile whose
+ * window has only estimates to plot — and in that case the value is captioned honestly and the line's
+ * provenance goes unlabelled, which is the lesser of the two silences available.
+ */
+internal fun spo2UsingCandidate(calibratedValue: Double?, candidateToday: Double?): Boolean =
+    calibratedValue == null && candidateToday != null

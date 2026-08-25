@@ -31,6 +31,10 @@ import com.noop.data.DemoSeeder
 import com.noop.data.WhoopRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 /**
  * Single-activity host. Requests the runtime BLE permissions the strap connection
@@ -495,6 +499,45 @@ object NoopPrefs {
      *  Default false — the @82 candidate has split cross-device evidence and ships behind a toggle. */
     fun spo2CandidateDisplay(context: Context): Boolean =
         of(context).getBoolean(KEY_SPO2_CANDIDATE_DISPLAY, false)
+
+    /**
+     * [spo2CandidateDisplay] as a flow that re-emits when the user changes it.
+     *
+     * The plain getter is a point read, which is right for a composable that re-reads on every
+     * recomposition and wrong for a `StateFlow` built once. `AppViewModel.spo2CandidateByDay` combined
+     * against `flowOf(spo2CandidateDisplay(…))` — a flow that emits once and completes — so the toggle
+     * was frozen at ViewModel construction: turning the setting off left the Key Metrics tile showing
+     * strap estimates until the process restarted, and turning it on showed nothing until then. iOS reads
+     * `PuffinExperiment.spo2CandidateDisplayEnabled` per render and has never had the lag.
+     *
+     * Named for this one key rather than generic, so it sits beside the getter it mirrors and the two
+     * cannot drift on the default.
+     */
+    fun spo2CandidateDisplayFlow(context: Context): Flow<Boolean> = callbackFlow {
+        // `applicationContext`, unlike every other accessor here. Those are point reads that return
+        // before the caller's Context can matter; this one captures it in a flow that lives as long as
+        // something collects, so an Activity passed by a future caller would be held across a rotation.
+        // The only caller today already passes an application Context — this makes it not depend on that.
+        val prefs = of(context.applicationContext)
+        // Strong local for the flow's lifetime: Android holds these listeners WEAKLY, so one referenced
+        // only by the register call is collected and silently stops firing (same reason SettingsScreen's
+        // experiment listener keeps one).
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { changed, key ->
+            // `key` is @Nullable on modern SDKs — it arrives null when the whole file is cleared, which
+            // reads as "everything changed". The null check is required to compile, not just defensive.
+            if (key == null || key == KEY_SPO2_CANDIDATE_DISPLAY) {
+                trySend(changed.getBoolean(KEY_SPO2_CANDIDATE_DISPLAY, false))
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        // Seed AFTER registering, not before. A write landing between the read and the register would
+        // otherwise be missed entirely, and — since nothing re-reads until the NEXT change — the flow
+        // would serve a stale value indefinitely, which is the failure this whole function exists to
+        // remove. In this order the same interleaving costs at most a duplicate emit, and
+        // `distinctUntilChanged` drops it.
+        trySend(prefs.getBoolean(KEY_SPO2_CANDIDATE_DISPLAY, false))
+        awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }.distinctUntilChanged()
 
     fun setSpo2CandidateDisplay(context: Context, enabled: Boolean) {
         of(context).edit().putBoolean(KEY_SPO2_CANDIDATE_DISPLAY, enabled).apply()

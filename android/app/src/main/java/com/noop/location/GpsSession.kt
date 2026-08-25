@@ -31,6 +31,9 @@ object GpsSession {
         val track: List<LatLng> = emptyList(),
         val distanceM: Double = 0.0,
         val paceSecPerKm: Double? = null,
+        val paused: Boolean = false,
+        val pausedAtMs: Long? = null,
+        val pausedDurationMs: Long = 0L,
     )
 
     private val _state = MutableStateFlow(State())
@@ -55,10 +58,10 @@ object GpsSession {
     /** Fold one accepted fix into the route, recomputing distance + pace. No-op when not active. */
     fun append(pt: LatLng) {
         val s = _state.value
-        if (!s.active) return
+        if (!s.active || s.paused) return
         val track = s.track + pt
         val dist = RouteMath.totalMeters(track)
-        val secs = (System.currentTimeMillis() - s.startMs) / 1000.0
+        val secs = (System.currentTimeMillis() - s.startMs - s.pausedDurationMs) / 1000.0
         _state.value = s.copy(track = track, distanceM = dist, paceSecPerKm = RouteMath.paceSecPerKm(dist, secs))
         // Workouts & GPS test mode: one GPS-fix-progress line per accepted fix, only when the service wired a
         // sink (the WORKOUTS gate was on). The LocationTracker pre-filters UPSTREAM, so the raw pre-filter
@@ -78,5 +81,19 @@ object GpsSession {
         val track = _state.value.track
         _state.value = State()
         return track
+    }
+
+    fun pause() {
+        val s = _state.value
+        if (s.active && !s.paused) _state.value = s.copy(paused = true, pausedAtMs = System.currentTimeMillis())
+    }
+
+    fun resume() {
+        val s = _state.value
+        if (s.active && s.paused) {
+            val added = s.pausedAtMs?.let { System.currentTimeMillis() - it } ?: 0L
+            _state.value = s.copy(paused = false, pausedAtMs = null,
+                pausedDurationMs = s.pausedDurationMs + added)
+        }
     }
 }

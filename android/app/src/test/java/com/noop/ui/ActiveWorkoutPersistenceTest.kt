@@ -30,8 +30,10 @@ class ActiveWorkoutPersistenceTest {
         avgHr: Int = 133,
         peakHr: Int = 145,
         liveStrain: Double = 8.4,
+        pausedAtMs: Long? = null,
+        pausedDurationMs: Long = 0L,
     ) = ActiveWorkoutPersistence.Snapshot(
-        startMs, sportName, deviceId, samples, avgHr, peakHr, liveStrain,
+        startMs, sportName, deviceId, samples, avgHr, peakHr, liveStrain, pausedAtMs, pausedDurationMs,
     )
 
     /** A valid 7-field header for [startMs]/[deviceId] with zeroed stats and no samples. */
@@ -42,7 +44,7 @@ class ActiveWorkoutPersistenceTest {
 
     @Test
     fun encodeDecode_roundTripsEveryField() {
-        val original = snapshot()
+        val original = snapshot(pausedAtMs = 1_700_000_120_000L, pausedDurationMs = 45_000L)
         val decoded = ActiveWorkoutPersistence.decode(ActiveWorkoutPersistence.encode(original))
         assertNotNull(decoded)
         decoded!!
@@ -53,6 +55,8 @@ class ActiveWorkoutPersistenceTest {
         assertEquals(original.peakHr, decoded.peakHr)
         assertEquals(original.liveStrain, decoded.liveStrain, 1e-9)
         assertEquals(original.samples, decoded.samples)
+        assertEquals(original.pausedAtMs, decoded.pausedAtMs)
+        assertEquals(original.pausedDurationMs, decoded.pausedDurationMs)
     }
 
     @Test

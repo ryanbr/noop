@@ -137,11 +137,47 @@ final class DetectionFunnelTests: XCTestCase {
         f.restingHR = 59; f.hrFloor = 74
         f.motionPassed = 1203; f.hrMissing = 12; f.hrTooLow = 1103; f.active = 88
         f.runs = 6; f.bridged = 4
+        f.longestRunS = 212; f.meanRunS = 74
         f.droppedShort = 4; f.droppedNoHR = 0; f.droppedLowIntensity = 0; f.kept = 0
         XCTAssertEqual(
             WorkoutDetector.detectionFunnelLine(day: "2026-08-24", funnel: f),
             "effort detect day=2026-08-24 hr=34137 motion=34136 restHR=59 floor=74 "
                 + "motionOK=1203 hrMissing=12 hrTooLow=1103 active=88 runs=6 bridged=4 "
+                + "longestRunS=212 meanRunS=74 "
                 + "short=4 noHR=0 lowIntensity=0 kept=0")
+    }
+
+    /// The field case these two fields exist for, with the gate ORDER that makes them necessary.
+    ///
+    /// `droppedShort` is tested first and short-circuits, so a non-zero `droppedLowIntensity` already
+    /// proves some run cleared the duration bar. What it cannot say is by how much — and that is the
+    /// whole difference between a five-minute stroll and an hour-long effort wrongly rejected.
+    ///
+    /// Both fixtures carry the SAME counts, taken from a real 22-day log (79 bridged, 64 short, 15
+    /// low-intensity, kept=0). Only `longestRunS` tells them apart.
+    func testTheLongestRunSizesWhatSurvivedTheDurationGate() {
+        // The bar a run must clear is minDurS MINUS the smoothing window, not a round five minutes —
+        // pinned here so the 290 s quoted in the field's doc cannot go stale if either constant is tuned.
+        let effectiveBarS = Int(WorkoutDetector.minExerciseMin * 60 - WorkoutDetector.motionSmoothS)
+        XCTAssertEqual(effectiveBarS, 290)
+        let minDurS = Int(WorkoutDetector.minExerciseMin * 60)
+
+        // A walk: the longest survivor barely clears five minutes, so kept=0 is an honest zero.
+        var walk = WorkoutDetector.DetectionFunnel()
+        walk.bridged = 79; walk.longestRunS = 312; walk.meanRunS = 41
+        walk.droppedShort = 64; walk.droppedLowIntensity = 15; walk.kept = 0
+        XCTAssertTrue(WorkoutDetector.detectionFunnelLine(day: "2026-08-24", funnel: walk)
+            .contains("longestRunS=312"))
+        XCTAssertLessThan(walk.longestRunS, 2 * minDurS, "barely over the bar — a walk")
+
+        // Identical counts, hour-long survivor: that is the reading worth chasing.
+        var suspicious = WorkoutDetector.DetectionFunnel()
+        suspicious.bridged = 79; suspicious.longestRunS = 3600; suspicious.meanRunS = 41
+        suspicious.droppedShort = 64; suspicious.droppedLowIntensity = 15; suspicious.kept = 0
+        XCTAssertEqual(walk.droppedShort, suspicious.droppedShort,
+                       "the counts alone cannot distinguish the two")
+        XCTAssertEqual(walk.droppedLowIntensity, suspicious.droppedLowIntensity)
+        XCTAssertGreaterThan(suspicious.longestRunS, 6 * minDurS,
+                             "an hour-long run rejected on intensity is what this field exists to surface")
     }
 }

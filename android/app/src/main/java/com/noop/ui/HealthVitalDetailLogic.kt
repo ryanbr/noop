@@ -18,6 +18,18 @@ internal data class VitalReading(
 
 internal const val VO2_MAX_ATTRIBUTION_PREFIX = "vo2max-estimator:"
 
+/**
+ * #103/queue-11a follow-up: display-source token for a `spo2` reading that came from the
+ * `spo2_candidate` fallback (WHOOP `spo2_candidate_82` or Oura ceiling@100 `0x6F`, device-conditional)
+ * rather than a calibrated `spo2Pct` day. Every OTHER surface with this fallback (the Key Metrics tile
+ * via [vitalsFor]) already labels it via `R.string.spo2_strap_estimate_caption` — this vital-detail
+ * screen (`VitalDetailScreen`/"Your Cards" drill-in) had no candidate fallback at all until now (found
+ * 2026-08-24: an Oura-only or WHOOP-4.0-only install with the toggle ON saw a real number on the tile
+ * but nothing here past the last calibrated import). Same prefix-token idiom as
+ * [vo2MaxAttributionSource] just above.
+ */
+internal const val SPO2_CANDIDATE_ATTRIBUTION_SOURCE = "spo2-candidate-estimate"
+
 /** Display-source token for a VO₂max reading. A missing legacy tag stays unknown; it must never inherit
  *  the method implied by today's profile because the waist measurement may have changed after scoring. */
 internal fun vo2MaxAttributionSource(estimator: Vo2MaxEstimator?): String =

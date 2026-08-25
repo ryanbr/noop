@@ -563,4 +563,56 @@ class TodayMetricTilesTest {
         )
         assertEquals("2026-06-16", lastSkinTempRow(days, todayKey = "2026-06-19")?.day)
     }
+
+    // MARK: spo2 spark source — which series the Blood Oxygen tile plots (#1599)
+
+    /**
+     * THE reported case, and the one a value-gated rule misses.
+     *
+     * One old imported reading carries the tile's value forward indefinitely, so the value is never "—"
+     * — but the 14-day window it has to plot holds nothing. Gating the swap on the value (what the Apple
+     * tile does) leaves this user exactly where they started: a number above a blank panel. Gating it on
+     * whether a series can be drawn fixes it.
+     */
+    @Test fun aCarriedValueWithAnEmptyWindowStillGetsTheCandidateLine() {
+        val candidate = listOf(95.0, 96.0, 94.0)
+        assertEquals(candidate, spo2SparkSeries(calibrated = emptyList(), candidate = candidate))
+        assertEquals(candidate, spo2SparkSeries(calibrated = listOf(97.0), candidate = candidate))
+    }
+
+    /** A drawable calibrated series is kept — the candidate is a fallback for having nothing to plot,
+     *  never a replacement for real measurements. */
+    @Test fun aDrawableCalibratedSeriesIsKept() {
+        val cal = listOf(97.0, 98.0)
+        assertEquals(cal, spo2SparkSeries(calibrated = cal, candidate = listOf(90.0, 91.0, 92.0)))
+    }
+
+    /** Toggle OFF hands this an empty candidate, and the series must stay exactly what it was. */
+    @Test fun anEmptyCandidateLeavesTheCalibratedSeriesUntouched() {
+        assertEquals(listOf(97.0), spo2SparkSeries(calibrated = listOf(97.0), candidate = emptyList()))
+        assertEquals(emptyList<Double>(), spo2SparkSeries(emptyList(), emptyList()))
+    }
+
+    /** Neither drawable → unchanged, and nothing invented to fill the space. A single candidate point is
+     *  not promoted into a line. */
+    @Test fun oneCandidatePointIsNotEnoughToSwap() {
+        assertEquals(emptyList<Double>(), spo2SparkSeries(calibrated = emptyList(), candidate = listOf(96.0)))
+    }
+
+    /**
+     * The swap is WHOLE-SERIES, never interleaved: a line mixing a measured import with an unverified
+     * strap estimate would have points of two provenances plotted as one trend.
+     */
+    @Test fun theSwapIsWholeSeriesNotPerDay() {
+        val cand = listOf(90.0, 91.0, 92.0)
+        assertEquals(cand, spo2SparkSeries(calibrated = listOf(97.0), candidate = cand))
+    }
+
+    /** The caption describes the VALUE, which is what it renders under — not the line, which can differ
+     *  when an unbounded carry outlives its window. */
+    @Test fun theCaptionFlagsExactlyWhenTheVALUEIsAnEstimate() {
+        assertTrue(spo2UsingCandidate(calibratedValue = null, candidateToday = 96.0))
+        assertFalse(spo2UsingCandidate(calibratedValue = 97.0, candidateToday = 96.0))
+        assertFalse(spo2UsingCandidate(calibratedValue = null, candidateToday = null))
+    }
 }

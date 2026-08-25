@@ -107,13 +107,13 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.semantics.Role
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -1912,19 +1912,39 @@ fun SettingsScreen(
                     )
                 }
 
-                // "Keep NOOP alive overnight" (#386): the battery-optimisation whitelist. Shown ONLY while
-                // background connection is on (meaningless otherwise), so it never adds noise on a
-                // foreground-only setup. `checked` reflects the LIVE system exempt state, so an already-exempt
-                // phone shows it on and is never prompted again. POPUP DISCIPLINE: turning it ON fires exactly
-                // ONE system dialog; the OEM auto-start screen (aggressive vendors only) is a SEPARATE
-                // text-link, never chained onto that dialog, so one tap can't spawn two popups. The whitelist
-                // adds no battery cost of its own — it stops a premature kill; the real cost is the two
-                // toggles below.
-                if (backgroundConnection) {
-                    // Re-read the LIVE exempt state on every ON_RESUME so the toggle flips to on the moment
-                    // the user returns from the system whitelist dialog. Reading it plainly in composition
-                    // wouldn't recompose on resume — it'd show a stale "off", look like it failed, and invite
-                    // a SECOND (duplicate) popup, defeating the popup discipline.
+                // "Keep NOOP alive overnight" (#386): the battery-optimisation whitelist, as a one-way
+                // PROMPT rather than a setting.
+                //
+                // Shown only where it can actually change the outcome — background connection on, a ROM
+                // known to kill background work, and the exemption not yet granted. The whitelist helps a
+                // little on any phone (it also exempts from Doze deferral), but NOOP already survives the
+                // night wherever the AOSP foreground-service contract is honoured, so on those phones the
+                // row was noise about a permission the user did not need. A Pixel or Samsung never sees it.
+                //
+                // Deliberately NOT a toggle. Android lets an app ASK for this exemption and never hand it
+                // back, so a switch advertised an off direction it could not honour — which is exactly how
+                // it was reported broken, and why replacing it with a "Manage"/"Allow" action then read as
+                // the control having been taken away. A one-way grant gets a one-way control: state the
+                // problem, offer the single action that works, and DISAPPEAR once it is done. Nothing is
+                // ever on screen implying an off that does not exist. Revoking lives where it actually
+                // lives — Android's own battery settings — and the Test Centre reports the exempt state
+                // for anyone diagnosing a lost night.
+                //
+                // POPUP DISCIPLINE is unchanged: the tap fires exactly ONE system dialog, and the OEM
+                // auto-start screen stays a SEPARATE text-link, never chained onto it.
+
+                // Read unconditionally rather than folded into the `if`: `&&` short-circuits, so a
+                // `remember` inside the condition would go uncalled whenever background connection is off
+                // — a composable call in a conditionally-evaluated position, which is how a slot table
+                // gets corrupted once the condition flips. The gate is one string comparison; the work
+                // worth avoiding sits inside the body regardless.
+                val aggressiveVendor = remember { com.noop.ble.BackgroundHealth.isAggressiveVendor() }
+                if (backgroundConnection && aggressiveVendor) {
+                    // Re-read the LIVE exempt state on every ON_RESUME. This is what makes the row vanish
+                    // the moment the user returns from the grant dialog — and reappear if they later
+                    // revoke it in system settings. Reading it plainly in composition wouldn't recompose
+                    // on resume: the row would linger after a successful grant and invite a SECOND,
+                    // duplicate popup, defeating the popup discipline.
                     val lifecycleOwner = LocalLifecycleOwner.current
                     var batteryExempt by remember {
                         mutableStateOf(com.noop.ble.BackgroundHealth.isBatteryExempt(context))
@@ -1939,102 +1959,77 @@ fun SettingsScreen(
                         onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
                     }
                     val oemAutostart = remember { com.noop.ble.BackgroundHealth.oemAutostartIntent(context) }
-                    // Only NAME the manufacturer as a killer when it actually is one — a Pixel/Samsung
-                    // shouldn't read "especially Google". The whitelist still helps everyone (it also
-                    // exempts from Doze deferral), so the row still shows; only the copy is vendor-aware.
-                    val aggressiveVendor = remember { com.noop.ble.BackgroundHealth.isAggressiveVendor() }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                uiString(R.string.l10n_settings_screen_keep_noop_alive_overnight_e43b2fba),
-                                style = NoopType.subhead,
-                                color = Palette.textPrimary,
-                            )
-                            // #386: these were hardcoded literals — and INVISIBLE to the i18n gate, whose
-                            // Android regex only matches a literal directly after `Text(`. Inside a
-                            // `Text(if ...)` expression it slid past, so this whole warning shipped
-                            // English-only to de/es/fr while the audit reported clean. Now resources.
-                            // TWO "needed" strings rather than one with a %s subject fragment: verb
-                            // agreement differs once translated — German needs "Ihr Telefon … kann" but
-                            // "Manche Telefone … können", so a composed subject would be ungrammatical.
-                            Text(
-                                if (batteryExempt) {
-                                    uiString(R.string.keep_alive_allowed)
-                                } else if (aggressiveVendor) {
-                                    uiString(R.string.keep_alive_needed_vendor, android.os.Build.MANUFACTURER)
-                                } else {
-                                    uiString(R.string.keep_alive_needed_generic)
-                                },
-                                style = NoopType.footnote,
-                                color = Palette.textTertiary,
-                            )
-                            // Aggressive-OEM only, and only while not yet exempt: a SEPARATE, explicit link to
-                            // the vendor's auto-start screen (which the generic whitelist can't reach). One
-                            // extra tap by choice — never auto-opened alongside the whitelist dialog.
-                            if (!batteryExempt && oemAutostart != null) {
+
+                    if (!batteryExempt) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    uiString(R.string.l10n_settings_screen_some_phones_also_need_auto_start_79b7147b),
-                                    style = NoopType.footnote,
-                                    color = Palette.accent,
-                                    modifier = Modifier
-                                        .padding(top = 6.dp)
-                                        .clickable { runCatching { context.startActivity(oemAutostart) } },
+                                    uiString(R.string.l10n_settings_screen_keep_noop_alive_overnight_e43b2fba),
+                                    style = NoopType.subhead,
+                                    color = Palette.textPrimary,
                                 )
+                                // #386: this was a hardcoded literal — and INVISIBLE to the i18n gate,
+                                // whose Android regex only matches a literal directly after `Text(`.
+                                // Inside a `Text(if ...)` expression it slid past, so the whole warning
+                                // shipped English-only while the audit reported clean. Now a resource.
+                                //
+                                // Only the vendor-named variant survives: the row no longer appears on a
+                                // phone that isn't one of these, so the generic "some phones" wording had
+                                // no reachable caller.
+                                Text(
+                                    uiString(
+                                        R.string.keep_alive_needed_vendor,
+                                        android.os.Build.MANUFACTURER,
+                                    ),
+                                    style = NoopType.footnote,
+                                    color = Palette.textTertiary,
+                                )
+                                // A SEPARATE, explicit link to the vendor's auto-start screen, which the
+                                // generic whitelist cannot reach. One extra tap by choice — never
+                                // auto-opened alongside the grant dialog.
+                                if (oemAutostart != null) {
+                                    Text(
+                                        uiString(R.string.l10n_settings_screen_some_phones_also_need_auto_start_79b7147b),
+                                        style = NoopType.footnote,
+                                        color = Palette.accent,
+                                        modifier = Modifier
+                                            .padding(top = 6.dp)
+                                            .clickable { runCatching { context.startActivity(oemAutostart) } },
+                                    )
+                                }
                             }
-                        }
-                        // #386 follow-up: an ACTION, not a Switch.
-                        //
-                        // This row reports an Android permission — `isBatteryExempt` is read nowhere outside
-                        // this screen, and the setting that actually keeps NOOP alive overnight is the
-                        // Background-connection toggle above. Rendering a permission grant as a Switch was
-                        // reported as broken ("I can enable it but can't disable it"), and that was right:
-                        // Android has no API to revoke an app's own exemption, so the off direction did
-                        // nothing and the switch sprang back. A bidirectional control was the wrong shape
-                        // for a one-way grant, so it is now a status line (above) plus one action.
-                        //
-                        // Granted -> "Manage" opens NOOP's system settings page, which is where a user CAN
-                        // revoke it. Not granted -> "Allow" fires the one-tap dialog. Either way the tap
-                        // does something, and the ON_RESUME observer re-reads the live state on return.
-                        Text(
-                            if (batteryExempt) {
-                                uiString(R.string.l10n_settings_screen_manage_bf58d17e)
-                            } else {
-                                uiString(R.string.l10n_settings_screen_allow_3ad0e369)
-                            },
-                            style = NoopType.subhead,
-                            color = Palette.accent,
-                            modifier = Modifier
-                                // This action REPLACED a Switch, which came with a comfortable touch
-                                // target for free. A bare Text is ~20dp — under the 48dp minimum, and
-                                // it is now the only way to act on this row, so it has to be padded
-                                // rather than merely present. `.clickable{}` BEFORE `.padding()`:
-                                // modifiers apply outside-in, so this puts the padding inside the
-                                // clickable node and grows the target; the reverse would not.
-                                .clickable(role = Role.Button) {
-                                    when (com.noop.ble.BackgroundHealth.batteryRowAction(batteryExempt)) {
-                                        // The whole feature exists for ROMs that strip things — so the fallback
-                                        // is guarded too: if BOTH the exemption dialog and the app-settings page
-                                        // are missing, no-op rather than crash (the OEM link above is another path).
-                                        com.noop.ble.BackgroundHealth.BatteryRowAction.RequestExemption ->
-                                            runCatching {
-                                                context.startActivity(com.noop.ble.BackgroundHealth.batteryExemptionIntent(context))
-                                            }.onFailure {
-                                                runCatching {
-                                                    context.startActivity(com.noop.ble.BackgroundHealth.appBatterySettingsIntent(context))
-                                                }
-                                            }
-                                        com.noop.ble.BackgroundHealth.BatteryRowAction.OpenAppSettings ->
+                            // The single action. No second state to render: this row only exists while the
+                            // exemption is missing, so "Allow" is the only thing it can ever say.
+                            Text(
+                                uiString(R.string.l10n_settings_screen_allow_3ad0e369),
+                                style = NoopType.subhead,
+                                color = Palette.accent,
+                                modifier = Modifier
+                                    // A bare Text is ~20dp — under the 48dp minimum, and this is the only
+                                    // way to act on the row, so it has to be padded rather than merely
+                                    // present. `.clickable{}` BEFORE `.padding()`: modifiers apply
+                                    // outside-in, so this puts the padding inside the clickable node and
+                                    // grows the target; the reverse would not.
+                                    .clickable(role = Role.Button) {
+                                        // The whole feature exists for ROMs that strip things, so the
+                                        // fallback is guarded too: if the exemption dialog is missing, try
+                                        // the app-settings page; if that is missing as well, no-op rather
+                                        // than crash (the OEM link above is another path).
+                                        runCatching {
+                                            context.startActivity(com.noop.ble.BackgroundHealth.batteryExemptionIntent(context))
+                                        }.onFailure {
                                             runCatching {
                                                 context.startActivity(com.noop.ble.BackgroundHealth.appBatterySettingsIntent(context))
                                             }
+                                        }
                                     }
-                                }
-                                .padding(vertical = 12.dp, horizontal = 8.dp),
-                        )
+                                    .padding(vertical = 12.dp, horizontal = 8.dp),
+                            )
+                        }
                     }
                 }
 

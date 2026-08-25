@@ -70,8 +70,10 @@
     <!-- Re-arm the guaranteed alarm after a reboot so an overnight restart can't silently drop it. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Sideload-only (Play restricts this; NOOP doesn't ship there): the Settings "Keep NOOP alive
-         overnight" toggle uses it to pop the one-tap battery-optimisation whitelist dialog, so the
-         overnight foreground service + 15-min re-score tick aren't killed on aggressive-OEM phones (#386). -->
+         overnight" prompt uses it to pop the one-tap battery-optimisation whitelist dialog, so the
+         overnight foreground service + 15-min re-score tick aren't killed on aggressive-OEM phones (#386).
+         The prompt is shown only on those vendors and only until the grant lands — Android offers no
+         reverse action, so the row asks once and then stops existing rather than posing as a toggle. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- Promote the fired alarm to a true full-screen wake on a locked screen (Android 14+ gates the
          full-screen-intent path behind this; CATEGORY_ALARM is an allowed use. Without it the alarm

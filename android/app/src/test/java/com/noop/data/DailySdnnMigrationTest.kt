@@ -22,7 +22,7 @@ class DailySdnnMigrationTest {
     fun migrationAndEntityPreserveOldRowsAsNull() {
         assertEquals(31, WhoopDatabase.MIGRATION_31_32.startVersion)
         assertEquals(32, WhoopDatabase.MIGRATION_31_32.endVersion)
-        assertEquals(32, WhoopDatabase.SCHEMA_VERSION)
+        assertEquals(33, WhoopDatabase.SCHEMA_VERSION)
         val old = DailyMetric(deviceId = "my-whoop", day = "2026-08-22", avgHrv = 44.0)
         assertNull(old.avgSdnn)
         assertEquals(88.4, old.copy(avgSdnn = 88.4).avgSdnn!!, 0.0)

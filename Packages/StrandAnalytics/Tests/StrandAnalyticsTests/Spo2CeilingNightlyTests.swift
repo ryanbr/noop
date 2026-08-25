@@ -57,6 +57,16 @@ final class Spo2CeilingNightlyTests: XCTestCase {
         XCTAssertNil(AnalyticsEngine.nightlySpo2CeilingMean([session(1000, 600)], spo2: []))
     }
 
+    /// Found 2026-08-24 comparing a live-persisted row against the Oura app: `sum / kept` on two `Int`s
+    /// truncates toward zero, so a true 97.97 shipped as 97 — a spurious miss against an app-displayed
+    /// 98% the precise mean would have round-matched. Three samples averaging 97.666... must round to
+    /// 98, not floor to 97.
+    func testMeanRoundsRatherThanFloors() {
+        let r = AnalyticsEngine.nightlySpo2CeilingMean(
+            [session(1000, 600)], spo2: [spo2(1100, 98), spo2(1200, 98), spo2(1300, 97)])
+        XCTAssertEqual(r?.mean, 98, "97.666... must round to 98, not floor to 97")
+    }
+
     /// The plausibility floor/ceiling are inclusive, matching `spo2SingleChannelPlausible` (50...110)
     /// exactly — the same bounds `Repository.spo2SingleChannelPlausible` derives from this constant.
     func testPlausibleRangeBoundariesAreInclusive() {

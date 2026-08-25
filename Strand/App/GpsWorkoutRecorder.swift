@@ -71,6 +71,12 @@ enum RouteMath {
         meters <= 0 ? nil : seconds / (meters / 1000.0)
     }
 
+    /// Wall-clock workout time minus completed pauses, in seconds. Kept pure so pause accounting used
+    /// by the live GPS pace can be pinned without constructing a CoreLocation manager in tests.
+    static func activeElapsedSeconds(startMs: Int64, nowMs: Int64, pausedDurationMs: Int64) -> Double {
+        Double(nowMs - startMs - pausedDurationMs) / 1000.0
+    }
+
     // MARK: Encoded Polyline Algorithm Format, precision 5
 
     /// Encode a route to a compact polyline string (Google precision-5 format). Identical output to
@@ -307,6 +313,8 @@ final class GpsWorkoutRecorder: NSObject, ObservableObject {
     private var filter = TrackFilter()
     private var track: [RouteMath.LatLng] = []
     private var startMs: Int64 = 0
+    private var pausedAtMs: Int64?
+    private var pausedDurationMs: Int64 = 0
 
     /// Workouts & GPS test mode (Test Centre): the tagged sink for the `.workouts` GPS-fix lines, wired by
     /// AppModel to `live.append(log:domain:)`. Default nil (inert). We ALWAYS check `TestCentre.active(.workouts)`
@@ -340,6 +348,8 @@ final class GpsWorkoutRecorder: NSObject, ObservableObject {
         track.removeAll()
         filter = TrackFilter()
         self.startMs = startMs
+        pausedAtMs = nil
+        pausedDurationMs = 0
         distanceM = 0
         paceSecPerKm = nil
         pointCount = 0
@@ -360,6 +370,19 @@ final class GpsWorkoutRecorder: NSObject, ObservableObject {
         }
     }
 
+    /// Re-arm a route after restoring an in-flight workout from disk. Route points themselves are not
+    /// persisted mid-session, but the original clock and pause accounting must survive so subsequent
+    /// live pace excludes all time the workout spent paused before and across the relaunch.
+    func restore(startMs: Int64, pausedAtMs: Int64?, pausedDurationMs: Int64) {
+        start(startMs: startMs)
+        self.pausedDurationMs = max(0, pausedDurationMs)
+        if let pausedAtMs {
+            self.pausedAtMs = pausedAtMs
+            manager.stopUpdatingLocation()
+            isRecording = false
+        }
+    }
+
     /// Stop recording and return the final accumulated route. Safe to call when not recording (returns
     /// whatever was captured, possibly empty). Tears down location updates so no battery is spent after.
     @discardableResult
@@ -368,6 +391,28 @@ final class GpsWorkoutRecorder: NSObject, ObservableObject {
         isRecording = false
         let final = track
         return final
+    }
+
+    func pause() {
+        guard isRecording else { return }
+        pausedAtMs = Int64(Date().timeIntervalSince1970 * 1000)
+        manager.stopUpdatingLocation()
+        isRecording = false
+    }
+
+    func resume() {
+        guard startMs > 0 else { return }
+        if let pausedAtMs {
+            pausedDurationMs += Int64(Date().timeIntervalSince1970 * 1000) - pausedAtMs
+            self.pausedAtMs = nil
+        }
+        isRecording = true
+        switch manager.authorizationStatus {
+        case .authorizedWhenInUse, .authorizedAlways:
+            beginUpdates()
+        default:
+            break
+        }
     }
 
     /// The encoded polyline + distance for the captured route, or nil when fewer than two points landed
@@ -403,7 +448,11 @@ final class GpsWorkoutRecorder: NSObject, ObservableObject {
         guard changed else { return }
         pointCount = track.count
         distanceM = RouteMath.totalMeters(track)
-        let elapsed = Double(Int64(Date().timeIntervalSince1970 * 1000) - startMs) / 1000.0
+        let elapsed = RouteMath.activeElapsedSeconds(
+            startMs: startMs,
+            nowMs: Int64(Date().timeIntervalSince1970 * 1000),
+            pausedDurationMs: pausedDurationMs
+        )
         paceSecPerKm = RouteMath.paceSecPerKm(meters: distanceM, seconds: elapsed)
         // Workouts & GPS test mode: one GPS-fix-progress line tagged `.workouts` per batch that added a point,
         // showing raw fixes seen, how many the accuracy/speed filter accepted, and the running distance, so a

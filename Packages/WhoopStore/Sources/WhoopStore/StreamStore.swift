@@ -323,11 +323,12 @@ extension WhoopStore {
             // `packPpgSamples`) rather than 24 scalar rows, so this insert is O(records), not O(samples).
             if !streams.ppgWaveform.isEmpty {
                 let stmt = try db.cachedStatement(sql: """
-                    INSERT INTO ppgWaveformSample (deviceId, ts, samples) VALUES (?, ?, ?)
+                    INSERT INTO ppgWaveformSample (deviceId, ts, samples, burstIndex) VALUES (?, ?, ?, ?)
                     ON CONFLICT(deviceId, ts) DO NOTHING
                     """)
                 for s in streams.ppgWaveform {
-                    try stmt.execute(arguments: [deviceId, s.ts, WhoopStore.packPpgSamples(s.samples)])
+                    try stmt.execute(arguments: [deviceId, s.ts, WhoopStore.packPpgSamples(s.samples),
+                                                 s.burstIndex])
                 }
             }
             // Every remaining v18 slot (v31), one compact blob per strap-second. Persist-only, same as
@@ -633,11 +634,13 @@ extension WhoopStore {
         -> [PpgWaveformSample] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """
-                SELECT ts, samples FROM ppgWaveformSample
+                SELECT ts, samples, burstIndex FROM ppgWaveformSample
                 WHERE deviceId = ? AND ts >= ? AND ts <= ?
                 ORDER BY ts LIMIT ?
                 """, arguments: [deviceId, from, to, limit])
-                .map { PpgWaveformSample(ts: $0["ts"], samples: WhoopStore.unpackPpgSamples($0["samples"])) }
+                .map { PpgWaveformSample(ts: $0["ts"],
+                                         samples: WhoopStore.unpackPpgSamples($0["samples"]),
+                                         burstIndex: $0["burstIndex"]) }
         }
     }
 

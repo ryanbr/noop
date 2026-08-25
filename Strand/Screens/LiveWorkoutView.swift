@@ -37,6 +37,7 @@ struct LiveWorkoutView: View {
     /// Guards the destructive End action behind a confirm (#517) — a stray tap on the compact exit
     /// control must not end the workout instantly with no way back.
     @State private var showEndConfirm = false
+    @State private var showDeleteConfirm = false
 
     private var zoneSet: HRZoneSet { model.profile.hrZoneSet }
     private var zone: Int { model.bpm.map { zoneSet.zoneNumber(forBPM: Double($0)) } ?? 0 }
@@ -110,12 +111,20 @@ struct LiveWorkoutView: View {
         .alert("End this workout?",
                isPresented: $showEndConfirm) {
             Button("Cancel", role: .cancel) { }
-            Button("End workout", role: .destructive) {
+            Button("End", role: .destructive) {
                 model.endWorkout()
                 onClose()
             }
         } message: {
             Text("This stops recording and saves what's captured so far. It can't be resumed.")
+        }
+        .confirmationDialog("Delete", isPresented: $showDeleteConfirm,
+                            titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                model.discardWorkout()
+                onClose()
+            }
+            Button("Cancel", role: .cancel) { }
         }
     }
 
@@ -125,9 +134,13 @@ struct LiveWorkoutView: View {
                 Circle()
                     .fill(StrandPalette.metricRose)
                     .frame(width: 7, height: 7)
-                Text("RECORDING WORKOUT")
-                    .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
-                    .foregroundStyle(StrandPalette.metricRose)
+                Group {
+                    if model.activeWorkout?.isPaused == true { Text("Paused") }
+                    else { Text("Recording workout") }
+                }
+                .textCase(.uppercase)
+                .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
+                .foregroundStyle(StrandPalette.metricRose)
             }
             .padding(.horizontal, NoopMetrics.space2)
             .padding(.vertical, NoopMetrics.space1)
@@ -143,13 +156,13 @@ struct LiveWorkoutView: View {
     /// TIME sits as a free hero metric above heart rate.
     private var timeBlock: some View {
         Group {
-            if let start = model.activeWorkout?.start {
+            if let workout = model.activeWorkout {
                 VStack(spacing: NoopMetrics.space1) {
                     Text("TIME")
                         .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
                         .foregroundStyle(StrandPalette.textSecondary)
                     TimelineView(.periodic(from: .now, by: 1)) { _ in
-                        Text(Self.elapsed(since: start))
+                        Text(Self.elapsed(seconds: workout.elapsed()))
                             .font(StrandFont.number(56)).monospacedDigit()
                             .foregroundStyle(StrandPalette.textPrimary)
                             .contentTransition(.numericText())
@@ -320,10 +333,11 @@ struct LiveWorkoutView: View {
             bottomElapsedTimer
                 .allowsHitTesting(false)
 
-            HStack(spacing: 0) {
-                endWorkoutGlassButton
+            HStack(spacing: NoopMetrics.space2) {
+                deleteWorkoutGlassButton
+                pauseWorkoutGlassButton
                 Spacer(minLength: 0)
-                workoutTypeGlassButton
+                endWorkoutGlassButton
             }
         }
         .padding(Self.bottomBarInset)
@@ -339,15 +353,15 @@ struct LiveWorkoutView: View {
     /// no card / glass / capsule behind it (the shared bar owns the surface).
     private var bottomElapsedTimer: some View {
         Group {
-            if let start = model.activeWorkout?.start {
+            if let workout = model.activeWorkout {
                 TimelineView(.periodic(from: .now, by: 1)) { _ in
-                    Text(Self.elapsed(since: start))
+                    Text(Self.elapsed(seconds: workout.elapsed()))
                         .font(StrandFont.number(40)).monospacedDigit()
                         .foregroundStyle(StrandPalette.textPrimary)
                         .contentTransition(.numericText())
                 }
                 .accessibilityLabel(Text("Elapsed time"))
-                .accessibilityValue(Text(Self.elapsed(since: start)))
+                .accessibilityValue(Text(Self.elapsed(seconds: workout.elapsed())))
             }
         }
         .frame(maxWidth: .infinity)
@@ -364,6 +378,31 @@ struct LiveWorkoutView: View {
         .nativeLiquidGlassWorkoutControl()
         .accessibilityLabel(Text("End workout"))
         .accessibilityHint(Text("Stops recording and saves what's captured so far"))
+    }
+
+    private var pauseWorkoutGlassButton: some View {
+        let paused = model.activeWorkout?.isPaused == true
+        return Button { model.toggleWorkoutPause() } label: {
+            Image(systemName: paused ? "play.fill" : "pause.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(StrandPalette.textPrimary)
+                .frame(width: Self.bottomControlDiameter, height: Self.bottomControlDiameter)
+                .contentShape(Circle())
+        }
+        .nativeLiquidGlassWorkoutControl()
+        .accessibilityLabel(Text(paused ? "Resume" : "Pause"))
+    }
+
+    private var deleteWorkoutGlassButton: some View {
+        Button { showDeleteConfirm = true } label: {
+            Image(systemName: "trash")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(StrandPalette.statusCritical)
+                .frame(width: Self.bottomControlDiameter, height: Self.bottomControlDiameter)
+                .contentShape(Circle())
+        }
+        .nativeLiquidGlassWorkoutControl()
+        .accessibilityLabel(Text("Delete"))
     }
 
     private var activeSportName: String {
@@ -384,8 +423,8 @@ struct LiveWorkoutView: View {
 
     // MARK: - Helpers
 
-    private static func elapsed(since start: Date) -> String {
-        let s = max(0, Int(Date().timeIntervalSince(start)))
+    private static func elapsed(seconds: TimeInterval) -> String {
+        let s = max(0, Int(seconds))
         return String(format: "%d:%02d", s / 60, s % 60)
     }
 

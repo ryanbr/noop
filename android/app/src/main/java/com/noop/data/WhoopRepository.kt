@@ -302,7 +302,7 @@ data class PpgHrRow(val ts: Long, val bpm: Int, val conf: Double)
  * unix second, [samples] the raw i16 ADC counts (usually 24, fewer on a truncated frame). deviceId is
  * attached on insert; the samples are packed to a little-endian i16 BLOB by [StreamPersistence.packPpgSamples].
  */
-data class PpgWaveformRow(val ts: Long, val samples: List<Int>)
+data class PpgWaveformRow(val ts: Long, val samples: List<Int>, val burstIndex: Int? = null)
 
 /** Count of rows ACTUALLY inserted per stream (mirrors WhoopStore.insert return tuple). */
 data class InsertCounts(
@@ -536,7 +536,8 @@ class WhoopRepository(
         if (streams.ppgWaveform.isNotEmpty()) {
             dao.insertPpgWaveform(
                 streams.ppgWaveform.map {
-                    PpgWaveformSampleEntity(deviceId, it.ts, StreamPersistence.packPpgSamples(it.samples))
+                    PpgWaveformSampleEntity(deviceId, it.ts, StreamPersistence.packPpgSamples(it.samples),
+                        it.burstIndex)
                 },
             )
         }
@@ -1060,10 +1061,27 @@ class WhoopRepository(
         rows: List<WorkoutRow>,
         // HR read key for IMPORTED rows ONLY (Apple/HC/CSV/activity file): they carry no strap HR of their
         // own, so #77 derives it from the worn strap. STRAP-NATIVE rows ignore this and key on their OWN
-        // recording strap (see [workoutHrDeviceIds]). The canonical "my-whoop" default is the worn strap on a
-        // single-WHOOP install (and every current caller uses it); which strap was worn during an imported
-        // session on a MULTI-strap install is undetermined, so that case is left as-is (not the active strap).
-        strapDeviceId: String = "my-whoop",
+        // recording strap (see [workoutHrDeviceIds]).
+        //
+        // #1601: both UI callers now pass the ACTIVE strap id. This used to be left at the canonical
+        // default on the reasoning that which strap was worn during an imported session is undetermined on
+        // a MULTI-strap install — true, but it made the common SINGLE-strap case wrong, because an install
+        // whose one strap banks under a non-canonical id (a re-add, or a 5/MG's transient CB-UUID pairing,
+        // #1193) resolved `importedSourceIdsFor("my-whoop")` to the canonical id ALONE while the detail
+        // sheet's chart, zones and HR-recovery resolved active ∪ canonical. The graph found HR and this
+        // fill did not, so the session showed "AVG –" against a populated curve — the state this function's
+        // own promise of "display == graph == zones == effort by construction" exists to prevent.
+        //
+        // The multi-strap ambiguity is not resolved by this, and is not made worse by it either: the union
+        // and its first-wins merge are exactly what the chart already applies to the same window, so the two
+        // now agree rather than disagreeing.
+        //
+        // REQUIRED, no default. The canonical default is what caused this — #857 unified the RESOLVER
+        // ("one HR device-id rule for the chart, zones, Avg HR and HRR") but this parameter, inherited from
+        // #77, kept feeding it a different active id, so the one rule ran on two inputs and Avg HR was the
+        // surface that missed out. Nothing depended on the default once both call sites were corrected, and
+        // a caller that cannot name the strap it means should not be silently given the canonical one.
+        strapDeviceId: String,
         minSamples: Long = 60,
         cap: Int = 300,
         // #961: the user's HRmax + sex. When supplied, a strap-native row whose Effort (strain) is null gets

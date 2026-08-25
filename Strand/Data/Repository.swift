@@ -849,6 +849,17 @@ final class Repository: ObservableObject {
         self.vitalRows = merged.vitalRows
         self.freshness = merged.freshness
         self.loaded = true
+        // Drop the Explorer's cross-catalog memo rather than leaving it to be evicted lazily by a key
+        // mismatch: its key is about to go stale, and lazy eviction only frees the memory when the NEXT
+        // scan replaces it — so a user who opens Explore once and never returns keeps a whole catalog of
+        // series resident for the rest of the session. The key check stays; it still guards what this
+        // line cannot, an active-strap re-point with no refresh behind it.
+        //
+        // BEFORE the bump, with the other caches, per this block's own ordering. Nothing can currently
+        // observe the gap — the assignments are synchronous on the main actor and a @Published bump only
+        // schedules SwiftUI work — but "clear every cache, then publish" is the invariant stated above,
+        // and an appended line after the bump is how that invariant quietly stops being true.
+        self.exploreAllCache = nil
         self.refreshSeq += 1
     }
 
@@ -2140,6 +2151,45 @@ final class Repository: ObservableObject {
 
         return byDay.sorted { $0.key < $1.key }.map { (day: $0.key, value: $0.value) }
     }
+
+    /// Every catalog metric's Explore series at once, memoized — the cross-catalog scan behind the
+    /// Explorer's correlation card.
+    ///
+    /// `MetricExplorerView` ran this scan itself, per screen open, as 59 serial `exploreSeries` calls. On
+    /// the `my-whoop` partition (34 of the 60 descriptors) each of those walks `days` for the daily column
+    /// and then issues a store range query per entry in `computedReadIds` and `importedReadIds`, so one
+    /// open cost on the order of a couple of hundred store reads. The result was cached only in that
+    /// view's `@State`, and the data is the same whichever metric you opened — the view merely drops its
+    /// own descriptor from the list — so browsing N metric details paid the whole scan N times.
+    ///
+    /// Keyed on `deviceId` AND `refreshSeq`, not `refreshSeq` alone: `importedReadIds` / `computedReadIds`
+    /// are derived from the active strap id, and the only `refreshSeq` bump is inside the merge in
+    /// `refresh()`, so a re-point could otherwise change what these reads union without invalidating.
+    ///
+    /// Returns `nil` if cancelled, and a cancelled scan is NOT cached — the caller (which checks
+    /// `Task.isCancelled` per metric so navigating away mid-scan stops it) must not have a half-filled
+    /// catalog frozen in for the rest of the generation.
+    ///
+    /// DEFAULT WINDOW ONLY. Every entry is `exploreSeries`' default `days`/`fullHistory`, and the key
+    /// does not record them, so this cannot serve a caller that wants a different window — it would hand
+    /// back the default one and look like it had honoured the request. The correlation sweep is the only
+    /// caller and uses the defaults; anything needing `fullHistory` must call `exploreSeries` directly or
+    /// this must gain a window-aware key.
+    func exploreAllSeries() async -> [String: [(day: String, value: Double)]]? {
+        let key = "\(deviceId)|\(refreshSeq)"
+        if let cached = exploreAllCache, cached.key == key { return cached.byMetricID }
+        var byMetricID: [String: [(day: String, value: Double)]] = [:]
+        for descriptor in MetricCatalog.all {
+            if Task.isCancelled { return nil }
+            byMetricID[descriptor.id] = await exploreSeries(key: descriptor.key, source: descriptor.source)
+        }
+        exploreAllCache = (key, byMetricID)
+        return byMetricID
+    }
+
+    /// Backing store for [exploreAllSeries]. Main-actor isolated with the rest of the class, so it needs
+    /// no locking; one shared copy replaces the per-view-instance `@State` it supersedes.
+    private var exploreAllCache: (key: String, byMetricID: [String: [(day: String, value: Double)]])?
 
     /// The merged DailyMetric column backing an Explore metric key, for the days the imported/computed
     /// metricSeries doesn't cover (strap-only WHOOP 5 users). Mirrors InsightsView.dailyOutcome and

@@ -72,6 +72,17 @@ class Spo2CandidateNightlyTest {
         assertEquals(1, r?.second)
     }
 
+    /**
+     * Found 2026-08-24 on the Oura twin ([Spo2CeilingNightlyTest]) and fixed here too — same bug, same
+     * helper shape. `sum / kept` on two integer types truncates toward zero; three samples averaging
+     * 97.666... must round to 98, not floor to 97.
+     */
+    @Test fun meanRoundsRatherThanFloors() {
+        val r = AnalyticsEngine.nightlySpo2CandidateMean(
+            listOf(session(1000, 600)), listOf(aux(1100, 98), aux(1200, 98), aux(1300, 97)))
+        assertEquals(98, r?.first)
+    }
+
     /** Boundaries are inclusive, matching the decoder's own 70..100 emit gate exactly. */
     @Test fun bandBoundariesMatchTheDecoderGate() {
         assertEquals(2, AnalyticsEngine.nightlySpo2CandidateMean(

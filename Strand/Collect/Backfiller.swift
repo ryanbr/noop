@@ -75,7 +75,7 @@ final class Backfiller {
     /// Strap family for the current offload, set at begin(). Drives family-aware frame parsing (WHOOP 5/MG
     /// records sit at +4 offsets vs WHOOP 4.0) and the end_data slice the ack needs. Captured at begin()
     /// rather than init so it's correct even if the Backfiller was constructed before the strap was known.
-    private var family: DeviceFamily = .whoop4
+    private(set) var family: DeviceFamily = .whoop4
 
     /// Diagnostic sink (strap log). Surfaces historical records whose firmware layout we can't decode.
     private let log: ((String) -> Void)?
@@ -125,10 +125,14 @@ final class Backfiller {
     /// session. Surfaces whether the stale-RTC timestamp correction (FIX #72's `correctedWall`) could even
     /// engage. `sessionUsedIdentityRef` = no clock correlation had landed when the first chunk decoded, so
     /// that decode fell back to an identity
-    /// ref (device==wall==now) → clock offset 0 → correction OFF. On a strap whose RTC has reset, that
+    /// ref (device==wall==now) → clock offset 0 → correction OFF. On a WHOOP 4.0 whose RTC has reset, that
     /// silently stores the strap's stale (years-old) timestamps verbatim, so the night lands off the recent
     /// timeline and reads as "missed sleep". Paired with the persisted-nights DATE RANGE below, one strap
     /// log now shows both WHERE the rows landed and WHY. Reset in begin(). Log-only.
+    ///
+    /// #1598: read this WITH the family — it is family-agnostic on purpose (it records what the decode did),
+    /// so it is `true` on EVERY 5/MG session, where identity is the correct ref rather than a fallback.
+    /// `sessionClockDiagLine` is what applies that judgement; don't treat this flag alone as a fault.
     private(set) var sessionClockDevice: Int?
     private(set) var sessionClockWall: Int?
     private(set) var sessionUsedIdentityRef = false
@@ -353,7 +357,8 @@ final class Backfiller {
     /// fallback, or an in-sync ref on a strap that banked stale), the night is misdated off the recent
     /// timeline — the "missed sleep" signature (#67). Returns nil when nothing landed. Log-only, pure.
     nonisolated static func sessionClockDiagLine(nightKeys: Set<Int>,
-                                                 device: Int?, wall: Int?, usedIdentityRef: Bool) -> String? {
+                                                 device: Int?, wall: Int?, usedIdentityRef: Bool,
+                                                 family: DeviceFamily) -> String? {
         guard let lo = nightKeys.min(), let hi = nightKeys.max() else { return nil }
         let day: (Int) -> String = { key in
             let f = DateFormatter()
@@ -367,7 +372,12 @@ final class Backfiller {
         if let device, let wall {
             let offset = wall - device
             let days = offset / 86_400
-            if usedIdentityRef {
+            if usedIdentityRef && family == .whoop5 {
+                // #1598: identity is the DESIGNED ref for a 5/MG — its records carry real-unix seconds, so
+                // offset 0 is correct and there is nothing to correct FOR. Labelling it "IDENTITY fallback"
+                // made every healthy 5/MG log look like the #700 misdating bug.
+                line += " · clock ref: identity - correct for 5/MG (records carry real-unix timestamps, no correlation needed)"
+            } else if usedIdentityRef {
                 line += " · clock ref: IDENTITY fallback (no clock correlation at decode) - stale-record correction OFF"
             } else if abs(offset) > 86_400 {
                 line += " · strap clock \(days >= 0 ? "\(days)d behind" : "\(-days)d ahead") wall - correction engaged"

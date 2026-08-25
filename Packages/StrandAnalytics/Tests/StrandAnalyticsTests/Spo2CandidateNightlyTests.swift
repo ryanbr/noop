@@ -65,6 +65,15 @@ final class Spo2CandidateNightlyTests: XCTestCase {
         XCTAssertEqual(r?.samples, 1)
     }
 
+    /// Found 2026-08-24 on the Oura twin (`nightlySpo2CeilingMean`) and fixed here too — same bug, same
+    /// helper shape. `sum / kept` on two `Int`s truncates toward zero; three samples averaging
+    /// 97.666... must round to 98, not floor to 97.
+    func testMeanRoundsRatherThanFloors() {
+        let r = AnalyticsEngine.nightlySpo2CandidateMean(
+            [session(1000, 600)], aux: [aux(1100, 98), aux(1200, 98), aux(1300, 97)])
+        XCTAssertEqual(r?.mean, 98, "97.666... must round to 98, not floor to 97")
+    }
+
     /// The boundaries are inclusive, matching the decoder's own `70...100` emit gate exactly.
     func testBandBoundariesMatchTheDecoderGate() {
         XCTAssertEqual(AnalyticsEngine.nightlySpo2CandidateMean(

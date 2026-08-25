@@ -811,6 +811,13 @@ struct TodayView: View {
             let method = vo2MaxEstimatorDisplayName(Vo2MaxEstimator(rawValue: raw))
             return "\(String(localized: "On-device")) · \(method)"
         }
+        // #103/queue-11a follow-up: the Explorer's spo2 candidate-fallback rows (see
+        // `spo2CandidateAttributionSource`) must read "strap estimate (unverified)", the SAME copy every
+        // other candidate-fallback surface uses — never a device name, which would misrepresent an
+        // unvalidated estimate as a calibrated reading in this table's Source column.
+        if rawSource == spo2CandidateAttributionSource {
+            return String(localized: "strap estimate (unverified)")
+        }
         if rawSource.hasSuffix("-noop") { return String(localized: "On-device") }
         if rawSource == deviceId || rawSource == Repository.whoopSource { return Self.whoopBrandName }
         if rawSource == Repository.appleHealthSource { return "Apple Health" }

@@ -628,26 +628,29 @@ data class AppleStepHour(
  * keeping a v26-heavy night to roughly the same order of magnitude as ONE extra per-second stream. The
  * BLOB format is byte-identical to the Swift GRDB `WhoopStore.packPpgSamples` so a `.noopbak` round-trips.
  * PK (deviceId, ts) mirrors every other per-second stream; a truncated frame can decode fewer than 24
- * samples. Fields are declared in the SAME order as the GRDB schema (deviceId, ts, samples) so the
- * migration's CREATE TABLE column order matches Room's generated shape.
+ * samples. Fields are declared in the SAME order as the GRDB schema
+ * (deviceId, ts, samples, burstIndex) so Room's generated shape stays byte-identical.
  */
 @Entity(tableName = "ppgWaveformSample", primaryKeys = ["deviceId", "ts"])
 data class PpgWaveformSampleEntity(
     val deviceId: String,
     val ts: Long,
     val samples: ByteArray,
+    val burstIndex: Int? = null,
 ) {
     // ByteArray needs structural equals/hashCode (the generated identity ones break round-trip asserts).
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is PpgWaveformSampleEntity) return false
-        return deviceId == other.deviceId && ts == other.ts && samples.contentEquals(other.samples)
+        return deviceId == other.deviceId && ts == other.ts && samples.contentEquals(other.samples) &&
+            burstIndex == other.burstIndex
     }
 
     override fun hashCode(): Int {
         var result = deviceId.hashCode()
         result = 31 * result + ts.hashCode()
         result = 31 * result + samples.contentHashCode()
+        result = 31 * result + (burstIndex ?: 0)
         return result
     }
 }

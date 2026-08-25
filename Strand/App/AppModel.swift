@@ -113,6 +113,15 @@ final class AppModel: ObservableObject {
         var liveStrain: Double = 0
         var avgHr: Int = 0
         var peakHr: Int = 0
+        var pausedAt: Date?
+        var pausedDuration: TimeInterval = 0
+
+        var isPaused: Bool { pausedAt != nil }
+
+        func elapsed(at now: Date = Date()) -> TimeInterval {
+            max(0, now.timeIntervalSince(start) - pausedDuration
+                - (pausedAt.map { now.timeIntervalSince($0) } ?? 0))
+        }
     }
     struct HealthAlert: Equatable {
         let message: IllnessSignalEngine.Message
@@ -770,7 +779,9 @@ final class AppModel: ObservableObject {
                 samples: w.samples,
                 avgHr: w.avgHr,
                 peakHr: w.peakHr,
-                liveStrain: w.liveStrain))
+                liveStrain: w.liveStrain,
+                pausedAtSec: w.pausedAt.map { Int($0.timeIntervalSince1970) },
+                pausedDurationSec: Int(w.pausedDuration)))
     }
 
     /// If a manual workout was in flight when iOS killed the app, rebuild `activeWorkout` from the durable
@@ -785,7 +796,47 @@ final class AppModel: ObservableObject {
         w.avgHr = snap.avgHr
         w.peakHr = snap.peakHr
         w.liveStrain = snap.liveStrain
+        w.pausedAt = snap.pausedAtSec.map { Date(timeIntervalSince1970: TimeInterval($0)) }
+        w.pausedDuration = TimeInterval(snap.pausedDurationSec ?? 0)
         activeWorkout = w
+
+        // Rebuild the transient GPS lifecycle flag as well as the durable workout value. Without this,
+        // a distance workout restored after an OS kill resumes as a non-GPS workout: Resume never
+        // restarts CoreLocation and End never asks the recorder for its route. Re-arm from the original
+        // start so newly captured fixes keep the workout's elapsed-time basis; leave a restored paused
+        // session paused until the user explicitly resumes it.
+        activeWorkoutIsGps = WorkoutCatalog.sport(named: snap.sport)?.isDistanceSport ?? false
+        if activeWorkoutIsGps {
+            gpsRecorder.restore(
+                startMs: Int64(snap.startSec) * 1000,
+                pausedAtMs: snap.pausedAtSec.map { Int64($0) * 1000 },
+                pausedDurationMs: Int64(snap.pausedDurationSec ?? 0) * 1000
+            )
+        }
+    }
+
+    func toggleWorkoutPause() {
+        guard var w = activeWorkout else { return }
+        if let pausedAt = w.pausedAt {
+            w.pausedDuration += Date().timeIntervalSince(pausedAt)
+            w.pausedAt = nil
+            if activeWorkoutIsGps { gpsRecorder.resume() }
+        } else {
+            w.pausedAt = Date()
+            if activeWorkoutIsGps { gpsRecorder.pause() }
+        }
+        activeWorkout = w
+        persistActiveWorkout()
+    }
+
+    /// Abort the active session without saving a workout.
+    func discardWorkout() {
+        guard activeWorkout != nil else { return }
+        activeWorkout = nil
+        if activeWorkoutIsGps { gpsRecorder.stop() }
+        activeWorkoutIsGps = false
+        ActiveWorkoutPersistence.clear()
+        lastWorkout = nil
     }
 
     /// Finish the active workout: finalize the GPS route (#524), score the captured HR window, and save it
@@ -849,7 +900,7 @@ final class AppModel: ObservableObject {
         let startTs = Int(w.start.timeIntervalSince1970)
         let row = WorkoutRow(
             startTs: startTs, endTs: Int(end.timeIntervalSince1970),
-            sport: w.sport, source: "manual", durationS: end.timeIntervalSince(w.start),
+            sport: w.sport, source: "manual", durationS: w.elapsed(at: end),
             energyKcal: kcal > 0 ? kcal : nil, avgHr: avg, maxHr: peak, strain: strain,
             // GPS distance rides the shared row so the Workouts list / detail show it like any other
             // distance workout; the polyline itself is persisted alongside in RouteStore (the shared
@@ -865,7 +916,7 @@ final class AppModel: ObservableObject {
         // (not reset by stop), 0 for a non-GPS session. Zero-cost when off.
         emitWorkoutsTrace(WorkoutsTrace.sessionLine(
             event: "end", sportKey: WorkoutSource.traceSportKey(w.sport), hrSamples: samples.count,
-            durationSec: Int(end.timeIntervalSince(w.start)),
+            durationSec: Int(w.elapsed(at: end)),
             gpsPoints: wasGps ? gpsRecorder.pointCount : nil))
         buzz(loops: 2, gate: HapticPrefs.workout)
         Task { [weak self] in
@@ -881,7 +932,7 @@ final class AppModel: ObservableObject {
     /// from `ingestHR` on every fresh sample; a no-op when no workout is running. Recomputing strain
     /// over the growing window each sample is cheap at the ~1 Hz live-HR cadence.
     private func captureWorkoutSample() {
-        guard var w = activeWorkout, let hr = bpm else { return }
+        guard var w = activeWorkout, !w.isPaused, let hr = bpm else { return }
         w.samples.append(HRSample(ts: Int(Date().timeIntervalSince1970), bpm: hr))
         w.peakHr = max(w.peakHr, hr)
         w.avgHr = Int((Double(w.samples.map(\.bpm).reduce(0, +)) / Double(w.samples.count)).rounded())

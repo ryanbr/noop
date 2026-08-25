@@ -37,6 +37,25 @@ class SmartAlarmStore(private val prefs: SharedPreferences) {
         get() = prefs.getInt(KEY_WINDOW, DEFAULT_WINDOW).coerceIn(WINDOW_MIN, WINDOW_MAX)
         set(v) = prefs.edit().putInt(KEY_WINDOW, v.coerceIn(WINDOW_MIN, WINDOW_MAX)).apply()
 
+    /** Days the phone alarm fires on (`Calendar.DAY_OF_WEEK`: 1=Sun … 7=Sat).
+     *
+     *  EMPTY MEANS EVERY DAY — the backward-compatible default, so an existing install with no key set
+     *  keeps firing daily exactly as before. Only 1..7 survive a load, so a corrupted entry cannot
+     *  schedule a bogus day. Same encoding and same empty-set semantics as the STRAP alarm's
+     *  `NoopPrefs.smartAlarmWeekdays`, deliberately: the two are edited by the same
+     *  `AlarmWeekdayPicker`, and a user toggling identical-looking circles on one screen would not
+     *  forgive them meaning different things.
+     *
+     *  The day tested is the one the HARD DEADLINE lands on — the morning you are actually woken —
+     *  not the window's opening edge, which can sit on the previous date when the window crosses
+     *  midnight. See `SmartAlarmScheduler.arm`. */
+    var weekdays: Set<Int>
+        get() = prefs.getStringSet(KEY_WEEKDAYS, emptySet())
+            ?.mapNotNull { it.toIntOrNull() }?.filter { it in 1..7 }?.toSet() ?: emptySet()
+        set(v) = prefs.edit()
+            .putStringSet(KEY_WEEKDAYS, v.filter { it in 1..7 }.map { it.toString() }.toSet())
+            .apply()
+
     /** The wall-clock epoch (ms) of the currently-scheduled HARD deadline, or 0 if none. Persisted so
      *  the boot receiver can re-arm the exact alarm after a restart without recomputing intent. */
     var scheduledDeadlineMs: Long
@@ -53,6 +72,7 @@ class SmartAlarmStore(private val prefs: SharedPreferences) {
         private const val KEY_ENABLED = "alarm.enabled"
         private const val KEY_TARGET = "alarm.targetMinutes"
         private const val KEY_WINDOW = "alarm.windowMinutes"
+        private const val KEY_WEEKDAYS = "alarm.weekdays"
         private const val KEY_DEADLINE_MS = "alarm.scheduledDeadlineMs"
         private const val KEY_WINDOW_START_MS = "alarm.scheduledWindowStartMs"
 

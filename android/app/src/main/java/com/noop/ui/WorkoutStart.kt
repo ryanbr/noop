@@ -236,7 +236,17 @@ fun WorkoutStartSection(vm: AppViewModel, onAdd: () -> Unit) {
         }
     } else if (live.bonded) {
         // Start + Add as an equal-width action row (EXP-018 parity with the iOS workoutActionRow).
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+        //
+        // #1602: CENTRED, not top-aligned. A Row defaults to `Alignment.Top`, so any height difference
+        // between the two children showed as one button riding higher than the other — which is how this
+        // was reported. The heights are now matched in `AddWorkoutButton`, so this is belt-and-braces:
+        // it keeps a future divergence looking like a size difference rather than a broken layout.
+        // SwiftUI's HStack centres by default, which is why the iOS twin never showed it.
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
             Button(
                 onClick = { showSportPicker = true },
                 modifier = Modifier.weight(1f),

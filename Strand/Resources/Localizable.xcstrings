@@ -63537,10 +63537,34 @@
             "value": "Terminer l'entraînement ?"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminare questo allenamento?"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
             "value": "Terminar este treino?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Завершить эту тренировку?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "结束此次锻炼？"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "結束此次鍛鍊？"
           }
         },
         "pl": {
@@ -160802,10 +160826,34 @@
             "value": "Cela arrête l'enregistrement et sauvegarde ce qui a été capturé jusqu'à présent. Impossible de le reprendre."
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Interrompe la registrazione e salva quanto acquisito finora. Non può essere ripreso."
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
             "value": "Isto interrompe a gravação e guarda o que foi capturado até ao momento. Não pode ser retomado."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запись остановится, а собранные данные сохранятся. Возобновить тренировку будет нельзя."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这将停止记录并保存目前采集的数据，之后无法继续。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這將停止記錄並儲存目前擷取的資料，之後無法繼續。"
           }
         },
         "pl": {

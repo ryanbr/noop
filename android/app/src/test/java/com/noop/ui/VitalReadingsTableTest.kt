@@ -66,6 +66,22 @@ class VitalReadingsTableTest {
         assertEquals(DisplayText.Resource(R.string.today_source_on_device), rows.single().source)
     }
 
+    /**
+     * #103/queue-11a follow-up: a spo2 candidate-fallback row (see [SPO2_CANDIDATE_ATTRIBUTION_SOURCE])
+     * must resolve to "strap estimate (unverified)" — the SAME caption every other candidate-fallback
+     * surface uses — never a device name, which would misrepresent an unvalidated estimate as a
+     * calibrated reading.
+     */
+    @Test fun spo2CandidateSourceReadsStrapEstimateUnverified() {
+        val rows = vitalReadingRows(
+            listOf(VitalReading("2026-08-24", 97.0, SPO2_CANDIDATE_ATTRIBUTION_SOURCE)),
+            "%",
+            strap,
+            spo2Format,
+        )
+        assertEquals(DisplayText.Resource(R.string.spo2_strap_estimate_caption), rows.single().source)
+    }
+
     @Test fun valueReusesModelFormatAndUnit() {
         // The row value is the model's own formatter applied to the reading, with the unit appended —
         // 41.7 ms rounds to "42 ms".

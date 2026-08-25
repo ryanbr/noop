@@ -57,6 +57,18 @@ final class VitalReadingsTableTests: XCTestCase {
         XCTAssertEqual(rows.first?.source, "On-device")
     }
 
+    /// #103/queue-11a follow-up: a spo2 candidate-fallback row (see `spo2CandidateAttributionSource`)
+    /// must resolve to "strap estimate (unverified)" — the SAME caption every other candidate-fallback
+    /// surface uses — never a device name, which would misrepresent an unvalidated estimate as a
+    /// calibrated reading.
+    func testSpo2CandidateSourceReadsStrapEstimateUnverified() {
+        let rows = vitalReadingRows(
+            readings: [VitalReading(day: "2026-08-24", value: 97, source: spo2CandidateAttributionSource)],
+            unit: "%", strapDeviceId: strap, now: now, format: spo2Format
+        )
+        XCTAssertEqual(rows.first?.source, "strap estimate (unverified)")
+    }
+
     func testValueReusesModelFormatAndUnit() {
         // The row value is the model's own formatter applied to the reading, with the unit appended —
         // 41.7 ms formats (%.0f) to "42 ms".

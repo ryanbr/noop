@@ -174,9 +174,7 @@
     <string name="fast_link_phy_desc">Fordert einen schnelleren Bluetooth-Funkmodus an, während Ihr Riemen seinen gespeicherten Verlauf überträgt. Dieselben Daten in kürzerer Sendezeit — möglicherweise schnellere Synchronisierung und etwas weniger Akkuverbrauch am Riemen. Ihr Riemen muss dies unterstützen, und es geht etwas Reichweite verloren. Neu und unerprobt: Schalten Sie es aus, wenn die Synchronisierung auf Distanz unzuverlässig wird.</string>
     <string name="fast_history_sync">Schnellere Verlaufssynchronisierung (experimentell)</string>
     <string name="fast_history_sync_desc">Fordert eine schnellere Bluetooth-Verbindung an, während Ihr Riemen seinen gespeicherten Verlauf überträgt, damit ein großer Rückstand schneller aufholt. Nur während der Synchronisierung — Ihre Live-Herzfrequenz und der nächtliche Datenstrom bleiben unberührt. Neu und unerprobt: Wenn es nicht hilft oder zu viel Akku kostet, schalten Sie es wieder aus.</string>
-    <string name="keep_alive_allowed">Erlaubt — Ihr Telefon stoppt die nächtliche Synchronisierung von NOOP nicht mehr, um Akku zu sparen. Die Berechtigung selbst verbraucht keinen Akku; verbraucht wird er von der nächtlichen Synchronisierung, die Sie oben aktiviert haben.</string>
-    <string name="keep_alive_needed_vendor">Ihr Telefon (%1$s) kann Hintergrund-Apps stoppen, um Akku zu sparen — dadurch können NOOP nächtliche Schlaf- und Erholungsdaten entgehen. Aktivieren Sie dies, um NOOP auf die Whitelist zu setzen.\n\nAndroid fragt „Akkuoptimierung beenden?“ und warnt, dass NOOP Ihren Akku entladen könnte — das ist Androids Standardformulierung für jede App, die im Hintergrund laufen darf. Tippen Sie auf Zulassen. Der Akku wird von der nächtlichen Synchronisierung verbraucht, die Sie oben bereits aktiviert haben; dies verhindert nur, dass Android sie vorzeitig beendet.</string>
-    <string name="keep_alive_needed_generic">Manche Telefone können Hintergrund-Apps stoppen, um Akku zu sparen — dadurch können NOOP nächtliche Schlaf- und Erholungsdaten entgehen. Aktivieren Sie dies, um NOOP auf die Whitelist zu setzen.\n\nAndroid fragt „Akkuoptimierung beenden?“ und warnt, dass NOOP Ihren Akku entladen könnte — das ist Androids Standardformulierung für jede App, die im Hintergrund laufen darf. Tippen Sie auf Zulassen. Der Akku wird von der nächtlichen Synchronisierung verbraucht, die Sie oben bereits aktiviert haben; dies verhindert nur, dass Android sie vorzeitig beendet.</string>
+    <string name="keep_alive_needed_vendor">Ihr Telefon (%1$s) kann Hintergrund-Apps stoppen, um Akku zu sparen — dadurch können NOOP nächtliche Schlaf- und Erholungsdaten entgehen. Tippen Sie auf „Zulassen“, um NOOP auf die Whitelist zu setzen.\n\nAndroid fragt „Akkuoptimierung beenden?“ und warnt, dass NOOP Ihren Akku entladen könnte — das ist Androids Standardformulierung für jede App, die im Hintergrund laufen darf. Tippen Sie auf Zulassen. Der Akku wird von der nächtlichen Synchronisierung verbraucht, die Sie oben bereits aktiviert haben; dies verhindert nur, dass Android sie vorzeitig beendet.</string>
     <string name="power_saving">Energie sparen</string>
     <string name="power_saving_blurb">Entlastet dein Band, wenn sein Akku zur Neige geht. Das Band speichert die Daten selbst, es geht also nichts verloren – NOOP kommuniziert nur seltener mit ihm, damit es durchhält, bis du es laden kannst.</string>
     <string name="power_saving_mode">Energiesparmodus</string>
@@ -1515,6 +1513,7 @@
     <string name="l10n_settings_screen_importing_overwrites_everything_currently_on_this_297b76ae">Importieren überschreibt alles, was sich derzeit auf diesem Telefon befindet. Ihre alten Daten werden nur für den Fall in einer Seitendatei gespeichert. NOOP benötigt einen Relaunch, damit ein Import in Kraft treten kann.</string>
     <string name="l10n_settings_screen_keep_connected_in_the_background_44499d45">Bleiben Sie im Hintergrund verbunden</string>
     <string name="l10n_settings_screen_keep_noop_alive_overnight_e43b2fba">Halten Sie NOOP über Nacht lebendig</string>
+    <string name="l10n_settings_screen_allow_3ad0e369">Zulassen</string>
     <string name="l10n_settings_screen_keep_screen_on_during_a_workout_42d27284">Bildschirm während eines Workouts anlassen</string>
     <string name="l10n_settings_screen_keeps_streaming_from_your_strap_with_d31b4af9">Behält das Streaming von Ihrem Band mit einer laufenden Benachrichtigung, auch nachdem Sie NOOP geschlossen haben. Schalten Sie die Verbindung aus, wenn die App geschlossen ist.</string>
     <string name="l10n_settings_screen_keeps_the_detailed_beat_to_beat_87b78edd">Läuft den detaillierten Beat-to-Beat-Stream Tag und Nacht, nicht nur während ein Live-Bildschirm geöffnet ist, so dass NOOP viel mehr für HRV über Nacht, Erholung und Schlaf einfängt. Verwendet mehr Batterie (Ihr Band streamt die Herzfrequenz kontinuierlich). Benötigt "Im Hintergrund verbunden bleiben" auf.</string>
@@ -2448,8 +2447,15 @@
     <string name="nav_power_saving">Energiesparen</string>
     <string name="l10n_app_changelog_training_load_a_vo_max_without_f9205a67">Trainingsbelastung, VO₂max ohne Maßband und deutlich weniger Akku fürs Neuberechnen</string>
     <string name="l10n_sleep_screen_sleep_outside_the_new_times_was_6229881e">Schlaf außerhalb der neuen Zeiten wurde entfernt. NOOP erkennt ihn nicht erneut.</string>
+    <string name="workout_action_pause">Pause</string>
+    <string name="workout_action_resume">Fortsetzen</string>
+    <string name="workout_action_delete">Löschen</string>
+    <string name="workout_action_end">Beenden</string>
+    <string name="workout_action_recording">Workout wird aufgezeichnet</string>
+    <string name="workout_action_paused">Pausiert</string>
+    <string name="workout_delete_title">Dieses Workout löschen?</string>
+    <string name="workout_delete_message">Dadurch wird die Aufzeichnung beendet und das Workout endgültig verworfen.</string>
     <string name="l10n_settings_screen_effort_exponential_scale">Anstrengung: exponentielle Intensitätsskala</string>
     <string name="l10n_settings_screen_effort_exponential_scale_desc">Bewertet die Anstrengung mit einer exponentiellen Intensitätskurve (Banister-TRIMP) statt der voreingestellten Herzfrequenzzonen (Edwards). Die Voreinstellung zählt nichts unter der Hälfte deiner Herzfrequenzreserve, sodass eine Stunde Krafttraining – bei der sich harte Sätze mit den Pausen ausmitteln – nahezu null ergeben kann. Die exponentielle Kurve hat keine Untergrenze und gewichtet kurze, intensive Belastungen deutlich stärker. Bewertet deine Historie neu; beide Skalen erreichen dasselbe Maximum. Standardmäßig aus.</string>
-    <string name="l10n_settings_screen_allow_3ad0e369">Zulassen</string>
-    <string name="l10n_settings_screen_manage_bf58d17e">Verwalten</string>
+    <string name="l10n_app_changelog_an_effort_scale_you_choose_a_a7c2478d">Eine Effort-Skala nach Wahl, ein Ring, der schlafen darf, und weit weniger vergebliche Neuberechnungen</string>
 </resources>

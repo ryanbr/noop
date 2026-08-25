@@ -530,11 +530,11 @@ private fun decodeWhoop5Historical(frame: ByteArray): Map<String, Any?>? {
  * PPG-derived on-device), so the win here is the waveform itself, which [PpgHr] turns into HR.
  *
  * Returns the record's wall-second [unix] and the 24 raw ADC [samples], or null when the frame is not
- * a v26 HISTORICAL_DATA record or the waveform region is truncated. The bytes before [27] (header +
- * the raw per-burst counter @21 — `burst_index`, NOT a channel id; PR#553) and the footer after [75]
- * are intentionally not mapped here: the Android offload path needs only [unix] + the waveform for HR.
+ * a v26 HISTORICAL_DATA record or the waveform region is truncated. The raw per-burst counter @21
+ * (`burst_index`, NOT a channel id; PR#553) is carried beside the waveform
+ * so durable rows retain their burst boundaries. The footer after [75] remains intentionally unmapped.
  */
-private data class V26Record(val unix: Long, val samples: List<Int>)
+private data class V26Record(val unix: Long, val samples: List<Int>, val burstIndex: Int?)
 
 private fun decodeWhoop5HistoricalV26(frame: ByteArray): V26Record? {
     if (frame.histU8(8) != PacketType.HISTORICAL_DATA.rawValue) return null
@@ -550,7 +550,9 @@ private fun decodeWhoop5HistoricalV26(frame: ByteArray): V26Record? {
         off += 2
     }
     if (samples.isEmpty()) return null
-    return V26Record(unix = unix, samples = samples)
+    val rawBurstIndex = frame.histU8(21)
+    return V26Record(unix = unix, samples = samples,
+        burstIndex = rawBurstIndex?.takeIf { it > 0 })
 }
 
 /**
@@ -565,8 +567,8 @@ private fun decodeWhoop5HistoricalV26(frame: ByteArray): V26Record? {
  *   - CONSOLE_LOGS (type-50) frames — the strap's own diagnostics text channel. On WHOOP 4.0 the
  *     inner type byte is frame[4]; type-50 (0x32) is not type-47 so the family-aware type guard below
  *     already skips it. On WHOOP 5/MG the inner type byte is at frame[8].
- *   - WHOOP 5/MG v26 (raw PPG) records — deliberately unstored (see [decodeWhoop5Historical]), known
- *     and skipped by design, not lost.
+ *   - WHOOP 5/MG v26 (raw PPG) records — stored in the dedicated waveform stream, so they do not belong
+ *     in the rejected-record archive.
  *   - Non-record frames (METADATA, EVENT, etc.) — not type-47, so never returned.
  *
  * The Backfiller archives these raw bytes BEFORE acking the trim, so a user on an unmapped firmware
@@ -584,7 +586,7 @@ fun rejectedHistoricalRecords(
     return rawFrames.filter { frame ->
         val t = frame.histU8(typeIndex) ?: return@filter false
         if (t != PacketType.HISTORICAL_DATA.rawValue) return@filter false // type-50 console / metadata / etc.
-        // WHOOP 5/MG v26 = raw PPG block, deliberately not stored — known-skipped, not lost data.
+        // WHOOP 5/MG v26 = raw PPG block with its own durable waveform stream, not rejected data.
         if (family == DeviceFamily.WHOOP5 && frame.histU8(9) == 26) return@filter false
         // UNMAPPED LAYOUT (5/MG) — archive UNCONDITIONALLY, whatever it decoded.
         //
@@ -828,7 +830,9 @@ fun extractHistoricalStreams(
                             // Persist the raw waveform itself too (#156 follow-up), keyed on the record's
                             // corrected wall-second. Guard on non-empty so a truncated frame that decoded
                             // zero samples never banks an empty row (mirrors the Swift `!samples.isEmpty`).
-                            if (rec.samples.isNotEmpty()) ppgWaveform.add(PpgWaveformRow(baseTs, rec.samples))
+                            if (rec.samples.isNotEmpty()) {
+                                ppgWaveform.add(PpgWaveformRow(baseTs, rec.samples, rec.burstIndex))
+                            }
                         }
                     }
                 }

@@ -868,6 +868,13 @@ extension WhoopStore {
                 t.primaryKey(["deviceId", "ts"])
             }
         }
+        // v39 (#979): keep the v26 per-burst counter beside the waveform it segments. Existing rows stay
+        // nil because the counter was discarded before this migration and cannot be reconstructed.
+        migrator.registerMigration("v39-ppg-burst-index") { db in
+            try db.alter(table: "ppgWaveformSample") { t in
+                t.add(column: "burstIndex", .integer)
+            }
+        }
         return migrator
     }
 }

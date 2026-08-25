@@ -31,18 +31,19 @@ final class PpgWaveformSampleTests: XCTestCase {
     func testPpgWaveformTableShape() async throws {
         let store = try await WhoopStore.inMemory()
         let cols = try await store.columnNamesForTest(table: "ppgWaveformSample")
-        XCTAssertEqual(Set(cols), ["deviceId", "ts", "samples"])
+        XCTAssertEqual(Set(cols), ["deviceId", "ts", "samples", "burstIndex"])
     }
 
     func testPpgWaveformInsertRoundTripAndDedup() async throws {
         let store = try await WhoopStore.inMemory()
-        let streams = Streams(ppgWaveform: [PpgWaveformSample(ts: 1_780_917_232, samples: realSamples)])
+        let streams = Streams(ppgWaveform: [PpgWaveformSample(ts: 1_780_917_232,
+                                                              samples: realSamples, burstIndex: 7)])
         _ = try await store.insert(streams, deviceId: "my-whoop")
         let n1 = try await store.ppgWaveformCountForTest()
         XCTAssertEqual(n1, 1)
         let read = try await store.ppgWaveformSamples(deviceId: "my-whoop",
                                                        from: 1_780_917_232, to: 1_780_917_232)
-        XCTAssertEqual(read, [PpgWaveformSample(ts: 1_780_917_232, samples: realSamples)])
+        XCTAssertEqual(read, [PpgWaveformSample(ts: 1_780_917_232, samples: realSamples, burstIndex: 7)])
         // Re-inserting the same (deviceId, ts) is idempotent, ON CONFLICT DO NOTHING (mirrors every
         // other per-second stream's dedupe rule).
         _ = try await store.insert(streams, deviceId: "my-whoop")

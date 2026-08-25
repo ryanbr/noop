@@ -92,6 +92,8 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 // MARK: - Health Monitor (ported from Strand/Screens/HealthView.swift)
 //
@@ -1750,6 +1752,22 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
     val tempUnit = UnitPrefs.temperature(context)
     // The Effort detail renders per the user's Effort display scale (0-100 vs 0-21), like the Today tile.
     val effortScale = UnitPrefs.effortScale(context)
+    // #103/queue-11a follow-up: same reactive source the Key Metrics tile already collects (empty when
+    // the toggle is OFF, since the engine writes nothing) — reused here so this screen's spo2 candidate
+    // fallback (in buildVitalDetail) stays in sync with the tile it drills in from.
+    //
+    // The FLOW is swapped per metric, not the collect call. Only the Blood Oxygen detail reads this map,
+    // but this composable serves every vital, and subscribing the real flow runs a database union
+    // (`metricSeriesComputedUnion`) that Resting HR / HRV / Skin Temp would pay for and discard —
+    // `WhileSubscribed(5_000)` means arriving more than five seconds after the tile unsubscribed re-runs
+    // it, which is the normal Today → Health → tap path. Gating the CALL instead (`key == "spo2" && …`)
+    // would put a composable in a conditionally-evaluated position and corrupt the slot table when the
+    // key changes; swapping the flow keeps exactly one unconditional call site. It also keeps the
+    // `remember` below stable for every other vital, since the map is then a constant.
+    val candidateFlow: StateFlow<Map<String, Double>> = remember(key) {
+        if (key == "spo2") vm.spo2CandidateByDay else MutableStateFlow(emptyMap())
+    }
+    val spo2CandidateByDay by candidateFlow.collectAsStateWithLifecycle()
     // Profile drives the Fitness Age readiness/countdown shown when that vital has no value yet.
     val profile = remember { ProfileStore.from(context.applicationContext) }
     val isSeriesBacked = key in SERIES_BACKED_VITAL_KEYS
@@ -1770,7 +1788,9 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
         }
     }
     val detail = if (isSeriesBacked) seriesDetail
-    else remember(days, key, tempUnit, effortScale) { buildVitalDetail(days, key, tempUnit, effortScale) }
+    else remember(days, key, tempUnit, effortScale, spo2CandidateByDay) {
+        buildVitalDetail(days, key, tempUnit, effortScale, spo2CandidateByDay)
+    }
     var range by remember { mutableStateOf(VitalDetailRange.MONTH) }
 
     // The subtitle tracks how much history the metric has, so we never promise a "historical trend" the
@@ -1885,6 +1905,12 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
         }
 
         val values = filteredPoints.map { it.second }
+        // #1600: remembered, unlike the plain projections above it. `shortDayLabel` parses a LocalDate and
+        // runs a DateTimeFormatter PER POINT, so leaving it inline would re-parse every day in the window
+        // on every recomposition — and the recompositions that matter are the ones a finger dragging
+        // across this chart produces. Keyed on `filteredPoints`, whose structural equality holds it stable
+        // across recompositions that do not change the window.
+        val dayLabels = remember(filteredPoints) { filteredPoints.map { shortDayLabel(it.first) } }
         val latest = filteredPoints.last()
         val min = values.minOrNull()
         val max = values.maxOrNull()
@@ -1929,6 +1955,15 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
                     color = detail.color,
                     fill = true,
                     selectionEnabled = true, // the Vital Signs detail chart is meant to be tappable
+                    // #1600: name the DAY on the scrub readout. `lineChartSelectionLabel` prints
+                    // "label · value" when given one and the bare value otherwise, so a chart that opts
+                    // into selection without labels answers "96" — a number with nothing to say which day
+                    // it belongs to, against a Trends chart that reads "16 Jul · 92" beside it.
+                    //
+                    // Derived from `filteredPoints`, the same (day, value) list `values` comes from, so the
+                    // two are equal in length by construction rather than by luck — `LineChart` drops
+                    // mismatched labels SILENTLY, which is a failure that looks exactly like doing nothing.
+                    selectionLabels = dayLabels,
                     segmentIds = if (key == "vo2max_est") vo2MaxTrendSegmentIds(filteredReadings) else null,
                 )
                 Box(
@@ -2053,6 +2088,7 @@ private fun buildVitalDetail(
     key: String,
     tempUnit: TemperatureUnit,
     effortScale: EffortScale = EffortScale.HUNDRED,
+    spo2CandidateByDay: Map<String, Double> = emptyMap(),
 ): VitalDetailModel? {
     return when (key) {
     // The Today Key-Metrics Recovery tile's drill-in: the Recovery (Charge) trend timeline, matching the
@@ -2083,14 +2119,25 @@ private fun buildVitalDetail(
         readings = days.mapNotNull { row -> row.respRateBpm?.let { VitalReading(row.day, it, row.deviceId) } },
         format = { String.format(Locale.US, "%.1f", it) },
     )
-    "spo2" -> VitalDetailModel(
-        key = key,
-        title = uiString(R.string.l10n_health_screen_blood_oxygen_a8ad9ff5),
-        unit = "%",
-        color = Palette.metricCyan,
-        readings = days.mapNotNull { row -> row.spo2Pct?.let { VitalReading(row.day, it, row.deviceId) } },
-        format = { String.format(Locale.US, "%.0f", it) },
-    )
+    "spo2" -> {
+        // #103/queue-11a follow-up: fill in the spo2 candidate fallback for any day with no calibrated
+        // spo2Pct — the SAME fallback the Key Metrics tile already shows (found 2026-08-24: an
+        // Oura-only or WHOOP-4.0-only install with the toggle ON saw a real number on the tile but an
+        // empty/stale screen here, since this branch never got #1568's candidate wiring). Calibrated
+        // days always win; this only ADDS days the calibrated column is missing, never overwrites one.
+        val calibrated = days.mapNotNull { row -> row.spo2Pct?.let { row.day to VitalReading(row.day, it, row.deviceId) } }.toMap()
+        val candidateOnly = spo2CandidateByDay
+            .filterKeys { it !in calibrated }
+            .map { (day, value) -> day to VitalReading(day, value, SPO2_CANDIDATE_ATTRIBUTION_SOURCE) }
+        VitalDetailModel(
+            key = key,
+            title = uiString(R.string.l10n_health_screen_blood_oxygen_a8ad9ff5),
+            unit = "%",
+            color = Palette.metricCyan,
+            readings = (calibrated.values + candidateOnly.map { it.second }).sortedBy { it.day },
+            format = { String.format(Locale.US, "%.0f", it) },
+        )
+    }
     "rhr" -> VitalDetailModel(
         key = key,
         title = uiString(R.string.l10n_health_screen_resting_heart_rate_9700f4d8),

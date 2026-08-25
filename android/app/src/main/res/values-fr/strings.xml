@@ -1330,6 +1330,7 @@
     <string name="l10n_settings_screen_importing_overwrites_everything_currently_on_this_297b76ae">Importation écrase tout actuellement sur ce téléphone. Vos anciennes données sont conservées dans un fichier parallèle au cas où. NOOP a besoin d\'une relance pour qu\'une importation prenne effet.</string>
     <string name="l10n_settings_screen_keep_connected_in_the_background_44499d45">Rester connecté en arrière-plan</string>
     <string name="l10n_settings_screen_keep_noop_alive_overnight_e43b2fba">Gardez NOOP vivant toute la nuit</string>
+    <string name="l10n_settings_screen_allow_3ad0e369">Autoriser</string>
     <string name="l10n_settings_screen_keep_screen_on_during_a_workout_42d27284">Garder l\'écran allumé pendant un entraînement</string>
     <string name="l10n_settings_screen_keeps_streaming_from_your_strap_with_d31b4af9">Garde le flux de votre bracelet avec une notification continue, même après avoir fermé NOOP. Éteignez pour vous déconnecter lorsque l\'application est fermée.</string>
     <string name="l10n_settings_screen_keeps_the_detailed_beat_to_beat_87b78edd">Conserve le flux beat-to-beat détaillé toute la journée et la nuit, pas seulement pendant qu\'un écran en direct est ouvert, donc NOOP capture beaucoup plus pour la VFC nocturne, la récupération et le sommeil. Utilise plus de batterie (votre bracelet transmet la fréquence cardiaque en continu). Nécessite « Continuez à vous connecter en arrière-plan ».</string>
@@ -1701,9 +1702,7 @@
     <string name="fast_link_phy_desc">Demande un mode radio Bluetooth plus rapide pendant que votre bracelet transfère son historique stocké. Les mêmes données en moins de temps d\'antenne : la synchronisation peut être plus rapide et consommer un peu moins de batterie. Votre bracelet doit le prendre en charge, et cela réduit un peu la portée. Nouveau et non éprouvé : si la synchronisation devient instable à distance, désactivez-le.</string>
     <string name="fast_history_sync">Synchronisation de l\'historique plus rapide (expérimental)</string>
     <string name="fast_history_sync_desc">Demande une connexion Bluetooth plus rapide pendant que votre bracelet transfère son historique stocké, afin qu\'un gros retard se rattrape plus vite. Uniquement pendant la synchronisation : votre fréquence cardiaque en direct et le flux nocturne ne sont pas affectés. Nouveau et non éprouvé : si cela n\'aide pas ou consomme trop de batterie, désactivez-le.</string>
-    <string name="keep_alive_allowed">Autorisé — votre téléphone n\'arrêtera plus la synchronisation nocturne de NOOP pour économiser la batterie. L\'autorisation elle-même ne consomme pas de batterie ; c\'est la synchronisation nocturne que vous avez activée ci-dessus qui en consomme.</string>
-    <string name="keep_alive_needed_vendor">Votre téléphone (%1$s) peut arrêter les applications en arrière-plan pour économiser la batterie, ce qui peut faire manquer à NOOP des données nocturnes de sommeil et de récupération. Activez ceci pour ajouter NOOP à la liste blanche.\n\nAndroid demandera « Arrêter l\'optimisation de la batterie ? » et avertira que NOOP peut vider votre batterie — c\'est sa formulation standard pour toute application autorisée à fonctionner en arrière-plan. Appuyez sur Autoriser. La batterie est consommée par la synchronisation nocturne que vous avez déjà activée ci-dessus ; ceci empêche seulement Android de l\'interrompre.</string>
-    <string name="keep_alive_needed_generic">Certains téléphones peuvent arrêter les applications en arrière-plan pour économiser la batterie, ce qui peut faire manquer à NOOP des données nocturnes de sommeil et de récupération. Activez ceci pour ajouter NOOP à la liste blanche.\n\nAndroid demandera « Arrêter l\'optimisation de la batterie ? » et avertira que NOOP peut vider votre batterie — c\'est sa formulation standard pour toute application autorisée à fonctionner en arrière-plan. Appuyez sur Autoriser. La batterie est consommée par la synchronisation nocturne que vous avez déjà activée ci-dessus ; ceci empêche seulement Android de l\'interrompre.</string>
+    <string name="keep_alive_needed_vendor">Votre téléphone (%1$s) peut arrêter les applications en arrière-plan pour économiser la batterie, ce qui peut faire manquer à NOOP des données nocturnes de sommeil et de récupération. Appuyez sur « Autoriser » pour ajouter NOOP à la liste blanche.\n\nAndroid demandera « Arrêter l\'optimisation de la batterie ? » et avertira que NOOP peut vider votre batterie — c\'est sa formulation standard pour toute application autorisée à fonctionner en arrière-plan. Appuyez sur Autoriser. La batterie est consommée par la synchronisation nocturne que vous avez déjà activée ci-dessus ; ceci empêche seulement Android de l\'interrompre.</string>
     <string name="power_saving">Économie d\'énergie</string>
     <string name="power_saving_blurb">Réduire la charge sur votre bracelet lorsque sa batterie est basse. Le bracelet conserve lui-même les données, donc rien n\'est perdu — NOOP lui parle moins souvent jusqu\'à ce que vous puissiez le charger.</string>
     <string name="power_saving_mode">Mode d\'économie d\'énergie</string>
@@ -2433,8 +2432,15 @@
     <string name="nav_power_saving">Économie d’énergie</string>
     <string name="l10n_app_changelog_training_load_a_vo_max_without_f9205a67">Charge d\'entraînement, VO₂max sans mètre ruban, et bien moins de batterie à recalculer</string>
     <string name="l10n_sleep_screen_sleep_outside_the_new_times_was_6229881e">Le sommeil en dehors des nouveaux horaires a été supprimé. NOOP ne le détectera plus.</string>
+    <string name="workout_action_pause">Pause</string>
+    <string name="workout_action_resume">Reprendre</string>
+    <string name="workout_action_delete">Supprimer</string>
+    <string name="workout_action_end">Terminer</string>
+    <string name="workout_action_recording">Enregistrement de l\'entraînement</string>
+    <string name="workout_action_paused">En pause</string>
+    <string name="workout_delete_title">Supprimer cet entraînement ?</string>
+    <string name="workout_delete_message">Cela arrête l\'enregistrement et supprime définitivement l\'entraînement.</string>
     <string name="l10n_settings_screen_effort_exponential_scale">Effort : échelle d’intensité exponentielle</string>
     <string name="l10n_settings_screen_effort_exponential_scale_desc">Calcule l’Effort selon une courbe d’intensité exponentielle (TRIMP de Banister) au lieu des zones de fréquence cardiaque par défaut (Edwards). Le réglage par défaut ne compte rien en dessous de la moitié de votre réserve de fréquence cardiaque : une heure de musculation — où les séries dures se compensent avec les temps de repos — peut donc être notée presque zéro. La courbe exponentielle n’a pas de seuil et pondère bien davantage les efforts courts et intenses. Recalcule votre historique, et les deux échelles atteignent le même maximum. Désactivé par défaut.</string>
-    <string name="l10n_settings_screen_allow_3ad0e369">Autoriser</string>
-    <string name="l10n_settings_screen_manage_bf58d17e">Gérer</string>
+    <string name="l10n_app_changelog_an_effort_scale_you_choose_a_a7c2478d">Une échelle d\'Effort au choix, une bague qui peut dormir, et bien moins de recalculs inutiles</string>
 </resources>

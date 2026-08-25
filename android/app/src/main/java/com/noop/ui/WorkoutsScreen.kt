@@ -110,6 +110,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
@@ -436,22 +438,49 @@ private fun PostLogNoteBanner(text: String) {
     }
 }
 
-/** The "Add workout" pill — opens the manual add dialog. Shown on both the populated screen
- *  (in the range bar) and the empty state, so a user with no imports can still log a session. */
+/**
+ * The "Add workout" pill — opens the manual add dialog. Shown on both the populated screen
+ * (in the range bar) and the empty state, so a user with no imports can still log a session.
+ *
+ * #1602: this sits beside a Material3 [Button] in the Workouts action row, and the two are built by
+ * different mechanisms — so their metrics have to be matched deliberately or they drift. A `Button`
+ * carries `defaultMinSize(minHeight = ButtonDefaults.MinHeight)`; a bare `Row` has no minimum at all,
+ * so its height was whatever the content happened to be plus its padding, and the pair rendered at
+ * different heights with different label sizes.
+ *
+ * Both are pinned here: the same minimum height as a `Button`, and the same [NoopType.captionNumber]
+ * the Start button uses. iOS has never had this because both of its buttons come from ONE primitive
+ * (`NoopButton`, differing only by `kind`) — the real fix is an Android equivalent, and until that
+ * exists this is the seam that has to be held by hand.
+ */
 @Composable
 internal fun AddWorkoutButton(onAdd: () -> Unit, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
+            // Material's constant, not a NOOP token: the goal is not "be 40.dp", it is "be whatever the
+            // Button beside me is". Android has no control-height token to reach for (iOS keeps one,
+            // `NoopMetrics.controlHeight` = 48), and minting one at today's value would match by
+            // coincidence and drift the moment Material changed its default.
+            .defaultMinSize(minHeight = ButtonDefaults.MinHeight)
             .clip(RoundedCornerShape(50))
             .background(Palette.accentMuted)
             .clickable(onClick = onAdd)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            // 10.dp matches the Start button's contentPadding; this used to carry 14.dp. Invisible in
+            // English — width is fixed by `weight(1f)` — but this button already gives up 22.dp to an
+            // icon and spacer that Start has not, and the long translations are comparable in length
+            // ("Ajouter un entraînement" against "Démarrer l'entraînement"), so the extra 8.dp only
+            // decided which label ellipsized first.
+            .padding(horizontal = 10.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(Icons.Filled.Add, contentDescription = null, tint = Palette.accent, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(6.dp))
-        Text(uiString(R.string.l10n_workouts_screen_add_workout_a196a2cc), style = NoopType.subhead, color = Palette.accent)
+        Text(
+            uiString(R.string.l10n_workouts_screen_add_workout_a196a2cc),
+            style = NoopType.captionNumber,
+            color = Palette.accent,
+        )
     }
 }
 

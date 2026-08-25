@@ -1071,7 +1071,7 @@ fun TodayScreen(
 
     // 14-day trailing calendar window ending on the phone's actual local day.
     // Old imports stay in history, but they do not fill the Today trend tiles.
-    val window = rememberTrendWindow(days, selectedDay, keyMetricsWindowDays)
+    val window = rememberTrendWindow(days, selectedDay, keyMetricsWindowDays, spo2CandidateByDay)
 
     LaunchedEffect(days) {
         // #849: this footer pass is the heavy one. It derives HR per imported workout from raw strap samples
@@ -1111,8 +1111,15 @@ fun TodayScreen(
             // fillWorkoutHrFromStrap: imported sessions carry no HR, derive it from strap samples (#77).
             // #510: strap-native rows now read HR under their OWN recording strap (inside the fill), so a 2nd
             // WHOOP's workouts reconcile Avg HR + Effort from their own trace; imported rows keep the default.
+            // #1601: the ACTIVE strap id, not the "my-whoop" default — see the AppViewModel call site.
+            // Left defaulted, an imported row on a non-canonical install reads only the canonical id here
+            // while every other surface reads active ∪ canonical, so its Avg HR stays blank against a
+            // populated graph.
             recentWorkouts = viewModel.repo.fillWorkoutHrFromStrap(
-                recentUnion, effortMethod = NoopPrefs.effortMethod(context)),
+                recentUnion,
+                strapDeviceId = viewModel.deviceId,
+                effortMethod = NoopPrefs.effortMethod(context),
+            ),
             whoopDays = days.size,
             whoopWorkouts = whoopWorkouts.size,
             appleDays = appleDaysCount,
@@ -1541,6 +1548,7 @@ fun TodayScreen(
                                     spo2CarryDay = lastSpo2Day,
                                     respCarryDay = lastRespDay,
                                     skinTempCarryDay = lastSkinTempDay,
+                                    spo2CandidateByDay = spo2CandidateByDay,
                                     unitSystem = unitSystem,
                                     effortScale = effortScale,
                                     effortForDay = effortForDay,   // #1001: same figure as the hero ring
@@ -4895,6 +4903,11 @@ private fun MetricGrid(
     // reading. Mirrors the "Your Cards" DashboardCard.SKIN_TEMP path's skinTempDay fallback and iOS
     // TodayView's lastSkinTempDay chain.
     skinTempCarryDay: DailyMetric? = null,
+    // #1599: the same candidate map the tile's sparkline is built from, so the number and the line under
+    // it draw on one source rather than two. They are not guaranteed EQUAL — the value carries from
+    // outside the window and the line cannot — but neither can now show data the other has no access to,
+    // which is what made this tile render a number above a blank panel.
+    spo2CandidateByDay: Map<String, Double> = emptyMap(),
     unitSystem: UnitSystem = UnitSystem.METRIC,
     effortScale: EffortScale = EffortScale.HUNDRED,
     // #1001: the day's resolved Effort (live-preferring for today, floored at the stored row). Threaded
@@ -5017,14 +5030,26 @@ private fun MetricGrid(
             )
         },
         KeyMetric.BLOOD_OXYGEN to run {
-            val v = d?.spo2Pct ?: carriedDay?.spo2Pct ?: spo2CarryDay?.spo2Pct
+            // Candidate LAST, after the carries — the exact precedence the dashboard Blood Oxygen card
+            // uses two sections down this same screen, and the one the Apple tile uses. The candidate is
+            // a fallback for having nothing, never an override for having something stale.
+            //
+            // For the strap-only install this issue is about there are no calibrated readings at all, so
+            // both carries are null and every surface resolves to the candidate regardless.
+            val calibrated = d?.spo2Pct ?: carriedDay?.spo2Pct ?: spo2CarryDay?.spo2Pct
+            val candidateToday = d?.day?.let { spo2CandidateByDay[it] }
+            val onCandidate = spo2UsingCandidate(calibrated, candidateToday)
+            val v = calibrated ?: candidateToday
             KeyTileData(
                 label = uiString(R.string.l10n_today_screen_blood_oxygen_a8ad9ff5),
                 value = v?.let { String.format(Locale.getDefault(), "%.0f", it) } ?: NO_DATA,
                 unit = if (v != null) "%" else "",
                 tint = Palette.metricCyan,
                 frac = v?.let { (it / 100.0).coerceIn(0.0, 1.0) },
-                spark = w.spo2,
+                // Say WHOSE number this is. The Apple tile has carried this caption all along; Android
+                // showed an unlabelled figure, which is the harder of the two to argue with.
+                caption = if (onCandidate) uiString(R.string.spo2_strap_estimate_caption) else null,
+                spark = spo2SparkSeries(w.spo2, w.spo2Candidate),
             )
         },
         KeyMetric.RESPIRATORY to run {
@@ -6710,6 +6735,8 @@ private data class Window(
     val hrv: List<Double>,
     val rhr: List<Double>,
     val spo2: List<Double>,
+    /** #1599: the strap-estimate trend, kept separate from [spo2] so the tile can swap rather than mix. */
+    val spo2Candidate: List<Double> = emptyList(),
     val resp: List<Double>,
     // #616: the Steps tile carried no `spark` series, so it drew no trend line while every other tile did.
     // On-device DailyMetric.steps (the strap @57 count) — the same signal the Steps tile VALUE reads
@@ -6731,8 +6758,15 @@ private fun rememberTrendWindow(
     days: List<com.noop.data.DailyMetric>,
     anchorDay: LocalDate,
     windowDays: Int,
+    // #1599: the SpO2 candidate per day, so the Blood Oxygen tile has a series to draw at all.
+    // `AnalyticsEngine` writes `spo2Pct = null` on every computed day — a calibrated reading only ever
+    // arrives from an IMPORT — so on a strap-only install `series { it.spo2Pct }` is empty by
+    // construction and the tile rendered a value above blank space where every neighbour had a line.
+    // Already empty when the display toggle is off (the flow returns emptyMap), so reading it here needs
+    // no second gate.
+    spo2Candidate: Map<String, Double> = emptyMap(),
 ): Window =
-    androidx.compose.runtime.remember(days, anchorDay, windowDays) {
+    androidx.compose.runtime.remember(days, anchorDay, windowDays, spo2Candidate) {
         // Trailing CALENDAR days ending today, NOT the last N stored rows, which on an old import
         // were months-old data shown as a fresh trend (issue #23). ISO yyyy-MM-dd sorts chronologically.
         val cutoff = anchorDay.minusDays((windowDays - 1).toLong()).toString()
@@ -6746,6 +6780,9 @@ private fun rememberTrendWindow(
             hrv = series { it.avgHrv },
             rhr = series { it.restingHr?.toDouble() },
             spo2 = series { it.spo2Pct },
+            // #1599: the strap estimate as its OWN series, not merged into the one above. The tile swaps
+            // wholesale between them so a single caption can describe every point on the line.
+            spo2Candidate = recent.mapNotNull { spo2Candidate[it.day] },
             resp = series { it.respRateBpm },
             steps = series { it.steps?.toDouble() },   // #616
             skinTemp = series { it.skinTempDevC },

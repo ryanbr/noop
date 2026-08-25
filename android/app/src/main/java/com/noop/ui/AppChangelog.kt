@@ -26,7 +26,7 @@ object AppChangelog {
      * Bump this when you add a release below. The "What's New" sheet shows automatically when the
      * stored last-seen version is behind this. (Decoupled from the bundle version on purpose.)
      */
-    const val CURRENT_VERSION = "10.5.0"
+    const val CURRENT_VERSION = "10.6.0"
 
     data class Release(
         val version: String,
@@ -37,6 +37,19 @@ object AppChangelog {
 
     /** Newest first. */
     val releases: List<Release> = listOf(
+        Release(
+            version = "10.6.0",
+            title = uiString(R.string.l10n_app_changelog_an_effort_scale_you_choose_a_a7c2478d),
+            date = "August 2026",
+            items = listOf(
+                "**Pick how Effort is scored (#1562, #1563).** Banister TRIMP is now wired end to end and selectable, so Effort can follow the method you trust rather than the one that happened to ship. A workout is also scored against the same HRmax as the day containing it (#1565).",
+                "**The phone stops re-scoring all night (#1557, #1559).** A background re-score that could not finish used to restart from the beginning, forever. It now runs where it can complete, and the diagnostics say which pass ran and why — so days that quietly refused to compute now compute.",
+                "**The Oura ring is allowed to sleep (#1526, #1550, thanks @pipiche38).** Live-HR daytime mode was being held open whenever nobody was looking at the app, blocking the ring's own overnight sleep suite. NOOP now hands the ring back out of daytime mode, on suspend and on teardown.",
+                "**Sleep reads straighter (#1551, #1552, thanks @bartmuskala).** The Classic view draws the night's heart-rate line, and the stage breakdown is ramp-aware with the redundant legend gone.",
+                "**Pause or discard a live workout, and SDNN on Android (#1533, #1535, thanks @bhelm).** Live workouts gain pause and discard controls, and the SDNN index that was iOS-only is now on both platforms.",
+                "**Your strap's device key stays out of the strap log (#1610).** A WHOOP 4.0 identity response carries the strap serial and its device key side by side; the log now reports the structure and withholds the key, so a log attached to an issue no longer publishes it.",
+            ),
+        ),
         Release(
             version = "10.5.0",
             title = uiString(R.string.l10n_app_changelog_training_load_a_vo_max_without_f9205a67),

@@ -512,4 +512,18 @@ class BackfillContinuationTest {
             ),
         )
     }
+
+    // ---- #1598 clock-correlation family gate ----
+
+    /**
+     * A 5/MG must never have a GET_CLOCK correlation DERIVED for it: its records already carry real-unix
+     * seconds, so `wall - strapNewestTs` is how long the strap went unrecorded, NOT an RTC skew. Seeding
+     * it as one shifted that offload's history forward by the gap. WHOOP 4.0 keeps the #700 behaviour.
+     * Twin of the Swift `testOnlyWhoop4DerivesClockCorrelation`.
+     */
+    @Test
+    fun onlyWhoop4DerivesClockCorrelation() {
+        assertTrue(WhoopBleClient.derivesClockCorrelation(com.noop.protocol.DeviceFamily.WHOOP4))
+        assertFalse(WhoopBleClient.derivesClockCorrelation(com.noop.protocol.DeviceFamily.WHOOP5))
+    }
 }

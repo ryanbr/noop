@@ -67,6 +67,18 @@ class Spo2CeilingNightlyTest {
         assertNull(AnalyticsEngine.nightlySpo2CeilingMean(listOf(session(1000, 600)), emptyList()))
     }
 
+    /**
+     * Found 2026-08-24 comparing a live-persisted row against the Oura app: `sum / kept` on two integer
+     * types truncates toward zero, so a true 97.97 shipped as 97 — a spurious miss against an
+     * app-displayed 98% the precise mean would have round-matched. Three samples averaging 97.666...
+     * must round to 98, not floor to 97.
+     */
+    @Test fun meanRoundsRatherThanFloors() {
+        val r = AnalyticsEngine.nightlySpo2CeilingMean(
+            listOf(session(1000, 600)), listOf(spo2(1100, 98), spo2(1200, 98), spo2(1300, 97)))
+        assertEquals(98, r?.first)
+    }
+
     /** The plausibility floor/ceiling are inclusive, matching SPO2_SINGLE_CHANNEL_PLAUSIBLE (50..110). */
     @Test fun plausibleRangeBoundariesAreInclusive() {
         assertEquals(2, AnalyticsEngine.nightlySpo2CeilingMean(

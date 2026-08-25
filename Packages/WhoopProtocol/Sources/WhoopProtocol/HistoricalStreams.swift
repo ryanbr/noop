@@ -257,7 +257,8 @@ public func extractHistoricalStreams(_ parsed: [ParsedFrame],
             // heart_rate/spo2/gravity, so it adds nothing to the branches below — handled here only.
             if let samples = p["ppg_waveform"]?.intArrayValue, !samples.isEmpty {
                 ppgRecords.append((ts: ts, samples: samples))
-                out.ppgWaveform.append(PpgWaveformSample(ts: ts, samples: samples))
+                out.ppgWaveform.append(PpgWaveformSample(ts: ts, samples: samples,
+                                                         burstIndex: p["burst_index"]?.intValue))
             }
             if let bpm = p["heart_rate"]?.intValue, bpm != 0 {  // skip startup hr=0
                 out.hr.append(HRSample(ts: ts, bpm: bpm))

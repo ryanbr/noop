@@ -159,9 +159,7 @@
     <string name="fast_link_phy_desc">Poproś o szybszy tryb radiowy Bluetooth, podczas gdy Twój pasek przekaże zapisaną historię. Wysyła te same dane w krótszym czasie, więc może synchronizować się wcześniej i zużywać nieco mniej baterii paska – ale Twój pasek musi je obsłużyć, a to wymaga pewnego zakresu szybkości. Nowe i niesprawdzone: jeśli synchronizacja staje się niestabilna, gdy telefon znajduje się dalej, wyłącz go ponownie.</string>
     <string name="fast_history_sync">Szybsza synchronizacja historii (eksperymentalnie)</string>
     <string name="fast_history_sync_desc">Poproś Android o szybsze łącze Bluetooth, podczas gdy Twój pasek przekaże zapisaną historię, dzięki czemu duże zaległości szybciej nadrobisz. Tylko podczas samej synchronizacji — Twoje tętno na żywo i nocny strumień pozostają niezmienione. Nowe i niesprawdzone: jeśli to nie pomoże lub kosztuje więcej baterii, niż jest warte, wyłącz je ponownie i powiedz to w narzędziu do śledzenia problemów.</string>
-    <string name="keep_alive_allowed">Dozwolone — Twój telefon nie będzie przerywał nocnej synchronizacji NOOP, aby oszczędzać baterię. Samo zezwolenie nie zużywa baterii; wykorzystuje to nocną synchronizację, którą włączyłeś powyżej.</string>
-    <string name="keep_alive_needed_vendor">Twój telefon (%1$s) może zatrzymywać aplikacje działające w tle, aby oszczędzać baterię, przez co NOOP może utracić dane dotyczące snu i regeneracji w nocy. Włącz tę opcję, aby dodać NOOP do białej listy.\n\nAndroid zapyta „Zatrzymać optymalizację zużycia baterii?” i ostrzegaj, że NOOP może wyczerpać baterię — to standardowe sformułowanie w przypadku każdej aplikacji, która może działać w tle. Kliknij Zezwalaj. Bateria włącza synchronizację nocną, którą już włączyłeś powyżej; to tylko powstrzymuje Android od skracania.</string>
-    <string name="keep_alive_needed_generic">Niektóre telefony mogą zatrzymywać aplikacje działające w tle, aby oszczędzać baterię, przez co NOOP może utracić dane dotyczące snu i regeneracji w nocy. Włącz tę opcję, aby dodać NOOP do białej listy.\n\nAndroid zapyta „Zatrzymać optymalizację zużycia baterii?” i ostrzegaj, że NOOP może wyczerpać baterię — to standardowe sformułowanie w przypadku każdej aplikacji, która może działać w tle. Kliknij Zezwalaj. Bateria włącza synchronizację nocną, którą już włączyłeś powyżej; to tylko powstrzymuje Android od skracania.</string>
+    <string name="keep_alive_needed_vendor">Twój telefon (%1$s) może zatrzymywać aplikacje działające w tle, aby oszczędzać baterię, przez co NOOP może utracić dane dotyczące snu i regeneracji w nocy. Dotknij „Zezwól”, aby dodać NOOP do białej listy.\n\nAndroid zapyta „Zatrzymać optymalizację zużycia baterii?” i ostrzegaj, że NOOP może wyczerpać baterię — to standardowe sformułowanie w przypadku każdej aplikacji, która może działać w tle. Kliknij Zezwalaj. Bateria włącza synchronizację nocną, którą już włączyłeś powyżej; to tylko powstrzymuje Android od skracania.</string>
     <string name="power_saving">Oszczędność energii</string>
     <string name="power_saving_blurb">Zmniejsz obciążenie paska, gdy jego bateria jest na wyczerpaniu. Pasek samodzielnie przechowuje dane bankowe, więc nic nie zostaje utracone — NOOP po prostu rzadziej się z nim komunikuje, aby pomóc mu przetrwać do czasu, aż będzie można go naładować.</string>
     <string name="power_saving_mode">Tryb oszczędzania energii</string>
@@ -1472,6 +1470,7 @@
     <string name="l10n_settings_screen_importing_overwrites_everything_currently_on_this_297b76ae">Importowanie zastępuje wszystko, co aktualnie znajduje się w tym telefonie. Twoje stare dane są na wszelki wypadek przechowywane w pliku bocznym. NOOP wymaga ponownego uruchomienia, aby import zaczął obowiązywać.</string>
     <string name="l10n_settings_screen_keep_connected_in_the_background_44499d45">Utrzymuj połączenie w tle</string>
     <string name="l10n_settings_screen_keep_noop_alive_overnight_e43b2fba">Utrzymuj NOOP przy życiu przez noc</string>
+    <string name="l10n_settings_screen_allow_3ad0e369">Zezwól</string>
     <string name="l10n_settings_screen_keep_screen_on_during_a_workout_42d27284">Trzymaj ekran włączony podczas treningu</string>
     <string name="l10n_settings_screen_keeps_streaming_from_your_strap_with_d31b4af9">Kontynuuje transmisję strumieniową z paska z ciągłym powiadomieniem, nawet po zamknięciu NOOP. Wyłącz, aby rozłączyć się, gdy aplikacja jest zamknięta.</string>
     <string name="l10n_settings_screen_keeps_the_detailed_beat_to_beat_87b78edd">Utrzymuje szczegółowy strumień beat-to-beat przez cały dzień i noc, a nie tylko wtedy, gdy otwarty jest ekran na żywo, więc NOOP rejestruje znacznie więcej w ciągu nocy HRV, regeneracji i snu. Zużywa więcej baterii (pasek stale przesyła tętno). Wymaga włączonej opcji „Utrzymuj połączenie w tle”.</string>
@@ -2439,8 +2438,15 @@
     <string name="nav_power_saving">Oszczędzanie energii</string>
     <string name="l10n_app_changelog_training_load_a_vo_max_without_f9205a67">Obciążenie treningowe, VO₂max bez centymetra i znacznie mniej baterii na przeliczanie</string>
     <string name="l10n_sleep_screen_sleep_outside_the_new_times_was_6229881e">Sen poza nowymi godzinami został usunięty. NOOP nie wykryje go ponownie.</string>
+    <string name="workout_action_pause">Wstrzymaj</string>
+    <string name="workout_action_resume">Wznów</string>
+    <string name="workout_action_delete">Usuń</string>
+    <string name="workout_action_end">Zakończ</string>
+    <string name="workout_action_recording">Nagrywanie treningu</string>
+    <string name="workout_action_paused">Wstrzymano</string>
+    <string name="workout_delete_title">Usunąć ten trening?</string>
+    <string name="workout_delete_message">Spowoduje to zatrzymanie nagrywania i trwałe odrzucenie treningu.</string>
     <string name="l10n_settings_screen_effort_exponential_scale">Wysiłek: wykładnicza skala intensywności</string>
     <string name="l10n_settings_screen_effort_exponential_scale_desc">Ocenia Wysiłek według wykładniczej krzywej intensywności (TRIMP Banistera) zamiast domyślnych stref tętna (Edwards). Ustawienie domyślne nie liczy niczego poniżej połowy rezerwy tętna, więc godzina treningu siłowego — gdzie ciężkie serie uśredniają się z przerwami — może dać wynik bliski zeru. Krzywa wykładnicza nie ma progu i znacznie mocniej waży krótkie, intensywne wysiłki. Przelicza historię, a obie skale osiągają to samo maksimum. Domyślnie wyłączone.</string>
-    <string name="l10n_settings_screen_allow_3ad0e369">Zezwól</string>
-    <string name="l10n_settings_screen_manage_bf58d17e">Zarządzaj</string>
+    <string name="l10n_app_changelog_an_effort_scale_you_choose_a_a7c2478d">Wybierana skala Effort, pierścień, który może spać, i znacznie mniej zbędnych przeliczeń</string>
 </resources>

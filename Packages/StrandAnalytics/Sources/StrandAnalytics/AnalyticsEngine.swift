@@ -1185,7 +1185,13 @@ public enum AnalyticsEngine {
     ///
     /// DIAGNOSTIC ONLY. Nothing scores this, it never writes `spo2Pct`, and it is not a blood-oxygen
     /// reading — it is the raw candidate averaged, surfaced so it can be checked against a real one.
-    /// Byte-parity twin of the Kotlin `nightlySpo2CandidateMean`.
+    ///
+    /// The mean is ROUNDED (`.rounded()`), not floored — `sum / kept` on two `Int`s truncates toward
+    /// zero, silently biasing every candidate down by up to 0.99 (e.g. a true 97.97 shipped as 97,
+    /// missing an app-displayed 98 the transform's own precise value would have round-matched). Every
+    /// value in range is positive (70...100), so round-half-up and round-half-away-from-zero agree —
+    /// no platform-divergence risk from the rounding rule itself. Byte-parity twin of the Kotlin
+    /// `nightlySpo2CandidateMean`.
     public static func nightlySpo2CandidateMean(_ sessions: [SleepSession],
                                          aux: [V18AuxSample]) -> (mean: Int, samples: Int)? {
         guard !sessions.isEmpty, !aux.isEmpty else { return nil }
@@ -1196,7 +1202,7 @@ public enum AnalyticsEngine {
             sum += v; kept += 1
         }
         guard kept > 0 else { return nil }
-        return (mean: sum / kept, samples: kept)
+        return (mean: Int((Double(sum) / Double(kept)).rounded()), samples: kept)
     }
 
     /// The plausible range for a raw Oura `0x6F` SpO2 sample before the ceiling transform below.
@@ -1225,7 +1231,14 @@ public enum AnalyticsEngine {
     ///
     /// Gated to `spo2SingleChannelPlausible` (50...110) BEFORE the ceiling is applied, so a
     /// contaminated row (down to -1016) cannot drag the mean down — the ceiling alone only guards
-    /// the top of the range. Byte-parity twin of the Kotlin `nightlySpo2CeilingMean`.
+    /// the top of the range.
+    ///
+    /// The mean is ROUNDED (`.rounded()`), not floored — same fix, same reasoning, as
+    /// `nightlySpo2CandidateMean` just above (found 2026-08-24 comparing a live-persisted 08-23/24
+    /// row against the Oura app: the transform's precise mean, 97.97, round-matched the app's 98%,
+    /// but the shipped `sum / kept` Int division floored it to 97, a spurious miss). All values here
+    /// are positive too, so the rounding-rule choice is again inert. Byte-parity twin of the Kotlin
+    /// `nightlySpo2CeilingMean`.
     public static func nightlySpo2CeilingMean(_ sessions: [SleepSession],
                                         spo2: [SpO2Sample]) -> (mean: Int, samples: Int)? {
         guard !sessions.isEmpty, !spo2.isEmpty else { return nil }
@@ -1236,7 +1249,7 @@ public enum AnalyticsEngine {
             sum += min(s.red, 100); kept += 1
         }
         guard kept > 0 else { return nil }
-        return (mean: sum / kept, samples: kept)
+        return (mean: Int((Double(sum) / Double(kept)).rounded()), samples: kept)
     }
 
     /// #1169 SHADOW METRIC: the primary-session MEAN resting HR — window each detected sleep session's HR

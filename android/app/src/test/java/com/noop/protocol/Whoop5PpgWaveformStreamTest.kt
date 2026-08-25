@@ -46,13 +46,26 @@ class Whoop5PpgWaveformStreamTest {
             family = DeviceFamily.WHOOP5,
         )
         assertEquals(
-            listOf(PpgWaveformRow(ts = 1_780_917_232L, samples = expectedWaveform)),
+            listOf(PpgWaveformRow(ts = 1_780_917_232L, samples = expectedWaveform, burstIndex = 1)),
             streams.ppgWaveform,
         )
         assertTrue("a lone 1 s record is too short for a confident HR estimate", streams.ppgHr.isEmpty())
         // Not "no rows at all" — a waveform-only decode must read as non-empty so the Backfiller's
         // silent-data-loss diagnostic counts it as decoded.
         assertFalse(streams.isEmpty)
+    }
+
+    @Test
+    fun zeroBurstIndexIsAbsentLikeSwift() {
+        val frame = bytes(v26Hex)
+        frame[21] = 0
+        val end = frame.size - 4
+        val crc = Crc.crc32(frame, 8, end)
+        for (i in 0 until 4) frame[end + i] = ((crc ushr (8 * i)) and 0xFF).toByte()
+        val streams = extractHistoricalStreams(
+            listOf(frame), 1_780_917_232, 1_780_917_232, DeviceFamily.WHOOP5,
+        )
+        assertEquals(null, streams.ppgWaveform.single().burstIndex)
     }
 
     /** [com.noop.data.StreamBatch.isEmpty] must count a waveform-only decode as non-empty even when the

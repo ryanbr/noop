@@ -52,6 +52,16 @@ class PpgWaveformMigrationTest {
         assertEquals(20, WhoopDatabase.MIGRATION_19_20.endVersion)
     }
 
+    @Test
+    fun burstIndexMigration_isAdditiveAndNullable() {
+        assertEquals(
+            listOf("ALTER TABLE `ppgWaveformSample` ADD COLUMN `burstIndex` INTEGER"),
+            WhoopDatabase.PPG_BURST_INDEX_MIGRATION_SQL,
+        )
+        assertEquals(32, WhoopDatabase.MIGRATION_32_33.startVersion)
+        assertEquals(33, WhoopDatabase.MIGRATION_32_33.endVersion)
+    }
+
     // MARK: - Packed-BLOB encoding (byte-identical to Swift WhoopStore.packPpgSamples)
 
     @Test
@@ -107,7 +117,9 @@ class PpgWaveformMigrationTest {
         } as WhoopDao
 
         WhoopRepository(dao).insert(
-            StreamBatch(ppgWaveform = listOf(PpgWaveformRow(ts = 1_780_917_232L, samples = realSamples))),
+            StreamBatch(ppgWaveform = listOf(
+                PpgWaveformRow(ts = 1_780_917_232L, samples = realSamples, burstIndex = 7),
+            )),
             deviceId = "my-whoop",
         )
 
@@ -115,6 +127,7 @@ class PpgWaveformMigrationTest {
         assertEquals(1, rows.size)
         assertEquals("my-whoop", rows[0].deviceId)
         assertEquals(1_780_917_232L, rows[0].ts)
+        assertEquals(7, rows[0].burstIndex)
         // The stored BLOB is exactly packPpgSamples(samples) — the byte-identical contract vs GRDB.
         assertArrayEquals(StreamPersistence.packPpgSamples(realSamples), rows[0].samples)
         // And it unpacks back to the original samples.

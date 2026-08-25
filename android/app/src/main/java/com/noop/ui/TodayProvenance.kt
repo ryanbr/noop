@@ -62,6 +62,13 @@ internal fun provenanceDisplayLabel(
         val raw = rawSource.removePrefix(VO2_MAX_ATTRIBUTION_PREFIX)
         return DisplayText.Resource(vo2MaxAttributionLabelRes(Vo2MaxEstimator.fromProvenanceId(raw)))
     }
+    // #103/queue-11a follow-up: the spo2 candidate-fallback rows in the vital-detail readings table
+    // (see [SPO2_CANDIDATE_ATTRIBUTION_SOURCE]) must read "strap estimate (unverified)" — the SAME
+    // string every other candidate-fallback surface uses — never a device name, which would
+    // misrepresent an unvalidated estimate as a calibrated reading in this table's Source column.
+    if (rawSource == SPO2_CANDIDATE_ATTRIBUTION_SOURCE) {
+        return DisplayText.Resource(R.string.spo2_strap_estimate_caption)
+    }
     if (rawSource.endsWith("-noop")) return DisplayText.Resource(R.string.today_source_on_device)
     if (rawSource == deviceId || rawSource == WhoopRepository.WHOOP_SOURCE) return DisplayText.Resource(R.string.today_source_whoop)
     if (rawSource == WhoopRepository.APPLE_HEALTH_SOURCE) return DisplayText.Resource(R.string.today_source_apple_health)

@@ -990,8 +990,12 @@ object AnalyticsEngine {
      * sub-70 nonzero values are diagnostic codes and bit-7 values are saturation sentinels, so averaging
      * them in would produce a number that is not a percentage of anything.
      *
-     * DIAGNOSTIC ONLY. Nothing scores this and it never writes `spo2Pct`. Byte-parity twin of the Swift
-     * `nightlySpo2CandidateMean`.
+     * DIAGNOSTIC ONLY. Nothing scores this and it never writes `spo2Pct`.
+     *
+     * The mean is ROUNDED (`roundToInt()`), not floored — `sum / kept` on two integer types truncates
+     * toward zero, silently biasing every candidate down by up to 0.99. All values here are positive
+     * (70..100), so the rounding-rule choice (half-up vs half-away-from-zero) is inert. Byte-parity
+     * twin of the Swift `nightlySpo2CandidateMean`.
      */
     internal fun nightlySpo2CandidateMean(
         sessions: List<DetectedSleep>,
@@ -1008,7 +1012,7 @@ object AnalyticsEngine {
             kept += 1
         }
         if (kept == 0) return null
-        return Pair((sum / kept).toInt(), kept)
+        return Pair((sum.toDouble() / kept.toDouble()).roundToInt(), kept)
     }
 
     /**
@@ -1037,7 +1041,12 @@ object AnalyticsEngine {
      *
      * Gated to [SPO2_SINGLE_CHANNEL_PLAUSIBLE] (50..110) BEFORE the ceiling is applied, so a contaminated
      * row (down to -1016) cannot drag the mean down — the ceiling alone only guards the top of the range.
-     * Byte-parity twin of the Swift `nightlySpo2CeilingMean`.
+     *
+     * The mean is ROUNDED (`roundToInt()`), not floored — same fix, same reasoning, as
+     * [nightlySpo2CandidateMean] just above (found 2026-08-24 comparing a live-persisted 08-23/24 row
+     * against the Oura app: the transform's precise mean, 97.97, round-matched the app's 98%, but the
+     * shipped `sum / kept` integer division floored it to 97, a spurious miss). Byte-parity twin of the
+     * Swift `nightlySpo2CeilingMean`.
      */
     internal fun nightlySpo2CeilingMean(
         sessions: List<DetectedSleep>,
@@ -1053,7 +1062,7 @@ object AnalyticsEngine {
             kept += 1
         }
         if (kept == 0) return null
-        return Pair((sum / kept).toInt(), kept)
+        return Pair((sum.toDouble() / kept.toDouble()).roundToInt(), kept)
     }
 
     /**

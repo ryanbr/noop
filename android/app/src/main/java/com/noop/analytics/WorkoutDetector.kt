@@ -137,6 +137,27 @@ object WorkoutDetector {
         /** Contiguous runs after gap-merging, and after the #303 HR-gated bridge. */
         var runs: Int = 0,
         var bridged: Int = 0,
+        /**
+         * The LONGEST and MEAN bridged run, in seconds, before any qualification gate drops anything.
+         *
+         * They answer how SUBSTANTIAL the best candidate was, which the counts cannot. [droppedShort] is
+         * checked first and short-circuits, so [droppedLowIntensity] already implies some run cleared the
+         * duration bar — but not by how much, and that is the whole difference between a candidate
+         * scraping five minutes and an hour-long effort rejected on intensity. The second is worth
+         * investigating; the first is a walk.
+         *
+         * From the field log that motivated this: 22 days of `kept=0`, 1271 runs that never reached
+         * [minExerciseMin] and 390 that did and failed the intensity bar instead. The counts said the
+         * duration gate was not the whole story; only [longestRunS] says whether what survived it was a
+         * five-minute stroll or something that should have scored.
+         *
+         * READ [longestRunS] AGAINST 290 s, NOT 300. The gate is `minDurS - motionSmoothS`
+         * (5 min − 10 s), because the smoothing window costs a run its first samples. Comparing against
+         * a round five minutes misjudges everything in the 290..300 window — a 295 s run cleared the
+         * gate and would look as though it had not.
+         */
+        var longestRunS: Int = 0,
+        var meanRunS: Int = 0,
         /** Runs rejected by each qualification gate, and the survivors. */
         var droppedShort: Int = 0,
         var droppedNoHR: Int = 0,
@@ -155,6 +176,7 @@ object WorkoutDetector {
             "restHR=${round0(f.restingHR)} floor=${round0(f.hrFloor)} " +
             "motionOK=${f.motionPassed} hrMissing=${f.hrMissing} hrTooLow=${f.hrTooLow} " +
             "active=${f.active} runs=${f.runs} bridged=${f.bridged} " +
+            "longestRunS=${f.longestRunS} meanRunS=${f.meanRunS} " +
             "short=${f.droppedShort} noHR=${f.droppedNoHR} lowIntensity=${f.droppedLowIntensity} " +
             "kept=${f.kept}"
 
@@ -474,6 +496,13 @@ object WorkoutDetector {
             // gaps. Runs over a genuine rest (HR falls to resting) are NOT bridged.
             val runs = bridgeRuns(rawRuns, hrSeg, hrFloor)
             f.bridged = runs.size
+            // Measured on the BRIDGED runs, before any qualification gate: this is the shape of what the
+            // detector was offered, which is the thing a `kept=0` day has to be judged against.
+            if (runs.isNotEmpty()) {
+                val durs = runs.map { maxOf(0L, it.second - it.first) }
+                f.longestRunS = durs.max().toInt()
+                f.meanRunS = (durs.sum() / durs.size).toInt()
+            }
 
             val minDurS = minExerciseMin * 60.0
             val sessions = ArrayList<ExerciseSession>()

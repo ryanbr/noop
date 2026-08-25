@@ -165,6 +165,17 @@ struct VitalReading: Equatable {
 
 let vo2MaxAttributionPrefix = "vo2max-estimator:"
 
+/// #103/queue-11a follow-up: a display-source token for a `spo2` reading that came from the
+/// `spo2_candidate` fallback (WHOOP `spo2_candidate_82` or Oura ceiling@100 `0x6F`, device-conditional)
+/// rather than a calibrated `spo2Pct` import. Every OTHER surface that shows this fallback (Today's Key
+/// Metrics tile, `VitalSignsSummary`, `LiquidTodayView`) already labels it "strap estimate (unverified)"
+/// — this Explorer/"Your Cards" drill-down had no candidate fallback at all until now (found 2026-08-24:
+/// an Oura-only or WHOOP-4.0-only install with the toggle ON saw nothing here past the last calibrated
+/// import, even though the Key Metrics tile right next to it showed a real number). Same
+/// prefix-token idiom as `vo2MaxAttributionSource` just below, so the existing readings-table plumbing
+/// needs no new machinery — only `TodayView.provenanceDisplayLabel` gains one more case.
+let spo2CandidateAttributionSource = "spo2-candidate-estimate"
+
 /// A display-source token that keeps the existing readings-table plumbing while naming the estimator.
 /// `nil` is deliberately preserved as `unknown`; a legacy point must never inherit today's profile method.
 func vo2MaxAttributionSource(_ estimator: Vo2MaxEstimator?) -> String {
@@ -797,6 +808,38 @@ struct MetricDetailView: View {
             sourceByDay = Dictionary(resolution.points.map { ($0.day, $0.source) },
                                      uniquingKeysWith: { first, _ in first })
         }
+        // #103/queue-11a follow-up: fill in the spo2 candidate fallback for any day this Explorer's
+        // calibrated `spo2` series has no reading for — the SAME fallback Today's Key Metrics tile,
+        // `VitalSignsSummary`, and `LiquidTodayView` already show, which this generic catalog-driven
+        // screen never got when #1568 added it everywhere else (found 2026-08-24: an Oura-only or
+        // WHOOP-4.0-only install with the toggle ON saw a real number on the tile but an empty/stale
+        // screen here). Calibrated days always win — this only ADDS days the calibrated series is
+        // missing, never overwrites one. Gated on the same toggle every other candidate site checks.
+        //
+        // The source is part of the gate, not just the key. The catalog carries TWO `spo2` descriptors —
+        // `my-whoop` and `xiaomi-band` — and `MetricDescriptor.id` is `source + ":" + key`, so they are
+        // different metrics that happen to share a key. Only the WHOOP/Oura partition has a candidate
+        // series behind it; without this a Xiaomi Band's Blood Oxygen card would be asking for a strap
+        // estimate that is not its own.
+        if metric.key == "spo2", metric.source == "my-whoop", PuffinExperiment.spo2CandidateDisplayEnabled {
+            let candidateSeries = await repo.exploreSeries(key: "spo2_candidate", source: metric.source)
+            if !candidateSeries.isEmpty {
+                // `uniquingKeysWith`, matching the `sourceByDay` build above — NOT
+                // `uniqueKeysWithValues`, which TRAPS on a duplicate day. `exploreSeries` collapses by day
+                // on the `my-whoop` path it takes here, but `series(key:source:)` — the path every other
+                // source falls through to — ends `pts.map { … }` with no collapsing at all, so the
+                // guarantee is the caller's, not the type's. The Kotlin twin uses `.toMap()`, which keeps
+                // the last value silently; a trap here would mean the same input crashes one platform and
+                // not the other.
+                var byDay = Dictionary(series.map { ($0.day, $0.value) },
+                                       uniquingKeysWith: { first, _ in first })
+                for point in candidateSeries where byDay[point.day] == nil {
+                    byDay[point.day] = point.value
+                    sourceByDay[point.day] = spo2CandidateAttributionSource
+                }
+                series = byDay.sorted { $0.key < $1.key }.map { (day: $0.key, value: $0.value) }
+            }
+        }
         // #943 selection seam: a locked default (.month with under a week of history) no longer
         // OVERWRITES @State range - it renders through `coercedSelection` instead (non-destructive,
         // recomputed every body eval), so a shrinking history re-coerces and a growing one un-coerces
@@ -807,11 +850,17 @@ struct MetricDetailView: View {
         // `Task.isCancelled` is checked per metric so navigating away mid-scan stops it: the task is
         // bound to `loadTaskID`, and without the check a quick in-and-out would keep 59 main-actor
         // merges running for a screen nobody is looking at.
+        // The scan itself is memoized on the Repository (`exploreAllSeries`), keyed by active strap +
+        // `refreshSeq`. It is the SAME data whichever metric is open — this view only drops its own
+        // descriptor — so opening five metric details used to pay the whole cross-catalog scan five
+        // times. Cancellation semantics are unchanged: the memo checks `Task.isCancelled` per metric and
+        // returns nil rather than caching a partial scan, so a quick in-and-out still stops the work and
+        // cannot leave a half-filled catalog frozen in for the rest of the generation.
+        guard let allSeries = await repo.exploreAllSeries() else { return }
         var loadedOthers: [(metric: MetricDescriptor, series: [(day: String, value: Double)])] = []
         for other in MetricCatalog.all where other.id != metric.id {
             guard !Task.isCancelled else { return }
-            let s = await repo.exploreSeries(key: other.key, source: other.source)
-            if !s.isEmpty { loadedOthers.append((other, s)) }
+            if let s = allSeries[other.id], !s.isEmpty { loadedOthers.append((other, s)) }
         }
         guard !Task.isCancelled else { return }
         others = loadedOthers
