@@ -58,10 +58,15 @@ object ImportTrace {
      * `ImportTrace.columnCoverageLine`.
      */
     fun columnCoverageLine(stage: String, rows: Int, counts: List<Pair<String, Int>>): String {
+        // Built from the non-empty parts rather than interpolated positionally: an empty [counts] would
+        // otherwise leave a trailing space, and a malformed line is worse than a useless one for anything
+        // that later greps these logs. No caller can pass empty today; the formatter is shared, so it
+        // should not depend on that staying true.
+        val head = "import columns stage=$stage rows=$rows"
         val body = counts.joinToString(" ") { "${it.first}=${it.second}" }
         val absent = counts.filter { it.second == 0 }.map { it.first }
         val tail = if (absent.isEmpty()) "" else " — ABSENT: ${absent.joinToString(", ")}"
-        return "import columns stage=$stage rows=$rows $body$tail"
+        return if (body.isEmpty()) head else "$head $body$tail"
     }
 
     /** The reject-counts line: rows dropped as unusable + tolerant XML spans scrubbed. Mirrors Swift. */

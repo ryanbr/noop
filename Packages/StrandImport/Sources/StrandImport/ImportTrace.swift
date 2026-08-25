@@ -78,10 +78,15 @@ public enum ImportTrace {
     /// Known at parse time, so it carries none of the store-write ambiguity that keeps `rowsOut` honest
     /// but unverified on Android — this line means the same thing on both platforms.
     public static func columnCoverageLine(stage: String, rows: Int, counts: [(String, Int)]) -> String {
+        // Built from the non-empty parts rather than interpolated positionally: an empty `counts` would
+        // otherwise leave a trailing space, and a malformed line is worse than a useless one for anything
+        // that later greps these logs. No caller can pass empty today; the formatter is shared and public,
+        // so it should not depend on that staying true.
+        let head = "import columns stage=\(stage) rows=\(rows)"
         let body = counts.map { "\($0.0)=\($0.1)" }.joined(separator: " ")
         let absent = counts.filter { $0.1 == 0 }.map(\.0)
         let tail = absent.isEmpty ? "" : " — ABSENT: \(absent.joined(separator: ", "))"
-        return "import columns stage=\(stage) rows=\(rows) \(body)\(tail)"
+        return body.isEmpty ? head : "\(head) \(body)\(tail)"
     }
 
     public static func rejectLine(droppedRows: Int, skippedSpans: Int) -> String {

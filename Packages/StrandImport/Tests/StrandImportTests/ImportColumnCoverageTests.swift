@@ -49,4 +49,13 @@ final class ImportColumnCoverageTests: XCTestCase {
     func testCoverageEmitsTheLabelsInContractOrder() {
         XCTAssertEqual(importColumnCoverage([]).map(\.0), importColumnLabels)
     }
+
+    func testAnEmptyCountsListDoesNotTrailASpace() {
+        // Unreachable through the app today, but the formatter is public and a trailing space would
+        // survive into anything that later parses these logs.
+        XCTAssertEqual(
+            ImportTrace.columnCoverageLine(stage: "cycles", rows: 0, counts: []),
+            "import columns stage=cycles rows=0"
+        )
+    }
 }

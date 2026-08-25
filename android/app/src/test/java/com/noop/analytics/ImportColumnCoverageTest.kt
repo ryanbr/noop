@@ -68,4 +68,14 @@ class ImportColumnCoverageTest {
             com.noop.ingest.importColumnCoverage(emptyList()).map { it.first },
         )
     }
+
+    @Test
+    fun `an empty counts list does not trail a space`() {
+        // Unreachable through the app today, but the formatter is shared and a trailing space would
+        // survive into anything that later parses these logs.
+        assertEquals(
+            "import columns stage=cycles rows=0",
+            ImportTrace.columnCoverageLine("cycles", 0, emptyList()),
+        )
+    }
 }
