@@ -1949,6 +1949,15 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
                     color = detail.color,
                     fill = true,
                     selectionEnabled = true, // the Vital Signs detail chart is meant to be tappable
+                    // #1600: name the DAY on the scrub readout. `lineChartSelectionLabel` prints
+                    // "label · value" when given one and the bare value otherwise, so a chart that opts
+                    // into selection without labels answers "96" — a number with nothing to say which day
+                    // it belongs to, against a Trends chart that reads "16 Jul · 92" beside it.
+                    //
+                    // Derived from `filteredPoints`, the same (day, value) list `values` comes from, so the
+                    // two are equal in length by construction rather than by luck — `LineChart` drops
+                    // mismatched labels SILENTLY, which is a failure that looks exactly like doing nothing.
+                    selectionLabels = filteredPoints.map { shortDayLabel(it.first) },
                     segmentIds = if (key == "vo2max_est") vo2MaxTrendSegmentIds(filteredReadings) else null,
                 )
                 Box(

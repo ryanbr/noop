@@ -1028,7 +1028,7 @@ private fun StressTrendSection(model: StressModel, modifier: Modifier = Modifier
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
         SectionHeader("Stress Trend", overline = "History", trailing = range.label)
         if (points.size >= 2) {
-            val avg = points.average()
+            val avg = points.map { it.value }.average()
             NoopCard(tint = Palette.stressColor) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(
@@ -1050,11 +1050,15 @@ private fun StressTrendSection(model: StressModel, modifier: Modifier = Modifier
                         )
                     }
                     LineChart(
-                        values = points,
+                        values = points.map { it.value },
                         modifier = Modifier.height(Metrics.chartHeight),
                         color = StressRamp.STEADY,
                         fill = true,
                         selectionEnabled = true,
+                        // #1600: the same omission the Vital Signs detail chart had — a dated daily
+                        // trend that opted into selection and then had nothing to say but the number.
+                        // Both lists map from the one windowed `points`, so they cannot desynchronise.
+                        selectionLabels = points.map { shortDayLabel(it.day) },
                     )
                     HorizontalDivider(color = Palette.hairline)
                     Row(modifier = Modifier.fillMaxWidth()) {
@@ -1260,12 +1264,17 @@ internal class StressModel private constructor(
     data class TrendPoint(val day: String, val value: Double)
 
     /** The full daily proxy trend, sliced to the selected trailing window (count-based,
-     *  matching the day budget). Falls back to ALL when the trailing slice has < 2 points. */
-    fun windowedTrend(range: StressRange): List<Double> {
-        val all = fullTrend.map { it.value }
-        val days = range.days ?: return all
-        val slice = fullTrend.takeLast(days).map { it.value }
-        return if (slice.size >= 2) slice else all
+     *  matching the day budget). Falls back to ALL when the trailing slice has < 2 points.
+     *
+     *  #1600: returns the POINTS, not bare values. The chart needs the day beside each value to name
+     *  it on the scrub read-out, and deriving the labels from a second call that re-applied this
+     *  windowing — including the `size >= 2` fallback — would risk the two lists disagreeing. Charts
+     *  drop mismatched selection labels SILENTLY, so that divergence would present as the read-out
+     *  simply not working. One list, mapped twice at the call site, cannot desynchronise. */
+    fun windowedTrend(range: StressRange): List<TrendPoint> {
+        val days = range.days ?: return fullTrend
+        val slice = fullTrend.takeLast(days)
+        return if (slice.size >= 2) slice else fullTrend
     }
 
     companion object {
