@@ -460,6 +460,13 @@ internal fun AddWorkoutButton(onAdd: () -> Unit, modifier: Modifier = Modifier) 
             // Constraint first, decoration after: the shape and fill are then computed against the
             // final height rather than reading as though they set it. (Compose measures the node the
             // same either way here — this is ordering for legibility, not a fix for a real clip bug.)
+            //
+            // `ButtonDefaults.MinHeight` rather than a NOOP token, deliberately. The design system has
+            // no control-height token on Android — iOS keeps one (`NoopMetrics.controlHeight`, 48) and
+            // Android has nothing equivalent — and the goal here is not "be 40.dp", it is "be whatever
+            // the Button beside me is". Minting a NOOP constant at today's value would match by
+            // coincidence and drift the moment Material changed its default, which is the failure this
+            // whole change exists to remove. A shared primitive owning both is the real fix.
             .defaultMinSize(minHeight = ButtonDefaults.MinHeight)
             .clip(RoundedCornerShape(50))
             .background(Palette.accentMuted)
