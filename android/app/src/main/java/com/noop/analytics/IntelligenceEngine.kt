@@ -2745,7 +2745,10 @@ object IntelligenceEngine {
     ): String {
         val base = "resp day=$day rpm=${respRateBpm?.let { String.format(Locale.US, "%.1f", it) } ?: "nil"}"
         if (respRateBpm != null || beatAccurate == null) return base
-        val acc = String.format(Locale.US, "%.2f", beatAccurate)
+        // "NaN" explicitly rather than via %.2f: the JVM renders a non-finite as "NaN" and C-style
+        // %f renders it "nan", so leaving it to the formatter would make the twin lines differ on
+        // exactly the input the gate treats specially. One spelling, chosen here, on both platforms.
+        val acc = if (beatAccurate.isNaN()) "NaN" else String.format(Locale.US, "%.2f", beatAccurate)
         val gate = String.format(Locale.US, "%.2f", HrvAnalyzer.BEAT_ACCURACY_MIN_FRACTION)
         val integrity = rrIntegrity ?: "unknown"
         return if (beatAccurate < HrvAnalyzer.BEAT_ACCURACY_MIN_FRACTION) {

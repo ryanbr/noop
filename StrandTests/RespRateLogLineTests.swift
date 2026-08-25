@@ -60,4 +60,17 @@ final class RespRateLogLineTests: XCTestCase {
             + " — RSA gate refused the R-R"
         )
     }
+
+    func testANaNFractionReadsAsPassedMirroringTheGatesOwnNaNConvention() {
+        // beatValuesAreTrustworthy is written as !(f < MIN) precisely so NaN lands on TRUE — "not
+        // measured" must not be silently refused. This line uses the same `<` for the same reason.
+        // Rewriting it as `f >= MIN` would read identically for every real number and flip NaN to
+        // "refused", diverging from the gate it reports on.
+        XCTAssertEqual(
+            IntelligenceEngine.respRateLogLine(day: "2026-08-26", respRateBpm: nil,
+                                               beatAccurate: Double.nan, rrIntegrity: "plausible"),
+            "resp day=2026-08-26 rpm=nil beatAccurate=NaN>=0.50 rrIntegrity=plausible"
+            + " — gate passed, cause is elsewhere"
+        )
+    }
 }

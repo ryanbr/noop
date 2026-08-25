@@ -273,7 +273,10 @@ final class IntelligenceEngine: ObservableObject {
                                             rrIntegrity: String? = nil) -> String {
         let base = "resp day=\(day) rpm=\(respRateBpm.map { String(format: "%.1f", $0) } ?? "nil")"
         guard respRateBpm == nil, let beatAccurate else { return base }
-        let acc = String(format: "%.2f", beatAccurate)
+        // "NaN" explicitly rather than via %.2f: C-style %f renders a non-finite as "nan" while the
+        // JVM renders it "NaN", so leaving it to the formatter would make the twin lines differ on
+        // exactly the input the gate treats specially. One spelling, chosen here, on both platforms.
+        let acc = beatAccurate.isNaN ? "NaN" : String(format: "%.2f", beatAccurate)
         let gate = String(format: "%.2f", HRVAnalyzer.beatAccuracyMinFraction)
         let integrity = rrIntegrity ?? "unknown"
         if beatAccurate < HRVAnalyzer.beatAccuracyMinFraction {
