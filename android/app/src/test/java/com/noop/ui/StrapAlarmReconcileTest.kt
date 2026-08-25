@@ -13,9 +13,12 @@ import java.util.TimeZone
  * whichever ran last won the time.
  *
  * [reconcileStrapAlarm] in AppViewModel is now the sole arm/disarm caller; its decision is the pure
- * [earliestStrapAlarmEpochSec] over each feature's requested epoch ([nextSmartAlarmEpochSec] for the
- * smart alarm, [nextDailyEpochSec] for the companion). These tests exercise that pure decision against
- * a fixed clock, no BLE stack needed. Calendar.DAY_OF_WEEK: 1 = Sun ... 7 = Sat.
+ * [earliestStrapAlarmEpochSec] over each feature's requested epoch. BOTH now resolve through
+ * [nextSmartAlarmEpochSec]: the companion arms the strap at the PHONE alarm's time, so once the phone
+ * alarm gained its own weekday selection the companion had to honour it too, or the band would buzz on
+ * a morning that alarm is switched off. It passes no per-day overrides — the phone alarm has none.
+ * These tests exercise that pure decision against a fixed clock, no BLE stack needed.
+ * Calendar.DAY_OF_WEEK: 1 = Sun ... 7 = Sat.
  */
 class StrapAlarmReconcileTest {
 
@@ -32,9 +35,14 @@ class StrapAlarmReconcileTest {
     private fun smartReq(enabled: Boolean, minuteOfDay: Int, weekdays: Set<Int>, nowMs: Long): Long? =
         if (enabled) nextSmartAlarmEpochSec(minuteOfDay, weekdays, nowMs, ::utcCalendar) else null
 
-    /** The Buzz-WHOOP companion's requested epoch when ENABLED, else null. */
-    private fun buzzReq(enabled: Boolean, minuteOfDay: Int, nowMs: Long): Long? =
-        if (enabled) nextDailyEpochSec(minuteOfDay, nowMs, ::utcCalendar) else null
+    /** The Buzz-WHOOP companion's requested epoch when ENABLED, else null. Mirrors reconcileStrapAlarm:
+     *  weekday-aware against the PHONE alarm's days, empty meaning every day. */
+    private fun buzzReq(
+        enabled: Boolean,
+        minuteOfDay: Int,
+        nowMs: Long,
+        weekdays: Set<Int> = emptySet(),
+    ): Long? = if (enabled) nextSmartAlarmEpochSec(minuteOfDay, weekdays, nowMs, ::utcCalendar) else null
 
     @Test
     fun bothOff_disarms() {
@@ -141,5 +149,35 @@ class StrapAlarmReconcileTest {
         val now = wedAt(9, 0)
         val slot = nextDailyEpochSec(8 * 60, now, ::utcCalendar)  // 08:00, already passed
         assertEquals(ms(2026, 6, 18, 8, 0) / 1000, slot)         // Thu 08:00
+    }
+
+    /**
+     * The phone alarm's weekday selection must reach the COMPANION too. "Buzz WHOOP 4" arms the band at
+     * the phone alarm's earliest wake time, so a day switched off there must not leave the strap buzzing
+     * on that morning — the day the user specifically asked to sleep through.
+     *
+     * Wednesday 06:00 "now", companion wanting 08:00, but the phone alarm set to Thursday only: the slot
+     * must land on THURSDAY 08:00, not today.
+     */
+    @Test
+    fun companionHonoursThePhoneAlarmsWeekdays() {
+        val now = wedAt(6, 0)
+        val slot = earliestStrapAlarmEpochSec(
+            smartReq(false, 7 * 60, emptySet(), now),
+            buzzReq(true, 8 * 60, now, weekdays = setOf(Calendar.THURSDAY)),
+        )
+        assertEquals(ms(2026, 6, 18, 8, 0) / 1000, slot)
+    }
+
+    /** …and an EMPTY selection still means every day, so the pre-weekday behaviour is untouched: the
+     *  companion takes TODAY at 08:00, exactly as the old daily resolver did. */
+    @Test
+    fun companionWithNoWeekdaysStillFiresToday() {
+        val now = wedAt(6, 0)
+        val slot = earliestStrapAlarmEpochSec(
+            smartReq(false, 7 * 60, emptySet(), now),
+            buzzReq(true, 8 * 60, now),
+        )
+        assertEquals(wedAt(8, 0) / 1000, slot)
     }
 }

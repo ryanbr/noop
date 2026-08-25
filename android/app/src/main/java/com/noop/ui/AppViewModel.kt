@@ -611,6 +611,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _phoneAlarmWindowMinutes = MutableStateFlow(phoneAlarmStore.windowMinutes)
     /** How long after the target the guaranteed hard deadline sits. */
     val phoneAlarmWindowMinutes: StateFlow<Int> = _phoneAlarmWindowMinutes.asStateFlow()
+    private val _phoneAlarmWeekdays = MutableStateFlow(phoneAlarmStore.weekdays)
+    /** Days the phone alarm fires on (Calendar.DAY_OF_WEEK). EMPTY = every day — see
+     *  [SmartAlarmStore.weekdays]; same encoding as the strap alarm's `smartAlarmWeekdays`. */
+    val phoneAlarmWeekdays: StateFlow<Set<Int>> = _phoneAlarmWeekdays.asStateFlow()
     // "Buzz WHOOP 4" companion (#536): arm the strap's firmware alarm at the phone alarm's EARLIEST wake
     // time, so the strap buzzes first and the OS alarm fires at the hard deadline as backup. Declared here
     // with the phone-alarm flows (BEFORE init) so the init bond collector can read it. Default OFF.
@@ -2455,6 +2459,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         reconcileStrapAlarm()
     }
 
+    /** Set the days the phone alarm fires on. EMPTY = every day (see [SmartAlarmStore.weekdays]).
+     *
+     *  Re-arms while enabled so deselecting today's day moves the alarm to the next selected one
+     *  immediately, rather than at the next fire. Also reconciles the strap: "Buzz WHOOP 4" arms the
+     *  band at THIS alarm's time, so a day switched off here must not leave the strap buzzing on it. */
+    fun setPhoneAlarmWeekdays(days: Set<Int>) {
+        phoneAlarmStore.weekdays = days
+        _phoneAlarmWeekdays.value = phoneAlarmStore.weekdays
+        if (phoneAlarmStore.enabled) SmartAlarmScheduler.arm(appContext, phoneAlarmStore)
+        reconcileStrapAlarm()
+    }
+
     /** Toggle the "Buzz WHOOP 4/5" companion (#536). Routes through the single strap-alarm reconciler so
      *  enabling/disabling it never clobbers a smart wake-alarm sharing the one firmware slot (#5): on the
      *  reconcile re-evaluates BOTH flags and arms the earliest, off it re-evaluates and keeps the slot for
@@ -2637,9 +2653,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 dayOverrides = _smartAlarmDayOverrides.value,
             )
         } else null
-        // Buzz-WHOOP-4 companion's requested time: the phone alarm's EARLIEST wake time, next occurrence.
+        // Buzz-WHOOP-4 companion's requested time: the phone alarm's EARLIEST wake time, next occurrence
+        // ON A DAY THAT ALARM ACTUALLY FIRES. This routes through the same weekday-aware resolver the
+        // smart alarm uses (with no per-day overrides — the phone alarm has none) rather than
+        // nextDailyEpochSec, which is unconditionally daily: leaving it daily would buzz the strap on a
+        // morning the phone alarm is switched off, which is precisely the day the user asked to sleep in.
+        // An empty weekday set still means every day, so the default behaviour is unchanged.
         val buzzEpoch = if (_buzzWhoop4Enabled.value) {
-            nextDailyEpochSec(phoneAlarmStore.targetMinutes)
+            nextSmartAlarmEpochSec(phoneAlarmStore.targetMinutes, phoneAlarmStore.weekdays)
         } else null
 
         val epochSec = earliestStrapAlarmEpochSec(smartEpoch, buzzEpoch)
@@ -2931,8 +2952,13 @@ internal fun nextSmartAlarmEpochSec(
 
 /**
  * Next strictly-future occurrence of a daily wake time (today, or tomorrow if already passed), as an
- * epoch-second. Used for the "Buzz WHOOP 4/5" companion, which fires every day at the phone alarm's
- * earliest wake time (no weekday selection). Pure + clock-injectable so it can be unit-tested.
+ * epoch-second. Pure + clock-injectable so it can be unit-tested.
+ *
+ * NO PRODUCTION CALLER as of the phone alarm gaining weekday selection: the "Buzz WHOOP 4/5" companion
+ * was its only one, and it now routes through [nextSmartAlarmEpochSec] so a day switched off on the
+ * phone alarm cannot leave the strap buzzing on that morning. Kept because it is the reference for what
+ * "unconditionally daily" means here — [nextSmartAlarmEpochSec] with an empty weekday set must stay
+ * equivalent to it, and its own test is what pins that. Delete it only alongside that equivalence.
  */
 internal fun nextDailyEpochSec(
     minuteOfDay: Int,
