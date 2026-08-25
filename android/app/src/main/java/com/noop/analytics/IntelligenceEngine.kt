@@ -1334,6 +1334,10 @@ object IntelligenceEngine {
         // HRV baseline honours noop.hrvBaselineEpoch; rhr/resp/skin honour noop.recoveryBaselineEpoch via
         // their parallel day keys, so the manual Recalibrate restarts the whole Charge build-up together.
         // A 0.0 epoch is byte-identical to the plain fold, so scoring is unchanged until the user taps it.
+        // #1614: the per-night HRV fold, traced (see [emitHrvFoldTrace] for scope and why it is a call
+        // rather than an inline lambda). Sits immediately above the fold it describes, and takes the SAME
+        // baselineEpoch, so the trace can only ever describe the fold the scorer actually performed.
+        emitHrvFoldTrace(recoveryTraceSink, hrvSeq, hrvDayKeys, hrvCfg, baselineEpoch)
         val hrvBase2 = Baselines.foldHistory(hrvSeq, hrvDayKeys, hrvCfg, baselineEpoch)
         val rhrBase2 = Baselines.foldHistory(rhrSeq, rhrDayKeys, rhrCfg, recoveryEpoch)
         // Resp baseline: WITHIN one brand it still mixes imported (cloud) values with on-device RSA
@@ -2194,6 +2198,33 @@ object IntelligenceEngine {
             out.add(WatchScoredDay(row.day, res.recovery, res.confidence))
         }
         return out
+    }
+
+    /**
+     * #1614: emit the per-night HRV baseline fold when the Recovery test mode is on (a non-null sink IS
+     * the gate, as with [recoveryTraceLines]).
+     *
+     * HRV ONLY, deliberately: it is Charge's dominant driver and the one whose spread the score divides
+     * by, so tracing all four baselines would quadruple the log for the three that are not the question
+     * being asked. Capped at the last 14 nights, enough to see whether the spread is lifting without an
+     * established user's history burying the rest of the export. The WHOLE history is still folded, so
+     * the state the scorer reads is untouched.
+     *
+     * Deliberately its own function rather than inlined at the fold site: [analyzeRecentOnCpu] sits a
+     * few dozen bytes under a hard bytecode budget (the JVM's 64K per-method ceiling, with headroom
+     * reserved for JaCoCo instrumentation), and inlining this tipped it over. That is the one place the
+     * two platforms diverge in shape: the Swift wiring has no such constraint and reads inline.
+     */
+    private fun emitHrvFoldTrace(
+        sink: ((String) -> Unit)?,
+        hrvSeq: List<Double?>,
+        hrvDayKeys: List<String>,
+        hrvCfg: MetricCfg,
+        baselineEpoch: Double,
+    ) {
+        if (sink == null) return
+        BaselinesTrace.foldHistoryTrace(hrvSeq, hrvDayKeys, hrvCfg, "hrv", baselineEpoch, tail = 14)
+            .lines.forEach(sink)
     }
 
     /**
