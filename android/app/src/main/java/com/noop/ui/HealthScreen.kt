@@ -3,6 +3,7 @@ package com.noop.ui
 import com.noop.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.Canvas
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -37,6 +38,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -1745,6 +1747,54 @@ private data class VitalDetailModel(
 // here, so isSeriesBacked was false and the tap-through fell to the DailyMetric builder → empty trend.
 private val SERIES_BACKED_VITAL_KEYS = setOf("fitness_age", "vitality", "steps_est", "active_kcal", "rest", "vo2max_est")
 
+/**
+ * #1617: which empty-state copy a vital with fewer than two readings should show.
+ *
+ * The default ("not enough history yet") is honest for any vital the strap actually measures - keep
+ * wearing it and readings accumulate. For Blood Oxygen it can be a countdown that never completes:
+ *
+ *  - **WHOOP 4.0.** The `@82` SpO2 candidate is decoded inside `decodeWhoop5Historical`, gated to
+ *    `hist_version == 18`, and v18 is explicitly NOT the 4.0's v24 layout - so a 4.0 never produces
+ *    one. `spo2Pct` itself is only ever written by an import. Waiting cannot help; importing can.
+ *  - **5/MG with the estimate off.** The candidate exists but ships default-off and unverified, so the
+ *    screen stays empty until the user turns it on. Naming the switch beats implying more nights.
+ *  - **5/MG with it on.** Genuinely just needs nights, so the default copy is right.
+ *
+ * [family] must come from the REGISTRY (`DeviceFamily.forRegistryDevice`), never a live-connection
+ * flag: such a flag reads false for a 4.0, for an Oura ring and for nothing-connected alike, and an
+ * Oura DOES produce SpO2 (`nightlySpo2CeilingMean`'s 0x6F ceiling@100). Telling that user their
+ * WHOOP 4.0 lacks the sensor would be worse than the countdown this replaces. A null family - a
+ * positively non-WHOOP brand, or a row not yet loaded - therefore falls through to the neutral copy
+ * rather than claiming a generation that has not been established (#1086/#171).
+ *
+ * Pure and Compose-free so the decision is unit-tested without a device or a strap. Android-only:
+ * iOS's metric detail already points at import rather than promising accumulation.
+ */
+internal data class VitalEmptyState(@StringRes val titleRes: Int, @StringRes val bodyRes: Int)
+
+internal fun spo2EmptyState(
+    key: String,
+    family: com.noop.protocol.DeviceFamily?,
+    candidateDisplayOn: Boolean,
+): VitalEmptyState {
+    val default = VitalEmptyState(
+        R.string.l10n_health_screen_not_enough_history_yet_0e2f93b6,
+        R.string.l10n_health_screen_this_vital_needs_at_least_two_0e41b8b0,
+    )
+    if (key != "spo2") return default
+    return when {
+        family == com.noop.protocol.DeviceFamily.WHOOP4 -> VitalEmptyState(
+            R.string.l10n_health_screen_your_whoop_4_0_does_not_5941a06e,
+            R.string.l10n_health_screen_blood_oxygen_is_not_something_a_c39d2144,
+        )
+        family == com.noop.protocol.DeviceFamily.WHOOP5 && !candidateDisplayOn -> VitalEmptyState(
+            R.string.l10n_health_screen_the_blood_oxygen_estimate_is_turned_4c403ab2,
+            R.string.l10n_health_screen_your_strap_reports_a_blood_oxygen_349fe34a,
+        )
+        else -> default
+    }
+}
+
 @Composable
 fun VitalDetailScreen(vm: AppViewModel, key: String) {
     val days by vm.recentDays.collectAsStateWithLifecycle()
@@ -1771,6 +1821,29 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
     // Profile drives the Fitness Age readiness/countdown shown when that vital has no value yet.
     val profile = remember { ProfileStore.from(context.applicationContext) }
     val isSeriesBacked = key in SERIES_BACKED_VITAL_KEYS
+    // #1617: the ACTIVE strap's family, resolved brand-aware from the registry rather than from a live
+    // flag. Null until the row loads, and null for a non-WHOOP device; both fall through to the neutral
+    // empty-state copy, so this never claims a generation it has not established.
+    //
+    // Collected from activeStrapIdFlow, NOT the `activeStrapId` getter: that getter is documented as
+    // source-compatibility for existing call sites, and reading it here would not re-key this on a strap
+    // switch, so the copy could keep describing the previous device.
+    //
+    // The registry read is skipped for every other vital. Only the Blood Oxygen empty state consults the
+    // family, and a DB round-trip that Resting HR / HRV / Skin Temp pay for and discard is the same waste
+    // the candidateFlow above is shaped to avoid. The produceState CALL stays unconditional - gating the
+    // call would put a composable in a conditionally-evaluated position and corrupt the slot table when
+    // the key changes - so only the work inside it is conditional.
+    val activeStrapId by vm.activeStrapIdFlow.collectAsStateWithLifecycle()
+    val strapFamily by produceState<com.noop.protocol.DeviceFamily?>(null, activeStrapId, key) {
+        value = if (key != "spo2" || activeStrapId == null) {
+            null
+        } else {
+            val row = runCatching { vm.pairedDevices() }.getOrDefault(emptyList())
+                .firstOrNull { it.id == activeStrapId }
+            com.noop.protocol.DeviceFamily.forRegistryDevice(row?.model, row?.brand)
+        }
+    }
 
     // Series-backed metrics are loaded async from metricSeries; the plain daily vitals build synchronously
     // off the cached `days`. `seriesLoaded` guards the empty-state so a still-loading trend doesn't flash
@@ -1879,9 +1952,17 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
                 }
                 return@ScreenScaffold
             }
+            // #1617: "Not enough history yet" is a countdown, and on a WHOOP 4.0 Blood Oxygen is a
+            // countdown that never completes. See spo2EmptyState for why. Copy only; nothing about what
+            // is stored or scored moves.
+            val emptyState = spo2EmptyState(
+                key = key,
+                family = strapFamily,
+                candidateDisplayOn = NoopPrefs.spo2CandidateDisplay(context),
+            )
             DataPendingNote(
-                title = uiString(R.string.l10n_health_screen_not_enough_history_yet_0e2f93b6),
-                body = "This vital needs at least two historical readings before NOOP can chart it.",
+                title = uiString(emptyState.titleRes),
+                body = uiString(emptyState.bodyRes),
             )
             return@ScreenScaffold
         }

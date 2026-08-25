@@ -2358,4 +2358,9 @@
     <string name="l10n_settings_screen_effort_exponential_scale">负荷：指数强度曲线</string>
     <string name="l10n_settings_screen_effort_exponential_scale_desc">以指数强度曲线（Banister TRIMP）计算负荷，而不是默认的心率区间（Edwards）。默认方式对低于心率储备一半的部分完全不计分，因此一小时力量训练——组间休息拉低了平均强度——可能几乎得零分。指数曲线没有下限，会大幅提高短时高强度努力的权重。会重新计算你的历史数据，两种标度的最高值相同。默认关闭。</string>
     <string name="l10n_app_changelog_an_effort_scale_you_choose_a_a7c2478d">可自选的 Effort 计分方式、能安心睡觉的戒指，以及大幅减少的无谓重算</string>
+    <string name="l10n_health_screen_this_vital_needs_at_least_two_0e41b8b0">该项体征需要至少两条历史读数，NOOP 才能绘制图表。</string>
+    <string name="l10n_health_screen_your_whoop_4_0_does_not_5941a06e">你的 WHOOP 4.0 不提供血氧数据</string>
+    <string name="l10n_health_screen_blood_oxygen_is_not_something_a_c39d2144">WHOOP 4.0 不测量血氧，因此无论佩戴多久这里都会是空的。请在“数据来源”中导入 WHOOP 导出文件，以用账户历史填充。</string>
+    <string name="l10n_health_screen_the_blood_oxygen_estimate_is_turned_4c403ab2">血氧估算已关闭</string>
+    <string name="l10n_health_screen_your_strap_reports_a_blood_oxygen_349fe34a">你的手环会给出血氧估算值，但该值未经验证且默认关闭。可在“设置”中开启手环估算，或在“数据来源”导入 WHOOP 导出文件以获得校准值。</string>
 </resources>

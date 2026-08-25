@@ -2470,4 +2470,9 @@
     <string name="l10n_settings_screen_effort_exponential_scale">Effort: exponential intensity scale</string>
     <string name="l10n_settings_screen_effort_exponential_scale_desc">Scores Effort on an exponential intensity curve (Banister TRIMP) instead of the default heart-rate zones (Edwards). The default earns nothing below half of your heart-rate reserve, so an hour of lifting — where hard sets average out against the rests — can score close to zero. The exponential curve has no floor and weights short, hard efforts far more heavily. Re-scores your history, and both scales reach the same maximum. Off by default.</string>
     <string name="l10n_app_changelog_an_effort_scale_you_choose_a_a7c2478d">An Effort scale you choose, a ring that gets to sleep, and far fewer wasted re-scores</string>
+    <string name="l10n_health_screen_this_vital_needs_at_least_two_0e41b8b0">This vital needs at least two historical readings before NOOP can chart it.</string>
+    <string name="l10n_health_screen_your_whoop_4_0_does_not_5941a06e">Your WHOOP 4.0 does not report blood oxygen</string>
+    <string name="l10n_health_screen_blood_oxygen_is_not_something_a_c39d2144">Blood oxygen is not something a WHOOP 4.0 measures, so this will stay empty however long you wear it. Import a WHOOP export in Data Sources to fill it from your account history.</string>
+    <string name="l10n_health_screen_the_blood_oxygen_estimate_is_turned_4c403ab2">The blood oxygen estimate is turned off</string>
+    <string name="l10n_health_screen_your_strap_reports_a_blood_oxygen_349fe34a">Your strap reports a blood oxygen estimate, but it is unverified and off by default. Turn on the strap estimate in Settings to see it, or import a WHOOP export in Data Sources for the calibrated value.</string>
 </resources>

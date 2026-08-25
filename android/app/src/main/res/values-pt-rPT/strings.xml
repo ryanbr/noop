@@ -2437,4 +2437,9 @@
     <string name="l10n_settings_screen_effort_exponential_scale">Esforço: escala de intensidade exponencial</string>
     <string name="l10n_settings_screen_effort_exponential_scale_desc">Pontua o Esforço numa curva de intensidade exponencial (TRIMP de Banister) em vez das zonas de frequência cardíaca predefinidas (Edwards). A predefinição não conta nada abaixo de metade da tua reserva de frequência cardíaca, por isso uma hora de musculação — em que as séries duras se compensam com os descansos — pode pontuar quase zero. A curva exponencial não tem limiar e pondera muito mais os esforços curtos e intensos. Volta a pontuar o teu histórico e ambas as escalas atingem o mesmo máximo. Desativado por predefinição.</string>
     <string name="l10n_app_changelog_an_effort_scale_you_choose_a_a7c2478d">Uma escala de Effort à sua escolha, um anel que pode dormir e muito menos recálculos em vão</string>
+    <string name="l10n_health_screen_this_vital_needs_at_least_two_0e41b8b0">Este sinal vital precisa de pelo menos duas leituras históricas antes de o NOOP o poder representar.</string>
+    <string name="l10n_health_screen_your_whoop_4_0_does_not_5941a06e">O seu WHOOP 4.0 não reporta oxigénio no sangue</string>
+    <string name="l10n_health_screen_blood_oxygen_is_not_something_a_c39d2144">O WHOOP 4.0 não mede oxigénio no sangue, por isso isto ficará vazio por muito tempo que o use. Importe uma exportação WHOOP em Fontes de dados para preencher a partir do seu histórico.</string>
+    <string name="l10n_health_screen_the_blood_oxygen_estimate_is_turned_4c403ab2">A estimativa de oxigénio no sangue está desligada</string>
+    <string name="l10n_health_screen_your_strap_reports_a_blood_oxygen_349fe34a">A sua bracelete fornece uma estimativa de oxigénio no sangue, mas não está verificada e vem desligada. Ative-a nas Definições, ou importe uma exportação WHOOP em Fontes de dados para o valor calibrado.</string>
 </resources>
