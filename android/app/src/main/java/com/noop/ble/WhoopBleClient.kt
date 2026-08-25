@@ -2170,6 +2170,18 @@ class WhoopBleClient(
 
     /** Address of the strap we last connected to — for persisting it + auto-reconnecting on launch (#67). */
     val lastDeviceAddress: String? get() = lastDevice?.address
+
+    /// Has [connectedFamily] been established from THIS connection's service discovery?
+    ///
+    /// [connectedFamily] defaults to WHOOP4 and is only ever written in onServicesDiscovered, so before
+    /// discovery it holds either that default or - because it was never cleared per-connection - the
+    /// family of the PREVIOUS link. Both are guesses, and the battery source must not be chosen from a
+    /// guess: the 4.0's standard 0x2A19 characteristic is a stub (#77), so a 4.0 reached while this still
+    /// said WHOOP5 read the stub and BANKED it. In one field log that stub read 81% against a true 39.2%,
+    /// and banked samples feed the discharge-slope estimate (#713), so the error reaches the readout and
+    /// not just the log line. Cleared in [reset] with the rest of the per-connection state.
+    @Volatile private var familyEstablished = false
+
     /// The family actually discovered on the connected peripheral. Drives family-aware frame
     /// parsing and gates the WHOOP4-only bond/handshake. Set in onServicesDiscovered.
     /// @Volatile: written on the binder thread at service discovery, read in send() on main (user
@@ -4248,9 +4260,16 @@ class WhoopBleClient(
             log("refreshBattery ignored — not connected")
             return
         }
-        if (connectedFamily == DeviceFamily.WHOOP4) {
-            send(CommandNumber.GET_BATTERY_LEVEL)
-            return
+        when (batterySource(familyEstablished, connectedFamily)) {
+            BatterySource.DEFER -> {
+                log("refreshBattery deferred — strap family not established yet")
+                return
+            }
+            BatterySource.CUSTOM_COMMAND -> {
+                send(CommandNumber.GET_BATTERY_LEVEL)
+                return
+            }
+            BatterySource.STANDARD_CHAR -> Unit
         }
         val ops = gattOps ?: return
         val batt = g.getService(BATTERY_SERVICE)?.getCharacteristic(BATTERY_CHAR)
@@ -5213,6 +5232,7 @@ class WhoopBleClient(
                 // notifications ever enable, so HR/battery/events stay empty (issue #12). The bond write
                 // is deferred to startSession(), which runs once every notification is on.
                 connectedFamily = DeviceFamily.WHOOP4
+                familyEstablished = true
                 // Record the family on connect, not only in the scan path (persistSelectedModel is
                 // otherwise called only from onScanResult). A strap reached via the co-resident
                 // easy-connect route (getConnectedDevices / bondedDevices adopt, no scan) would never
@@ -5226,6 +5246,7 @@ class WhoopBleClient(
                 // EXPERIMENTAL WHOOP 5.0/MG: opens with CLIENT_HELLO (sent in startSession, after the
                 // standard HR/battery notifications are enabled), not the WHOOP4 confirmed-write bond.
                 connectedFamily = DeviceFamily.WHOOP5
+                familyEstablished = true
                 // Persist on connect too (see the WHOOP4 branch): otherwise an easy-connect 5/MG never
                 // records WHOOP5_MG, so the 5/MG-only controls (raw capture, broadcast HR, deep data)
                 // gated on noop.selectedWhoopModel stay hidden until the strap is live-detected that
@@ -5446,10 +5467,14 @@ class WhoopBleClient(
         resubscribedSinceData = false               // data is flowing again — re-arm the one-shot resubscribe
         when {
             uuid == HEART_RATE_CHAR -> parseStandardHr(bytes)       // 0x2A37
-            // 0x2A19 = percent — 5/MG ONLY. On a WHOOP 4.0 this characteristic is a stub constant 100
-            // (the real value is the GET_BATTERY_LEVEL COMMAND_RESPONSE, u16/10), and it's also
-            // SUBSCRIBED, so an unsolicited stub notification could flip the display back to 100 (#77).
-            uuid == BATTERY_CHAR -> if (connectedFamily != DeviceFamily.WHOOP4) {
+            // 0x2A19 = percent — 5/MG ONLY. On a WHOOP 4.0 this characteristic is a stub (the real value
+            // is the GET_BATTERY_LEVEL COMMAND_RESPONSE, u16/10), and it's also SUBSCRIBED, so an
+            // unsolicited stub notification could flip the display to a wrong number (#77). NOT always the
+            // constant 100 this comment used to claim: a WHOOP 4.0 field log read 81 from it against a
+            // true 39.2, so the value is plausible enough to pass any range check — hence the source, not
+            // the value, has to be the gate. `!= WHOOP4` is not that gate while the family is still a guess.
+            uuid == BATTERY_CHAR -> if (batterySource(familyEstablished, connectedFamily) ==
+                BatterySource.STANDARD_CHAR) {
                 bytes.firstOrNull()?.let { setBattery((it.toInt() and 0xFF).toDouble()) }
             } else Unit
             // #520 DIS identity. NUL-terminated ASCII per the DIS spec, so trim padding. The serial
@@ -8255,6 +8280,7 @@ class WhoopBleClient(
     private fun reset() {
         didBond = false
         connectHandshakeDone = false
+        familyEstablished = false   // the next link re-establishes it at service discovery
         seq.set(0)
         writeQueue.clear()
         cccdQueue.clear()
