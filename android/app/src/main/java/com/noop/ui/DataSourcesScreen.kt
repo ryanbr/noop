@@ -1046,6 +1046,20 @@ internal fun emitImportTrace(
             com.noop.testcentre.TestDomain.IMPORT,
         )
     }
+    // #1617: which metric COLUMNS the file actually carried. rowsOut stays unverified here because Room
+    // reports no write count, but this is known at PARSE time and so is exact on both platforms — and it
+    // separates "the store never got it" from "the export never had it", which the stage lines alone
+    // cannot. Emitted only when the importer produced daily rows.
+    if (summary.columnCoverage.isNotEmpty()) {
+        vm.ble.externalLog(
+            com.noop.analytics.ImportTrace.columnCoverageLine(
+                stage = com.noop.analytics.ImportTrace.categoryWire(summary.source, "cycles"),
+                rows = summary.columnCoverageRows,
+                counts = summary.columnCoverage,
+            ),
+            com.noop.testcentre.TestDomain.IMPORT,
+        )
+    }
     // The reject line mirrors AppleHealthImport.swift: the app map drops nothing further here, so
     // droppedRows = 0; skippedSpans carries the tolerant-import scrubbed-span count (0 on non-Apple).
     vm.ble.externalLog(

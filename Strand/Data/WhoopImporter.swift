@@ -207,6 +207,14 @@ enum WhoopImporter {
                 ImportTrace.stageLine(category: "cycles", rowsIn: metrics.count, rowsOut: metricsWritten),
                 ImportTrace.stageLine(category: "sleeps", rowsIn: sessions.count, rowsOut: sessionsWritten),
                 ImportTrace.stageLine(category: "workouts", rowsIn: workouts.count, rowsOut: workoutsWritten),
+                // #1617: which metric COLUMNS the file carried. The stage lines above count ROWS, so an
+                // export whose Blood Oxygen column is absent looks identical to one where it arrived — and
+                // a card that stays empty after a clean import is then indistinguishable from a failed
+                // write. Counted on the parsed rows, before any store write, so it says the same thing on
+                // both platforms. Emitted between the stage and reject lines, matching the Kotlin order.
+                ImportTrace.columnCoverageLine(stage: "cycles",
+                                               rows: metrics.count,
+                                               counts: importColumnCoverage(metrics)),
                 ImportTrace.rejectLine(droppedRows: droppedInMap, skippedSpans: result.summary.skippedSpans),
                 ImportTrace.dayDeltaLine(category: "cycles", daysMapped: daysMapped, daysPersisted: metricsWritten),
             ]

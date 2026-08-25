@@ -39,6 +39,31 @@ object ImportTrace {
         return "import stage=$category rowsIn=$rowsIn rowsOut=$rowsOut$note"
     }
 
+    /**
+     * Which metric columns an imported table actually carried, and which were empty in every row.
+     *
+     * The import trace already reports rows in, rows rejected and days mapped, but not whether a given
+     * COLUMN arrived. That is the question behind a whole class of "why is this card empty" reports: the
+     * file imported cleanly, the rows landed, and one metric is still blank because the export never
+     * contained it — or contained it under a header the aliases do not match. Both look identical from
+     * outside, and neither is distinguishable from a store-write failure without this line.
+     *
+     * [counts] is (column, rows-with-a-usable-value) in the parser's own order, so the line reads in the
+     * order a maintainer would look for them. A column at zero is called out explicitly in an ABSENT
+     * clause rather than left for the reader to spot among a dozen numbers; the clause is omitted when
+     * every column arrived, so the healthy case is quiet but still present.
+     *
+     * Known at parse time, so it carries none of the store-write ambiguity that keeps rowsOut honest but
+     * unverified on Android — this line means the same thing on both platforms. Swift twin:
+     * `ImportTrace.columnCoverageLine`.
+     */
+    fun columnCoverageLine(stage: String, rows: Int, counts: List<Pair<String, Int>>): String {
+        val body = counts.joinToString(" ") { "${it.first}=${it.second}" }
+        val absent = counts.filter { it.second == 0 }.map { it.first }
+        val tail = if (absent.isEmpty()) "" else " — ABSENT: ${absent.joinToString(", ")}"
+        return "import columns stage=$stage rows=$rows $body$tail"
+    }
+
     /** The reject-counts line: rows dropped as unusable + tolerant XML spans scrubbed. Mirrors Swift. */
     fun rejectLine(droppedRows: Int, skippedSpans: Int): String =
         "import rejects droppedRows=$droppedRows skippedSpans=$skippedSpans"

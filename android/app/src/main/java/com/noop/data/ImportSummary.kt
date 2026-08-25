@@ -16,6 +16,19 @@ data class ImportSummary(
     val lastDay: String? = null,
     /** One-line human summary for a Toast / status line. */
     val message: String,
+    /**
+     * #1617: per-metric-column counts from the parsed daily rows, in the cross-platform label order —
+     * see `com.noop.ingest.importColumnCoverage`. Empty for importers that do not produce daily
+     * physiological rows, in which case the trace emits no coverage line at all rather than a row of
+     * zeroes that would read as "everything is missing".
+     */
+    val columnCoverage: List<Pair<String, Int>> = emptyList(),
+    /**
+     * Rows the coverage above was counted over. Carried explicitly rather than inferred from the largest
+     * count: if every column were sparse, the largest count would UNDER-report the row total and the line
+     * would quietly overstate coverage.
+     */
+    val columnCoverageRows: Int = 0,
 ) {
     val totalRows: Int get() = counts.values.sum()
 

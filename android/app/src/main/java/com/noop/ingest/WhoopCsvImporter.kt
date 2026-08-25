@@ -174,6 +174,8 @@ object WhoopCsvImporter {
             firstDay = firstDay,
             lastDay = lastDay,
             message = message,
+            columnCoverage = importColumnCoverage(cycles),
+            columnCoverageRows = cycles.size,
         )
     }
 
