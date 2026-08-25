@@ -1024,11 +1024,16 @@ private fun MarkerTile(
 private fun StressTrendSection(model: StressModel, modifier: Modifier = Modifier) {
     var range by remember { mutableStateOf(StressRange.Month) }
     val points = remember(model, range) { model.windowedTrend(range) }
+    // #1600: derived ONCE per window, not per recomposition. `windowedTrend` now returns points rather
+    // than bare values, so the two projections the card needs are mapped here beside the memo they come
+    // from — otherwise each recomposition of a scrubbing chart rebuilds both lists.
+    val values = remember(points) { points.map { it.value } }
+    val dayLabels = remember(points) { points.map { shortDayLabel(it.day) } }
 
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
         SectionHeader("Stress Trend", overline = "History", trailing = range.label)
         if (points.size >= 2) {
-            val avg = points.map { it.value }.average()
+            val avg = values.average()
             NoopCard(tint = Palette.stressColor) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(
@@ -1050,7 +1055,7 @@ private fun StressTrendSection(model: StressModel, modifier: Modifier = Modifier
                         )
                     }
                     LineChart(
-                        values = points.map { it.value },
+                        values = values,
                         modifier = Modifier.height(Metrics.chartHeight),
                         color = StressRamp.STEADY,
                         fill = true,
@@ -1058,7 +1063,7 @@ private fun StressTrendSection(model: StressModel, modifier: Modifier = Modifier
                         // #1600: the same omission the Vital Signs detail chart had — a dated daily
                         // trend that opted into selection and then had nothing to say but the number.
                         // Both lists map from the one windowed `points`, so they cannot desynchronise.
-                        selectionLabels = points.map { shortDayLabel(it.day) },
+                        selectionLabels = dayLabels,
                     )
                     HorizontalDivider(color = Palette.hairline)
                     Row(modifier = Modifier.fillMaxWidth()) {
