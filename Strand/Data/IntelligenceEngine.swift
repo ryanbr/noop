@@ -15,6 +15,10 @@ final class IntelligenceEngine: ObservableObject {
     /// `IntelligenceEngine.MIN_HR_SAMPLES`, which has been a named constant there while this side carried
     /// the literal in more than one place — so a threshold change had to find every copy on this platform
     /// and exactly one on the other.
+    /// Spelled `IntelligenceEngine.minHrSamples` at both use sites rather than `Self.` — both are inside
+    /// the `Task.detached` @Sendable closure, and the explicit type name cannot raise a dynamic-`Self` or
+    /// closure-capture question there. No app-target Swift compiles outside app-build, so the boring form
+    /// is worth the few characters.
     static let minHrSamples = 200
 
     private let repo: Repository
@@ -913,7 +917,7 @@ final class IntelligenceEngine: ObservableObject {
                 // guessed, for the same reason the day-cache duration is.
                 let tPrep0 = Date()
                 let hr = (try? await store.hrSamples(deviceId: owner, from: from, to: to, limit: 200_000)) ?? []
-                guard hr.count >= Self.minHrSamples else {
+                guard hr.count >= IntelligenceEngine.minHrSamples else {
                     // This day still paid for its read; count it, or the tally under-reports exactly the
                     // sparse-history installs where reads dominate most.
                     dayPrepSeconds += Date().timeIntervalSince(tPrep0)
@@ -1385,7 +1389,7 @@ final class IntelligenceEngine: ObservableObject {
             let dayCacheWindow = Set((0..<maxDays).map {
                 AnalyticsEngine.dayString(nowLocalMidnight - $0 * 86_400, offsetSec: tzOffset) })
             dayScanCacheLocal = dayScanCacheLocal.filter { dayCacheWindow.contains($0.key) }
-            if let line = skippedSleepDaysLine(skippedSleepDays, minHrSamples: Self.minHrSamples) {
+            if let line = skippedSleepDaysLine(skippedSleepDays, minHrSamples: IntelligenceEngine.minHrSamples) {
                 skippedDayLines.append(line)
             }
             // #1538: the denominator is the number of CACHEABLE days this pass (reused + freshly cached),
