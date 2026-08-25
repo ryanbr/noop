@@ -110,6 +110,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
@@ -136,8 +138,6 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import kotlin.math.roundToInt
-import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.material3.ButtonDefaults
 
 /**
  * Workouts — the activity log, instrument-grade and uniform. Ports the macOS
@@ -457,26 +457,19 @@ private fun PostLogNoteBanner(text: String) {
 internal fun AddWorkoutButton(onAdd: () -> Unit, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
-            // Constraint first, decoration after: the shape and fill are then computed against the
-            // final height rather than reading as though they set it. (Compose measures the node the
-            // same either way here — this is ordering for legibility, not a fix for a real clip bug.)
-            //
-            // `ButtonDefaults.MinHeight` rather than a NOOP token, deliberately. The design system has
-            // no control-height token on Android — iOS keeps one (`NoopMetrics.controlHeight`, 48) and
-            // Android has nothing equivalent — and the goal here is not "be 40.dp", it is "be whatever
-            // the Button beside me is". Minting a NOOP constant at today's value would match by
-            // coincidence and drift the moment Material changed its default, which is the failure this
-            // whole change exists to remove. A shared primitive owning both is the real fix.
+            // Material's constant, not a NOOP token: the goal is not "be 40.dp", it is "be whatever the
+            // Button beside me is". Android has no control-height token to reach for (iOS keeps one,
+            // `NoopMetrics.controlHeight` = 48), and minting one at today's value would match by
+            // coincidence and drift the moment Material changed its default.
             .defaultMinSize(minHeight = ButtonDefaults.MinHeight)
             .clip(RoundedCornerShape(50))
             .background(Palette.accentMuted)
             .clickable(onClick = onAdd)
-            // Horizontal padding matches the Start button's contentPadding (10.dp), not the 14.dp this
-            // used to carry. Width is fixed by `weight(1f)` so this is invisible in English — it only
-            // shows once a label is long enough to compete for the space. This button already gives up
-            // 22.dp to its icon and spacer that Start does not, and the longest translations are
-            // comparable in length between the two ("Ajouter un entraînement" against "Démarrer
-            // l'entraînement"), so the 8.dp was pure asymmetry: Add would ellipsize first.
+            // 10.dp matches the Start button's contentPadding; this used to carry 14.dp. Invisible in
+            // English — width is fixed by `weight(1f)` — but this button already gives up 22.dp to an
+            // icon and spacer that Start has not, and the long translations are comparable in length
+            // ("Ajouter un entraînement" against "Démarrer l'entraînement"), so the extra 8.dp only
+            // decided which label ellipsized first.
             .padding(horizontal = 10.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
