@@ -1,5 +1,6 @@
 import XCTest
 @testable import Strand
+import WhoopProtocol   // DeviceFamily, for the #1598 clock-correlation gate
 
 /// Pins the #364 historical-sync auto-continue decision. The real bug: the strap offloads OLDEST-first
 /// at ~60s/session with a 15-min floor and NO auto-continue, so on a deep backlog each connection drains
@@ -425,5 +426,15 @@ final class BackfillContinuationTests: XCTestCase {
             persistedSensorRows: true,
             lastTrimAdvanced: true,
             consecutiveCount: 0))
+    }
+
+    // MARK: - #1598 clock-correlation family gate
+
+    /// A 5/MG must never chase or DERIVE a GET_CLOCK correlation: its records already carry real-unix
+    /// seconds, so `wall - strapNewestTs` is how long the strap went unrecorded, NOT an RTC skew.
+    /// Seeding it as one shifted that offload's history forward by the gap. WHOOP 4.0 keeps #700.
+    func testOnlyWhoop4DerivesClockCorrelation() {
+        XCTAssertTrue(BackfillContinuation.derivesClockCorrelation(.whoop4))
+        XCTAssertFalse(BackfillContinuation.derivesClockCorrelation(.whoop5))
     }
 }

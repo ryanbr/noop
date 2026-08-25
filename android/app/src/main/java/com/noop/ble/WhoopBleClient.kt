@@ -1568,6 +1568,23 @@ class WhoopBleClient(
         ): Boolean = strapNewestTs != null && strapNewestTs > wallNowUnix + futureSkewSeconds
 
         /**
+         * #1598: may a GET_CLOCK correlation be DERIVED for this family? WHOOP 4.0 only.
+         *
+         * A 5/MG never establishes one by design — its historical (type-47) and live (puffin REALTIME)
+         * records both carry the strap RTC's own real-unix seconds, so the Backfiller's identity default
+         * ([ClockRef.identityNow], offset 0) is the CORRECT decode for it, not a degraded one.
+         *
+         * [beginBackfill] used to seed a correlation from [strapNewestTs] for EVERY family. On a 4.0 that
+         * difference is the RTC skew, which is the point of #700. On a 5/MG `newest` is already real-unix,
+         * so `wall - newest` is merely HOW LONG THE STRAP WENT UNRECORDED (unworn, charging, flat) —
+         * applied as a clock offset it shifts that offload's history forward by exactly that gap once it
+         * clears the decoder's 1-day staleness threshold, landing a weekend's backfill on the wrong days.
+         *
+         * Mirrors the Swift `BackfillContinuation.derivesClockCorrelation`.
+         */
+        fun derivesClockCorrelation(family: DeviceFamily): Boolean = family == DeviceFamily.WHOOP4
+
+        /**
          * #324/#928: the post-sync banner for a strap whose clock is set in the FUTURE. Unlike the
          * "clock lost / not banking" case ([classifyCompletedOffload]'s bankedNothing), this strap DOES
          * bank records every pass — but its RTC relatched to a future base, so every banked timestamp
@@ -7238,15 +7255,19 @@ class WhoopBleClient(
         // timestamp. The offset is approximate but vastly better than identity (offset 0), which can
         // mis-date nights when the strap's RTC has drifted. No-op when strapNewestTs is null (no Data
         // Range received yet) — the Backfiller keeps its identity default, same as today.
-        strapNewestTs?.let { newest ->
-            // Pair the strap's newest-record device time with the wall clock CAPTURED WHEN IT WAS READ,
-            // not `now`. WHOOP4 doesn't re-fetch the Data Range at each offload, so `now` inflated the
-            // offset by all the elapsed wall time since the last fetch (observed 46s → ~3700s over 30 min).
-            // Pairing with the capture wall keeps the offset at the strap's true RTC skew regardless of how
-            // stale [strapNewestTs] is. Fallback to now only if we somehow have the ts without its wall.
-            val wall = (strapNewestTsWall ?: (System.currentTimeMillis() / 1000L)).toInt()
-            backfiller.clockRef = ClockRef(device = newest.toInt(), wall = wall)
-            log("Clock: seeded backfiller correlation from Data Range (device=$newest wall=$wall, offset ${wall - newest}s)")
+        // #1598: WHOOP 4.0 ONLY — see [derivesClockCorrelation]. Seeding this on a 5/MG turned "how long
+        // the strap went unrecorded" into a bogus clock offset and misdated its history.
+        if (derivesClockCorrelation(connectedFamily)) {
+            strapNewestTs?.let { newest ->
+                // Pair the strap's newest-record device time with the wall clock CAPTURED WHEN IT WAS READ,
+                // not `now`. WHOOP4 doesn't re-fetch the Data Range at each offload, so `now` inflated the
+                // offset by all the elapsed wall time since the last fetch (observed 46s → ~3700s over 30 min).
+                // Pairing with the capture wall keeps the offset at the strap's true RTC skew regardless of how
+                // stale [strapNewestTs] is. Fallback to now only if we somehow have the ts without its wall.
+                val wall = (strapNewestTsWall ?: (System.currentTimeMillis() / 1000L)).toInt()
+                backfiller.clockRef = ClockRef(device = newest.toInt(), wall = wall)
+                log("Clock: seeded backfiller correlation from Data Range (device=$newest wall=$wall, offset ${wall - newest}s)")
+            }
         }
         // #42/#364: consecutiveAutoContinues > 0 means this offload is re-kicked after an EARLIER session
         // in the same burst banked rows — tell the backfiller so its no-cursor END reads as "caught up",
