@@ -251,10 +251,35 @@ final class IntelligenceEngine: ObservableObject {
     /// SAME span the floor came from, so the two numbers are directly comparable). Empty in-bed → nightMean
     /// is "nil". Counts/bpm only , no timestamps or PII. Pure so it's unit-tested directly and is the SAME
     /// line `analyzeRecent` ships. Byte-identical to the Android `rhrFloorMeanLogLine`.
-    /// #1331 diagnostic line: the night's computed respiratory rate (breaths/min) or "nil". Format kept
-    /// simple so it stays byte-identical to the Android `respRateLogLine`.
-    nonisolated static func respRateLogLine(day: String, respRateBpm: Double?) -> String {
-        "resp day=\(day) rpm=\(respRateBpm.map { String(format: "%.1f", $0) } ?? "nil")"
+    /// #1331 diagnostic line: the night's computed respiratory rate (breaths/min) or "nil".
+    ///
+    /// When the rate is nil the line now carries WHY, because "nil" on its own sent an investigation
+    /// across two subsystems to find out. The RSA estimate needs per-beat-accurate R-R, so
+    /// `HRVAnalyzer.beatValuesAreTrustworthy` refuses a stream whose intervals are not beat-to-beat
+    /// measurements — and on a WHOOP 4.0 carrying the #1008/#1118 over-count that gate is what empties
+    /// the card, on nearly every night, silently. Printing the fraction beside the boundary turns
+    /// "Respiratory: No data" from a mystery into a reading.
+    ///
+    /// It distinguishes the two cases rather than asserting one: below the boundary the gate refused the
+    /// R-R; at or above it the gate passed and the cause is one of the estimator's other exits (too few
+    /// beats, too short a span, too coarse a grid), which this deliberately does not guess between.
+    /// Omitting `beatAccurate` restores the original one-field line exactly, so a night that never
+    /// reached the HRV block reads as it always did.
+    ///
+    /// Byte-identical to the Android `respRateLogLine`.
+    nonisolated static func respRateLogLine(day: String,
+                                            respRateBpm: Double?,
+                                            beatAccurate: Double? = nil,
+                                            rrIntegrity: String? = nil) -> String {
+        let base = "resp day=\(day) rpm=\(respRateBpm.map { String(format: "%.1f", $0) } ?? "nil")"
+        guard respRateBpm == nil, let beatAccurate else { return base }
+        let acc = String(format: "%.2f", beatAccurate)
+        let gate = String(format: "%.2f", HRVAnalyzer.beatAccuracyMinFraction)
+        let integrity = rrIntegrity ?? "unknown"
+        if beatAccurate < HRVAnalyzer.beatAccuracyMinFraction {
+            return "\(base) beatAccurate=\(acc)<\(gate) rrIntegrity=\(integrity) — RSA gate refused the R-R"
+        }
+        return "\(base) beatAccurate=\(acc)>=\(gate) rrIntegrity=\(integrity) — gate passed, cause is elsewhere"
     }
 
     nonisolated static func rhrFloorMeanLogLine(day: String, floor: Int, inBedBpms: [Int]) -> String {
@@ -1145,6 +1170,11 @@ final class IntelligenceEngine: ObservableObject {
                 let sleepRr = sleepRrRows.map { Double($0.rrMs) }
                 let hrvDiag: String?
                 let hrvOverCounted: Bool?   // #1118: nil = no in-sleep R-R (no HRV to caveat)
+                // #1331: the RSA gate's inputs, carried to the resp diagnostic below. Declared out here because
+                // the HRV block is one scope deeper; a night with no sleep R-R leaves them nil and the resp line
+                // falls back to its original one-field form.
+                var respGateAcc: Double?
+                var respGateIntegrity: String?
                 if sleepRr.isEmpty {
                     hrvOverCounted = nil
                     // #1244: no in-sleep R-R means no HRV summary. If the whole night also detected NO
@@ -1202,6 +1232,7 @@ final class IntelligenceEngine: ObservableObject {
                     // measurements: the per-record SUM is right to ~1% (meanNN and RHR stay correct and
                     // WHOOP-validated) while the individual intervals are not. Gate on that too.
                     let accVal = HRVAnalyzer.beatAccurateFraction(tsSec: ts, rrMs: sleepRr)
+                    respGateAcc = accVal
                     let acc = String(format: "%.2f", accVal)
                     let sdnnField = HRVAnalyzer.beatSpreadIsTrustworthy(verdict)
                         && HRVAnalyzer.beatValuesAreTrustworthy(beatAccurateFraction: accVal)
@@ -1210,6 +1241,7 @@ final class IntelligenceEngine: ObservableObject {
                         + "meanNN=\(ms(h.meanNN))ms rr=\(h.nInput)/\(h.nClean) rejected=\(rej)% coverage=\(cov) collapsedCov=\(colCov) dupBeats=\(dup) "
                         + "beatAccurate=\(acc) "
                         + "rrIntegrity=\(verdict.rawValue)"
+                        respGateIntegrity = verdict.rawValue
                     // #1008: on an OVER-COUNT night only, append a raw-row sample around the densest second
                     // (carried as a second \n-joined line, split back apart at the emit site) so the
                     // over-count's MECHANISM is readable from the always-on log — clean nights stay quiet.
@@ -1325,7 +1357,10 @@ final class IntelligenceEngine: ObservableObject {
                 }
                 // #1331 respiratory diagnostic — a run of nil nights localises when it stopped. Same
                 // pure-compute-here / replay-on-main-actor path as rhrLine.
-                let respLine: String? = Self.respRateLogLine(day: res.daily.day, respRateBpm: res.daily.respRateBpm)
+                let respLine: String? = Self.respRateLogLine(day: res.daily.day,
+                                                            respRateBpm: res.daily.respRateBpm,
+                                                            beatAccurate: respGateAcc,
+                                                            rrIntegrity: respGateIntegrity)
                 // #103/queue-11a: SpO₂ candidate nightly mean. Only computed when the display toggle is
                 // ON, and the transform is device-conditional (#1086-style brand lookup, matching
                 // `skinTempWornToleranceSec`'s idiom just above): a WHOOP owner averages the in-band

@@ -1051,6 +1051,11 @@ object IntelligenceEngine {
             // windowed avgHrv. Emitted here where `rr` is in scope; byte-identical to the Swift line.
             val sleepRrRows = rr.filter { r -> res.sleepSessions.any { r.ts >= it.start && r.ts < it.end } }
             val sleepRr = sleepRrRows.map { it.rrMs.toDouble() }
+            // #1331: the RSA gate's inputs, carried to the resp diagnostic below. Declared out here because
+            // the HRV block is one scope deeper; a night with no sleep R-R leaves them null and the resp
+            // line falls back to its original one-field form.
+            var respGateAcc: Double? = null
+            var respGateIntegrity: String? = null
             if (sleepRr.isNotEmpty()) {
                 val h = HrvAnalyzer.analyzeRaw(sleepRr)
                 val ms = { v: Double? -> v?.let { String.format(java.util.Locale.US, "%.0f", it) } ?: "nil" }
@@ -1090,10 +1095,12 @@ object IntelligenceEngine {
                 // right to ~1% (meanNN and RHR stay correct and WHOOP-validated) while the individual
                 // intervals are not. Gate on that too. Twin of the Swift line.
                 val accVal = HrvAnalyzer.beatAccurateFraction(ts, sleepRr)
+                respGateAcc = accVal
                 val acc = String.format(java.util.Locale.US, "%.2f", accVal)
                 val sdnnField =
                     if (HrvAnalyzer.beatSpreadIsTrustworthy(verdict) &&
                         HrvAnalyzer.beatValuesAreTrustworthy(accVal)) "${ms(h.sdnn)}ms" else "withheld"
+                respGateIntegrity = verdict.raw
                 dayDiag("hrv diag day=${res.daily.day} rmssd=${ms(h.rmssd)}ms sdnn=$sdnnField meanNN=${ms(h.meanNN)}ms " +
                     "rr=${h.nInput}/${h.nClean} rejected=$rej% coverage=$cov collapsedCov=$colCov dupBeats=$dup " +
                     "beatAccurate=$acc " +
@@ -1209,7 +1216,7 @@ object IntelligenceEngine {
             // #1331 respiratory diagnostic: log each night's breaths/min (or "nil") so a "respiratory not
             // showing" report is explainable from the strap log — a run of nil nights localises when it
             // stopped. Logging only; no scoring change. The Swift diag twin lands with the iOS carry (#1331 follow-up).
-            dayDiag(respRateLogLine(day, res.daily.respRateBpm))
+            dayDiag(respRateLogLine(day, res.daily.respRateBpm, respGateAcc, respGateIntegrity))
             // ── RHR floor-vs-mean diagnostic (#691) ────────────────────────────────────────────────
             // Make the recurring "NOOP's resting HR reads LOWER than my sleeping-HR app" reports
             // explainable from the strap log instead of a guess. The two numbers measure different
@@ -2712,10 +2719,41 @@ object IntelligenceEngine {
             "hrRows=$hrRows provenance=$provenance"
     }
 
-    /** #1331 diagnostic line: the night's computed respiratory rate (breaths/min) or "nil". Format kept
-     *  simple so the planned Swift twin (iOS #1331 follow-up) can match it byte-for-byte. */
-    internal fun respRateLogLine(day: String, respRateBpm: Double?): String =
-        "resp day=$day rpm=${respRateBpm?.let { String.format(Locale.US, "%.1f", it) } ?: "nil"}"
+    /**
+     * #1331 diagnostic line: the night's computed respiratory rate (breaths/min) or "nil".
+     *
+     * When the rate is nil the line now carries WHY, because "nil" on its own sent an investigation
+     * across two subsystems to find out. The RSA estimate needs per-beat-accurate R-R, so
+     * [HrvAnalyzer.beatValuesAreTrustworthy] refuses a stream whose intervals are not beat-to-beat
+     * measurements — and on a WHOOP 4.0 carrying the #1008/#1118 over-count that gate is what empties
+     * the card, on nearly every night, silently. Printing the fraction beside the boundary turns
+     * "Respiratory: No data" from a mystery into a reading.
+     *
+     * It distinguishes the two cases rather than asserting one: below the boundary the gate refused the
+     * R-R; at or above it the gate passed and the cause is one of the estimator's other exits (too few
+     * beats, too short a span, too coarse a grid), which this deliberately does not guess between.
+     * Omitting [beatAccurate] restores the original one-field line exactly, so a night that never
+     * reached the HRV block reads as it always did.
+     *
+     * Swift twin: `IntelligenceEngine.respRateLogLine`.
+     */
+    internal fun respRateLogLine(
+        day: String,
+        respRateBpm: Double?,
+        beatAccurate: Double? = null,
+        rrIntegrity: String? = null,
+    ): String {
+        val base = "resp day=$day rpm=${respRateBpm?.let { String.format(Locale.US, "%.1f", it) } ?: "nil"}"
+        if (respRateBpm != null || beatAccurate == null) return base
+        val acc = String.format(Locale.US, "%.2f", beatAccurate)
+        val gate = String.format(Locale.US, "%.2f", HrvAnalyzer.BEAT_ACCURACY_MIN_FRACTION)
+        val integrity = rrIntegrity ?: "unknown"
+        return if (beatAccurate < HrvAnalyzer.BEAT_ACCURACY_MIN_FRACTION) {
+            "$base beatAccurate=$acc<$gate rrIntegrity=$integrity — RSA gate refused the R-R"
+        } else {
+            "$base beatAccurate=$acc>=$gate rrIntegrity=$integrity — gate passed, cause is elsewhere"
+        }
+    }
 
     /**
      * The per-day RHR floor-vs-mean diagnostic line (#691). NOOP's [floor] is the WHOOP-style resting
