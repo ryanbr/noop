@@ -804,6 +804,9 @@ final class IntelligenceEngine: ObservableObject {
             // along on one; carried out alongside `out` and replayed through `diagnosticSink` on the main
             // actor below, same as `rhrLine`/the trace arrays. Mirrors the Kotlin `diag` sink.
             var skippedDayLines: [String] = []
+            // #1121: days skipped for too little raw HR, collected and emitted as ONE line after the loop
+            // instead of one line each, every pass — see `skippedSleepDaysLine`.
+            var skippedSleepDays: [(day: String, hrSamples: Int)] = []
             // #938: the WHOOP 4.0 ADC offset is per-device, not per-night. Learn one anchor per owner
             // from the whole scan window and reuse it for every night so cross-night deviations survive.
             let skinAnchorScanFrom = nowLocalMidnight - (maxDays - 1) * 86_400 - 30 * 3_600
@@ -904,7 +907,7 @@ final class IntelligenceEngine: ObservableObject {
                     // This day still paid for its read; count it, or the tally under-reports exactly the
                     // sparse-history installs where reads dominate most.
                     dayPrepSeconds += Date().timeIntervalSince(tPrep0)
-                    skippedDayLines.append("sleep day=\(day) SKIPPED hrSamples=\(hr.count) (need ≥200)")
+                    skippedSleepDays.append((day: day, hrSamples: hr.count))
                     continue
                 }
                 let rr = (try? await store.rrIntervals(deviceId: owner, from: from, to: to, limit: 200_000)) ?? []
@@ -1378,6 +1381,9 @@ final class IntelligenceEngine: ObservableObject {
             // so counting it against the ratio made a healthy cache look broken and put a floor under how
             // good the number could ever get. On a store with gaps the old form could not reach `21/21` even
             // in principle, which is exactly the misreading #1538 opened with.
+            if let line = skippedSleepDaysLine(skippedSleepDays, minHrSamples: 200) {
+                skippedDayLines.append(line)
+            }
             skippedDayLines.append("analyzeRecent dayCache reused=\(dayCacheReused)/"
                                    + "\(dayCacheReused + dayCacheCacheable) "
                                    + "size=\(dayScanCacheLocal.count) days=\(maxDays)")

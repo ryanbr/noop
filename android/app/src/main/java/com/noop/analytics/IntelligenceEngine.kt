@@ -61,6 +61,14 @@ object IntelligenceEngine {
      */
     private val analyzeGate = Mutex()
 
+    /** #1121: days this pass skipped for too little raw HR, emitted as ONE line after the loop instead of
+     *  one line each — see [skippedSleepDaysLine]. A FIELD, not a local, for a mechanical reason:
+     *  [analyzeRecentOnCpu] is `suspend` and sits 64 bytes under the JVM ceiling #1524 guards, so one more
+     *  local live across a loop full of suspension points is saved and restored at every one of them —
+     *  measured at +444 bytes, seven times the whole margin. Cleared at the top of each pass. Safe for the
+     *  same reason [dayScanCache] is: every pass runs under [analyzeGate], so there is no concurrent access. */
+    private val skippedSleepDays = SleepSkipCollector()
+
     /**
      * #1005 BATTERY: in-memory per-day reuse for [analyzeRecent]'s pass-1 loop, keyed by day. On a heavy user
      * (21 nights, ~178 k HR rows/night, a 1.26 GB store) every re-score re-read *every* night's raw streams
@@ -733,6 +741,7 @@ object IntelligenceEngine {
         // itself. Emitted once per pass beside the reuse line. Byte-identical line to the Swift twin.
         var dayPrepNanos = 0L
         var dayScoreNanos = 0L
+        skippedSleepDays.reset()
         // #1538: days that were actually cacheable this pass (freshly scored AND stored under a key).
         // Together with [dayCacheReused] this is the honest denominator for the reuse ratio — see the
         // diagnostic at the end of the loop.
@@ -861,7 +870,9 @@ object IntelligenceEngine {
                 // This day still paid for its read; count it, or the tally under-reports exactly the
                 // sparse-history installs where reads dominate most.
                 dayPrepNanos += System.nanoTime() - tPrep0
-                diag("sleep day=$day SKIPPED hrSamples=${hr.size} (need ≥$MIN_HR_SAMPLES)")
+                // Collected, not emitted: a day that will never have raw HR is re-skipped on every pass,
+                // so per-day lines repeat forever and evict older lines from the rolling log (#1121).
+                skippedSleepDays.add(day, hr.size)
                 continue
             }
             val rr = repo.rrIntervals(owner, from, to, STREAM_LIMIT)
@@ -1274,6 +1285,7 @@ object IntelligenceEngine {
         // unreadable fingerprint, or a night under the >=200-sample floor — can never be reused, so counting
         // it against the ratio made a healthy cache look broken and put a floor under how good the number
         // could ever get. Byte-identical string to the Swift twin.
+        skippedSleepDays.emit(MIN_HR_SAMPLES, diag)
         diag("analyzeRecent dayCache reused=$dayCacheReused/${dayCacheReused + dayCacheCacheable} " +
             "size=${dayScanCache.size} days=$maxDays")
         // #1538: where the pass actually goes. `prep` is the nine windowed store reads plus the session
