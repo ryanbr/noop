@@ -434,3 +434,69 @@ class EchoDetectionWordFilter(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CatalogSummaryPluralCoverage(unittest.TestCase):
+    """The human-readable coverage summary must count plural entries the same way the gate does.
+
+    `catalog_summary` used to read `localizations[lang].stringUnit.state` directly. A pluralised entry
+    keeps its units under `variations.plural.<category>.stringUnit`, so that flat lookup returned None
+    and scored a fully-translated plural as a gap — it reported de/es/fr/pt-PT missing=4 and pl missing=5
+    on the Strand catalog when every one of those was translated in every form, and it made Polish look
+    worst-covered precisely because it correctly carries one/few/many/other.
+    """
+
+    def _summary(self, catalog: dict) -> str:
+        import contextlib
+        import io
+        saved_catalogs, saved_load = ia.CATALOGS, ia.load_catalog
+        try:
+            ia.CATALOGS = [((), ia.ROOT / "fixture" / "Localizable.xcstrings")]
+            ia.load_catalog = lambda _path: catalog
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                ia.catalog_summary()
+            return buf.getvalue()
+        finally:
+            ia.CATALOGS, ia.load_catalog = saved_catalogs, saved_load
+
+    @staticmethod
+    def _plural(states: dict[str, str]) -> dict:
+        return {"variations": {"plural": {
+            cat: {"stringUnit": {"state": st, "value": f"{cat} form"}} for cat, st in states.items()
+        }}}
+
+    def test_fully_translated_plural_is_not_a_gap(self):
+        cat = {"strings": {"%lld days": {"localizations": {
+            lang: self._plural({"one": "translated", "other": "translated"})
+            for lang in ("de", "es", "fr", "pt-PT")
+        }}}}
+        out = self._summary(cat)
+        for lang in ("de", "es", "fr", "pt-PT"):
+            self.assertIn(f"{lang} missing=0", out)
+
+    def test_polish_extra_plural_categories_are_not_penalised(self):
+        """one/few/many/other is Polish being handled correctly, not five gaps."""
+        cat = {"strings": {"%lld days": {"localizations": {
+            "pl": self._plural({c: "translated" for c in ("one", "few", "many", "other")}),
+        }}}}
+        self.assertIn("pl missing=0", self._summary(cat))
+
+    def test_partially_translated_plural_is_still_a_gap(self):
+        """The fix must not over-correct: one untranslated category still counts."""
+        cat = {"strings": {"%lld days": {"localizations": {
+            "de": self._plural({"one": "translated", "other": "new"}),
+        }}}}
+        self.assertIn("de missing=1", self._summary(cat))
+
+    def test_flat_string_unit_still_counted(self):
+        """Non-plural entries keep working exactly as before."""
+        cat = {"strings": {
+            "Hello": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Hallo"}}}},
+            "Bye": {"localizations": {"de": {"stringUnit": {"state": "new", "value": ""}}}},
+        }}
+        self.assertIn("de missing=1", self._summary(cat))
+
+    def test_should_translate_false_is_skipped(self):
+        cat = {"strings": {"NOOP": {"shouldTranslate": False, "localizations": {}}}}
+        self.assertIn("de missing=0", self._summary(cat))
