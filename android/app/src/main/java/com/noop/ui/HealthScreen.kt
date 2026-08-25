@@ -1750,12 +1750,17 @@ private val SERIES_BACKED_VITAL_KEYS = setOf("fitness_age", "vitality", "steps_e
 /**
  * #1617: which empty-state copy a vital with fewer than two readings should show.
  *
- * The default ("not enough history yet") is honest for any vital the strap actually measures - keep
- * wearing it and readings accumulate. For Blood Oxygen it can be a countdown that never completes:
+ * The default ("not enough history yet") is honest for any vital NOOP can actually chart from this
+ * strap - keep wearing it and readings accumulate. Note the test is chartable, NOT measured: a WHOOP
+ * 4.0 measures blood oxygen and still cannot fill that card. For Blood Oxygen the default can be a
+ * countdown that never completes:
  *
- *  - **WHOOP 4.0.** The `@82` SpO2 candidate is decoded inside `decodeWhoop5Historical`, gated to
- *    `hist_version == 18`, and v18 is explicitly NOT the 4.0's v24 layout - so a 4.0 never produces
- *    one. `spo2Pct` itself is only ever written by an import. Waiting cannot help; importing can.
+ *  - **WHOOP 4.0.** The strap DOES bank blood-oxygen optical channels: `HIST_V24` declares
+ *    `spo2RedOff = 68` / `spo2IrOff = 70`, and a reporter's capture showed 109 v24 records with real
+ *    varying values (red 91-550, ir 597-600). What is missing is the conversion - NOOP never turns
+ *    those channels into a percentage, and `spo2Pct` is only ever written by an import. The strap-
+ *    computed `@82` percentage that does exist is gated to `hist_version == 18`, a 5/MG layout. So
+ *    waiting cannot help and importing can, but NOT because the sensor is absent (#1617).
  *  - **5/MG with the estimate off.** The candidate exists but ships default-off and unverified, so the
  *    screen stays empty until the user turns it on. Naming the switch beats implying more nights.
  *  - **5/MG with it on.** Genuinely just needs nights, so the default copy is right.
@@ -1784,8 +1789,8 @@ internal fun spo2EmptyState(
     if (key != "spo2") return default
     return when {
         family == com.noop.protocol.DeviceFamily.WHOOP4 -> VitalEmptyState(
-            R.string.l10n_health_screen_your_whoop_4_0_does_not_5941a06e,
-            R.string.l10n_health_screen_blood_oxygen_is_not_something_a_c39d2144,
+            R.string.l10n_health_screen_no_blood_oxygen_percentage_from_a_1d3d383e,
+            R.string.l10n_health_screen_your_strap_banks_the_raw_optical_b52a0f80,
         )
         family == com.noop.protocol.DeviceFamily.WHOOP5 && !candidateDisplayOn -> VitalEmptyState(
             R.string.l10n_health_screen_the_blood_oxygen_estimate_is_turned_4c403ab2,

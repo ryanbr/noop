@@ -7,12 +7,13 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 /**
- * #1617: the Blood Oxygen empty state must not promise a reading the strap cannot produce.
+ * #1617: the Blood Oxygen empty state must not promise a reading that is not coming.
  *
- * A WHOOP 4.0 never produces an SpO2 candidate — the `@82` decode is gated to `hist_version == 18`,
- * which is a 5/MG layout — and `spo2Pct` is only ever written by an import. "Not enough history yet"
- * is therefore a countdown that never completes, and it sends the user to wear the strap longer, which
- * is the one thing that cannot help.
+ * A WHOOP 4.0 DOES bank blood-oxygen optical channels (`HIST_V24` carries `spo2RedOff`/`spo2IrOff`, and
+ * a reporter's capture showed 109 v24 records with real varying values). What is missing is the
+ * conversion: NOOP never turns them into a percentage, `spo2Pct` is import-only, and the strap-computed
+ * `@82` percentage is gated to a 5/MG layout. So "not enough history yet" is a countdown that never
+ * completes - but the copy must say the percentage is missing, not that the sensor is.
  */
 class Spo2EmptyStateTest {
 
@@ -21,8 +22,8 @@ class Spo2EmptyStateTest {
     /** The reported case: 4.0, Blood Oxygen, nothing to show and nothing coming. */
     @Test fun whoop4BloodOxygenSaysTheStrapDoesNotReportIt() {
         val s = spo2EmptyState(key = "spo2", family = DeviceFamily.WHOOP4, candidateDisplayOn = false)
-        assertEquals(R.string.l10n_health_screen_your_whoop_4_0_does_not_5941a06e, s.titleRes)
-        assertEquals(R.string.l10n_health_screen_blood_oxygen_is_not_something_a_c39d2144, s.bodyRes)
+        assertEquals(R.string.l10n_health_screen_no_blood_oxygen_percentage_from_a_1d3d383e, s.titleRes)
+        assertEquals(R.string.l10n_health_screen_your_strap_banks_the_raw_optical_b52a0f80, s.bodyRes)
         assertNotEquals("a 4.0 must never be told to wait", notEnoughHistory, s.titleRes)
     }
 
@@ -44,7 +45,7 @@ class Spo2EmptyStateTest {
             assertEquals(notEnoughHistory, s.titleRes)
             assertNotEquals(
                 "a non-WHOOP device must never see the 4.0 copy",
-                R.string.l10n_health_screen_your_whoop_4_0_does_not_5941a06e,
+                R.string.l10n_health_screen_no_blood_oxygen_percentage_from_a_1d3d383e,
                 s.titleRes,
             )
         }
