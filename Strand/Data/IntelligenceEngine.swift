@@ -11,6 +11,12 @@ import StrandAnalytics
 /// itself rather than relying on the values WHOOP computed in the imported CSV.
 @MainActor
 final class IntelligenceEngine: ObservableObject {
+    /// Minimum raw HR samples a day needs before it is scored at all. Mirrors the Kotlin
+    /// `IntelligenceEngine.MIN_HR_SAMPLES`, which has been a named constant there while this side carried
+    /// the literal in more than one place — so a threshold change had to find every copy on this platform
+    /// and exactly one on the other.
+    static let minHrSamples = 200
+
     private let repo: Repository
     private let profile: ProfileStore
     /// The CANONICAL id under whose `-noop` sibling this engine WRITES the computed daily rows, and from
@@ -805,7 +811,11 @@ final class IntelligenceEngine: ObservableObject {
             // actor below, same as `rhrLine`/the trace arrays. Mirrors the Kotlin `diag` sink.
             var skippedDayLines: [String] = []
             // #1121: days skipped for too little raw HR, collected and emitted as ONE line after the loop
-            // instead of one line each, every pass — see `skippedSleepDaysLine`.
+            // instead of one line each, every pass — see `skippedSleepDaysLine`. A LOCAL here, where the
+            // Kotlin twin has to use a field: its `analyzeRecentOnCpu` is `suspend` and sits against the JVM
+            // method-size ceiling, so an extra local live across the loop costs a save/restore at every
+            // suspension point. No such constraint applies here, and the emitted line is identical either
+            // way — do not "align" the two shapes.
             var skippedSleepDays: [(day: String, hrSamples: Int)] = []
             // #938: the WHOOP 4.0 ADC offset is per-device, not per-night. Learn one anchor per owner
             // from the whole scan window and reuse it for every night so cross-night deviations survive.
@@ -903,7 +913,7 @@ final class IntelligenceEngine: ObservableObject {
                 // guessed, for the same reason the day-cache duration is.
                 let tPrep0 = Date()
                 let hr = (try? await store.hrSamples(deviceId: owner, from: from, to: to, limit: 200_000)) ?? []
-                guard hr.count >= 200 else {
+                guard hr.count >= Self.minHrSamples else {
                     // This day still paid for its read; count it, or the tally under-reports exactly the
                     // sparse-history installs where reads dominate most.
                     dayPrepSeconds += Date().timeIntervalSince(tPrep0)
@@ -1375,7 +1385,7 @@ final class IntelligenceEngine: ObservableObject {
             let dayCacheWindow = Set((0..<maxDays).map {
                 AnalyticsEngine.dayString(nowLocalMidnight - $0 * 86_400, offsetSec: tzOffset) })
             dayScanCacheLocal = dayScanCacheLocal.filter { dayCacheWindow.contains($0.key) }
-            if let line = skippedSleepDaysLine(skippedSleepDays, minHrSamples: 200) {
+            if let line = skippedSleepDaysLine(skippedSleepDays, minHrSamples: Self.minHrSamples) {
                 skippedDayLines.append(line)
             }
             // #1538: the denominator is the number of CACHEABLE days this pass (reused + freshly cached),
