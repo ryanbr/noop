@@ -1110,8 +1110,15 @@ fun TodayScreen(
             // fillWorkoutHrFromStrap: imported sessions carry no HR, derive it from strap samples (#77).
             // #510: strap-native rows now read HR under their OWN recording strap (inside the fill), so a 2nd
             // WHOOP's workouts reconcile Avg HR + Effort from their own trace; imported rows keep the default.
+            // #1601: the ACTIVE strap id, not the "my-whoop" default — see the AppViewModel call site.
+            // Left defaulted, an imported row on a non-canonical install reads only the canonical id here
+            // while every other surface reads active ∪ canonical, so its Avg HR stays blank against a
+            // populated graph.
             recentWorkouts = viewModel.repo.fillWorkoutHrFromStrap(
-                recentUnion, effortMethod = NoopPrefs.effortMethod(context)),
+                recentUnion,
+                strapDeviceId = viewModel.deviceId,
+                effortMethod = NoopPrefs.effortMethod(context),
+            ),
             whoopDays = days.size,
             whoopWorkouts = whoopWorkouts.size,
             appleDays = appleDaysCount,

@@ -1768,8 +1768,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             // manual rows already carry their own HR so they pass through unchanged. #961: also backfill a
             // strap-native row's Effort (strain) from the strap trace when it's null, so a live/manual
             // session that ended with sparse HR can't show a blank Effort while the day total counted it.
+            // #1601: pass the ACTIVE strap id. Left to its "my-whoop" default, the fill resolved
+            // `importedSourceIdsFor("my-whoop")` = the canonical id ALONE, while the detail sheet's chart,
+            // zones and HR-recovery all resolve `importedSourceIdsFor(deviceId)` = active ∪ canonical. On
+            // an install whose strap banks under a non-canonical id the chart therefore found HR and this
+            // fill did not, and an imported session rendered "AVG –" beside a populated graph, a full zone
+            // split and a peak — every one of them derived from the samples the average claimed not to
+            // have. The fill's own doc promises "display == graph == zones == effort by construction";
+            // this is the line that has to pass the same id for that to hold.
             val filled = repository.fillWorkoutHrFromStrap(
                 (whoop + apple + detected + activityFiles),
+                strapDeviceId = deviceId,
                 strainMaxHR = profileStore.hrMax.toDouble(),
                 strainSex = profileStore.sex,
                 effortMethod = NoopPrefs.effortMethod(appContext),

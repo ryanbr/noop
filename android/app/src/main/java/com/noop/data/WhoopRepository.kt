@@ -1061,9 +1061,21 @@ class WhoopRepository(
         rows: List<WorkoutRow>,
         // HR read key for IMPORTED rows ONLY (Apple/HC/CSV/activity file): they carry no strap HR of their
         // own, so #77 derives it from the worn strap. STRAP-NATIVE rows ignore this and key on their OWN
-        // recording strap (see [workoutHrDeviceIds]). The canonical "my-whoop" default is the worn strap on a
-        // single-WHOOP install (and every current caller uses it); which strap was worn during an imported
-        // session on a MULTI-strap install is undetermined, so that case is left as-is (not the active strap).
+        // recording strap (see [workoutHrDeviceIds]).
+        //
+        // #1601: both UI callers now pass the ACTIVE strap id. This used to be left at the canonical
+        // default on the reasoning that which strap was worn during an imported session is undetermined on
+        // a MULTI-strap install — true, but it made the common SINGLE-strap case wrong, because an install
+        // whose one strap banks under a non-canonical id (a re-add, or a 5/MG's transient CB-UUID pairing,
+        // #1193) resolved `importedSourceIdsFor("my-whoop")` to the canonical id ALONE while the detail
+        // sheet's chart, zones and HR-recovery resolved active ∪ canonical. The graph found HR and this
+        // fill did not, so the session showed "AVG –" against a populated curve — the state this function's
+        // own promise of "display == graph == zones == effort by construction" exists to prevent.
+        //
+        // The multi-strap ambiguity is not resolved by this, and is not made worse by it either: the union
+        // and its first-wins merge are exactly what the chart already applies to the same window, so the two
+        // now agree rather than disagreeing. A caller that genuinely wants the canonical id can still pass
+        // it; the default stays canonical so no non-UI caller changes behaviour.
         strapDeviceId: String = "my-whoop",
         minSamples: Long = 60,
         cap: Int = 300,

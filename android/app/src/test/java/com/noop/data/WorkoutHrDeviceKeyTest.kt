@@ -119,4 +119,32 @@ class WorkoutHrDeviceKeyTest {
             WhoopRepository.workoutHrDeviceIds("manual", rowDeviceId = "my-whoop", activeStrapId = "whoop-aabbcc"),
         )
     }
+
+    @Test fun `passing the canonical id as activeStrapId defeats the union entirely`() {
+        // #1601 (bartmuskala again, same symptom as the test above): the union fix only works if the
+        // caller HANDS IT the active strap. `fillWorkoutHrFromStrap` took a `strapDeviceId` defaulting to
+        // the canonical id and both UI call sites left it defaulted, so an imported row resolved to the
+        // canonical id ALONE — while the detail sheet's chart, zones and HR-recovery resolved the real
+        // union. The graph found the trace and the Avg HR fill did not, so a Health Connect session
+        // rendered "AVG –" beside a populated curve and a full zone split drawn from the same samples.
+        //
+        // This pins the asymmetry rather than the call site (which is a ViewModel hop and not reachable
+        // from a Robolectric-free suite): the two inputs resolve to DIFFERENT id sets, and the canonical
+        // one is a strict subset that cannot see a non-canonical strap's samples.
+        val viaActive = WhoopRepository.workoutHrDeviceIds(
+            "health-connect", rowDeviceId = "health-connect", activeStrapId = "whoop-aabbcc")
+        val viaCanonicalConstant = WhoopRepository.workoutHrDeviceIds(
+            "health-connect", rowDeviceId = "health-connect", activeStrapId = "my-whoop")
+
+        assertEquals(listOf("whoop-aabbcc", "my-whoop"), viaActive)
+        assertEquals(listOf("my-whoop"), viaCanonicalConstant)
+        assertTrue(
+            "the canonical constant must be a STRICT subset — that is why the fill missed the trace",
+            viaActive.containsAll(viaCanonicalConstant) && viaActive.size > viaCanonicalConstant.size,
+        )
+        assertFalse(
+            "and it cannot see the strap that actually recorded the session",
+            viaCanonicalConstant.contains("whoop-aabbcc"),
+        )
+    }
 }
