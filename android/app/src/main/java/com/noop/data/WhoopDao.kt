@@ -506,6 +506,38 @@ interface WhoopDao : DeviceRegistryDao {
     )
     suspend fun gravitySamples(deviceId: String, from: Long, to: Long, limit: Int): List<GravitySample>
 
+    /** Raw biometric sample counts per device id in a window - see [rawSampleCountsByDevice]. */
+    data class DeviceSampleCount(val deviceId: String, val total: Int)
+
+    /**
+     * Raw biometric sample counts per device id in a window, across every id present in the tables -
+     * including ids the device registry cannot see.
+     *
+     * The registry is the wrong place to ask "where did this night's samples go". `my-whoop` is a source
+     * LABEL for imported/computed data, not necessarily a `pairedDevice` row, and forgetting a device
+     * deletes its row while leaving every sample table untouched. So a forgotten or import-only id owns
+     * rows the registry will never list. Asking the sample tables directly has no such blind spot.
+     *
+     * Counts `hrSample` + `ppgHrSample` + `gravitySample` - the same streams the night funnel's
+     * "no raw biometric samples" guard tests. Unordered; callers sort.
+     *
+     * Filtering on `ts` without a `deviceId` cannot seek into the `(deviceId, ts)` primary key, so this is
+     * an index-ONLY scan (both columns live in that index, so no table rows are touched) with `deviceId`
+     * leading, which also lets the GROUP BY skip a temp b-tree. Cheap enough for a user-triggered
+     * diagnostics export, which is the only caller. Swift twin: `WhoopStore.rawSampleCountsByDevice`.
+     */
+    @Query(
+        "SELECT deviceId, SUM(n) AS total FROM (" +
+            "SELECT deviceId, COUNT(*) AS n FROM hrSample WHERE ts >= :from AND ts <= :to GROUP BY deviceId " +
+            "UNION ALL " +
+            "SELECT deviceId, COUNT(*) AS n FROM ppgHrSample WHERE ts >= :from AND ts <= :to GROUP BY deviceId " +
+            "UNION ALL " +
+            "SELECT deviceId, COUNT(*) AS n FROM gravitySample WHERE ts >= :from AND ts <= :to GROUP BY deviceId" +
+            ") GROUP BY deviceId"
+    )
+    suspend fun rawSampleCountsByDevice(from: Long, to: Long): List<DeviceSampleCount>
+
+
     // MARK: - Daily metrics / sleep reads (mirror MetricsCache.swift)
 
     /**

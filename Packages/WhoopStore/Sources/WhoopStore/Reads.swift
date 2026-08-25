@@ -308,6 +308,44 @@ extension WhoopStore {
         }
     }
 
+    /// Raw biometric sample counts per device id in a window, across every id present in the tables -
+    /// including ids the device registry cannot see.
+    ///
+    /// The registry is the wrong place to ask "where did this night's samples go". `my-whoop` is a source
+    /// LABEL for imported/computed data, not necessarily a `pairedDevice` row, and `DeviceRegistryStore.remove`
+    /// deletes the row while leaving every sample table untouched. So a forgotten or import-only id owns rows
+    /// that `all()` will never list. Asking the sample tables directly has no such blind spot.
+    ///
+    /// Counts `hrSample` + `ppgHrSample` + `gravitySample` - the same streams the night funnel's
+    /// "no raw biometric samples" guard tests. Unordered; callers sort.
+    ///
+    /// Filtering on `ts` without a `deviceId` cannot seek into the `(deviceId, ts)` primary key, so this
+    /// is an index-ONLY scan (both columns live in that index, so no table rows are touched) with
+    /// `deviceId` leading, which also lets the GROUP BY skip a temp b-tree. Cheap enough for a
+    /// user-triggered diagnostics export, which is the only caller.
+    public func rawSampleCountsByDevice(from: Int, to: Int) async throws -> [(String, Int)] {
+        try syncRead { db in
+            try Row.fetchAll(db, sql: """
+                SELECT deviceId, SUM(n) AS total FROM (
+                    SELECT deviceId, COUNT(*) AS n FROM hrSample WHERE ts >= ? AND ts <= ? GROUP BY deviceId
+                    UNION ALL
+                    SELECT deviceId, COUNT(*) AS n FROM ppgHrSample WHERE ts >= ? AND ts <= ? GROUP BY deviceId
+                    UNION ALL
+                    SELECT deviceId, COUNT(*) AS n FROM gravitySample WHERE ts >= ? AND ts <= ? GROUP BY deviceId
+                )
+                GROUP BY deviceId
+                """, arguments: [from, to, from, to, from, to])
+            .map { row -> (String, Int) in
+                // `deviceId` is NOT NULL and the GROUP BY guarantees SUM(n) >= 1 per row, so both read
+                // straight into non-optionals - same idiom as `hrFingerprint` above.
+                let d: String = row["deviceId"]
+                let t: Int = row["total"]
+                return (d, t)
+            }
+            .filter { !$0.0.isEmpty && $0.1 > 0 }
+        }
+    }
+
     public func gravitySamples(deviceId: String, from: Int, to: Int, limit: Int) async throws -> [GravitySample] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """

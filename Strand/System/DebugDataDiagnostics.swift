@@ -149,19 +149,15 @@ enum DebugDataDiagnostics {
         lines.append("Night \(dayStamp(cs.startTs)): grav=\(grav.count) hr=\(hr.count) rr=\(rr.count) resp=\(resp.count) skin=\(skin.count)")
         if grav.isEmpty && hr.isEmpty {
             // #1617 follow-up: do NOT assert "freshly re-added" without testing the other explanation.
-            // A registry can hold several ids for one physical strap (#1193/#740), and when the spine and
+            // Several ids can hold one physical strap's data (#1193/#740), and when the history spine and
             // the raw stream split, the samples exist - just under a different id. The old line printed the
             // innocent cause for that case, which stops the investigation at exactly the point it should
-            // start. Only runs when the active id came back empty, so a healthy install pays nothing.
-            var elsewhere: [(String, Int)] = []
-            let others = ((try? DeviceRegistryStore(dbQueue: store.registryWriter).all()) ?? [])
-                .map(\.id)
-                .filter { $0 != did && !$0.isEmpty }
-            for other in others {
-                let g = (try? await store.gravitySamples(deviceId: other, from: cs.startTs, to: cs.endTs, limit: 200_000))?.count ?? 0
-                let h = (try? await store.hrSamples(deviceId: other, from: cs.startTs, to: cs.endTs, limit: 200_000))?.count ?? 0
-                if g + h > 0 { elsewhere.append((other, g + h)) }
-            }
+            // start. Ask the SAMPLE TABLES, not the registry: `my-whoop` is a source label rather than a
+            // `pairedDevice` row, and forgetting a device drops its row while leaving its samples - so the
+            // registry is blind to exactly the ids worth naming here. Only runs when the active id came
+            // back empty, so a healthy install pays nothing.
+            let elsewhere = ((try? await store.rawSampleCountsByDevice(from: cs.startTs, to: cs.endTs)) ?? [])
+                .filter { $0.0 != did }
             lines.append(orphanedSamplesLine(activeId: did, othersWithSamples: elsewhere))
             return lines
         }

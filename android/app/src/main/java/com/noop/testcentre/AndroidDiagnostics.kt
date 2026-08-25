@@ -153,23 +153,16 @@ object AndroidDiagnostics {
             add("Night ${dayStamp(session.startTs)}: grav=${grav.size} hr=${hr.size} rr=${rr.size} resp=${resp.size} skin=${skin.size}")
             if (grav.isEmpty() && hr.isEmpty()) {
                 // #1617 follow-up: do NOT assert "freshly re-added" without testing the other explanation.
-                // A registry can hold several ids for one physical strap (#1193/#740), and when the spine
+                // Several ids can hold one physical strap's data (#1193/#740), and when the history spine
                 // and the raw stream split, the samples exist - just under a different id. The old line
                 // printed the innocent cause for that case, which stops the investigation at exactly the
-                // point it should start. Only runs when the active id came back empty, so a healthy
-                // install pays nothing.
+                // point it should start. Ask the SAMPLE TABLES, not the registry: "my-whoop" is a source
+                // label rather than a pairedDevice row, and forgetting a device drops its row while leaving
+                // its samples - so the registry is blind to exactly the ids worth naming here. Only runs
+                // when the active id came back empty, so a healthy install pays nothing.
                 val elsewhere = runCatching {
-                    (context.applicationContext as? com.noop.NoopApplication)?.deviceRegistry?.all()
-                        .orEmpty()
-                        .map { it.id }
-                        .filter { it != id && it.isNotBlank() }
-                        .map { other ->
-                            other to (
-                                repo.hrSamples(other, session.startTs, session.endTs, Int.MAX_VALUE).size +
-                                    repo.gravitySamples(other, session.startTs, session.endTs, Int.MAX_VALUE).size
-                                )
-                        }
-                        .filter { it.second > 0 }
+                    repo.rawSampleCountsByDevice(session.startTs, session.endTs)
+                        .filter { it.first != id }
                 }.getOrDefault(emptyList())
                 add(orphanedSamplesLine(id, elsewhere))
                 return@runCatching
