@@ -455,6 +455,9 @@ object AndroidDiagnostics {
         }
         // Tie-break on id: Kotlin's sortedByDescending is stable but Swift's `sorted` is NOT, so equal
         // counts could otherwise order differently on the two platforms and the twin lines would diverge.
+        // The tie-break itself compares UTF-16 code units here and Unicode canonical order in Swift; those
+        // agree for the machine-generated ASCII ids this ever sees ("my-whoop", "whoop-<mac>"), and a
+        // device NICKNAME is a separate field that never reaches this id.
         val named = othersWithSamples
             .sortedWith(compareByDescending<Pair<String, Int>> { it.second }.thenBy { it.first })
             .joinToString(", ") { "'${it.first}' (${it.second} rows)" }

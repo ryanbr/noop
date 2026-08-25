@@ -442,6 +442,9 @@ enum DebugDataDiagnostics {
         }
         // Tie-break on id: Kotlin's sortedByDescending is stable but Swift's `sorted` is NOT, so equal
         // counts could otherwise order differently on the two platforms and the twin lines would diverge.
+        // The tie-break itself compares Unicode canonical order here and UTF-16 code units in Kotlin; those
+        // agree for the machine-generated ASCII ids this ever sees ("my-whoop", "whoop-<mac>"), and a
+        // device NICKNAME is a separate field that never reaches this id.
         let named = othersWithSamples.sorted { $0.1 != $1.1 ? $0.1 > $1.1 : $0.0 < $1.0 }
             .map { "'\($0.0)' (\($0.1) rows)" }
             .joined(separator: ", ")
