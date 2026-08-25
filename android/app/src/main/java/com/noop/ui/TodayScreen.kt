@@ -4883,9 +4883,10 @@ private fun MetricGrid(
     // PER-FIELD respiratory carry (#1331): same reason as spo2CarryDay — respiratory needs a longer
     // clean sleep R-R segment than HRV, so carriedDay can land on a night with HRV but no breaths/min.
     respCarryDay: DailyMetric? = null,
-    // #1599: the same candidate map the tile's sparkline is built from, so the NUMBER and the LINE under
-    // it come from one source. Two bugs fixed this week were a value and a chart on the same card reading
-    // different series (#1601, #1600); this tile is not going to be the third.
+    // #1599: the same candidate map the tile's sparkline is built from, so the number and the line under
+    // it draw on one source rather than two. They are not guaranteed EQUAL — the value carries from
+    // outside the window and the line cannot — but neither can now show data the other has no access to,
+    // which is what made this tile render a number above a blank panel.
     spo2CandidateByDay: Map<String, Double> = emptyMap(),
     unitSystem: UnitSystem = UnitSystem.METRIC,
     effortScale: EffortScale = EffortScale.HUNDRED,
@@ -5009,14 +5010,20 @@ private fun MetricGrid(
             )
         },
         KeyMetric.BLOOD_OXYGEN to run {
-            // Today's OWN reading first — calibrated, else the candidate — and only then the carries.
-            // That ordering is what makes the number equal the last point of the line beside it, since
-            // the spark resolves each day the same way. The carries still cover a day with neither, which
-            // is what they were added for (a computed row never writes spo2Pct).
+            // Candidate LAST, after the carries — the exact precedence the dashboard Blood Oxygen card
+            // uses two sections down this same screen. Putting today's candidate ahead of a carried
+            // calibrated reading is tempting (it would more often equal the last point of the line
+            // beside it) but it makes the two Blood Oxygen surfaces on ONE screen disagree whenever a
+            // user has occasional imports, which is a worse contradiction than a number that outruns its
+            // own window. That mismatch is inherent to an unbounded carry and already true of every
+            // carried metric here; a card contradicting its sibling would be new.
+            //
+            // For the strap-only install this issue is about there are no calibrated readings at all, so
+            // both carries are null and every surface resolves to the candidate regardless.
             val v = d?.spo2Pct
-                ?: d?.day?.let { spo2CandidateByDay[it] }
                 ?: carriedDay?.spo2Pct
                 ?: spo2CarryDay?.spo2Pct
+                ?: d?.day?.let { spo2CandidateByDay[it] }
             KeyTileData(
                 label = uiString(R.string.l10n_today_screen_blood_oxygen_a8ad9ff5),
                 value = v?.let { String.format(Locale.getDefault(), "%.0f", it) } ?: NO_DATA,
