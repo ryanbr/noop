@@ -1280,12 +1280,12 @@ object IntelligenceEngine {
         val dayCacheWindow = (0 until maxDays)
             .map { AnalyticsEngine.dayString(nowLocalMidnight - it * SECONDS_PER_DAY, tzOffsetSeconds) }.toHashSet()
         dayScanCache.keys.retainAll(dayCacheWindow)
+        skippedSleepDays.emit(MIN_HR_SAMPLES, diag)
         // #1538: the denominator is the number of CACHEABLE days this pass (reused + freshly cached), not
         // [maxDays]. A day that never reaches the cache — an import/ring owner, an active trace, an
         // unreadable fingerprint, or a night under the >=200-sample floor — can never be reused, so counting
         // it against the ratio made a healthy cache look broken and put a floor under how good the number
         // could ever get. Byte-identical string to the Swift twin.
-        skippedSleepDays.emit(MIN_HR_SAMPLES, diag)
         diag("analyzeRecent dayCache reused=$dayCacheReused/${dayCacheReused + dayCacheCacheable} " +
             "size=${dayScanCache.size} days=$maxDays")
         // #1538: where the pass actually goes. `prep` is the nine windowed store reads plus the session

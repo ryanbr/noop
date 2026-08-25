@@ -1375,15 +1375,15 @@ final class IntelligenceEngine: ObservableObject {
             let dayCacheWindow = Set((0..<maxDays).map {
                 AnalyticsEngine.dayString(nowLocalMidnight - $0 * 86_400, offsetSec: tzOffset) })
             dayScanCacheLocal = dayScanCacheLocal.filter { dayCacheWindow.contains($0.key) }
+            if let line = skippedSleepDaysLine(skippedSleepDays, minHrSamples: 200) {
+                skippedDayLines.append(line)
+            }
             // #1538: the denominator is the number of CACHEABLE days this pass (reused + freshly cached),
             // not `maxDays`. A day that never reaches the cache — an import/ring owner, an active Test-Centre
             // trace, an unreadable fingerprint, or a night under the ≥200-sample floor — can never be reused,
             // so counting it against the ratio made a healthy cache look broken and put a floor under how
             // good the number could ever get. On a store with gaps the old form could not reach `21/21` even
             // in principle, which is exactly the misreading #1538 opened with.
-            if let line = skippedSleepDaysLine(skippedSleepDays, minHrSamples: 200) {
-                skippedDayLines.append(line)
-            }
             skippedDayLines.append("analyzeRecent dayCache reused=\(dayCacheReused)/"
                                    + "\(dayCacheReused + dayCacheCacheable) "
                                    + "size=\(dayScanCacheLocal.count) days=\(maxDays)")
