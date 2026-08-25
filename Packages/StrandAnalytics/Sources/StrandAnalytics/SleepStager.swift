@@ -213,18 +213,22 @@ public enum SleepStager {
     // HISTORY — an HR-led "rescue" of motion-vetoed runs was built beside this bridge and WITHDRAWN
     // after a 5-night real-data replay against the reporting wearer's server mirror (2026-08-24).
     // The rescue reclassified an "active" run as sleep when its median in-run HR sat inside the
-    // `confirmSleepWithHR` band, aiming at restless-but-asleep nights the stillness spine collapses
-    // to their quietest fragment (hours of HR 47–58 bpm scoring nothing). On the real wearer the
-    // discriminator failed: a low-HR wearer's quiet awake EVENING (median ~58 bpm vs a ~64 window
-    // baseline) also sits inside the ×1.05 band, so whole evenings were rescued and chained — the
-    // assembled run then either exceeded the H4 cap and dropped the night to ZERO, or squeaked
-    // under it and scored a 15 h "night" starting at 18:00. The strap's own banked band sleep_state
-    // could not arbitrate: it is motion-led too and read "wake" across the HR-proven sleep. Median
-    // HR LEVEL cannot separate that wearer's quiet wakefulness from sleep; only dip DEPTH
-    // (sleep-only minima 42–48 bpm) looked separable, and placing an onset BOUNDARY from dips needs
-    // a properly validated design (#194/#345). The restless-night DROPPING failure therefore
-    // remains OPEN — do not re-land an HR-band rescue without multi-night evidence that it refuses
-    // quiet awake evenings on low-HR wearers.
+    // `confirmSleepWithHR` band, on the premise that a motion-vetoed night with HR 47–58 bpm was
+    // restless-but-asleep. On the real wearer the discriminator failed: a low-HR wearer's quiet
+    // awake HR (median ~58 bpm, awake-resting low-50s, RHR ~44) also sits inside the ×1.05 band off
+    // the ~64 window baseline, so whole awake evenings were rescued and chained — the assembled run
+    // then either exceeded the H4 cap and dropped the night to ZERO, or squeaked under it and
+    // scored a 15 h "night" starting at 18:00. A follow-up decode investigation (2026-08-24) then
+    // verified the MG gravity decode CLEAN (unit-norm throughout; the alarming server "postureVar"
+    // is a per-axis RANGE, not a variance) and showed the premise itself was partly wrong: on the
+    // flagship "dropped" night the strap's own band state read wake across the disputed hours WITH
+    // corroborating 70–75 bpm stretches and continuous posture change — likely genuine in-bed
+    // wakefulness the stillness spine was RIGHT to reject. Median HR LEVEL cannot separate that
+    // wearer's quiet wakefulness from sleep; only dip DEPTH (sleep-only minima 42–48 bpm) looked
+    // separable, and placing an onset BOUNDARY from dips needs a properly validated design
+    // (#194/#345) plus per-night ground truth that HR alone cannot supply. Do not re-land an
+    // HR-band rescue without multi-night evidence that it refuses quiet awake stretches on low-HR
+    // wearers.
 
     /// Adjacent sleep runs separated by at most this many minutes are assembled into ONE candidate
     /// run (wake-bridge pass only). Below the selector-side `SleepStageTotals.gapBridgeMaxMin` (60)

@@ -604,13 +604,15 @@ object SleepStager {
     //
     // HISTORY — an HR-led "rescue" of motion-vetoed runs was built beside this bridge and WITHDRAWN
     // after a 5-night real-data replay against the reporting wearer's server mirror (2026-08-24):
-    // on a low-HR wearer the quiet awake EVENING median (~58 bpm vs a ~64 window baseline) also
-    // sits inside the ×1.05 sleep band, so whole evenings were rescued and chained — the assembled
-    // run then either exceeded the H4 cap (night dropped to ZERO) or squeaked under it (a 15 h
-    // "night" starting at 18:00). The strap's own banked band sleep_state could not arbitrate (it
-    // is motion-led too and read "wake" across the HR-proven sleep). The restless-night DROPPING
-    // failure remains OPEN — see the Swift history note above `wakeBridgeMaxMin` before
-    // re-attempting an HR-band rescue. Mirrors Swift.
+    // on a low-HR wearer the quiet awake HR (median ~58 bpm, awake-resting low-50s, RHR ~44) also
+    // sits inside the ×1.05 sleep band off the ~64 window baseline, so whole awake evenings were
+    // rescued and chained — the assembled run then either exceeded the H4 cap (night dropped to
+    // ZERO) or squeaked under it (a 15 h "night" starting at 18:00). A follow-up decode
+    // investigation then verified the MG gravity decode CLEAN and showed the premise was partly
+    // wrong: on the flagship "dropped" night the strap's band state read wake across the disputed
+    // hours with corroborating 70–75 bpm stretches — likely genuine in-bed wakefulness the
+    // stillness spine was RIGHT to reject. See the Swift history note above `wakeBridgeMaxMin`
+    // before re-attempting an HR-band rescue. Mirrors Swift.
 
     /** Adjacent sleep runs separated by at most this many minutes are assembled into ONE candidate
      *  run (wake-bridge pass only). Below the selector-side `SleepStageTotals.gapBridgeMaxMin` (60)
