@@ -469,26 +469,32 @@ internal fun buildingHint(metric: KeyMetric, isToday: Boolean): Int? {
  * #1599: which series the Blood Oxygen tile plots — the calibrated one, or the strap candidate.
  *
  * `AnalyticsEngine` writes `spo2Pct = null` on every computed day and banks the raw red/IR ADC instead,
- * so a calibrated reading only ever arrives from an IMPORT. On a strap-only install [calibrated] is
- * empty by construction, and the tile drew a value above a blank panel while every neighbour had a line.
+ * so a calibrated reading only ever arrives from an IMPORT. On a strap-only install [calibrated] is empty
+ * by construction, and the tile drew a value above a blank panel while every neighbour had a line.
  *
- * The rule is a WHOLE-SERIES swap, not a per-day merge, and deliberately so: it is what the Apple tile
- * does (`spo2.value == "—" && candidateTail != nil ? sparks["spo2_candidate"] : sparks["spo2"]`), and a
- * line that silently interleaved a measured import with an unverified strap estimate would be a chart
- * whose points do not share a provenance. Swapping wholesale keeps one caption honest for the whole line.
+ * Gated on whether a series can be DRAWN, not on whether a value exists. The Apple tile asks the latter
+ * (`spo2.value == "—" && candidateTail != nil`), and that misses the case this issue was actually
+ * reported from: one old imported reading carries the tile's VALUE forward indefinitely, so the value is
+ * never "—", so the swap never fires — while the 14-day window it would have to plot still holds nothing.
+ * A number with no line, which is the bug. The sparkline's question is "have I got two points", so that
+ * is what decides it.
  *
- * [calibratedValue] is the tile's calibrated value INCLUDING its carries — the candidate is a fallback
- * for having nothing, never an override for having something stale. Mirrors the precedence the dashboard
- * Blood Oxygen card on the same screen already uses.
+ * Falls back to [calibrated] when NEITHER can be drawn, so a tile with no data anywhere behaves exactly
+ * as it did — nothing is drawn, and nothing is invented to fill the space.
  */
 internal fun spo2SparkSeries(
     calibrated: List<Double>,
     candidate: List<Double>,
-    calibratedValue: Double?,
-): List<Double> = if (calibratedValue == null && candidate.isNotEmpty()) candidate else calibrated
+): List<Double> = if (calibrated.size >= 2 || candidate.size < 2) calibrated else candidate
 
-/** True when the tile is showing the strap estimate rather than a measured reading, so the caption can
- *  say so. Same condition as [spo2SparkSeries]'s swap, kept beside it so the line and its label cannot
- *  disagree about what is being plotted. */
+/**
+ * True when the tile's VALUE is the strap estimate rather than a measured reading, so the caption can
+ * say so.
+ *
+ * Deliberately about the value, not the line: the caption renders directly under the number, so it must
+ * describe the number. The two can differ — an unbounded carry can keep a measured value on a tile whose
+ * window has only estimates to plot — and in that case the value is captioned honestly and the line's
+ * provenance goes unlabelled, which is the lesser of the two silences available.
+ */
 internal fun spo2UsingCandidate(calibratedValue: Double?, candidateToday: Double?): Boolean =
     calibratedValue == null && candidateToday != null

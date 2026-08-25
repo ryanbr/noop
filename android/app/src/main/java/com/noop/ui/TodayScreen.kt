@@ -5029,7 +5029,7 @@ private fun MetricGrid(
                 // Say WHOSE number this is. The Apple tile has carried this caption all along; Android
                 // showed an unlabelled figure, which is the harder of the two to argue with.
                 caption = if (onCandidate) uiString(R.string.spo2_strap_estimate_caption) else null,
-                spark = spo2SparkSeries(w.spo2, w.spo2Candidate, calibrated),
+                spark = spo2SparkSeries(w.spo2, w.spo2Candidate),
             )
         },
         KeyMetric.RESPIRATORY to run {
