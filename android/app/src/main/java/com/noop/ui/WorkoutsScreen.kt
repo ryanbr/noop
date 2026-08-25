@@ -464,7 +464,13 @@ internal fun AddWorkoutButton(onAdd: () -> Unit, modifier: Modifier = Modifier) 
             .clip(RoundedCornerShape(50))
             .background(Palette.accentMuted)
             .clickable(onClick = onAdd)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            // Horizontal padding matches the Start button's contentPadding (10.dp), not the 14.dp this
+            // used to carry. Width is fixed by `weight(1f)` so this is invisible in English — it only
+            // shows once a label is long enough to compete for the space. This button already gives up
+            // 22.dp to its icon and spacer that Start does not, and the longest translations are
+            // comparable in length between the two ("Ajouter un entraînement" against "Démarrer
+            // l'entraînement"), so the 8.dp was pure asymmetry: Add would ellipsize first.
+            .padding(horizontal = 10.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
