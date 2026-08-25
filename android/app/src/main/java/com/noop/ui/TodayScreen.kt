@@ -5011,26 +5011,25 @@ private fun MetricGrid(
         },
         KeyMetric.BLOOD_OXYGEN to run {
             // Candidate LAST, after the carries — the exact precedence the dashboard Blood Oxygen card
-            // uses two sections down this same screen. Putting today's candidate ahead of a carried
-            // calibrated reading is tempting (it would more often equal the last point of the line
-            // beside it) but it makes the two Blood Oxygen surfaces on ONE screen disagree whenever a
-            // user has occasional imports, which is a worse contradiction than a number that outruns its
-            // own window. That mismatch is inherent to an unbounded carry and already true of every
-            // carried metric here; a card contradicting its sibling would be new.
+            // uses two sections down this same screen, and the one the Apple tile uses. The candidate is
+            // a fallback for having nothing, never an override for having something stale.
             //
             // For the strap-only install this issue is about there are no calibrated readings at all, so
             // both carries are null and every surface resolves to the candidate regardless.
-            val v = d?.spo2Pct
-                ?: carriedDay?.spo2Pct
-                ?: spo2CarryDay?.spo2Pct
-                ?: d?.day?.let { spo2CandidateByDay[it] }
+            val calibrated = d?.spo2Pct ?: carriedDay?.spo2Pct ?: spo2CarryDay?.spo2Pct
+            val candidateToday = d?.day?.let { spo2CandidateByDay[it] }
+            val onCandidate = spo2UsingCandidate(calibrated, candidateToday)
+            val v = calibrated ?: candidateToday
             KeyTileData(
                 label = uiString(R.string.l10n_today_screen_blood_oxygen_a8ad9ff5),
                 value = v?.let { String.format(Locale.getDefault(), "%.0f", it) } ?: NO_DATA,
                 unit = if (v != null) "%" else "",
                 tint = Palette.metricCyan,
                 frac = v?.let { (it / 100.0).coerceIn(0.0, 1.0) },
-                spark = w.spo2,
+                // Say WHOSE number this is. The Apple tile has carried this caption all along; Android
+                // showed an unlabelled figure, which is the harder of the two to argue with.
+                caption = if (onCandidate) uiString(R.string.spo2_strap_estimate_caption) else null,
+                spark = spo2SparkSeries(w.spo2, w.spo2Candidate, calibrated),
             )
         },
         KeyMetric.RESPIRATORY to run {
@@ -6691,6 +6690,8 @@ private data class Window(
     val hrv: List<Double>,
     val rhr: List<Double>,
     val spo2: List<Double>,
+    /** #1599: the strap-estimate trend, kept separate from [spo2] so the tile can swap rather than mix. */
+    val spo2Candidate: List<Double> = emptyList(),
     val resp: List<Double>,
     // #616: the Steps tile carried no `spark` series, so it drew no trend line while every other tile did.
     // On-device DailyMetric.steps (the strap @57 count) — the same signal the Steps tile VALUE reads
@@ -6730,10 +6731,10 @@ private fun rememberTrendWindow(
             sleepMin = series { it.totalSleepMin },
             hrv = series { it.avgHrv },
             rhr = series { it.restingHr?.toDouble() },
-            // Calibrated wins per DAY, candidate fills the gaps — the same precedence the readings table
-            // and the "Your Cards" detail chart already use, so the three surfaces agree day for day.
-            // The rule lives in TodayScoring so it can be pinned by a test; this is a composable.
-            spo2 = spo2TrendSeries(recent, spo2Candidate),
+            spo2 = series { it.spo2Pct },
+            // #1599: the strap estimate as its OWN series, not merged into the one above. The tile swaps
+            // wholesale between them so a single caption can describe every point on the line.
+            spo2Candidate = recent.mapNotNull { spo2Candidate[it.day] },
             resp = series { it.respRateBpm },
             steps = series { it.steps?.toDouble() },   // #616
         )

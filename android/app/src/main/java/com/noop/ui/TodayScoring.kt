@@ -466,21 +466,29 @@ internal fun buildingHint(metric: KeyMetric, isToday: Boolean): Int? {
 }
 
 /**
- * #1599: the Blood Oxygen trend series for a window of days — calibrated where it exists, the strap
- * candidate where it does not.
+ * #1599: which series the Blood Oxygen tile plots — the calibrated one, or the strap candidate.
  *
  * `AnalyticsEngine` writes `spo2Pct = null` on every computed day and banks the raw red/IR ADC instead,
- * so a calibrated reading only ever arrives from an IMPORT. On a strap-only install a series built from
- * `spo2Pct` alone is empty by construction, and the Key Metrics tile drew a value above blank space
- * while every neighbouring tile had a line.
+ * so a calibrated reading only ever arrives from an IMPORT. On a strap-only install [calibrated] is
+ * empty by construction, and the tile drew a value above a blank panel while every neighbour had a line.
  *
- * Extracted from the composable that uses it because the PRECEDENCE is the part worth pinning: the same
- * "calibrated wins per day, candidate fills the gap" rule governs the readings table and the "Your Cards"
- * detail chart, and the three only agree while they resolve a day the same way. [candidate] arrives empty
- * when the display toggle is off, so this needs no second gate.
+ * The rule is a WHOLE-SERIES swap, not a per-day merge, and deliberately so: it is what the Apple tile
+ * does (`spo2.value == "—" && candidateTail != nil ? sparks["spo2_candidate"] : sparks["spo2"]`), and a
+ * line that silently interleaved a measured import with an unverified strap estimate would be a chart
+ * whose points do not share a provenance. Swapping wholesale keeps one caption honest for the whole line.
+ *
+ * [calibratedValue] is the tile's calibrated value INCLUDING its carries — the candidate is a fallback
+ * for having nothing, never an override for having something stale. Mirrors the precedence the dashboard
+ * Blood Oxygen card on the same screen already uses.
  */
-internal fun spo2TrendSeries(
-    recent: List<com.noop.data.DailyMetric>,
-    candidate: Map<String, Double>,
-): List<Double> = recent.mapNotNull { it.spo2Pct ?: candidate[it.day] }
+internal fun spo2SparkSeries(
+    calibrated: List<Double>,
+    candidate: List<Double>,
+    calibratedValue: Double?,
+): List<Double> = if (calibratedValue == null && candidate.isNotEmpty()) candidate else calibrated
 
+/** True when the tile is showing the strap estimate rather than a measured reading, so the caption can
+ *  say so. Same condition as [spo2SparkSeries]'s swap, kept beside it so the line and its label cannot
+ *  disagree about what is being plotted. */
+internal fun spo2UsingCandidate(calibratedValue: Double?, candidateToday: Double?): Boolean =
+    calibratedValue == null && candidateToday != null
