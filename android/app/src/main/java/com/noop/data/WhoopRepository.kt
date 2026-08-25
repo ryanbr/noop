@@ -1074,9 +1074,14 @@ class WhoopRepository(
         //
         // The multi-strap ambiguity is not resolved by this, and is not made worse by it either: the union
         // and its first-wins merge are exactly what the chart already applies to the same window, so the two
-        // now agree rather than disagreeing. A caller that genuinely wants the canonical id can still pass
-        // it; the default stays canonical so no non-UI caller changes behaviour.
-        strapDeviceId: String = "my-whoop",
+        // now agree rather than disagreeing.
+        //
+        // REQUIRED, no default. The canonical default is what caused this — #857 unified the RESOLVER
+        // ("one HR device-id rule for the chart, zones, Avg HR and HRR") but this parameter, inherited from
+        // #77, kept feeding it a different active id, so the one rule ran on two inputs and Avg HR was the
+        // surface that missed out. Nothing depended on the default once both call sites were corrected, and
+        // a caller that cannot name the strap it means should not be silently given the canonical one.
+        strapDeviceId: String,
         minSamples: Long = 60,
         cap: Int = 300,
         // #961: the user's HRmax + sex. When supplied, a strap-native row whose Effort (strain) is null gets
