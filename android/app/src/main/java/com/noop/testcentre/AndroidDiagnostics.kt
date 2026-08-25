@@ -152,7 +152,26 @@ object AndroidDiagnostics {
             val resp = repo.respSamples(id, session.startTs, session.endTs, Int.MAX_VALUE)
             add("Night ${dayStamp(session.startTs)}: grav=${grav.size} hr=${hr.size} rr=${rr.size} resp=${resp.size} skin=${skin.size}")
             if (grav.isEmpty() && hr.isEmpty()) {
-                add("(no raw biometric samples under '$id' for this night — expected on a freshly re-added strap; reconnect + let a history sync run, then re-export)")
+                // #1617 follow-up: do NOT assert "freshly re-added" without testing the other explanation.
+                // A registry can hold several ids for one physical strap (#1193/#740), and when the spine
+                // and the raw stream split, the samples exist - just under a different id. The old line
+                // printed the innocent cause for that case, which stops the investigation at exactly the
+                // point it should start. Only runs when the active id came back empty, so a healthy
+                // install pays nothing.
+                val elsewhere = runCatching {
+                    (context.applicationContext as? com.noop.NoopApplication)?.deviceRegistry?.all()
+                        .orEmpty()
+                        .map { it.id }
+                        .filter { it != id && it.isNotBlank() }
+                        .map { other ->
+                            other to (
+                                repo.hrSamples(other, session.startTs, session.endTs, Int.MAX_VALUE).size +
+                                    repo.gravitySamples(other, session.startTs, session.endTs, Int.MAX_VALUE).size
+                                )
+                        }
+                        .filter { it.second > 0 }
+                }.getOrDefault(emptyList())
+                add(orphanedSamplesLine(id, elsewhere))
                 return@runCatching
             }
             com.noop.analytics.SleepStager.remFunnelDiagnostic(session.startTs, session.endTs, grav, hr, rr, resp)
@@ -419,5 +438,35 @@ object AndroidDiagnostics {
             }.getOrDefault(false)
             "$label=${if (granted) "granted" else "denied"}"
         }
+    }
+
+    /**
+     * #1617 follow-up: the line the night funnel prints when the ACTIVE device id carries no raw samples.
+     *
+     * The previous wording asserted "expected on a freshly re-added strap" unconditionally. That is one of
+     * two explanations, and the other one is a bug: a registry can hold several ids for the same physical
+     * strap (#1193/#740), and when the history spine and the raw stream split, the samples are present -
+     * just filed under a different id. Printing the innocent cause for that case ends the investigation at
+     * the point it should begin, which is worse than printing nothing.
+     *
+     * [othersWithSamples] is (deviceId, sampleCount) for every OTHER registry id that does hold samples in
+     * the same window. Empty means the samples genuinely are not there and the fresh-re-add wording is
+     * right; non-empty names the id that has them so the split is visible rather than inferred.
+     *
+     * Pure so the wording is unit-tested without a database, a strap, or a registry.
+     */
+    internal fun orphanedSamplesLine(activeId: String, othersWithSamples: List<Pair<String, Int>>): String {
+        if (othersWithSamples.isEmpty()) {
+            return "(no raw biometric samples under '$activeId' for this night — expected on a freshly " +
+                "re-added strap; reconnect + let a history sync run, then re-export)"
+        }
+        // Tie-break on id: Kotlin's sortedByDescending is stable but Swift's `sorted` is NOT, so equal
+        // counts could otherwise order differently on the two platforms and the twin lines would diverge.
+        val named = othersWithSamples
+            .sortedWith(compareByDescending<Pair<String, Int>> { it.second }.thenBy { it.first })
+            .joinToString(", ") { "'${it.first}' (${it.second} rows)" }
+        return "(no raw biometric samples under the ACTIVE id '$activeId' for this night — they are under " +
+            "$named instead. The history spine and the raw stream are on different device ids (#1193); this " +
+            "is NOT a fresh re-add, the samples exist and are not being read.)"
     }
 }

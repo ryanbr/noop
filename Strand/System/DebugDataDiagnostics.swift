@@ -148,7 +148,21 @@ enum DebugDataDiagnostics {
         let resp = (try? await store.respSamples(deviceId: did, from: cs.startTs, to: cs.endTs, limit: 200_000)) ?? []
         lines.append("Night \(dayStamp(cs.startTs)): grav=\(grav.count) hr=\(hr.count) rr=\(rr.count) resp=\(resp.count) skin=\(skin.count)")
         if grav.isEmpty && hr.isEmpty {
-            lines.append("(no raw biometric samples under '\(did)' for this night — expected on a freshly re-added strap; reconnect + let a history sync run, then re-export)")
+            // #1617 follow-up: do NOT assert "freshly re-added" without testing the other explanation.
+            // A registry can hold several ids for one physical strap (#1193/#740), and when the spine and
+            // the raw stream split, the samples exist - just under a different id. The old line printed the
+            // innocent cause for that case, which stops the investigation at exactly the point it should
+            // start. Only runs when the active id came back empty, so a healthy install pays nothing.
+            var elsewhere: [(String, Int)] = []
+            let others = ((try? DeviceRegistryStore(dbQueue: store.registryWriter).all()) ?? [])
+                .map(\.id)
+                .filter { $0 != did && !$0.isEmpty }
+            for other in others {
+                let g = (try? await store.gravitySamples(deviceId: other, from: cs.startTs, to: cs.endTs, limit: 200_000))?.count ?? 0
+                let h = (try? await store.hrSamples(deviceId: other, from: cs.startTs, to: cs.endTs, limit: 200_000))?.count ?? 0
+                if g + h > 0 { elsewhere.append((other, g + h)) }
+            }
+            lines.append(orphanedSamplesLine(activeId: did, othersWithSamples: elsewhere))
             return lines
         }
         if let rem = SleepStager.remFunnelDiagnostic(start: cs.startTs, end: cs.endTs, grav: grav, hr: hr, rr: rr, resp: resp) {
@@ -409,5 +423,34 @@ enum DebugDataDiagnostics {
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyy-MM-dd"
         return f.string(from: Date(timeIntervalSince1970: TimeInterval(epochSec)))
+    }
+
+    /// #1617 follow-up: the line the night funnel prints when the ACTIVE device id carries no raw samples.
+    ///
+    /// The previous wording asserted "expected on a freshly re-added strap" unconditionally. That is one of
+    /// two explanations, and the other one is a bug: a registry can hold several ids for the same physical
+    /// strap (#1193/#740), and when the history spine and the raw stream split, the samples are present -
+    /// just filed under a different id. Printing the innocent cause for that case ends the investigation at
+    /// the point it should begin, which is worse than printing nothing.
+    ///
+    /// `othersWithSamples` is (deviceId, sampleCount) for every OTHER registry id that does hold samples in
+    /// the same window. Empty means the samples genuinely are not there and the fresh-re-add wording is
+    /// right; non-empty names the id that has them so the split is visible rather than inferred.
+    ///
+    /// Pure so the wording is unit-tested without a database, a strap, or a registry. Kotlin twin:
+    /// `com.noop.testcentre.orphanedSamplesLine`.
+    static func orphanedSamplesLine(activeId: String, othersWithSamples: [(String, Int)]) -> String {
+        if othersWithSamples.isEmpty {
+            return "(no raw biometric samples under '\(activeId)' for this night — expected on a freshly "
+                + "re-added strap; reconnect + let a history sync run, then re-export)"
+        }
+        // Tie-break on id: Kotlin's sortedByDescending is stable but Swift's `sorted` is NOT, so equal
+        // counts could otherwise order differently on the two platforms and the twin lines would diverge.
+        let named = othersWithSamples.sorted { $0.1 != $1.1 ? $0.1 > $1.1 : $0.0 < $1.0 }
+            .map { "'\($0.0)' (\($0.1) rows)" }
+            .joined(separator: ", ")
+        return "(no raw biometric samples under the ACTIVE id '\(activeId)' for this night — they are under "
+            + "\(named) instead. The history spine and the raw stream are on different device ids (#1193); this "
+            + "is NOT a fresh re-add, the samples exist and are not being read.)"
     }
 }
