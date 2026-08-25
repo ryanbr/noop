@@ -125,4 +125,33 @@ class HelloIdentityProbeTest {
         assertTrue(HelloIdentityProbe.candidateLines(ByteArray(0)).isEmpty())
         assertEquals("HELLO(145) block len=0 runs: none", HelloIdentityProbe.report(ByteArray(0)))
     }
+
+    /**
+     * #1303 capture aid, WHOOP 4.0 shape. A real cmd-35 response is 131 bytes carrying TWO alnum runs:
+     * the 9-char SERIAL at offset 14, and the 54-char DEVICE KEY at offset 24. The aid must still show the
+     * serial — that is what it exists for — and must not show the key, which is exactly what the raw hex
+     * dump this replaced got wrong. Twin of the Swift
+     * `testWhoop4HelloHarvardShapeShowsSerialAndWithholdsDeviceKey`.
+     */
+    @Test fun whoop4HelloHarvardShapeShowsSerialAndWithholdsDeviceKey() {
+        val serial = "4C1246632"          // 9 alnum: inside the 6..20 serial window
+        val key = "A1B2C3".repeat(9)      // 54 alnum: outside it
+        val p = payload(131, listOf(14 to serial, 24 to key))
+        val line = HelloIdentityProbe.report(p, block = "HELLO_HARVARD(35)", knownNameOffset = -1)
+        assertEquals(
+            "HELLO_HARVARD(35) block len=131 runs: " +
+                "off=14 len=9 alnum \"4C1246632\"; off=24 len=54 alnum (withheld)",
+            line,
+        )
+        assertFalse("the device key must never reach the log", line.contains(key))
+    }
+
+    /** The [block] label must reach the prefix; both families now log through this one function. */
+    @Test fun blockLabelReachesThePrefix() {
+        assertEquals(
+            "HELLO_HARVARD(35) block len=0 runs: none",
+            HelloIdentityProbe.report(ByteArray(0), block = "HELLO_HARVARD(35)"),
+        )
+        assertEquals("HELLO(145) block len=0 runs: none", HelloIdentityProbe.report(ByteArray(0)))
+    }
 }

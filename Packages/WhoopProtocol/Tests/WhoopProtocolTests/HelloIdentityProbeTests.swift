@@ -116,4 +116,28 @@ final class HelloIdentityProbeTests: XCTestCase {
         XCTAssertTrue(HelloIdentityProbe.candidateLines(payload: []).isEmpty)
         XCTAssertEqual(HelloIdentityProbe.report(payload: []), "HELLO(145) block len=0 runs: none")
     }
+
+    /// #1303 capture aid, WHOOP 4.0 shape. A real cmd-35 response is 131 bytes carrying TWO alnum runs:
+    /// the 9-char SERIAL at offset 14, and the 54-char DEVICE KEY at offset 24. The aid must still show
+    /// the serial — that is what it exists for — and must not show the key, which is exactly what the raw
+    /// hex dump this replaced got wrong. The withholding is the whole point, so it is pinned here rather
+    /// than left to the caller.
+    func testWhoop4HelloHarvardShapeShowsSerialAndWithholdsDeviceKey() {
+        let serial = "4C1246632"                          // 9 alnum: inside the 6...20 serial window
+        let key = String(repeating: "A1B2C3", count: 9)   // 54 alnum: outside it
+        let p = payload(length: 131, runs: [(14, serial), (24, key)])
+        let line = HelloIdentityProbe.report(payload: p, block: "HELLO_HARVARD(35)", knownNameOffset: -1)
+        XCTAssertEqual(line,
+                       "HELLO_HARVARD(35) block len=131 runs: "
+                       + #"off=14 len=9 alnum "4C1246632"; off=24 len=54 alnum (withheld)"#)
+        XCTAssertFalse(line.contains(key), "the device key must never reach the log")
+    }
+
+    /// The `block` label must reach the prefix — a default-only implementation would still pass every
+    /// other test here, and both families now log through this one function.
+    func testBlockLabelReachesThePrefix() {
+        XCTAssertEqual(HelloIdentityProbe.report(payload: [], block: "HELLO_HARVARD(35)"),
+                       "HELLO_HARVARD(35) block len=0 runs: none")
+        XCTAssertEqual(HelloIdentityProbe.report(payload: []), "HELLO(145) block len=0 runs: none")
+    }
 }
