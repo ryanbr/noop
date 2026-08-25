@@ -1905,6 +1905,12 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
         }
 
         val values = filteredPoints.map { it.second }
+        // #1600: remembered, unlike the plain projections above it. `shortDayLabel` parses a LocalDate and
+        // runs a DateTimeFormatter PER POINT, so leaving it inline would re-parse every day in the window
+        // on every recomposition — and the recompositions that matter are the ones a finger dragging
+        // across this chart produces. Keyed on `filteredPoints`, whose structural equality holds it stable
+        // across recompositions that do not change the window.
+        val dayLabels = remember(filteredPoints) { filteredPoints.map { shortDayLabel(it.first) } }
         val latest = filteredPoints.last()
         val min = values.minOrNull()
         val max = values.maxOrNull()
@@ -1957,7 +1963,7 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
                     // Derived from `filteredPoints`, the same (day, value) list `values` comes from, so the
                     // two are equal in length by construction rather than by luck — `LineChart` drops
                     // mismatched labels SILENTLY, which is a failure that looks exactly like doing nothing.
-                    selectionLabels = filteredPoints.map { shortDayLabel(it.first) },
+                    selectionLabels = dayLabels,
                     segmentIds = if (key == "vo2max_est") vo2MaxTrendSegmentIds(filteredReadings) else null,
                 )
                 Box(
