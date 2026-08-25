@@ -1215,7 +1215,7 @@ object IntelligenceEngine {
             nightlyRespByDay[day] = res.daily.respRateBpm
             // #1331 respiratory diagnostic: log each night's breaths/min (or "nil") so a "respiratory not
             // showing" report is explainable from the strap log — a run of nil nights localises when it
-            // stopped. Logging only; no scoring change. The Swift diag twin lands with the iOS carry (#1331 follow-up).
+            // stopped. Logging only; no scoring change. The Swift twin exists and emits the same line.
             dayDiag(respRateLogLine(day, res.daily.respRateBpm, respGateAcc, respGateIntegrity))
             // ── RHR floor-vs-mean diagnostic (#691) ────────────────────────────────────────────────
             // Make the recurring "NOOP's resting HR reads LOWER than my sleeping-HR app" reports
