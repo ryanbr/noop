@@ -4865,12 +4865,6 @@ private fun RecordingStatusChip(state: RecordingState, onConnect: () -> Unit) {
 // `provenanceBadgeLabel` By-Day mappers are kept (Intelligence/Trends + tests still use that vocabulary).
 
 /**
- * The full 14-day metric grid, mirroring the macOS LazyVGrid order:
- * Charge, Effort, Rest, HRV, Resting HR, Blood Oxygen, Respiratory,
- * Steps, Weight, Calories. Each tile is a fixed-height [SparkStatTile] so the
- * grid tiles perfectly with no empty cells.
- */
-/**
  * The Key Metrics Skin Temp tile's 3-way fallback: today's row, then the whole-row recovery carry,
  * then the per-field skin-temp carry (mirrors spo2CarryDay/respCarryDay's reasoning — carriedDay can
  * land on a row with null skinTempDevC even when a genuine reading exists further back). Extracted so
@@ -4882,6 +4876,12 @@ internal fun resolveSkinTempDevC(
     skinTempCarryDay: DailyMetric?,
 ): Double? = d?.skinTempDevC ?: carriedDay?.skinTempDevC ?: skinTempCarryDay?.skinTempDevC
 
+/**
+ * The full 14-day metric grid, mirroring the macOS LazyVGrid order:
+ * Charge, Effort, Rest, HRV, Resting HR, Blood Oxygen, Respiratory,
+ * Steps, Weight, Calories. Each tile is a fixed-height [SparkStatTile] so the
+ * grid tiles perfectly with no empty cells.
+ */
 @Composable
 @Suppress("UNUSED_PARAMETER")
 private fun MetricGrid(
