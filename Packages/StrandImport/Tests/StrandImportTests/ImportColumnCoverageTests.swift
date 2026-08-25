@@ -1,4 +1,5 @@
 import XCTest
+import WhoopStore   // DailyMetric — the type importColumnCoverage takes
 @testable import StrandImport
 
 /// Pins the import column-coverage line. Kotlin twin: `ImportColumnCoverageTest`. The two must emit
