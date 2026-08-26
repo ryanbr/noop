@@ -79,6 +79,25 @@ class BondRefusalGiveUp(
                 "settings choose Forget This Device. Then tap Connect to try again."
 
         /**
+         * The paused hint for a bond that failed WITHOUT the strap ever answering (#1635).
+         *
+         * [pausedHint] names a cause — the strap still held by the official WHOOP app, or a stale OS
+         * pairing — which is well founded when the refusal arrived as INSUFFICIENT_AUTHENTICATION or
+         * INSUFFICIENT_ENCRYPTION: the strap actively said no. It is NOT founded when the CLIENT_HELLO
+         * simply goes unanswered and the link drops on a timer, which is a different observation with
+         * several possible causes. Telling that user to close the WHOOP app would be a guess dressed as
+         * instruction, and if it is wrong they have no way to know.
+         *
+         * So this describes what was observed and offers the one action that is definitely theirs to
+         * take, without asserting why. Pure; no em-dash.
+         */
+        fun pausedHintHandshakeUnanswered(): String =
+            "NOOP stopped retrying because the secure handshake with your strap never completes: the " +
+                "strap does not answer, and the link drops a few seconds later. Auto-reconnect is paused " +
+                "so it stops draining both batteries. Tap Connect to try again, and if it keeps happening " +
+                "please share your strap log."
+
+        /**
          * #750: a short OPAQUE token for the epitaph, derived from the strap's device id.
          *
          * DIVERGENCE FROM SWIFT (deliberate, PII): on iOS the source is a CoreBluetooth-local UUID

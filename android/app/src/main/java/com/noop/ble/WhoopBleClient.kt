@@ -4909,10 +4909,17 @@ class WhoopBleClient(
      *  iOS BLEManager, which only sets pairingHint on the puffin link). Independent of the multi-WHOOP
      *  pin recovery in [noteBondRefusalIfPinned], which is left untouched. The guidance is mirrored into
      *  [statusNote] (already rendered on the Live screen) so it surfaces with no UI-layer change. */
-    private fun noteBondRefusalForPairingHint(status: Int, failedAddress: String?) {
-        if (!isInsufficientAuthStatus(status)) return
-        if (didBond) return                                       // already bonded — not a pairing problem
-        if (connectedFamily != DeviceFamily.WHOOP5) return        // WHOOP 4 bonds cleanly; hint is 5/MG-only
+    private fun noteBondRefusalForPairingHint(
+        status: Int,
+        failedAddress: String?,
+        helloUnacked: Boolean = false,
+    ) {
+        // #1635: an unanswered CLIENT_HELLO is as much a refusal as an auth rejection, for the purpose of
+        // giving up. It was invisible here because the gate tested only the status, and an unanswered
+        // handshake presents as a plain local terminate - so the streak never grew and the loop never
+        // stopped. The two signals stay SEPARATE below: only one of them supports naming a cause.
+        val authRefusal = isInsufficientAuthStatus(status)
+        if (!countsAsBondRefusal(authRefusal, helloUnacked, didBond, connectedFamily)) return
         bondRefusalStreak++
         if (bondGiveUp.gaveUp) {
             // #78 hole-4: a refusal during a paused-state salvage probe must not stomp the paused hint
@@ -4926,7 +4933,12 @@ class WhoopBleClient(
             if (_state.value.pairingHint == null) {
                 log("WHOOP 5/MG: encrypted bond refused $bondRefusalStreak times — surfacing pairing guidance (#78)")
             }
-            _state.update { it.copy(pairingHint = PAIRING_HINT_TEXT, statusNote = PAIRING_HINT_TEXT) }
+            // PAIRING_HINT_TEXT names a specific cause (still bonded to the official app). Only an auth
+            // refusal is evidence for that; an unanswered handshake is not, so it waits for the give-up's
+            // honest paused hint rather than being told to close an app that may be irrelevant.
+            if (authRefusal) {
+                _state.update { it.copy(pairingHint = PAIRING_HINT_TEXT, statusNote = PAIRING_HINT_TEXT) }
+            }
         }
         // #747 / #750: feed the same refusal into the give-up tracker. Once it crosses the higher threshold
         // (the pairing hint has had several cycles to be acted on), pause auto-reconnect so we stop hammering
@@ -4939,7 +4951,12 @@ class WhoopBleClient(
                 standingConnectWhilePausedIfDue(justTripped = true)
             val opaque = BondRefusalGiveUp.opaqueId(failedAddress ?: "device")
             log(BondRefusalGiveUp.epitaphLine(bondGiveUp.refusals, opaque))
-            _state.update { it.copy(pairingHint = BondRefusalGiveUp.pausedHint()) }
+            // An auth refusal supports naming a cause; an unanswered handshake does not, so it gets the
+            // hint that describes what was seen instead of asserting why (#1635).
+            _state.update {
+                it.copy(pairingHint = if (authRefusal) BondRefusalGiveUp.pausedHint()
+                        else BondRefusalGiveUp.pausedHintHandshakeUnanswered())
+            }
             if (testCentre.active(com.noop.testcentre.TestDomain.CONNECTION)) {
                 log("bond gaveUp refusals=${bondGiveUp.refusals} id=$opaque (auto-reconnect paused)",
                     com.noop.testcentre.TestDomain.CONNECTION)
@@ -8064,11 +8081,19 @@ class WhoopBleClient(
 
     @SuppressLint("MissingPermission")
     private fun handleDisconnect(status: Int) {
+        val helloWasUnacked = clientHelloWriteAtMs > 0L
         // #1635: a CLIENT_HELLO that was accepted by the stack and never completed leaves no trace at
         // all - the dominant shape in the field capture (14 of 16). Say so before the state is reset.
         if (clientHelloWriteAtMs > 0L) {
             log(clientHelloOutcomeLine(false, null, System.currentTimeMillis() - clientHelloWriteAtMs, null))
             clientHelloWriteAtMs = 0L
+        }
+
+        // #1635: and count it as a refusal so the give-up can latch. Only when the status is NOT an auth
+        // rejection - those already reach noteBondRefusalForPairingHint from onCharacteristicWrite, and
+        // counting the same cycle twice would trip the give-up at half the intended streak.
+        if (helloWasUnacked && !isInsufficientAuthStatus(status)) {
+            noteBondRefusalForPairingHint(status, lastDeviceAddress, helloUnacked = true)
         }
 
         // #1151: flush any pending frame-timing window so the frames right before this drop are recorded
