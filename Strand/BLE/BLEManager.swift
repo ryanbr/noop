@@ -871,6 +871,10 @@ public final class BLEManager: NSObject, ObservableObject {
     /// callback (the settle resolved); if it fires instead, the state never settled — the wedged-grant
     /// shape (#429) — and the #295 re-grant banner is shown after all.
     private var unauthorizedSettleWork: DispatchWorkItem?
+    /// When the 5/MG CLIENT_HELLO went out, or nil when none is outstanding. Consumed by the first
+    /// completion that follows, so an unrelated command's callback cannot be mistaken for the hello's ack
+    /// (#1635). Kotlin twin: `WhoopBleClient.clientHelloWriteAtMs`.
+    private var clientHelloWriteAt: Date?
     private var cmdCharacteristic: CBCharacteristic?
     /// #613: true when a command would ACTUALLY reach the strap right now — the same condition `send()`
     /// requires (connected peripheral + a discovered command characteristic). The alarm-arm log and the
@@ -4968,6 +4972,7 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         state.clearBiometrics()       // and a stale HR / R-R must not outlive the link either
         state.liveFeedActive = false  // a drop while Live is open must not leave a stale "Stop live feed"
         didBond = false
+        clientHelloWriteAt = nil   // #1635: no hello survives the link that carried it
         whoop5RealtimeArmed = false
         // The strap forgets the realtime-HR toggle across a disconnect; the post-bond branch re-arms it
         // from `wantsRealtime`. Clear only the "what we last sent" flag — `screenWantsRealtime` /
@@ -5284,6 +5289,7 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                     // "Finishing the secure pairing handshake…".
                     log("WHOOP 5/MG: writing CLIENT_HELLO to fd4b0002 with response (to trigger bonding, experimental).")
                     state.pairingHint = nil   // fresh attempt; clear any stale pairing-mode guidance
+                    clientHelloWriteAt = Date()   // #1635: a hello is now outstanding
                     peripheral.writeValue(Data(hello), for: c, type: .withResponse)
                 }
                 // The realtime-HR stream is armed POST-bond (in didWriteValueFor / startRealtime) with
@@ -5413,7 +5419,20 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
         // which the strap refused before the link was encrypted. Do NOT run the WHOOP4 command handshake
         // below — a 5/MG strap rejects WHOOP4-framed commands (the send() guard drops them anyway).
         if selectedModel.deviceFamily == .whoop5 {
-            if !didBond {
+            // #1635: only the CLIENT_HELLO's OWN completion is evidence of a bond. Declining withholds
+            // the bond declaration ONLY — the puffin re-subscribe below is unchanged, so a link that is
+            // genuinely up keeps its notifications either way.
+            let isHelloChar = characteristic.uuid == BLEManager.whoop5CmdWriteChar
+            let helloOutstanding = clientHelloWriteAt != nil
+            // Consume the window ONLY for the hello's own completion. A foreign completion that cleared it
+            // would make a genuine ack arriving afterwards look unsolicited, costing a real bond.
+            if isHelloChar { clientHelloWriteAt = nil }
+            if ClientHelloOutcome.isAck(
+                isHelloChar: isHelloChar,
+                helloOutstanding: helloOutstanding,
+                alreadyBonded: didBond,
+                isWhoop5: true
+            ) {
                 didBond = true
                 state.bonded = true
                 state.encryptedBond = true   // genuine encrypted bond (not the live-HR shortcut) — #69

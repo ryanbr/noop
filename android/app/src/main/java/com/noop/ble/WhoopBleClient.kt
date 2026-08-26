@@ -5338,49 +5338,67 @@ class WhoopBleClient(
                     )
                 }
             } else if (!didBond && connectedFamily == DeviceFamily.WHOOP5) {
-                // #1635: report WHICH characteristic completed. This branch matches on family alone, so a
-                // completion from any other characteristic is currently taken as the CLIENT_HELLO ack - the
-                // line says so rather than the behaviour changing here, so a capture can size how often it
-                // happens before the guard is tightened.
-                if (clientHelloWriteAtMs > 0L) {
+                // #1635: report WHICH characteristic completed, then gate the bond on it. This branch used
+                // to match on family alone, so ANY completion on a 5/MG link was taken as the CLIENT_HELLO
+                // ack. The field capture that sized it saw exactly that: the hello was rejected by the stack
+                // (nothing owed), DISABLE_ALARM's completion landed on the SAME characteristic a moment
+                // later, and the link was declared bonded on the strength of it.
+                val isHelloChar = characteristic.uuid == WHOOP5_CMD_WRITE_CHAR
+                // Read BEFORE the diagnostic below zeroes it — the gate needs the pre-clear value.
+                val helloOutstanding = clientHelloWriteAtMs > 0L
+                if (helloOutstanding) {
                     log(clientHelloOutcomeLine(
-                        isHelloChar = characteristic.uuid == WHOOP5_CMD_WRITE_CHAR,
+                        isHelloChar = isHelloChar,
                         charUuid = characteristic.uuid.toString(),
                         elapsedMs = System.currentTimeMillis() - clientHelloWriteAtMs,
                         status = gattWriteStatusLabel(status),
                     ))
-                    clientHelloWriteAtMs = 0L
+                    // Consume the window ONLY for the hello's own completion. A foreign completion that
+                    // cleared it would make a genuine ack arriving afterwards look unsolicited, costing a
+                    // real bond — the one regression this gate must not introduce.
+                    if (isHelloChar) clientHelloWriteAtMs = 0L
                 }
-                // EXPERIMENTAL (issue #17): the CLIENT_HELLO is now a confirmed write, so this ACK means
-                // just-works bonding completed. Now subscribe the puffin notify chars (realtime HR rides
-                // these as REALTIME_DATA — the strap rejected them on the unauthenticated link), then arm
-                // realtime HR with puffin framing. Mirrors the macOS post-bond flow.
-                didBond = true
-                cancelBondWatchdog()          // genuine bond reached — the handshake watchdog stands down (#50)
-                noteGenuineBond(g.device.address)   // #52: this strap bonds fine; clears any pin-refusal streak
-                clearPairingHint()            // #78: a genuine bond means the pairing guidance no longer applies
-                bondedDirectAttempt = false   // fast-path connect reached a real session (#78 fork)
-                staleDirectFailures = 0       // genuine bond — clear the wiped-bond counter (#84 parity)
-                _state.update { it.copy(bonded = true, encryptedBond = true) }   // genuine bond (#69)
-                bondedAtMs = System.currentTimeMillis()   // #617: stamp the bond so handleDisconnect can spot a bond-then-quick-timeout loop
-                emitConnectionBondState("encryptedBond family=whoop5 (CLIENT_HELLO acked)")
-                log("WHOOP 5/MG: CLIENT_HELLO acked — link established; subscribing notify chars (experimental).")
-                g.getService(WHOOP5_SERVICE)?.let { svc ->
-                    for (u in WHOOP5_NOTIFY_CHARS) svc.getCharacteristic(u)?.let { cccdQueue.add(it) }
+                // Only the hello's OWN completion is evidence of a bond. Declining here withholds the
+                // bond declaration and nothing else: the in-flight slot is released and the write queue
+                // drains at the end of this callback either way.
+                if (completionIsClientHelloAck(
+                        isHelloChar = isHelloChar,
+                        helloOutstanding = helloOutstanding,
+                        alreadyBonded = didBond,
+                        isWhoop5 = true,
+                    )
+                ) {
+                    // EXPERIMENTAL (issue #17): the CLIENT_HELLO is now a confirmed write, so this ACK means
+                    // just-works bonding completed. Now subscribe the puffin notify chars (realtime HR rides
+                    // these as REALTIME_DATA — the strap rejected them on the unauthenticated link), then arm
+                    // realtime HR with puffin framing. Mirrors the macOS post-bond flow.
+                    didBond = true
+                    cancelBondWatchdog()          // genuine bond reached — the handshake watchdog stands down (#50)
+                    noteGenuineBond(g.device.address)   // #52: this strap bonds fine; clears any pin-refusal streak
+                    clearPairingHint()            // #78: a genuine bond means the pairing guidance no longer applies
+                    bondedDirectAttempt = false   // fast-path connect reached a real session (#78 fork)
+                    staleDirectFailures = 0       // genuine bond — clear the wiped-bond counter (#84 parity)
+                    _state.update { it.copy(bonded = true, encryptedBond = true) }   // genuine bond (#69)
+                    bondedAtMs = System.currentTimeMillis()   // #617: stamp the bond so handleDisconnect can spot a bond-then-quick-timeout loop
+                    emitConnectionBondState("encryptedBond family=whoop5 (CLIENT_HELLO acked)")
+                    log("WHOOP 5/MG: CLIENT_HELLO acked — link established; subscribing notify chars (experimental).")
+                    g.getService(WHOOP5_SERVICE)?.let { svc ->
+                        for (u in WHOOP5_NOTIFY_CHARS) svc.getCharacteristic(u)?.let { cccdQueue.add(it) }
+                    }
+                    // The 5/MG handshake tail (SET_CLOCK/GET_CLOCK + the offload kick) now runs when THIS
+                    // CCCD drain completes — see drainCccdQueue's queue-empty branch. Clock-before-history
+                    // is mandatory: an un-clocked WHOOP 5 doesn't save sensor data to flash at all
+                    // ("RTC timestamp … is invalid; not saving data to flash"), so history offloads
+                    // "succeed" with zero body frames. Hardware-validated ordering: CLIENT_HELLO →
+                    // subscribe puffin chars → clock → history. (#78 fork)
+                    drainCccdQueue(g)
+                    // #927: RE-DERIVE the want at arm time, never the precomputed [wantsRealtime]: that value
+                    // can be up to a keep-alive tick (30 s) stale, and a reconnect just OUTSIDE the overnight
+                    // window would re-arm the stream from it and stay armed until the next tick.
+                    val realtimeWantNow = screenWantsRealtime || continuousCaptureWantsNow()
+                    wantsRealtime = realtimeWantNow
+                    if (realtimeWantNow) { realtimeArmed = true; send(CommandNumber.TOGGLE_REALTIME_HR, byteArrayOf(1)) }
                 }
-                // The 5/MG handshake tail (SET_CLOCK/GET_CLOCK + the offload kick) now runs when THIS
-                // CCCD drain completes — see drainCccdQueue's queue-empty branch. Clock-before-history
-                // is mandatory: an un-clocked WHOOP 5 doesn't save sensor data to flash at all
-                // ("RTC timestamp … is invalid; not saving data to flash"), so history offloads
-                // "succeed" with zero body frames. Hardware-validated ordering: CLIENT_HELLO →
-                // subscribe puffin chars → clock → history. (#78 fork)
-                drainCccdQueue(g)
-                // #927: RE-DERIVE the want at arm time, never the precomputed [wantsRealtime]: that value
-                // can be up to a keep-alive tick (30 s) stale, and a reconnect just OUTSIDE the overnight
-                // window would re-arm the stream from it and stay armed until the next tick.
-                val realtimeWantNow = screenWantsRealtime || continuousCaptureWantsNow()
-                wantsRealtime = realtimeWantNow
-                if (realtimeWantNow) { realtimeArmed = true; send(CommandNumber.TOGGLE_REALTIME_HR, byteArrayOf(1)) }
             } else if (!didBond && connectedFamily == DeviceFamily.WHOOP4) {
                 didBond = true
                 cancelBondWatchdog()          // secure handshake completed — stand the watchdog down (#50)

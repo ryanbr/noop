@@ -39,4 +39,34 @@ final class ClientHelloOutcomeTests: XCTestCase {
             ClientHelloOutcome.line(isHelloChar: true, charUuid: "   ", elapsedMs: 5, status: "  "),
             "CLIENT_HELLO outcome: acked by unknown after 5ms")
     }
+
+    // MARK: - the bond gate (#1635)
+
+    /// 15:24:13 in the field capture: DISABLE_ALARM was in flight, the CLIENT_HELLO write was rejected so
+    /// nothing was owed, and DISABLE_ALARM's completion then arrived on fd4b0002 — the SAME characteristic
+    /// the hello uses — and the link was declared bonded. `isHelloChar` is true here, which is exactly why
+    /// a uuid check on its own would not have caught it.
+    func testQueuedCommandOnTheHelloCharacteristicIsNotABond() {
+        XCTAssertFalse(ClientHelloOutcome.isAck(
+            isHelloChar: true, helloOutstanding: false, alreadyBonded: false, isWhoop5: true))
+    }
+
+    func testForeignCharacteristicInsideTheWindowIsNotABond() {
+        XCTAssertFalse(ClientHelloOutcome.isAck(
+            isHelloChar: false, helloOutstanding: true, alreadyBonded: false, isWhoop5: true))
+    }
+
+    /// The regression that matters most: the gate must not cost a real bond.
+    func testGenuineAckStillBonds() {
+        XCTAssertTrue(ClientHelloOutcome.isAck(
+            isHelloChar: true, helloOutstanding: true, alreadyBonded: false, isWhoop5: true))
+    }
+
+    func testAlreadyBondedDoesNotReBondAndWhoop4NeverTakesThisPath() {
+        XCTAssertFalse(ClientHelloOutcome.isAck(
+            isHelloChar: true, helloOutstanding: true, alreadyBonded: true, isWhoop5: true))
+        XCTAssertFalse(ClientHelloOutcome.isAck(
+            isHelloChar: true, helloOutstanding: true, alreadyBonded: false, isWhoop5: false))
+    }
 }
+

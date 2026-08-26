@@ -35,4 +35,34 @@ enum ClientHelloOutcome {
         return "CLIENT_HELLO outcome: bond declared from a DIFFERENT characteristic \(where_) after"
             + " \(elapsedMs)ms\(st) — this is NOT a CLIENT_HELLO ack (#1635)"
     }
+
+    /// Is this write completion genuinely the CLIENT_HELLO's ack, and therefore proof of an encrypted bond?
+    ///
+    /// The bond branch used to match on family alone: on a 5/MG link, ANY completion that arrived while
+    /// `didBond` was false was taken as the ack and set `encryptedBond`. A characteristic check on its own
+    /// does not fix that, because the puffin command characteristic (fd4b0002) carries BOTH the
+    /// CLIENT_HELLO and every ordinary command — DISABLE_ALARM is written there on the same connect — so
+    /// the hello and an unrelated command are indistinguishable by uuid.
+    ///
+    /// What separates them is whether a hello is actually OUTSTANDING, which is why both conditions are
+    /// required and neither is redundant:
+    ///  - `isHelloChar` alone admits DISABLE_ALARM and every other puffin command.
+    ///  - `helloOutstanding` alone admits a completion from a different characteristic that happens to
+    ///    land inside the hello's window.
+    ///
+    /// Declining does not claim the strap refused anything — it says only that THIS completion is not
+    /// evidence of a bond. A real ack still arrives on its own callback and still bonds.
+    ///
+    /// Pure, so the rule is tested without a radio. Kotlin twin: `completionIsClientHelloAck`.
+    static func isAck(
+        isHelloChar: Bool,
+        helloOutstanding: Bool,
+        alreadyBonded: Bool,
+        isWhoop5: Bool
+    ) -> Bool {
+        if alreadyBonded { return false }
+        if !isWhoop5 { return false }
+        return isHelloChar && helloOutstanding
+    }
 }
+
