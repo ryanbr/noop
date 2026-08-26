@@ -1762,14 +1762,21 @@ private val SERIES_BACKED_VITAL_KEYS = setOf("fitness_age", "vitality", "steps_e
  *    spanning a full 22 h day and night: `ir` is `red` plus a constant. Across 1172 consecutive
  *    sample transitions in one 22-hour capture, both moved by the IDENTICAL amount 1171 times - the only
  *    exception being the single moment the offset itself stepped (110 -> 132) - and within each segment
- *    `corr(red, ir)` is exactly +1.000. The offset also differs between captures (100 / 110 / 132), so it
- *    is not a constant baked into our decode.
+ *    `corr(red, ir)` is exactly +1.000. The offset also differs between captures (100 / 110 / 132), so
+ *    `k` is a property of the DATA rather than a constant our decode introduced.
+ *
+ *    What that does not settle - and does not need to - is WHY the two track. A second emitter locked to
+ *    the first, or a strap-derived value at offset 70 computed from the one at 68, fit the evidence
+ *    equally well, and nothing here can separate them. It does not matter: either way offset 70 carries
+ *    no information offset 68 lacks, which is the only question a percentage depends on. Resist the urge
+ *    to resolve it before concluding, since the conclusion does not turn on it.
  *
  *    Ratio-of-ratios needs two INDEPENDENT wavelengths. When `ir = red + k` the ratio is a deterministic
  *    function of `red` alone and carries no oxygenation information, so anything computed from it would
  *    restate the red channel while looking like a percentage - the exact failure #194 was withdrawn for.
  *    A scan of every u16 offset in the 104-byte record found no independent channel either: the best
- *    candidate by variety correlates +0.975 / +0.874 with `ir`, and the genuinely uncorrelated fields
+ *    candidate by variety correlates +0.975 and +0.874 with `ir` (one figure per offset segment), and
+ *    the genuinely uncorrelated fields
  *    have 0-65331 ranges (counters or CRC material, not optical magnitudes).
  *
  *    So waiting cannot help and importing can - and the reason is the banked record, NOT an absent
