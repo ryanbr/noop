@@ -25,7 +25,7 @@ final class DailySkinTempAbsoluteCarryTests: XCTestCase {
     }
 
     /// An imported winner carries no absolute, so the computed filler's must survive the coalesce.
-    func testCoalesceTakesTheStrapAbsoluteWhenTheWinnerHasNone() {
+    func testCoalesceTakesTheStrapAbsoluteWhenTheWinnerHasNone() throws {
         let winner = row(skinTempDevC: 0.2, avgHrv: 44.0)      // an import: deviation only
         let filler = row(skinTempC: 34.6, skinTempDevC: 0.2)   // the strap's own scored night
         XCTAssertEqual(try XCTUnwrap(Repository.coalesceDay(winner, filler).skinTempC),
@@ -33,7 +33,7 @@ final class DailySkinTempAbsoluteCarryTests: XCTestCase {
     }
 
     /// A winner that HAS one keeps it — the filler must never overwrite a measured value.
-    func testCoalesceKeepsTheWinnersOwnAbsolute() {
+    func testCoalesceKeepsTheWinnersOwnAbsolute() throws {
         let winner = row(skinTempC: 34.6)
         let filler = row(skinTempC: 30.1)
         XCTAssertEqual(try XCTUnwrap(Repository.coalesceDay(winner, filler).skinTempC),
@@ -45,7 +45,7 @@ final class DailySkinTempAbsoluteCarryTests: XCTestCase {
     }
 
     /// The sleep-edit rebuild replaces only sleep-derived fields; a thermal column must ride through.
-    func testASleepEditKeepsTheNightsAbsolute() {
+    func testASleepEditKeepsTheNightsAbsolute() throws {
         let scored = row(skinTempC: 34.6, skinTempDevC: 0.2)
         let edited = scored.with(totalSleepMin: 400, efficiency: 0.93,
                                  deepMin: 80, remMin: 100, lightMin: 220)
@@ -55,7 +55,7 @@ final class DailySkinTempAbsoluteCarryTests: XCTestCase {
 
     /// Cross-bucket: imports win the row, but the absolute is on-device only, so the computed value
     /// has to come through or a user with any WHOOP-export history would never see one.
-    func testMergeFillsTheAbsoluteFromTheComputedRow() {
+    func testMergeFillsTheAbsoluteFromTheComputedRow() throws {
         let imported = [row(skinTempDevC: 0.2)]
         let computed = [row(skinTempC: 34.6, skinTempDevC: 0.2)]
         let merged = Repository.mergeDaily(imported: imported, computed: computed)
@@ -66,7 +66,7 @@ final class DailySkinTempAbsoluteCarryTests: XCTestCase {
     }
 
     /// Re-scoring writes both thermal values together; neither may clobber the other.
-    func testScoringWritesTheAbsoluteAndDeviationTogether() {
+    func testScoringWritesTheAbsoluteAndDeviationTogether() throws {
         let scored = row().with(recovery: 0.71, skinTempDevC: 0.52, skinTempC: 34.6)
         XCTAssertEqual(try XCTUnwrap(scored.skinTempC), 34.6, accuracy: 0.001)
         XCTAssertEqual(try XCTUnwrap(scored.skinTempDevC), 0.52, accuracy: 0.001)

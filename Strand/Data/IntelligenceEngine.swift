@@ -2795,7 +2795,10 @@ final class IntelligenceEngine: ObservableObject {
     }
 }
 
-private extension DailyMetric {
+// `internal`, not `private`: the two `with(...)` rebuilds below are the seams a new DailyMetric column
+// is most easily dropped at (they respell every field by name), so StrandTests asserts them directly
+// rather than through a copy that could drift. Nothing outside this module can see them either way.
+extension DailyMetric {
     /// Rebuild the immutable DailyMetric with a substituted recovery + skin-temp deviation
     /// (the struct has no `copy()`). (#78)
     func with(recovery r: Double?, skinTempDevC sd: Double?, skinTempC sa: Double?) -> DailyMetric {
