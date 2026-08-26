@@ -7294,7 +7294,19 @@ class WhoopBleClient(
                     // SecurityException into `false` would print a confident claim about the strap for a
                     // problem that is entirely local.
                     runCatching { g.device.createBond() }.fold(
-                        onSuccess = { log(explicitBondRequestLine(it, where)) },
+                        onSuccess = { initiated ->
+                            log(explicitBondRequestLine(initiated, where))
+                            // Asking for a pairing voids the previous verdict: suppression latched because
+                            // the write never completed on an UNENCRYPTED link, and that premise is exactly
+                            // what this is trying to change. Cleared ONCE, here, rather than re-armed by
+                            // "an OS pairing exists" — that condition never goes away, so it would bypass
+                            // the latch on every connect and restore the unbounded loop for good.
+                            if (initiated) {
+                                runCatching {
+                                    com.noop.ui.NoopPrefs.setHelloSuppressed(context, g.device.address, false)
+                                }
+                            }
+                        },
                         onFailure = { log(explicitBondThrewLine(it.javaClass.simpleName, where)) },
                     )
                 }
@@ -7313,7 +7325,7 @@ class WhoopBleClient(
                 val suppressed = runCatching {
                     com.noop.ui.NoopPrefs.helloSuppressed(context, g.device.address)
                 }.getOrDefault(false)
-                if (shouldSendClientHello(suppressed, userInitiated = userAsked, osBonded = osBonded)) {
+                if (shouldSendClientHello(suppressed, userInitiated = userAsked)) {
                     writeClientHello(g, cmd)
                 } else {
                     // The watchdog was armed at discovery, before this decision could be made, and it

@@ -9,19 +9,19 @@ import org.junit.Test
 class HelloSuppressionTest {
     @Test
     fun `an unlatched strap always gets its handshake`() {
-        assertTrue(shouldSendClientHello(suppressedForDevice = false, userInitiated = false, osBonded = false))
-        assertTrue(shouldSendClientHello(suppressedForDevice = false, userInitiated = true, osBonded = false))
+        assertTrue(shouldSendClientHello(suppressedForDevice = false, userInitiated = false))
+        assertTrue(shouldSendClientHello(suppressedForDevice = false, userInitiated = true))
     }
 
     @Test
     fun `a latched strap skips it on an automatic reconnect`() {
         // The whole point: the automatic reconnect is the one that was looping every five seconds.
-        assertFalse(shouldSendClientHello(suppressedForDevice = true, userInitiated = false, osBonded = false))
+        assertFalse(shouldSendClientHello(suppressedForDevice = true, userInitiated = false))
     }
 
     @Test
     fun `an explicit Connect always re-attempts, so suppression is never permanent`() {
-        assertTrue(shouldSendClientHello(suppressedForDevice = true, userInitiated = true, osBonded = false))
+        assertTrue(shouldSendClientHello(suppressedForDevice = true, userInitiated = true))
     }
 
     @Test
@@ -55,12 +55,11 @@ class HelloSuppressionTest {
     }
 
     @Test
-    fun `an OS pairing re-arms a suppressed hello`() {
-        // #1635 explicit-bond experiment: suppression latched because the write never completed on an
-        // UNENCRYPTED link. Once the OS holds a pairing the link comes up encrypted and the write has a
-        // chance it has never had. Without this the experiment could pair successfully and still never
-        // write the hello, so it would "work" and change nothing the user can see.
-        assertTrue(shouldSendClientHello(suppressedForDevice = true, userInitiated = false, osBonded = true))
-        assertFalse(shouldSendClientHello(suppressedForDevice = true, userInitiated = false, osBonded = false))
+    fun `an existing OS pairing does NOT permanently bypass the latch`() {
+        // Tempting, and wrong: "a pairing exists" never goes away, so re-arming on it would rewrite the
+        // hello on every connect for good - drop at ~4.8s, reconnect, forever - with the give-up powerless.
+        // That is the unbounded loop suppression exists to end. The experiment clears the latch ONCE when
+        // it asks for a pairing instead, which is self-limiting.
+        assertFalse(shouldSendClientHello(suppressedForDevice = true, userInitiated = false))
     }
 }

@@ -20,18 +20,18 @@ package com.noop.ble
  * permanent verdict. Someone who puts the strap in pairing mode and presses Connect must get a fresh try,
  * and that is also how the suppression is cleared.
  *
- * [osBonded] re-arms a suppressed hello for the same reason [userInitiated] does: it is NEW evidence that
- * the handshake might now succeed. Suppression was latched because the write never completed on an
- * UNENCRYPTED link; once the OS holds a pairing the link comes up encrypted and the write has a chance it
- * has never had. Without this, the #1635 explicit-bond experiment could pair successfully and still never
- * write the hello, because the latch from before the pairing was still set — the experiment would "work"
- * and change nothing the user can see.
+ * Deliberately NOT re-armed by "an OS pairing exists". That looks right — a pairing is new evidence the
+ * handshake might work — but the condition never goes away, so a strap that pairs and STILL will not
+ * answer would have the latch bypassed on every connect for good: hello, drop at ~4.8s, reconnect,
+ * forever, with the give-up powerless to stop it. That is the unbounded loop this suppression exists to
+ * end, reintroduced through the back door. The explicit-bond experiment instead clears the latch ONCE at
+ * the moment it asks for a pairing, which is self-limiting: the next failure re-latches and the condition
+ * to clear it again does not recur.
  */
 internal fun shouldSendClientHello(
     suppressedForDevice: Boolean,
     userInitiated: Boolean,
-    osBonded: Boolean,
-): Boolean = !suppressedForDevice || userInitiated || osBonded
+): Boolean = !suppressedForDevice || userInitiated
 
 /**
  * Should the give-up latch suppress the hello, rather than pause auto-reconnect?
