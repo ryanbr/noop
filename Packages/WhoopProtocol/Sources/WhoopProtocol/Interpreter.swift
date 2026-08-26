@@ -838,6 +838,11 @@ private func decodeWhoop5CommandResponse(_ frame: [UInt8], fb: FieldBuilder, sch
         }
         if pay.count >= 97, pay[93] == 50 {
             fb.parsed["fw_version"] = .string("\(pay[93]).\(pay[94]).\(pay[95]).\(pay[96])")
+        } else {
+            // The guards fail closed by design, which left a strap reporting no firmware with no way to
+            // say WHY - a different generation byte and a MOVED offset look identical from a log. Carry
+            // the evidence instead; see `firmwareGateDiagnostic`.
+            fb.parsed["fw_gate"] = .string(firmwareGateDiagnostic(payload: pay, nameEndIndex: i))
         }
     }
 }

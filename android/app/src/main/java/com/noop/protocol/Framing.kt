@@ -376,6 +376,11 @@ object Framing {
                 if (pay.size >= 97 && (pay[93].toInt() and 0xFF) == 50) {
                     parsed["fw_version"] = "${pay[93].toInt() and 0xFF}.${pay[94].toInt() and 0xFF}." +
                         "${pay[95].toInt() and 0xFF}.${pay[96].toInt() and 0xFF}"
+                } else {
+                    // The guards fail closed by design, which left a strap reporting no firmware with no way to
+                    // say WHY - a different generation byte and a MOVED offset look identical from a log. Carry
+                    // the evidence instead; see [firmwareGateDiagnostic].
+                    parsed["fw_gate"] = firmwareGateDiagnostic(pay, i)
                 }
             }
         }

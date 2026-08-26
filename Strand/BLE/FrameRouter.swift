@@ -18,12 +18,16 @@ public final class FrameRouter {
         // #900: a fresh connection is a fresh capture session — re-arm the per-command raw-frame dump so
         // each connect can re-capture the disputed COMMAND_RESPONSE prefix once. `family` is set fresh per
         // connection by BLEManager (connectCore), so this is the per-session reset hook.
-        didSet { rawDumpedRespCmds.removeAll() }
+        didSet { rawDumpedRespCmds.removeAll(); loggedFirmwareGate = nil }
     }
 
     /// #900: resp command names (e.g. "GET_BATTERY_LEVEL(26)") whose raw COMMAND_RESPONSE frame has already
     /// been dumped this connection. The provenance dump fires once per command per session so a 4.0's
     /// per-poll battery reads don't flood the strap log. Reset when `family` is set at connect.
+    /// #1634: last firmware-gate line logged, so a stable per-connection value is not repeated on every
+    /// hello. Cleared alongside the other per-connection routing state.
+    private var loggedFirmwareGate: String?
+
     private var rawDumpedRespCmds: Set<String> = []
 
     public init(state: LiveState) {
@@ -111,6 +115,14 @@ public final class FrameRouter {
                 state.strapFirmware = fw
                 // Persist so the debug export can name the firmware offline (state clears on disconnect).
                 UserDefaults.standard.set(fw, forKey: "noop.lastFirmware")
+            }
+
+            // #1634: the 5/MG hello decoded no firmware. The guards fail closed by design, so this is the
+            // only place that can say WHY - a different generation byte vs a MOVED offset. Logged once per
+            // connection (the value is stable), so a capture from an undecoded strap carries the evidence.
+            if let gate = parsed.parsed["fw_gate"]?.stringValue, loggedFirmwareGate != gate {
+                loggedFirmwareGate = gate
+                state.append(log: gate, domain: .connection)
             }
             // Advertising-name replies (WHOOP 4.0 / Harvard). GET (cmd 76) carries the current name in
             // its payload; SET (cmd 77) carries only a result byte. The schema has no field decode for
