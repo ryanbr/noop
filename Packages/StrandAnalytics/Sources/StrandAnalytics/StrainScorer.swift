@@ -65,6 +65,35 @@ public enum StrainScorer {
         24.0 * 60.0 * 1.0 * banisterScale * exp(b)
     }
 
+    /// The %HRR a waking, sedentary body sits at — the "cost of being alive", not training load.
+    ///
+    /// Banister pays at EVERY intensity by design, which is the point: it catches the intermittent work
+    /// Edwards zeroes. The side effect is that sixteen waking hours of doing nothing accumulate real
+    /// TRIMP, so a desk day cannot score zero however still you are — while the same day under Edwards,
+    /// whose first zone starts at 50% HRR, scores exactly zero. A 24 h day held at 5% HRR scores 0 under
+    /// Edwards and 45 under Banister on the shipped constants. That is not two recipes on one axis; that
+    /// is two axes (#1624).
+    ///
+    /// THIS IS THE ONE TUNED CONSTANT here, and it is a judgement rather than a measurement: low enough
+    /// not to erase genuine light activity, high enough that ordinary sitting nets to nothing. Resting HR
+    /// is measured asleep, so a waking body sits above it even at complete rest — precisely the gap this
+    /// closes. Treat it as calibratable, not as physiology.
+    public static let banisterSedentaryHRR: Double = 0.10
+
+    /// TRIMP per minute at `banisterSedentaryHRR` — the rate subtracted from every day.
+    static func banisterBaselineRatePerMinute(b: Double) -> Double {
+        banisterScale * banisterSedentaryHRR * exp(b * banisterSedentaryHRR)
+    }
+
+    /// The sedentary TRIMP accrued over `minutes`, subtracted from a day's Banister TRIMP so the axis
+    /// starts where Edwards' does. Subtracted from the DENOMINATOR too, so the top is unmoved and a
+    /// theoretical maximum day still maps to exactly `maxStrain` — anchoring only the bottom would trade
+    /// one mismatched end for the other.
+    static func banisterBaseline(minutes: Double, b: Double) -> Double {
+        banisterBaselineRatePerMinute(b: b) * minutes
+    }
+
+
     /// The log-map denominator for a method, so a caller never has to know which constant belongs to
     /// which recipe. Ceiling + 1 in both cases, mirroring how `strainDenominator` was derived, so a
     /// theoretical maximum day maps to exactly `maxStrain` under either method.
@@ -73,7 +102,10 @@ public enum StrainScorer {
         case .edwards:
             return strainDenominator
         case .banister:
-            return banisterDailyCeiling(b: sex.lowercased().hasPrefix("f") ? banisterBWomen : banisterBMen) + 1.0
+            let b = sex.lowercased().hasPrefix("f") ? banisterBWomen : banisterBMen
+            // Ceiling MINUS a full day of sedentary baseline, matching what is subtracted from the day
+            // itself, so both ends of the axis line up with Edwards (#1624).
+            return banisterDailyCeiling(b: b) - banisterBaseline(minutes: 24.0 * 60.0, b: b) + 1.0
         }
     }
 
@@ -232,12 +264,25 @@ public enum StrainScorer {
         return acc
     }
 
+    /// - Parameter floorRatePerMinute: per-minute rate treated as "no effort" and subtracted from EVERY
+    ///   sample, floored at zero (#1624). Zero — the default — is the original, unfloored Banister recipe,
+    ///   so every existing caller and test is byte-identical. Pass `banisterBaselineRatePerMinute` to
+    ///   score the excess over a sedentary day, which is what the daily scorer does.
+    ///
+    ///   Per SAMPLE, never as one lump off the total: a day quieter than the floor would otherwise run a
+    ///   deficit that eats into real work done on top, and 90 minutes at 35% HRR inside an otherwise still
+    ///   day would net negative and clamp to zero — erasing exactly the intermittent effort this recipe
+    ///   exists to capture.
     static func banisterTRIMP(_ hr: [HRSample], restingHR: Double, hrReserve: Double,
-                              durations: [Double], b: Double) -> Double {
+                              durations: [Double], b: Double,
+                              floorRatePerMinute: Double = 0.0) -> Double {
         var acc = 0.0
         for i in hr.indices {
             let x = pctHRR(Double(hr[i].bpm), restingHR: restingHR, hrReserve: hrReserve) / 100.0
-            if x > 0 { acc += durations[i] * x * banisterScale * exp(b * x) }
+            if x > 0 {
+                let rate = x * banisterScale * exp(b * x)
+                acc += durations[i] * max(rate - floorRatePerMinute, 0.0)
+            }
         }
         return acc
     }
@@ -350,8 +395,11 @@ public enum StrainScorer {
         switch method {
         case .banister:
             let b = sex.lowercased().hasPrefix("f") ? banisterBWomen : banisterBMen
+            // Excess over the sedentary baseline for the SAME span, floored at zero. Without this a desk
+            // day scores ~45 on a 0-100 axis whose bottom is supposed to be no exertion (#1624).
             trimp = banisterTRIMP(hr, restingHR: restingHR, hrReserve: hrReserve,
-                                  durations: durations, b: b)
+                                  durations: durations, b: b,
+                                  floorRatePerMinute: banisterBaselineRatePerMinute(b: b))
         case .edwards:
             trimp = edwardsTRIMP(hr, restingHR: restingHR, hrReserve: hrReserve,
                                  durations: durations)

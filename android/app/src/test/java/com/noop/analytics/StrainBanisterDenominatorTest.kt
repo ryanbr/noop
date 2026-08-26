@@ -35,13 +35,23 @@ class StrainBanisterDenominatorTest {
             StrainScorer.banisterDailyCeiling(StrainScorer.banisterBWomen), eps)
     }
 
-    /** The denominator is ceiling + 1, exactly as [StrainScorer.strainDenominator] was derived from 7200. */
+    /**
+     * The denominator is (ceiling MINUS a full day of sedentary baseline) + 1.
+     *
+     * #1545 derived it as ceiling + 1, mirroring how [StrainScorer.strainDenominator] came from 7200.
+     * #1624 subtracts the same baseline from the denominator that the scorer subtracts from each day, so
+     * both ends of the axis line up with Edwards: no exertion maps to 0 AND a maximum day still maps to
+     * 100. Anchoring one end only would trade one mismatch for the other.
+     */
     @Test
-    fun theDenominatorIsCeilingPlusOne() {
-        assertEquals(StrainScorer.banisterDailyCeiling(StrainScorer.banisterBMen) + 1.0,
-            StrainScorer.logMapDenominator(StrainScorer.Method.BANISTER, "male"), eps)
-        assertEquals(StrainScorer.banisterDailyCeiling(StrainScorer.banisterBWomen) + 1.0,
-            StrainScorer.logMapDenominator(StrainScorer.Method.BANISTER, "female"), eps)
+    fun theDenominatorIsCeilingMinusBaselinePlusOne() {
+        val day = 24.0 * 60.0
+        for (sex in listOf("male", "female")) {
+            val b = if (sex == "female") StrainScorer.banisterBWomen else StrainScorer.banisterBMen
+            assertEquals(
+                StrainScorer.banisterDailyCeiling(b) - StrainScorer.banisterBaseline(day, b) + 1.0,
+                StrainScorer.logMapDenominator(StrainScorer.Method.BANISTER, sex), eps)
+        }
     }
 
     /**
@@ -54,7 +64,13 @@ class StrainBanisterDenominatorTest {
         assertEquals(100.0, StrainScorer.trimpToStrain(7200.0, StrainScorer.strainDenominator), 1e-6)
         for (sex in listOf("male", "female")) {
             val b = if (sex == "female") StrainScorer.banisterBWomen else StrainScorer.banisterBMen
-            val ceiling = StrainScorer.banisterDailyCeiling(b)
+            // #1624: the quantity that maps to the top is a maximum day's EXCESS over the sedentary
+            // baseline, not its raw TRIMP — because that is what the scorer now feeds the log map. Feeding
+            // the raw ceiling here overshoots (100.21), which is the arithmetic working, not breaking.
+            // The end-to-end invariant — real samples at full reserve through strain() scoring exactly
+            // 100 — is pinned in BanisterBaselineTest.
+            val ceiling = StrainScorer.banisterDailyCeiling(b) -
+                StrainScorer.banisterBaseline(24.0 * 60.0, b)
             assertEquals("$sex ceiling should map to the top of the scale", 100.0,
                 StrainScorer.trimpToStrain(
                     ceiling, StrainScorer.logMapDenominator(StrainScorer.Method.BANISTER, sex)), 1e-6)
