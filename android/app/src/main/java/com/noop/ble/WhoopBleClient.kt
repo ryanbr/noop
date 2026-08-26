@@ -8906,13 +8906,27 @@ class WhoopBleClient(
                     hex = frame.toHex(),
                 ),
             )
+            var checkBytes = false
             synchronized(w) {
                 w.write(line)
                 w.newLine()
-                if (++captureLines % 100 == 0) w.flush()
+                if (++captureLines % 100 == 0) { w.flush(); checkBytes = true }
             }
             if (captureLines >= WHOOP5_CAPTURE_MAX_LINES) {
                 log("Capture: line cap reached — capture paused until next session")
+                closeWhoop5BackfillCapture(flushSummary = false)
+                return@runCatching
+            }
+            // The byte cap used to be enforced only when the file was OPENED, which was sufficient while
+            // the line cap was a hard per-session bound. It no longer is: entering backfill hands the line
+            // budget back (so the live flood cannot starve the offload), and a session that auto-continues
+            // several offloads resets it several times. Without a check here the file could grow well past
+            // the cap inside one long-lived connection and never rotate. Only on the flush boundary, so
+            // this is one stat per 100 frames, not per frame.
+            if (checkBytes &&
+                java.io.File(context.filesDir, WHOOP5_CAPTURE_FILE).length() > WHOOP5_CAPTURE_MAX_BYTES
+            ) {
+                log("Capture: byte cap reached — capture paused until next session (it rotates on reopen)")
                 closeWhoop5BackfillCapture(flushSummary = false)
             }
         }.onFailure {
