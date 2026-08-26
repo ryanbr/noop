@@ -24,6 +24,10 @@ struct LiftLogView: View {
 
     /// The program being created or edited (nil = the editor is closed).
     @State private var editing: ProgramEditTarget?
+    /// The session being run (nil = not in a session).
+    @State private var running: SessionStart?
+    /// An interrupted session found on disk, offered for resume.
+    @State private var interrupted: LiftSessionPersistence.Snapshot?
 
     var body: some View {
         ScreenScaffold(
@@ -33,6 +37,7 @@ struct LiftLogView: View {
         ) {
             VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
                 headerCard
+                if interrupted != nil { resumeCard }
                 programsSection
             }
         }
@@ -40,6 +45,49 @@ struct LiftLogView: View {
         .sheet(item: $editing) { target in
             LiftProgramEditorSheet(program: target.program) {
                 await load()
+            }
+        }
+        .sheet(item: $running) { start in
+            if let snapshot = start.resuming {
+                LiftSessionView(resuming: snapshot) { await load() }
+            } else {
+                LiftSessionView(plan: start.plan,
+                                programId: start.programId,
+                                programName: start.programName) { await load() }
+            }
+        }
+    }
+
+    // MARK: - Resume an interrupted session
+
+    private var resumeCard: some View {
+        NoopCard(tint: StrandPalette.effortColor) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Session in progress")
+                    .font(StrandFont.headline)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                Text("You left a session running. Nothing was lost — pick it up where you stopped.")
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Button("Resume") {
+                        if let interrupted {
+                            running = SessionStart(id: "resume", plan: [], programId: nil,
+                                                   programName: nil, resuming: interrupted)
+                        }
+                    }
+                    .buttonStyle(.noopPrimary)
+                    .frame(maxWidth: 160)
+                    Spacer()
+                    Button(role: .destructive) {
+                        LiftSessionPersistence.clear()
+                        interrupted = nil
+                    } label: {
+                        Text("Discard")
+                    }
+                    .buttonStyle(NoopButtonStyle(.secondary))
+                }
             }
         }
     }
@@ -115,11 +163,11 @@ struct LiftLogView: View {
     }
 
     private func programRow(_ program: LiftProgramRow) -> some View {
-        Button {
-            editing = ProgramEditTarget(id: program.id, program: program)
-        } label: {
-            NoopCard {
-                HStack(spacing: 12) {
+        NoopCard {
+            HStack(spacing: 12) {
+                Button {
+                    editing = ProgramEditTarget(id: program.id, program: program)
+                } label: {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(program.name)
                             .font(StrandFont.headline)
@@ -130,25 +178,68 @@ struct LiftLogView: View {
                                 .foregroundStyle(StrandPalette.textSecondary)
                                 .lineLimit(2)
                         }
+                        Text("Tap to edit")
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textTertiary)
                     }
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(StrandPalette.textSecondary)
-                        .accessibilityHidden(true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+
+                Button("Start") { Task { await start(program) } }
+                    .buttonStyle(.noopPrimary)
+                    .frame(maxWidth: 110)
+                    .accessibilityLabel("Start this program")
             }
         }
-        .buttonStyle(.plain)
+    }
+
+    // MARK: - Start a session
+
+    /// Flatten a program into the plan the session runs. The plan is SNAPSHOT at start: editing or
+    /// deleting the program mid-session cannot change what is being tapped through.
+    private func start(_ program: LiftProgramRow) async {
+        guard let store = await repo.storeHandle() else { return }
+        let items = (try? await store.liftProgramItems(programId: program.id)) ?? []
+        guard !items.isEmpty else { return }
+        let vocabulary = (try? await store.liftExercises(deviceId: repo.deviceId)) ?? []
+
+        let plan = items.map { item -> LiftPlanItem in
+            // The classification comes from the exercise vocabulary, which is the one place that owns
+            // it — the program line deliberately stores no muscle of its own to drift from.
+            let known = vocabulary.first { $0.name == item.exercise }
+            return LiftPlanItem(exercise: item.exercise,
+                                primaryMuscle: known?.primaryMuscle,
+                                secondaryMuscles: known?.secondaryMuscles ?? [],
+                                targetSets: item.targetSets,
+                                restSec: item.restSec,
+                                targetRepsLow: item.targetRepsLow,
+                                targetRepsHigh: item.targetRepsHigh,
+                                targetRpe: item.targetRpe,
+                                note: item.note)
+        }
+        running = SessionStart(id: program.id, plan: plan,
+                               programId: program.id, programName: program.name, resuming: nil)
     }
 
     // MARK: - Load
 
     private func load() async {
+        interrupted = LiftSessionPersistence.load()
         guard let store = await repo.storeHandle() else { return }
         programs = (try? await store.liftPrograms(deviceId: repo.deviceId)) ?? []
         loaded = true
     }
+}
+
+/// What the session sheet is presenting — a fresh run of a program, or a resumed snapshot.
+private struct SessionStart: Identifiable {
+    let id: String
+    let plan: [LiftPlanItem]
+    let programId: String?
+    let programName: String?
+    let resuming: LiftSessionPersistence.Snapshot?
 }
 
 /// Identifies what the editor sheet is editing. A wrapper rather than a retroactive `Identifiable`

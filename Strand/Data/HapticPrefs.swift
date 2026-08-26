@@ -13,6 +13,10 @@ enum HapticPrefs {
     // Double-tap is deliberately NOT here: it's already opt-in via the DoubleTapAction picker.
     static let breathing = "haptics.breathing"
     static let intervals = "haptics.intervals"
+    /// The Lift Log rest timer's strap buzz, five seconds before the rest ends. Its own key rather
+    /// than sharing `intervals`: someone who wants a silent interval timer at home may well still
+    /// want the buzz at the rack, where the phone is face-down on a bench.
+    static let liftRest = "haptics.liftRest"
     static let liveSession = "haptics.liveSession"
     static let workout = "haptics.workout"
 
