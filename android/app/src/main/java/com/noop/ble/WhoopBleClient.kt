@@ -4442,11 +4442,29 @@ class WhoopBleClient(
      *  Twin of Swift `reconcileModelFromAttestation`. */
     private fun reconcileModelFromAttestation(variant: Whoop5Variant) {
         if (variant == Whoop5Variant.UNKNOWN) return
+        val attestingAddress = lastDeviceAddress ?: return
         ioScope.launch {
-            val active = repository.pairedDevices().firstOrNull { it.status == "active" } ?: return@launch
-            if (DeviceFamily.forRegistryDevice(active.model, active.brand) == DeviceFamily.WHOOP4) {
-                repository.setDeviceModel(active.id, "WHOOP 5.0 / MG")
-                log("Corrected device model \"${active.model}\" -> \"WHOOP 5.0 / MG\" from DIS attestation (variant=${variant.label})")
+            // Correct the row the attestation CAME FROM, never merely "whichever is active". Those are the
+            // same device on a single-strap install, and different ones the moment somebody pairs a 4.0
+            // alongside a 5/MG and leaves the 4.0 active - at which point relabelling by status would
+            // rewrite the 4.0's row to "WHOOP 5.0 / MG" on the strength of the OTHER strap's DIS block.
+            //
+            // This mattered from the first day it could run: the variant only became resolvable once the
+            // model number was read (#520), so before that this path returned early on UNKNOWN every time
+            // and the mis-targeting was never reachable. Widening the resolver is what makes it live.
+            val devices = repository.pairedDevices()
+            val attesting = devices.firstOrNull {
+                it.peripheralId?.equals(attestingAddress, ignoreCase = true) == true
+            }
+            if (attesting == null) {
+                // No row owns this address yet (a first connect before adoption). Correcting SOMETHING
+                // would be worse than correcting nothing, so say why and stop.
+                log("DIS attestation (variant=${variant.label}) not applied — no paired row carries this strap's address yet")
+                return@launch
+            }
+            if (DeviceFamily.forRegistryDevice(attesting.model, attesting.brand) == DeviceFamily.WHOOP4) {
+                repository.setDeviceModel(attesting.id, "WHOOP 5.0 / MG")
+                log("Corrected device model \"${attesting.model}\" -> \"WHOOP 5.0 / MG\" from DIS attestation (variant=${variant.label})")
             }
         }
     }
