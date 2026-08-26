@@ -168,6 +168,65 @@ private fun ReportMetric.accentArgb(): Int = when (this) {
     ReportMetric.SKIN_TEMP_DEV -> 0xFFE0662F.toInt()  // temperature — warm (shares RHR's hue)
 }
 
+// MARK: - Formatting (mirror the Swift page)
+
+/**
+ * The report's pure value formatting, deliberately OUTSIDE [TrendsReportRenderer].
+ *
+ * That object builds `Typeface`s at class-init, so touching it from a JVM unit test throws
+ * `ExceptionInInitializerError` — which left the metric-card row, the exact string #1637 was filed
+ * about, impossible to assert. The formatting has no Android dependency, so it lives here and the
+ * renderer delegates. Swift keeps these on `TrendsReportPage`, where a SwiftUI struct is already
+ * constructible in a test; the STRINGS are what parity pins, not where the helper sits.
+ */
+internal object TrendsReportFormat {
+
+    /**
+     * One row's value + unit, exactly as the PDF prints it.
+     *
+     * One decimal for sleep hours, respiratory rate, skin-temp Δ and the 0–3 stress score
+     * ([ReportMetric.usesOneDecimal]); whole numbers for the scores + bpm + ms + workout count.
+     * Skin temp is a signed deviation, so a positive reading gets an explicit "+" to keep it from
+     * reading as an absolute temperature.
+     *
+     * Both the value and its unit go through [RangeReportEngine] (#1637) — the same conversion the
+     * headline sentences use — so the exported page cannot print a unit the app disagrees with.
+     * Effort gains a decimal once rescaled to the 0–21 axis, where a whole number would throw away
+     * most of the resolution the 0–100 value carried.
+     */
+    fun valueText(v: Double, metric: ReportMetric, units: ReportDisplayUnits): String {
+        val unit = RangeReportEngine.displayUnit(metric, units)
+        val shown = RangeReportEngine.displayValue(v, metric, units)
+        val oneDecimal = metric.usesOneDecimal ||
+            (metric == ReportMetric.STRAIN && units.effortFactor != 1.0)
+        // The whole-number branch keeps `roundToInt` (ties toward +∞) where Swift rounds away from
+        // zero. The two agree for every NON-NEGATIVE input, and this branch only ever serves
+        // Recovery / HRV / Resting HR / Effort — all non-negative by construction — so it cannot
+        // diverge today. A signed whole-number metric would break that: give it one decimal, or
+        // round it away from zero the way [round1] does.
+        var num = if (oneDecimal) round1(shown) else "${shown.roundToInt()}"
+        if (metric == ReportMetric.SKIN_TEMP_DEV && shown > 0) num = "+$num"
+        return if (unit.isEmpty()) num else "$num $unit"
+    }
+
+    /** The card's headline read-out: the range mean through [valueText]. */
+    fun meanText(stat: MetricRangeStat, units: ReportDisplayUnits): String =
+        valueText(stat.mean, stat.metric, units)
+
+    /**
+     * One decimal, rounded the SAME way the engine and the Swift page round.
+     *
+     * This used `roundToInt`, which breaks ties toward positive infinity, while Swift's `round1Text`
+     * uses `.rounded()` — half away from zero. Positive values agree; every negative tie did not, so
+     * a stored −0.25 Δ°C printed −0.3 on iOS and −0.2 on Android, and −0.05 printed −0.1 against a
+     * sign-losing 0.0. Skin temp is the report's only signed metric, so it was the only row that
+     * could reach it. [RangeReportEngine.round1] already implements away-from-zero for exactly this
+     * reason; delegating leaves ONE rounding rule per platform instead of a second one to drift.
+     */
+    fun round1(x: Double): String =
+        String.format(Locale.US, "%.1f", RangeReportEngine.round1(x))
+}
+
 // MARK: - PDF renderer (deterministic native Canvas → PdfDocument)
 
 object TrendsReportRenderer {
@@ -319,7 +378,7 @@ object TrendsReportRenderer {
 
         // Title + mean + trend chip.
         text(canvas, stat.metric.label.uppercase(), left, ty, 11f, sansBold, accent, letterSpacing = 0.08f)
-        val meanStr = meanText(stat, units)
+        val meanStr = TrendsReportFormat.meanText(stat, units)
         textRight(canvas, meanStr, right, ty, 14f, sansMedium, TEXT_PRIMARY)
 
         // Sparkline (decorative) below the title row.
@@ -336,9 +395,9 @@ object TrendsReportRenderer {
 
         // Footer stats: Avg / Min(day) / Max(day) / Days, evenly spaced.
         val cols = listOf(
-            "AVG" to valueText(stat.mean, stat.metric, units),
-            "MIN" to "${valueText(stat.min.value, stat.metric, units)} · ${prettyDate(stat.min.day)}",
-            "MAX" to "${valueText(stat.max.value, stat.metric, units)} · ${prettyDate(stat.max.day)}",
+            "AVG" to TrendsReportFormat.valueText(stat.mean, stat.metric, units),
+            "MIN" to "${TrendsReportFormat.valueText(stat.min.value, stat.metric, units)} · ${prettyDate(stat.min.day)}",
+            "MAX" to "${TrendsReportFormat.valueText(stat.max.value, stat.metric, units)} · ${prettyDate(stat.max.day)}",
             "DAYS" to "${stat.n}",
         )
         val colW = (right - left) / cols.size
@@ -385,7 +444,7 @@ object TrendsReportRenderer {
                 TEXT_TERTIARY
             }
             val shown = abs(RangeReportEngine.displayValue(d, stat.metric, units))
-            "$sign${round1(shown)}" to c
+            "$sign${TrendsReportFormat.round1(shown)}" to c
         }
         // A small tinted pill.
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -555,47 +614,7 @@ object TrendsReportRenderer {
         return (a shl 24) or (color and 0x00FFFFFF)
     }
 
-    // --- Formatting (mirror the Swift page) ---
-
-    private fun valueText(v: Double, metric: ReportMetric, units: ReportDisplayUnits): String {
-        // One decimal for sleep hours, respiratory rate, skin-temp Δ and the 0–3 stress score
-        // (metric.usesOneDecimal); whole numbers for the scores + bpm + ms + workout count.
-        // Skin-temp is a signed deviation, so a positive reading gets an explicit "+" to keep
-        // it from reading as an absolute temperature.
-        //
-        // Both the value and its unit go through RangeReportEngine (#1637) — the same conversion
-        // the headline sentences use — so the exported page cannot print a unit the app disagrees
-        // with. Effort gains a decimal once rescaled to the 0–21 axis, where a whole number would
-        // throw away most of the resolution the 0–100 value carried.
-        val unit = RangeReportEngine.displayUnit(metric, units)
-        val shown = RangeReportEngine.displayValue(v, metric, units)
-        val oneDecimal = metric.usesOneDecimal ||
-            (metric == ReportMetric.STRAIN && units.effortFactor != 1.0)
-        // The whole-number branch keeps `roundToInt` (ties toward +∞) where Swift rounds away from
-        // zero. The two agree for every NON-NEGATIVE input, and this branch only ever serves
-        // Recovery / HRV / Resting HR / Effort — all non-negative by construction — so it cannot
-        // diverge today. A signed whole-number metric would break that: give it one decimal, or
-        // round it away from zero the way [round1] does.
-        var num = if (oneDecimal) round1(shown) else "${shown.roundToInt()}"
-        if (metric == ReportMetric.SKIN_TEMP_DEV && shown > 0) num = "+$num"
-        return if (unit.isEmpty()) num else "$num $unit"
-    }
-
-    private fun meanText(stat: MetricRangeStat, units: ReportDisplayUnits): String =
-        valueText(stat.mean, stat.metric, units)
-
-    /**
-     * One decimal, rounded the SAME way the engine and the Swift page round.
-     *
-     * This used `roundToInt`, which breaks ties toward positive infinity, while Swift's `round1Text`
-     * uses `.rounded()` — half away from zero. Positive values agree; every negative tie did not, so
-     * a stored −0.25 Δ°C printed −0.3 on iOS and −0.2 on Android, and −0.05 printed −0.1 against a
-     * sign-losing 0.0. Skin temp is the report's only signed metric, so it was the only row that
-     * could reach it. [RangeReportEngine.round1] already implements away-from-zero for exactly this
-     * reason; delegating leaves ONE rounding rule per platform instead of a second one to drift.
-     */
-    private fun round1(x: Double): String =
-        String.format(Locale.US, "%.1f", RangeReportEngine.round1(x))
+    // --- Formatting: see TrendsReportFormat (kept out of this object so it is unit-testable) ---
 
     /** "Jun 15" from "2026-06-15" via the engine's pure parse (no Calendar/locale). */
     private fun prettyDate(ymd: String): String {

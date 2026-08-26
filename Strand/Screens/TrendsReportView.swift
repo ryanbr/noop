@@ -401,7 +401,7 @@ struct TrendsReportPage: View {
     /// headline sentences above use — so the exported page cannot print a unit the app disagrees
     /// with. Effort gains a decimal once rescaled to the 0–21 axis, where a whole number would throw
     /// away most of the resolution the 0–100 value carried.
-    private func valueText(_ v: Double, _ metric: ReportMetric) -> String {
+    func valueText(_ v: Double, _ metric: ReportMetric) -> String {
         let unit = RangeReportEngine.displayUnit(metric, units: units)
         let shown = RangeReportEngine.displayValue(v, metric: metric, units: units)
         let oneDecimal = metric.usesOneDecimal
@@ -417,7 +417,7 @@ struct TrendsReportPage: View {
         valueText(stat.mean, stat.metric)
     }
 
-    private func round1Text(_ x: Double) -> String {
+    func round1Text(_ x: Double) -> String {
         String(format: "%.1f", (x * 10).rounded() / 10)
     }
 
