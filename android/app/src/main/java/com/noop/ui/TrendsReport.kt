@@ -610,11 +610,11 @@ object TrendsReportShare {
             // The user's display settings, resolved once for BOTH the headline sentences (built
             // inside the engine) and the metric cards (drawn by the renderer). Handing the two
             // surfaces different values is how the document would contradict itself (#1637).
-            // Name the canonical constant rather than deriving it from `effortValue(1.0, )`: the
-            // report multiplies by this factor, which is only equivalent while the mapping is linear.
             val scale = UnitPrefs.effortScale(context)
             val units = ReportDisplayUnits(
                 fahrenheit = UnitPrefs.temperature(context) == TemperatureUnit.FAHRENHEIT,
+                // Name the canonical constant rather than deriving it from `effortValue(1.0, )`:
+                // the report MULTIPLIES by this, which only agrees while the mapping stays linear.
                 effortFactor = if (scale == EffortScale.WHOOP) UnitFormatter.EFFORT_SCALE_FACTOR else 1.0,
             )
             val report = TrendsReportData.report(range, days, today, stressByDay, units)
