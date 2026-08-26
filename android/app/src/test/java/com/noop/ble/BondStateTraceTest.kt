@@ -92,4 +92,31 @@ class BondStateTraceTest {
     fun `with no strap address, an addressed event is not ours to trace`() {
         assertFalse(shouldTraceBondState("AA:BB", null, helloOutstanding = true))
     }
+
+    @Test
+    fun `a pairing-request transition is timed against the pairing, not a hello that never went out`() {
+        // The #1635 explicit-pairing experiment deliberately sends no CLIENT_HELLO. Timing only against
+        // the hello left every transition it causes untimed, so a 200ms pairing and an 8s one read the
+        // same - and how long a pairing took is most of what makes it diagnosable.
+        val line = bondStateTraceLine(
+            previous = android.bluetooth.BluetoothDevice.BOND_BONDING,
+            current = android.bluetooth.BluetoothDevice.BOND_BONDED,
+            address = "FD:D4",
+            sinceMs = 4200L,
+            sinceLabel = "the pairing request",
+        )
+        assertTrue(line.contains("4200ms after the pairing request"))
+        assertFalse(line.contains("CLIENT_HELLO"))
+        assertTrue(line.contains("paired"))
+    }
+
+    @Test
+    fun `the connect line names the bond state the link STARTED with`() {
+        // Without it, a hello failing on an unencrypted link and one failing on an ENCRYPTED link print
+        // identically - and they are completely different findings.
+        val l = bondStateAtConnectLine(android.bluetooth.BluetoothDevice.BOND_BONDED, "FD:D4")
+        assertTrue(l.contains("BOND_BONDED"))
+        assertTrue(l.contains("FD:D4"))
+        assertTrue(bondStateAtConnectLine(android.bluetooth.BluetoothDevice.BOND_NONE, null).contains("unknown"))
+    }
 }

@@ -38,10 +38,11 @@ internal fun bondStateTraceLine(
     previous: Int,
     current: Int,
     address: String?,
-    sinceHelloMs: Long?,
+    sinceMs: Long?,
+    sinceLabel: String = "CLIENT_HELLO",
 ): String {
     val who = address?.takeIf { it.isNotBlank() } ?: "unknown"
-    val since = sinceHelloMs?.let { " ${it}ms after CLIENT_HELLO" } ?: ""
+    val since = sinceMs?.let { " ${it}ms after $sinceLabel" } ?: ""
     val note = when {
         previous == BluetoothDevice.BOND_BONDING && current == BluetoothDevice.BOND_NONE ->
             " — pairing did NOT complete"
@@ -81,3 +82,15 @@ internal fun shouldTraceBondState(
     return ev.equals(ours, ignoreCase = true)
 }
 
+/** The one-per-link readout of the OS bond state the link STARTED with (#1635).
+ *
+ * Without it a capture cannot tell an already-paired link from an unpaired one, which is the single fact
+ * that decides how to read everything after it: a CLIENT_HELLO that fails on an unencrypted link and one
+ * that fails on an encrypted link are completely different findings, and they have been printing
+ * identically. It also makes the explicit-pairing experiment legible — "did the pairing from last connect
+ * actually survive?" is answered on the next connect line rather than inferred.
+ */
+internal fun bondStateAtConnectLine(bondState: Int, address: String?): String {
+    val who = address?.takeIf { it.isNotBlank() } ?: "unknown"
+    return "bond state at connect: ${bondStateName(bondState)} device=$who"
+}

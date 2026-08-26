@@ -2211,9 +2211,17 @@ class WhoopBleClient(
     /** #1635: record an OS bond-state transition in the strap log. The OS pairing flow has never been
      *  observed, which is what leaves the 5/MG bond failure undecided - see [bondStateTraceLine]. */
     fun onBondStateChanged(previous: Int, current: Int, address: String?) {
-        val since = msSinceClientHello
+        // Time against whichever request is actually outstanding. The hello takes precedence when both
+        // are, but the explicit-pairing experiment deliberately sends no hello, so without the second
+        // marker every transition it causes would print untimed — and how long a pairing took is most of
+        // what makes it diagnosable (#1635).
+        val helloMs = msSinceClientHello
+        val bondMs = explicitBondRequestedAtMs
+            .takeIf { it > 0L }?.let { System.currentTimeMillis() - it }
+        val since = helloMs ?: bondMs
+        val label = if (helloMs != null) "CLIENT_HELLO" else "the pairing request"
         if (!shouldTraceBondState(address, lastDeviceAddress, since != null)) return
-        log(bondStateTraceLine(previous, current, address, since))
+        log(bondStateTraceLine(previous, current, address, since, label))
     }
 
     @Volatile private var familyEstablished = false
@@ -4638,6 +4646,12 @@ class WhoopBleClient(
      *  the retry cadence here is seconds. Cleared with the rest of the per-link state on teardown. */
     @Volatile
     private var explicitBondRequestedThisLink = false
+
+    /** When `createBond()` was asked for, so the bond-state trace can time the pairing (#1635). The trace
+     *  otherwise measures only from the CLIENT_HELLO, which this experiment deliberately does not send —
+     *  leaving every pairing transition untimed, so a 200ms pairing and an 8s one read identically. */
+    @Volatile
+    private var explicitBondRequestedAtMs = 0L
 
     /** Set by an explicit user Connect so the NEXT 5/MG session re-attempts a suppressed CLIENT_HELLO
      *  (#1635). Consumed on use, so it grants exactly one retry: someone who put the strap in pairing mode
@@ -7280,6 +7294,10 @@ class WhoopBleClient(
                 // because the two must not overlap: writing while a pairing is in flight is the behaviour
                 // that has been dropping the link, so doing both would test nothing.
                 val osBonded = g.device.bondState == BluetoothDevice.BOND_BONDED
+                // Once per link, before any decision: a hello that fails on an unencrypted link and one
+                // that fails on an ENCRYPTED link are completely different findings, and they have been
+                // printing identically (#1635).
+                log(bondStateAtConnectLine(g.device.bondState, g.device.address))
                 if (shouldRequestExplicitBond(
                         optedIn = puffinExperiment.explicitBond,
                         isWhoop5 = true,
@@ -7289,6 +7307,7 @@ class WhoopBleClient(
                     )
                 ) {
                     explicitBondRequestedThisLink = true
+                    explicitBondRequestedAtMs = System.currentTimeMillis()
                     val where = bondStateName(g.device.bondState)
                     // A THROW is not a refusal. createBond needs BLUETOOTH_CONNECT, and swallowing a
                     // SecurityException into `false` would print a confident claim about the strap for a
@@ -8532,6 +8551,7 @@ class WhoopBleClient(
     private fun reset() {
         didBond = false
         explicitBondRequestedThisLink = false   // #1635: one createBond attempt per link
+        explicitBondRequestedAtMs = 0L
         connectHandshakeDone = false
         familyEstablished = false   // the next link re-establishes it at service discovery
         loggedFirmwareGate = null
