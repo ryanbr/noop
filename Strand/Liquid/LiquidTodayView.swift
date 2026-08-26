@@ -886,17 +886,30 @@ struct LiquidTodayView: View {
             // everyone while every other card on the same screen showed a real number off the same
             // `displayDay`. Reported with a clean A/B: turning Liquid Today off restored both immediately.
             //
-            // Resolution is copied from the Key Metrics tile below rather than reinvented, candidate
-            // fallback and detail-route switch included, so the card and the tile can never disagree about
-            // the same day's SpO2.
+            // The VALUE resolution is copied from the Key Metrics tile below rather than reinvented —
+            // candidate fallback and experimental gating included — so the card and the tile cannot
+            // disagree about the same day's number. The tile's key/route handling is deliberately NOT
+            // copied; see below for why the two are not interchangeable.
             let spo2Real = displayDay?.spo2Pct ?? vitalsDay?.spo2Pct
             let spo2CandidateOn = PuffinExperiment.spo2CandidateDisplayEnabled
             let spo2Candidate = spo2Real == nil && spo2CandidateOn
                 ? spo2CandidateByDay[cachedDisplayDay?.day ?? selectedDayKey]
                 : nil
             let spo2 = spo2Real ?? spo2Candidate
-            cardLink(.metric(spo2Candidate != nil ? "spo2_candidate" : "spo2"),
-                     title: card.title, sub: card.subtitle,
+            // ALWAYS routes to "spo2", never "spo2_candidate". The Key Metrics tile switches that string,
+            // but there it is a SPARKLINE SERIES key (ktile feeds it to windowedSpark; navigation goes
+            // through its separate detailMetric argument). Here the string is a NAVIGATION route resolved
+            // against MetricCatalog — which has no "spo2_candidate" entry — so switching it would drop the
+            // tap into the Health catch-all instead of the Blood Oxygen detail. Same literal, two different
+            // key spaces.
+            // The candidate MUST carry its label. Every other surface that shows it says "strap estimate
+            // (unverified)" — the Key Metrics tile below, VitalSignsSummary, the classic TodayView — and
+            // PuffinExperiment's own doc says the toggle surfaces it "in the Blood Oxygen tile/card,
+            // labelled". An unlabelled number here would read as a measured SpO2 on the one surface that
+            // is the DEFAULT Today screen on iOS 26. The subtitle is the slot this card has.
+            cardLink(.metric("spo2"),
+                     title: card.title,
+                     sub: spo2Candidate != nil ? String(localized: "strap estimate (unverified)") : card.subtitle,
                      // Em dash, not the en dash the stub used: the classic Blood Oxygen card and
                      // skinTempCardValue both return "—", so the stub's "–" would have left the two
                      // adjacent cards printing different glyphs for the same "no reading" state.
