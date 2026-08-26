@@ -55,9 +55,23 @@ internal fun shouldRequestExplicitBond(
  */
 internal fun explicitBondDefersHello(requestedThisLink: Boolean): Boolean = requestedThisLink
 
-/** The outcome line for a `createBond()` call. [initiated] is the API's own return value: false means the
- *  stack refused to even start, which is a different answer from a pairing that starts and then fails, and
- *  the two must not read the same in a capture. */
+/**
+ * The outcome line when `createBond()` THREW rather than returning.
+ *
+ * Almost always a missing BLUETOOTH_CONNECT permission. Reporting that as "Android refused to start
+ * pairing" would blame the strap for something entirely local, and a capture would carry a confident wrong
+ * answer about hardware — the exact failure this whole investigation kept producing. Names the throwable
+ * instead and claims nothing about the strap.
+ */
+internal fun explicitBondThrewLine(throwableName: String, bondStateName: String): String =
+    "WHOOP 5/MG: could not ask Android to pair — createBond threw $throwableName from $bondStateName." +
+        " This is a local problem (usually a missing Bluetooth permission), NOT the strap refusing" +
+        " (#1635, experimental)"
+
+/** The outcome line for a `createBond()` call that returned. [initiated] is the API's own return value:
+ *  false means the stack refused to even start, which is a different answer from a pairing that starts and
+ *  then fails, and the two must not read the same in a capture. A throw is a third answer again — see
+ *  [explicitBondThrewLine]. */
 internal fun explicitBondRequestLine(initiated: Boolean, bondStateName: String): String =
     if (initiated) {
         "WHOOP 5/MG: asked Android to pair (createBond from $bondStateName) — watch the bond state lines" +

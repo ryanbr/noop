@@ -65,4 +65,17 @@ class ExplicitBondTest {
         assertFalse(refused.contains("watch the bond state lines"))
         assertEquals(false, started == refused)
     }
+
+    @Test
+    fun `a throw is reported as local, never as the strap refusing`() {
+        // createBond needs BLUETOOTH_CONNECT. Swallowing a SecurityException into `false` would print a
+        // confident claim about hardware for a problem that is entirely local - the failure mode this
+        // whole investigation kept producing.
+        val threw = explicitBondThrewLine("SecurityException", "BOND_NONE")
+        val refused = explicitBondRequestLine(initiated = false, bondStateName = "BOND_NONE")
+        assertTrue(threw.contains("local problem"))
+        assertTrue(threw.contains("SecurityException"))
+        assertFalse(threw.contains("refused to START pairing"))
+        assertFalse(refused.contains("local problem"))
+    }
 }

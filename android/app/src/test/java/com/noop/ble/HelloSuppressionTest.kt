@@ -9,19 +9,19 @@ import org.junit.Test
 class HelloSuppressionTest {
     @Test
     fun `an unlatched strap always gets its handshake`() {
-        assertTrue(shouldSendClientHello(suppressedForDevice = false, userInitiated = false))
-        assertTrue(shouldSendClientHello(suppressedForDevice = false, userInitiated = true))
+        assertTrue(shouldSendClientHello(suppressedForDevice = false, userInitiated = false, osBonded = false))
+        assertTrue(shouldSendClientHello(suppressedForDevice = false, userInitiated = true, osBonded = false))
     }
 
     @Test
     fun `a latched strap skips it on an automatic reconnect`() {
         // The whole point: the automatic reconnect is the one that was looping every five seconds.
-        assertFalse(shouldSendClientHello(suppressedForDevice = true, userInitiated = false))
+        assertFalse(shouldSendClientHello(suppressedForDevice = true, userInitiated = false, osBonded = false))
     }
 
     @Test
     fun `an explicit Connect always re-attempts, so suppression is never permanent`() {
-        assertTrue(shouldSendClientHello(suppressedForDevice = true, userInitiated = true))
+        assertTrue(shouldSendClientHello(suppressedForDevice = true, userInitiated = true, osBonded = false))
     }
 
     @Test
@@ -52,5 +52,15 @@ class HelloSuppressionTest {
         val epitaph = BondRefusalGiveUp.helloSuppressedEpitaph(5, "abcd1234")
         assertFalse(epitaph.contains("held by", ignoreCase = true))
         assertTrue(epitaph.contains("abcd1234"))
+    }
+
+    @Test
+    fun `an OS pairing re-arms a suppressed hello`() {
+        // #1635 explicit-bond experiment: suppression latched because the write never completed on an
+        // UNENCRYPTED link. Once the OS holds a pairing the link comes up encrypted and the write has a
+        // chance it has never had. Without this the experiment could pair successfully and still never
+        // write the hello, so it would "work" and change nothing the user can see.
+        assertTrue(shouldSendClientHello(suppressedForDevice = true, userInitiated = false, osBonded = true))
+        assertFalse(shouldSendClientHello(suppressedForDevice = true, userInitiated = false, osBonded = false))
     }
 }

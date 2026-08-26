@@ -7279,17 +7279,24 @@ class WhoopBleClient(
                 // it — which the bond-state trace showed never happens. Runs BEFORE the hello decision
                 // because the two must not overlap: writing while a pairing is in flight is the behaviour
                 // that has been dropping the link, so doing both would test nothing.
+                val osBonded = g.device.bondState == BluetoothDevice.BOND_BONDED
                 if (shouldRequestExplicitBond(
                         optedIn = puffinExperiment.explicitBond,
                         isWhoop5 = true,
-                        alreadyBondedAtOsLevel = g.device.bondState == BluetoothDevice.BOND_BONDED,
+                        alreadyBondedAtOsLevel = osBonded,
                         appLevelBonded = didBond,
                         alreadyRequestedThisLink = explicitBondRequestedThisLink,
                     )
                 ) {
                     explicitBondRequestedThisLink = true
-                    val initiated = runCatching { g.device.createBond() }.getOrDefault(false)
-                    log(explicitBondRequestLine(initiated, bondStateName(g.device.bondState)))
+                    val where = bondStateName(g.device.bondState)
+                    // A THROW is not a refusal. createBond needs BLUETOOTH_CONNECT, and swallowing a
+                    // SecurityException into `false` would print a confident claim about the strap for a
+                    // problem that is entirely local.
+                    runCatching { g.device.createBond() }.fold(
+                        onSuccess = { log(explicitBondRequestLine(it, where)) },
+                        onFailure = { log(explicitBondThrewLine(it.javaClass.simpleName, where)) },
+                    )
                 }
                 if (explicitBondDefersHello(explicitBondRequestedThisLink)) {
                     // Same trap as the suppression path below, and worse here. The watchdog was armed at
@@ -7306,7 +7313,7 @@ class WhoopBleClient(
                 val suppressed = runCatching {
                     com.noop.ui.NoopPrefs.helloSuppressed(context, g.device.address)
                 }.getOrDefault(false)
-                if (shouldSendClientHello(suppressed, userInitiated = userAsked)) {
+                if (shouldSendClientHello(suppressed, userInitiated = userAsked, osBonded = osBonded)) {
                     writeClientHello(g, cmd)
                 } else {
                     // The watchdog was armed at discovery, before this decision could be made, and it
