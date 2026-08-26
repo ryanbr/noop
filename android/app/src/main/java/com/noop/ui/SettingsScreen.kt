@@ -1721,8 +1721,8 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     StatePill(
-                        title = strapStatusTitle(live.bonded, live.connected),
-                        tone = strapTone(live.bonded, live.connected),
+                        title = strapStatusTitle(live.encryptedBond, live.bonded, live.connected),
+                        tone = strapTone(live.encryptedBond, live.bonded, live.connected),
                         pulsing = live.connected,
                     )
                     live.batteryPct?.let { pct ->
@@ -1735,7 +1735,7 @@ fun SettingsScreen(
                     }
                 }
                 Text(
-                    strapStatusDetail(live.bonded, live.connected, live.scanning),
+                    strapStatusDetail(live.encryptedBond, live.bonded, live.connected, live.scanning),
                     style = NoopType.subhead,
                     color = Palette.textSecondary,
                 )

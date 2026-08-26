@@ -28,23 +28,46 @@ internal fun waistInchesStep(current: Double, up: Boolean): Double {
 
 // MARK: - Strap status helpers (mirror SettingsView's computed properties)
 
-internal fun strapStatusTitle(bonded: Boolean, connected: Boolean): String = when {
-    bonded && connected -> "Bonded · streaming"
+/**
+ * The Strap pill on Settings.
+ *
+ * [encryptedBond], not [bonded], is what "Bonded" means. `bonded` is also set by the 5/MG live-HR
+ * shortcut (#69), where HR streams over the open profile with no encrypted pairing at all — so keying the
+ * green "Bonded" state off it told a strap with no pairing that it had one. The Live screen has drawn this
+ * distinction since #69; Settings and Data Sources were missed, and #1635 hello suppression turns that
+ * state from a brief moment on the way to bonding into where a 5/MG now permanently sits.
+ *
+ * It is not cosmetic. The encrypted bond gates buzz, alarms, double-tap and history sync, and Settings
+ * already says so a few rows further down ("Needs the full encrypted bond…"). A green "Bonded · streaming"
+ * above that contradicts it on the same screen.
+ */
+internal fun strapStatusTitle(encryptedBond: Boolean, bonded: Boolean, connected: Boolean): String = when {
+    encryptedBond && connected -> "Bonded · streaming"
+    encryptedBond -> "Bonded · idle"
+    bonded && connected -> "Live HR (not fully paired)"
     connected -> "Connected"
-    bonded -> "Bonded · idle"
+    bonded -> "Paired · idle"
     else -> "Disconnected"
 }
 
-internal fun strapTone(bonded: Boolean, connected: Boolean): StrandTone = when {
-    connected -> StrandTone.Positive
-    bonded -> StrandTone.Warning
+/** Positive ONLY for a real encrypted bond on a live link — see [strapStatusTitle]. A live-HR-only link
+ *  is a warning, not a success: it works, but the pairing-gated features do not. */
+internal fun strapTone(encryptedBond: Boolean, bonded: Boolean, connected: Boolean): StrandTone = when {
+    encryptedBond && connected -> StrandTone.Positive
+    connected || bonded -> StrandTone.Warning
     else -> StrandTone.Critical
 }
 
 // `internal` (not private) so the unit test in the same package can assert the scanning branch.
-internal fun strapStatusDetail(bonded: Boolean, connected: Boolean, scanning: Boolean): String = when {
+internal fun strapStatusDetail(
+    encryptedBond: Boolean,
+    bonded: Boolean,
+    connected: Boolean,
+    scanning: Boolean,
+): String = when {
     scanning -> "Searching for your WHOOP… make sure it's charged, on your wrist, and the official WHOOP app isn't connected to it."
-    bonded && connected -> "Your strap is paired and sending data. Open Live for a real-time heart rate."
+    encryptedBond && connected -> "Your strap is paired and sending data. Open Live for a real-time heart rate."
+    bonded && connected -> "Live heart rate is streaming, but your strap is not fully paired. Buzz, alarms and history sync need the encrypted pairing."
     connected -> "Connected. Finishing the secure pairing handshake…"
     bonded -> "Previously paired but not currently connected. Re-scan to reconnect."
     else -> "No strap connected. Put your WHOOP nearby and tap Re-scan to pair."

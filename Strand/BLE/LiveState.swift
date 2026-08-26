@@ -363,16 +363,26 @@ public final class LiveState: ObservableObject {
     /// card, so the two can't disagree the way they did in #266 (sidebar "Connecting…" vs Settings
     /// "Connected" for the same connected-but-unbonded 5/MG link). Once the link is up and HR is
     /// flowing — even over the unbonded standard profile — this reads "Connected", never "Connecting…".
+    ///
+    /// "Bonded" means [encryptedBond], never [bonded]. The 5/MG live-HR shortcut (#69) sets `bonded` while
+    /// HR streams over the OPEN profile with no pairing at all, so keying the green bonded state off it
+    /// told a strap with no encrypted pairing that it had one — and the encrypted bond is exactly what
+    /// gates buzz, alarms, double-tap and history sync. LiveView has drawn this line since #69; this
+    /// shared label (sidebar + Settings) had not, so the two screens disagreed about the same link.
     public var connectionStatusLabel: String {
-        if connected && bonded { return "Bonded · streaming" }
+        if connected && encryptedBond { return "Bonded · streaming" }
+        if connected && bonded { return "Live HR (not fully paired)" }
         if connected { return "Connected" }
-        if bonded { return "Bonded · idle" }
+        if encryptedBond { return "Bonded · idle" }
+        if bonded { return "Paired · idle" }
         return "Disconnected"
     }
-    /// True when the link is up (HR flowing) → status reads green. Drives the sidebar + Settings tone.
-    public var connectionStatusIsActive: Bool { connected }
-    /// True when previously paired but not currently connected → amber.
-    public var connectionStatusIsIdle: Bool { !connected && bonded }
+    /// True when the link is up with a REAL encrypted bond → status reads green. A live-HR-only link is
+    /// amber via [connectionStatusIsIdle]: it works, but every pairing-gated feature is unavailable.
+    public var connectionStatusIsActive: Bool { connected && encryptedBond }
+    /// True when previously paired but not currently connected, OR connected with live HR but no
+    /// encrypted bond → amber either way.
+    public var connectionStatusIsIdle: Bool { (!connected && bonded) || (connected && !encryptedBond) }
 
     /// Fired (live only) when the strap reports a DOUBLE_TAP gesture. Wired by AppModel to the
     /// user's chosen action. Debounced in AppModel.

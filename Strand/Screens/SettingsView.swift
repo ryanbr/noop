@@ -1471,7 +1471,11 @@ struct SettingsView: View {
     }
 
     private var strapStatusDetail: String {
-        if live.bonded && live.connected {
+        // encryptedBond, not bonded — see LiveState.connectionStatusLabel. Saying "is paired" for a
+        // live-HR-only link contradicts both LiveView's pill and the buzz/alarm rows on this same screen,
+        // which correctly refuse and explain that they need the full encrypted bond. A live-HR link falls
+        // through to the pairing hint below, which describes the real state.
+        if live.encryptedBond && live.connected {
             return String(localized: "Your strap is paired and sending data. Open Live for a real-time heart rate.")
         }
         if live.connected, let hint = live.pairingHint { return hint }

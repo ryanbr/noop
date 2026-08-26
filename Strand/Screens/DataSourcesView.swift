@@ -915,7 +915,8 @@ struct DataSourcesView: View {
         // not-yet-streaming strap (e.g. an experimental WHOOP 5/MG link) no longer reads as
         // "Not connected" on one screen and "Connected" on another (issue #8).
         let (tone, label): (StrandTone, LocalizedStringKey) =
-            live.bonded ? (.positive, "Bonded, streaming.")
+            live.encryptedBond ? (.positive, "Bonded, streaming.")
+            : live.bonded ? (.warning, "Live HR (not fully paired)")
             : live.connected ? (.warning, "Connected.")
             : (.critical, "Not connected. Open Live to pair.")
         return card(title: String(localized: "WHOOP Strap (Live BLE)"), icon: "antenna.radiowaves.left.and.right",

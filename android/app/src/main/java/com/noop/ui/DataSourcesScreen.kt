@@ -867,7 +867,11 @@ fun DataSourcesScreen(vm: AppViewModel) {
             subtitle = "Pairs directly with your strap over Bluetooth: no WHOOP app, no cloud.",
         ) {
             val (label, tone) = when {
-                live.bonded -> "Bonded, streaming." to StrandTone.Positive
+                // encryptedBond, not bonded — see strapStatusTitle. A 5/MG streaming over the open
+                // profile has bonded == true with no pairing at all, and after #1635 hello suppression it
+                // stays there for good rather than passing through.
+                live.encryptedBond -> "Bonded, streaming." to StrandTone.Positive
+                live.bonded -> "Live HR (not fully paired)" to StrandTone.Warning
                 live.connected -> "Connected, pairing…" to StrandTone.Warning
                 else -> "Not connected. Open Live to pair." to StrandTone.Critical
             }
