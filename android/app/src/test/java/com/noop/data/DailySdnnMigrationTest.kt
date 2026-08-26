@@ -22,11 +22,10 @@ class DailySdnnMigrationTest {
     fun migrationAndEntityPreserveOldRowsAsNull() {
         assertEquals(31, WhoopDatabase.MIGRATION_31_32.startVersion)
         assertEquals(32, WhoopDatabase.MIGRATION_31_32.endVersion)
-        // Not pinned to a literal: this test is about the v31->v32 migration, and re-pinning it on
-        // every later schema bump made an unrelated file part of every migration diff (#1636 was the
-        // third such bump). The chain's END is asserted by WhoopDatabaseMigrationChainTest, which is
-        // where that property belongs.
-        assertTrue(WhoopDatabase.SCHEMA_VERSION >= 32)
+        // No SCHEMA_VERSION assertion here. It used to pin the literal, which made this unrelated file
+        // part of every migration diff; replacing it with a `>= 32` bound would look like coverage while
+        // asserting almost nothing. WhoopDatabaseMigrationChainTest owns that property properly — it
+        // asserts the chain has no holes AND ends exactly at SCHEMA_VERSION.
         val old = DailyMetric(deviceId = "my-whoop", day = "2026-08-22", avgHrv = 44.0)
         assertNull(old.avgSdnn)
         assertEquals(88.4, old.copy(avgSdnn = 88.4).avgSdnn!!, 0.0)
