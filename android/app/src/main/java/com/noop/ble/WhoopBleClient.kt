@@ -2187,11 +2187,11 @@ class WhoopBleClient(
     /// the two parameters would silently drop that guarantee.
     /** #1634: last firmware-gate line logged, so a stable per-connection value is not repeated on every
      *  hello. Cleared in [reset] with the rest of the per-connection state. */
+    @Volatile private var loggedFirmwareGate: String? = null
+
     /** #1635: when the 5/MG CLIENT_HELLO write was issued, so its completion - or the absence of one -
      *  can be reported with an elapsed time. 0 means none is outstanding. Cleared in [reset]. */
     @Volatile private var clientHelloWriteAtMs: Long = 0L
-
-    @Volatile private var loggedFirmwareGate: String? = null
 
     @Volatile private var familyEstablished = false
 
