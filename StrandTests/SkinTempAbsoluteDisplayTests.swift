@@ -48,6 +48,84 @@ final class SkinTempAbsoluteDisplayTests: XCTestCase {
         XCTAssertTrue(caption.hasSuffix("unverified"))
     }
 
+    // MARK: - The tile itself, not just the caption helper
+
+    /// A day key `daysAgo` before the CURRENT logical day.
+    ///
+    /// Not a hardcoded date: `latest()` resolves through `Baselines.freshestCarried`, which only carries
+    /// a reading within `vitalCarryDays` of today. A fixed fixture date passes now and silently stops
+    /// resolving once the real clock moves past that window — a test that rots into a false green.
+    private func dayKey(_ daysAgo: Int) -> String {
+        Baselines.cutoffKey(todayKey: BodyVitalSigns.logicalDayKey(Date()), carryDays: daysAgo)
+    }
+
+    private func day(_ d: String, abs: Double? = nil, dev: Double? = nil) -> DailyMetric {
+        DailyMetric(day: d, totalSleepMin: nil, efficiency: nil, deepMin: nil, remMin: nil,
+                    lightMin: nil, disturbances: nil, restingHr: nil, avgHrv: nil,
+                    recovery: nil, strain: nil, exerciseCount: nil,
+                    skinTempDevC: dev, skinTempC: abs)
+    }
+
+    private func skinTile(_ days: [DailyMetric],
+                          _ unit: TemperatureUnit = .celsius) throws -> BodyVitalReading {
+        let all = BodyVitalSigns.readings(days: days, today: days.last, temperatureUnit: unit)
+        return try XCTUnwrap(all.first { $0.key == "skin" })
+    }
+
+    /// The reported case: the night measured both, so the absolute leads and the deviation sits under it.
+    func testANightWithBothLeadsWithTheAbsolute() throws {
+        let tile = try skinTile([day(dayKey(0), abs: 34.6, dev: 0.52)])
+        XCTAssertEqual(try XCTUnwrap(tile.value), 34.6, accuracy: 0.001)
+        XCTAssertEqual(tile.unit, "°C")
+        XCTAssertEqual(tile.secondary, "+0.5 Δ°C")
+    }
+
+    func testTheAbsoluteAndItsNoteFollowTheTemperatureSetting() throws {
+        let tile = try skinTile([day(dayKey(0), abs: 34.6, dev: 0.52)], .fahrenheit)
+        XCTAssertEqual(tile.unit, "°F")
+        XCTAssertEqual(tile.secondary, "+0.9 Δ°F")
+    }
+
+    /// A night predating the column keeps exactly the tile that shipped before.
+    func testADeviationOnlyNightIsUnchanged() throws {
+        let tile = try skinTile([day(dayKey(0), dev: 0.52)])
+        XCTAssertEqual(try XCTUnwrap(tile.value), 0.52, accuracy: 0.001)
+        XCTAssertEqual(tile.unit, "Δ°C")
+        XCTAssertNil(tile.secondary, "a deviation-led tile would only repeat its own headline")
+    }
+
+    /// Calibrating: the absolute is measured before the baseline is usable, so there is no deviation
+    /// yet. The tile shows the temperature instead of "needs ~4 worn nights", and omits the note.
+    func testACalibratingNightShowsTheAbsoluteWithNoNote() throws {
+        let tile = try skinTile([day(dayKey(0), abs: 34.6)])
+        XCTAssertEqual(try XCTUnwrap(tile.value), 34.6, accuracy: 0.001)
+        XCTAssertEqual(tile.unit, "°C")
+        XCTAssertNil(tile.secondary)
+    }
+
+    /// The regression the displayed-row rule exists for: an import-only night is NEWER than the last
+    /// strap night. The tile must stay on the import rather than stepping back to a stale absolute.
+    func testANewerImportOnlyNightDoesNotStepBackToAnOlderAbsolute() throws {
+        let tile = try skinTile([
+            day(dayKey(1), abs: 34.6, dev: 0.52),   // the strap's last scored night
+            day(dayKey(0), dev: 0.20),              // a WHOOP CSV import: deviation only
+        ])
+        XCTAssertEqual(try XCTUnwrap(tile.value), 0.20, accuracy: 0.001,
+                       "showing 34.6 here would be yesterday's reading dressed as today's")
+        XCTAssertEqual(tile.day, dayKey(0))
+        XCTAssertNil(tile.secondary)
+    }
+
+    /// The secondary must be THIS night's deviation. Reaching for the freshest one anywhere would
+    /// print a previous night's number under tonight's temperature.
+    func testTheNoteBelongsToTheDisplayedNight() throws {
+        let tile = try skinTile([
+            day(dayKey(1), abs: 33.9, dev: -0.40),
+            day(dayKey(0), abs: 34.6, dev: 0.52),
+        ])
+        XCTAssertEqual(tile.secondary, "+0.5 Δ°C", "the note must not come from the previous night")
+    }
+
     /// The formatting the tile's secondary carries, pinned to the same helper Android formats with.
     func testTheDeviationNoteMatchesTheKotlinTwin() {
         func note(_ c: Double, fahrenheit: Bool) -> String {
