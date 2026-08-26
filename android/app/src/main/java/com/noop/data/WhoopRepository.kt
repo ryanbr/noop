@@ -627,17 +627,25 @@ class WhoopRepository(
         dailyMetrics: List<DailyMetric>,
         metricPoints: List<MetricSeriesRow>,
         provenance: List<ScoreInputProvenanceRow>,
+        computation: ScoreComputationStamp,
     ) = dao.replaceComputedScoreWindow(
-        deviceId, from, to, dailyMetrics, metricPoints, provenance
+        deviceId, from, to, dailyMetrics, metricPoints, provenance, computation
     )
 
     suspend fun scoreInputSource(deviceId: String, day: String, key: String): String? =
         dao.scoreInputSource(deviceId, day, key)
 
+    suspend fun scoreComputationProvenance(
+        deviceId: String,
+        day: String,
+        key: String,
+    ): ScoreComputationProvenanceRow? = dao.scoreComputationProvenance(deviceId, day, key)
+
     suspend fun upsertMetricSeriesWithProvenance(
         rows: List<MetricSeriesRow>,
         provenance: List<ScoreInputProvenanceRow>,
-    ) = dao.upsertMetricSeriesWithProvenance(rows, provenance)
+        computation: ScoreComputationStamp,
+    ) = dao.upsertMetricSeriesWithProvenance(rows, provenance, computation)
 
     /** Hand-correct the bed (onset) / wake (end) time of an existing sleep session, DURABLY , port
      *  of iOS PR #395 (Repository.editSleepTimes + MetricsCache.applySleepEdit).

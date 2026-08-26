@@ -8,7 +8,7 @@ public enum WhoopStoreInfo {
     /// The store schema-version marker, bumped per migration. Surfaced in the backup manifest (#1410) so an
     /// export records the platform's schema version (a platform-scoped indicator — Android reports its Room
     /// version independently; the two numbering schemes are not expected to match).
-    public static let schemaVersion = 18
+    public static let schemaVersion = 19
 }
 
 /// Serializes `DatabasePool` creation + migration so two concurrent opens of the SAME file can never

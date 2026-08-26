@@ -102,6 +102,8 @@ interface DeviceRegistryDao {
     @Query("DELETE FROM dayOwnership WHERE deviceId = :deviceId") suspend fun deleteDayOwnershipFor(deviceId: String)
     @Query("DELETE FROM scoreInputProvenance WHERE deviceId = :deviceId OR sourceId = :deviceId")
     suspend fun deleteScoreInputProvenanceFor(deviceId: String)
+    @Query("DELETE FROM scoreComputationProvenance WHERE deviceId = :deviceId")
+    suspend fun deleteScoreComputationProvenanceFor(deviceId: String)
     // Added (audit finding): device-keyed tables the delete set previously missed, so "delete all data"
     // left raw band sleep-state (sleepStateSample), user-entered lab/blood markers (labMarker), live
     // coaching sessions (liveSession) and dismissed workout/sleep markers behind — a privacy defect for a
@@ -138,6 +140,8 @@ interface DeviceRegistryDao {
     @Query("UPDATE OR IGNORE appleStepHour SET deviceId = :to WHERE deviceId = :from") suspend fun reKeyAppleStepHour(from: String, to: String)
     @Query("UPDATE OR IGNORE metricSeries SET deviceId = :to WHERE deviceId = :from") suspend fun reKeyMetricSeries(from: String, to: String)
     @Query("UPDATE OR IGNORE dayOwnership SET deviceId = :to WHERE deviceId = :from") suspend fun reKeyDayOwnership(from: String, to: String)
+    @Query("UPDATE OR IGNORE scoreComputationProvenance SET deviceId = :to WHERE deviceId = :from")
+    suspend fun reKeyScoreComputationProvenance(from: String, to: String)
     @Query("UPDATE OR IGNORE sleepStateSample SET deviceId = :to WHERE deviceId = :from") suspend fun reKeySleepStates(from: String, to: String)
     @Query("UPDATE OR IGNORE labMarker SET deviceId = :to WHERE deviceId = :from") suspend fun reKeyLabMarkers(from: String, to: String)
     @Query("UPDATE OR IGNORE liveSession SET deviceId = :to WHERE deviceId = :from") suspend fun reKeyLiveSessions(from: String, to: String)

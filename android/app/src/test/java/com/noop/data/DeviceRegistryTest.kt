@@ -115,6 +115,9 @@ class DeviceRegistryTest {
         override suspend fun deleteScoreInputProvenanceFor(deviceId: String) {
             deletedTables += "scoreInputProvenance" to deviceId
         }
+        override suspend fun deleteScoreComputationProvenanceFor(deviceId: String) {
+            deletedTables += "scoreComputationProvenance" to deviceId
+        }
         override suspend fun deleteSleepStatesFor(deviceId: String) { deletedTables += "sleepStateSample" to deviceId }
         override suspend fun deleteLabMarkersFor(deviceId: String) { deletedTables += "labMarker" to deviceId }
         override suspend fun deleteLiveSessionsFor(deviceId: String) { deletedTables += "liveSession" to deviceId }
@@ -143,6 +146,7 @@ class DeviceRegistryTest {
         override suspend fun reKeyJournal(from: String, to: String) {}
         override suspend fun reKeyWorkouts(from: String, to: String) {}
         override suspend fun reKeyAppleDaily(from: String, to: String) {}
+        override suspend fun reKeyScoreComputationProvenance(from: String, to: String) {}
         override suspend fun reKeyAppleStepHour(from: String, to: String) {}
         override suspend fun reKeyMetricSeries(from: String, to: String) {}
         override suspend fun reKeyDayOwnership(from: String, to: String) {
@@ -315,7 +319,7 @@ class DeviceRegistryTest {
             "stepSample", "ppgHrSample", "ppgWaveformSample", "rawImuSample", "v18AuxSample",
             "event", "battery", "dailyMetric", "sleepSession",
             "journal", "workout", "appleDaily", "metricSeries", "dayOwnership",
-            "scoreInputProvenance",
+            "scoreInputProvenance", "scoreComputationProvenance",
             "sleepStateSample", "labMarker", "liveSession", "dismissedWorkout", "dismissedSleep",
             // v38-apple-step-hour: hourly Apple-Health steps. No Android importer writes this table, but a
             // `.noopbak` restored from iOS carries its rows — and THIS path is "Remove Apple Health

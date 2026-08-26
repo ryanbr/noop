@@ -33,6 +33,19 @@ final class IntelligenceEngine: ObservableObject {
     /// history and the active strap's live data together. So this never moves after construction.
     private let deviceId: String
 
+    /// Exact build + wall-clock identity for one persistence pass. The formatter lives beside the store
+    /// row so Swift/Kotlin use the same `platform:version+build` representation.
+    private static func currentComputationStamp(now: Date = Date()) -> ScoreComputationStamp {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        return ScoreComputationStamp(
+            computedBy: ScoreComputationStamp.buildIdentity(
+                platform: "apple", appVersion: version, appBuild: build),
+            computedAt: Int64((now.timeIntervalSince1970 * 1_000).rounded())
+        )
+    }
+
     @Published var results: [Computed] = []      // newest first
     @Published var computing = false
     @Published var note: String?
@@ -437,6 +450,7 @@ final class IntelligenceEngine: ObservableObject {
             try? await store.persistMetricSeriesWithProvenance(
                 points: rows,
                 provenance: Self.vo2MaxProvenance(points: rows, waistCm: profile.waistCm),
+                computation: Self.currentComputationStamp(),
                 deviceId: computedId
             )
         }
@@ -1997,10 +2011,12 @@ final class IntelligenceEngine: ObservableObject {
             provenanceByCell["\(point.day)\u{1F}\(point.key)"] =
                 ScoreInputProvenanceRow(day: point.day, key: point.key, sourceId: source)
         }
+        let computation = Self.currentComputationStamp()
         try? await store.persistComputedScores(
             dailyMetrics: dailies,
             metricPoints: restPoints,
             provenance: Array(provenanceByCell.values),
+            computation: computation,
             deviceId: computedId,
             from: oldestDay,
             to: newestDay
@@ -2053,6 +2069,7 @@ final class IntelligenceEngine: ObservableObject {
             try? await store.persistMetricSeriesWithProvenance(
                 points: faPts,
                 provenance: Self.vo2MaxProvenance(points: faPts, waistCm: profile.waistCm),
+                computation: computation,
                 deviceId: computedId
             )
         }
@@ -2075,10 +2092,15 @@ final class IntelligenceEngine: ObservableObject {
             steps: vSteps.isEmpty ? nil : vSteps.reduce(0, +) / Double(vSteps.count))
         if let vRes = VitalityEngine.compute(vInputs) {
             let satKey = IntelligenceEngine.saturdayKey(onOrBefore: newestDay)
-            _ = try? await store.upsertMetricSeries([
-                MetricPoint(day: satKey, key: "vitality", value: vRes.vitality),
-                MetricPoint(day: satKey, key: "body_age", value: vRes.bodyAge),
-            ], deviceId: computedId)
+            try? await store.persistMetricSeriesWithProvenance(
+                points: [
+                    MetricPoint(day: satKey, key: "vitality", value: vRes.vitality),
+                    MetricPoint(day: satKey, key: "body_age", value: vRes.bodyAge),
+                ],
+                provenance: [],
+                computation: computation,
+                deviceId: computedId
+            )
         }
 
         // ── Steps ESTIMATE (WHOOP 4.0) , DAILY, keyed to each strap-only day ────────────────────────
@@ -2158,7 +2180,14 @@ final class IntelligenceEngine: ObservableObject {
                       let est = StepsEstimateEngine.estimate(motion: motion, calibration: cal) else { continue }
                 estPts.append(MetricPoint(day: dm.day, key: "steps_est", value: Double(est)))
             }
-            if !estPts.isEmpty { _ = try? await store.upsertMetricSeries(estPts, deviceId: computedId) }
+            if !estPts.isEmpty {
+                try? await store.persistMetricSeriesWithProvenance(
+                    points: estPts,
+                    provenance: [],
+                    computation: computation,
+                    deviceId: computedId
+                )
+            }
             // Mirror the fit into ProfileStore so the Settings/Steps screen can show + adjust it.
             profile.stepsCalibrationCoefficient = cal.coefficient
             profile.stepsCalibrationSampleDays = cal.sampleDays

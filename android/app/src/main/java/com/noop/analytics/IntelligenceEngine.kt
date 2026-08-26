@@ -1,10 +1,11 @@
 package com.noop.analytics
 
-import java.util.Locale
+import com.noop.BuildConfig
 import com.noop.data.DailyMetric
 import com.noop.data.DeviceBrandCatalog
 import com.noop.data.MetricSeriesRow
 import com.noop.data.OuraRespScale
+import com.noop.data.ScoreComputationStamp
 import com.noop.data.ScoreInputProvenanceRow
 import com.noop.data.SleepSession
 import com.noop.data.Vo2MaxEstimator
@@ -12,6 +13,7 @@ import com.noop.data.WhoopRepository
 import com.noop.data.WorkoutRow
 import com.noop.protocol.DeviceFamily
 import com.noop.protocol.Whoop4SkinTemp
+import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -42,6 +44,18 @@ import kotlinx.coroutines.withContext
  * caller (AppViewModel) lets the flow refresh the UI. All `ts` are unix SECONDS (Long).
  */
 object IntelligenceEngine {
+
+    /** Exact build + wall-clock identity for one persistence pass. Pure identity formatting lives beside
+     *  the storage row so Swift/Kotlin use the same `platform:version+build` representation. */
+    private fun currentComputationStamp(nowMs: Long = System.currentTimeMillis()): ScoreComputationStamp =
+        ScoreComputationStamp(
+            computedBy = ScoreComputationStamp.buildIdentity(
+                platform = "android",
+                appVersion = BuildConfig.VERSION_NAME,
+                appBuild = BuildConfig.VERSION_CODE.toString(),
+            ),
+            computedAt = nowMs,
+        )
 
     /**
      * Serialises [analyzeRecent] against itself. The pass is launched from four independent coroutines: the
@@ -1773,6 +1787,7 @@ object IntelligenceEngine {
             provenanceByCell[point.day to point.key] =
                 ScoreInputProvenanceRow(computedId, point.day, point.key, source)
         }
+        val computation = currentComputationStamp()
         repo.replaceComputedScoreWindow(
             deviceId = computedId,
             from = oldestDay,
@@ -1780,6 +1795,7 @@ object IntelligenceEngine {
             dailyMetrics = dailies,
             metricPoints = restRows,
             provenance = provenanceByCell.values.toList(),
+            computation = computation,
         )
 
         persistFitnessVitalityAndSteps(
@@ -1798,6 +1814,7 @@ object IntelligenceEngine {
             manualStepCoefficient = manualStepCoefficient,
             persistStepsCalibration = persistStepsCalibration,
             stepsTraceSink = stepsTraceSink,
+            computation = computation,
         )
         // DURABILITY GUARD (iOS PR #395 cachedSleepKept): drop any freshly-detected session that
         // time-overlaps a night the user has already hand-corrected. A detected onset can drift
@@ -1952,6 +1969,7 @@ object IntelligenceEngine {
         manualStepCoefficient: Double?,
         persistStepsCalibration: (StepsEstimateEngine.Calibration) -> Unit,
         stepsTraceSink: ((String) -> Unit)?,
+        computation: ScoreComputationStamp,
     ) {
         // ── Fitness Age (Phase 2) , weekly, keyed to the week's Saturday ──
         val fa7 = dailies.sortedBy { it.day }.takeLast(7)
@@ -1974,6 +1992,7 @@ object IntelligenceEngine {
             repo.upsertMetricSeriesWithProvenance(
                 rows = faPts,
                 provenance = vo2MaxProvenance(faPts, profile.waistCm, computedId),
+                computation = computation,
             )
         }
 
@@ -1994,9 +2013,14 @@ object IntelligenceEngine {
             steps = if (vSteps.isEmpty()) null else vSteps.average())
         VitalityEngine.compute(vInputs)?.let { vRes ->
             val satKey = saturdayKeyOnOrBefore(newestDay)
-            repo.upsertMetricSeries(listOf(
-                MetricSeriesRow(deviceId = computedId, day = satKey, key = "vitality", value = vRes.vitality),
-                MetricSeriesRow(deviceId = computedId, day = satKey, key = "body_age", value = vRes.bodyAge)))
+            repo.upsertMetricSeriesWithProvenance(
+                rows = listOf(
+                    MetricSeriesRow(deviceId = computedId, day = satKey, key = "vitality", value = vRes.vitality),
+                    MetricSeriesRow(deviceId = computedId, day = satKey, key = "body_age", value = vRes.bodyAge),
+                ),
+                provenance = emptyList(),
+                computation = computation,
+            )
         }
 
         // ── Steps ESTIMATE (WHOOP 4.0) , DAILY, keyed to each strap-only day ──
@@ -2053,7 +2077,13 @@ object IntelligenceEngine {
                 val est = StepsEstimateEngine.estimate(motion, stepsCal) ?: continue
                 estRows.add(MetricSeriesRow(deviceId = computedId, day = dm.day, key = "steps_est", value = est.toDouble()))
             }
-            if (estRows.isNotEmpty()) repo.upsertMetricSeries(estRows)
+            if (estRows.isNotEmpty()) {
+                repo.upsertMetricSeriesWithProvenance(
+                    rows = estRows,
+                    provenance = emptyList(),
+                    computation = computation,
+                )
+            }
             // Hand the fit back so the caller mirrors it into ProfileStore for the Settings/Steps screen.
             persistStepsCalibration(stepsCal)
         }
@@ -2525,6 +2555,7 @@ object IntelligenceEngine {
             repo.upsertMetricSeriesWithProvenance(
                 rows = rows,
                 provenance = vo2MaxProvenance(rows, profile.waistCm, computedId),
+                computation = currentComputationStamp(),
             )
         }
         return rows.isNotEmpty()

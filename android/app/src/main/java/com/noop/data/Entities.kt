@@ -432,6 +432,65 @@ data class ScoreInputProvenanceRow(
     val sourceId: String,
 )
 
+/** Which persistence transaction owns a computation stamp. The daily scoring window replaces only its
+ *  own rows, preserving independently-written weekly/standalone metric-series stamps. */
+enum class ScoreComputationScope(val storageId: String) {
+    SCORE_WINDOW("score-window"),
+    METRIC_SERIES("metric-series");
+
+    companion object {
+        fun fromStorageId(value: String): ScoreComputationScope? = entries.firstOrNull {
+            it.storageId == value
+        }
+    }
+}
+
+/** Exact app identity and unix-millisecond instant captured for one computation pass. */
+data class ScoreComputationStamp(
+    val computedBy: String,
+    val computedAt: Long,
+) {
+    companion object {
+        /** Cross-platform build identity. Platform is included because restored backups can cross apps. */
+        fun buildIdentity(platform: String, appVersion: String, appBuild: String): String =
+            "$platform:$appVersion+$appBuild"
+    }
+}
+
+/** Build provenance for one persisted computed score cell. An absent row is an honest legacy unknown. */
+@Entity(
+    tableName = "scoreComputationProvenance",
+    primaryKeys = ["deviceId", "day", "key"],
+    indices = [Index(name = "idx_scoreComputationProvenance_computedBy", value = ["computedBy"])],
+)
+data class ScoreComputationProvenanceRow(
+    val deviceId: String,
+    val day: String,
+    @ColumnInfo(name = "key") val key: String,
+    val computedBy: String,
+    val computedAt: Long,
+    val scope: String,
+)
+
+/** De-duplicated, deterministic rows for score cells written by one transaction. */
+internal fun scoreComputationProvenanceRows(
+    deviceId: String,
+    cells: List<Pair<String, String>>,
+    stamp: ScoreComputationStamp,
+    scope: ScoreComputationScope,
+): List<ScoreComputationProvenanceRow> = cells.distinct().sortedWith(
+    compareBy<Pair<String, String>> { it.first }.thenBy { it.second },
+).map { (day, key) ->
+    ScoreComputationProvenanceRow(
+        deviceId = deviceId,
+        day = day,
+        key = key,
+        computedBy = stamp.computedBy,
+        computedAt = stamp.computedAt,
+        scope = scope.storageId,
+    )
+}
+
 /** Estimator identity persisted beside a `vo2max_est` point in [ScoreInputProvenanceRow.sourceId].
  *  Existing points have no such row and therefore remain explicitly unknown; never infer their method
  *  from the user's current profile because a waist measurement may have changed since they were scored. */

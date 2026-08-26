@@ -38,6 +38,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SleepSession::class,
         MetricSeriesRow::class,
         ScoreInputProvenanceRow::class,
+        ScoreComputationProvenanceRow::class,
         JournalEntry::class,
         WorkoutRow::class,
         DismissedWorkout::class,
@@ -53,7 +54,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         V18AuxSampleEntity::class,
         AppleStepHour::class,
     ],
-    version = 33,
+    version = 34,
     // #775: ON so Room's KSP processor writes the generated schema (every table's exact `CREATE TABLE`,
     // columns in declaration order with affinity/NOT NULL/default, PK and indices) as JSON. That export
     // is what lets a plain JVM test — no device, no Robolectric — read Android's REAL schema and compare
@@ -70,7 +71,7 @@ abstract class WhoopDatabase : RoomDatabase() {
         const val DB_NAME = "noop_whoop.db"
         /** Room schema version — MUST equal the `@Database(version = …)` above. Surfaced in the backup
          *  manifest (#1410) so an export states its schema. Bump both together on a migration. */
-        const val SCHEMA_VERSION = 33
+        const val SCHEMA_VERSION = 34
 
         @Volatile
         private var instance: WhoopDatabase? = null
@@ -893,9 +894,29 @@ abstract class WhoopDatabase : RoomDatabase() {
             "ALTER TABLE `ppgWaveformSample` ADD COLUMN `burstIndex` INTEGER",
         )
 
+        /**
+         * v33 -> v34 (#1410 tier 3): build + time provenance for each computed score cell. Separate from
+         * scoreInputProvenance, which records the input provider/estimator rather than the code identity.
+         * Existing history remains absent/unknown because its computing build cannot be reconstructed.
+         */
+        internal val SCORE_COMPUTATION_PROVENANCE_MIGRATION_SQL: List<String> = listOf(
+            "CREATE TABLE IF NOT EXISTS `scoreComputationProvenance` (`deviceId` TEXT NOT NULL, " +
+                "`day` TEXT NOT NULL, `key` TEXT NOT NULL, `computedBy` TEXT NOT NULL, " +
+                "`computedAt` INTEGER NOT NULL, `scope` TEXT NOT NULL, " +
+                "PRIMARY KEY(`deviceId`, `day`, `key`))",
+            "CREATE INDEX IF NOT EXISTS `idx_scoreComputationProvenance_computedBy` " +
+                "ON `scoreComputationProvenance` (`computedBy`)",
+        )
+
         internal val MIGRATION_32_33 = object : Migration(32, 33) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 for (stmt in PPG_BURST_INDEX_MIGRATION_SQL) db.execSQL(stmt)
+            }
+        }
+
+        internal val MIGRATION_33_34 = object : Migration(33, 34) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                for (stmt in SCORE_COMPUTATION_PROVENANCE_MIGRATION_SQL) db.execSQL(stmt)
             }
         }
 
@@ -924,9 +945,8 @@ abstract class WhoopDatabase : RoomDatabase() {
             MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22,
             MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26,
             MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30,
-            MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33,
+            MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34,
         )
-
 
         private fun build(appContext: Context): WhoopDatabase =
             Room.databaseBuilder(appContext, WhoopDatabase::class.java, DB_NAME)

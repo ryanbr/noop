@@ -79,6 +79,7 @@ class RegistryDayOwnerSourceTest {
         override suspend fun deleteMetricSeriesFor(deviceId: String) {}
         override suspend fun deleteDayOwnershipFor(deviceId: String) {}
         override suspend fun deleteScoreInputProvenanceFor(deviceId: String) {}
+        override suspend fun deleteScoreComputationProvenanceFor(deviceId: String) {}
         override suspend fun deleteSleepStatesFor(deviceId: String) {}
         override suspend fun deleteLabMarkersFor(deviceId: String) {}
         override suspend fun deleteLiveSessionsFor(deviceId: String) {}
@@ -111,6 +112,7 @@ class RegistryDayOwnerSourceTest {
         override suspend fun reKeyDayOwnership(from: String, to: String) {
             for ((day, row) in owners) if (row.deviceId == from) owners[day] = row.copy(deviceId = to)
         }
+        override suspend fun reKeyScoreComputationProvenance(from: String, to: String) {}
         override suspend fun reKeySleepStates(from: String, to: String) {}
         override suspend fun reKeyLabMarkers(from: String, to: String) {}
         override suspend fun reKeyLiveSessions(from: String, to: String) {}
