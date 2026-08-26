@@ -7429,22 +7429,17 @@ class WhoopBleClient(
         when (connectedFamily) {
             DeviceFamily.WHOOP4 -> writeBondFrame(g, cmd)
             DeviceFamily.WHOOP5 -> {
-                // #1635: the hello is what ends the link on a strap that never answers it. Once the
-                // give-up has latched, skip it and let the standard-profile HR stream keep running.
-                //
-                // Consumed unconditionally, so the single retry an explicit Connect grants belongs to THIS
-                // session. Leaving it set would hand a stale retry to some later automatic reconnect and
-                // restart the loop the suppression exists to end.
-                // #1635 experiment: ask Android to pair, instead of hoping the encrypted write provokes
-                // it — which the bond-state trace showed never happens. Runs BEFORE the hello decision
-                // because the two must not overlap: writing while a pairing is in flight is the behaviour
-                // that has been dropping the link, so doing both would test nothing.
                 // #1635: open the raw capture HERE, not only on entering backfill, so frames arriving
                 // outside a sync window are recorded. Idempotent, so the existing call in
                 // enterBackfilling still covers a capture switched on mid-session. Opening appends (never
                 // truncates — see startWhoop5BackfillCapture), so doing it per connect cannot lose a
                 // previous session's material.
                 if (PuffinExperiment.from(context).isCaptureEnabled) startWhoop5BackfillCapture()
+
+                // #1635 experiment: ask Android to pair, instead of hoping the encrypted write provokes
+                // it — which the bond-state trace showed never happens. Runs BEFORE the hello decision
+                // because the two must not overlap: writing while a pairing is in flight is the behaviour
+                // that has been dropping the link, so doing both would test nothing.
                 val osBonded = g.device.bondState == BluetoothDevice.BOND_BONDED
                 // Once per link, before any decision: a hello that fails on an unencrypted link and one
                 // that fails on an ENCRYPTED link are completely different findings, and they have been
@@ -7511,6 +7506,12 @@ class WhoopBleClient(
                     return
                 }
 
+                // #1635: the hello is what ends the link on a strap that never answers it. Once the
+                // give-up has latched, skip it and let the standard-profile HR stream keep running.
+                //
+                // Consumed unconditionally, so the single retry an explicit Connect grants belongs to THIS
+                // session. Leaving it set would hand a stale retry to some later automatic reconnect and
+                // restart the loop the suppression exists to end.
                 val userAsked = helloRetryRequested
                 helloRetryRequested = false
                 val suppressed = runCatching {
