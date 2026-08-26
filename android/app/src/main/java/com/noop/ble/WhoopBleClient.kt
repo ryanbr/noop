@@ -5464,11 +5464,7 @@ class WhoopBleClient(
                         "sleep) for 5/MG are still being figured out. WHOOP 4.0 is fully supported today.",
                 ) }
                 cmdCharacteristic = whoop5.getCharacteristic(WHOOP5_CMD_WRITE_CHAR)
-                // #1635: print what fd4b0002 actually declares. Android exposes no link-encryption state,
-                // so the property bitmask and the OS bond state are the only proxies available — and the
-                // CLIENT_HELLO has been written WITH RESPONSE since June without anyone checking whether
-                // this characteristic supports that. One capture settles it.
-                // #1635: dump what the strap actually OFFERS, once per link. Every characteristic in this
+                // #1635: dump what the strap actually OFFERS, once per strap. Every characteristic in this
                 // file is looked up by a hardcoded UUID, so anything the 5/MG exposes that nobody guessed
                 // has never been visible. Reads the already-discovered tree — no GATT operation, no
                 // traffic, and nothing that can provoke the teardown a write to an encrypted
@@ -5491,6 +5487,10 @@ class WhoopBleClient(
                         log(line, com.noop.testcentre.TestDomain.CONNECTION)
                     }
                 }
+                // #1635: print what fd4b0002 actually declares. Android exposes no link-encryption state,
+                // so the property bitmask and the OS bond state are the only proxies available — and the
+                // CLIENT_HELLO has been written WITH RESPONSE since June without anyone checking whether
+                // this characteristic supports that. One capture settles it.
                 // Descriptive only. Whether we will actually write with response is not known here — the
                 // #1635 suppression decision happens later in startSession — so asserting it would be a
                 // confidently wrong line on exactly the straps this is about. The verdict is emitted at
