@@ -501,7 +501,8 @@ fun SettingsScreen(
     // 5/MG-only probes. Without this the toggles below would keep showing their old state until you
     // navigated away and back, because an unkeyed remember{} reads once per composition. macOS gets
     // this free — @AppStorage republishes on any UserDefaults write — and Compose needs it spelled
-    // out. Bumping `rev` is the whole mechanism; the four reads are keyed on it.
+    // out. Bumping `rev` is the whole mechanism; every experiment read below is keyed on it. Deliberately
+    // not stated as a count — it was already wrong before the #1635 toggle was added to the list.
     DisposableEffect(Unit) {
         val expPrefs = context.getSharedPreferences(PuffinExperiment.PREFS, Context.MODE_PRIVATE)
         // Strong local for the effect's lifetime: Android holds these listeners WEAKLY, so one that is

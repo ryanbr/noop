@@ -27,6 +27,11 @@ package com.noop.ble
  *
  * [alreadyRequestedThisLink] keeps it to one attempt per connection. Re-issuing `createBond()` while a
  * pairing is in flight is how you get a dialog per retry, and the retry cadence here is seconds.
+ *
+ * PARITY: deliberately Android-only, and not a gap to be filled later. CoreBluetooth exposes no explicit
+ * pairing API at all — on Apple platforms pairing happens only as a side effect of touching an encrypted
+ * characteristic, which is the very mechanism this file exists because it does not work. There is nothing
+ * to mirror, so an audit finding this one-sided should leave it rather than delete it as untwinned.
  */
 internal fun shouldRequestExplicitBond(
     optedIn: Boolean,
