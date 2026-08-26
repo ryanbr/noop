@@ -374,12 +374,30 @@ object LogExport {
         whoop5Connected: Boolean,
         encryptedBond: Boolean,
         sharingLog: Boolean,
+    ): String = noCaptureMsgText(
+        whoop5Connected = whoop5Connected,
+        captureEnabled = PuffinExperiment.from(context).isCaptureEnabled,
+        encryptedBond = encryptedBond,
+        sharingLog = sharingLog,
+    )
+
+    /**
+     * The no-capture copy, as a pure function of what we know.
+     *
+     * Split from the Context-reading wrapper so the wording is unit-testable — the repo's test classpath
+     * has no mocking framework, by preference: helpers worth asserting are made pure rather than mocked.
+     */
+    internal fun noCaptureMsgText(
+        whoop5Connected: Boolean,
+        captureEnabled: Boolean,
+        encryptedBond: Boolean,
+        sharingLog: Boolean,
     ): String {
         val tail = if (sharingLog) " Sharing the strap log." else ""
         return when {
             !whoop5Connected ->
                 "Raw capture records WHOOP 5/MG history syncs and doesn't apply to WHOOP 4.0 (already fully decoded).$tail"
-            !PuffinExperiment.from(context).isCaptureEnabled ->
+            !captureEnabled ->
                 "No raw capture yet. Turn on \"Record 5/MG raw capture\" above, then let a history sync run.$tail"
             // #1635: do NOT tell someone to wait for a history sync their strap cannot reach. Without the
             // encrypted bond there is no puffin channel and no offload, so "let a sync run" names a remedy
