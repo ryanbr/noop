@@ -2592,7 +2592,7 @@ fun SettingsScreen(
                         scope.launch {
                             // try/finally: the flag must clear on any exit, not just the happy path (#961 follow-up).
                             try {
-                                LogExport.shareWhoop5Capture(context, live.whoop5Detected)
+                                LogExport.shareWhoop5Capture(context, live.whoop5Detected, live.encryptedBond)
                             } finally {
                                 whoop5CaptureBusy = false
                             }
@@ -2617,7 +2617,7 @@ fun SettingsScreen(
                         scope.launch {
                             // try/finally: the flag must clear on any exit, not just the happy path (#961 follow-up).
                             try {
-                                LogExport.shareRawAndLog(context, vm.ble.exportLogText(), live.whoop5Detected)
+                                LogExport.shareRawAndLog(context, vm.ble.exportLogText(), live.whoop5Detected, live.encryptedBond)
                             } finally {
                                 rawAndLogBusy = false
                             }

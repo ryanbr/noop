@@ -5981,14 +5981,25 @@ class WhoopBleClient(
                         // samples (100 Hz 6-axis) into the rawImuSample table when raw capture is on.
                         storeWhoop5RawImuIfBuffer(frame)
                     }
+                    // Opt-in raw capture: record EVERY frame of the session (offload AND live flood —
+                    // the offload flag lets analysis filter), BEFORE routing so frames are retained
+                    // before the trim ack deletes the strap's copy. No-op (single null check) when the
+                    // toggle is off. (#78 fork)
+                    //
+                    // Deliberately OUTSIDE the `backfilling` gate, where it used to sit. The comment
+                    // already claimed "every frame of the session" and the gate made that false: live and
+                    // event frames arriving between syncs were never recorded at all.
+                    //
+                    // This does NOT rescue a strap that never bonds, and it is worth saying so here so the
+                    // next reader does not assume it did. The frames that reach this path are the puffin
+                    // notify characteristics, and those are subscribed only in the CLIENT_HELLO-ack
+                    // branch — so an unbonded 5/MG still produces an empty capture. Making that case
+                    // yield anything means capturing the standard-profile notifications instead, which is
+                    // a different feature and mostly already-decoded data (#1635).
+                    if (connectedFamily == DeviceFamily.WHOOP5 && captureWriter != null) {
+                        writeWhoop5BackfillCapture(uuid.toString(), frame)
+                    }
                     if (backfilling) {
-                        // Opt-in raw capture: record EVERY frame of the session (offload AND live
-                        // flood — the offload flag lets analysis filter), BEFORE routing so frames
-                        // are retained before the trim ack deletes the strap's copy. No-op (single
-                        // null check) when the toggle is off. (#78 fork)
-                        if (connectedFamily == DeviceFamily.WHOOP5 && captureWriter != null) {
-                            writeWhoop5BackfillCapture(uuid.toString(), frame)
-                        }
                         // Historical offload: route ONLY genuine offload frames (47/48/49/50) through
                         // the serial drain (preserves chunk order) + re-arm the idle watchdog on them.
                         // The live type-40/43 flood is dropped here (extractHistoricalStreams ignores
@@ -7428,6 +7439,12 @@ class WhoopBleClient(
                 // it — which the bond-state trace showed never happens. Runs BEFORE the hello decision
                 // because the two must not overlap: writing while a pairing is in flight is the behaviour
                 // that has been dropping the link, so doing both would test nothing.
+                // #1635: open the raw capture HERE, not only on entering backfill, so frames arriving
+                // outside a sync window are recorded. Idempotent, so the existing call in
+                // enterBackfilling still covers a capture switched on mid-session. Opening appends (never
+                // truncates — see startWhoop5BackfillCapture), so doing it per connect cannot lose a
+                // previous session's material.
+                if (PuffinExperiment.from(context).isCaptureEnabled) startWhoop5BackfillCapture()
                 val osBonded = g.device.bondState == BluetoothDevice.BOND_BONDED
                 // Once per link, before any decision: a hello that fails on an unencrypted link and one
                 // that fails on an ENCRYPTED link are completely different findings, and they have been

@@ -369,13 +369,24 @@ object LogExport {
      * a 4.0 can never produce one (5/MG-only feature); a 5/MG needs the toggle on + a history sync;
      * if the toggle is already on, don't tell them to enable it again. `sharingLog` adds the log tail.
      */
-    private fun noCaptureMsg(context: Context, whoop5Connected: Boolean, sharingLog: Boolean): String {
+    private fun noCaptureMsg(
+        context: Context,
+        whoop5Connected: Boolean,
+        encryptedBond: Boolean,
+        sharingLog: Boolean,
+    ): String {
         val tail = if (sharingLog) " Sharing the strap log." else ""
         return when {
             !whoop5Connected ->
                 "Raw capture records WHOOP 5/MG history syncs and doesn't apply to WHOOP 4.0 (already fully decoded).$tail"
             !PuffinExperiment.from(context).isCaptureEnabled ->
                 "No raw capture yet. Turn on \"Record 5/MG raw capture\" above, then let a history sync run.$tail"
+            // #1635: do NOT tell someone to wait for a history sync their strap cannot reach. Without the
+            // encrypted bond there is no puffin channel and no offload, so "let a sync run" names a remedy
+            // that will never arrive — the same confidently-wrong guidance this issue kept producing.
+            !encryptedBond ->
+                "Raw capture is on, but this strap is on live HR only — history sync needs the full " +
+                    "encrypted pairing, so there are no sync frames to capture yet.$tail"
             else ->
                 "Raw capture is on. Let a 5/MG history sync run, then try again.$tail"
         }
@@ -387,13 +398,13 @@ object LogExport {
      * covers cache/logs) and prepends a header with an informed-consent line: the file holds raw
      * biometric frames and the strap's own console text.
      */
-    suspend fun shareWhoop5Capture(context: Context, whoop5Connected: Boolean) {
+    suspend fun shareWhoop5Capture(context: Context, whoop5Connected: Boolean, encryptedBond: Boolean) {
         runCatching {
             // writeCaptureFile does blocking file IO (#646/#651) — keep it off whatever dispatcher the
             // caller is on (Main, for every UI call site today).
             val out = withContext(Dispatchers.IO) { writeCaptureFile(context) }
             if (out == null) {
-                Toast.makeText(context, noCaptureMsg(context, whoop5Connected, sharingLog = false), Toast.LENGTH_LONG).show()
+                Toast.makeText(context, noCaptureMsg(context, whoop5Connected, encryptedBond, sharingLog = false), Toast.LENGTH_LONG).show()
                 return
             }
             val send = Intent(Intent.ACTION_SEND).apply {
@@ -420,7 +431,7 @@ object LogExport {
      * buttons), so a large raw capture doesn't stall the UI. Only the "no capture" toast and the
      * [exportBundle] call (which does its own IO hop for the zip) run back on the caller's dispatcher.
      */
-    suspend fun shareRawAndLog(context: Context, logText: String, whoop5Connected: Boolean) {
+    suspend fun shareRawAndLog(context: Context, logText: String, whoop5Connected: Boolean, encryptedBond: Boolean) {
         runCatching {
             val (entries, hasCapture) = withContext(Dispatchers.IO) {
                 val logFile = writeStrapLogFile(context, logText)
@@ -430,7 +441,7 @@ object LogExport {
                 entries to (capture != null)
             }
             if (!hasCapture) {
-                Toast.makeText(context, noCaptureMsg(context, whoop5Connected, sharingLog = true), Toast.LENGTH_LONG).show()
+                Toast.makeText(context, noCaptureMsg(context, whoop5Connected, encryptedBond, sharingLog = true), Toast.LENGTH_LONG).show()
             }
             val name = "noop-export-${timestamp()}.zip"
             exportBundle(context, entries, name)
