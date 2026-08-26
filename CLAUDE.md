@@ -140,6 +140,24 @@ Swift, you MUST build the app yourself: `xcodebuild … build` locally, or run `
 - **BLE (read [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) §BLE safety contract first):** never add
   destructive/write commands to hardware; CRC-gate every inbound frame; keep the connection path
   stable; no hardcoded hex frame bytes in app code — protocol facts live in the decoders/schema.
+- **`didBond` is load-bearing well beyond the handshake — check every reader before you make a strap
+  deliberately not bond.** At least three independent mechanisms treat "connected but never bonded" as a
+  fault to be corrected: the bond watchdog bounces the link once its window expires, the #982 never-bonded
+  detector counts self-drops toward pausing auto-reconnect, and the bond-refusal give-up latches on it.
+  A change that legitimately leaves a strap unbonded — suppressing an unanswerable handshake, deferring
+  one while an OS pairing is in flight — silently re-arms all of them, and each will undo the change a few
+  seconds or a few drops later while reporting a cause that never happened (#1635). Not-bonding is only
+  evidence of a fault when we were actually *trying* to bond.
+- **A diagnostic may only assert what it can attribute.** Repeatedly in the #1635 investigation a line
+  claimed more than it observed and sent the diagnosis backwards: a `GATT_*` status rendered through the
+  `BluetoothStatusCodes` table (different enumeration, colliding small integers), a bond declared from a
+  completion nobody checked the characteristic of, "we write WITH RESPONSE" printed before the code that
+  decides whether to write at all, "the strap refused" for a local `SecurityException`, and a *persisted*
+  refusal blaming a strap for a read that our own in-flight pairing broke. Prefer silence, or name the
+  gap. Conversely, do not let a path go quiet: replacing a wrong line with no line removed the evidence
+  that identified the bug. Gate per-connect readouts behind the Test Centre domain; leave rare-event
+  evidence (a state transition, a mismatch) always-on, since it costs nothing when nothing happens and is
+  what is missing when someone reports a problem without Test Centre enabled.
 - **Device / strap model resolution:** map a registry `model` label to a family through the ONE
   canonical resolver (`DeviceFamily.forRegistryModel` on both platforms), never a scattered
   string compare — the wizard stores `"4.0"`, other paths `"WHOOP 4.0"`, and single-spelling checks
