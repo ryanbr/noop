@@ -5852,14 +5852,15 @@ class WhoopBleClient(
                         runCatching { NoopPrefs.setFirmwareFor(context, lastDeviceAddress, fw) }
                     }
 
+                    }
+
                     // #1634: the 5/MG hello decoded no firmware. The guards fail closed by design, so this is the
                     // only place that can say WHY - a different generation byte vs a MOVED offset. Logged once per
                     // connection (the value is stable), so a capture from an undecoded strap carries the evidence.
                     (parsed.parsed["fw_gate"] as? String)?.let { gate ->
-                        if (loggedFirmwareGate != gate) {
-                            loggedFirmwareGate = gate
-                            log(gate)
-                        }
+                    if (loggedFirmwareGate != gate) {
+                    loggedFirmwareGate = gate
+                    log(gate)
                     }
                 }
                 val respCmd = parsed.parsed["resp_cmd"] as? String
