@@ -4442,7 +4442,13 @@ class WhoopBleClient(
      *  Twin of Swift `reconcileModelFromAttestation`. */
     private fun reconcileModelFromAttestation(variant: Whoop5Variant) {
         if (variant == Whoop5Variant.UNKNOWN) return
-        val attestingAddress = lastDeviceAddress ?: return
+        val attestingAddress = lastDeviceAddress
+        if (attestingAddress == null) {
+            // Should not happen - the attestation arrives on a connected link - but a silent return here
+            // would be one more path that goes quiet exactly when something is off.
+            log("DIS attestation (variant=${variant.label}) not applied — the connected strap's address is unknown")
+            return
+        }
         ioScope.launch {
             // Correct the row the attestation CAME FROM, never merely "whichever is active". Those are the
             // same device on a single-strap install, and different ones the moment somebody pairs a 4.0
@@ -4452,14 +4458,21 @@ class WhoopBleClient(
             // This mattered from the first day it could run: the variant only became resolvable once the
             // model number was read (#520), so before that this path returned early on UNKNOWN every time
             // and the mis-targeting was never reachable. Widening the resolver is what makes it live.
-            val devices = repository.pairedDevices()
-            val attesting = devices.firstOrNull {
+            val devices = repository.pairedDevices().filter { it.status != "archived" }
+            val byAddress = devices.firstOrNull {
                 it.peripheralId?.equals(attestingAddress, ignoreCase = true) == true
             }
+            // Fall back to the sole paired strap when no row carries the address yet. That is not a guess:
+            // with exactly one non-archived device there is nothing else the attestation could have come
+            // from. It matters because `peripheralId` is NULL on the seeded row until the strap is adopted,
+            // which is precisely the single-strap install this correction was written for - matching on
+            // address alone would have quietly stopped correcting the case it exists to fix.
+            val attesting = byAddress ?: devices.singleOrNull()
             if (attesting == null) {
-                // No row owns this address yet (a first connect before adoption). Correcting SOMETHING
-                // would be worse than correcting nothing, so say why and stop.
-                log("DIS attestation (variant=${variant.label}) not applied — no paired row carries this strap's address yet")
+                // Several straps and none owns this address: the attestation cannot be attributed, and
+                // correcting SOMETHING would be worse than correcting nothing. Say which, and stop.
+                log("DIS attestation (variant=${variant.label}) not applied — ${devices.size} paired devices" +
+                    " and none carries this strap's address, so it cannot be attributed")
                 return@launch
             }
             if (DeviceFamily.forRegistryDevice(attesting.model, attesting.brand) == DeviceFamily.WHOOP4) {
