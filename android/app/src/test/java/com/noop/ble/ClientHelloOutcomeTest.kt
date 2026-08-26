@@ -57,4 +57,32 @@ class ClientHelloOutcomeTest {
             clientHelloOutcomeLine(true, "   ", 5, "  "),
         )
     }
+
+    @Test
+    fun `the GATT labeller names the bond-refusal codes, not the write-request ones`() {
+        // The bug this guards: writeStatusLabel maps BluetoothStatusCodes (writeCharacteristic's return
+        // value), a DIFFERENT enumeration that collides on small integers. Rendering a callback status
+        // through it names the wrong error confidently.
+        assertEquals("status=GATT_INSUFFICIENT_AUTHENTICATION(5)", gattWriteStatusLabel(5))
+        assertEquals("status=GATT_INSUFFICIENT_ENCRYPTION(15)", gattWriteStatusLabel(15))
+        assertEquals("status=GATT_SUCCESS(0)", gattWriteStatusLabel(0))
+    }
+
+    @Test
+    fun `the two mappers disagree on the colliding codes, which is the point`() {
+        // 1/2/3 mean different things in each enumeration. If these ever agree, one of the mappers has
+        // been changed to cover the wrong domain.
+        for (code in listOf(1, 2, 3)) {
+            assertTrue(
+                "code $code should not share a label across the two domains",
+                gattWriteStatusLabel(code) != WhoopBleClient.writeStatusLabel(code),
+            )
+        }
+    }
+
+    @Test
+    fun `an unknown code is a bare number rather than a guess`() {
+        assertEquals("status=99", gattWriteStatusLabel(99))
+        assertEquals("status=n/a", gattWriteStatusLabel(null))
+    }
 }

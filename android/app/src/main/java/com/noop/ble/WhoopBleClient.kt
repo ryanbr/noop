@@ -5347,7 +5347,7 @@ class WhoopBleClient(
                         isHelloChar = characteristic.uuid == WHOOP5_CMD_WRITE_CHAR,
                         charUuid = characteristic.uuid.toString(),
                         elapsedMs = System.currentTimeMillis() - clientHelloWriteAtMs,
-                        status = writeStatusLabel(status),
+                        status = gattWriteStatusLabel(status),
                     ))
                     clientHelloWriteAtMs = 0L
                 }
@@ -8032,15 +8032,16 @@ class WhoopBleClient(
 
     @SuppressLint("MissingPermission")
     private fun handleDisconnect(status: Int) {
-        // #1151: flush any pending frame-timing window so the frames right before this drop are recorded
-        // (not stranded), and the next connection starts a fresh window rather than spanning the gap. No-op
-        // when capture is off. Do it BEFORE the connect-down line so the summary reads before the drop.
         // #1635: a CLIENT_HELLO that was accepted by the stack and never completed leaves no trace at
         // all - the dominant shape in the field capture (14 of 16). Say so before the state is reset.
         if (clientHelloWriteAtMs > 0L) {
             log(clientHelloOutcomeLine(false, null, System.currentTimeMillis() - clientHelloWriteAtMs, null))
             clientHelloWriteAtMs = 0L
         }
+
+        // #1151: flush any pending frame-timing window so the frames right before this drop are recorded
+        // (not stranded), and the next connection starts a fresh window rather than spanning the gap. No-op
+        // when capture is off. Do it BEFORE the connect-down line so the summary reads before the drop.
         flushFrameTimingSummary()
         // #1263: flush the durable strap-log tail so a completed session's last partial batch survives to a
         // later export even if the process is killed before the next 32-line mirror (twin of iOS's flush on

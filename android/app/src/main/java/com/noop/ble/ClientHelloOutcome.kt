@@ -44,3 +44,34 @@ internal fun clientHelloOutcomeLine(
                 " ${elapsedMs}ms$st — this is NOT a CLIENT_HELLO ack (#1635)"
     }
 }
+
+/**
+ * A `BluetoothGatt.GATT_*` status from `onCharacteristicWrite`, labelled.
+ *
+ * NOT [WhoopBleClient.writeStatusLabel], which maps `BluetoothStatusCodes` — the return value of
+ * `writeCharacteristic`, a different enumeration that collides with this one on small integers. Passing a
+ * callback status through that mapper renders GATT_INVALID_HANDLE(1) as "ERROR_BLUETOOTH_NOT_ENABLED",
+ * GATT_READ_NOT_PERMITTED(2) as "ERROR_BLUETOOTH_NOT_ALLOWED" and GATT_WRITE_NOT_PERMITTED(3) as
+ * "ERROR_DEVICE_NOT_BONDED" — confidently wrong names in a line whose whole job is explaining a bond
+ * failure, which is worse than printing no name at all.
+ *
+ * Names the codes that matter for a bond and leaves the rest as bare numbers rather than guessing:
+ * INSUFFICIENT_AUTHENTICATION and INSUFFICIENT_ENCRYPTION are exactly "the strap refused the encrypted
+ * bond" (the pair [BondRefusalGiveUp] already keys on), and 133 is the catch-all Android returns for a
+ * link that went away underneath the operation.
+ *
+ * Android-only by design: CoreBluetooth reports `didWriteValueFor` with an `Error`, not a status code,
+ * which is why the outcome line takes its status pre-rendered.
+ */
+internal fun gattWriteStatusLabel(status: Int?): String = when (status) {
+    null -> "status=n/a"
+    0 -> "status=GATT_SUCCESS(0)"
+    3 -> "status=GATT_WRITE_NOT_PERMITTED(3)"
+    5 -> "status=GATT_INSUFFICIENT_AUTHENTICATION(5)"
+    13 -> "status=GATT_INVALID_ATTRIBUTE_LENGTH(13)"
+    15 -> "status=GATT_INSUFFICIENT_ENCRYPTION(15)"
+    133 -> "status=GATT_ERROR(133)"
+    257 -> "status=GATT_FAILURE(257)"
+    else -> "status=$status"
+}
+
