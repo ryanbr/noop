@@ -5311,6 +5311,10 @@ class WhoopBleClient(
             // Port of didWriteValueFor: a CONFIRMED-write completion (no error) == bonding succeeded.
             if (status != BluetoothGatt.GATT_SUCCESS) {
                 log("Confirmed write failed: status=$status")
+                // #1635: a failed write owes no ack. Leaving the window open would let the NEXT completion
+                // on fd4b0002 — DISABLE_ALARM and every other puffin command share it — satisfy both halves
+                // of the bond gate below and declare a bond the strap never granted, which is the whole bug.
+                if (characteristic.uuid == WHOOP5_CMD_WRITE_CHAR) clientHelloWriteAtMs = 0L
                 // Multi-WHOOP stale-pin recovery (#52). A status of INSUFFICIENT_AUTHENTICATION (5) /
                 // INSUFFICIENT_ENCRYPTION (15) on the bond write == the strap refused the encrypted bond
                 // (the Android twin of the iOS "Encryption/Authentication is insufficient" error). When a
@@ -5356,6 +5360,10 @@ class WhoopBleClient(
                     // Consume the window ONLY for the hello's own completion. A foreign completion that
                     // cleared it would make a genuine ack arriving afterwards look unsolicited, costing a
                     // real bond — the one regression this gate must not introduce.
+                    //
+                    // An UNACKED hello leaves the window open, and no later command can inherit it: the
+                    // hello holds `writeInFlight` until its callback fires, and drainWriteQueue refuses to
+                    // start a write while one is in flight (#1095 keys off exactly that stuck state).
                     if (isHelloChar) clientHelloWriteAtMs = 0L
                 }
                 // Only the hello's OWN completion is evidence of a bond. Declining here withholds the
