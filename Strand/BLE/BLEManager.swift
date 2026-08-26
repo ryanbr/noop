@@ -898,6 +898,11 @@ public final class BLEManager: NSObject, ObservableObject {
     /// #520 DIS: remembered at discovery, READ post-bond (see the #490 note — a 5/MG refuses standard
     /// reads before the link is encrypted). Serial + hardware revision are immutable, so they are read
     /// ONCE per connection (`disRead`), never re-polled like the battery.
+    /// Peripheral whose GATT tree has already been dumped, so the ~30-line enumeration is emitted once per
+    /// device rather than once per connect (#1635). Not persisted: a fresh launch is exactly when the tree
+    /// is worth seeing again, and a strap whose firmware changed between runs may expose something new.
+    private var gattTreeDumpedFor: UUID?
+
     private var disSerialCharacteristic: CBCharacteristic?
     private var disHwRevCharacteristic: CBCharacteristic?
     private var disRead = false
@@ -5263,6 +5268,28 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
             return
         }
         guard let chars = service.characteristics else { return }
+        // #1635: dump what the strap actually OFFERS, once per peripheral. Every characteristic below is
+        // matched against a UUID someone hardcoded, so anything a 5/MG exposes that nobody guessed has
+        // never been visible. Sends nothing — the tree has already been discovered, so this reads a local
+        // cache and cannot provoke the teardown that writing to an encrypted characteristic can.
+        //
+        // Emitted only once EVERY service has reported its characteristics, because this callback fires
+        // per service: dumping on each would print a partial tree N times. Once per peripheral rather than
+        // per connect — the tree is static and the dump is ~30 lines, which would otherwise evict the
+        // connect/drop/bond evidence from a rolling buffer on a strap that reconnects every few seconds.
+        if TestCentre.active(.connection),
+           gattTreeDumpedFor != peripheral.identifier,
+           let all = peripheral.services,
+           all.allSatisfy({ $0.characteristics != nil }) {
+            gattTreeDumpedFor = peripheral.identifier
+            let tree: [(String, [(String, UInt)])] = all.map { svc in
+                (svc.uuid.uuidString,
+                 (svc.characteristics ?? []).map { ($0.uuid.uuidString, $0.properties.rawValue) })
+            }
+            for line in GattCapability.treeLines(tree) {
+                state.append(log: line, domain: .connection)
+            }
+        }
         for c in chars {
             switch c.uuid {
             case BLEManager.cmdWriteChar:

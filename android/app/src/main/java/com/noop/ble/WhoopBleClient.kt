@@ -3259,6 +3259,9 @@ class WhoopBleClient(
      */
     fun releaseStrap() {
         noteLocalTeardown("releaseStrap")   // #1020
+        // #1635: a forgotten strap re-added later deserves a fresh tree dump — its firmware may have
+        // changed in between, and that is exactly when a new characteristic would appear.
+        gattTreeDumpedFor = null
         handler.post {
             intentionalDisconnect = true     // defuse the disconnect→3s-reconnect loop's guard
             handler.removeCallbacks(scanTimeoutRunnable)
