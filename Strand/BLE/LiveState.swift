@@ -732,7 +732,12 @@ public final class LiveState: ObservableObject {
         #endif
         var header = "NOOP strap log (scheduled export) — \(osName)\nApp: \(v)\n\(osName): "
             + ProcessInfo.processInfo.operatingSystemVersionString + "\n"
-        if !extraHeaderLines.isEmpty { header += extraHeaderLines.joined(separator: "\n") + "\n" }
+        // #453: the BODY is scrubbed as it is appended, but these header lines come from the diagnostics
+        // block and never pass through that path - and they carry device ids, which embed a BLE address
+        // for a re-added or second strap. Same redactor, so one export cannot be safe while the other leaks.
+        if !extraHeaderLines.isEmpty {
+            header += extraHeaderLines.map { Self.redactPii($0) }.joined(separator: "\n") + "\n"
+        }
         header += String(repeating: "-", count: 40) + "\n"
         // Same generations-then-current shape as `exportableLogText()`: a scheduled drop that fires after a
         // restart must not report only the (possibly empty) current tail.
@@ -791,7 +796,12 @@ public final class LiveState: ObservableObject {
         let healthLines = HealthSyncStats.summaryLines()
         if !healthLines.isEmpty { header += healthLines.joined(separator: "\n") + "\n" }
         #endif
-        if !extraHeaderLines.isEmpty { header += extraHeaderLines.joined(separator: "\n") + "\n" }
+        // #453: the BODY is scrubbed as it is appended, but these header lines come from the diagnostics
+        // block and never pass through that path - and they carry device ids, which embed a BLE address
+        // for a re-added or second strap. Same redactor, so one export cannot be safe while the other leaks.
+        if !extraHeaderLines.isEmpty {
+            header += extraHeaderLines.map { Self.redactPii($0) }.joined(separator: "\n") + "\n"
+        }
         header += String(repeating: "-", count: 40) + "\n"
         // Previous processes first, so the body stays in chronological order and the log-parsing tools read
         // it unchanged — they just get the night that a wake-time restart used to erase.

@@ -138,8 +138,13 @@ object LogExport {
             val header = buildString {
                 appendLine("NOOP strap log (scheduled debug export)")
                 appendLine("App:     ${BuildConfig.VERSION_NAME} (${BuildConfig.TIER})")
-                for (line in com.noop.testcentre.AndroidDiagnostics.summaryLines(context)) appendLine(line)
-                for (line in dynamic) appendLine(line)
+                // #453: the rolling BODY is scrubbed by WhoopBleClient.log(), but these HEADER lines never pass
+                // through it - and they carry device ids, which embed a BLE address for a re-added or second
+                // strap. Same redactor, so one export cannot be safe while the other leaks.
+                for (line in com.noop.testcentre.AndroidDiagnostics.summaryLines(context)) {
+                    appendLine(com.noop.ble.redactStrapLogPii(line))
+                }
+                for (line in dynamic) appendLine(com.noop.ble.redactStrapLogPii(line))
                 appendLine("─".repeat(40))
             }
             val text = body.ifBlank { "(rolling strap-log buffer is empty; connect to your strap so lines accrue)" }
@@ -246,8 +251,13 @@ object LogExport {
         val header = buildString {
             appendLine("NOOP strap log")
             appendLine("App:     ${BuildConfig.VERSION_NAME} (${BuildConfig.TIER})")
-            for (line in com.noop.testcentre.AndroidDiagnostics.summaryLines(context)) appendLine(line)
-            for (line in dynamic) appendLine(line)
+            // #453: the rolling BODY is scrubbed by WhoopBleClient.log(), but these HEADER lines never pass
+            // through it - and they carry device ids, which embed a BLE address for a re-added or second
+            // strap. Same redactor, so one export cannot be safe while the other leaks.
+            for (line in com.noop.testcentre.AndroidDiagnostics.summaryLines(context)) {
+                appendLine(com.noop.ble.redactStrapLogPii(line))
+            }
+            for (line in dynamic) appendLine(com.noop.ble.redactStrapLogPii(line))
             appendLine("─".repeat(40))
         }
         val body = logText.ifBlank { "(strap log is empty; connect to your strap, reproduce the issue, then share again)" }
