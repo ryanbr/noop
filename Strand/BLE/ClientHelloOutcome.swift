@@ -64,5 +64,25 @@ enum ClientHelloOutcome {
         if !isWhoop5 { return false }
         return isHelloChar && helloOutstanding
     }
+
+    /// A pre-bond write completion on a 5/MG link that arrived with NO CLIENT_HELLO outstanding.
+    ///
+    /// `isAck` declines these, and without a line it declines in SILENCE — which is worse for a capture
+    /// than the wrong answer it replaces. The field log for #1635 said "CLIENT_HELLO acked — link
+    /// established" here; the honest replacement is not nothing, it is "a completion arrived and it was
+    /// not the hello's". Without it the reader cannot tell a completion arrived at all.
+    ///
+    /// Names the characteristic because the whole point is that fd4b0002 carries traffic other than the
+    /// hello, and the reader needs to see WHICH command completed.
+    ///
+    /// Pure. Kotlin twin: `clientHelloDeclinedLine`.
+    static func declinedLine(charUuid: String?, status: String?) -> String {
+        let uuid = charUuid?.trimmingCharacters(in: .whitespaces) ?? ""
+        let whereFrom = uuid.isEmpty ? "unknown" : uuid
+        let trimmedStatus = status?.trimmingCharacters(in: .whitespaces) ?? ""
+        let st = trimmedStatus.isEmpty ? "" : " \(trimmedStatus)"
+        return "CLIENT_HELLO outcome: completion from \(whereFrom)\(st) with NO hello outstanding — not a bond,"
+            + " so the link stays unbonded (#1635)"
+    }
 }
 

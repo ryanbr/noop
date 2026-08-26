@@ -5365,6 +5365,12 @@ class WhoopBleClient(
                     // hello holds `writeInFlight` until its callback fires, and drainWriteQueue refuses to
                     // start a write while one is in flight (#1095 keys off exactly that stuck state).
                     if (isHelloChar) clientHelloWriteAtMs = 0L
+                } else {
+                    // Declining must not be silent — see [clientHelloDeclinedLine].
+                    log(clientHelloDeclinedLine(
+                        charUuid = characteristic.uuid.toString(),
+                        status = gattWriteStatusLabel(status),
+                    ))
                 }
                 // Only the hello's OWN completion is evidence of a bond. Declining here withholds the
                 // bond declaration and nothing else: the in-flight slot is released and the write queue

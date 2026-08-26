@@ -111,3 +111,29 @@ internal fun completionIsClientHelloAck(
     return isHelloChar && helloOutstanding
 }
 
+/**
+ * A pre-bond write completion on a 5/MG link that arrived with NO CLIENT_HELLO outstanding.
+ *
+ * [completionIsClientHelloAck] declines these, and without a line it declines in SILENCE — which is worse
+ * for a capture than the wrong answer it replaces. The field log for #1635 said "CLIENT_HELLO acked —
+ * link established" here; the honest replacement is not nothing, it is "a completion arrived and it was
+ * not the hello's". Without it the reader cannot tell a completion arrived at all, and the evidence that
+ * identified this bug in the first place would not appear in the next capture.
+ *
+ * Names the characteristic because the whole point is that fd4b0002 carries traffic other than the hello,
+ * and the reader needs to see WHICH command completed to match it against the `→ CMD` line above it.
+ *
+ * Bounded: this branch is 5/MG-only and runs only while unbonded, and the field capture shows about one
+ * such completion per connect attempt.
+ *
+ * Pure. Swift twin: `ClientHelloOutcome.declinedLine`.
+ */
+internal fun clientHelloDeclinedLine(charUuid: String?, status: String?): String {
+    // trim(), not just isNotBlank(): the Swift twin trims, and an untrimmed uuid would render with its
+    // padding intact — a byte-level parity break the oracle test below catches.
+    val where = charUuid?.trim()?.takeIf { it.isNotEmpty() } ?: "unknown"
+    val st = status?.trim()?.takeIf { it.isNotEmpty() }?.let { " $it" } ?: ""
+    return "CLIENT_HELLO outcome: completion from $where$st with NO hello outstanding — not a bond," +
+        " so the link stays unbonded (#1635)"
+}
+

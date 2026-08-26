@@ -5437,6 +5437,10 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
             // produces no completion at all, and the `.withResponse` senders (the offload acks) only run
             // after a bond, where `alreadyBonded` short-circuits this. The link dropping clears it anyway.
             if isHelloChar { clientHelloWriteAt = nil }
+            if !helloOutstanding, !didBond {
+                // Declining must not be silent — see `ClientHelloOutcome.declinedLine`.
+                log(ClientHelloOutcome.declinedLine(charUuid: characteristic.uuid.uuidString, status: nil))
+            }
             if ClientHelloOutcome.isAck(
                 isHelloChar: isHelloChar,
                 helloOutstanding: helloOutstanding,
