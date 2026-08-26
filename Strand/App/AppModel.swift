@@ -1571,10 +1571,24 @@ final class AppModel: ObservableObject {
 
     // MARK: - Physical inputs / wear automation
 
+    /// Set by a running Lift Log session to CLAIM the strap's double-tap for the duration of that
+    /// session, so a set can be logged without picking the phone up — the one cue that works with the
+    /// phone face-down on a bench. Cleared when the session ends, handing the gesture straight back to
+    /// whatever the user has configured; nothing about their setting is read or written.
+    ///
+    /// A double tap rather than a single one because a strap takes knocks against bars and benches all
+    /// session, and two deliberate taps are not something a rack does by accident.
+    var strapDoubleTapOverride: (() -> Void)?
+
     private func handleDoubleTap() {
         let now = Date()
         guard now.timeIntervalSince(lastDoubleTapAt) > 1.2 else { return }   // debounce repeats
         lastDoubleTapAt = now
+        if let override = strapDoubleTapOverride {
+            live.append(log: "Double-tap → Lift Log: next")
+            override()
+            return
+        }
         live.append(log: "Double-tap → \(behavior.doubleTapAction.label)")
         runMacAction(behavior.doubleTapAction, shortcut: behavior.doubleTapShortcut)
     }
