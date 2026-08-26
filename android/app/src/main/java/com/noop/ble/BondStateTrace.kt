@@ -69,6 +69,10 @@ internal fun bondStateTraceLine(
  * exists to observe, and outside it an anonymous transition cannot be attributed to us.
  *
  * Pure so the scoping rule is unit-tested without a radio.
+ *
+ * PARITY: Android-only, and permanently so. CoreBluetooth exposes no bond state and no pairing API at
+ * all — there is no `BOND_BONDING` to observe on Apple platforms and nothing to mirror. An audit finding
+ * this file one-sided should leave it rather than delete it as untwinned.
  */
 internal fun shouldTraceBondState(
     eventAddress: String?,

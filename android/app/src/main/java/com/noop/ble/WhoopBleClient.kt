@@ -4283,12 +4283,37 @@ class WhoopBleClient(
     private fun noteReadFailure(uuid: java.util.UUID, status: Int) {
         if (uuid != DIS_SERIAL_CHAR && uuid != DIS_HW_REV_CHAR && uuid != DIS_FW_REV_CHAR) return
         log(disReadFailureLine(uuid.toString(), gattWriteStatusLabel(status)))
+        // Report it, but do NOT latch it when WE put a pairing in flight on this link. The latch is
+        // persisted per device and permanent, and a read issued into a link that is mid-encryption
+        // negotiation can fail for reasons that have nothing to do with the strap's policy. Latching that
+        // would disable the firmware read for this strap for good, and blame the strap for our own timing.
+        if (explicitBondRequestedThisLink) {
+            log("DIS: not latching that refusal — a pairing was requested on this link, so the failure is" +
+                " not attributable to the strap")
+            return
+        }
         runCatching {
             disRefusedPrefKey(lastDeviceAddress)?.let {
                 context.getSharedPreferences(com.noop.ui.NoopPrefs.NAME, android.content.Context.MODE_PRIVATE)
                     .edit().putBoolean(it, true).apply()
             }
         }
+    }
+
+    /**
+     * Schedule the unbonded DIS attempt on a link that will carry NO CLIENT_HELLO.
+     *
+     * Called from BOTH no-hello paths, and that is the point. There are two of them — the hello suppressed
+     * after the give-up, and the hello deferred because an explicit pairing was just requested — and the
+     * second one returns early, so scheduling this in only the first meant the DIS read never happened for
+     * anyone running the pairing experiment. The two features shipped in the same build and were mutually
+     * exclusive in exactly the configuration a tester would use.
+     *
+     * Both paths leave the same stable state: no handshake outstanding, watchdog cancelled, link holding.
+     * That is the only state this read is safe to attempt in.
+     */
+    private fun scheduleUnbondedDisRead() {
+        handler.postDelayed({ gatt?.let { readDisIdentityUnbonded(it) } }, BATTERY_ON_CONNECT_DELAY_MS * 2)
     }
 
     /**
@@ -7462,6 +7487,10 @@ class WhoopBleClient(
                     // thing most likely to abort the pairing we just asked for, so the experiment would
                     // sabotage itself ~7s in and report a refusal that never happened.
                     cancelBondWatchdog()
+                    // This link carries no hello either, so it is the same stable state the suppression
+                    // path uses — and without this the DIS read never runs for anyone with the pairing
+                    // experiment on, which is precisely who is testing.
+                    scheduleUnbondedDisRead()
                     return
                 }
 
@@ -7487,8 +7516,7 @@ class WhoopBleClient(
                     // prove nothing, and adding a read to a handshake that is already failing would make
                     // both harder to read. If the read is what tears a stable link down, that is
                     // unambiguous — and it latches, so it costs one link and not a loop.
-                    handler.postDelayed({ gatt?.let { readDisIdentityUnbonded(it) } },
-                        BATTERY_ON_CONNECT_DELAY_MS * 2)
+                    scheduleUnbondedDisRead()
                 }
             }
         }

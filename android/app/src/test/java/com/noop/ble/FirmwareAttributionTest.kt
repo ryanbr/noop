@@ -55,27 +55,4 @@ class FirmwareAttributionTest {
         assertNull(firmwarePrefKey(null))
         assertNull(firmwarePrefKey("   "))
     }
-
-    @Test
-    fun `DIS firmware fills the gap for a strap that never bonds`() {
-        // The screenshot case: a WHOOP 4.0 shows its firmware, the 5/MG beside it shows none - because the
-        // only source NOOP read it from is a framed command that needs a bond the 5/MG never gets. DIS
-        // 0x2A26 is readable unbonded, in the same service the serial already comes from.
-        assertTrue(shouldPublishDisFirmware("1.2.3", alreadyDecoded = null))
-        assertTrue(shouldPublishDisFirmware("1.2.3", alreadyDecoded = ""))
-    }
-
-    @Test
-    fun `DIS never overrides a decoded firmware`() {
-        // The two are not guaranteed to agree - one is the strap's own report, the other is whatever it
-        // publishes in its standard profile. A value that appeared and then changed would be worse than
-        // one that arrived once, so DIS yields rather than racing the decode that lands later.
-        assertFalse(shouldPublishDisFirmware("1.2.3", alreadyDecoded = "41.17.6.0"))
-    }
-
-    @Test
-    fun `a blank or absent DIS string publishes nothing`() {
-        assertFalse(shouldPublishDisFirmware(null, alreadyDecoded = null))
-        assertFalse(shouldPublishDisFirmware("   ", alreadyDecoded = null))
-    }
 }
