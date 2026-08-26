@@ -571,6 +571,11 @@ object TrendsReportRenderer {
         val shown = RangeReportEngine.displayValue(v, metric, units)
         val oneDecimal = metric.usesOneDecimal ||
             (metric == ReportMetric.STRAIN && units.effortFactor != 1.0)
+        // The whole-number branch keeps `roundToInt` (ties toward +∞) where Swift rounds away from
+        // zero. The two agree for every NON-NEGATIVE input, and this branch only ever serves
+        // Recovery / HRV / Resting HR / Effort — all non-negative by construction — so it cannot
+        // diverge today. A signed whole-number metric would break that: give it one decimal, or
+        // round it away from zero the way [round1] does.
         var num = if (oneDecimal) round1(shown) else "${shown.roundToInt()}"
         if (metric == ReportMetric.SKIN_TEMP_DEV && shown > 0) num = "+$num"
         return if (unit.isEmpty()) num else "$num $unit"
@@ -579,7 +584,18 @@ object TrendsReportRenderer {
     private fun meanText(stat: MetricRangeStat, units: ReportDisplayUnits): String =
         valueText(stat.mean, stat.metric, units)
 
-    private fun round1(x: Double): String = String.format(Locale.US, "%.1f", (x * 10).roundToInt() / 10.0)
+    /**
+     * One decimal, rounded the SAME way the engine and the Swift page round.
+     *
+     * This used `roundToInt`, which breaks ties toward positive infinity, while Swift's `round1Text`
+     * uses `.rounded()` — half away from zero. Positive values agree; every negative tie did not, so
+     * a stored −0.25 Δ°C printed −0.3 on iOS and −0.2 on Android, and −0.05 printed −0.1 against a
+     * sign-losing 0.0. Skin temp is the report's only signed metric, so it was the only row that
+     * could reach it. [RangeReportEngine.round1] already implements away-from-zero for exactly this
+     * reason; delegating leaves ONE rounding rule per platform instead of a second one to drift.
+     */
+    private fun round1(x: Double): String =
+        String.format(Locale.US, "%.1f", RangeReportEngine.round1(x))
 
     /** "Jun 15" from "2026-06-15" via the engine's pure parse (no Calendar/locale). */
     private fun prettyDate(ymd: String): String {
