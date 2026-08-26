@@ -548,6 +548,22 @@ class WhoopBleClient(
          *  other firmware source, because the decoded one rides a framed command that needs the bond. */
         private val DIS_FW_REV_CHAR: UUID = UUID.fromString("00002a26-0000-1000-8000-00805f9b34fb")
 
+        /** The rest of the Device Information Service, which sits in the SAME service NOOP already reads
+         *  the serial, hardware revision and firmware from — and which has simply never been asked for.
+         *  All read-only, all standard, and reachable on an unbonded link (a standard 0x2A19 read succeeded
+         *  on one in the field), so they cost one round-trip each and can name a strap that will not pair. */
+        private val DIS_MANUFACTURER_CHAR: UUID = UUID.fromString("00002a29-0000-1000-8000-00805f9b34fb")
+        private val DIS_MODEL_NUMBER_CHAR: UUID = UUID.fromString("00002a24-0000-1000-8000-00805f9b34fb")
+        private val DIS_SW_REV_CHAR: UUID = UUID.fromString("00002a28-0000-1000-8000-00805f9b34fb")
+
+        /** Every DIS characteristic NOOP reads, in ONE place. [noteReadFailure] tested three of them by
+         *  name and would have gone silent on the three added beside them — the exact "a refused read is
+         *  indistinguishable from one never issued" gap that reporter exists to close. */
+        private val DIS_CHARS: Set<UUID> = setOf(
+            DIS_SERIAL_CHAR, DIS_HW_REV_CHAR, DIS_FW_REV_CHAR,
+            DIS_MANUFACTURER_CHAR, DIS_MODEL_NUMBER_CHAR, DIS_SW_REV_CHAR,
+        )
+
         // Client Characteristic Configuration Descriptor — written to enable notifications
         // (CoreBluetooth does this implicitly via setNotifyValue; Android requires the explicit write).
         private val CCCD: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
@@ -4281,7 +4297,7 @@ class WhoopBleClient(
      * device, so a strap that declines says so once instead of on every reconnect forever.
      */
     private fun noteReadFailure(uuid: java.util.UUID, status: Int) {
-        if (uuid != DIS_SERIAL_CHAR && uuid != DIS_HW_REV_CHAR && uuid != DIS_FW_REV_CHAR) return
+        if (uuid !in DIS_CHARS) return
         log(disReadFailureLine(uuid.toString(), gattWriteStatusLabel(status)))
         // Report it, but do NOT latch it when WE put a pairing in flight on this link. The latch is
         // persisted per device and permanent, and a read issued into a link that is mid-encryption
@@ -4358,6 +4374,36 @@ class WhoopBleClient(
         if ((ch.properties and BluetoothGattCharacteristic.PROPERTY_READ) != 0) {
             safeGatt("readCharacteristic(dis-fwrev)") { ops.readCharacteristicCompat(ch) }
         }
+    }
+
+    /**
+     * Walk the remaining DIS identity strings, one read per callback.
+     *
+     * Chained rather than fired together because Android runs ONE GATT operation at a time: issuing four
+     * reads at once means three of them return false and are silently lost. Each read is kicked by the
+     * previous one landing, which is the same shape the serial -> hardware-revision -> firmware chain
+     * already uses.
+     *
+     * A missing characteristic ends the chain rather than stalling it — a strap need not implement all of
+     * DIS, and the ones it does implement should still be read.
+     */
+    @SuppressLint("MissingPermission")
+    private fun readNextDisExtra(after: java.util.UUID) {
+        val next = when (after) {
+            DIS_FW_REV_CHAR -> DIS_MANUFACTURER_CHAR
+            DIS_MANUFACTURER_CHAR -> DIS_MODEL_NUMBER_CHAR
+            DIS_MODEL_NUMBER_CHAR -> DIS_SW_REV_CHAR
+            else -> return
+        }
+        val g = gatt ?: return
+        val ops = gattOps ?: return
+        val ch = g.getService(DIS_SERVICE)?.getCharacteristic(next)
+        if (ch == null || (ch.properties and BluetoothGattCharacteristic.PROPERTY_READ) == 0) {
+            // Not present on this strap: skip it and carry on down the chain rather than stopping.
+            readNextDisExtra(next)
+            return
+        }
+        safeGatt("readCharacteristic(dis-extra)") { ops.readCharacteristicCompat(ch) }
     }
 
     /**
@@ -5768,6 +5814,18 @@ class WhoopBleClient(
                 noteWhoop5VariantFromDis()
                 readDisFirmwareRevision()
             }
+            uuid == DIS_MANUFACTURER_CHAR || uuid == DIS_MODEL_NUMBER_CHAR || uuid == DIS_SW_REV_CHAR -> {
+                val label = when (uuid) {
+                    DIS_MANUFACTURER_CHAR -> "manufacturer"
+                    DIS_MODEL_NUMBER_CHAR -> "modelNumber"
+                    else -> "softwareRev"
+                }
+                val v = bytes.toString(Charsets.UTF_8).trim { it == '\u0000' || it.isWhitespace() }
+                // Log only — nothing gates on these. They are identity strings for a strap that may never
+                // pair, and the point is to have them in a capture at all.
+                log("DIS: $label=${v.ifBlank { "(empty)" }}")
+                readNextDisExtra(uuid)
+            }
             uuid == DIS_FW_REV_CHAR -> {
                 val fw = bytes.toString(Charsets.UTF_8).trim { it == '\u0000' || it.isWhitespace() }
                 if (shouldPublishDisFirmware(fw, _state.value.strapFirmware)) {
@@ -5779,6 +5837,7 @@ class WhoopBleClient(
                 } else {
                     log("DIS: firmware=${fw.ifBlank { "?" }} not published — a decoded value already stands")
                 }
+                readNextDisExtra(DIS_FW_REV_CHAR)
             }
             // WHOOP4 custom notify chars, OR the WHOOP 5/MG puffin notify chars (fd4b0003/4/5/7) once
             // bonded — both carry framed records (REALTIME_DATA etc.) through the family-aware reassembler.
