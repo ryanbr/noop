@@ -7297,7 +7297,16 @@ class WhoopBleClient(
                 // Once per link, before any decision: a hello that fails on an unencrypted link and one
                 // that fails on an ENCRYPTED link are completely different findings, and they have been
                 // printing identically (#1635).
-                log(bondStateAtConnectLine(g.device.bondState, g.device.address))
+                //
+                // Gated, unlike the bond-state TRANSITION lines. This one fires on every connect, so on a
+                // strap in a reconnect loop it is a line every few seconds into a fixed-size rolling
+                // buffer for someone who is not debugging. A transition line fires only when the OS bond
+                // actually changes — zero times on the straps this is about — so it costs nothing to leave
+                // always-on and is the evidence most likely to be missing when someone reports a problem.
+                if (testCentre.active(com.noop.testcentre.TestDomain.CONNECTION)) {
+                    log(bondStateAtConnectLine(g.device.bondState, g.device.address),
+                        com.noop.testcentre.TestDomain.CONNECTION)
+                }
                 if (shouldRequestExplicitBond(
                         optedIn = puffinExperiment.explicitBond,
                         isWhoop5 = true,
@@ -8551,7 +8560,11 @@ class WhoopBleClient(
     private fun reset() {
         didBond = false
         explicitBondRequestedThisLink = false   // #1635: one createBond attempt per link
-        explicitBondRequestedAtMs = 0L
+        // explicitBondRequestedAtMs is deliberately NOT cleared here. An OS pairing routinely completes
+        // AFTER the GATT link that asked for it has dropped, so clearing on teardown would leave the
+        // BOND_BONDED transition — the one that matters most — arriving with no timing at all, which is
+        // exactly the gap this stopwatch was added to close. It is overwritten by the next request, and a
+        // stale value can only ever produce a large elapsed against a label that names what it measures.
         connectHandshakeDone = false
         familyEstablished = false   // the next link re-establishes it at service discovery
         loggedFirmwareGate = null
