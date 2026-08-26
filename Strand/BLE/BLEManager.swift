@@ -4326,7 +4326,13 @@ public final class BLEManager: NSObject, ObservableObject {
         // The sole non-archived device is not a guess: there is nothing else the attestation could have
         // come from, and `peripheralId` is nil on the seeded row until the strap is adopted — the very
         // single-strap install this correction exists for.
-        guard let attesting = byId ?? (devices.count == 1 ? devices[0] : nil) else {
+        // The fallback requires the sole row to be UNADOPTED. "One device, so it must be the one attesting"
+        // holds only while that row has never been bound to an id; a row that HAS one and does not match is
+        // a different strap, and relabelling it is the corruption this guard exists to prevent. That is not
+        // hypothetical — adding a 5/MG to an install whose only row is a 4.0 reaches here before the new
+        // strap is registered.
+        let soleUnadopted = (devices.count == 1 && devices[0].peripheralId == nil) ? devices[0] : nil
+        guard let attesting = byId ?? soleUnadopted else {
             log("DIS attestation (variant=\(variant.label)) not applied — \(devices.count) paired devices"
                 + " and none carries this strap's id, so it cannot be attributed")
             return

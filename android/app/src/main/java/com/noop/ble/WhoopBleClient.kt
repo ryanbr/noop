@@ -4467,7 +4467,12 @@ class WhoopBleClient(
             // from. It matters because `peripheralId` is NULL on the seeded row until the strap is adopted,
             // which is precisely the single-strap install this correction was written for - matching on
             // address alone would have quietly stopped correcting the case it exists to fix.
-            val attesting = byAddress ?: devices.singleOrNull()
+            // The fallback requires the sole row to be UNADOPTED. "One device, so it must be the one
+            // attesting" holds only while that row has never been bound to an address; a row that HAS one
+            // and does not match is a different strap, and relabelling it is the corruption this guard
+            // exists to prevent. That is not hypothetical - adding a 5/MG to an install whose only row is
+            // a 4.0 reaches here before the new strap is registered.
+            val attesting = byAddress ?: devices.singleOrNull()?.takeIf { it.peripheralId == null }
             if (attesting == null) {
                 // Several straps and none owns this address: the attestation cannot be attributed, and
                 // correcting SOMETHING would be worse than correcting nothing. Say which, and stop.
