@@ -4,13 +4,20 @@ import WhoopStore
 
 // Running a session: the screen you actually use at the rack.
 //
-// THREE WAYS TO ADVANCE, all doing exactly the same thing:
+// EXACTLY TWO WAYS TO ADVANCE, both deliberate:
 //   1. A double-tap on the WHOOP strap — the one that works with the phone face-down on a bench.
-//   2. Tapping anywhere on the screen.
-//   3. The explicit button.
-// Both (2) and (3) were asked for by name; shipping only one of them is not the same feature. They
-// are ordinary single taps — the double-tap is the STRAP gesture only, because a strap takes knocks
-// against bars all session while a phone screen in your hand does not.
+//   2. The explicit button.
+// An earlier build also advanced on a tap ANYWHERE on screen. First real session killed that: it
+// fires while you scroll, while you type a weight, while you just hold the phone — and a stray
+// advance costs a logged set. Do not reintroduce it.
+//
+// WHAT YOU LIFTED IS ENTERED DURING THE REST, not during the set. You cannot type a weight with the
+// bar in your hands. The set is recorded the instant it ends (timing and all); the numbers are
+// filled in while you recover, and the final set — which no rest follows — is filled in during the
+// cool-down.
+//
+// Two buzz patterns, deliberately distinguishable on a wrist that has been knocked about all
+// session: ONE pulse confirms a strap double-tap registered; THREE means the rest is nearly up.
 //
 // The countdown is read from `LiftSessionEngine`, which anchors rest to an absolute instant, so a
 // phone that sleeps through a rest still shows the truth when it wakes. Nothing auto-advances: when
@@ -82,7 +89,10 @@ struct LiftSessionView: View {
         ScreenScaffold(title: sessionTitle, subtitle: sessionSubtitle) {
             VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
                 stageCard
-                if case .working = engine.stage { entryCard }
+                // The entry card belongs to the REST, not the set. You cannot type a weight with the
+                // bar in your hands; you can while you recover. The final set has no rest after it,
+                // so the cool-down is its entry window.
+                if engine.setAwaitingEntry != nil { entryCard }
                 progressCard
                 controls
             }
@@ -94,10 +104,10 @@ struct LiftSessionView: View {
         #endif
         .background(StrandPalette.surfaceBase)
         .keyboardDoneToolbar($focused)
-        // The whole screen advances the session. `.contentShape` so the empty space between cards
-        // counts too — at the rack you should not have to aim.
-        .contentShape(Rectangle())
-        .onTapGesture { advance() }
+        // DELIBERATELY NOT tap-anywhere. An earlier build advanced the session on a tap anywhere on
+        // screen; in real use that fires while you are scrolling, typing a weight or just holding the
+        // phone, and a stray advance costs a logged set. The session now moves on exactly two
+        // deliberate inputs: the button below, or a double-tap on the strap.
         #if os(iOS)
         .sensoryFeedback(trigger: cueTick) { _, _ in
             switch lastCue {
@@ -114,8 +124,7 @@ struct LiftSessionView: View {
         }
         .task {
             // Claim the strap's double-tap for as long as this session is on screen.
-            model.strapDoubleTapOverride = { advance() }
-            await prefillFromLastTime()
+            model.strapDoubleTapOverride = { advance(fromStrap: true) }
             persist()
         }
         .onDisappear {
@@ -142,9 +151,9 @@ struct LiftSessionView: View {
     private var sessionSubtitle: LocalizedStringKey {
         switch engine.stage {
         case .warmup:   return "Tap when you start your first set."
-        case .working:  return "Tap when the set is done."
-        case .resting:  return "Tap when you're ready for the next set."
-        case .cooldown: return "Tap to finish and save."
+        case .working:  return "Press the button, or double-tap your strap, when the set is done."
+        case .resting:  return "Enter the set you just did, then start the next one."
+        case .cooldown: return "Enter your last set, then finish and save."
         case .finished: return "Saving…"
         }
     }
@@ -216,6 +225,9 @@ struct LiftSessionView: View {
     private var entryCard: some View {
         NoopCard {
             VStack(alignment: .leading, spacing: 14) {
+                Text(entryHeading)
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textSecondary)
                 HStack(spacing: 12) {
                     field(weightLabel) { numberInput("0", text: $weightText, field: .weight) }
                     field("Reps") { numberInput("0", text: $repsText, field: .reps) }
@@ -226,28 +238,89 @@ struct LiftSessionView: View {
                         .font(StrandFont.caption)
                         .foregroundStyle(StrandPalette.textSecondary)
                 }
-                Text("Pre-filled with what you did last time. Change anything that's different today.")
+                Text("Pre-filled with your target, or what you did last time. Correct it to what you actually lifted.")
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        // The entry card must NOT swallow taps into the advance gesture while someone is typing a
-        // weight, so it takes its own (empty) tap and stops propagation.
-        .contentShape(Rectangle())
-        .onTapGesture { }
+        // Every keystroke goes straight into the engine and to disk, so the numbers survive a crash
+        // mid-rest exactly like the rest of the session does.
+        // The two-argument closure form deliberately: the zero-argument `onChange(of:)` is
+        // macOS 14+, and NOOP still targets macOS 13. iOS compiled it happily — only the Mac build
+        // catches this, which is why both targets are built for every change.
+        .onChange(of: weightText) { _ in commitEntry() }
+        .onChange(of: repsText) { _ in commitEntry() }
+        .onChange(of: rpeText) { _ in commitEntry() }
+        .onChange(of: isWarmup) { _ in commitEntry() }
+    }
+
+    /// Names the set being filled in, so it is never ambiguous which one the numbers belong to.
+    private var entryHeading: String {
+        guard let s = engine.setAwaitingEntry else { return "" }
+        let name = engine.plan.indices.contains(s.exerciseIndex)
+            ? engine.plan[s.exerciseIndex].exercise : ""
+        return String(localized: "What you just did — \(name), set \(s.setIndex)")
+    }
+
+    /// Push the typed values into the engine and persist. Editing, never appending: the set already
+    /// exists (it was recorded the moment it ended), so typing can't create a phantom.
+    private func commitEntry() {
+        engine.updateLastSet(weightKg: enteredWeightKg,
+                             reps: Int(repsText.trimmingCharacters(in: .whitespaces)),
+                             rpe: LiftFormat.number(rpeText),
+                             isWarmup: isWarmup)
+        persist()
     }
 
     // MARK: - Progress + controls
 
     private var progressCard: some View {
         NoopCard {
-            HStack(spacing: 14) {
-                stat(String(localized: "Sets"),
-                     "\(engine.completedWorkingSets)/\(engine.plannedWorkingSets)")
-                stat(String(localized: "Elapsed"), LiftFormat.duration(max(0, now - engine.startTs)))
-                stat(String(localized: "Volume"), LiftFormat.weight(volumeKg, system: unitSystem))
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 14) {
+                    stat(String(localized: "Sets"),
+                         "\(engine.completedWorkingSets)/\(engine.plannedWorkingSets)")
+                    stat(String(localized: "Session"),
+                         LiftFormat.duration(max(0, now - engine.startTs)))
+                    stat(String(localized: "Volume"), LiftFormat.weight(volumeKg, system: unitSystem))
+                }
+                // TWO clocks, deliberately. The session total above answers "how long have I been
+                // here"; this one answers "how long has THIS set/rest been running", which is the
+                // number you actually act on between sets.
+                HStack(spacing: 8) {
+                    Image(systemName: stageClockSymbol)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(StrandPalette.textTertiary)
+                        .accessibilityHidden(true)
+                    Text(stageClockLabel)
+                        .font(StrandFont.captionNumber)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                    Spacer(minLength: 0)
+                }
             }
+        }
+    }
+
+    /// The current stage's own elapsed clock — how long this set has been under way, or how long
+    /// you have been resting (which keeps counting past zero, because an overrun rest is worth
+    /// seeing rather than hiding).
+    private var stageClockLabel: String {
+        let elapsed = max(0, now - engine.stageStartedAt)
+        switch engine.stage {
+        case .working:  return String(localized: "This set \(LiftFormat.duration(elapsed))")
+        case .resting:  return String(localized: "Resting \(LiftFormat.duration(elapsed))")
+        case .warmup:   return String(localized: "Warming up \(LiftFormat.duration(elapsed))")
+        case .cooldown: return String(localized: "Cooling down \(LiftFormat.duration(elapsed))")
+        case .finished: return ""
+        }
+    }
+
+    private var stageClockSymbol: String {
+        switch engine.stage {
+        case .working:  return "figure.strengthtraining.traditional"
+        case .resting:  return "hourglass"
+        default:        return "clock"
         }
     }
 
@@ -349,34 +422,43 @@ struct LiftSessionView: View {
 
     // MARK: - Behaviour
 
-    private func advance() {
-        let stamp = Int(Date().timeIntervalSince1970)
-        let wasWorking: Bool
-        if case .working = engine.stage { wasWorking = true } else { wasWorking = false }
+    /// The one action. `fromStrap` is true when a WHOOP double-tap drove it, which earns a single
+    /// confirming buzz — with the phone face-down you otherwise have no way to know it registered.
+    /// A button press needs no such confirmation: you watched it happen.
+    private func advance(fromStrap: Bool = false) {
+        // Anything typed during the rest is already in the engine via `commitEntry`, but commit once
+        // more here so a value still being typed as the user advances is not lost.
+        if engine.setAwaitingEntry != nil { commitEntry() }
 
         if case .cooldown = engine.stage {
             showingFinish = true
             return
         }
 
-        engine.advance(now: stamp,
-                       weightKg: wasWorking ? enteredWeightKg : nil,
-                       reps: wasWorking ? Int(repsText.trimmingCharacters(in: .whitespaces)) : nil,
-                       rpe: wasWorking ? LiftFormat.number(rpeText) : nil,
-                       isWarmup: wasWorking ? isWarmup : false)
+        if fromStrap, live.bonded {
+            model.buzz(loops: LiftSessionView.advanceConfirmBuzzes, gate: HapticPrefs.liftRest)
+        }
+
+        engine.advance(now: Int(Date().timeIntervalSince1970))
 
         buzzedFor = nil
-        isWarmup = false
         cue(for: engine.stage)
         persist()
 
-        if case .working = engine.stage {
-            Task { await prefillFromLastTime() }
+        // Entering a rest: seed the boxes for the set just finished, so the common case is a glance
+        // and a tap rather than typing three numbers.
+        if engine.setAwaitingEntry != nil {
+            Task { await seedEntryFields() }
         }
     }
 
     /// The strap buzz five seconds before the rest ends — the cue that reaches you with the phone
     /// face-down. Fires once per rest period, and only while a strap is actually bonded.
+    ///
+    /// THREE buzzes, deliberately distinct from the single confirmation buzz an advance gives. On a
+    /// wrist that has been knocked around a gym all session, "did it just buzz?" is a real question,
+    /// and two cues that feel identical answer it badly — one pulse means "I heard you", three means
+    /// "your rest is nearly up".
     private func fireRestCueIfDue() {
         guard case .resting(_, _, let endsAt) = engine.stage else { return }
         guard buzzedFor != endsAt else { return }
@@ -384,10 +466,15 @@ struct LiftSessionView: View {
         guard remaining <= 5 else { return }
         buzzedFor = endsAt
         if live.bonded {
-            model.buzz(loops: 2, gate: HapticPrefs.liftRest)
+            model.buzz(loops: LiftSessionView.restWarningBuzzes, gate: HapticPrefs.liftRest)
         }
         cue(.ready)
     }
+
+    /// Rest is nearly over: three pulses.
+    static let restWarningBuzzes: UInt8 = 3
+    /// A strap double-tap registered: one pulse, so the gesture is confirmed without ambiguity.
+    static let advanceConfirmBuzzes: UInt8 = 1
 
     private func cue(for stage: LiftSessionEngine.Stage) {
         switch stage {
@@ -415,26 +502,40 @@ struct LiftSessionView: View {
                                             programName: programName))
     }
 
-    /// Fill the entry boxes with what was actually lifted for this exercise last time — the read the
-    /// whole feature exists for, and the reason sets are stored as rows rather than a blob.
-    private func prefillFromLastTime() async {
-        guard case .working(_, let setNumber) = engine.stage,
-              let item = engine.currentItem,
-              let store = await repo.storeHandle() else { return }
-        let previous = (try? await store.lastLiftSets(deviceId: repo.deviceId,
-                                                      exercise: item.exercise,
-                                                      before: engine.startTs)) ?? []
-        // Prefer the matching set number from last time, else the last set performed.
-        let match = previous.first { $0.setIndex == setNumber && !$0.isWarmup } ?? previous.last
-        guard let match else {
-            weightText = ""; repsText = ""; rpeText = ""
-            return
+    /// Seed the entry boxes for the set just performed.
+    ///
+    /// Two sources, in order: what you actually lifted for this exercise LAST TIME (the read the
+    /// whole feature exists for, and the reason sets are stored as rows rather than a blob), falling
+    /// back to the weight and reps the program PLANNED. Last time beats the plan because the plan is
+    /// an intention and last time is evidence.
+    private func seedEntryFields() async {
+        guard let awaiting = engine.setAwaitingEntry,
+              engine.plan.indices.contains(awaiting.exerciseIndex) else { return }
+        let item = engine.plan[awaiting.exerciseIndex]
+        isWarmup = awaiting.isWarmup
+
+        var seededWeight: Double? = item.targetWeightKg
+        var seededReps: Int? = item.targetRepsLow
+        var seededRpe: Double?
+
+        if let store = await repo.storeHandle() {
+            let previous = (try? await store.lastLiftSets(deviceId: repo.deviceId,
+                                                          exercise: item.exercise,
+                                                          before: engine.startTs)) ?? []
+            if let match = previous.first(where: { $0.setIndex == awaiting.setIndex && !$0.isWarmup })
+                ?? previous.last {
+                seededWeight = match.weightKg ?? seededWeight
+                seededReps = match.reps ?? seededReps
+                seededRpe = match.rpe
+            }
         }
-        weightText = match.weightKg.map {
+
+        weightText = seededWeight.map {
             LiftFormat.trim(LiftFormat.display(fromKilograms: $0, system: unitSystem))
         } ?? ""
-        repsText = match.reps.map(String.init) ?? ""
-        rpeText = match.rpe.map { LiftFormat.trim($0) } ?? ""
+        repsText = seededReps.map(String.init) ?? ""
+        rpeText = seededRpe.map { LiftFormat.trim($0) } ?? ""
+        commitEntry()
     }
 
     private func save() async {
@@ -459,6 +560,8 @@ struct LiftSessionView: View {
             programId: programId,
             // Snapshot the name: renaming or deleting the program never rewrites this session.
             programName: programName,
+            // A NUMBER, so session load (sRPE x duration) is computable rather than buried in prose.
+            sessionRpe: LiftFormat.number(sessionRpeText),
             note: sessionNote)
         _ = try? await store.upsertLiftSessions([session])
 
@@ -504,13 +607,11 @@ struct LiftSessionView: View {
     /// uses, so a typed session and an imported one land in one bucket with one icon.
     static let sport = "Strength Training"
 
+    /// The workout row's human-readable note. The session RPE is NOT repeated here — it has its own
+    /// column now, and duplicating it invites the two spellings to disagree.
     private var sessionNote: String? {
-        var parts: [String] = []
-        if let programName, !programName.isEmpty { parts.append(programName) }
-        if let rpe = LiftFormat.number(sessionRpeText) {
-            parts.append(String(localized: "session RPE \(LiftFormat.trim(rpe))"))
-        }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        guard let programName, !programName.isEmpty else { return nil }
+        return programName
     }
 
     private var enteredWeightKg: Double? {

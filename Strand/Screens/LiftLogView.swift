@@ -217,6 +217,7 @@ struct LiftLogView: View {
                                 targetRepsLow: item.targetRepsLow,
                                 targetRepsHigh: item.targetRepsHigh,
                                 targetRpe: item.targetRpe,
+                                targetWeightKg: item.targetWeightKg,
                                 note: item.note)
         }
         running = SessionStart(id: program.id, plan: plan,

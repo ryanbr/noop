@@ -37,6 +37,7 @@ enum LiftSessionPersistence {
             var targetRepsLow: Int?
             var targetRepsHigh: Int?
             var targetRpe: Double?
+            var targetWeightKg: Double?
             var note: String?
         }
 
@@ -121,6 +122,7 @@ enum LiftSessionPersistence {
                                   targetRepsLow: $0.targetRepsLow,
                                   targetRepsHigh: $0.targetRepsHigh,
                                   targetRpe: $0.targetRpe,
+                                  targetWeightKg: $0.targetWeightKg,
                                   note: $0.note)
             },
             stage: box(engine.stage),
@@ -146,6 +148,7 @@ enum LiftSessionPersistence {
                          targetRepsLow: $0.targetRepsLow,
                          targetRepsHigh: $0.targetRepsHigh,
                          targetRpe: $0.targetRpe,
+                         targetWeightKg: $0.targetWeightKg,
                          note: $0.note)
         }
         let sets = s.sets.map {

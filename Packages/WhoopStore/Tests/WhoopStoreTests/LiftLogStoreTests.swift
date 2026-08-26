@@ -82,6 +82,50 @@ final class LiftLogStoreTests: XCTestCase {
         }
     }
 
+    // MARK: - Targets and the session rating, stored as numbers
+
+    func testTargetWeightRoundTripsOnAProgramLine() async throws {
+        let store = try await WhoopStore.inMemory()
+        let programId = UUID().uuidString
+        let item = LiftProgramItemRow(
+            id: UUID().uuidString, deviceId: "dev", programId: programId, ord: 0,
+            exercise: "Back squat", targetSets: 5, targetRepsLow: 5, targetRepsHigh: nil,
+            targetRpe: nil, targetWeightKg: 102.5, restSec: 180, note: nil)
+        _ = try await store.replaceLiftProgramItems(programId: programId, items: [item])
+
+        let back = try await store.liftProgramItems(programId: programId)
+        XCTAssertEqual(back.count, 1)
+        XCTAssertEqual(back[0].targetWeightKg, 102.5)
+        XCTAssertEqual(back[0].targetRepsLow, 5)
+    }
+
+    func testSessionRpeRoundTripsAsANumber() async throws {
+        let store = try await WhoopStore.inMemory()
+        let row = LiftSessionRow(
+            id: UUID().uuidString, deviceId: "dev", startTs: 1_700_000_000, endTs: 1_700_003_600,
+            sport: "Strength Training", programId: nil, programName: "Upper A",
+            sessionRpe: 7.5, note: nil)
+        _ = try await store.upsertLiftSessions([row])
+
+        let back = try await store.liftSession(deviceId: "dev", startTs: 1_700_000_000,
+                                               sport: "Strength Training")
+        XCTAssertEqual(back?.sessionRpe, 7.5)
+    }
+
+    func testSessionRpeIsOptionalSoASkippedRatingIsNotAZero() async throws {
+        let store = try await WhoopStore.inMemory()
+        let row = LiftSessionRow(
+            id: UUID().uuidString, deviceId: "dev", startTs: 1_700_000_500, endTs: nil,
+            sport: "Strength Training", programId: nil, programName: nil,
+            sessionRpe: nil, note: nil)
+        _ = try await store.upsertLiftSessions([row])
+
+        let back = try await store.liftSession(deviceId: "dev", startTs: 1_700_000_500,
+                                               sport: "Strength Training")
+        XCTAssertNil(back?.sessionRpe,
+                     "a skipped rating must stay nil — a 0 would read as 'effortless' and corrupt the load")
+    }
+
     // MARK: - The user's own exercise vocabulary
 
     /// Anything the user types becomes an exercise they can reuse, with the muscle group they gave
@@ -494,13 +538,14 @@ final class LiftLogStoreTests: XCTestCase {
         LiftProgramItemRow(id: id, deviceId: dev, programId: programId, ord: ord,
                            exercise: exercise, targetSets: 3,
                            targetRepsLow: 8, targetRepsHigh: 10, targetRpe: 7.5,
+                           targetWeightKg: nil,
                            restSec: 180, note: "Lower slowly.")
     }
 
     private func mkSession(id: String, startTs: Int, endTs: Int? = nil,
                            programId: String? = "p1") -> LiftSessionRow {
         LiftSessionRow(id: id, deviceId: dev, startTs: startTs, endTs: endTs, sport: sport,
-                       programId: programId, programName: "Upper A", note: nil)
+                       programId: programId, programName: "Upper A", sessionRpe: nil, note: nil)
     }
 
     private func mkSet(id: String, sessionId: String, ord: Int, setIndex: Int,
