@@ -9,7 +9,9 @@ import WhoopStore
 /// omission rather than by a compile error — a value that persists correctly and then disappears on the
 /// way to being read, which no migration test would catch.
 ///
-/// Twin of the Kotlin `DailySkinTempAbsoluteCarryTest`.
+/// Twin of the Kotlin `DailySkinTempAbsoluteCarryTest`, with two tests that have no Kotlin counterpart:
+/// the `with(...)` rebuild helpers are a Swift-only shape (Kotlin's data-class `copy` carries every field
+/// automatically, so there is no equivalent seam to drop a column at).
 final class DailySkinTempAbsoluteCarryTests: XCTestCase {
 
     private func row(day: String = "2026-08-25",
@@ -49,6 +51,18 @@ final class DailySkinTempAbsoluteCarryTests: XCTestCase {
                                  deepMin: 80, remMin: 100, lightMin: 220)
         XCTAssertEqual(try XCTUnwrap(edited.skinTempC), 34.6, accuracy: 0.001,
                        "editing the sleep window must not discard the night's temperature")
+    }
+
+    /// Cross-bucket: imports win the row, but the absolute is on-device only, so the computed value
+    /// has to come through or a user with any WHOOP-export history would never see one.
+    func testMergeFillsTheAbsoluteFromTheComputedRow() {
+        let imported = [row(skinTempDevC: 0.2)]
+        let computed = [row(skinTempC: 34.6, skinTempDevC: 0.2)]
+        let merged = Repository.mergeDaily(imported: imported, computed: computed)
+        XCTAssertEqual(merged.count, 1)
+        XCTAssertEqual(try XCTUnwrap(merged.first?.skinTempC), 34.6, accuracy: 0.001)
+        // And the deviation every downstream gate reads is untouched by carrying the absolute.
+        XCTAssertEqual(try XCTUnwrap(merged.first?.skinTempDevC), 0.2, accuracy: 0.001)
     }
 
     /// Re-scoring writes both thermal values together; neither may clobber the other.

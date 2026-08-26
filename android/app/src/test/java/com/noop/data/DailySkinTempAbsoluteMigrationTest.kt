@@ -8,8 +8,13 @@ import org.junit.Test
 /**
  * v33 -> v34 (#1636): the nightly ABSOLUTE skin temperature, kept beside the deviation derived from it.
  *
- * Twin of the Swift `v40-daily-skin-temp-absolute` GRDB migration; `MigrationTests.swift` asserts the
- * same three properties there.
+ * Twin of the Swift `v40-daily-skin-temp-absolute` GRDB migration.
+ *
+ * This environment has no Robolectric / Room-testing (see [AppleStepHourMigrationTest]), so the SQL is
+ * exposed as an internal constant and pinned to shape here rather than executed. The Swift side CAN open
+ * a store in-memory, so `DailySkinTempAbsoluteTests` additionally round-trips the column and proves a
+ * re-upsert corrects it; those two have no runnable Kotlin counterpart, which is a property of the test
+ * environment and not of the column.
  */
 class DailySkinTempAbsoluteMigrationTest {
 
