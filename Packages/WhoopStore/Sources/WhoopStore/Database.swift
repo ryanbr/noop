@@ -875,6 +875,18 @@ extension WhoopStore {
                 t.add(column: "burstIndex", .integer)
             }
         }
+        // v40 (#1636): keep the nightly ABSOLUTE skin temperature beside the deviation derived from it.
+        // The engine computed this mean on every pass and discarded it the moment `skinTempDevC` was
+        // taken, so the app could show "+0.5 Δ°C" with no way to learn what it moved from — and a febrile
+        // night reads as a small delta where the absolute reads as a fever. Additive and nullable: old
+        // rows stay nil, and nothing reads it as a gate. Existing nights refill on the next scoring pass
+        // because the value is re-derived from raw `skinTempSample` rows that are still on disk — no
+        // separate backfill, and therefore no second implementation that could disagree with the live one.
+        migrator.registerMigration("v40-daily-skin-temp-absolute") { db in
+            try db.alter(table: "dailyMetric") { t in
+                t.add(column: "skinTempC", .double)
+            }
+        }
         return migrator
     }
 }

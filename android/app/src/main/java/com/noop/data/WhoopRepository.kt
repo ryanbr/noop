@@ -2312,6 +2312,9 @@ class WhoopRepository(
                 restingHr = winner.restingHr ?: filler.restingHr,
                 avgHrv = winner.avgHrv ?: filler.avgHrv,
                 avgSdnn = winner.avgSdnn ?: filler.avgSdnn,
+                // Strap-only, like raw SpO2: an imported winner carries no absolute skin temp, so
+                // take the filler's rather than blank a value the strap did record (#1636).
+                skinTempC = winner.skinTempC ?: filler.skinTempC,
                 recovery = winner.recovery ?: filler.recovery,
                 strain = winner.strain ?: filler.strain,
                 exerciseCount = winner.exerciseCount ?: filler.exerciseCount,
@@ -2414,6 +2417,7 @@ class WhoopRepository(
                     restingHr = d.restingHr ?: c.restingHr,
                     avgHrv = d.avgHrv ?: c.avgHrv,
                     avgSdnn = d.avgSdnn ?: c.avgSdnn,
+                    skinTempC = d.skinTempC ?: c.skinTempC,
                     recovery = d.recovery ?: c.recovery,
                     strain = d.strain ?: c.strain,
                     exerciseCount = d.exerciseCount ?: c.exerciseCount,

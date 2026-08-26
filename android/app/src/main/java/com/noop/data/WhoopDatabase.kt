@@ -53,7 +53,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         V18AuxSampleEntity::class,
         AppleStepHour::class,
     ],
-    version = 33,
+    version = 34,
     // #775: ON so Room's KSP processor writes the generated schema (every table's exact `CREATE TABLE`,
     // columns in declaration order with affinity/NOT NULL/default, PK and indices) as JSON. That export
     // is what lets a plain JVM test — no device, no Robolectric — read Android's REAL schema and compare
@@ -70,7 +70,7 @@ abstract class WhoopDatabase : RoomDatabase() {
         const val DB_NAME = "noop_whoop.db"
         /** Room schema version — MUST equal the `@Database(version = …)` above. Surfaced in the backup
          *  manifest (#1410) so an export states its schema. Bump both together on a migration. */
-        const val SCHEMA_VERSION = 33
+        const val SCHEMA_VERSION = 34
 
         @Volatile
         private var instance: WhoopDatabase? = null
@@ -900,6 +900,28 @@ abstract class WhoopDatabase : RoomDatabase() {
         }
 
         /**
+         * #1636: keep the nightly ABSOLUTE skin temperature beside the deviation derived from it.
+         *
+         * The engine computed this mean on every scoring pass and discarded it the moment `skinTempDevC`
+         * was taken, so the app could show "+0.5 Δ°C" with no way to learn what it moved from — and a
+         * febrile night reads as a small delta where the absolute reads as a fever. Nullable and additive:
+         * existing rows stay null and refill on the next scoring pass, because the value is re-derived
+         * from raw `skinTempSample` rows still on disk. No backfill statement, and therefore no second
+         * derivation that could disagree with the live one.
+         *
+         * Twin of the Swift `v40-daily-skin-temp-absolute` GRDB migration.
+         */
+        internal val DAILY_SKIN_TEMP_ABSOLUTE_MIGRATION_SQL: List<String> = listOf(
+            "ALTER TABLE `dailyMetric` ADD COLUMN `skinTempC` REAL",
+        )
+
+        internal val MIGRATION_33_34 = object : Migration(33, 34) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                for (stmt in DAILY_SKIN_TEMP_ABSOLUTE_MIGRATION_SQL) db.execSQL(stmt)
+            }
+        }
+
+        /**
          * Every migration the builder registers, as a VALUE rather than an argument list.
          *
          * It was previously spelled inline in `addMigrations(...)`, which meant nothing could check it. A
@@ -924,7 +946,7 @@ abstract class WhoopDatabase : RoomDatabase() {
             MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22,
             MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26,
             MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30,
-            MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33,
+            MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34,
         )
 
 

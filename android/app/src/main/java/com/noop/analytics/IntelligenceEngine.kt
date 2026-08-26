@@ -1580,7 +1580,7 @@ object IntelligenceEngine {
                 )
             }
             // Stamp the computed source id + the re-scored recovery & skin-temp deviation onto the row.
-            dailies.add(daily.copy(deviceId = computedId, recovery = recovery, skinTempDevC = skinTempDevC))
+            dailies.add(scoredDailyRow(daily, computedId, recovery, skinTempDevC, res.nightlySkinTempC))
             // Map the rich DetectedSleep sessions → Room SleepSession cache rows.
             for (s in res.sleepSessions) {
                 sleepRows.add(
@@ -2529,6 +2529,30 @@ object IntelligenceEngine {
         }
         return rows.isNotEmpty()
     }
+
+    /**
+     * The scored row as persisted: the day's metrics plus this pass's Charge and BOTH thermal values.
+     *
+     * Extracted rather than inlined at the call site because [analyzeRecentOnCpu] sits within ~4 KB of
+     * the 64 KB JVM method ceiling once JaCoCo instruments it (guarded by IntelligenceEngineJacocoBudgetTest,
+     * which caught this addition going 25 bytes over). A named `copy` argument is cheap in source and not
+     * in bytecode; keeping row assembly out of that method is what buys the headroom back.
+     *
+     * The absolute (#1636) is written in the SAME call as the deviation derived from it, so the two can
+     * never describe different nights and no second derivation exists to drift.
+     */
+    private fun scoredDailyRow(
+        daily: DailyMetric,
+        computedId: String,
+        recovery: Double?,
+        skinTempDevC: Double?,
+        skinTempC: Double?,
+    ): DailyMetric = daily.copy(
+        deviceId = computedId,
+        recovery = recovery,
+        skinTempDevC = skinTempDevC,
+        skinTempC = skinTempC,
+    )
 
     private fun recomputeSkinTempDev(nightly: Double?, base: BaselineState?): Double? {
         val v = nightly ?: return null

@@ -844,6 +844,10 @@ object AnalyticsEngine {
             spo2Red = nightlySpo2Raw?.first,
             spo2Ir = nightlySpo2Raw?.second,
             avgSdnn = avgSDNNDaily,
+            // The ABSOLUTE this pass's deviation was derived from (#1636). Set HERE, beside
+            // skinTempDevC, so the engine's own row is symmetric: any path that persists this
+            // row directly keeps both thermal values, not just the one.
+            skinTempC = nightlySkinTempC,
         )
 
         // ── Per-score confidence tiers (mirror Swift ScoreConfidence.derive decisions) ──

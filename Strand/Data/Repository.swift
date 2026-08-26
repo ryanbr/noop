@@ -317,7 +317,10 @@ final class Repository: ObservableObject {
             steps: winner.steps ?? filler.steps,
             activeKcalEst: winner.activeKcalEst ?? filler.activeKcalEst,
             spo2Red: rawSpo2FromFiller ? filler.spo2Red : winner.spo2Red,
-            spo2Ir: rawSpo2FromFiller ? filler.spo2Ir : winner.spo2Ir
+            spo2Ir: rawSpo2FromFiller ? filler.spo2Ir : winner.spo2Ir,
+            // Strap-only, like raw SpO2: an imported winner carries no absolute skin temp, so take the
+            // filler's rather than let the union blank a value the strap did record (#1636).
+            skinTempC: winner.skinTempC ?? filler.skinTempC
         )
     }
 
@@ -936,7 +939,8 @@ final class Repository: ObservableObject {
                         steps: steps,
                         activeKcalEst: existing.activeKcalEst,
                         spo2Red: existing.spo2Red,
-                        spo2Ir: existing.spo2Ir
+                        spo2Ir: existing.spo2Ir,
+                        skinTempC: existing.skinTempC
                     )
                 }
             } else {
@@ -3073,7 +3077,10 @@ private extension DailyMetric {
             // backfilled from the computed fallback — otherwise the nightly means would be lost. (#93)
             spo2Red: spo2Red ?? fallback.spo2Red,
             spo2Ir: spo2Ir ?? fallback.spo2Ir,
-            avgSdnn: avgSdnn ?? fallback.avgSdnn
+            avgSdnn: avgSdnn ?? fallback.avgSdnn,
+            // On-device only (imports never carry it), so an imported row's nil is backfilled from the
+            // computed fallback — otherwise the night's absolute would be lost. (#1636)
+            skinTempC: skinTempC ?? fallback.skinTempC
         )
     }
 
@@ -3102,7 +3109,8 @@ private extension DailyMetric {
             activeKcalEst: activeKcalEst,
             spo2Red: spo2Red,   // non-sleep field: preserved as-is (#93)
             spo2Ir: spo2Ir,
-            avgSdnn: avgSdnn    // non-sleep (HRV) field: preserved as-is
+            avgSdnn: avgSdnn,   // non-sleep (HRV) field: preserved as-is
+            skinTempC: skinTempC // non-sleep (thermal) field: preserved as-is (#1636)
         )
     }
 }

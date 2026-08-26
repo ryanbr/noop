@@ -900,7 +900,11 @@ public enum AnalyticsEngine {
             activeKcalEst: activeKcalEst,
             spo2Red: nightlySpo2Raw?.red,
             spo2Ir: nightlySpo2Raw?.ir,
-            avgSdnn: avgSDNNDaily)
+            avgSdnn: avgSDNNDaily,
+            // The ABSOLUTE this pass's deviation was derived from (#1636). Set HERE, beside
+            // `skinTempDevC`, so the engine's own row is symmetric: any path that persists this
+            // struct directly keeps both thermal values, not just the one.
+            skinTempC: nightlySkinTempC)
         _ = sleepStart; _ = sleepEnd  // available for callers wiring sleep_start/end columns
 
         // ── Cache rows ────────────────────────────────────────────────────────

@@ -670,6 +670,7 @@ object WhoopCsvImporter {
         restingHr = base.restingHr ?: fill.restingHr,
         avgHrv = base.avgHrv ?: fill.avgHrv,
         avgSdnn = base.avgSdnn ?: fill.avgSdnn,
+        skinTempC = base.skinTempC ?: fill.skinTempC,
         recovery = base.recovery ?: fill.recovery,
         strain = base.strain ?: fill.strain,
         exerciseCount = base.exerciseCount ?: fill.exerciseCount,
