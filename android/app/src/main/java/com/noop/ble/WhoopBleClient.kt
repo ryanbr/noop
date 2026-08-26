@@ -7768,8 +7768,16 @@ class WhoopBleClient(
         refreshConnectionPriority()   // #477: escalate to HIGH for the offload burst (faster sync). No-op unless enabled.
         applyPreferredPhy()           // #533: prefer LE 2M for the burst (halves air-time). No-op unless enabled.
         // Opt-in raw capture (research aid): pref read fresh per session, like the probes gate.
+        // Normally already open from the connect hook; this covers a capture switched on mid-session.
         if (connectedFamily == DeviceFamily.WHOOP5 && PuffinExperiment.from(context).isCaptureEnabled) {
             startWhoop5BackfillCapture()
+            // Give the offload a FULL line budget. Since the capture was hoisted out of the `backfilling`
+            // gate it also records the live flood, and on a link that stays up overnight that flood can
+            // exhaust the 40k cap before the morning sync — pausing capture at exactly the moment the
+            // offload arrives, and losing the material this feature exists to collect. The line cap is a
+            // runaway guard, not a quota the live stream is entitled to spend, so the offload gets it
+            // back. The BYTE cap still bounds the file and is untouched.
+            captureLines = 0
         }
         if (connectedFamily == DeviceFamily.WHOOP5) {
             // Re-apply the Broadcast-HR device-config flag if the user opted in (#181).
