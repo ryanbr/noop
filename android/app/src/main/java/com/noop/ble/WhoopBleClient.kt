@@ -885,6 +885,14 @@ class WhoopBleClient(
          * stale-direct-bond scan-fallback ([staleDirectBond]), it was not our OWN localTerminate bounce
          * (already counted by [onBondWatchdog]), and we are not already paused. A healthy strap that bonds on
          * the first connect has didBond == true, so it is never counted and its behaviour is unchanged.
+         *
+         * [helloSuppressed] excludes the #1635 strap, and it is not optional. Suppression makes `didBond`
+         * PERMANENTLY false by design — the handshake is deliberately not being sent — so every ordinary
+         * involuntary drop (out of range, radio off, a walk away from the phone) would otherwise look like
+         * "connects but never pairs" and march this counter toward a pause. That would undo the suppression
+         * a few drops later and hand the user a re-pair guide blaming a stale pairing, for a strap whose
+         * unbonded state NOOP chose on purpose. Not-bonding is only evidence of a fault when we were
+         * actually trying to bond.
          */
         internal fun shouldCountNeverBondedSelfDrop(
             wasConnected: Boolean,
@@ -893,8 +901,9 @@ class WhoopBleClient(
             staleDirectBond: Boolean,
             status: Int,
             alreadyPausedForBondLoop: Boolean,
+            helloSuppressed: Boolean,
         ): Boolean = wasConnected && !didBond && !intentionalDisconnect && !staleDirectBond &&
-            status != GATT_CONN_TERMINATE_LOCAL_HOST && !alreadyPausedForBondLoop
+            status != GATT_CONN_TERMINATE_LOCAL_HOST && !alreadyPausedForBondLoop && !helloSuppressed
 
         /** Pure guard for a delayed service-discovery kick. The operation belongs only to the exact
          *  connection that scheduled it, and a temporarily-missing GATT wrapper must not consume the
@@ -8277,6 +8286,9 @@ class WhoopBleClient(
                 staleDirectBond = staleDirectBond,
                 status = status,
                 alreadyPausedForBondLoop = autoReconnectPausedForBondLoop,
+                helloSuppressed = runCatching {
+                    com.noop.ui.NoopPrefs.helloSuppressed(context, lastDeviceAddress)
+                }.getOrDefault(false),
             ) && bondWatchdogBackoff.recordBounce()
         ) {
             log("Strap connects and subscribes but never finishes pairing, then self-drops before the bond watchdog fires (${bondWatchdogBackoff.consecutiveBounces} cycles) " +
