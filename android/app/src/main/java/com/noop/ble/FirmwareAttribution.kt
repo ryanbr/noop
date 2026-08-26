@@ -42,3 +42,24 @@ internal fun resolveFirmware(
  */
 internal fun firmwarePrefKey(peripheralId: String?): String? =
     peripheralId?.trim()?.takeIf { it.isNotEmpty() }?.let { "noop.lastFirmware.${it.lowercase()}" }
+
+/**
+ * Should the standard Device Information Service firmware string be published for this strap?
+ *
+ * A 5/MG that never completes the puffin handshake has no firmware to show, because the only source NOOP
+ * reads it from is a framed command that needs the bond. The Devices screen therefore shows a WHOOP 4.0
+ * with its firmware beside a 5/MG with none — which reads as a missing feature and is really a missing
+ * READ: DIS `0x2A26` sits in the same service NOOP already reads the serial and hardware revision from,
+ * unbonded, on every 5/MG connect (#520). It was simply never asked for.
+ *
+ * DIS is a FALLBACK, never an override. The puffin value is the strap's own report of the firmware it is
+ * running and is what the 4.0 has always shown; DIS is whatever the device chose to publish in its
+ * standard profile, and the two are not guaranteed to agree. So this yields to anything already decoded
+ * rather than racing it — the decode lands later in the connect, and a value that appeared and then
+ * changed would be worse than one that arrived once.
+ */
+internal fun shouldPublishDisFirmware(
+    disFirmware: String?,
+    alreadyDecoded: String?,
+): Boolean = !disFirmware.isNullOrBlank() && alreadyDecoded.isNullOrBlank()
+

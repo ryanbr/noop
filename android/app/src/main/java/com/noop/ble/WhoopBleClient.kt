@@ -543,6 +543,11 @@ class WhoopBleClient(
         private val DIS_SERIAL_CHAR: UUID = UUID.fromString("00002a25-0000-1000-8000-00805f9b34fb")
         private val DIS_HW_REV_CHAR: UUID = UUID.fromString("00002a27-0000-1000-8000-00805f9b34fb")
 
+        /** Standard Firmware Revision String. Readable UNBONDED, like the serial and hardware revision
+         *  beside it — which is the whole point: a 5/MG that never completes the puffin handshake has no
+         *  other firmware source, because the decoded one rides a framed command that needs the bond. */
+        private val DIS_FW_REV_CHAR: UUID = UUID.fromString("00002a26-0000-1000-8000-00805f9b34fb")
+
         // Client Characteristic Configuration Descriptor — written to enable notifications
         // (CoreBluetooth does this implicitly via setNotifyValue; Android requires the explicit write).
         private val CCCD: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
@@ -4258,6 +4263,51 @@ class WhoopBleClient(
         }
     }
 
+    /**
+     * A characteristic read that came back with a failure status.
+     *
+     * Both `onCharacteristicRead` overloads used to drop a non-success status on the floor, so a refused
+     * read produced no line at all — indistinguishable from one that was never issued. That is exactly the
+     * ambiguity that made the CLIENT_HELLO failure unreadable for eleven weeks (#1635).
+     *
+     * Scoped to the DIS characteristics: they are the reads whose refusal is a FINDING (it would confirm
+     * #490 on Android and mean the firmware cannot be had without a bond). A refusal is also latched per
+     * device, so a strap that declines says so once instead of on every reconnect forever.
+     */
+    private fun noteReadFailure(uuid: java.util.UUID, status: Int) {
+        if (uuid != DIS_SERIAL_CHAR && uuid != DIS_HW_REV_CHAR && uuid != DIS_FW_REV_CHAR) return
+        log(disReadFailureLine(uuid.toString(), gattWriteStatusLabel(status)))
+        runCatching {
+            disRefusedPrefKey(lastDeviceAddress)?.let {
+                context.getSharedPreferences(com.noop.ui.NoopPrefs.NAME, android.content.Context.MODE_PRIVATE)
+                    .edit().putBoolean(it, true).apply()
+            }
+        }
+    }
+
+    /**
+     * The UNBONDED DIS attempt (#1635 follow-up). Deliberately separate from [readDisIdentity], which runs
+     * only inside the post-bond handshake and therefore never runs at all on a strap that will not bond.
+     */
+    private fun readDisIdentityUnbonded(g: BluetoothGatt) {
+        val refused = runCatching {
+            disRefusedPrefKey(g.device.address)?.let {
+                context.getSharedPreferences(com.noop.ui.NoopPrefs.NAME, android.content.Context.MODE_PRIVATE)
+                    .getBoolean(it, false)
+            } ?: false
+        }.getOrDefault(false)
+        if (!shouldReadDisUnbonded(
+                isWhoop5 = connectedFamily == DeviceFamily.WHOOP5,
+                bonded = didBond,
+                alreadyReadThisLink = disRead,
+                previouslyRefused = refused,
+            )
+        ) return
+        log("DIS: trying the identity read on an UNbonded link — unproven, and a refusal is itself the" +
+            " answer to whether DIS needs an encrypted bond (#490)")
+        readDisIdentity()
+    }
+
     /** Chained second half of [readDisIdentity] — issued only after the serial read has landed. */
     private fun readDisHardwareRevision() {
         val g = gatt ?: return
@@ -4265,6 +4315,17 @@ class WhoopBleClient(
         val ch = g.getService(DIS_SERVICE)?.getCharacteristic(DIS_HW_REV_CHAR) ?: return
         if ((ch.properties and BluetoothGattCharacteristic.PROPERTY_READ) != 0) {
             safeGatt("readCharacteristic(dis-hwrev)") { ops.readCharacteristicCompat(ch) }
+        }
+    }
+
+    /** Chained third read — issued after the hardware revision lands. Gives an unbonded 5/MG a firmware
+     *  string it otherwise has no source for at all. */
+    private fun readDisFirmwareRevision() {
+        val g = gatt ?: return
+        val ops = gattOps ?: return
+        val ch = g.getService(DIS_SERVICE)?.getCharacteristic(DIS_FW_REV_CHAR) ?: return
+        if ((ch.properties and BluetoothGattCharacteristic.PROPERTY_READ) != 0) {
+            safeGatt("readCharacteristic(dis-fwrev)") { ops.readCharacteristicCompat(ch) }
         }
     }
 
@@ -5625,6 +5686,7 @@ class WhoopBleClient(
             status: Int,
         ) {
             if (status == BluetoothGatt.GATT_SUCCESS) onInbound(characteristic.uuid, value)
+            else noteReadFailure(characteristic.uuid, status)
         }
 
         @Deprecated("Deprecated in API 33; retained for API 26..32 where the value-bearing overload isn't called")
@@ -5635,6 +5697,7 @@ class WhoopBleClient(
         ) {
             @Suppress("DEPRECATION")
             if (status == BluetoothGatt.GATT_SUCCESS) characteristic.value?.let { onInbound(characteristic.uuid, it) }
+            else noteReadFailure(characteristic.uuid, status)
         }
     }
 
@@ -5667,6 +5730,19 @@ class WhoopBleClient(
             uuid == DIS_HW_REV_CHAR -> {
                 disHwRev = bytes.toString(Charsets.UTF_8).trim { it == '\u0000' || it.isWhitespace() }
                 noteWhoop5VariantFromDis()
+                readDisFirmwareRevision()
+            }
+            uuid == DIS_FW_REV_CHAR -> {
+                val fw = bytes.toString(Charsets.UTF_8).trim { it == '\u0000' || it.isWhitespace() }
+                if (shouldPublishDisFirmware(fw, _state.value.strapFirmware)) {
+                    _state.update { it.copy(strapFirmware = fw) }
+                    runCatching { NoopPrefs.setFirmwareFor(context, lastDeviceAddress, fw) }
+                    // Named as the DIS source, because it is not the same reading as the decoded one the
+                    // 4.0 shows and a capture must not have to guess which it is looking at.
+                    log("DIS: firmware=$fw (standard profile, no bond required)")
+                } else {
+                    log("DIS: firmware=${fw.ifBlank { "?" }} not published — a decoded value already stands")
+                }
             }
             // WHOOP4 custom notify chars, OR the WHOOP 5/MG puffin notify chars (fd4b0003/4/5/7) once
             // bonded — both carry framed records (REALTIME_DATA etc.) through the family-aware reassembler.
@@ -7387,6 +7463,14 @@ class WhoopBleClient(
                     log("WHOOP 5/MG: CLIENT_HELLO suppressed for this strap — it was never acknowledged and" +
                         " the write is what drops the link. Staying on live HR (not fully paired); press" +
                         " Connect to try the handshake again (#1635).")
+                    // The unbonded DIS attempt rides HERE, on the suppressed link, and nowhere else. This
+                    // is the only 5/MG state known to be stable: the handshake is off, the watchdog is
+                    // cancelled, and the link holds. During the reconnect loop it would have ~4.8s and
+                    // prove nothing, and adding a read to a handshake that is already failing would make
+                    // both harder to read. If the read is what tears a stable link down, that is
+                    // unambiguous — and it latches, so it costs one link and not a loop.
+                    handler.postDelayed({ gatt?.let { readDisIdentityUnbonded(it) } },
+                        BATTERY_ON_CONNECT_DELAY_MS * 2)
                 }
             }
         }
