@@ -99,6 +99,25 @@ enum DebugDataDiagnostics {
         if let r = days.last(where: { $0.recovery != nil }) {
             lines.append("Last recov.: \(r.day) · \(Int(r.recovery ?? 0))%")
         } else { lines.append("Last recov.: none") }
+        // #1300 follow-up: the header above describes ONE device because it reads the last-connected
+        // prefs, not the registry — so a two-strap install produced a log that never mentioned the
+        // second strap, leaving `dayOwner readId=` and the funnel's orphan check with nothing to be
+        // checked against. Name the whole set instead.
+        // `store` is fetched further down for the funnels; take a handle here rather than moving this
+        // block below the funnel header, so the inventory prints beside the strap identity it qualifies —
+        // the same position it holds on Android.
+        if let invStore = await repo.storeHandle() {
+            let invRegistry = DeviceRegistryStore(dbQueue: invStore.registryWriter)
+            let invRows = ((try? invRegistry.all()) ?? []).map {
+                InventoryRow(id: $0.id, brand: $0.brand, model: $0.model,
+                             status: $0.status.rawValue, lastSeenAt: $0.lastSeenAt)
+            }
+            let invActive = (try? invRegistry.activeDeviceId()) ?? nil
+            lines.append(contentsOf: deviceInventoryLines(rows: invRows,
+                                                          activeId: invActive,
+                                                          nowSec: Int(Date().timeIntervalSince1970),
+                                                          relTime: { relTime($0) }))
+        }
 
         // Workout & imported-activity source breakdown (#28/#29 "counted but not shown" class). Runs BEFORE
         // the funnels since those can early-return, so this always lands in the export.

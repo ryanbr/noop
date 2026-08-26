@@ -99,6 +99,19 @@ object AndroidDiagnostics {
             val merged = repo.daysMerged("my-whoop")
             add("Last sleep:  ${merged.lastOrNull { (it.totalSleepMin ?: 0.0) > 0.0 }?.let { "${it.day} · ${it.totalSleepMin?.toInt()} min" } ?: "none"}")
             add("Last recov.: ${merged.lastOrNull { it.recovery != null }?.let { "${it.day} · ${it.recovery?.toInt()}%" } ?: "none"}")
+            // #1300 follow-up: the header above describes ONE device because it reads the last-connected
+            // prefs, not the registry — so a two-strap install produced a log that never mentioned the
+            // second strap, leaving `dayOwner readId=` and the funnel's orphan check with nothing to be
+            // checked against. Name the whole set instead.
+            val invRows = runCatching {
+                (context.applicationContext as? com.noop.NoopApplication)?.deviceRegistry?.all().orEmpty()
+                    .map { InventoryRow(it.id, it.brand, it.model, it.status, it.lastSeenAt) }
+            }.getOrDefault(emptyList())
+            val invActive = runCatching {
+                (context.applicationContext as? com.noop.NoopApplication)?.deviceRegistry?.activeDeviceId()
+            }.getOrNull()
+            deviceInventoryLines(invRows, invActive, System.currentTimeMillis() / 1000L) { relTime(it) }
+                .forEach { add(it) }
         }.onFailure { add("(strap/data state unavailable: ${it.message})") }
     }
 
