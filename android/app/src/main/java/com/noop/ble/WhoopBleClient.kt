@@ -5364,12 +5364,18 @@ class WhoopBleClient(
                 // so the property bitmask and the OS bond state are the only proxies available — and the
                 // CLIENT_HELLO has been written WITH RESPONSE since June without anyone checking whether
                 // this characteristic supports that. One capture settles it.
-                cmdCharacteristic?.let {
-                    log(characteristicCapabilityLine(
-                        uuid = it.uuid.toString(),
-                        properties = it.properties,
-                        writingWithResponse = true,
-                    ))
+                // Descriptive only. Whether we will actually write with response is not known here — the
+                // #1635 suppression decision happens later in startSession — so asserting it would be a
+                // confidently wrong line on exactly the straps this is about. The verdict is emitted at
+                // the write itself, where the write type is a fact rather than an assumption.
+                if (testCentre.active(com.noop.testcentre.TestDomain.CONNECTION)) {
+                    cmdCharacteristic?.let {
+                        log(characteristicCapabilityLine(
+                            uuid = it.uuid.toString(),
+                            properties = it.properties,
+                            writingWithResponse = false,
+                        ), com.noop.testcentre.TestDomain.CONNECTION)
+                    }
                 }
             } else {
                 log("Custom WHOOP service not found on this peripheral")
@@ -7262,6 +7268,12 @@ class WhoopBleClient(
         // stream HR (even over the standard 0x2A37 profile) on an UNauthenticated link, so the old
         // unacknowledged write left it bond-less and silent — CLIENT_HELLO written, then nothing (#17).
         // Hold the slot until the ACK; the opt-in puffin probe now fires post-bond (onCharacteristicWrite).
+        // UNgated, unlike the descriptive line at discovery: this fires only when the characteristic does
+        // not declare Write, which is a decisive, actionable, once-per-link finding — and the one most
+        // likely to be missing from a report by someone who never turned Test Centre on.
+        if (ch.properties and BluetoothGattCharacteristic.PROPERTY_WRITE == 0) {
+            log(characteristicCapabilityLine(ch.uuid.toString(), ch.properties, writingWithResponse = true))
+        }
         log("WHOOP 5/MG: writing CLIENT_HELLO to fd4b0002 with response (to trigger bonding, experimental).")
         writeInFlight = true
         clientHelloWriteAtMs = System.currentTimeMillis()
