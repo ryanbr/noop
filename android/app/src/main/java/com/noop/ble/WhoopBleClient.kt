@@ -2193,6 +2193,18 @@ class WhoopBleClient(
      *  can be reported with an elapsed time. 0 means none is outstanding. Cleared in [reset]. */
     @Volatile private var clientHelloWriteAtMs: Long = 0L
 
+    /** #1635: ms since the CLIENT_HELLO write, or null when none is outstanding. Lets the bond-state
+     *  observer time a pairing transition against the write that may have triggered it, and report no
+     *  elapsed time at all for a transition belonging to some other pairing. */
+    val msSinceClientHello: Long?
+        get() = clientHelloWriteAtMs.takeIf { it > 0L }?.let { System.currentTimeMillis() - it }
+
+    /** #1635: record an OS bond-state transition in the strap log. The OS pairing flow has never been
+     *  observed, which is what leaves the 5/MG bond failure undecided - see [bondStateTraceLine]. */
+    fun onBondStateChanged(previous: Int, current: Int, address: String?) {
+        log(bondStateTraceLine(previous, current, address, msSinceClientHello))
+    }
+
     @Volatile private var familyEstablished = false
 
     /// The family actually discovered on the connected peripheral. Drives family-aware frame

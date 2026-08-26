@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -213,6 +214,23 @@ class WhoopConnectionService : Service() {
     private val repo get() = (application as NoopApplication).repository
 
     /**
+     * Watches the OS PAIRING flow (#1635). NOOP has never observed ACTION_BOND_STATE_CHANGED, so whether a
+     * CLIENT_HELLO triggers pairing at all - and whether that pairing fails - has been invisible. A WHOOP
+     * 5/MG shows every CLIENT_HELLO unacknowledged and the link torn down locally on a clockwork timer;
+     * seeing BOND_NONE -> BOND_BONDING -> BOND_NONE across that window decides it, and seeing no transition
+     * at all decides it the other way. Registered and unregistered alongside [bluetoothStateReceiver].
+     */
+    private val bondStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action != BluetoothDevice.ACTION_BOND_STATE_CHANGED) return
+            val dev: BluetoothDevice? = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+            val cur = intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.ERROR)
+            val prev = intent.getIntExtra(BluetoothDevice.EXTRA_PREVIOUS_BOND_STATE, BluetoothDevice.ERROR)
+            runCatching { ble.onBondStateChanged(prev, cur, dev?.address) }
+        }
+    }
+
+    /**
      * Watches the OS Bluetooth radio so turning it off immediately tears down NOOP's orphaned GATT
      * link (#314). Without this there is no ACTION_STATE_CHANGED listener at all, so the radio going off
      * never reaches [WhoopBleClient] — the link stays "connected", the UI keeps showing live HR/buzz/sync
@@ -233,8 +251,9 @@ class WhoopConnectionService : Service() {
         }
     }
 
-    /** True once [bluetoothStateReceiver] is registered, so repeat onStartCommands don't double-register
-     *  (which would later throw on a single unregister). */
+    /** True once [bluetoothStateReceiver] and [bondStateReceiver] are registered, so repeat
+     *  onStartCommands don't double-register (which would later throw on a single unregister). Both
+     *  register together and unregister together, so one flag covers the pair. */
     private var bluetoothReceiverRegistered = false
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -265,6 +284,16 @@ class WhoopConnectionService : Service() {
                     this,
                     bluetoothStateReceiver,
                     IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED),
+                    ContextCompat.RECEIVER_NOT_EXPORTED,
+                )
+
+                // #1635: same lifecycle and the same registration form as the radio receiver above - the FGS
+                // owns the connection, so the pairing flow is only interesting while it is alive, and both are
+                // torn down together in onDestroy.
+                ContextCompat.registerReceiver(
+                    this,
+                    bondStateReceiver,
+                    IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED),
                     ContextCompat.RECEIVER_NOT_EXPORTED,
                 )
             }.onSuccess { bluetoothReceiverRegistered = true }
@@ -650,6 +679,7 @@ class WhoopConnectionService : Service() {
             // unregisterReceiver throws if it was never registered; the flag guards that, and runCatching
             // covers the rare case the OS already reclaimed it.
             runCatching { unregisterReceiver(bluetoothStateReceiver) }
+            runCatching { unregisterReceiver(bondStateReceiver) }
             bluetoothReceiverRegistered = false
         }
         scope.cancel()
