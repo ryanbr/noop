@@ -5360,6 +5360,17 @@ class WhoopBleClient(
                         "sleep) for 5/MG are still being figured out. WHOOP 4.0 is fully supported today.",
                 ) }
                 cmdCharacteristic = whoop5.getCharacteristic(WHOOP5_CMD_WRITE_CHAR)
+                // #1635: print what fd4b0002 actually declares. Android exposes no link-encryption state,
+                // so the property bitmask and the OS bond state are the only proxies available — and the
+                // CLIENT_HELLO has been written WITH RESPONSE since June without anyone checking whether
+                // this characteristic supports that. One capture settles it.
+                cmdCharacteristic?.let {
+                    log(characteristicCapabilityLine(
+                        uuid = it.uuid.toString(),
+                        properties = it.properties,
+                        writingWithResponse = true,
+                    ))
+                }
             } else {
                 log("Custom WHOOP service not found on this peripheral")
             }
