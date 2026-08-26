@@ -229,19 +229,16 @@ enum BodyVitalSigns {
         // partition the history to the displayed value's kind and pick the matching config + population
         // fallback (±0.6 °C mirrors the illness watch's flag threshold).
         //
-        // #1636: prefer the measured absolute as the headline. A deviation with no anchor cannot be
-        // read — "+0.9" is a fever or a warm bedroom and nothing on the tile says which — so when the
-        // night has an absolute it leads and the deviation moves to the caption beneath it.
-        // Lead with the absolute ONLY when it is the freshest skin-temp night. An import-only night
-        // carries a deviation and no absolute, so preferring the absolute unconditionally would show an
-        // OLDER night than before — a stale reading that looks current, which is worse than the anchor
-        // being missing.
+        // #1636: resolve the DISPLAYED night first — the freshest that carries either reading — then
+        // lead with its absolute if it has one. Asking "does the row I am already showing have an
+        // absolute?" is what keeps the tile from silently stepping back to an older night: an
+        // import-only night has a deviation and no absolute, and a CALIBRATING night has the reverse
+        // (`recomputeSkinTempDev` returns nil until the baseline is usable, while the absolute is
+        // already measured — those wearers read "needs ~4 worn nights" today with a real temperature
+        // sitting unshown behind it).
         let skinAbsCandidate = latest(skinAbsPoints)
-        let skinAbsRow: VitalPoint? = {
-            guard let abs = skinAbsCandidate else { return nil }
-            guard let dev = skinRowDeviation else { return abs }
-            return abs.day >= dev.day ? abs : nil
-        }()
+        let skinRowDay: String? = [skinRowDeviation?.day, skinAbsCandidate?.day].compactMap { $0 }.max()
+        let skinAbsRow = skinAbsCandidate.flatMap { $0.day == skinRowDay ? $0 : nil }
         let skinRow = skinAbsRow ?? skinRowDeviation
         let skin = skinRow?.value
         let skinIsAbsolute = skinAbsRow != nil || (skin.map(VitalBands.isAbsoluteSkinTemp) ?? true)
@@ -271,6 +268,15 @@ enum BodyVitalSigns {
         let skinFormat: (Double) -> String = { c in
             SkinTempDisplay.numberString(c, kind: skinKind, fahrenheit: fahrenheit, decimals: 1)
         }
+        // #1636: the deviation for THE DISPLAYED NIGHT — not the freshest one anywhere. A calibrating
+        // night carries an absolute and no deviation, and reaching for the latest deviation there would
+        // print a previous night's number under tonight's temperature.
+        let skinSecondary: String? = skinAbsRow == nil ? nil
+            : skinPoints.last(where: { $0.day == skinRow?.day }).map { dev in
+                let n = SkinTempDisplay.numberString(dev.value, kind: .deviation,
+                                                     fahrenheit: fahrenheit, decimals: 1)
+                return "\(n) \(SkinTempDisplay.unitSymbol(kind: .deviation, fahrenheit: fahrenheit))"
+            }
 
         return [
             BodyVitalReading(
@@ -406,11 +412,7 @@ enum BodyVitalSigns {
                 sparkline: trail(skinSeries.filter { VitalBands.isAbsoluteSkinTemp($0.value) == skinIsAbsolute }),
                 // #1636: the deviation this absolute was derived from, shown beneath it. Only when the
                 // headline IS the absolute — on a deviation-led tile it would just repeat the value.
-                secondary: skinAbsRow == nil ? nil : skinRowDeviation.map { dev in
-                    let n = SkinTempDisplay.numberString(dev.value, kind: .deviation,
-                                                         fahrenheit: fahrenheit, decimals: 1)
-                    return "\(n) \(SkinTempDisplay.unitSymbol(kind: .deviation, fahrenheit: fahrenheit))"
-                }
+                secondary: skinSecondary
             ),
         ]
     }

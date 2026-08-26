@@ -1731,18 +1731,6 @@ private data class VitalDetailModel(
     val color: Color,
     val readings: List<VitalReading>,
     val format: (Double) -> String,
-    /**
-     * An optional second value for a given day, shown under the "Latest" figure (#1636).
-     *
-     * Skin temperature is the case that needs it: the headline is now the night's ABSOLUTE, and the
-     * deviation that used to BE the headline is the context that makes it readable — "+0.2" says
-     * nothing without knowing what it moved from, and 34.6 °C says little without knowing it is high
-     * for you. Keyed by day rather than precomputed, because the screen's range picker chooses which
-     * day is "latest" and a precomputed note would describe a different night.
-     *
-     * Returns pure formatted data (a number and a unit), never a sentence, so it needs no translation.
-     */
-    val secondaryFor: ((String) -> String?)? = null,
 ) {
     /** (day, value) projection the trend chart + range helpers consume — SAME order as [readings], so the
      *  chart, the header count, and the table can never drift apart. */
@@ -2047,15 +2035,6 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
                             style = NoopType.chartValueLarge,
                             color = detail.color,
                         )
-                        // #1636: the secondary reading, between the headline and the date — the shape
-                        // the request asked for. Pure formatted data, so no translatable string.
-                        detail.secondaryFor?.invoke(latest.first)?.let { note ->
-                            Text(
-                                text = note,
-                                style = NoopType.captionNumber,
-                                color = Palette.textSecondary,
-                            )
-                        }
                         Text(
                             text = uiString(R.string.l10n_health_screen_as_of_latest_first_726f20bb, latest.first),
                             style = NoopType.footnote,
@@ -2217,41 +2196,6 @@ private fun RecentDaySelectorBar(selectedOffset: Int, onSelect: (Int) -> Unit) {
     ThreeDaySelectorBar(selectedOffset = selectedOffset, onSelect = onSelect)
 }
 
-/**
- * The freshest measured ABSOLUTE nightly skin temperature in [days], or null (#1636).
- *
- * The branch that decides whether the Skin Temperature screen leads with an absolute or falls back to
- * the deviation-led display that shipped before. Pure and extracted deliberately: `buildVitalDetail`
- * resolves strings through `NoopApplication` and cannot run in a JVM test at all, so the decision lives
- * here where it can be asserted (the same arrangement as [spo2MissingCaptionRes]).
- *
- * Scans newest-first, so a wearer whose recent nights are scored but whose older history predates the
- * column still gets the absolute.
- *
- * Returns null when the freshest night carrying a skin-temp reading has only a DEVIATION — an import-only
- * night, which never carries an absolute. Leading with an absolute there would silently show an OLDER
- * night than the screen showed before, which is a worse failure than the one this fixes: a stale reading
- * that looks current.
- */
-internal fun latestSkinAbsoluteC(days: List<DailyMetric>): Double? {
-    val newestAbs = days.asReversed().firstOrNull { it.skinTempC != null } ?: return null
-    val newestAny = days.asReversed().firstOrNull { it.skinTempC != null || it.skinTempDevC != null }
-    if (newestAny != null && newestAny.day > newestAbs.day) return null
-    return newestAbs.skinTempC
-}
-
-/**
- * The deviation note shown beneath an absolute skin temperature — "+0.2 Δ°F" (#1636).
- *
- * Null when the night has no deviation, so the line is omitted rather than printed empty. Pure
- * formatted data, never a sentence, so it carries no translatable string.
- */
-internal fun skinTempSecondaryNote(devC: Double?, fahrenheit: Boolean): String? =
-    devC?.let {
-        val n = SkinTempDisplay.numberString(it, SkinTempDisplay.Kind.DEVIATION, fahrenheit, decimals = 1)
-        "$n ${SkinTempDisplay.unitSymbol(SkinTempDisplay.Kind.DEVIATION, fahrenheit)}"
-    }
-
 private fun buildVitalDetail(
     days: List<DailyMetric>,
     key: String,
@@ -2324,34 +2268,9 @@ private fun buildVitalDetail(
         format = { it.roundToInt().toString() },
     )
     "skin" -> {
-        val fahrenheit = tempUnit == TemperatureUnit.FAHRENHEIT
-        // #1636: the night's ABSOLUTE is the headline when the strap measured one. A deviation with no
-        // anchor cannot be read — "+0.9" is a fever or a warm bedroom and nothing on the screen says
-        // which — so the absolute leads and the deviation becomes the context beneath it.
-        //
-        // `skinTempC` is nullable: nights scored before it shipped carry only the deviation, and they
-        // refill on the next scoring pass. Until a wearer has one, this falls through to exactly the
-        // behaviour that shipped before, deviation-led and unchanged.
-        val absolute = latestSkinAbsoluteC(days)
-        if (absolute != null) {
-            val devByDay = days.mapNotNull { row -> row.skinTempDevC?.let { row.day to it } }.toMap()
-            return VitalDetailModel(
-                key = key,
-                title = uiString(R.string.l10n_health_screen_skin_temperature_f59127f6),
-                unit = SkinTempDisplay.unitSymbol(SkinTempDisplay.Kind.ABSOLUTE, fahrenheit),
-                color = Palette.metricAmber,
-                readings = days.mapNotNull { row ->
-                    row.skinTempC?.let { value -> VitalReading(row.day, value, row.deviceId) }
-                },
-                format = { c ->
-                    SkinTempDisplay.numberString(c, SkinTempDisplay.Kind.ABSOLUTE, fahrenheit, decimals = 1)
-                },
-                // The deviation that used to be the headline, now the line that makes it legible.
-                secondaryFor = { day -> skinTempSecondaryNote(devByDay[day], fahrenheit) },
-            )
-        }
         val latest = days.asReversed().asSequence().mapNotNull { it.skinTempDevC }.firstOrNull() ?: return null
         val kind = SkinTempDisplay.kind(latest)
+        val fahrenheit = tempUnit == TemperatureUnit.FAHRENHEIT
         val unit = SkinTempDisplay.unitSymbol(kind, fahrenheit)
         val title = if (kind == SkinTempDisplay.Kind.ABSOLUTE) {
             uiString(R.string.l10n_health_screen_skin_temperature_f59127f6)

@@ -1,89 +1,35 @@
 package com.noop.ui
 
-import com.noop.data.DailyMetric
-import org.junit.Assert.assertEquals
+import com.noop.analytics.VitalBands
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * #1636: the Skin Temperature screen leads with the night's ABSOLUTE, with the deviation beneath it.
+ * #1636: the skin-temp TILE leads with the night's ABSOLUTE, with the deviation beneath it.
  *
  * A deviation with no anchor cannot be read — the reporter's flu night was "+0.94 Δ°F", which looks
- * like nothing, against 96.4 °F on a 94.4 °F mean, which reads as a fever. Both numbers are needed and
- * neither is sufficient.
+ * like nothing, against 96.4 °F on a 94.4 °F mean. Both numbers are needed and neither is sufficient.
  *
- * `buildVitalDetail` resolves strings through `NoopApplication` and cannot run in a JVM test, so the
- * BRANCH and the FORMATTING are extracted and asserted here — the same arrangement `Spo2MissingCaptionTest`
- * uses for the same reason. Twin of Swift `SkinTempAbsoluteDisplayTests`.
+ * `vitalsFor` resolves strings through `NoopApplication` and cannot run in a JVM test at all, so the
+ * BRANCH and the FORMATTING are asserted through their pure seams — the arrangement
+ * `Spo2MissingCaptionTest` already uses for the same reason. Twin of Swift `SkinTempAbsoluteDisplayTests`.
  */
 class SkinTempAbsoluteDisplayTest {
 
-    private fun row(day: String, abs: Double? = null, dev: Double? = null) =
-        DailyMetric(deviceId = "my-whoop", day = day, skinTempC = abs, skinTempDevC = dev)
-
-    // The branch: absolute-led or the pre-#1636 deviation-led fallback
+    // The branch: absolute-led, or the pre-#1636 deviation-led display
 
     @Test
-    fun theFreshestMeasuredAbsoluteWins() {
-        val days = listOf(
-            row("2026-08-23", abs = 33.9, dev = -0.2),
-            row("2026-08-24", abs = 34.1, dev = 0.0),
-            row("2026-08-25", abs = 34.6, dev = 0.52),
-        )
-        assertEquals(34.6, latestSkinAbsoluteC(days)!!, 1e-12)
+    fun aNightThatMeasuredAnAbsoluteLeadsWithIt() {
+        assertTrue(skinTempLeadsWithAbsolute(34.6))
     }
 
     @Test
-    fun historyPredatingTheColumnFallsBackRatherThanShowingNothing() {
-        // Every night deviation-only: the screen must keep its old behaviour, not blank out.
-        val days = listOf(row("2026-08-24", dev = -0.2), row("2026-08-25", dev = 0.52))
-        assertNull(latestSkinAbsoluteC(days))
-    }
-
-    @Test
-    fun aPartlyRescoredHistoryStillLeadsWithTheAbsolute() {
-        // Older nights predate the column; the recent ones were re-scored. Newest-first means the
-        // wearer gets the absolute rather than waiting for the whole history to refill.
-        val days = listOf(
-            row("2026-08-20", dev = -0.4),
-            row("2026-08-21", dev = -0.1),
-            row("2026-08-25", abs = 34.6, dev = 0.52),
-        )
-        assertEquals(34.6, latestSkinAbsoluteC(days)!!, 1e-12)
-    }
-
-    @Test
-    fun anEmptyHistoryHasNoAbsolute() {
-        assertNull(latestSkinAbsoluteC(emptyList()))
-    }
-
-    /**
-     * The regression this guard exists for: an import-only night is NEWER than the last strap night.
-     * Leading with the absolute would show a stale reading dressed as the current one, so the screen
-     * stays deviation-led until the strap catches up.
-     */
-    @Test
-    fun aNewerImportOnlyNightSuppressesTheOlderAbsolute() {
-        val days = listOf(
-            row("2026-08-24", abs = 34.6, dev = 0.52),   // the strap's last scored night
-            row("2026-08-25", dev = 0.20),               // a WHOOP CSV import: deviation only
-        )
-        assertNull(latestSkinAbsoluteC(days))
-    }
-
-    @Test
-    fun anImportOnlyNightOLDERThanTheAbsoluteDoesNotSuppressIt() {
-        val days = listOf(
-            row("2026-08-24", dev = 0.20),               // older import
-            row("2026-08-25", abs = 34.6, dev = 0.52),   // the freshest night has both
-        )
-        assertEquals(34.6, latestSkinAbsoluteC(days)!!, 1e-12)
-    }
-
-    @Test
-    fun anAbsoluteOnTheSameDayAsTheFreshestDeviationStillLeads() {
-        val days = listOf(row("2026-08-25", abs = 34.6, dev = 0.52))
-        assertEquals(34.6, latestSkinAbsoluteC(days)!!, 1e-12)
+    fun aNightPredatingTheColumnKeepsTheOldDisplay() {
+        // Deviation-only: the tile must look exactly as it did before, not blank out.
+        assertFalse(skinTempLeadsWithAbsolute(null))
     }
 
     // The secondary note: the deviation, in the user's own unit
@@ -107,9 +53,52 @@ class SkinTempAbsoluteDisplayTest {
         assertEquals("+1.8 Δ°F", skinTempSecondaryNote(1.0, fahrenheit = true))
     }
 
+    // The caption ordering, the Kotlin twin of Swift's stateCaption assertions
+
+    private fun tile(secondary: String?, caveat: String? = null, band: VitalBands.Band = VitalBands.Band.IN_RANGE) =
+        Vital(
+            key = "skin", label = "Skin Temp", unit = "°C", value = 34.6,
+            format = { String.format(java.util.Locale.US, "%.1f", it) },
+            missingCaption = "none",
+            banding = VitalBands.Result(band, VitalBands.Basis.PERSONAL, 24),
+            metricColor = androidx.compose.ui.graphics.Color.Yellow,
+            caveat = caveat, secondary = secondary,
+        )
+
     @Test
-    fun aNightWithNoDeviationOmitsTheLine() {
-        // Printing an empty note under the headline would read as a missing value rather than none.
+    fun theSecondaryLeadsTheCaptionSoItSitsUnderTheValue() {
+        assertTrue(tile(secondary = "+0.9 Δ°F").stateCaption.startsWith("+0.9 Δ°F · "))
+    }
+
+    @Test
+    fun withoutASecondaryTheCaptionIsUnchanged() {
+        // Every other vital passes null, so their captions must be byte-identical to before.
+        assertEquals("In your range", tile(secondary = null).stateCaption)
+    }
+
+    @Test
+    fun theSecondaryIsIndependentOfTheCaveat() {
+        // `caveat` says the reading is unreliable; `secondary` says what it means. A tile may carry
+        // both, and they must not be confused for one another.
+        val caption = tile(secondary = "+0.9 Δ°F", caveat = "unverified").stateCaption
+        assertTrue(caption.startsWith("+0.9 Δ°F · "))
+        assertTrue(caption.endsWith("unverified"))
+    }
+
+    @Test
+    fun anEmptyTileNeverCarriesASecondary() {
+        // The caption there is the "why it's empty" line; a number beside it would contradict it.
+        assertEquals("none", tile(secondary = "+0.9 Δ°F", band = VitalBands.Band.NO_DATA).stateCaption)
+    }
+
+    /**
+     * A CALIBRATING night is the case worth having: `recomputeSkinTempDev` returns null until the
+     * baseline is usable (~4 nights) while the absolute is already measured. The tile leads with the
+     * temperature and simply omits the note, rather than printing an empty line under the headline.
+     */
+    @Test
+    fun aCalibratingNightLeadsWithTheAbsoluteAndOmitsTheNote() {
+        assertTrue(skinTempLeadsWithAbsolute(34.6))
         assertNull(skinTempSecondaryNote(null, fahrenheit = false))
         assertNull(skinTempSecondaryNote(null, fahrenheit = true))
     }

@@ -41,6 +41,14 @@ internal data class Vital(
      *  Kotlin twin of `BodyVitalReading.caveat` (VitalSignsSummary.swift). Defaulted so other vitals are
      *  unaffected. */
     val caveat: String? = null,
+    /** #1636: a second reading shown with the caption, under the headline value.
+     *
+     *  Distinct from [caveat], which says the value is unreliable; this says what it MEANS. Skin
+     *  temperature is the case: the absolute leads, and the deviation it was derived from is what makes
+     *  it legible — "+0.2" says nothing without an anchor, and 34.6 °C says little without knowing it
+     *  runs high for you. Pure formatted data, never a sentence, so it carries no translatable string.
+     *  Kotlin twin of `BodyVitalReading.secondary`. Defaulted so other vitals are unaffected. */
+    val secondary: String? = null,
 ) {
     /** Value with its unit appended, or null when no data. */
     val formattedValue: String? = value?.let { "${format(it)} $unit" }
@@ -76,14 +84,49 @@ internal data class Vital(
     /** #1118: the base caption plus any "unverified" caveat (an over-counted HRV night), so the caveat
      *  rides the same line the user already reads. Never on an empty tile. Twin of Swift's stateCaption
      *  append in VitalSignsSummary.swift. */
-    val stateCaption: String =
-        if (caveat != null && banding.band != VitalBands.Band.NO_DATA) "$baseCaption · $caveat" else baseCaption
+    val stateCaption: String = run {
+        val withCaveat =
+            if (caveat != null && banding.band != VitalBands.Band.NO_DATA) "$baseCaption · $caveat" else baseCaption
+        // #1636: the secondary reading LEADS, so it sits directly under the headline value. Never on an
+        // empty tile, where the caption is the "why it's empty" line and a number would contradict it.
+        if (secondary != null && banding.band != VitalBands.Band.NO_DATA) "$secondary · $withCaveat" else withCaveat
+    }
 
     val accessibilityText: String =
         formattedValue?.let {
             listOfNotNull("$label: $it", asOfLabel, stateCaption).joinToString(", ")
         } ?: "$label: no data"
 }
+
+/**
+ * Whether the skin-temp tile leads with the night's ABSOLUTE (#1636).
+ *
+ * True whenever the displayed night measured one. A deviation with no anchor cannot be read — "+0.9" is
+ * a fever or a warm bedroom and nothing on the tile says which — so the absolute leads and the deviation
+ * becomes the context beneath it.
+ *
+ * Two cases make this more than a preference:
+ *  - a night scored before `skinTempC` shipped has only a deviation, so the tile keeps exactly the
+ *    display that shipped before until a scoring pass refills it;
+ *  - a CALIBRATING night has the reverse — `recomputeSkinTempDev` returns null until the baseline is
+ *    usable (~4 nights), while the absolute is already measured. Those wearers currently read "needs ~4
+ *    worn nights" with a real temperature sitting unshown behind it.
+ *
+ * Twin of the Swift tile's `skinAbsRow != nil` branch.
+ */
+internal fun skinTempLeadsWithAbsolute(absC: Double?): Boolean = absC != null
+
+/**
+ * The deviation note shown beneath an absolute skin temperature — "+0.2 Δ°F" (#1636).
+ *
+ * Null when the night has no deviation (a calibrating night), so the line is omitted rather than printed
+ * empty. Pure formatted data, never a sentence, so it carries no translatable string.
+ */
+internal fun skinTempSecondaryNote(devC: Double?, fahrenheit: Boolean): String? =
+    devC?.let {
+        val n = SkinTempDisplay.numberString(it, SkinTempDisplay.Kind.DEVIATION, fahrenheit, decimals = 1)
+        "$n ${SkinTempDisplay.unitSymbol(SkinTempDisplay.Kind.DEVIATION, fahrenheit)}"
+    }
 
 /**
  * Which "no value" line the Blood O₂ tile shows, given whether that night decoded raw red/IR counts.
@@ -161,16 +204,23 @@ internal fun vitalsFor(
     // config + population fallback (±0.6 °C mirrors the illness watch's flag threshold).
     // This also fixes the live bug where a strap-computed +0.2 °C deviation read
     // "Out of range" against the 33–36 absolute band.
-    val skin = d?.skinTempDevC
+    // #1636: lead with the night's measured ABSOLUTE when it has one; otherwise the deviation-led
+    // display that shipped before, unchanged. `leadsAbsolute` also decides which SERIES backs the
+    // banding and the trail below — an absolute scored against a history of deviations would be
+    // nonsense, so the two must move together.
+    val leadsAbsolute = skinTempLeadsWithAbsolute(d?.skinTempC)
+    val skin = if (leadsAbsolute) d?.skinTempC else d?.skinTempDevC
     // Track which kind the value is so the temperature converter picks the right rule: an ABSOLUTE
     // reading uses the full C→F formula (×9/5 + 32); a ±DEVIATION must omit the offset.
-    val skinIsAbsolute = skin?.let { VitalBands.isAbsoluteSkinTemp(it) } ?: true
+    val skinIsAbsolute = if (leadsAbsolute) true else skin?.let { VitalBands.isAbsoluteSkinTemp(it) } ?: true
+    val skinSelector: (DailyMetric) -> Double? =
+        if (leadsAbsolute) { row -> row.skinTempC } else { row -> row.skinTempDevC }
     val skinResult: VitalBands.Result = if (skin == null) {
         VitalBands.Result(VitalBands.Band.NO_DATA, VitalBands.Basis.POPULATION, 0)
     } else {
         VitalBands.band(
             value = skin,
-            history = VitalBands.skinTempHistory(skin, series { it.skinTempDevC }),
+            history = VitalBands.skinTempHistory(skin, series(skinSelector)),
             populationRange = if (skinIsAbsolute) 33.0..36.0 else -0.6..0.6,
             cfg = if (skinIsAbsolute) Baselines.metricCfg.getValue("skin_temp") else VitalBands.skinTempDeviationCfg,
         )
@@ -189,7 +239,7 @@ internal fun vitalsFor(
         SkinTempDisplay.numberString(c, skinKind, fahrenheit, decimals = 1)
     }
     val previousSkin = history.asReversed().asSequence()
-        .mapNotNull { row -> row.skinTempDevC?.takeIf { VitalBands.isAbsoluteSkinTemp(it) == skinIsAbsolute } }
+        .mapNotNull { row -> skinSelector(row)?.takeIf { VitalBands.isAbsoluteSkinTemp(it) == skinIsAbsolute } }
         .firstOrNull()
     val respRangeCaption = rangeCaption(days.mapNotNull { it.respRateBpm }, "rpm") { String.format(Locale.US, "%.1f", it) }
     val spo2RangeCaption = rangeCaption(days.mapNotNull { it.spo2Pct }, "%") { String.format(Locale.US, "%.0f", it) }
@@ -197,7 +247,7 @@ internal fun vitalsFor(
     val hrvRangeCaption = rangeCaption(days.mapNotNull { it.avgHrv }, "ms") { it.roundToInt().toString() }
     val skinRangeCaption = rangeCaption(
         days.mapNotNull { row ->
-            row.skinTempDevC?.takeIf { VitalBands.isAbsoluteSkinTemp(it) == skinIsAbsolute }
+            skinSelector(row)?.takeIf { VitalBands.isAbsoluteSkinTemp(it) == skinIsAbsolute }
         },
         skinUnitLabel,
         skinFormat,
@@ -320,8 +370,11 @@ internal fun vitalsFor(
             banding = skinResult, metricColor = Palette.metricAmber,
             // Keep the trail on the displayed value's kind — absolute °C and ±deviation must not mix.
             sparkline = trail(skin) { row ->
-                row.skinTempDevC?.takeIf { VitalBands.isAbsoluteSkinTemp(it) == skinIsAbsolute }
+                skinSelector(row)?.takeIf { VitalBands.isAbsoluteSkinTemp(it) == skinIsAbsolute }
             },
+            // #1636: the deviation this absolute was derived from, beneath it. Only on an absolute-led
+            // tile — on a deviation-led one it would simply repeat the headline.
+            secondary = if (leadsAbsolute) skinTempSecondaryNote(d?.skinTempDevC, fahrenheit) else null,
         ),
     )
 }
