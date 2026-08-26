@@ -4370,10 +4370,17 @@ class WhoopBleClient(
     private fun readDisFirmwareRevision() {
         val g = gatt ?: return
         val ops = gattOps ?: return
-        val ch = g.getService(DIS_SERVICE)?.getCharacteristic(DIS_FW_REV_CHAR) ?: return
-        if ((ch.properties and BluetoothGattCharacteristic.PROPERTY_READ) != 0) {
-            safeGatt("readCharacteristic(dis-fwrev)") { ops.readCharacteristicCompat(ch) }
+        // A strap that does not publish a firmware revision must not cost us the rest of DIS. The extras
+        // chain is kicked when this read LANDS, so returning here without starting it would mean a strap
+        // with a manufacturer string but no 0x2A26 yielded nothing at all — and "not implemented" is
+        // per-characteristic, not per-service. Same skip-and-carry-on rule readNextDisExtra applies
+        // further down the chain; this is just its head.
+        val ch = g.getService(DIS_SERVICE)?.getCharacteristic(DIS_FW_REV_CHAR)
+        if (ch == null || (ch.properties and BluetoothGattCharacteristic.PROPERTY_READ) == 0) {
+            readNextDisExtra(DIS_FW_REV_CHAR)
+            return
         }
+        safeGatt("readCharacteristic(dis-fwrev)") { ops.readCharacteristicCompat(ch) }
     }
 
     /**
