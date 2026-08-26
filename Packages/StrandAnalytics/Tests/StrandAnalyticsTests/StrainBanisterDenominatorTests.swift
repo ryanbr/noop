@@ -26,12 +26,19 @@ final class StrainBanisterDenominatorTests: XCTestCase {
                        1440.0 * 0.64 * exp(1.67), accuracy: d)
     }
 
-    /// The denominator is ceiling + 1, exactly as `strainDenominator` was derived from 7200.
-    func testTheDenominatorIsCeilingPlusOne() {
+    /// The denominator is (ceiling MINUS a full day of sedentary baseline) + 1.
+    ///
+    /// #1545 derived it as ceiling + 1, mirroring how `strainDenominator` came from 7200. #1624 subtracts
+    /// the same baseline from the denominator that the scorer subtracts from each day, so both ends of the
+    /// axis line up with Edwards: no exertion maps to 0 AND a maximum day still maps to 100. Anchoring one
+    /// end only would trade one mismatch for the other.
+    func testTheDenominatorIsCeilingMinusBaselinePlusOne() {
         XCTAssertEqual(StrainScorer.logMapDenominator(method: .banister, sex: "male"),
-                       StrainScorer.banisterDailyCeiling(b: StrainScorer.banisterBMen) + 1.0, accuracy: d)
+                       StrainScorer.banisterDailyCeiling(b: StrainScorer.banisterBMen) -
+                        StrainScorer.banisterBaseline(minutes: 24.0 * 60.0, b: StrainScorer.banisterBMen) + 1.0, accuracy: d)
         XCTAssertEqual(StrainScorer.logMapDenominator(method: .banister, sex: "female"),
-                       StrainScorer.banisterDailyCeiling(b: StrainScorer.banisterBWomen) + 1.0, accuracy: d)
+                       StrainScorer.banisterDailyCeiling(b: StrainScorer.banisterBWomen) -
+                        StrainScorer.banisterBaseline(minutes: 24.0 * 60.0, b: StrainScorer.banisterBWomen) + 1.0, accuracy: d)
     }
 
     /// The property the whole derivation exists for: a theoretical maximum day maps to exactly 100 under
@@ -43,7 +50,11 @@ final class StrainBanisterDenominatorTests: XCTestCase {
 
         for sex in ["male", "female"] {
             let b = sex == "female" ? StrainScorer.banisterBWomen : StrainScorer.banisterBMen
-            let ceiling = StrainScorer.banisterDailyCeiling(b: b)
+            // #1624: the quantity that maps to the top is a maximum day's EXCESS over the sedentary
+            // baseline, not its raw TRIMP — that is what the scorer now feeds the log map. Feeding the raw
+            // ceiling overshoots (100.21), which is the arithmetic working, not breaking.
+            let ceiling = StrainScorer.banisterDailyCeiling(b: b) -
+                StrainScorer.banisterBaseline(minutes: 24.0 * 60.0, b: b)
             let mapped = StrainScorer.trimpToStrain(
                 ceiling, denominator: StrainScorer.logMapDenominator(method: .banister, sex: sex))
             XCTAssertEqual(mapped, 100.0, accuracy: 1e-6, "\(sex) ceiling should map to the top of the scale")
