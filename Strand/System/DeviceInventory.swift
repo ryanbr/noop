@@ -7,6 +7,7 @@ struct InventoryRow {
     let model: String
     let status: String
     let lastSeenAt: Int
+    let firmware: String?
 }
 
 /// The strap log's paired-device inventory: every registry row, which one is ACTIVE, and when each was
@@ -46,5 +47,6 @@ func deviceInventoryLines(rows: [InventoryRow],
         let marker = r.id == activeId ? "ACTIVE" : r.status
         let seen = r.lastSeenAt > 0 ? relTime(Double(nowSec - r.lastSeenAt)) : "never"
         return "  device id=\(r.id) status=\(marker) brand=\(r.brand) model=\(r.model) lastSeen=\(seen)"
+            + " fw=\(r.firmware ?? "unknown")"
     }
 }

@@ -17,8 +17,8 @@ final class DeviceInventoryTests: XCTestCase {
     }
 
     private func row(_ id: String, _ status: String, _ seen: Int,
-                     model: String = "WHOOP 4.0") -> InventoryRow {
-        InventoryRow(id: id, brand: "WHOOP", model: model, status: status, lastSeenAt: seen)
+                     model: String = "WHOOP 4.0", fw: String? = nil) -> InventoryRow {
+        InventoryRow(id: id, brand: "WHOOP", model: model, status: status, lastSeenAt: seen, firmware: fw)
     }
 
     func testAnEmptyRegistrySaysSoRatherThanPrintingABareHeader() {
@@ -36,8 +36,8 @@ final class DeviceInventoryTests: XCTestCase {
             activeId: "my-whoop", nowSec: now, relTime: rel)
         XCTAssertEqual(lines, [
             "Devices:     2 registered (1 active, 1 paired, 0 archived)",
-            "  device id=my-whoop status=ACTIVE brand=WHOOP model=WHOOP 5.0 / MG lastSeen=3h 10m ago",
-            "  device id=whoop-B status=paired brand=WHOOP model=WHOOP 4.0 lastSeen=10m ago",
+            "  device id=my-whoop status=ACTIVE brand=WHOOP model=WHOOP 5.0 / MG lastSeen=3h 10m ago fw=unknown",
+            "  device id=whoop-B status=paired brand=WHOOP model=WHOOP 4.0 lastSeen=10m ago fw=unknown",
         ])
     }
 
@@ -45,7 +45,7 @@ final class DeviceInventoryTests: XCTestCase {
         let lines = deviceInventoryLines(rows: [row("whoop-C", "paired", 0)],
                                          activeId: nil, nowSec: 100_000, relTime: rel)
         XCTAssertEqual(lines[1],
-                       "  device id=whoop-C status=paired brand=WHOOP model=WHOOP 4.0 lastSeen=never")
+                       "  device id=whoop-C status=paired brand=WHOOP model=WHOOP 4.0 lastSeen=never fw=unknown")
     }
 
     func testCountsSplitActivePairedAndArchived() {

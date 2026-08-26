@@ -258,10 +258,18 @@ fun DevicesScreen(
                 // WHOOP-only: `noop.lastFirmware` is written solely from a WHOOP handshake, so a non-WHOOP
                 // active device (Oura/FTMS) must NOT inherit it. Single-key, so on a multi-WHOOP install a
                 // not-yet-connected active strap can briefly show the other strap's build until it republishes.
-                liveFirmware = if (device.status == DeviceStatus.active.name)
-                    (live.strapFirmware
-                        ?: if (device.brand.equals("WHOOP", ignoreCase = true)) NoopPrefs.lastFirmware(context) else null)
-                    else null,
+                // #1633 follow-up: resolve against THIS device, never the last strap to connect. The old
+                // fallback read one global key, so with two straps paired the 5/MG reported the 4.0's
+                // firmware. The legacy key is still honoured when exactly one device is paired - then it
+                // cannot belong to anything else - so a single-strap install does not regress to 'unknown'.
+                liveFirmware = com.noop.ble.resolveFirmware(
+                    live = if (device.status == DeviceStatus.active.name) live.strapFirmware else null,
+                    perDevice = if (device.brand.equals("WHOOP", ignoreCase = true))
+                        NoopPrefs.firmwareFor(context, device.peripheralId) else null,
+                    legacyGlobal = if (device.status == DeviceStatus.active.name &&
+                        device.brand.equals("WHOOP", ignoreCase = true)) NoopPrefs.lastFirmware(context) else null,
+                    pairedCount = all.size,
+                ),
                 // Historical record layout from the current backfill, distinct from strap firmware.
                 liveHistoryLayout = if (device.status == DeviceStatus.active.name && live.connected)
                     live.historyLayoutVersion else null,

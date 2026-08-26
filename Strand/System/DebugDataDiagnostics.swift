@@ -37,6 +37,12 @@ enum DebugDataDiagnostics {
         let model = WhoopModel(rawValue: d.string(forKey: "selectedWhoopModel") ?? "")?.displayName
             ?? "unknown (never paired)"
         lines.append("Model:       \(model)")
+        // NOTE: still the legacy GLOBAL key, and therefore the last strap to connect rather than this
+        // device's own firmware. strapStateLines is sync and prefs-only by contract (the scheduled export
+        // calls it with no store), and the per-device rule needs a registry read for pairedCount. The
+        // Devices block further down IS resolved per device, so a multi-strap export carries the correct
+        // per-device value there; this line is superseded by it and wants the same follow-up as the Apple
+        // write site, which has no peripheral identity to key on today.
         lines.append("Firmware:    \(d.string(forKey: "noop.lastFirmware") ?? "unknown (connect to record)")")
         let syncSec = d.double(forKey: "lastSyncedAt")
         lines.append("Last sync:   \(syncSec > 0 ? relTime(Date().timeIntervalSince1970 - syncSec) : "never")")
@@ -109,8 +115,20 @@ enum DebugDataDiagnostics {
         if let invStore = await repo.storeHandle() {
             let invRegistry = DeviceRegistryStore(dbQueue: invStore.registryWriter)
             let invRows = ((try? invRegistry.all()) ?? []).map {
+                // Firmware resolved by the same rule as the Devices card: this device's own persisted
+                // value when there is one, and the LEGACY global key only when a single device is paired
+                // (it cannot have come from anything else). Apple does not yet write the per-device key —
+                // the write site has no peripheral identity to key on — so today this yields the global
+                // value for a single-strap install and "unknown" for a multi-strap one, which is honest
+                // rather than another strap's number.
                 InventoryRow(id: $0.id, brand: $0.brand, model: $0.model,
-                             status: $0.status.rawValue, lastSeenAt: $0.lastSeenAt)
+                             status: $0.status.rawValue, lastSeenAt: $0.lastSeenAt,
+                             firmware: FirmwareAttribution.resolve(
+                                 live: nil,
+                                 perDevice: FirmwareAttribution.prefKey(peripheralId: $0.peripheralId)
+                                     .flatMap { UserDefaults.standard.string(forKey: $0) },
+                                 legacyGlobal: UserDefaults.standard.string(forKey: "noop.lastFirmware"),
+                                 pairedCount: invDevices.count))
             }
             let invActive = (try? invRegistry.activeDeviceId()) ?? nil
             lines.append(contentsOf: deviceInventoryLines(rows: invRows,

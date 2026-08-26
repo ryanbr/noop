@@ -193,10 +193,18 @@ private struct DevicesContent: View {
                     // handshake, so a non-WHOOP active device (Oura) must NOT inherit it. Single last-connected-
                     // strap key, so a not-yet-connected active strap can briefly show the other strap's build on
                     // a multi-WHOOP install until it republishes. Twin of Android.
-                    liveFirmware: device.status == .active
-                        ? (live.strapFirmware
-                            ?? (SourceCoordinator.isWhoop(device) ? UserDefaults.standard.string(forKey: "noop.lastFirmware") : nil))
-                        : nil,
+                    // #1633 follow-up: resolve against THIS device, never the last strap to connect. The old
+                    // fallback read one global key, so with two straps paired a 5/MG reported the 4.0's firmware.
+                    // The legacy key is honoured only when a single device is paired, where it cannot belong to
+                    // anything else.
+                    liveFirmware: FirmwareAttribution.resolve(
+                        live: device.status == .active ? live.strapFirmware : nil,
+                        perDevice: SourceCoordinator.isWhoop(device)
+                            ? FirmwareAttribution.prefKey(peripheralId: device.peripheralId)
+                                .flatMap { UserDefaults.standard.string(forKey: $0) } : nil,
+                        legacyGlobal: SourceCoordinator.isWhoop(device)
+                            ? UserDefaults.standard.string(forKey: "noop.lastFirmware") : nil,
+                        pairedCount: registry.devices.count),
                     // Historical record layout (v24/v25 on WHOOP 4.0) observed from this connection's
                     // backfill. Distinct from the strap firmware build shown as FW.
                     liveHistoryLayout: (device.status == .active && live.connected) ? live.strapRange?.firmwareLayout : nil,

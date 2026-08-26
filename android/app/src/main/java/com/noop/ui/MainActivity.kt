@@ -1265,6 +1265,20 @@ object NoopPrefs {
             if (fw.isNullOrBlank()) remove(KEY_LAST_FIRMWARE) else putString(KEY_LAST_FIRMWARE, fw)
         }.apply()
     }
+
+    /** This device's own persisted firmware, keyed by BLE address - see [com.noop.ble.firmwarePrefKey].
+     *  Null when nothing was ever recorded for that device. */
+    fun firmwareFor(context: Context, peripheralId: String?): String? =
+        com.noop.ble.firmwarePrefKey(peripheralId)?.let { of(context).getString(it, null) }
+
+    /** Record a firmware string against the device it came from. A blank address writes nothing rather
+     *  than writing to a key that belongs to no device. */
+    fun setFirmwareFor(context: Context, peripheralId: String?, fw: String?) {
+        val key = com.noop.ble.firmwarePrefKey(peripheralId) ?: return
+        of(context).edit().apply {
+            if (fw.isNullOrBlank()) remove(key) else putString(key, fw)
+        }.apply()
+    }
 }
 
 /**

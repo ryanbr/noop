@@ -71,7 +71,23 @@ object AndroidDiagnostics {
                     else -> reportedModel(context)?.displayName ?: "unknown (paired, family not yet detected)"
                 },
             )
-            add("Firmware:    ${com.noop.ui.NoopPrefs.lastFirmware(context) ?: "unknown (connect to record)"}")
+            // #1633 follow-up: the ACTIVE device's own firmware. This read used to be the bare global key,
+            // so a two-strap log named whichever strap connected last - a 5/MG log reporting a 4.0's
+            // 41.17.6.0. resolveFirmware falls back to the legacy key only when one device is paired.
+            val fwRows = runCatching {
+                (context.applicationContext as? com.noop.NoopApplication)?.deviceRegistry?.all().orEmpty()
+            }.getOrDefault(emptyList())
+            val fwActive = runCatching {
+                (context.applicationContext as? com.noop.NoopApplication)?.deviceRegistry?.activeDeviceId()
+            }.getOrNull()
+            val fwRow = fwRows.firstOrNull { it.id == fwActive }
+            val fw = com.noop.ble.resolveFirmware(
+                live = null,
+                perDevice = com.noop.ui.NoopPrefs.firmwareFor(context, fwRow?.peripheralId),
+                legacyGlobal = com.noop.ui.NoopPrefs.lastFirmware(context),
+                pairedCount = fwRows.size,
+            )
+            add("Firmware:    ${fw ?: "unknown (connect to record)"}")
             val syncSec = com.noop.ui.NoopPrefs.lastSyncAt(context)
             add("Last sync:   ${if (syncSec > 0L) relTime(System.currentTimeMillis() - syncSec * 1000L) else "never"}")
             // #57: write-health. "Last sync" fires even on an empty/failed offload, so distinguish "rows
@@ -105,7 +121,10 @@ object AndroidDiagnostics {
             // checked against. Name the whole set instead.
             val invRows = runCatching {
                 (context.applicationContext as? com.noop.NoopApplication)?.deviceRegistry?.all().orEmpty()
-                    .map { InventoryRow(it.id, it.brand, it.model, it.status, it.lastSeenAt) }
+                    .map {
+                            InventoryRow(it.id, it.brand, it.model, it.status, it.lastSeenAt,
+                                         com.noop.ui.NoopPrefs.firmwareFor(context, it.peripheralId))
+                        }
             }.getOrDefault(emptyList())
             val invActive = runCatching {
                 (context.applicationContext as? com.noop.NoopApplication)?.deviceRegistry?.activeDeviceId()

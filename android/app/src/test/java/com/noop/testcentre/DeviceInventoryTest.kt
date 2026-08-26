@@ -23,8 +23,9 @@ class DeviceInventoryTest {
         }
     }
 
-    private fun row(id: String, status: String, seen: Long, model: String = "WHOOP 4.0") =
-        InventoryRow(id, "WHOOP", model, status, seen)
+    private fun row(id: String, status: String, seen: Long, model: String = "WHOOP 4.0",
+                    fw: String? = null) =
+        InventoryRow(id, "WHOOP", model, status, seen, fw)
 
     @Test
     fun `an empty registry says so rather than printing a bare header`() {
@@ -46,8 +47,8 @@ class DeviceInventoryTest {
         assertEquals(
             listOf(
                 "Devices:     2 registered (1 active, 1 paired, 0 archived)",
-                "  device id=my-whoop status=ACTIVE brand=WHOOP model=WHOOP 5.0 / MG lastSeen=3h 10m ago",
-                "  device id=whoop-B status=paired brand=WHOOP model=WHOOP 4.0 lastSeen=10m ago",
+                "  device id=my-whoop status=ACTIVE brand=WHOOP model=WHOOP 5.0 / MG lastSeen=3h 10m ago fw=unknown",
+                "  device id=whoop-B status=paired brand=WHOOP model=WHOOP 4.0 lastSeen=10m ago fw=unknown",
             ),
             lines,
         )
@@ -56,7 +57,7 @@ class DeviceInventoryTest {
     @Test
     fun `a never-seen row reads never rather than a huge duration`() {
         val lines = deviceInventoryLines(listOf(row("whoop-C", "paired", 0L)), null, 100_000L, rel)
-        assertEquals("  device id=whoop-C status=paired brand=WHOOP model=WHOOP 4.0 lastSeen=never", lines[1])
+        assertEquals("  device id=whoop-C status=paired brand=WHOOP model=WHOOP 4.0 lastSeen=never fw=unknown", lines[1])
     }
 
     @Test

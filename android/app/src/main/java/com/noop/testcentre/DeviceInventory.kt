@@ -7,6 +7,7 @@ internal data class InventoryRow(
     val model: String,
     val status: String,
     val lastSeenAt: Long,
+    val firmware: String? = null,
 )
 
 /**
@@ -48,6 +49,7 @@ internal fun deviceInventoryLines(
     return listOf(head) + ordered.map { r ->
         val marker = if (r.id == activeId) "ACTIVE" else r.status
         val seen = if (r.lastSeenAt > 0L) relTime((nowSec - r.lastSeenAt) * 1000L) else "never"
-        "  device id=${r.id} status=$marker brand=${r.brand} model=${r.model} lastSeen=$seen"
+        "  device id=${r.id} status=$marker brand=${r.brand} model=${r.model} lastSeen=$seen" +
+            " fw=${r.firmware ?: "unknown"}"
     }
 }

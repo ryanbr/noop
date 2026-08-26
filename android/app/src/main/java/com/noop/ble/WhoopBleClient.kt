@@ -5842,7 +5842,10 @@ class WhoopBleClient(
                     if (_state.value.strapFirmware != fw) {
                         _state.update { it.copy(strapFirmware = fw) }
                         // Persist so the debug export can name the firmware offline (state clears on disconnect).
-                        runCatching { NoopPrefs.setLastFirmware(context, fw) }
+                        // Keyed by the address THIS connection used, not globally: a second strap would otherwise
+                        // overwrite the first's value and both would report whichever connected last - a 5/MG showing
+                        // a 4.0's 41.17.6.0.
+                        runCatching { NoopPrefs.setFirmwareFor(context, lastDeviceAddress, fw) }
                     }
                 }
                 val respCmd = parsed.parsed["resp_cmd"] as? String
