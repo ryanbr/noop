@@ -59,6 +59,13 @@ Swift. So:
   decoder, an analytics formula, a migration, or a stored value on one platform, change the twin on
   the other in the same PR (or explicitly call out why not). "It's Compose vs SwiftUI" is *not* a
   license to let the numbers diverge.
+- **Verify byte-identical by oracle, not by eye.** Extract the pure helper, compile the Swift twin
+  standalone (`swiftc -O twin.swift main.swift -o t && ./t`) over the whole input space or a spread of
+  cases, and paste that stdout verbatim as the expected literal in the Kotlin test. Reading the two
+  implementations side by side does not catch what this does: it found a Swift helper trimming its input
+  where the Kotlin one only checked blank-ness — invisible in review, and it would have surfaced as two
+  field logs that disagreed. Note the oracle only guards the direction it is written in; a matching test
+  on the other side is what stops Swift drifting.
 - **UI parity is feature-level, not pixel-level.** SwiftUI Charts vs Compose Canvas legitimately
   differ; the *behavior* and the *data* must not.
 - **Cross-platform hashes/dedup keys must use a platform-neutral algorithm** (e.g. FNV-1a over UTF-16
@@ -109,7 +116,7 @@ xcodegen generate && xcodebuild -project Strand.xcodeproj -scheme Strand \
 | Workflow | Covers | Runner | Default state |
 |---|---|---|---|
 | `swift-packages.yml` | `swift test` for **`Packages/**` only** (WhoopProtocol, WhoopStore, StrandAnalytics, StrandImport, StrandDesign, NoopLocalAccess) | macos-15 | **active** |
-| `app-build.yml` | **Compile-only** of the **app targets** (`Strand` macOS + `NOOPiOS` iOS). iOS leg needs **macos-26** (iOS 26 SDK / `glassEffect`). | macos-15 / macos-26 | **disabled** (on-demand) |
+| `app-build.yml` | Builds the **app targets** (`Strand` macOS + `NOOPiOS` iOS) **and runs `StrandTests`** on the macOS/`Strand` leg only — the iOS leg is compile-only. iOS leg needs **macos-26** (iOS 26 SDK / `glassEffect`). | macos-15 / macos-26 | **disabled** (on-demand) |
 | `android.yml` | `assembleFullDebug` + `testFullDebugUnitTest` | ubuntu | **active**, path-filtered to `android/**` |
 | `source-hygiene.yml` | Doc comments that bind to nothing (`Tools/doc_comment_lint.py`) | ubuntu | **active** |
 | `i18n-coverage.yml` | Diff-scoped translation gate (`Tools/i18n_audit.py --ci`) | ubuntu | **active** |
@@ -129,8 +136,10 @@ Swift, you MUST build the app yourself: `xcodebuild … build` locally, or run `
   `WhoopStore`, `StrandImport`, `StrandAnalytics` (via `WhoopStore`), and `NoopLocalAccess` — fails with
   `sqlite3.h not found` (GRDB's CSQLite), and `StrandDesign` needs SwiftUI — all need **macOS**. Android
   JVM unit tests **do** run on Linux.
-- **App targets** (`Strand`, `NOOPiOS`) need **Xcode on macOS**; there is no Linux/CI unit-test target
-  for them (`StrandTests` runs only under `xcodebuild … test` on macOS).
+- **App targets** (`Strand`, `NOOPiOS`) need **Xcode on macOS**; `StrandTests` runs only under
+  `xcodebuild … test` on macOS — locally, or via `app-build.yml`, which does run it on the `Strand` leg.
+  Since that workflow is **disabled by default**, app-target tests are only as validated as your last
+  on-demand dispatch: writing them is not the same as having run them.
 - **BLE behavior cannot be CI- or Linux-tested.** Anything on the CoreBluetooth / offload / live-HR
   path (`Strand/BLE`, `Strand/Collect`, Android `com.noop.ble`) must be **validated on a real strap**;
   compile-success proves nothing about connection behavior. Say what you tested on hardware.
@@ -162,6 +171,13 @@ Swift, you MUST build the app yourself: `xcodebuild … build` locally, or run `
   canonical resolver (`DeviceFamily.forRegistryModel` on both platforms), never a scattered
   string compare — the wizard stores `"4.0"`, other paths `"WHOOP 4.0"`, and single-spelling checks
   silently miss straps. Reads must thread the registry's **active** strap id, not a raw BLE address.
+- **`doc_comment_lint` reports at the wrong line on purpose — do not chase it.** The baseline is a
+  *per-file count* of grandfathered sites, not a set of line numbers (deliberately: a line-keyed baseline
+  goes stale constantly). So adding one new detached doc comment makes the file overflow its budget and
+  the failures print against **other, pre-existing** sites — often nowhere near your edit. Look at what
+  you just inserted, not at the lines it names. The usual cause is inserting a declaration directly above
+  an existing one, which lands your code between that neighbour's doc block and the thing it documents:
+  insert **above the neighbour's doc block**, or after the previous declaration's closing brace.
 - **Design system is law:** UI uses only design tokens — `StrandPalette` / `StrandFont` / shared
   components on Apple, `Palette` / `Metrics` on Android. No hardcoded colors, fonts, or spacing.
 - **Migrations:** add a versioned migration + a test; never mutate an existing migration. Watch for
