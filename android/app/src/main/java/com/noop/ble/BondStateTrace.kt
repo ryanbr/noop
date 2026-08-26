@@ -94,3 +94,37 @@ internal fun bondStateAtConnectLine(bondState: Int, address: String?): String {
     val who = address?.takeIf { it.isNotBlank() } ?: "unknown"
     return "bond state at connect: ${bondStateName(bondState)} device=$who"
 }
+
+/**
+ * What `BluetoothDevice.bondState` says a short while AFTER `createBond()` was accepted.
+ *
+ * This exists because absence of evidence kept being read as evidence. A capture showed `createBond`
+ * returning true and then no bond-state transition of any kind — and that has two very different causes
+ * which the log could not tell apart:
+ *
+ *  - Android genuinely did nothing, or
+ *  - it did something and NOOP failed to hear it, because the broadcast receiver or its device filter is
+ *    wrong. That receiver is ours and was added in the same week; it is a live suspect, not a given.
+ *
+ * Polling the device directly removes the broadcast from the chain, so the answer no longer depends on
+ * the component under suspicion. A `BOND_BONDING` here with no transition line above it convicts our
+ * receiver; a `BOND_NONE` clears it and puts the silence on Android.
+ *
+ * Deliberately a single delayed read rather than a subscription: one fact is wanted, not a stream.
+ */
+internal fun bondStatePollLine(bondState: Int, sawTransitionLine: Boolean): String {
+    val name = bondStateName(bondState)
+    val verdict = when {
+        bondState == android.bluetooth.BluetoothDevice.BOND_BONDING && !sawTransitionLine ->
+            " — pairing IS underway and no transition line was logged, so the bond-state receiver missed it" +
+                " (a NOOP bug, not the strap)"
+        bondState == android.bluetooth.BluetoothDevice.BOND_BONDING ->
+            " — pairing underway, as the transition line already said"
+        bondState == android.bluetooth.BluetoothDevice.BOND_BONDED -> " — paired"
+        !sawTransitionLine ->
+            " — createBond was accepted but the device never left this state and nothing was heard," +
+                " so Android did not begin pairing at all"
+        else -> " — back to this state after a transition"
+    }
+    return "bond state poll: $name$verdict"
+}

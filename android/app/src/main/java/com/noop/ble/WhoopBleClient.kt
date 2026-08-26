@@ -845,6 +845,11 @@ class WhoopBleClient(
          *  this is now just the FIRST window — [bondWatchdogBackoff] escalates it per consecutive bounce so
          *  a slower-but-healthy WHOOP 4.0 handshake gets more time before being bounced again. */
         private const val BOND_WATCHDOG_MS = 7_000L
+
+        /** How long after an accepted `createBond()` to read the device's bond state directly (#1635).
+         *  Long enough that a pairing which started has reached BOND_BONDING, short enough to land while
+         *  the link is still up on a strap whose links have historically lasted ~4.8s. */
+        private const val EXPLICIT_BOND_POLL_MS = 2_000L
         /** OnePlus-only settle delay before the FIRST CCCD descriptor write after service discovery
          *  (#50). The OnePlus Nord 2 GATT stack needs a beat to settle post-discovery; writing the first
          *  descriptor immediately races the still-unsettled stack and the subscribe returns BUSY. ~450ms
@@ -2221,6 +2226,7 @@ class WhoopBleClient(
         val since = helloMs ?: bondMs
         val label = if (helloMs != null) "CLIENT_HELLO" else "the pairing request"
         if (!shouldTraceBondState(address, lastDeviceAddress, since != null)) return
+        sawBondTransitionThisLink = true
         log(bondStateTraceLine(previous, current, address, since, label))
     }
 
@@ -4652,6 +4658,11 @@ class WhoopBleClient(
      *  leaving every pairing transition untimed, so a 200ms pairing and an 8s one read identically. */
     @Volatile
     private var explicitBondRequestedAtMs = 0L
+
+    /** True once a bond-state TRANSITION was logged on this link, so the poll can say whether its reading
+     *  agrees with what the receiver heard — or convicts the receiver of hearing nothing (#1635). */
+    @Volatile
+    private var sawBondTransitionThisLink = false
 
     /** Set by an explicit user Connect so the NEXT 5/MG session re-attempts a suppressed CLIENT_HELLO
      *  (#1635). Consumed on use, so it grants exactly one retry: someone who put the strap in pairing mode
@@ -7356,6 +7367,13 @@ class WhoopBleClient(
                                 runCatching {
                                     com.noop.ui.NoopPrefs.setHelloSuppressed(context, g.device.address, false)
                                 }
+                                // Ask the device directly rather than waiting on our own broadcast
+                                // receiver, which is a suspect in exactly the silence being investigated.
+                                handler.postDelayed({
+                                    runCatching {
+                                        log(bondStatePollLine(g.device.bondState, sawBondTransitionThisLink))
+                                    }
+                                }, EXPLICIT_BOND_POLL_MS)
                             }
                         },
                         onFailure = { log(explicitBondThrewLine(it.javaClass.simpleName, where)) },
@@ -8583,6 +8601,7 @@ class WhoopBleClient(
     private fun reset() {
         didBond = false
         explicitBondRequestedThisLink = false   // #1635: one createBond attempt per link
+        sawBondTransitionThisLink = false
         // explicitBondRequestedAtMs is deliberately NOT cleared here. An OS pairing routinely completes
         // AFTER the GATT link that asked for it has dropped, so clearing on teardown would leave the
         // BOND_BONDED transition — the one that matters most — arriving with no timing at all, which is

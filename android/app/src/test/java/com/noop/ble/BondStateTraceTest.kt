@@ -119,4 +119,28 @@ class BondStateTraceTest {
         assertTrue(l.contains("FD:D4"))
         assertTrue(bondStateAtConnectLine(android.bluetooth.BluetoothDevice.BOND_NONE, null).contains("unknown"))
     }
+
+    @Test
+    fun `BONDING with no transition line convicts our receiver, not the strap`() {
+        // The whole point: a capture showed createBond accepted and then silence, and that has two very
+        // different causes. Polling the device removes our own broadcast receiver from the chain, so the
+        // answer no longer depends on the component under suspicion.
+        val line = bondStatePollLine(android.bluetooth.BluetoothDevice.BOND_BONDING, sawTransitionLine = false)
+        assertTrue(line.contains("receiver missed it"))
+        assertTrue(line.contains("a NOOP bug, not the strap"))
+    }
+
+    @Test
+    fun `NONE with no transition line puts the silence on Android`() {
+        val line = bondStatePollLine(android.bluetooth.BluetoothDevice.BOND_NONE, sawTransitionLine = false)
+        assertTrue(line.contains("did not begin pairing at all"))
+        assertFalse(line.contains("NOOP bug"))
+    }
+
+    @Test
+    fun `a heard transition is not reported as a missed one`() {
+        val line = bondStatePollLine(android.bluetooth.BluetoothDevice.BOND_BONDING, sawTransitionLine = true)
+        assertFalse(line.contains("missed it"))
+        assertTrue(bondStatePollLine(android.bluetooth.BluetoothDevice.BOND_BONDED, true).contains("paired"))
+    }
 }
