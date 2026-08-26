@@ -45,4 +45,53 @@ final class OrphanedSamplesLineTests: XCTestCase {
         )
         XCTAssertTrue(line.contains("'whoop-aa' (50 rows), 'whoop-zz' (50 rows)"))
     }
+
+    // MARK: - #1193 wording is for a genuine split — NOT for a second strap's night
+
+    /// The over-assertion this branch exists for. A wearer with two straps has nights owned by the other
+    /// one; `DayOwnerResolver` hands each day to whichever device holds its data. Samples under that id
+    /// are expected, and calling it a read failure sends the reader hunting a bug that is not there.
+    func testASecondRegisteredStrapsNightIsExpectedNotAReadFailure() {
+        let line = DebugDataDiagnostics.orphanedSamplesLine(
+            activeId: "whoop-FD:4A",
+            othersWithSamples: [("my-whoop", 59_304)],
+            otherLiveStrapIds: ["my-whoop"])
+        XCTAssertTrue(line.contains("another registered strap"))
+        XCTAssertTrue(line.contains("'my-whoop' (59304 rows)"))
+        XCTAssertTrue(line.contains("dayOwner"), "must point at the line that settles it")
+        XCTAssertFalse(line.contains("are not being read"), "must not claim a bug")
+        XCTAssertFalse(line.contains("#1193"))
+    }
+
+    /// An id that is NOT a live registered strap is still the #1193 split — that wording must survive.
+    func testAnUnregisteredIdHoldingTheSamplesIsStillReportedAsASplit() {
+        let line = DebugDataDiagnostics.orphanedSamplesLine(
+            activeId: "whoop-FD:4A",
+            othersWithSamples: [("my-whoop", 59_304)],
+            otherLiveStrapIds: ["whoop-OTHER"])
+        XCTAssertTrue(line.contains("#1193"))
+        XCTAssertTrue(line.contains("are not being read"))
+    }
+
+    /// No registry supplied (the default) keeps every existing caller byte-identical.
+    func testWithoutARegistryTheWordingIsUnchanged() {
+        let withDefault = DebugDataDiagnostics.orphanedSamplesLine(
+            activeId: "whoop-FD:4A", othersWithSamples: [("my-whoop", 59_304)])
+        let explicitEmpty = DebugDataDiagnostics.orphanedSamplesLine(
+            activeId: "whoop-FD:4A", othersWithSamples: [("my-whoop", 59_304)], otherLiveStrapIds: [])
+        XCTAssertEqual(withDefault, explicitEmpty)
+        XCTAssertTrue(withDefault.contains("#1193"))
+    }
+
+    /// Mixed: one id is a live strap, one is not — the live strap explains it, so no bug is claimed.
+    func testALiveStrapAmongTheIdsWinsOverTheSplitWording() {
+        let line = DebugDataDiagnostics.orphanedSamplesLine(
+            activeId: "whoop-FD:4A",
+            othersWithSamples: [("orphan-id", 10), ("my-whoop", 59_304)],
+            otherLiveStrapIds: ["my-whoop"])
+        XCTAssertTrue(line.contains("another registered strap"))
+        XCTAssertTrue(line.contains("'my-whoop' (59304 rows)"))
+        XCTAssertFalse(line.contains("'orphan-id'"),
+                       "the orphan id is not the story when a real strap owns the night")
+    }
 }

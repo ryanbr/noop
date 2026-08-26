@@ -1,6 +1,7 @@
 package com.noop.testcentre
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -56,5 +57,65 @@ class OrphanedSamplesLineTest {
             listOf("whoop-zz" to 50, "whoop-aa" to 50),
         )
         assertTrue(line.contains("'whoop-aa' (50 rows), 'whoop-zz' (50 rows)"))
+    }
+
+    // #1193 wording is for a genuine split — NOT for a second strap's night
+
+    /**
+     * The over-assertion this branch exists for. A wearer with two straps has nights owned by the other
+     * one; DayOwnerResolver hands each day to whichever device holds its data. Samples under that id are
+     * expected, and calling it a read failure sends the reader hunting a bug that is not there.
+     */
+    @Test
+    fun `a second registered strap's night is expected, not a read failure`() {
+        val line = AndroidDiagnostics.orphanedSamplesLine(
+            activeId = "whoop-FD:4A",
+            othersWithSamples = listOf("my-whoop" to 59_304),
+            otherLiveStrapIds = setOf("my-whoop"),
+        )
+        assertTrue(line.contains("another registered strap"))
+        assertTrue(line.contains("'my-whoop' (59304 rows)"))
+        assertTrue("must point at the line that settles it", line.contains("dayOwner"))
+        assertFalse("must not claim a bug", line.contains("are not being read"))
+        assertFalse(line.contains("#1193"))
+    }
+
+    /** An id that is NOT a live registered strap is still the #1193 split — that wording must survive. */
+    @Test
+    fun `an unregistered id holding the samples is still reported as a split`() {
+        val line = AndroidDiagnostics.orphanedSamplesLine(
+            activeId = "whoop-FD:4A",
+            othersWithSamples = listOf("my-whoop" to 59_304),
+            otherLiveStrapIds = setOf("whoop-OTHER"),   // my-whoop is not a live device row
+        )
+        assertTrue(line.contains("#1193"))
+        assertTrue(line.contains("are not being read"))
+    }
+
+    /** No registry supplied (the default) keeps every existing caller byte-identical. */
+    @Test
+    fun `without a registry the wording is unchanged`() {
+        val withDefault = AndroidDiagnostics.orphanedSamplesLine(
+            "whoop-FD:4A", listOf("my-whoop" to 59_304),
+        )
+        val explicitEmpty = AndroidDiagnostics.orphanedSamplesLine(
+            "whoop-FD:4A", listOf("my-whoop" to 59_304), emptySet(),
+        )
+        assertEquals(withDefault, explicitEmpty)
+        assertTrue(withDefault.contains("#1193"))
+    }
+
+    /** Mixed: one id is a live strap, one is not — the live strap explains it, so no bug is claimed. */
+    @Test
+    fun `a live strap among the ids wins over the split wording`() {
+        val line = AndroidDiagnostics.orphanedSamplesLine(
+            activeId = "whoop-FD:4A",
+            othersWithSamples = listOf("orphan-id" to 10, "my-whoop" to 59_304),
+            otherLiveStrapIds = setOf("my-whoop"),
+        )
+        assertTrue(line.contains("another registered strap"))
+        assertTrue(line.contains("'my-whoop' (59304 rows)"))
+        assertFalse("the orphan id is not the story when a real strap owns the night",
+                    line.contains("'orphan-id'"))
     }
 }

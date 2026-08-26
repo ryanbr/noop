@@ -199,7 +199,14 @@ enum DebugDataDiagnostics {
             // back empty, so a healthy install pays nothing.
             let elsewhere = ((try? await store.rawSampleCountsByDevice(from: cs.startTs, to: cs.endTs)) ?? [])
                 .filter { $0.0 != did }
-            lines.append(orphanedSamplesLine(activeId: did, othersWithSamples: elsewhere))
+            // The registry, so a SECOND strap's night is not reported as a read failure. Only read when
+            // the active id came back empty, so a healthy install still pays nothing.
+            let otherStraps = Set(
+                ((try? DeviceRegistryStore(dbQueue: store.registryWriter).all()) ?? [])
+                    .filter { $0.status != .archived && $0.id != did }
+                    .map(\.id))
+            lines.append(orphanedSamplesLine(activeId: did, othersWithSamples: elsewhere,
+                                             otherLiveStrapIds: otherStraps))
             return lines
         }
         if let rem = SleepStager.remFunnelDiagnostic(start: cs.startTs, end: cs.endTs, grav: grav, hr: hr, rr: rr, resp: resp) {
@@ -476,10 +483,26 @@ enum DebugDataDiagnostics {
     ///
     /// Pure so the wording is unit-tested without a database, a strap, or a registry. Kotlin twin:
     /// `com.noop.testcentre.orphanedSamplesLine`.
-    static func orphanedSamplesLine(activeId: String, othersWithSamples: [(String, Int)]) -> String {
+    /// `otherLiveStrapIds` is the registered, non-archived device ids OTHER than the active one. It exists
+    /// because the "not being read" wording was itself an over-assertion — the mirror image of the one it
+    /// replaced. A wearer with TWO straps has nights owned by the other one, and `DayOwnerResolver` hands
+    /// each day to whichever device actually holds its data. Samples under another id are then completely
+    /// normal, and calling that a read failure sends the reader hunting a bug that is not there. Only when
+    /// the id holding the samples is NOT a live registered strap is the #1193 split the explanation left.
+    static func orphanedSamplesLine(activeId: String, othersWithSamples: [(String, Int)],
+                                    otherLiveStrapIds: Set<String> = []) -> String {
         if othersWithSamples.isEmpty {
             return "(no raw biometric samples under '\(activeId)' for this night — expected on a freshly "
                 + "re-added strap; reconnect + let a history sync run, then re-export)"
+        }
+        let ownedByAnotherStrap = othersWithSamples.filter { otherLiveStrapIds.contains($0.0) }
+        if !ownedByAnotherStrap.isEmpty {
+            let who = ownedByAnotherStrap.sorted { $0.1 != $1.1 ? $0.1 > $1.1 : $0.0 < $1.0 }
+                .map { "'\($0.0)' (\($0.1) rows)" }
+                .joined(separator: ", ")
+            return "(no raw biometric samples under the ACTIVE id '\(activeId)' for this night — they are "
+                + "under \(who), another registered strap. A night worn on a different strap is OWNED by that "
+                + "strap, so this is expected; the dayOwner line for this date names the owner.)"
         }
         // Tie-break on id: Kotlin's sortedByDescending is stable but Swift's `sorted` is NOT, so equal
         // counts could otherwise order differently on the two platforms and the twin lines would diverge.
