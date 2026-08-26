@@ -106,12 +106,7 @@ object TestBundleAssembler {
         val header = buildString {
             appendLine("NOOP strap log")
             appendLine("App:     ${BuildConfig.VERSION_NAME} (${BuildConfig.TIER})")
-            // #453: the rolling BODY is scrubbed by WhoopBleClient.log(), but these HEADER lines never pass
-            // through it - and they carry device ids, which embed a BLE address for a re-added or second
-            // strap. Same redactor, so one export cannot be safe while the other leaks.
-            for (line in AndroidDiagnostics.summaryLines(context)) {
-                appendLine(com.noop.ble.redactStrapLogPii(line))
-            }
+            for (line in AndroidDiagnostics.summaryLines(context)) appendLine(line)
             appendLine("-".repeat(40))
         }
         val body = logText.ifBlank {
