@@ -1,0 +1,68 @@
+package com.noop.ble
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+/** The #1635 explicit-bond experiment: when NOOP asks Android to pair, and what it says about it. */
+class ExplicitBondTest {
+    private fun ask(
+        optedIn: Boolean = true,
+        isWhoop5: Boolean = true,
+        osBonded: Boolean = false,
+        appBonded: Boolean = false,
+        already: Boolean = false,
+    ) = shouldRequestExplicitBond(optedIn, isWhoop5, osBonded, appBonded, already)
+
+    @Test
+    fun `off by default - nothing happens without opt-in`() {
+        assertFalse(ask(optedIn = false))
+    }
+
+    @Test
+    fun `never on a WHOOP 4 - it bonds fine and this is a 5-MG-only probe`() {
+        assertFalse(ask(isWhoop5 = false))
+    }
+
+    @Test
+    fun `an opted-in unbonded 5-MG is asked to pair`() {
+        assertTrue(ask())
+    }
+
+    @Test
+    fun `an OS-level pairing already exists, so we do not ask again`() {
+        assertFalse(ask(osBonded = true))
+    }
+
+    @Test
+    fun `the app-level flag also suppresses it, though the two are unrelated`() {
+        // encryptedBond has only ever meant "a handshake write was acked" — a strap can read Bonded in the
+        // UI with no OS pairing at all. Both are checked because either being true means there is nothing
+        // to gain from a pairing dialog.
+        assertFalse(ask(appBonded = true))
+    }
+
+    @Test
+    fun `one attempt per link - a retry cadence of seconds must not mean a dialog per retry`() {
+        assertFalse(ask(already = true))
+    }
+
+    @Test
+    fun `asking defers the hello, because doing both at once reproduces the bug`() {
+        // Writing to the encrypted characteristic while a pairing is in flight is exactly what has been
+        // dropping the link. The hello waits for the next connect, when the link may already be encrypted.
+        assertTrue(explicitBondDefersHello(requestedThisLink = true))
+        assertFalse(explicitBondDefersHello(requestedThisLink = false))
+    }
+
+    @Test
+    fun `a refusal to START pairing does not read like a pairing that failed`() {
+        val started = explicitBondRequestLine(initiated = true, bondStateName = "BOND_NONE")
+        val refused = explicitBondRequestLine(initiated = false, bondStateName = "BOND_NONE")
+        assertTrue(started.contains("asked Android to pair"))
+        assertTrue(refused.contains("refused to START pairing"))
+        assertFalse(refused.contains("watch the bond state lines"))
+        assertEquals(false, started == refused)
+    }
+}

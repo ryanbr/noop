@@ -2449,4 +2449,7 @@
     <string name="l10n_health_screen_your_strap_reports_a_blood_oxygen_349fe34a">Tu pulsera ofrece una estimación de oxígeno en sangre, pero no está verificada y viene desactivada. Actívala en Ajustes, o importa una exportación de WHOOP en Fuentes de datos para el valor calibrado.</string>
     <string name="l10n_health_screen_no_blood_oxygen_percentage_from_a_1d3d383e">Sin porcentaje de oxígeno en sangre desde un WHOOP 4.0</string>
     <string name="l10n_health_screen_your_strap_banks_the_raw_optical_b52a0f80">Tu pulsera guarda los canales ópticos en bruto, pero NOOP no los convierte en un porcentaje de oxígeno en sangre, así que esto seguirá vacío por mucho que la lleves. Importa una exportación de WHOOP en Fuentes de datos para rellenarlo con tu historial.</string>
+    <string name="l10n_settings_screen_ask_android_to_pair_experimental_250a81e9">Pedir a Android que vincule (experimental)</string>
+    <string name="l10n_settings_screen_noop_has_always_hoped_that_writing_19967036">NOOP siempre ha confiado en que escribir en tu 5.0/MG hiciera que Android lo vinculara. Nunca ocurre. Esta opción se lo pide a Android directamente, por lo que puede mostrar un diálogo de vinculación del sistema. La frecuencia cardíaca en directo sigue funcionando igualmente; desactívala si el diálogo molesta.</string>
+    <string name="l10n_settings_screen_ask_android_to_pair_323fccbe">Pedir a Android que vincule</string>
 </resources>

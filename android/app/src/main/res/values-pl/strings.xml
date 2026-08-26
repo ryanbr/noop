@@ -2454,4 +2454,7 @@
     <string name="l10n_health_screen_your_strap_reports_a_blood_oxygen_349fe34a">Twoja opaska podaje szacowane natlenienie krwi, ale jest ono niezweryfikowane i domyślnie wyłączone. Włącz szacowanie opaski w Ustawieniach lub zaimportuj eksport WHOOP w Źródłach danych, aby uzyskać wartość kalibrowaną.</string>
     <string name="l10n_health_screen_no_blood_oxygen_percentage_from_a_1d3d383e">Brak wartości procentowej natlenienia krwi z WHOOP 4.0</string>
     <string name="l10n_health_screen_your_strap_banks_the_raw_optical_b52a0f80">Twoja opaska zapisuje surowe kanały optyczne, ale NOOP nie przelicza ich na wartość procentową natlenienia krwi, więc pozostanie to puste niezależnie od czasu noszenia. Zaimportuj eksport WHOOP w Źródłach danych, aby wypełnić to historią konta.</string>
+    <string name="l10n_settings_screen_ask_android_to_pair_experimental_250a81e9">Poproś Androida o sparowanie (eksperymentalne)</string>
+    <string name="l10n_settings_screen_noop_has_always_hoped_that_writing_19967036">NOOP zawsze liczył na to, że zapis do 5.0/MG skłoni Androida do sparowania. To się nigdy nie dzieje. Ta opcja prosi Androida bezpośrednio, więc może pojawić się systemowe okno parowania. Tętno na żywo działa tak czy inaczej; wyłącz, jeśli okno przeszkadza.</string>
+    <string name="l10n_settings_screen_ask_android_to_pair_323fccbe">Poproś Androida o sparowanie</string>
 </resources>

@@ -111,6 +111,16 @@ class PuffinExperiment(private val prefs: SharedPreferences) {
         get() = prefs.getBoolean(KEY_MOTION_AWARE_WAKE, false)
         set(v) = prefs.edit().putBoolean(KEY_MOTION_AWARE_WAKE, v).apply()
 
+    /** True if the user opted in to "Ask Android to pair" (#1635, default false): NOOP calls
+     *  `BluetoothDevice.createBond()` explicitly instead of relying on a write to the encrypted
+     *  characteristic to provoke pairing — which the #1639 bond-state trace showed never happens at all.
+     *  Its own switch, like every other probe that changes state outside the app: this one asks the OS to
+     *  form a PERSISTENT pairing and can surface a system pairing dialog. Android-only; CoreBluetooth has
+     *  no equivalent explicit API, which is likely why the implicit route was chosen originally. */
+    var explicitBond: Boolean
+        get() = prefs.getBoolean(KEY_EXPLICIT_BOND, false)
+        set(v) = prefs.edit().putBoolean(KEY_EXPLICIT_BOND, v).apply()
+
     /**
      * Turn OFF every 5/MG-only experimental probe: protocol probes ([isEnabled]), raw capture
      * ([isCaptureEnabled]), the R22 deep-data strap write ([isDeepDataEnabled]) and broadcast-HR
@@ -150,10 +160,14 @@ class PuffinExperiment(private val prefs: SharedPreferences) {
          *  `PuffinExperiment.ecgRawDataKey`). (#891) */
         const val KEY_ECG_RAW_DATA = "noopEcgRawDataGate"
 
+        /** "Ask Android to pair" opt-in — the explicit `createBond()` experiment (#1635). Android-only,
+         *  so no macOS key to mirror. */
+        const val KEY_EXPLICIT_BOND = "noopWhoop5ExplicitBond"
+
         /** The 5/MG-only probe keys, in ONE place: [resetFiveMGGatedProbes] clears exactly these, and
          *  SettingsScreen watches exactly these for external writes. Two lists would drift. */
         internal val FIVE_MG_GATED_KEYS =
-            listOf(KEY, KEY_CAPTURE, KEY_DEEP_DATA, KEY_BROADCAST_HR, KEY_ECG_RAW_DATA)
+            listOf(KEY, KEY_CAPTURE, KEY_DEEP_DATA, KEY_BROADCAST_HR, KEY_ECG_RAW_DATA, KEY_EXPLICIT_BOND)
 
         /** "Experimental sleep staging (V2)" opt-in (mirrors macOS `PuffinExperiment.experimentalSleepV2Key`). */
         const val KEY_EXPERIMENTAL_SLEEP_V2 = "noopExperimentalSleepV2"

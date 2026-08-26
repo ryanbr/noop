@@ -4633,6 +4633,12 @@ class WhoopBleClient(
      *  against the teardown it is about to perform. None of the five is on a per-record path. */
     private fun noteLocalTeardown(origin: String) { lastLocalTeardown = origin }
 
+    /** True once `createBond()` has been asked for on THIS link (#1635 explicit-bond experiment). One
+     *  attempt per connection: re-issuing while a pairing is in flight gives a system dialog per retry, and
+     *  the retry cadence here is seconds. Cleared with the rest of the per-link state on teardown. */
+    @Volatile
+    private var explicitBondRequestedThisLink = false
+
     /** Set by an explicit user Connect so the NEXT 5/MG session re-attempts a suppressed CLIENT_HELLO
      *  (#1635). Consumed on use, so it grants exactly one retry: someone who put the strap in pairing mode
      *  gets a fresh attempt, and a strap that still will not answer latches straight back off instead of
@@ -7269,6 +7275,32 @@ class WhoopBleClient(
                 // Consumed unconditionally, so the single retry an explicit Connect grants belongs to THIS
                 // session. Leaving it set would hand a stale retry to some later automatic reconnect and
                 // restart the loop the suppression exists to end.
+                // #1635 experiment: ask Android to pair, instead of hoping the encrypted write provokes
+                // it — which the bond-state trace showed never happens. Runs BEFORE the hello decision
+                // because the two must not overlap: writing while a pairing is in flight is the behaviour
+                // that has been dropping the link, so doing both would test nothing.
+                if (shouldRequestExplicitBond(
+                        optedIn = puffinExperiment.explicitBond,
+                        isWhoop5 = true,
+                        alreadyBondedAtOsLevel = g.device.bondState == BluetoothDevice.BOND_BONDED,
+                        appLevelBonded = didBond,
+                        alreadyRequestedThisLink = explicitBondRequestedThisLink,
+                    )
+                ) {
+                    explicitBondRequestedThisLink = true
+                    val initiated = runCatching { g.device.createBond() }.getOrDefault(false)
+                    log(explicitBondRequestLine(initiated, bondStateName(g.device.bondState)))
+                }
+                if (explicitBondDefersHello(explicitBondRequestedThisLink)) {
+                    // Same trap as the suppression path below, and worse here. The watchdog was armed at
+                    // discovery and bounces the link whenever didBond is false — which deferring the hello
+                    // guarantees. Tearing the link down while an OS pairing is in flight is the single
+                    // thing most likely to abort the pairing we just asked for, so the experiment would
+                    // sabotage itself ~7s in and report a refusal that never happened.
+                    cancelBondWatchdog()
+                    return
+                }
+
                 val userAsked = helloRetryRequested
                 helloRetryRequested = false
                 val suppressed = runCatching {
@@ -8480,6 +8512,7 @@ class WhoopBleClient(
     /** Clear per-connection state. Port of the flag resets in didConnect / didDisconnectPeripheral. */
     private fun reset() {
         didBond = false
+        explicitBondRequestedThisLink = false   // #1635: one createBond attempt per link
         connectHandshakeDone = false
         familyEstablished = false   // the next link re-establishes it at service discovery
         loggedFirmwareGate = null
