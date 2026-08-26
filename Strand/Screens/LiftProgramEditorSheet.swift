@@ -31,6 +31,9 @@ struct LiftProgramEditorSheet: View {
     @State private var editingItem: ItemEditTarget?
     @State private var confirmingDelete = false
 
+    @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
+    private var unitSystem: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .metric }
+
     @FocusState private var focused: Field?
     private enum Field: Hashable { case name, note }
 
@@ -178,20 +181,18 @@ struct LiftProgramEditorSheet: View {
         }
     }
 
-    /// "4 × 8–10 · RPE 8 · 2:00 rest" — only the parts that were actually filled in.
+    /// "4 × 8 · 60 kg · 2:00 rest" — only the parts that were actually filled in.
     private func targetSummary(_ item: LiftProgramItemRow) -> String {
         var parts: [String] = []
         if let sets = item.targetSets {
-            if let lo = item.targetRepsLow, let hi = item.targetRepsHigh, lo != hi {
-                parts.append("\(sets) × \(lo)–\(hi)")
-            } else if let lo = item.targetRepsLow {
-                parts.append("\(sets) × \(lo)")
+            if let reps = item.targetRepsLow {
+                parts.append("\(sets) × \(reps)")
             } else {
                 parts.append(String(localized: "\(sets) sets"))
             }
         }
-        if let rpe = item.targetRpe {
-            parts.append("RPE \(LiftFormat.trim(rpe))")
+        if let kg = item.targetWeightKg {
+            parts.append(LiftFormat.weight(kg, system: unitSystem))
         }
         if let rest = item.restSec {
             parts.append(String(localized: "\(LiftFormat.duration(rest)) rest"))
@@ -307,6 +308,7 @@ struct LiftProgramEditorSheet: View {
                 targetRepsLow: item.targetRepsLow,
                 targetRepsHigh: item.targetRepsHigh,
                 targetRpe: item.targetRpe,
+                targetWeightKg: item.targetWeightKg,
                 restSec: item.restSec,
                 note: item.note
             )

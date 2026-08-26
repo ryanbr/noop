@@ -28,9 +28,8 @@ struct LiftProgramItemSheet: View {
     @State private var secondaries: Set<LiftMuscle> = []
 
     @State private var setsText: String = ""
-    @State private var repsLowText: String = ""
-    @State private var repsHighText: String = ""
-    @State private var rpeText: String = ""
+    @State private var repsText: String = ""
+    @State private var weightText: String = ""
     @State private var restText: String = ""
     @State private var note: String = ""
 
@@ -38,8 +37,16 @@ struct LiftProgramItemSheet: View {
     @State private var vocabulary: [LiftExerciseRow] = []
     @State private var loaded = false
 
+    /// The app's existing metric/imperial preference — the Lift Log never adds a second weight unit
+    /// setting of its own, so the plan is typed in the same unit the session records in.
+    @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
+    private var unitSystem: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .metric }
+    private var weightLabel: LocalizedStringKey {
+        unitSystem == .imperial ? "Weight (lb)" : "Weight (kg)"
+    }
+
     @FocusState private var focused: Field?
-    private enum Field: Hashable { case exercise, sets, repsLow, repsHigh, rpe, rest, note }
+    private enum Field: Hashable { case exercise, sets, reps, weight, rest, note }
 
     private var trimmedExercise: String {
         exercise.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -214,24 +221,26 @@ struct LiftProgramItemSheet: View {
                         field("Working sets") {
                             numberInput("4", text: $setsText, field: .sets)
                         }
-                        field("Target RPE") {
-                            numberInput("8", text: $rpeText, field: .rpe)
+                        field("Reps") {
+                            numberInput("8", text: $repsText, field: .reps)
                         }
                     }
                     HStack(spacing: 12) {
-                        field("Reps from") {
-                            numberInput("8", text: $repsLowText, field: .repsLow)
+                        field(weightLabel) {
+                            numberInput("60", text: $weightText, field: .weight)
                         }
-                        field("Reps to") {
-                            numberInput("10", text: $repsHighText, field: .repsHigh)
+                        field("Rest (seconds)") {
+                            numberInput("120", text: $restText, field: .rest)
                         }
                     }
-                    field("Rest (seconds)") {
-                        numberInput("120", text: $restText, field: .rest)
-                    }
-                    Text("Every target is optional — fill in what you actually plan against.")
+                    // No target RPE here on purpose. RPE is how hard a set FELT, which you can only
+                    // know once you have done it — planning one means guessing at your own effort in
+                    // advance and then reading the guess back as if it were data. It is recorded per
+                    // set during the session instead.
+                    Text("Every target is optional — this is the plan, not the record. What you actually lift is entered set by set during the session.")
                         .font(StrandFont.footnote)
                         .foregroundStyle(StrandPalette.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
@@ -314,9 +323,10 @@ struct LiftProgramItemSheet: View {
         if let item {
             exercise = item.exercise
             setsText = item.targetSets.map(String.init) ?? ""
-            repsLowText = item.targetRepsLow.map(String.init) ?? ""
-            repsHighText = item.targetRepsHigh.map(String.init) ?? ""
-            rpeText = item.targetRpe.map { LiftFormat.trim($0) } ?? ""
+            repsText = item.targetRepsLow.map(String.init) ?? ""
+            weightText = item.targetWeightKg.map {
+                LiftFormat.trim(LiftFormat.display(fromKilograms: $0, system: unitSystem))
+            } ?? ""
             restText = item.restSec.map(String.init) ?? ""
             note = item.note ?? ""
         }
@@ -362,9 +372,14 @@ struct LiftProgramItemSheet: View {
             ord: item?.ord ?? 0,
             exercise: name,
             targetSets: Int(setsText.trimmingCharacters(in: .whitespaces)),
-            targetRepsLow: Int(repsLowText.trimmingCharacters(in: .whitespaces)),
-            targetRepsHigh: Int(repsHighText.trimmingCharacters(in: .whitespaces)),
-            targetRpe: LiftFormat.number(rpeText),
+            // ONE rep count. `targetRepsHigh`/`targetRpe` stay nil: they are v40 columns kept for
+            // compatibility, not part of the plan any more.
+            targetRepsLow: Int(repsText.trimmingCharacters(in: .whitespaces)),
+            targetRepsHigh: nil,
+            targetRpe: nil,
+            targetWeightKg: LiftFormat.number(weightText).map {
+                LiftFormat.kilograms(fromDisplay: $0, system: unitSystem)
+            },
             restSec: Int(restText.trimmingCharacters(in: .whitespaces)),
             note: trimmedNote.isEmpty ? nil : trimmedNote
         ))

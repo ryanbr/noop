@@ -129,6 +129,8 @@ public struct LiftProgramItemRow: Equatable, Codable, Sendable {
     public var targetRepsHigh: Int?
     /// Target RPE on the user's own 1-10 scale.
     public var targetRpe: Double?
+    /// Planned working weight in kilograms (v41). A program line plans a weight, not only reps.
+    public var targetWeightKg: Double?
     /// Intended rest after each set, seconds.
     public var restSec: Int?
     /// The user's own technique cue, stored and shown back verbatim.
@@ -144,6 +146,7 @@ public struct LiftProgramItemRow: Equatable, Codable, Sendable {
         targetRepsLow: Int?,
         targetRepsHigh: Int?,
         targetRpe: Double?,
+        targetWeightKg: Double?,
         restSec: Int?,
         note: String?
     ) {
@@ -156,6 +159,7 @@ public struct LiftProgramItemRow: Equatable, Codable, Sendable {
         self.targetRepsLow = targetRepsLow
         self.targetRepsHigh = targetRepsHigh
         self.targetRpe = targetRpe
+        self.targetWeightKg = targetWeightKg
         self.restSec = restSec
         self.note = note
     }
@@ -171,6 +175,7 @@ public struct LiftProgramItemRow: Equatable, Codable, Sendable {
             targetRepsLow: row["targetRepsLow"],
             targetRepsHigh: row["targetRepsHigh"],
             targetRpe: row["targetRpe"],
+            targetWeightKg: row["targetWeightKg"],
             restSec: row["restSec"],
             note: row["note"]
         )
@@ -191,6 +196,9 @@ public struct LiftSessionRow: Equatable, Codable, Sendable {
     public var programId: String?
     /// The program's name AS IT WAS when the session ran, so a later rename never rewrites history.
     public var programName: String?
+    /// Session RPE, 0-10 Borg CR10 (v41). A NUMBER, not a note: Foster's session load is sRPE x
+    /// duration, so the rating has to be computable. Nil when the user skipped rating the session.
+    public var sessionRpe: Double?
     public var note: String?
 
     public init(
@@ -201,6 +209,7 @@ public struct LiftSessionRow: Equatable, Codable, Sendable {
         sport: String,
         programId: String?,
         programName: String?,
+        sessionRpe: Double?,
         note: String?
     ) {
         self.id = id
@@ -210,6 +219,7 @@ public struct LiftSessionRow: Equatable, Codable, Sendable {
         self.sport = sport
         self.programId = programId
         self.programName = programName
+        self.sessionRpe = sessionRpe
         self.note = note
     }
 
@@ -222,6 +232,7 @@ public struct LiftSessionRow: Equatable, Codable, Sendable {
             sport: row["sport"],
             programId: row["programId"],
             programName: row["programName"],
+            sessionRpe: row["sessionRpe"],
             note: row["note"]
         )
     }
@@ -450,11 +461,12 @@ extension WhoopStore {
                 try db.execute(sql: """
                     INSERT INTO liftProgramItem
                         (id, deviceId, programId, ord, exercise, targetSets,
-                         targetRepsLow, targetRepsHigh, targetRpe, restSec, note)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         targetRepsLow, targetRepsHigh, targetRpe, targetWeightKg, restSec, note)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, arguments: [
                         r.id, r.deviceId, r.programId, r.ord, r.exercise, r.targetSets,
-                        r.targetRepsLow, r.targetRepsHigh, r.targetRpe, r.restSec, r.note,
+                        r.targetRepsLow, r.targetRepsHigh, r.targetRpe, r.targetWeightKg,
+                        r.restSec, r.note,
                     ])
                 n += db.changesCount
             }
@@ -486,16 +498,18 @@ extension WhoopStore {
             for r in rows {
                 try db.execute(sql: """
                     INSERT INTO liftSession
-                        (id, deviceId, startTs, endTs, sport, programId, programName, note)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        (id, deviceId, startTs, endTs, sport, programId, programName,
+                         sessionRpe, note)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(deviceId, startTs, sport) DO UPDATE SET
                         endTs = excluded.endTs,
                         programId = excluded.programId,
                         programName = excluded.programName,
+                        sessionRpe = excluded.sessionRpe,
                         note = excluded.note
                     """, arguments: [
                         r.id, r.deviceId, r.startTs, r.endTs, r.sport,
-                        r.programId, r.programName, r.note,
+                        r.programId, r.programName, r.sessionRpe, r.note,
                     ])
                 n += db.changesCount
             }

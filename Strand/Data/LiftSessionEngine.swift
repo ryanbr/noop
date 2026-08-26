@@ -30,6 +30,9 @@ struct LiftPlanItem: Equatable {
     var targetRepsLow: Int?
     var targetRepsHigh: Int?
     var targetRpe: Double?
+    /// The weight the program plans for this line, in kilograms. Seeds the entry box so the common
+    /// case is a glance and a tap rather than typing.
+    var targetWeightKg: Double?
     var note: String?
 
     /// The rest period used when a program line does not specify one. Two minutes is the middle of
@@ -45,6 +48,7 @@ struct LiftPlanItem: Equatable {
          targetRepsLow: Int? = nil,
          targetRepsHigh: Int? = nil,
          targetRpe: Double? = nil,
+         targetWeightKg: Double? = nil,
          note: String? = nil) {
         self.exercise = exercise
         self.primaryMuscle = primaryMuscle
@@ -54,6 +58,7 @@ struct LiftPlanItem: Equatable {
         self.targetRepsLow = targetRepsLow
         self.targetRepsHigh = targetRepsHigh
         self.targetRpe = targetRpe
+        self.targetWeightKg = targetWeightKg
         self.note = note
     }
 }
@@ -161,13 +166,13 @@ struct LiftSessionEngine: Equatable {
 
     // MARK: - The one action
 
-    /// Advance the machine. `weight`/`reps`/`rpe`/`isWarmup` are only read when a set is being
-    /// closed out (i.e. the current stage is `.working`); every other transition ignores them.
-    mutating func advance(now: Int,
-                          weightKg: Double? = nil,
-                          reps: Int? = nil,
-                          rpe: Double? = nil,
-                          isWarmup: Bool = false) {
+    /// Advance the machine.
+    ///
+    /// Deliberately takes NO set values. What was lifted is entered AFTERWARDS, during the rest that
+    /// follows (see `updateLastSet`) — you cannot type a weight while the bar is still in your hands,
+    /// and asking for it mid-set means either stopping to type or guessing later. The set is recorded
+    /// the instant you finish it, with its timing; the numbers are filled in while you recover.
+    mutating func advance(now: Int) {
         history.append(Snapshot(stage: stage, sets: sets, stageStartedAt: stageStartedAt))
 
         switch stage {
@@ -176,10 +181,10 @@ struct LiftSessionEngine: Equatable {
             stage = plan.isEmpty ? .cooldown : .working(item: 0, set: 1)
 
         case .working(let i, let s):
-            // Close out the set that was being performed.
+            // Close out the set that was being performed — timing now, numbers during the rest.
             sets.append(LiftRecordedSet(
                 exerciseIndex: i, setIndex: s,
-                weightKg: weightKg, reps: reps, rpe: rpe, isWarmup: isWarmup,
+                weightKg: nil, reps: nil, rpe: nil, isWarmup: false,
                 startTs: stageStartedAt, endTs: now, restSec: nil))
             // No rest after the very last set of the very last exercise — that is the cool-down.
             if isLastSetOfSession(item: i, set: s) {
@@ -211,6 +216,29 @@ struct LiftSessionEngine: Equatable {
             return
         }
         stageStartedAt = now
+    }
+
+    /// Fill in what the set just finished actually was. Called while resting (or during the
+    /// cool-down, for the final set, which no rest follows).
+    ///
+    /// Editing rather than appending, so typing a weight can never create a phantom set — and so the
+    /// user can keep correcting it for the whole rest period without anything being double-counted.
+    /// No-op when no set has been recorded yet.
+    mutating func updateLastSet(weightKg: Double?, reps: Int?, rpe: Double?, isWarmup: Bool) {
+        guard let last = sets.indices.last else { return }
+        sets[last].weightKg = weightKg
+        sets[last].reps = reps
+        sets[last].rpe = rpe
+        sets[last].isWarmup = isWarmup
+    }
+
+    /// The set awaiting its numbers — the one just performed, while resting or cooling down. Nil in
+    /// any stage where there is nothing to fill in.
+    var setAwaitingEntry: LiftRecordedSet? {
+        switch stage {
+        case .resting, .cooldown: return sets.last
+        case .warmup, .working, .finished: return nil
+        }
     }
 
     /// Undo the last advance. Restores the whole prior state, including a set that was recorded.
