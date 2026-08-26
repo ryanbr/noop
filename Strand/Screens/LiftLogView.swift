@@ -1,5 +1,6 @@
 import SwiftUI
 import StrandDesign
+import StrandAnalytics
 import WhoopStore
 
 // The Lift Log: build a program once, then run it in the gym by tapping through it.
@@ -28,6 +29,15 @@ struct LiftLogView: View {
     @State private var running: SessionStart?
     /// An interrupted session found on disk, offered for resume.
     @State private var interrupted: LiftSessionPersistence.Snapshot?
+    /// Recent finished sessions, newest first.
+    @State private var history: [LiftSessionRow] = []
+    /// This week's fractional sets per muscle.
+    @State private var weekCounts: [LiftMuscle: Double] = [:]
+    /// The session whose detail sheet is open.
+    @State private var viewing: SessionDetailTarget?
+
+    @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
+    private var unitSystem: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .metric }
 
     var body: some View {
         ScreenScaffold(
@@ -39,6 +49,8 @@ struct LiftLogView: View {
                 headerCard
                 if interrupted != nil { resumeCard }
                 programsSection
+                weekSection
+                historySection
             }
         }
         .task(id: repo.refreshSeq) { await load() }
@@ -46,6 +58,9 @@ struct LiftLogView: View {
             LiftProgramEditorSheet(program: target.program) {
                 await load()
             }
+        }
+        .sheet(item: $viewing) { target in
+            LiftSessionDetailSheet(session: target.session)
         }
         .sheet(item: $running) { start in
             if let snapshot = start.resuming {
@@ -224,14 +239,133 @@ struct LiftLogView: View {
                                programId: program.id, programName: program.name, resuming: nil)
     }
 
+    // MARK: - This week, per muscle
+
+    private var weekSection: some View {
+        let ordered = LiftMuscle.ordered.filter { (weekCounts[$0] ?? 0) > 0 }
+        return VStack(alignment: .leading, spacing: NoopMetrics.gap) {
+            SectionHeader("Sets per muscle", overline: "Last 7 days")
+            if ordered.isEmpty {
+                NoopCard {
+                    Text("Once you've logged a session, this shows how many sets each muscle got this week, against what the research associates with growth.")
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } else {
+                NoopCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(ordered, id: \.self) { muscle in
+                            muscleBar(muscle, sets: weekCounts[muscle] ?? 0)
+                        }
+                        // The band is named and sourced, never phrased as a target NOOP sets for
+                        // anyone: this is not a medical device and does not prescribe.
+                        Text("The bar marks about 4 sets a week — the point below which the research doesn't reliably detect growth. Above it, gains continue with strongly diminishing returns and no clear ceiling.")
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 2)
+                    }
+                }
+            }
+        }
+    }
+
+    private func muscleBar(_ muscle: LiftMuscle, sets: Double) -> some View {
+        let fraction = LiftMetrics.ReferenceDose.fractionOfHypertrophyMinimum(sets)
+        let met = sets >= LiftMetrics.ReferenceDose.hypertrophyMinimumSetsPerWeek
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Text(muscle.displayName)
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                Spacer(minLength: 0)
+                Text(LiftFormat.trim(sets))
+                    .font(StrandFont.captionNumber)
+                    .foregroundStyle(met ? StrandPalette.statusPositive : StrandPalette.textPrimary)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(StrandPalette.surfaceRaised)
+                    Capsule()
+                        .fill(met ? StrandPalette.statusPositive : StrandPalette.effortColor)
+                        .frame(width: max(2, geo.size.width * fraction))
+                }
+            }
+            .frame(height: 6)
+        }
+    }
+
+    // MARK: - History
+
+    private var historySection: some View {
+        VStack(alignment: .leading, spacing: NoopMetrics.gap) {
+            SectionHeader("Sessions", overline: "Recent")
+            if history.isEmpty {
+                NoopCard {
+                    Text("Finished sessions land here, with every set you logged.")
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                }
+            } else {
+                ForEach(history, id: \.id) { session in
+                    Button {
+                        viewing = SessionDetailTarget(id: session.id, session: session)
+                    } label: {
+                        historyRow(session)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private func historyRow(_ session: LiftSessionRow) -> some View {
+        NoopCard {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(session.programName ?? String(localized: "Session"))
+                        .font(StrandFont.headline)
+                        .foregroundStyle(StrandPalette.textPrimary)
+                    Text(Date(timeIntervalSince1970: TimeInterval(session.startTs))
+                            .formatted(date: .abbreviated, time: .shortened))
+                        .font(StrandFont.caption)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
     // MARK: - Load
 
     private func load() async {
         interrupted = LiftSessionPersistence.load()
         guard let store = await repo.storeHandle() else { return }
         programs = (try? await store.liftPrograms(deviceId: repo.deviceId)) ?? []
+
+        let now = Int(Date().timeIntervalSince1970)
+        history = ((try? await store.liftSessions(deviceId: repo.deviceId,
+                                                  fromTs: now - 180 * 86_400,
+                                                  toTs: now)) ?? [])
+            .filter { $0.endTs != nil }                 // an abandoned session is not history
+            .sorted { $0.startTs > $1.startTs }
+        weekCounts = (try? await store.liftSetCounts(deviceId: repo.deviceId,
+                                                      fromTs: now - 7 * 86_400,
+                                                      toTs: now).fractional) ?? [:]
         loaded = true
     }
+}
+
+/// The session whose detail is being read back. A wrapper rather than a retroactive `Identifiable`
+/// on `LiftSessionRow`, keeping the store's row types free of app-layer conformances.
+private struct SessionDetailTarget: Identifiable {
+    let id: String
+    let session: LiftSessionRow
 }
 
 /// What the session sheet is presenting — a fresh run of a program, or a resumed snapshot.
