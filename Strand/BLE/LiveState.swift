@@ -374,7 +374,7 @@ public final class LiveState: ObservableObject {
         if connected && bonded { return "Live HR (not fully paired)" }
         if connected { return "Connected" }
         if encryptedBond { return "Bonded · idle" }
-        if bonded { return "Paired · idle" }
+        // No `bonded`-only idle arm: without an encrypted bond there was never a pairing to be idle from.
         return "Disconnected"
     }
     /// True when the link is up with a REAL encrypted bond → status reads green. A live-HR-only link is

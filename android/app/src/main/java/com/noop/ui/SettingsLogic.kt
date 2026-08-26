@@ -46,7 +46,9 @@ internal fun strapStatusTitle(encryptedBond: Boolean, bonded: Boolean, connected
     encryptedBond -> "Bonded · idle"
     bonded && connected -> "Live HR (not fully paired)"
     connected -> "Connected"
-    bonded -> "Paired · idle"
+    // No `bonded`-only idle arm: without an encrypted bond there was never a pairing to be idle from,
+    // and labelling that "Paired" would be the same overclaim this change exists to remove. The 5/MG
+    // shortcut's `bonded` is cleared on disconnect anyway, so the honest answer here is Disconnected.
     else -> "Disconnected"
 }
 

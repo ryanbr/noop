@@ -914,11 +914,20 @@ struct DataSourcesView: View {
         // Three-state, consistent with the Live screen's connection pill — a connected-but-
         // not-yet-streaming strap (e.g. an experimental WHOOP 5/MG link) no longer reads as
         // "Not connected" on one screen and "Connected" on another (issue #8).
-        let (tone, label): (StrandTone, LocalizedStringKey) =
-            live.encryptedBond ? (.positive, "Bonded, streaming.")
-            : live.bonded ? (.warning, "Live HR (not fully paired)")
-            : live.connected ? (.warning, "Connected.")
-            : (.critical, "Not connected. Open Live to pair.")
+        // Written as statements rather than a ternary chain: five arms of (StrandTone,
+        // LocalizedStringKey) tuples is the shape that pushes this expression past the iOS type-check
+        // budget, and it fails in CI rather than here.
+        let tone: StrandTone
+        let label: LocalizedStringKey
+        if live.encryptedBond {
+            tone = .positive; label = "Bonded, streaming."
+        } else if live.bonded {
+            tone = .warning; label = "Live HR (not fully paired)"
+        } else if live.connected {
+            tone = .warning; label = "Connected."
+        } else {
+            tone = .critical; label = "Not connected. Open Live to pair."
+        }
         return card(title: String(localized: "WHOOP Strap (Live BLE)"), icon: "antenna.radiowaves.left.and.right",
              tint: StrandPalette.accent,
              status: StatePill(label, tone: tone, pulsing: live.connected && !live.bonded),
