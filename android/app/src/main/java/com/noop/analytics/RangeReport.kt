@@ -131,6 +131,35 @@ enum class ReportMetric {
     }
 }
 
+/**
+ * The user's display preferences, resolved by the app layer and passed in (#1637).
+ *
+ * NOOP stores everything in SI and on its own native scales; two settings change only how a number is
+ * *shown* — the temperature unit (°C / °F) and the Effort axis (native 0–100 / WHOOP 0–21). Every
+ * in-app screen honours both, but the exported trends report rendered raw stored values with a
+ * hardcoded unit, so a reader comparing the export against the app saw two different numbers for the
+ * same night with nothing on the page to explain it.
+ *
+ * This engine stays pure and never reads prefs; the app resolves the settings and hands them over.
+ * [STORED] is the identity — °C and the native 0–100 axis, i.e. exactly what is on disk — and is the
+ * default everywhere, so an untouched call site is byte-identical to before.
+ *
+ * Twin of Swift `ReportDisplayUnits`.
+ *
+ * @property fahrenheit render temperatures in °F. A DEVIATION scales ×9/5 with no +32 offset.
+ * @property effortFactor multiplier onto the stored 0–100 Effort value: 1.0 for NOOP's native axis,
+ *   21/100 for WHOOP's 0–21 Day Strain axis. Matches `UnitFormatter.EFFORT_SCALE_FACTOR`.
+ */
+data class ReportDisplayUnits(
+    val fahrenheit: Boolean,
+    val effortFactor: Double,
+) {
+    companion object {
+        /** The identity: values exactly as stored (°C, native 0–100 Effort). */
+        val STORED = ReportDisplayUnits(fahrenheit = false, effortFactor = 1.0)
+    }
+}
+
 /** Which way a metric moved across the range (by OLS slope vs a small threshold). */
 enum class ReportTrend { RISING, FALLING, FLAT }
 
@@ -200,6 +229,11 @@ object RangeReportEngine {
      *   missing days are simply absent; this is robust to sparse data.
      * @param start inclusive range start, "yyyy-MM-dd".
      * @param end inclusive range end, "yyyy-MM-dd".
+     * @param units the user's display preferences, applied to the rendered [RangeReport.headlines]
+     *   only (#1637). Defaults to [ReportDisplayUnits.STORED], which reproduces the pre-#1637
+     *   strings exactly. Every [MetricRangeStat] below stays in STORED units regardless — callers
+     *   convert at render time via [displayValue], so the statistics remain comparable across
+     *   settings and nothing on disk depends on a toggle.
      *
      * If [end] sorts before [start] the range is treated as empty (no metrics, 0 days).
      */
@@ -207,6 +241,7 @@ object RangeReportEngine {
         metrics: Map<ReportMetric, Map<String, Double>>,
         start: String,
         end: String,
+        units: ReportDisplayUnits = ReportDisplayUnits.STORED,
     ): RangeReport {
         // A valid window requires start <= end (ISO string compare == chronological).
         if (start > end) {
@@ -264,10 +299,45 @@ object RangeReportEngine {
             )
         }
 
-        val headlines = makeHeadlines(stats)
+        val headlines = makeHeadlines(stats, units)
         return RangeReport(start = start, end = end, totalDays = totalDays,
             metrics = stats, headlines = headlines)
     }
+
+    // Display conversion
+
+    /**
+     * A stored value rendered on the user's chosen axis (#1637).
+     *
+     * The ONE place the report converts, shared by the headline sentences below and the app layer's
+     * metric cards, so the two surfaces of the same document can never disagree about a number.
+     * Metrics with no user-configurable presentation pass through untouched.
+     *
+     * Skin temp is a signed DEVIATION from the personal baseline, so °F scales by 9/5 with NO +32
+     * offset — adding it would be wrong for a difference. Matches [SkinTempDisplay.numberString].
+     */
+    fun displayValue(v: Double, metric: ReportMetric, units: ReportDisplayUnits): Double =
+        when (metric) {
+            ReportMetric.SKIN_TEMP_DEV -> if (units.fahrenheit) v * 9.0 / 5.0 else v
+            ReportMetric.STRAIN -> v * units.effortFactor
+            else -> v
+        }
+
+    /**
+     * The unit suffix for a metric under the user's settings — [ReportMetric.unit] for everything
+     * that has no display preference (#1637).
+     *
+     * Two metrics differ from the static suffix. Skin temp carries the `Δ` the whole app shows,
+     * because the row is a deviation and a bare "°C" reads as an absolute wrist temperature. Effort
+     * is unitless on its native 0–100 axis (unchanged), but names its denominator once rescaled — a
+     * bare "12.4" where the reader expects 0–100 is the one thing a rescale must not produce.
+     */
+    fun displayUnit(metric: ReportMetric, units: ReportDisplayUnits): String =
+        when (metric) {
+            ReportMetric.SKIN_TEMP_DEV -> if (units.fahrenheit) "Δ°F" else "Δ°C"
+            ReportMetric.STRAIN -> if (units.effortFactor == 1.0) "" else "/ 21"
+            else -> metric.unit
+        }
 
     // Headlines
 
@@ -276,8 +346,11 @@ object RangeReportEngine {
      * the absolute first→second-half change scaled by the metric's trend threshold, so
      * movers on different units are comparable. Folds in good/bad framing.
      */
-    internal fun makeHeadlines(stats: List<MetricRangeStat>): List<String> =
-        stats.sortedByDescending { salience(it) }.map { headline(it) }
+    internal fun makeHeadlines(
+        stats: List<MetricRangeStat>,
+        units: ReportDisplayUnits = ReportDisplayUnits.STORED,
+    ): List<String> =
+        stats.sortedByDescending { salience(it) }.map { headline(it, units) }
 
     /** |half delta| normalised by the metric's trend threshold (a units-agnostic move). */
     internal fun salience(s: MetricRangeStat): Double {
@@ -285,8 +358,17 @@ object RangeReportEngine {
         return if (t > 0) abs(s.halfDelta) / t else abs(s.halfDelta)
     }
 
-    /** Render one metric's headline. Trend word + good/bad framing + the two half means. */
-    internal fun headline(s: MetricRangeStat): String {
+    /**
+     * Render one metric's headline. Trend word + good/bad framing + the two half means.
+     *
+     * The two means are rendered through [displayValue] / [displayUnit], so the sentence agrees with
+     * the metric cards beside it and with the app (#1637). The TREND WORD and the good/bad framing
+     * come from `s.trend`, computed on stored values, so a display toggle can never flip a verdict.
+     */
+    internal fun headline(
+        s: MetricRangeStat,
+        units: ReportDisplayUnits = ReportDisplayUnits.STORED,
+    ): String {
         val word = when (s.trend) {
             ReportTrend.RISING -> "trending up"
             ReportTrend.FALLING -> "trending down"
@@ -300,9 +382,12 @@ object RangeReportEngine {
             val good = up == s.metric.higherIsBetter
             if (good) " - a good sign" else " - worth a look"
         }
-        val unit = if (s.metric.unit.isEmpty()) "" else " ${s.metric.unit}"
-        return "${s.metric.label} is $word (avg ${round1(s.firstHalfMean)}$unit → " +
-            "${round1(s.secondHalfMean)}$unit)$frame."
+        val rawUnit = displayUnit(s.metric, units)
+        val unit = if (rawUnit.isEmpty()) "" else " $rawUnit"
+        val first = displayValue(s.firstHalfMean, s.metric, units)
+        val second = displayValue(s.secondHalfMean, s.metric, units)
+        return "${s.metric.label} is $word (avg ${round1(first)}$unit → " +
+            "${round1(second)}$unit)$frame."
     }
 
     // Trend

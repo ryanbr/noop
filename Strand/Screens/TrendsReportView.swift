@@ -134,10 +134,11 @@ enum TrendsReportData {
     /// Build the full report for a range from a DailyMetric history (+ the stored daily
     /// stress series, for the Stress row — #457).
     static func report(for range: ReportRange, days: [DailyMetric],
-                       today: String, stressByDay: [String: Double] = [:]) -> RangeReport {
+                       today: String, stressByDay: [String: Double] = [:],
+                       units: ReportDisplayUnits = .stored) -> RangeReport {
         let (start, end) = window(for: range, days: days, today: today)
         return RangeReportEngine.build(metrics: metricMaps(from: days, stressByDay: stressByDay),
-                                       start: start, end: end)
+                                       start: start, end: end, units: units)
     }
 
     /// The in-range sparkline series (chronological values) for one metric — the same
@@ -190,6 +191,11 @@ struct TrendsReportPage: View {
     let series: [ReportMetric: [Double]]
     /// Generated-on label (e.g. "Jun 15, 2026").
     let generatedOn: String
+    /// The user's resolved °C/°F + Effort-axis preferences (#1637). Passed in rather than read from
+    /// `@AppStorage` because the page is rendered OFF-SCREEN by `ImageRenderer` for the PDF, where a
+    /// SwiftUI environment lookup is not guaranteed to carry the live value. Defaults to `.stored`
+    /// so a preview or a caller that has not resolved them still renders.
+    var units: ReportDisplayUnits = .stored
 
     /// The fixed page width used for the PDF render. ~ A4 portrait at 72dpi-ish density.
     static let pageWidth: CGFloat = 612
@@ -317,6 +323,14 @@ struct TrendsReportPage: View {
     }
 
     /// A trend chip coloured good/bad for the metric (neutral when flat or valence-free).
+    ///
+    /// The chip sits directly beside the mean read-out, so its magnitude must be on the SAME axis as
+    /// the numbers around it (#1637) — a °C delta next to °F values reads as a contradiction. Both
+    /// conversions are pure multiplications, so `displayValue` is correct for a delta as well as a
+    /// level (a °F offset would NOT be, which is why this metric never adds one).
+    ///
+    /// The steady/moving decision and the good/bad colour stay on the STORED delta, matching the
+    /// trend verdict itself — a cosmetic toggle must not turn a "steady" chip into a moving one.
     @ViewBuilder
     private func trendChip(_ stat: MetricRangeStat) -> some View {
         let d = stat.halfDelta
@@ -329,7 +343,8 @@ struct TrendsReportPage: View {
                 ? (up == stat.metric.higherIsBetter ? StrandPalette.statusPositive : StrandPalette.metricRose)
                 : StrandPalette.textTertiary
             let sign = up ? "+" : "−"
-            TrendChip(text: "\(sign)\(round1Text(abs(d)))", color: color)
+            let shown = abs(RangeReportEngine.displayValue(d, metric: stat.metric, units: units))
+            TrendChip(text: "\(sign)\(round1Text(shown))", color: color)
         }
     }
 
@@ -381,12 +396,20 @@ struct TrendsReportPage: View {
     /// hours, respiratory rate, skin-temp Δ and the 0–3 stress score (`metric.usesOneDecimal`).
     /// Skin-temp is a signed deviation from baseline, so a positive reading gets an explicit
     /// "+" to keep it from reading as an absolute temp.
+    ///
+    /// Both the value and its unit go through `RangeReportEngine` (#1637) — the same conversion the
+    /// headline sentences above use — so the exported page cannot print a unit the app disagrees
+    /// with. Effort gains a decimal once rescaled to the 0–21 axis, where a whole number would throw
+    /// away most of the resolution the 0–100 value carried.
     private func valueText(_ v: Double, _ metric: ReportMetric) -> String {
-        let unit = metric.unit
+        let unit = RangeReportEngine.displayUnit(metric, units: units)
+        let shown = RangeReportEngine.displayValue(v, metric: metric, units: units)
+        let oneDecimal = metric.usesOneDecimal
+            || (metric == .strain && units.effortFactor != 1.0)
         // Workouts is a fractional rate in the AVG read-out but a whole count at min/max; one
         // decimal keeps the averaged cadence honest (e.g. "0.4 /day") without faking precision.
-        var num = metric.usesOneDecimal ? round1Text(v) : "\(Int(v.rounded()))"
-        if metric == .skinTempDev && v > 0 { num = "+\(num)" }
+        var num = oneDecimal ? round1Text(shown) : "\(Int(shown.rounded()))"
+        if metric == .skinTempDev && shown > 0 { num = "+\(num)" }
         return unit.isEmpty ? num : "\(num) \(unit)"
     }
 
@@ -424,11 +447,32 @@ struct TrendsReportSheet: View {
     /// Stored daily stress series ("yyyy-MM-dd" → 0–3), for the Stress row (#457). Loaded
     /// once from the same "my-whoop" series the Stress screen reads; empty until it arrives.
     @State private var stressByDay: [String: Double] = [:]
+    // The same three keys every other screen reads, so the exported page agrees with what the user
+    // has been looking at all month (#1637). Temperature has its own override on top of the
+    // length/mass system, which is why both are needed to resolve it.
+    @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
+    @AppStorage(UnitPrefs.temperatureKey) private var temperatureRaw = ""
+    @AppStorage(UnitPrefs.effortScaleKey) private var effortScaleRaw = EffortScale.hundred.rawValue
 
     private var today: String { Repository.localDayKey(Date()) }
 
+    /// The user's display preferences, resolved once for both the headline sentences (built inside
+    /// the engine) and the metric cards (rendered by the page). Both surfaces must be handed the
+    /// SAME value or the document contradicts itself.
+    private var units: ReportDisplayUnits {
+        let system = UnitSystem(rawValue: unitSystemRaw) ?? .metric
+        let temp = UnitPrefs.resolveTemperature(system: system, override: temperatureRaw)
+        let scale = UnitPrefs.resolveEffortScale(effortScaleRaw)
+        // Name the canonical constant rather than deriving it from `effortValue(1.0,)`: the report
+        // multiplies by this factor, which is only equivalent while the mapping stays linear.
+        return ReportDisplayUnits(
+            fahrenheit: temp == .fahrenheit,
+            effortFactor: scale == .whoop ? UnitFormatter.effortScaleFactor : 1.0)
+    }
+
     private var report: RangeReport {
-        TrendsReportData.report(for: range, days: days, today: today, stressByDay: stressByDay)
+        TrendsReportData.report(for: range, days: days, today: today,
+                                stressByDay: stressByDay, units: units)
     }
 
     private func seriesMap(start: String, end: String) -> [ReportMetric: [Double]] {
@@ -450,7 +494,7 @@ struct TrendsReportSheet: View {
     private func page(for report: RangeReport) -> TrendsReportPage {
         TrendsReportPage(report: report, range: range,
                          series: seriesMap(start: report.start, end: report.end),
-                         generatedOn: generatedOn)
+                         generatedOn: generatedOn, units: units)
     }
 
     var body: some View {
