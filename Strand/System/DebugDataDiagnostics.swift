@@ -114,7 +114,11 @@ enum DebugDataDiagnostics {
         // the same position it holds on Android.
         if let invStore = await repo.storeHandle() {
             let invRegistry = DeviceRegistryStore(dbQueue: invStore.registryWriter)
-            let invRows = ((try? invRegistry.all()) ?? []).map {
+            // Bound before the map so the rule below has a count to test. Reading `.all()` inline left
+            // nothing to reference, which app-build caught and no local check could — this file needs
+            // macOS to compile.
+            let invDevices = (try? invRegistry.all()) ?? []
+            let invRows = invDevices.map {
                 // Firmware resolved by the same rule as the Devices card: this device's own persisted
                 // value when there is one, and the LEGACY global key only when a single device is paired
                 // (it cannot have come from anything else). Apple does not yet write the per-device key —
