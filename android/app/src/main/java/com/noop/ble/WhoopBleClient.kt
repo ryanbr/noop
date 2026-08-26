@@ -5328,10 +5328,28 @@ class WhoopBleClient(
             // Port of didWriteValueFor: a CONFIRMED-write completion (no error) == bonding succeeded.
             if (status != BluetoothGatt.GATT_SUCCESS) {
                 log("Confirmed write failed: status=$status")
-                // #1635: a failed write owes no ack. Leaving the window open would let the NEXT completion
-                // on fd4b0002 — DISABLE_ALARM and every other puffin command share it — satisfy both halves
-                // of the bond gate below and declare a bond the strap never granted, which is the whole bug.
-                if (characteristic.uuid == WHOOP5_CMD_WRITE_CHAR) clientHelloWriteAtMs = 0L
+                // #1635: a FAILED completion is still a completion, and it carries two obligations.
+                //
+                // Report it: before this, a failed callback produced no line at all and then a false
+                // "NO write callback" at disconnect — the outcome line tells the truth instead.
+                //
+                // And release the window, but ONLY for the hello's own write. Clearing it stops the
+                // disconnect path counting the same cycle twice (which would trip the give-up at half the
+                // intended streak on exactly the auth refusals that already worked), and leaving it open on
+                // a hello that definitively failed would let the NEXT completion on fd4b0002 — DISABLE_ALARM
+                // and every other puffin command share it — satisfy both halves of the bond gate below and
+                // declare a bond the strap never granted. A FOREIGN write failing says nothing about the
+                // hello, so it must not consume the window a genuine ack is still owed.
+                val failedHelloChar = characteristic.uuid == WHOOP5_CMD_WRITE_CHAR
+                if (clientHelloWriteAtMs > 0L) {
+                    log(clientHelloOutcomeLine(
+                        isHelloChar = failedHelloChar,
+                        charUuid = characteristic.uuid.toString(),
+                        elapsedMs = System.currentTimeMillis() - clientHelloWriteAtMs,
+                        status = gattWriteStatusLabel(status),
+                    ))
+                }
+                if (failedHelloChar) clientHelloWriteAtMs = 0L
                 // Multi-WHOOP stale-pin recovery (#52). A status of INSUFFICIENT_AUTHENTICATION (5) /
                 // INSUFFICIENT_ENCRYPTION (15) on the bond write == the strap refused the encrypted bond
                 // (the Android twin of the iOS "Encryption/Authentication is insufficient" error). When a
