@@ -2,6 +2,7 @@ package com.noop.ble
 
 import android.bluetooth.BluetoothDevice
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -62,5 +63,33 @@ class BondStateTraceTest {
     fun `a missing address degrades to unknown`() {
         assertTrue(bondStateTraceLine(10, 11, null, null).contains("device=unknown"))
         assertTrue(bondStateTraceLine(10, 11, "  ", null).contains("device=unknown"))
+    }
+
+    @Test
+    fun `an unrelated device's pairing is never traced`() {
+        // The receiver hears every pairing on the phone. The strap log is attached to public issues, so
+        // a colleague's headphones must not appear in it.
+        assertFalse(shouldTraceBondState("AA:BB:CC:DD:EE:FF", "FD:D4:F7:24:53:4A", helloOutstanding = true))
+        assertFalse(shouldTraceBondState("AA:BB:CC:DD:EE:FF", "FD:D4:F7:24:53:4A", helloOutstanding = false))
+    }
+
+    @Test
+    fun `our strap matches case-insensitively`() {
+        // A case-sensitive compare would trace NOTHING — which looks exactly like "the pairing never
+        // happened", one of the two answers this trace exists to tell apart.
+        assertTrue(shouldTraceBondState("fd:d4:f7:24:53:4a", "FD:D4:F7:24:53:4A", helloOutstanding = false))
+        assertTrue(shouldTraceBondState("FD:D4:F7:24:53:4A", "fd:d4:f7:24:53:4a", helloOutstanding = true))
+    }
+
+    @Test
+    fun `an anonymous event is traced only inside the handshake window`() {
+        assertTrue(shouldTraceBondState(null, "FD:D4", helloOutstanding = true))
+        assertFalse(shouldTraceBondState(null, "FD:D4", helloOutstanding = false))
+        assertFalse(shouldTraceBondState("  ", "FD:D4", helloOutstanding = false))
+    }
+
+    @Test
+    fun `with no strap address, an addressed event is not ours to trace`() {
+        assertFalse(shouldTraceBondState("AA:BB", null, helloOutstanding = true))
     }
 }

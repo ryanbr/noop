@@ -50,3 +50,34 @@ internal fun bondStateTraceLine(
     }
     return "bond state: ${bondStateName(previous)} -> ${bondStateName(current)} device=$who$since$note"
 }
+
+/**
+ * Should this bond-state transition be traced at all?
+ *
+ * The receiver hears EVERY pairing on the phone - headphones, a car kit, a colleague's keyboard - and
+ * the strap log is a file people attach to public issues. Recording unrelated pairings there is both
+ * noise in a fixed-size rolling buffer and information about devices that have nothing to do with NOOP,
+ * so the trace is scoped to the strap this app is talking to.
+ *
+ * Matched case-insensitively for the same reason [SourceCoordinator] matches addresses that way: the
+ * stored form and the broadcast form can differ in case, and a case-sensitive compare would silently
+ * trace nothing at all - the failure mode that looks exactly like "the pairing never happened", which is
+ * one of the two answers this trace exists to distinguish.
+ *
+ * An event with NO address is traced only while a CLIENT_HELLO is outstanding: that is the window this
+ * exists to observe, and outside it an anonymous transition cannot be attributed to us.
+ *
+ * Pure so the scoping rule is unit-tested without a radio.
+ */
+internal fun shouldTraceBondState(
+    eventAddress: String?,
+    strapAddress: String?,
+    helloOutstanding: Boolean,
+): Boolean {
+    val ev = eventAddress?.trim().orEmpty()
+    val ours = strapAddress?.trim().orEmpty()
+    if (ev.isEmpty()) return helloOutstanding
+    if (ours.isEmpty()) return false
+    return ev.equals(ours, ignoreCase = true)
+}
+

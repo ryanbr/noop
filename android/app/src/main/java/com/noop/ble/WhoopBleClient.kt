@@ -2202,7 +2202,9 @@ class WhoopBleClient(
     /** #1635: record an OS bond-state transition in the strap log. The OS pairing flow has never been
      *  observed, which is what leaves the 5/MG bond failure undecided - see [bondStateTraceLine]. */
     fun onBondStateChanged(previous: Int, current: Int, address: String?) {
-        log(bondStateTraceLine(previous, current, address, msSinceClientHello))
+        val since = msSinceClientHello
+        if (!shouldTraceBondState(address, lastDeviceAddress, since != null)) return
+        log(bondStateTraceLine(previous, current, address, since))
     }
 
     @Volatile private var familyEstablished = false
