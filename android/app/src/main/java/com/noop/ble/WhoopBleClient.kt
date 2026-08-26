@@ -2778,6 +2778,8 @@ class WhoopBleClient(
     private var disRead = false
     private var disSerial: String? = null
     private var disHwRev: String? = null
+    /** DIS 0x2A24, the strap's own model number — the authoritative variant signal (#520). */
+    private var disModelNumber: String? = null
 
     /** #364 auto-continue: consecutive immediate re-kicks after a 60s idle-cap OR HISTORY_COMPLETE exit on
      *  THIS connection. Bounded by [MAX_AUTO_CONTINUES] so a pathological strap can't pin the radio. Reset
@@ -4424,7 +4426,7 @@ class WhoopBleClient(
      * information content here) — never the full string, which would end up in a shareable strap log.
      */
     private fun noteWhoop5VariantFromDis() {
-        val variant = Whoop5Variant.from(disSerial, disHwRev)
+        val variant = Whoop5Variant.from(disSerial, disHwRev, disModelNumber)
         _whoop5Variant.value = variant   // #520/#891: publish so MG-only UI can gate on it
         val prefix = disSerial?.trim()?.uppercase()?.take(3) ?: "?"
         log("DIS: serialPrefix=$prefix hwRev=${disHwRev ?: "?"} -> variant=${variant.label}")
@@ -5861,6 +5863,13 @@ class WhoopBleClient(
                     else -> "softwareRev"
                 }
                 val v = bytes.toString(Charsets.UTF_8).trim { it == '\u0000' || it.isWhitespace() }
+                // #520: the model number is the ONE DIS extra that is not merely diagnostic. A field
+                // capture showed serial prefix "MGB" and hwRev "WS50_r03" matching none of the variant
+                // heuristics, on a strap whose model number said "MG" — so this is what finally resolves it.
+                if (uuid == DIS_MODEL_NUMBER_CHAR) {
+                    disModelNumber = v.ifBlank { null }
+                    noteWhoop5VariantFromDis()
+                }
                 // Log only — nothing gates on these. They are identity strings for a strap that may never
                 // pair, and the point is to have them in a capture at all.
                 log("DIS: $label=${v.ifBlank { "(empty)" }}")
@@ -7014,7 +7023,7 @@ class WhoopBleClient(
      *  UNKNOWN is never MG. This is the gate an MG-only capability asks (#891); deliberately independent of
      *  [DeviceFamily], which describes the WIRE PROTOCOL and treats MG and 5.0 as one family. Mirrors the
      *  Swift `BLEManager.whoop5Variant`. */
-    fun whoop5Variant(): Whoop5Variant = Whoop5Variant.from(disSerial, disHwRev)
+    fun whoop5Variant(): Whoop5Variant = Whoop5Variant.from(disSerial, disHwRev, disModelNumber)
 
     private val _whoop5Variant = MutableStateFlow(Whoop5Variant.UNKNOWN)
     /** #520/#891: the attested variant as observable state, for UI that gates an MG-only action. Set from
@@ -8884,6 +8893,7 @@ class WhoopBleClient(
         disRead = false
         disSerial = null
         disHwRev = null
+        disModelNumber = null
         // #1007: a burst cut short by a disconnect never reaches exitBackfilling — that path is only
         // HISTORY_COMPLETE / timeout / user-abort — so without this the throughput line simply would not
         // appear, and its ABSENCE is ambiguous: no offload at all, or one that was interrupted? For a

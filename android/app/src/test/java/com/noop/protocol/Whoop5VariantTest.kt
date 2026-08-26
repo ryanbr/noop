@@ -59,4 +59,35 @@ class Whoop5VariantTest {
         assertEquals("5.0", Whoop5Variant.FIVE_ZERO.label)
         assertEquals("—", Whoop5Variant.UNKNOWN.label)
     }
+
+    /**
+     * The field capture that exposed the gap: serial prefix "MGB", hardware revision "WS50_r03" — neither
+     * matches MG_SERIAL_PREFIX ("5AM") nor FIVE_ZERO_HARDWARE_ID_TOKEN ("WG50"), so every heuristic
+     * returned UNKNOWN for a strap whose own model number said MG.
+     */
+    @Test
+    fun `a real MG resolves from its model number when the prefixes do not`() {
+        assertEquals(Whoop5Variant.UNKNOWN, Whoop5Variant.from("MGB0779473", "WS50_r03"))
+        assertEquals(Whoop5Variant.MG, Whoop5Variant.from("MGB0779473", "WS50_r03", "MG"))
+    }
+
+    @Test
+    fun `the model number is trimmed and case-insensitive`() {
+        assertEquals(Whoop5Variant.MG, Whoop5Variant.from(null, null, "  mg  "))
+    }
+
+    /** Only MG is claimed - no 5.0 has been observed reporting a model number, so an unrecognised one
+     *  falls through to the existing heuristics rather than inventing a verdict. */
+    @Test
+    fun `an unknown model number does not override the heuristics`() {
+        assertEquals(Whoop5Variant.FIVE_ZERO, Whoop5Variant.from("5AG12345678", null, "WHOOP5"))
+        assertEquals(Whoop5Variant.UNKNOWN, Whoop5Variant.from(null, null, "WHOOP5"))
+    }
+
+    /** Two heuristics disagreeing is a reason not to guess; it is not a reason to ignore the strap
+     *  stating its own model. */
+    @Test
+    fun `the model number beats the contradiction guard`() {
+        assertEquals(Whoop5Variant.MG, Whoop5Variant.from("5AM12345678", "WG50_r52", "MG"))
+    }
 }

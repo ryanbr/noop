@@ -38,6 +38,11 @@ enum class Whoop5Variant(val label: String) {
          */
         const val FIVE_ZERO_HARDWARE_ID_TOKEN = "WG50"
 
+        /** DIS 0x2A24 Model Number String, as a real WHOOP MG reports it. Read unbonded off the standard
+         *  profile, so it is available on a strap that never pairs — which is exactly the case the prefix
+         *  heuristics were failing on. */
+        const val MODEL_NUMBER_MG = "MG"
+
         /**
          * Resolve the variant from the strap's Device Information Service strings.
          *
@@ -52,7 +57,19 @@ enum class Whoop5Variant(val label: String) {
          *  3. Serial prefix -> [MG] / [FIVE_ZERO].
          *  4. Anything else -> [UNKNOWN]. Never infer from a stray digit in the name (#772).
          */
-        fun from(serial: String?, hardwareRevision: String? = null): Whoop5Variant {
+        fun from(
+            serial: String?,
+            hardwareRevision: String? = null,
+            modelNumber: String? = null,
+        ): Whoop5Variant {
+            // The strap SAYING what it is beats inferring it from a prefix. DIS 0x2A24 reports "MG" on a
+            // real MG, and a field capture showed serial prefix "MGB" with hardware revision "WS50_r03" —
+            // matching neither [MG_SERIAL_PREFIX] nor [FIVE_ZERO_HARDWARE_ID_TOKEN], so every heuristic
+            // below returned UNKNOWN for a strap whose own model number said MG outright (#520).
+            //
+            // Only MG is claimed here. No 5.0 has been observed reporting its model number, so inventing a
+            // token for one would be the guess this function already refuses to make elsewhere.
+            if ((modelNumber ?: "").trim().uppercase() == MODEL_NUMBER_MG) return MG
             val hw = (hardwareRevision ?: "").uppercase()
             var s = (serial ?: "").uppercase().trim()
             if (s.startsWith("WHOOP ")) s = s.removePrefix("WHOOP ")

@@ -63,7 +63,25 @@ public enum Whoop5Variant: String, Sendable, CaseIterable {
     ///  2. Hardware revision carrying the known 5.0 token → `.fiveZero` (device-attested).
     ///  3. Serial prefix → `.mg` / `.fiveZero`.
     ///  4. Anything else → `.unknown`. Never infer from a digit elsewhere in the name (#772).
-    public static func from(serial: String?, hardwareRevision: String? = nil) -> Whoop5Variant {
+    /// DIS 0x2A24 Model Number String, as a real WHOOP MG reports it. Read unbonded off the standard
+    /// profile, so it is available on a strap that never pairs — exactly the case the prefix heuristics
+    /// were failing on.
+    static let modelNumberMG = "MG"
+
+    public static func from(
+        serial: String?,
+        hardwareRevision: String? = nil,
+        modelNumber: String? = nil
+    ) -> Whoop5Variant {
+        // The strap SAYING what it is beats inferring it from a prefix. A field capture showed serial
+        // prefix "MGB" with hardware revision "WS50_r03" — matching neither `mgSerialPrefix` nor
+        // `fiveZeroHardwareIdToken` — on a strap whose own model number said MG outright (#520).
+        //
+        // Only MG is claimed. No 5.0 has been observed reporting its model number, so inventing a token
+        // for one would be the guess this function already refuses to make elsewhere.
+        if (modelNumber ?? "").trimmingCharacters(in: .whitespacesAndNewlines).uppercased() == modelNumberMG {
+            return .mg
+        }
         let hw = (hardwareRevision ?? "").uppercased()
         var s = (serial ?? "").uppercased().trimmingCharacters(in: .whitespacesAndNewlines)
         if s.hasPrefix("WHOOP ") { s = String(s.dropFirst("WHOOP ".count)) }

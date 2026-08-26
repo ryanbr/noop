@@ -51,4 +51,31 @@ final class Whoop5VariantTests: XCTestCase {
         XCTAssertEqual(Whoop5Variant.fiveZero.label, "5.0")
         XCTAssertEqual(Whoop5Variant.unknown.label, "—")
     }
+
+    /// The field capture that exposed the gap: serial prefix "MGB", hardware revision "WS50_r03" — neither
+    /// matches `mgSerialPrefix` ("5AM") nor `fiveZeroHardwareIdToken` ("WG50"), so every heuristic returned
+    /// unknown for a strap whose own model number said MG.
+    func testRealMGResolvesFromItsModelNumberWhenPrefixesDoNot() {
+        XCTAssertEqual(Whoop5Variant.from(serial: "MGB0779473", hardwareRevision: "WS50_r03"), .unknown)
+        XCTAssertEqual(
+            Whoop5Variant.from(serial: "MGB0779473", hardwareRevision: "WS50_r03", modelNumber: "MG"), .mg)
+    }
+
+    func testModelNumberIsTrimmedAndCaseInsensitive() {
+        XCTAssertEqual(Whoop5Variant.from(serial: nil, modelNumber: "  mg  "), .mg)
+    }
+
+    /// Only MG is claimed. No 5.0 has been observed reporting a model number, so an unrecognised one must
+    /// fall through to the existing heuristics rather than inventing a verdict.
+    func testAnUnknownModelNumberDoesNotOverrideTheHeuristics() {
+        XCTAssertEqual(Whoop5Variant.from(serial: "5AG12345678", modelNumber: "WHOOP5"), .fiveZero)
+        XCTAssertEqual(Whoop5Variant.from(serial: nil, modelNumber: "WHOOP5"), .unknown)
+    }
+
+    /// The model number outranks the contradiction guard: two heuristics disagreeing is a reason not to
+    /// guess, but it is not a reason to ignore the strap stating its own model.
+    func testModelNumberBeatsTheContradictionGuard() {
+        XCTAssertEqual(
+            Whoop5Variant.from(serial: "5AM12345678", hardwareRevision: "WG50_r52", modelNumber: "MG"), .mg)
+    }
 }
