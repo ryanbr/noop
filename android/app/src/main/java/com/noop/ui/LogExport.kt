@@ -157,7 +157,9 @@ object LogExport {
             // present when a 5/MG owner has the opt-in capture on and a history sync has run.
             val main = File(context.filesDir, com.noop.ble.WhoopBleClient.WHOOP5_CAPTURE_FILE)
             val prev = File(context.filesDir, "${com.noop.ble.WhoopBleClient.WHOOP5_CAPTURE_FILE}.1")
-            if (main.exists() || prev.exists()) {
+            // Same rule as the interactive share: content, not existence. An empty capture file would
+            // otherwise put a zero-byte `.bin` into every scheduled drop, forever.
+            if (captureHasFrames(main.length(), prev.length())) {
                 val rawFile = File(dir, rawCaptureFilename(nowMs))
                 rawFile.outputStream().bufferedWriter().use { w ->
                     for (f in listOf(prev, main)) if (f.exists()) f.bufferedReader().use { r -> r.copyTo(w) }
@@ -281,7 +283,16 @@ object LogExport {
     private fun writeCaptureFile(context: Context): File? {
         val main = File(context.filesDir, com.noop.ble.WhoopBleClient.WHOOP5_CAPTURE_FILE)
         val prev = File(context.filesDir, "${com.noop.ble.WhoopBleClient.WHOOP5_CAPTURE_FILE}.1")
-        if (!main.exists() && !prev.exists()) return null
+        // An EMPTY capture is no capture. This used to gate on the files EXISTING, and existence is not
+        // evidence that anything was recorded: `startWhoop5BackfillCapture` opens in append mode, which
+        // CREATES the file the moment capture starts. A strap that never completes its handshake then
+        // produces a zero-byte capture that still exists — and the share emitted a 282-byte header with
+        // no frames under it, reporting success for a night that recorded nothing.
+        //
+        // Returning null here routes those to `noCaptureMsg`, which already knows how to explain the
+        // common cause: without the encrypted bond the puffin notify chars are never subscribed, so no
+        // frames can reach the writer at all.
+        if (captureHasFrames(main.length(), prev.length()).not()) return null
         val header = buildString {
             appendLine("# NOOP 5/MG raw backfill capture (JSONL; one frame per line)")
             appendLine("# App: ${BuildConfig.VERSION_NAME} (${BuildConfig.TIER}) · Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT}) · ${Build.MANUFACTURER} ${Build.MODEL}")
@@ -330,7 +341,9 @@ object LogExport {
     private fun writeCaptureLogFile(context: Context): File? {
         val main = File(context.filesDir, com.noop.ble.WhoopBleClient.CAPTURE_LOG_FILE)
         val prev = File(context.filesDir, "${com.noop.ble.WhoopBleClient.CAPTURE_LOG_FILE}.1")
-        if (!main.exists() && !prev.exists()) return null
+        // Content, not existence — the same flaw the raw capture had. This writer opens on demand too,
+        // so a toggle switched on with nothing yet logged would share a header and no log under it.
+        if (captureHasFrames(main.length(), prev.length()).not()) return null
         val header = buildString {
             appendLine("# NOOP detailed capture — rolling strap log (PII-scrubbed at source)")
             appendLine("# App: ${BuildConfig.VERSION_NAME} (${BuildConfig.TIER}) · Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT}) · ${Build.MANUFACTURER} ${Build.MODEL}")
@@ -380,6 +393,15 @@ object LogExport {
         encryptedBond = encryptedBond,
         sharingLog = sharingLog,
     )
+
+    /**
+     * Whether the on-disk capture holds any frames at all.
+     *
+     * `File.length()` is 0 for a file that does not exist, so this subsumes the old existence check and
+     * additionally rejects a file that was opened and never written. Pure so the rule is assertable
+     * without touching the filesystem.
+     */
+    internal fun captureHasFrames(mainBytes: Long, prevBytes: Long): Boolean = mainBytes + prevBytes > 0L
 
     /**
      * The no-capture copy, as a pure function of what we know.
