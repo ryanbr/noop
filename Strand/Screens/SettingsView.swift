@@ -1473,8 +1473,14 @@ struct SettingsView: View {
     private var strapStatusDetail: String {
         // encryptedBond, not bonded — see LiveState.connectionStatusLabel. Saying "is paired" for a
         // live-HR-only link contradicts both LiveView's pill and the buzz/alarm rows on this same screen,
-        // which correctly refuse and explain that they need the full encrypted bond. A live-HR link falls
-        // through to the pairing hint below, which describes the real state.
+        // which correctly refuse and explain that they need the full encrypted bond.
+        //
+        // A live-HR link falls through to the pairing hint when one is set, and otherwise to "Finishing
+        // the secure pairing handshake…", which is accurate HERE because this platform still retries the
+        // CLIENT_HELLO on every connect. Android has an explicit "streaming but not fully paired" arm
+        // instead, because #1635 suppression stops it retrying and nothing is finishing any more. If that
+        // suppression is ported here, this branch must gain the same arm or it starts describing a
+        // handshake that is no longer being attempted.
         if live.encryptedBond && live.connected {
             return String(localized: "Your strap is paired and sending data. Open Live for a real-time heart rate.")
         }
