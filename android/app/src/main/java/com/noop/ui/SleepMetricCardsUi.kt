@@ -499,6 +499,8 @@ internal fun AsleepDurationHostCard(hours: List<Double>, dates: List<String>) {
                         color = Palette.restColor,
                         selectionEnabled = true,
                         selectionLabels = dates.map(::shortDayLabel),
+                        // #1662: hours with one decimal and the unit, matching the Avg/Min/Max row above.
+                        formatValue = { String.format(Locale.US, "%.1f h", it) },
                     )
                     DateAxisRow(dates)
                 }
@@ -545,6 +547,8 @@ internal fun DurationTrend(m: SleepModel) {
                         // #691: on tap, show the DATE alongside the value (the shared chart's tooltip),
                         // matching the other trend graphs. trendDates is index-aligned with the values.
                         selectionLabels = m.trendDates.map(::shortDayLabel),
+                        // #1662: same hours format as the Avg/Min/Max row above.
+                        formatValue = { String.format(Locale.US, "%.1f h", it) },
                     )
                     DateAxisRow(m.trendDates)
                 }
@@ -579,6 +583,10 @@ internal fun DurationTrend(m: SleepModel) {
                         color = Palette.metricRose,
                         selectionEnabled = true,
                         selectionLabels = m.trendDates.map(::shortDayLabel),   // #691: hover shows date + value
+                        // #1662: debt is shown as a DURATION ("7h 20m") in the card's trailing value and
+                        // its Avg/Max row, so a bare "7.3" on tap was a different unit, not just a
+                        // different precision.
+                        formatValue = { durationText(it * 60.0) },
                     )
                     DateAxisRow(m.trendDates)
                 }

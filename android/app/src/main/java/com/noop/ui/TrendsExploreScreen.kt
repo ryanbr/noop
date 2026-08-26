@@ -667,6 +667,13 @@ private fun HeroChartCard(
                                 fill = true,
                                 selectionEnabled = true,
                                 selectionLabels = windowed.map { prettyExploreDate(it.day) },
+                                // #1662, and here it was worse than a decimal: `values` are the RAW
+                                // stored numbers, and `MetricSpec.format` is what rescales Effort to the
+                                // WHOOP 0–21 axis. The Y labels and the hero went through it; the scrub
+                                // read-out did not — so on that scale the axis said 12.4 and tapping the
+                                // same point said 59. Routing the label through the same formatter makes
+                                // the chart agree with itself.
+                                formatValue = metric::format,
                             )
                             ExploreGlowEndCap(values = values, tipColor = metric.accent)
                         }

@@ -111,6 +111,9 @@ internal fun SleepMetricDetailSheetContent(vm: AppViewModel, key: String) {
                     fill = true,
                     selectionEnabled = true,
                     selectionLabels = filteredPoints.map { shortDayLabel(it.first) },   // #691: hover shows date + value
+                    // #1662: the same `spec.format` + unit the max/avg/min column to the left renders,
+                    // so the tapped point and the column beside it read identically.
+                    formatValue = { "${spec.format(it)} ${spec.unit}".trim() },
                 )
             }
             Row(modifier = Modifier.fillMaxWidth()) {

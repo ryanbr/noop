@@ -2072,6 +2072,11 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
                     // two are equal in length by construction rather than by luck — `LineChart` drops
                     // mismatched labels SILENTLY, which is a failure that looks exactly like doing nothing.
                     selectionLabels = dayLabels,
+                    // #1662: the metric's OWN formatter AND unit — byte-for-byte what the Min/Avg/Max
+                    // row below renders. Without it the scrub read-out falls back to LineChart's
+                    // default, which prints a decimal for any non-integer, so a rounded metric answered
+                    // "72.4" on tap with "72 ms" written directly underneath.
+                    formatValue = { "${detail.format(it)} ${detail.unit}".trim() },
                     segmentIds = if (key == "vo2max_est") vo2MaxTrendSegmentIds(filteredReadings) else null,
                 )
                 Box(

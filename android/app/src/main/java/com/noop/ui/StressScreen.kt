@@ -1064,6 +1064,10 @@ private fun StressTrendSection(model: StressModel, modifier: Modifier = Modifier
                         // trend that opted into selection and then had nothing to say but the number.
                         // Both lists map from the one windowed `points`, so they cannot desynchronise.
                         selectionLabels = dayLabels,
+                        // #1662: one decimal, matching the Today/Avg/Peak footer below. The default
+                        // formatter collapses a value within 0.05 of an integer, so a 2.0 stress day
+                        // scrubbed as "2" beside a footer reading "2.0".
+                        formatValue = { String.format(Locale.US, "%.1f", it) },
                     )
                     HorizontalDivider(color = Palette.hairline)
                     Row(modifier = Modifier.fillMaxWidth()) {
