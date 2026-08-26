@@ -2915,6 +2915,9 @@ class WhoopBleClient(
     @SuppressLint("MissingPermission")
     fun connect(model: WhoopModel = WhoopModel.WHOOP4) {
         intentionalDisconnect = false
+        // #1635: an explicit Connect is the user saying "try the handshake again" — the documented way out
+        // of hello suppression, and the reason suppression is never a permanent verdict.
+        helloRetryRequested = true
         // PR #588: an explicit user-driven Connect is never an out-of-range retry — clear the involuntary-
         // reconnect streak so this scan (and any reconnects it spawns) starts back at the snappy
         // LOW_LATENCY scan mode + the 3s backoff base, never inheriting a backed-off lower-power scan.
@@ -4621,6 +4624,13 @@ class WhoopBleClient(
      *  against the teardown it is about to perform. None of the five is on a per-record path. */
     private fun noteLocalTeardown(origin: String) { lastLocalTeardown = origin }
 
+    /** Set by an explicit user Connect so the NEXT 5/MG session re-attempts a suppressed CLIENT_HELLO
+     *  (#1635). Consumed on use, so it grants exactly one retry: someone who put the strap in pairing mode
+     *  gets a fresh attempt, and a strap that still will not answer latches straight back off instead of
+     *  resuming the five-second loop the suppression exists to end. */
+    @Volatile
+    private var helloRetryRequested = false
+
     /** Consecutive involuntary reconnect attempts, feeding the capped-exponential [ReconnectBackoff]
      *  (3, 6, 12, 24, 48, 60s…). Replaces the old fixed [RECONNECT_DELAY_MS] rescan loop so a strap
      *  that's genuinely out of range stops hammering BLE — the Android twin of the iOS
@@ -4959,20 +4969,34 @@ class WhoopBleClient(
         // a strap that can't bond, write the one-line epitaph (opaque hashed id only, no PII), and surface
         // the honest paused hint. A genuine bond or a manual reconnect re-arms it.
         if (bondGiveUp.recordRefusal()) {
-            autoReconnectPausedForBondLoop = true
-            bondLoopPausedAtMs = System.currentTimeMillis()   // starts the #78 hole-4 salvage-probe floor
+            // #1635: an unanswered handshake and an auth refusal want opposite treatment — see
+            // [giveUpSuppressesHello]. Suppressing keeps a link that is streaming live HR; pausing is for a
+            // strap that actively declined and cannot be helped by reconnecting.
+            val opaque = BondRefusalGiveUp.opaqueId(failedAddress ?: "device")
+            val suppress = giveUpSuppressesHello(authRefusal)
+            if (suppress) {
+                runCatching { com.noop.ui.NoopPrefs.setHelloSuppressed(context, failedAddress, true) }
+                log(BondRefusalGiveUp.helloSuppressedEpitaph(bondGiveUp.refusals, opaque))
+            } else {
+                autoReconnectPausedForBondLoop = true
+                bondLoopPausedAtMs = System.currentTimeMillis()   // #78 hole-4 salvage-probe floor starts here
                 // #1539: park the connect in the same breath as the pause, so this can end while backgrounded.
                 standingConnectWhilePausedIfDue(justTripped = true)
-            val opaque = BondRefusalGiveUp.opaqueId(failedAddress ?: "device")
-            log(BondRefusalGiveUp.epitaphLine(bondGiveUp.refusals, opaque))
-            // An auth refusal supports naming a cause; an unanswered handshake does not, so it gets the
-            // hint that describes what was seen instead of asserting why (#1635).
+                log(BondRefusalGiveUp.epitaphLine(bondGiveUp.refusals, opaque))
+            }
+            // Each branch gets the hint that matches what it actually DID. The paused hints say
+            // "auto-reconnect is paused"; on the suppression branch nothing is paused, so saying so would be
+            // the same confidently-wrong diagnostic this issue has produced twice already (#1635).
             _state.update {
-                it.copy(pairingHint = if (authRefusal) BondRefusalGiveUp.pausedHint()
-                        else BondRefusalGiveUp.pausedHintHandshakeUnanswered())
+                it.copy(pairingHint = when {
+                    suppress -> BondRefusalGiveUp.helloSuppressedHint()
+                    authRefusal -> BondRefusalGiveUp.pausedHint()
+                    else -> BondRefusalGiveUp.pausedHintHandshakeUnanswered()
+                })
             }
             if (testCentre.active(com.noop.testcentre.TestDomain.CONNECTION)) {
-                log("bond gaveUp refusals=${bondGiveUp.refusals} id=$opaque (auto-reconnect paused)",
+                log("bond gaveUp refusals=${bondGiveUp.refusals} id=$opaque " +
+                    if (suppress) "(hello suppressed, staying connected)" else "(auto-reconnect paused)",
                     com.noop.testcentre.TestDomain.CONNECTION)
             }
         }
@@ -4982,6 +5006,9 @@ class WhoopBleClient(
      *  the mirrored [statusNote] only when it still carries the hint, so we never wipe an unrelated note. */
     private fun clearPairingHint() {
         bondRefusalStreak = 0
+        // #1635: a genuine bond proves the handshake works on this strap — drop the suppression latch so a
+        // later transient failure starts from a clean slate rather than inheriting an old verdict.
+        runCatching { com.noop.ui.NoopPrefs.setHelloSuppressed(context, lastDeviceAddress, false) }
         // #747/#750: a genuine bond or a fresh user connect re-arms auto-reconnect and clears the give-up.
         bondGiveUp.reset()
         // #971: a genuine bond or a fresh user connect also clears the bond-watchdog bounce streak, so the
@@ -7226,7 +7253,31 @@ class WhoopBleClient(
         }
         when (connectedFamily) {
             DeviceFamily.WHOOP4 -> writeBondFrame(g, cmd)
-            DeviceFamily.WHOOP5 -> writeClientHello(g, cmd)
+            DeviceFamily.WHOOP5 -> {
+                // #1635: the hello is what ends the link on a strap that never answers it. Once the
+                // give-up has latched, skip it and let the standard-profile HR stream keep running.
+                //
+                // Consumed unconditionally, so the single retry an explicit Connect grants belongs to THIS
+                // session. Leaving it set would hand a stale retry to some later automatic reconnect and
+                // restart the loop the suppression exists to end.
+                val userAsked = helloRetryRequested
+                helloRetryRequested = false
+                val suppressed = runCatching {
+                    com.noop.ui.NoopPrefs.helloSuppressed(context, g.device.address)
+                }.getOrDefault(false)
+                if (shouldSendClientHello(suppressed, userInitiated = userAsked)) {
+                    writeClientHello(g, cmd)
+                } else {
+                    // The watchdog was armed at discovery, before this decision could be made, and it
+                    // bounces the link whenever didBond is still false. Suppressing the hello guarantees
+                    // didBond stays false, so leaving it armed would just move the drop from ~4.8s out to
+                    // the 7s window — the same loop, slower. There is no handshake left to time out.
+                    cancelBondWatchdog()
+                    log("WHOOP 5/MG: CLIENT_HELLO suppressed for this strap — it was never acknowledged and" +
+                        " the write is what drops the link. Staying on live HR (not fully paired); press" +
+                        " Connect to try the handshake again (#1635).")
+                }
+            }
         }
     }
 
