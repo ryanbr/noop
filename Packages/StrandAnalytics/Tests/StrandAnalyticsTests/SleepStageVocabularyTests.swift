@@ -57,6 +57,36 @@ final class SleepStageVocabularyTests: XCTestCase {
         XCTAssertEqual(wake, 900)
     }
 
+    /// `canonicalStage` folds BOTH wake spellings onto the segment vocabulary's `"wake"`, and only
+    /// tidies (trims, lowercases) everything else. Swift-only cases below this line: the Kotlin twin of
+    /// this rule is the UI's `canonicalStage`, which folds the same alias set toward `"awake"` because
+    /// its consumers key the minutes/colour vocabulary — same rule, that vocabulary's spelling.
+    func testCanonicalStageFoldsWakeSpellings() {
+        XCTAssertEqual(SleepStageVocabulary.canonicalStage("wake"), "wake")
+        XCTAssertEqual(SleepStageVocabulary.canonicalStage("awake"), "wake")
+        XCTAssertEqual(SleepStageVocabulary.canonicalStage("  AWAKE\t"), "wake")
+        XCTAssertEqual(SleepStageVocabulary.canonicalStage("Wake"), "wake")
+    }
+
+    /// Non-wake labels are tidied, not renamed — the canonicaliser must not invent vocabulary.
+    func testCanonicalStagePassesOtherLabelsThroughTidied() {
+        XCTAssertEqual(SleepStageVocabulary.canonicalStage("deep"), "deep")
+        XCTAssertEqual(SleepStageVocabulary.canonicalStage("  Light "), "light")
+        XCTAssertEqual(SleepStageVocabulary.canonicalStage("REM"), "rem")
+        XCTAssertEqual(SleepStageVocabulary.canonicalStage("restless"), "restless")
+        XCTAssertEqual(SleepStageVocabulary.canonicalStage(""), "")
+    }
+
+    /// The two APIs must never disagree about what wake is: for every label, folding to "wake" and
+    /// satisfying the predicate are the same fact.
+    func testCanonicalStageAgreesWithIsWake() {
+        for label in ["wake", "awake", "Awake", " WAKE ", "deep", "light", "rem", "restless", ""] {
+            XCTAssertEqual(SleepStageVocabulary.canonicalStage(label) == "wake",
+                           SleepStageVocabulary.isWake(label),
+                           "canonicalStage and isWake disagree on \(label)")
+        }
+    }
+
     /// INTEGRATION, not the predicate. The tests above pass whether or not the five call sites were
     /// actually changed — they exercise the rule, not its users. This one exercises a real caller, so
     /// it is the test that fails if a site is reverted.
