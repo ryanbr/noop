@@ -941,9 +941,11 @@ public final class BLEManager: NSObject, ObservableObject {
     private var dataNotifyCharacteristic: CBCharacteristic?
     private var heartRateCharacteristic: CBCharacteristic?
     private var batteryCharacteristic: CBCharacteristic?
-    /// #520 DIS: remembered at discovery, READ post-bond (see the #490 note — a 5/MG refuses standard
-    /// reads before the link is encrypted). Serial + hardware revision are immutable, so they are read
-    /// ONCE per connection (`disRead`), never re-polled like the battery.
+    /// #520 DIS: remembered at discovery, READ post-bond — and since #1635 also on a SUPPRESSED link that
+    /// will never bond, which is now a permanent state rather than a transient one. The #490 note (a 5/MG
+    /// refuses standard reads before the link is encrypted) is the open question that attempt settles
+    /// either way. Serial + hardware revision are immutable, so they are read ONCE per connection
+    /// (`disRead`), never re-polled like the battery.
     /// Peripheral whose GATT tree has already been dumped, so the ~30-line enumeration is emitted once per
     /// device rather than once per connect (#1635). Not persisted: a fresh launch is exactly when the tree
     /// is worth seeing again, and a strap whose firmware changed between runs may expose something new.
@@ -4401,7 +4403,11 @@ public final class BLEManager: NSObject, ObservableObject {
     }
 
     private func readDisIdentityUnbonded() {
-        guard let p = peripheral else { return }
+        // `peripheral` is only cleared by forgetDevice, so it OUTLIVES a disconnect - and this read is
+        // scheduled with a delay, on a strap whose entire failure mode is dropping the link. Without the
+        // connected check the reads would be issued into a dead link and the line below would claim an
+        // attempt that never happened, which is precisely what a diagnostic may not do.
+        guard state.connected, let p = peripheral else { return }
         let refused = disRefusedPrefKey(p.identifier.uuidString)
             .map { UserDefaults.standard.bool(forKey: $0) } ?? false
         guard shouldReadDisUnbonded(isWhoop5: selectedModel.deviceFamily == .whoop5,
@@ -5487,7 +5493,9 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
             case BLEManager.batteryService:
                 peripheral.discoverCharacteristics([BLEManager.batteryChar], for: s)
             case BLEManager.disService:
-                // #520: read-only identity strings. Discovered here, but READ post-bond (below).
+                // #520: read-only identity strings. Discovered here; READ post-bond, or on a suppressed
+                // link via `readDisIdentityUnbonded` (#1635) — a strap that never bonds has no other
+                // source for its firmware at all.
                 peripheral.discoverCharacteristics(
                     BLEManager.disChars.map { $0 }, for: s)
             case BLEManager.whoop5Service:
@@ -5599,10 +5607,11 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                 requestNotify(c, on: peripheral, reason: "discovery")
             case BLEManager.disSerialChar, BLEManager.disHwRevChar, BLEManager.disFwRevChar,
                  BLEManager.disManufacturerChar, BLEManager.disModelNumberChar, BLEManager.disSwRevChar:
-                // #520: CAPTURE ONLY — the read is issued post-bond (a 5/MG refuses standard reads on an
-                // unencrypted link, see #490). These are read-only identity strings: never subscribed
-                // (no notify property) and never written. Must be handled BEFORE `default`, or they'd be
-                // retained as puffin notify characteristics.
+                // #520: CAPTURE ONLY — the read is issued post-bond, and since #1635 ALSO on a suppressed
+                // link that will never bond (see `readDisIdentityUnbonded`; whether a 5/MG answers a
+                // standard read unencrypted is the open question #490 asks). These are read-only identity
+                // strings: never subscribed (no notify property) and never written. Must be handled BEFORE
+                // `default`, or they'd be retained as puffin notify characteristics.
                 if c.uuid == BLEManager.disSerialChar {
                     disSerialCharacteristic = c
                 } else if c.uuid != BLEManager.disHwRevChar {
