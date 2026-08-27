@@ -2450,5 +2450,5 @@
     <string name="l10n_settings_screen_check_automatically_7cd229d2">Verificar automaticamente</string>
     <string name="l10n_settings_screen_once_a_day_noop_asks_github_5683aad3">Uma vez por dia, o NOOP pergunta ao GitHub o número da versão mais recente e deixa uma nota em Atualizações se existir uma mais recente. Não é enviado nada sobre si e nunca instala nada.</string>
     <string name="l10n_updates_noop_1s_is_available_05d8ef55">O NOOP %1$s está disponível</string>
-    <string name="l10n_updates_youre_on_1s_open_settings_and_3a1318ae">Tem a versão %1$s. Abra as Definições e use Procurar atualizações para ver as novidades e transferir a %2$s.</string>
+    <string name="l10n_updates_youre_on_1s_open_settings_and_35b9e135">Tem a versão %1$s. Abra as Definições e use Procurar atualizações para ver as novidades e transferir a %2$s.</string>
 </resources>

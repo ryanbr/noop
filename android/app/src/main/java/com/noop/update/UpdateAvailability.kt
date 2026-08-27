@@ -182,7 +182,7 @@ object UpdateWatch {
                     com.noop.R.string.l10n_updates_noop_1s_is_available_05d8ef55, available.version),
                 message = UpdateAvailability.composeMessage(
                     body = context.getString(
-                        com.noop.R.string.l10n_updates_youre_on_1s_open_settings_and_3a1318ae,
+                        com.noop.R.string.l10n_updates_youre_on_1s_open_settings_and_35b9e135,
                         currentVersion, available.version),
                     sideload = null,
                     notes = available.notes,

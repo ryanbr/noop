@@ -2483,5 +2483,5 @@
     <string name="l10n_settings_screen_check_automatically_7cd229d2">Check automatically</string>
     <string name="l10n_settings_screen_once_a_day_noop_asks_github_5683aad3">Once a day, NOOP asks GitHub for the latest version number and puts a note in Updates if there’s a newer one. Nothing about you is sent, and it never installs anything.</string>
     <string name="l10n_updates_noop_1s_is_available_05d8ef55">NOOP %1$s is available</string>
-    <string name="l10n_updates_youre_on_1s_open_settings_and_3a1318ae">You’re on %1$s. Open Settings and use Check for updates to see what’s new and download %2$s.</string>
+    <string name="l10n_updates_youre_on_1s_open_settings_and_35b9e135">You\'re on %1$s. Open Settings and use Check for updates to see what\'s new and download %2$s.</string>
 </resources>

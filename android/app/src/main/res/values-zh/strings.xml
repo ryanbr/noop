@@ -2371,5 +2371,5 @@
     <string name="l10n_settings_screen_check_automatically_7cd229d2">自动检查</string>
     <string name="l10n_settings_screen_once_a_day_noop_asks_github_5683aad3">NOOP 每天向 GitHub 查询一次最新版本号，如果有更新版本，就在「更新」中留下提示。不会发送任何与你有关的信息，也绝不会安装任何东西。</string>
     <string name="l10n_updates_noop_1s_is_available_05d8ef55">NOOP %1$s 可用</string>
-    <string name="l10n_updates_youre_on_1s_open_settings_and_3a1318ae">你当前使用 %1$s。打开「设置」并使用「检查更新」查看新增内容并下载 %2$s。</string>
+    <string name="l10n_updates_youre_on_1s_open_settings_and_35b9e135">你当前使用 %1$s。打开「设置」并使用「检查更新」查看新增内容并下载 %2$s。</string>
 </resources>
