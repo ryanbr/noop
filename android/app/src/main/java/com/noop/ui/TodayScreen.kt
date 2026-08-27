@@ -1859,6 +1859,11 @@ private fun WorkoutInProgressCard(
     )
     val elapsed = elapsedClock(elapsedS)
     val sportLabel = workout.sport.name
+    // The card below sets ONE contentDescription on a merged node, which REPLACES its children's
+    // semantics — so the visible "Paused" tag would be invisible to TalkBack unless it is folded in
+    // here. A frozen clock the screen reader cannot explain is worse than a running one.
+    val pausedSuffix =
+        if (workout.pausedAtMs != null) ", " + uiString(R.string.workout_action_paused) else ""
 
     // liquidPress on the whole tappable "return to workout" card (same interactionSource on clickable + press).
     val interaction = remember { MutableInteractionSource() }
@@ -1871,7 +1876,7 @@ private fun WorkoutInProgressCard(
             .liquidPress(interaction)
             .clickable(interactionSource = interaction, indication = null, onClick = onReturn)
             .semantics(mergeDescendants = true) {
-                contentDescription = uiString(R.string.l10n_today_screen_workout_in_progress_sportlabel_elapsed_return_95ce4bda, sportLabel, elapsed)
+                contentDescription = uiString(R.string.l10n_today_screen_workout_in_progress_sportlabel_elapsed_return_95ce4bda, sportLabel, elapsed) + pausedSuffix
             },
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(Metrics.space12)) {

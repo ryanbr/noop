@@ -361,15 +361,14 @@ struct LiveView: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 8) {
                     Circle().fill(StrandPalette.metricRose).frame(width: 8, height: 8)
-                    Text("RECORDING WORKOUT").font(StrandFont.overline)
-                        .tracking(StrandFont.overlineTracking).foregroundStyle(StrandPalette.metricRose)
-                    // Reuses the "Paused" string #1533 already localized; a frozen clock with no tag is
-                    // indistinguishable from a stalled one.
-                    if w.isPaused {
-                        Text("Paused").font(StrandFont.overline)
-                            .tracking(StrandFont.overlineTracking)
-                            .foregroundStyle(StrandPalette.textSecondary)
-                    }
+                    // "RECORDING" is a factual claim, and while paused nothing IS being recorded — the
+                    // sample capture drops every reading. So the label swaps rather than gaining a tag
+                    // beside it, which would leave the card asserting both at once. Reuses the "Paused"
+                    // string #1533 already localized. (The Today card says "IN PROGRESS", which stays
+                    // true while paused, so it keeps its label and takes the tag instead.)
+                    Text(w.isPaused ? "Paused" : "RECORDING WORKOUT").font(StrandFont.overline)
+                        .tracking(StrandFont.overlineTracking)
+                        .foregroundStyle(w.isPaused ? StrandPalette.textSecondary : StrandPalette.metricRose)
                     Spacer()
                     // Re-render once a second so the elapsed clock ticks without a manual Timer.
                     TimelineView(.periodic(from: .now, by: 1)) { context in
