@@ -7636,7 +7636,12 @@ class WhoopBleClient(
                         onFailure = { log(explicitBondThrewLine(it.javaClass.simpleName, where)) },
                     )
                 }
-                if (explicitBondDefersHello(explicitBondRequestedThisLink)) {
+                // #1635: read once, before the deferral gate — the override has to reach BOTH, or a
+                // deferred hello returns early and the switch below is never evaluated at all.
+                val helloOverride = runCatching {
+                    PuffinExperiment.from(context).helloDespiteBondRefusal
+                }.getOrDefault(false)
+                if (explicitBondDefersHello(explicitBondRequestedThisLink, helloOverride = helloOverride)) {
                     // Same trap as the suppression path below, and worse here. The watchdog was armed at
                     // discovery and bounces the link whenever didBond is false — which deferring the hello
                     // guarantees. Tearing the link down while an OS pairing is in flight is the single
@@ -7660,13 +7665,6 @@ class WhoopBleClient(
                 helloRetryRequested = false
                 val suppressed = runCatching {
                     com.noop.ui.NoopPrefs.helloSuppressed(context, g.device.address)
-                }.getOrDefault(false)
-                // #1635: the opt-in override. An HCI capture shows the strap answers createBond with SMP
-                // "Pairing Not Supported", so the encrypted bond the hello waits behind cannot arrive —
-                // and with the hello suppressed the app attempts NEITHER handshake. Read fresh per connect,
-                // like the probes gate, so flipping it takes effect on the next connect without a restart.
-                val helloOverride = runCatching {
-                    PuffinExperiment.from(context).helloDespiteBondRefusal
                 }.getOrDefault(false)
                 if (shouldSendClientHello(suppressed, userInitiated = userAsked, overrideSuppression = helloOverride)) {
                     if (suppressed && helloOverride && !userAsked) {

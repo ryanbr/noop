@@ -78,4 +78,31 @@ class ExplicitBondTest {
         assertFalse(threw.contains("refused to START pairing"))
         assertFalse(refused.contains("local problem"))
     }
+
+    // #1635: the deferral is permanent unless the override breaks it
+
+    /**
+     * The capture that forced this. "Leave the hello for the next connect" assumed the pairing might
+     * succeed; a 5/MG answers every Pairing Request with `Pairing Not Supported`, and the next connect
+     * requests a bond and defers again. Two full btsnoop captures contain zero hello writes as a result.
+     */
+    @Test
+    fun `without the override a requested bond defers the hello forever`() {
+        assertTrue(explicitBondDefersHello(requestedThisLink = true))
+        assertTrue(explicitBondDefersHello(requestedThisLink = true, helloOverride = false))
+    }
+
+    /** The override breaks the cycle — otherwise the switch is a no-op for everyone running the
+     *  pairing experiment, which is exactly who would turn it on. */
+    @Test
+    fun `the override lets the hello through despite a requested bond`() {
+        assertFalse(explicitBondDefersHello(requestedThisLink = true, helloOverride = true))
+    }
+
+    /** No bond requested means nothing to defer, override or not. */
+    @Test
+    fun `no bond request never defers`() {
+        assertFalse(explicitBondDefersHello(requestedThisLink = false))
+        assertFalse(explicitBondDefersHello(requestedThisLink = false, helloOverride = true))
+    }
 }

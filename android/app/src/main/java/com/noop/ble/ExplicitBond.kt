@@ -57,8 +57,22 @@ internal fun shouldRequestExplicitBond(
  * The hello is left for the NEXT connection. If the pairing succeeds the strap is OS-bonded by then, the
  * link comes up already encrypted, and the write has a chance to complete for the first time. If it fails
  * the strap is no worse off than it is today, and the trace says which happened.
+ *
+ * That reasoning assumed the pairing might succeed. An HCI capture has since shown it cannot: a 5/MG
+ * answers every Pairing Request with SMP `Pairing Not Supported` (0x05). So "leave it for the next
+ * connect" never resolves — the next connect requests a bond too, and defers again. The deferral is
+ * permanent, which is why neither capture contains a single hello write.
+ *
+ * [helloOverride] breaks that cycle. The write-while-pairing hazard it guards against is real, but there
+ * is no pairing in flight to protect: the refusal arrives in milliseconds, long before the hello. Someone
+ * who has explicitly opted into "send hello despite bond refusal" is asking for exactly this write, and
+ * silently swallowing it because a doomed pairing was requested first would make that switch a no-op for
+ * everyone running the pairing experiment — which is precisely who would turn it on.
  */
-internal fun explicitBondDefersHello(requestedThisLink: Boolean): Boolean = requestedThisLink
+internal fun explicitBondDefersHello(
+    requestedThisLink: Boolean,
+    helloOverride: Boolean = false,
+): Boolean = requestedThisLink && !helloOverride
 
 /**
  * The outcome line when `createBond()` THREW rather than returning.
