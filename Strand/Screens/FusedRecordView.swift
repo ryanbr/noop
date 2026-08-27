@@ -202,6 +202,15 @@ private struct FusedMetricRowView: View {
     let showProvenance: Bool
     let onCompare: () -> Void
 
+    // Each screen resolves °C/°F for itself (TodayView, FullDayChartView, MetricExplorerView do the
+    // same); the fused row used to print a hardcoded "°C" and was the last reader here ignoring it.
+    @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
+    @AppStorage(UnitPrefs.temperatureKey) private var temperatureRaw = ""
+    private var temperatureUnit: TemperatureUnit {
+        UnitPrefs.resolveTemperature(system: UnitSystem(rawValue: unitSystemRaw) ?? .metric,
+                                     override: temperatureRaw)
+    }
+
     private var point: FusedMetricPoint { row.point }
 
     private var accent: Color {
@@ -217,7 +226,7 @@ private struct FusedMetricRowView: View {
                     .font(StrandFont.headline)
                     .foregroundStyle(StrandPalette.textPrimary)
                 Spacer(minLength: 8)
-                Text(FusionFormat.value(point.value, metricKey: point.metric))
+                Text(FusionFormat.value(point.value, metricKey: point.metric, temperature: temperatureUnit))
                     .font(StrandFont.number(20))
                     .foregroundStyle(accent)
                     .lineLimit(1)
@@ -268,7 +277,7 @@ private struct FusedMetricRowView: View {
 
         case .agree:
             if let other = point.contributors.dropFirst().first {
-                Text("\(other.source.displayName) agrees: \(FusionFormat.value(other.value, metricKey: point.metric))")
+                Text("\(other.source.displayName) agrees: \(FusionFormat.value(other.value, metricKey: point.metric, temperature: temperatureUnit))")
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textTertiary)
             }
@@ -277,7 +286,7 @@ private struct FusedMetricRowView: View {
             if let other = point.contributors.dropFirst().first {
                 HStack(spacing: 6) {
                     StatePill("Differs slightly", tone: .neutral, showsDot: false)
-                    Text("\(other.source.displayName): \(FusionFormat.value(other.value, metricKey: point.metric))")
+                    Text("\(other.source.displayName): \(FusionFormat.value(other.value, metricKey: point.metric, temperature: temperatureUnit))")
                         .font(StrandFont.footnote)
                         .foregroundStyle(StrandPalette.textSecondary)
                     Spacer(minLength: 0)
@@ -306,7 +315,7 @@ private struct FusedMetricRowView: View {
     /// "Apple Health says 6h 40m. Tap to compare" style line for a conflict.
     private var conflictSummary: String {
         guard let other = point.contributors.dropFirst().first else { return String(localized: "Tap to compare") }
-        return String(localized: "\(other.source.displayName) says \(FusionFormat.value(other.value, metricKey: point.metric)). Tap to compare")
+        return String(localized: "\(other.source.displayName) says \(FusionFormat.value(other.value, metricKey: point.metric, temperature: temperatureUnit)). Tap to compare")
     }
 }
 
@@ -369,6 +378,15 @@ private struct ContributorRow: View {
     let metricKey: String
     let isWinner: Bool
 
+    // Each screen resolves °C/°F for itself (TodayView, FullDayChartView, MetricExplorerView do the
+    // same); the fused row used to print a hardcoded "°C" and was the last reader here ignoring it.
+    @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
+    @AppStorage(UnitPrefs.temperatureKey) private var temperatureRaw = ""
+    private var temperatureUnit: TemperatureUnit {
+        UnitPrefs.resolveTemperature(system: UnitSystem(rawValue: unitSystemRaw) ?? .metric,
+                                     override: temperatureRaw)
+    }
+
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
@@ -384,7 +402,7 @@ private struct ContributorRow: View {
                     .foregroundStyle(StrandPalette.textTertiary)
             }
             Spacer(minLength: 8)
-            Text(FusionFormat.value(contrib.value, metricKey: metricKey))
+            Text(FusionFormat.value(contrib.value, metricKey: metricKey, temperature: temperatureUnit))
                 .font(StrandFont.number(18))
                 .foregroundStyle(isWinner ? StrandPalette.textPrimary : StrandPalette.textSecondary)
                 .lineLimit(1)
@@ -394,8 +412,8 @@ private struct ContributorRow: View {
         .accessibilityElement(children: .combine)
         // Whole-string key per variant (never a concatenated localized tail on an a11y label).
         .accessibilityLabel(isWinner
-            ? "\(contrib.source.displayName), \(FusionFormat.value(contrib.value, metricKey: metricKey)), in use"
-            : "\(contrib.source.displayName), \(FusionFormat.value(contrib.value, metricKey: metricKey))")
+            ? "\(contrib.source.displayName), \(FusionFormat.value(contrib.value, metricKey: metricKey, temperature: temperatureUnit)), in use"
+            : "\(contrib.source.displayName), \(FusionFormat.value(contrib.value, metricKey: metricKey, temperature: temperatureUnit))")
     }
 }
 
@@ -403,9 +421,10 @@ private struct ContributorRow: View {
 
 /// Formats a fused metric's `Double` value for display by its resolver key. Pure + local to this
 /// screen: the engine deals in numbers, the UI owns units. Sleep/duration keys read as "7h 12m";
-/// temp as "34.1°C"; HR/HRV/steps as plain integers with the right unit.
+/// temp as "34.1 °C" / "93.4 °F" per the reader's preference; HR/HRV/steps as plain
+/// integers with the right unit.
 enum FusionFormat {
-    static func value(_ v: Double, metricKey: String) -> String {
+    static func value(_ v: Double, metricKey: String, temperature: TemperatureUnit) -> String {
         switch MetricArbitrationPolicy.kind(forKey: metricKey) {
         case .restingHR, .heartRate:
             return "\(Int(v.rounded())) bpm"
@@ -414,7 +433,12 @@ enum FusionFormat {
         case .spo2:
             return "\(Int(v.rounded()))%"
         case .skinTemp:
-            return String(format: "%.1f°C", v)
+            // #111/#622: this column is BIMODAL — CSV/Health imports carry an ABSOLUTE wrist °C (~30-35),
+            // the live BLE pipeline a signed DEVIATION from baseline. Fusion is the one screen that can
+            // show both at once, side by side, so the conversion cannot be assumed: +32 belongs only to
+            // the absolute reading, and applying it to a −4.2 deviation is what once printed "24.4 °F".
+            // SkinTempDisplay picks the conversion AND the chip ("°F" vs "Δ°F") from the value itself.
+            return SkinTempDisplay.format(v, fahrenheit: temperature == .fahrenheit)
         case .steps:
             return integerGrouped(v)
         case .sleep:

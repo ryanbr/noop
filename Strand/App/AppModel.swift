@@ -1671,6 +1671,17 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// The reader's temperature unit, resolved the way every screen resolves it. AppModel is not a View,
+    /// so there is no @AppStorage — but the resolution must stay identical (explicit override when set,
+    /// else derived from the unit system), or the alert banner and the Skin Temp card disagree about
+    /// what unit the same number is in.
+    private var displayTemperatureUnit: TemperatureUnit {
+        let d = UserDefaults.standard
+        let system = UnitSystem(rawValue: d.string(forKey: UnitPrefs.systemKey) ?? "") ?? .metric
+        return UnitPrefs.resolveTemperature(system: system,
+                                            override: d.string(forKey: UnitPrefs.temperatureKey) ?? "")
+    }
+
     /// Run the `IllnessSignalEngine` from the day history + the journal-derived confounder context, then
     /// publish the result + the semantic `healthAlert` banner payload.
     private func applyIllnessSignal(_ days: [DailyMetric], alcohol: Bool,
@@ -1741,8 +1752,29 @@ final class AppModel: ObservableObject {
             labels["hrv"] = String(localized: "HRV −\(percent)%")
         }
         if let r = rm({ $0.skinTempDevC }), r > 0 {
-            let temperature = String(format: "%.1f", locale: AppLanguage.activeLocale, r)
-            labels["skinTemp"] = String(localized: "Skin temperature +\(temperature) °C")
+            // The value is STORED in °C but must be SHOWN in the reader's unit: this label welded "°C"
+            // into the translated string, so a Fahrenheit user got "+0.7 °C" from the banner while every
+            // other surface rendered the same night as "+1.3 Δ°F".
+            //
+            // #111/#622: skinTempDevC is BIMODAL — an imported night is an ABSOLUTE wrist °C, a live one
+            // a signed DEVIATION — so neither the conversion nor the unit chip may be assumed. Kind and
+            // chip come from SkinTempDisplay, the same authority the Today and Health tiles use. The
+            // NUMBER is formatted here rather than by SkinTempDisplay because these decimals go through
+            // AppLanguage.activeLocale: a German reader sees "0,7", which the package's plain
+            // String(format:) would flatten to "0.7".
+            let f = displayTemperatureUnit == .fahrenheit
+            let kind = SkinTempDisplay.kind(of: r)
+            let shown: Double
+            if f {
+                shown = kind == .absolute ? UnitFormatter.celsiusToFahrenheit(r)
+                                          : UnitFormatter.celsiusDeltaToFahrenheit(r)
+            } else {
+                shown = r
+            }
+            let temperature = String(format: kind == .absolute ? "%.1f" : "%+.1f",
+                                     locale: AppLanguage.activeLocale, shown)
+                + " " + SkinTempDisplay.unitSymbol(kind: kind, fahrenheit: f)
+            labels["skinTemp"] = String(localized: "Skin temperature \(temperature)")
         }
         if let r = rm({ $0.respRateBpm }), let b = mean(base.compactMap { $0.respRateBpm }), r > b {
             labels["respiration"] = String(localized: "Respiration up")

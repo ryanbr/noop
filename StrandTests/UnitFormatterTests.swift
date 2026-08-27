@@ -118,6 +118,28 @@ final class UnitFormatterTests: XCTestCase {
         XCTAssertEqual(UnitFormatter.temperatureDeltaFromCelsius(0.6, unit: .celsius), "0.6 °C")
     }
 
+    /// The Double-returning delta converter and the String one must not drift: callers that need
+    /// locale-aware decimals (the illness-signal label formats through AppLanguage.activeLocale) use the
+    /// Double form, and a second copy of the 9/5 rule is exactly what that split invites.
+    func testDeltaConverterAgreesWithTheFormatter() {
+        XCTAssertEqual(UnitFormatter.celsiusDeltaToFahrenheit(0.6), 1.08, accuracy: 1e-9)
+        XCTAssertEqual(UnitFormatter.celsiusDeltaToFahrenheit(-4.2), -7.56, accuracy: 1e-9)
+        XCTAssertEqual(UnitFormatter.celsiusDeltaToFahrenheit(0), 0, accuracy: 1e-9)
+        for c in stride(from: -5.0, through: 5.0, by: 0.25) {
+            XCTAssertEqual(
+                String(format: "%.1f", UnitFormatter.celsiusDeltaToFahrenheit(c)) + " °F",
+                UnitFormatter.temperatureDeltaFromCelsius(c, unit: .fahrenheit),
+                "diverged at \(c) °C")
+        }
+    }
+
+    /// A delta must never pick up the +32: at 0 the two conversions differ by exactly the offset, which
+    /// is what made a −4.2 °C deviation read as a fever once before (#111/#622).
+    func testDeltaAndAbsoluteConversionsAreDistinct() {
+        XCTAssertEqual(UnitFormatter.celsiusToFahrenheit(0), 32.0, accuracy: 1e-9)
+        XCTAssertEqual(UnitFormatter.celsiusDeltaToFahrenheit(0), 0.0, accuracy: 1e-9)
+    }
+
     // #111/#622: skin_temp holds EITHER a signed deviation (v < 20 °C) or an absolute reading (v >= 20 °C).
     // A DEVIATION converts ×9/5 with NO +32 (the absolute formula turned a −4.2 °C deviation into the
     // nonsense "24.4 °F") and is labelled as a signed baseline delta — "Δ°C" / "Δ°F", sign always shown —

@@ -252,12 +252,19 @@ enum UnitFormatter {
         }
     }
 
+    /// °C delta → °F delta: a DIFFERENCE scales by 9/5 with NO +32 offset (the offset cancels between
+    /// the two absolute temperatures a delta is made of). Exposed as a Double because callers that need
+    /// locale-aware decimals — the illness-signal label formats through `AppLanguage.activeLocale` so a
+    /// German reader sees "0,7" — have to do their own formatting and would otherwise inline the 9/5,
+    /// scattering the one rule that must not drift.
+    static func celsiusDeltaToFahrenheit(_ dc: Double) -> Double { dc * 9.0 / 5.0 }
+
     /// Format a temperature DEVIATION (a ±Δ°C, e.g. the skin-temp deviation pipeline). A delta scales by
     /// 9/5 but does NOT add the +32 offset — that would be wrong for a difference.
     static func temperatureDeltaFromCelsius(_ dc: Double, unit: TemperatureUnit, decimals: Int = 1) -> String {
         switch unit {
         case .celsius:    return decimalString(dc, decimals) + " °C"
-        case .fahrenheit: return decimalString(dc * 9.0 / 5.0, decimals) + " °F"
+        case .fahrenheit: return decimalString(celsiusDeltaToFahrenheit(dc), decimals) + " °F"
         }
     }
 
