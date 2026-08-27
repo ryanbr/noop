@@ -2368,8 +2368,15 @@ final class IntelligenceEngine: ObservableObject {
         // background wake from one that never could, instead of guessing from a constant — the cost varies
         // by more than an order of magnitude with history size.
         let elapsed = Date().timeIntervalSince(reScoreStart)
-        RescoreBackgroundScheduler.markRescoreCompleted(seconds: elapsed, owedToken: owedToken)
+        let settled = RescoreBackgroundScheduler.markRescoreCompleted(seconds: elapsed, owedToken: owedToken)
         diagnosticSink?("re-score: done — scored \(scoredNights.count) night(s) in \(Int(elapsed * 1000)) ms (#1005)", nil)
+        // #1681: a pass that completes while leaving the mark SET looks identical in a capture to one that
+        // cleared it. Rare-event evidence, so always-on: it costs a line only when it actually happens,
+        // and it is exactly what is missing when someone reports the app re-scoring on every launch.
+        if !settled {
+            diagnosticSink?("re-score: debt NOT settled — a newer re-score was recorded while this pass "
+                            + "was running, so the mark stays and another pass will run (#1681)", nil)
+        }
     }
 
     /// UserDefaults key for the #836 idle-tick gate: the `(count:maxTs)` HR fingerprint the last completed

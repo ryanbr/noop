@@ -90,13 +90,20 @@ enum RescoreBackgroundScheduler {
     /// [owedToken] is the token this pass received from its own `markRescoreOwed()`. The debt is settled
     /// only if it is still the current one — see `maySettleDebt`. The pass duration is recorded either
     /// way: it is telemetry about THIS pass, and true regardless of whose debt is now outstanding.
-    static func markRescoreCompleted(seconds: Double, owedToken: String?) {
-        if maySettleDebt(capturedToken: owedToken, currentToken: currentOwedToken) {
+    /// Returns whether the debt was actually settled, so the caller can SAY when it was not. Declining
+    /// is the interesting outcome and it must not be silent: #1538 cost three nights because the log
+    /// recorded that scoring had not happened without ever recording why, and a pass that completes
+    /// while leaving the mark set looks identical to one that cleared it unless something says so.
+    @discardableResult
+    static func markRescoreCompleted(seconds: Double, owedToken: String?) -> Bool {
+        let settled = maySettleDebt(capturedToken: owedToken, currentToken: currentOwedToken)
+        if settled {
             UserDefaults.standard.set(false, forKey: owedKey)
         }
         if seconds.isFinite, seconds > 0 {
             UserDefaults.standard.set(seconds, forKey: lastPassSecondsKey)
         }
+        return settled
     }
 
     /// Whether the app is somewhere a long pass might not survive. Always false on macOS — see the type doc.

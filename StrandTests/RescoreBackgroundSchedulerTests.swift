@@ -226,5 +226,20 @@ final class RescoreBackgroundSchedulerTests: XCTestCase {
         let seen = Set((0..<50).map { _ in RescoreBackgroundScheduler.markRescoreOwed() })
         XCTAssertEqual(seen.count, 50)
     }
+
+    // MARK: - the outcome has to be reportable
+
+    /// Declining is the interesting outcome, and the caller can only SAY so if it is told. #1538 cost
+    /// three nights because the log recorded that scoring had not happened without recording why; a pass
+    /// that completes while leaving the mark set looks identical in a capture to one that cleared it.
+    func testCompletionReportsWhetherItSettled() {
+        let mine = RescoreBackgroundScheduler.markRescoreOwed()
+        _ = RescoreBackgroundScheduler.markRescoreOwed()
+        XCTAssertFalse(RescoreBackgroundScheduler.markRescoreCompleted(seconds: 1, owedToken: mine),
+                       "a pass that could not settle must report that, or the log cannot explain itself")
+
+        let latest = RescoreBackgroundScheduler.markRescoreOwed()
+        XCTAssertTrue(RescoreBackgroundScheduler.markRescoreCompleted(seconds: 1, owedToken: latest))
+    }
 }
 
