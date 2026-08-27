@@ -139,4 +139,36 @@ final class HelloSuppressionTests: XCTestCase {
         XCTAssertFalse(e.contains("almost certainly"))
         XCTAssertFalse(e.contains("\u{2014}"))          // project rule: no em-dash in these lines
     }
+
+    // MARK: - the keep-alive gate
+
+    /// The defect this gate exists for: the timer used to require the genuine encrypted bond, which a
+    /// suppressed 5/MG never reaches — so the liveness watchdog was switched off for exactly the link the
+    /// suppression keeps up for hours, and a stalled stream would have had nothing to bounce it.
+    func testAStreamingSuppressedFiveMGReachesTheWatchdog() {
+        XCTAssertTrue(keepAliveMayRun(connected: true, didBond: false, bonded: true, family: .whoop5))
+    }
+
+    /// Before HR arrives there is nothing to watch, so starting the timer early at the suppression point
+    /// is harmless — the gate simply returns false until the stream marks the link established (#8).
+    func testItStaysShutUntilTheStreamActuallyStarts() {
+        XCTAssertFalse(keepAliveMayRun(connected: true, didBond: false, bonded: false, family: .whoop5))
+    }
+
+    /// Narrower than the Android twin on purpose: only a 5/MG is admitted unbonded. A 4.0 reaching here
+    /// without a bond would be a real fault, not a suppressed link, and must not be kept alive.
+    func testOnlyAFiveMGIsAdmittedWithoutABond() {
+        for family in DeviceFamily.allCases where family != .whoop5 {
+            XCTAssertFalse(keepAliveMayRun(connected: true, didBond: false, bonded: true, family: family),
+                           "\(family) must not run the keep-alive unbonded")
+        }
+    }
+
+    func testABondedLinkAlwaysRunsAndADroppedOneNever() {
+        for family in DeviceFamily.allCases {
+            XCTAssertTrue(keepAliveMayRun(connected: true, didBond: true, bonded: true, family: family))
+            XCTAssertFalse(keepAliveMayRun(connected: false, didBond: true, bonded: true, family: family))
+        }
+    }
 }
+

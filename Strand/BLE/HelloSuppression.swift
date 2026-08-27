@@ -105,3 +105,22 @@ enum HelloSuppressionStore {
         }
     }
 }
+
+/// May the keep-alive timer do its work on this link?
+///
+/// #1635: the timer used to gate on the genuine encrypted bond alone. A SUPPRESSED 5/MG never reaches
+/// one, so that gate switched the whole timer off for exactly the link the suppression keeps up for
+/// hours — taking the liveness watchdog with it and leaving a stalled stream with nothing to bounce it.
+/// The stable-live-HR promise would have quietly depended on a stream nothing was watching.
+///
+/// So a 5/MG that is STREAMING (`bonded` is the live-HR shortcut of #8/#69, set when HR actually arrives
+/// over the standard profile) is admitted too. Deliberately narrower than the Android twin, which admits
+/// any `bonded` link: here it is 5/MG only, and only as far as the watchdog — the caller re-guards on the
+/// real bond before anything puffin-framed, which an unbonded link cannot land anyway.
+///
+/// Pure so the rule is pinned without a radio.
+func keepAliveMayRun(connected: Bool, didBond: Bool, bonded: Bool, family: DeviceFamily) -> Bool {
+    guard connected else { return false }
+    if didBond { return true }
+    return bonded && family == .whoop5
+}

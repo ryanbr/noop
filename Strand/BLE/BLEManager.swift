@@ -4033,8 +4033,18 @@ public final class BLEManager: NSObject, ObservableObject {
     }
 
     private func keepAliveFire() {
-        guard state.connected, didBond else { return }
-        enableLiveNotifications(reason: "keepalive")
+        // #1635: a SUPPRESSED 5/MG never bonds, so a bare `didBond` gate switches this whole timer off for
+        // exactly the link that now stays up for hours - taking the liveness watchdog below with it and
+        // leaving a stalled stream with nothing to bounce it. That would quietly break the "stable live HR"
+        // the suppression exists to deliver. Android gates its twin on `bonded` (the live-HR shortcut, #69)
+        // and so reaches the same watchdog.
+        //
+        // Deliberately NARROWER than Android's gate: admitted only for a streaming 5/MG, and only as far as
+        // the watchdog. Everything past it needs the encrypted bond, so a second `didBond` guard closes the
+        // door again rather than letting an unbonded link issue puffin work that cannot land.
+        guard keepAliveMayRun(connected: state.connected, didBond: didBond,
+                              bonded: state.bonded, family: selectedModel.deviceFamily) else { return }
+        if didBond { enableLiveNotifications(reason: "keepalive") }
         // Liveness watchdog: if NOTHING has arrived for a while, the stream/link stalled.
         // Bounce the connection — the auto-rescan on disconnect re-bonds and resumes streaming.
         // #580 / #1414: the standard 0x2A37 HR profile keeps the link genuinely alive, but its packets can
@@ -4051,6 +4061,9 @@ public final class BLEManager: NSObject, ObservableObject {
             if let p = peripheral { central.cancelPeripheralConnection(p) }
             return
         }
+        // The watchdog above is the whole of the keep-alive an unbonded 5/MG can use. Everything below
+        // sends puffin-framed work that needs the encrypted bond.
+        guard didBond else { return }
         guard !backfilling else { return }            // never poke the strap mid-offload
         // #927: continuous capture can be overnight-only, which makes the want TIME-dependent; nothing
         // else re-evaluates it while the app just sits connected, so the keep-alive tick re-derives it.
@@ -5446,6 +5459,10 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                 if !shouldSendClientHello(suppressedForDevice: helloSuppressed, userInitiated: helloUserAsked) {
                     log("WHOOP 5/MG: CLIENT_HELLO suppressed for this strap - it was never acknowledged and the write is what drops the link. Staying on live HR (not fully paired); press Connect to try the handshake again (#1635).")
                     state.pairingHint = BondRefusalGiveUp.helloSuppressedHint()
+                    // Both other startKeepAlive() sites are post-bond, and this link will never bond - so
+                    // without this the liveness watchdog never runs on the one link that now stays up for
+                    // hours. Safe to start before HR arrives: keepAliveMayRun returns false until it does.
+                    startKeepAlive()
                 } else if let hello = selectedModel.deviceFamily.clientHello {
                     // CONTRIBUTOR FIX (issue #17 — diagnosed from the logs, unverified on hardware here):
                     // write CLIENT_HELLO with .withResponse so CoreBluetooth runs just-works bonding when
