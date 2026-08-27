@@ -165,7 +165,10 @@ fun LiveWorkoutScreen(vm: AppViewModel, onClose: () -> Unit) {
             ) {
                 Overline("Time", color = Palette.textSecondary)
                 Text(
-                    String.format("%d:%02d", elapsedS / 60, elapsedS % 60),
+                    // elapsedClock, not a local %d:%02d — that one had no hour roll-over, so this hero
+                    // read "90:00" for a 90-minute session while every card that opens this screen read
+                    // "1:30:00". The iOS twin had the identical local formatter and is fixed alongside.
+                    elapsedClock(elapsedS),
                     style = NoopType.number(56f), color = Palette.textPrimary,
                 )
             }

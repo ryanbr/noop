@@ -423,9 +423,12 @@ struct LiveWorkoutView: View {
 
     // MARK: - Helpers
 
+    /// Delegates to the shared clock. This carried its own `%d:%02d` with NO hour roll-over, so a
+    /// 90-minute session read "90:00" here while Android's live workout screen read "1:30:00" — and,
+    /// after the card fix, while the iOS card that opens THIS screen read "1:30:00" too. The math was
+    /// already pause-aware (`workout.elapsed()`); only the formatting was the odd one out.
     private static func elapsed(seconds: TimeInterval) -> String {
-        let s = max(0, Int(seconds))
-        return String(format: "%d:%02d", s / 60, s % 60)
+        ActiveWorkoutClock.clock(Int(seconds))
     }
 
     private static func zoneName(_ zone: Int) -> String {
