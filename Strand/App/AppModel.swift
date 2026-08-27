@@ -1762,18 +1762,10 @@ final class AppModel: ObservableObject {
             // NUMBER is formatted here rather than by SkinTempDisplay because these decimals go through
             // AppLanguage.activeLocale: a German reader sees "0,7", which the package's plain
             // String(format:) would flatten to "0.7".
-            let f = displayTemperatureUnit == .fahrenheit
-            let kind = SkinTempDisplay.kind(of: r)
-            let shown: Double
-            if f {
-                shown = kind == .absolute ? UnitFormatter.celsiusToFahrenheit(r)
-                                          : UnitFormatter.celsiusDeltaToFahrenheit(r)
-            } else {
-                shown = r
-            }
-            let temperature = String(format: kind == .absolute ? "%.1f" : "%+.1f",
-                                     locale: AppLanguage.activeLocale, shown)
-                + " " + SkinTempDisplay.unitSymbol(kind: kind, fahrenheit: f)
+            let temperature = UnitFormatter.skinTempSignalPhrase(
+                r,
+                fahrenheit: displayTemperatureUnit == .fahrenheit,
+                locale: AppLanguage.activeLocale)
             labels["skinTemp"] = String(localized: "Skin temperature \(temperature)")
         }
         if let r = rm({ $0.respRateBpm }), let b = mean(base.compactMap { $0.respRateBpm }), r > b {

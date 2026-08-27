@@ -1,4 +1,5 @@
 import Foundation
+import StrandAnalytics
 
 // MARK: - Unit system preference
 //
@@ -266,6 +267,29 @@ enum UnitFormatter {
         case .celsius:    return decimalString(dc, decimals) + " °C"
         case .fahrenheit: return decimalString(celsiusDeltaToFahrenheit(dc), decimals) + " °F"
         }
+    }
+
+    /// The skin-temperature phrase used by the illness-signal label — number AND unit chip, ready to
+    /// interpolate into one `%@`.
+    ///
+    /// #111/#622: the field is BIMODAL. An imported night carries an ABSOLUTE wrist °C, a live one a
+    /// signed DEVIATION from baseline, and they share a column — so the +32 offset belongs to only one
+    /// of them, and the chip is "°F" for one and "Δ°F" for the other. Both come from `SkinTempDisplay`,
+    /// the same authority the Today and Health tiles use.
+    ///
+    /// The NUMBER is formatted here rather than by `SkinTempDisplay.format` purely so it can honour
+    /// [locale]: the banner formats through `AppLanguage.activeLocale`, and a German reader must see
+    /// "0,7" where the package's plain `String(format:)` would give "0.7". Pass nil for POSIX decimals.
+    static func skinTempSignalPhrase(_ value: Double, fahrenheit: Bool, locale: Locale?) -> String {
+        let kind = SkinTempDisplay.kind(of: value)
+        let shown: Double
+        if fahrenheit {
+            shown = kind == .absolute ? celsiusToFahrenheit(value) : celsiusDeltaToFahrenheit(value)
+        } else {
+            shown = value
+        }
+        let number = String(format: kind == .absolute ? "%.1f" : "%+.1f", locale: locale, shown)
+        return number + " " + SkinTempDisplay.unitSymbol(kind: kind, fahrenheit: fahrenheit)
     }
 
     /// Temperature unit label only. "°C" / "°F".
