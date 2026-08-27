@@ -1,10 +1,20 @@
 import Foundation
 import WhoopProtocol
 
-/// User-initiated "Check for updates": one call to the project's PUBLIC releases API (GitHub),
-/// made ONLY when the user taps the button. No background polling and no auto-update — it just reads the latest version
-/// number and compares it to the installed one; nothing about the user is sent. (Uses the
-/// network-client entitlement, which is otherwise only for the opt-in, off-by-default AI Coach.)
+/// "Check for updates": one call to the project's PUBLIC releases API (GitHub), reading the latest
+/// version number and comparing it to the installed one. Nothing about the user is sent, and it never
+/// installs anything — on iOS no API permits that for a sideloaded app.
+///
+/// TWO callers share this, and the distinction matters to anyone auditing what the app does on its own:
+///  - the Settings button, which runs only when tapped;
+///  - `UpdateWatch`, the #1659 daily check, which runs at most once a day after onboarding and the Terms
+///    gate. It is ON by default and switching it off in Settings stops the request entirely.
+///
+/// This header previously said the read happened ONLY on a tap. That stopped being true the moment the
+/// automatic caller was added, and a false claim here is worse than none: it is the file someone opens to
+/// answer "does this app poll?". Documented for real in docs/PRIVACY_SECURITY.md §1.1c.
+///
+/// (Uses the network-client entitlement, which is otherwise only for the opt-in, off-by-default AI Coach.)
 @MainActor
 final class UpdateChecker: ObservableObject {
 

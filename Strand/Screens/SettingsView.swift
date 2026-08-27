@@ -2815,8 +2815,9 @@ struct SettingsView: View {
 
                     // #1659: the automatic half. iOS cannot auto-update a sideloaded build at all — no API
                     // lets an app install or re-sign an .ipa — so noticing and saying so is the whole of
-                    // what is possible. Off by default: an unasked-for launch request would contradict the
-                    // offline promise this project leads with.
+                    // what is possible. ON by default, because a sideloaded app has no store to tell the
+                    // user anything and a setting nobody finds is the feature not existing; switching it
+                    // off here stops the request entirely. See UpdateAvailability.defaultEnabled.
                     Toggle(isOn: $autoCheckUpdates) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Check automatically")

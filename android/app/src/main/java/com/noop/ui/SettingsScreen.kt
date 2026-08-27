@@ -3341,9 +3341,9 @@ fun SettingsScreen(
                 var updChecking by remember { mutableStateOf(false) }
                 var updResult by remember { mutableStateOf<UpdateCheck.Result?>(null) }
                 // #1659: the automatic half. A sideloaded build has no store to update it, so noticing a
-                // release and saying so in the Updates inbox is the whole of what is possible. Off by
-                // default: an unasked-for launch request would contradict the offline promise this project
-                // leads with. See UpdateAvailability.DEFAULT_ENABLED.
+                // release and saying so in the Updates inbox is the whole of what is possible. ON by
+                // default, because a setting nobody finds is the feature not existing; switching it off
+                // here stops the request entirely. See UpdateAvailability.DEFAULT_ENABLED.
                 var autoCheck by remember {
                     mutableStateOf(com.noop.update.UpdateWatch.isEnabled(context))
                 }
