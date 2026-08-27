@@ -3281,6 +3281,8 @@ class WhoopBleClient(
         // changed in between, and that is exactly when a new characteristic would appear.
         gattTreeDumpedFor = null
         handler.post {
+            // Captured before the clearing below nulls `lastDevice`, which `lastDeviceAddress` reads through.
+            val releasedAddress = lastDeviceAddress
             intentionalDisconnect = true     // defuse the disconnect→3s-reconnect loop's guard
             handler.removeCallbacks(scanTimeoutRunnable)
             handler.removeCallbacks(scanFallbackRunnable)
@@ -3293,6 +3295,11 @@ class WhoopBleClient(
             // so a paused state can never outlive the strap it belonged to and wedge a later re-add.
             bondRefusalStreak = 0
             bondGiveUp.reset()
+            // #1635: the hello-suppression latch is exactly that kind of state and, unlike the give-up, it
+            // is PERSISTED — so without this it outlives the strap it belonged to, silently suppressing the
+            // handshake on a re-add and leaving a stale pref behind for a strap the user removed.
+            // Re-latching costs the same five refusals it always did. Twin of the Swift `forgetDevice`.
+            runCatching { com.noop.ui.NoopPrefs.setHelloSuppressed(context, releasedAddress, false) }
             autoReconnectPausedForBondLoop = false
             bondLoopPausedAtMs = null
             // Drop the persisted last-device pin so a relaunch / radio-on doesn't auto-reconnect to it (#67).

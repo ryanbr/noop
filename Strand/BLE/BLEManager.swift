@@ -5468,10 +5468,6 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                 if !shouldSendClientHello(suppressedForDevice: helloSuppressed, userInitiated: helloUserAsked) {
                     log("WHOOP 5/MG: CLIENT_HELLO suppressed for this strap - it was never acknowledged and the write is what drops the link. Staying on live HR (not fully paired); press Connect to try the handshake again (#1635).")
                     state.pairingHint = BondRefusalGiveUp.helloSuppressedHint()
-                    // Both other startKeepAlive() sites are post-bond, and this link will never bond - so
-                    // without this the liveness watchdog never runs on the one link that now stays up for
-                    // hours. Safe to start before HR arrives: keepAliveMayRun returns false until it does.
-                    startKeepAlive()
                 } else if let hello = selectedModel.deviceFamily.clientHello {
                     // CONTRIBUTOR FIX (issue #17 — diagnosed from the logs, unverified on hardware here):
                     // write CLIENT_HELLO with .withResponse so CoreBluetooth runs just-works bonding when
@@ -5961,6 +5957,11 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
             if selectedModel.deviceFamily == .whoop5, !state.bonded {
                 state.bonded = true
                 log("WHOOP 5/MG: live HR streaming — marking the link established (experimental).")
+                // #1635: a 5/MG has no confirmed-write handshake, so the keep-alive (and with it the
+                // liveness watchdog) is started HERE, on the bonded transition, exactly as the Kotlin twin
+                // does. The other two start sites are post-bond, which a suppressed strap never reaches —
+                // and this also covers an unbonded 5/MG that has not latched yet.
+                startKeepAlive()
             }
         case BLEManager.batteryChar:
             // 0x2A19 = percent — 5/MG ONLY. The WHOOP 4.0's 0x2A19 is a stub constant 100 (real value =
