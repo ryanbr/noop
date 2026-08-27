@@ -1338,6 +1338,11 @@ fun NoopRoot() {
         // the Terms gate below sits AFTER this effect, so `onboarded` alone would not have held it back.
         // Read from prefs rather than the `acceptedTerms` state, which is not declared until after this
         // block.
+        //
+        // No re-entrancy guard here, unlike the Swift twin's `inFlight`: LaunchedEffect does not re-run on
+        // recomposition, only when its key changes, so this cannot fire twice for one launch. `.onAppear`
+        // gives no such promise, which is why the Swift side needs the flag. Moving this call anywhere
+        // that re-runs (a plain composable body, a keyless effect) would need the guard back.
         val termsCurrent =
             prefs.getString(NoopPrefs.KEY_ACCEPTED_TERMS_VERSION, "") == Terms.CURRENT_VERSION
         if (onboarded && termsCurrent) {
