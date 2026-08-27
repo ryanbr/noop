@@ -1329,6 +1329,12 @@ fun NoopRoot() {
     // bell in the Today header surfaces it; the inbox row deep-links to the full changelog read.
     LaunchedEffect(onboarded) {
         if (onboarded) UpdateStore.from(context).seedWhatsNewIfNeeded()
+        // #1659: a sideloaded build has no store to update it, so the most NOOP can do is NOTICE a
+        // release and say so in the same inbox. Opt-in, and silent when off, which is the default —
+        // see UpdateAvailability.DEFAULT_ENABLED. Onboarded-only for the same reason as the seed above.
+        if (onboarded) {
+            com.noop.update.UpdateWatch.runIfDue(context, BuildConfig.VERSION_NAME)
+        }
     }
 
     // Terms acknowledgment gate, over EVERYTHING (before onboarding/pairing/Bluetooth) until the

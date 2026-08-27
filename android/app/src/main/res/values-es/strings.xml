@@ -2454,4 +2454,6 @@
     <string name="l10n_settings_screen_ask_android_to_pair_323fccbe">Pedir a Android que vincule</string>
     <string name="l10n_settings_screen_send_hello_despite_bond_refusal_experimental_2f8de795">Enviar hello pese al rechazo de vinculación (experimental)</string>
     <string name="l10n_settings_screen_send_hello_despite_bond_refusal_65c9d9fd">Enviar hello pese al rechazo de vinculación</string>
+    <string name="l10n_settings_screen_check_automatically_7cd229d2">Comprobar automáticamente</string>
+    <string name="l10n_settings_screen_once_a_day_noop_asks_github_5683aad3">Una vez al día, NOOP consulta a GitHub el número de la última versión y deja un aviso en Novedades si hay una más reciente. No se envía nada sobre ti y nunca instala nada.</string>
 </resources>

@@ -53,6 +53,10 @@ struct ContentView: View {
             // Seed the current What's New into the Updates inbox (idempotent per version) so the bell
             // collects it even if the user dismisses the auto sheet.
             UpdateStore.shared.seedWhatsNewIfNeeded()
+            // #1659: iOS cannot auto-update a sideloaded build - no API lets an app install or re-sign an
+            // .ipa - so the most NOOP can do is NOTICE a release and say so. Opt-in and silent when off,
+            // which is the default; see UpdateAvailability.defaultEnabled.
+            UpdateWatch.runIfDue(currentVersion: UpdateWatch.installedVersion, sideloadHint: false)
         }
         .onChangeCompat(of: acceptedTerms) { _ in showWhatsNewIfDue() }
     }

@@ -31,7 +31,14 @@ enum class UpdateKind(val storageValue: String) {
     READING("reading"),
 
     /** a strap-side heads-up (low battery, sync) — informational */
-    STRAP_ALERT("strapAlert");
+    STRAP_ALERT("strapAlert"),
+
+    /**
+     * A NEWER RELEASE exists that this install does not have (#1659). Deliberately not [WHATS_NEW]: that
+     * one means "here is what you just got", this one means "here is what you have not got yet", and
+     * giving them the same row would make the bell ambiguous at the moment it matters most.
+     */
+    NEW_VERSION("newVersion");
 
     companion object {
         fun fromStorage(raw: String?): UpdateKind =
@@ -197,7 +204,10 @@ class UpdateStore private constructor(private val prefs: SharedPreferences) {
     }
 
     private fun isInformational(kind: UpdateKind): Boolean =
-        kind == UpdateKind.READING || kind == UpdateKind.WHATS_NEW
+        // NEW_VERSION is informational: it dedupes and is evictable like the others. It cannot spam on its
+        // own (UpdateAvailability posts once per version), but a user who ignores several releases should
+        // not have them crowd out the actionable rows.
+        kind == UpdateKind.READING || kind == UpdateKind.WHATS_NEW || kind == UpdateKind.NEW_VERSION
 
     /** Trim the informational backlog to the newest [MAX_ITEMS]. Actionable rows
      *  ([UpdateKind.DISMISSED_CARD]/[UpdateKind.STRAP_ALERT]) are exempt — only READING/WHATS_NEW are

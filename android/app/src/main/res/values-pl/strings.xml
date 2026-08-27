@@ -2459,4 +2459,6 @@
     <string name="l10n_settings_screen_ask_android_to_pair_323fccbe">Poproś Androida o sparowanie</string>
     <string name="l10n_settings_screen_send_hello_despite_bond_refusal_experimental_2f8de795">Wyślij hello mimo odmowy parowania (eksperymentalne)</string>
     <string name="l10n_settings_screen_send_hello_despite_bond_refusal_65c9d9fd">Wyślij hello mimo odmowy parowania</string>
+    <string name="l10n_settings_screen_check_automatically_7cd229d2">Sprawdzaj automatycznie</string>
+    <string name="l10n_settings_screen_once_a_day_noop_asks_github_5683aad3">Raz dziennie NOOP pyta GitHub o numer najnowszej wersji i dodaje notatkę w Aktualizacjach, jeśli jest nowsza. Nic o tobie nie jest wysyłane i nic nigdy nie jest instalowane.</string>
 </resources>

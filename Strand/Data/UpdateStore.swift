@@ -15,6 +15,10 @@ struct UpdateItem: Identifiable, Codable, Equatable {
         case whatsNew        // a release note (seeded from AppChangelog on first run after an update)
         case reading         // new data arrived (e.g. "N days backfilled") — links to Trends
         case strapAlert      // a strap-side heads-up (low battery, sync) — informational
+        /// A NEWER RELEASE exists that this install does not have (#1659). Deliberately not `.whatsNew`:
+        /// that one means "here is what you just got", this one means "here is what you have not got yet",
+        /// and giving them the same row would make the bell ambiguous at the moment it matters most.
+        case newVersion
     }
 
     let id: UUID
@@ -131,7 +135,10 @@ final class UpdateStore: ObservableObject {
     }
 
     private static func isInformational(_ kind: UpdateItem.Kind) -> Bool {
-        kind == .reading || kind == .whatsNew
+        // `.newVersion` is informational: it dedupes and is evictable like the others. It cannot spam on
+        // its own (UpdateAvailability posts once per version), but a user who ignores several releases
+        // should not have them crowd out the actionable rows.
+        kind == .reading || kind == .whatsNew || kind == .newVersion
     }
 
     /// Trim the informational backlog to the newest `maxItems`. Actionable rows (`.dismissedCard`,

@@ -2368,4 +2368,6 @@
     <string name="l10n_settings_screen_ask_android_to_pair_323fccbe">请求 Android 配对</string>
     <string name="l10n_settings_screen_send_hello_despite_bond_refusal_experimental_2f8de795">即使拒绝配对也发送 hello（实验性）</string>
     <string name="l10n_settings_screen_send_hello_despite_bond_refusal_65c9d9fd">即使拒绝配对也发送 hello</string>
+    <string name="l10n_settings_screen_check_automatically_7cd229d2">自动检查</string>
+    <string name="l10n_settings_screen_once_a_day_noop_asks_github_5683aad3">NOOP 每天向 GitHub 查询一次最新版本号，如果有更新版本，就在「更新」中留下提示。不会发送任何与你有关的信息，也绝不会安装任何东西。</string>
 </resources>

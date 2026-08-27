@@ -2453,4 +2453,6 @@
     <string name="l10n_settings_screen_ask_android_to_pair_323fccbe">Demander à Android de s\'appairer</string>
     <string name="l10n_settings_screen_send_hello_despite_bond_refusal_experimental_2f8de795">Envoyer le hello malgré le refus d\'appairage (expérimental)</string>
     <string name="l10n_settings_screen_send_hello_despite_bond_refusal_65c9d9fd">Envoyer le hello malgré le refus d\'appairage</string>
+    <string name="l10n_settings_screen_check_automatically_7cd229d2">Vérifier automatiquement</string>
+    <string name="l10n_settings_screen_once_a_day_noop_asks_github_5683aad3">Une fois par jour, NOOP demande à GitHub le numéro de la dernière version et dépose une note dans Mises à jour s’il en existe une plus récente. Aucune donnée vous concernant n’est envoyée, et rien n’est jamais installé.</string>
 </resources>

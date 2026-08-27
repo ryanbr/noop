@@ -3340,6 +3340,13 @@ fun SettingsScreen(
                 // is sent. Android already holds INTERNET (for the opt-in Coach), so this adds nothing.
                 var updChecking by remember { mutableStateOf(false) }
                 var updResult by remember { mutableStateOf<UpdateCheck.Result?>(null) }
+                // #1659: the automatic half. A sideloaded build has no store to update it, so noticing a
+                // release and saying so in the Updates inbox is the whole of what is possible. Off by
+                // default: an unasked-for launch request would contradict the offline promise this project
+                // leads with. See UpdateAvailability.DEFAULT_ENABLED.
+                var autoCheck by remember {
+                    mutableStateOf(com.noop.update.UpdateWatch.isEnabled(context))
+                }
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -3383,6 +3390,41 @@ fun SettingsScreen(
                                 )
                             else -> {}
                         }
+                    }
+
+                    // #1659: the automatic half, directly under the manual button so the two read as one
+                    // feature — the same placement as the Swift twin.
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                uiString(R.string.l10n_settings_screen_check_automatically_7cd229d2),
+                                style = NoopType.subhead,
+                                color = Palette.textPrimary,
+                            )
+                            Text(
+                                uiString(R.string.l10n_settings_screen_once_a_day_noop_asks_github_5683aad3),
+                                style = NoopType.footnote,
+                                color = Palette.textTertiary,
+                            )
+                        }
+                        Switch(
+                            checked = autoCheck,
+                            onCheckedChange = {
+                                autoCheck = it
+                                com.noop.update.UpdateWatch.setEnabled(context, it)
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Palette.surfaceBase,
+                                checkedTrackColor = Palette.accent,
+                                uncheckedThumbColor = Palette.textSecondary,
+                                uncheckedTrackColor = Palette.surfaceInset,
+                                uncheckedBorderColor = Palette.hairline,
+                            ),
+                        )
                     }
 
                     // Update available: show what's new, with a download straight to the release.

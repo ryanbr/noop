@@ -20,30 +20,43 @@ final class UpdateChecker: ObservableObject {
 
     private static let endpoint = URL(string: "https://api.github.com/repos/ryanbr/noop/releases/latest")!
 
+    /// One release read. Shared by the button and the automatic check (#1659) so there is exactly one
+    /// copy of the endpoint, the headers and the parsing — a second copy is how the two would drift into
+    /// disagreeing about what "latest" means.
+    struct Release: Equatable {
+        let version: String
+        let url: URL
+        let notes: String
+    }
+
+    static func fetchLatest() async -> Release? {
+        do {
+            var req = URLRequest(url: Self.endpoint, timeoutInterval: 12)
+            req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+            let (data, resp) = try await URLSession.shared.data(for: req)
+            guard (resp as? HTTPURLResponse)?.statusCode == 200,
+                  let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let tag = json["tag_name"] as? String,
+                  let urlString = json["html_url"] as? String,
+                  let url = URL(string: urlString) else { return nil }
+            let latest = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
+            return Release(version: latest, url: url, notes: cleanNotes(json["body"] as? String ?? ""))
+        } catch {
+            return nil
+        }
+    }
+
     func check(currentVersion: String) {
         guard state != .checking else { return }
         state = .checking
         Task {
-            do {
-                var req = URLRequest(url: Self.endpoint, timeoutInterval: 12)
-                req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-                let (data, resp) = try await URLSession.shared.data(for: req)
-                guard (resp as? HTTPURLResponse)?.statusCode == 200,
-                      let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                      let tag = json["tag_name"] as? String,
-                      let urlString = json["html_url"] as? String,
-                      let url = URL(string: urlString) else {
-                    state = .failed
-                    return
-                }
-                let latest = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
-                let notes = Self.cleanNotes(json["body"] as? String ?? "")
-                state = VersionCheck.isNewer(latest, than: currentVersion)
-                    ? .available(version: latest, url: url, notes: notes)
-                    : .upToDate(version: latest)
-            } catch {
+            guard let release = await Self.fetchLatest() else {
                 state = .failed
+                return
             }
+            state = VersionCheck.isNewer(release.version, than: currentVersion)
+                ? .available(version: release.version, url: release.url, notes: release.notes)
+                : .upToDate(version: release.version)
         }
     }
 

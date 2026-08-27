@@ -2468,4 +2468,6 @@
     <string name="l10n_settings_screen_ask_android_to_pair_323fccbe">Android um Kopplung bitten</string>
     <string name="l10n_settings_screen_send_hello_despite_bond_refusal_experimental_2f8de795">Hello trotz Kopplungsverweigerung senden (experimentell)</string>
     <string name="l10n_settings_screen_send_hello_despite_bond_refusal_65c9d9fd">Hello trotz Kopplungsverweigerung senden</string>
+    <string name="l10n_settings_screen_check_automatically_7cd229d2">Automatisch prüfen</string>
+    <string name="l10n_settings_screen_once_a_day_noop_asks_github_5683aad3">Einmal täglich fragt NOOP bei GitHub die neueste Versionsnummer ab und legt einen Hinweis in Updates ab, wenn es eine neuere gibt. Es werden keine Daten über dich gesendet, und es wird nie etwas installiert.</string>
 </resources>
