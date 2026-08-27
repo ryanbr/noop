@@ -2445,9 +2445,15 @@ public final class BLEManager: NSObject, ObservableObject {
                 let wallNowUnix = Int(Date().timeIntervalSince1970)
                 // Read the field ONCE: it feeds both the log line and the banner below, and they must not
                 // disagree about whether the strap is stale.
-                let staleNewest: Int? = strapNewestTs.flatMap {
-                    Backfiller.isStaleNewestRecord(newestUnix: $0, wallNowUnix: wallNowUnix) ? $0 : nil
-                }
+                // WHOOP4 only, explicitly, on BOTH platforms. Redundant here today - `strapNewestTs` is
+                // only assigned when `feedsSync` (#695), which is WHOOP4 - but stated so a later widening
+                // of feedsSync cannot make this fire where the Android twin does not. A 5/MG that cannot
+                // offload has no business being told it stopped saving to flash.
+                let staleNewest: Int? = selectedModel.deviceFamily == .whoop4
+                    ? strapNewestTs.flatMap {
+                        Backfiller.isStaleNewestRecord(newestUnix: $0, wallNowUnix: wallNowUnix) ? $0 : nil
+                    }
+                    : nil
                 if let newest = staleNewest {
                     log(Backfiller.staleRecordLine(newestUnix: newest, wallNowUnix: wallNowUnix))
                 }

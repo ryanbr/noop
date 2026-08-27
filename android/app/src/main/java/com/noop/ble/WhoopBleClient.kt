@@ -8253,7 +8253,15 @@ class WhoopBleClient(
         // #1683: the strap's newest stored record, ONLY when it is stale enough to be worth naming.
         // Declared out here because both the log line inside the block below and the user-facing banner
         // further down consume it, and they must not disagree about whether the strap is stale.
-        val staleNewestSeen: Long? = strapNewestTs?.takeIf { Backfiller.isStaleNewestRecord(it, nowSec) }
+        // WHOOP4 only, explicitly, on BOTH platforms. The underlying field is not populated alike: Swift
+        // gates it on `feedsSync` (#695 - WHOOP4 today, the 5/MG path deliberately leaves it unset), while
+        // this side sets it for any family that answers GET_DATA_RANGE. Reading it without a gate would
+        // let a 5/MG show the dated wording here and not on iOS. Gating the READ on both keeps the two in
+        // step whichever way that pre-existing difference is settled later, and a 5/MG that cannot offload
+        // has no business being told it stopped saving to flash.
+        val staleNewestSeen: Long? = strapNewestTs
+            ?.takeIf { connectedFamily == DeviceFamily.WHOOP4 }
+            ?.takeIf { Backfiller.isStaleNewestRecord(it, nowSec) }
         if (bankedNothing) {
             val detail = if (consoleChunksThisSession >= 3)
                 "console-only across $consoleChunksThisSession chunks"
