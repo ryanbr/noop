@@ -585,6 +585,15 @@ object WorkoutDetector {
  * Faithful port of the `Calories` enum that ships inside WorkoutDetector.swift.
  */
 object Calories {
+    /** Whole-day BMR + activity-above-rest split; [totalKcal] remains the stored daily value. */
+    data class DayEnergyEstimate(
+        val restingKcal: Double,
+        val activeKcal: Double,
+        val observedSeconds: Double,
+    ) {
+        val totalKcal: Double get() = restingKcal + activeKcal
+    }
+
 
     /** Sex-specific BMR + active-EE coefficients. Mirrors Swift `Calories.Coeffs`. */
     data class Coeffs(
@@ -641,6 +650,9 @@ object Calories {
      * gate to 50% HRR so the gross rate only applies at genuine exercise-level HR.
      */
     const val dayActiveHRRFraction: Double = 0.50
+    /** Longest gap over which one daily HR reading may carry ACTIVE energy. */
+    const val dayMaxActiveGapS: Double = 60.0
+    const val dayMaxObservedSpanS: Double = 86_400.0
     const val workoutDivisor: Double = 251.04 // 60 s/min × 4.184 kJ/kcal
 
     fun resolveCoeffs(sex: String): Coeffs = when (sex.lowercase()) {
@@ -748,11 +760,10 @@ object Calories {
     }
 
     /**
-     * APPROXIMATE whole-day total energy estimate (kcal) from the full day's HR
-     * samples. Per-second model: below the day activeThreshold (resting +
-     * [dayActiveHRRFraction] HRR) a sample burns the resting BMR rate, above it the
-     * Keytel active rate — FLOORED at the resting rate so a day-second can never be
-     * credited LESS than resting metabolism.
+     * APPROXIMATE whole-day resting + active energy estimate from the full day's HR
+     * samples. Resting BMR is integrated once over the OBSERVED elapsed span,
+     * independent of HR cadence. Supported high-HR intervals then add only the Keytel
+     * energy ABOVE that resting floor.
      *
      * The day path uses [dayActiveHRRFraction] (50% HRR), NOT the 30% the bout detector
      * uses ([activeHRRFraction]). The Keytel 2005 equation is validated for genuine
@@ -763,28 +774,27 @@ object Calories {
      * exercise-level HR only; the bout path is UNCHANGED — Keytel is appropriate there,
      * on a real detected/manual workout.
      *
-     * Each HR sample = ONE second of data (1 Hz strap), counted flat — this path
-     * deliberately does NOT use the bout estimator's elapsed-time-per-sample weighting.
-     * The day feed is a raw, non-gap-filled union of the day's HR (it is NOT motion-gated
-     * the way a bout is), so capping each gap at mergeGapS (150 s) would credit up to
-     * ~150 s of active burn to a single isolated elevated sample — over-counting by ~150x
-     * on gappy days. Flat one-second-per-sample is the conservative, stable choice for the
-     * day total. This is an on-device estimate from heart rate alone — NOT laboratory
-     * calorimetry, NOT Apple/WHOOP cloud parity, NOT medical advice.
+     * Cadence is inferred from the median positive timestamp gap and capped at
+     * [dayMaxActiveGapS]. Each high-HR sample carries active energy to the next sample for
+     * at most that cap; long gaps still accrue BMR but never continuous exercise. Thus a
+     * 30 s sparse stream and a 1 Hz stream covering the same activity produce comparable
+     * energy, while two isolated samples cannot turn a disconnect into a workout.
      *
-     * @param hrSamples the whole day's HR samples (one second each).
+     * This is an on-device estimate from heart rate alone — NOT laboratory calorimetry,
+     * NOT Apple/WHOOP cloud parity, NOT medical advice.
+     *
+     * @param hrSamples the whole day's timestamped HR samples.
      * @param profile weight/height/age/sex for the BMR + active-EE coefficients.
      * @param hrmax effective HRmax (bpm); null → 220.
      * @param restingHR resting HR (bpm); null → 60.
-     * @return total estimated kcal for the day (>= 0).
      */
-    fun estimateDayCalories(
+    fun estimateDayEnergy(
         hrSamples: List<HrSample>,
         profile: UserProfile,
         hrmax: Double?,
         restingHR: Double?,
-    ): Double {
-        if (hrSamples.isEmpty()) return 0.0
+    ): DayEnergyEstimate {
+        if (hrSamples.isEmpty()) return DayEnergyEstimate(0.0, 0.0, 0.0)
 
         val weightKg = if (profile.weightKg > 0) profile.weightKg else 70.0
         val heightCm = if (profile.heightCm > 0) profile.heightCm else 170.0
@@ -802,18 +812,50 @@ object Calories {
         // restingHR → base model, unchanged. Constant across the day.
         val vo2max = vo2maxFor(effHRmax, restingHR)
 
-        var totalKcal = 0.0
-        for (s in hrSamples) {
-            val bpm = s.bpm.toDouble()
-            totalKcal += if (bpm < activeThreshold) {
-                restingRate
+        val ordered = hrSamples.sortedBy { it.ts }
+        val positiveGaps = ordered.zipWithNext { a, b -> (b.ts - a.ts).toDouble() }
+            .filter { it > 0.0 }
+            .sorted()
+        val nominalSampleS = if (positiveGaps.isEmpty()) {
+            1.0
+        } else {
+            val mid = positiveGaps.size / 2
+            val median = if (positiveGaps.size % 2 == 0) {
+                (positiveGaps[mid - 1] + positiveGaps[mid]) / 2.0
             } else {
-                // Floor the active rate at the resting BMR rate: a worn day-second never
-                // burns LESS than resting metabolism, even where the Keytel value dips low
-                // for some profiles just above the gate.
-                maxOf(restingRate, activeKcalPerS(coeffs, bpm, effHRmax, weightKg, age, vo2max))
+                positiveGaps[mid]
             }
+            minOf(median, dayMaxActiveGapS)
         }
-        return totalKcal
+        val observedSeconds = minOf(
+            dayMaxObservedSpanS,
+            maxOf(1.0, (ordered.last().ts - ordered.first().ts).toDouble() + nominalSampleS),
+        )
+        val restingKcal = restingRate * observedSeconds
+
+        var activeKcal = 0.0
+        for (i in ordered.indices) {
+            val durationS = if (i < ordered.size - 1) {
+                val gap = (ordered[i + 1].ts - ordered[i].ts).toDouble()
+                if (gap > 0.0) minOf(gap, dayMaxActiveGapS) else 0.0
+            } else {
+                nominalSampleS
+            }
+            val bpm = ordered[i].bpm.toDouble()
+            if (bpm < activeThreshold) continue
+            val grossRate = activeKcalPerS(coeffs, bpm, effHRmax, weightKg, age, vo2max)
+            activeKcal += maxOf(0.0, grossRate - restingRate) * durationS
+        }
+        return DayEnergyEstimate(restingKcal, activeKcal, observedSeconds)
+    }
+
+    /** Backward-compatible total-kcal facade for the stored daily metric. */
+    fun estimateDayCalories(
+        hrSamples: List<HrSample>,
+        profile: UserProfile,
+        hrmax: Double?,
+        restingHR: Double?,
+    ): Double {
+        return estimateDayEnergy(hrSamples, profile, hrmax, restingHR).totalKcal
     }
 }

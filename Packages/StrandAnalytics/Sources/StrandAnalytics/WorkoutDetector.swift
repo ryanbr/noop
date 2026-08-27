@@ -578,6 +578,17 @@ public enum WorkoutDetector {
 /// APPROXIMATE — not laboratory calorimetry, not medical advice.
 public enum Calories {
 
+    /// Whole-day energy split. `restingKcal` is the BMR contribution over the observed day span;
+    /// `activeKcal` is energy above that resting floor during supported high-HR intervals.
+    /// `totalKcal` is the backward-compatible value persisted in `DailyMetric.activeKcalEst`.
+    public struct DayEnergyEstimate: Equatable, Sendable {
+        public let restingKcal: Double
+        public let activeKcal: Double
+        public let observedSeconds: Double
+
+        public var totalKcal: Double { restingKcal + activeKcal }
+    }
+
     struct Coeffs {
         let restingAlpha: Double
         let restingWeight: Double
@@ -625,6 +636,11 @@ public enum Calories {
     /// Keytel is appropriate for a real detected/manual workout — but the day path raises
     /// the gate to 50% HRR so the gross rate only applies at genuine exercise-level HR.
     static let dayActiveHRRFraction = 0.50
+    /// Longest gap over which one daily HR reading may carry ACTIVE energy. This covers the known
+    /// sparse WHOOP 5/MG cadence (~30 s) with margin, but an isolated high reading cannot invent a
+    /// workout across a long disconnect. Resting BMR is integrated over the observed span separately.
+    static let dayMaxActiveGapS: Double = 60.0
+    static let dayMaxObservedSpanS: Double = 86_400.0
     static let workoutDivisor = 251.04  // 60 s/min × 4.184 kJ/kcal
 
     static func resolveCoeffs(_ sex: String) -> Coeffs {
@@ -725,10 +741,9 @@ public enum Calories {
         return (totalKcal, totalKcal * 4.184)
     }
 
-    /// APPROXIMATE whole-day total energy estimate (kcal) from the full day's HR samples.
-    /// Per-second model: below the day activeThreshold (resting + `dayActiveHRRFraction`
-    /// HRR) a sample burns the resting BMR rate, above it the Keytel active rate — FLOORED
-    /// at the resting rate so a day-second can never be credited LESS than resting metabolism.
+    /// APPROXIMATE whole-day resting + active energy estimate from the full day's HR samples.
+    /// Resting BMR is integrated once over the OBSERVED elapsed span, independent of HR cadence.
+    /// Supported high-HR intervals then add only the Keytel energy ABOVE that resting floor.
     ///
     /// The day path uses `dayActiveHRRFraction` (50% HRR), NOT the 30% the bout detector uses
     /// (`activeHRRFraction`). The Keytel 2005 equation is validated for genuine EXERCISE HR;
@@ -738,19 +753,21 @@ public enum Calories {
     /// the gross rate for genuine exercise-level HR only; the bout path is UNCHANGED — Keytel
     /// is appropriate there, on a real detected/manual workout.
     ///
-    /// Each HR sample = ONE second of data (1 Hz strap), counted flat — this path deliberately
-    /// does NOT use the bout estimator's elapsed-time-per-sample weighting. The day feed is a
-    /// raw, non-gap-filled union of the day's HR (it is NOT motion-gated the way a bout is), so
-    /// capping each gap at mergeGapS (150 s) would credit up to ~150 s of active burn to a
-    /// single isolated elevated sample — over-counting by ~150x on gappy days. Flat
-    /// one-second-per-sample is the conservative, stable choice for the day total.
+    /// Cadence is inferred from the median positive timestamp gap and capped at
+    /// `dayMaxActiveGapS`. Each high-HR sample carries active energy to the next sample for at most
+    /// that cap; long gaps still accrue BMR but never continuous exercise. Thus a 30 s sparse stream
+    /// and a 1 Hz stream covering the same activity produce comparable energy, while two isolated
+    /// samples cannot turn a disconnect into a workout.
+    ///
     /// This is an on-device estimate from heart rate alone — NOT laboratory calorimetry, NOT
-    /// Apple/WHOOP cloud parity, NOT medical advice. Returns total estimated kcal (>= 0).
-    public static func estimateDayCalories(_ hrSamples: [HRSample],
-                                           profile: UserProfile,
-                                           hrmax: Double?,
-                                           restingHR: Double?) -> Double {
-        if hrSamples.isEmpty { return 0.0 }
+    /// Apple/WHOOP cloud parity, NOT medical advice.
+    public static func estimateDayEnergy(_ hrSamples: [HRSample],
+                                         profile: UserProfile,
+                                         hrmax: Double?,
+                                         restingHR: Double?) -> DayEnergyEstimate {
+        if hrSamples.isEmpty {
+            return DayEnergyEstimate(restingKcal: 0, activeKcal: 0, observedSeconds: 0)
+        }
 
         let weightKg = profile.weightKg > 0 ? profile.weightKg : 70.0
         let heightCm = profile.heightCm > 0 ? profile.heightCm : 170.0
@@ -768,19 +785,48 @@ public enum Calories {
         // restingHR → base model, unchanged. Constant across the day.
         let vo2max = vo2maxFor(hrmax: effHRmax, restingHR: restingHR)
 
-        var totalKcal = 0.0
-        for s in hrSamples {
-            let bpm = Double(s.bpm)
-            if bpm < activeThreshold {
-                totalKcal += restingRate
+        let ordered = hrSamples.sorted { $0.ts < $1.ts }
+        let positiveGaps = zip(ordered, ordered.dropFirst())
+            .map { pair in Double(pair.1.ts - pair.0.ts) }
+            .filter { $0 > 0 }
+            .sorted()
+        let nominalSampleS: Double = {
+            guard !positiveGaps.isEmpty else { return 1.0 }
+            let mid = positiveGaps.count / 2
+            let median = positiveGaps.count.isMultiple(of: 2)
+                ? (positiveGaps[mid - 1] + positiveGaps[mid]) / 2.0
+                : positiveGaps[mid]
+            return min(median, dayMaxActiveGapS)
+        }()
+        let observedSeconds = min(dayMaxObservedSpanS,
+                                  max(1.0, Double(ordered.last!.ts - ordered.first!.ts) + nominalSampleS))
+        let restingKcal = restingRate * observedSeconds
+
+        var activeKcal = 0.0
+        for i in ordered.indices {
+            let durationS: Double
+            if i < ordered.count - 1 {
+                let gap = Double(ordered[i + 1].ts - ordered[i].ts)
+                durationS = gap > 0 ? min(gap, dayMaxActiveGapS) : 0.0
             } else {
-                // Floor the active rate at the resting BMR rate: a worn day-second never burns
-                // LESS than resting metabolism, even where the Keytel value dips low for some
-                // profiles just above the gate.
-                let active = activeKcalPerS(coeffs, hr: bpm, hrmax: effHRmax, weightKg: weightKg, age: age, vo2max: vo2max)
-                totalKcal += max(restingRate, active)
+                durationS = nominalSampleS
             }
+            let bpm = Double(ordered[i].bpm)
+            guard bpm >= activeThreshold else { continue }
+            let grossRate = activeKcalPerS(coeffs, hr: bpm, hrmax: effHRmax,
+                                           weightKg: weightKg, age: age, vo2max: vo2max)
+            activeKcal += max(0.0, grossRate - restingRate) * durationS
         }
-        return totalKcal
+        return DayEnergyEstimate(restingKcal: restingKcal, activeKcal: activeKcal,
+                                 observedSeconds: observedSeconds)
+    }
+
+    /// Backward-compatible total-kcal facade for the stored daily metric.
+    public static func estimateDayCalories(_ hrSamples: [HRSample],
+                                           profile: UserProfile,
+                                           hrmax: Double?,
+                                           restingHR: Double?) -> Double {
+        estimateDayEnergy(hrSamples, profile: profile, hrmax: hrmax,
+                          restingHR: restingHR).totalKcal
     }
 }

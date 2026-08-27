@@ -8,14 +8,23 @@ import WhoopProtocol
 /// DayCaloriesTest vectors value-for-value.
 final class DayCaloriesTests: XCTestCase {
 
-    private func hrDay(bpm: Int, n: Int) -> [HRSample] {
-        (0..<n).map { HRSample(ts: $0, bpm: bpm) }
+    private func hrDay(bpm: Int, n: Int, start: Int = 0) -> [HRSample] {
+        (0..<n).map { HRSample(ts: start + $0, bpm: bpm) }
     }
 
     func testDayCaloriesEmptyIsZero() {
         XCTAssertEqual(
             Calories.estimateDayCalories([], profile: UserProfile(), hrmax: 190.0, restingHR: 55.0),
             0.0, accuracy: 1e-12)
+    }
+
+    func testDayEnergyEmptyComponentsAreZero() {
+        let estimate = Calories.estimateDayEnergy([], profile: UserProfile(),
+                                                  hrmax: 190.0, restingHR: 55.0)
+        XCTAssertEqual(estimate.restingKcal, 0, accuracy: 1e-12)
+        XCTAssertEqual(estimate.activeKcal, 0, accuracy: 1e-12)
+        XCTAssertEqual(estimate.totalKcal, 0, accuracy: 1e-12)
+        XCTAssertEqual(estimate.observedSeconds, 0, accuracy: 1e-12)
     }
 
     func testDayCaloriesMatchesBoutAtOneHz() {
@@ -63,9 +72,10 @@ final class DayCaloriesTests: XCTestCase {
         // that HR as resting, so a realistic mixed light day (8 h sleep @55, 8 h sedentary @70,
         // 8 h light activity @100) collapses toward BMR instead of the old runaway figure.
         let profile = UserProfile(weightKg: 80, heightCm: 180, age: 35, sex: "male")
-        let lightDay = hrDay(bpm: 55, n: 8 * 3_600)
-            + hrDay(bpm: 70, n: 8 * 3_600)
-            + hrDay(bpm: 100, n: 8 * 3_600)
+        let block = 8 * 3_600
+        let lightDay = hrDay(bpm: 55, n: block)
+            + hrDay(bpm: 70, n: block, start: block)
+            + hrDay(bpm: 100, n: block, start: 2 * block)
         let total = Calories.estimateDayCalories(lightDay, profile: profile,
                                                  hrmax: 185.0, restingHR: 55.0)
         // NEW total ≈ 1825 kcal (every second below the 120 bpm gate → BMR floor).
@@ -94,6 +104,45 @@ final class DayCaloriesTests: XCTestCase {
         XCTAssertGreaterThan(sparseKcal, denseKcal * 0.5)
     }
 
+    func testSparseDayCaloriesTrackElapsedTimeNotSampleCount() {
+        // The daily path must be cadence-invariant too: WHOOP 5/MG's ~30 s HR and a 1 Hz
+        // stream over the same ten active minutes represent the same elapsed work.
+        let profile = UserProfile(weightKg: 80, heightCm: 180, age: 35, sex: "male")
+        let dense = (0..<600).map { HRSample(ts: $0, bpm: 130) }
+        let sparse = stride(from: 0, to: 600, by: 30).map { HRSample(ts: $0, bpm: 130) }
+        let denseEnergy = Calories.estimateDayEnergy(dense, profile: profile,
+                                                     hrmax: 185.0, restingHR: 55.0)
+        let sparseEnergy = Calories.estimateDayEnergy(sparse, profile: profile,
+                                                      hrmax: 185.0, restingHR: 55.0)
+        XCTAssertEqual(sparseEnergy.observedSeconds, 600, accuracy: 1e-12)
+        XCTAssertEqual(sparseEnergy.restingKcal, denseEnergy.restingKcal, accuracy: 1e-9)
+        XCTAssertEqual(sparseEnergy.activeKcal, denseEnergy.activeKcal, accuracy: 1e-9)
+        XCTAssertEqual(sparseEnergy.totalKcal, denseEnergy.totalKcal, accuracy: 1e-9)
+    }
+
+    func testDayEnergyParityVectorOracle() {
+        let profile = UserProfile(weightKg: 80, heightCm: 180, age: 35, sex: "male")
+        let vectors = [
+            hrDay(bpm: 55, n: 86_400),
+            (0..<600).map { HRSample(ts: $0, bpm: 130) },
+            stride(from: 0, to: 600, by: 30).map { HRSample(ts: $0, bpm: 130) },
+            [HRSample(ts: 0, bpm: 130), HRSample(ts: 3600, bpm: 130)],
+        ].map { Calories.estimateDayEnergy($0, profile: profile, hrmax: 185, restingHR: 55) }
+        // Generated from the Swift implementation and copied verbatim to Android's parity test.
+        let expected: [(resting: Double, active: Double, total: Double, seconds: Double)] = [
+            (1825.247000000000, 0.000000000000, 1825.247000000000, 86_400.0),
+            (12.675326388889, 103.105766084605, 115.781092473494, 600.0),
+            (12.675326388889, 103.105766084603, 115.781092473492, 600.0),
+            (77.319490972222, 20.621153216921, 97.940644189143, 3_660.0),
+        ]
+        for (value, oracle) in zip(vectors, expected) {
+            XCTAssertEqual(value.restingKcal, oracle.resting, accuracy: 1e-9)
+            XCTAssertEqual(value.activeKcal, oracle.active, accuracy: 1e-9)
+            XCTAssertEqual(value.totalKcal, oracle.total, accuracy: 1e-9)
+            XCTAssertEqual(value.observedSeconds, oracle.seconds, accuracy: 1e-9)
+        }
+    }
+
     func testWearGapIsCappedNotCreditedInFull() {
         // Two active samples an hour apart must NOT credit a full hour of active burn — the
         // per-sample interval is capped at mergeGapS (150 s). The pre-gap sample contributes
@@ -108,25 +157,27 @@ final class DayCaloriesTests: XCTestCase {
                        "an inter-sample gap must be capped at mergeGapS, not credited in full")
     }
 
-    func testDayPathDoesNotOverCountGappyDays() {
-        // The WHOLE-DAY estimator must STAY on one-second-per-sample, NOT the bout path's
-        // elapsed-time weighting. The day feed is a raw, non-gap-filled union of HR, so a
-        // single isolated elevated sample an hour from its neighbours must contribute ONE
-        // second of active burn — not up to mergeGapS (150 s) of it. Two active samples an
-        // hour apart therefore burn the same as two adjacent active seconds (each = 1 s),
-        // proving the day path does NOT inherit the bout cap-and-credit behaviour.
+    func testDayPathUsesElapsedBaselineButCapsActiveGap() {
+        // An hour-long sensor gap still burns resting energy, but two isolated high readings
+        // must not claim the whole gap as exercise. With the 60 s carry cap, the two readings
+        // contribute 120 active seconds while BMR covers the 3660 s observed span.
         let profile = UserProfile(weightKg: 80, heightCm: 180, age: 35, sex: "male")
         let gapped = [HRSample(ts: 0, bpm: 130), HRSample(ts: 3600, bpm: 130)]
-        let twoAdjacent = [HRSample(ts: 0, bpm: 130), HRSample(ts: 1, bpm: 130)]
-        let gappedDay = Calories.estimateDayCalories(gapped, profile: profile, hrmax: 185.0, restingHR: 55.0)
-        let adjacentDay = Calories.estimateDayCalories(twoAdjacent, profile: profile, hrmax: 185.0, restingHR: 55.0)
-        XCTAssertEqual(gappedDay, adjacentDay, accuracy: 1e-9,
-                       "the day path must count each sample as exactly one second regardless of gaps")
-        // Teeth: if the day path had inherited the bout cap, the gappy total would be ~75x larger
-        // (150 s + 1 s vs 1 s + 1 s of active burn). Prove it stayed flat per-sample.
-        let boutGapped = Calories.estimateBoutCalories(gapped, profile: profile, hrmax: 185.0, restingHR: 55.0).0
-        XCTAssertGreaterThan(boutGapped, gappedDay * 10,
-                             "the bout path DOES cap-and-credit, so it must dwarf the per-second day total")
+        let active120s = hrDay(bpm: 130, n: 120)
+        let active3660s = hrDay(bpm: 130, n: 3660)
+        let gapEnergy = Calories.estimateDayEnergy(gapped, profile: profile,
+                                                   hrmax: 185.0, restingHR: 55.0)
+        let shortEnergy = Calories.estimateDayEnergy(active120s, profile: profile,
+                                                     hrmax: 185.0, restingHR: 55.0)
+        let continuousEnergy = Calories.estimateDayEnergy(active3660s, profile: profile,
+                                                          hrmax: 185.0, restingHR: 55.0)
+        XCTAssertEqual(gapEnergy.observedSeconds, 3660, accuracy: 1e-12)
+        XCTAssertEqual(gapEnergy.activeKcal, shortEnergy.activeKcal, accuracy: 1e-9,
+                       "a long gap must carry only 120 capped active seconds")
+        XCTAssertGreaterThan(gapEnergy.restingKcal, shortEnergy.restingKcal,
+                             "BMR must continue across the observed sensor gap")
+        XCTAssertLessThan(gapEnergy.totalKcal, continuousEnergy.totalKcal,
+                          "a sensor gap must not be treated as continuous exercise")
     }
 
     // A timestamp safely inside UTC day 2026-01-02 (2026-01-02T12:00:00Z).
