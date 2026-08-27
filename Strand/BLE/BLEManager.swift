@@ -542,6 +542,17 @@ public final class BLEManager: NSObject, ObservableObject {
     static let disService       = CBUUID(string: "180A")
     static let disSerialChar    = CBUUID(string: "2A25") // Serial Number String
     static let disHwRevChar     = CBUUID(string: "2A27") // Hardware Revision String
+    static let disFwRevChar     = CBUUID(string: "2A26") // Firmware Revision String
+    static let disManufacturerChar = CBUUID(string: "2A29") // Manufacturer Name String
+    static let disModelNumberChar  = CBUUID(string: "2A24") // Model Number String
+    static let disSwRevChar     = CBUUID(string: "2A28") // Software Revision String
+    /// Every DIS characteristic NOOP reads, in ONE place. The failure reporter tests membership here, so
+    /// a characteristic added beside these cannot go silently unreported — the exact "a refused read is
+    /// indistinguishable from one never issued" gap the reporter exists to close. Kotlin twin: DIS_CHARS.
+    static let disChars: Set<CBUUID> = [
+        disSerialChar, disHwRevChar, disFwRevChar,
+        disManufacturerChar, disModelNumberChar, disSwRevChar,
+    ]
 
     static let restoreID = "com.openwhoop.ble.central"
 
@@ -941,8 +952,19 @@ public final class BLEManager: NSObject, ObservableObject {
     private var disSerialCharacteristic: CBCharacteristic?
     private var disHwRevCharacteristic: CBCharacteristic?
     private var disRead = false
+    /// Twice the on-connect battery delay, matching the Kotlin twin: long enough that the link has
+    /// settled after the suppression decision, short enough to land in the same session.
+    static let unbondedDisReadDelay: TimeInterval = 4.0
     private var disSerial: String?
     private var disHwRev: String?
+    /// #1635 follow-up: the DIS identity extras (firmware, manufacturer, model, software revision) as
+    /// discovered. Held as a list rather than one property each because nothing branches on them
+    /// individually — they are read as a set and reported as a set.
+    private var disExtraCharacteristics: [CBCharacteristic] = []
+    /// The DIS firmware string (0x2A26), which is the ONLY firmware source an unbonded 5/MG has: the
+    /// puffin report needs the bond that never happens. Published only as a fallback, never as an
+    /// override — see `shouldPublishDisFirmware`.
+    private var disFirmware: String?
     /// EXPERIMENTAL WHOOP 5.0/MG puffin notify chars (fd4b0003/4/5/7), remembered at discovery so we
     /// can re-subscribe them AFTER bonding — the strap refuses them ("Authentication is insufficient")
     /// until the link is encrypted (issue #17).
@@ -4219,9 +4241,11 @@ public final class BLEManager: NSObject, ObservableObject {
         batteryCharacteristic = nil
         disSerialCharacteristic = nil
         disHwRevCharacteristic = nil
+        disExtraCharacteristics = []
         disRead = false
         disSerial = nil
         disHwRev = nil
+        disFirmware = nil
         whoop5NotifyCharacteristics.removeAll()
     }
 
@@ -4346,7 +4370,74 @@ public final class BLEManager: NSObject, ObservableObject {
             disRead = true
             p.readValue(for: serialChar)
             if let c = disHwRevCharacteristic, c.properties.contains(.read) { p.readValue(for: c) }
+            readDisExtras(p)
         }
+    }
+
+    /// Read the DIS identity extras — firmware above all, which an unbonded 5/MG has no other source for.
+    ///
+    /// DIVERGENCE FROM ANDROID (deliberate, platform): the Kotlin twin CHAINS these one read per callback,
+    /// because its GATT queue runs a single operation at a time and a second read issued early is simply
+    /// dropped. CoreBluetooth queues reads itself, so chaining here would add a state machine to serialise
+    /// something already serialised. Same characteristics, same data, no chain.
+    ///
+    /// A strap need not implement all of DIS: a missing or unreadable characteristic is skipped, because
+    /// "not implemented" is per-characteristic and the ones it DOES publish should still be read.
+    private func readDisExtras(_ p: CBPeripheral) {
+        for c in disExtraCharacteristics where c.properties.contains(.read) {
+            p.readValue(for: c)
+        }
+    }
+
+    /// The UNBONDED DIS attempt (#1635 follow-up). Deliberately separate from the post-bond identity read,
+    /// which runs only inside the handshake and therefore never runs at all on a strap that will not bond.
+    ///
+    /// Delayed for the same reason the Kotlin twin delays it: this is only safe in the settled state the
+    /// suppression leaves behind — no handshake outstanding, nothing else in flight, the link holding.
+    private func scheduleUnbondedDisRead() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + BLEManager.unbondedDisReadDelay) { [weak self] in
+            self?.readDisIdentityUnbonded()
+        }
+    }
+
+    private func readDisIdentityUnbonded() {
+        guard let p = peripheral else { return }
+        let refused = disRefusedPrefKey(p.identifier.uuidString)
+            .map { UserDefaults.standard.bool(forKey: $0) } ?? false
+        guard shouldReadDisUnbonded(isWhoop5: selectedModel.deviceFamily == .whoop5,
+                                    bonded: didBond,
+                                    alreadyReadThisLink: disRead,
+                                    previouslyRefused: refused) else { return }
+        guard let serialChar = disSerialCharacteristic, serialChar.properties.contains(.read) else {
+            log("DIS: serial characteristic unavailable — hardware variant stays unknown")
+            return
+        }
+        log("DIS: trying the identity read on an UNbonded link — unproven, and a refusal is itself the answer to whether DIS needs an encrypted bond (#490)")
+        disRead = true
+        p.readValue(for: serialChar)
+        if let c = disHwRevCharacteristic, c.properties.contains(.read) { p.readValue(for: c) }
+        readDisExtras(p)
+    }
+
+    /// A DIS read that came back with a failure status.
+    ///
+    /// Scoped to the DIS characteristics: they are the reads whose refusal is a FINDING (it settles #490
+    /// and means the firmware cannot be had without a bond). The refusal is latched per device, so a strap
+    /// that declines says so once instead of on every reconnect forever.
+    private func noteDisReadFailure(_ uuid: CBUUID, _ error: Error) {
+        guard BLEManager.disChars.contains(uuid) else { return }
+        log(disReadFailureLine(uuid: uuid.uuidString, status: error.localizedDescription))
+        // Report it, but latch it ONLY for an unbonded attempt. The latch is persisted and permanent, so a
+        // transient failure on a BONDED link would disable the unbonded read for this strap for good and
+        // blame the strap for something that was never its policy. This is the analogue of the Kotlin
+        // twin's explicit-bond guard: same reasoning, different thing to exclude, because the bonded read
+        // is the only way a DIS failure reaches here without being the finding we are looking for.
+        guard !didBond else {
+            log("DIS: not latching that refusal — the link is bonded, so the failure is not attributable to the strap's unbonded-read policy")
+            return
+        }
+        guard let key = disRefusedPrefKey(peripheral?.identifier.uuidString) else { return }
+        UserDefaults.standard.set(true, forKey: key)
     }
 
     /// Resolve + log the 5/MG hardware variant once a DIS string lands (#520). Both characteristics
@@ -5398,7 +5489,7 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
             case BLEManager.disService:
                 // #520: read-only identity strings. Discovered here, but READ post-bond (below).
                 peripheral.discoverCharacteristics(
-                    [BLEManager.disSerialChar, BLEManager.disHwRevChar], for: s)
+                    BLEManager.disChars.map { $0 }, for: s)
             case BLEManager.whoop5Service:
                 // EXPERIMENTAL WHOOP 5.0/MG path: discover the puffin command + notify characteristics
                 // so we can send CLIENT_HELLO and receive frames. Live HR/battery still arrive over the
@@ -5468,6 +5559,11 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                 if !shouldSendClientHello(suppressedForDevice: helloSuppressed, userInitiated: helloUserAsked) {
                     log("WHOOP 5/MG: CLIENT_HELLO suppressed for this strap - it was never acknowledged and the write is what drops the link. Staying on live HR (not fully paired); press Connect to try the handshake again (#1635).")
                     state.pairingHint = BondRefusalGiveUp.helloSuppressedHint()
+                    // The unbonded DIS attempt rides HERE and nowhere else: this is the only 5/MG state
+                    // known to be stable - the handshake is off and the link is holding - and it is now
+                    // PERMANENT rather than transient, so without it a suppressed strap never learns its
+                    // firmware or whether it is an MG at all (#490).
+                    scheduleUnbondedDisRead()
                 } else if let hello = selectedModel.deviceFamily.clientHello {
                     // CONTRIBUTOR FIX (issue #17 — diagnosed from the logs, unverified on hardware here):
                     // write CLIENT_HELLO with .withResponse so CoreBluetooth runs just-works bonding when
@@ -5501,13 +5597,21 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                 default: break
                 }
                 requestNotify(c, on: peripheral, reason: "discovery")
-            case BLEManager.disSerialChar, BLEManager.disHwRevChar:
+            case BLEManager.disSerialChar, BLEManager.disHwRevChar, BLEManager.disFwRevChar,
+                 BLEManager.disManufacturerChar, BLEManager.disModelNumberChar, BLEManager.disSwRevChar:
                 // #520: CAPTURE ONLY — the read is issued post-bond (a 5/MG refuses standard reads on an
                 // unencrypted link, see #490). These are read-only identity strings: never subscribed
                 // (no notify property) and never written. Must be handled BEFORE `default`, or they'd be
                 // retained as puffin notify characteristics.
                 if c.uuid == BLEManager.disSerialChar {
                     disSerialCharacteristic = c
+                } else if c.uuid != BLEManager.disHwRevChar {
+                    // The identity extras are read straight off the discovered service, so they need no
+                    // dedicated property — but they must still be claimed here or `default` would retain
+                    // them as puffin notify characteristics.
+                    if !disExtraCharacteristics.contains(where: { $0.uuid == c.uuid }) {
+                        disExtraCharacteristics.append(c)
+                    }
                 } else {
                     disHwRevCharacteristic = c
                 }
@@ -5941,6 +6045,9 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                            didUpdateValueFor characteristic: CBCharacteristic,
                            error: Error?) {
         if let error {
+            // A DIS refusal is a FINDING, not noise — report it specifically and latch it, or a capture
+            // cannot tell a refusal from a read that was never issued (#490, #1635).
+            noteDisReadFailure(characteristic.uuid, error)
             log("Notify update failed for \(characteristic.uuid): \(error.localizedDescription)")
             return
         }
@@ -5979,6 +6086,27 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
             disHwRev = String(decoding: bytes, as: UTF8.self)
                 .trimmingCharacters(in: CharacterSet(charactersIn: "\0").union(.whitespacesAndNewlines))
             noteWhoop5VariantFromDIS()
+        case BLEManager.disFwRevChar:
+            disFirmware = String(decoding: bytes, as: UTF8.self)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\0").union(.whitespacesAndNewlines))
+            // FALLBACK only. The puffin report is the strap's own account of what it is running and lands
+            // later in the connect; a value that appeared and then changed would be worse than one that
+            // arrived once, so this yields rather than racing it.
+            if shouldPublishDisFirmware(disFirmware: disFirmware, alreadyDecoded: state.strapFirmware) {
+                state.strapFirmware = disFirmware
+                // Named as the DIS source, because it is not the same reading as the decoded one a 4.0
+                // shows and a capture must not have to guess which it is looking at.
+                log("DIS: firmware=\(disFirmware ?? "?") (standard profile, no bond required)")
+            } else {
+                let shown = (disFirmware?.isEmpty ?? true) ? "?" : (disFirmware ?? "?")
+                log("DIS: firmware=\(shown) not published — a decoded value already stands")
+            }
+        case BLEManager.disManufacturerChar, BLEManager.disModelNumberChar, BLEManager.disSwRevChar:
+            // Diagnostic only: nothing gates on these, but they cost one read each and are exactly what
+            // is missing when someone reports an unidentified strap.
+            let v = String(decoding: bytes, as: UTF8.self)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\0").union(.whitespacesAndNewlines))
+            if !v.isEmpty { log("DIS: \(characteristic.uuid.uuidString) = \(v)") }
         case BLEManager.dataNotifyChar,
              BLEManager.cmdNotifyChar,
              BLEManager.eventNotifyChar:
