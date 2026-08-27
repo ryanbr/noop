@@ -7884,7 +7884,17 @@ class WhoopBleClient(
     }
 
     /** #1118: last emit of each LIVE R-R census line, unix seconds; 0 = never. See
-     *  [com.noop.analytics.RrEmissionStats.shouldEmitLiveCensus] for why these are rate-limited. */
+     *  [com.noop.analytics.RrEmissionStats.shouldEmitLiveCensus] for why these are rate-limited.
+     *
+     *  Deliberately UNSYNCHRONIZED, unlike the buffers they sit beside. The two flushes can run
+     *  concurrently on the io scope, but a 32-bit write is atomic on the JVM so the worst outcome of a
+     *  stale read is one duplicate diagnostic line — cheaper than taking `collectorLock` on a path whose
+     *  only job is to describe itself. (The Swift twin is @MainActor-isolated and gets the guarantee for
+     *  free; the asymmetry is intentional, not an oversight.)
+     *
+     *  These live on the CLIENT, so they reset with it: a strap that reconnects often emits a line per
+     *  connection rather than one per 15 minutes. Left alone — persisting a diagnostic's rate-limit
+     *  across reconnects would outweigh what it saves, and a reconnect storm is itself worth seeing. */
     private var lastStdRrCensusSec: Int = 0
     private var lastRealtimeRrCensusSec: Int = 0
 
