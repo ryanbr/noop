@@ -56,6 +56,21 @@ enum UpdateAvailability {
         return latest != lastPostedVersion
     }
 
+    /// Has the install CAUGHT UP with a version we previously announced?
+    ///
+    /// The row says "NOOP 10.7.0 is available". Once the user actually installs 10.7.0 that sentence is
+    /// false, and it sits in the inbox directly beside the What's New row for the same version — an app
+    /// telling you to get something you already have. Nothing else prunes it, because the row carries no
+    /// version field of its own; the persisted `lastPostedVersion` is what makes this answerable without
+    /// parsing the title back out.
+    ///
+    /// Must be evaluated even when the toggle is OFF: someone can post a row, switch the check off, then
+    /// update — and the stale row would otherwise outlive the feature that made it.
+    static func shouldPruneAnnouncement(lastPostedVersion: String?, current: String) -> Bool {
+        guard let posted = lastPostedVersion, !posted.isEmpty else { return false }
+        return !VersionCheck.isNewer(posted, than: current)
+    }
+
     /// Inbox row title. Byte-identical to the Kotlin twin.
     static func inboxTitle(version: String) -> String {
         "NOOP \(version) is available"
@@ -122,6 +137,15 @@ enum UpdateWatch {
     @MainActor
     static func runIfDue(currentVersion: String, sideloadHint: Bool, now: Date = Date()) {
         let d = UserDefaults.standard
+        // Runs before every guard below, including the toggle: a stale announcement must not outlive the
+        // feature that posted it (see `shouldPruneAnnouncement`).
+        if UpdateAvailability.shouldPruneAnnouncement(
+            lastPostedVersion: d.string(forKey: Keys.lastPostedVersion), current: currentVersion) {
+            for item in UpdateStore.shared.items where item.kind == .newVersion {
+                UpdateStore.shared.remove(item.id)
+            }
+            d.removeObject(forKey: Keys.lastPostedVersion)
+        }
         guard !inFlight else { return }
         guard UpdateAvailability.shouldCheckNow(enabled: isEnabled,
                                                 lastCheckedAt: d.double(forKey: Keys.lastCheckedAt),

@@ -113,4 +113,26 @@ final class UpdateAvailabilityTests: XCTestCase {
         // Round-trips through the persisted store's Codable rawValue.
         XCTAssertEqual(UpdateItem.Kind(rawValue: "newVersion"), .newVersion)
     }
+
+    // MARK: - pruning a stale announcement
+
+    /// The row says "10.7.0 is available". Once the user installs 10.7.0 that sentence is false, and it
+    /// sits beside the What's New row for the same version — an app telling you to get what you have.
+    func testTheAnnouncementIsPrunedOnceInstalled() {
+        XCTAssertTrue(UpdateAvailability.shouldPruneAnnouncement(lastPostedVersion: "10.7.0", current: "10.7.0"))
+        // Overshot it (a user who jumped straight to 10.8.0) — equally stale.
+        XCTAssertTrue(UpdateAvailability.shouldPruneAnnouncement(lastPostedVersion: "10.7.0", current: "10.8.0"))
+    }
+
+    /// Still behind: the row is still TRUE and must survive, or the announcement would delete itself on
+    /// the very next launch and the feature would do nothing at all.
+    func testAnAnnouncementStillAheadSurvives() {
+        XCTAssertFalse(UpdateAvailability.shouldPruneAnnouncement(lastPostedVersion: "10.7.0", current: "10.6.0"))
+    }
+
+    func testNothingAnnouncedIsNothingToPrune() {
+        XCTAssertFalse(UpdateAvailability.shouldPruneAnnouncement(lastPostedVersion: nil, current: "10.6.0"))
+        XCTAssertFalse(UpdateAvailability.shouldPruneAnnouncement(lastPostedVersion: "", current: "10.6.0"))
+    }
 }
+

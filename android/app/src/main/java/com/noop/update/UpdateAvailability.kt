@@ -65,6 +65,23 @@ object UpdateAvailability {
         return latest != lastPostedVersion
     }
 
+    /**
+     * Has the install CAUGHT UP with a version we previously announced?
+     *
+     * The row says "NOOP 10.7.0 is available". Once the user actually installs 10.7.0 that sentence is
+     * false, and it sits in the inbox directly beside the What's New row for the same version — an app
+     * telling you to get something you already have. Nothing else prunes it, because the row carries no
+     * version field of its own; the persisted last-posted version is what makes this answerable without
+     * parsing the title back out.
+     *
+     * Must be evaluated even when the toggle is OFF: someone can post a row, switch the check off, then
+     * update — and the stale row would otherwise outlive the feature that made it.
+     */
+    fun shouldPruneAnnouncement(lastPostedVersion: String?, current: String): Boolean {
+        if (lastPostedVersion.isNullOrEmpty()) return false
+        return !UpdateCheck.isNewer(lastPostedVersion, current)
+    }
+
     /** Inbox row title. Byte-identical to the Swift twin. */
     fun inboxTitle(version: String): String = "NOOP $version is available"
 
@@ -125,6 +142,16 @@ object UpdateWatch {
         nowMs: Long = System.currentTimeMillis(),
     ) {
         val p = prefs(context)
+        // Runs before every guard below, including the toggle: a stale announcement must not outlive the
+        // feature that posted it (see [UpdateAvailability.shouldPruneAnnouncement]).
+        if (UpdateAvailability.shouldPruneAnnouncement(
+                p.getString(KEY_LAST_POSTED_VERSION, null), currentVersion)
+        ) {
+            val store = com.noop.ui.UpdateStore.from(context)
+            store.items.filter { it.kind == com.noop.ui.UpdateKind.NEW_VERSION }
+                .forEach { store.remove(it.id) }
+            p.edit().remove(KEY_LAST_POSTED_VERSION).apply()
+        }
         if (!UpdateAvailability.shouldCheckNow(
                 enabled = isEnabled(context),
                 lastCheckedAtMs = p.getLong(KEY_LAST_CHECKED_AT, 0L),

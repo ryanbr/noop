@@ -119,4 +119,29 @@ class UpdateAvailabilityTest {
         assertFalse(plain.endsWith("\n"))
         assertEquals(UpdateAvailability.inboxMessage("10.7.0", "10.6.0", "", false), plain)
     }
+
+    // --- pruning a stale announcement ---
+
+    /**
+     * The row says "10.7.0 is available". Once the user installs 10.7.0 that sentence is false, and it
+     * sits beside the What's New row for the same version — an app telling you to get what you have.
+     */
+    @Test
+    fun `the announcement is pruned once installed`() {
+        assertTrue(UpdateAvailability.shouldPruneAnnouncement("10.7.0", "10.7.0"))
+        assertTrue(UpdateAvailability.shouldPruneAnnouncement("10.7.0", "10.8.0"))
+    }
+
+    /** Still behind: the row is still TRUE and must survive, or it would delete itself on the next launch. */
+    @Test
+    fun `an announcement still ahead survives`() {
+        assertFalse(UpdateAvailability.shouldPruneAnnouncement("10.7.0", "10.6.0"))
+    }
+
+    @Test
+    fun `nothing announced is nothing to prune`() {
+        assertFalse(UpdateAvailability.shouldPruneAnnouncement(null, "10.6.0"))
+        assertFalse(UpdateAvailability.shouldPruneAnnouncement("", "10.6.0"))
+    }
 }
+
