@@ -8023,10 +8023,21 @@ class WhoopBleClient(
                 clockUntrusted = clockUntrusted,
             )
         ) {
+            // #1683: the empty streak only stretches the floor for the AUTOMATIC triggers (PERIODIC and
+            // STRAP). Naming it on a CONNECT/FOREGROUND skip - which uses the flat event floor and is not
+            // backed off at all - reads as though the streak caused the skip. It misled a reader of a real
+            // capture, so the line now names the streak only where the streak is actually doing something.
+            val streakGatesThisTrigger =
+                trigger == BackfillTrigger.PERIODIC || trigger == BackfillTrigger.STRAP
             log(
-                "Backfill: skipped ($trigger) - policy floor not met " +
-                    "(empty streak ${emptySyncTracker.consecutiveEmptySyncs}" +
-                    "${if (clockUntrusted) ", clock future-dated" else ""})",
+                "Backfill: skipped ($trigger) - policy floor not met" +
+                    // BOTH the streak and the future-dated clock gate PERIODIC/STRAP only; CONNECT and
+                    // FOREGROUND use the flat event floor. Naming either on those triggers reads as a
+                    // cause, which is how this line misled a reader of a real capture.
+                    (if (streakGatesThisTrigger)
+                        " (empty streak ${emptySyncTracker.consecutiveEmptySyncs}" +
+                            "${if (clockUntrusted) ", clock future-dated" else ""})"
+                    else ""),
             )
             return
         }
@@ -8247,6 +8258,14 @@ class WhoopBleClient(
                 "Backfill: completed but the strap banked no sensor history ($detail); " +
                     "consecutive empty syncs = ${emptySyncTracker.consecutiveEmptySyncs}.",
             )
+            // #1683: say HOW OLD the strap's newest stored record is. Without this the line above reads
+            // identically for a strap that is caught up and one that stopped banking three weeks ago -
+            // NOOP knows the difference (GET_DATA_RANGE gave it) and simply never said so, which is why
+            // #1541 stayed open and unactionable. Rare-event evidence, so always-on.
+            val newestSeen = strapNewestTs
+            if (Backfiller.isStaleNewestRecord(newestSeen, nowSec) && newestSeen != null) {
+                log(Backfiller.staleRecordLine(newestSeen, nowSec))
+            }
         }
         // #battery: maintain the empty-offload backoff counter (see [consecutiveEmptyOffloads]). A 0-row
         // session — clean HISTORY_COMPLETE-empty OR an idle-timeout STALL — means there was nothing new to

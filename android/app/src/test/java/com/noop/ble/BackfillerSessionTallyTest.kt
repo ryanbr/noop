@@ -123,6 +123,51 @@ class BackfillerSessionTallyTest {
     }
 
     // The recovery hint names the cause + fix, reports days-ahead, and has no em-dash. Byte-identical to Swift.
+    // #1683: the stale counterpart. A strap that stopped banking weeks ago and one that is caught up
+    // produced the SAME "banked no sensor history" line, so neither the user nor a triager could tell
+    // them apart — the reason #1541 stayed open and unactionable.
+
+    @Test fun aCaughtUpOrBrieflyIdleStrapIsNotStale() {
+        val now = 1_700_000_000L
+        assertFalse(Backfiller.isStaleNewestRecord(null, now))          // no reading at all
+        assertFalse(Backfiller.isStaleNewestRecord(0L, now))            // 0 is not a date
+        assertFalse(Backfiller.isStaleNewestRecord(now, now))           // caught up
+        assertFalse(Backfiller.isStaleNewestRecord(now - 86_400L, now)) // one night off-wrist is ordinary
+    }
+
+    @Test fun twoDaysIsTheBoundaryAndQualifies() {
+        val now = 1_700_000_000L
+        assertTrue(Backfiller.isStaleNewestRecord(now - 2L * 86_400L, now))
+    }
+
+    /** A future-dated record belongs to futureRtcLine; this rule must not also claim it. */
+    @Test fun aFutureDatedRecordIsNotStale() {
+        val now = 1_700_000_000L
+        assertFalse(Backfiller.isStaleNewestRecord(now + 86_400L, now))
+    }
+
+    /**
+     * The numbers from the #1683 capture: newest stored record 1785692420 against a wall clock of
+     * 1787820941. The user was told only "banked no sensor history"; this says three weeks.
+     */
+    @Test fun staleRecordLineReportsTheRealCaptureAsTwentyFourDays() {
+        val line = Backfiller.staleRecordLine(1_785_692_420L, 1_787_820_941L)
+        assertTrue(line, line.contains("about 24 day(s) old"))
+        assertTrue(line, line.contains("stopped saving history"))
+        // The part the old advice omitted: charging alone has already been retried every connect.
+        assertTrue(line, line.contains("re-sends the clock on every connect"))
+        // The test that tells the user whether NOOP is even involved.
+        assertTrue(line, line.contains("official WHOOP app"))
+        assertFalse(line.contains("\u2014"))
+    }
+
+    /** States the fact, never the diagnosis: a drawered strap shows the same number innocently. */
+    @Test fun staleRecordLineDoesNotAssertACorruptClock() {
+        val line = Backfiller.staleRecordLine(1_700_000_000L - 20L * 86_400L, 1_700_000_000L)
+        assertFalse(line, line.contains("corrupt"))
+        assertTrue(line, line.contains("If you have worn it"))
+    }
+
     @Test fun futureRtcLineWording() {
         val now = 1_700_000_000L
         val line = Backfiller.futureRtcLine(now + 10L * 86_400L, now)

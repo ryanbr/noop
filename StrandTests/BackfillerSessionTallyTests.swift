@@ -285,4 +285,50 @@ final class BackfillerSessionTallyTests: XCTestCase {
                       "a truly-empty no-cursor session must still warn the strap has no banked history")
         XCTAssertTrue(joined.contains("fully charge it"))
     }
+
+    // MARK: - #1683: the stale counterpart to futureRtcLine
+
+    /// A strap that stopped banking weeks ago and one that is caught up produced the SAME "banked no
+    /// sensor history" line, so neither the user nor a triager could tell them apart. That is why #1541
+    /// stayed open and unactionable.
+    func testACaughtUpOrBrieflyIdleStrapIsNotStale() {
+        let now = 1_700_000_000
+        XCTAssertFalse(Backfiller.isStaleNewestRecord(newestUnix: nil, wallNowUnix: now))
+        XCTAssertFalse(Backfiller.isStaleNewestRecord(newestUnix: 0, wallNowUnix: now))
+        XCTAssertFalse(Backfiller.isStaleNewestRecord(newestUnix: now, wallNowUnix: now))
+        XCTAssertFalse(Backfiller.isStaleNewestRecord(newestUnix: now - 86_400, wallNowUnix: now),
+                       "one night off-wrist is ordinary and must stay silent")
+    }
+
+    func testTwoDaysIsTheBoundaryAndQualifies() {
+        let now = 1_700_000_000
+        XCTAssertTrue(Backfiller.isStaleNewestRecord(newestUnix: now - 2 * 86_400, wallNowUnix: now))
+    }
+
+    /// A future-dated record belongs to `futureRtcLine`; this rule must not also claim it.
+    func testAFutureDatedRecordIsNotStale() {
+        let now = 1_700_000_000
+        XCTAssertFalse(Backfiller.isStaleNewestRecord(newestUnix: now + 86_400, wallNowUnix: now))
+    }
+
+    /// The numbers from the #1683 capture: newest stored record 1785692420 against a wall clock of
+    /// 1787820941. The user was told only "banked no sensor history"; this says three weeks.
+    func testStaleRecordLineReportsTheRealCaptureAsTwentyFourDays() {
+        let line = Backfiller.staleRecordLine(newestUnix: 1_785_692_420, wallNowUnix: 1_787_820_941)
+        XCTAssertTrue(line.contains("about 24 day(s) old"), line)
+        XCTAssertTrue(line.contains("stopped saving history"), line)
+        // The part the old advice omitted: charging alone has already been retried every connect.
+        XCTAssertTrue(line.contains("re-sends the clock on every connect"), line)
+        // The test that tells the user whether NOOP is even involved.
+        XCTAssertTrue(line.contains("official WHOOP app"), line)
+        XCTAssertFalse(line.contains("\u{2014}"))
+    }
+
+    /// States the fact, never the diagnosis: a drawered strap shows the same number innocently.
+    func testStaleRecordLineDoesNotAssertACorruptClock() {
+        let line = Backfiller.staleRecordLine(newestUnix: 1_700_000_000 - 20 * 86_400,
+                                              wallNowUnix: 1_700_000_000)
+        XCTAssertFalse(line.contains("corrupt"), line)
+        XCTAssertTrue(line.contains("If you have worn it"), line)
+    }
 }
