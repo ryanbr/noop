@@ -459,6 +459,23 @@ final class Backfiller {
         return "Backfill: this sync banked nothing and the strap's newest stored record is about \(ageDays) day(s) old. If you have worn it since then, it has stopped saving history to its flash. NOOP already re-sends the clock on every connect, so charging alone may not be enough: charge to 100% and reconnect, then use Restart strap in Devices, and if that does not help forget and re-pair. If the official WHOOP app is also missing these days, the strap is the cause and not NOOP."
     }
 
+
+    /// #1683: the same honesty as `staleRecordLine`, for the message the user actually READS.
+    ///
+    /// The standing banner says "fully charge it to 100%, then reconnect, and it should start banking
+    /// again". It omits the one fact that makes the situation legible - how long the strap has been
+    /// silent - and it PROMISES a recovery that has already failed every session for weeks, because NOOP
+    /// re-sends SET_CLOCK on every connect and the charge advice has therefore been retried all along. A
+    /// banner that keeps promising something that keeps not happening teaches people to distrust the app
+    /// rather than their strap.
+    ///
+    /// Byte-identical to the Android twin. Not localized, matching the sibling `lastSyncError` copy on
+    /// both platforms; localizing that surface is its own change. No em-dash (project rule).
+    nonisolated static func staleRecordBanner(newestUnix: Int, wallNowUnix: Int) -> String {
+        let ageDays = max(0, wallNowUnix - newestUnix) / 86_400
+        return "Synced, but your strap handed over no stored history, and its newest saved record is about \(ageDays) day(s) old. If you have been wearing it since then, it has stopped saving to flash. Charge it to 100% and reconnect; NOOP already re-sets its clock every connect, so if that does not help, try Restart strap in Devices, then forget and re-pair. If the official WHOOP app is missing these days too, the strap is the cause and not NOOP."
+    }
+
     /// Commit one HISTORY_END chunk: (persist decoded → enqueueRaw when present) → setCursor → ackTrim.
     /// Early-returns on any throw to preserve the safe-trim invariant.
     ///

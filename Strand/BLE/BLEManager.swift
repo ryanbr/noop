@@ -2443,12 +2443,20 @@ public final class BLEManager: NSObject, ObservableObject {
                 // GET_DATA_RANGE already told us the difference and we simply never said so, which is why
                 // #1541 stayed open and unactionable. Rare-event evidence, so always-on.
                 let wallNowUnix = Int(Date().timeIntervalSince1970)
-                if let newest = strapNewestTs,
-                   Backfiller.isStaleNewestRecord(newestUnix: newest, wallNowUnix: wallNowUnix) {
+                // Read the field ONCE: it feeds both the log line and the banner below, and they must not
+                // disagree about whether the strap is stale.
+                let staleNewest: Int? = strapNewestTs.flatMap {
+                    Backfiller.isStaleNewestRecord(newestUnix: $0, wallNowUnix: wallNowUnix) ? $0 : nil
+                }
+                if let newest = staleNewest {
                     log(Backfiller.staleRecordLine(newestUnix: newest, wallNowUnix: wallNowUnix))
                 }
+                // #1683: when the strap's own newest record dates the silence, SAY it. The generic copy
+                // below omits that and promises a recovery the charge advice has already been retried for
+                // every session; the dated version is the one a stuck user can act on.
                 state.lastSyncError = sustainedEmpty
-                    ? "Synced, but your strap had no stored history to hand over - only its diagnostic output. This usually means its clock has lost sync, so it isn't saving data to flash. Fully charge it to 100%, then reconnect, and it should start banking again."
+                    ? (staleNewest.map { Backfiller.staleRecordBanner(newestUnix: $0, wallNowUnix: wallNowUnix) }
+                        ?? "Synced, but your strap had no stored history to hand over - only its diagnostic output. This usually means its clock has lost sync, so it isn't saving data to flash. Fully charge it to 100%, then reconnect, and it should start banking again.")
                     : nil
             } else if let futureBanner = futureClockBanner {
                 // #324/#928: the strap banked records but its newest is dated implausibly in the FUTURE

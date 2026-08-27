@@ -837,6 +837,32 @@ class Backfiller(
                 "does not help forget and re-pair. If the official WHOOP app is also missing these days, " +
                 "the strap is the cause and not NOOP."
         }
+
+        /**
+         * #1683: the same honesty as [staleRecordLine], for the message the user actually READS.
+         *
+         * The standing banner says "fully charge it to 100%, then reconnect, and it should start banking
+         * again". It omits the one fact that makes the situation legible - how long the strap has been
+         * silent - and it PROMISES a recovery that has already failed every session for weeks, because
+         * NOOP re-sends SET_CLOCK on every connect and the charge advice has therefore been retried all
+         * along. A banner that keeps promising something that keeps not happening teaches people to
+         * distrust the app rather than their strap.
+         *
+         * Shorter than the log line: a banner is glanced at, not read. Same discipline though - state the
+         * age, condition the diagnosis on having worn it, and name the check that says whether NOOP is
+         * even involved.
+         *
+         * Byte-identical to the Swift twin. Not localized, matching the sibling `lastSyncError` copy on
+         * both platforms; localizing that surface is its own change. No em-dash (project rule).
+         */
+        fun staleRecordBanner(newestUnix: Long, wallNowUnix: Long): String {
+            val ageDays = maxOf(0L, wallNowUnix - newestUnix) / 86_400L
+            return "Synced, but your strap handed over no stored history, and its newest saved record is " +
+                "about $ageDays day(s) old. If you have been wearing it since then, it has stopped saving " +
+                "to flash. Charge it to 100% and reconnect; NOOP already re-sets its clock every connect, " +
+                "so if that does not help, try Restart strap in Devices, then forget and re-pair. If the " +
+                "official WHOOP app is missing these days too, the strap is the cause and not NOOP."
+        }
     }
 }
 

@@ -331,4 +331,16 @@ final class BackfillerSessionTallyTests: XCTestCase {
         XCTAssertFalse(line.contains("corrupt"), line)
         XCTAssertTrue(line.contains("If you have worn it"), line)
     }
+
+    /// The banner is what the user READS; the log line needs a capture export. The standing banner
+    /// omitted the age entirely and PROMISED that charging "should" work - advice NOOP has effectively
+    /// retried on every connect for weeks, since it re-sends SET_CLOCK each time.
+    func testStaleRecordBannerDatesTheSilenceAndPromisesNothing() {
+        let line = Backfiller.staleRecordBanner(newestUnix: 1_785_692_420, wallNowUnix: 1_787_820_941)
+        XCTAssertTrue(line.contains("about 24 day(s) old"), line)
+        XCTAssertTrue(line.contains("If you have been wearing it"), line)
+        XCTAssertTrue(line.contains("official WHOOP app"), line)
+        XCTAssertFalse(line.contains("should start banking again"), line)
+        XCTAssertFalse(line.contains("\u{2014}"))
+    }
 }

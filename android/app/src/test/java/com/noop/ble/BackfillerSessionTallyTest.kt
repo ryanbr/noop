@@ -168,6 +168,20 @@ class BackfillerSessionTallyTest {
         assertTrue(line, line.contains("If you have worn it"))
     }
 
+    /**
+     * The banner is what the user READS; the log line needs a capture export. The standing banner omitted
+     * the age entirely and PROMISED that charging "should" work - advice NOOP has effectively retried on
+     * every connect for weeks, since it re-sends SET_CLOCK each time.
+     */
+    @Test fun staleRecordBannerDatesTheSilenceAndPromisesNothing() {
+        val line = Backfiller.staleRecordBanner(1_785_692_420L, 1_787_820_941L)
+        assertTrue(line, line.contains("about 24 day(s) old"))
+        assertTrue(line, line.contains("If you have been wearing it"))
+        assertTrue(line, line.contains("official WHOOP app"))
+        assertFalse(line, line.contains("should start banking again"))
+        assertFalse(line.contains("\u2014"))
+    }
+
     @Test fun futureRtcLineWording() {
         val now = 1_700_000_000L
         val line = Backfiller.futureRtcLine(now + 10L * 86_400L, now)
