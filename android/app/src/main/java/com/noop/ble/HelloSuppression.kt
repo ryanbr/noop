@@ -6,9 +6,16 @@ package com.noop.ble
  * The #1635 field captures show the hello is what ends the link. Across two sessions and sixteen writes it
  * was never once acknowledged, and the drop is locked to the HELLO rather than to the connect: 3.158s,
  * 3.159s, 3.155s after the write, cycle after cycle, while live HR streams happily over the standard
- * profile the whole time. The bond-state trace added for this (#1639) records no OS pairing attempt at all,
- * so the strap is not refusing a pairing — the write simply never completes and the local stack drops the
- * ACL, which the log reports as an unattributed GATT status 22.
+ * profile the whole time. The bond-state trace added for this (#1639) records no OS pairing attempt at all
+ * — the write simply never completes and the local stack drops the ACL, which the log reports as an
+ * unattributed GATT status 22.
+ *
+ * That trace was later read as "the strap is not refusing a pairing". An HCI capture disproves it: the
+ * phone DOES transmit an SMP Pairing Request and the strap answers `Pairing Not Supported` (0x05). The
+ * refusal is real, and it is categorical — the encrypted bond this hello was waiting behind can never
+ * arrive on a 5/MG. That does not invalidate the suppression, whose evidence is about the hello's own
+ * fate, but it does mean suppressing it leaves the app attempting NEITHER handshake. Hence the opt-in
+ * override below.
  *
  * The result is a strap that CAN deliver live HR being knocked off every five seconds by a handshake that
  * has never once succeeded. Suppressing the hello after the give-up latches trades an unreachable
@@ -31,7 +38,8 @@ package com.noop.ble
 internal fun shouldSendClientHello(
     suppressedForDevice: Boolean,
     userInitiated: Boolean,
-): Boolean = !suppressedForDevice || userInitiated
+    overrideSuppression: Boolean = false,
+): Boolean = !suppressedForDevice || userInitiated || overrideSuppression
 
 /**
  * Should the give-up latch suppress the hello, rather than pause auto-reconnect?

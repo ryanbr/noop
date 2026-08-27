@@ -587,6 +587,7 @@ fun SettingsScreen(
     val r22FlagCount = Whoop5Config.enableR22Sequence.size
     var broadcastHr by remember(rev) { mutableStateOf(puffinExperiment.broadcastHr) }
     var explicitBond by remember(rev) { mutableStateOf(puffinExperiment.explicitBond) }
+    var helloDespiteRefusal by remember(rev) { mutableStateOf(puffinExperiment.helloDespiteBondRefusal) }
     // ECG raw-data gate (#891): the opt-in, the write result, and the attested-MG gate the buttons need.
     var ecgRawData by remember(rev) { mutableStateOf(puffinExperiment.ecgRawData) }
     val ecgGateReport by vm.ble.ecgRawDataGate.collectAsStateWithLifecycle()
@@ -2336,6 +2337,40 @@ fun SettingsScreen(
                         ),
                         modifier = Modifier.semantics {
                             contentDescription = uiString(R.string.l10n_settings_screen_ask_android_to_pair_323fccbe)
+                        },
+                    )
+                }
+
+                // --- Send the hello even when the suppression latch is set. (#1635) ---
+                // An HCI capture shows the strap answers createBond with SMP "Pairing Not Supported", so
+                // the bond the hello waits behind can never arrive — and with the hello suppressed the app
+                // attempts neither handshake. This asks the only question left.
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Text(
+                        uiString(R.string.l10n_settings_screen_send_hello_despite_bond_refusal_experimental_2f8de795),
+                        style = NoopType.subhead,
+                        color = Palette.textPrimary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(
+                        checked = helloDespiteRefusal,
+                        onCheckedChange = {
+                            helloDespiteRefusal = it
+                            puffinExperiment.helloDespiteBondRefusal = it
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Palette.surfaceBase,
+                            checkedTrackColor = Palette.accent,
+                            uncheckedThumbColor = Palette.textSecondary,
+                            uncheckedTrackColor = Palette.surfaceInset,
+                            uncheckedBorderColor = Palette.hairline,
+                        ),
+                        modifier = Modifier.semantics {
+                            contentDescription = uiString(R.string.l10n_settings_screen_send_hello_despite_bond_refusal_65c9d9fd)
                         },
                     )
                 }

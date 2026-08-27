@@ -2452,4 +2452,6 @@
     <string name="l10n_settings_screen_ask_android_to_pair_experimental_250a81e9">Pedir a Android que vincule (experimental)</string>
     <string name="l10n_settings_screen_noop_has_always_hoped_that_writing_19967036">NOOP siempre ha confiado en que escribir en tu 5.0/MG hiciera que Android lo vinculara. Nunca ocurre. Esta opción se lo pide a Android directamente, por lo que puede mostrar un diálogo de vinculación del sistema. La frecuencia cardíaca en directo sigue funcionando igualmente; desactívala si el diálogo molesta.</string>
     <string name="l10n_settings_screen_ask_android_to_pair_323fccbe">Pedir a Android que vincule</string>
+    <string name="l10n_settings_screen_send_hello_despite_bond_refusal_experimental_2f8de795">Enviar hello pese al rechazo de vinculación (experimental)</string>
+    <string name="l10n_settings_screen_send_hello_despite_bond_refusal_65c9d9fd">Enviar hello pese al rechazo de vinculación</string>
 </resources>

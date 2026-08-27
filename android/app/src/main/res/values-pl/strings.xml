@@ -2457,4 +2457,6 @@
     <string name="l10n_settings_screen_ask_android_to_pair_experimental_250a81e9">Poproś Androida o sparowanie (eksperymentalne)</string>
     <string name="l10n_settings_screen_noop_has_always_hoped_that_writing_19967036">NOOP zawsze liczył na to, że zapis do 5.0/MG skłoni Androida do sparowania. To się nigdy nie dzieje. Ta opcja prosi Androida bezpośrednio, więc może pojawić się systemowe okno parowania. Tętno na żywo działa tak czy inaczej; wyłącz, jeśli okno przeszkadza.</string>
     <string name="l10n_settings_screen_ask_android_to_pair_323fccbe">Poproś Androida o sparowanie</string>
+    <string name="l10n_settings_screen_send_hello_despite_bond_refusal_experimental_2f8de795">Wyślij hello mimo odmowy parowania (eksperymentalne)</string>
+    <string name="l10n_settings_screen_send_hello_despite_bond_refusal_65c9d9fd">Wyślij hello mimo odmowy parowania</string>
 </resources>

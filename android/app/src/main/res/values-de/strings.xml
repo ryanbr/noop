@@ -2466,4 +2466,6 @@
     <string name="l10n_settings_screen_ask_android_to_pair_experimental_250a81e9">Android um Kopplung bitten (experimentell)</string>
     <string name="l10n_settings_screen_noop_has_always_hoped_that_writing_19967036">NOOP hat bisher darauf gesetzt, dass ein Schreibvorgang an dein 5.0/MG Android zur Kopplung veranlasst. Das passiert nie. Diese Option fragt Android direkt und kann einen System-Kopplungsdialog anzeigen. Die Live-Herzfrequenz funktioniert in beiden Fällen weiter; schalte sie aus, wenn der Dialog stört.</string>
     <string name="l10n_settings_screen_ask_android_to_pair_323fccbe">Android um Kopplung bitten</string>
+    <string name="l10n_settings_screen_send_hello_despite_bond_refusal_experimental_2f8de795">Hello trotz Kopplungsverweigerung senden (experimentell)</string>
+    <string name="l10n_settings_screen_send_hello_despite_bond_refusal_65c9d9fd">Hello trotz Kopplungsverweigerung senden</string>
 </resources>

@@ -111,6 +111,25 @@ class PuffinExperiment(private val prefs: SharedPreferences) {
         get() = prefs.getBoolean(KEY_MOTION_AWARE_WAKE, false)
         set(v) = prefs.edit().putBoolean(KEY_MOTION_AWARE_WAKE, v).apply()
 
+    /**
+     * Send the CLIENT_HELLO even when the suppression latch says not to (default false, #1635).
+     *
+     * The latch exists because the hello was never once acknowledged and the drop is locked to it. But an
+     * HCI capture has since changed the premise it was reasoned from: the strap answers `createBond` with
+     * SMP `Pairing Not Supported` (0x05), so the encrypted bond the hello was waiting behind can NEVER
+     * arrive. With SMP unavailable and the hello suppressed, the app now attempts NEITHER handshake — the
+     * same capture shows zero writes to fd4b0002 other than DISABLE_ALARM, and zero puffin subscriptions.
+     *
+     * Whether the strap will answer a hello on a link it has explicitly refused to encrypt is unknown, and
+     * unknowable without asking. This switch asks. It is deliberately its own toggle rather than a change
+     * to the latch: the latch's reasoning is still sound for anyone whose strap DOES bond, and the failure
+     * mode it prevents (hello, drop at ~4.8s, reconnect, forever) is real. Opting in accepts that loop in
+     * exchange for the answer.
+     */
+    var helloDespiteBondRefusal: Boolean
+        get() = prefs.getBoolean(KEY_HELLO_DESPITE_REFUSAL, false)
+        set(v) = prefs.edit().putBoolean(KEY_HELLO_DESPITE_REFUSAL, v).apply()
+
     /** True if the user opted in to "Ask Android to pair" (#1635, default false): NOOP calls
      *  `BluetoothDevice.createBond()` explicitly instead of relying on a write to the encrypted
      *  characteristic to provoke pairing — which the #1639 bond-state trace showed never happens at all.
@@ -163,6 +182,9 @@ class PuffinExperiment(private val prefs: SharedPreferences) {
         /** "Ask Android to pair" opt-in — the explicit `createBond()` experiment (#1635). Android-only,
          *  so no macOS key to mirror. */
         const val KEY_EXPLICIT_BOND = "noopWhoop5ExplicitBond"
+
+        /** #1635: send the CLIENT_HELLO even when the suppression latch is set. Default OFF. */
+        const val KEY_HELLO_DESPITE_REFUSAL = "noopWhoop5HelloDespiteRefusal"
 
         /** The 5/MG-only probe keys, in ONE place: [resetFiveMGGatedProbes] clears exactly these, and
          *  SettingsScreen watches exactly these for external writes. Two lists would drift. */

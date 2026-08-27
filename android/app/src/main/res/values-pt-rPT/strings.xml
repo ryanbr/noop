@@ -2445,4 +2445,6 @@
     <string name="l10n_settings_screen_ask_android_to_pair_experimental_250a81e9">Pedir ao Android para emparelhar (experimental)</string>
     <string name="l10n_settings_screen_noop_has_always_hoped_that_writing_19967036">O NOOP sempre contou que escrever na sua 5.0/MG fizesse o Android emparelhar. Isso nunca acontece. Esta opção pede diretamente ao Android, pelo que pode mostrar uma caixa de diálogo de emparelhamento do sistema. A frequência cardíaca em direto continua a funcionar de qualquer forma; desative se a caixa de diálogo incomodar.</string>
     <string name="l10n_settings_screen_ask_android_to_pair_323fccbe">Pedir ao Android para emparelhar</string>
+    <string name="l10n_settings_screen_send_hello_despite_bond_refusal_experimental_2f8de795">Enviar hello apesar da recusa de emparelhamento (experimental)</string>
+    <string name="l10n_settings_screen_send_hello_despite_bond_refusal_65c9d9fd">Enviar hello apesar da recusa de emparelhamento</string>
 </resources>

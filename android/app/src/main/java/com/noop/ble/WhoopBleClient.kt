@@ -7661,7 +7661,22 @@ class WhoopBleClient(
                 val suppressed = runCatching {
                     com.noop.ui.NoopPrefs.helloSuppressed(context, g.device.address)
                 }.getOrDefault(false)
-                if (shouldSendClientHello(suppressed, userInitiated = userAsked)) {
+                // #1635: the opt-in override. An HCI capture shows the strap answers createBond with SMP
+                // "Pairing Not Supported", so the encrypted bond the hello waits behind cannot arrive —
+                // and with the hello suppressed the app attempts NEITHER handshake. Read fresh per connect,
+                // like the probes gate, so flipping it takes effect on the next connect without a restart.
+                val helloOverride = runCatching {
+                    PuffinExperiment.from(context).helloDespiteBondRefusal
+                }.getOrDefault(false)
+                if (shouldSendClientHello(suppressed, userInitiated = userAsked, overrideSuppression = helloOverride)) {
+                    if (suppressed && helloOverride && !userAsked) {
+                        // Say WHY a suppressed strap is getting a hello anyway, or the next reader sees the
+                        // latch set and a hello on the wire and has to guess which of them is broken.
+                        log("WHOOP 5/MG: CLIENT_HELLO sent DESPITE the suppression latch — \"send hello" +
+                            " despite bond refusal\" is on. The strap refuses SMP pairing (Pairing Not" +
+                            " Supported), so this is the only handshake left to try; expect the ~4.8s drop" +
+                            " loop to return if it still goes unanswered (#1635, experimental).")
+                    }
                     writeClientHello(g, cmd)
                 } else {
                     // The watchdog was armed at discovery, before this decision could be made, and it

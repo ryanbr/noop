@@ -2451,4 +2451,6 @@
     <string name="l10n_settings_screen_ask_android_to_pair_experimental_250a81e9">Demander à Android de s\'appairer (expérimental)</string>
     <string name="l10n_settings_screen_noop_has_always_hoped_that_writing_19967036">NOOP a toujours compté sur l\'écriture vers votre 5.0/MG pour qu\'Android s\'appaire. Cela n\'arrive jamais. Cette option le demande directement à Android et peut afficher une boîte de dialogue d\'appairage du système. La fréquence cardiaque en direct continue de fonctionner dans les deux cas ; désactivez-la si la boîte de dialogue vous gêne.</string>
     <string name="l10n_settings_screen_ask_android_to_pair_323fccbe">Demander à Android de s\'appairer</string>
+    <string name="l10n_settings_screen_send_hello_despite_bond_refusal_experimental_2f8de795">Envoyer le hello malgré le refus d\'appairage (expérimental)</string>
+    <string name="l10n_settings_screen_send_hello_despite_bond_refusal_65c9d9fd">Envoyer le hello malgré le refus d\'appairage</string>
 </resources>

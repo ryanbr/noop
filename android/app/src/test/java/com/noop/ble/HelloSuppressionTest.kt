@@ -62,4 +62,41 @@ class HelloSuppressionTest {
         // it asks for a pairing instead, which is self-limiting.
         assertFalse(shouldSendClientHello(suppressedForDevice = true, userInitiated = false))
     }
+
+    // #1635: the opt-in override, after the HCI capture changed the premise
+
+    /**
+     * The capture showed the strap answers createBond with SMP "Pairing Not Supported", so the encrypted
+     * bond the hello waits behind can never arrive. With the hello also suppressed the app attempts
+     * NEITHER handshake — the same capture shows zero writes to fd4b0002 beyond DISABLE_ALARM and zero
+     * puffin subscriptions. The override exists to ask the only question left.
+     */
+    @Test
+    fun `the override sends the hello on a suppressed strap`() {
+        assertTrue(shouldSendClientHello(suppressedForDevice = true, userInitiated = false,
+                                         overrideSuppression = true))
+    }
+
+    /** Default OFF must leave the latch behaving exactly as it did — no behaviour change for anyone else. */
+    @Test
+    fun `without the override a suppressed strap still skips the hello`() {
+        assertFalse(shouldSendClientHello(suppressedForDevice = true, userInitiated = false))
+        assertFalse(shouldSendClientHello(suppressedForDevice = true, userInitiated = false,
+                                          overrideSuppression = false))
+    }
+
+    /** The override is not needed to explain an unsuppressed strap, and must not change it. */
+    @Test
+    fun `an unsuppressed strap is unaffected by the override either way`() {
+        assertTrue(shouldSendClientHello(suppressedForDevice = false, userInitiated = false))
+        assertTrue(shouldSendClientHello(suppressedForDevice = false, userInitiated = false,
+                                         overrideSuppression = true))
+    }
+
+    /** A user-initiated Connect already overrode the latch; the new switch must not disturb that path. */
+    @Test
+    fun `a user-initiated connect still wins on its own`() {
+        assertTrue(shouldSendClientHello(suppressedForDevice = true, userInitiated = true,
+                                         overrideSuppression = false))
+    }
 }

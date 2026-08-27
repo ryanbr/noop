@@ -2478,4 +2478,6 @@
     <string name="l10n_health_screen_your_strap_reports_a_blood_oxygen_349fe34a">Your strap reports a blood oxygen estimate, but it is unverified and off by default. Turn on the strap estimate in Settings to see it, or import a WHOOP export in Data Sources for the calibrated value.</string>
     <string name="l10n_health_screen_no_blood_oxygen_percentage_from_a_1d3d383e">No blood oxygen percentage from a WHOOP 4.0</string>
     <string name="l10n_health_screen_your_strap_banks_the_raw_optical_b52a0f80">Your strap banks the raw optical channels, but NOOP does not turn them into a blood oxygen percentage, so this stays empty however long you wear it. Import a WHOOP export in Data Sources to fill it from your account history.</string>
+    <string name="l10n_settings_screen_send_hello_despite_bond_refusal_experimental_2f8de795">Send hello despite bond refusal (experimental)</string>
+    <string name="l10n_settings_screen_send_hello_despite_bond_refusal_65c9d9fd">Send hello despite bond refusal</string>
 </resources>
