@@ -285,6 +285,40 @@ final class Repository: ObservableObject {
         return byDay.values.sorted { $0.day < $1.day }
     }
 
+    /// Gravity samples across the imported union, deduped by timestamp with the ACTIVE STRAP winning.
+    ///
+    /// #1643: the Steps calibration screen read a SINGLE id and so disagreed with the estimator, which
+    /// resolves an owner per day before reading gravity. Android hit the canonical half of this (it
+    /// hardcoded "my-whoop" and missed a re-added strap's live motion, @kavemang's #1644); the Swift
+    /// screen had the mirror half — it read the ACTIVE id and so missed the canonical history a prior
+    /// import or an earlier strap identity had banked.
+    ///
+    /// Twin of Kotlin `WhoopRepository.gravitySamplesUnion`. It takes the active id as a parameter
+    /// because its repository is not device-scoped; this one already knows `importedReadIds`.
+    func gravitySamplesUnion(from: Int, to: Int, limit: Int = 200_000) async -> [GravitySample] {
+        guard let store = await storeHandle() else { return [] }
+        var lists: [[GravitySample]] = []
+        for id in importedReadIds {   // active strap FIRST → it wins any shared timestamp
+            lists.append((try? await store.gravitySamples(deviceId: id, from: from, to: to, limit: limit)) ?? [])
+        }
+        return Self.mergeGravityByTs(lists)
+    }
+
+    /// Merge gravity lists into one time-ordered stream, deduped by timestamp with the FIRST list (the
+    /// active strap) winning a tie. A single-id read is returned UNCHANGED, so a single-device install
+    /// performs exactly the read it did before the union existed.
+    ///
+    /// Byte-identical rule to Kotlin `mergeGravityByTs`. Pure + static so the dedup is unit-tested
+    /// without a store — the property that actually matters here is "active wins, nothing double-counts".
+    nonisolated static func mergeGravityByTs(_ lists: [[GravitySample]]) -> [GravitySample] {
+        if lists.count == 1 { return lists[0] }
+        var byTs: [Int: GravitySample] = [:]
+        for list in lists {
+            for s in list where byTs[s.ts] == nil { byTs[s.ts] = s }
+        }
+        return byTs.values.sorted { $0.ts < $1.ts }
+    }
+
     /// One day held by two source ids in the SAME bucket, folded into `winner`'s row: `winner` keeps every
     /// column it carries (NON-nil — a measured zero is a reading) and `filler` supplies only the ones it
     /// left nil. Whole-row first-wins let a hollow row (steps and nothing else) discard a complete one, and
