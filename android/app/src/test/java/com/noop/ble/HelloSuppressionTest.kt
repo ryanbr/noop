@@ -125,4 +125,39 @@ class HelloSuppressionTest {
                        sent != effectivelySuppressed(latched, ov))
         }
     }
+
+    // #1635: the override must bound itself — the shared give-up cannot
+
+    /**
+     * The field failure this exists for. With the override on, the hello fails with ATT
+     * `Insufficient Authentication`, the local stack tears the ACL down, and the disconnect arrives as
+     * GATT_CONN_TERMINATE_LOCAL_HOST (22) — which `shouldCountNeverBondedSelfDrop` excludes, because that
+     * status normally means WE hung up. So nothing counted, nothing paused, and a real strap ran 57
+     * reconnect cycles in an hour. The cap does not consult the status at all.
+     */
+    @Test
+    fun `the override stops itself after the cap`() {
+        assertTrue(overrideHelloStillAllowed(0))
+        assertTrue(overrideHelloStillAllowed(HELLO_OVERRIDE_MAX_ATTEMPTS - 1))
+        assertFalse(overrideHelloStillAllowed(HELLO_OVERRIDE_MAX_ATTEMPTS))
+        assertFalse(overrideHelloStillAllowed(57))   // the observed field value
+    }
+
+    @Test
+    fun `the cap is small enough to bound the loop and large enough to be a fair test`() {
+        // ~4.8s per cycle, so the whole experiment costs well under a minute of churn.
+        assertTrue("a cap of 1 would not survive a single flaky link", HELLO_OVERRIDE_MAX_ATTEMPTS >= 3)
+        assertTrue("more than ~10 is a loop, not an experiment", HELLO_OVERRIDE_MAX_ATTEMPTS <= 10)
+    }
+
+    /** The give-up line must name the cause and the remedy, not merely announce that it stopped. */
+    @Test
+    fun `the exhausted line says why and what to do`() {
+        val line = helloOverrideExhaustedLine(HELLO_OVERRIDE_MAX_ATTEMPTS)
+        assertTrue(line.contains("unanswered hellos"))
+        assertTrue(line.contains("Insufficient Authentication"))
+        assertTrue(line.contains("refuses SMP pairing"))
+        assertTrue("must tell the user how to get back to a working strap",
+                   line.contains("Turn the switch off"))
+    }
 }

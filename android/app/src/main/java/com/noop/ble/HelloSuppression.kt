@@ -42,6 +42,44 @@ internal fun shouldSendClientHello(
 ): Boolean = !suppressedForDevice || userInitiated || overrideSuppression
 
 /**
+ * How many times the #1635 override may write an unanswered hello before it stops on its own.
+ *
+ * The override needs a bound that does not depend on the disconnect status, and the shared give-up cannot
+ * supply one. `shouldCountNeverBondedSelfDrop` excludes `GATT_CONN_TERMINATE_LOCAL_HOST` (0x16) because
+ * that normally means WE hung up — our own `gatt.disconnect()` or the bond-watchdog bounce — and counting
+ * those would be self-referential. But the hello failure arrives as exactly that status: the strap answers
+ * the write with ATT `Insufficient Authentication`, the local stack tries to elevate security, SMP is
+ * refused, and the stack tears the ACL down. Not our teardown, same status code.
+ *
+ * Field result of leaving it unbounded: 57 reconnect cycles in an hour, each ~4.8s, with nothing able to
+ * stop it. So the cap lives here instead — small enough to spare the battery, large enough that a strap
+ * which answers on a later attempt is not written off.
+ */
+internal const val HELLO_OVERRIDE_MAX_ATTEMPTS = 6
+
+/**
+ * May the override write another hello, given how many it has already written unanswered?
+ *
+ * Counted per app process and reset on a genuine bond. A process restart resets it too, which is the
+ * honest limit of an in-memory bound — but the loop it exists to stop runs within one process, and a
+ * restart is not the failure mode.
+ */
+internal fun overrideHelloStillAllowed(
+    attemptsSoFar: Int,
+    cap: Int = HELLO_OVERRIDE_MAX_ATTEMPTS,
+): Boolean = attemptsSoFar < cap
+
+/**
+ * The line printed when the override gives up, so the log says why the hello stopped rather than leaving
+ * a reader to notice its absence.
+ */
+internal fun helloOverrideExhaustedLine(attempts: Int): String =
+    "WHOOP 5/MG: \"send hello despite bond refusal\" has written $attempts unanswered hellos — stopping." +
+        " The strap answers the write with Insufficient Authentication and refuses SMP pairing, so the" +
+        " handshake cannot complete; continuing would only loop the link. Turn the switch off to return to" +
+        " the stable live-HR state (#1635)."
+
+/**
  * Should the give-up latch suppress the hello, rather than pause auto-reconnect?
  *
  * The two give-up causes want opposite treatment, which is why they are split here rather than sharing

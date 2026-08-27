@@ -5730,6 +5730,7 @@ class WhoopBleClient(
                     // these as REALTIME_DATA — the strap rejected them on the unauthenticated link), then arm
                     // realtime HR with puffin framing. Mirrors the macOS post-bond flow.
                     didBond = true
+                    helloOverrideAttempts = 0     // #1635: the strap answered — the override's budget resets
                     cancelBondWatchdog()          // genuine bond reached — the handshake watchdog stands down (#50)
                     noteGenuineBond(g.device.address)   // #52: this strap bonds fine; clears any pin-refusal streak
                     clearPairingHint()            // #78: a genuine bond means the pairing guidance no longer applies
@@ -7638,9 +7639,16 @@ class WhoopBleClient(
                 }
                 // #1635: read once, before the deferral gate — the override has to reach BOTH, or a
                 // deferred hello returns early and the switch below is never evaluated at all.
-                val helloOverride = runCatching {
+                val overrideOptedIn = runCatching {
                     PuffinExperiment.from(context).helloDespiteBondRefusal
                 }.getOrDefault(false)
+                // Spent budget makes the override inert rather than merely quiet: it must stop reaching the
+                // deferral bypass too, or the link keeps being taken down by a hello nobody will answer.
+                val helloOverride = overrideOptedIn && overrideHelloStillAllowed(helloOverrideAttempts)
+                if (overrideOptedIn && !helloOverride && helloOverrideAttempts == HELLO_OVERRIDE_MAX_ATTEMPTS) {
+                    helloOverrideAttempts++   // log the give-up exactly once, not on every later connect
+                    log(helloOverrideExhaustedLine(HELLO_OVERRIDE_MAX_ATTEMPTS))
+                }
                 if (explicitBondDefersHello(explicitBondRequestedThisLink, helloOverride = helloOverride)) {
                     // Same trap as the suppression path below, and worse here. The watchdog was armed at
                     // discovery and bounces the link whenever didBond is false — which deferring the hello
@@ -7667,6 +7675,7 @@ class WhoopBleClient(
                     com.noop.ui.NoopPrefs.helloSuppressed(context, g.device.address)
                 }.getOrDefault(false)
                 if (shouldSendClientHello(suppressed, userInitiated = userAsked, overrideSuppression = helloOverride)) {
+                    if (helloOverride && !userAsked) helloOverrideAttempts++
                     if (suppressed && helloOverride && !userAsked) {
                         // Say WHY a suppressed strap is getting a hello anyway, or the next reader sees the
                         // latch set and a hello on the wire and has to guess which of them is broken.
@@ -9024,6 +9033,10 @@ class WhoopBleClient(
     // puffin biometric decode needs. Gated on PuffinExperiment.isCaptureEnabled (default OFF); APPENDS
     // across sessions with per-session ids (his fork truncated per session, losing overnight data);
     // rotates at the cap; fail-soft — capture can never break the sync it observes.
+
+    /** #1635: unanswered hellos written by the override this process. Bounds the experiment on its own,
+     *  because the shared give-up cannot — see HELLO_OVERRIDE_MAX_ATTEMPTS. Reset on a genuine bond. */
+    @Volatile private var helloOverrideAttempts = 0
 
     @Volatile private var captureWriter: java.io.BufferedWriter? = null
     @Volatile private var captureDisabled = false
