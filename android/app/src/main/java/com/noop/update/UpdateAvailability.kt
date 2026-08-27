@@ -19,13 +19,20 @@ package com.noop.update
 object UpdateAvailability {
 
     /**
-     * OFF by default, and that is a deliberate reading of a hard project rule rather than timidity.
-     * "Fully offline, on-device, no telemetry" is the headline promise, and both update checkers
-     * currently justify themselves in their own doc comments as running ONLY on a tap. A check that
-     * phones GitHub on launch without being asked would contradict that, however harmless the request
-     * is. Flip this ONE constant to make it default-on; everything else about the feature is unchanged.
+     * ON by default (maintainer's call, #1659).
+     *
+     * It shipped off first, on the reading that "fully offline, on-device, no telemetry" made an
+     * unasked-for launch request wrong on principle. The counter-argument won: a sideloaded app has no
+     * store to update it, so a user who never finds this setting is a user who silently runs an old
+     * build — which is the whole problem the issue reported. A default nobody discovers is not a
+     * compromise, it is the feature not existing.
+     *
+     * What keeps it honest is what the request IS: one read of a public version number, once a day,
+     * after onboarding. Nothing about the user is sent, nothing is uploaded, and no data leaves the
+     * device — the offline promise is about the user's HEALTH DATA, and that is untouched. Anyone who
+     * disagrees turns it off in Settings, and it then makes no request at all.
      */
-    const val DEFAULT_ENABLED = false
+    const val DEFAULT_ENABLED = true
 
     /** Once a day. The thing being watched moves on the order of days-to-weeks, so anything tighter
      *  spends requests (and a little battery) to learn nothing. */
@@ -112,7 +119,7 @@ object UpdateAvailability {
  */
 object UpdateWatch {
 
-    /** Opt-in. See [UpdateAvailability.DEFAULT_ENABLED] for why this is off until asked for. */
+    /** On by default; see [UpdateAvailability.DEFAULT_ENABLED] for why, and what the request is. */
     const val KEY_ENABLED = "updates.autoCheck"
     const val KEY_LAST_CHECKED_AT = "updates.lastCheckedAt"
     const val KEY_LAST_POSTED_VERSION = "updates.lastPostedVersion"

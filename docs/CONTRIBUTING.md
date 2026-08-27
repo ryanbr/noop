@@ -40,9 +40,14 @@ non-negotiable (especially on the Bluetooth path).
 
 A few principles run through the whole codebase. Internalize them before opening a PR.
 
-1. **Offline by design.** There is no server, no telemetry, no account, no network call. A change
-   that phones home — for any reason — does not belong here. Strap data, imports, and computed
-   metrics live in a local SQLite database and never leave the device.
+1. **Offline by design.** There is no server, no telemetry and no account, and **your data never
+   leaves the device.** Strap data, imports, and computed metrics live in a local SQLite database.
+   A change that uploads any of it — for any reason — does not belong here.
+   The app makes exactly three network requests, all documented in
+   [docs/PRIVACY_SECURITY.md §1.1](PRIVACY_SECURITY.md): the opt-in AI Coach, the
+   compile-time-optional Oura history import, and the update check (a read of a public version
+   number, on by default, switchable off). Each sends nothing about the user. Adding a fourth needs
+   a very good reason and the same treatment: named in the privacy doc, and switchable off.
 2. **Interoperability, not impersonation.** NOOP talks to a strap the user already owns. It does not
    log into a WHOOP account, bypass a paywall, or ship WHOOP's proprietary code/firmware/assets/logos.
    Keep contributions on the right side of that line, and keep all WHOOP references *nominative*

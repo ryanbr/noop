@@ -401,9 +401,15 @@ private struct iOSRootView: View {
             // collects it even if the user dismisses the auto sheet.
             UpdateStore.shared.seedWhatsNewIfNeeded()
             // #1659: iOS cannot auto-update a sideloaded build - no API lets an app install or re-sign an
-            // .ipa - so the most NOOP can do is NOTICE a release and say so. Opt-in and silent when off,
-            // which is the default; see UpdateAvailability.defaultEnabled.
-            UpdateWatch.runIfDue(currentVersion: UpdateWatch.installedVersion, sideloadHint: true)
+            // .ipa - so the most NOOP can do is NOTICE a release and say so.
+            //
+            // Gated on the SAME condition as showWhatsNewIfDue above, and the Android hook. This matters
+            // now that the check is on by default: without it a brand-new install would reach the network
+            // during first run, before the Terms gate the user has not accepted yet. While the default was
+            // off, nothing made that visible.
+            if onboarded && acceptedTerms == Terms.currentVersion {
+                UpdateWatch.runIfDue(currentVersion: UpdateWatch.installedVersion, sideloadHint: true)
+            }
         }
         .onChange(of: acceptedTerms) { _, _ in showWhatsNewIfDue() }
     }

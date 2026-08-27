@@ -58,6 +58,12 @@ Two things do carry your data off-device **when you choose to send them**:
 
 Both are user-initiated. See [docs/PRIVACY_SECURITY.md](PRIVACY_SECURITY.md).
 
+NOOP also checks once a day whether a newer release exists, because it is sideloaded on every platform
+and has no store to update it. That is a read of a public version number and sends nothing about you —
+no identifier, no account, no health data — and it never installs anything. It is on by default and
+switchable off in Settings → About, and the full detail is in
+[docs/PRIVACY_SECURITY.md §1.1c](PRIVACY_SECURITY.md).
+
 ## Which numbers are measured, and which are NOOP's own estimates?
 
 Measured from the strap: heart rate, R-R intervals, resting HR, skin temperature, respiratory rate,

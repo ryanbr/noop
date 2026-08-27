@@ -46,12 +46,12 @@ deliberately export it to another store on the **same device**:
 | Oura history import (opt-in build flag, §1.1b) | HTTPS OAuth + REST, `api.ouraring.com` → device | Read-only from your own Oura account |
 | Apple Health export, incl. iOS "Export for Shortcuts" | On-device, user-initiated | NOOP → your Apple Health, on your device only (§1.3) |
 
-The only **network** paths are the opt-in AI Coach and the compile-time-optional Oura
-history import; the
+The **network** paths are the opt-in AI Coach, the compile-time-optional Oura history import, and the
+update check (§1.1c); the
 biometric pipeline produces no network traffic of any kind. The Apple Health export above is
 an **on-device** hand-off, not a network upload — see §1.3.
 
-### 1.1 Network code: only the two optional exceptions
+### 1.1 Network code: the three exceptions
 
 The biometric pipeline and all five Swift packages
 (`WhoopProtocol`, `WhoopStore`, `StrandAnalytics`, `StrandImport`, `StrandDesign`)
@@ -64,9 +64,34 @@ TestFlight — and was folded into the main tree in v1.94), so the Swift-side pr
 behaviour described here applies equally to both. Android is a separate codebase using
 Room for storage and Kotlin for the BLE / import / Coach paths; its own Oura support is
 the local BLE ring-pairing lane, not a network API, so it has no equivalent to §1.1b. The
-**only** networking anywhere in the app is the AI Coach (`Strand/AI/AICoach.swift` on the
-Swift side — macOS and iOS — `com.noop.ai.AiCoach` on Android), described in §1.1a, and
-the Oura history import (`Strand/Oura/`, Swift-only — macOS and iOS), described in §1.1b.
+networking anywhere in the app is the AI Coach (`Strand/AI/AICoach.swift` on the
+Swift side — macOS and iOS — `com.noop.ai.AiCoach` on Android), described in §1.1a,
+the Oura history import (`Strand/Oura/`, Swift-only — macOS and iOS), described in §1.1b,
+and the update check, described in §1.1c.
+#### 1.1c The update check
+
+NOOP is sideloaded on every platform — there is no App Store or Play Store to update it — so an install
+that is never told about a release simply runs an old build indefinitely. Two paths address that, and
+both read the **same** public endpoint: `https://api.github.com/repos/ryanbr/noop/releases/latest`.
+
+- **"Check for updates"** in Settings → About. Runs only when tapped. It has always existed;
+  it was previously undocumented here, which is why this section is new rather than merely amended.
+- **"Check automatically"**, beside it. At most once a day, after onboarding (and, on iOS, after the
+  Terms gate), NOOP reads that endpoint and — if a newer release exists — puts a row in the Updates
+  inbox. **On by default**, and switchable off, at which point it makes no request at all.
+
+What is sent: nothing. It is an unauthenticated `GET` of a public URL, carrying no identifier, no
+account, no device information and no biometric data. What comes back is a version number and the
+release notes. **It never installs anything** — on iOS no API permits that for a sideloaded app (see
+[docs/IOS.md](IOS.md)); the row tells you a release exists and where to get it.
+
+The request is a plain HTTPS call, so your IP address is visible to GitHub exactly as it would be if
+you opened the releases page in a browser. If that is not a trade you want, turn the toggle off; the
+manual button then remains the only way NOOP touches the network for this.
+
+Code: `Strand/System/UpdateChecker.swift` + `Strand/System/UpdateAvailability.swift` (Swift),
+`com.noop.update.UpdateCheck` + `com.noop.update.UpdateAvailability` (Android).
+
 The package manifests reference dependency *download* URLs that Swift Package Manager
 resolves at build time, never at runtime:
 

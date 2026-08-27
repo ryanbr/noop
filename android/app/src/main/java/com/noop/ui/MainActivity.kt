@@ -1330,8 +1330,9 @@ fun NoopRoot() {
     LaunchedEffect(onboarded) {
         if (onboarded) UpdateStore.from(context).seedWhatsNewIfNeeded()
         // #1659: a sideloaded build has no store to update it, so the most NOOP can do is NOTICE a
-        // release and say so in the same inbox. Opt-in, and silent when off, which is the default —
-        // see UpdateAvailability.DEFAULT_ENABLED. Onboarded-only for the same reason as the seed above.
+        // release and say so in the same inbox. On by default and switchable off in Settings — see
+        // UpdateAvailability.DEFAULT_ENABLED. Onboarded-only for the same reason as the seed above, and
+        // now also because a default-on check must not reach the network during first run.
         if (onboarded) {
             com.noop.update.UpdateWatch.runIfDue(context, BuildConfig.VERSION_NAME)
         }

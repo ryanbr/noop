@@ -126,4 +126,36 @@ final class UpdateAvailabilityTests: XCTestCase {
     func testComposeTreatsBlankNotesAsNone() {
         XCTAssertEqual(UpdateAvailability.composeMessage(body: "A.", sideload: nil, notes: "   \n  "), "A.")
     }
+
+    // MARK: - the default
+
+    /// An UNSET pref must resolve to the same answer the Settings toggle shows. The launch check reads
+    /// UserDefaults directly and the toggle reads @AppStorage; both fall back to `defaultEnabled`, and if
+    /// one were changed without the other the switch would say one thing while the app did another.
+    func testAnUnsetPrefMatchesWhatTheToggleWouldShow() {
+        let key = UpdateWatch.Keys.enabled
+        let saved = UserDefaults.standard.object(forKey: key)
+        defer {
+            if let saved { UserDefaults.standard.set(saved, forKey: key) }
+            else { UserDefaults.standard.removeObject(forKey: key) }
+        }
+        UserDefaults.standard.removeObject(forKey: key)
+        XCTAssertEqual(UpdateWatch.isEnabled, UpdateAvailability.defaultEnabled)
+    }
+
+    /// An explicit choice always wins over the default, in BOTH directions — otherwise flipping the
+    /// shipped default would silently override people who had already opted out.
+    func testAnExplicitChoiceOverridesTheDefault() {
+        let key = UpdateWatch.Keys.enabled
+        let saved = UserDefaults.standard.object(forKey: key)
+        defer {
+            if let saved { UserDefaults.standard.set(saved, forKey: key) }
+            else { UserDefaults.standard.removeObject(forKey: key) }
+        }
+        UserDefaults.standard.set(false, forKey: key)
+        XCTAssertFalse(UpdateWatch.isEnabled)
+        UserDefaults.standard.set(true, forKey: key)
+        XCTAssertTrue(UpdateWatch.isEnabled)
+    }
 }
+
