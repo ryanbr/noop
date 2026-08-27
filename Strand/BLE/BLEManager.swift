@@ -1493,6 +1493,9 @@ public final class BLEManager: NSObject, ObservableObject {
     public func forgetDevice(_ peripheralId: String?) {
         let target = peripheralId.flatMap { UUID(uuidString: $0) }
         let isCurrent = target == nil || peripheral?.identifier == target
+        // Captured BEFORE the teardown below nils `peripheral`, since a nil argument means "the current
+        // strap" and that is the only place its identifier can still be read.
+        let releasedUUID = peripheralId ?? peripheral?.identifier.uuidString
         intentionalDisconnect = true            // defuses the disconnect→3s-reconnect loop's guard
         cancelScanFallback()
         readoptingTo = nil                       // abandon any in-flight #52 pin handoff
@@ -1513,6 +1516,12 @@ public final class BLEManager: NSObject, ObservableObject {
         }
         // #747/#750 invariant: releasing a strap fully resets the give-up + pause (like disconnect()) so
         // a paused state can never outlive the strap it belonged to and wedge a later re-add.
+        //
+        // #1635: the hello-suppression latch is exactly that kind of state, and it is PERSISTED - so
+        // without this it outlives the strap it belonged to, silently suppressing the handshake on a
+        // re-add and leaving a stale key behind for a strap the user removed. Re-latching costs the same
+        // five refusals it always did, so a strap that genuinely cannot bond is no worse off.
+        HelloSuppressionStore.setSuppressed(releasedUUID, false)
         bondGiveUp.reset()
         autoReconnectPausedForBondLoop = false
         bondLoopPausedAt = nil
