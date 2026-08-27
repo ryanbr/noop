@@ -70,6 +70,39 @@ internal fun overrideHelloStillAllowed(
 ): Boolean = attemptsSoFar < cap
 
 /**
+ * Is the override actually in force — opted in AND with budget left?
+ *
+ * Every reader must ask through here rather than reading the pref directly. A spent override is not
+ * "on": the hello genuinely stops going out, and a caller still reading the raw pref believes a hello
+ * is on the wire that is not. That is the `didBond`-reader trap from CLAUDE.md pointed the other way,
+ * and it had already reached [shouldCountNeverBondedSelfDrop]: with the budget spent, the app is in the
+ * deliberate suppressed-hello live-HR state, but the raw pref reported the hello as still being sent, so
+ * the never-bonded detector kept counting self-drops and would eventually pause auto-reconnect and raise
+ * the stale-pairing guide — telling the user to re-pair for a cause that never happened.
+ *
+ * The boundary is deliberate: the link carrying the LAST permitted hello reads as inactive at its own
+ * disconnect, because [helloOverrideAttempts] is charged when that hello is written. Under-counting that
+ * one drop is the wanted behaviour — no further hello follows it, so the loop is already over, and
+ * counting it could trip the pause at the exact moment the override retires.
+ */
+internal fun helloOverrideActive(
+    optedIn: Boolean,
+    attemptsSoFar: Int,
+    cap: Int = HELLO_OVERRIDE_MAX_ATTEMPTS,
+): Boolean = optedIn && overrideHelloStillAllowed(attemptsSoFar, cap)
+
+/**
+ * Does flipping the switch to on re-arm a spent budget?
+ *
+ * Turning the experiment off and on again is the user explicitly asking for another try, and without
+ * this they would not get one: the counter outlives the toggle, so re-enabling a spent override does
+ * nothing whatsoever — and silently, because the give-up line is one-shot and has already latched. The
+ * edge is sampled per connect, which is the only moment the override can act anyway.
+ */
+internal fun helloOverrideBudgetRearms(optedInNow: Boolean, optedInLastSeen: Boolean): Boolean =
+    optedInNow && !optedInLastSeen
+
+/**
  * The line printed when the override gives up, so the log says why the hello stopped rather than leaving
  * a reader to notice its absence.
  */

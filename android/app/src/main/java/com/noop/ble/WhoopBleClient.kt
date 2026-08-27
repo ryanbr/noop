@@ -7643,9 +7643,17 @@ class WhoopBleClient(
                 val overrideOptedIn = runCatching {
                     PuffinExperiment.from(context).helloDespiteBondRefusal
                 }.getOrDefault(false)
+                // Flipping the switch off and back on is the user asking for another try. The counter
+                // outlives the toggle, so without this a re-enabled override does nothing at all — and
+                // says nothing, the give-up line having already latched.
+                if (helloOverrideBudgetRearms(overrideOptedIn, helloOverrideOptInSeen)) {
+                    helloOverrideAttempts = 0
+                    helloOverrideExhaustedLogged = false
+                }
+                helloOverrideOptInSeen = overrideOptedIn
                 // Spent budget makes the override inert rather than merely quiet: it must stop reaching the
                 // deferral bypass too, or the link keeps being taken down by a hello nobody will answer.
-                val helloOverride = overrideOptedIn && overrideHelloStillAllowed(helloOverrideAttempts)
+                val helloOverride = helloOverrideActive(overrideOptedIn, helloOverrideAttempts)
                 if (overrideOptedIn && !helloOverride && !helloOverrideExhaustedLogged) {
                     helloOverrideExhaustedLogged = true
                     log(helloOverrideExhaustedLine(helloOverrideAttempts))
@@ -8717,13 +8725,20 @@ class WhoopBleClient(
                 status = status,
                 alreadyPausedForBondLoop = autoReconnectPausedForBondLoop,
                 // The question is whether the hello was ACTUALLY withheld on this link, not whether the
-                // latch is set. With the #1635 override on, the latch stays set while we send the hello
-                // anyway — and reading the raw pref here would disable the give-up for exactly the case
-                // that needs it, leaving an unbounded hello-drop-reconnect loop with nothing to stop it.
-                // Mirrors the `suppressed && !override` decision that chose to send.
+                // latch is set. With the #1635 override in force the latch stays set while we send the
+                // hello anyway, and treating that as withheld would disable the give-up for exactly the
+                // case that needs it, leaving an unbounded hello-drop-reconnect loop with nothing to stop
+                // it. But a SPENT override withholds the hello for real, so this must ask
+                // [helloOverrideActive] rather than the raw pref — mirroring the `helloOverride` that
+                // decided whether to send. Reading the pref alone kept the detector counting after the
+                // hellos had stopped, and would have paused auto-reconnect and raised the stale-pairing
+                // guide over a cause that never happened.
                 helloSuppressed = runCatching {
                     com.noop.ui.NoopPrefs.helloSuppressed(context, lastDeviceAddress) &&
-                        !PuffinExperiment.from(context).helloDespiteBondRefusal
+                        !helloOverrideActive(
+                            PuffinExperiment.from(context).helloDespiteBondRefusal,
+                            helloOverrideAttempts,
+                        )
                 }.getOrDefault(false),
             ) && bondWatchdogBackoff.recordBounce()
         ) {
@@ -9043,6 +9058,9 @@ class WhoopBleClient(
     /** #1635: unanswered hellos the override CAUSED this process. Bounds the experiment on its own,
      *  because the shared give-up cannot — see HELLO_OVERRIDE_MAX_ATTEMPTS. Reset on a genuine bond. */
     @Volatile private var helloOverrideAttempts = 0
+
+    /** Last opt-in state the connect path saw, so an off->on flip can re-arm a spent budget (#1635). */
+    @Volatile private var helloOverrideOptInSeen = false
 
     /** One-shot guard for the give-up line. Separate from the counter because `++` on a @Volatile Int is
      *  not atomic: two overlapping connects could step past the cap together, and an `== cap` test would

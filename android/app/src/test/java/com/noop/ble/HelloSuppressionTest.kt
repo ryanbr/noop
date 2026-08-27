@@ -199,4 +199,47 @@ class HelloSuppressionTest {
         // And the line reports whatever count it actually reached, not a hardcoded cap.
         assertTrue(helloOverrideExhaustedLine(9).contains("9 unanswered hellos"))
     }
+
+    /**
+     * A spent override is not "on". Every reader must agree on that, because they act in opposite
+     * directions: the connect path stops writing hellos, and the never-bonded detector must go back to
+     * counting self-drops. Reading the raw pref made the detector believe hellos were still on the wire
+     * after they had stopped.
+     */
+    @Test
+    fun `the override is only in force while opted in AND under the cap`() {
+        assertTrue(helloOverrideActive(optedIn = true, attemptsSoFar = 0))
+        assertTrue(helloOverrideActive(optedIn = true, attemptsSoFar = HELLO_OVERRIDE_MAX_ATTEMPTS - 1))
+        assertFalse(helloOverrideActive(optedIn = true, attemptsSoFar = HELLO_OVERRIDE_MAX_ATTEMPTS))
+        assertFalse(helloOverrideActive(optedIn = true, attemptsSoFar = HELLO_OVERRIDE_MAX_ATTEMPTS + 3))
+        assertFalse(helloOverrideActive(optedIn = false, attemptsSoFar = 0))
+    }
+
+    /**
+     * The never-bonded detector's input, spelled out end to end: `latch && !active`. A spent override
+     * must report the hello as withheld, or the detector keeps counting drops the hello no longer causes
+     * and eventually pauses auto-reconnect over a cause that never happened.
+     */
+    @Test
+    fun `a spent override reports the hello as withheld again`() {
+        fun withheld(latched: Boolean, optedIn: Boolean, attempts: Int) =
+            latched && !helloOverrideActive(optedIn, attempts)
+
+        assertTrue(withheld(latched = true, optedIn = false, attempts = 0))
+        // In force: the hello IS on the wire, so the detector must stay armed.
+        assertFalse(withheld(latched = true, optedIn = true, attempts = 0))
+        // Spent: the hello has genuinely stopped, so we are back to the suppressed live-HR state.
+        assertTrue(withheld(latched = true, optedIn = true, attempts = HELLO_OVERRIDE_MAX_ATTEMPTS))
+        // No latch, nothing withheld, whatever the switch says.
+        assertFalse(withheld(latched = false, optedIn = true, attempts = HELLO_OVERRIDE_MAX_ATTEMPTS))
+    }
+
+    /** Only the off->on edge re-arms, so a spent override does not silently resurrect on every connect. */
+    @Test
+    fun `flipping the switch back on re-arms the budget, staying on does not`() {
+        assertTrue(helloOverrideBudgetRearms(optedInNow = true, optedInLastSeen = false))
+        assertFalse(helloOverrideBudgetRearms(optedInNow = true, optedInLastSeen = true))
+        assertFalse(helloOverrideBudgetRearms(optedInNow = false, optedInLastSeen = true))
+        assertFalse(helloOverrideBudgetRearms(optedInNow = false, optedInLastSeen = false))
+    }
 }
