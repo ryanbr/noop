@@ -610,6 +610,14 @@ final class IntelligenceEngine: ObservableObject {
         // #1681: keep the token this debt was stamped with. At the end of the pass it is what tells our
         // own debt apart from one a LATER trigger recorded while we were running - the latter must
         // survive us, because the data it was recorded for arrived after we had already read our inputs.
+        //
+        // This is the SAME discipline the watermark beside it already used and the owed flag did not:
+        // capture the value at the start, compare against it at the end, never re-read. `wmKey` is read
+        // once at the top and the pass writes back THAT value, so HR arriving mid-pass leaves the
+        // watermark behind and the next trigger re-scores. The owed flag was the one piece of per-pass
+        // state that skipped the capture and just cleared, which is exactly where #1681 lived. The
+        // Kotlin post-offload gate makes the same point in its own words: "captured before the run,
+        // written only on success".
         let owedToken = RescoreBackgroundScheduler.markRescoreOwed()
         // #899-A re-arm: clear the lock, then if a forced rescore was dropped while this pass held it,
         // run it ONCE. The flag is cleared BEFORE the re-invoke (a single re-arm), so a forced call landing
