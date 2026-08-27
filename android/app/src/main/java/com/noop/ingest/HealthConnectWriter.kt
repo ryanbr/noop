@@ -1,5 +1,7 @@
 package com.noop.ingest
 
+import kotlinx.coroutines.sync.withLock
+
 import android.content.Context
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
@@ -90,6 +92,16 @@ object HealthConnectWriter {
         WRITE_RECORDS.map { HealthPermission.getWritePermission(it) }.toSet()
 
     /**
+     * #1677: exports are serialized. Three callers can start one - the post-sync hook in WhoopBleClient
+     * and two in AppViewModel - with no uniqueness guard between them, so two could previously overlap on
+     * the same external store. That is newly consequential now the writer keeps a ledger: both would read
+     * the same `previous`, both would write their own result, and the loser's carried-forward retractions
+     * would be forgotten, orphaning exactly the records this change exists to retract. Serializing also
+     * stops two exports doing the same insert work twice.
+     */
+    private val exportMutex = kotlinx.coroutines.sync.Mutex()
+
+    /**
      * Write the last [WINDOW_DAYS] of computed metrics. Returns a [WritebackResult] — the record
      * count PLUS any per-concern failure categories, so a revoked permission no longer looks like a
      * benign "wrote 0" (#660). Persists the outcome via [recordStatus] for the Data Sources UI.
@@ -99,7 +111,10 @@ object HealthConnectWriter {
      * rows under `whoop-<address>`, so a hardcoded legacy "my-whoop" id reads empty tables and
      * exports nothing.
      */
-    suspend fun write(context: Context, repo: WhoopRepository, deviceId: String): WritebackResult {
+    suspend fun write(context: Context, repo: WhoopRepository, deviceId: String): WritebackResult =
+        exportMutex.withLock { writeLocked(context, repo, deviceId) }
+
+    private suspend fun writeLocked(context: Context, repo: WhoopRepository, deviceId: String): WritebackResult {
         if (HealthConnectClient.getSdkStatus(context) != HealthConnectClient.SDK_AVAILABLE) return WritebackResult.UNAVAILABLE
 
         // Guard the pre-insert work (client acquisition + the day read) the same way the concern inserts
@@ -319,6 +334,9 @@ object HealthConnectWriter {
             nowSec = now,
         )
         val retract = (absorbed + stale).distinct()
+        // Ids whose retraction did NOT land. They stay on the books so the next export tries again -
+        // forgetting one would orphan its record permanently, which is the very failure this fixes.
+        val unretracted = LinkedHashSet<String>()
         if (retract.isNotEmpty()) {
             // One call for the common case. If it throws, retry per id: the reporter of #1677 had already
             // deleted the bad record by hand, and an id that is no longer there must not take the rest of
@@ -331,7 +349,7 @@ object HealthConnectWriter {
                     runCatching {
                         client.deleteRecords(SleepSessionRecord::class,
                             recordIdsList = emptyList(), clientRecordIdsList = listOf(one))
-                    }
+                    }.onFailure { unretracted += one }
                 }
             }
         }
@@ -339,7 +357,10 @@ object HealthConnectWriter {
         // Recorded only AFTER the write lands. Remembering ids we failed to write would make the NEXT
         // export retract records that never existed - harmless in itself, but it would also drop the ids
         // that do need retracting from the ledger, quietly restoring the bug this fixes.
-        HealthConnectLedger.remember(context, HealthConnectLedger.SLEEP_PREFIX, currentIds)
+        HealthConnectLedger.remember(
+            context, HealthConnectLedger.SLEEP_PREFIX,
+            HealthConnectLedger.ledgerAfterExport(currentIds, unretracted),
+        )
         return written
     }
 

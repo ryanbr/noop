@@ -42,6 +42,20 @@ object HealthConnectLedger {
         context.getSharedPreferences(com.noop.ui.NoopPrefs.NAME, Context.MODE_PRIVATE)
 
     /**
+     * What the ledger should carry into the NEXT export.
+     *
+     * Not simply the ids just written. A retraction that FAILED — Health Connect unavailable, the
+     * permission pulled mid-export, a transient remote error — still has a live record behind it, and
+     * dropping its id here would forget it forever. That is the exact failure this whole file exists to
+     * prevent, reintroduced through the error path, and the first version of this change had it.
+     *
+     * So a failed retraction stays on the books and is retried next time. It costs one id in a
+     * SharedPreferences set until it succeeds.
+     */
+    fun ledgerAfterExport(current: Set<String>, unretracted: Set<String>): Set<String> =
+        current + unretracted
+
+    /**
      * Which previously-written ids should this export RETRACT?
      *
      * The obvious answer — everything we wrote before and are not writing now — is WRONG, and wrong in

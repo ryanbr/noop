@@ -125,4 +125,43 @@ class HealthConnectLedgerTest {
             ),
         )
     }
+
+    // --- what the ledger carries forward ---
+
+    /**
+     * The defect this guards is one I shipped in the first version of this change: remembering only the
+     * ids just written. A retraction that FAILED still has a live record behind it, and dropping its id
+     * forgets it forever — the exact orphan this file exists to prevent, reintroduced through the error
+     * path. Anyone "simplifying" this back to `current` should fail here.
+     */
+    @Test
+    fun `a failed retraction stays on the books for the next export`() {
+        val written = setOf(id(now - 86_400))
+        val couldNotDelete = setOf(id(now - 4 * 86_400))
+        val next = HealthConnectLedger.ledgerAfterExport(written, couldNotDelete)
+        assertTrue(next.containsAll(written))
+        assertTrue(next.containsAll(couldNotDelete))
+    }
+
+    /** And it is retried: still in `previous`, still absent from `current`, still inside the window. */
+    @Test
+    fun `the carried-forward id is retracted again next time`() {
+        val stuck = id(now - 4 * 86_400)
+        val next = HealthConnectLedger.ledgerAfterExport(setOf(id(now - 86_400)), setOf(stuck))
+        assertEquals(
+            listOf(stuck),
+            HealthConnectLedger.staleClientIds(
+                previous = next, current = setOf(id(now - 86_400)),
+                prefix = p, windowStartSec = windowStart, nowSec = now,
+            ),
+        )
+    }
+
+    /** Nothing failed: the ledger is exactly what was written, so it cannot grow without cause. */
+    @Test
+    fun `a clean export carries nothing extra`() {
+        val written = setOf(id(now - 86_400), id(now - 2 * 86_400))
+        assertEquals(written, HealthConnectLedger.ledgerAfterExport(written, emptySet()))
+    }
 }
+
