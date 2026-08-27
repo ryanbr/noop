@@ -7892,9 +7892,14 @@ class WhoopBleClient(
      *  only job is to describe itself. (The Swift twin is @MainActor-isolated and gets the guarantee for
      *  free; the asymmetry is intentional, not an oversight.)
      *
-     *  These live on the CLIENT, so they reset with it: a strap that reconnects often emits a line per
-     *  connection rather than one per 15 minutes. Left alone — persisting a diagnostic's rate-limit
-     *  across reconnects would outweigh what it saves, and a reconnect storm is itself worth seeing. */
+     *  Lifetime, which DIVERGES from the Swift twin and is worth knowing before reading a log:
+     *  `WhoopBleClient` is the process-wide lazy singleton on `NoopApplication`, and a device switch
+     *  mutates `deviceId` via [setActiveDeviceId] rather than rebuilding the client — so these never
+     *  reset for the life of the process, and the 15-minute cadence holds across reconnects. The Swift
+     *  side keeps them on `Collector`, which `BLEManager.bootstrapStore()` REBUILDS (a store rebuild
+     *  after unlock, among other paths), so an iOS log can carry an extra line after one of those.
+     *  Harmless either way — it is a rate-limit on a diagnostic, not a measurement — but a reader
+     *  comparing two logs should not have to work out why one has more lines than the other. */
     private var lastStdRrCensusSec: Int = 0
     private var lastRealtimeRrCensusSec: Int = 0
 

@@ -78,6 +78,16 @@ final class Collector {
     private let log: ((String) -> Void)?
     /// #1118: last emit of each LIVE census line, unix seconds; 0 = never. Rate-limited — see
     /// `RrEmissionStats.shouldEmitLiveCensus`.
+    ///
+    /// Lifetime DIVERGES from the Kotlin twin. These reset whenever `BLEManager.bootstrapStore()`
+    /// rebuilds the Collector (a store rebuild after unlock, among other paths), so a log can carry an
+    /// extra line after one of those. Android keeps its stamps on the process-wide `WhoopBleClient`
+    /// singleton, which a device switch mutates rather than rebuilds, so they never reset there.
+    /// Harmless either way — a rate-limit on a diagnostic, not a measurement — but a reader comparing
+    /// two logs should not have to work out why one has more lines than the other.
+    ///
+    /// @MainActor isolation makes these safe without a lock; the Kotlin fields are deliberately
+    /// unsynchronized instead, since a stale read there costs one duplicate line.
     private var lastStdRrCensusSec: Int = 0
     private var lastRealtimeRrCensusSec: Int = 0
 
