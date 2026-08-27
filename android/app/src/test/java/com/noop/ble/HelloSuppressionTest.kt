@@ -99,4 +99,30 @@ class HelloSuppressionTest {
         assertTrue(shouldSendClientHello(suppressedForDevice = true, userInitiated = true,
                                          overrideSuppression = false))
     }
+
+    /**
+     * The give-up must still fire while the override is sending hellos.
+     *
+     * `shouldCountNeverBondedSelfDrop` skips counting when the hello was withheld — correct, because a
+     * suppressed strap's drops are ordinary link losses, not a failing handshake. But the override leaves
+     * the LATCH set while sending the hello anyway, so reading the raw pref there would disable the
+     * give-up for precisely the case that needs it: an unbounded hello-drop-reconnect loop with nothing
+     * to stop it. The caller passes `suppressed && !override`, which is the same expression that decided
+     * to send. This pins the semantics that expression has to satisfy.
+     */
+    @Test
+    fun `a drop counts toward the give-up whenever the hello was actually sent`() {
+        // Effective suppression = the latch AND no override. These are the four combinations.
+        fun effectivelySuppressed(latched: Boolean, override: Boolean) = latched && !override
+        assertTrue(effectivelySuppressed(latched = true, override = false))    // withheld: do not count
+        assertFalse(effectivelySuppressed(latched = true, override = true))    // SENT: must count
+        assertFalse(effectivelySuppressed(latched = false, override = false))  // sent normally: counts
+        assertFalse(effectivelySuppressed(latched = false, override = true))   // sent: counts
+        // And the send decision agrees with it in every case.
+        for (latched in listOf(true, false)) for (ov in listOf(true, false)) {
+            val sent = shouldSendClientHello(latched, userInitiated = false, overrideSuppression = ov)
+            assertTrue("counting must be the inverse of withholding",
+                       sent != effectivelySuppressed(latched, ov))
+        }
+    }
 }

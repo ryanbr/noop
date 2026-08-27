@@ -8703,8 +8703,14 @@ class WhoopBleClient(
                 staleDirectBond = staleDirectBond,
                 status = status,
                 alreadyPausedForBondLoop = autoReconnectPausedForBondLoop,
+                // The question is whether the hello was ACTUALLY withheld on this link, not whether the
+                // latch is set. With the #1635 override on, the latch stays set while we send the hello
+                // anyway — and reading the raw pref here would disable the give-up for exactly the case
+                // that needs it, leaving an unbounded hello-drop-reconnect loop with nothing to stop it.
+                // Mirrors the `suppressed && !override` decision that chose to send.
                 helloSuppressed = runCatching {
-                    com.noop.ui.NoopPrefs.helloSuppressed(context, lastDeviceAddress)
+                    com.noop.ui.NoopPrefs.helloSuppressed(context, lastDeviceAddress) &&
+                        !PuffinExperiment.from(context).helloDespiteBondRefusal
                 }.getOrDefault(false),
             ) && bondWatchdogBackoff.recordBounce()
         ) {
