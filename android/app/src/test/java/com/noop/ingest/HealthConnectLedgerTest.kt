@@ -1,6 +1,7 @@
 package com.noop.ingest
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -162,6 +163,41 @@ class HealthConnectLedgerTest {
     fun `a clean export carries nothing extra`() {
         val written = setOf(id(now - 86_400), id(now - 2 * 86_400))
         assertEquals(written, HealthConnectLedger.ledgerAfterExport(written, emptySet()))
+    }
+
+    // --- one ledger per strap ---
+
+    /**
+     * The regression this keying prevents, and it is a data-loss one. The export is device-scoped:
+     * `sleepSessionsMerged(deviceId)` reads that strap union the canonical id, so a night banked under a
+     * DIFFERENT strap is simply not in its result. Share one ledger and an export running as strap B
+     * finds strap A's ids absent-but-in-window and retracts them — deleting valid Health Connect records
+     * because the user switched which strap is active.
+     */
+    @Test
+    fun `two straps do not share a ledger`() {
+        assertNotEquals(
+            HealthConnectLedger.ledgerKey("whoop-aaa", p),
+            HealthConnectLedger.ledgerKey("whoop-bbb", p),
+        )
+    }
+
+    /** The same strap keeps the same key across exports, or nothing would ever be retracted. */
+    @Test
+    fun `one strap keeps one key`() {
+        assertEquals(
+            HealthConnectLedger.ledgerKey("whoop-aaa", p),
+            HealthConnectLedger.ledgerKey("whoop-aaa", p),
+        )
+    }
+
+    /** Record types stay separate too: retracting sleep must never reach a workout id. */
+    @Test
+    fun `record types do not share a ledger either`() {
+        assertNotEquals(
+            HealthConnectLedger.ledgerKey("whoop-aaa", HealthConnectLedger.SLEEP_PREFIX),
+            HealthConnectLedger.ledgerKey("whoop-aaa", HealthConnectLedger.WORKOUT_PREFIX),
+        )
     }
 }
 

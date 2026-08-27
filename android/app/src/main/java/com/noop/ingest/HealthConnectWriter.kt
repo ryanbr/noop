@@ -327,7 +327,8 @@ object HealthConnectWriter {
         // never retracted.
         val currentIds = plans.map { it.clientId }.toSet()
         val stale = HealthConnectLedger.staleClientIds(
-            previous = HealthConnectLedger.previouslyWritten(context, HealthConnectLedger.SLEEP_PREFIX),
+            previous = HealthConnectLedger.previouslyWritten(
+                context, deviceId, HealthConnectLedger.SLEEP_PREFIX),
             current = currentIds,
             prefix = HealthConnectLedger.SLEEP_PREFIX,
             windowStartSec = floor,
@@ -358,7 +359,7 @@ object HealthConnectWriter {
         // export retract records that never existed - harmless in itself, but it would also drop the ids
         // that do need retracting from the ledger, quietly restoring the bug this fixes.
         HealthConnectLedger.remember(
-            context, HealthConnectLedger.SLEEP_PREFIX,
+            context, deviceId, HealthConnectLedger.SLEEP_PREFIX,
             HealthConnectLedger.ledgerAfterExport(currentIds, unretracted),
         )
         return written

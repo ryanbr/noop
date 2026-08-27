@@ -27,15 +27,31 @@ object HealthConnectLedger {
     const val SLEEP_PREFIX = "noop-sleep-"
     const val WORKOUT_PREFIX = "noop-workout-"
 
-    private fun key(prefix: String) = "hc.written.$prefix"
+    /**
+     * PER STRAP, and that is load-bearing rather than tidy.
+     *
+     * The export is device-scoped: `sleepSessionsMerged(deviceId)` reads that strap union the canonical
+     * id, so nights banked under a DIFFERENT strap are not in its result. With one shared ledger, an
+     * export running as strap B would find strap A's ids absent-but-in-window and retract them —
+     * deleting Health Connect records that are perfectly valid, for a user who did nothing but switch
+     * which strap is active. Before any of this those records merely lingered; a global key would have
+     * turned a harmless staleness into data loss.
+     *
+     * Keyed per strap, each export can only ever take back what that same strap put there. Nights under
+     * the canonical id appear in every strap's union, so they land in every ledger and are never the odd
+     * one out.
+     *
+     * Pure so the separation is pinned by a test rather than by this comment.
+     */
+    fun ledgerKey(deviceId: String, prefix: String) = "hc.written.$deviceId.$prefix"
 
-    fun previouslyWritten(context: Context, prefix: String): Set<String> =
-        prefs(context).getStringSet(key(prefix), emptySet()) ?: emptySet()
+    fun previouslyWritten(context: Context, deviceId: String, prefix: String): Set<String> =
+        prefs(context).getStringSet(ledgerKey(deviceId, prefix), emptySet()) ?: emptySet()
 
-    fun remember(context: Context, prefix: String, ids: Set<String>) {
+    fun remember(context: Context, deviceId: String, prefix: String, ids: Set<String>) {
         // A COPY: SharedPreferences keeps the very set instance it was handed, and mutating or re-reading
         // it afterwards is documented as undefined. Cheap insurance against a bug that only shows up later.
-        prefs(context).edit().putStringSet(key(prefix), HashSet(ids)).apply()
+        prefs(context).edit().putStringSet(ledgerKey(deviceId, prefix), HashSet(ids)).apply()
     }
 
     private fun prefs(context: Context) =
