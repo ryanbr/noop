@@ -55,10 +55,10 @@ final class RescoreBackgroundSchedulerTests: XCTestCase {
     /// whether a background wake can finish the work, so a garbage value must read as "no measurement"
     /// rather than as a number.
     func testOnlyAUsableDurationIsBanked() {
-        RescoreBackgroundScheduler.markRescoreCompleted(seconds: 474.778, owedToken: RescoreBackgroundScheduler.currentOwedToken)
+        RescoreBackgroundScheduler.markRescoreCompleted(seconds: 474.778, owedToken: nil)   // fixture: bank a duration, settle nothing
         XCTAssertEqual(RescoreBackgroundScheduler.lastCompletedPassSeconds ?? 0, 474.778, accuracy: 0.001)
 
-        RescoreBackgroundScheduler.markRescoreCompleted(seconds: .nan, owedToken: RescoreBackgroundScheduler.currentOwedToken)
+        RescoreBackgroundScheduler.markRescoreCompleted(seconds: .nan, owedToken: nil)   // fixture: bank a duration, settle nothing
         XCTAssertEqual(RescoreBackgroundScheduler.lastCompletedPassSeconds ?? 0, 474.778, accuracy: 0.001,
                        "a NaN must not overwrite a good measurement")
 
@@ -72,7 +72,7 @@ final class RescoreBackgroundSchedulerTests: XCTestCase {
     /// to has nothing to find.
     func testDeferringMarksTheWorkOwedAndDoesNotRunIt() async {
         // A measured pass far over the background budget, so the policy defers.
-        RescoreBackgroundScheduler.markRescoreCompleted(seconds: 474.778, owedToken: RescoreBackgroundScheduler.currentOwedToken)
+        RescoreBackgroundScheduler.markRescoreCompleted(seconds: 474.778, owedToken: nil)   // fixture: bank a duration, settle nothing
         XCTAssertFalse(RescoreBackgroundScheduler.isRescoreOwed)
 
         var ran = false
@@ -92,7 +92,7 @@ final class RescoreBackgroundSchedulerTests: XCTestCase {
     /// A foregrounded pass runs, whatever the measurement says. This is the case the mechanism must not
     /// break: there is no suspension deadline, so deferring would be a pure regression.
     func testAForegroundPassRunsEvenWhenSlow() async {
-        RescoreBackgroundScheduler.markRescoreCompleted(seconds: 474.778, owedToken: RescoreBackgroundScheduler.currentOwedToken)
+        RescoreBackgroundScheduler.markRescoreCompleted(seconds: 474.778, owedToken: nil)   // fixture: bank a duration, settle nothing
 
         var ran = false
         var logged: [String] = []
@@ -129,7 +129,7 @@ final class RescoreBackgroundSchedulerTests: XCTestCase {
     /// run here is simply skipped. Recording a debt for it would send a processing task off to run a
     /// forced full pass when most likely nothing changed — the churn #1146 exists to avoid.
     func testASkippedBackstopDoesNotConjureADebt() async {
-        RescoreBackgroundScheduler.markRescoreCompleted(seconds: 474.778, owedToken: RescoreBackgroundScheduler.currentOwedToken)
+        RescoreBackgroundScheduler.markRescoreCompleted(seconds: 474.778, owedToken: nil)   // fixture: bank a duration, settle nothing
 
         var ran = false
         var logged: [String] = []
@@ -164,7 +164,7 @@ final class RescoreBackgroundSchedulerTests: XCTestCase {
         XCTAssertTrue(foreground)
 
         var affordable = false
-        RescoreBackgroundScheduler.markRescoreCompleted(seconds: 3, owedToken: RescoreBackgroundScheduler.currentOwedToken)
+        RescoreBackgroundScheduler.markRescoreCompleted(seconds: 3, owedToken: nil)   // fixture: bank a duration, settle nothing
         await RescoreBackgroundScheduler.run(isBackground: true, owesOnDefer: false,
                                              log: { _ in }) { affordable = true }
         XCTAssertTrue(affordable)
