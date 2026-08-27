@@ -118,4 +118,19 @@ class HrvAnalyzerSampleOrdTest {
         // meanNN 928 ms). Also wrapped to -16, which is what the log reported for that night.
         assertEquals(91, HrvAnalyzer.pct(36_296_594, 39_886_368))
     }
+
+    /**
+     * The 32-bit wrap did not always produce a NEGATIVE percentage, so "is it negative" was never a
+     * sound test for an affected capture - which matters for anyone re-reading pre-fix Android logs.
+     *
+     * These pin the exact boundary and the readable-wrong case. The bound is `part * 200 + total`
+     * exceeding `Int.MAX_VALUE`, not `part * 200` alone: 10,683,998 was still computed correctly in 32
+     * bits, 10,683,999 wrapped to -100, and a 100% multi-share 8 h night wrapped to 25 - positive,
+     * plausible, and wrong by 75 points. Twin of Swift `testPctWrapWasNotAlwaysNegative`.
+     */
+    @Test fun pctWrapWasNotAlwaysNegative() {
+        assertEquals(100, HrvAnalyzer.pct(10_683_998, 10_683_998)) // last total 32 bits still got right
+        assertEquals(100, HrvAnalyzer.pct(10_683_999, 10_683_999)) // first that wrapped, to -100
+        assertEquals(100, HrvAnalyzer.pct(28_800_000, 28_800_000)) // wrapped to 25, not to anything negative
+    }
 }

@@ -91,4 +91,18 @@ final class HRVAnalyzerSampleOrdTests: XCTestCase {
         XCTAssertEqual(HRVAnalyzer.pct(15_264_177, 35_498_088), 43)
         XCTAssertEqual(HRVAnalyzer.pct(36_296_594, 39_886_368), 91)
     }
+
+    /// Twin of Kotlin `pctWrapWasNotAlwaysNegative`. The 32-bit wrap did not always produce a NEGATIVE
+    /// percentage, so "is it negative" was never a sound test for an affected capture.
+    ///
+    /// These pin the exact boundary and the readable-wrong case. The bound is `part * 200 + total`
+    /// exceeding `Int32.max`, not `part * 200` alone: 10,683,998 was still computed correctly in 32
+    /// bits, 10,683,999 wrapped to -100, and a 100% multi-share 8 h night wrapped to 25 - positive,
+    /// plausible, and wrong by 75 points. `Int` is 64-bit here, so these pass either way; they are a
+    /// parity pin and a guard for `arm64_32`, where the Kotlin failure would reproduce exactly.
+    func testPctWrapWasNotAlwaysNegative() {
+        XCTAssertEqual(HRVAnalyzer.pct(10_683_998, 10_683_998), 100)
+        XCTAssertEqual(HRVAnalyzer.pct(10_683_999, 10_683_999), 100)
+        XCTAssertEqual(HRVAnalyzer.pct(28_800_000, 28_800_000), 100)
+    }
 }

@@ -775,12 +775,18 @@ object HrvAnalyzer {
     /** Whole-percent, integer half-up, so both platforms round a tie the same way. 0 when [total] is 0.
      *
      *  The arithmetic is widened to `Long` because [deliveryHistogram] passes BEAT-TIME IN MILLISECONDS
-     *  summed over a whole night, not a row count. `part * 200` overflows a 32-bit `Int` above
-     *  2147483647 / 200 = 10,737,418 ms, i.e. 2.98 h of beat-time on multi-delivery seconds, and a real
-     *  over-count night carries 3-4x that. Kotlin's `Int` wraps silently, so `multiMs` was reported
-     *  NEGATIVE on every such night while the Swift twin (64-bit `Int`) reported the right value from the
-     *  same source - the parity these two are supposed to hold. Widening the operation rather than the
-     *  signature keeps every caller and the half-up tie behaviour untouched. */
+     *  summed over a whole night, not a row count. The numerator is `part * 200 + total`, so with
+     *  `part <= total` it needs more than 32 bits from `total >= 10,683,999` ms - 2.97 h of beat-time on
+     *  multi-delivery seconds, and a real over-count night carries 3-4x that. The multiply ALONE would
+     *  survive to `part >= 10,737,419`; the `+ total` term is what brings the bound down, so quoting the
+     *  multiply's limit understates the exposure. Kotlin's `Int` wraps silently while the Swift twin
+     *  (64-bit `Int`) read correctly from the same source - the parity these two are supposed to hold.
+     *
+     *  The wrap did NOT always land negative, which is the dangerous half: a 100% multi-share 8 h night
+     *  (`pct(28_800_000, 28_800_000)`) returned 25 - positive, plausible, and wrong by 75 points. A
+     *  negative `multiMs` was a symptom of this, never the test for it, so every pre-fix Android capture
+     *  past the bound is suspect including the ones that read fine. Widening the operation rather than
+     *  the signature keeps every caller and the half-up tie behaviour untouched. */
     internal fun pct(part: Int, total: Int): Int =
         if (total > 0) ((part.toLong() * 200 + total) / (total.toLong() * 2)).toInt() else 0
 
