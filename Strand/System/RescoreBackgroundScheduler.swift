@@ -36,7 +36,17 @@ enum RescoreBackgroundScheduler {
     /// Seconds the last COMPLETED pass took. Only ever written by a pass that reached the end.
     static let lastPassSecondsKey = "noop.rescoreLastPassSeconds"
 
+    /// Identifies the MOST RECENT debt, so a pass can tell its own from someone else's (#1681).
+    ///
+    /// A token rather than a counter, deliberately. A counter needs read-modify-write, and two triggers
+    /// marking a debt at the same moment could both read N and both write N+1 — losing an increment, and
+    /// with it exactly the debt this is meant to protect. A fresh token is a single write: concurrent
+    /// marks each produce a distinct one, the last wins, and it cannot equal any pass's captured token.
+    static let owedTokenKey = "noop.rescoreOwedToken"
+
     static var isRescoreOwed: Bool { UserDefaults.standard.bool(forKey: owedKey) }
+
+    static var currentOwedToken: String? { UserDefaults.standard.string(forKey: owedTokenKey) }
 
     static var lastCompletedPassSeconds: Double? {
         guard UserDefaults.standard.object(forKey: lastPassSecondsKey) != nil else { return nil }
@@ -47,14 +57,43 @@ enum RescoreBackgroundScheduler {
     /// Mark a re-score as owed. Called by `IntelligenceEngine` once a pass is past every gate and is
     /// definitely about to work — so that a kill leaves the debt behind — and by the deferral path, where
     /// no pass is attempted at all but the work is just as outstanding.
-    static func markRescoreOwed() {
+    /// Returns the token stamped on this debt. A pass keeps it and hands it back at completion; every
+    /// other caller (the deferral path) can ignore it, since it is not the one that will settle up.
+    @discardableResult
+    static func markRescoreOwed() -> String {
+        let token = UUID().uuidString
         UserDefaults.standard.set(true, forKey: owedKey)
+        UserDefaults.standard.set(token, forKey: owedTokenKey)
+        return token
+    }
+
+    /// May a pass holding [capturedToken] settle the debt?
+    ///
+    /// Only if nothing newer was recorded while it ran. The bug in #1681 is that this question was never
+    /// asked: completion cleared one global boolean unconditionally, so a trigger firing mid-pass — for
+    /// data that arrived AFTER the pass had already read its inputs — had its debt erased before the
+    /// correction it was recorded for ever ran. The scoring loop starts at today, so the night most
+    /// likely to still be syncing is the first thing read and the likeliest to be caught mid-write.
+    ///
+    /// A pass with NO token never settles. That errs toward one extra pass, which costs battery; the
+    /// other direction costs a night's scores until something unrelated happens to re-score it, which is
+    /// the failure being fixed.
+    ///
+    /// Pure, so the rule is pinned without UserDefaults or a background task.
+    static func maySettleDebt(capturedToken: String?, currentToken: String?) -> Bool {
+        guard let capturedToken, !capturedToken.isEmpty else { return false }
+        return capturedToken == currentToken
     }
 
     /// Settle the debt at the end of a completed pass, beside the watermark advance. A pass that is
     /// killed never reaches this, which is what leaves the mark set for the next launch to find.
-    static func markRescoreCompleted(seconds: Double) {
-        UserDefaults.standard.set(false, forKey: owedKey)
+    /// [owedToken] is the token this pass received from its own `markRescoreOwed()`. The debt is settled
+    /// only if it is still the current one — see `maySettleDebt`. The pass duration is recorded either
+    /// way: it is telemetry about THIS pass, and true regardless of whose debt is now outstanding.
+    static func markRescoreCompleted(seconds: Double, owedToken: String?) {
+        if maySettleDebt(capturedToken: owedToken, currentToken: currentOwedToken) {
+            UserDefaults.standard.set(false, forKey: owedKey)
+        }
         if seconds.isFinite, seconds > 0 {
             UserDefaults.standard.set(seconds, forKey: lastPassSecondsKey)
         }

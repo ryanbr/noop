@@ -607,7 +607,10 @@ final class IntelligenceEngine: ObservableObject {
         // between here and there, so "started and never finished" means exactly "killed", never a silent
         // internal skip. `RescoreBackgroundPolicy` reads it to stop re-attempting a pass that cannot
         // finish in the background, which is the livelock in #1538.
-        RescoreBackgroundScheduler.markRescoreOwed()
+        // #1681: keep the token this debt was stamped with. At the end of the pass it is what tells our
+        // own debt apart from one a LATER trigger recorded while we were running - the latter must
+        // survive us, because the data it was recorded for arrived after we had already read our inputs.
+        let owedToken = RescoreBackgroundScheduler.markRescoreOwed()
         // #899-A re-arm: clear the lock, then if a forced rescore was dropped while this pass held it,
         // run it ONCE. The flag is cleared BEFORE the re-invoke (a single re-arm), so a forced call landing
         // DURING the re-invoke re-arms it again but a quiet one does not , this can never recurse unbounded.
@@ -2365,7 +2368,7 @@ final class IntelligenceEngine: ObservableObject {
         // background wake from one that never could, instead of guessing from a constant — the cost varies
         // by more than an order of magnitude with history size.
         let elapsed = Date().timeIntervalSince(reScoreStart)
-        RescoreBackgroundScheduler.markRescoreCompleted(seconds: elapsed)
+        RescoreBackgroundScheduler.markRescoreCompleted(seconds: elapsed, owedToken: owedToken)
         diagnosticSink?("re-score: done — scored \(scoredNights.count) night(s) in \(Int(elapsed * 1000)) ms (#1005)", nil)
     }
 
