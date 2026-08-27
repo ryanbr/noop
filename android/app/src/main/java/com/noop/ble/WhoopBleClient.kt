@@ -5731,6 +5731,7 @@ class WhoopBleClient(
                     // realtime HR with puffin framing. Mirrors the macOS post-bond flow.
                     didBond = true
                     helloOverrideAttempts = 0     // #1635: the strap answered — the override's budget resets
+                    helloOverrideExhaustedLogged = false
                     cancelBondWatchdog()          // genuine bond reached — the handshake watchdog stands down (#50)
                     noteGenuineBond(g.device.address)   // #52: this strap bonds fine; clears any pin-refusal streak
                     clearPairingHint()            // #78: a genuine bond means the pairing guidance no longer applies
@@ -7645,9 +7646,9 @@ class WhoopBleClient(
                 // Spent budget makes the override inert rather than merely quiet: it must stop reaching the
                 // deferral bypass too, or the link keeps being taken down by a hello nobody will answer.
                 val helloOverride = overrideOptedIn && overrideHelloStillAllowed(helloOverrideAttempts)
-                if (overrideOptedIn && !helloOverride && helloOverrideAttempts == HELLO_OVERRIDE_MAX_ATTEMPTS) {
-                    helloOverrideAttempts++   // log the give-up exactly once, not on every later connect
-                    log(helloOverrideExhaustedLine(HELLO_OVERRIDE_MAX_ATTEMPTS))
+                if (overrideOptedIn && !helloOverride && !helloOverrideExhaustedLogged) {
+                    helloOverrideExhaustedLogged = true
+                    log(helloOverrideExhaustedLine(helloOverrideAttempts))
                 }
                 if (explicitBondDefersHello(explicitBondRequestedThisLink, helloOverride = helloOverride)) {
                     // Same trap as the suppression path below, and worse here. The watchdog was armed at
@@ -7675,7 +7676,12 @@ class WhoopBleClient(
                     com.noop.ui.NoopPrefs.helloSuppressed(context, g.device.address)
                 }.getOrDefault(false)
                 if (shouldSendClientHello(suppressed, userInitiated = userAsked, overrideSuppression = helloOverride)) {
-                    if (helloOverride && !userAsked) helloOverrideAttempts++
+                    // Charge the budget only when the override is what put this hello on the wire: a
+                    // strap that is neither suppressed nor deferring would have sent it anyway, and
+                    // counting those would retire the experiment without ever having run it.
+                    if (helloOverride && !userAsked && (suppressed || explicitBondRequestedThisLink)) {
+                        helloOverrideAttempts++
+                    }
                     if (suppressed && helloOverride && !userAsked) {
                         // Say WHY a suppressed strap is getting a hello anyway, or the next reader sees the
                         // latch set and a hello on the wire and has to guess which of them is broken.
@@ -9034,9 +9040,14 @@ class WhoopBleClient(
     // across sessions with per-session ids (his fork truncated per session, losing overnight data);
     // rotates at the cap; fail-soft — capture can never break the sync it observes.
 
-    /** #1635: unanswered hellos written by the override this process. Bounds the experiment on its own,
+    /** #1635: unanswered hellos the override CAUSED this process. Bounds the experiment on its own,
      *  because the shared give-up cannot — see HELLO_OVERRIDE_MAX_ATTEMPTS. Reset on a genuine bond. */
     @Volatile private var helloOverrideAttempts = 0
+
+    /** One-shot guard for the give-up line. Separate from the counter because `++` on a @Volatile Int is
+     *  not atomic: two overlapping connects could step past the cap together, and an `== cap` test would
+     *  then never fire, leaving the override inert with nothing in the log to say why. */
+    @Volatile private var helloOverrideExhaustedLogged = false
 
     @Volatile private var captureWriter: java.io.BufferedWriter? = null
     @Volatile private var captureDisabled = false

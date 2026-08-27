@@ -160,4 +160,43 @@ class HelloSuppressionTest {
         assertTrue("must tell the user how to get back to a working strap",
                    line.contains("Turn the switch off"))
     }
+
+    /**
+     * The budget must only be charged for hellos the override CAUSED.
+     *
+     * `shouldSendClientHello` also returns true for a strap that is neither suppressed nor deferring a
+     * bond — that hello goes out regardless of the switch. Charging those would retire the experiment
+     * after six ordinary connects without it ever having done anything, and then report "6 unanswered
+     * hellos" about writes it never caused.
+     */
+    @Test
+    fun `the budget is charged only when the override is load-bearing`() {
+        fun charges(suppressed: Boolean, bondDeferred: Boolean, override: Boolean, userAsked: Boolean) =
+            shouldSendClientHello(suppressed, userAsked, override) &&
+                override && !userAsked && (suppressed || bondDeferred)
+
+        // Load-bearing: the hello would NOT have gone out without the override.
+        assertTrue(charges(suppressed = true, bondDeferred = false, override = true, userAsked = false))
+        assertTrue(charges(suppressed = false, bondDeferred = true, override = true, userAsked = false))
+        // Not load-bearing: nothing was standing in the hello's way.
+        assertFalse(charges(suppressed = false, bondDeferred = false, override = true, userAsked = false))
+        // A user-initiated Connect already overrides the latch on its own.
+        assertFalse(charges(suppressed = true, bondDeferred = false, override = true, userAsked = true))
+        // Switch off: never charged.
+        assertFalse(charges(suppressed = true, bondDeferred = true, override = false, userAsked = false))
+    }
+
+    /**
+     * The give-up line must still fire if the counter steps PAST the cap. `++` on a @Volatile Int is not
+     * atomic, so two overlapping connects can skip the exact boundary; an `== cap` guard would then leave
+     * the override inert with nothing in the log to explain it.
+     */
+    @Test
+    fun `the give-up condition holds past the cap, not only at it`() {
+        assertFalse(overrideHelloStillAllowed(HELLO_OVERRIDE_MAX_ATTEMPTS))
+        assertFalse(overrideHelloStillAllowed(HELLO_OVERRIDE_MAX_ATTEMPTS + 1))
+        assertFalse(overrideHelloStillAllowed(HELLO_OVERRIDE_MAX_ATTEMPTS + 7))
+        // And the line reports whatever count it actually reached, not a hardcoded cap.
+        assertTrue(helloOverrideExhaustedLine(9).contains("9 unanswered hellos"))
+    }
 }
