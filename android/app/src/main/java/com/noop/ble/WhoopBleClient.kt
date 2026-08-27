@@ -7870,7 +7870,7 @@ class WhoopBleClient(
             if (com.noop.analytics.RrEmissionStats.shouldEmitLiveCensus(lastRealtimeRrCensusSec, now)) {
                 lastRealtimeRrCensusSec = now
                 val census = com.noop.analytics.RrEmissionStats.compute(batch.rr.map { it.ts.toInt() to it.rrMs })
-                log(com.noop.analytics.RrEmissionStats.logLine("live-realtime", batch.rr.size, batch.rr.size, census))
+                log(com.noop.analytics.RrEmissionStats.logLine("live-realtime", batch.rr.size, null, census))
             }
         }
         if (!batch.isEmpty) {
@@ -7918,10 +7918,9 @@ class WhoopBleClient(
             if (com.noop.analytics.RrEmissionStats.shouldEmitLiveCensus(lastStdRrCensusSec, nowSec)) {
                 lastStdRrCensusSec = nowSec
                 val census = com.noop.analytics.RrEmissionStats.compute(rr.map { it.ts.toInt() to it.rrMs })
-                // offered == inserted is NOT known here (the store's conflict key decides), so both
-                // report the offered count and the line's own doc explains the pair. Reporting a
-                // guessed `inserted` would be the diagnostic asserting more than it observed.
-                log(com.noop.analytics.RrEmissionStats.logLine("live-standard", rr.size, rr.size, census))
+                // `inserted` is NULL, not echoed from `offered`: the store's conflict key decides that
+                // and this census runs before the insert. The line renders `inserted=n/a`.
+                log(com.noop.analytics.RrEmissionStats.logLine("live-standard", rr.size, null, census))
             }
         }
         try {

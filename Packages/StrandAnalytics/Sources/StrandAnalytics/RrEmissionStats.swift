@@ -168,11 +168,16 @@ public enum RrEmissionStats {
     /// gapless, and `ratioRep` is the one to trust when they disagree. (`ratioRep`'s denominator can
     /// double-count at most one second per chunk boundary when a session's counts are summed, which is
     /// negligible against thousands of seconds — and errs the same safe way, low.)
-    public static func logLine(path: String, offered: Int, inserted: Int, _ r: Result) -> String {
+    public static func logLine(path: String, offered: Int, inserted: Int?, _ r: Result) -> String {
+        // NIL renders "n/a", never a number. Only the historical path can see what the store's conflict
+        // key actually kept; the live paths census BEFORE the insert and have no such count. Echoing
+        // `offered` there would print `offered=N inserted=N`, which reads as "the primary key absorbed
+        // nothing" — a measurement neither path made. Same reason GpsSession passes rawFixes = nil.
+        let ins = inserted.map(String.init) ?? "n/a"
         let ratio = String(format: "%.2f", r.ratio)
         let rep = r.secondsWithRr > 0 ? Double(r.sumRrMs) / 1000.0 / Double(r.secondsWithRr) : 0
         let h = r.perSecond
-        return "rr emit path=\(path) offered=\(offered) inserted=\(inserted) secs=\(r.secondsWithRr) "
+        return "rr emit path=\(path) offered=\(offered) inserted=\(ins) secs=\(r.secondsWithRr) "
             + "sumRr=\(r.sumRrMs / 1000)s span=\(r.spanSec)s ratio=\(ratio) "
             + "ratioRep=\(String(format: "%.2f", rep)) "
             + "perSec[1/2/3/4+]=\(h[0])/\(h[1])/\(h[2])/\(h[3]) "

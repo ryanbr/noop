@@ -153,11 +153,16 @@ object RrEmissionStats {
      * rather than by the wall span, so it is immune to gaps; the two agreeing means the batch is gapless,
      * and `ratioRep` is the one to trust when they disagree.
      */
-    fun logLine(path: String, offered: Int, inserted: Int, r: Result): String {
+    fun logLine(path: String, offered: Int, inserted: Int?, r: Result): String {
         val ratio = String.format(java.util.Locale.US, "%.2f", r.ratio)
+        // NULL renders "n/a", never a number. Only the historical path can see what the store's conflict
+        // key actually kept; the live paths census BEFORE the insert and have no such count. Echoing
+        // `offered` there would print `offered=N inserted=N`, which reads as "the primary key absorbed
+        // nothing" — a measurement neither path made. Same reason GpsSession passes rawFixes = null.
+        val ins = inserted?.toString() ?: "n/a"
         val rep = if (r.secondsWithRr > 0) r.sumRrMs / 1000.0 / r.secondsWithRr else 0.0
         val h = r.perSecond
-        return "rr emit path=$path offered=$offered inserted=$inserted secs=${r.secondsWithRr} " +
+        return "rr emit path=$path offered=$offered inserted=$ins secs=${r.secondsWithRr} " +
             "sumRr=${r.sumRrMs / 1000}s span=${r.spanSec}s ratio=$ratio " +
             "ratioRep=${String.format(java.util.Locale.US, "%.2f", rep)} " +
             "perSec[1/2/3/4+]=${h[0]}/${h[1]}/${h[2]}/${h[3]} " +

@@ -197,7 +197,7 @@ final class Collector {
                 lastRealtimeRrCensusSec = nowSec
                 let census = RrEmissionStats.compute(streams.rr.map { (ts: $0.ts, rrMs: $0.rrMs) })
                 log?(RrEmissionStats.logLine(path: "live-realtime", offered: streams.rr.count,
-                                             inserted: streams.rr.count, census))
+                                             inserted: nil, census))
             }
         }
         do {
@@ -250,11 +250,10 @@ final class Collector {
             if RrEmissionStats.shouldEmitLiveCensus(lastEmitSec: lastStdRrCensusSec, nowSec: nowSec) {
                 lastStdRrCensusSec = nowSec
                 let census = RrEmissionStats.compute(rr.map { (ts: $0.ts, rrMs: $0.rrMs) })
-                // offered == inserted is NOT known here (the store's conflict key decides), so both report
-                // the offered count. Reporting a guessed `inserted` would be the diagnostic asserting more
-                // than it observed.
+                // `inserted` is NIL, not echoed from `offered`: the store's conflict key decides that and
+                // this census runs before the insert. The line renders `inserted=n/a`.
                 log?(RrEmissionStats.logLine(path: "live-standard", offered: rr.count,
-                                             inserted: rr.count, census))
+                                             inserted: nil, census))
             }
         }
         do {

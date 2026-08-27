@@ -123,6 +123,12 @@ class RrEmissionStatsTest {
         val line = RrEmissionStats.logLine("historical", 3, 2, r)
         assertTrue(line, line.startsWith("rr emit path=historical offered=3 inserted=2 secs=2 "))
         assertTrue(line, line.contains("perSec[1/2/3/4+]=1/1/0/0"))
+
+        // A LIVE path censuses before the insert and cannot know what the conflict key kept, so it
+        // passes null and the line must say "n/a". Echoing `offered` there would read as "the primary
+        // key absorbed nothing" — a claim neither live path is in a position to make.
+        val live = RrEmissionStats.logLine("live-standard", 3, null, r)
+        assertTrue(live, live.startsWith("rr emit path=live-standard offered=3 inserted=n/a secs=2 "))
     }
 
     /**

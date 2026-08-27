@@ -112,6 +112,12 @@ final class RrEmissionStatsTests: XCTestCase {
         let line = RrEmissionStats.logLine(path: "historical", offered: 3, inserted: 2, r)
         XCTAssertTrue(line.hasPrefix("rr emit path=historical offered=3 inserted=2 secs=2 "), line)
         XCTAssertTrue(line.contains("perSec[1/2/3/4+]=1/1/0/0"), line)
+
+        // A LIVE path censuses before the insert and cannot know what the conflict key kept, so it
+        // passes nil and the line must say "n/a". Echoing `offered` there would read as "the primary
+        // key absorbed nothing" — a claim neither live path is in a position to make.
+        let live = RrEmissionStats.logLine(path: "live-standard", offered: 3, inserted: nil, r)
+        XCTAssertTrue(live.contains("offered=3 inserted=n/a "), live)
     }
 
     /// A GAP must not read as healthy emission. Two doubled seconds an hour apart carry a 2.0 emission
