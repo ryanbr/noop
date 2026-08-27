@@ -7862,6 +7862,17 @@ class WhoopBleClient(
             .maxOrNull() ?: now
         val streams: Streams = extractStreams(parsed, deviceClockRef = newestRealtimeTs, wallClockRef = now)
         val batch = StreamPersistence.toBatch(streams)
+        // #1118: the SECOND live transport. The standard 0x2A37 path above stamps a beat at the second
+        // it arrived; this one stamps it from the strap's own record clock. The same beat reaching both
+        // lands on two different seconds, which no same-second de-dup can collapse — the signature every
+        // affected night prints as `crossSecondOverCount`.
+        if (batch.rr.isNotEmpty()) {
+            if (com.noop.analytics.RrEmissionStats.shouldEmitLiveCensus(lastRealtimeRrCensusSec, now)) {
+                lastRealtimeRrCensusSec = now
+                val census = com.noop.analytics.RrEmissionStats.compute(batch.rr.map { it.ts.toInt() to it.rrMs })
+                log(com.noop.analytics.RrEmissionStats.logLine("live-realtime", batch.rr.size, batch.rr.size, census))
+            }
+        }
         if (!batch.isEmpty) {
             try {
                 repository.insert(batch, deviceId)
@@ -7871,6 +7882,11 @@ class WhoopBleClient(
             }
         }
     }
+
+    /** #1118: last emit of each LIVE R-R census line, unix seconds; 0 = never. See
+     *  [com.noop.analytics.RrEmissionStats.shouldEmitLiveCensus] for why these are rate-limited. */
+    private var lastStdRrCensusSec: Int = 0
+    private var lastRealtimeRrCensusSec: Int = 0
 
     /**
      * Buffer one standard 0x2A37 reading (carries a wall-clock ts directly, no clock ref needed).
@@ -7892,6 +7908,21 @@ class WhoopBleClient(
             val h = ArrayList(stdHr); val r = ArrayList(stdRr)
             stdHr.clear(); stdRr.clear()
             h to r
+        }
+        // #1118: census this batch BEFORE it is stored, exactly as the historical path does, so a
+        // strap log carries one `ratioRep` per transport. If each transport reports ~1.0 while the
+        // stored night reads 2.77, the over-count is the UNION of the transports and no single
+        // decoder is at fault — which is the question this instrumentation exists to settle.
+        if (rr.isNotEmpty()) {
+            val nowSec = (System.currentTimeMillis() / 1000L).toInt()
+            if (com.noop.analytics.RrEmissionStats.shouldEmitLiveCensus(lastStdRrCensusSec, nowSec)) {
+                lastStdRrCensusSec = nowSec
+                val census = com.noop.analytics.RrEmissionStats.compute(rr.map { it.ts.toInt() to it.rrMs })
+                // offered == inserted is NOT known here (the store's conflict key decides), so both
+                // report the offered count and the line's own doc explains the pair. Reporting a
+                // guessed `inserted` would be the diagnostic asserting more than it observed.
+                log(com.noop.analytics.RrEmissionStats.logLine("live-standard", rr.size, rr.size, census))
+            }
         }
         try {
             repository.insert(StreamBatch(hr = hr, rr = rr), deviceId)

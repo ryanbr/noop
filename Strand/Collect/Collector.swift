@@ -1,6 +1,7 @@
 import Foundation
 import WhoopProtocol
 import WhoopStore
+import StrandAnalytics
 
 /// The subset of WhoopStore the Collector needs. A protocol so tests can inject a spy
 /// (WhoopStore is `final`). WhoopStore conforms via the extension below.
@@ -72,6 +73,14 @@ final class Collector {
     /// #47: buffer the (raw frame, pre-parsed) pair. The raw bytes are still needed for the raw-capture
     /// outbox; the parse is the one the BLE seam already did, so `flush` doesn't re-decode the batch.
     private var buffer: [(frame: [UInt8], parsed: ParsedFrame)] = []
+    /// #1118: strap-log sink for the per-transport R-R census. Optional and defaulted to nil so the
+    /// test fakes that construct a Collector are untouched; `BLEManager` wires its own `log`.
+    private let log: ((String) -> Void)?
+    /// #1118: last emit of each LIVE census line, unix seconds; 0 = never. Rate-limited — see
+    /// `RrEmissionStats.shouldEmitLiveCensus`.
+    private var lastStdRrCensusSec: Int = 0
+    private var lastRealtimeRrCensusSec: Int = 0
+
     /// Standard 0x2A37 HR/RR buffer — the reliable, always-on stream, recorded continuously
     /// (independent of the custom realtime stream or which screen is open).
     private var stdHR: [HRSample] = []
@@ -82,10 +91,12 @@ final class Collector {
     init(store: StoreWriting, deviceId: String,
          policy: CollectorPolicy = .default,
          enableRawCapture: Bool = false,
+         log: ((String) -> Void)? = nil,
          now: @escaping () -> Int = { Int(Date().timeIntervalSince1970) },
          monotonic: @escaping () -> TimeInterval = { Date().timeIntervalSinceReferenceDate }) {
         self.store = store; self.deviceId = deviceId; self.policy = policy
         self.enableRawCapture = enableRawCapture
+        self.log = log
         self.now = now; self.monotonic = monotonic
         self.batchStartedAt = monotonic()
         self.concreteStore = store as? WhoopStore
@@ -176,6 +187,19 @@ final class Collector {
         let frames = batch.map(\.frame)         // still needed for the raw-capture outbox
         let parsed = batch.map(\.parsed)        // #47: the seam already decoded these — don't re-parse
         let streams = extractStreams(parsed, deviceClockRef: ref.device, wallClockRef: ref.wall)
+        // #1118: the SECOND live transport. `flushStandardHR` stamps a beat at the second it arrived over
+        // 0x2A37; this one stamps it from the strap's own record clock. The same beat reaching both lands
+        // on two different seconds, which no same-second de-dup can collapse — the signature every
+        // affected night prints as `crossSecondOverCount`.
+        if !streams.rr.isEmpty {
+            let nowSec = now()
+            if RrEmissionStats.shouldEmitLiveCensus(lastEmitSec: lastRealtimeRrCensusSec, nowSec: nowSec) {
+                lastRealtimeRrCensusSec = nowSec
+                let census = RrEmissionStats.compute(streams.rr.map { (ts: $0.ts, rrMs: $0.rrMs) })
+                log?(RrEmissionStats.logLine(path: "live-realtime", offered: streams.rr.count,
+                                             inserted: streams.rr.count, census))
+            }
+        }
         do {
             try await store.insert(streams, deviceId: deviceId)   // DECODED FIRST (durable)
         } catch {
@@ -217,6 +241,22 @@ final class Collector {
         let hr = stdHR, rr = stdRR
         stdHR.removeAll(keepingCapacity: true)
         stdRR.removeAll(keepingCapacity: true)
+        // #1118: census this batch BEFORE it is stored, exactly as the historical path does, so a strap
+        // log carries one `ratioRep` per transport. If each transport reports ~1.0 while the stored night
+        // reads 2.77, the over-count is the UNION of the transports and no single decoder is at fault —
+        // which is the question this instrumentation exists to settle.
+        if !rr.isEmpty {
+            let nowSec = now()
+            if RrEmissionStats.shouldEmitLiveCensus(lastEmitSec: lastStdRrCensusSec, nowSec: nowSec) {
+                lastStdRrCensusSec = nowSec
+                let census = RrEmissionStats.compute(rr.map { (ts: $0.ts, rrMs: $0.rrMs) })
+                // offered == inserted is NOT known here (the store's conflict key decides), so both report
+                // the offered count. Reporting a guessed `inserted` would be the diagnostic asserting more
+                // than it observed.
+                log?(RrEmissionStats.logLine(path: "live-standard", offered: rr.count,
+                                             inserted: rr.count, census))
+            }
+        }
         do {
             try await store.insert(Streams(hr: hr, rr: rr), deviceId: deviceId)
         } catch {

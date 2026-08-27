@@ -114,6 +114,33 @@ object RrEmissionStats {
     }
 
     /**
+     * Should a LIVE census line be emitted now? (#1118 instrumentation.)
+     *
+     * The historical census is emitted once per offload SESSION, which is naturally rare. The two live
+     * paths flush roughly every 30 readings, so emitting per flush would put a line on the strap log
+     * every ~30 seconds all night — a volume that buries the very evidence it exists to provide. One
+     * line per path per [minGapSec] is plenty: a single flush already spans enough seconds to make
+     * `ratioRep` meaningful (the historical line settles it on 39 s), and what matters is comparing the
+     * paths, not sampling either densely.
+     *
+     * [lastEmitSec] is 0 before the first line, so the first flush of a connection always reports.
+     * A clock that moves BACKWARDS emits rather than suppresses: the alternative wedges the census
+     * shut until wall time catches up, and a silent instrument is worse than a duplicated line.
+     */
+    fun shouldEmitLiveCensus(lastEmitSec: Int, nowSec: Int, minGapSec: Int = LIVE_CENSUS_MIN_GAP_SEC): Boolean {
+        // The "never emitted" sentinel is checked EXPLICITLY. Falling through to the gap arithmetic
+        // gets the right answer in production only because a real unix `nowSec` is ~1.8e9 and so
+        // trivially clears any gap — an accident of magnitude, not a rule. It also made the helper
+        // untestable with small timestamps, which is how this was caught.
+        if (lastEmitSec <= 0) return true
+        if (nowSec < lastEmitSec) return true
+        return nowSec - lastEmitSec >= minGapSec
+    }
+
+    /** 15 minutes: rare enough not to bury the log, frequent enough to sample a night several times. */
+    const val LIVE_CENSUS_MIN_GAP_SEC: Int = 900
+
+    /**
      * One compact log line. [offered]/[inserted] come from the caller: [inserted] is what the store
      * actually wrote after its conflict key, so `offered - inserted` is how much the primary key already
      * absorbs — the third number needed to tell emission from ingest.
