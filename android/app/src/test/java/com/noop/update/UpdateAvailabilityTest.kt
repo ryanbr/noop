@@ -76,50 +76,6 @@ class UpdateAvailabilityTest {
         assertTrue(UpdateAvailability.shouldPost("11.0.0", "10.6.0", "10.7.0"))
     }
 
-    // --- the copy (byte-identical to the Swift twin) ---
-
-    @Test
-    fun `inbox title`() {
-        assertEquals("NOOP 10.7.0 is available", UpdateAvailability.inboxTitle("10.7.0"))
-    }
-
-    /** Android: no sideload sentence — an APK has no seven-day re-sign and no AltStore. */
-    @Test
-    fun `inbox message without the sideload hint`() {
-        assertEquals(
-            "You're on 10.6.0. Open Settings and use Check for updates to see what's new and download 10.7.0.",
-            UpdateAvailability.inboxMessage("10.7.0", "10.6.0", "", false),
-        )
-    }
-
-    /** The iOS branch, tested here too so the twins cannot drift apart unnoticed. */
-    @Test
-    fun `inbox message with the sideload hint`() {
-        assertEquals(
-            "You're on 10.6.0. Open Settings and use Check for updates to see what's new and download 10.7.0." +
-                " AltStore or SideStore can install it for you automatically if you added NOOP's source;" +
-                " a direct .ipa still has to be signed on your device.",
-            UpdateAvailability.inboxMessage("10.7.0", "10.6.0", "", true),
-        )
-    }
-
-    @Test
-    fun `inbox message appends trimmed notes`() {
-        assertEquals(
-            "You're on 10.6.0. Open Settings and use Check for updates to see what's new and download 10.7.0." +
-                "\n\nFixed things.",
-            UpdateAvailability.inboxMessage("10.7.0", "10.6.0", "  Fixed things.  ", false),
-        )
-    }
-
-    /** Whitespace-only notes must not leave a trailing blank line hanging in the row. */
-    @Test
-    fun `blank notes add nothing`() {
-        val plain = UpdateAvailability.inboxMessage("10.7.0", "10.6.0", "   \n  ", false)
-        assertFalse(plain.endsWith("\n"))
-        assertEquals(UpdateAvailability.inboxMessage("10.7.0", "10.6.0", "", false), plain)
-    }
-
     // --- pruning a stale announcement ---
 
     /**
@@ -143,5 +99,35 @@ class UpdateAvailabilityTest {
         assertFalse(UpdateAvailability.shouldPruneAnnouncement(null, "10.6.0"))
         assertFalse(UpdateAvailability.shouldPruneAnnouncement("", "10.6.0"))
     }
-}
 
+    // --- assembling the row body ---
+
+    /**
+     * The COPY is localized at the platform edge now, so what is pinned here is the ASSEMBLY: order, the
+     * single space between sentences, the blank line before notes, and the trimming. A first cut tested
+     * the English strings byte-for-byte against Swift — the wrong property, and one that would have
+     * stayed green while the row rendered in English inside a translated inbox.
+     */
+    @Test
+    fun `compose joins sentences with a single space`() {
+        assertEquals("A. B.", UpdateAvailability.composeMessage("A.", "B.", ""))
+    }
+
+    @Test
+    fun `compose omits an absent or empty sideload sentence`() {
+        assertEquals("A.", UpdateAvailability.composeMessage("A.", null, ""))
+        assertEquals("A.", UpdateAvailability.composeMessage("A.", "", ""))
+    }
+
+    @Test
+    fun `compose appends trimmed notes after a blank line`() {
+        assertEquals("A.\n\nN.", UpdateAvailability.composeMessage("A.", null, "  N.  "))
+        assertEquals("A. B.\n\nN.", UpdateAvailability.composeMessage("A.", "B.", "N."))
+    }
+
+    /** Whitespace-only notes must not leave a trailing blank line hanging in the row. */
+    @Test
+    fun `compose treats blank notes as none`() {
+        assertEquals("A.", UpdateAvailability.composeMessage("A.", null, "   \n  "))
+    }
+}

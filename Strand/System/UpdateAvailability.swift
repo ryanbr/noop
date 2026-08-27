@@ -71,25 +71,21 @@ enum UpdateAvailability {
         return !VersionCheck.isNewer(posted, than: current)
     }
 
-    /// Inbox row title. Byte-identical to the Kotlin twin.
-    static func inboxTitle(version: String) -> String {
-        "NOOP \(version) is available"
-    }
-
-    /// Inbox row body.
+    /// Assemble the row's body from ALREADY-LOCALIZED fragments.
     ///
-    /// Says where to go, because the row cannot take them there: the inbox's deep links address
-    /// `NavRouter.Destination` cases and Settings is not one, so a tappable row would need a new route for
-    /// a one-line payoff. Naming the path is honest and costs nothing.
+    /// The copy itself deliberately does NOT live here any more. A first cut built these strings as a
+    /// byte-identical twin, the way the BLE diagnostic lines are — but that is the wrong half of the
+    /// parity contract. Analytics and stored data are byte-identical; user-facing copy is LOCALIZED per
+    /// platform, and the sibling What's New row on iOS already is. An unlocalized row would have sat in a
+    /// translated inbox in English, and no i18n gate would have caught it: they scan SwiftUI `Text` and
+    /// `@Composable` literals, not model-layer strings.
     ///
-    /// [sideloadHint] is passed IN rather than compiled in with `#if os(iOS)`, so this stays pure and both
-    /// branches are testable on whichever platform runs the tests. It is the one place the platforms
-    /// legitimately differ: only iOS has an install path the app cannot drive itself.
-    static func inboxMessage(version: String, current: String, notes: String, sideloadHint: Bool) -> String {
-        var s = "You're on \(current). Open Settings and use Check for updates to see what's new and download \(version)."
-        if sideloadHint {
-            s += " AltStore or SideStore can install it for you automatically if you added NOOP's source; a direct .ipa still has to be signed on your device."
-        }
+    /// What stays twinned is the ASSEMBLY — order, the single space, the blank line before notes, and the
+    /// trimming — which is real logic and is what the tests pin. The fragments are separate sentences, so
+    /// joining them cannot produce the word-order damage that concatenating clauses would.
+    static func composeMessage(body: String, sideload: String?, notes: String) -> String {
+        var s = body
+        if let sideload, !sideload.isEmpty { s += " " + sideload }
         let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty { s += "\n\n" + trimmed }
         return s
@@ -163,13 +159,18 @@ enum UpdateWatch {
                                                 lastPostedVersion: d.string(forKey: Keys.lastPostedVersion))
             else { return }
             d.set(release.version, forKey: Keys.lastPostedVersion)
+            // Localized HERE, at the platform edge, so the row reads in the user's language like the
+            // What's New row beside it. `composeMessage` only assembles what it is handed.
+            let body = String(localized: "You're on \(currentVersion). Open Settings and use Check for updates to see what's new and download \(release.version).")
+            let sideload = sideloadHint
+                ? String(localized: "AltStore or SideStore can install it for you automatically if you added NOOP's source; a direct .ipa still has to be signed on your device.")
+                : nil
             UpdateStore.shared.post(UpdateItem(
                 kind: .newVersion,
-                title: UpdateAvailability.inboxTitle(version: release.version),
-                message: UpdateAvailability.inboxMessage(version: release.version,
-                                                         current: currentVersion,
-                                                         notes: release.notes,
-                                                         sideloadHint: sideloadHint)))
+                title: String(localized: "NOOP \(release.version) is available"),
+                message: UpdateAvailability.composeMessage(body: body,
+                                                           sideload: sideload,
+                                                           notes: release.notes)))
         }
     }
 }

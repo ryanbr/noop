@@ -82,22 +82,22 @@ object UpdateAvailability {
         return !UpdateCheck.isNewer(lastPostedVersion, current)
     }
 
-    /** Inbox row title. Byte-identical to the Swift twin. */
-    fun inboxTitle(version: String): String = "NOOP $version is available"
-
     /**
-     * Inbox row body.
+     * Assemble the row's body from ALREADY-LOCALIZED fragments.
      *
-     * Says where to go, because the row cannot take them there. [sideloadHint] is passed IN rather than
-     * branched on the platform, so this stays pure and both branches are testable — it is the one place
-     * the platforms legitimately differ: only iOS has an install path the app cannot drive itself.
+     * The copy itself deliberately does NOT live here any more. A first cut built these strings as a
+     * byte-identical twin, the way the BLE diagnostic lines are — but that is the wrong half of the
+     * parity contract. Analytics and stored data are byte-identical; user-facing copy is LOCALIZED per
+     * platform. An unlocalized row would have sat in a translated inbox in English, and no i18n gate
+     * would have caught it: they scan `Text` and `@Composable` literals, not model-layer strings.
+     *
+     * What stays twinned is the ASSEMBLY — order, the single space, the blank line before notes, and the
+     * trimming — which is real logic and is what the tests pin. The fragments are separate sentences, so
+     * joining them cannot produce the word-order damage that concatenating clauses would.
      */
-    fun inboxMessage(version: String, current: String, notes: String, sideloadHint: Boolean): String {
-        var s = "You're on $current. Open Settings and use Check for updates to see what's new and download $version."
-        if (sideloadHint) {
-            s += " AltStore or SideStore can install it for you automatically if you added NOOP's source;" +
-                " a direct .ipa still has to be signed on your device."
-        }
+    fun composeMessage(body: String, sideload: String?, notes: String): String {
+        var s = body
+        if (!sideload.isNullOrEmpty()) s += " " + sideload
         val trimmed = notes.trim()
         if (trimmed.isNotEmpty()) s += "\n\n" + trimmed
         return s
@@ -171,17 +171,21 @@ object UpdateWatch {
             )
         ) return
         p.edit().putString(KEY_LAST_POSTED_VERSION, available.version).apply()
+        // Localized HERE, at the platform edge, so the row reads in the user's language; composeMessage
+        // only assembles what it is handed. No sideload sentence on Android: an APK has no seven-day
+        // re-sign and no AltStore, so the iOS-only advice would be noise. That is the one place the
+        // twins legitimately differ.
         com.noop.ui.UpdateStore.from(context).post(
             com.noop.ui.UpdateItem(
                 kind = com.noop.ui.UpdateKind.NEW_VERSION,
-                title = UpdateAvailability.inboxTitle(available.version),
-                // No sideload sentence on Android: an APK has no seven-day re-sign and no AltStore, so the
-                // iOS-only advice would be noise here. This is the one place the twins legitimately differ.
-                message = UpdateAvailability.inboxMessage(
-                    version = available.version,
-                    current = currentVersion,
+                title = context.getString(
+                    com.noop.R.string.l10n_updates_noop_1s_is_available_05d8ef55, available.version),
+                message = UpdateAvailability.composeMessage(
+                    body = context.getString(
+                        com.noop.R.string.l10n_updates_youre_on_1s_open_settings_and_3a1318ae,
+                        currentVersion, available.version),
+                    sideload = null,
                     notes = available.notes,
-                    sideloadHint = false,
                 ),
             )
         )

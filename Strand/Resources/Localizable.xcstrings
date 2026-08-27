@@ -50832,6 +50832,198 @@
         }
       }
     },
+    "NOOP %@ is available": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP %@ ist verfügbar"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP %@ is available"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP %@ ya está disponible"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP %@ est disponible"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP %@ è disponibile"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP %@ jest dostępny"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O NOOP %@ está disponível"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Доступна версия NOOP %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP %@ 可用"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP %@ 可用"
+          }
+        }
+      }
+    },
+    "You're on %@. Open Settings and use Check for updates to see what's new and download %@.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Du nutzt %@. Öffne die Einstellungen und tippe auf „Nach Updates suchen“, um die Neuerungen zu sehen und %@ herunterzuladen."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You're on %@. Open Settings and use Check for updates to see what's new and download %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tienes la %@. Abre Ajustes y usa Buscar actualizaciones para ver las novedades y descargar la %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vous utilisez la version %@. Ouvrez les Réglages et utilisez Rechercher des mises à jour pour voir les nouveautés et télécharger la %@."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stai usando la %@. Apri Impostazioni e usa Cerca aggiornamenti per vedere le novità e scaricare la %@."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Masz wersję %@. Otwórz Ustawienia i użyj opcji Sprawdź aktualizacje, aby zobaczyć nowości i pobrać %@."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tem a versão %@. Abra as Definições e use Procurar atualizações para ver as novidades e transferir a %@."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "У вас версия %@. Откройте «Настройки» и нажмите «Проверить обновления», чтобы посмотреть, что нового, и загрузить %@."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你当前使用 %@。打开「设置」并使用「检查更新」查看新增内容并下载 %@。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你目前使用 %@。開啟「設定」並使用「檢查更新」查看新增內容並下載 %@。"
+          }
+        }
+      }
+    },
+    "AltStore or SideStore can install it for you automatically if you added NOOP's source; a direct .ipa still has to be signed on your device.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AltStore oder SideStore installieren es automatisch für dich, wenn du NOOPs Quelle hinzugefügt hast; eine direkte .ipa muss weiterhin auf deinem Gerät signiert werden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AltStore or SideStore can install it for you automatically if you added NOOP's source; a direct .ipa still has to be signed on your device."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AltStore o SideStore pueden instalarla automáticamente si añadiste la fuente de NOOP; un .ipa directo aún debe firmarse en tu dispositivo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AltStore ou SideStore peuvent l'installer automatiquement si vous avez ajouté la source de NOOP ; un .ipa direct doit toujours être signé sur votre appareil."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AltStore o SideStore possono installarla automaticamente se hai aggiunto la sorgente di NOOP; un .ipa diretto deve comunque essere firmato sul tuo dispositivo."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AltStore lub SideStore zainstalują ją automatycznie, jeśli dodano źródło NOOP; bezpośredni plik .ipa nadal trzeba podpisać na urządzeniu."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O AltStore ou o SideStore podem instalá-la automaticamente se adicionou a fonte do NOOP; um .ipa direto continua a ter de ser assinado no seu dispositivo."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AltStore или SideStore установят её автоматически, если вы добавили источник NOOP; прямой .ipa всё равно нужно подписать на устройстве."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "如果你添加了 NOOP 的源，AltStore 或 SideStore 可以自动为你安装；直接下载的 .ipa 仍需在设备上签名。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "如果你加入了 NOOP 的來源，AltStore 或 SideStore 可以自動為你安裝；直接下載的 .ipa 仍需在裝置上簽名。"
+          }
+        }
+      }
+    },
     "Connected. Finishing the secure pairing handshake…": {
       "localizations": {
         "de": {
