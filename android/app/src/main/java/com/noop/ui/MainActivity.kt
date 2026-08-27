@@ -1333,7 +1333,13 @@ fun NoopRoot() {
         // release and say so in the same inbox. On by default and switchable off in Settings — see
         // UpdateAvailability.DEFAULT_ENABLED. Onboarded-only for the same reason as the seed above, and
         // now also because a default-on check must not reach the network during first run.
-        if (onboarded) {
+        // Terms too, not just onboarding — the Swift hooks gate on both, and the Terms gate below sits
+        // AFTER this effect, so `onboarded` alone would let a default-on check reach the network while a
+        // returning user is still looking at a re-prompted clickwrap. Read from prefs rather than the
+        // `acceptedTerms` state, which is not declared until after this block.
+        val termsCurrent =
+            prefs.getString(NoopPrefs.KEY_ACCEPTED_TERMS_VERSION, "") == Terms.CURRENT_VERSION
+        if (onboarded && termsCurrent) {
             com.noop.update.UpdateWatch.runIfDue(context, BuildConfig.VERSION_NAME)
         }
     }
