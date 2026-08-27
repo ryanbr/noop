@@ -191,6 +191,41 @@ struct BondRefusalGiveUp {
         "NOOP stopped retrying because your strap keeps refusing to pair. It is likely still held by the official WHOOP app, or your phone is holding an old pairing. Close the WHOOP app, put the strap in pairing mode (tap until the LEDs flash blue), and if it is listed in your Bluetooth settings choose Forget This Device. Then tap Connect to try again."
     }
 
+    /// #1635: the log epitaph for the SUPPRESSION path.
+    ///
+    /// Separate from [epitaphLine] because that one asserts a cause ("almost certainly held by the
+    /// official WHOOP app") that only an auth refusal supports. Reusing it here would print a confident
+    /// explanation for a write that simply vanished.
+    ///
+    /// Pure. Byte-identical to the Kotlin `BondRefusalGiveUp.helloSuppressedEpitaph`.
+    static func helloSuppressedEpitaph(refusals: Int, opaqueId: String) -> String {
+        "Bond epitaph: the strap [\(opaqueId)] never acknowledged the secure handshake \(refusals)x in a row, and the attempt is what drops the link - leaving the handshake off so live heart rate keeps streaming. Tap Connect to try it again."
+    }
+
+    /// #1635: the hint shown when the hello is switched off and the link is KEPT.
+    ///
+    /// Nothing is paused on this branch, so it must not say auto-reconnect stopped. It names what was lost
+    /// (history sync) and the one action that restores the attempt, without asserting a cause.
+    ///
+    /// Pure. Byte-identical to the Kotlin `BondRefusalGiveUp.helloSuppressedHint`.
+    static func helloSuppressedHint() -> String {
+        "The secure handshake with your strap never completes, and the attempt itself is what drops the link. NOOP has switched it off for this strap so live heart rate keeps streaming. History sync stays unavailable until it pairs. Tap Connect to try the handshake again."
+    }
+
+    /// The paused hint for a bond that failed WITHOUT the strap ever answering (#1635).
+    ///
+    /// [pausedHint] names a cause — the strap still held by the official WHOOP app, or a stale OS pairing —
+    /// which is well founded when the refusal arrived as INSUFFICIENT_AUTHENTICATION or
+    /// INSUFFICIENT_ENCRYPTION: the strap actively said no. It is NOT founded when the CLIENT_HELLO simply
+    /// goes unanswered and the link drops on a timer, which is a different observation with several
+    /// possible causes. Telling that user to close the WHOOP app would be a guess dressed as instruction,
+    /// and if it is wrong they have no way to know.
+    ///
+    /// Pure. Byte-identical to the Kotlin `BondRefusalGiveUp.pausedHintHandshakeUnanswered`.
+    static func pausedHintHandshakeUnanswered() -> String {
+        "NOOP stopped retrying because the secure handshake with your strap never completes: the strap does not answer, and the link drops a few seconds later. Auto-reconnect is paused so it stops draining both batteries. Tap Connect to try again, and if it keeps happening please share your strap log."
+    }
+
     /// #750: a short OPAQUE token from a CoreBluetooth-local peripheral UUID for the epitaph. The CB UUID is
     /// per-install (NOT the hardware MAC), and we keep only its first 8 hex chars, so the token is stable
     /// within a log but carries no device-identifying PII. Pure + deterministic. Twin of the Android helper.
@@ -915,6 +950,11 @@ public final class BLEManager: NSObject, ObservableObject {
     private var reassembler = Reassembler()
     private var seq: UInt8 = 0
     private var didBond = false
+    /// #1635: one explicit Connect grants one fresh CLIENT_HELLO even when the suppression latch is set.
+    /// Consumed unconditionally by the write site, so the retry belongs to THIS session — leaving it set
+    /// would hand a stale retry to some later automatic reconnect and restart the loop the suppression
+    /// exists to end. Kotlin twin: `WhoopBleClient.helloRetryRequested`.
+    private var helloRetryRequested = false
     /// WHOOP 5/MG only: realtime HR has been armed (puffin TOGGLE_REALTIME_HR sent) once for this
     /// connection, so the post-bond callback re-firing on later `.withResponse` writes doesn't re-send it.
     private var whoop5RealtimeArmed = false
@@ -1325,6 +1365,12 @@ public final class BLEManager: NSObject, ObservableObject {
             autoReconnectPausedForBondLoop = false
             bondLoopPausedAt = nil
         }
+        // #1635: the suppression path pauses NOTHING, so the reset above never fires for it. An explicit
+        // Connect is exactly the signal that the user has acted (pairing mode, closed the WHOOP app), so
+        // it must grant a fresh handshake regardless — that is also the only way to clear the latch short
+        // of a genuine bond. Deliberately NOT in connectCore: a system-initiated reconnect must not.
+        helloRetryRequested = true
+        bondGiveUp.reset()
         connectCore(model: model)
     }
 
@@ -4890,6 +4936,48 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         return "code?"
     }
 
+    /// Feed one 5/MG bond refusal into the #747 give-up and act on the trip (#1635).
+    ///
+    /// Both causes arrive here, and they want OPPOSITE treatment — see `giveUpSuppressesHello`. An auth
+    /// refusal means the strap actively declined, so pausing auto-reconnect is right. An unanswered
+    /// handshake means the write vanished while the link streamed live HR the whole time, so pausing
+    /// would throw away a working strap to punish a handshake nobody is waiting on.
+    ///
+    /// Shared by both call sites so the split cannot drift: the auth path (a write error) and the
+    /// unanswered path (a disconnect with a hello still outstanding) reach the same decision.
+    private func recordWhoop5BondRefusal(authRefusal: Bool, peripheralUUID: String) {
+        guard bondGiveUp.recordRefusal() else { return }
+        let opaque = BondRefusalGiveUp.opaqueId(fromLocalUUID: peripheralUUID)
+        let suppress = giveUpSuppressesHello(authRefusal: authRefusal)
+        if suppress {
+            HelloSuppressionStore.setSuppressed(peripheralUUID, true)
+            log(BondRefusalGiveUp.helloSuppressedEpitaph(refusals: bondGiveUp.refusals, opaqueId: opaque))
+        } else {
+            autoReconnectPausedForBondLoop = true
+            bondLoopPausedAt = Date()   // starts the #78 hole-4 salvage-probe floor
+            // #1539: park the connect in the same breath as the pause, so this can end while backgrounded.
+            standingConnectWhilePausedIfDue(justTripped: true)
+            log(BondRefusalGiveUp.epitaphLine(refusals: bondGiveUp.refusals, opaqueId: opaque))
+        }
+        // Each branch gets the hint that matches what it actually DID. The paused hints say "auto-reconnect
+        // is paused"; on the suppression branch nothing is paused, so saying so would be the same
+        // confidently-wrong diagnostic this issue has produced twice already (#1635). The third arm is
+        // unreachable while `giveUpSuppressesHello` is `!authRefusal`, and is kept because the Kotlin twin
+        // keeps it: if that rule ever changes, both platforms must change behaviour together.
+        if suppress {
+            state.pairingHint = BondRefusalGiveUp.helloSuppressedHint()
+        } else if authRefusal {
+            state.pairingHint = BondRefusalGiveUp.pausedHint()
+        } else {
+            state.pairingHint = BondRefusalGiveUp.pausedHintHandshakeUnanswered()
+        }
+        if TestCentre.active(.connection) {
+            state.append(log: "bond gaveUp refusals=\(bondGiveUp.refusals) id=\(opaque) " +
+                (suppress ? "(hello suppressed, staying connected)" : "(auto-reconnect paused)"),
+                domain: .connection)
+        }
+    }
+
     public func centralManager(_ central: CBCentralManager,
                                didDisconnectPeripheral peripheral: CBPeripheral,
                                error: Error?) {
@@ -5007,6 +5095,18 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         }
         state.clearBiometrics()       // and a stale HR / R-R must not outlive the link either
         state.liveFeedActive = false  // a drop while Live is open must not leave a stale "Stop live feed"
+        // #1635: an unanswered CLIENT_HELLO produces no write error at all - the link simply drops a few
+        // seconds later - so it never reached the give-up on this platform and nothing could end the loop.
+        // Read it HERE, while `clientHelloWriteAt` and `didBond` are both still valid, and feed it in
+        // through the same split the auth path uses. `countsAsBondRefusal` gates on family, so a 4.0 (which
+        // bonds cleanly) can never latch the suppression.
+        if countsAsBondRefusal(isAuthRefusalStatus: false,
+                               helloUnacked: clientHelloWriteAt != nil,
+                               alreadyBonded: didBond,
+                               family: selectedModel.deviceFamily) {
+            recordWhoop5BondRefusal(authRefusal: false,
+                                    peripheralUUID: peripheral.identifier.uuidString)
+        }
         didBond = false
         clientHelloWriteAt = nil   // #1635: no hello survives the link that carried it
         whoop5RealtimeArmed = false
@@ -5337,7 +5437,16 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                 // fires for a 5/MG strap. Live HR/battery come from the standard profiles; this just
                 // opens the puffin session. Unverified on real MG hardware.
                 cmdCharacteristic = c
-                if let hello = selectedModel.deviceFamily.clientHello {
+                // #1635: once the give-up has latched, the hello is what ends the link — skip it and let
+                // the standard-profile HR stream keep running. Consumed unconditionally so an explicit
+                // Connect's single retry belongs to this session and cannot leak into a later automatic one.
+                let helloUserAsked = helloRetryRequested
+                helloRetryRequested = false
+                let helloSuppressed = HelloSuppressionStore.suppressed(peripheral.identifier.uuidString)
+                if !shouldSendClientHello(suppressedForDevice: helloSuppressed, userInitiated: helloUserAsked) {
+                    log("WHOOP 5/MG: CLIENT_HELLO suppressed for this strap - it was never acknowledged and the write is what drops the link. Staying on live HR (not fully paired); press Connect to try the handshake again (#1635).")
+                    state.pairingHint = BondRefusalGiveUp.helloSuppressedHint()
+                } else if let hello = selectedModel.deviceFamily.clientHello {
                     // CONTRIBUTOR FIX (issue #17 — diagnosed from the logs, unverified on hardware here):
                     // write CLIENT_HELLO with .withResponse so CoreBluetooth runs just-works bonding when
                     // the link needs authenticating, AND so didWriteValueFor fires. That callback is where
@@ -5442,19 +5551,11 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                 // threshold (the pairing hint has had several cycles to be acted on), pause auto-reconnect so
                 // we stop hammering a strap that can't bond, write the one-line epitaph (opaque id only, no
                 // PII), and surface the honest paused hint. A genuine bond or a manual reconnect re-arms it.
-                if bondGiveUp.recordRefusal() {
-                    autoReconnectPausedForBondLoop = true
-                    bondLoopPausedAt = Date()   // starts the #78 hole-4 salvage-probe floor
-                    // #1539: same reasoning as the #617 trip — park a connect now so this pause can end
-                    // while the app is backgrounded, not only when the user next opens it.
-                    standingConnectWhilePausedIfDue(justTripped: true)
-                    let opaque = BondRefusalGiveUp.opaqueId(fromLocalUUID: peripheral.identifier.uuidString)
-                    log(BondRefusalGiveUp.epitaphLine(refusals: bondGiveUp.refusals, opaqueId: opaque))
-                    state.pairingHint = BondRefusalGiveUp.pausedHint()
-                    if TestCentre.active(.connection) {
-                        state.append(log: "bond gaveUp refusals=\(bondGiveUp.refusals) id=\(opaque) (auto-reconnect paused)", domain: .connection)
-                    }
-                }
+                // #1635: the trip itself now lives in recordWhoop5BondRefusal, shared with the
+                // unanswered-handshake path at disconnect, so the two causes cannot drift apart. This
+                // one is an AUTH refusal — the strap actively declined — so it still pauses.
+                recordWhoop5BondRefusal(authRefusal: true,
+                                        peripheralUUID: peripheral.identifier.uuidString)
             }
             // Multi-WHOOP stale-pin recovery (#52). When a stale registry pin points at a strap that keeps
             // refusing the encrypted bond ("Encryption/Authentication is insufficient") but a DIFFERENT
@@ -5505,6 +5606,10 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                 isWhoop5: true
             ) {
                 didBond = true
+                // #1635: the handshake demonstrably works on this strap - drop the latch so a later
+                // transient failure starts from a clean slate rather than inheriting an old verdict.
+                HelloSuppressionStore.setSuppressed(peripheral.identifier.uuidString, false)
+                bondGiveUp.reset()
                 state.bonded = true
                 state.encryptedBond = true   // genuine encrypted bond (not the live-HR shortcut) — #69
                 bondedAt = Date()            // #617: start the bond→drop stopwatch for the bond-loop detector

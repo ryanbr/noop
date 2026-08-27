@@ -50640,6 +50640,70 @@
         }
       }
     },
+    "Live heart rate is streaming, but your strap is not fully paired. Buzz, alarms and history sync need the encrypted pairing.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Live-Herzfrequenz wird übertragen, aber dein Strap ist nicht vollständig gekoppelt. Vibration, Wecker und Verlaufssynchronisierung benötigen die verschlüsselte Kopplung."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Live heart rate is streaming, but your strap is not fully paired. Buzz, alarms and history sync need the encrypted pairing."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La frecuencia cardíaca en tiempo real se está transmitiendo, pero tu pulsera no está completamente emparejada. La vibración, las alarmas y la sincronización del historial necesitan el emparejamiento cifrado."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La fréquence cardiaque en direct est diffusée, mais votre bracelet n'est pas entièrement associé. Les vibrations, les alarmes et la synchronisation de l'historique nécessitent l'association chiffrée."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La frequenza cardiaca in tempo reale è in streaming, ma la tua fascia non è completamente associata. Vibrazione, sveglie e sincronizzazione della cronologia richiedono l'associazione cifrata."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tętno na żywo jest przesyłane, ale twój pasek nie jest w pełni sparowany. Wibracje, alarmy i synchronizacja historii wymagają szyfrowanego parowania."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A frequência cardíaca em tempo real está a ser transmitida, mas a tua bracelete não está totalmente emparelhada. A vibração, os alarmes e a sincronização do histórico necessitam do emparelhamento encriptado."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пульс в реальном времени передаётся, но ваш браслет сопряжён не полностью. Вибрация, будильники и синхронизация истории требуют зашифрованного сопряжения."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "实时心率正在传输，但你的手环尚未完全配对。震动、闹钟和历史同步需要加密配对。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "即時心率正在傳輸，但你的手環尚未完全配對。震動、鬧鐘和歷史同步需要加密配對。"
+          }
+        }
+      }
+    },
     "Connected. Finishing the secure pairing handshake…": {
       "localizations": {
         "de": {

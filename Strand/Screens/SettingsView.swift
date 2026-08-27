@@ -1477,14 +1477,21 @@ struct SettingsView: View {
         //
         // A live-HR link falls through to the pairing hint when one is set, and otherwise to "Finishing
         // the secure pairing handshake…", which is accurate HERE because this platform still retries the
-        // CLIENT_HELLO on every connect. Android has an explicit "streaming but not fully paired" arm
-        // instead, because #1635 suppression stops it retrying and nothing is finishing any more. If that
-        // suppression is ported here, this branch must gain the same arm or it starts describing a
-        // handshake that is no longer being attempted.
+        // CLIENT_HELLO on every connect. The #1635 suppression is now ported here too, so once it latches
+        // nothing is finishing any more and the old fall-through would describe a handshake that is no
+        // longer being attempted. The `bonded && connected` arm below is that fix, matching the Android
+        // twin (`SettingsLogic.strapStatusLine`).
         if live.encryptedBond && live.connected {
             return String(localized: "Your strap is paired and sending data. Open Live for a real-time heart rate.")
         }
+        // An actionable hint outranks the generic arm: the suppression hint names the one action that
+        // restores the handshake, which "not fully paired" alone does not.
         if live.connected, let hint = live.pairingHint { return hint }
+        // Live HR over the UNBONDED standard profile (#69). True whenever the handshake is suppressed or
+        // simply has not landed, and the honest description either way.
+        if live.bonded && live.connected {
+            return String(localized: "Live heart rate is streaming, but your strap is not fully paired. Buzz, alarms and history sync need the encrypted pairing.")
+        }
         if live.connected { return String(localized: "Connected. Finishing the secure pairing handshake…") }
         if live.bonded { return String(localized: "Previously paired but not currently connected. Re-scan to reconnect.") }
         return String(localized: "No strap connected. Put your WHOOP nearby and tap Re-scan to pair.")
