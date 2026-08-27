@@ -954,9 +954,12 @@ public final class BLEManager: NSObject, ObservableObject {
     private var disSerialCharacteristic: CBCharacteristic?
     private var disHwRevCharacteristic: CBCharacteristic?
     private var disRead = false
-    /// Twice the on-connect battery delay, matching the Kotlin twin: long enough that the link has
-    /// settled after the suppression decision, short enough to land in the same session.
-    static let unbondedDisReadDelay: TimeInterval = 4.0
+    /// 3.0s — the Kotlin twin's `BATTERY_ON_CONNECT_DELAY_MS * 2` (1500 × 2), and the same 1.5s on-connect
+    /// pacing this file already uses before `requestSync(.connect)`. Long enough that the link has settled
+    /// after the suppression decision, short enough to land in the same session. Pinned to the twin's
+    /// number rather than an independently chosen one: this read can cost the link, so the two platforms
+    /// should not be probing at different moments when a field capture has to explain a drop.
+    static let unbondedDisReadDelay: TimeInterval = 3.0
     private var disSerial: String?
     private var disHwRev: String?
     /// #1635 follow-up: the DIS identity extras (firmware, manufacturer, model, software revision) as
