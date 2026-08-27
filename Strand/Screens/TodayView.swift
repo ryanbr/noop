@@ -65,24 +65,32 @@ private struct HRChartFrameKey: PreferenceKey {
 struct ActiveWorkoutIndicatorModel: Equatable {
     let sport: String
     let startedAt: Date
+    /// The pause state has to be CARRIED, not just consulted: this value type is what the card renders
+    /// from, so without these two fields the indicator cannot subtract the paused time or say it is
+    /// paused, however correct `AppModel` is. That is precisely how it kept counting through #1533.
+    var pausedAt: Date? = nil
+    var pausedDuration: TimeInterval = 0
+
+    var isPaused: Bool { pausedAt != nil }
 
     static func make(from workout: AppModel.ActiveWorkout?) -> ActiveWorkoutIndicatorModel? {
         guard let workout else { return nil }
-        return ActiveWorkoutIndicatorModel(sport: workout.sport, startedAt: workout.start)
+        return ActiveWorkoutIndicatorModel(sport: workout.sport, startedAt: workout.start,
+                                           pausedAt: workout.pausedAt,
+                                           pausedDuration: workout.pausedDuration)
     }
 
-    /// Elapsed time since `start`, formatted M:SS up to an hour and H:MM:SS once an hour has passed (so a
+    /// Elapsed ACTIVE time, formatted M:SS up to an hour and H:MM:SS once an hour has passed (so a
     /// 90-minute session reads "1:30:00", not "90:00"). Clamped at zero so a clock-skew negative reads 0:00.
     /// Pure + injectable `now` for deterministic tests. (StrandFont.bodyNumber already applies tabular figures,
     /// so the call site does NOT add `.monospacedDigit()`.)
-    static func elapsed(since start: Date, now: Date = Date()) -> String {
-        let total = max(0, Int(now.timeIntervalSince(start)))
-        let h = total / 3600
-        let m = (total % 3600) / 60
-        let s = total % 60
-        return h > 0
-            ? String(format: "%d:%02d:%02d", h, m, s)
-            : String(format: "%d:%02d", m, s)
+    ///
+    /// `pausedAt`/`pausedDuration` default to "never paused" so the existing call sites and tests that
+    /// predate pause keep their exact meaning; the math itself lives in `ActiveWorkoutClock`.
+    static func elapsed(since start: Date, pausedAt: Date? = nil, pausedDuration: TimeInterval = 0,
+                        now: Date = Date()) -> String {
+        ActiveWorkoutClock.clock(Int(ActiveWorkoutClock.activeElapsed(
+            start: start, pausedAt: pausedAt, pausedDuration: pausedDuration, now: now)))
     }
 }
 
@@ -103,12 +111,22 @@ private struct ActiveWorkoutIndicatorCard: View {
                         .font(StrandFont.overline)
                         .tracking(StrandFont.overlineTracking)
                         .foregroundStyle(StrandPalette.metricRose)
+                    // A frozen clock alone is ambiguous with a STALLED one, so say which it is. Reuses the
+                    // "Paused" string #1533 already localized rather than minting new copy for a tag.
+                    if model.isPaused {
+                        Text("Paused")
+                            .font(StrandFont.overline)
+                            .tracking(StrandFont.overlineTracking)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                    }
                     Spacer(minLength: NoopMetrics.space2)
                     // A per-second live clock. The TimelineView re-evaluates ONLY this Text every second, so
                     // the tick never re-renders the rest of the card (let alone TodayView.body). bodyNumber
                     // already carries `.monospacedDigit()`, so no extra modifier here.
                     TimelineView(.periodic(from: .now, by: 1)) { context in
-                        Text(ActiveWorkoutIndicatorModel.elapsed(since: model.startedAt, now: context.date))
+                        Text(ActiveWorkoutIndicatorModel.elapsed(
+                            since: model.startedAt, pausedAt: model.pausedAt,
+                            pausedDuration: model.pausedDuration, now: context.date))
                             .font(StrandFont.bodyNumber)
                             .foregroundStyle(StrandPalette.textPrimary)
                     }

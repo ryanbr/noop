@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -370,11 +371,20 @@ fun LiveScreen(viewModel: AppViewModel, onManageDevices: () -> Unit = {}) {
             LaunchedEffect(w.startMs) {
                 while (true) { nowMs = System.currentTimeMillis(); delay(1000) }
             }
-            val elapsedS = ((nowMs - w.startMs) / 1000).coerceAtLeast(0)
+            val elapsedS = ActiveWorkoutClock.activeElapsedSeconds(
+                startMs = w.startMs, pausedAtMs = w.pausedAtMs,
+                pausedDurationMs = w.pausedDurationMs, nowMs = nowMs,
+            )
             NoopCard(tint = Palette.effortColor) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         Text(uiString(R.string.l10n_live_screen_w_sport_name_uppercase_e59bc678, w.sport.name.uppercase()), style = NoopType.overline, color = Palette.statusCritical)
+                        // A frozen clock alone is ambiguous with a STALLED one, so say which it is. Reuses
+                        // the string #1533 already localized rather than minting new copy for a tag.
+                        if (w.pausedAtMs != null) {
+                            Spacer(Modifier.width(Metrics.space8))
+                            Text(uiString(R.string.workout_action_paused), style = NoopType.overline, color = Palette.textSecondary)
+                        }
                         Spacer(Modifier.weight(1f))
                         Text(
                             // Shared clock: M:SS up to an hour, H:MM:SS past it (so a long session reads
@@ -397,14 +407,30 @@ fun LiveScreen(viewModel: AppViewModel, onManageDevices: () -> Unit = {}) {
                             StatTile(modifier = Modifier.weight(1f), label = uiString(R.string.l10n_live_screen_pace_7a9a6226), value = w.paceSecPerKm?.let { livePace(it, unitSystem) } ?: "—")
                         }
                     }
-                    Button(
-                        onClick = { confirmingEnd = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Palette.statusCritical, contentColor = Palette.surfaceBase,
-                        ),
-                    ) { Text(uiString(R.string.l10n_live_screen_end_workout_3e8d6238), style = NoopType.captionNumber) }
+                    // The card used to offer End and nothing else, so the only IRREVERSIBLE control was the
+                    // one reachable without opening the live overlay, while Pause — the reversible one —
+                    // was not. One toggle: a paused session has exactly one sensible next action.
+                    Row(horizontalArrangement = Arrangement.spacedBy(Metrics.gap), modifier = Modifier.fillMaxWidth()) {
+                        Button(
+                            onClick = { viewModel.toggleWorkoutPause() },
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                        ) {
+                            Text(
+                                if (w.pausedAtMs != null) uiString(R.string.workout_action_resume)
+                                else uiString(R.string.workout_action_pause),
+                                style = NoopType.captionNumber,
+                            )
+                        }
+                        Button(
+                            onClick = { confirmingEnd = true },
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Palette.statusCritical, contentColor = Palette.surfaceBase,
+                            ),
+                        ) { Text(uiString(R.string.l10n_live_screen_end_workout_3e8d6238), style = NoopType.captionNumber) }
+                    }
                 }
             }
             if (confirmingEnd) {

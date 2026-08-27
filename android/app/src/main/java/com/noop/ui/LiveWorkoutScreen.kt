@@ -108,8 +108,10 @@ fun LiveWorkoutScreen(vm: AppViewModel, onClose: () -> Unit) {
     LaunchedEffect(w.startMs) {
         while (true) { nowMs = System.currentTimeMillis(); delay(1000) }
     }
-    val currentPauseMs = w.pausedAtMs?.let { nowMs - it } ?: 0L
-    val elapsedS = ((nowMs - w.startMs - w.pausedDurationMs - currentPauseMs) / 1000).coerceAtLeast(0)
+    val elapsedS = ActiveWorkoutClock.activeElapsedSeconds(
+        startMs = w.startMs, pausedAtMs = w.pausedAtMs,
+        pausedDurationMs = w.pausedDurationMs, nowMs = nowMs,
+    )
 
     // A scenic Effort-tinted backdrop behind the whole in-exercise screen — the live workout reads as
     // an Effort-world hero, not a flat panel.

@@ -363,26 +363,43 @@ struct LiveView: View {
                     Circle().fill(StrandPalette.metricRose).frame(width: 8, height: 8)
                     Text("RECORDING WORKOUT").font(StrandFont.overline)
                         .tracking(StrandFont.overlineTracking).foregroundStyle(StrandPalette.metricRose)
+                    // Reuses the "Paused" string #1533 already localized; a frozen clock with no tag is
+                    // indistinguishable from a stalled one.
+                    if w.isPaused {
+                        Text("Paused").font(StrandFont.overline)
+                            .tracking(StrandFont.overlineTracking)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                    }
                     Spacer()
                     // Re-render once a second so the elapsed clock ticks without a manual Timer.
-                    TimelineView(.periodic(from: .now, by: 1)) { _ in
-                        Text(Self.elapsed(since: w.start)).font(StrandFont.number(17)).monospacedDigit()
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        Text(ActiveWorkoutClock.clock(Int(w.elapsed(at: context.date))))
+                            .font(StrandFont.number(17)).monospacedDigit()
                             .foregroundStyle(StrandPalette.textPrimary)
                     }
                 }
                 // Live HR / avg / peak / effort — the leaf owns LiveState + the active workout so the
                 // 1 Hz stat refresh re-renders only these tiles, plus a liquid effort tube under them.
                 ActiveWorkoutLive(workout: w, effortScale: effortScale)
+                // The card used to offer End and nothing else, so the only IRREVERSIBLE control was the
+                // one reachable without opening the live view, while Pause — the reversible one — was
+                // not. Pause/Resume is one toggle (a paused session has exactly one sensible action), and
+                // End moves to its own row so a destructive tap is not adjacent to a routine one.
                 HStack(spacing: NoopMetrics.rowSpacing) {
+                    NoopButton(w.isPaused ? "Resume" : "Pause",
+                               systemImage: w.isPaused ? "play.fill" : "pause.fill",
+                               kind: .secondary, fullWidth: true) {
+                        model.toggleWorkoutPause()
+                    }
                     // Re-open the full live workout screen (#238) after it's been dismissed.
                     NoopButton("Open live view", systemImage: "rectangle.expand.vertical",
                                kind: .secondary, fullWidth: true) {
                         showLiveWorkout = true
                     }
-                    NoopButton("End workout", systemImage: "stop.circle.fill",
-                               kind: .destructive, fullWidth: true) {
-                        confirmingEndWorkout = true
-                    }
+                }
+                NoopButton("End workout", systemImage: "stop.circle.fill",
+                           kind: .destructive, fullWidth: true) {
+                    confirmingEndWorkout = true
                 }
             }
         }
@@ -399,11 +416,6 @@ struct LiveView: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 4)
-    }
-
-    private static func elapsed(since start: Date) -> String {
-        let s = max(0, Int(Date().timeIntervalSince(start)))
-        return String(format: "%d:%02d", s / 60, s % 60)
     }
 
     private func reconnectGuideBanner(_ guide: String) -> some View {

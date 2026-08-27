@@ -118,9 +118,10 @@ final class AppModel: ObservableObject {
 
         var isPaused: Bool { pausedAt != nil }
 
+        /// Delegates to `ActiveWorkoutClock` so this and the two card surfaces cannot drift apart again.
         func elapsed(at now: Date = Date()) -> TimeInterval {
-            max(0, now.timeIntervalSince(start) - pausedDuration
-                - (pausedAt.map { now.timeIntervalSince($0) } ?? 0))
+            ActiveWorkoutClock.activeElapsed(start: start, pausedAt: pausedAt,
+                                             pausedDuration: pausedDuration, now: now)
         }
     }
     struct HealthAlert: Equatable {

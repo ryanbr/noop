@@ -1853,7 +1853,10 @@ private fun WorkoutInProgressCard(
             kotlinx.coroutines.delay(1000)
         }
     }
-    val elapsedS = ((nowMs - workout.startMs) / 1000).coerceAtLeast(0)
+    val elapsedS = ActiveWorkoutClock.activeElapsedSeconds(
+        startMs = workout.startMs, pausedAtMs = workout.pausedAtMs,
+        pausedDurationMs = workout.pausedDurationMs, nowMs = nowMs,
+    )
     val elapsed = elapsedClock(elapsedS)
     val sportLabel = workout.sport.name
 
@@ -1887,6 +1890,16 @@ private fun WorkoutInProgressCard(
                     style = NoopType.overline,
                     color = Palette.metricRose,
                 )
+                // A frozen clock alone is ambiguous with a STALLED one, so say which it is. Reuses the
+                // string #1533 already localized rather than minting new copy for a tag.
+                if (workout.pausedAtMs != null) {
+                    Spacer(Modifier.width(Metrics.space8))
+                    Text(
+                        uiString(R.string.workout_action_paused),
+                        style = NoopType.overline,
+                        color = Palette.textSecondary,
+                    )
+                }
                 Spacer(Modifier.weight(1f))
                 Text(elapsed, style = NoopType.number(15f), color = Palette.textPrimary)
             }
