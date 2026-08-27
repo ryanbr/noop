@@ -986,7 +986,13 @@ edit of the ring's tag.
     window is the single regime a walking-equivalent model should do best in, and it does not overturn the
     857-day picture (median ≈ 0, p90 +186 %) that gates it. It is recorded because it bounds the error on
     the one regime where the estimate is meant to apply.
-  - **Real Steps (feature `0x0B`) server gating [open_oura-feat]:** real_steps is behind the server flag `activity/real_steps` (default **false**; `FeatureDefinitions.ActivityRealSteps`, Gen 3+), the same server-flag-off pattern as SpO2 (§7.1). This explains `0x7E`/`0x7F` never once appearing across the PR #960 live sessions - the ring isn't sending them, it is not a NOOP decode gap. `0x50` itself is an always-on base stream (not feature-gated), matching it appearing in every session.
+  - **Real Steps (feature `0x0B`) server gating [open_oura-feat]:** real_steps is documented as sitting behind the server flag `activity/real_steps` (default **false**; `FeatureDefinitions.ActivityRealSteps`, Gen 3+), the same server-flag-off pattern as SpO2 (§7.1).
+
+    **CORRECTED 2026-08-27 (#1629).** This section previously concluded: *"This explains `0x7E`/`0x7F` never once appearing across the PR #960 live sessions - the ring isn't sending them, it is not a NOOP decode gap."* **That explanation no longer holds.** On-device captures read the ring's own real_steps status (`2f 02 20 0b`) back as **`status=1` (enabled)** — identically from an authenticated Oura-app session and from NOOP's own fully offline, unauthenticated connection to the same ring. The gate is ring-side state, not something tied to which client asks.
+
+    So the *observation* stands — `0x7E`/`0x7F` still never appeared in those sessions — but the *cause* attributed to it does not. Be careful about what the new reading does and does not show: **`status=1` is not evidence the ring emits those tags.** It only removes gating as the explanation. Why they are absent is currently **unknown**, and a decode gap is back on the table as a possibility rather than ruled out. `0x50` is unaffected: an always-on base stream, not feature-gated, and it appears in every session.
+
+    Anything that cited this paragraph to close a line of investigation should be re-read on that basis.
 - **`0x7E`/`0x7F` real_steps_features 1/2** (18 B each): bit-packed step features merged across the paired events. **(UNVERIFIED - partial)** [ringverse]
   - **Unpack formula ([oura-rs] - Th0rgal/open_oura `crates/oura-protocol/src/events.rs#L566`, clean-room
     fact citation): 14 fields from the 14-byte body.** Fields 0 and 8 are genuine 9-bit values built as

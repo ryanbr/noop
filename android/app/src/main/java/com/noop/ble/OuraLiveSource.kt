@@ -1809,8 +1809,10 @@ class OuraLiveSource(
                     // Other Tier-B tags (real_steps / activity-summary / sleep-summary / smoothed-SpO2,
                     // OURA_PROTOCOL.md s7.3; PR #960): logged ONCE PER KIND with the raw bytes so we can
                     // see whether the ring sends these tags at all and collect capture material - e.g.
-                    // real_steps 0x7E/0x7F is server-flag-gated OFF by default ([open_oura-feat]), so its
-                    // continued absence here is the ring's doing, not a decode gap.
+                    // real_steps 0x7E/0x7F was assumed server-flag-gated OFF ([open_oura-feat]), which
+                    // made its absence self-explanatory. That no longer holds: the ring's own status read
+                    // came back ENABLED on-device (#1629), so gating does NOT explain why these tags never
+                    // arrive, and whether that is the ring's doing or a decode gap is currently unknown.
                     if (loggedTierBKinds.add(e.value.kind)) {
                         val hex = e.value.rawPayload.joinToString(" ") { "%02x".format(it) }
                         log("Oura: Tier-B ${e.value.kind} seen (tag 0x${e.value.tag.toString(16)}) - raw: $hex")

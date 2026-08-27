@@ -42,12 +42,25 @@ final class OuraFeatureStatusTests: XCTestCase {
 
     func testSpO2AndStepsReadsSurfaceFeatureStatus() {
         let d = OuraDriver(ringGen: .gen3, authKey: key)
-        // SpO2 (0x04): subscription 0 → server-gated off.
+        // An all-zero reply. The comment here used to read the zeros as "server-gated off"; it describes
+        // the FIXTURE, not a ring's real answer, and #1629 showed a real ring answering otherwise.
         XCTAssertEqual(d.handleSecureFrame(OuraSecureFrame(subop: 0x21, subBody: [0x04, 0x00, 0x00, 0x00, 0x00])),
                        .featureStatus(OuraFeatureStatus(feature: 0x04, mode: 0, status: 0, state: 0, subscription: 0)))
-        // real_steps (0x0b): subscription 0 → server-gated off.
         XCTAssertEqual(d.handleSecureFrame(OuraSecureFrame(subop: 0x21, subBody: [0x0B, 0x00, 0x00, 0x00, 0x00])),
                        .featureStatus(OuraFeatureStatus(feature: 0x0B, mode: 0, status: 0, state: 0, subscription: 0)))
+    }
+
+    /// #1629: the shape a REAL ring actually answers with. On-device captures read real_steps back as
+    /// `status=1` from both an authenticated Oura-app session and NOOP's own offline, unauthenticated
+    /// connection to the same ring. Until now the suite only ever exercised the all-zero reply, so the
+    /// one reading anybody has actually observed on hardware was the one nothing pinned.
+    ///
+    /// This asserts the DECODE only. `status=1` says the ring reports the feature enabled; it is not
+    /// evidence that the ring emits `0x7E`/`0x7F`, and nothing here should be read as claiming that.
+    func testAnEnabledRealStepsStatusDecodesAsObservedOnHardware() {
+        let d = OuraDriver(ringGen: .gen3, authKey: key)
+        XCTAssertEqual(d.handleSecureFrame(OuraSecureFrame(subop: 0x21, subBody: [0x0B, 0x00, 0x01, 0x00, 0x00])),
+                       .featureStatus(OuraFeatureStatus(feature: 0x0B, mode: 0, status: 1, state: 0, subscription: 0)))
     }
 
     func testUndecodableDiagnosticReplyFallsBackToEnableAck() {
