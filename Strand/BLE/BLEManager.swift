@@ -6103,6 +6103,16 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
             // arrived once, so this yields rather than racing it.
             if shouldPublishDisFirmware(disFirmware: disFirmware, alreadyDecoded: state.strapFirmware) {
                 state.strapFirmware = disFirmware
+                // #1634: persist it against THIS strap. The per-device key has readers (DevicesView, the
+                // debug export) but had no writer at all - the decoded path cannot key on identity, which
+                // its own comment concedes - so `perDevice` always resolved nil and iOS fell back to a
+                // global value that is wrong the moment a second strap exists. This site DOES have the
+                // peripheral, so it is the one place that can attribute a firmware honestly. Kotlin twin:
+                // NoopPrefs.setFirmwareFor beside the same publish.
+                if let key = FirmwareAttribution.prefKey(peripheralId: peripheral.identifier.uuidString),
+                   let fw = disFirmware {
+                    UserDefaults.standard.set(fw, forKey: key)
+                }
                 // Named as the DIS source, because it is not the same reading as the decoded one a 4.0
                 // shows and a capture must not have to guess which it is looking at.
                 log("DIS: firmware=\(disFirmware ?? "?") (standard profile, no bond required)")
