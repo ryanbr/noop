@@ -23,6 +23,10 @@ object ActiveWorkoutClock {
      * Clamped at zero so a clock-skew negative reads 0:00 rather than counting backwards. The open-pause
      * term is deliberately NOT clamped on its own: the single clamp on the result is what the Swift twin
      * does, and two clamps would disagree with it for a [pausedAtMs] in the future.
+     *
+     * Twin of Swift `ActiveWorkoutClock.activeElapsed` — the NAMES differ (that one takes
+     * `Date`/`TimeInterval`, this one Long milliseconds), so neither turns up in a grep for the other.
+     * Same arithmetic and the same single clamp.
      */
     fun activeElapsedSeconds(
         startMs: Long,

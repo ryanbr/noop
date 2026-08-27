@@ -2992,9 +2992,14 @@ internal fun earliestStrapAlarmEpochSec(smartEpoch: Long?, buzzEpoch: Long?): Lo
 
 /**
  * Elapsed-workout clock from a whole-second count: M:SS up to an hour, H:MM:SS once an hour has passed (so a
- * 90-minute session reads "1:30:00", not "90:00"). Negative inputs clamp to zero ("0:00"). Pure so the
- * Today "workout in progress" indicator and the Live card share ONE format, and the iOS-parity H:MM:SS
- * roll-over is unit-testable without composing any UI. Mirrors iOS ActiveWorkoutIndicatorModel.elapsed.
+ * 90-minute session reads "1:30:00", not "90:00"). Negative inputs clamp to zero ("0:00"). Pure so every
+ * surface showing an in-flight workout — the Today card, the Live card, the Workouts-tab banner and the
+ * full-screen live screen — shares ONE format, and the iOS-parity H:MM:SS roll-over is unit-testable
+ * without composing any UI.
+ *
+ * Twin of Swift `ActiveWorkoutClock.clock`. (It used to name ActiveWorkoutIndicatorModel.elapsed, which
+ * no longer owns the formatting — that now delegates, like everything else, so the reference moved with
+ * the code rather than being left pointing at a caller.)
  */
 internal fun elapsedClock(elapsedS: Long): String {
     val total = elapsedS.coerceAtLeast(0)

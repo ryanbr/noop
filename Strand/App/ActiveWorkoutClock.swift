@@ -20,6 +20,11 @@ enum ActiveWorkoutClock {
     /// Clamped at zero so a clock-skew negative reads 0:00 rather than counting backwards. The open-pause
     /// term is deliberately NOT clamped on its own: the single clamp on the result is what the Kotlin twin
     /// does, and two clamps would disagree with it for a `pausedAt` in the future.
+    ///
+    /// Twin of Kotlin `ActiveWorkoutClock.activeElapsedSeconds` — the NAMES differ (this one takes
+    /// `Date`/`TimeInterval`, that one Long milliseconds), so neither turns up in a grep for the other.
+    /// Same arithmetic and the same single clamp; the platforms truncate to whole seconds at different
+    /// points and agree because both truncate toward zero.
     static func activeElapsed(start: Date, pausedAt: Date?, pausedDuration: TimeInterval,
                               now: Date = Date()) -> TimeInterval {
         max(0, now.timeIntervalSince(start) - pausedDuration
