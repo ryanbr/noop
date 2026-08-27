@@ -130,10 +130,22 @@ class BondStateTraceTest {
         assertTrue(line.contains("a NOOP bug, not the strap"))
     }
 
+    /**
+     * The verdict this line used to give was "Android did not begin pairing at all". An HCI capture of
+     * exactly this case disproved it: the phone DOES transmit an SMP Pairing Request and a WHOOP 5/MG
+     * answers "Pairing Failed — Pairing Not Supported" (0x05). A refused pairing ends at BOND_NONE with
+     * no BONDED transition, which is indistinguishable from never starting if the bond state is all you
+     * can see. The line must now name both causes and the capture that separates them.
+     */
     @Test
-    fun `NONE with no transition line puts the silence on Android`() {
+    fun `NONE with no transition line names BOTH causes rather than convicting Android`() {
         val line = bondStatePollLine(android.bluetooth.BluetoothDevice.BOND_NONE, sawTransitionLine = false)
-        assertTrue(line.contains("did not begin pairing at all"))
+        assertFalse("the disproved verdict must not come back", line.contains("did not begin pairing at all"))
+        assertFalse("nor its softer form", line.contains("nothing was heard"))
+        assertTrue("a refusal must be named as the other cause", line.contains("REFUSED pairing ends here too"))
+        assertTrue("the known 5/MG answer belongs in the line", line.contains("Pairing Not Supported"))
+        assertTrue(line.contains("SMP 0x05"))
+        assertTrue("name the discriminator", line.contains("HCI capture"))
         assertFalse(line.contains("NOOP bug"))
     }
 

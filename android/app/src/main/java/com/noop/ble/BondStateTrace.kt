@@ -112,7 +112,13 @@ internal fun bondStateAtConnectLine(bondState: Int, address: String?): String {
  *
  * Polling the device directly removes the broadcast from the chain, so the answer no longer depends on
  * the component under suspicion. A `BOND_BONDING` here with no transition line above it convicts our
- * receiver; a `BOND_NONE` clears it and puts the silence on Android.
+ * receiver; a `BOND_NONE` clears it.
+ *
+ * It does NOT, however, put the silence on Android — which is what this line used to say, and it was
+ * wrong. An HCI capture of exactly this case settled it: the phone DOES transmit an SMP Pairing Request,
+ * and a WHOOP 5/MG answers `Pairing Failed — Pairing Not Supported (0x05)`. A refused pairing ends at
+ * BOND_NONE with no BONDED transition, which is indistinguishable from never starting when all you can
+ * see is the bond state. Two causes, one observation; the old verdict picked one and stated it as fact.
  *
  * Deliberately a single delayed read rather than a subscription: one fact is wanted, not a stream.
  */
@@ -126,8 +132,11 @@ internal fun bondStatePollLine(bondState: Int, sawTransitionLine: Boolean): Stri
             " — pairing underway, as the transition line already said"
         bondState == android.bluetooth.BluetoothDevice.BOND_BONDED -> " — paired"
         !sawTransitionLine ->
-            " — createBond was accepted but the device never left this state and nothing was heard," +
-                " so Android did not begin pairing at all"
+            " — createBond was accepted and the bond did not complete. This is NOT evidence that Android" +
+                " stayed silent: a REFUSED pairing ends here too. On a WHOOP 5/MG an HCI capture shows the" +
+                " phone does transmit a Pairing Request and the strap answers \"Pairing Not Supported\"" +
+                " (SMP 0x05), which lands in exactly this state (#1635). Only an HCI capture separates a" +
+                " refused pairing from one never attempted"
         else -> " — back to this state after a transition"
     }
     return "bond state poll: $name$verdict"
