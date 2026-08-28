@@ -54,6 +54,10 @@ class Whoop5HistoricalDecodeTest {
         val rr = p["rr_intervals"] as List<Int>
         assertTrue("no R-R decoded — the cross-check below would be vacuous", rr.isNotEmpty())
         val meanRr = rr.sum().toDouble() / rr.size
+        // Delta 4.0, bounded from both sides rather than picked: it must exceed this record's real
+        // 3.2 bpm error under the shipped reading (a two-beat sample against an averaged heart_rate
+        // differs by that much, so anything tighter fails on CORRECT data), and stay well below the
+        // ~96 bpm a misread offset produces. Do not tighten it to look stricter.
         assertEquals((p["heart_rate"] as Int).toDouble(), 60_000.0 / meanRr, 4.0)
 
         val gx = p["gravity_x"] as Double

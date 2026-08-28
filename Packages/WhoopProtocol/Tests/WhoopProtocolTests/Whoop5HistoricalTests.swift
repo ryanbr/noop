@@ -72,6 +72,12 @@ final class Whoop5HistoricalTests: XCTestCase {
         XCTAssertFalse(rr.isEmpty, "no R-R decoded — the cross-check below would be vacuous")
         let meanRR = Double(rr.reduce(0, +)) / Double(rr.count)
         let hr = f.parsed["heart_rate"]?.intValue ?? 0
+        // Tolerance 4, and it is bounded from BOTH sides rather than picked. It must exceed 3.2, which
+        // is this record's real error under the shipped reading (98.8 against a heart_rate of 102) — a
+        // two-beat sample against a rate averaged over the record simply differs by that much, so
+        // anything tighter fails on CORRECT data. And it must stay far below the ~96 bpm a misread
+        // offset or width produces, or it stops being a sanity check. Do not tighten it to look
+        // stricter: the next value down fails the very frame this test decodes.
         XCTAssertEqual(60000.0 / meanRR, Double(hr), accuracy: 4)
     }
 
