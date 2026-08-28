@@ -368,7 +368,9 @@ object AndroidDiagnostics {
                 add(when {
                     behind > 3 * 86400L -> "Strap clock: ${behind / 86400L}d behind wall (reset/stale — alarm unreliable)"
                     behind < -3 * 86400L -> "Strap clock: ${-behind / 86400L}d AHEAD of wall (future-dated — alarm unreliable)"
-                    else -> "Strap clock: OK"
+                    // #1706: say what this is measuring. It reads RECORD timestamps, and sat two lines
+                    // above an alarm readback claiming 2045, which reads as the two contradicting.
+                    else -> "Strap clock: OK (from record timestamps, not the alarm readback)"
                 })
             }
             val sent = p.getLong("alarm.lastArmSentEpoch", 0L)
@@ -383,9 +385,20 @@ object AndroidDiagnostics {
                 add(line)
                 val reported = p.getLong("alarm.lastReportedEpoch", 0L)
                 if (reported > 0L) {
-                    val mismatch = kotlin.math.abs(reported - sent) > 120
-                    add("Strap reports: ${alarmStamp(reported)}" +
-                        if (mismatch) "  ⚠️ MISMATCH — strap didn't accept the time" else "  ✓ matches")
+                    // #1706: only judge when both halves are known to be the SAME strap. The readback is
+                    // written on the WHOOP 4.0 path alone, so a 5.0-active install comparing these was
+                    // always comparing two devices and then blaming one of them.
+                    val verdict = com.noop.analytics.AlarmReadback.verdict(
+                        sentEpoch = sent,
+                        reportedEpoch = reported,
+                        sentDeviceId = p.getString("alarm.lastArmDeviceId", null),
+                        reportedDeviceId = p.getString("alarm.lastReportedDeviceId", null),
+                    )
+                    add("Strap reports: ${alarmStamp(reported)}" + com.noop.analytics.AlarmReadback.suffix(verdict))
+                    // The bytes the epoch was decoded from: what tells a stored stale alarm from a misdecode.
+                    p.getString("alarm.lastReportedRaw", null)
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let { add("Readback frame: $it") }
                 } else add("Strap reports: (no readback)")
             } else add("Last arm: never")
             // #1: did the strap actually fire? (STRAP_DRIVEN_ALARM_EXECUTED)

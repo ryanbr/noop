@@ -4574,6 +4574,9 @@ class WhoopBleClient(
         runCatching {
             val editor = NoopPrefs.of(context).edit()
                 .putLong("alarm.lastArmSentEpoch", sentEpoch)
+                // #1706: WHICH strap this arm went to. Without it the export compares this epoch against
+                // a readback that, on a multi-strap install, may have come from a different device.
+                .putString("alarm.lastArmDeviceId", deviceId)
                 .putLong("alarm.lastArmAt", System.currentTimeMillis())
                 .putBoolean("alarm.lastArmConnected", _state.value.connected)
             // #34: live HR at the moment of the arm, purely to test a hypothesis raised on a reporter's
@@ -6460,6 +6463,13 @@ class WhoopBleClient(
                         runCatching {
                             NoopPrefs.of(context).edit()
                                 .putLong("alarm.lastReportedEpoch", epoch)
+                                // #1706: the strap this readback came from, and the bytes it came in.
+                                // The raw frame is what separates a genuinely-stored stale alarm from a
+                                // misdecode of a fixed response field, and the live log rolls long before
+                                // a debug export is taken — a 2045 readback went unexplained for exactly
+                                // that reason.
+                                .putString("alarm.lastReportedDeviceId", deviceId)
+                                .putString("alarm.lastReportedRaw", raw)
                                 .putLong("alarm.lastReportedAt", System.currentTimeMillis())
                                 .apply()
                         }

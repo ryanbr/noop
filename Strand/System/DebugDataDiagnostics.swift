@@ -391,7 +391,9 @@ enum DebugDataDiagnostics {
             } else if behind < -3 * 86400 {
                 lines.append("Strap clock: \(-behind / 86400)d AHEAD of wall (future-dated — alarm unreliable; recent sleep may be misdated, #67)")
             } else {
-                lines.append("Strap clock: OK")
+                // #1706: say what this measures. It reads RECORD timestamps, and sat two lines above an
+                // alarm readback claiming 2045, which reads as the two contradicting.
+                lines.append("Strap clock: OK (from record timestamps, not the alarm readback)")
             }
         }
         if let sent = d.object(forKey: "alarm.lastArmSentEpoch") as? Int {
@@ -413,14 +415,23 @@ enum DebugDataDiagnostics {
             }
             lines.append(line)
             if let reported = d.object(forKey: "alarm.lastReportedEpoch") as? Int {
-                let mismatch = abs(reported - sent) > 120
-                var rline = "Strap reports: \(alarmStamp(reported))"
-                    + (mismatch ? "  ⚠️ MISMATCH — strap didn't accept the time" : "  ✓ matches")
+                // #1706: only judge when both halves are known to be the SAME strap, otherwise this
+                // blames a device that was never asked.
+                let verdict = AlarmReadback.verdict(
+                    sentEpoch: sent,
+                    reportedEpoch: reported,
+                    sentDeviceId: d.string(forKey: "alarm.lastArmDeviceId"),
+                    reportedDeviceId: d.string(forKey: "alarm.lastReportedDeviceId"))
+                var rline = "Strap reports: \(alarmStamp(reported))" + AlarmReadback.suffix(verdict)
                 // #34: consecutive rejections — a persistent refusal (vs a one-off) points at a strap whose
                 // alarm register needs a reset, and is what SmartAlarmView warns the user about at ≥2.
                 let streak = d.integer(forKey: "alarm.rejectStreak")
                 if streak >= 2 { rline += " · \(streak) in a row (register likely needs a reset, #34)" }
                 lines.append(rline)
+                // The bytes the epoch was decoded from: what tells a stored stale alarm from a misdecode.
+                if let raw = d.string(forKey: "alarm.lastReportedRaw"), !raw.isEmpty {
+                    lines.append("Readback frame: \(raw)")
+                }
             } else {
                 lines.append("Strap reports: (no readback)")
             }
