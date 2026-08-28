@@ -886,11 +886,18 @@ final class IntelligenceEngine: ObservableObject {
             // planner cannot prove safe falls back to exactly the read that shipped before them. HR and
             // R-R only: the other eight streams are thousands of rows against these two's tens of
             // thousands, so this is nearly all of the win for two call sites of blast radius.
-            let hrWindow = SlidingStreamWindow<HRSample>(tsOf: { $0.ts }, limit: 200_000) { o, f, t in
-                (try? await store.hrSamples(deviceId: o, from: f, to: t, limit: 200_000)) ?? []
+            // ONE binding, used as both the read cap and the window's truncation threshold. They must be
+            // the same number: the window declines to slice a read that came back at the cap, because
+            // `ORDER BY ts ASC LIMIT` drops the NEWEST rows. Were the two to drift apart, a truncated read
+            // would stop being recognised and the buffer would be sliced while missing its tail — wrong
+            // scoring inputs, silently. The Kotlin twin cannot drift because it uses `STREAM_LIMIT` for
+            // both; this is the same guarantee spelled locally.
+            let streamLimit = 200_000
+            let hrWindow = SlidingStreamWindow<HRSample>(tsOf: { $0.ts }, limit: streamLimit) { o, f, t in
+                (try? await store.hrSamples(deviceId: o, from: f, to: t, limit: streamLimit)) ?? []
             }
-            let rrWindow = SlidingStreamWindow<RRInterval>(tsOf: { $0.ts }, limit: 200_000) { o, f, t in
-                (try? await store.rrIntervals(deviceId: o, from: f, to: t, limit: 200_000)) ?? []
+            let rrWindow = SlidingStreamWindow<RRInterval>(tsOf: { $0.ts }, limit: streamLimit) { o, f, t in
+                (try? await store.rrIntervals(deviceId: o, from: f, to: t, limit: streamLimit)) ?? []
             }
             for offset in 0..<maxDays {
                 let dayStart = nowLocalMidnight - offset * 86_400
