@@ -78,4 +78,39 @@ class TodayWorkoutTapTest {
             swift.contains("LiquidPressStyle()"),
         )
     }
+
+    /**
+     * #1702: both platforms must window the feed to the same 14 days, and iOS must do it AT THE SECTION.
+     *
+     * `workouts` on TodayView is shared: the Data Sources Apple-workout count and the HR chart's sport
+     * glyphs both read it and are all-time by design. Windowing the array at its source would compile,
+     * look correct, and silently shrink two unrelated numbers on the same screen.
+     */
+    @Test
+    fun bothPlatformsWindowTheFeedToTheSameFourteenDays() {
+        val kotlin = File(repoRoot(), "android/app/src/main/java/com/noop/ui/TodayMetricsLogic.kt").readText()
+        assertTrue(
+            "Android's feed contract must stay the 14-day window iOS is pinned to",
+            todayScreenKt().contains(".minusDays(13)"),
+        )
+        assertTrue("lastWorkoutsFeed must remain the Android feed contract", kotlin.contains("fun lastWorkoutsFeed"))
+
+        val swift = File(repoRoot(), "Strand/Screens/TodayView.swift").readText()
+        assertTrue(
+            "iOS must window with the same 13-days-back-from-start-of-day cutoff",
+            swift.contains("value: -13, to: cal.startOfDay(for: now)"),
+        )
+        assertTrue(
+            "the iOS section must render the WINDOWED feed, not the shared all-time array",
+            swift.contains("let recent = Self.recentWorkoutsFeed(workouts)") && swift.contains("recent.prefix(6)"),
+        )
+        assertTrue(
+            "the Data Sources Apple count must keep reading the unwindowed array",
+            swift.contains("workouts.filter { WorkoutSource.isAppleHealth"),
+        )
+        assertFalse(
+            "the trailing header must describe the window, not count every workout ever recorded",
+            swift.contains("\\(workouts.count) total"),
+        )
+    }
 }

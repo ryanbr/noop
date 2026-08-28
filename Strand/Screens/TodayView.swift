@@ -3867,14 +3867,30 @@ struct TodayView: View {
 
     // MARK: (c) LAST WORKOUTS, SAME grid, uniform 104pt workout tiles.
 
+    /// Android's Today feed contract (`TodayScreen.recentCutoff`): sessions starting on or after the
+    /// start of the day 13 days back — 14 days counting today. Named rather than inlined so the window
+    /// is one thing on this platform too, and so the parity guard has something to point at.
+    static func recentWorkoutsFeed(_ rows: [WorkoutRow], now: Date = Date()) -> [WorkoutRow] {
+        let cal = Calendar.current
+        guard let cutoff = cal.date(byAdding: .day, value: -13, to: cal.startOfDay(for: now)) else { return rows }
+        let cutoffTs = Int(cutoff.timeIntervalSince1970)
+        return rows.filter { $0.startTs >= cutoffTs }
+    }
+
     @ViewBuilder
     private var workoutsSection: some View {
-        if !workouts.isEmpty {
+        // #1702: window HERE, not on `workouts`. That array is shared — it also feeds the Data Sources
+        // Apple-workout count and the HR chart's sport glyphs, both all-time by design — so windowing it
+        // at the source would silently shrink two unrelated numbers on this same screen.
+        let recent = Self.recentWorkoutsFeed(workouts)
+        if !recent.isEmpty {
             VStack(alignment: .leading, spacing: NoopMetrics.gap) {
+                // "14 days" describes the window, like Android's today_workouts_14_days. The old
+                // "\(count) total" counted every workout ever recorded while showing at most six.
                 SectionHeader("Latest Workouts", overline: "Activity",
-                              trailing: String(localized: "\(workouts.count) total"))
+                              trailing: String(localized: "14 days"))
                 LazyVGrid(columns: grid, alignment: .leading, spacing: NoopMetrics.gap) {
-                    ForEach(Array(workouts.prefix(6).enumerated()), id: \.offset) { _, w in
+                    ForEach(Array(recent.prefix(6).enumerated()), id: \.offset) { _, w in
                         Button {
                             workoutDetail = WorkoutDetailTarget(row: w)
                         } label: {
