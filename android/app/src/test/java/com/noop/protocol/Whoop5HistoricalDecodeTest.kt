@@ -58,6 +58,10 @@ class Whoop5HistoricalDecodeTest {
         // 3.2 bpm error under the shipped reading (a two-beat sample against an averaged heart_rate
         // differs by that much, so anything tighter fails on CORRECT data), and stay well below the
         // ~96 bpm a misread offset produces. Do not tighten it to look stricter.
+        // Fitted to THIS record, not a general invariant. `secondDeviceHR63` below (hr 63, a single
+        // interval of 1020) computes 58.8 bpm, an error of 4.18 — so copying this assertion onto that
+        // frame fails at this tolerance. A single interval against an averaged rate is simply noisier;
+        // widen it there with its own reason rather than loosening this one.
         assertEquals((p["heart_rate"] as Int).toDouble(), 60_000.0 / meanRr, 4.0)
 
         val gx = p["gravity_x"] as Double

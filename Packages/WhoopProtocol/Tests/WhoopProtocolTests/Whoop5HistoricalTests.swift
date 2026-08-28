@@ -78,6 +78,10 @@ final class Whoop5HistoricalTests: XCTestCase {
         // anything tighter fails on CORRECT data. And it must stay far below the ~96 bpm a misread
         // offset or width produces, or it stops being a sanity check. Do not tighten it to look
         // stricter: the next value down fails the very frame this test decodes.
+        // Fitted to THIS record, not a general invariant. The repo's other real v18 vector
+        // (`secondDeviceHR63` in the Kotlin suite: hr 63, a single interval of 1020) computes 58.8 bpm,
+        // an error of 4.18 — so copying this assertion onto that frame fails at this tolerance, and the
+        // right response there is a wider bound with its own justification, not a wider bound here.
         XCTAssertEqual(60000.0 / meanRR, Double(hr), accuracy: 4)
     }
 
