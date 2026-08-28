@@ -122,6 +122,27 @@ internal fun classifyPushTransportFailure(throwable: Throwable): PushFailure {
     return PushFailure(code)
 }
 
+/**
+ * Wording for a refused destination. Kept beside [pushFailureMessage] so both user-facing message
+ * taxonomies resolve the same way; [PushEndpointPolicy] itself stays free of Android types.
+ */
+internal fun pushEndpointProblemMessage(
+    context: Context,
+    problem: PushEndpointPolicy.Problem,
+): String = when (problem) {
+    PushEndpointPolicy.Problem.MALFORMED_URL -> context.getString(R.string.push_endpoint_error_malformed)
+    PushEndpointPolicy.Problem.MISSING_SCHEME -> context.getString(R.string.push_endpoint_error_missing_scheme)
+    PushEndpointPolicy.Problem.UNSUPPORTED_SCHEME ->
+        context.getString(R.string.push_endpoint_error_unsupported_scheme)
+    PushEndpointPolicy.Problem.USER_INFO_NOT_ALLOWED -> context.getString(R.string.push_endpoint_error_user_info)
+    PushEndpointPolicy.Problem.FRAGMENT_NOT_ALLOWED -> context.getString(R.string.push_endpoint_error_fragment)
+    PushEndpointPolicy.Problem.MISSING_HOST -> context.getString(R.string.push_endpoint_error_missing_host)
+    PushEndpointPolicy.Problem.INVALID_HOST -> context.getString(R.string.push_endpoint_error_invalid_host)
+    PushEndpointPolicy.Problem.INVALID_PORT -> context.getString(R.string.push_endpoint_error_invalid_port)
+    PushEndpointPolicy.Problem.HTTP_REQUIRES_LOCAL_ADDRESS ->
+        context.getString(R.string.push_endpoint_error_http_requires_local)
+}
+
 internal fun pushFailureMessage(context: Context, failure: PushFailure): String {
     val base = when (failure.code) {
         PushFailureCode.DNS_LOOKUP -> context.getString(R.string.push_error_dns)

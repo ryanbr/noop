@@ -1,7 +1,6 @@
 package com.noop.push
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -9,7 +8,6 @@ class PushEndpointPolicyTest {
     @Test fun httpsPublicEndpointIsAllowedAndNormalized() {
         val valid = PushEndpointPolicy.validate(" HTTPS://Example.COM:443/push ") as PushEndpointPolicy.Result.Valid
         assertEquals("https://example.com/push", valid.endpoint.url)
-        assertFalse(valid.endpoint.requiresLocalAddress)
     }
 
     @Test fun publicHttpIsRejectedBeforeAnyResolution() {
@@ -53,5 +51,27 @@ class PushEndpointPolicyTest {
             "http://192.168.1.2/push#secret",
             "not a url",
         ).forEach { assertTrue(it, PushEndpointPolicy.validate(it) is PushEndpointPolicy.Result.Invalid) }
+    }
+
+    /**
+     * The refusal code is what the settings screen turns into wording, so a shape silently mapping to
+     * the wrong one would show the user a message that does not match what they typed.
+     */
+    @Test fun eachRejectedShapeReportsItsOwnProblem() {
+        mapOf(
+            "http://192.168.1.2/push" to null,
+            "" to PushEndpointPolicy.Problem.MISSING_SCHEME,
+            "ftp://192.168.1.2/push" to PushEndpointPolicy.Problem.UNSUPPORTED_SCHEME,
+            "http://user:pass@192.168.1.2/push" to PushEndpointPolicy.Problem.USER_INFO_NOT_ALLOWED,
+            "http://192.168.1.2/push#secret" to PushEndpointPolicy.Problem.FRAGMENT_NOT_ALLOWED,
+            "https:///push" to PushEndpointPolicy.Problem.MISSING_HOST,
+            "http://example.com/push" to PushEndpointPolicy.Problem.HTTP_REQUIRES_LOCAL_ADDRESS,
+            "not a url" to PushEndpointPolicy.Problem.MALFORMED_URL,
+        ).forEach { (raw, expected) ->
+            when (val result = PushEndpointPolicy.validate(raw)) {
+                is PushEndpointPolicy.Result.Valid -> assertEquals(raw, null, expected)
+                is PushEndpointPolicy.Result.Invalid -> assertEquals(raw, expected, result.problem)
+            }
+        }
     }
 }

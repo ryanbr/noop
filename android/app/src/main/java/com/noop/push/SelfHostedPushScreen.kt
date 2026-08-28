@@ -123,7 +123,8 @@ fun SelfHostedPushScreen() {
                     enabled = endpointValid && tokenAvailable,
                     onClick = {
                         when (val result = settings.saveEndpoint(endpoint)) {
-                            is PushEndpointPolicy.Result.Invalid -> validationMessage = result.reason
+                            is PushEndpointPolicy.Result.Invalid ->
+                                validationMessage = pushEndpointProblemMessage(context, result.problem)
                             is PushEndpointPolicy.Result.Valid -> {
                                 val destinationChanged = snapshot.endpoint?.url != result.endpoint.url
                                 endpoint = result.endpoint.url

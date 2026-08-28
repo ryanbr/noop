@@ -2510,6 +2510,16 @@
     <string name="push_state_complete">Aktualne</string>
     <string name="push_state_failed">Wstrzymano po błędzie</string>
     <string name="push_settings_row_detail">Eksperymentalny eksport jednokierunkowy do kontrolowanego endpointu. Domyślnie wyłączony.</string>
+    <string name="push_endpoint_error_malformed">Wprowadź prawidłowy adres URL.</string>
+    <string name="push_endpoint_error_missing_scheme">Adres URL musi zawierać http:// lub https://.</string>
+    <string name="push_endpoint_error_unsupported_scheme">Obsługiwane są tylko HTTP i HTTPS.</string>
+    <string name="push_endpoint_error_user_info">Nazwy użytkownika i hasła nie są dozwolone w adresie URL.</string>
+    <string name="push_endpoint_error_fragment">Fragmenty adresu URL nie są dozwolone.</string>
+    <string name="push_endpoint_error_missing_host">Adres URL musi zawierać host.</string>
+    <string name="push_endpoint_error_invalid_host">Host w adresie URL jest nieprawidłowy.</string>
+    <string name="push_endpoint_error_invalid_port">Port w adresie URL jest nieprawidłowy.</string>
+    <string name="push_endpoint_error_http_requires_local">Zwykły HTTP wymaga numerycznego lokalnego lub prywatnego adresu IP.</string>
+    <string name="push_error_enqueue_failed">Nie udało się dodać wysyłki do kolejki.</string>
     <string name="l10n_sleep_screen_sleep_outside_the_new_times_was_6229881e">Sen poza nowymi godzinami został usunięty. NOOP nie wykryje go ponownie.</string>
     <string name="workout_action_pause">Wstrzymaj</string>
     <string name="workout_action_resume">Wznów</string>

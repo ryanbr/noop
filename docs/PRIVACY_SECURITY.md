@@ -70,29 +70,6 @@ networking anywhere in the app is the AI Coach (`Strand/AI/AICoach.swift` on the
 Swift side — macOS and iOS — `com.noop.ai.AiCoach` on Android), described in §1.1a,
 the Oura history import (`Strand/Oura/`, Swift-only — macOS and iOS), described in §1.1b,
 the update check, described in §1.1c, and the Android-only self-hosted push, described in §1.1d.
-#### 1.1c The update check
-
-NOOP is sideloaded on every platform — there is no App Store or Play Store to update it — so an install
-that is never told about a release simply runs an old build indefinitely. Two paths address that, and
-both read the **same** public endpoint: `https://api.github.com/repos/ryanbr/noop/releases/latest`.
-
-- **"Check for updates"** in Settings → About. Runs only when tapped. It has always existed;
-  it was previously undocumented here, which is why this section is new rather than merely amended.
-- **"Check automatically"**, beside it. At most once a day, after onboarding (and, on iOS, after the
-  Terms gate), NOOP reads that endpoint and — if a newer release exists — puts a row in the Updates
-  inbox. **On by default**, and switchable off, at which point it makes no request at all.
-
-What is sent: nothing. It is an unauthenticated `GET` of a public URL, carrying no identifier, no
-account, no device information and no biometric data. What comes back is a version number and the
-release notes. **It never installs anything** — on iOS no API permits that for a sideloaded app (see
-[docs/IOS.md](IOS.md)); the row tells you a release exists and where to get it.
-
-The request is a plain HTTPS call, so your IP address is visible to GitHub exactly as it would be if
-you opened the releases page in a browser. If that is not a trade you want, turn the toggle off; the
-manual button then remains the only way NOOP touches the network for this.
-
-Code: `Strand/System/UpdateChecker.swift` + `Strand/System/UpdateAvailability.swift` (Swift),
-`com.noop.update.UpdateCheck` + `com.noop.update.UpdateAvailability` (Android).
 
 The package manifests reference dependency *download* URLs that Swift Package Manager
 resolves at build time, never at runtime:
@@ -170,6 +147,30 @@ API — a one-time, foreground backfill you trigger yourself, not an ongoing bac
   disk in the clear.
 
 If you never build the lane in, your binary cannot call `ouraring.com` — the code is not there.
+
+### 1.1c The update check
+
+NOOP is sideloaded on every platform — there is no App Store or Play Store to update it — so an install
+that is never told about a release simply runs an old build indefinitely. Two paths address that, and
+both read the **same** public endpoint: `https://api.github.com/repos/ryanbr/noop/releases/latest`.
+
+- **"Check for updates"** in Settings → About. Runs only when tapped. It has always existed;
+  it was previously undocumented here, which is why this section is new rather than merely amended.
+- **"Check automatically"**, beside it. At most once a day, after onboarding (and, on iOS, after the
+  Terms gate), NOOP reads that endpoint and — if a newer release exists — puts a row in the Updates
+  inbox. **On by default**, and switchable off, at which point it makes no request at all.
+
+What is sent: nothing. It is an unauthenticated `GET` of a public URL, carrying no identifier, no
+account, no device information and no biometric data. What comes back is a version number and the
+release notes. **It never installs anything** — on iOS no API permits that for a sideloaded app (see
+[docs/IOS.md](IOS.md)); the row tells you a release exists and where to get it.
+
+The request is a plain HTTPS call, so your IP address is visible to GitHub exactly as it would be if
+you opened the releases page in a browser. If that is not a trade you want, turn the toggle off; the
+manual button then remains the only way NOOP touches the network for this.
+
+Code: `Strand/System/UpdateChecker.swift` + `Strand/System/UpdateAvailability.swift` (Swift),
+`com.noop.update.UpdateCheck` + `com.noop.update.UpdateAvailability` (Android).
 
 ### 1.1d Self-hosted push (Experimental, Android, off by default)
 

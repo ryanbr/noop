@@ -8,6 +8,7 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
 import androidx.work.await
+import com.noop.R
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CancellationException
@@ -130,7 +131,7 @@ object SelfHostedPushScheduler {
         val completion = PushEnqueueCompletion(
             settleFailure = {
                 PushRunSignal.releaseReservation(app, request.id.toString()) { pending ->
-                    if (!pending) settings.recordError("Push could not be queued.")
+                    if (!pending) settings.recordError(app.getString(R.string.push_error_enqueue_failed))
                 }
             },
             // A trigger coalesced while WorkManager's async Operation was in flight. Recreate it

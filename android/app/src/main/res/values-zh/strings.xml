@@ -2419,6 +2419,16 @@
     <string name="push_state_complete">已是最新</string>
     <string name="push_state_failed">出错后已暂停</string>
     <string name="push_settings_row_detail">向你控制的端点进行实验性单向导出。默认关闭。</string>
+    <string name="push_endpoint_error_malformed">请输入有效的网址。</string>
+    <string name="push_endpoint_error_missing_scheme">网址需要以 http:// 或 https:// 开头。</string>
+    <string name="push_endpoint_error_unsupported_scheme">仅支持 HTTP 和 HTTPS。</string>
+    <string name="push_endpoint_error_user_info">网址中不允许包含用户名和密码。</string>
+    <string name="push_endpoint_error_fragment">不允许使用网址片段。</string>
+    <string name="push_endpoint_error_missing_host">网址需要包含主机。</string>
+    <string name="push_endpoint_error_invalid_host">网址主机无效。</string>
+    <string name="push_endpoint_error_invalid_port">网址端口无效。</string>
+    <string name="push_endpoint_error_http_requires_local">纯 HTTP 需要使用数字形式的本地或专用 IP 地址。</string>
+    <string name="push_error_enqueue_failed">无法将推送加入队列。</string>
     <string name="l10n_sleep_screen_sleep_outside_the_new_times_was_6229881e">新时间范围之外的睡眠已移除。NOOP 不会再次检测到它。</string>
     <string name="workout_action_pause">暂停</string>
     <string name="workout_action_resume">继续</string>

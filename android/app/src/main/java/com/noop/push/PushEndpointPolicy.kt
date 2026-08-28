@@ -9,31 +9,48 @@ import java.util.Locale
 
 /** Security boundary for the user-supplied destination. Validation happens before DNS or HTTP. */
 object PushEndpointPolicy {
-    data class ValidEndpoint(val url: String, val host: String, val requiresLocalAddress: Boolean)
+    data class ValidEndpoint(val url: String, val host: String)
+
+    /**
+     * Why a destination was refused. A code rather than a sentence: [validate] has no Context, and
+     * the message is user-facing, so the wording is resolved against string resources at the call
+     * site the same way [pushFailureMessage] resolves the transport failure taxonomy.
+     */
+    enum class Problem {
+        MALFORMED_URL,
+        MISSING_SCHEME,
+        UNSUPPORTED_SCHEME,
+        USER_INFO_NOT_ALLOWED,
+        FRAGMENT_NOT_ALLOWED,
+        MISSING_HOST,
+        INVALID_HOST,
+        INVALID_PORT,
+        HTTP_REQUIRES_LOCAL_ADDRESS,
+    }
 
     sealed interface Result {
         data class Valid(val endpoint: ValidEndpoint) : Result
-        data class Invalid(val reason: String) : Result
+        data class Invalid(val problem: Problem) : Result
     }
 
     fun validate(raw: String): Result {
         val uri = runCatching { URI(raw.trim()) }.getOrNull()
-            ?: return Result.Invalid("Enter a valid URL.")
+            ?: return Result.Invalid(Problem.MALFORMED_URL)
         val scheme = uri.scheme?.lowercase(Locale.ROOT)
-            ?: return Result.Invalid("The URL needs http:// or https://.")
-        if (scheme != "http" && scheme != "https") return Result.Invalid("Only HTTP and HTTPS are supported.")
-        if (uri.rawUserInfo != null) return Result.Invalid("User names and passwords are not allowed in the URL.")
-        if (uri.rawFragment != null) return Result.Invalid("URL fragments are not allowed.")
+            ?: return Result.Invalid(Problem.MISSING_SCHEME)
+        if (scheme != "http" && scheme != "https") return Result.Invalid(Problem.UNSUPPORTED_SCHEME)
+        if (uri.rawUserInfo != null) return Result.Invalid(Problem.USER_INFO_NOT_ALLOWED)
+        if (uri.rawFragment != null) return Result.Invalid(Problem.FRAGMENT_NOT_ALLOWED)
         val rawHost = uri.host?.removePrefix("[")?.removeSuffix("]")?.lowercase(Locale.ROOT)
-            ?: return Result.Invalid("The URL needs a host.")
+            ?: return Result.Invalid(Problem.MISSING_HOST)
         val asciiHost = if (':' in rawHost) rawHost else runCatching { IDN.toASCII(rawHost) }.getOrNull()
-            ?: return Result.Invalid("The URL host is invalid.")
-        if (uri.port !in -1..65535) return Result.Invalid("The URL port is invalid.")
+            ?: return Result.Invalid(Problem.INVALID_HOST)
+        if (uri.port !in -1..65535) return Result.Invalid(Problem.INVALID_PORT)
 
         val literal = parseLiteralAddress(asciiHost)
         val literalAllowed = literal?.let(::isLocalAddress) == true
         if (scheme == "http" && !literalAllowed) {
-            return Result.Invalid("Plain HTTP requires a numeric local or private IP address.")
+            return Result.Invalid(Problem.HTTP_REQUIRES_LOCAL_ADDRESS)
         }
 
         val defaultPort = (scheme == "https" && uri.port == 443) || (scheme == "http" && uri.port == 80)
@@ -44,7 +61,7 @@ object PushEndpointPolicy {
             append(scheme).append("://").append(authority).append(path)
             uri.rawQuery?.let { append('?').append(it) }
         }
-        return Result.Valid(ValidEndpoint(normalized, asciiHost, scheme == "http"))
+        return Result.Valid(ValidEndpoint(normalized, asciiHost))
     }
 
     internal fun isLocalAddress(address: InetAddress): Boolean {
