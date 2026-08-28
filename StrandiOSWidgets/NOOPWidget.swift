@@ -29,8 +29,8 @@ struct NOOPProvider: TimelineProvider {
 }
 
 /// The glanceable widget — the iOS analogue of the macOS menu-bar extra.
-/// Home Screen families mirror Today's hero trio (Charge · Effort · Rest) as score rings; Lock Screen
-/// accessories stay compact single-line / gauge layouts.
+/// Home Screen families mirror Today's hero trio (Charge · Effort · Rest) as score rings. Lock Screen
+/// accessories are compact: a single line, a gauge, or the rectangular glyph-over-value trio.
 struct NOOPWidgetView: View {
     @Environment(\.widgetFamily) private var family
     /// `.fullColor` on the home screen and in the gallery; `.vibrant` or `.accented` on the lock screen,
@@ -105,7 +105,7 @@ struct NOOPWidgetView: View {
         // a whole row of that restating which widget the user chose to add, leaving the three scores —
         // the only reason to add it — squeezed underneath. The title is gone and the heart-rate line is
         // now conditional, so with no live HR the scores get the entire area.
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(spacing: 2) {
             if let bpm = snap.bpm {
                 Text("\(bpm) bpm")
                     .font(.caption2)
@@ -123,8 +123,8 @@ struct NOOPWidgetView: View {
         }
     }
 
-    /// One score cell. The tint applies on the home screen and in the gallery; on the LOCK SCREEN it is
-    /// deliberately dropped.
+    /// One score cell. On the LOCK SCREEN the domain tint is deliberately dropped; it survives only
+    /// where the system actually renders full colour, which for this family means a gallery preview.
     ///
     /// Lock-screen widgets render in `.vibrant` (or `.accented`), where the system desaturates whatever
     /// colour it is given and maps it onto the wallpaper. A domain colour handed to it does not survive
