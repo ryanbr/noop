@@ -40,8 +40,12 @@ class Whoop5HistoricalDecodeTest {
         assertEquals(listOf(602, 613), p["rr_intervals"])
 
         // Physiological cross-check: 60000 / mean(R-R) ≈ heart_rate, from the PARSE rather than literals.
-        // Twin of the Swift `testHistoricalV18HeartRateRRAndGravity` check, which this side never had —
-        // so a wrong v18 R-R offset or width would have been caught on one platform only.
+        // Twin of the Swift `testHistoricalV18HeartRateRRAndGravity` check, which this side never had.
+        //
+        // The pins above already fix both values, so this catches nothing a wrong offset would not
+        // already trip. What it guards is the PINS: a decoder change "fixed" by regenerating the
+        // expected values until they pass has to produce numbers that are still physiologically
+        // coherent. See the Swift twin for the fuller note.
         //
         // It does NOT discriminate UNITS and tightening it will not make it: milliseconds and 1/1024-s
         // ticks differ by 2.4% (~2.5 bpm here), less than a two-beat sample varies against a heart_rate

@@ -51,10 +51,15 @@ final class Whoop5HistoricalTests: XCTestCase {
         XCTAssertEqual((gx * gx + gy * gy + gz * gz).squareRoot(), 1.0, accuracy: 0.05)
 
         // Physiological cross-check: 60000 / mean(R-R) ≈ heart_rate — read from the PARSE, not from
-        // literals. It used to compute `Double(602 + 613) / 2.0` against a literal 102, which is a
-        // constant expression: it could not fail, and could not detect a wrong offset or a wrong width,
-        // while reading as though the decoder's R-R was checked against its own HR. Same shape as the
-        // WHOOP 4.0 test next door, which always did it properly.
+        // literals. It used to compute `Double(602 + 613) / 2.0` against a literal 102, a constant
+        // expression that could not fail. Same shape as the WHOOP 4.0 test next door.
+        //
+        // Be precise about what this adds, because the pins above already fix both values: a wrong
+        // offset or width fails `rr_intervals` / `heart_rate` FIRST, so this catches nothing the pins
+        // do not. What it guards is the PINS THEMSELVES. If a decoder change is "fixed" by regenerating
+        // the expected values until they are green — the usual way a golden stops meaning anything —
+        // this fails unless the new values are still physiologically coherent. That is a check on the
+        // maintenance of the test, not on the decode, and it is the one the literal form could not make.
         //
         // The tolerance does NOT discriminate UNITS, and tightening it will not make it. #1505 asked
         // whether v18 R-R is milliseconds or 1/1024-s ticks — the two readings differ by 2.4%, which at
