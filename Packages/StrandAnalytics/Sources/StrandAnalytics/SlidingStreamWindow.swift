@@ -18,7 +18,14 @@ public final class SlidingStreamWindow<T> {
     /// The store call for `(owner, from, to)`. Bound at CONSTRUCTION to match the Kotlin twin, where the
     /// two call sites sit inside a method already at its JVM bytecode budget and a per-call lambda put it
     /// over. It must return `ts ASC` and honour the same `limit`.
-    private let read: (String, Int, Int) async -> [T]
+    ///
+    /// `nil` means the read FAILED, which is not the same as returning no rows and must never be cached as
+    /// if it were. An empty successful read is a true statement about a range — the buffer can serve it,
+    /// and the next day may splice against it. An empty FAILED read is no statement at all, and caching it
+    /// would let the following day splice against rows nobody ever fetched, silently dropping the part of
+    /// its window the buffer claimed to hold. This side is the one that needs it: the engine wraps its
+    /// store reads in `try?`, so a failure arrives here as an empty array unless the caller says otherwise.
+    private let read: (String, Int, Int) async -> [T]?
 
     private var owner: String?
     private var from = 0
@@ -37,7 +44,7 @@ public final class SlidingStreamWindow<T> {
     /// Rows this window read from the store. Diagnostic only. Same width note as `rowsServed`.
     public private(set) var rowsRead = 0
 
-    public init(tsOf: @escaping (T) -> Int, limit: Int, read: @escaping (String, Int, Int) async -> [T]) {
+    public init(tsOf: @escaping (T) -> Int, limit: Int, read: @escaping (String, Int, Int) async -> [T]?) {
         self.tsOf = tsOf
         self.limit = limit
         self.read = read
@@ -59,12 +66,12 @@ public final class SlidingStreamWindow<T> {
             nowTruncated = false
             rowsServed += result.count
         case let .extend(readFrom, readTo):
-            let head = await read(owner, readFrom, readTo)
+            guard let head = await read(owner, readFrom, readTo) else { return failedRead() }
             rowsRead += head.count
             if head.count >= limit {
                 // A truncated EXTENSION is worse than a truncated buffer: it would leave a hole in the
                 // middle rather than at the end. Discard and read the window whole.
-                let full = await read(owner, from, to)
+                guard let full = await read(owner, from, to) else { return failedRead() }
                 rowsRead += full.count
                 result = full
                 nowTruncated = full.count >= limit
@@ -81,7 +88,7 @@ public final class SlidingStreamWindow<T> {
                 rowsServed += max(0, result.count - head.count)
             }
         case .fullRead:
-            let full = await read(owner, from, to)
+            guard let full = await read(owner, from, to) else { return failedRead() }
             rowsRead += full.count
             result = full
             nowTruncated = full.count >= limit
@@ -92,5 +99,15 @@ public final class SlidingStreamWindow<T> {
         self.truncated = nowTruncated
         self.rows = result
         return result
+    }
+
+    /// A failed read leaves NO buffer: the next day must go back to the store rather than splice against a
+    /// window nobody successfully filled. Returns empty, which is what the caller saw for a failed read
+    /// before this class existed.
+    private func failedRead() -> [T] {
+        owner = nil
+        rows = []
+        truncated = false
+        return []
     }
 }

@@ -26,8 +26,16 @@ class SlidingStreamWindow<T>(
      * call sites live in `analyzeRecentOnCpu`, which sits close enough to the JVM's 64 KB bytecode ceiling
      * to have a budget test of its own, and a lambda at each call site put it over. It must return
      * `ts ASC` and honour the same [limit].
+     *
+     * NULL means the read FAILED, which is not the same as returning no rows and must never be cached as
+     * if it were. An empty successful read is a true statement about a range — the buffer can serve it,
+     * and the next day may splice against it. An empty FAILED read is no statement at all, and caching it
+     * would let the following day splice against rows nobody ever fetched, silently dropping the part of
+     * its window the buffer claimed to hold. This side never returns null today (a repo read throws, and
+     * the throw propagates exactly as it did before the buffer existed); the Swift twin does, because its
+     * engine wraps reads in `try?` and turns a failure into an empty array.
      */
-    private val read: suspend (String, Long, Long) -> List<T>,
+    private val read: suspend (String, Long, Long) -> List<T>?,
 ) {
 
     private var owner: String? = null
@@ -66,12 +74,12 @@ class SlidingStreamWindow<T>(
                 rowsServed += result.size
             }
             is WindowedStreamPlan.Plan.Extend -> {
-                val head = read(owner, plan.readFrom, plan.readTo)
+                val head = read(owner, plan.readFrom, plan.readTo) ?: return failedRead()
                 rowsRead += head.size
                 if (head.size >= limit) {
                     // A truncated EXTENSION is worse than a truncated buffer: it would leave a hole in the
                     // middle rather than at the end. Discard and read the window whole.
-                    val full = read(owner, from, to)
+                    val full = read(owner, from, to) ?: return failedRead()
                     rowsRead += full.size
                     result = full
                     nowTruncated = full.size >= limit
@@ -89,7 +97,7 @@ class SlidingStreamWindow<T>(
                 }
             }
             is WindowedStreamPlan.Plan.FullRead -> {
-                val full = read(owner, from, to)
+                val full = read(owner, from, to) ?: return failedRead()
                 rowsRead += full.size
                 result = full
                 nowTruncated = full.size >= limit
@@ -101,5 +109,15 @@ class SlidingStreamWindow<T>(
         this.truncated = nowTruncated
         this.rows = result
         return result
+    }
+
+    /** A failed read leaves NO buffer: the next day must go back to the store rather than splice against
+     *  a window nobody successfully filled. Returns empty, which is what the caller saw for a failed read
+     *  before this class existed. */
+    private fun failedRead(): List<T> {
+        owner = null
+        rows = emptyList()
+        truncated = false
+        return emptyList()
     }
 }

@@ -85,4 +85,31 @@ class SlidingStreamWindowTest {
         val got = w.rows("owner", skipStart - h30, skipStart + day)
         assertEquals(direct(skipStart - h30, skipStart + day), got)
     }
+
+    /**
+     * A FAILED read must not be cached as if it were an empty range. Twin of Swift
+     * `testFailedReadIsNotCachedAsEmpty`.
+     *
+     * This is the one that bites silently. An empty SUCCESSFUL read is a true statement — there are no
+     * rows in that span — so the next day may splice against it. An empty FAILED read says nothing, and
+     * caching it lets the following day splice against rows nobody fetched: its window would come back
+     * missing everything the buffer claimed to hold, with no error and no log line, and the days built
+     * from it would be scored on inputs that quietly lost hours.
+     *
+     * The Swift engine is where this is reachable — it wraps its store reads in `try?` — but the guarantee
+     * belongs to the window, so both sides carry it.
+     */
+    @Test fun failedReadIsNotCachedAsEmpty() = runBlocking {
+        var failNext = true
+        val w = SlidingStreamWindow<Long>({ it }, 1_000_000) { _, f, t ->
+            if (failNext) { failNext = false; null } else direct(f, t)
+        }
+        val from = midnight - h30
+        val to = midnight + day
+        assertEquals("a failed read yields nothing, as it did before the buffer existed",
+            emptyList<Long>(), w.rows("owner", from, to))
+        // The next day must go back to the store, not splice against a window nobody filled.
+        val next = w.rows("owner", from - day, to - day)
+        assertEquals(direct(from - day, to - day), next)
+    }
 }

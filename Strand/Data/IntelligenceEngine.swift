@@ -894,10 +894,10 @@ final class IntelligenceEngine: ObservableObject {
             // both; this is the same guarantee spelled locally.
             let streamLimit = 200_000
             let hrWindow = SlidingStreamWindow<HRSample>(tsOf: { $0.ts }, limit: streamLimit) { o, f, t in
-                (try? await store.hrSamples(deviceId: o, from: f, to: t, limit: streamLimit)) ?? []
+                try? await store.hrSamples(deviceId: o, from: f, to: t, limit: streamLimit)
             }
             let rrWindow = SlidingStreamWindow<RRInterval>(tsOf: { $0.ts }, limit: streamLimit) { o, f, t in
-                (try? await store.rrIntervals(deviceId: o, from: f, to: t, limit: streamLimit)) ?? []
+                try? await store.rrIntervals(deviceId: o, from: f, to: t, limit: streamLimit)
             }
             for offset in 0..<maxDays {
                 let dayStart = nowLocalMidnight - offset * 86_400

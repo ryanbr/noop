@@ -69,4 +69,29 @@ final class SlidingStreamWindowTests: XCTestCase {
         let got = await w.rows(owner: "owner", from: skipStart - h30, to: skipStart + day)
         XCTAssertEqual(got, direct(skipStart - h30, skipStart + day))
     }
+
+    /// A FAILED read must not be cached as if it were an empty range. Twin of Kotlin
+    /// `failedReadIsNotCachedAsEmpty`.
+    ///
+    /// This is the one that bites silently. An empty SUCCESSFUL read is a true statement — there are no
+    /// rows in that span — so the next day may splice against it. An empty FAILED read says nothing, and
+    /// caching it lets the following day splice against rows nobody fetched: its window would come back
+    /// missing everything the buffer claimed to hold, with no error and no log line, and the days built
+    /// from it would be scored on inputs that quietly lost hours.
+    ///
+    /// Reachable on THIS platform in particular: the engine wraps its store reads in `try?`, so a failure
+    /// arrives as an empty array unless the reader says otherwise.
+    func testFailedReadIsNotCachedAsEmpty() async {
+        var failNext = true
+        let w = SlidingStreamWindow<Int>(tsOf: { $0 }, limit: 1_000_000) { [self] _, f, t in
+            if failNext { failNext = false; return nil }
+            return direct(f, t)
+        }
+        let from = midnight - h30, to = midnight + day
+        let first = await w.rows(owner: "owner", from: from, to: to)
+        XCTAssertEqual(first, [], "a failed read yields nothing, as it did before the buffer existed")
+        // The next day must go back to the store, not splice against a window nobody filled.
+        let next = await w.rows(owner: "owner", from: from - day, to: to - day)
+        XCTAssertEqual(next, direct(from - day, to - day))
+    }
 }
