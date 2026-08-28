@@ -746,6 +746,15 @@ object IntelligenceEngine {
         // Together with [dayCacheReused] this is the honest denominator for the reuse ratio — see the
         // diagnostic at the end of the loop.
         var dayCacheCacheable = 0
+        // #1538: backward sliding read buffers for the two heavy streams. Pass 1 walks backwards over
+        // 54-hour windows on a 24-hour stride, so consecutive days overlap by 30 hours and every row was
+        // being materialised ~2.25x per pass. These read the missing stride only; every case the planner
+        // cannot prove safe falls back to exactly the read that shipped before them. HR and R-R only:
+        // ~86k and ~54k rows a night against thousands for the other eight streams, so this is nearly all
+        // of the win for two call sites of blast radius.
+        val hrWindow = hrReadWindow(repo)
+        val rrWindow = rrReadWindow(repo)
+
         // #1005: memoise the UN-coalesced registered WHOOP family per owner (null = non-WHOOP → never
         // cached). Kept separate from [skinFamilyByOwner] (which coalesces unknown → WHOOP5 for the skin
         // scale); this must NOT coalesce so a ring can't be cached as a WHOOP.
@@ -848,7 +857,7 @@ object IntelligenceEngine {
             // itself end to end, so whether the per-night cost is store reads or analyzeDay is unmeasured,
             // and that split decides whether narrowing the read windows is worth building.
             val tPrep0 = System.nanoTime()
-            val hr = repo.hrSamples(owner, from, to, STREAM_LIMIT)
+            val hr = hrWindow.rows(owner, from, to)
             // CAPTURE-B: capture this day's resolved read owner + HR-row count so PASS 2 can emit the
             // verbatim universal `dayOwner …` line per SCORED day (matching the iOS emit, which is in the
             // scored-days loop, NOT here). Only when the universal sink is on. A day skipped below for too
@@ -875,7 +884,7 @@ object IntelligenceEngine {
                 skippedSleepDays.add(day, hr.size)
                 continue
             }
-            val rr = repo.rrIntervals(owner, from, to, STREAM_LIMIT)
+            val rr = rrWindow.rows(owner, from, to)
             // ONE read, TWO consumers, and they must not be confused for each other. `forScoring` strips
             // an Oura ring's rows from the STAGER's input: the stager reads this stream as a ~1 Hz raw ADC
             // waveform and peak-detects it, and the ring's rows are a per-window RATE — the wrong shape,
@@ -1268,6 +1277,7 @@ object IntelligenceEngine {
         // (each row materialised ~2.25x per pass) is worth narrowing; analyzeDay dominating means it is
         // not, whatever the row counts look like. Byte-identical line to the Swift twin.
         diag("analyzeRecent cost prep=${dayPrepNanos / 1_000_000}ms score=${dayScoreNanos / 1_000_000}ms")
+        diag(analyzeWindowsLogLine(hrWindow.rowsRead, hrWindow.rowsServed, rrWindow.rowsRead, rrWindow.rowsServed))
 
         // ── Seed the baseline from the UNION of imported nightly history + the nightly
         // values just computed. This is the recovery fix: the "-noop" nightly avgHrv/
@@ -2636,6 +2646,34 @@ object IntelligenceEngine {
         val nextMidnight = dayStart + SECONDS_PER_DAY
         return if (dayStart < nowLocalMidnight) nextMidnight else minOf(nextMidnight, now)
     }
+
+    /** The pass-1 HR sliding read window. Constructed OUTSIDE `analyzeRecentOnCpu` so neither the
+     *  element lambda nor the reader lambda counts against that method's bytecode budget, which the
+     *  extraction next door exists to protect. */
+    private fun hrReadWindow(repo: com.noop.data.WhoopRepository) =
+        SlidingStreamWindow<com.noop.data.HrSample>({ it.ts }, STREAM_LIMIT) { o, f, t ->
+            repo.hrSamples(o, f, t, STREAM_LIMIT)
+        }
+
+    /** The pass-1 R-R sliding read window. Same reason as [hrReadWindow] for living out here. */
+    private fun rrReadWindow(repo: com.noop.data.WhoopRepository) =
+        SlidingStreamWindow<com.noop.data.RrInterval>({ it.ts }, STREAM_LIMIT) { o, f, t ->
+            repo.rrIntervals(o, f, t, STREAM_LIMIT)
+        }
+
+    /**
+     * What the pass-1 sliding read windows saved, emitted beside the `prep`/`score` line the decision to
+     * build them was made from (#1538). `read` is rows fetched from the store, `served` rows a buffer
+     * supplied instead.
+     *
+     * A pass where `served` is ~0 means the windows are declining — truncation, an owner flip, or a gap
+     * left by a dayCache hit — and the reads are back to exactly what they were. That is the honest
+     * outcome rather than a silent one, which is why the counters ship rather than just the speedup.
+     *
+     * Pure, and outside `analyzeRecentOnCpu` for the same budget reason. Byte-identical to the Swift twin.
+     */
+    internal fun analyzeWindowsLogLine(hrRead: Long, hrServed: Long, rrRead: Long, rrServed: Long): String =
+        "analyzeRecent windows hr[read=$hrRead served=$hrServed] rr[read=$rrRead served=$rrServed]"
 
     /**
      * The per-day skin-temp, SpO2 and off-wrist reads, lifted out of `analyzeRecentOnCpu` (#1538).
