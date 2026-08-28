@@ -11,8 +11,10 @@ public final class FrameRouter {
     /// BLEManager wires this to a rate-limited requestSync(.strap). nil in pure/unit contexts.
     var onSyncTrigger: (() -> Void)?
     /// #1706: which strap this connection is talking to, so an alarm readback can be attributed to a
-    /// device. Set per connection by BLEManager alongside `family`; nil in pure/unit contexts, which the
-    /// verdict treats as unattributed rather than guessing.
+    /// device. Set per connection by BLEManager immediately AFTER `family`, whose didSet clears this —
+    /// a path that sets the family and forgets the id then attributes nothing rather than carrying the
+    /// previous connection's strap forward, which is the very mistake this attribution exists to stop.
+    /// nil in pure/unit contexts, which the verdict treats as unattributed rather than guessing.
     var deviceId: String?
 
     /// Which family's framing to decode with. Set per connection by BLEManager. WHOOP 5.0/MG frames
@@ -23,7 +25,7 @@ public final class FrameRouter {
         // #900: a fresh connection is a fresh capture session — re-arm the per-command raw-frame dump so
         // each connect can re-capture the disputed COMMAND_RESPONSE prefix once. `family` is set fresh per
         // connection by BLEManager (connectCore), so this is the per-session reset hook.
-        didSet { rawDumpedRespCmds.removeAll(); loggedFirmwareGate = nil }
+        didSet { rawDumpedRespCmds.removeAll(); loggedFirmwareGate = nil; deviceId = nil }
     }
 
     /// #900: resp command names (e.g. "GET_BATTERY_LEVEL(26)") whose raw COMMAND_RESPONSE frame has already
@@ -192,20 +194,27 @@ public final class FrameRouter {
                         // (first read stale, then correct) never trips the warning; only a persistent refusal
                         // climbs. SmartAlarmView surfaces the warning at ≥2; the debug export shows the count.
                         // Observability only — never gates the BLE arm.
-                        // #1706: the streak raises a UI warning at two, so it must only count a
-                        // disagreement PROVEN to be the same strap. A cross-strap or unattributed
-                        // reading is evidence of nothing and leaves the streak untouched — advancing it
-                        // would warn about a strap that was never asked, clearing it would hide a real
-                        // refusal.
+                        // #1706: the streak raises a UI warning at two, so it must only COUNT a
+                        // disagreement PROVEN to be the same strap. A cross-strap reading is evidence of
+                        // nothing and leaves the streak alone — advancing would warn about a strap that
+                        // was never asked, clearing would hide a real refusal. An unattributed one is a
+                        // different case, handled below.
                         if let sent = d.object(forKey: "alarm.lastArmSentEpoch") as? Int {
                             let verdict = AlarmReadback.verdict(
                                 sentEpoch: sent,
                                 reportedEpoch: Int(epoch),
                                 sentDeviceId: d.string(forKey: "alarm.lastArmDeviceId"),
-                                reportedDeviceId: d.string(forKey: "alarm.lastReportedDeviceId"))
+                                reportedDeviceId: deviceId)   // the local, not a re-read of what we just wrote
                             if AlarmReadback.countsAsRejection(verdict) {
                                 d.set(d.integer(forKey: "alarm.rejectStreak") + 1, forKey: "alarm.rejectStreak")
                             } else if AlarmReadback.clearsRejectionStreak(verdict) {
+                                d.set(0, forKey: "alarm.rejectStreak")
+                            } else if verdict == .unattributed {
+                                // Any streak standing here was built by the cross-strap comparison this
+                                // replaces, so it cannot be trusted — and since only a proven match clears
+                                // the streak now, leaving it would hold SmartAlarmView's warning up forever
+                                // on an install that upgraded mid-streak. Discard once; the next attributed
+                                // readback rebuilds it honestly.
                                 d.set(0, forKey: "alarm.rejectStreak")
                             }
                         }
