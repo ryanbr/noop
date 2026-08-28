@@ -289,6 +289,22 @@ public final class FrameRouter {
                 }
             }
 
+        case "CONSOLE_LOGS":
+            // The 5/MG strap narrates its own sync engine here — "BLE: PullStats: Data: N, Events: N…",
+            // "History burst success. Trim: 0x…", "Historical Dump Complete". Android has mirrored this
+            // into the strap log since #78 and calls it gold for protocol research; this side decoded the
+            // text and then dropped it on the floor, so an Apple strap log has never carried a word of it.
+            //
+            // It is worth more than curiosity. `PullStats: Data: 0` is the STRAP stating it sent no
+            // records, which is a far stronger answer to a "synced but no data" report (#1683) than NOOP
+            // inferring emptiness from its own decode — the difference between the strap saying nothing
+            // was there and us saying we found nothing.
+            //
+            // Capped at 300 characters to match the Kotlin twin exactly; the ring buffer holds 2k lines.
+            if let txt = parsed.parsed["log"]?.stringValue, !txt.isEmpty {
+                state.append(log: "strap: \(String(txt.prefix(300)))")
+            }
+
         case "EVENT":
             if let ev = parsed.parsed["event"]?.stringValue {
                 // #92: don't surface the live-HR stream toggle (BLE_REALTIME_HR_ON/OFF) in "Last

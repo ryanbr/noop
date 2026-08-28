@@ -410,7 +410,10 @@ object Framing {
         val text = frame.copyOfRange(21, payEnd)
             .toString(Charsets.UTF_8)
             .trimEnd('\u0000')
-        if (text.isNotEmpty()) parsed["console"] = text.take(2048)
+        // Key "log", not "console": the Python reference decoder golden.json is generated from uses
+        // "log", and Swift matches it under a parity guard. This side was the odd one out, which is
+        // how the Apple consumer ported from here read the wrong key and silently found nothing.
+        if (text.isNotEmpty()) parsed["log"] = text.take(2048)
     }
 
     /**

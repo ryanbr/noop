@@ -6487,7 +6487,7 @@ class WhoopBleClient(
                 // The 5/MG strap narrates its own sync engine here ("BLE: PullStats: Data: N…",
                 // "RTC timestamp … is invalid") — gold for protocol research, so mirror it into the
                 // strap log (capped; the ring buffer holds 2k lines). (#78 fork)
-                (parsed.parsed["console"] as? String)?.let { txt ->
+                (parsed.parsed["log"] as? String)?.let { txt ->
                     log("strap: ${txt.take(300)}")
                 }
             }
