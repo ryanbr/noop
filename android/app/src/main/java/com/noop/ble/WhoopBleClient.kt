@@ -5955,8 +5955,15 @@ class WhoopBleClient(
                     // frame. Family-aware, so it's correct for WHOOP4 and 5/MG alike.
                     val parsed = Framing.parseFrame(frame, connectedFamily)
                     // A frame replayed as part of the historical offload (type 47/48/… during a backfill)
-                    // must not drive LIVE-only state (the charging pill). Mirrors iOS, where the offload
-                    // path skips the live router entirely. (PR #568 reimpl)
+                    // must not drive LIVE-only state (the charging pill). (PR #568 reimpl)
+                    //
+                    // NOT the same shape as iOS, despite what this said before. THIS side calls the handler
+                    // for EVERY frame and gates only the live-only effects; iOS skips the router outright
+                    // for offload frames and carves out the few things that must still fire (a live
+                    // gesture, and now the strap's console narration). Same outcome for the charging pill,
+                    // opposite structure — so a reader porting behaviour either way has to check which
+                    // frames reach the handler at all, not assume it matches. That assumption is exactly
+                    // how the console mirror shipped dead on iOS: decoded, keyed correctly, never called.
                     handleFrame(frame, parsed, replayedOffload = offloadFrame)
 
                     // Capture the strap's newest stored record from a GET_DATA_RANGE reply, feeding
