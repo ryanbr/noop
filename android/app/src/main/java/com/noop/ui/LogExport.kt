@@ -266,12 +266,11 @@ object LogExport {
 
         // Append the last captured crash (if any) so a device-specific crash like the Insights
         // tab (#224/#267) arrives with its real stack trace instead of being unreachable.
-        val crash = com.noop.CrashCapture.lastCrash(context)
-        val crashSection = if (crash != null) "\n\n${"─".repeat(40)}\nLast crash:\n$crash" else ""
+        val crashText = crashSection(com.noop.CrashCapture.lastCrash(context))
 
         val dir = File(context.cacheDir, "logs").apply { mkdirs() }
         val file = File(dir, "noop-strap-log-${timestamp()}.txt")
-        file.writeText(header + "\n" + body + crashSection)
+        file.writeText(header + "\n" + body + crashText)
         return file
     }
 
@@ -393,6 +392,18 @@ object LogExport {
         encryptedBond = encryptedBond,
         sharingLog = sharingLog,
     )
+
+    /**
+     * The trailing "Last crash" section of a shared strap log, with its PII scrubbed.
+     *
+     * The crash file is written by the uncaught-exception handler, so unlike the rolling body it never
+     * passes through `WhoopBleClient.log()`'s sink — an exception message that names a strap ("no device
+     * FD:..") would carry a real BLE address straight into a public issue, and this is the artifact
+     * people attach to one. Same rule the header lines above already follow (#453): one export cannot
+     * be safe while the other leaks. Pure so the redaction is assertable without a Context.
+     */
+    internal fun crashSection(crash: String?): String =
+        if (crash == null) "" else "\n\n${"─".repeat(40)}\nLast crash:\n${com.noop.ble.redactStrapLogPii(crash)}"
 
     /**
      * Whether the on-disk capture holds any frames at all.

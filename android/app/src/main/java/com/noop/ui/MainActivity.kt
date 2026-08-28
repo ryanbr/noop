@@ -71,6 +71,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        // NOTE: `crash` stays RAW here on purpose. acknowledge() fingerprints what it is given, and
+        // pendingCrash() fingerprints the stored file — hand it redacted text and the two hashes never
+        // match, so the screen would reappear on every launch forever, which is precisely the loop the
+        // fingerprint exists to prevent. Masking happens where it is SHOWN and COPIED, inside the screen.
         CrashCapture.pendingCrash(this)?.let { crash ->
             setContent {
                 NoopTheme {
@@ -173,6 +177,13 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun CrashRecoveryScreen(crash: String, onContinue: () -> Unit) {
     val clipboard = LocalClipboardManager.current
+    // Masked for the two paths that leave the device — the visible trace and the clipboard. The stored
+    // file stays verbatim for anything that needs it, and the acknowledgement fingerprint is taken on
+    // the raw text by the caller. redactStrapLogPii is the same sink the strap log and the test bundle
+    // use (BLE MACs and WHOOP serials) and is documented as total, so it cannot throw here. A BLE
+    // exception carrying a device address is exactly its shape, and this screen's copy button exists
+    // to paste into public bug reports.
+    val shown = remember(crash) { com.noop.ble.redactStrapLogPii(crash) }
     Surface(Modifier.fillMaxSize(), color = Palette.surfaceBase) {
         Column(
             Modifier.padding(horizontal = 20.dp, vertical = 32.dp).verticalScroll(rememberScrollState()),
@@ -180,14 +191,14 @@ private fun CrashRecoveryScreen(crash: String, onContinue: () -> Unit) {
         ) {
             Text(stringResource(R.string.crash_recovery_title), style = NoopType.title1, color = Palette.textPrimary)
             Text(stringResource(R.string.crash_recovery_body), style = NoopType.body, color = Palette.textSecondary)
-            Button(onClick = { clipboard.setText(AnnotatedString(crash)) }) {
+            Button(onClick = { clipboard.setText(AnnotatedString(shown)) }) {
                 Text(stringResource(R.string.crash_recovery_copy))
             }
             Button(onClick = onContinue) {
                 Text(stringResource(R.string.crash_recovery_continue))
             }
             SelectionContainer {
-                Text(crash, style = NoopType.caption, color = Palette.textSecondary)
+                Text(shown, style = NoopType.caption, color = Palette.textSecondary)
             }
         }
     }

@@ -54,19 +54,36 @@ object CrashCapture {
         return runCatching { f.readText() }.getOrNull()?.ifBlank { null }
     }
 
-    /** A crash not yet dismissed by the user, shown before launch touches the database or BLE stack. */
-    fun pendingCrash(context: Context): String? {
-        val crash = lastCrash(context) ?: return null
+    /**
+     * A crash not yet dismissed by the user, shown before launch touches the database or BLE stack.
+     *
+     * TOTAL, like [lastCrash] beside it: this is the FIRST thing `MainActivity.onCreate` runs, so a
+     * throw here does not degrade the recovery screen — it stops the app starting at all, on every
+     * launch, with no screen left to explain why. A crash-recovery feature that bricks startup is a
+     * worse failure than the crash it exists to report, so any failure reading the acknowledgement
+     * yields null and normal startup proceeds.
+     */
+    fun pendingCrash(context: Context): String? = runCatching {
+        val crash = lastCrash(context) ?: return@runCatching null
         val acknowledged = context.applicationContext
             .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getString(ACKNOWLEDGED, null)
-        return crash.takeIf { isPending(fingerprint(it), acknowledged) }
-    }
+        crash.takeIf { isPending(fingerprint(it), acknowledged) }
+    }.getOrNull()
 
-    /** Keep the crash for diagnostics, but allow the next launch attempt to continue. */
+    /**
+     * Keep the crash for diagnostics, but allow the next launch attempt to continue.
+     *
+     * `commit()` rather than `apply()`: the caller recreates the Activity immediately, and a process
+     * death between the two would lose an asynchronous write and put the same crash back in front of
+     * the user. The write is one small string on a path taken once per crash, so paying for durability
+     * here costs nothing measurable and removes the only way this can repeat itself.
+     */
     fun acknowledge(context: Context, crash: String) {
-        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit().putString(ACKNOWLEDGED, fingerprint(crash)).apply()
+        runCatching {
+            context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .edit().putString(ACKNOWLEDGED, fingerprint(crash)).commit()
+        }
     }
 
     internal fun isPending(fingerprint: String, acknowledged: String?) = fingerprint != acknowledged

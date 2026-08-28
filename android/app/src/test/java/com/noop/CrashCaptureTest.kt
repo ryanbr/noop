@@ -39,4 +39,31 @@ class CrashCaptureTest {
         assertTrue(header.contains("device: Google Pixel 9"))
         assertTrue(header.contains("thread: DefaultDispatcher-worker-6"))
     }
+
+    // ---- hardening (follow-up to the recovery screen) ----
+
+    /**
+     * The acknowledgement fingerprint is taken on the RAW crash, and the screen shows a REDACTED copy.
+     * If the two ever swap, the hashes stop matching and the recovery screen reappears on every launch
+     * forever — the exact loop the fingerprint exists to prevent, and invisible until someone crashes
+     * with a MAC in the message.
+     */
+    @Test fun redactingForDisplayWouldChangeTheFingerprint() {
+        val raw = "when: now\nthread: main\njava.lang.IllegalStateException: no device FD:12:34:56:78:9A"
+        val shown = com.noop.ble.redactStrapLogPii(raw)
+        assertNotEquals("redaction must actually change this fixture, or the test proves nothing", raw, shown)
+        assertNotEquals(
+            "so acknowledge() must be given the RAW text, never the shown one",
+            CrashCapture.fingerprint(raw),
+            CrashCapture.fingerprint(shown),
+        )
+    }
+
+    /** What the screen renders must carry no MAC, whatever the exception message held. */
+    @Test fun theShownCrashHasItsMacMasked() {
+        val raw = "java.lang.IllegalStateException: no device FD:12:34:56:78:9A"
+        val shown = com.noop.ble.redactStrapLogPii(raw)
+        assertFalse("a full MAC must not survive to the clipboard", shown.contains("FD:12:34:56:78:9A"))
+        assertTrue("and the masked shape is what the rest of the export uses", shown.contains("••"))
+    }
 }
