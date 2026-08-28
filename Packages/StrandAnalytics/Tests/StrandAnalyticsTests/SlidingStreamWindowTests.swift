@@ -1,0 +1,72 @@
+import XCTest
+@testable import StrandAnalytics
+
+/// Pins the sliding read buffer against the only contract that matters: for every window, it returns
+/// EXACTLY what a direct store read would have returned. Twin of Kotlin `SlidingStreamWindowTest`.
+///
+/// The test store is a plain sorted array, so "what a direct read would have returned" is computable
+/// independently rather than asserted from the implementation's own behaviour — otherwise the test would
+/// agree with a wrong splice.
+final class SlidingStreamWindowTests: XCTestCase {
+
+    private let day = 86_400
+    private let h30 = 108_000
+    private let midnight = 1_787_875_200
+
+    private lazy var store: [Int] = Array(stride(from: midnight - 5 * day, through: midnight + day, by: 1))
+
+    private func direct(_ from: Int, _ to: Int, limit: Int = 1_000_000) -> [Int] {
+        Array(store.filter { $0 >= from && $0 <= to }.prefix(limit))
+    }
+
+    private func window(limit: Int = 1_000_000) -> SlidingStreamWindow<Int> {
+        SlidingStreamWindow<Int>(tsOf: { $0 }, limit: limit) { [self] _, f, t in direct(f, t, limit: limit) }
+    }
+
+    /// Day 0 reads its whole 54 h window; each later day reads exactly one 24 h stride. Without the buffer
+    /// this walk reads 5 x 54 h; the union of all five windows is what it reads instead.
+    func testBackwardWalkMatchesDirectReadsAndReadsEachRowOnce() async {
+        let w = window()
+        for offset in 0..<5 {
+            let dayStart = midnight - offset * day
+            let from = dayStart - h30, to = dayStart + day
+            let got = await w.rows(owner: "owner", from: from, to: to)
+            XCTAssertEqual(got, direct(from, to), "window \(offset) must equal a direct read")
+        }
+        let lastFrom = midnight - 4 * day - h30
+        XCTAssertEqual(w.rowsRead, direct(lastFrom, midnight + day).count, "each row read exactly once")
+        XCTAssertGreaterThan(w.rowsServed, w.rowsRead / 2, "and most rows came from the buffer")
+    }
+
+    func testOwnerFlipFallsBackToADirectRead() async {
+        let w = window()
+        let from = midnight - h30, to = midnight + day
+        _ = await w.rows(owner: "a", from: from, to: to)
+        let readAfterFirst = w.rowsRead
+        let got = await w.rows(owner: "b", from: from - day, to: to - day)
+        XCTAssertEqual(got, direct(from - day, to - day))
+        // A different strap cannot reuse the buffer, so this is a full window read, not a stride.
+        XCTAssertEqual(w.rowsRead - readAfterFirst, to - from + 1)
+    }
+
+    /// A truncated read cannot be sliced, because `ORDER BY ts ASC LIMIT` drops the NEWEST rows — the
+    /// buffer would be missing its tail with nothing to say so.
+    func testTruncatedReadIsNeverSliced() async {
+        let limit = 1_000
+        let w = window(limit: limit)
+        let from = midnight - h30, to = midnight + day
+        let first = await w.rows(owner: "owner", from: from, to: to)
+        XCTAssertEqual(first.count, limit)
+        let next = await w.rows(owner: "owner", from: from - day, to: to - day)
+        XCTAssertEqual(next, direct(from - day, to - day, limit: limit))
+    }
+
+    /// A gap (the day cache skipped a day) must not splice across the hole.
+    func testGapDoesNotSpliceAcrossTheMissingDay() async {
+        let w = window()
+        _ = await w.rows(owner: "owner", from: midnight - h30, to: midnight + day)
+        let skipStart = midnight - 2 * day
+        let got = await w.rows(owner: "owner", from: skipStart - h30, to: skipStart + day)
+        XCTAssertEqual(got, direct(skipStart - h30, skipStart + day))
+    }
+}
