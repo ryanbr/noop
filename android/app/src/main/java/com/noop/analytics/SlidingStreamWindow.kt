@@ -36,11 +36,16 @@ class SlidingStreamWindow<T>(
     private var truncated = false
     private var rows: List<T> = emptyList()
 
-    /** Rows this window served from the buffer rather than reading. Diagnostic only. */
+    /** Rows this window served from the buffer rather than reading. Diagnostic only.
+     *
+     *  `Long` here, `Int` on the Swift twin, and that is deliberate rather than drift: each side follows
+     *  its own platform's convention for a count, and the value cannot reach either limit — a pass is
+     *  bounded by `maxDays` windows of at most [limit] rows, so about 4 M on a 21-day pass. Stated because
+     *  a width left to be inferred is how the 32-bit `pct` over-count got in (#1685). */
     var rowsServed = 0L
         private set
 
-    /** Rows this window read from the store. Diagnostic only. */
+    /** Rows this window read from the store. Diagnostic only. Same width note as [rowsServed]. */
     var rowsRead = 0L
         private set
 

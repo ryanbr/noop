@@ -27,8 +27,14 @@ public final class SlidingStreamWindow<T> {
     private var rows: [T] = []
 
     /// Rows this window served from the buffer rather than reading. Diagnostic only.
+    ///
+    /// `Int` here, `Long` on the Kotlin twin, and that is deliberate rather than drift: each side follows
+    /// its own platform's convention for a count, and the value cannot reach either limit — a pass is
+    /// bounded by `maxDays` windows of at most `limit` rows, so about 4 M on a 21-day pass, which fits
+    /// even the 32-bit `Int` of `arm64_32` that this package also builds for. Stated because a width left
+    /// to be inferred is how the 32-bit `pct` over-count got in (#1685).
     public private(set) var rowsServed = 0
-    /// Rows this window read from the store. Diagnostic only.
+    /// Rows this window read from the store. Diagnostic only. Same width note as `rowsServed`.
     public private(set) var rowsRead = 0
 
     public init(tsOf: @escaping (T) -> Int, limit: Int, read: @escaping (String, Int, Int) async -> [T]) {
