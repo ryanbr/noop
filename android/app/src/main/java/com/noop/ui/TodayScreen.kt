@@ -663,6 +663,9 @@ fun TodayScreen(
     // existing RecoveryDriversSection (gated to the calibration countdown when the night can't score) plus
     // the folded Readiness card (S4). Not persisted, so it reopens closed. Mirrors iOS showChargeBreakdown.
     var showChargeBreakdown by remember { mutableStateOf(false) }
+    // #1694: the Latest-Workouts tile that was tapped. Held HERE, not inside the section: the Today
+    // sections are LazyColumn items, and a disposed item would take an open sheet down with it.
+    var selectedWorkoutRow by remember { mutableStateOf<WorkoutRow?>(null) }
     // LIVE SESSIONS (beta, default ON): the "Start session" entry under the hero + its full-screen Dialog
     // (the same presentation the live-workout overlay / Charge breakdown use — deliberately NOT a nav
     // destination, so dismissing it leaves the session's runner coaching and this entry is the way back
@@ -1582,7 +1585,7 @@ fun TodayScreen(
                             modifier = Modifier.fillMaxWidth().staggeredAppear(stagger),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            TodayWorkoutsSection(footer.recentWorkouts)
+                            TodayWorkoutsSection(footer.recentWorkouts, onSelect = { selectedWorkoutRow = it })
                         }
                         // HEART RATE, the live HR thread / trend card. #991: header + card in a Column.
                         TodaySection.HEART_RATE -> Column(
@@ -1739,6 +1742,11 @@ fun TodayScreen(
                 },
             )
         }
+    }
+
+    // #1694: the tapped Latest-Workouts session, in the same read-only sheet the Workouts list opens.
+    selectedWorkoutRow?.let { row ->
+        WorkoutDetailSheet(vm = viewModel, row = row, onDismiss = { selectedWorkoutRow = null })
     }
 
     // LIVE SESSIONS (beta): the full-screen session dialog — the same presentation the live-workout
@@ -6213,7 +6221,7 @@ private fun WorkoutGlyph(icon: ImageVector, modifier: Modifier = Modifier) {
 // MARK: - Today footer sections
 
 @Composable
-private fun TodayWorkoutsSection(workouts: List<WorkoutRow>) {
+private fun TodayWorkoutsSection(workouts: List<WorkoutRow>, onSelect: (WorkoutRow) -> Unit) {
     // Single column, newest first: the 2x2 grid truncated durations on narrow phones and read as
     // unrelated stat tiles rather than a chronological feed. Full-width tiles have room for the
     // kcal chip, so the #332 compactDelta workaround is no longer needed here.
@@ -6223,10 +6231,22 @@ private fun TodayWorkoutsSection(workouts: List<WorkoutRow>) {
     // "Latest Workouts", not "Last": "Last" read as "final". Mirrored on iOS (TodayView). Lives in
     // strings.xml (values + values-de) so the header is localizable like the nav labels.
     SectionHeader(stringResource(R.string.today_latest_workouts), overline = uiString(R.string.today_workouts_activity), trailing = uiString(R.string.today_workouts_14_days))
+    // #1694: the feed was read-only, so the only way to a session's detail was More > Workouts. The
+    // tap opens the SAME read-only WorkoutDetailSheet the Workouts list uses — nothing there can edit
+    // or delete, so a tap from Today carries no risk that list does not already carry.
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
         feed.forEach { workout ->
+            val interaction = remember(workout.startTs, workout.source) { MutableInteractionSource() }
             StatTile(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .liquidPress(interaction)
+                    .clickable(
+                        interactionSource = interaction,
+                        indication = null,
+                        onClickLabel = uiString(R.string.today_action_show_workout),
+                        onClick = { onSelect(workout) },
+                    ),
                 label = WorkoutEditing.displaySport(workout.sport),
                 value = localizedMetricValue(workoutDuration(workout)),
                 caption = workoutCaption(workout),

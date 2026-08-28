@@ -2250,6 +2250,7 @@
     <string name="today_action_reset_hr_zoom">Repor zoom da frequência cardíaca</string>
     <string name="today_action_see_what_shaped">Ver o que influenciou %1$s</string>
     <string name="today_action_show_sources">Mostrar as fontes sincronizadas com o NOOP</string>
+    <string name="today_action_show_workout">Mostrar os detalhes do treino</string>
     <string name="today_contributors">Contributos</string>
     <string name="today_data_sources">Fontes de dados</string>
     <string name="today_hr_beats_per_minute">Batimentos por minuto</string>

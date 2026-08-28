@@ -1483,7 +1483,7 @@ private fun SessionRow(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun WorkoutDetailSheet(vm: AppViewModel, row: WorkoutRow, onDismiss: () -> Unit) {
+internal fun WorkoutDetailSheet(vm: AppViewModel, row: WorkoutRow, onDismiss: () -> Unit) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     // Per-window reads (#410): the HR curve (downsampled bucket means) and the HR-zone split. Zones

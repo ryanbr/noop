@@ -2256,6 +2256,7 @@
     <string name="today_action_reset_hr_zoom">Réinitialiser le zoom de fréquence cardiaque</string>
     <string name="today_action_see_what_shaped">Voir ce qui a influencé %1$s</string>
     <string name="today_action_show_sources">Afficher les sources synchronisées avec NOOP</string>
+    <string name="today_action_show_workout">Afficher les détails de la séance</string>
     <string name="today_contributors">Facteurs</string>
     <string name="today_data_sources">Sources de données</string>
     <string name="today_hr_beats_per_minute">Battements par minute</string>

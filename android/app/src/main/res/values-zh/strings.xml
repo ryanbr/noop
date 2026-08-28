@@ -2185,6 +2185,7 @@
     <string name="today_action_reset_hr_zoom">重置心率缩放</string>
     <string name="today_action_see_what_shaped">查看影响 %1$s 的因素</string>
     <string name="today_action_show_sources">查看 NOOP 同步的数据源</string>
+    <string name="today_action_show_workout">查看锻炼详情</string>
     <string name="today_contributors">影响因素</string>
     <string name="today_data_sources">数据源</string>
     <string name="today_hr_beats_per_minute">每分钟心跳</string>

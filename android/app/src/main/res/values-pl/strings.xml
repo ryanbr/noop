@@ -2250,6 +2250,7 @@
     <string name="today_action_reset_hr_zoom">Zresetuj powiększenie tętna</string>
     <string name="today_action_see_what_shaped">Zobacz, co wpłynęło na %1$s</string>
     <string name="today_action_show_sources">Pokaż źródła synchronizowane z NOOP</string>
+    <string name="today_action_show_workout">Pokaż szczegóły treningu</string>
     <string name="today_contributors">Czynniki</string>
     <string name="today_data_sources">Źródła danych</string>
     <string name="today_hr_beats_per_minute">Uderzenia na minutę</string>

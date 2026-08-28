@@ -300,6 +300,14 @@ struct TodayView: View {
     // 14-day sparkline series, keyed by metric key. Loaded once in .task.
     @State private var sparks: [String: [Double]] = [:]
     @State private var workouts: [WorkoutRow] = []
+    /// #1694: a tapped Latest-Workouts tile. Wrapped so `.sheet(item:)` drives presentation, mirroring
+    /// WorkoutsView's own detail target — the feed was read-only, so the only route to a session's
+    /// detail was More > Workouts.
+    private struct WorkoutDetailTarget: Identifiable {
+        let row: WorkoutRow
+        let id = UUID()
+    }
+    @State private var workoutDetail: WorkoutDetailTarget?
     @State private var appleDays: [AppleDaily] = []
     // Design Reset / #582, the pinned "Your cards" values (Stress / Fitness age / Vitality), surfaced
     // on Today so the buried Explore features sit on the home screen. Loaded in loadAll; nil hides the row.
@@ -1510,6 +1518,20 @@ struct TodayView: View {
                 dashboardCardsRaw: $dashboardCardsRaw,
                 hostedCardsRaw: $hostedCardsRaw
             )
+        }
+        // #1694: the same read-only WorkoutDetailView the Workouts list opens. Nothing here can edit or
+        // delete, so a tap from Today carries no risk that list does not already carry. Rides its own
+        // NavigationStack because these shared screens are not in a per-screen one — mirrors WorkoutsView.
+        .sheet(item: $workoutDetail) { target in
+            NavigationStack {
+                WorkoutDetailView(row: target.row)
+                    .environmentObject(repo)
+            }
+            #if os(iOS)
+            .noopSheetPresentation(largeFirst: true)
+            #else
+            .frame(width: 620, height: 720)
+            #endif
         }
         #if os(iOS)
         .fullScreenCover(isPresented: $showLiveSession) {
@@ -3853,14 +3875,21 @@ struct TodayView: View {
                               trailing: String(localized: "\(workouts.count) total"))
                 LazyVGrid(columns: grid, alignment: .leading, spacing: NoopMetrics.gap) {
                     ForEach(Array(workouts.prefix(6).enumerated()), id: \.offset) { _, w in
-                        StatTile(
-                            label: "\(WorkoutSource.displaySport(w.sport))",
-                            value: workoutDuration(w),
-                            caption: workoutCaption(w),
-                            accent: StrandPalette.effortTint(fraction: (w.strain ?? 0) / StrainScorer.maxStrain),
-                            delta: w.energyKcal.map { "\(Int($0.rounded())) kcal" },
-                            deltaColor: StrandPalette.metricAmber
-                        )
+                        Button {
+                            workoutDetail = WorkoutDetailTarget(row: w)
+                        } label: {
+                            StatTile(
+                                label: "\(WorkoutSource.displaySport(w.sport))",
+                                value: workoutDuration(w),
+                                caption: workoutCaption(w),
+                                accent: StrandPalette.effortTint(fraction: (w.strain ?? 0) / StrainScorer.maxStrain),
+                                delta: w.energyKcal.map { "\(Int($0.rounded())) kcal" },
+                                deltaColor: StrandPalette.metricAmber
+                            )
+                        }
+                        // The Workouts list's own rows use this, not .plain: it is the iOS twin of
+                        // Android's liquidPress, so the tile settles inward on press on both platforms.
+                        .buttonStyle(LiquidPressStyle())
                     }
                 }
             }

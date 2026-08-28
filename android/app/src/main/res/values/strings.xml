@@ -2370,6 +2370,7 @@
     <string name="today_action_reset_hr_zoom">Reset the heart rate zoom</string>
     <string name="today_action_see_what_shaped">See what shaped your %1$s</string>
     <string name="today_action_show_sources">Show what NOOP is synced from</string>
+    <string name="today_action_show_workout">Show workout detail</string>
     <string name="today_contributors">Contributors</string>
     <string name="today_data_sources">Data sources</string>
     <string name="today_hr_beats_per_minute">Beats per minute</string>

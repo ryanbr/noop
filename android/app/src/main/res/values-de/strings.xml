@@ -2271,6 +2271,7 @@
     <string name="today_action_reset_hr_zoom">Herzfrequenz-Zoom zurücksetzen</string>
     <string name="today_action_see_what_shaped">Einflüsse auf %1$s anzeigen</string>
     <string name="today_action_show_sources">Synchronisierte NOOP-Quellen anzeigen</string>
+    <string name="today_action_show_workout">Workout-Details anzeigen</string>
     <string name="today_contributors">Einflussfaktoren</string>
     <string name="today_data_sources">Datenquellen</string>
     <string name="today_hr_beats_per_minute">Schläge pro Minute</string>
