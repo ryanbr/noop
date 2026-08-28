@@ -130,8 +130,11 @@ struct NOOPWidgetView: View {
     /// colour it is given and maps it onto the wallpaper. A domain colour handed to it does not survive
     /// as that colour — it lands as an arbitrary grey whose luminance nobody chose, so Charge, Effort and
     /// Rest stopped being distinguishable AND stopped being legible. `.primary`/`.secondary` are the two
-    /// levels the system is designed to map, so the value reads at full strength and the label recedes,
-    /// which is the hierarchy the tint was there to express in the first place.
+    /// levels the system is designed to map, so the value reads at full strength and the glyph above it
+    /// recedes, which is the hierarchy the tint was there to express in the first place.
+    ///
+    /// The `.fullColor` branch is defensive rather than hot: this family renders `.vibrant` on the lock
+    /// screen and in StandBy, so the tint realistically only reaches a gallery preview.
     private func accessoryScore(_ label: String, symbol: String, text: String?, tint: Color) -> some View {
         VStack(spacing: 1) {
             // Glyph over value, the shape the request asked for. A 9pt word under each number was
@@ -151,7 +154,12 @@ struct NOOPWidgetView: View {
         // metric. Collapse the cell to one element that still speaks "Charge, 68 percent".
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(label))
-        .accessibilityValue(Text(text ?? String(localized: "No data")))
+        // Plain literal, not String(localized:). This extension's sources are StrandiOSWidgets +
+        // StrandiOSShared only — Strand/Resources/Localizable.xcstrings is NOT in the target, and
+        // String(localized:) resolves against Bundle.main, which for an app extension is the extension's
+        // own bundle. It would compile, look localized, and render English in every locale. Every other
+        // string in this file is a bare literal for the same reason: the widget is not localized yet.
+        .accessibilityValue(Text(text ?? "No data"))
     }
 
     private func scoreStyle(hasValue: Bool, tint: Color) -> AnyShapeStyle {
