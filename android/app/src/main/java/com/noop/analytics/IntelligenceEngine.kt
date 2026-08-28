@@ -1277,7 +1277,7 @@ object IntelligenceEngine {
         // (each row materialised ~2.25x per pass) is worth narrowing; analyzeDay dominating means it is
         // not, whatever the row counts look like. Byte-identical line to the Swift twin.
         diag("analyzeRecent cost prep=${dayPrepNanos / 1_000_000}ms score=${dayScoreNanos / 1_000_000}ms")
-        diag(analyzeWindowsLogLine(hrWindow.rowsRead, hrWindow.rowsServed, rrWindow.rowsRead, rrWindow.rowsServed))
+        diag(WindowedStreamPlan.logLine(hrWindow.rowsRead, hrWindow.rowsServed, rrWindow.rowsRead, rrWindow.rowsServed))
 
         // ── Seed the baseline from the UNION of imported nightly history + the nightly
         // values just computed. This is the recovery fix: the "-noop" nightly avgHrv/
@@ -2661,19 +2661,6 @@ object IntelligenceEngine {
             repo.rrIntervals(o, f, t, STREAM_LIMIT)
         }
 
-    /**
-     * What the pass-1 sliding read windows saved, emitted beside the `prep`/`score` line the decision to
-     * build them was made from (#1538). `read` is rows fetched from the store, `served` rows a buffer
-     * supplied instead.
-     *
-     * A pass where `served` is ~0 means the windows are declining — truncation, an owner flip, or a gap
-     * left by a dayCache hit — and the reads are back to exactly what they were. That is the honest
-     * outcome rather than a silent one, which is why the counters ship rather than just the speedup.
-     *
-     * Pure, and outside `analyzeRecentOnCpu` for the same budget reason. Byte-identical to the Swift twin.
-     */
-    internal fun analyzeWindowsLogLine(hrRead: Long, hrServed: Long, rrRead: Long, rrServed: Long): String =
-        "analyzeRecent windows hr[read=$hrRead served=$hrServed] rr[read=$rrRead served=$rrServed]"
 
     /**
      * The per-day skin-temp, SpO2 and off-wrist reads, lifted out of `analyzeRecentOnCpu` (#1538).

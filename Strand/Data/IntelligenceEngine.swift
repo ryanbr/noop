@@ -1474,9 +1474,9 @@ final class IntelligenceEngine: ObservableObject {
             // from. A pass where `served` is ~0 means they are declining (truncation, an owner flip, or a
             // gap left by a dayCache hit) and the reads are back to what they were — the honest outcome
             // rather than a silent one. Byte-identical to the Kotlin `analyzeWindowsLogLine`.
-            skippedDayLines.append(
-                "analyzeRecent windows hr[read=\(hrWindow.rowsRead) served=\(hrWindow.rowsServed)] "
-                + "rr[read=\(rrWindow.rowsRead) served=\(rrWindow.rowsServed)]")
+            skippedDayLines.append(WindowedStreamPlan.logLine(
+                hrRead: hrWindow.rowsRead, hrServed: hrWindow.rowsServed,
+                rrRead: rrWindow.rowsRead, rrServed: rrWindow.rowsServed))
             return (out, skippedDayLines, dayScanCacheLocal)
         }.value
         // #1005: write the loop's updated reuse cache back to the (main-actor) stored property. The pass ran

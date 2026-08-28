@@ -19,6 +19,21 @@ package com.noop.analytics
  */
 object WindowedStreamPlan {
 
+    /**
+     * What the sliding windows saved, for the line emitted beside `analyzeRecent`'s `prep`/`score` split
+     * — the measurement the decision to build them was made from.
+     *
+     * `read` is rows fetched from the store, `served` rows a buffer supplied instead. A pass where
+     * `served` is ~0 means the windows are declining — truncation, an owner flip, or a gap left by a
+     * dayCache hit — and the reads are back to exactly what they were. That is the honest outcome rather
+     * than a silent one, which is why the counters ship rather than just the speedup.
+     *
+     * Lives HERE rather than on the engine so both platforms put it in the same place and both are
+     * covered by default CI. Byte-identical to the Swift `WindowedStreamPlan.logLine`.
+     */
+    fun logLine(hrRead: Long, hrServed: Long, rrRead: Long, rrServed: Long): String =
+        "analyzeRecent windows hr[read=$hrRead served=$hrServed] rr[read=$rrRead served=$rrServed]"
+
     /** What the caller should do to obtain rows for the requested window. */
     sealed interface Plan {
         /** Read the whole window from the store; nothing usable is buffered. */

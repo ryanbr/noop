@@ -68,4 +68,19 @@ final class WindowedStreamPlanTests: XCTestCase {
         XCTAssertEqual(p(100, 200, 50, 150), .extend(readFrom: 50, readTo: 99))
         XCTAssertEqual(p(100, 200, 50, 100), .extend(readFrom: 50, readTo: 99))
     }
+
+    /// The saved-rows line. Twin of Kotlin `logLineShape` — same inputs, same string, and the shape is
+    /// pinned because a diagnostic nobody asserts is a diagnostic that can drift into meaning nothing.
+    ///
+    /// The zero case is the one worth having: a pass where the windows decline entirely must SAY so rather
+    /// than simply omit the line, so a reader can tell "the buffer saved nothing" from "the buffer was
+    /// never asked".
+    func testLogLine() {
+        XCTAssertEqual(
+            WindowedStreamPlan.logLine(hrRead: 1_000, hrServed: 9_000, rrRead: 250, rrServed: 750),
+            "analyzeRecent windows hr[read=1000 served=9000] rr[read=250 served=750]")
+        XCTAssertEqual(
+            WindowedStreamPlan.logLine(hrRead: 0, hrServed: 0, rrRead: 0, rrServed: 0),
+            "analyzeRecent windows hr[read=0 served=0] rr[read=0 served=0]")
+    }
 }

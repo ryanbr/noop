@@ -70,4 +70,23 @@ class WindowedStreamPlanTest {
         assertEquals(Plan.Extend(50, 99), WindowedStreamPlan.plan("w", 100, 200, false, "w", 50, 150))
         assertEquals(Plan.Extend(50, 99), WindowedStreamPlan.plan("w", 100, 200, false, "w", 50, 100))
     }
+
+    /**
+     * The saved-rows line. Twin of Swift `testLogLine` — same inputs, same string, and the shape is
+     * pinned because a diagnostic nobody asserts is a diagnostic that can drift into meaning nothing.
+     *
+     * The zero case is the one worth having: a pass where the windows decline entirely must SAY so rather
+     * than simply omit the line, so a reader can tell "the buffer saved nothing" from "the buffer was
+     * never asked".
+     */
+    @Test fun logLineShape() {
+        assertEquals(
+            "analyzeRecent windows hr[read=1000 served=9000] rr[read=250 served=750]",
+            WindowedStreamPlan.logLine(1_000L, 9_000L, 250L, 750L),
+        )
+        assertEquals(
+            "analyzeRecent windows hr[read=0 served=0] rr[read=0 served=0]",
+            WindowedStreamPlan.logLine(0L, 0L, 0L, 0L),
+        )
+    }
 }
