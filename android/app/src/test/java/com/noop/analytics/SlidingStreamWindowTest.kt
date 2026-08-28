@@ -60,6 +60,37 @@ class SlidingStreamWindowTest {
     }
 
     /**
+     * The truncation counter is the one diagnostic here that means a SCORE may be wrong rather than
+     * merely slow, so pin when it moves and when it does not. Twin of the Swift case of the same name.
+     */
+    @Test fun truncatedReadsCountsOnlyReadsThatLostRows() = runBlocking {
+        val clean = window()
+        clean.rows("owner", midnight - h30, midnight + day)
+        assertEquals("a read under the cap lost nothing", 0L, clean.truncatedReads)
+
+        val capped = window(1_000)
+        capped.rows("owner", midnight - h30, midnight + day)
+        assertEquals("a read AT the cap dropped its newest rows", 1L, capped.truncatedReads)
+    }
+
+    /**
+     * Once a read is truncated the planner refuses to splice at all — `cachedTruncated` is its FIRST
+     * guard — so every later window is a fresh full read. Each of those that is itself at the cap is a
+     * separate lost tail and counts again: the number is windows-that-lost-rows, not passes.
+     *
+     * Deliberately NOT a test of the truncated-extension branch. That branch needs a buffer that is
+     * valid but whose extension overruns the cap, and a truncated read can never leave a valid buffer,
+     * so a uniform backward walk cannot reach it.
+     */
+    @Test fun eachTruncatedWindowCountsSeparately() = runBlocking {
+        val w = window(1_000)
+        w.rows("owner", midnight - h30, midnight + day)
+        val afterFirst = w.truncatedReads
+        w.rows("owner", midnight - day - h30, midnight)
+        assertEquals("one increment per window that lost rows", afterFirst + 1L, w.truncatedReads)
+    }
+
+    /**
      * A truncated read cannot be sliced, because `ORDER BY ts ASC LIMIT` drops the NEWEST rows — the
      * buffer would be missing its tail with nothing to say so. The next day must read in full and still
      * match a direct read at the same limit.

@@ -47,8 +47,10 @@ public final class SlidingStreamWindow<T> {
     /// scored on an incomplete window. Diagnostic only, but unlike its siblings this one is a correctness
     /// signal rather than a savings one: a non-zero count means a number may be wrong, not merely slow.
     ///
-    /// A truncated EXTENSION that the branch below recovers by re-reading whole is deliberately NOT
-    /// counted — nothing was lost there, and counting it would cry wolf.
+    /// Counted per WINDOW that lost rows, not per pass: once a read is truncated the planner refuses to
+    /// splice at all, so each later window is a fresh full read and is judged on its own. The truncated-
+    /// EXTENSION branch below cannot add a second count for one window either, since it only ever re-reads
+    /// a SUPERSET of what already overran the cap. Pinned by `eachTruncatedWindowCountsSeparately`.
     public private(set) var truncatedReads = 0
 
     public init(tsOf: @escaping (T) -> Int, limit: Int, read: @escaping (String, Int, Int) async -> [T]?) {

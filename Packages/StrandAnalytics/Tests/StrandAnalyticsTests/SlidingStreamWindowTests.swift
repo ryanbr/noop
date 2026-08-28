@@ -51,6 +51,33 @@ final class SlidingStreamWindowTests: XCTestCase {
 
     /// A truncated read cannot be sliced, because `ORDER BY ts ASC LIMIT` drops the NEWEST rows — the
     /// buffer would be missing its tail with nothing to say so.
+    /// The truncation counter is the one diagnostic here that means a SCORE may be wrong rather than
+    /// merely slow, so pin when it moves and when it does not. Twin of the Kotlin case of the same name.
+    func testTruncatedReadsCountsOnlyReadsThatLostRows() async {
+        let clean = window()
+        _ = await clean.rows(owner: "owner", from: midnight - h30, to: midnight + day)
+        XCTAssertEqual(clean.truncatedReads, 0, "a read under the cap lost nothing")
+
+        let capped = window(limit: 1_000)
+        _ = await capped.rows(owner: "owner", from: midnight - h30, to: midnight + day)
+        XCTAssertEqual(capped.truncatedReads, 1, "a read AT the cap dropped its newest rows")
+    }
+
+    /// Once a read is truncated the planner refuses to splice at all — `cachedTruncated` is its FIRST
+    /// guard — so every later window is a fresh full read. Each of those that is itself at the cap is a
+    /// separate lost tail and counts again: the number is windows-that-lost-rows, not passes.
+    ///
+    /// Deliberately NOT a test of the truncated-extension branch. That branch needs a buffer that is
+    /// valid but whose extension overruns the cap, and a truncated read can never leave a valid buffer,
+    /// so a uniform backward walk cannot reach it.
+    func testEachTruncatedWindowCountsSeparately() async {
+        let w = window(limit: 1_000)
+        _ = await w.rows(owner: "owner", from: midnight - h30, to: midnight + day)
+        let afterFirst = w.truncatedReads
+        _ = await w.rows(owner: "owner", from: midnight - day - h30, to: midnight)
+        XCTAssertEqual(w.truncatedReads, afterFirst + 1, "one increment per window that lost rows")
+    }
+
     func testTruncatedReadIsNeverSliced() async {
         let limit = 1_000
         let w = window(limit: limit)
