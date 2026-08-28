@@ -106,6 +106,12 @@ public final class SlidingStreamWindow<T> {
     /// before this class existed.
     private func failedRead() -> [T] {
         owner = nil
+        // The range is cleared too, not just the owner. Leaving it stale would work only because
+        // `WindowedStreamPlan.plan` happens to test the owner BEFORE the bounds — a cross-file assumption
+        // that holds today and would break silently if those checks were ever reordered. Cheaper to be
+        // self-consistent than to depend on the order of someone else's guards.
+        from = 0
+        to = 0
         rows = []
         truncated = false
         return []
