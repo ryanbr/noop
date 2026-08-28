@@ -50,9 +50,24 @@ final class Whoop5HistoricalTests: XCTestCase {
         let gz = f.parsed["gravity_z"]?.doubleValue ?? 0
         XCTAssertEqual((gx * gx + gy * gy + gz * gz).squareRoot(), 1.0, accuracy: 0.05)
 
-        // R-R is internally consistent with the heart rate (60000 / mean(R-R) ≈ bpm).
-        let meanRR = Double(602 + 613) / 2.0
-        XCTAssertEqual(60000.0 / meanRR, 102, accuracy: 8)
+        // Physiological cross-check: 60000 / mean(R-R) ≈ heart_rate — read from the PARSE, not from
+        // literals. It used to compute `Double(602 + 613) / 2.0` against a literal 102, which is a
+        // constant expression: it could not fail, and could not detect a wrong offset or a wrong width,
+        // while reading as though the decoder's R-R was checked against its own HR. Same shape as the
+        // WHOOP 4.0 test next door, which always did it properly.
+        //
+        // The tolerance does NOT discriminate UNITS, and tightening it will not make it. #1505 asked
+        // whether v18 R-R is milliseconds or 1/1024-s ticks — the two readings differ by 2.4%, which at
+        // this heart rate is ~2.5 bpm, while a two-beat sample legitimately varies more than that against
+        // a heart_rate averaged over the record. On this record the ms reading is the WORSE fit (98.8 vs
+        // 101.1 bpm), so any tolerance admitting the shipped behaviour admits the alternative too.
+        // The units question was settled from 151 real multi-interval v18 records in an HCI capture,
+        // where ms fits better on 86% — not from here, and this check should not be read as evidence.
+        let rr = f.parsed["rr_intervals"]?.intArrayValue ?? []
+        XCTAssertFalse(rr.isEmpty, "no R-R decoded — the cross-check below would be vacuous")
+        let meanRR = Double(rr.reduce(0, +)) / Double(rr.count)
+        let hr = f.parsed["heart_rate"]?.intValue ?? 0
+        XCTAssertEqual(60000.0 / meanRR, Double(hr), accuracy: 4)
     }
 
     func testHistoricalV18BiometricFields() {

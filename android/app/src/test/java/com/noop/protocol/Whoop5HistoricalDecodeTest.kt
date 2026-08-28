@@ -39,6 +39,19 @@ class Whoop5HistoricalDecodeTest {
         assertEquals(2, p["rr_count"])
         assertEquals(listOf(602, 613), p["rr_intervals"])
 
+        // Physiological cross-check: 60000 / mean(R-R) ≈ heart_rate, from the PARSE rather than literals.
+        // Twin of the Swift `testHistoricalV18HeartRateRRAndGravity` check, which this side never had —
+        // so a wrong v18 R-R offset or width would have been caught on one platform only.
+        //
+        // It does NOT discriminate UNITS and tightening it will not make it: milliseconds and 1/1024-s
+        // ticks differ by 2.4% (~2.5 bpm here), less than a two-beat sample varies against a heart_rate
+        // averaged over the record. See the Swift twin for why, and where the units question was settled.
+        @Suppress("UNCHECKED_CAST")
+        val rr = p["rr_intervals"] as List<Int>
+        assertTrue("no R-R decoded — the cross-check below would be vacuous", rr.isNotEmpty())
+        val meanRr = rr.sum().toDouble() / rr.size
+        assertEquals((p["heart_rate"] as Int).toDouble(), 60_000.0 / meanRr, 4.0)
+
         val gx = p["gravity_x"] as Double
         val gy = p["gravity_y"] as Double
         val gz = p["gravity_z"] as Double
