@@ -807,6 +807,8 @@
     <string name="l10n_smart_alarm_screen_remind_me_to_wind_down_4839f0d0">提醒我准备入睡</string>
     <string name="l10n_smart_alarm_screen_shorten_window_5bf5b37d">缩短唤醒窗口</string>
     <string name="l10n_smart_alarm_screen_strap_wake_alarm_1828fff3">手环无声唤醒</string>
+    <string name="smart_alarm_check_strap_alarm">查看手环已存储的闹钟</string>
+    <string name="smart_alarm_check_strap_alarm_help">手环的回应会出现在手环日志和诊断导出中，并附带收到的原始字节。</string>
     <string name="l10n_smart_alarm_screen_the_earliest_noop_will_wake_you_b641a2d4">NOOP 可能会唤醒您的最早时间。</string>
     <string name="l10n_smart_alarm_screen_the_guaranteed_alarm_fires_this_long_b0c51052">如果您在这段时间内未被智能唤醒，保底闹钟将在窗口期结束时必定响起。</string>
     <string name="l10n_smart_alarm_screen_this_is_a_coarse_cue_from_d6bbabe7">这是根据心率变动做出的粗略提示，而非临床级别的睡眠阶段判断。如果手环...</string>

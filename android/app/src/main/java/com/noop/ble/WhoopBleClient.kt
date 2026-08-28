@@ -4527,6 +4527,26 @@ class WhoopBleClient(
     }
 
     /**
+     * Ask the strap what alarm it currently has stored (#1706). The reply lands on the command-notify
+     * characteristic and is handled by the same GET_ALARM_TIME branch an arm's own follow-up read uses,
+     * so it persists `alarm.lastReportedEpoch` + the RAW response bytes for the debug export.
+     *
+     * Port of Swift `BLEManager.getStrapAlarm`, which until now had no caller on either platform. It
+     * exists here because the readback was otherwise only reachable by ARMING: a user whose alarm is off
+     * could not produce the evidence needed to explain what their strap reports, and on Android arming
+     * was the sole trigger.
+     *
+     * Deliberately NOT family-gated, unlike [armStrapAlarm]. Only the 4.0 branch DECODES the reply into
+     * `alarm.lastReportedEpoch`, but a 5/MG still logs whatever frame comes back with its raw hex — and
+     * on a strap whose readback layout is undocumented, that raw frame is the whole point of the button.
+     * Refusing to send would throw away the one thing worth capturing.
+     */
+    fun getStrapAlarm() {
+        send(CommandNumber.GET_ALARM_TIME, byteArrayOf(0x01))
+        log("Alarm: requested current alarm time")
+    }
+
+    /**
      * Arm the strap's **firmware** alarm to buzz at [epochSec] (absolute UTC seconds). The strap fires
      * at that instant even if the phone is asleep or NOOP is closed. SET_CLOCK is sent first so the
      * strap's RTC is UTC-correct (a wrong RTC fires the alarm at the wrong wall-clock time). The 4.0

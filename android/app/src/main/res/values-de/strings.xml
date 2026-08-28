@@ -860,6 +860,8 @@
     <string name="l10n_smart_alarm_screen_remind_me_to_wind_down_4839f0d0">Erinnere mich ans Runterkommen</string>
     <string name="l10n_smart_alarm_screen_shorten_window_5bf5b37d">Fenster verkürzen</string>
     <string name="l10n_smart_alarm_screen_strap_wake_alarm_1828fff3">Strap-Weckalarm</string>
+    <string name="smart_alarm_check_strap_alarm">Prüfen, was das Band gespeichert hat</string>
+    <string name="smart_alarm_check_strap_alarm_help">Die Antwort des Bands erscheint im Band-Log und im Diagnose-Export, samt der empfangenen Rohbytes.</string>
     <string name="l10n_smart_alarm_screen_the_earliest_noop_will_wake_you_b641a2d4">Der früheste NOOP wird Sie wecken.</string>
     <string name="l10n_smart_alarm_screen_the_guaranteed_alarm_fires_this_long_b0c51052">Der garantierte Alarm feuert so lange nach Ihrer frühesten Zeit.</string>
     <string name="l10n_smart_alarm_screen_this_is_a_coarse_cue_from_d6bbabe7">Dies ist ein grober Hinweis auf die Herzfrequenz, keine klinische Schlafphase. Wenn das Gurtband</string>

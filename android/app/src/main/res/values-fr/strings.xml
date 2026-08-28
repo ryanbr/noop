@@ -677,6 +677,8 @@
     <string name="l10n_smart_alarm_screen_remind_me_to_wind_down_4839f0d0">Me rappeler de me détendre</string>
     <string name="l10n_smart_alarm_screen_shorten_window_5bf5b37d">Écourter la fenêtre</string>
     <string name="l10n_smart_alarm_screen_strap_wake_alarm_1828fff3">Alarme de réveil du bracelet</string>
+    <string name="smart_alarm_check_strap_alarm">Vérifier ce que le bracelet a enregistré</string>
+    <string name="smart_alarm_check_strap_alarm_help">La réponse du bracelet apparaît dans le journal et l’export de diagnostic, avec les octets bruts reçus.</string>
     <string name="l10n_smart_alarm_screen_the_earliest_noop_will_wake_you_b641a2d4">Le premier NOOP vous réveillera.</string>
     <string name="l10n_smart_alarm_screen_the_guaranteed_alarm_fires_this_long_b0c51052">L\'alarme garantie tire aussi longtemps après votre plus jeune heure.</string>
     <string name="l10n_smart_alarm_screen_this_is_a_coarse_cue_from_d6bbabe7">Il s\'agit d\'un signal grossier de la fréquence cardiaque, et non d\'une lecture clinique au stade du sommeil. Si le bracelet </string>

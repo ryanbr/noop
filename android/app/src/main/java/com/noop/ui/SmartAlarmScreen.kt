@@ -287,6 +287,22 @@ private fun StrapAlarmCard(vm: AppViewModel) {
                             "Connect your strap to arm this; it's set on the strap's own firmware alarm. Confirmed working on WHOOP 4.0; still experimental on 5.0 and MG. Keep a backup alarm for anything you truly can't miss.",
                         style = NoopType.footnote, color = Palette.textTertiary,
                     )
+                    // #1706: ask the strap what it actually has stored. The readback was previously only
+                    // reachable by ARMING, so anyone whose alarm is off could not produce the evidence
+                    // that explains a wrong reported time. 4.0 only — the 5/MG readback is not decoded.
+                    if (live.bonded) {
+                        RowDividerLocal()
+                        NoopButton(
+                            text = uiString(R.string.smart_alarm_check_strap_alarm),
+                            kind = NoopButtonKind.Secondary,
+                            fullWidth = true,
+                            onClick = { vm.ble.getStrapAlarm() },
+                        )
+                        Text(
+                            uiString(R.string.smart_alarm_check_strap_alarm_help),
+                            style = NoopType.footnote, color = Palette.textTertiary,
+                        )
+                    }
                 }
             }
         }

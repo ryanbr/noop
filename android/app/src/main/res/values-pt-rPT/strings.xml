@@ -825,6 +825,8 @@
     <string name="l10n_smart_alarm_screen_remind_me_to_wind_down_4839f0d0">Lembre-me de relaxar</string>
     <string name="l10n_smart_alarm_screen_shorten_window_5bf5b37d">Encurtar janela</string>
     <string name="l10n_smart_alarm_screen_strap_wake_alarm_1828fff3">Bracelete despertador</string>
+    <string name="smart_alarm_check_strap_alarm">Verificar o que a pulseira tem guardado</string>
+    <string name="smart_alarm_check_strap_alarm_help">A resposta da pulseira aparece no registo e na exportação de diagnóstico, com os bytes recebidos.</string>
     <string name="l10n_smart_alarm_screen_the_earliest_noop_will_wake_you_b641a2d4">O primeiro NOOP irá acordá-lo.</string>
     <string name="l10n_smart_alarm_screen_the_guaranteed_alarm_fires_this_long_b0c51052">O alarme garantido dispara muito depois do primeiro horário.</string>
     <string name="l10n_smart_alarm_screen_this_is_a_coarse_cue_from_d6bbabe7">Esta é uma indicação grosseira da frequência cardíaca, não uma leitura clínica da fase do sono. Se a pega </string>

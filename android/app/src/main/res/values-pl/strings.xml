@@ -811,6 +811,8 @@
     <string name="l10n_smart_alarm_screen_remind_me_to_wind_down_4839f0d0">Przypomnij mi, żebym się uspokoił</string>
     <string name="l10n_smart_alarm_screen_shorten_window_5bf5b37d">Skróć okno</string>
     <string name="l10n_smart_alarm_screen_strap_wake_alarm_1828fff3">Budzik na pasek</string>
+    <string name="smart_alarm_check_strap_alarm">Sprawdź, co zapisała opaska</string>
+    <string name="smart_alarm_check_strap_alarm_help">Odpowiedź opaski pojawi się w logu i eksporcie diagnostycznym, wraz z otrzymanymi surowymi bajtami.</string>
     <string name="l10n_smart_alarm_screen_the_earliest_noop_will_wake_you_b641a2d4">Obudzi Cię najwcześniej NOOP.</string>
     <string name="l10n_smart_alarm_screen_the_guaranteed_alarm_fires_this_long_b0c51052">Gwarantowany alarm uruchomi się tak długo po najwcześniejszym momencie.</string>
     <string name="l10n_smart_alarm_screen_this_is_a_coarse_cue_from_d6bbabe7">Jest to przybliżona wskazówka na podstawie tętna, a nie kliniczny odczyt na etapie snu. Jeśli pasek</string>

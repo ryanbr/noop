@@ -945,6 +945,8 @@
     <string name="l10n_smart_alarm_screen_remind_me_to_wind_down_4839f0d0">Remind me to wind down</string>
     <string name="l10n_smart_alarm_screen_shorten_window_5bf5b37d">Shorten window</string>
     <string name="l10n_smart_alarm_screen_strap_wake_alarm_1828fff3">Strap wake-alarm</string>
+    <string name="smart_alarm_check_strap_alarm">Check what the strap has stored</string>
+    <string name="smart_alarm_check_strap_alarm_help">The answer from the strap appears in your strap log and debug export, with the raw bytes it replied with.</string>
     <string name="l10n_smart_alarm_screen_the_earliest_noop_will_wake_you_b641a2d4">The earliest NOOP will wake you.</string>
     <string name="l10n_smart_alarm_screen_the_guaranteed_alarm_fires_this_long_b0c51052">The guaranteed alarm fires this long after your earliest time.</string>
     <string name="l10n_smart_alarm_screen_this_is_a_coarse_cue_from_d6bbabe7">This is a coarse cue from heart rate, not a clinical sleep-stage reading. If the strap </string>

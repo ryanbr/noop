@@ -659,6 +659,8 @@
     <string name="l10n_smart_alarm_screen_remind_me_to_wind_down_4839f0d0">Recuérdame relajarme</string>
     <string name="l10n_smart_alarm_screen_shorten_window_5bf5b37d">Ventana corta</string>
     <string name="l10n_smart_alarm_screen_strap_wake_alarm_1828fff3">Alarma de despertar de la pulsera</string>
+    <string name="smart_alarm_check_strap_alarm">Comprobar qué tiene guardado la pulsera</string>
+    <string name="smart_alarm_check_strap_alarm_help">La respuesta de la pulsera aparece en el registro y en la exportación de diagnóstico, con los bytes recibidos.</string>
     <string name="l10n_smart_alarm_screen_the_earliest_noop_will_wake_you_b641a2d4">La primera NOOP te despertará.</string>
     <string name="l10n_smart_alarm_screen_the_guaranteed_alarm_fires_this_long_b0c51052">La alarma garantizada dispara tanto tiempo después de su primer tiempo.</string>
     <string name="l10n_smart_alarm_screen_this_is_a_coarse_cue_from_d6bbabe7">Este es un cue grueso de la frecuencia cardíaca, no una lectura clínica del estadio del sueño. Si la correa</string>
