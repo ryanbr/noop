@@ -242,6 +242,27 @@ struct SmartAlarmView: View {
                             .font(StrandFont.footnote)
                             .foregroundStyle(StrandPalette.textTertiary)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                        // #1706: ask the strap what it actually has stored. The readback was otherwise
+                        // only reachable by ARMING, so anyone whose alarm is off could not produce the
+                        // frame that explains a wrong reported time.
+                        //
+                        // Shown unconditionally, where the Android twin hides it until bonded. That is a
+                        // deliberate platform difference, not drift: the Android card already observes
+                        // LiveState, so gating there is free, while this view does not — and pulling
+                        // `live` in would re-render the whole alarm screen on every 1 Hz HR tick, which
+                        // this codebase keeps parent views clear of on purpose. `getStrapAlarm` no-ops
+                        // and logs when nothing is connected, so the worst case is one ignored write.
+                        Divider().overlay(StrandPalette.hairline)
+                        Button {
+                            model.ble.getStrapAlarm()
+                        } label: {
+                            Text("Check what the strap has stored")
+                        }
+                        .buttonStyle(NoopButtonStyle(.secondary, fullWidth: true))
+                        Text("The answer from the strap appears in your strap log and debug export, with the raw bytes it replied with.")
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textTertiary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
             }
