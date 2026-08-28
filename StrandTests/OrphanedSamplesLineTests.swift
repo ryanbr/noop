@@ -48,9 +48,12 @@ final class OrphanedSamplesLineTests: XCTestCase {
 
     // MARK: - #1193 wording is for a genuine split — NOT for a second strap's night
 
-    /// The over-assertion this branch exists for. A wearer with two straps has nights owned by the other
-    /// one; `DayOwnerResolver` hands each day to whichever device holds its data. Samples under that id
-    /// are expected, and calling it a read failure sends the reader hunting a bug that is not there.
+    /// Both over-assertions this branch has carried. It must not call a second strap's night a read
+    /// failure — `DayOwnerResolver` hands each day to whichever device holds its data, so samples under
+    /// that id can be perfectly normal. And it must not call the silence expected either: with a 4.0 and
+    /// a 5.0 worn together the active strap can bank nothing because its handshake never completed
+    /// (#1635), which looks identical from here. The line states both halves; this pins that it keeps
+    /// stating both.
     func testASecondRegisteredStrapsNightStatesTheForkNeverABareVerdict() {
         let line = DebugDataDiagnostics.orphanedSamplesLine(
             activeId: "whoop-FD:4A",
