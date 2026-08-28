@@ -113,9 +113,12 @@ struct NOOPWidgetView: View {
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
             HStack(alignment: .top, spacing: 0) {
-                accessoryScore("Charge", text: snap.recovery.map { "\($0)%" }, tint: chargeColor)
-                accessoryScore("Effort", text: effortText, tint: effortColor)
-                accessoryScore("Rest", text: snap.rest.map { "\($0)%" }, tint: restColor)
+                accessoryScore("Charge", symbol: "figure.mind.and.body",
+                               text: snap.recovery.map { "\($0)%" }, tint: chargeColor)
+                accessoryScore("Effort", symbol: "figure.strengthtraining.traditional",
+                               text: effortText, tint: effortColor)
+                accessoryScore("Rest", symbol: "moon.fill",
+                               text: snap.rest.map { "\($0)%" }, tint: restColor)
             }
         }
     }
@@ -129,19 +132,26 @@ struct NOOPWidgetView: View {
     /// Rest stopped being distinguishable AND stopped being legible. `.primary`/`.secondary` are the two
     /// levels the system is designed to map, so the value reads at full strength and the label recedes,
     /// which is the hierarchy the tint was there to express in the first place.
-    private func accessoryScore(_ label: String, text: String?, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(text ?? "–")
-                .font(.system(size: 16, weight: .semibold, design: .rounded))
-                .foregroundStyle(scoreStyle(hasValue: text != nil, tint: tint))
-                .minimumScaleFactor(0.7)
-            Text(label)
-                .font(.system(size: 9))
+    private func accessoryScore(_ label: String, symbol: String, text: String?, tint: Color) -> some View {
+        VStack(spacing: 1) {
+            // Glyph over value, the shape the request asked for. A 9pt word under each number was
+            // spending scarce height on text nobody needs twice — the icons carry the metric identity.
+            Image(systemName: symbol)
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(renderingMode == .fullColor
                                  ? AnyShapeStyle(StrandPalette.textTertiary)
                                  : AnyShapeStyle(HierarchicalShapeStyle.secondary))
+            Text(text ?? "–")
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .foregroundStyle(scoreStyle(hasValue: text != nil, tint: tint))
+                .minimumScaleFactor(0.7)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity)
+        // An icon says nothing to VoiceOver, and the word it replaced was the only thing naming this
+        // metric. Collapse the cell to one element that still speaks "Charge, 68 percent".
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(label))
+        .accessibilityValue(Text(text ?? String(localized: "No data")))
     }
 
     private func scoreStyle(hasValue: Bool, tint: Color) -> AnyShapeStyle {
