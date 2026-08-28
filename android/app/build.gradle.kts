@@ -160,6 +160,16 @@ val roomSchemaDir = layout.buildDirectory.dir("generated/roomSchemas")
 ksp {
     arg("room.schemaLocation", roomSchemaDir.get().asFile.absolutePath)
 }
+// Every KSP round for a Kotlin source set. Both users below start here and then diverge on the
+// UnitTest/AndroidTest rounds — in OPPOSITE directions, which is why this half is named rather than
+// spelled out twice:
+//   - [isMainSourceSetKspTask] EXCLUDES them, so Gradle is not told they output a directory they never
+//     write and then clears it out from under the round that did.
+//   - `syncRoomSchemaSnapshot`'s `mustRunAfter` INCLUDES them, because they still race the Sync (#1711).
+// Two near-identical predicates meaning opposite things is a trap; sharing the common half makes the
+// difference the thing the reader sees.
+fun isKspKotlinTask(name: String) = name.startsWith("ksp") && name.endsWith("Kotlin")
+
 // Room writes the export as a SIDE EFFECT of annotation processing, at a path Gradle knows nothing
 // about. Left undeclared, a KSP task that is UP-TO-DATE or restored FROM-CACHE leaves whatever the last
 // real execution wrote — so an entity edit that is later reverted keeps the stale export on disk and the
@@ -178,8 +188,7 @@ ksp {
 // wiped the export that `kspFullDebugKotlin` had just restored, and the test failed on a clean build with
 // a warm cache with the directory missing entirely.
 fun isMainSourceSetKspTask(name: String) =
-    name.startsWith("ksp") && name.endsWith("Kotlin") &&
-        !name.contains("UnitTest") && !name.contains("AndroidTest")
+    isKspKotlinTask(name) && !name.contains("UnitTest") && !name.contains("AndroidTest")
 
 tasks.matching { isMainSourceSetKspTask(it.name) }.configureEach {
     outputs.dir(roomSchemaDir).withPropertyName("roomSchemaExport")
@@ -218,7 +227,7 @@ val syncRoomSchemaSnapshot = tasks.register<Sync>("syncRoomSchemaSnapshot") {
     //
     // Ordering only, so nothing is forced to execute and the one-variant `dependsOn` above keeps its
     // point: a `testFullDebugUnitTest` run still triggers exactly one KSP round.
-    mustRunAfter(tasks.matching { it.name.startsWith("ksp") && it.name.endsWith("Kotlin") })
+    mustRunAfter(tasks.matching { isKspKotlinTask(it.name) })
 }
 
 tasks.withType<Test>().configureEach {
