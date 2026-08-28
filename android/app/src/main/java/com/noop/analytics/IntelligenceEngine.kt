@@ -2649,6 +2649,12 @@ object IntelligenceEngine {
      * ADC anchor is a property of the device rather than the night, so it is learned once per owner across
      * the whole scan window and reused for every night. Moving that behind a function does not change when
      * it is learned or what it is learned from.
+     *
+     * DELIBERATELY ONE-SIDED — do not mirror it. The Swift engine keeps this block inline, because the
+     * constraint that forced the extraction is a JVM one: a method's bytecode must fit 64 KB, and JaCoCo's
+     * instrumentation of it must too. Swift has no equivalent limit and no equivalent guard, so a twin
+     * helper there would buy nothing and cost a reader the question of what it was for. A parity audit
+     * that finds this with no Swift counterpart has found the intended state, not a gap.
      */
     private suspend fun readDaySkinAndWristOff(
         repo: com.noop.data.WhoopRepository,
