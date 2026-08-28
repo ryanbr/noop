@@ -578,7 +578,7 @@ public enum WorkoutDetector {
 /// APPROXIMATE — not laboratory calorimetry, not medical advice.
 public enum Calories {
 
-    /// Whole-day energy split. `restingKcal` is the BMR contribution over the observed day span;
+    /// Whole-day energy split. `restingKcal` is the BMR contribution over supported sample intervals;
     /// `activeKcal` is energy above that resting floor during supported high-HR intervals.
     /// `totalKcal` is the backward-compatible value persisted in `DailyMetric.activeKcalEst`.
     public struct DayEnergyEstimate: Equatable, Sendable {
@@ -636,9 +636,9 @@ public enum Calories {
     /// Keytel is appropriate for a real detected/manual workout — but the day path raises
     /// the gate to 50% HRR so the gross rate only applies at genuine exercise-level HR.
     static let dayActiveHRRFraction = 0.50
-    /// Longest gap over which one daily HR reading may carry ACTIVE energy. This covers the known
-    /// sparse WHOOP 5/MG cadence (~30 s) with margin, but an isolated high reading cannot invent a
-    /// workout across a long disconnect. Resting BMR is integrated over the observed span separately.
+    /// Longest gap over which one daily HR reading may carry resting or active energy. Covers the
+    /// known sparse WHOOP 5/MG cadence (~30 s) with margin, but an isolated reading cannot invent resting
+    /// or active energy across a long disconnect.
     static let dayMaxActiveGapS: Double = 60.0
     static let dayMaxObservedSpanS: Double = 86_400.0
     static let workoutDivisor = 251.04  // 60 s/min × 4.184 kJ/kcal
@@ -742,7 +742,7 @@ public enum Calories {
     }
 
     /// APPROXIMATE whole-day resting + active energy estimate from the full day's HR samples.
-    /// Resting BMR is integrated once over the OBSERVED elapsed span, independent of HR cadence.
+    /// Resting BMR is integrated once over capped, supported sample intervals, independent of HR cadence.
     /// Supported high-HR intervals then add only the Keytel energy ABOVE that resting floor.
     ///
     /// The day path uses `dayActiveHRRFraction` (50% HRR), NOT the 30% the bout detector uses
@@ -754,10 +754,10 @@ public enum Calories {
     /// is appropriate there, on a real detected/manual workout.
     ///
     /// Cadence is inferred from the median positive timestamp gap and capped at
-    /// `dayMaxActiveGapS`. Each high-HR sample carries active energy to the next sample for at most
-    /// that cap; long gaps still accrue BMR but never continuous exercise. Thus a 30 s sparse stream
-    /// and a 1 Hz stream covering the same activity produce comparable energy, while two isolated
-    /// samples cannot turn a disconnect into a workout.
+    /// `dayMaxActiveGapS`. Each sample carries resting energy, and a high-HR sample carries active
+    /// energy, to the next sample for at most that cap. This can credit up to 60 s instead of the old
+    /// flat 1 s for a reading on a gappy day, but never a whole disconnect. Thus a 30 s sparse stream
+    /// and a 1 Hz stream covering the same activity produce comparable energy.
     ///
     /// This is an on-device estimate from heart rate alone — NOT laboratory calorimetry, NOT
     /// Apple/WHOOP cloud parity, NOT medical advice.
@@ -798,8 +798,9 @@ public enum Calories {
                 : positiveGaps[mid]
             return min(median, dayMaxActiveGapS)
         }()
-        let observedSeconds = min(dayMaxObservedSpanS,
-                                  max(1.0, Double(ordered.last!.ts - ordered.first!.ts) + nominalSampleS))
+        let observedSeconds = min(dayMaxObservedSpanS, positiveGaps.reduce(nominalSampleS) {
+            $0 + min($1, dayMaxActiveGapS)
+        })
         let restingKcal = restingRate * observedSeconds
 
         var activeKcal = 0.0

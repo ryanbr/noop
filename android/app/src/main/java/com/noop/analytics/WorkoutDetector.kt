@@ -585,7 +585,7 @@ object WorkoutDetector {
  * Faithful port of the `Calories` enum that ships inside WorkoutDetector.swift.
  */
 object Calories {
-    /** Whole-day BMR + activity-above-rest split; [totalKcal] remains the stored daily value. */
+    /** Whole-day BMR + activity-above-rest split over supported sample intervals. */
     data class DayEnergyEstimate(
         val restingKcal: Double,
         val activeKcal: Double,
@@ -650,7 +650,7 @@ object Calories {
      * gate to 50% HRR so the gross rate only applies at genuine exercise-level HR.
      */
     const val dayActiveHRRFraction: Double = 0.50
-    /** Longest gap over which one daily HR reading may carry ACTIVE energy. */
+    /** Longest gap over which one daily HR reading may carry resting or active energy. */
     const val dayMaxActiveGapS: Double = 60.0
     const val dayMaxObservedSpanS: Double = 86_400.0
     const val workoutDivisor: Double = 251.04 // 60 s/min × 4.184 kJ/kcal
@@ -761,7 +761,7 @@ object Calories {
 
     /**
      * APPROXIMATE whole-day resting + active energy estimate from the full day's HR
-     * samples. Resting BMR is integrated once over the OBSERVED elapsed span,
+     * samples. Resting BMR is integrated once over capped, supported sample intervals,
      * independent of HR cadence. Supported high-HR intervals then add only the Keytel
      * energy ABOVE that resting floor.
      *
@@ -775,10 +775,11 @@ object Calories {
      * on a real detected/manual workout.
      *
      * Cadence is inferred from the median positive timestamp gap and capped at
-     * [dayMaxActiveGapS]. Each high-HR sample carries active energy to the next sample for
-     * at most that cap; long gaps still accrue BMR but never continuous exercise. Thus a
-     * 30 s sparse stream and a 1 Hz stream covering the same activity produce comparable
-     * energy, while two isolated samples cannot turn a disconnect into a workout.
+     * [dayMaxActiveGapS]. Each sample carries resting energy, and a high-HR sample carries
+     * active energy, to the next sample for at most that cap. This can credit up to 60 s
+     * instead of the old flat 1 s for a reading on a gappy day, but never a whole disconnect.
+     * Thus a 30 s sparse stream and a 1 Hz stream covering the same activity produce
+     * comparable energy.
      *
      * This is an on-device estimate from heart rate alone — NOT laboratory calorimetry,
      * NOT Apple/WHOOP cloud parity, NOT medical advice.
@@ -829,7 +830,9 @@ object Calories {
         }
         val observedSeconds = minOf(
             dayMaxObservedSpanS,
-            maxOf(1.0, (ordered.last().ts - ordered.first().ts).toDouble() + nominalSampleS),
+            positiveGaps.fold(nominalSampleS) { total, gap ->
+                total + minOf(gap, dayMaxActiveGapS)
+            },
         )
         val restingKcal = restingRate * observedSeconds
 

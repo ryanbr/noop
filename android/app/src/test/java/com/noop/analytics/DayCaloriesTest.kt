@@ -37,13 +37,24 @@ class DayCaloriesTest {
     fun dayCalories_matchesBoutAtOneHz() {
         // At a steady 1 Hz stream the day and bout estimators agree exactly: the bout path's
         // elapsed-time weighting caps every ~1 s interval at 1 s, so it collapses to the day
-        // path's flat one-second-per-sample. (They DIVERGE on gappy streams — see
-        // dayPath_doesNotOverCountGappyDays — but not here.)
+        // path's flat one-second-per-sample. They diverge on gappy streams, but not here.
         val profile = UserProfile(weightKg = 80.0, heightCm = 180.0, age = 35.0, sex = "male")
         val hr = hrDay(bpm = 130, n = 600) // 10 min above the active threshold, dense 1 Hz
         val day = Calories.estimateDayCalories(hr, profile, hrmax = 185.0, restingHR = 55.0)
         val bout = Calories.estimateBoutCalories(hr, profile, hrmax = 185.0, restingHR = 55.0).first
         assertEquals(bout, day, 1e-9)
+    }
+
+    @Test
+    fun gaplessOneHzDay_matchesLegacyTotal() {
+        // Pin the pre-change 1 Hz result so the sparse-cadence fix cannot silently move WHOOP 4
+        // totals. This mixed full day exercises both the resting floor and gross active rate.
+        val profile = UserProfile(weightKg = 80.0, heightCm = 180.0, age = 35.0, sex = "male")
+        val block = 8 * 3_600
+        val day = hrDay(55, block) + hrDay(130, block, block) + hrDay(70, block, 2 * block)
+        val total = Calories.estimateDayCalories(day, profile, hrmax = 185.0, restingHR = 55.0)
+        assertEquals("a gapless 1 Hz day must remain equal to the legacy estimator",
+            6_774.323772061045, total, 1e-9)
     }
 
     @Test
@@ -95,7 +106,7 @@ class DayCaloriesTest {
             doubleArrayOf(1825.247000000000, 0.000000000000, 1825.247000000000, 86_400.0),
             doubleArrayOf(12.675326388889, 103.105766084605, 115.781092473494, 600.0),
             doubleArrayOf(12.675326388889, 103.105766084603, 115.781092473492, 600.0),
-            doubleArrayOf(77.319490972222, 20.621153216921, 97.940644189143, 3_660.0),
+            doubleArrayOf(2.535065277778, 20.621153216921, 23.156218494699, 120.0),
         )
         vectors.zip(expected).forEach { (value, oracle) ->
             assertEquals(oracle[0], value.restingKcal, 1e-9)
@@ -124,10 +135,9 @@ class DayCaloriesTest {
     }
 
     @Test
-    fun dayPath_usesElapsedBaselineButCapsActiveGap() {
-        // An hour-long sensor gap still burns resting energy, but two isolated high readings
-        // must not claim the whole gap as exercise. With the 60 s carry cap, the two readings
-        // contribute 120 active seconds while BMR covers the 3660 s observed span.
+    fun dayPath_capsRestingAndActiveGap() {
+        // Two isolated high readings must not claim the whole hour as either resting or active
+        // energy. With the 60 s carry cap, both components cover exactly 120 supported seconds.
         val profile = UserProfile(weightKg = 80.0, heightCm = 180.0, age = 35.0, sex = "male")
         val gapped = listOf(
             com.noop.data.HrSample(deviceId = "t", ts = 0L, bpm = 130),
@@ -136,11 +146,12 @@ class DayCaloriesTest {
         val gapEnergy = Calories.estimateDayEnergy(gapped, profile, hrmax = 185.0, restingHR = 55.0)
         val shortEnergy = Calories.estimateDayEnergy(hrDay(130, 120), profile, hrmax = 185.0, restingHR = 55.0)
         val continuousEnergy = Calories.estimateDayEnergy(hrDay(130, 3660), profile, hrmax = 185.0, restingHR = 55.0)
-        assertEquals(3660.0, gapEnergy.observedSeconds, 1e-12)
+        assertEquals(120.0, gapEnergy.observedSeconds, 1e-12)
+        assertEquals("a long gap must carry only 120 capped resting seconds",
+            shortEnergy.restingKcal, gapEnergy.restingKcal, 1e-9)
         assertEquals("a long gap must carry only 120 capped active seconds",
             shortEnergy.activeKcal, gapEnergy.activeKcal, 1e-9)
-        assertTrue("BMR must continue across the observed sensor gap",
-            gapEnergy.restingKcal > shortEnergy.restingKcal)
+        assertEquals(shortEnergy.totalKcal, gapEnergy.totalKcal, 1e-9)
         assertTrue("a sensor gap must not be treated as continuous exercise",
             gapEnergy.totalKcal < continuousEnergy.totalKcal)
     }
