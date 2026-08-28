@@ -81,12 +81,13 @@ class WindowedStreamPlanTest {
      */
     @Test fun logLineShape() {
         assertEquals(
-            "analyzeRecent windows hr[read=1000 served=9000] rr[read=250 served=750]",
-            WindowedStreamPlan.logLine(1_000L, 9_000L, 250L, 750L),
+            "analyzeRecent windows hr[read=1000 served=9000 truncated=0] " +
+                "rr[read=250 served=750 truncated=3]",
+            WindowedStreamPlan.logLine(1_000L, 9_000L, 0L, 250L, 750L, 3L),
         )
         assertEquals(
-            "analyzeRecent windows hr[read=0 served=0] rr[read=0 served=0]",
-            WindowedStreamPlan.logLine(0L, 0L, 0L, 0L),
+            "analyzeRecent windows hr[read=0 served=0 truncated=0] rr[read=0 served=0 truncated=0]",
+            WindowedStreamPlan.logLine(0L, 0L, 0L, 0L, 0L, 0L),
         )
     }
 }

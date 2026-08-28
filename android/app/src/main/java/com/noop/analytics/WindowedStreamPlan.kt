@@ -28,11 +28,25 @@ object WindowedStreamPlan {
      * dayCache hit — and the reads are back to exactly what they were. That is the honest outcome rather
      * than a silent one, which is why the counters ship rather than just the speedup.
      *
+     * `truncated` separates the one of those causes that is also a BUG. The reads are
+     * `ORDER BY ts ASC LIMIT`, so a read at the cap drops the NEWEST rows and the day is scored on a
+     * window missing its tail, with nothing else in the log to say so. A field log showed a strap at
+     * 192,680 rows against the 200,000 cap — 96% — with `served` near zero on one stream and half on the
+     * other, and no way to tell which cause fired. Hence this counter rather than a guess.
+     *
      * Lives HERE rather than on the engine so both platforms put it in the same place and both are
      * covered by default CI. Byte-identical to the Swift `WindowedStreamPlan.logLine`.
      */
-    fun logLine(hrRead: Long, hrServed: Long, rrRead: Long, rrServed: Long): String =
-        "analyzeRecent windows hr[read=$hrRead served=$hrServed] rr[read=$rrRead served=$rrServed]"
+    fun logLine(
+        hrRead: Long,
+        hrServed: Long,
+        hrTruncated: Long,
+        rrRead: Long,
+        rrServed: Long,
+        rrTruncated: Long,
+    ): String =
+        "analyzeRecent windows hr[read=$hrRead served=$hrServed truncated=$hrTruncated] " +
+            "rr[read=$rrRead served=$rrServed truncated=$rrTruncated]"
 
     /** What the caller should do to obtain rows for the requested window. */
     sealed interface Plan {

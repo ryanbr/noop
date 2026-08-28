@@ -1277,7 +1277,12 @@ object IntelligenceEngine {
         // (each row materialised ~2.25x per pass) is worth narrowing; analyzeDay dominating means it is
         // not, whatever the row counts look like. Byte-identical line to the Swift twin.
         diag("analyzeRecent cost prep=${dayPrepNanos / 1_000_000}ms score=${dayScoreNanos / 1_000_000}ms")
-        diag(WindowedStreamPlan.logLine(hrWindow.rowsRead, hrWindow.rowsServed, rrWindow.rowsRead, rrWindow.rowsServed))
+        diag(
+            WindowedStreamPlan.logLine(
+                hrWindow.rowsRead, hrWindow.rowsServed, hrWindow.truncatedReads,
+                rrWindow.rowsRead, rrWindow.rowsServed, rrWindow.truncatedReads,
+            ),
+        )
 
         // ── Seed the baseline from the UNION of imported nightly history + the nightly
         // values just computed. This is the recovery fix: the "-noop" nightly avgHrv/

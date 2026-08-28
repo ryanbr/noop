@@ -77,10 +77,13 @@ final class WindowedStreamPlanTests: XCTestCase {
     /// never asked".
     func testLogLine() {
         XCTAssertEqual(
-            WindowedStreamPlan.logLine(hrRead: 1_000, hrServed: 9_000, rrRead: 250, rrServed: 750),
-            "analyzeRecent windows hr[read=1000 served=9000] rr[read=250 served=750]")
+            WindowedStreamPlan.logLine(hrRead: 1_000, hrServed: 9_000, hrTruncated: 0,
+                                       rrRead: 250, rrServed: 750, rrTruncated: 3),
+            "analyzeRecent windows hr[read=1000 served=9000 truncated=0] "
+                + "rr[read=250 served=750 truncated=3]")
         XCTAssertEqual(
-            WindowedStreamPlan.logLine(hrRead: 0, hrServed: 0, rrRead: 0, rrServed: 0),
-            "analyzeRecent windows hr[read=0 served=0] rr[read=0 served=0]")
+            WindowedStreamPlan.logLine(hrRead: 0, hrServed: 0, hrTruncated: 0,
+                                       rrRead: 0, rrServed: 0, rrTruncated: 0),
+            "analyzeRecent windows hr[read=0 served=0 truncated=0] rr[read=0 served=0 truncated=0]")
     }
 }

@@ -1483,7 +1483,9 @@ final class IntelligenceEngine: ObservableObject {
             // rather than a silent one. Byte-identical to the Kotlin `analyzeWindowsLogLine`.
             skippedDayLines.append(WindowedStreamPlan.logLine(
                 hrRead: hrWindow.rowsRead, hrServed: hrWindow.rowsServed,
-                rrRead: rrWindow.rowsRead, rrServed: rrWindow.rowsServed))
+                hrTruncated: hrWindow.truncatedReads,
+                rrRead: rrWindow.rowsRead, rrServed: rrWindow.rowsServed,
+                rrTruncated: rrWindow.truncatedReads))
             return (out, skippedDayLines, dayScanCacheLocal)
         }.value
         // #1005: write the loop's updated reuse cache back to the (main-actor) stored property. The pass ran
