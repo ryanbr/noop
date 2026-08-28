@@ -208,8 +208,17 @@ val syncRoomSchemaSnapshot = tasks.register<Sync>("syncRoomSchemaSnapshot") {
     // variant's KSP round writes byte-identical JSON. Depending on all of them would make a single
     // `testFullDebugUnitTest` run four KSP rounds instead of one.
     dependsOn(tasks.matching { it.name == "kspFullDebugKotlin" })
-    // Unit-test KSP can clear the snapshot after Sync has copied it; order Sync after those tasks.
-    mustRunAfter(tasks.matching { it.name.startsWith("ksp") && it.name.contains("UnitTest") })
+    // Every KSP round writes `roomSchemaDir` — `room.schemaLocation` is set once, outside any variant
+    // block — so EVERY one of them is both a producer Sync must not race and a producer Gradle expects
+    // a declared relationship with. This was scoped to the UnitTest rounds, which covered the observed
+    // hazard (unit-test KSP clearing the snapshot after Sync copied it) but left `kspFullReleaseKotlin`
+    // out. It is normally absent from the graph; pull it in — `lintVitalFullRelease` in the same
+    // invocation as the debug test tasks does — and Gradle fails the build for an undeclared
+    // producer/consumer pair, with an error that reads like a Room problem (#1711).
+    //
+    // Ordering only, so nothing is forced to execute and the one-variant `dependsOn` above keeps its
+    // point: a `testFullDebugUnitTest` run still triggers exactly one KSP round.
+    mustRunAfter(tasks.matching { it.name.startsWith("ksp") && it.name.endsWith("Kotlin") })
 }
 
 tasks.withType<Test>().configureEach {
