@@ -888,50 +888,16 @@ object IntelligenceEngine {
             val vendorResp = OuraRespScale.forVendorRate(respRows, owner)
             val grav = repo.gravitySamples(owner, from, to, STREAM_LIMIT)
             val steps = repo.stepSamples(owner, from, to, STREAM_LIMIT)
-            val skin = repo.skinTempSamples(owner, from, to, STREAM_LIMIT)
-            // #93: WHOOP 4.0 raw SpO2 PPG samples for the night; analyzeDay banks the nightly red/IR ADC
-            // means on the DailyMetric. Empty on a 5/MG (no v24 spo2 channels) → the raw means stay null.
-            val spo2 = repo.spo2Samples(owner, from, to, STREAM_LIMIT)
-            // #938: the strap family that WROTE this owner's skin-temp rows, so analyzeDay converts the raw
-            // register on the right scale (5/MG banks centidegrees, a WHOOP 4.0 v24 banks a raw ADC). The
-            // owner source resolves it from the registry; unknown/non-WHOOP owners fall back to WHOOP5 (the
-            // prior /100 behaviour), so only a device positively identified as a 4.0 changes scale.
-            // Resolved once per DISTINCT owner via [skinFamilyByOwner] (#970 read efficiency, see above).
-            val skinFamily = skinFamilyByOwner.getOrPut(owner) {
-                ownerSource?.skinTempFamily(owner) ?: DeviceFamily.WHOOP5
-            }
-            // #1467: the worn-gate timestamp tolerance for this owner (0 for WHOOP, byte-identical).
-            val skinWornToleranceSec = skinWornToleranceByOwner.getOrPut(owner) {
-                ownerSource?.skinTempWornToleranceSec(owner) ?: 0
-            }
-            // #938 (second capture): learn THIS device's worn skin-temp anchor raw ONCE, WINDOW-WIDE (the
-            // whole scan window's skin samples), not per-night. The @72 skin-temp ADC's register offset is
-            // per-device — a second real 4.0 strap shares the no-contact floor (~509) + 11-bit saturation
-            // (2047) but a worn band ~1100–1600 (nightly mean raw ~1290), which the global 826 anchor maps to
-            // 47–72 °C, so 100% of its worn samples fail the 28–42 °C gate (kept=0, no baseline, no signal).
-            // WINDOW-WIDE, not per-night: a per-night re-centre would subtract each night's own mean and ERASE
-            // the cross-night deviation the skinTempDevC signal exists to carry. Deterministic per run; SAFE
-            // because the skin baseline is re-folded from the SAME window's nightly means every run, so this
-            // constant offset cancels in the deviation. null for a non-4.0 owner (WHOOP5 ignores the anchor)
-            // or when <100 in-band samples exist → the conversion falls back to the global anchor (byte-
-            // identical to today). Computed here once per owner alongside the family resolution.
-            val skinAnchorRaw = if (skinFamily == DeviceFamily.WHOOP4) {
-                if (!skinAnchorResolvedOwners.contains(owner)) {
-                    val windowSkin = repo.skinTempSamples(owner, skinAnchorScanFrom, skinAnchorScanTo, STREAM_LIMIT)
-                    Whoop4SkinTemp.deviceAnchorRaw(windowSkin.map { it.raw })?.let { skinAnchorByOwner[owner] = it }
-                    skinAnchorResolvedOwners.add(owner)
-                }
-                skinAnchorByOwner[owner]
-            } else {
-                null
-            }
-            // Wrist-wear events in the night window, paired into off-wrist [start, end) intervals for the
-            // off-wrist sleep backstop (#500). The HR-gap proxy in the stager is the always-on guard;
-            // these explicit intervals sharpen it under the FRACTIONAL rule (#504) , a session is dropped
-            // only when its off-wrist coverage reaches maxOffWristSleepFraction, so a real night with a
-            // short off-wrist tail survives. Pairing needs WRIST_ON too (to bound each interval); a span
-            // still open at the window end closes at `to`. Empty when the strap emitted no wrist events.
-            val wristOff = AnalyticsEngine.offWristIntervals(repo.events(owner, from, to, STREAM_LIMIT), to)
+            val skinReads = readDaySkinAndWristOff(
+                repo, owner, from, to, ownerSource, skinFamilyByOwner, skinWornToleranceByOwner,
+                skinAnchorByOwner, skinAnchorResolvedOwners, skinAnchorScanFrom, skinAnchorScanTo,
+            )
+            val skin = skinReads.skin
+            val spo2 = skinReads.spo2
+            val skinFamily = skinReads.skinFamily
+            val skinWornToleranceSec = skinReads.skinWornToleranceSec
+            val skinAnchorRaw = skinReads.skinAnchorRaw
+            val wristOff = skinReads.wristOff
 
             // Calendar-day window for the ADDITIVE daily totals (steps + calories). The night window
             // above is anchored to the current time-of-day and ends at dayStart+12h, so for a PAST
@@ -2670,6 +2636,90 @@ object IntelligenceEngine {
         val nextMidnight = dayStart + SECONDS_PER_DAY
         return if (dayStart < nowLocalMidnight) nextMidnight else minOf(nextMidnight, now)
     }
+
+    /**
+     * The per-day skin-temp, SpO2 and off-wrist reads, lifted out of `analyzeRecentOnCpu` (#1538).
+     *
+     * Nothing about this block changed; it moved. The method it came from sits 17 bytes under the JaCoCo
+     * budget its own guard pins, so it could not accept another line — and the established remedy in this
+     * file is to extract, not to raise the budget (see `persistFitnessVitalityAndSteps`, extracted for the
+     * same reason and pinned in place by its own test).
+     *
+     * The per-owner memo maps are passed in and MUTATED here, exactly as they were inline: the WHOOP 4.0
+     * ADC anchor is a property of the device rather than the night, so it is learned once per owner across
+     * the whole scan window and reused for every night. Moving that behind a function does not change when
+     * it is learned or what it is learned from.
+     */
+    private suspend fun readDaySkinAndWristOff(
+        repo: com.noop.data.WhoopRepository,
+        owner: String,
+        from: Long,
+        to: Long,
+        ownerSource: DayOwnerSource?,
+        skinFamilyByOwner: HashMap<String, DeviceFamily>,
+        skinWornToleranceByOwner: HashMap<String, Long>,
+        skinAnchorByOwner: HashMap<String, Double>,
+        skinAnchorResolvedOwners: HashSet<String>,
+        skinAnchorScanFrom: Long,
+        skinAnchorScanTo: Long,
+    ): DaySkinReads {
+        val skin = repo.skinTempSamples(owner, from, to, STREAM_LIMIT)
+        // #93: WHOOP 4.0 raw SpO2 PPG samples for the night; analyzeDay banks the nightly red/IR ADC
+        // means on the DailyMetric. Empty on a 5/MG (no v24 spo2 channels) → the raw means stay null.
+        val spo2 = repo.spo2Samples(owner, from, to, STREAM_LIMIT)
+        // #938: the strap family that WROTE this owner's skin-temp rows, so analyzeDay converts the raw
+        // register on the right scale (5/MG banks centidegrees, a WHOOP 4.0 v24 banks a raw ADC). The
+        // owner source resolves it from the registry; unknown/non-WHOOP owners fall back to WHOOP5 (the
+        // prior /100 behaviour), so only a device positively identified as a 4.0 changes scale.
+        // Resolved once per DISTINCT owner via [skinFamilyByOwner] (#970 read efficiency, see above).
+        val skinFamily = skinFamilyByOwner.getOrPut(owner) {
+            ownerSource?.skinTempFamily(owner) ?: DeviceFamily.WHOOP5
+        }
+        // #1467: the worn-gate timestamp tolerance for this owner (0 for WHOOP, byte-identical).
+        val skinWornToleranceSec = skinWornToleranceByOwner.getOrPut(owner) {
+            ownerSource?.skinTempWornToleranceSec(owner) ?: 0
+        }
+        // #938 (second capture): learn THIS device's worn skin-temp anchor raw ONCE, WINDOW-WIDE (the
+        // whole scan window's skin samples), not per-night. The @72 skin-temp ADC's register offset is
+        // per-device — a second real 4.0 strap shares the no-contact floor (~509) + 11-bit saturation
+        // (2047) but a worn band ~1100–1600 (nightly mean raw ~1290), which the global 826 anchor maps to
+        // 47–72 °C, so 100% of its worn samples fail the 28–42 °C gate (kept=0, no baseline, no signal).
+        // WINDOW-WIDE, not per-night: a per-night re-centre would subtract each night's own mean and ERASE
+        // the cross-night deviation the skinTempDevC signal exists to carry. Deterministic per run; SAFE
+        // because the skin baseline is re-folded from the SAME window's nightly means every run, so this
+        // constant offset cancels in the deviation. null for a non-4.0 owner (WHOOP5 ignores the anchor)
+        // or when <100 in-band samples exist → the conversion falls back to the global anchor (byte-
+        // identical to today). Computed here once per owner alongside the family resolution.
+        val skinAnchorRaw = if (skinFamily == DeviceFamily.WHOOP4) {
+            if (!skinAnchorResolvedOwners.contains(owner)) {
+                val windowSkin = repo.skinTempSamples(owner, skinAnchorScanFrom, skinAnchorScanTo, STREAM_LIMIT)
+                Whoop4SkinTemp.deviceAnchorRaw(windowSkin.map { it.raw })?.let { skinAnchorByOwner[owner] = it }
+                skinAnchorResolvedOwners.add(owner)
+            }
+            skinAnchorByOwner[owner]
+        } else {
+            null
+        }
+        // Wrist-wear events in the night window, paired into off-wrist [start, end) intervals for the
+        // off-wrist sleep backstop (#500). The HR-gap proxy in the stager is the always-on guard;
+        // these explicit intervals sharpen it under the FRACTIONAL rule (#504) , a session is dropped
+        // only when its off-wrist coverage reaches maxOffWristSleepFraction, so a real night with a
+        // short off-wrist tail survives. Pairing needs WRIST_ON too (to bound each interval); a span
+        // still open at the window end closes at `to`. Empty when the strap emitted no wrist events.
+        val wristOff = AnalyticsEngine.offWristIntervals(repo.events(owner, from, to, STREAM_LIMIT), to)
+        return DaySkinReads(skin, spo2, skinFamily, skinWornToleranceSec, skinAnchorRaw, wristOff)
+    }
+
+    /** What [readDaySkinAndWristOff] hands back. A holder rather than loose returns so the call site
+     *  re-binds the same names it used inline and the rest of the loop is untouched. */
+    private data class DaySkinReads(
+        val skin: List<com.noop.data.SkinTempSample>,
+        val spo2: List<com.noop.data.Spo2Sample>,
+        val skinFamily: DeviceFamily,
+        val skinWornToleranceSec: Long,
+        val skinAnchorRaw: Double?,
+        val wristOff: List<Pair<Long, Long>>,
+    )
 
     /**
      * The per-day diagnostic source token from the imported day-key sets. A WHOOP export covering [day]
