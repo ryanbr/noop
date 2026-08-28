@@ -66,4 +66,37 @@ final class SkinTempDisplayTests: XCTestCase {
             XCTAssertEqual(SkinTempDisplay.kind(of: v) == .absolute, abs, "v=\(v)")
         }
     }
+
+    // MARK: - dominantKind (#1705)
+
+    func testDominantKindIsTheNewestEntrys() {
+        XCTAssertEqual(SkinTempDisplay.dominantKind(valuesAscendingByDay: [34.6, 35.1, -0.2]), .deviation)
+        XCTAssertEqual(SkinTempDisplay.dominantKind(valuesAscendingByDay: [-0.2, 0.1, 34.6]), .absolute)
+        XCTAssertNil(SkinTempDisplay.dominantKind(valuesAscendingByDay: []))
+    }
+
+    func testDominantKindOfASingleKindWindowIsThatKind() {
+        XCTAssertEqual(SkinTempDisplay.dominantKind(valuesAscendingByDay: [-0.24, 0.21, 0.01]), .deviation)
+        XCTAssertEqual(SkinTempDisplay.dominantKind(valuesAscendingByDay: [32.39, 34.60, 36.64]), .absolute)
+    }
+
+    /// The regression guard the issue asked for: filtering by `dominantKind` must leave a window that
+    /// no aggregate can straddle. Values are the reported ones — a 313-row absolute import
+    /// (32.39…36.64, mean 34.60) coexisting with computed deviations inside ±0.3.
+    func testFilteringByDominantKindLeavesOneScale() {
+        let mixed: [Double] = [34.60, 35.12, 32.39, 36.64, -0.24, 0.21, 0.01, 0.11, 0.0]
+        guard let keep = SkinTempDisplay.dominantKind(valuesAscendingByDay: mixed) else {
+            return XCTFail("a non-empty window must have a kind")
+        }
+        let kept = mixed.filter { SkinTempDisplay.kind(of: $0) == keep }
+        XCTAssertEqual(kept, [-0.24, 0.21, 0.01, 0.11, 0.0])
+        XCTAssertTrue(kept.allSatisfy { SkinTempDisplay.kind(of: $0) == keep })
+        // The defect: unfiltered, the mean of a should-be-near-zero deviation window clears a degree
+        // and then reads BELOW 20, so it gets labelled Δ°C — plausible-looking and wrong.
+        let unfilteredMean = mixed.reduce(0, +) / Double(mixed.count)
+        XCTAssertGreaterThan(unfilteredMean, 1.0)
+        XCTAssertEqual(SkinTempDisplay.kind(of: unfilteredMean), .deviation)
+        let filteredMean = kept.reduce(0, +) / Double(kept.count)
+        XCTAssertLessThan(abs(filteredMean), 0.3)
+    }
 }

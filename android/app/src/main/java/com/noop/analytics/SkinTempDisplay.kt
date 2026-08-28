@@ -19,6 +19,27 @@ object SkinTempDisplay {
         DEVIATION,
     }
 
+    /**
+     * The one kind a MIXED series must be reduced to before any aggregate is taken (#1705).
+     *
+     * A CSV import writes absolute °C and the computed pipeline writes a deviation, both into this
+     * same field, so one window can hold both. Formatting stays honest per value — [kind] is
+     * re-derived for each — but a min, max, mean or window-over-window delta drawn across both is
+     * arithmetic on two different scales, and it looks plausible: a handful of ~34 °C readings lift a
+     * should-be-near-zero deviation average past a full degree, and the mean is then itself below 20
+     * so it gets labelled Δ°C.
+     *
+     * The newest entry decides, matching what `HealthVitalsLogic` already does for its sparkline — the
+     * reading the user is actually looking at sets the scale, and older entries of the other kind drop
+     * out rather than being converted, because converting needs a baseline that a fresh import-only
+     * install does not have.
+     *
+     * @param valuesAscendingByDay the window's values, ascending by day.
+     * @return the kind to keep, or null for an empty window.
+     */
+    fun dominantKind(valuesAscendingByDay: List<Double>): Kind? =
+        valuesAscendingByDay.lastOrNull()?.let { kind(it) }
+
     fun kind(value: Double): Kind =
         if (VitalBands.isAbsoluteSkinTemp(value)) Kind.ABSOLUTE else Kind.DEVIATION
 

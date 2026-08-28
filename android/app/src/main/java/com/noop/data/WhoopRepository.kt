@@ -1823,7 +1823,24 @@ class WhoopRepository(
         // Book / any resolver read agrees with the mergeDaily dashboards instead of re-surfacing the
         // schedule target the merge already rejects.
         val perCandidate = candidates.map { it to resolvedRows(it, from, to) }
-        return MetricSeriesResolution(preferredSource, candidates, resolveFirstWins(perCandidate))
+        val points = resolveFirstWins(perCandidate)
+        // #1705: skin_temp is bimodal — a CSV import writes ABSOLUTE °C into skinTempDevC while the
+        // computed pipeline writes a baseline DEVIATION, and the candidate list unions the imported and
+        // computed identities, so first-wins can resolve older days to one kind and recent days to the
+        // other. Every consumer aggregates these points (Compare's min/max and its min-max chart
+        // normalisation, Lab Book), and that is arithmetic across two scales. Reduce to the newest
+        // entry's kind HERE, at the one place the candidates are resolved, rather than at each screen.
+        if (key == "skin_temp") {
+            val keep = com.noop.analytics.SkinTempDisplay.dominantKind(points.map { it.value })
+            if (keep != null) {
+                return MetricSeriesResolution(
+                    preferredSource,
+                    candidates,
+                    points.filter { com.noop.analytics.SkinTempDisplay.kind(it.value) == keep },
+                )
+            }
+        }
+        return MetricSeriesResolution(preferredSource, candidates, points)
     }
 
     /**

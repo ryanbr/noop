@@ -22,6 +22,26 @@ public enum SkinTempDisplay {
         VitalBands.isAbsoluteSkinTemp(value) ? .absolute : .deviation
     }
 
+    /// The one kind a MIXED series must be reduced to before any aggregate is taken (#1705).
+    ///
+    /// A CSV import writes absolute °C and the computed pipeline writes a deviation, both into this
+    /// same field, so one window can hold both. Formatting stays honest per value — `kind(of:)` is
+    /// re-derived for each — but a min, max, mean or window-over-window delta drawn across both is
+    /// arithmetic on two different scales, and it looks plausible: a handful of ~34 °C readings lift a
+    /// should-be-near-zero deviation average past a full degree, and the mean is then itself below 20
+    /// so it gets labelled Δ°C.
+    ///
+    /// The newest entry decides, matching what `VitalSignsSummary` already does for its sparkline —
+    /// the reading the user is actually looking at sets the scale, and older entries of the other kind
+    /// drop out rather than being converted, because converting needs a baseline that a fresh
+    /// import-only install does not have.
+    ///
+    /// - Parameter values: the window's values, ascending by day.
+    /// - Returns: the kind to keep, or nil for an empty window.
+    public static func dominantKind(valuesAscendingByDay values: [Double]) -> Kind? {
+        values.last.map(kind(of:))
+    }
+
     /// Trailing unit chip: `"°C"` / `"°F"` for absolute, `"Δ°C"` / `"Δ°F"` for deviation.
     public static func unitSymbol(kind: Kind, fahrenheit: Bool) -> String {
         let base = fahrenheit ? "°F" : "°C"
