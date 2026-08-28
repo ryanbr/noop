@@ -63,8 +63,14 @@ public final class SlidingStreamWindow<T> {
                 result = full
                 nowTruncated = full.count >= limit
             } else {
-                let merged = head + rows
-                result = merged.filter { tsOf($0) >= from && tsOf($0) <= to }
+                // Filtered into ONE array rather than `(head + rows).filter { }`: that form allocates
+                // the concatenation AND the filtered copy, so the splice transiently held roughly three
+                // windows' worth of references. Same result, one allocation.
+                var out: [T] = []
+                out.reserveCapacity(head.count + rows.count)
+                for r in head where tsOf(r) >= from && tsOf(r) <= to { out.append(r) }
+                for r in rows where tsOf(r) >= from && tsOf(r) <= to { out.append(r) }
+                result = out
                 nowTruncated = false
                 rowsServed += max(0, result.count - head.count)
             }

@@ -71,8 +71,14 @@ class SlidingStreamWindow<T>(
                     result = full
                     nowTruncated = full.size >= limit
                 } else {
-                    val merged = head + rows
-                    result = merged.filter { tsOf(it) in from..to }
+                    // Filtered into ONE list rather than `(head + rows).filter { }`: that form allocates
+                    // the concatenation AND the filtered copy, so the splice transiently held roughly
+                    // three windows' worth of references on a phone during the cold pass. Same result,
+                    // one allocation.
+                    val out = ArrayList<T>(head.size + rows.size)
+                    for (r in head) if (tsOf(r) in from..to) out.add(r)
+                    for (r in rows) if (tsOf(r) in from..to) out.add(r)
+                    result = out
                     nowTruncated = false
                     rowsServed += (result.size - head.size).coerceAtLeast(0)
                 }
