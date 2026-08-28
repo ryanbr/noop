@@ -51,7 +51,7 @@ final class OrphanedSamplesLineTests: XCTestCase {
     /// The over-assertion this branch exists for. A wearer with two straps has nights owned by the other
     /// one; `DayOwnerResolver` hands each day to whichever device holds its data. Samples under that id
     /// are expected, and calling it a read failure sends the reader hunting a bug that is not there.
-    func testASecondRegisteredStrapsNightIsExpectedNotAReadFailure() {
+    func testASecondRegisteredStrapsNightStatesTheForkNeverABareVerdict() {
         let line = DebugDataDiagnostics.orphanedSamplesLine(
             activeId: "whoop-FD:4A",
             othersWithSamples: [("my-whoop", 59_304)],
@@ -61,6 +61,12 @@ final class OrphanedSamplesLineTests: XCTestCase {
         XCTAssertTrue(line.contains("dayOwner"), "must point at the line that settles it")
         XCTAssertFalse(line.contains("are not being read"), "must not claim a bug")
         XCTAssertFalse(line.contains("#1193"))
+        // #1635 dual-wear: it may NOT declare the silence normal outright. Wearing a 4.0 and a 5.0
+        // together, the other strap's rows are present while the ACTIVE one banked nothing because its
+        // handshake never completed — and this function cannot tell that from a single-strap night.
+        XCTAssertTrue(line.contains("If you wore BOTH"), "must state the both-straps half")
+        XCTAssertTrue(line.contains("sync is what to check"), "and name the sync as what to check")
+        XCTAssertFalse(line.contains("OWNED by that strap"), "must not assert one-strap ownership")
     }
 
     /// An id that is NOT a live registered strap is still the #1193 split — that wording must survive.

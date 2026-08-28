@@ -507,6 +507,13 @@ object AndroidDiagnostics {
      * ME hunting one). Only when the id holding the samples is NOT a live registered strap is the #1193
      * split the remaining explanation.
      *
+     * That correction then over-corrected. "So this is expected" assumes a night is worn on ONE strap,
+     * and a reporter wearing a 4.0 and a 5.0 together hit the case it denies: the active strap banked
+     * nothing because its handshake never completed (#1635), while the other strap's rows made the line
+     * declare the silence normal. Nothing available here can tell the two apart — the wearer knows which
+     * straps were on the wrist and this function cannot — so it states the fork instead of picking a
+     * side, and names the sync as what to check in the half where something IS wrong.
+     *
      * Pure so the wording is unit-tested without a database, a strap, or a registry.
      */
     internal fun orphanedSamplesLine(
@@ -524,8 +531,9 @@ object AndroidDiagnostics {
                 .sortedWith(compareByDescending<Pair<String, Int>> { it.second }.thenBy { it.first })
                 .joinToString(", ") { "'${it.first}' (${it.second} rows)" }
             return "(no raw biometric samples under the ACTIVE id '$activeId' for this night — they are " +
-                "under $who, another registered strap. A night worn on a different strap is OWNED by that " +
-                "strap, so this is expected; the dayOwner line for this date names the owner.)"
+                "under $who, another registered strap. If you wore THAT strap this night, this is expected " +
+                "and the dayOwner line for this date names the owner. If you wore BOTH, the active strap " +
+                "banked nothing for this night and its sync is what to check, not this line.)"
         }
         // Tie-break on id: Kotlin's sortedByDescending is stable but Swift's `sorted` is NOT, so equal
         // counts could otherwise order differently on the two platforms and the twin lines would diverge.

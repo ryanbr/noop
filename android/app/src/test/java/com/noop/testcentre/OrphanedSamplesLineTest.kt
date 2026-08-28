@@ -67,7 +67,7 @@ class OrphanedSamplesLineTest {
      * expected, and calling it a read failure sends the reader hunting a bug that is not there.
      */
     @Test
-    fun `a second registered strap's night is expected, not a read failure`() {
+    fun `a second registered strap's night states the fork, never a bare verdict`() {
         val line = AndroidDiagnostics.orphanedSamplesLine(
             activeId = "whoop-FD:4A",
             othersWithSamples = listOf("my-whoop" to 59_304),
@@ -78,6 +78,12 @@ class OrphanedSamplesLineTest {
         assertTrue("must point at the line that settles it", line.contains("dayOwner"))
         assertFalse("must not claim a bug", line.contains("are not being read"))
         assertFalse(line.contains("#1193"))
+        // #1635 dual-wear: it may NOT declare the silence normal outright. Wearing a 4.0 and a 5.0
+        // together, the other strap's rows are present while the ACTIVE one banked nothing because its
+        // handshake never completed — and this function cannot tell that from a single-strap night.
+        assertTrue("must state the both-straps half", line.contains("If you wore BOTH"))
+        assertTrue("and name the sync as what to check", line.contains("sync is what to check"))
+        assertFalse("must not assert one-strap ownership", line.contains("OWNED by that strap"))
     }
 
     /** An id that is NOT a live registered strap is still the #1193 split — that wording must survive. */
