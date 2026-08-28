@@ -16,6 +16,11 @@ on:
       - 'Tools/SleepPSG/**'
       - 'Tools/Backfill/**'
       - '.github/workflows/swift-packages.yml'
+      # Mirror of the note in android.yml: package tests read the ANDROID oracles to catch a one-sided
+      # edit, and one reads Strand/Liquid/LiquidCore.swift. Editing only that side would otherwise skip
+      # the guard written for exactly that case. Keep in step with what the tests read.
+      - 'android/app/src/test/resources/**'
+      - 'Strand/Liquid/LiquidCore.swift'
   push:
     branches: [main]
     paths:
@@ -24,6 +29,11 @@ on:
       - 'Tools/SleepPSG/**'
       - 'Tools/Backfill/**'
       - '.github/workflows/swift-packages.yml'
+      # Mirror of the note in android.yml: package tests read the ANDROID oracles to catch a one-sided
+      # edit, and one reads Strand/Liquid/LiquidCore.swift. Editing only that side would otherwise skip
+      # the guard written for exactly that case. Keep in step with what the tests read.
+      - 'android/app/src/test/resources/**'
+      - 'Strand/Liquid/LiquidCore.swift'
   workflow_dispatch:
 
 concurrency:

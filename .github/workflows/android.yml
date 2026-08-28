@@ -12,11 +12,27 @@ on:
     paths:
       - 'android/**'
       - '.github/workflows/android.yml'
+      # The twin-drift guards read the SWIFT side's fixtures on purpose — DecoderOracleTest compares
+      # against Packages/.../decoder_oracle.json to catch a one-sided edit, and the schema/protocol
+      # oracles work the same way. Without these, editing the Swift copy alone leaves the very test
+      # written to catch that from ever running. Keep this list in step with what the tests read.
+      - 'Packages/WhoopProtocol/Sources/WhoopProtocol/Resources/**'
+      - 'Packages/WhoopProtocol/Tests/WhoopProtocolTests/Resources/**'
+      - 'Packages/WhoopStore/Tests/WhoopStoreTests/Resources/**'
+      - 'Strand/Resources/Localizable.xcstrings'
   push:
     branches: [main]
     paths:
       - 'android/**'
       - '.github/workflows/android.yml'
+      # The twin-drift guards read the SWIFT side's fixtures on purpose — DecoderOracleTest compares
+      # against Packages/.../decoder_oracle.json to catch a one-sided edit, and the schema/protocol
+      # oracles work the same way. Without these, editing the Swift copy alone leaves the very test
+      # written to catch that from ever running. Keep this list in step with what the tests read.
+      - 'Packages/WhoopProtocol/Sources/WhoopProtocol/Resources/**'
+      - 'Packages/WhoopProtocol/Tests/WhoopProtocolTests/Resources/**'
+      - 'Packages/WhoopStore/Tests/WhoopStoreTests/Resources/**'
+      - 'Strand/Resources/Localizable.xcstrings'
   workflow_dispatch:
 
 concurrency:
