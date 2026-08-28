@@ -4536,10 +4536,11 @@ class WhoopBleClient(
      * could not produce the evidence needed to explain what their strap reports, and on Android arming
      * was the sole trigger.
      *
-     * Deliberately NOT family-gated, unlike [armStrapAlarm]. Only the 4.0 branch DECODES the reply into
-     * `alarm.lastReportedEpoch`, but a 5/MG still logs whatever frame comes back with its raw hex — and
-     * on a strap whose readback layout is undocumented, that raw frame is the whole point of the button.
-     * Refusing to send would throw away the one thing worth capturing.
+     * Not family-gated, unlike [armStrapAlarm] — but that is defensive, not a feature. [send] already
+     * no-ops when nothing is connected, and only the 4.0 branch decodes the reply, so an errant call
+     * costs one ignored write. The single caller today is the 4.0 side of the strap-alarm card, so the
+     * 5/MG frame is NOT currently captured by anything; a caller could be added there if that layout
+     * ever needs recording, and this method would not have to change.
      */
     fun getStrapAlarm() {
         send(CommandNumber.GET_ALARM_TIME, byteArrayOf(0x01))
