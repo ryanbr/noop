@@ -2160,7 +2160,9 @@ final class Repository: ObservableObject {
     /// byte-identical. The flag is forwarded to the non-strap `series(...)` delegation below so every source
     /// path honours it.
     func exploreSeries(key: String, source: String, days: Int = 4000, fullHistory: Bool = false) async -> [(day: String, value: Double)] {
-        guard source == "my-whoop" else { return await series(key: key, source: source, days: days, fullHistory: fullHistory) }
+        guard source == "my-whoop" else {
+            return Self.oneSkinTempScale(key: key, await series(key: key, source: source, days: days, fullHistory: fullHistory))
+        }
         guard let store = await ensureStore() else { return [] }
         let now = Date()
         let from = fullHistory ? "0000-01-01" : Self.dayString(now.addingTimeInterval(-Double(days) * 86_400))
@@ -2187,16 +2189,29 @@ final class Repository: ObservableObject {
             for p in (try? await store.metricSeries(deviceId: id, key: key, from: from, to: to)) ?? [] { byDay[p.day] = p.value }
         }
 
-        let merged = byDay.sorted { $0.key < $1.key }.map { (day: $0.key, value: $0.value) }
-        // #1705: skin_temp is bimodal — layer 1 (a CSV import) writes ABSOLUTE °C into the same key
-        // layers 2/3 fill with a baseline DEVIATION, so one window can hold both. Every consumer of
-        // this array aggregates it (Explorer's min/max/mean and its window-over-window delta, the
-        // correlation scan), and those are arithmetic across two scales. Reduce to the newest entry's
-        // kind HERE, at the one place the layers are merged, rather than at each screen.
+        return Self.oneSkinTempScale(key: key, byDay.sorted { $0.key < $1.key }.map { (day: $0.key, value: $0.value) })
+    }
+
+    /// #1705: reduce a `skin_temp` window to a single scale; every other key passes through untouched.
+    ///
+    /// The key is bimodal — a CSV import writes ABSOLUTE °C where the computed layers write a baseline
+    /// DEVIATION, so one window can hold both. Every consumer of an Explore series aggregates it
+    /// (min/max/mean, the window-over-window delta, the correlation scan), and those are arithmetic
+    /// across two scales: on the reported account a few ~34 °C readings lifted a should-be-near-zero
+    /// average past a full degree, and the mean then read below 20 so it was labelled Δ°C.
+    ///
+    /// Applied on BOTH of `exploreSeries`' return paths, deliberately. Today the only `skin_temp`
+    /// descriptor is `my-whoop`, so the delegating path is unreachable for it — but a guard that is
+    /// correct only because of a fact in another file is how this bug happened in the first place.
+    /// `series(day:value:)` is ordered ascending by day, which `dominantKind` relies on.
+    private static func oneSkinTempScale(
+        key: String,
+        _ series: [(day: String, value: Double)]
+    ) -> [(day: String, value: Double)] {
         guard key == "skin_temp",
-              let keep = SkinTempDisplay.dominantKind(valuesAscendingByDay: merged.map(\.value))
-        else { return merged }
-        return merged.filter { SkinTempDisplay.kind(of: $0.value) == keep }
+              let keep = SkinTempDisplay.dominantKind(valuesAscendingByDay: series.map(\.value))
+        else { return series }
+        return series.filter { SkinTempDisplay.kind(of: $0.value) == keep }
     }
 
     /// Every catalog metric's Explore series at once, memoized — the cross-catalog scan behind the
