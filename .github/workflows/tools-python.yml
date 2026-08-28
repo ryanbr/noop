@@ -5,23 +5,26 @@
 # one of them only ever executed when a contributor remembered to, which meant a decoder could regress and
 # the suite that would have caught it stayed green by never being run.
 #
-# Cheap to run: pure stdlib `unittest`, no dependencies, no fixtures to fetch, ubuntu rather than macOS.
-# Path-filtered so it only fires when the suites it runs change.
+# Cheap to run: pure stdlib `unittest`, no dependencies, no fixtures to fetch, ubuntu rather than macOS —
+# about 25 seconds end to end.
+#
+# NOT path-filtered, and that is deliberate. It used to fire only on `Tools/**.py`, on the premise that a
+# suite can only break when its own source changes. That is false for `test_home_i18n.py`, which asserts
+# on the CONTENTS of app and package files — AppModel.swift, the xcstrings catalogues, ReadinessEngine,
+# DayNavBar. A Swift-only commit broke it (#1671 moved a sign and a hardcoded °C out of a localized
+# literal) and the filter meant this job never ran, so `main` sat red until a contributor touching
+# `Tools/` for something unrelated tripped over it in their own PR (#1691).
+#
+# Widening the filter to name those paths would just re-create the trap one edit later: the list is
+# whatever the assertions happen to read today. Twenty-five seconds on every PR is cheaper than a gate
+# that is green because it did not run.
 name: Tools Python CI
 
 on:
   pull_request:
     branches: [main]
-    paths:
-      - 'Tools/linux-capture/**'
-      - 'Tools/*.py'
-      - '.github/workflows/tools-python.yml'
   push:
     branches: [main]
-    paths:
-      - 'Tools/linux-capture/**'
-      - 'Tools/*.py'
-      - '.github/workflows/tools-python.yml'
   workflow_dispatch:
 
 concurrency:
