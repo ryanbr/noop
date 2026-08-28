@@ -34,7 +34,20 @@ class IntelligenceEngineJacocoBudgetTest {
         )
         val lengths = methodCodeLengths(instrumented)
 
-        assertExactMethodBudget(lengths, "analyzeRecentOnCpu", 61_535)
+        // RATCHET, not a ceiling. Lower this whenever an extraction frees space; never raise it to fit a
+        // change. It was 61,535 while the method measured 61,518 — SEVENTEEN bytes — so the guard had
+        // stopped guarding and simply blocked everything, at test time, with no hint that the method had
+        // been full since before whoever hit it arrived. Lifting the skin/SpO2/wrist-off reads out brought
+        // it to 54,087, and this number banks that rather than leaving 7,400 bytes to be spent silently
+        // the same way.
+        //
+        // The margin is deliberate and roughly 1.9 K: enough for an ordinary change (the pass-1 sliding
+        // read windows need about 825), small enough that a large regression fails here rather than at the
+        // JVM's 64 KB wall. If a change genuinely needs more, extract — this file already shows the shape
+        // twice over.
+        assertExactMethodBudget(lengths, "analyzeRecentOnCpu", 56_000)
+        // Untouched: 6,415 against 12,000. Slack, but it has not been creeping, and ratcheting a method
+        // nobody is pressing against would be tightening for its own sake.
         assertExactMethodBudget(lengths, "persistFitnessVitalityAndSteps", 12_000)
     }
 
