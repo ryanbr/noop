@@ -33,6 +33,8 @@ import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.SettingsInputAntenna
 import androidx.compose.material.icons.filled.Watch
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -150,15 +152,9 @@ fun DataSourcesScreen(vm: AppViewModel) {
     // reads per screen visit. Workout counts are now exact (the row read was capped at DEFAULT_LIMIT).
     suspend fun refreshCounts() {
         val nowS = System.currentTimeMillis() / 1000
-        // #1304/#512: count across the active-strap UNION (active ∪ canonical), so a 2nd strap's data
-        // under "whoop-<uuid>" is included instead of silently under-reported. `daysMerged` is Android's
-        // merged-history counterpart to Swift `Repository.days`
-        // (mergeActivityFileSteps(mergeDaily(imported, computed))), so this
-        // matches the iOS badge count, including a strap-only user's computed-only ("-noop") days that an
-        // imported-only count would miss. workoutsUnion mirrors Swift's dataVolumeSnapshot workout union.
-        whoopDays = vm.repo.daysMerged(vm.activeStrapId).size
-        whoopWorkouts = vm.repo.workoutsUnion(vm.activeStrapId, 0L, nowS).size
-        whoopHasHr = vm.repo.latestHrSampleTsUnion(vm.activeStrapId) != null
+        whoopDays = vm.repo.daysCount("my-whoop")
+        whoopWorkouts = vm.repo.workoutsCount("my-whoop", 0L, nowS)
+        whoopHasHr = vm.repo.latestHrSampleTs("my-whoop") != null
         appleDays = vm.repo.appleDailyCount("apple-health", "0000-01-01", "9999-12-31")
         appleWorkouts = vm.repo.workoutsCount("apple-health", 0L, nowS)
         hcDays = vm.repo.appleDailyCount("health-connect", "0000-01-01", "9999-12-31")
@@ -180,6 +176,10 @@ fun DataSourcesScreen(vm: AppViewModel) {
     var busy by remember { mutableStateOf(false) }
     // ah-delete (#616): drives the "Remove Apple Health imported data" confirm dialog.
     var confirmDeleteApple by remember { mutableStateOf(false) }
+    // #645: drives the Health Connect category picker — shown before the FIRST permission request
+    // (so a new user picks a scope instead of one all-or-nothing prompt) and reachable again any
+    // time via "Choose data types" to grant an additional category later.
+    var showHcCategoryPicker by remember { mutableStateOf(false) }
 
     // Run an importer off the main thread, refresh the counts, then toast the result.
     fun runImport(block: suspend () -> ImportSummary) {
@@ -301,22 +301,26 @@ fun DataSourcesScreen(vm: AppViewModel) {
     // where it's install-time) the VM starts the HR peripheral.
     val requestAdvertise = rememberRequestAdvertise(onGranted = { vm.setHrBroadcast(true) })
 
-    // Import directly if permissions already granted, otherwise request them first.
+    // #645: request permissions for ONLY the chosen categories, not the whole PERMISSIONS union —
+    // the actual read (HealthConnectImporter.import) already tolerates a partial grant, so scoping
+    // the ask is the whole fix: nothing else about the import path changes.
+    fun requestHcCategories(categories: Set<HealthConnectImporter.HealthDataCategory>) {
+        if (categories.isEmpty()) return
+        hcPermissionLauncher.launch(HealthConnectImporter.permissionsFor(categories))
+    }
+
+    // Import directly if something is already granted (partial-grant import, #150), otherwise show
+    // the category picker so the user chooses what to share BEFORE any Health Connect prompt fires
+    // (#645) instead of one bundled all-types request.
     fun startHealthConnect() {
         scope.launch {
             val granted = runCatching {
                 HealthConnectImporter.client(context).permissionController.getGrantedPermissions()
             }.getOrDefault(emptySet())
-            // `any` (not `all`) is deliberate — partial grants are supported (#150). But that alone
-            // would never ASK about a permission added in an update, so a newly-read type would come
-            // back empty forever (#949). Route through the request once when the set has grown.
-            if (granted.any { it in HealthConnectImporter.PERMISSIONS } &&
-                !HealthConnectImporter.hasUnaskedPermissions(context)
-            ) {
+            if (granted.any { it in HealthConnectImporter.PERMISSIONS }) {
                 runImport { HealthConnectImporter.import(context, vm.repo, ProfileStore.from(context).heightCm) }
             } else {
-                HealthConnectImporter.markPermissionsAsked(context)
-                hcPermissionLauncher.launch(HealthConnectImporter.PERMISSIONS)
+                showHcCategoryPicker = true
             }
         }
     }
@@ -326,9 +330,6 @@ fun DataSourcesScreen(vm: AppViewModel) {
     val hcWritePermissionLauncher = rememberLauncherForActivityResult(
         PermissionController.createRequestPermissionResultContract(),
     ) { granted ->
-        // #1525: this prompt already included VO2 max, so whatever the answer was, do not ask again
-        // through the targeted one-shot below.
-        NoopPrefs.setHcVo2MaxAsked(context, true)
         if (granted.containsAll(HealthConnectWriter.PERMISSIONS)) {
             vm.writebackHealthConnectNow()
         } else {
@@ -338,20 +339,6 @@ fun DataSourcesScreen(vm: AppViewModel) {
     }
 
     // Write immediately if the write permissions are already granted, otherwise request them first.
-    /**
-     * #1525: the one-shot ask for the VO2 max write permission, for installs that were set up before it
-     * existed. The outcome is deliberately ignored — VO2 max records are written in their own attempt, so
-     * a decline costs that metric and nothing else, and blocking the writeback on it would be the very
-     * regression keeping VO2 max out of the gate avoids. Either way we mark it asked, so a "no" is
-     * respected instead of re-prompted on every sync.
-     */
-    val hcVo2MaxPermissionLauncher = rememberLauncherForActivityResult(
-        PermissionController.createRequestPermissionResultContract(),
-    ) { _ ->
-        NoopPrefs.setHcVo2MaxAsked(context, true)
-        vm.writebackHealthConnectNow()
-    }
-
     fun startWriteback() {
         scope.launch {
             val granted = runCatching {
@@ -360,29 +347,13 @@ fun DataSourcesScreen(vm: AppViewModel) {
             // Gate on vitals AND exercise perms so a user who enabled writeback before exercise
             // writeback shipped (vitals-only grant) still gets re-prompted for WRITE_EXERCISE/
             // WRITE_DISTANCE — otherwise their workouts silently never reach Health Connect (#412).
-            // #1525: VO2 max is ASKED FOR below but deliberately absent from this gate. Adding it here
-            // would mean every existing user, who granted the older set, fails `containsAll` and gets
-            // re-prompted — and blocks their whole writeback until they accept. Out of the gate, a decline
-            // costs only VO2 max, whose records are written in their own attempt.
             if (granted.containsAll(HealthConnectWriter.PERMISSIONS + HealthConnectWriter.EXERCISE_PERMISSIONS)) {
-                // #1525: this branch is where an existing install lands — it granted everything that
-                // existed at the time, so it never reaches the launcher below and would never be offered
-                // VO2 max. Ask exactly once, then write regardless of the answer.
-                if (!granted.containsAll(HealthConnectWriter.VO2MAX_PERMISSIONS) &&
-                    !NoopPrefs.hcVo2MaxAsked(context)
-                ) {
-                    hcVo2MaxPermissionLauncher.launch(HealthConnectWriter.VO2MAX_PERMISSIONS)
-                } else {
-                    vm.writebackHealthConnectNow()
-                }
+                vm.writebackHealthConnectNow()
             } else {
                 // Request vitals + exercise-session write perms together so GPS workouts can write
                 // back too (the launcher-result handler stays keyed on the vital PERMISSIONS, so
                 // exercise writeback is opt-in + non-fatal if the user declines it). v1.71 / #412.
-                hcWritePermissionLauncher.launch(
-                    HealthConnectWriter.PERMISSIONS + HealthConnectWriter.EXERCISE_PERMISSIONS +
-                        HealthConnectWriter.VO2MAX_PERMISSIONS,
-                )
+                hcWritePermissionLauncher.launch(HealthConnectWriter.PERMISSIONS + HealthConnectWriter.EXERCISE_PERMISSIONS)
             }
         }
     }
@@ -489,6 +460,18 @@ fun DataSourcesScreen(vm: AppViewModel) {
                     enabled = !busy,
                     modifier = Modifier.fillMaxWidth(),
                 ) { startHealthConnect() }
+
+                // #645: reachable any time (not just on first connect) so a user who granted only
+                // "Core recovery" can come back later and add "Activity" or "Body composition"
+                // without NOOP ever bundling a category the user didn't ask to extend.
+                Text(
+                    uiString(R.string.l10n_data_sources_screen_choose_data_types_9c3a2f18),
+                    style = NoopType.footnote,
+                    color = Palette.accent,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = !busy) { showHcCategoryPicker = true },
+                )
 
                 // Auto-sync: pull new Health Connect data when you open NOOP, if it's been longer than
                 // the chosen interval — no manual taps. On-open only (no background worker): it avoids a
@@ -775,8 +758,7 @@ fun DataSourcesScreen(vm: AppViewModel) {
             subtitle = "Re-share your live strap heart rate over Bluetooth as a standard heart-rate " +
                 "sensor, so a gym treadmill, bike, Zwift, Peloton or any fitness app nearby can read " +
                 "it. Works on any WHOOP (4.0 or 5.0/MG) because your phone does the broadcasting. " +
-                "If your strap or watch already broadcasts heart rate directly to another device, " +
-                "you can leave this off. Local Bluetooth only. Nothing leaves your phone. Off by default.",
+                "Local Bluetooth only. Nothing leaves your phone. Off by default.",
         ) {
             if (hrBroadcast) {
                 val (label, tone) =
@@ -808,7 +790,8 @@ fun DataSourcesScreen(vm: AppViewModel) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(uiString(R.string.l10n_data_sources_screen_broadcast_hr_from_this_phone_10e5605c), style = NoopType.subhead, color = Palette.textPrimary)
                     Text(
-                        uiString(R.string.l10n_data_sources_screen_acts_as_a_standard_bluetooth_heart_f8d13439),
+                        uiString(R.string.l10n_data_sources_screen_acts_as_a_standard_bluetooth_heart_f8d13439) +
+                            "bike or app to see your strap's heart rate there.",
                         style = NoopType.footnote,
                         color = Palette.textTertiary,
                     )
@@ -850,7 +833,9 @@ fun DataSourcesScreen(vm: AppViewModel) {
                         modifier = Modifier.size(16.dp),
                     )
                     Text(
-                        uiString(R.string.l10n_data_sources_screen_broadcast_hr_is_on_your_strap_0ad5368a),
+                        uiString(R.string.l10n_data_sources_screen_broadcast_hr_is_on_your_strap_0ad5368a) +
+                            "which keeps its radio hot and drains the battery faster. Turn it off when " +
+                            "you're not using it with another device.",
                         style = NoopType.caption,
                         color = Palette.statusWarning,
                     )
@@ -867,11 +852,7 @@ fun DataSourcesScreen(vm: AppViewModel) {
             subtitle = "Pairs directly with your strap over Bluetooth: no WHOOP app, no cloud.",
         ) {
             val (label, tone) = when {
-                // encryptedBond, not bonded — see strapStatusTitle. A 5/MG streaming over the open
-                // profile has bonded == true with no pairing at all, and after #1635 hello suppression it
-                // stays there for good rather than passing through.
-                live.encryptedBond -> "Bonded, streaming." to StrandTone.Positive
-                live.bonded -> "Live HR (not fully paired)" to StrandTone.Warning
+                live.bonded -> "Bonded, streaming." to StrandTone.Positive
                 live.connected -> "Connected, pairing…" to StrandTone.Warning
                 else -> "Not connected. Open Live to pair." to StrandTone.Critical
             }
@@ -879,6 +860,19 @@ fun DataSourcesScreen(vm: AppViewModel) {
         }
         }
 
+    }
+
+    // #645: the Health Connect category picker — shown before the FIRST permission request (so a
+    // new user chooses a scope instead of one bundled all-types prompt) and reachable again later
+    // via "Choose data types" to extend to another category.
+    if (showHcCategoryPicker) {
+        HealthConnectCategoryDialog(
+            onDismiss = { showHcCategoryPicker = false },
+            onConfirm = { categories ->
+                showHcCategoryPicker = false
+                requestHcCategories(categories)
+            },
+        )
     }
 
     // ah-delete (#616): strongly-worded confirm before purging the "apple-health" source. On confirm,
@@ -893,7 +887,8 @@ fun DataSourcesScreen(vm: AppViewModel) {
             },
             text = {
                 Text(
-                    uiString(R.string.l10n_data_sources_screen_this_permanently_deletes_everything_imported_from_f42e760e),
+                    uiString(R.string.l10n_data_sources_screen_this_permanently_deletes_everything_imported_from_f42e760e) +
+                        "sleep, steps, workouts and more. Your live strap data is untouched. This can't be undone.",
                     style = NoopType.subhead,
                     color = Palette.textSecondary,
                 )
@@ -981,6 +976,99 @@ private fun RoadmapNote(text: String) {
     Text(text, style = NoopType.footnote, color = Palette.textTertiary)
 }
 
+// MARK: - Health Connect category picker (#645)
+
+/**
+ * Lets the user choose which Health Connect data category (or categories) NOOP may ask for,
+ * BEFORE any system permission sheet appears — the whole point being that "Core recovery" and
+ * "Body composition" are separate asks the user can accept independently instead of one bundled
+ * all-types prompt. Defaults to every category selected, so accepting immediately matches the old
+ * single "grant everything" behaviour; the user narrows it by unchecking a row. Confirm is
+ * disabled with nothing selected (that would launch an empty, no-op permission request).
+ */
+@Composable
+private fun HealthConnectCategoryDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (Set<HealthConnectImporter.HealthDataCategory>) -> Unit,
+) {
+    var selected by remember {
+        mutableStateOf(HealthConnectImporter.HealthDataCategory.entries.toSet())
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.surfaceOverlay,
+        title = {
+            Text(
+                uiString(R.string.l10n_data_sources_screen_choose_what_to_share_5a1d8e07),
+                style = NoopType.title2,
+                color = Palette.textPrimary,
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    uiString(R.string.l10n_data_sources_screen_health_connect_asks_once_per_af6c1b90),
+                    style = NoopType.footnote,
+                    color = Palette.textTertiary,
+                )
+                Spacer(Modifier.height(8.dp))
+                HealthConnectImporter.HealthDataCategory.entries.forEach { category ->
+                    val checked = category in selected
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { selected = if (checked) selected - category else selected + category }
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Checkbox(
+                            checked = checked,
+                            onCheckedChange = { on -> selected = if (on) selected + category else selected - category },
+                            colors = CheckboxDefaults.colors(checkedColor = Palette.accent),
+                        )
+                        Column {
+                            Text(healthCategoryLabel(category), style = NoopType.subhead, color = Palette.textPrimary)
+                            Text(healthCategoryDescription(category), style = NoopType.footnote, color = Palette.textTertiary)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = selected.isNotEmpty(), onClick = { onConfirm(selected) }) {
+                Text(
+                    uiString(R.string.l10n_data_sources_screen_grant_access_1f5c9a02),
+                    style = NoopType.body,
+                    color = if (selected.isNotEmpty()) Palette.accent else Palette.textTertiary,
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(uiString(R.string.l10n_data_sources_screen_cancel_77dfd213), style = NoopType.body, color = Palette.textSecondary)
+            }
+        },
+    )
+}
+
+@Composable
+private fun healthCategoryLabel(category: HealthConnectImporter.HealthDataCategory): String = when (category) {
+    HealthConnectImporter.HealthDataCategory.CORE_RECOVERY -> uiString(R.string.l10n_data_sources_screen_core_recovery_7d4e1a39)
+    HealthConnectImporter.HealthDataCategory.ACTIVITY -> uiString(R.string.l10n_data_sources_screen_activity_3b9f6c21)
+    HealthConnectImporter.HealthDataCategory.BODY_COMPOSITION -> uiString(R.string.l10n_data_sources_screen_body_composition_2e8a4d17)
+}
+
+@Composable
+private fun healthCategoryDescription(category: HealthConnectImporter.HealthDataCategory): String = when (category) {
+    HealthConnectImporter.HealthDataCategory.CORE_RECOVERY ->
+        uiString(R.string.l10n_data_sources_screen_heart_rate_resting_hr_hrv_sleep_c4b7f902)
+    HealthConnectImporter.HealthDataCategory.ACTIVITY ->
+        uiString(R.string.l10n_data_sources_screen_steps_calories_exercise_sessions_9a6d3e58)
+    HealthConnectImporter.HealthDataCategory.BODY_COMPOSITION ->
+        uiString(R.string.l10n_data_sources_screen_weight_body_fat_and_lean_body_e1f4a86c)
+}
+
 // MARK: - Backup action button (matches the accent fill used by CoachPrimaryButton)
 
 @Composable
@@ -1047,27 +1135,6 @@ internal fun emitImportTrace(
         // rowsOut is UNVERIFIED on Android (Room reports no store-write count); never claim "(all written)".
         vm.ble.externalLog(
             com.noop.analytics.ImportTrace.stageLineUnverified(category, rowsIn = count),
-            com.noop.testcentre.TestDomain.IMPORT,
-        )
-    }
-    // #1617: which metric COLUMNS the file actually carried. rowsOut stays unverified here because Room
-    // reports no write count, but this is known at PARSE time and so is exact on both platforms — and it
-    // separates "the store never got it" from "the export never had it", which the stage lines alone
-    // cannot. Emitted only when the importer produced daily rows.
-    // Emitted generically here for any summary carrying coverage, while the Swift twin emits it inside
-    // WhoopImporter — so a NEW importer that starts filling columnCoverage would produce this line on
-    // Android and silently not on Swift. Give it the Swift twin at the same time.
-    if (summary.columnCoverage.isNotEmpty()) {
-        vm.ble.externalLog(
-            com.noop.analytics.ImportTrace.columnCoverageLine(
-                // The literal, not categoryWire: that function maps RAW TABLE KEYS to wire categories
-                // ("dailyMetric" -> "cycles"), so handing it a category already in wire form only works
-                // through its `else -> rawKey` fallthrough, and would break the day anyone adds a
-                // "cycles" branch. The Swift twin passes the same literal.
-                stage = "cycles",
-                rows = summary.columnCoverageRows,
-                counts = summary.columnCoverage,
-            ),
             com.noop.testcentre.TestDomain.IMPORT,
         )
     }
