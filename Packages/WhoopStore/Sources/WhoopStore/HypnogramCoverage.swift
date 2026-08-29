@@ -52,10 +52,20 @@ public enum HypnogramCoverage {
     /// is not a meaningful question for that payload.
     ///
     /// nil for: a nil/blank/`"[]"` payload (no stages at all — that is the richness question, not this
-    /// one) and for the IMPORTED minute-dict shape `{light,deep,rem,awake}`, which carries no
-    /// timestamps and therefore cannot be compared against a span. That second case is what keeps this
-    /// gate away from WHOOP/Apple/Health-Connect imports entirely: they are never judged incomplete
-    /// here, so no existing import behaviour changes.
+    /// one), for the IMPORTED minute-dict shape `{light,deep,rem,awake}` and for Health Connect's
+    /// `{stage,min}` array, neither of which carries timestamps to compare against a span, and for an
+    /// array holding any non-object element (see the Kotlin twin's loop for why that bails rather than
+    /// measuring the remainder).
+    ///
+    /// SCOPE, precisely. Timestamp-free shapes are what keep this gate off the WHOOP CSV, Apple and
+    /// Health Connect imports — they are never judged incomplete, so their behaviour is unchanged. That
+    /// is NOT a blanket exemption for imports, and it was originally written as one: the Xiaomi Band
+    /// importer emits real `{start,end,stage}` segments, and takes its span from `bedtime`/`wake_up_time`
+    /// fields that are independent of the `items` array it builds those segments from. A Xiaomi night
+    /// whose items do not reach its own bed/wake bounds IS judged holed here. That is arguably the right
+    /// answer — the night genuinely is only partly described — but it is a real behaviour change for
+    /// that importer, unvalidated against a Xiaomi export, and it is pinned by test rather than left to
+    /// be discovered.
     public static func fraction(stagesJSON: String?, spanSeconds: Double) -> Double? {
         guard let json = stagesJSON?.trimmingCharacters(in: .whitespacesAndNewlines),
               !json.isEmpty, json != "[]",

@@ -62,27 +62,62 @@ object HypnogramCoverage {
      * not a meaningful question for that payload.
      *
      * null for: a null/blank/`"[]"` payload (no stages at all — that is the richness question, not this
-     * one) and for the IMPORTED minute-dict shape `{light,deep,rem,awake}`, which carries no timestamps
-     * and therefore cannot be compared against a span. That second case is what keeps this gate away from
-     * WHOOP/Apple/Health-Connect imports entirely: they are never judged incomplete here, so no existing
-     * import behaviour changes.
+     * one), for the IMPORTED minute-dict shape `{light,deep,rem,awake}` and for Health Connect's
+     * `{stage,min}` array, neither of which carries timestamps to compare against a span, and for an
+     * array holding any non-object element (see the loop below for why that bails rather than measuring
+     * the remainder).
+     *
+     * SCOPE, precisely. Timestamp-free shapes are what keep this gate off the WHOOP CSV, Apple and
+     * Health Connect imports — they are never judged incomplete, so their behaviour is unchanged. That
+     * is NOT a blanket exemption for imports, and it was originally written as one: the Xiaomi Band
+     * importer emits real `{start,end,stage}` segments, and takes its span from `bedtime`/`wake_up_time`
+     * fields that are independent of the `items` array it builds those segments from. A Xiaomi night
+     * whose items do not reach its own bed/wake bounds IS judged holed here. That is arguably the right
+     * answer — the night genuinely is only partly described — but it is a real behaviour change for
+     * that importer, unvalidated against a Xiaomi export, and it is pinned by test rather than left to
+     * be discovered.
      */
     fun fraction(stagesJson: String?, spanSeconds: Double): Double? {
         val json = stagesJson?.trim() ?: return null
         if (json.isEmpty() || json == "[]") return null
-        // The dict shape (imported minute totals) throws here and falls through to null — deliberately,
+        // The minute-dict shape (imported totals) throws here and falls through to null — deliberately,
         // since it carries no timestamps to measure. Same try/catch idiom as SleepStageTotals.minutes.
+        // Health Connect's `{stage,min}` array does NOT throw: it parses, reaches the loop, and every
+        // segment is skipped for want of bounds, so it exits with zero cover — unmeasurable by the same
+        // rule, along a different path. Both are pinned in the oracle.
         val arr = try { JSONArray(json) } catch (_: Throwable) { return null }
         var covered = 0.0
         for (i in 0 until arr.length()) {
-            val seg = arr.optJSONObject(i) ?: continue
-            if (!seg.has("start") || !seg.has("end")) continue
-            val s = seg.optDouble("start", Double.NaN)
-            val e = seg.optDouble("end", Double.NaN)
-            if (s.isNaN() || e.isNaN() || e <= s) continue
+            // The Swift twin decodes the array as a WHOLE (`as? [[String: Any]]`), so ONE non-object
+            // element makes the entire payload unmeasurable there. Bail identically rather than
+            // measuring the remainder. Measured on the shipped pair, `[{seg},5]` and `[{seg},null]`
+            // read nil/not-holed on Swift and 0.1/HOLED here — and since this gate can only downgrade
+            // a night, refusing to judge a payload we do not fully understand is the safe half of that
+            // disagreement, and the one the module's fail-OPEN rule already commits to.
+            val seg = arr.optJSONObject(i) ?: return null
+            val s = num(seg.opt("start")) ?: continue
+            val e = num(seg.opt("end")) ?: continue
+            if (e <= s) continue
             covered += e - s
         }
         return fraction(covered, spanSeconds)
+    }
+
+    /**
+     * A JSON scalar read the way Swift's `(seg["start"] as? NSNumber)?.doubleValue` reads it.
+     *
+     * A number converts. A STRING does not — `NSString` is not an `NSNumber`, so the Swift side skips
+     * that segment, whereas `optDouble` would have parsed it and counted the segment here. A BOOL does
+     * convert, because `JSONSerialization` bridges `true`/`false` to `NSNumber` and yields 1/0; that is
+     * absurd in a stage payload and no producer emits it, but the two readers must not disagree
+     * anywhere either could be asked. Verified against the Swift twin compiled standalone rather than
+     * read off the page: `{"start":0}` reports `is Bool == true` under Foundation, so a bool EXCLUSION
+     * would have rejected every timeline whose first segment starts at zero.
+     */
+    private fun num(v: Any?): Double? = when (v) {
+        is Number -> v.toDouble()
+        is Boolean -> if (v) 1.0 else 0.0
+        else -> null
     }
 
     /**

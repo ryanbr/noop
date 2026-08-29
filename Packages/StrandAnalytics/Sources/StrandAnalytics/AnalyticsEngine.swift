@@ -553,6 +553,14 @@ public enum AnalyticsEngine {
         // observed at all. Summed straight off `s.stages` (no JSON re-parse: the segments are already
         // decoded here), then handed to `HypnogramCoverage` so the ratio/clamp/nil rules have ONE
         // definition shared with the merge-side guard.
+        // NOTE on scope at THIS call site: coverage here is summed off the DECODED segments, not off
+        // `stagesJSON`, so the timestamp-free shapes are not screened out by the payload-shape rule the
+        // merge side uses. A minute-dict session decodes to zero segments and contributes span with no
+        // cover, and what keeps it from reading as a holed night is `fraction`'s `coveredSeconds > 0`
+        // returning nil for a group with no timestamped stages at all. Same outcome, different
+        // mechanism — and it holds only while a group is single-sourced, which the day merge ensures by
+        // choosing one side. A group mixing a timestamped fragment with a minute-dict one would read as
+        // holed; `HypnogramCoverageTests.testMixedSourceGroupReadsAsHoled` pins both halves.
         var coveredS = 0.0, spanS = 0.0
         for s in mainGroup {
             let m = SleepStager.hypnogramMetrics(s)

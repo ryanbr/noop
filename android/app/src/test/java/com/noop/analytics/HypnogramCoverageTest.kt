@@ -43,6 +43,13 @@ class HypnogramCoverageTest {
         minute-dict|null|false
         zero-span|null|false
         neg-span|null|false
+        mixed-nonobject|null|false
+        array-with-null|null|false
+        string-numbers|null|false
+        bool-start|0.099|true
+        timestamped-import|0.125|true
+        hc-stage-min|null|false
+        null-bound|null|false
     """.trimIndent()
 
     private fun seg(vararg r: Pair<Int, Int>): String =
@@ -68,6 +75,30 @@ class HypnogramCoverageTest {
         Triple("minute-dict", """{"light":300,"deep":100,"rem":80,"awake":40}""", 3600.0),
         Triple("zero-span", seg(0 to 300), 0.0),
         Triple("neg-span", seg(0 to 300), -1.0),
+        // The four shapes on which the two readers originally DISAGREED, measured rather than read:
+        // Swift's whole-array cast returns nil for a non-object element, where this side used to skip
+        // it and measure the remainder (0.1, HOLED). A string start used to parse via optDouble and
+        // count; Swift's `as? NSNumber` rejects it. A bool start converts on BOTH sides, because
+        // JSONSerialization bridges it to NSNumber — the one case where "reject anything odd" would
+        // have been the wrong alignment, and `{"start":0}` reporting `is Bool == true` under Foundation
+        // is why a bool exclusion could not be used to express it.
+        Triple("mixed-nonobject", """[{"start":0,"end":100,"stage":"deep"},5]""", 1000.0),
+        Triple("array-with-null", """[{"start":0,"end":100,"stage":"deep"},null]""", 1000.0),
+        Triple("string-numbers", """[{"start":"0","end":"100","stage":"deep"}]""", 1000.0),
+        Triple("bool-start", """[{"start":true,"end":100,"stage":"deep"}]""", 1000.0),
+        // A Xiaomi-shaped import: real timestamped segments that do not reach the session's own
+        // bed/wake span. Unlike the timestamp-free imports this IS judged, which is the scope the
+        // module doc now states outright.
+        Triple("timestamped-import", seg(0 to 3600), 28800.0),
+        // Health Connect's REAL shape. The oracle's `minute-dict` row is the throwing `{light,deep,...}`
+        // object; HC emits an ARRAY of `{stage,min}` objects, which parses cleanly and reaches the loop.
+        // It is the live producer shape this gate claims to be exempt from, so it is pinned rather than
+        // argued: every element is an object (no bail), none carries bounds (every segment skipped),
+        // covered stays 0, and zero cover is unmeasurable rather than bad.
+        Triple("hc-stage-min", """[{"stage":"light","min":300},{"stage":"deep","min":100}]""", 3600.0),
+        // A JSON null BOUND inside an otherwise well-formed object: the object itself is fine, so
+        // neither side bails; both fail to read the bound and skip the segment.
+        Triple("null-bound", """[{"start":null,"end":100,"stage":"deep"}]""", 1000.0),
     )
 
     @Test
@@ -125,5 +156,22 @@ class HypnogramCoverageTest {
         val span = 601 * 60.0
         assertTrue(HypnogramCoverage.isHoled(seg(0 to 4200, 4200 to 8400), span))
         assertEquals(8400.0 / span, HypnogramCoverage.fraction(seg(0 to 4200, 4200 to 8400), span)!!, 1e-12)
+    }
+
+    /**
+     * The ENGINE call site sums coverage off decoded segments, not off `stagesJson`, so the payload
+     * shape rule that exempts timestamp-free imports at the merge does not run there. What actually
+     * protects them is this: a group with no timestamped stages at all covers zero, and zero cover is
+     * unmeasurable rather than bad. Holds only while a group is single-sourced — a group mixing a
+     * staged fragment with a minute-dict one covers part of its total span and reads as holed.
+     */
+    @Test fun groupWithNoTimestampedStagesIsUnmeasurableNotHoled() {
+        assertNull(HypnogramCoverage.fraction(0.0, 8 * 3600.0))
+    }
+
+    @Test fun mixedSourceGroupReadsAsHoled() {
+        // 8 h fully-staged fragment + a 2 h minute-dict fragment that decodes to no segments.
+        assertEquals(0.8, HypnogramCoverage.fraction(8 * 3600.0, 10 * 3600.0)!!, 1e-12)
+        assertTrue(0.8 < HypnogramCoverage.minCoverage)
     }
 }
