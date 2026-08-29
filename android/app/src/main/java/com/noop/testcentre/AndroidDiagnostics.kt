@@ -461,15 +461,20 @@ object AndroidDiagnostics {
         populatedHours: Int,
         daysObserved: Int,
         relativeAmplitude: Double?,
+        amplitudeBpm: Double? = null,
     ): String = when {
         buckets < CIRCADIAN_MIN_BUCKETS ->
             "no estimate — $buckets hourly HR buckets in 14d, needs $CIRCADIAN_MIN_BUCKETS"
         populatedHours < CIRCADIAN_MIN_HOURS ->
             "no estimate — HR lands in $populatedHours of 24 local hours, needs $CIRCADIAN_MIN_HOURS"
+        // Mirrors the engine's OR: a swing passes on the proportional test or on the absolute one. Read
+        // the two apart and this line starts reporting "too flat" for rhythms the engine accepts.
         relativeAmplitude != null &&
-            relativeAmplitude < com.noop.analytics.CircadianEngine.minRelativeAmplitude ->
+            relativeAmplitude < com.noop.analytics.CircadianEngine.minRelativeAmplitude &&
+            (amplitudeBpm ?: 0.0) < com.noop.analytics.CircadianEngine.minAbsoluteAmplitudeBpm ->
             "unreadable — rhythm too flat (amplitude ${fmt1(relativeAmplitude * 100)}% of mesor, " +
-                "needs ${fmt1(com.noop.analytics.CircadianEngine.minRelativeAmplitude * 100)}%)"
+                "needs ${fmt1(com.noop.analytics.CircadianEngine.minRelativeAmplitude * 100)}% or " +
+                "${fmt1(com.noop.analytics.CircadianEngine.minAbsoluteAmplitudeBpm)} bpm)"
         daysObserved < com.noop.analytics.CircadianEngine.minDaysForFit ->
             "unreadable — $daysObserved days observed, needs " +
                 "${com.noop.analytics.CircadianEngine.minDaysForFit}"
@@ -524,7 +529,7 @@ object AndroidDiagnostics {
                     "${fmt1(fit.mesor)} bpm mesor  (acrophase " +
                     "${fmt1(fit.acrophaseHours)}h)")
             }
-            add("Verdict: " + circadianVerdict(buckets.size, hours, days, amp))
+            add("Verdict: " + circadianVerdict(buckets.size, hours, days, amp, fit?.amplitude))
         }.onFailure { add("  (unavailable: ${it.message})") }
     }
 

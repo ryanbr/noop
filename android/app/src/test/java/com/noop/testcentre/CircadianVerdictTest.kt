@@ -11,8 +11,8 @@ import org.junit.Test
  */
 class CircadianVerdictTest {
 
-    private fun verdict(buckets: Int, hours: Int, days: Int, amp: Double? = 0.5) =
-        AndroidDiagnostics.circadianVerdict(buckets, hours, days, amp)
+    private fun verdict(buckets: Int, hours: Int, days: Int, amp: Double? = 0.5, bpm: Double? = null) =
+        AndroidDiagnostics.circadianVerdict(buckets, hours, days, amp, bpm)
 
     /** Gates are reported in the order the pipeline applies them: the bucket floor short-circuits first. */
     @Test fun theBucketFloorIsReportedBeforeAnythingElse() {
@@ -66,4 +66,20 @@ class CircadianVerdictTest {
         assertTrue("the reported floor must be enough", binsFor(floor).isNotEmpty())
     }
 
+    /**
+     * The diagnostic must mirror the engine's OR, not just its relative half. The measured wearer -
+     * 7.3% of mesor but 5.5 bpm of swing - is rhythmic to the engine, so a line still calling that "too
+     * flat" would send its reader after a threshold that is no longer the reason for anything.
+     */
+    @Test fun anAbsoluteSwingClearsTheGateInTheVerdictToo() {
+        val v = verdict(buckets = 328, hours = 24, days = 15, amp = 0.073, bpm = 5.5)
+        assertTrue(v, !v.contains("too flat"))
+        assertTrue(v, v.startsWith("solid"))
+    }
+
+    /** Below BOTH measures it is still reported as flat. */
+    @Test fun belowBothMeasuresIsStillFlat() {
+        val v = verdict(buckets = 328, hours = 24, days = 15, amp = 0.05, bpm = 3.0)
+        assertTrue(v, v.startsWith("unreadable") && v.contains("too flat"))
+    }
 }

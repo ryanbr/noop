@@ -129,27 +129,60 @@ final class CircadianEngineTests: XCTestCase {
     /// `minRelativeAmplitude` gates on `amplitude / |mesor|`. Against a signal carrying a ~45-75 bpm DC
     /// offset that makes the real bar an ABSOLUTE `0.10 x mesor` bpm — which these pin.
     ///
-    /// The pair that matters is the last two: the SAME 5 bpm swing is arrhythmic at a 65 bpm mesor and
-    /// readable at 45. The bar scales WITH the mesor, so a low-resting wearer faces a LOWER absolute
-    /// requirement, not a higher one. #982 raised the opposite concern — that the gate penalises the
-    /// fittest — and that only holds for someone whose amplitude is disproportionately small for their
-    /// mesor. Pinned here so the direction is a fact rather than an argument, for whoever re-tunes it.
+    /// These USED to pin the relative bar alone, including that the SAME 5 bpm swing was arrhythmic at a
+    /// 65 bpm mesor and readable at 45 — the same rhythm judged by the baseline rather than by itself.
+    /// `minAbsoluteAmplitudeBpm` removed that split; what remains pinned is that a proportional swing
+    /// still passes, a genuinely flat one still fails, and the verdict no longer moves with the mesor.
     private func confidence(mesor: Double, amp: Double) -> CircadianEngine.PhaseConfidence {
         CircadianEngine.estimatePhase(bins: profile(mesor: mesor, amp: amp, acrophase: 16),
                                       daysObserved: CircadianEngine.goodDaysForFit,
                                       habitualWakeHour: 7)!.confidence
     }
 
-    func testTypicalMesorNeedsAboutSixAndAHalfBpmOfSwing() {
+    func testAProportionalSwingStillPasses() {
         XCTAssertNotEqual(confidence(mesor: 65, amp: 8), .unreadable)   // 0.123 - clears 0.10
-        XCTAssertEqual(confidence(mesor: 65, amp: 5), .unreadable)      // 0.077 - does not
     }
 
-    func testTheSameSwingIsReadableAtALowerMesor() {
-        // 5 bpm: arrhythmic at 65, rhythmic at 45. The gate favours the low-resting wearer.
-        XCTAssertEqual(confidence(mesor: 65, amp: 5), .unreadable)
-        XCTAssertNotEqual(confidence(mesor: 45, amp: 5), .unreadable)   // 0.111
-        XCTAssertEqual(confidence(mesor: 45, amp: 4), .unreadable)      // 0.089
+    /// The inconsistency the absolute floor removes: one rhythm, three baselines, one verdict.
+    func testTheSameSwingNoLongerDependsOnTheBaseline() {
+        XCTAssertNotEqual(confidence(mesor: 45, amp: 5), .unreadable)
+        XCTAssertNotEqual(confidence(mesor: 65, amp: 5), .unreadable)
+        XCTAssertNotEqual(confidence(mesor: 80, amp: 5), .unreadable)
+    }
+
+    /// A genuinely flat rhythm is still refused — the floor widens the gate, it does not remove it.
+    func testAFlatRhythmIsStillArrhythmicOnBothMeasures() {
+        XCTAssertEqual(confidence(mesor: 45, amp: 4), .unreadable)      // 0.089, 4.0 bpm
+        XCTAssertEqual(confidence(mesor: 65, amp: 4), .unreadable)      // 0.062, 4.0 bpm
+        XCTAssertEqual(confidence(mesor: 74.7, amp: 3), .unreadable)
+    }
+
+    /// The absolute floor's own boundary, isolated: at a 74.7 bpm mesor the relative test cannot pass
+    /// either value, so only `minAbsoluteAmplitudeBpm` decides. Expressed RELATIVE to the constant, with a
+    /// 0.1 bpm margin rather than the exact value — the cosinor recovers amplitude to ~1e-9, and sitting
+    /// exactly on `>=` would pin float recovery rather than the threshold.
+    func testTheAbsoluteFloorIsWhereItSays() {
+        let floor = CircadianEngine.minAbsoluteAmplitudeBpm
+        XCTAssertNotEqual(confidence(mesor: 74.7, amp: floor + 0.1), .unreadable)
+        XCTAssertEqual(confidence(mesor: 74.7, amp: floor - 0.1), .unreadable)
+    }
+
+    /// The widening must not hand a thinner fit a FIRMER label. A rhythm admitted only by the absolute
+    /// floor caps at `.wide`, which withholds `chronotype` — that names a category off an acrophase a
+    /// small swing pins loosely. A proportional rhythm still reaches `.solid`.
+    func testAnAbsoluteOnlyRhythmIsReadableButNotSolid() {
+        XCTAssertEqual(confidence(mesor: 74.7, amp: 5.5), .wide)    // 0.073 - floor only
+        XCTAssertEqual(confidence(mesor: 65, amp: 8), .solid)       // 0.123 - proportional
+        let wide = CircadianEngine.estimatePhase(bins: profile(mesor: 74.7, amp: 5.5, acrophase: 16),
+                                                 daysObserved: CircadianEngine.goodDaysForFit,
+                                                 habitualWakeHour: 7)!
+        XCTAssertNil(CircadianEngine.chronotype(wide), "a floor-only fit must not name a chronotype")
+    }
+
+    /// The measured wearer this change exists for: 5.5 bpm on a 74.7 bpm mesor, refused at 7.3% against
+    /// the 10% bar while its acrophase implied a textbook CBTmin near 04:06.
+    func testTheMeasuredWearerIsNoLongerSilenced() {
+        XCTAssertNotEqual(confidence(mesor: 74.7, amp: 5.5), .unreadable)
     }
 
     // MARK: - chronotype lean (absolute phase, not schedule-relative)

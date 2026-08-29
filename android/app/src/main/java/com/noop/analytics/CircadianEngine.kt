@@ -31,10 +31,31 @@ object CircadianEngine {
      * #982 — RELATIVE, applied to mean HR (mesor ~45-75 bpm), not to a near-zero-mesor motion volume. The
      * effective bar is `0.10 x mesor`: ~6.5 bpm at a 65 bpm mesor, ~4.5 bpm at 45. It scales WITH the
      * mesor, so a low-resting wearer faces a LOWER absolute bar — the opposite of the concern in #982.
-     * Deliberately NOT re-tuned: every candidate value is unvalidated and nobody is currently silenced.
+     * The VALUE is still not re-tuned — every candidate remains unvalidated. What changed is the SHAPE:
+     * [minAbsoluteAmplitudeBpm] now passes a swing that is large enough in bpm regardless of mesor,
+     * because a measured wearer showed the relative test refusing a coherent rhythm purely for having a
+     * high baseline. "Nobody is currently silenced by it" was true when written and is no longer.
      * `CircadianEngineTest` pins what it costs at each mesor. Mirrors the Swift twin exactly.
      */
     const val minRelativeAmplitude: Double = 0.10
+    /**
+     * Absolute amplitude (bpm) that reads as rhythmic whatever the mesor — the relative bar's escape hatch.
+     *
+     * The relative test scales the requirement WITH resting HR, so the identical swing is accepted on one
+     * body and refused on another: 5.5 bpm passes at a 55 bpm mesor and fails at 74.7. That is not a
+     * judgement about the rhythm, it is a judgement about the baseline, and a measured wearer sat exactly
+     * there — 5.5 bpm on a 74.7 bpm mesor, acrophase 16.1 h implying a CBTmin near 04:06, a textbook phase
+     * rather than noise. [minRelativeAmplitude]'s own note called for precisely that observation ("a
+     * wearer whose amplitude is disproportionately small for their mesor") before the shape could be
+     * revisited.
+     *
+     * 4.5 bpm is NOT a new tuning constant: it is the absolute amplitude the relative gate ALREADY accepts
+     * at the bottom of the ~45-75 bpm mesor range it was described against. The rule this encodes is
+     * internal consistency — an amplitude good enough for some wearer is good enough for all — so the
+     * change is strictly more permissive and no one who reads rhythmic today stops.
+     * Mirrors the Swift twin exactly.
+     */
+    const val minAbsoluteAmplitudeBpm: Double = 4.5
     const val maxShiftPerDayHours: Double = 1.0
     const val cbtMinBeforeWakeHours: Double = 2.5
     const val acrophaseAfterCbtMinHours: Double = 12.0
@@ -152,7 +173,11 @@ object CircadianEngine {
         val fit = cosinor(bins) ?: return null
 
         val relativeAmplitude = if (fit.mesor != 0.0) fit.amplitude / abs(fit.mesor) else 0.0
-        if (daysObserved < minDaysForFit || relativeAmplitude < minRelativeAmplitude) {
+        // Rhythmic on EITHER measure: a proportional swing, or an absolute one large enough to read on any
+        // baseline. See [minAbsoluteAmplitudeBpm] for why the relative test alone was self-inconsistent.
+        val rhythmic =
+            relativeAmplitude >= minRelativeAmplitude || fit.amplitude >= minAbsoluteAmplitudeBpm
+        if (daysObserved < minDaysForFit || !rhythmic) {
             val tmin = observedTempMinHour ?: wrap24(fit.acrophaseHours - acrophaseAfterCbtMinHours)
             return PhaseEstimate(tmin, fit.acrophaseHours, 0.0, PhaseConfidence.UNREADABLE,
                 "Your rhythm is hard to read right now - keep wearing it for a clearer picture.")
@@ -165,7 +190,16 @@ object CircadianEngine {
         val offsetHours = signedHourDelta(idealTempMin, tempMinHour)
         val offsetMinutes = offsetHours * 60.0
 
-        val confidence = if (daysObserved >= goodDaysForFit) PhaseConfidence.SOLID else PhaseConfidence.WIDE
+        // SOLID means strong on BOTH axes, not just enough days. A rhythm admitted by
+        // [minAbsoluteAmplitudeBpm] alone is real but modest, and a smaller swing pins its acrophase less
+        // tightly — so it stays WIDE. That matters because WIDE is what withholds [chronotype], which
+        // names a category off exactly that acrophase: widening the readable gate should give more people
+        // a body clock, not give a thinner fit a firmer label.
+        val confidence = if (daysObserved >= goodDaysForFit && relativeAmplitude >= minRelativeAmplitude) {
+            PhaseConfidence.SOLID
+        } else {
+            PhaseConfidence.WIDE
+        }
         val lean = when {
             offsetMinutes > 20 -> "later (a night-owl lean)"
             offsetMinutes < -20 -> "earlier (a morning-lark lean)"

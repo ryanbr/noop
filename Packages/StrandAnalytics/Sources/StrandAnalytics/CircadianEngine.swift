@@ -34,12 +34,28 @@ public enum CircadianEngine {
     /// so a low-resting wearer faces a LOWER absolute bar, not a higher one — the opposite of the concern
     /// raised in #982, which assumed the gate penalises the fittest.
     ///
-    /// Deliberately NOT re-tuned to an absolute bpm floor. The shape is arguably wrong for this domain,
-    /// but every candidate value is unvalidated, nobody is currently silenced by it, and the direction of
-    /// the harm is not established (it needs a wearer whose amplitude is disproportionately small for
-    /// their mesor — an n=1 observation). `CircadianEngineTests` pins what the gate costs at each mesor so
-    /// the trade is visible to whoever does have the data to change it.
+    /// The VALUE is still not re-tuned — every candidate remains unvalidated. What changed is the SHAPE:
+    /// `minAbsoluteAmplitudeBpm` now passes a swing large enough in bpm regardless of mesor. This note
+    /// asked for "a wearer whose amplitude is disproportionately small for their mesor — an n=1
+    /// observation" before that could happen, and one arrived: 5.5 bpm on a 74.7 bpm mesor with a coherent
+    /// acrophase. "Nobody is currently silenced by it" was true when written and is no longer.
+    /// `CircadianEngineTests` pins what the gate costs at each mesor so the trade stays visible.
     public static let minRelativeAmplitude: Double = 0.10
+    /// Absolute amplitude (bpm) that reads as rhythmic whatever the mesor — the relative bar's escape hatch.
+    ///
+    /// The relative test scales the requirement WITH resting HR, so the identical swing is accepted on one
+    /// body and refused on another: 5.5 bpm passes at a 55 bpm mesor and fails at 74.7. That is not a
+    /// judgement about the rhythm, it is a judgement about the baseline, and a measured wearer sat exactly
+    /// there — 5.5 bpm on a 74.7 bpm mesor, acrophase 16.1 h implying a CBTmin near 04:06, which is a
+    /// textbook phase rather than noise. `minRelativeAmplitude`'s own note called for precisely that
+    /// observation ("a wearer whose amplitude is disproportionately small for their mesor") before the
+    /// shape could be revisited.
+    ///
+    /// 4.5 bpm is NOT a new tuning constant: it is the absolute amplitude the relative gate ALREADY
+    /// accepts at the bottom of the ~45-75 bpm mesor range it was described against. The rule this
+    /// encodes is internal consistency — an amplitude good enough for some wearer is good enough for all
+    /// — so the change is strictly more permissive and no one who reads rhythmic today stops.
+    public static let minAbsoluteAmplitudeBpm: Double = 4.5
     /// Max clock-shift the planner steps per day (hours) — the well-established ~1 h/day re-entrainment rate.
     public static let maxShiftPerDayHours: Double = 1.0
     /// CBTmin sits roughly this many hours before habitual wake; used to translate the activity acrophase
@@ -194,7 +210,10 @@ public enum CircadianEngine {
         guard let fit = cosinor(bins) else { return nil }
 
         let relativeAmplitude = fit.mesor != 0 ? fit.amplitude / abs(fit.mesor) : 0
-        if daysObserved < minDaysForFit || relativeAmplitude < minRelativeAmplitude {
+        // Rhythmic on EITHER measure: a proportional swing, or an absolute one large enough to read on
+        // any baseline. See `minAbsoluteAmplitudeBpm` for why the relative test alone was self-inconsistent.
+        let rhythmic = relativeAmplitude >= minRelativeAmplitude || fit.amplitude >= minAbsoluteAmplitudeBpm
+        if daysObserved < minDaysForFit || !rhythmic {
             // A reading is returned, but flagged unreadable so the surface says "hard to read right now."
             let tmin = observedTempMinHour ?? wrap24(fit.acrophaseHours - acrophaseAfterCbtMinHours)
             return PhaseEstimate(tempMinHour: tmin, acrophaseHours: fit.acrophaseHours,
@@ -212,7 +231,13 @@ public enum CircadianEngine {
         let offsetHours = signedHourDelta(from: idealTempMin, to: tempMinHour)
         let offsetMinutes = offsetHours * 60.0
 
-        let confidence: PhaseConfidence = daysObserved >= goodDaysForFit ? .solid : .wide
+        // SOLID means strong on BOTH axes, not just enough days. A rhythm admitted by
+        // `minAbsoluteAmplitudeBpm` alone is real but modest, and a smaller swing pins its acrophase less
+        // tightly — so it stays `.wide`. That matters because `.wide` is what withholds `chronotype`,
+        // which names a category off exactly that acrophase: widening the readable gate should give more
+        // people a body clock, not give a thinner fit a firmer label.
+        let confidence: PhaseConfidence =
+            (daysObserved >= goodDaysForFit && relativeAmplitude >= minRelativeAmplitude) ? .solid : .wide
         let lean: String
         if offsetMinutes > 20 { lean = "later (a night-owl lean)" }
         else if offsetMinutes < -20 { lean = "earlier (a morning-lark lean)" }

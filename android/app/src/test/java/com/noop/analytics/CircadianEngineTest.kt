@@ -127,16 +127,59 @@ class CircadianEngineTest {
             7.0,
         )!!.confidence
 
-    @Test fun typicalMesorNeedsAboutSixAndAHalfBpmOfSwing() {
+    @Test fun aProportionalSwingStillPasses() {
         assertTrue(confidence(65.0, 8.0) != CircadianEngine.PhaseConfidence.UNREADABLE)   // 0.123
-        assertEquals(CircadianEngine.PhaseConfidence.UNREADABLE, confidence(65.0, 5.0))   // 0.077
     }
 
-    @Test fun theSameSwingIsReadableAtALowerMesor() {
-        // 5 bpm: arrhythmic at 65, rhythmic at 45. The gate favours the low-resting wearer.
-        assertEquals(CircadianEngine.PhaseConfidence.UNREADABLE, confidence(65.0, 5.0))
-        assertTrue(confidence(45.0, 5.0) != CircadianEngine.PhaseConfidence.UNREADABLE)   // 0.111
-        assertEquals(CircadianEngine.PhaseConfidence.UNREADABLE, confidence(45.0, 4.0))   // 0.089
+    /**
+     * The inconsistency the absolute floor removes. This pair USED to assert that 5 bpm was arrhythmic at
+     * a 65 bpm mesor and rhythmic at 45 — the same swing, opposite verdicts, decided by the baseline
+     * rather than by the rhythm. Both now read rhythmic.
+     */
+    @Test fun theSameSwingNoLongerDependsOnTheBaseline() {
+        assertTrue(confidence(45.0, 5.0) != CircadianEngine.PhaseConfidence.UNREADABLE)
+        assertTrue(confidence(65.0, 5.0) != CircadianEngine.PhaseConfidence.UNREADABLE)
+        assertTrue(confidence(80.0, 5.0) != CircadianEngine.PhaseConfidence.UNREADABLE)
+    }
+
+    /** A genuinely flat rhythm is still refused — the floor widens the gate, it does not remove it. */
+    @Test fun aFlatRhythmIsStillArrhythmicOnBothMeasures() {
+        assertEquals(CircadianEngine.PhaseConfidence.UNREADABLE, confidence(45.0, 4.0))   // 0.089, 4.0 bpm
+        assertEquals(CircadianEngine.PhaseConfidence.UNREADABLE, confidence(65.0, 4.0))   // 0.062, 4.0 bpm
+        assertEquals(CircadianEngine.PhaseConfidence.UNREADABLE, confidence(74.7, 3.0))
+    }
+
+    /**
+     * The absolute floor's own boundary, isolated: at a 74.7 bpm mesor the relative test cannot pass
+     * either value (0.061 and 0.059 against 0.10), so only [CircadianEngine.minAbsoluteAmplitudeBpm]
+     * decides. Expressed RELATIVE to the constant so the test follows it, and with a 0.1 bpm margin
+     * either side rather than testing the exact value — the cosinor recovers amplitude to ~1e-9, and a
+     * test sitting exactly on `>=` would be pinning float recovery rather than the threshold.
+     */
+    @Test fun theAbsoluteFloorIsWhereItSays() {
+        val floor = CircadianEngine.minAbsoluteAmplitudeBpm
+        assertTrue(confidence(74.7, floor + 0.1) != CircadianEngine.PhaseConfidence.UNREADABLE)
+        assertEquals(CircadianEngine.PhaseConfidence.UNREADABLE, confidence(74.7, floor - 0.1))
+    }
+
+    /**
+     * The widening must not hand a thinner fit a FIRMER label. A rhythm admitted only by the absolute
+     * floor caps at WIDE, which is what withholds [CircadianEngine.chronotype] — that names a category
+     * off an acrophase a small swing pins loosely. A proportional rhythm still reaches SOLID.
+     */
+    @Test fun anAbsoluteOnlyRhythmIsReadableButNotSolid() {
+        assertEquals(CircadianEngine.PhaseConfidence.WIDE, confidence(74.7, 5.5))   // 0.073 - floor only
+        assertEquals(CircadianEngine.PhaseConfidence.SOLID, confidence(65.0, 8.0))  // 0.123 - proportional
+        val wide = CircadianEngine.estimatePhase(profile(74.7, 5.5, 16.0), CircadianEngine.goodDaysForFit, 7.0)!!
+        assertNull("a floor-only fit must not name a chronotype", CircadianEngine.chronotype(wide))
+    }
+
+    /**
+     * The measured wearer this change exists for: 5.5 bpm on a 74.7 bpm mesor, which the relative test
+     * refused at 7.3% against its 10% bar while the acrophase implied a textbook CBTmin near 04:06.
+     */
+    @Test fun theMeasuredWearerIsNoLongerSilenced() {
+        assertTrue(confidence(74.7, 5.5) != CircadianEngine.PhaseConfidence.UNREADABLE)
     }
 
     // ---- chronotype lean (absolute phase, not schedule-relative) ----
