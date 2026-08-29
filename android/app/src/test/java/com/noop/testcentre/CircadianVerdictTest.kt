@@ -51,4 +51,19 @@ class CircadianVerdictTest {
         val v = verdict(buckets = 300, hours = 20, days = 20, amp = null)
         assertTrue(v, v.startsWith("solid"))
     }
+
+    /**
+     * The bucket floor is a bare literal inside `circadianBinsFrom`, so it cannot be referenced the way
+     * the hour floor now is. Pin it against the real behaviour instead of trusting a comment to keep the
+     * two in step — a diagnostic that names the wrong threshold sends its reader after the wrong thing.
+     */
+    @Test fun theReportedBucketFloorIsTheOneCircadianBinsFromActuallyApplies() {
+        fun binsFor(n: Int) = com.noop.ui.circadianBinsFrom(
+            (0 until n).map { com.noop.data.HrBucket(bucket = it * 3600L, avgBpm = 60.0) }, 0L,
+        ).first
+        val floor = AndroidDiagnostics.CIRCADIAN_MIN_BUCKETS
+        assertTrue("one under the reported floor must still be refused", binsFor(floor - 1).isEmpty())
+        assertTrue("the reported floor must be enough", binsFor(floor).isNotEmpty())
+    }
+
 }
