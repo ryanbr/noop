@@ -19,7 +19,7 @@ class ScheduledReportPolicyTest {
     @Test fun morningFiresWhenEnabledScorePresentAndNotYetToday() {
         assertTrue(
             ScheduledReportPolicy.shouldNotifyMorning(
-                enabled = true, chargeOrRestPresent = true, lastNotifiedDay = "2026-06-20", reportDay = "2026-06-21",
+                enabled = true, metricsPresent = true, lastNotifiedDay = "2026-06-20", reportDay = "2026-06-21",
             ),
         )
     }
@@ -27,7 +27,7 @@ class ScheduledReportPolicyTest {
     @Test fun morningSuppressedWhenDisabled() {
         assertFalse(
             ScheduledReportPolicy.shouldNotifyMorning(
-                enabled = false, chargeOrRestPresent = true, lastNotifiedDay = null, reportDay = "2026-06-21",
+                enabled = false, metricsPresent = true, lastNotifiedDay = null, reportDay = "2026-06-21",
             ),
         )
     }
@@ -35,7 +35,7 @@ class ScheduledReportPolicyTest {
     @Test fun morningSuppressedWhenAlreadyFiredToday() {
         assertFalse(
             ScheduledReportPolicy.shouldNotifyMorning(
-                enabled = true, chargeOrRestPresent = true, lastNotifiedDay = "2026-06-21", reportDay = "2026-06-21",
+                enabled = true, metricsPresent = true, lastNotifiedDay = "2026-06-21", reportDay = "2026-06-21",
             ),
         )
     }
@@ -43,7 +43,7 @@ class ScheduledReportPolicyTest {
     @Test fun morningSuppressedWhenNoScore() {
         assertFalse(
             ScheduledReportPolicy.shouldNotifyMorning(
-                enabled = true, chargeOrRestPresent = false, lastNotifiedDay = null, reportDay = "2026-06-21",
+                enabled = true, metricsPresent = false, lastNotifiedDay = null, reportDay = "2026-06-21",
             ),
         )
     }
@@ -57,7 +57,7 @@ class ScheduledReportPolicyTest {
         // resolved row is still the 06-20 night → reportDay = "2026-06-20", already notified → suppressed.
         assertFalse(
             ScheduledReportPolicy.shouldNotifyMorning(
-                enabled = true, chargeOrRestPresent = true, lastNotifiedDay = "2026-06-20", reportDay = "2026-06-20",
+                enabled = true, metricsPresent = true, lastNotifiedDay = "2026-06-20", reportDay = "2026-06-20",
             ),
         )
     }
@@ -86,23 +86,53 @@ class ScheduledReportPolicyTest {
         assertTrue(ScheduledReportPolicy.shouldNotifyWorkout(enabled = true, newestWorkoutTs = 1L, lastWorkoutTs = 0L))
     }
 
-    // MARK: - morningCopy (honest omission)
+    // MARK: - morningBrief (round once, honest omission)
 
-    @Test fun morningCopyShowsBothScores() {
-        val (title, body) = ScheduledReportPolicy.morningCopy(chargePct = 72, restPct = 88)!!
-        assertTrue(title.contains("recap"))
-        assertTrue(body.contains("Charge 72"))
-        assertTrue(body.contains("Rest 88"))
+    @Test fun morningBriefIncludesEveryAvailableMetric() {
+        val brief = ScheduledReportPolicy.morningBrief(
+            charge = 72.2, rest = 88.4, hrvMs = 61.6, restingHr = 52, sleepMinutes = 479.0,
+        )!!
+        assertEquals(72, brief.charge)
+        assertEquals(88, brief.rest)
+        assertEquals(62, brief.hrvMs)
+        assertEquals(52, brief.restingHr)
+        assertEquals(8, brief.sleepHours)
     }
 
-    @Test fun morningCopyOmitsAbsentRestNeverShowsZero() {
-        val (_, body) = ScheduledReportPolicy.morningCopy(chargePct = 60, restPct = null)!!
-        assertTrue(body.contains("Charge 60"))
-        assertFalse(body.contains("Rest"))
+    @Test fun morningBriefUsesTheDisplayedRoundedChargeForBanding() {
+        val high = ScheduledReportPolicy.morningBrief(charge = 66.6, rest = null)!!
+        val controlled = ScheduledReportPolicy.morningBrief(charge = 66.4, rest = null)!!
+        assertEquals(67, high.charge)
+        assertEquals(ScheduledReportPolicy.MorningTrainingBand.HARDER, high.trainingBand)
+        assertEquals(66, controlled.charge)
+        assertEquals(ScheduledReportPolicy.MorningTrainingBand.CONTROLLED, controlled.trainingBand)
     }
 
-    @Test fun morningCopyNullWhenNeitherPresent() {
-        assertNull(ScheduledReportPolicy.morningCopy(chargePct = null, restPct = null))
+    @Test fun morningBriefPinsBothBandBoundaries() {
+        assertEquals(
+            ScheduledReportPolicy.MorningTrainingBand.RECOVERY,
+            ScheduledReportPolicy.morningBrief(charge = 33.4, rest = null)!!.trainingBand,
+        )
+        assertEquals(
+            ScheduledReportPolicy.MorningTrainingBand.CONTROLLED,
+            ScheduledReportPolicy.morningBrief(charge = 33.5, rest = null)!!.trainingBand,
+        )
+        assertEquals(
+            ScheduledReportPolicy.MorningTrainingBand.HARDER,
+            ScheduledReportPolicy.morningBrief(charge = 66.5, rest = null)!!.trainingBand,
+        )
+    }
+
+    @Test fun morningBriefWithNoChargeNeverInventsTrainingAdvice() {
+        val brief = ScheduledReportPolicy.morningBrief(
+            charge = null, rest = null, hrvMs = 58.0, restingHr = null, sleepMinutes = null,
+        )!!
+        assertNull(brief.charge)
+        assertNull(brief.trainingBand)
+    }
+
+    @Test fun morningBriefNullWhenEveryMetricIsAbsent() {
+        assertNull(ScheduledReportPolicy.morningBrief(charge = null, rest = null))
     }
 
     // MARK: - workoutCopy

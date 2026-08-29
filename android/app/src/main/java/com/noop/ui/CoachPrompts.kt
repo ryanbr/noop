@@ -20,7 +20,8 @@ object CoachPrompts {
 }
 
 /**
- * A question handed over by the Today Coach launcher sheet, for [CoachScreen] to send once (#1862).
+ * A question handed over by the Today Coach launcher sheet for [CoachScreen] to place in its composer
+ * (#1862/#1736). The user reviews and explicitly sends it there.
  *
  * Swift passes this on the shared `AICoachEngine`, which is an app-wide `EnvironmentObject`. Android has
  * no equivalent shared instance here: `CoachScreen` takes `viewModel()`, which is scoped to the nav
@@ -28,14 +29,14 @@ object CoachPrompts {
  * the smallest thing that actually crosses that boundary.
  *
  * `@Volatile` because it is written on the main thread and read by the screen's first composition.
- * Setting it performs NO network work by itself; the send still happens in the Coach screen, which owns
- * the consent and error surface.
+ * Setting it performs NO network work by itself; the Coach screen only prepares a draft and keeps the
+ * consent, review, send, and error surfaces in one place.
  */
 object CoachHandoff {
     @Volatile
     var pendingPrompt: String? = null
 
-    /** Take the pending question and clear it, so a recomposition cannot send it twice. */
+    /** Take the pending question and clear it, so a recomposition cannot replace the draft twice. */
     fun consume(): String? {
         val p = pendingPrompt
         pendingPrompt = null

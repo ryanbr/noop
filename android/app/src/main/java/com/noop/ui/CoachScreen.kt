@@ -76,18 +76,13 @@ import com.noop.ai.CustomAiAuthHeader
 @Composable
 fun CoachScreen(vm: CoachViewModel = viewModel()) {
     val context = LocalContext.current
+    // #1736: keep the Today handoff local until the user reviews and explicitly sends it.
+    val handedPrompt = remember { CoachHandoff.consume() }
     val keyVersion by vm.keyVersion.collectAsStateWithLifecycle()
     val provider by vm.provider.collectAsStateWithLifecycle()
     val customConnected by vm.customConnected.collectAsStateWithLifecycle()
     // Re-evaluate the gate whenever the stored key, provider, or custom-connect state changes.
     val configured = remember(keyVersion, provider, customConnected) { vm.isConfigured(context) }
-    // #1862: a question handed over by the Today launcher sheet. Consumed once — `consume()` clears it —
-    // so a recomposition cannot resend it, and only when the coach can actually send, so an unconfigured
-    // handoff degrades to showing setup rather than a failed request. Swift twin: CoachView's task.
-    LaunchedEffect(configured) {
-        val handed = CoachHandoff.consume()
-        if (handed != null && configured) vm.send(context, handed)
-    }
     // Same day-cycle gate as the liquid Today: the time-of-day sky settles behind the top content when the
     // user hasn't opted out; otherwise the scaffold paints the plain dark canvas.
     val showDayCycleBackground = remember { NoopPrefs.showDayCycleBackground(context) }
@@ -107,7 +102,7 @@ fun CoachScreen(vm: CoachViewModel = viewModel()) {
         if (!configured) {
             CoachSetup(vm = vm)
         } else {
-            CoachChat(vm = vm)
+            CoachChat(vm = vm, initialPrompt = handedPrompt)
         }
     }
 }
@@ -264,7 +259,7 @@ private fun CoachSetup(vm: CoachViewModel) {
 // MARK: - Chat (key saved)
 
 @Composable
-private fun CoachChat(vm: CoachViewModel) {
+private fun CoachChat(vm: CoachViewModel, initialPrompt: String?) {
     val context = LocalContext.current
     val messages by vm.messages.collectAsStateWithLifecycle()
     val sending by vm.sending.collectAsStateWithLifecycle()
@@ -284,6 +279,13 @@ private fun CoachChat(vm: CoachViewModel) {
     // half-typed question is not lost while fixing the key, and cleared on save so a secret does not
     // sit in composition state after it has been stored.
     var keyFix by remember { mutableStateOf("") }
+
+    LaunchedEffect(initialPrompt) {
+        if (!initialPrompt.isNullOrBlank()) {
+            input = initialPrompt
+            draftPrefs.edit().putString("draft", initialPrompt).apply()
+        }
+    }
 
     // Refresh the contextual chips whenever the chat empties (so a fresh sync updates them) and
     // once on first show. Best-effort; the VM falls back to the generic set on any failure.
