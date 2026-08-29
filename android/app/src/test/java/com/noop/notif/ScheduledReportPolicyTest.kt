@@ -90,7 +90,7 @@ class ScheduledReportPolicyTest {
 
     @Test fun morningCopyShowsBothScores() {
         val (title, body) = ScheduledReportPolicy.morningCopy(chargePct = 72, restPct = 88)!!
-        assertTrue(title.contains("recap"))
+        assertTrue(title.contains("Daily Coach"))
         assertTrue(body.contains("Charge 72"))
         assertTrue(body.contains("Rest 88"))
     }

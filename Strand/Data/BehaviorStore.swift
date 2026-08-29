@@ -56,6 +56,8 @@ final class BehaviorStore: ObservableObject {
     /// Once-a-day "optimal strain reached" nudge when the day's Effort hits the low end of today's
     /// recovery-derived optimal band. Default OFF like every other automation.
     @Published var strainTargetNudge: Bool { didSet { d.set(strainTargetNudge, forKey: K.strainTargetNudge) } }
+    /// One local post-sync morning briefing. Default OFF; it never contacts an AI provider.
+    @Published var dailyCoach: Bool { didSet { d.set(dailyCoach, forKey: K.dailyCoach) } }
 
     private let d = UserDefaults.standard
     private enum K {
@@ -80,6 +82,7 @@ final class BehaviorStore: ObservableObject {
         static let batteryAlerts = "behavior.batteryAlerts"
         static let batteryPredictiveAlerts = "behavior.batteryPredictiveAlerts"
         static let strainTargetNudge = "behavior.strainTargetNudge"
+        static let dailyCoach = "behavior.dailyCoach"
     }
 
     init() {
@@ -102,6 +105,7 @@ final class BehaviorStore: ObservableObject {
         batteryAlerts = d.object(forKey: K.batteryAlerts) as? Bool ?? true
         batteryPredictiveAlerts = d.object(forKey: K.batteryPredictiveAlerts) as? Bool ?? true
         strainTargetNudge = d.object(forKey: K.strainTargetNudge) as? Bool ?? false
+        dailyCoach = d.object(forKey: K.dailyCoach) as? Bool ?? false
     }
 
     // MARK: Charge baseline recalibration

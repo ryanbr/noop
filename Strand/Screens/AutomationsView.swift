@@ -69,6 +69,7 @@ struct AutomationsView: View {
             healthInsightsCard
             batteryCard
             strainTargetCard
+            dailyCoachCard
         }
     }
 
@@ -437,6 +438,19 @@ struct AutomationsView: View {
                         // (the reevaluateIllness idiom).
                         model.evaluateStrainTarget()
                     }
+                }
+        }
+    }
+
+    private var dailyCoachCard: some View {
+        Section2(icon: "sparkles", title: "Daily Coach",
+                 blurb: "A local post-sync morning briefing using your Recovery, HRV, resting heart rate and sleep when available.",
+                 active: behavior.dailyCoach) {
+            ToggleRow(label: "Morning training briefing",
+                      help: "Posts at most once per scored night. Nothing is sent to an AI provider.",
+                      isOn: $behavior.dailyCoach)
+                .onChangeCompat(of: behavior.dailyCoach) { on in
+                    if on { DailyCoachNotifier.requestAuthorization() }
                 }
         }
     }

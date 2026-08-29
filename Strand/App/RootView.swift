@@ -328,6 +328,7 @@ struct RootView: View {
             case .liveSession: selection = .today
             // The #627 Today journal widget routes to the Insights sidebar row (which hosts the journal card).
             case .journal: selection = .insights
+            case .coach: selection = .coach
             case nil: break
             }
             if dest != nil { router.requestedDestination = nil }

@@ -299,6 +299,7 @@ fun TodayScreen(
     // The #627 journal-reminder card links straight to the journal (Insights). Defaulted to a no-op so
     // the call site stays compiling; AppRoot binds it to nav.navigateTopLevel(Insights), same as Sleep.
     onOpenJournal: () -> Unit = {},
+    onOpenCoach: (String) -> Unit = {},
 ) {
     val today by viewModel.today.collectAsStateWithLifecycle()
     val alert by viewModel.healthAlert.collectAsStateWithLifecycle()
@@ -1251,6 +1252,7 @@ fun TodayScreen(
                 onQuickActions = onQuickActions,
                 onOpenSettings = onOpenSettings,
                 onOpenDevices = onOpenDevices,
+                onOpenCoach = onOpenCoach,
             )
             // WORDMARK (iOS LiquidWordmark parity): a subtle centred "N O O P" @ ~50% opacity, with a
             // tap easter egg. Shares its row with the Arrange affordance — wordmark centred, Arrange
@@ -2182,6 +2184,7 @@ private fun LiquidTodayHeader(
     onQuickActions: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenDevices: () -> Unit,
+    onOpenCoach: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showPicker by remember { mutableStateOf(false) }
@@ -2267,6 +2270,17 @@ private fun LiquidTodayHeader(
             SyncStatusChip(
                 backfilling = backfilling, chunks = syncChunksThisSession,
                 lastSyncAt = lastSyncAt, historySyncExperimental = historySyncExperimental,
+            )
+            // Contextual Coach entry: prepare (but never send) a data-grounded question.
+            Text(
+                "AI",
+                style = NoopType.caption,
+                color = Palette.accent,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable { onOpenCoach("Today: explain my readiness from charge, HRV and rest. Cite the numbers you used and what is missing.") }
+                    .padding(8.dp)
+                    .semantics { contentDescription = "Ask Coach about today's readiness" },
             )
             // (a) Profile avatar (the photo set in Settings, or the NOOP loop mark) → Settings. Mirrors iOS.
             Box(

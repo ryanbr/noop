@@ -21,6 +21,9 @@ struct RootTabView: View {
     @State private var quickAction: QuickAction?
     /// Presents the Devices manager (pair / switch bands) when a screen asks the shell to open it.
     @State private var showDevices = false
+    /// Coach is reached from contextual dashboard shortcuts as a sheet, keeping the user on the
+    /// Today/Sleep tab when they dismiss it.
+    @State private var showCoach = false
     /// A routed v5 pillar screen (Insights hub / Lab Book / fused record / Rhythm) presented as a sheet
     /// when a hub row deep-links to it via NavRouter. nil = closed.
     @State private var routedPillar: NavRouter.Destination?
@@ -157,6 +160,9 @@ struct RootTabView: View {
         .sheet(isPresented: $showDevices) {
             devicesScreen
         }
+        .sheet(isPresented: $showCoach) {
+            NavigationStack { CoachView() }
+        }
         // v5 pillar deep-links (Insights hub / Lab Book / fused record / Rhythm) present as a sheet in
         // their own nav stack — the same idiom the quick-action + Devices screens use on iPhone.
         .sheet(item: $routedPillar) { dest in
@@ -191,6 +197,9 @@ struct RootTabView: View {
                 // The #627 Today journal widget opens the journal through the quick-action Journal sheet
                 // (InsightsView), matching the FAB's "Log journal" action. Calm sheet easing.
                 withAnimation(Self.sheetEase) { quickAction = .journal }
+                router.requestedDestination = nil
+            case .coach:
+                withAnimation(Self.sheetEase) { showCoach = true }
                 router.requestedDestination = nil
             case nil:
                 break
@@ -261,6 +270,9 @@ struct RootTabView: View {
                 // .journal opens through the quick-action Journal sheet (handled above); this keeps the
                 // switch exhaustive and falls back to the journal's Insights host if it ever reaches here.
                 case .journal: InsightsView()
+                // Coach is normally presented by its dedicated sheet above; retain a safe fallback for
+                // any future generic pillar route.
+                case .coach: CoachView()
                 }
             }
             // The Trends/Today fallbacks above emit TabRoute value pushes (#198), which need a

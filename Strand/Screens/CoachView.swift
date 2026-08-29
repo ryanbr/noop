@@ -35,10 +35,10 @@ struct CoachView: View {
     private let customModelTag = "__custom__"
 
     private let suggestions = [
-        String(localized: "How's my charge trending?"),
-        String(localized: "What should today's training look like?"),
-        String(localized: "Analyse my sleep"),
-        String(localized: "Why am I run down?"),
+        String(localized: "Today: explain my readiness from charge, HRV and rest. Cite the numbers you used and what is missing."),
+        String(localized: "Today: what training is appropriate for my current recovery, and what should I avoid?"),
+        String(localized: "Sleep: compare last night with my recent pattern. Cite duration, rest and stages when available."),
+        String(localized: "Sleep: name the one change most likely to improve my next night, without making a medical claim."),
     ]
 
     var body: some View {
@@ -81,6 +81,8 @@ struct CoachView: View {
             }
         }
         .task(id: coach.dataConsent) { await coach.startBriefIfNeeded() }
+        .onAppear { takePendingPrompt() }
+        .onChange(of: coach.pendingPrompt) { _, _ in takePendingPrompt() }
     }
 
     /// Explicit, revocable permission for the coach to read & send the user's data. Off by default.
@@ -639,6 +641,15 @@ struct CoachView: View {
         draft = ""
         composerFocused = false
         Task { await coach.send(trimmed) }
+    }
+
+    /// Dashboard shortcuts only prepare a draft. Keeping the message in the composer gives the user a
+    /// final review/edit step before any BYOK request is made.
+    private func takePendingPrompt() {
+        guard let prompt = coach.pendingPrompt, !prompt.isEmpty else { return }
+        draft = prompt
+        coach.pendingPrompt = nil
+        composerFocused = true
     }
 
     private func scrollToEnd(_ proxy: ScrollViewProxy) {

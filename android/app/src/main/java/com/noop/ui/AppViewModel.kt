@@ -898,6 +898,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                             reportDay = todayRow.day,
                             chargePct = todayRow.recovery.scorePctOrNull(),
                             restPct = RestScorer.restFromDaily(todayRow).scorePctOrNull(),
+                            hrvMs = todayRow.avgHrv?.roundToInt(),
+                            restingHr = todayRow.restingHr,
+                            sleepMinutes = todayRow.totalSleepMin?.roundToInt(),
                         )
                     }
                     // #593: once-a-day optimal-strain-reached nudge. Convert the stored 0-100 Effort to the

@@ -56,14 +56,22 @@ object ScheduledReportPolicy {
     /** Title + body for the morning recap. Charge and Rest are each optional (a night can produce one
      *  without the other); absent ones are simply omitted — never shown as 0 or a guess. Returns null when
      *  neither is present (the caller shouldn't have been asked to build copy, but stay honest). */
-    fun morningCopy(chargePct: Int?, restPct: Int?): Pair<String, String>? {
-        val parts = ArrayList<String>(2)
+    fun morningCopy(chargePct: Int?, restPct: Int?, hrvMs: Int? = null, restingHr: Int? = null, sleepMinutes: Int? = null): Pair<String, String>? {
+        val parts = ArrayList<String>(5)
         chargePct?.let { parts.add("Charge $it") }
         restPct?.let { parts.add("Rest $it") }
+        hrvMs?.let { parts.add("HRV $it ms") }
+        restingHr?.let { parts.add("RHR $it bpm") }
+        sleepMinutes?.let { parts.add("Sleep ${it / 60} h") }
         if (parts.isEmpty()) return null
-        val title = "Good morning: last night's recap"
+        val title = "Daily Coach"
+        val training = when (chargePct ?: 50) {
+            in 67..100 -> "Training: a quality or harder session is reasonable if you feel well."
+            in 34..66 -> "Training: keep it controlled; favour volume or technique over intensity."
+            else -> "Training: favour recovery, easy movement and extra rest today."
+        }
         val body = parts.joinToString(" · ") +
-            ". Recovery from your strap, scored after it synced this morning."
+            ". $training"
         return title to body
     }
 
@@ -109,7 +117,7 @@ object ScheduledReportNotifier {
      * policy, so the caller can fire it freely each time the days collector republishes.
      */
     @SuppressLint("MissingPermission") // guarded by areNotificationsEnabled() + runCatching
-    fun onMorning(context: Context, reportDay: String, chargePct: Int?, restPct: Int?) {
+    fun onMorning(context: Context, reportDay: String, chargePct: Int?, restPct: Int?, hrvMs: Int?, restingHr: Int?, sleepMinutes: Int?) {
         // reportDay is the banked night's day (the resolved today-row's `day`), NOT LocalDate.now() — the
         // calendar day rolls at midnight while the row still resolves to last night's until a new night is
         // banked, which re-fired the recap at the start of a new day for late-nighters (#567).
@@ -120,7 +128,7 @@ object ScheduledReportNotifier {
                 reportDay = reportDay,
             )
         ) return
-        val copy = ScheduledReportPolicy.morningCopy(chargePct, restPct) ?: return
+        val copy = ScheduledReportPolicy.morningCopy(chargePct, restPct, hrvMs, restingHr, sleepMinutes) ?: return
         runCatching {
             if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
             ensureChannel(context)

@@ -158,6 +158,9 @@ final class AICoachEngine: ObservableObject {
     @Published var messages: [ChatMessage] = []
     @Published var sending = false
     @Published var errorText: String?
+    /// A one-shot draft supplied by a dashboard shortcut. It is deliberately not sent here: the
+    /// Coach screen puts it in its composer and the user still explicitly presses Send.
+    @Published var pendingPrompt: String?
     @Published var provider: AIProvider {
         didSet {
             guard provider != oldValue else { return }
