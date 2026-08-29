@@ -2556,4 +2556,6 @@
     <string name="l10n_body_clock_dial_card_intermediate_type_a7b6b74c">Type intermédiaire</string>
     <string name="l10n_body_clock_dial_card_evening_type_3e1ce111">Type vespéral</string>
     <string name="l10n_body_clock_dial_card_body_clock_dial_03cdbc31">Cadran de l\'horloge biologique</string>
+    <string name="l10n_body_clock_dial_card_last_night_6eaba4dd">La nuit dernière</string>
+    <string name="l10n_body_clock_dial_card_your_clock_1b91f5ee">Votre horloge</string>
 </resources>

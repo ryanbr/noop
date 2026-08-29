@@ -165,6 +165,17 @@ object Palette {
     val restBright get() = if (isClassic) classic.restBright else active.restBright
     val restGlow get() = if (isClassic) classic.restColor else active.restGlow
 
+    /**
+     * The Rest family's most legible LINE colour — for strokes that must read on a busy or translucent
+     * surface, such as the body-clock dial's arcs over a custom background image.
+     *
+     * Introduces no new value: it selects the existing token that is the bright blue in each palette. The
+     * families are not parallel — classic's restBright is a PURPLE accent while modern's is the blue, and
+     * classic's restColor is the blue where modern's is a muted steel — so a card naming either token
+     * directly gets the right colour in one palette and the wrong one in the other. Mirrors the Swift twin.
+     */
+    val restLine get() = if (isClassic) restColor else restBright
+
     val stressColor get() = if (isClassic) classic.stressColor else active.stressColor
     val stressDeep get() = if (isClassic) classic.stressDeep else active.stressDeep
     val stressBright get() = if (isClassic) classic.stressBright else active.stressBright

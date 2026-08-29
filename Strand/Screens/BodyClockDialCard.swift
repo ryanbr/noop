@@ -22,7 +22,9 @@ struct BodyClockDialCard: View {
     let actualBedHour: Double
     let actualWakeHour: Double
 
-    private var hue: Color { StrandPalette.restColor }
+    // One hue for both arcs, told apart by dash and weight rather than by a second colour. Two blues
+    // competed with the background image; a single legible one plus a dashed, lighter reference does not.
+    private var hue: Color { StrandPalette.restLine }
 
     /// The night's length, taken the long way round the clock when it crosses midnight.
     private var durationHours: Double {
@@ -54,6 +56,7 @@ struct BodyClockDialCard: View {
                         // Label only. The verdict is the caption Text below, a separate element, so giving
                         // the dial the same string as its VALUE made VoiceOver announce it twice.
                         .accessibilityLabel(Text("Body clock dial"))
+                    legend
                     Text(alignmentText)
                         .font(StrandFont.title2)
                         .foregroundStyle(StrandPalette.textPrimary)
@@ -91,43 +94,140 @@ struct BodyClockDialCard: View {
         return d <= 0 ? d + 24 : d
     }
 
+    /// The ring geometry, resolved once. Explicitly typed and hoisted out of the drawing closure: an
+    /// 84-line `Canvas` body of inferred `CGFloat` arithmetic exceeded the Swift type-checker's budget
+    /// and failed the macOS build outright ("unable to type-check this expression in reasonable time"),
+    /// which only app-build compiles — the same trap `DevicesView`'s gates hit.
+    private struct DialGeometry {
+        let centre: CGPoint
+        let outer: CGFloat
+        let inner: CGFloat
+
+        init(size: CGSize) {
+            let side: CGFloat = min(size.width, size.height)
+            centre = CGPoint(x: size.width / 2, y: size.height / 2)
+            outer = side / 2 - 10
+            inner = (side / 2 - 10) - 16
+        }
+    }
+
     private var dial: some View {
         Canvas { ctx, size in
-            let side = min(size.width, size.height)
-            let centre = CGPoint(x: size.width / 2, y: size.height / 2)
-            let outer = side / 2 - 10
-            let inner = outer - 16
-
-            // The bare ring, so an empty dial still reads as a clock rather than a broken chart.
-            ctx.stroke(Path(ellipseIn: CGRect(x: centre.x - outer, y: centre.y - outer,
-                                              width: outer * 2, height: outer * 2)),
-                       with: .color(StrandPalette.hairline), lineWidth: 1)
-
-            // Six-hourly ticks: enough to orient the eye, few enough not to compete with the arcs.
-            for tick in stride(from: 0.0, to: 24.0, by: 6.0) {
-                let a = angle(tick).radians
-                var p = Path()
-                p.move(to: CGPoint(x: centre.x + cos(a) * (outer - 4), y: centre.y + sin(a) * (outer - 4)))
-                p.addLine(to: CGPoint(x: centre.x + cos(a) * outer, y: centre.y + sin(a) * outer))
-                ctx.stroke(p, with: .color(StrandPalette.textTertiary.opacity(0.5)), lineWidth: 1)
-            }
-
-            func arc(radius: CGFloat, from: Double, to: Double, colour: Color, width: CGFloat) {
-                var p = Path()
-                p.addArc(center: centre, radius: radius,
-                         startAngle: angle(from),
-                         endAngle: .degrees(angle(from).degrees + sweep(from, to) / 24 * 360),
-                         clockwise: false)
-                ctx.stroke(p, with: .color(colour), style: StrokeStyle(lineWidth: width, lineCap: .round))
-            }
-
-            if let ideal {
-                arc(radius: outer, from: ideal.bedHour, to: ideal.wakeHour,
-                    colour: hue.opacity(0.35), width: 8)
-            }
-            arc(radius: inner, from: actualBedHour, to: actualWakeHour, colour: hue, width: 8)
+            let g = DialGeometry(size: size)
+            drawTrack(ctx, g)
+            drawTicks(ctx, g)
+            drawArcs(ctx, g)
+            drawOnset(ctx, g)
         }
         .frame(height: 170)
+    }
+
+    /// A full-circle TRACK under the night arc, the same idiom `RecoveryRing` uses: a faint
+    /// `surfaceInset` band with the live arc drawn on top. A one-point hairline left the dial reading as
+    /// a thin wireframe against a busy background; a real track gives the ring presence and makes the
+    /// highlighted segment obvious as a portion of a whole day. The hairline stays at the reference
+    /// radius so the dashed arc has a circle to belong to.
+    private func drawTrack(_ ctx: GraphicsContext, _ g: DialGeometry) {
+        let trackRect = CGRect(x: g.centre.x - g.inner, y: g.centre.y - g.inner,
+                               width: g.inner * 2, height: g.inner * 2)
+        ctx.stroke(Path(ellipseIn: trackRect), with: .color(StrandPalette.surfaceInset),
+                   style: StrokeStyle(lineWidth: 9, lineCap: .round))
+        let rimRect = CGRect(x: g.centre.x - g.outer, y: g.centre.y - g.outer,
+                             width: g.outer * 2, height: g.outer * 2)
+        ctx.stroke(Path(ellipseIn: rimRect), with: .color(StrandPalette.hairline), lineWidth: 1)
+    }
+
+    /// Six-hourly ticks, with MIDNIGHT drawn longer and brighter. Four identical marks at 90 degrees
+    /// orient nothing — the ring is symmetric under rotation as far as they are concerned, so a reader
+    /// cannot tell midnight from noon and the arcs become unplaceable. One distinguished mark anchors the
+    /// whole dial, and does it without text, keeping the card clear of a 12-versus-24-hour format question.
+    private func drawTicks(_ ctx: GraphicsContext, _ g: DialGeometry) {
+        for tick in stride(from: 0.0, to: 24.0, by: 6.0) {
+            let isMidnight: Bool = tick == 0
+            let a: Double = angle(tick).radians
+            let len: CGFloat = isMidnight ? 9 : 4
+            let cosA: CGFloat = cos(a)
+            let sinA: CGFloat = sin(a)
+            var p = Path()
+            p.move(to: CGPoint(x: g.centre.x + cosA * (g.outer - len),
+                               y: g.centre.y + sinA * (g.outer - len)))
+            p.addLine(to: CGPoint(x: g.centre.x + cosA * g.outer, y: g.centre.y + sinA * g.outer))
+            let tint: Color = isMidnight ? StrandPalette.textSecondary
+                                         : StrandPalette.textTertiary.opacity(0.5)
+            ctx.stroke(p, with: .color(tint), lineWidth: isMidnight ? 1.5 : 1)
+        }
+    }
+
+    /// The two arcs differ by PATTERN as well as weight. Opacity alone was the first cut and it does not
+    /// survive the card being translucent over a custom background image — the reference arc washed out
+    /// to near-invisible on a real device, losing the comparison the card exists for. BUTT caps on the
+    /// dashed stroke: a round cap adds lineWidth/2 at EACH end of EVERY dash, so at a 7 pt stroke a
+    /// [2, 7] dash renders as 9 pt of ink with a 0 pt gap — a line that looks solid while claiming to be
+    /// dashed, the one outcome this must not produce.
+    private func drawArcs(_ ctx: GraphicsContext, _ g: DialGeometry) {
+        if let ideal {
+            strokeArc(ctx, g, radius: g.outer, from: ideal.bedHour, to: ideal.wakeHour,
+                      colour: hue.opacity(0.55), width: 7, dashed: true)
+        }
+        strokeArc(ctx, g, radius: g.inner, from: actualBedHour, to: actualWakeHour,
+                  colour: hue, width: 9, dashed: false)
+    }
+
+    private func strokeArc(_ ctx: GraphicsContext, _ g: DialGeometry, radius: CGFloat,
+                           from: Double, to: Double, colour: Color, width: CGFloat, dashed: Bool) {
+        let startAngle: Angle = angle(from)
+        let sweepDegrees: Double = sweep(from, to) / 24 * 360
+        var p = Path()
+        p.addArc(center: g.centre, radius: radius, startAngle: startAngle,
+                 endAngle: .degrees(startAngle.degrees + sweepDegrees), clockwise: false)
+        let dash: [CGFloat] = dashed ? [3, 5] : []
+        ctx.stroke(p, with: .color(colour),
+                   style: StrokeStyle(lineWidth: width, lineCap: dashed ? .butt : .round, dash: dash))
+    }
+
+    /// A bed at sleep ONSET. Without it the night arc has two indistinguishable ends and the reader must
+    /// work out which way round the day runs before the picture means anything — the marker turns
+    /// "somewhere in this band" into "it started here". Drawn INTO A RECT, not at a point: `draw(_:at:)`
+    /// renders an SF Symbol at its intrinsic size, which follows the environment font and would not match
+    /// the Kotlin twin's fixed 14 dp glyph.
+    private func drawOnset(_ ctx: GraphicsContext, _ g: DialGeometry) {
+        var bed = ctx.resolve(Image(systemName: "bed.double.fill"))
+        bed.shading = .color(hue)
+        let onset: Double = angle(actualBedHour).radians
+        let glyph: CGFloat = 14
+        let x: CGFloat = g.centre.x + cos(onset) * g.inner - glyph / 2
+        let y: CGFloat = g.centre.y + sin(onset) * g.inner - glyph / 2
+        ctx.draw(bed, in: CGRect(x: x, y: y, width: glyph, height: glyph))
+    }
+
+    /// Which arc is which. Without this the card shows two bands and no way to tell them apart —
+    /// "outer means ideal" is an arbitrary choice, not something a reader can infer. The swatches are
+    /// drawn with the SAME stroke style as the arcs so the mapping cannot drift apart from the drawing.
+    private var legend: some View {
+        HStack(spacing: 14) {
+            legendItem(colour: hue, dashed: false, label: String(localized: "Last night"))
+            legendItem(colour: hue.opacity(0.55), dashed: true,
+                       label: String(localized: "Your clock"))
+            Spacer()
+        }
+        .accessibilityHidden(true)   // the caption below already states the comparison in words
+    }
+
+    private func legendItem(colour: Color, dashed: Bool, label: String) -> some View {
+        HStack(spacing: 5) {
+            Canvas { ctx, size in
+                var p = Path()
+                p.move(to: CGPoint(x: 0, y: size.height / 2))
+                p.addLine(to: CGPoint(x: size.width, y: size.height / 2))
+                ctx.stroke(p, with: .color(colour),
+                           style: StrokeStyle(lineWidth: 3, lineCap: dashed ? .butt : .round,
+                                              dash: dashed ? [2, 3] : []))
+            }
+            .frame(width: 18, height: 4)
+            Text(label)
+                .font(StrandFont.footnote)
+                .foregroundStyle(StrandPalette.textTertiary)
+        }
     }
 
     /// Rounded to five minutes: the underlying phase is an activity fit, so a to-the-minute caption would

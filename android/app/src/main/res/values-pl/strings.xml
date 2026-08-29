@@ -2562,4 +2562,6 @@
     <string name="l10n_body_clock_dial_card_intermediate_type_a7b6b74c">Typ pośredni</string>
     <string name="l10n_body_clock_dial_card_evening_type_3e1ce111">Typ wieczorny</string>
     <string name="l10n_body_clock_dial_card_body_clock_dial_03cdbc31">Tarcza zegara biologicznego</string>
+    <string name="l10n_body_clock_dial_card_last_night_6eaba4dd">Ostatnia noc</string>
+    <string name="l10n_body_clock_dial_card_your_clock_1b91f5ee">Twój zegar</string>
 </resources>
