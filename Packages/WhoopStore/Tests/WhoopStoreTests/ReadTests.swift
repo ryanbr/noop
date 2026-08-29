@@ -68,6 +68,20 @@ final class ReadTests: XCTestCase {
         XCTAssertEqual(scoped.count, 3)
     }
 
+    /// Regression: motion can arrive after HR in a historical offload. The whole-pass watermark must move
+    /// for that gravity-only commit or the first partial (no-sleep) result becomes sticky.
+    func testAnalysisFingerprintMovesWhenSleepCriticalGravityArrivesAfterHr() async throws {
+        let store = try await seeded()
+        let hrOnly = try await store.analysisFingerprint()
+        _ = try await store.insert(
+            Streams(gravity: [GravitySample(ts: 400, x: 0, y: 0, z: 1)]),
+            deviceId: "dev1"
+        )
+        let withGravity = try await store.analysisFingerprint()
+        XCTAssertNotEqual(hrOnly, withGravity)
+        XCTAssertTrue(withGravity.contains("|g1|"))
+    }
+
     func testHrBucketsAveragePerBucketOrderedAndDeviceScoped() async throws {
         let store = try await seeded()
         // 200s buckets over dev1's ts 100/200/300 (bpm 60/61/62):

@@ -921,6 +921,22 @@ interface WhoopDao : DeviceRegistryDao {
     // #836: max raw-HR timestamp across all devices. Paired with countHr() as a cheap whole-history change
     // fingerprint so the 15-min idle rescore can skip when nothing new has landed (COALESCE → 0 when empty).
     @Query("SELECT COALESCE(MAX(ts), 0) FROM hrSample") suspend fun maxHrTs(): Long
+    /** Complete raw-analysis fingerprint. A sleep offload can add gravity/RR after HR, so the whole-pass
+     * gate must move when any scoring input changes, not only when measured HR changes. */
+    @Query(
+        "SELECT 'v2|' || " +
+            "'h' || (SELECT COUNT(*) FROM hrSample) || ':' || (SELECT COALESCE(MAX(ts), 0) FROM hrSample) || '|' || " +
+            "'p' || (SELECT COALESCE(MAX(rowid), 0) FROM ppgHrSample) || '|' || " +
+            "'r' || (SELECT COALESCE(MAX(rowid), 0) FROM rrInterval) || '|' || " +
+            "'x' || (SELECT COALESCE(MAX(rowid), 0) FROM respSample) || '|' || " +
+            "'g' || (SELECT COALESCE(MAX(rowid), 0) FROM gravitySample) || '|' || " +
+            "'s' || (SELECT COALESCE(MAX(rowid), 0) FROM sleepStateSample) || '|' || " +
+            "'e' || (SELECT COALESCE(MAX(rowid), 0) FROM event) || '|' || " +
+            "'o' || (SELECT COALESCE(MAX(rowid), 0) FROM spo2Sample) || '|' || " +
+            "'t' || (SELECT COALESCE(MAX(rowid), 0) FROM skinTempSample) || '|' || " +
+            "'z' || (SELECT COALESCE(MAX(rowid), 0) FROM stepSample)"
+    )
+    suspend fun analysisFingerprint(): String
     // #1005: per-day (device + window) HR fingerprint — row count + newest ts — for analyzeRecent's per-day
     // reuse cache. Cheap COUNT/MAX aggregate over the (deviceId, ts) index, never a row fetch; mirrors Swift
     // WhoopStore.hrFingerprint(deviceId:from:to:). COALESCE(MAX) → 0 for an empty window.

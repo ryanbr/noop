@@ -602,6 +602,10 @@ class WhoopRepository(
      *  moves it (count or maxTs), so a real change always rescores; mirrors Swift WhoopStore.hrFingerprint. */
     suspend fun hrFingerprint(): String = "${dao.countHr()}:${dao.maxHrTs()}"
 
+    /** Complete cross-device scoring-input change detector. Unlike [hrFingerprint], this also moves when
+     * a trailing sleep-critical stream (especially gravity) lands after HR in the same history sync. */
+    suspend fun analysisFingerprint(): String = dao.analysisFingerprint()
+
     /** #1005 — per-day (device + window) HR fingerprint as (count, newestTs) for analyzeRecent's per-day
      *  reuse cache. Cheap COUNT/MAX aggregate, never a row fetch; mirrors Swift
      *  WhoopStore.hrFingerprint(deviceId:from:to:). */

@@ -1,6 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <string name="sleep_status_calculating_title">Calculando el sueño de anoche…</string>
+    <string name="sleep_status_calculating_body">El historial de tu pulsera ya está disponible. NOOP está detectando y analizando la noche.</string>
+    <string name="sleep_status_sync_failed_title">El sueño de anoche no se ha sincronizado</string>
+    <string name="sleep_status_sync_failed_body">La sincronización del historial se detuvo antes de terminar. Mantén la pulsera cerca e inténtalo de nuevo.</string>
+    <string name="sleep_status_waiting_title">Esperando el sueño de anoche</string>
+    <string name="sleep_status_waiting_body">Conecta la pulsera y sincroniza su historial. NOOP calculará la noche cuando lleguen los datos nocturnos.</string>
+    <string name="sleep_status_not_detected_title">No se detectó el sueño de anoche</string>
+    <string name="sleep_status_not_detected_body">La sincronización terminó, pero NOOP no pudo identificar con confianza un periodo de sueño. Mantén la pulsera conectada y vuelve a sincronizar; la noche anterior que aparece abajo sigue siendo tu último sueño detectado.</string>
+
     <!-- #453 generated Compose literal migration -->
     <string name="l10n_add_device_wizard_0123456789abcdef0123456789abcdef_b1775a78">0123456789abcdef0123456789abcdef</string>
     <string name="l10n_add_device_wizard_a_whoop_strap_bonds_to_a_d39bdf4a">Una correa WHOOP se une a un solo dispositivo. Mientras esté conectado a NOOP, no fluirá</string>

@@ -77,4 +77,29 @@ final class SleepPhantomNightFallbackTests: XCTestCase {
         XCTAssertNil(SleepEditGuard.clampedEditWindow(start: phantomWindow.0, end: phantomWindow.1,
                                                       now: Int(d(2, 5, 3).timeIntervalSince1970)))
     }
+
+    // Missing-night honesty: the newest stored night may stay visible, but the status above it must say
+    // whether today's night is still moving through sync/analysis or finished without a detection.
+    func testFreshnessProgressStatesWinOverStaleHistory() {
+        XCTAssertEqual(resolveSleepFreshness(hasCurrentNight: false, morningReady: true, syncing: true,
+                                              calculating: true, syncedSinceDayStart: false, syncFailed: true), .syncing)
+        XCTAssertEqual(resolveSleepFreshness(hasCurrentNight: false, morningReady: true, syncing: false,
+                                              calculating: true, syncedSinceDayStart: true, syncFailed: true), .calculating)
+    }
+
+    func testFreshnessDoesNotDeclareMissingBeforeMorningOrForCurrentNight() {
+        XCTAssertNil(resolveSleepFreshness(hasCurrentNight: false, morningReady: false, syncing: false,
+                                           calculating: false, syncedSinceDayStart: true, syncFailed: false))
+        XCTAssertNil(resolveSleepFreshness(hasCurrentNight: true, morningReady: true, syncing: false,
+                                           calculating: false, syncedSinceDayStart: true, syncFailed: false))
+    }
+
+    func testFreshnessDistinguishesFinishedFailedAndWaiting() {
+        XCTAssertEqual(resolveSleepFreshness(hasCurrentNight: false, morningReady: true, syncing: false,
+                                              calculating: false, syncedSinceDayStart: true, syncFailed: false), .notDetected)
+        XCTAssertEqual(resolveSleepFreshness(hasCurrentNight: false, morningReady: true, syncing: false,
+                                              calculating: false, syncedSinceDayStart: false, syncFailed: true), .syncFailed)
+        XCTAssertEqual(resolveSleepFreshness(hasCurrentNight: false, morningReady: true, syncing: false,
+                                              calculating: false, syncedSinceDayStart: false, syncFailed: false), .awaitingSync)
+    }
 }

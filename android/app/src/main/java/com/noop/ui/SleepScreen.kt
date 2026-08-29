@@ -81,6 +81,8 @@ import com.noop.data.SleepSession
 import com.noop.data.WhoopRepository
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.Instant
+import java.time.ZoneId
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -89,6 +91,59 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+
+internal enum class SleepFreshnessStatus {
+    SYNCING, CALCULATING, SYNC_FAILED, AWAITING_SYNC, NOT_DETECTED,
+}
+
+private data class SleepFreshnessLiveSnapshot(
+    val backfilling: Boolean,
+    val analyzing: Boolean,
+    val lastSyncAt: Long?,
+    val syncFailed: Boolean,
+)
+
+/** Pure priority ladder for the expected current night. The missing states wait until morning so opening
+ * Sleep at 02:00 does not claim the night still in progress has been missed. Swift twin:
+ * `resolveSleepFreshness`. */
+internal fun resolveSleepFreshness(
+    hasCurrentNight: Boolean,
+    morningReady: Boolean,
+    syncing: Boolean,
+    calculating: Boolean,
+    syncedSinceDayStart: Boolean,
+    syncFailed: Boolean,
+): SleepFreshnessStatus? {
+    if (syncing) return SleepFreshnessStatus.SYNCING
+    if (calculating) return SleepFreshnessStatus.CALCULATING
+    if (hasCurrentNight || !morningReady) return null
+    if (syncFailed) return SleepFreshnessStatus.SYNC_FAILED
+    return if (syncedSinceDayStart) SleepFreshnessStatus.NOT_DETECTED
+    else SleepFreshnessStatus.AWAITING_SYNC
+}
+
+@Composable
+private fun SleepFreshnessNote(status: SleepFreshnessStatus, chunks: Int) {
+    when (status) {
+        SleepFreshnessStatus.SYNCING -> SyncingHistoryNote(chunks)
+        SleepFreshnessStatus.CALCULATING -> DataPendingNote(
+            title = stringResource(R.string.sleep_status_calculating_title),
+            body = stringResource(R.string.sleep_status_calculating_body),
+        )
+        SleepFreshnessStatus.SYNC_FAILED -> DataPendingNote(
+            title = stringResource(R.string.sleep_status_sync_failed_title),
+            body = stringResource(R.string.sleep_status_sync_failed_body),
+        )
+        SleepFreshnessStatus.AWAITING_SYNC -> DataPendingNote(
+            title = stringResource(R.string.sleep_status_waiting_title),
+            body = stringResource(R.string.sleep_status_waiting_body),
+        )
+        SleepFreshnessStatus.NOT_DETECTED -> DataPendingNote(
+            title = stringResource(R.string.sleep_status_not_detected_title),
+            body = stringResource(R.string.sleep_status_not_detected_body),
+        )
+    }
+}
 
 /**
  * Sleep — Whoop-sleep clarity on the locked Noop component system. Mirrors the macOS
@@ -143,6 +198,18 @@ fun SleepScreen(
         derivedStateOf {
             val s = live
             if (s.backfilling) s.syncChunksThisSession else null
+        }
+    }
+    // Like backfillNote, collapse the 1 Hz BLE state to only fields that can change the missing-night
+    // banner. Live HR ticks then remain equality-identical and do not recompose this heavy screen.
+    val freshnessLive by remember {
+        derivedStateOf {
+            SleepFreshnessLiveSnapshot(
+                backfilling = live.backfilling,
+                analyzing = live.analyzingHistory,
+                lastSyncAt = live.lastSyncAt,
+                syncFailed = live.lastSyncError != null,
+            )
         }
     }
 
@@ -442,6 +509,24 @@ fun SleepScreen(
     }
     val display = remember(model, night) { heroDisplay(model, night) }
 
+    val sleepFreshness = remember(sleeps, freshnessLive) {
+        val zone = ZoneId.systemDefault()
+        val now = Instant.now().atZone(zone)
+        val latestWake = sleeps.maxOfOrNull { it.endTs }
+        val current = latestWake?.let {
+            Instant.ofEpochSecond(it).atZone(zone).toLocalDate() == now.toLocalDate()
+        } ?: false
+        val dayStart = now.toLocalDate().atStartOfDay(zone).toEpochSecond()
+        resolveSleepFreshness(
+            hasCurrentNight = current,
+            morningReady = now.hour >= 6,
+            syncing = freshnessLive.backfilling,
+            calculating = freshnessLive.analyzing,
+            syncedSinceDayStart = (freshnessLive.lastSyncAt ?: 0L) >= dayStart,
+            syncFailed = freshnessLive.syncFailed,
+        )
+    }
+
     // #940: ONE stage-less SELECTED day (typically the newest, after an impossible hand-edit staged
     // it all-awake) must not hide the whole tab's history. The tiles / ledger / trends are
     // full-history and independent of the browsed night (matching iOS, where browsing only
@@ -544,13 +629,14 @@ fun SleepScreen(
                 )
             }
         }
+        sleepFreshness?.let { status ->
+            item { SleepFreshnessNote(status, backfillNote ?: 0) }
+        }
         // #940: the empty state is ONLY for a truly empty history. A newest day that merely fails
         // to merge (the phantom-edit shape) keeps the hero (night != null) and the full-history
         // tiles (tilesModel != null), so intact older nights are never hidden behind "no nights".
         if (tilesModel == null && night == null) {
-            // While the strap is mid-offload, say so — "No nights" reads as final otherwise (#77).
             item {
-                if (backfillNote != null) SyncingHistoryNote(chunks = backfillNote!!)
                 SleepEmptyState()
             }
         } else {
@@ -1987,4 +2073,3 @@ private fun MotionStrip(epochs: List<Double>) {
 // MARK: - Sleep window and night navigation UI lives in SleepNightNavUi.kt
 // MARK: - Sleep metric cards, debt ledger, stages, trends + chart helpers live in SleepMetricCardsUi.kt
 // MARK: - Sleep metric detail sheet UI lives in SleepMetricDetailSheet.kt
-

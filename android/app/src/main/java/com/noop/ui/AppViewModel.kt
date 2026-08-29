@@ -1026,10 +1026,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 }.onFailure { if (it is kotlin.coroutines.cancellation.CancellationException) throw it }
                 // #836 parity (Android): the 15-min tick is a backstop, not a data-driven refresh. Every real
                 // update (sync, import, edit, recalibrate, the #547 heal above) rescores via its own path and
-                // moves the raw-HR fingerprint, so skip the heavy 21-day rescore when the HR stream is unchanged
+                // moves the complete raw-input fingerprint, so skip the heavy 21-day rescore when every scoring stream is unchanged
                 // since the last COMPLETED run. Mirrors the Swift analyzeRecent(force:false) gate; the watermark
                 // advances only on success (below), so an interrupted run can never hide unscored data.
-                val analyzeFp = repository.hrFingerprint()
+                val analyzeFp = repository.analysisFingerprint()
                 // #1538: attribute the tick that is about to run. An idle-tick pass previously emitted NO
                 // trigger line at all — a "re-score: done" with nothing before it — so a strap log could not
                 // be read by pairing trigger->done, and a stalled background pass was easy to misattribute to

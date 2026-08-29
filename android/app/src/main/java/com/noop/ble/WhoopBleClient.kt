@@ -187,6 +187,9 @@ data class LiveState(
     /** True while a historical offload session is running, so screens can say "Syncing strap
      *  history…" instead of presenting half-loaded data as final (#77). */
     val backfilling: Boolean = false,
+    /** True while a post-history scoring pass is turning the newly stored raw streams into sleep and
+     * daily metrics. Kept separate from [backfilling] so Sleep can distinguish downloading from calculating. */
+    val analyzingHistory: Boolean = false,
     /** Chunks acked during the current offload session — an honest progress signal (total pending is
      *  unknowable from the protocol, so no percent). Republished every ~10 chunks: the foreground
      *  service re-posts its notification on EVERY LiveState emission, so per-chunk would spam it. */
@@ -2682,7 +2685,20 @@ class WhoopBleClient(
     @Suppress("UNUSED_PARAMETER")
     private fun onBackfillChunkCommitted(batch: StreamBatch) {
         decodedChunksThisSession += 1   // invoked once per non-empty decoded chunk (#77 family tally)
-        if (!analyzeAfterBackfillScheduled.compareAndSet(false, true)) return
+        schedulePostBackfillAnalysis()
+    }
+
+    private fun schedulePostBackfillAnalysis() {
+        if (!analyzeAfterBackfillScheduled.compareAndSet(false, true)) {
+            // A later chunk arrived while the debounce or scoring pass was already active. Remember it:
+            // sleep-critical gravity commonly trails HR, and dropping this signal is how a partial first
+            // pass could become the final answer until the 15-minute backstop.
+            analyzeAfterBackfillPending.set(true)
+            return
+        }
+        // The debounce is part of the calculation lifecycle. Publish this before waiting so Sleep never
+        // flashes a final "not detected" verdict between HISTORY_COMPLETE and the scoring pass starting.
+        _state.update { it.copy(analyzingHistory = true) }
         ioScope.launch {
             try {
                 delay(POST_BACKFILL_ANALYZE_DELAY_MS) // let trailing chunks of the same session land
@@ -2693,17 +2709,17 @@ class WhoopBleClient(
                 val profile = profileStore.toUserProfile()
                 // #836: the post-backfill pass is a real update path, so it ALWAYS re-scores (mirroring the
                 // Swift `analyzeRecent(force: true)` call `refreshAfterCompletedBackfill` makes) — but it must
-                // ADVANCE the shared HR-fingerprint watermark on success, which it previously did NOT. That
+                // ADVANCE the shared raw-analysis watermark on success, which it previously did NOT. That
                 // watermark logic lived only in AppViewModel's 15-min loop, so after this pass the very next
                 // idle tick saw `fp != watermark` and re-ran the IDENTICAL maxDays×~54h re-score — the
                 // double-charge that made every reconnect pay for the multi-day pass twice. Swift already
                 // advances the watermark at the end of EVERY successful analyzeRecent (IntelligenceEngine.swift);
                 // this brings Android into lockstep. Captured before the run, written only on success, so an
                 // interrupted/failed pass can never advance the watermark past unscored data.
-                val analyzeFp = repository.hrFingerprint()
+                val analyzeFp = repository.analysisFingerprint()
                 // Attribute this forced post-offload re-score. A completed offload ALWAYS re-scores (#836),
                 // so an EMPTY/duplicate offload (rows=0, common on a flapping link) still pays for a full
-                // ~18-day pass over the whole raw store (#1146). Compare the pre-run HR fingerprint
+                // ~18-day pass over the whole raw store (#1146). Compare the pre-run raw-input fingerprint
                 // (rowCount:maxTs) to the watermark the last successful run advanced: `newData=no` means
                 // nothing changed since the last run — a re-score driven purely by the reconnect+offload, not
                 // by data. These lines quantify the background battery cost (#1005). Log-only; behaviour is
@@ -2714,7 +2730,7 @@ class WhoopBleClient(
                 // flapping-link offload storm (~186 passes in 7.5h were measured) that churn made the
                 // reactive Trends/streak Flows flicker between full and empty — a scare that looked like
                 // data loss (#1196). Scoped to THIS post-offload trigger only: import/edit/settings/
-                // recalibrate re-scores force regardless of the HR fingerprint and are untouched. Twin of
+                // recalibrate re-scores force regardless of the raw-input fingerprint and are untouched. Twin of
                 // the Swift `analyzeRecent(skipIfUnchanged:)` gate at the refreshAfterCompletedBackfill site.
                 val newData = analyzeFp != NoopPrefs.analyzeWatermark(context)
                 log("re-score: trigger=post-offload newData=" +
@@ -2842,7 +2858,17 @@ class WhoopBleClient(
                         .onSuccess { r -> log("HC writeback: ${r.written} record(s)" + if (r.ok) "" else " (failed: ${r.failures.joinToString()})") }
                 }
             } finally {
+                val retryAlreadyQueued = analyzeAfterBackfillPending.getAndSet(false)
+                if (!retryAlreadyQueued) _state.update { it.copy(analyzingHistory = false) }
                 analyzeAfterBackfillScheduled.set(false)
+                // If anything landed after this pass was scheduled, run once more after the same quiet
+                // grace. The complete analysis fingerprint makes a duplicate retry cheap, while a trailing
+                // gravity/RR/sleep-state chunk now gets the decisive sleep-detection pass immediately.
+                // Check pending again after releasing the scheduled latch so a chunk racing this finally
+                // block cannot strand its retry signal.
+                if (retryAlreadyQueued || analyzeAfterBackfillPending.getAndSet(false)) {
+                    schedulePostBackfillAnalysis()
+                }
             }
         }
     }
@@ -2961,6 +2987,7 @@ class WhoopBleClient(
     private var whoop5HistoryAttempts = 0
     /** One-shot debounce: a post-backfill scoring pass is already scheduled/running. */
     private val analyzeAfterBackfillScheduled = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val analyzeAfterBackfillPending = java.util.concurrent.atomic.AtomicBoolean(false)
 
     /** Guards the once-per-connect initial offload kick (Swift `backfillStarted`). */
     private var backfillStarted = false

@@ -13,6 +13,14 @@
     <string name="nav_live">Live</string>
     <string name="nav_intervals">Intervalle</string>
     <string name="nav_sleep">Schlaf</string>
+    <string name="sleep_status_calculating_title">Der Schlaf der letzten Nacht wird berechnet…</string>
+    <string name="sleep_status_calculating_body">Dein Strap-Verlauf ist da. NOOP erkennt und analysiert die Nacht jetzt.</string>
+    <string name="sleep_status_sync_failed_title">Der Schlaf der letzten Nacht wurde nicht synchronisiert</string>
+    <string name="sleep_status_sync_failed_body">Die Verlaufssynchronisierung wurde vorzeitig beendet. Halte den Strap in der Nähe und versuche die Synchronisierung erneut.</string>
+    <string name="sleep_status_waiting_title">Warten auf den Schlaf der letzten Nacht</string>
+    <string name="sleep_status_waiting_body">Verbinde den Strap und synchronisiere seinen Verlauf. NOOP berechnet die Nacht, sobald die Nachtdaten eintreffen.</string>
+    <string name="sleep_status_not_detected_title">Der Schlaf der letzten Nacht wurde nicht erkannt</string>
+    <string name="sleep_status_not_detected_body">Die Synchronisierung ist abgeschlossen, aber NOOP konnte kein Schlafzeitfenster sicher erkennen. Lass den Strap verbunden und synchronisiere erneut; die ältere Nacht unten ist weiterhin dein zuletzt erkannter Schlaf.</string>
     <string name="nav_breathe">Atmen</string>
     <string name="nav_stress">Stress</string>
     <string name="nav_workouts">Workouts</string>

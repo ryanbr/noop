@@ -43,4 +43,18 @@ class HrFingerprintTest {
         assertEquals("10:1000", before)
         assertEquals("11:1060", after)
     }
+
+    @Test fun analysisFingerprintUsesTheCompleteDaoAggregate() = runBlocking {
+        val expected = "v2|h10:1000|p0|r2|x0|g1|s0|e0|o0|t0|z0"
+        val dao = Proxy.newProxyInstance(
+            WhoopDao::class.java.classLoader,
+            arrayOf(WhoopDao::class.java),
+        ) { _, method, _ ->
+            when (method.name) {
+                "analysisFingerprint" -> expected
+                else -> throw UnsupportedOperationException("analysisFingerprint must not call ${method.name}")
+            }
+        } as WhoopDao
+        assertEquals(expected, WhoopRepository(dao).analysisFingerprint())
+    }
 }

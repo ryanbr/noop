@@ -15,6 +15,14 @@
     <string name="nav_live">Live</string>
     <string name="nav_intervals">Intervals</string>
     <string name="nav_sleep">Sleep</string>
+    <string name="sleep_status_calculating_title">Calculating last night’s sleep…</string>
+    <string name="sleep_status_calculating_body">Your strap history is in. NOOP is detecting and staging the night now.</string>
+    <string name="sleep_status_sync_failed_title">Last night’s sleep hasn’t synced</string>
+    <string name="sleep_status_sync_failed_body">The history sync stopped before it finished. Keep the strap nearby and try Sync again.</string>
+    <string name="sleep_status_waiting_title">Waiting for last night’s sleep</string>
+    <string name="sleep_status_waiting_body">Connect the strap and sync its history. NOOP will calculate the night when the overnight data arrives.</string>
+    <string name="sleep_status_not_detected_title">Last night’s sleep wasn’t detected</string>
+    <string name="sleep_status_not_detected_body">Sync finished, but NOOP couldn’t confidently identify a sleep window. Keep the strap connected and try Sync again; the older night below is still your latest detected sleep.</string>
     <string name="nav_breathe">Breathe</string>
     <string name="nav_stress">Stress</string>
     <string name="nav_workouts">Workouts</string>

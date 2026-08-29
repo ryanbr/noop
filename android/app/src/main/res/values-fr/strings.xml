@@ -1,6 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <string name="sleep_status_calculating_title">Calcul du sommeil de la nuit dernière…</string>
+    <string name="sleep_status_calculating_body">L’historique de votre bracelet est arrivé. NOOP détecte et analyse maintenant la nuit.</string>
+    <string name="sleep_status_sync_failed_title">Le sommeil de la nuit dernière n’a pas été synchronisé</string>
+    <string name="sleep_status_sync_failed_body">La synchronisation de l’historique s’est arrêtée avant la fin. Gardez le bracelet à proximité et réessayez.</string>
+    <string name="sleep_status_waiting_title">En attente du sommeil de la nuit dernière</string>
+    <string name="sleep_status_waiting_body">Connectez le bracelet et synchronisez son historique. NOOP calculera la nuit lorsque les données nocturnes arriveront.</string>
+    <string name="sleep_status_not_detected_title">Le sommeil de la nuit dernière n’a pas été détecté</string>
+    <string name="sleep_status_not_detected_body">La synchronisation est terminée, mais NOOP n’a pas pu identifier avec certitude une période de sommeil. Gardez le bracelet connecté et relancez la synchronisation ; la nuit plus ancienne ci-dessous reste votre dernier sommeil détecté.</string>
+
     <!-- #453 generated Compose literal migration -->
     <string name="l10n_add_device_wizard_0123456789abcdef0123456789abcdef_b1775a78">0123456789abcdef0123456789abcdef</string>
     <string name="l10n_add_device_wizard_a_whoop_strap_bonds_to_a_d39bdf4a">Un bracelet WHOOP se lie à un seul appareil. Alors qu\'il est connecté à NOOP il ne va pas diffuser </string>

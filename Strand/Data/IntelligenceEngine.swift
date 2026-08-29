@@ -539,23 +539,22 @@ final class IntelligenceEngine: ObservableObject {
               let respCfg = Baselines.metricCfg["resp"],
               let skinCfg = Baselines.metricCfg["skin_temp"] else { return }
 
-        // #836 (idle-tick gate): re-scoring a 21-day window re-reads ~21×54 h of raw HR and re-runs
+        // #836 (idle-tick gate): re-scoring a 21-day window re-reads ~21×54 h of raw data and re-runs
         // analyzeDay over it. After a big Apple Health import (a reporter's: 2.1 M rows, ~190 k HR/day) that
         // is multi-second, memory-heavy work, and the 15-minute steady-state tick (AppModel) repeats it
         // every tick even when NOTHING new landed — the ongoing lag/crash in #836. A cheap whole-history HR
-        // fingerprint (count+maxTs, indexed, no rows materialized) lets a NON-forced caller short-circuit
-        // when the raw stream is byte-for-byte unchanged since the last successful run. All-or-nothing: it
+        // fingerprint (HR count+maxTs plus indexed row frontiers, no rows materialized) lets a NON-forced
+        // caller short-circuit when the raw streams are unchanged since the last successful run. All-or-nothing: it
         // never produces a PARTIAL pass, so the window-wide reconciliation (stale-day eviction, detected-
         // workout delete) is untouched and no computed history is dropped. Every real update path (sync
         // backfill, import, sleep/workout edit, baseline recalibrate, timestamp heal) calls with the default
         // `force: true` and always rescores, so a skipped tick can never hide new data.
-        // #1392: fingerprint the raw HR stream ACROSS ALL DEVICES, not the engine's construction-time
+        // #1392: fingerprint raw scoring streams ACROSS ALL DEVICES, not the engine's construction-time
         // `deviceId` (a `let` pinned to "my-whoop", never re-pointed when the active strap changes). On an
         // Oura / Apple Watch / re-added-WHOOP install the per-device read returned 0, so this gate never
         // fired and a night finishing after launch stayed unscored until relaunch. Scoring below still reads
         // the registry's ACTIVE device (`owner`); only this change-detector needed to be cross-device.
-        let wmKey: String = (try? await store.hrFingerprint())
-            .map { "\($0.count):\($0.maxTs)" } ?? ""
+        let wmKey = (try? await store.analysisFingerprint()) ?? ""
         // #1538: read the stored watermark ONCE for both gates and the attribution line below. There is no
         // suspension point between them, so the three reads this replaces could not disagree — but the log
         // line asserting `newData` and the gate deciding whether to run must be the SAME comparison by
@@ -565,7 +564,7 @@ final class IntelligenceEngine: ObservableObject {
             return
         }
         // #1196/#1146: a FORCED post-offload pass can opt into the same fingerprint gate. An empty/duplicate
-        // offload (fingerprint already == the watermark the last successful run advanced) has no new HR to
+        // offload (fingerprint already == the watermark the last successful run advanced) has no new raw data to
         // score, so a re-score would reproduce IDENTICAL rows; skip the whole pass rather than churn the
         // window. Over a flapping-link offload storm that churn made the reactive Trends/streak reads
         // flicker between full and empty — a scare that looked like data loss (#1196). Scoped via
@@ -924,7 +923,7 @@ final class IntelligenceEngine: ObservableObject {
                 // returns nil for a ring/import/unknown, so the cache never treats one as a WHOOP (a ring's
                 // `providedSleep` could change a day without an HR move; a WHOOP always streams gravity, so
                 // its `providedSleep` is empty and the reuse is byte-identical). The per-day key folds the
-                // night's HR fingerprint (the SAME witness the whole-pass gate at the top trusts) and, for a
+                // night's HR fingerprint (a narrower per-day witness than the whole-pass raw-input gate) and, for a
                 // 4.0, the window-wide skin anchor (a re-anchor from another night shifts that night's skin
                 // conversion without moving its HR). A 5/MG banks skin-temp centidegrees directly — no
                 // per-device raw anchor — so its anchor slot stays nil. Pass-global inputs (profile/
@@ -2395,8 +2394,8 @@ final class IntelligenceEngine: ObservableObject {
         // Sleep tab stops showing the removed duplicates right away.
         if !dailies.isEmpty || !healDropped.isEmpty { await repo.refresh() }
 
-        // #836: record the raw-HR fingerprint this run scored against, so a later NON-forced tick can
-        // short-circuit while it's unchanged. Written ONLY here at the end of a completed run (never on an
+        // #836/#sleep-sync: record the complete raw-analysis fingerprint this run scored against, so a later
+        // NON-forced tick can short-circuit while it's unchanged. Written ONLY at the end of a completed run (never on an
         // early guard-return), so an interrupted/failed run can't advance the watermark past unscored data.
         if !wmKey.isEmpty { UserDefaults.standard.set(wmKey, forKey: Self.analyzeWatermarkKey) }
         // #1538: clear the started-mark and bank how long a COMPLETED pass costs on this install. The
@@ -2415,9 +2414,9 @@ final class IntelligenceEngine: ObservableObject {
         }
     }
 
-    /// UserDefaults key for the #836 idle-tick gate: the `(count:maxTs)` HR fingerprint the last completed
+    /// UserDefaults key for the #836 idle-tick gate: the complete raw-analysis fingerprint the last completed
     /// `analyzeRecent` scored against. A non-forced tick whose current fingerprint equals this skips the
-    /// 21-day rescore; cleared implicitly by any HR insert/delete (the fingerprint moves), so it self-heals.
+    /// 21-day rescore; cleared implicitly by any scoring-stream insert (the fingerprint moves), so it self-heals.
     private static let analyzeWatermarkKey = "noop.analyzeWatermark"
 
     /// CAPTURE-B (#814/#799): build the universal `dayOwner …` self-diagnostic line VERBATIM (the Test
