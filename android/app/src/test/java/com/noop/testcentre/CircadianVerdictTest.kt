@@ -74,6 +74,17 @@ class CircadianVerdictTest {
     @Test fun anAbsoluteSwingClearsTheGateInTheVerdictToo() {
         val v = verdict(buckets = 328, hours = 24, days = 15, amp = 0.073, bpm = 5.5)
         assertTrue(v, !v.contains("too flat"))
+        // WIDE, not solid: readable on the absolute floor but short of the proportional bar, which is
+        // exactly how estimatePhase tiers it. This assertion said "solid" and so PINNED a divergence
+        // between the diagnostic and the engine instead of catching it — the wearer it was written from
+        // had a log reading "solid" beside a card the engine had marked wide.
+        assertTrue(v, v.startsWith("wide"))
+        assertTrue(v, v.contains("absolute floor"))
+    }
+
+    /** A proportional swing with the days behind it is the only thing that reads solid. */
+    @Test fun onlyBothAxesReadSolid() {
+        val v = verdict(buckets = 328, hours = 24, days = 15, amp = 0.15, bpm = 9.0)
         assertTrue(v, v.startsWith("solid"))
     }
 
@@ -81,5 +92,48 @@ class CircadianVerdictTest {
     @Test fun belowBothMeasuresIsStillFlat() {
         val v = verdict(buckets = 328, hours = 24, days = 15, amp = 0.05, bpm = 3.0)
         assertTrue(v, v.startsWith("unreadable") && v.contains("too flat"))
+    }
+
+    /**
+     * The structural guard. This line has drifted from the engine TWICE — once when the absolute floor
+     * added an OR, once when SOLID started needing both axes — and each time a hand-written case either
+     * missed it or pinned it. So rather than assert more cases, drive the REAL engine and the REAL
+     * verdict over a grid and require they agree, which makes a future rule change fail here the moment
+     * only one side is updated.
+     */
+    @Test fun theVerdictNeverDisagreesWithTheEngine() {
+        fun bins(mesor: Double, amp: Double) = (0 until 24).map { h ->
+            CircadianEngine.ActivityBin(
+                h.toDouble(),
+                mesor + amp * kotlin.math.cos(2.0 * Math.PI * (h - 16.0) / 24.0),
+            )
+        }
+        for (days in listOf(5, 10, 15, 20)) {
+            for (mesor in listOf(45.0, 65.0, 74.7)) {
+                for (amp in listOf(3.0, 4.6, 5.5, 8.0, 12.0)) {
+                    val b = bins(mesor, amp)
+                    val est = CircadianEngine.estimatePhase(b, days, 7.0)
+                    // Feed the verdict what the ENGINE saw — the recovered fit — not the nominal inputs,
+                    // exactly as circadianLines does. Passing amp/mesor would test a pairing production
+                    // never uses, and would go flaky the moment a grid point sat within the cosinor's
+                    // recovery error of a threshold.
+                    val fit = CircadianEngine.cosinor(b)!!
+                    val rel = fit.amplitude / kotlin.math.abs(fit.mesor)
+                    val expected = when (est?.confidence) {
+                        CircadianEngine.PhaseConfidence.SOLID -> "solid"
+                        CircadianEngine.PhaseConfidence.WIDE -> "wide"
+                        CircadianEngine.PhaseConfidence.UNREADABLE -> "unreadable"
+                        null -> "no estimate"
+                    }
+                    // The counts are deliberately generous: this isolates the amplitude/days rules, which
+                    // are the halves that have drifted.
+                    val v = AndroidDiagnostics.circadianVerdict(328, 24, days, rel, fit.amplitude)
+                    assertTrue(
+                        "mesor=$mesor amp=$amp days=$days -> engine says $expected, verdict says \"$v\"",
+                        v.startsWith(expected),
+                    )
+                }
+            }
+        }
     }
 }

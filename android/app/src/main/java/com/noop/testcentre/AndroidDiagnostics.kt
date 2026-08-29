@@ -478,8 +478,15 @@ object AndroidDiagnostics {
         daysObserved < com.noop.analytics.CircadianEngine.minDaysForFit ->
             "unreadable — $daysObserved days observed, needs " +
                 "${com.noop.analytics.CircadianEngine.minDaysForFit}"
+        // SOLID needs BOTH axes, exactly as estimatePhase assigns it. Reading only the days here printed
+        // "solid" for a wearer the engine had marked WIDE — the diagnostic contradicting the very screen
+        // it exists to explain, which is the one thing this section must never do.
         daysObserved < com.noop.analytics.CircadianEngine.goodDaysForFit ->
             "wide — $daysObserved days observed"
+        relativeAmplitude != null &&
+            relativeAmplitude < com.noop.analytics.CircadianEngine.minRelativeAmplitude ->
+            "wide — $daysObserved days observed, but the swing clears only the absolute floor " +
+                "(${fmt1(relativeAmplitude * 100)}% of mesor)"
         else -> "solid — $daysObserved days observed"
     }
 
