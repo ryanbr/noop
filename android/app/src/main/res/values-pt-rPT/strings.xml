@@ -2541,4 +2541,13 @@
     <string name="crash_recovery_body">A última falha aparece abaixo. Podes copiá-la para um relatório e voltar a tentar abrir a aplicação.</string>
     <string name="crash_recovery_copy">Copiar erro</string>
     <string name="crash_recovery_continue">Tentar abrir o NOOP</string>
+    <string name="l10n_body_clock_dial_card_body_clock_b0b9b988">Relógio biológico</string>
+    <string name="l10n_body_clock_dial_card_last_night_against_your_clock_9183a37c">A noite passada face ao seu relógio</string>
+    <string name="l10n_body_clock_dial_card_in_sync_with_your_body_clock_4b5181c8">Em sintonia com o seu relógio biológico</string>
+    <string name="l10n_body_clock_dial_card_1_s_later_than_your_body_50b7d966">%1$s mais tarde do que o seu relógio biológico</string>
+    <string name="l10n_body_clock_dial_card_1_s_earlier_than_your_body_68877f50">%1$s mais cedo do que o seu relógio biológico</string>
+    <string name="l10n_body_clock_dial_card_morning_type_289dd7bf">Tipo matutino</string>
+    <string name="l10n_body_clock_dial_card_intermediate_type_a7b6b74c">Tipo intermédio</string>
+    <string name="l10n_body_clock_dial_card_evening_type_3e1ce111">Tipo vespertino</string>
+    <string name="l10n_body_clock_dial_card_body_clock_dial_03cdbc31">Mostrador do relógio biológico</string>
 </resources>

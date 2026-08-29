@@ -360,6 +360,40 @@ public enum CircadianEngine {
         wrap24(chronotypeReferenceWakeHour - cbtMinBeforeWakeHours)
     }
 
+    /// The chronotype-ideal sleep window for a night of `durationHours`, as clock hours.
+    ///
+    /// Anchored on the temperature minimum: a well-entrained sleeper wakes about `cbtMinBeforeWakeHours`
+    /// after CBTmin, so the ideal wake is `tempMinHour + cbtMinBeforeWakeHours` and the ideal bedtime is
+    /// that minus the night's own length.
+    ///
+    /// USING THE ACTUAL DURATION IS THE POINT. Giving the ideal arc the same length as the real one makes
+    /// the comparison purely about PHASE — did you sleep at the right TIME — so a short night reads as
+    /// aligned-but-short rather than as misaligned. Feeding a "needed" duration instead would fold two
+    /// different failures into one arc and make a debt look like a body-clock problem.
+    ///
+    /// nil for a non-positive or impossible duration; a window longer than a day cannot be placed on a
+    /// 24 h ring, and silently wrapping it would draw a full circle that means nothing.
+    public static func idealSleepWindow(tempMinHour: Double,
+                                        durationHours: Double) -> (bedHour: Double, wakeHour: Double)? {
+        guard durationHours > 0, durationHours < 24 else { return nil }
+        let wake = wrap24(tempMinHour + cbtMinBeforeWakeHours)
+        return (bedHour: wrap24(wake - durationHours), wakeHour: wake)
+    }
+
+    /// Signed hours the ACTUAL sleep window sits later (+) or earlier (−) than the chronotype-ideal one.
+    ///
+    /// Deliberately NOT `offsetVsScheduleMinutes`. That field compares the body clock to the wearer's own
+    /// SCHEDULE; this compares the night actually slept to where the CLOCK wanted it. A dial that draws an
+    /// actual arc against an ideal arc must caption itself with the distance between those two arcs, or
+    /// the number contradicts the picture — the two disagree exactly when someone keeps a consistent
+    /// schedule that does not suit their clock, which is the case the dial exists to show.
+    ///
+    /// Anchored on wake rather than bedtime because `idealSleepWindow` builds the ideal window from the
+    /// wake end; comparing bedtimes would fold the night's DURATION into a phase reading.
+    public static func sleepWindowOffsetHours(tempMinHour: Double, actualWakeHour: Double) -> Double {
+        signedHourDelta(from: wrap24(tempMinHour + cbtMinBeforeWakeHours), to: wrap24(actualWakeHour))
+    }
+
     /// Bucket an ABSOLUTE temperature-minimum clock hour into a lean.
     ///
     /// Compared CIRCULARLY. A `tempMinHour` of 23:30 is five hours BEFORE the 04:30 anchor — a strong

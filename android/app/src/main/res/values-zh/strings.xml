@@ -2462,4 +2462,13 @@
     <string name="crash_recovery_body">上次崩溃信息显示在下方。你可以复制它用于错误报告，然后再次尝试打开应用。</string>
     <string name="crash_recovery_copy">复制错误</string>
     <string name="crash_recovery_continue">再次打开 NOOP</string>
+    <string name="l10n_body_clock_dial_card_body_clock_b0b9b988">生物钟</string>
+    <string name="l10n_body_clock_dial_card_last_night_against_your_clock_9183a37c">昨夜与你的生物钟对比</string>
+    <string name="l10n_body_clock_dial_card_in_sync_with_your_body_clock_4b5181c8">与生物钟同步</string>
+    <string name="l10n_body_clock_dial_card_1_s_later_than_your_body_50b7d966">比生物钟晚 %1$s</string>
+    <string name="l10n_body_clock_dial_card_1_s_earlier_than_your_body_68877f50">比生物钟早 %1$s</string>
+    <string name="l10n_body_clock_dial_card_morning_type_289dd7bf">晨型人</string>
+    <string name="l10n_body_clock_dial_card_intermediate_type_a7b6b74c">中间型</string>
+    <string name="l10n_body_clock_dial_card_evening_type_3e1ce111">夜型人</string>
+    <string name="l10n_body_clock_dial_card_body_clock_dial_03cdbc31">生物钟表盘</string>
 </resources>

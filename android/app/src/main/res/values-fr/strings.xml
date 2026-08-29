@@ -2547,4 +2547,13 @@
     <string name="crash_recovery_body">Le dernier plantage est affiché ci-dessous. Vous pouvez le copier pour un rapport, puis réessayer d’ouvrir l’application.</string>
     <string name="crash_recovery_copy">Copier l’erreur</string>
     <string name="crash_recovery_continue">Réessayer d’ouvrir NOOP</string>
+    <string name="l10n_body_clock_dial_card_body_clock_b0b9b988">Horloge biologique</string>
+    <string name="l10n_body_clock_dial_card_last_night_against_your_clock_9183a37c">La nuit dernière face à votre horloge</string>
+    <string name="l10n_body_clock_dial_card_in_sync_with_your_body_clock_4b5181c8">En phase avec votre horloge biologique</string>
+    <string name="l10n_body_clock_dial_card_1_s_later_than_your_body_50b7d966">%1$s plus tard que votre horloge biologique</string>
+    <string name="l10n_body_clock_dial_card_1_s_earlier_than_your_body_68877f50">%1$s plus tôt que votre horloge biologique</string>
+    <string name="l10n_body_clock_dial_card_morning_type_289dd7bf">Type matinal</string>
+    <string name="l10n_body_clock_dial_card_intermediate_type_a7b6b74c">Type intermédiaire</string>
+    <string name="l10n_body_clock_dial_card_evening_type_3e1ce111">Type vespéral</string>
+    <string name="l10n_body_clock_dial_card_body_clock_dial_03cdbc31">Cadran de l\'horloge biologique</string>
 </resources>

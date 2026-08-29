@@ -2548,4 +2548,13 @@
     <string name="crash_recovery_body">El último fallo aparece abajo. Puedes copiarlo para informar del error y volver a intentar abrir la aplicación.</string>
     <string name="crash_recovery_copy">Copiar error</string>
     <string name="crash_recovery_continue">Intentar abrir NOOP</string>
+    <string name="l10n_body_clock_dial_card_body_clock_b0b9b988">Reloj interno</string>
+    <string name="l10n_body_clock_dial_card_last_night_against_your_clock_9183a37c">Anoche frente a tu reloj interno</string>
+    <string name="l10n_body_clock_dial_card_in_sync_with_your_body_clock_4b5181c8">En sintonía con tu reloj interno</string>
+    <string name="l10n_body_clock_dial_card_1_s_later_than_your_body_50b7d966">%1$s más tarde que tu reloj interno</string>
+    <string name="l10n_body_clock_dial_card_1_s_earlier_than_your_body_68877f50">%1$s más temprano que tu reloj interno</string>
+    <string name="l10n_body_clock_dial_card_morning_type_289dd7bf">Tipo matutino</string>
+    <string name="l10n_body_clock_dial_card_intermediate_type_a7b6b74c">Tipo intermedio</string>
+    <string name="l10n_body_clock_dial_card_evening_type_3e1ce111">Tipo vespertino</string>
+    <string name="l10n_body_clock_dial_card_body_clock_dial_03cdbc31">Esfera del reloj interno</string>
 </resources>

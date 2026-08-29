@@ -217,4 +217,96 @@ class CircadianEngineTest {
         )
         assertEquals(CircadianEngine.Chronotype.EVENING, CircadianEngine.chronotype(alignedButLate))
     }
+
+    /**
+     * VERBATIM stdout of the Swift twin compiled standalone. Format:
+     * label|tempMinHour|durationHours|bedHour|wakeHour ("nil" for a rejected duration).
+     *
+     * `typical` is the row that says the model is sane: a 04:30 temperature minimum and an 8 h night put
+     * the ideal window at 23:00-07:00. The wrap rows matter because the ideal bedtime routinely lands on
+     * the PREVIOUS day, so a subtraction without wrap24 would place it at a negative hour.
+     */
+    private val idealWindowOracle = """
+        typical|4.5|8.0|23.0|7.0
+        short-night|4.5|5.0|2.0|7.0
+        long-night|4.5|10.0|21.0|7.0
+        evening-type|7.0|8.0|1.5|9.5
+        morning-type|2.0|8.0|20.5|4.5
+        wrap-past-midnight|1.0|8.0|19.5|3.5
+        tempmin-late-evening|23.0|8.0|17.5|1.5
+        duration-just-under-24|4.5|23.9|7.100000000000001|7.0
+        zero-duration|4.5|0.0|nil|nil
+        negative-duration|4.5|-1.0|nil|nil
+        24h-duration|4.5|24.0|nil|nil
+    """.trimIndent()
+
+    @Test
+    fun idealSleepWindowMatchesTheSwiftOracleExactly() {
+        for (row in idealWindowOracle.lines().map { it.trim() }.filter { it.isNotEmpty() }) {
+            val parts = row.split("|")
+            val (label, tempText, durText) = Triple(parts[0], parts[1], parts[2])
+            val w = CircadianEngine.idealSleepWindow(tempText.toDouble(), durText.toDouble())
+            if (parts[3] == "nil") {
+                assertNull("$label: an impossible duration cannot be placed on the ring", w)
+            } else {
+                assertEquals("$label: bed hour", parts[3].toDouble(), w!!.bedHour, 0.0)
+                assertEquals("$label: wake hour", parts[4].toDouble(), w.wakeHour, 0.0)
+            }
+        }
+    }
+
+    /**
+     * The ideal arc takes the night's OWN length, so the dial compares PHASE alone. A short night and a
+     * long one on the same body clock share a wake time and differ only in where the arc starts — which
+     * is what keeps a sleep DEBT from rendering as a body-clock problem.
+     */
+    @Test
+    fun idealWindowSharesTheWakeAnchorAcrossDurations() {
+        val short = CircadianEngine.idealSleepWindow(4.5, 5.0)!!
+        val long = CircadianEngine.idealSleepWindow(4.5, 10.0)!!
+        assertEquals("both nights wake at the same clock time", short.wakeHour, long.wakeHour, 0.0)
+        assertTrue("only the bedtime moves", short.bedHour != long.bedHour)
+    }
+
+    /**
+     * The dial's caption quantity: how far the night actually slept sits from where the CLOCK wanted it.
+     * Verbatim Swift stdout. Format: label|tempMinHour|actualWakeHour|offsetHours.
+     *
+     * `wrap-late` is the row that earns its place — a 23:00 temperature minimum puts the ideal wake at
+     * 01:30, so waking at 02:30 is one hour LATE, not twenty-three hours early.
+     */
+    @Test
+    fun sleepWindowOffsetMatchesTheSwiftOracleExactly() {
+        val oracle = """
+            on-time|4.5|7.0|0.0
+            late-1h|4.5|8.0|1.0
+            early-1h|4.5|6.0|-1.0
+            wrap-late|23.0|2.5|1.0
+            wrap-early|1.0|23.0|-4.5
+            antipode|4.5|19.0|12.0
+        """.trimIndent()
+        for (row in oracle.lines().map { it.trim() }.filter { it.isNotEmpty() }) {
+            val p = row.split("|")
+            assertEquals("${p[0]}: offset hours", p[3].toDouble(),
+                CircadianEngine.sleepWindowOffsetHours(p[1].toDouble(), p[2].toDouble()), 0.0)
+        }
+    }
+
+    /**
+     * The dial's caption and the card's existing headline measure DIFFERENT things and must not be
+     * conflated: a consistent late sleeper is well-aligned with their own schedule (offset ~0) while
+     * sleeping hours away from what their clock wants. Pinned so the two never get merged by a refactor.
+     */
+    @Test
+    fun windowOffsetAndScheduleOffsetAreDifferentQuantities() {
+        // body clock at 08:00, so the clock wants a 10:30 wake; this sleeper wakes at 06:30.
+        val windowOffset = CircadianEngine.sleepWindowOffsetHours(tempMinHour = 8.0, actualWakeHour = 6.5)
+        assertEquals(-4.0, windowOffset, 1e-12)
+        val scheduleAligned = CircadianEngine.PhaseEstimate(
+            tempMinHour = 8.0, acrophaseHours = 20.0, offsetVsScheduleMinutes = 0.0,
+            confidence = CircadianEngine.PhaseConfidence.SOLID, note = "",
+        )
+        assertEquals("schedule-relative reads aligned", 0.0, scheduleAligned.offsetVsScheduleMinutes, 0.0)
+        assertTrue("while the clock-relative read is hours away", kotlin.math.abs(windowOffset) > 1.0)
+    }
 }

@@ -290,6 +290,47 @@ object CircadianEngine {
      */
     val chronotypeAnchorHour: Double get() = wrap24(chronotypeReferenceWakeHour - cbtMinBeforeWakeHours)
 
+    /** A chronotype-ideal sleep window on the 24 h clock. Twin of the Swift tuple return. */
+    data class IdealSleepWindow(val bedHour: Double, val wakeHour: Double)
+
+    /**
+     * The chronotype-ideal sleep window for a night of [durationHours], as clock hours.
+     *
+     * Anchored on the temperature minimum: a well-entrained sleeper wakes about [cbtMinBeforeWakeHours]
+     * after CBTmin, so the ideal wake is `tempMinHour + cbtMinBeforeWakeHours` and the ideal bedtime is
+     * that minus the night's own length.
+     *
+     * USING THE ACTUAL DURATION IS THE POINT. Giving the ideal arc the same length as the real one makes
+     * the comparison purely about PHASE — did you sleep at the right TIME — so a short night reads as
+     * aligned-but-short rather than as misaligned. Feeding a "needed" duration instead would fold two
+     * different failures into one arc and make a debt look like a body-clock problem.
+     *
+     * null for a non-positive or impossible duration; a window longer than a day cannot be placed on a
+     * 24 h ring, and silently wrapping it would draw a full circle that means nothing.
+     * Mirrors the Swift twin exactly.
+     */
+    fun idealSleepWindow(tempMinHour: Double, durationHours: Double): IdealSleepWindow? {
+        if (durationHours <= 0.0 || durationHours >= 24.0) return null
+        val wake = wrap24(tempMinHour + cbtMinBeforeWakeHours)
+        return IdealSleepWindow(bedHour = wrap24(wake - durationHours), wakeHour = wake)
+    }
+
+    /**
+     * Signed hours the ACTUAL sleep window sits later (+) or earlier (−) than the chronotype-ideal one.
+     *
+     * Deliberately NOT [PhaseEstimate.offsetVsScheduleMinutes]. That field compares the body clock to the
+     * wearer's own SCHEDULE; this compares the night actually slept to where the CLOCK wanted it. A dial
+     * that draws an actual arc against an ideal arc must caption itself with the distance between those
+     * two arcs, or the number contradicts the picture — the two disagree exactly when someone keeps a
+     * consistent schedule that does not suit their clock, which is the case the dial exists to show.
+     *
+     * Anchored on wake rather than bedtime because [idealSleepWindow] builds the ideal window from the
+     * wake end; comparing bedtimes would fold the night's DURATION into a phase reading.
+     * Mirrors the Swift twin exactly.
+     */
+    fun sleepWindowOffsetHours(tempMinHour: Double, actualWakeHour: Double): Double =
+        signedHourDelta(wrap24(tempMinHour + cbtMinBeforeWakeHours), wrap24(actualWakeHour))
+
     /**
      * Bucket an ABSOLUTE temperature-minimum clock hour into a lean.
      *

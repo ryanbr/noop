@@ -71,6 +71,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.noop.analytics.AnalyticsEngine
+import com.noop.analytics.CircadianEngine
 import com.noop.analytics.SleepEditGuard
 import com.noop.analytics.SleepGroupEdit
 import com.noop.analytics.SleepStageTotals
@@ -127,6 +128,9 @@ fun SleepScreen(
     // the sleep surfaces name a ring-PROVIDED night's provenance "Oura" and flag its split as the ring's
     // RAW on-device stages. Read/UI only, no stored value. Mirrors macOS Repository.activeDeviceIsOura.
     val activeIsOura = com.noop.data.DeviceBrandCatalog.isOura(vm.activeStrapId)
+    // #1680: the body-clock phase behind the 24 h dial section. Same snapshot the Health screen reads for
+    // BodyClockCard, so the two surfaces cannot disagree about the estimate.
+    val v5Signals by vm.v5Signals.collectAsStateWithLifecycle()
 
     // PERF (#scroll-jank): the BLE live state ticks ~1Hz. This screen reads `live` ONLY for the
     // "syncing history" note (backfilling + the chunk count), so reading the whole `live` object at
@@ -749,6 +753,32 @@ fun SleepScreen(
                 // selected day's model failed to build, exactly as iOS keeps them while browsing. Each
                 // `tilesModel?.let { m -> ... }` binds a non-null local so the smart-cast carries across
                 // the item {} lambda boundary — same guard the old `if (tilesModel != null)` block used.
+                // The 24 h body-clock dial (#1680). Drawn only for a fit that is at least WIDE: an
+                // UNREADABLE rhythm has no phase to compare a night against, and an empty ring would read
+                // as a broken chart rather than as "not enough data". It is a reorderable Sleep section,
+                // so anyone who does not want it hides it in Arrange — the same affordance every other
+                // card here already has, rather than a setting of its own. Mirrors SleepView.
+                SleepSection.BODY_CLOCK -> {
+                    val phase = v5Signals?.bodyClock
+                    val session = night?.session
+                    if (phase != null &&
+                        phase.confidence != CircadianEngine.PhaseConfidence.UNREADABLE &&
+                        session != null
+                    ) {
+                        item(key = k) {
+                            SleepReorderableSection(k, sleepListState, sleepSectionDrag, persistSleepOrder) {
+                                Column {
+                                    Spacer(Modifier.height(Metrics.selectorTopUp))
+                                    BodyClockDialCard(
+                                        estimate = phase,
+                                        actualBedHour = localClockHour(session.effectiveStartTs),
+                                        actualWakeHour = localClockHour(session.endTs),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
                 SleepSection.NIGHT_DETAIL -> tilesModel?.let { m ->
                     item(key = k) {
                         SleepReorderableSection(k, sleepListState, sleepSectionDrag, persistSleepOrder) {

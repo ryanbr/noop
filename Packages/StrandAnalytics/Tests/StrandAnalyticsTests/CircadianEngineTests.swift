@@ -196,4 +196,59 @@ final class CircadianEngineTests: XCTestCase {
             confidence: .solid, note: "")
         XCTAssertEqual(CircadianEngine.chronotype(alignedButLate), .evening)
     }
+
+    /// The same table the Kotlin oracle pins, asserted from this side too. `typical` says the model is
+    /// sane: a 04:30 temperature minimum and an 8 h night put the ideal window at 23:00-07:00. The wrap
+    /// rows matter because the ideal bedtime routinely lands on the PREVIOUS day.
+    func testIdealSleepWindowPlacesTheWindowOnTheRing() {
+        let cases: [(Double, Double, (Double, Double)?)] = [
+            (4.5, 8.0, (23.0, 7.0)), (4.5, 5.0, (2.0, 7.0)), (4.5, 10.0, (21.0, 7.0)),
+            (7.0, 8.0, (1.5, 9.5)), (2.0, 8.0, (20.5, 4.5)),
+            (1.0, 8.0, (19.5, 3.5)), (23.0, 8.0, (17.5, 1.5)),
+            (4.5, 0.0, nil), (4.5, -1.0, nil), (4.5, 24.0, nil),
+        ]
+        for (tempMin, duration, expected) in cases {
+            let w = CircadianEngine.idealSleepWindow(tempMinHour: tempMin, durationHours: duration)
+            if let expected {
+                XCTAssertEqual(w?.bedHour ?? -1, expected.0, accuracy: 1e-12, "bed for \(tempMin)/\(duration)")
+                XCTAssertEqual(w?.wakeHour ?? -1, expected.1, accuracy: 1e-12, "wake for \(tempMin)/\(duration)")
+            } else {
+                XCTAssertNil(w, "an impossible duration cannot be placed on the ring: \(duration)")
+            }
+        }
+    }
+
+    /// The ideal arc takes the night's OWN length, so the dial compares PHASE alone — which keeps a sleep
+    /// DEBT from rendering as a body-clock problem.
+    func testIdealWindowSharesTheWakeAnchorAcrossDurations() {
+        let short = CircadianEngine.idealSleepWindow(tempMinHour: 4.5, durationHours: 5)
+        let long = CircadianEngine.idealSleepWindow(tempMinHour: 4.5, durationHours: 10)
+        XCTAssertEqual(short?.wakeHour, long?.wakeHour)
+        XCTAssertNotEqual(short?.bedHour, long?.bedHour)
+    }
+
+    /// The dial's caption quantity. `wrap-late` earns its place: a 23:00 temperature minimum puts the
+    /// ideal wake at 01:30, so waking at 02:30 is one hour LATE, not twenty-three hours early.
+    func testSleepWindowOffsetHours() {
+        let cases: [(Double, Double, Double)] = [
+            (4.5, 7.0, 0.0), (4.5, 8.0, 1.0), (4.5, 6.0, -1.0),
+            (23.0, 2.5, 1.0), (1.0, 23.0, -4.5), (4.5, 19.0, 12.0),
+        ]
+        for (tempMin, wake, expected) in cases {
+            XCTAssertEqual(CircadianEngine.sleepWindowOffsetHours(tempMinHour: tempMin, actualWakeHour: wake),
+                           expected, accuracy: 1e-12, "tempMin \(tempMin) wake \(wake)")
+        }
+    }
+
+    /// The dial's caption and the card's existing headline measure DIFFERENT things: a consistent late
+    /// sleeper is well-aligned with their own schedule while sleeping hours from what their clock wants.
+    func testWindowOffsetAndScheduleOffsetAreDifferentQuantities() {
+        let windowOffset = CircadianEngine.sleepWindowOffsetHours(tempMinHour: 8.0, actualWakeHour: 6.5)
+        XCTAssertEqual(windowOffset, -4.0, accuracy: 1e-12)
+        let scheduleAligned = CircadianEngine.PhaseEstimate(
+            tempMinHour: 8.0, acrophaseHours: 20.0, offsetVsScheduleMinutes: 0,
+            confidence: .solid, note: "")
+        XCTAssertEqual(scheduleAligned.offsetVsScheduleMinutes, 0)
+        XCTAssertGreaterThan(abs(windowOffset), 1.0)
+    }
 }

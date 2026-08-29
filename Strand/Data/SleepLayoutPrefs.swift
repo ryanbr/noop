@@ -29,6 +29,7 @@ import SwiftUI
 enum SleepSection: String, CaseIterable, Identifiable {
     case sleepMarks
     case stages
+    case bodyClock
     case nightDetail
     case sleepDebt
     case stagesVsTypical
@@ -41,6 +42,7 @@ enum SleepSection: String, CaseIterable, Identifiable {
         switch self {
         case .sleepMarks:      return String(localized: "Sleep marks")
         case .stages:          return String(localized: "Stages")
+        case .bodyClock:       return String(localized: "Body clock")
         case .nightDetail:     return String(localized: "Night detail")
         case .sleepDebt:       return String(localized: "Sleep-debt ledger")
         case .stagesVsTypical: return String(localized: "Stages vs typical")
@@ -53,7 +55,7 @@ enum SleepSection: String, CaseIterable, Identifiable {
     /// with Stages for now — it's drawn inside the stages hero; making it an independently arrangeable
     /// card is a follow-up that requires hoisting the hero's edit/delete callbacks.)
     static let defaultOrder: [SleepSection] = [
-        .sleepMarks, .stages, .nightDetail, .sleepDebt, .stagesVsTypical, .asleepDuration,
+        .sleepMarks, .stages, .bodyClock, .nightDetail, .sleepDebt, .stagesVsTypical, .asleepDuration,
     ]
 }
 

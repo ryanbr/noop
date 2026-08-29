@@ -94,6 +94,7 @@ extension SleepSection {
         switch self {
         case .sleepMarks:      return "bed.double"
         case .stages:          return "chart.bar.xaxis"
+        case .bodyClock:       return "clock.badge.checkmark"
         case .nightDetail:     return "square.grid.2x2"
         case .sleepDebt:       return "arrow.down.right.circle"
         case .stagesVsTypical: return "chart.bar"
@@ -107,6 +108,7 @@ extension SleepSection {
         switch self {
         case .sleepMarks:      return StrandPalette.accent
         case .stages:          return StrandPalette.restColor
+        case .bodyClock:       return StrandPalette.restColor
         case .nightDetail:     return StrandPalette.restBright
         case .sleepDebt:       return StrandPalette.effortColor
         case .stagesVsTypical: return StrandPalette.restColor

@@ -27,6 +27,7 @@ import com.noop.R
 enum class SleepSection(val raw: String, val title: String) {
     SLEEP_MARKS("sleepMarks", "Sleep marks"),
     STAGES("stages", "Stages"),
+    BODY_CLOCK("bodyClock", "Body clock"),
     NIGHT_DETAIL("nightDetail", "Night detail"),
     SLEEP_DEBT("sleepDebt", "Sleep-debt ledger"),
     STAGES_VS_TYPICAL("stagesVsTypical", "Stages vs typical"),
@@ -49,7 +50,7 @@ enum class SleepSection(val raw: String, val title: String) {
          *  rides with Stages for now — drawn inside the stages hero; making it an independently arrangeable
          *  card is a follow-up that requires hoisting the hero's edit/delete callbacks.) */
         val defaultOrder: List<SleepSection> = listOf(
-            SLEEP_MARKS, STAGES, NIGHT_DETAIL, SLEEP_DEBT, STAGES_VS_TYPICAL, ASLEEP_DURATION,
+            SLEEP_MARKS, STAGES, BODY_CLOCK, NIGHT_DETAIL, SLEEP_DEBT, STAGES_VS_TYPICAL, ASLEEP_DURATION,
             HOURS_VS_NEEDED, CONSISTENCY,
         )
     }
@@ -65,6 +66,7 @@ enum class SleepSection(val raw: String, val title: String) {
 fun SleepSection.localizedTitle(): String = when (this) {
     SleepSection.SLEEP_MARKS -> stringResource(R.string.l10n_sleep_screen_sleep_marks_8e9b86f0)
     SleepSection.STAGES -> stringResource(R.string.l10n_sleep_screen_stages_c1d33ad5)
+    SleepSection.BODY_CLOCK -> stringResource(R.string.l10n_body_clock_dial_card_body_clock_b0b9b988)
     SleepSection.NIGHT_DETAIL -> stringResource(R.string.l10n_sleep_screen_night_detail_8f271bcf)
     SleepSection.SLEEP_DEBT -> stringResource(R.string.l10n_sleep_screen_sleep_debt_ledger_8cc9a992)
     SleepSection.STAGES_VS_TYPICAL -> stringResource(R.string.l10n_sleep_screen_stages_vs_typical_28463f24)

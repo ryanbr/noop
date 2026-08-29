@@ -2553,4 +2553,13 @@
     <string name="crash_recovery_body">Poniżej znajduje się ostatni błąd. Możesz go skopiować do zgłoszenia, a następnie spróbować ponownie otworzyć aplikację.</string>
     <string name="crash_recovery_copy">Kopiuj błąd</string>
     <string name="crash_recovery_continue">Spróbuj otworzyć NOOP</string>
+    <string name="l10n_body_clock_dial_card_body_clock_b0b9b988">Zegar biologiczny</string>
+    <string name="l10n_body_clock_dial_card_last_night_against_your_clock_9183a37c">Ostatnia noc a Twój zegar biologiczny</string>
+    <string name="l10n_body_clock_dial_card_in_sync_with_your_body_clock_4b5181c8">Zgodnie z zegarem biologicznym</string>
+    <string name="l10n_body_clock_dial_card_1_s_later_than_your_body_50b7d966">%1$s później niż Twój zegar biologiczny</string>
+    <string name="l10n_body_clock_dial_card_1_s_earlier_than_your_body_68877f50">%1$s wcześniej niż Twój zegar biologiczny</string>
+    <string name="l10n_body_clock_dial_card_morning_type_289dd7bf">Typ poranny</string>
+    <string name="l10n_body_clock_dial_card_intermediate_type_a7b6b74c">Typ pośredni</string>
+    <string name="l10n_body_clock_dial_card_evening_type_3e1ce111">Typ wieczorny</string>
+    <string name="l10n_body_clock_dial_card_body_clock_dial_03cdbc31">Tarcza zegara biologicznego</string>
 </resources>
