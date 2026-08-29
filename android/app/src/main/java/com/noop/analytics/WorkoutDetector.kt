@@ -650,8 +650,15 @@ object Calories {
      * gate to 50% HRR so the gross rate only applies at genuine exercise-level HR.
      */
     const val dayActiveHRRFraction: Double = 0.50
-    /** Longest gap over which one daily HR reading may carry resting or active energy. */
-    const val dayMaxActiveGapS: Double = 60.0
+    /**
+     * Longest gap over which one daily HR reading may carry RESTING energy.
+     *
+     * Resting metabolism continues across a dropout, so a reading may carry the BMR rate into the
+     * gap — but only so far, or a disconnected evening would bank a full night of resting kcal that
+     * was never observed. ACTIVE energy is capped separately and much tighter, at the inferred
+     * cadence (see [estimateDayEnergy]): a gap is evidence of a missing sensor, never of exercise.
+     */
+    const val dayMaxObservedGapS: Double = 60.0
     const val dayMaxObservedSpanS: Double = 86_400.0
     const val workoutDivisor: Double = 251.04 // 60 s/min × 4.184 kJ/kcal
 
@@ -775,7 +782,7 @@ object Calories {
      * on a real detected/manual workout.
      *
      * Cadence is inferred from the median positive timestamp gap and capped at
-     * [dayMaxActiveGapS]. Each sample carries resting energy, and a high-HR sample carries
+     * [dayMaxObservedGapS]. Each sample carries resting energy, and a high-HR sample carries
      * active energy, to the next sample for at most that cap. This can credit up to 60 s
      * instead of the old flat 1 s for a reading on a gappy day, but never a whole disconnect.
      * Thus a 30 s sparse stream and a 1 Hz stream covering the same activity produce
@@ -813,7 +820,13 @@ object Calories {
         // restingHR → base model, unchanged. Constant across the day.
         val vo2max = vo2maxFor(effHRmax, restingHR)
 
-        val ordered = hrSamples.sortedBy { it.ts }
+        // Ties are REACHABLE: hrSample is keyed (deviceId, ts) and the day feed unions devices, so a
+        // two-strap day carries two readings for the same second. Only the LAST of a tied run gets the
+        // interval (the earlier ones measure a zero gap), so tie order decides the day's active energy.
+        // Ordering ties by DESCENDING bpm hands the interval to the LOWER reading — the conservative
+        // direction for a path whose history is over-counting. Sorting on ts alone left this to the
+        // sort's stability, which Kotlin guarantees and Swift explicitly does not.
+        val ordered = hrSamples.sortedWith(compareBy<HrSample> { it.ts }.thenByDescending { it.bpm })
         val positiveGaps = ordered.zipWithNext { a, b -> (b.ts - a.ts).toDouble() }
             .filter { it > 0.0 }
             .sorted()
@@ -826,21 +839,27 @@ object Calories {
             } else {
                 positiveGaps[mid]
             }
-            minOf(median, dayMaxActiveGapS)
+            minOf(median, dayMaxObservedGapS)
         }
         val observedSeconds = minOf(
             dayMaxObservedSpanS,
             positiveGaps.fold(nominalSampleS) { total, gap ->
-                total + minOf(gap, dayMaxActiveGapS)
+                total + minOf(gap, dayMaxObservedGapS)
             },
         )
         val restingKcal = restingRate * observedSeconds
 
         var activeKcal = 0.0
         for (i in ordered.indices) {
+            // Active carry is capped at the INFERRED CADENCE, not at the wider resting cap. A 30 s
+            // stream still carries its full 30 s (the cadence bug this fixes), and a 1 Hz day carries
+            // 1 s so the legacy total is reproduced exactly — but a dropout in an otherwise dense day
+            // no longer credits a full minute of exercise to the last reading before it. That was the
+            // objection the flat one-second model was written to avoid, and capping active at the
+            // cadence answers it rather than narrowing it from 150 s to 60 s.
             val durationS = if (i < ordered.size - 1) {
                 val gap = (ordered[i + 1].ts - ordered[i].ts).toDouble()
-                if (gap > 0.0) minOf(gap, dayMaxActiveGapS) else 0.0
+                if (gap > 0.0) minOf(gap, nominalSampleS) else 0.0
             } else {
                 nominalSampleS
             }

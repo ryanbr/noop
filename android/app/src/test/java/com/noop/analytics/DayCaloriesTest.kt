@@ -258,4 +258,51 @@ class DayCaloriesTest {
         assertNotNull(explicit)
         assertEquals(fallback!!, explicit!!, 1e-9)
     }
+
+    /**
+     * A dropout in an otherwise dense day carries RESTING energy across the gap but not ACTIVE energy.
+     *
+     * Active duration is capped at the inferred cadence (1 s here), so the two dense blocks credit
+     * exactly as much active energy as one continuous block of the same sample count — no magic
+     * number, just the invariant. Resting is capped at the wider [Calories.dayMaxObservedGapS] and so
+     * DOES grow, which is the intended asymmetry: metabolism continues across a gap, exercise is not
+     * evidenced by one. Capping active at 60 s instead would have credited the reading before the gap
+     * with a full minute of exercise it never demonstrated.
+     */
+    @Test
+    fun dropoutInADenseDayCarriesRestingButNotActive() {
+        val profile = UserProfile(weightKg = 80.0, heightCm = 180.0, age = 35.0, sex = "male")
+        val gapped = hrDay(130, 120, start = 0) + hrDay(130, 120, start = 200)   // 81 s dropout
+        val continuous = hrDay(130, 240)
+        val g = Calories.estimateDayEnergy(gapped, profile, hrmax = 185.0, restingHR = 55.0)
+        val c = Calories.estimateDayEnergy(continuous, profile, hrmax = 185.0, restingHR = 55.0)
+        assertEquals("active energy must not grow across a sensor gap", c.activeKcal, g.activeKcal, 1e-9)
+        assertTrue("resting energy SHOULD carry across the gap", g.restingKcal > c.restingKcal)
+        assertTrue("but only as far as the observed-gap cap", g.observedSeconds < 240.0 + 81.0)
+    }
+
+    /**
+     * Two readings in the same second are reachable — `hrSample` is keyed (deviceId, ts) and the day
+     * feed unions devices, so a two-strap day has one per strap. Only the LAST of a tied run receives
+     * the interval, so without a tiebreak the day's active energy depended on the order the feed
+     * happened to arrive in, and on a sort stability Swift does not guarantee.
+     *
+     * Pinned twice: the result must not depend on input order, and a tie must hand the interval to the
+     * LOWER reading (so a lone elevated duplicate cannot claim the following minute as exercise).
+     */
+    @Test
+    fun tiedTimestampsAreOrderIndependentAndResolveToTheLowerReading() {
+        val profile = UserProfile(weightKg = 80.0, heightCm = 180.0, age = 35.0, sex = "male")
+        val tied = listOf(
+            com.noop.data.HrSample(deviceId = "a", ts = 0L, bpm = 150),
+            com.noop.data.HrSample(deviceId = "b", ts = 0L, bpm = 60),
+            com.noop.data.HrSample(deviceId = "b", ts = 60L, bpm = 60),
+        )
+        val forward = Calories.estimateDayEnergy(tied, profile, hrmax = 185.0, restingHR = 55.0)
+        val reversed = Calories.estimateDayEnergy(tied.reversed(), profile, hrmax = 185.0, restingHR = 55.0)
+        assertEquals("feed order must not change the day's energy", forward.activeKcal, reversed.activeKcal, 1e-12)
+        assertEquals(forward.restingKcal, reversed.restingKcal, 1e-12)
+        assertEquals("the tie resolves to the lower reading, so no active energy is credited",
+            0.0, forward.activeKcal, 1e-12)
+    }
 }

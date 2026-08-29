@@ -241,4 +241,43 @@ final class DayCaloriesTests: XCTestCase {
             day: dayUtc, hr: window, dayHr: window, profile: UserProfile()).daily.activeKcalEst)
         XCTAssertEqual(fallback, explicit, accuracy: 1e-9)
     }
+
+    /// A dropout in an otherwise dense day carries RESTING energy across the gap but not ACTIVE energy.
+    ///
+    /// Active duration is capped at the inferred cadence (1 s here), so the two dense blocks credit
+    /// exactly as much active energy as one continuous block of the same sample count — no magic
+    /// number, just the invariant. Resting is capped at the wider `dayMaxObservedGapS` and so DOES
+    /// grow, which is the intended asymmetry: metabolism continues across a gap, exercise is not
+    /// evidenced by one. Capping active at 60 s instead would have credited the reading before the gap
+    /// with a full minute of exercise it never demonstrated. Twin of the Kotlin test.
+    func testDropoutInADenseDayCarriesRestingButNotActive() {
+        let profile = UserProfile(weightKg: 80, heightCm: 180, age: 35, sex: "male")
+        let gapped = hrDay(bpm: 130, n: 120, start: 0) + hrDay(bpm: 130, n: 120, start: 200)
+        let continuous = hrDay(bpm: 130, n: 240)
+        let g = Calories.estimateDayEnergy(gapped, profile: profile, hrmax: 185, restingHR: 55)
+        let c = Calories.estimateDayEnergy(continuous, profile: profile, hrmax: 185, restingHR: 55)
+        XCTAssertEqual(g.activeKcal, c.activeKcal, accuracy: 1e-9,
+                       "active energy must not grow across a sensor gap")
+        XCTAssertGreaterThan(g.restingKcal, c.restingKcal, "resting energy SHOULD carry across the gap")
+        XCTAssertLessThan(g.observedSeconds, 240.0 + 81.0, "but only as far as the observed-gap cap")
+    }
+
+    /// Two readings in the same second are reachable — `hrSample` is keyed (deviceId, ts) and the day
+    /// feed unions devices, so a two-strap day has one per strap. Only the LAST of a tied run receives
+    /// the interval, so without a tiebreak the day's active energy depended on the order the feed
+    /// happened to arrive in, and on a sort stability Swift does not guarantee.
+    ///
+    /// Pinned twice: the result must not depend on input order, and a tie must hand the interval to the
+    /// LOWER reading. Twin of the Kotlin test.
+    func testTiedTimestampsAreOrderIndependentAndResolveToTheLowerReading() {
+        let profile = UserProfile(weightKg: 80, heightCm: 180, age: 35, sex: "male")
+        let tied = [HRSample(ts: 0, bpm: 150), HRSample(ts: 0, bpm: 60), HRSample(ts: 60, bpm: 60)]
+        let forward = Calories.estimateDayEnergy(tied, profile: profile, hrmax: 185, restingHR: 55)
+        let reversed = Calories.estimateDayEnergy(tied.reversed(), profile: profile, hrmax: 185, restingHR: 55)
+        XCTAssertEqual(forward.activeKcal, reversed.activeKcal, accuracy: 1e-12,
+                       "feed order must not change the day's energy")
+        XCTAssertEqual(forward.restingKcal, reversed.restingKcal, accuracy: 1e-12)
+        XCTAssertEqual(forward.activeKcal, 0.0, accuracy: 1e-12,
+                       "the tie resolves to the lower reading, so no active energy is credited")
+    }
 }

@@ -636,10 +636,13 @@ public enum Calories {
     /// Keytel is appropriate for a real detected/manual workout — but the day path raises
     /// the gate to 50% HRR so the gross rate only applies at genuine exercise-level HR.
     static let dayActiveHRRFraction = 0.50
-    /// Longest gap over which one daily HR reading may carry resting or active energy. Covers the
-    /// known sparse WHOOP 5/MG cadence (~30 s) with margin, but an isolated reading cannot invent resting
-    /// or active energy across a long disconnect.
-    static let dayMaxActiveGapS: Double = 60.0
+    /// Longest gap over which one daily HR reading may carry RESTING energy.
+    ///
+    /// Resting metabolism continues across a dropout, so a reading may carry the BMR rate into the gap
+    /// — but only so far, or a disconnected evening would bank a full night of resting kcal that was
+    /// never observed. ACTIVE energy is capped separately and much tighter, at the inferred cadence
+    /// (see `estimateDayEnergy`): a gap is evidence of a missing sensor, never of exercise.
+    static let dayMaxObservedGapS: Double = 60.0
     static let dayMaxObservedSpanS: Double = 86_400.0
     static let workoutDivisor = 251.04  // 60 s/min × 4.184 kJ/kcal
 
@@ -754,7 +757,7 @@ public enum Calories {
     /// is appropriate there, on a real detected/manual workout.
     ///
     /// Cadence is inferred from the median positive timestamp gap and capped at
-    /// `dayMaxActiveGapS`. Each sample carries resting energy, and a high-HR sample carries active
+    /// `dayMaxObservedGapS`. Each sample carries resting energy, and a high-HR sample carries active
     /// energy, to the next sample for at most that cap. This can credit up to 60 s instead of the old
     /// flat 1 s for a reading on a gappy day, but never a whole disconnect. Thus a 30 s sparse stream
     /// and a 1 Hz stream covering the same activity produce comparable energy.
@@ -785,7 +788,13 @@ public enum Calories {
         // restingHR → base model, unchanged. Constant across the day.
         let vo2max = vo2maxFor(hrmax: effHRmax, restingHR: restingHR)
 
-        let ordered = hrSamples.sorted { $0.ts < $1.ts }
+        // Ties are REACHABLE: hrSample is keyed (deviceId, ts) and the day feed unions devices, so a
+        // two-strap day carries two readings for the same second. Only the LAST of a tied run gets the
+        // interval (the earlier ones measure a zero gap), so tie order decides the day's active energy.
+        // Ordering ties by DESCENDING bpm hands the interval to the LOWER reading — the conservative
+        // direction for a path whose history is over-counting. Sorting on ts alone left this to the
+        // sort's stability, which Kotlin guarantees (TimSort) and Swift explicitly does not.
+        let ordered = hrSamples.sorted { $0.ts != $1.ts ? $0.ts < $1.ts : $0.bpm > $1.bpm }
         let positiveGaps = zip(ordered, ordered.dropFirst())
             .map { pair in Double(pair.1.ts - pair.0.ts) }
             .filter { $0 > 0 }
@@ -796,19 +805,25 @@ public enum Calories {
             let median = positiveGaps.count.isMultiple(of: 2)
                 ? (positiveGaps[mid - 1] + positiveGaps[mid]) / 2.0
                 : positiveGaps[mid]
-            return min(median, dayMaxActiveGapS)
+            return min(median, dayMaxObservedGapS)
         }()
         let observedSeconds = min(dayMaxObservedSpanS, positiveGaps.reduce(nominalSampleS) {
-            $0 + min($1, dayMaxActiveGapS)
+            $0 + min($1, dayMaxObservedGapS)
         })
         let restingKcal = restingRate * observedSeconds
 
         var activeKcal = 0.0
         for i in ordered.indices {
             let durationS: Double
+            // Active carry is capped at the INFERRED CADENCE, not at the wider resting cap. A 30 s
+            // stream still carries its full 30 s (the cadence bug this fixes), and a 1 Hz day carries
+            // 1 s so the legacy total is reproduced exactly — but a dropout in an otherwise dense day
+            // no longer credits a full minute of exercise to the last reading before it. That was the
+            // objection the flat one-second model was written to avoid, and capping active at the
+            // cadence answers it rather than narrowing it from 150 s to 60 s.
             if i < ordered.count - 1 {
                 let gap = Double(ordered[i + 1].ts - ordered[i].ts)
-                durationS = gap > 0 ? min(gap, dayMaxActiveGapS) : 0.0
+                durationS = gap > 0 ? min(gap, nominalSampleS) : 0.0
             } else {
                 durationS = nominalSampleS
             }
