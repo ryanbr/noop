@@ -416,8 +416,83 @@ object AndroidDiagnostics {
     suspend fun dynamicLines(context: Context): List<String> =
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
             strapAndDataLines(context) + funnelLines(context) + workoutSourceLines(context) +
-                dailyDataLines(context) + alarmLines(context)
+                dailyDataLines(context) + alarmLines(context) + circadianLines(context)
         }
+
+    /** Hourly HR buckets over the 14-day window below which the profile is not pooled at all. Mirrors
+     *  `circadianBinsFrom`'s own floor — kept here so the diagnostic names the real number, not a guess. */
+    internal const val CIRCADIAN_MIN_BUCKETS = 24
+    /** Distinct populated local hours below which no estimate is attempted. Mirrors
+     *  `V5HealthSignals.MIN_CIRCADIAN_BINS`. */
+    internal const val CIRCADIAN_MIN_HOURS = 6
+
+    /**
+     * Which gate the body clock is failing, in the order the pipeline applies them.
+     *
+     * The card vanishes for two DIFFERENT reasons that look identical on screen: below the bucket floor
+     * or the hour floor there is NO estimate at all (`V5HealthSignals` returns null and the card's `?.let`
+     * skips it), while a thin or flat fit still returns an estimate marked UNREADABLE, which DOES draw a
+     * card with its own copy. Without this line those are indistinguishable from the outside — the report
+     * that prompted it had a body clock missing on both the Health card and the Sleep dial with no way to
+     * say which floor was short.
+     *
+     * Pure so the wording is assertable without a store, matching `noCaptureMsgText`.
+     */
+    internal fun circadianVerdict(
+        buckets: Int,
+        populatedHours: Int,
+        daysObserved: Int,
+        relativeAmplitude: Double?,
+    ): String = when {
+        buckets < CIRCADIAN_MIN_BUCKETS ->
+            "no estimate — $buckets hourly HR buckets in 14d, needs $CIRCADIAN_MIN_BUCKETS"
+        populatedHours < CIRCADIAN_MIN_HOURS ->
+            "no estimate — HR lands in $populatedHours of 24 local hours, needs $CIRCADIAN_MIN_HOURS"
+        relativeAmplitude != null &&
+            relativeAmplitude < com.noop.analytics.CircadianEngine.minRelativeAmplitude ->
+            "unreadable — rhythm too flat (amplitude ${"%.1f".format(relativeAmplitude * 100)}% of mesor, " +
+                "needs ${"%.0f".format(com.noop.analytics.CircadianEngine.minRelativeAmplitude * 100)}%)"
+        daysObserved < com.noop.analytics.CircadianEngine.minDaysForFit ->
+            "unreadable — $daysObserved days observed, needs " +
+                "${com.noop.analytics.CircadianEngine.minDaysForFit}"
+        daysObserved < com.noop.analytics.CircadianEngine.goodDaysForFit ->
+            "wide — $daysObserved days observed"
+        else -> "solid — $daysObserved days observed"
+    }
+
+    /**
+     * The body clock's three inputs, read fresh from the store.
+     *
+     * Hours and days are counted from the RAW buckets rather than from `circadianBinsFrom`, which
+     * short-circuits to empty below the bucket floor — reporting its zeros would hide the very numbers
+     * this line exists to show.
+     */
+    suspend fun circadianLines(context: Context): List<String> = buildList {
+        add("─".repeat(40))
+        add("Body clock inputs")
+        runCatching {
+            val repo = com.noop.data.WhoopRepository.from(context)
+            val active = runCatching {
+                (context.applicationContext as com.noop.NoopApplication).activeDeviceId
+            }.getOrNull() ?: "unknown"
+            val nowMs = System.currentTimeMillis()
+            val now = nowMs / 1000L
+            val tz = java.util.TimeZone.getDefault().getOffset(nowMs) / 1000L
+            val buckets = repo.hrBucketsUnion(active, now - 14L * 86_400L, now, 3_600L)
+            val hours = buckets.map { (((it.bucket + tz) % 86_400L + 86_400L) % 86_400L / 3_600L) }
+                .distinct().size
+            val days = buckets.map { (it.bucket + tz) / 86_400L }.distinct().size
+            val bins = com.noop.ui.circadianBinsFrom(buckets, tz).first
+            val amp = com.noop.analytics.CircadianEngine.cosinor(bins)?.let { f ->
+                if (f.mesor != 0.0) f.amplitude / kotlin.math.abs(f.mesor) else 0.0
+            }
+            add("Source: $active (+ imported)  window: last 14d")
+            add("Buckets: ${buckets.size} (floor $CIRCADIAN_MIN_BUCKETS)  " +
+                "hours: $hours/24 (need $CIRCADIAN_MIN_HOURS)  days: $days " +
+                "(need ${com.noop.analytics.CircadianEngine.minDaysForFit})")
+            add("Verdict: " + circadianVerdict(buckets.size, hours, days, amp))
+        }.onFailure { add("  (unavailable: ${it.message})") }
+    }
 
     /** "3h 12m ago" style relative stamp for a positive age in ms. */
     private fun relTime(deltaMs: Long): String {
