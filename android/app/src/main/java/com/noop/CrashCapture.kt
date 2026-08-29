@@ -64,9 +64,18 @@ object CrashCapture {
      * yields null and normal startup proceeds.
      */
     fun pendingCrash(context: Context): String? = runCatching {
+        val app = context.applicationContext
         val crash = lastCrash(context) ?: return@runCatching null
-        val acknowledged = context.applicationContext
-            .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        // A crash from a build the user has already replaced is not news. The capture handler has written
+        // this file since June while the screen that surfaces it landed in August, so on the first launch
+        // after upgrading, every install carrying an old crash would open on "NOOP stopped unexpectedly"
+        // for something survived weeks earlier — which is how this was found: a 53-day-old crash greeted a
+        // staging build that had not crashed at all.
+        val lastUpdate = runCatching {
+            app.packageManager.getPackageInfo(app.packageName, 0).lastUpdateTime
+        }.getOrDefault(0L)
+        if (isPreUpgradeCrash(File(app.filesDir, FILE).lastModified(), lastUpdate)) return@runCatching null
+        val acknowledged = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getString(ACKNOWLEDGED, null)
         crash.takeIf { isPending(fingerprint(it), acknowledged) }
     }.getOrNull()
@@ -85,6 +94,21 @@ object CrashCapture {
                 .edit().putString(ACKNOWLEDGED, fingerprint(crash)).commit()
         }
     }
+
+    /**
+     * Whether a stored crash belongs to a build the user is no longer running.
+     *
+     * `lastUpdateTime` is when this APK was installed or updated, so a crash file older than it was
+     * written by a version that has since been replaced. The file is NOT deleted — the strap log and the
+     * test bundle still carry it, which is exactly how the long-standing R8 minification crash trace was
+     * recovered — it simply stops opening the app on a recovery screen.
+     *
+     * Fails toward SHOWING. If either timestamp is unknown (0), this returns false and the crash surfaces
+     * as before: the screen exists to report crashes, so an occasional stale one is a smaller failure than
+     * silently swallowing a real one. The acknowledgement fingerprint still caps that at a single screen.
+     */
+    internal fun isPreUpgradeCrash(crashModifiedMs: Long, lastUpdateMs: Long): Boolean =
+        crashModifiedMs > 0L && lastUpdateMs > 0L && crashModifiedMs < lastUpdateMs
 
     internal fun isPending(fingerprint: String, acknowledged: String?) = fingerprint != acknowledged
 
