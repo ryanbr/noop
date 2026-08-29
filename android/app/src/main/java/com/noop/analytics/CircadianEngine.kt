@@ -38,6 +38,25 @@ object CircadianEngine {
     const val maxShiftPerDayHours: Double = 1.0
     const val cbtMinBeforeWakeHours: Double = 2.5
     const val acrophaseAfterCbtMinHours: Double = 12.0
+    /**
+     * Population-typical wake hour, used ONLY to place the chronotype reference point.
+     *
+     * [PhaseEstimate.offsetVsScheduleMinutes] compares the clock to the USER'S OWN schedule, so it cannot
+     * name a chronotype: someone reliably asleep 03:00-11:00 has an offset near zero and would read
+     * "intermediate" while being strongly evening-type. A named lean needs an ABSOLUTE phase, so it is
+     * bucketed from [PhaseEstimate.tempMinHour] against a population reference instead.
+     * Mirrors the Swift twin exactly.
+     */
+    const val chronotypeReferenceWakeHour: Double = 7.0
+    /**
+     * Half-width of the "intermediate" band around the reference CBTmin, in hours.
+     *
+     * Deliberately wide. `tempMinHour` is derived from an activity cosinor (`acrophase - 12 h`) unless a
+     * measured `observedTempMinHour` is supplied, and NO production caller supplies one today — so this is
+     * a lean inferred from movement, not a thermal measurement. A one-hour band either side keeps the
+     * three buckets coarse enough to be honest about that. Mirrors the Swift twin exactly.
+     */
+    const val chronotypeBandHours: Double = 1.0
 
     // ── Inputs ──
 
@@ -243,6 +262,58 @@ object CircadianEngine {
         var x = h % 24.0
         if (x < 0) x += 24.0
         return x
+    }
+
+    /**
+     * A coarse, ABSOLUTE body-clock category: where the temperature minimum sits on the clock.
+     *
+     * NOT the "chronotype lean" wording used elsewhere. [estimatePhase] builds a `lean` string from
+     * [PhaseEstimate.offsetVsScheduleMinutes] ("a night-owl lean"), and the v5 skin-temp design spec
+     * defines chronotype lean as "earlier/later than your sleep schedule implies" — both RELATIVE to the
+     * wearer's own schedule. This is relative to the CLOCK, and the two genuinely disagree: a consistent
+     * 03:00-11:00 sleeper is well-aligned by the relative read and EVENING by this one. Keep the
+     * vocabularies disjoint in anything user-facing, or the two readings look like a contradiction (#1409).
+     *
+     * Three buckets, not a score: the underlying phase estimate is an activity fit, and a finer grain
+     * would imply precision it does not have. Twin of Swift `CircadianEngine.Chronotype`.
+     */
+    enum class Chronotype(val raw: String) {
+        MORNING("morning"),          // CBTmin earlier than the population reference
+        INTERMEDIATE("intermediate"),
+        EVENING("evening"),          // CBTmin later than the population reference
+    }
+
+    /**
+     * The reference CBTmin clock hour a lean is measured against: the population wake hour minus the same
+     * [cbtMinBeforeWakeHours] the phase estimator already uses, so the anchor moves with the engine's own
+     * model rather than being a second, independently-drifting constant.
+     */
+    val chronotypeAnchorHour: Double get() = wrap24(chronotypeReferenceWakeHour - cbtMinBeforeWakeHours)
+
+    /**
+     * Bucket an ABSOLUTE temperature-minimum clock hour into a lean.
+     *
+     * Compared CIRCULARLY. A [tempMinHour] of 23:30 is five hours BEFORE the 04:30 anchor — a strong
+     * morning lean — and a naive `23.5 > 5.5` would call it evening instead. Pure, so the boundaries are
+     * assertable without building a fit.
+     */
+    fun chronotype(tempMinHour: Double): Chronotype {
+        val delta = signedHourDelta(chronotypeAnchorHour, wrap24(tempMinHour))
+        if (delta < -chronotypeBandHours) return Chronotype.MORNING
+        if (delta > chronotypeBandHours) return Chronotype.EVENING
+        return Chronotype.INTERMEDIATE
+    }
+
+    /**
+     * The lean for a phase estimate, or null when the fit is not strong enough to name one.
+     *
+     * Gated to [PhaseConfidence.SOLID] on purpose. WIDE is a real fit on thin data and is fine for the
+     * continuous offset the card already shows, but a NAMED category reads as a fact about the person
+     * rather than a reading of the week, so it waits for the stronger tier. UNREADABLE never names one.
+     */
+    fun chronotype(estimate: PhaseEstimate): Chronotype? {
+        if (estimate.confidence != PhaseConfidence.SOLID) return null
+        return chronotype(estimate.tempMinHour)
     }
 
     /** Signed shortest delta in hours from [a] to [b] on the 24 h clock, in (−12, 12]. */
