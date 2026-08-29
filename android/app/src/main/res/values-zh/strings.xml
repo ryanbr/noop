@@ -361,7 +361,17 @@
     <string name="l10n_data_sources_screen_cancel_77dfd213">取消</string>
     <string name="l10n_data_sources_screen_data_sources_5e43d6bb">数据源</string>
     <string name="l10n_data_sources_screen_every_3560d90b">每隔</string>
+    <string name="l10n_data_sources_screen_activity_3b9f6c21">活动</string>
+    <string name="l10n_data_sources_screen_body_composition_2e8a4d17">身体成分</string>
+    <string name="l10n_data_sources_screen_choose_data_types_9c3a2f18">选择数据类型…</string>
+    <string name="l10n_data_sources_screen_choose_what_to_share_5a1d8e07">选择要共享的内容</string>
+    <string name="l10n_data_sources_screen_core_recovery_7d4e1a39">核心恢复</string>
+    <string name="l10n_data_sources_screen_grant_access_1f5c9a02">授予访问权限</string>
+    <string name="l10n_data_sources_screen_health_connect_asks_once_per_af6c1b90">Health Connect 会针对每个类别单独询问一次。选择你想让 NOOP 读取的内容；之后可以再添加更多类别。</string>
     <string name="l10n_data_sources_screen_health_connect_be6bca3e">Health Connect</string>
+    <string name="l10n_data_sources_screen_heart_rate_resting_hr_hrv_sleep_c4b7f902">心率、静息心率、HRV、睡眠、呼吸频率、SpO₂</string>
+    <string name="l10n_data_sources_screen_steps_calories_exercise_sessions_9a6d3e58">步数、卡路里、运动记录、距离、最大摄氧量</string>
+    <string name="l10n_data_sources_screen_weight_body_fat_and_lean_body_e1f4a86c">体重、体脂、瘦体重</string>
     <string name="l10n_data_sources_screen_import_apple_health_export_533fca27">导入 Apple Health 数据包…</string>
     <string name="l10n_data_sources_screen_import_from_health_connect_35d55e21">从 Health Connect 导入</string>
     <string name="l10n_data_sources_screen_import_lifting_log_8fac7b68">导入举重记录…</string>

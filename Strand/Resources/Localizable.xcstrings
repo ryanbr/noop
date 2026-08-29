@@ -125642,6 +125642,474 @@
         }
       }
     },
+    "Read your heart rate, HRV, blood oxygen, respiratory rate, sleep, steps and energy from Apple Health, and write back your nightly resting heart rate, HRV, blood oxygen and respiratory rate. Continuous heart rate, workouts and body composition are optional — turn them on below once this is connected. Everything stays on %@.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lies deine Herzfrequenz, HRV, deinen Blutsauerstoff, deine Atemfrequenz, deinen Schlaf, deine Schritte und Energie aus Apple Health, und schreibe deine nächtliche Ruheherzfrequenz, HRV, deinen Blutsauerstoff und deine Atemfrequenz zurück. Kontinuierliche Herzfrequenz, Workouts und Körperzusammensetzung sind optional – aktiviere sie unten, sobald die Verbindung steht. Alles bleibt auf %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lee tu frecuencia cardíaca, VFC, oxígeno en sangre, frecuencia respiratoria, sueño, pasos y energía desde Apple Health, y escribe de vuelta tu frecuencia cardíaca en reposo nocturna, VFC, oxígeno en sangre y frecuencia respiratoria. La frecuencia cardíaca continua, los entrenamientos y la composición corporal son opcionales: actívalos abajo una vez conectado. Todo permanece en %@."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lisez votre fréquence cardiaque, la VFC, l'oxygène sanguin, la fréquence respiratoire, le sommeil, les pas et l'énergie depuis Apple Santé, et réécrivez votre fréquence cardiaque de repos nocturne, la VFC, l'oxygène sanguin et la fréquence respiratoire. La fréquence cardiaque continue, les entraînements et la composition corporelle sont optionnels : activez-les ci-dessous une fois connecté. Tout reste sur %@."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leggi la tua frequenza cardiaca, l'HRV, l'ossigeno nel sangue, la frequenza respiratoria, il sonno, i passi e l'energia da Apple Health, e riscrivi la tua frequenza cardiaca a riposo notturna, l'HRV, l'ossigeno nel sangue e la frequenza respiratoria. La frequenza cardiaca continua, gli allenamenti e la composizione corporea sono opzionali — attivali qui sotto una volta connesso. Tutto resta su %@."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lê a tua frequência cardíaca, VFC, oxigénio no sangue, frequência respiratória, sono, passos e energia do Apple Health, e escreve de volta a tua frequência cardíaca de repouso noturna, VFC, oxigénio no sangue e frequência respiratória. A frequência cardíaca contínua, os treinos e a composição corporal são opcionais — ativa-os abaixo assim que estiver ligado. Tudo permanece em %@."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Считывайте пульс, ВСР, кислород в крови, частоту дыхания, сон, шаги и энергию из Apple Health, а также записывайте обратно ночной пульс покоя, ВСР, кислород в крови и частоту дыхания. Непрерывный пульс, тренировки и состав тела необязательны — включите их ниже после подключения. Всё остаётся на %@."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从 Apple 健康读取你的心率、HRV、血氧、呼吸频率、睡眠、步数和能量，并写回你的夜间静息心率、HRV、血氧和呼吸频率。连续心率、锻炼和身体成分是可选项——连接后可在下方开启。一切都留在 %@ 上。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從 Apple 健康讀取你的心率、HRV、血氧、呼吸頻率、睡眠、步數和能量，並寫回你的夜間靜息心率、HRV、血氧和呼吸頻率。連續心率、鍛鍊和身體組成為選用項目——連接後可於下方開啟。一切都留在 %@ 上。"
+          }
+        }
+      }
+    },
+    "Body composition": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Körperzusammensetzung"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Composición corporal"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Composition corporelle"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Composizione corporea"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Composição corporal"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Состав тела"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "身体成分"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "身體組成"
+          }
+        }
+      }
+    },
+    "Weight, body fat and lean mass, imported read-only. Never written back.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gewicht, Körperfett und Muskelmasse, nur lesend importiert. Wird nie zurückgeschrieben."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Peso, grasa corporal y masa magra, importados solo lectura. Nunca se escriben de vuelta."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poids, masse grasse et masse maigre, importés en lecture seule. Jamais réécrits."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Peso, massa grassa e massa magra, importati in sola lettura. Mai riscritti."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Peso, gordura corporal e massa magra, importados apenas para leitura. Nunca são reenviados."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вес, процент жира и мышечная масса, импортируются только для чтения. Никогда не записываются обратно."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "体重、体脂和瘦体重，仅以只读方式导入，绝不写回。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "體重、體脂和瘦體重，僅以唯讀方式匯入，絕不寫回。"
+          }
+        }
+      }
+    },
+    "Continuous heart rate": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kontinuierliche Herzfrequenz"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frecuencia cardíaca continua"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fréquence cardiaque continue"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frequenza cardiaca continua"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frequência cardíaca contínua"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Непрерывный пульс"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连续心率"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連續心率"
+          }
+        }
+      }
+    },
+    "Enabled": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktiviert"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activé"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Attivato"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ativado"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Включено"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已启用"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已啟用"
+          }
+        }
+      }
+    },
+    "Write NOOP's minute-by-minute heart rate into Apple Health.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schreibt NOOPs minutengenaue Herzfrequenz in Apple Health."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe la frecuencia cardíaca minuto a minuto de NOOP en Apple Health."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Écrit la fréquence cardiaque minute par minute de NOOP dans Apple Santé."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scrive la frequenza cardiaca minuto per minuto di NOOP in Apple Health."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escreve a frequência cardíaca minuto a minuto do NOOP no Apple Health."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Записывает поминутный пульс NOOP в Apple Health."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将 NOOP 逐分钟的心率写入 Apple 健康。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "將 NOOP 逐分鐘的心率寫入 Apple 健康。"
+          }
+        }
+      }
+    },
+    "Add continuous heart rate": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kontinuierliche Herzfrequenz hinzufügen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añadir frecuencia cardíaca continua"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter la fréquence cardiaque continue"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiungi frequenza cardiaca continua"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionar frequência cardíaca contínua"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавить непрерывный пульс"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加连续心率"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新增連續心率"
+          }
+        }
+      }
+    },
+    "Write your strap and manual workouts, with energy and distance, into Apple Health.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schreibt deine Band- und manuellen Workouts, mit Energie und Distanz, in Apple Health."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe tus entrenamientos de la correa y manuales, con energía y distancia, en Apple Health."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Écrit vos entraînements du bracelet et manuels, avec l'énergie et la distance, dans Apple Santé."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scrive i tuoi allenamenti del cinturino e manuali, con energia e distanza, in Apple Health."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escreve os teus treinos da bracelete e manuais, com energia e distância, no Apple Health."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Записывает тренировки с браслета и вручную добавленные, с энергией и дистанцией, в Apple Health."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将你的手环和手动记录的锻炼（含能量和距离）写入 Apple 健康。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "將你的手環和手動記錄的鍛鍊（含能量和距離）寫入 Apple 健康。"
+          }
+        }
+      }
+    },
+    "Add workouts": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Workouts hinzufügen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añadir entrenamientos"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter des entraînements"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiungi allenamenti"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionar treinos"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавить тренировки"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加锻炼"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新增鍛鍊"
+          }
+        }
+      }
+    },
     "Readiness": {
       "localizations": {
         "de": {

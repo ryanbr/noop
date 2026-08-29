@@ -198,7 +198,17 @@
     <string name="l10n_data_sources_screen_cancel_77dfd213">Cancelar</string>
     <string name="l10n_data_sources_screen_data_sources_5e43d6bb">Fuentes de datos</string>
     <string name="l10n_data_sources_screen_every_3560d90b">Cada uno</string>
+    <string name="l10n_data_sources_screen_activity_3b9f6c21">Actividad</string>
+    <string name="l10n_data_sources_screen_body_composition_2e8a4d17">Composición corporal</string>
+    <string name="l10n_data_sources_screen_choose_data_types_9c3a2f18">Elegir tipos de datos…</string>
+    <string name="l10n_data_sources_screen_choose_what_to_share_5a1d8e07">Elige qué compartir</string>
+    <string name="l10n_data_sources_screen_core_recovery_7d4e1a39">Recuperación básica</string>
+    <string name="l10n_data_sources_screen_grant_access_1f5c9a02">Conceder acceso</string>
+    <string name="l10n_data_sources_screen_health_connect_asks_once_per_af6c1b90">Health Connect pregunta una vez por categoría. Elige lo que quieres que NOOP lea; puedes añadir más categorías después.</string>
     <string name="l10n_data_sources_screen_health_connect_be6bca3e">Health Connect</string>
+    <string name="l10n_data_sources_screen_heart_rate_resting_hr_hrv_sleep_c4b7f902">Frecuencia cardíaca, FC en reposo, VFC, sueño, frecuencia respiratoria, SpO₂</string>
+    <string name="l10n_data_sources_screen_steps_calories_exercise_sessions_9a6d3e58">Pasos, calorías, sesiones de ejercicio, distancia, VO2 máx</string>
+    <string name="l10n_data_sources_screen_weight_body_fat_and_lean_body_e1f4a86c">Peso, grasa corporal, masa corporal magra</string>
     <string name="l10n_data_sources_screen_import_apple_health_export_533fca27">Importar la exportación de Apple Health...</string>
     <string name="l10n_data_sources_screen_import_from_health_connect_35d55e21">Importación de Health Connect</string>
     <string name="l10n_data_sources_screen_import_lifting_log_8fac7b68">Registro de elevación de importación...</string>
