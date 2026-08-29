@@ -258,6 +258,7 @@ struct SettingsView: View {
     /// sheets (see the `present(activityItems:)` #455 comment). Same disable-while-busy guard as
     /// `rawCsvBusy` above.
     @State private var rawAndLogBusy = false
+    @State private var showRawExportConfirm = false
 
     /// Passive WHOOP 5/MG optical experiment: the picker writes local timestamp markers into the
     /// durable deep-buffer JSONL. It never calls a BLE write path.
@@ -354,6 +355,12 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("This restarts the roughly 4-night build-up for Charge and your HRV baseline. Your history stays. Use it if a bad first week, like wearing it while sick, set your baseline off.")
+        }
+        .confirmationDialog("Export raw capture and log?", isPresented: $showRawExportConfirm, titleVisibility: .visible) {
+            Button("Export") { exportRawAndLog() }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Includes raw biometric frames and strap console text plus the connection log. Identifiers are redacted automatically; share only if you are comfortable with that.")
         }
         // #174: the switch going OFF is the moment to offer the undo. Declining leaves the flags set and
         // says so — which is still an improvement on the old behaviour, where the same tap silently left
@@ -2195,7 +2202,7 @@ struct SettingsView: View {
                     // and the strap log together (timestamped, same minute) so a protocol-mapping issue
                     // arrives with the frames AND the context that produced them.
                     Button {
-                        exportRawAndLog()
+                        showRawExportConfirm = true
                     } label: {
                         if rawAndLogBusy {
                             HStack(spacing: NoopMetrics.space1 + 2) {
@@ -2437,10 +2444,15 @@ struct SettingsView: View {
                 showBackupAlert = true
                 return
             }
+            var entries = [
+                FileExport.BundleEntry(name: "report.txt", data: Data(live.exportableLogText().utf8)),
+                FileExport.BundleEntry(name: "raw-capture.jsonl", data: (try? Data(contentsOf: capture)) ?? Data()),
+            ]
+            entries = entries.filter { !$0.data.isEmpty }
+            let redacted = TestBundleAssembler.redactEntries(entries)
+            let (capped, _) = TestBundleAssembler.capEntries(redacted)
             let stamp = FileExport.timestamp()
-            await FileExport.exportPair(
-                file: capture, fileSuggestedName: "noop-raw-capture-\(stamp).json",
-                text: live.exportableLogText(), textSuggestedName: "noop-strap-log-\(stamp).txt")
+            await FileExport.exportBundle(entries: capped, suggestedName: "noop-export-\(stamp).zip")
         }
     }
 
