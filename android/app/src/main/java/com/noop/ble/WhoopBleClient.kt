@@ -2390,11 +2390,22 @@ class WhoopBleClient(
      *  reading as new information each time. Cleared in [reset]. */
     @Volatile private var backfillDeferralsThisLink = 0
 
-    /** Consecutive live-persist failures, and when the failure was last reported. The live cadence is
-     *  seconds, so the line is rate-limited; the COUNT is what separates a transient the re-buffer
-     *  absorbs from a store that is never going to accept these rows. */
-    @Volatile private var liveInsertFailuresConsecutive = 0
-    @Volatile private var lastLiveInsertFailureLogMs = 0L
+    /** Consecutive live-persist failures per transport, and when each last reported. The live cadence is
+     *  seconds, so the lines are rate-limited; the COUNT is what separates a transient the re-buffer
+     *  absorbs from a store that is never going to accept these rows.
+     *
+     *  Kept PER TRANSPORT because the standard 0x2A37 path and the puffin REALTIME_DATA path (#1118)
+     *  fail independently — a shared counter would let one path's success reset the other's run and
+     *  report a persistent failure as a string of first-failures.
+     *
+     *  AtomicInteger, unlike the census fields above which are deliberately unsynchronized: those
+     *  tolerate a stale read (one duplicate line), but `+=` on a plain Int can LOSE an increment, and
+     *  the count here is the entire load-bearing distinction between a transient and a run. The two
+     *  flushes can run concurrently on the io scope, so that race is reachable. */
+    private val liveInsertFailuresStd = java.util.concurrent.atomic.AtomicInteger(0)
+    private val liveInsertFailuresRealtime = java.util.concurrent.atomic.AtomicInteger(0)
+    @Volatile private var lastStdInsertFailureLogMs = 0L
+    @Volatile private var lastRealtimeInsertFailureLogMs = 0L
 
     /** #1635: ms since the CLIENT_HELLO write, or null when none is outstanding. Lets the bond-state
      *  observer time a pairing transition against the write that may have triggered it, and report no
@@ -7779,6 +7790,11 @@ class WhoopBleClient(
             writeInFlight = false
             log("CLIENT_HELLO write rejected by stack")
             clientHelloWriteAtMs = 0L   // never went out; no callback is owed
+            // ...and therefore no hello was written on this link after all. Leaving this true would tell
+            // backfillDeferredLine a hello had gone out and suppress the "no hello was written"
+            // explanation on a link where it is exactly right: a rejected write cannot be acked, so
+            // didBond cannot become true either.
+            helloWrittenThisLink = false
         }
     }
 
@@ -8104,9 +8120,26 @@ class WhoopBleClient(
         if (!batch.isEmpty) {
             try {
                 repository.insert(batch, deviceId)
+                liveInsertFailuresRealtime.set(0)
             } catch (t: Throwable) {
                 // Re-buffer at the front so these frames retry on the next cadence (port of Collector).
                 synchronized(collectorLock) { liveBuffer.addAll(0, frames) }
+                // The #1118 SECOND transport, silent for the same reason the standard path was: the
+                // census above reports what was OFFERED, so a store rejecting everything still reads
+                // like a healthy stream.
+                val runLength = liveInsertFailuresRealtime.incrementAndGet()
+                val nowMs = System.currentTimeMillis()
+                if (shouldEmitLiveInsertFailure(lastRealtimeInsertFailureLogMs, nowMs)) {
+                    lastRealtimeInsertFailureLogMs = nowMs
+                    log(liveInsertFailedLine(
+                        transport = "live-realtime",
+                        throwableName = t.javaClass.simpleName,
+                        message = t.message,
+                        hrFrames = batch.hr.size,
+                        rrFrames = batch.rr.size,
+                        consecutiveFailures = runLength,
+                    ))
+                }
             }
         }
     }
@@ -8168,21 +8201,22 @@ class WhoopBleClient(
         }
         try {
             repository.insert(StreamBatch(hr = hr, rr = rr), deviceId)
-            liveInsertFailuresConsecutive = 0
+            liveInsertFailuresStd.set(0)
         } catch (t: Throwable) {
             synchronized(collectorLock) { stdHr.addAll(0, hr); stdRr.addAll(0, rr) }
             // Swallowing this made the instrumentation above read like success: a store failing every
             // insert produced a log full of `rr emit ... offered=N` and no sign that none of it landed.
-            liveInsertFailuresConsecutive += 1
+            val runLength = liveInsertFailuresStd.incrementAndGet()
             val nowMs = System.currentTimeMillis()
-            if (shouldEmitLiveInsertFailure(lastLiveInsertFailureLogMs, nowMs)) {
-                lastLiveInsertFailureLogMs = nowMs
+            if (shouldEmitLiveInsertFailure(lastStdInsertFailureLogMs, nowMs)) {
+                lastStdInsertFailureLogMs = nowMs
                 log(liveInsertFailedLine(
+                    transport = "live-standard",
                     throwableName = t.javaClass.simpleName,
                     message = t.message,
                     hrFrames = hr.size,
                     rrFrames = rr.size,
-                    consecutiveFailures = liveInsertFailuresConsecutive,
+                    consecutiveFailures = runLength,
                 ))
             }
         }
@@ -8203,8 +8237,12 @@ class WhoopBleClient(
     private fun beginBackfill() {
         if (!connectHandshakeDone) {
             backfillDeferralsThisLink += 1
+            // familyEstablished is read BEFORE connectedFamily on purpose: the happens-before it carries
+            // is what makes the family read safe, and connectedFamily otherwise holds a default or the
+            // previous link's value. Same ordering rule as batterySource(familyEstablished, family).
+            val established = familyEstablished
             log(backfillDeferredLine(
-                family = connectedFamily?.name ?: "unknown",
+                family = if (established) connectedFamily.name else null,
                 didBond = didBond,
                 helloEverWrittenThisLink = helloWrittenThisLink,
                 explicitBondRequestedThisLink = explicitBondRequestedThisLink,

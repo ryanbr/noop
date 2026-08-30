@@ -77,7 +77,7 @@ internal fun helloDeferredByExplicitBondLine(
  * was never written at all (a local decision, and the one this log's field capture actually hit).
  */
 internal fun backfillDeferredLine(
-    family: String,
+    family: String?,
     didBond: Boolean,
     helloEverWrittenThisLink: Boolean,
     explicitBondRequestedThisLink: Boolean,
@@ -85,6 +85,11 @@ internal fun backfillDeferredLine(
     msSinceConnect: Long,
 ): String {
     val since = if (msSinceConnect >= 0L) "${msSinceConnect / 1000}s" else "?"
+    // NULL means service discovery has not established the family yet. `connectedFamily` defaults to
+    // WHOOP4 and otherwise holds the PREVIOUS link's value, so printing it unconditionally would put a
+    // guess in the log — and a guess of WHOOP4 would suppress the explanation below on exactly the 5/MG
+    // this exists for. The caller reads `familyEstablished` FIRST for the happens-before it carries.
+    val fam = family ?: "unestablished"
     val why = if (family == "WHOOP5" && !didBond && !helloEverWrittenThisLink) {
         // A structural claim, not a guess about the strap: didBond is set only by the hello's own ack,
         // so no hello written means this gate cannot open on this link no matter what the strap does.
@@ -95,7 +100,7 @@ internal fun backfillDeferredLine(
     } else {
         ""
     }
-    return "Backfill: deferred — connect handshake not done yet (family=$family didBond=$didBond" +
+    return "Backfill: deferred — connect handshake not done yet (family=$fam didBond=$didBond" +
         " helloWrittenThisLink=$helloEverWrittenThisLink bondRequestedThisLink=" +
         "$explicitBondRequestedThisLink deferrals=$deferralsThisLink sinceConnect=$since).$why"
 }
@@ -107,12 +112,17 @@ internal fun backfillDeferredLine(
  * every insert produces a log full of `rr emit … offered=13` and no indication that none of it landed.
  * That is the worst shape a diagnostic gap can take: the instrumentation that exists reads like success.
  *
+ * [transport] is named because there are TWO live paths — the standard 0x2A37 reading and the puffin
+ * REALTIME_DATA batch (#1118) — and they fail independently. A line that did not say which would leave a
+ * reader unable to tell one dead transport from a dead store, which is the first fork in the diagnosis.
+ *
  * [consecutiveFailures] matters more than any single throwable. One failure is a transient the re-buffer
  * exists to absorb; a climbing count is a store that is never going to accept these rows, and only the
  * count separates them. The message is included because the useful cases — a full disk, a corrupted
  * database, a schema mismatch — are distinguished by it rather than by the class.
  */
 internal fun liveInsertFailedLine(
+    transport: String,
     throwableName: String,
     message: String?,
     hrFrames: Int,
@@ -126,7 +136,7 @@ internal fun liveInsertFailedLine(
     } else {
         " Re-buffered for the next cadence."
     }
-    return "Live persist FAILED — $throwableName$detail (hr=$hrFrames rr=$rrFrames).$run"
+    return "Live persist FAILED on $transport — $throwableName$detail (hr=$hrFrames rr=$rrFrames).$run"
 }
 
 /**

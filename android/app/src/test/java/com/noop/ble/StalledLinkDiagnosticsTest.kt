@@ -112,6 +112,20 @@ class StalledLinkDiagnosticsTest {
         assertTrue(line.contains("sinceConnect=42s"))
     }
 
+    /**
+     * `connectedFamily` defaults to WHOOP4 and otherwise holds the PREVIOUS link's value, so before
+     * service discovery it is a guess. Printing a guess would break the same rule the hello line follows
+     * — and a guess of WHOOP4 would suppress the explanation on exactly the 5/MG this was built for.
+     */
+    @Test
+    fun `an unestablished family is not guessed and gets no explanation`() {
+        val line = backfillDeferredLine(null, false, false, true, 1, 5_000L)
+        assertTrue(line.contains("family=unestablished"))
+        assertFalse("a guessed family must not appear", line.contains("family=WHOOP4"))
+        assertFalse("the explanation must not ride on an unknown family",
+                    line.contains("No hello was written"))
+    }
+
     /** An unknown connect time must render as unknown, never as 0s — which would read as "just now". */
     @Test
     fun `an unknown connect time is not reported as zero seconds`() {
@@ -121,13 +135,23 @@ class StalledLinkDiagnosticsTest {
 
     // ---- liveInsertFailedLine -----------------------------------------------------------------
 
+    /**
+     * Two live transports fail independently (#1118). A line that did not say which would leave a reader
+     * unable to separate one dead transport from a dead store — the first fork in the diagnosis.
+     */
+    @Test
+    fun `the failing transport is named`() {
+        assertTrue(liveInsertFailedLine("live-standard", "E", null, 1, 1, 1).contains("on live-standard"))
+        assertTrue(liveInsertFailedLine("live-realtime", "E", null, 1, 1, 1).contains("on live-realtime"))
+    }
+
     @Test
     fun `one failure reads as transient and a run reads as not recovering`() {
-        val once = liveInsertFailedLine("SQLiteFullException", "database or disk is full", 12, 13, 1)
+        val once = liveInsertFailedLine("live-standard", "SQLiteFullException", "database or disk is full", 12, 13, 1)
         assertTrue(once.contains("Re-buffered for the next cadence"))
         assertFalse(once.contains("consecutive failures"))
 
-        val many = liveInsertFailedLine("SQLiteFullException", "database or disk is full", 12, 13, 9)
+        val many = liveInsertFailedLine("live-standard", "SQLiteFullException", "database or disk is full", 12, 13, 9)
         assertTrue(many.contains("9 consecutive failures"))
         assertTrue(many.contains("not recovering them"))
     }
@@ -135,7 +159,7 @@ class StalledLinkDiagnosticsTest {
     /** The message distinguishes the useful cases; the class alone rarely does. */
     @Test
     fun `the throwable message survives and is bounded`() {
-        val line = liveInsertFailedLine("IllegalStateException", "x".repeat(500), 1, 2, 1)
+        val line = liveInsertFailedLine("live-realtime", "IllegalStateException", "x".repeat(500), 1, 2, 1)
         assertTrue(line.contains("IllegalStateException"))
         assertTrue(line.contains("x".repeat(200)))
         assertFalse("an unbounded message would swamp the capture", line.contains("x".repeat(201)))
@@ -143,8 +167,8 @@ class StalledLinkDiagnosticsTest {
 
     @Test
     fun `a blank or absent message does not leave a dangling separator`() {
-        assertFalse(liveInsertFailedLine("IllegalStateException", null, 1, 2, 1).contains(": ("))
-        assertFalse(liveInsertFailedLine("IllegalStateException", "   ", 1, 2, 1).contains(": ("))
+        assertFalse(liveInsertFailedLine("live-realtime", "IllegalStateException", null, 1, 2, 1).contains(": ("))
+        assertFalse(liveInsertFailedLine("live-realtime", "IllegalStateException", "   ", 1, 2, 1).contains(": ("))
     }
 
     // ---- shouldEmitLiveInsertFailure ----------------------------------------------------------
@@ -174,6 +198,54 @@ class StalledLinkDiagnosticsTest {
     fun `a backwards clock emits rather than latching off`() {
         assertTrue(shouldEmitLiveInsertFailure(lastEmitMs = 10_000L, nowMs = 5_000L))
         assertTrue(shouldEmitLiveInsertFailure(lastEmitMs = Long.MAX_VALUE / 2, nowMs = 1_000L))
+    }
+
+    // ---- caller-side contract -----------------------------------------------------------------
+
+    /**
+     * The builders above are pure and testable; the two invariants that actually decide whether they
+     * print the truth live in `WhoopBleClient`, which no JVM test can construct. Both were WRONG in the
+     * first version of this change and neither failure would have been caught by anything above, so they
+     * are pinned against the source the way `RawCaptureExportContractTest` pins the collector's.
+     */
+    private fun clientSource(): String {
+        var root = java.io.File(System.getProperty("user.dir") ?: ".").canonicalFile
+        repeat(4) {
+            val f = java.io.File(root, "android/app/src/main/java/com/noop/ble/WhoopBleClient.kt")
+            if (f.isFile) return f.readText()
+            root = root.parentFile ?: root
+        }
+        error("WhoopBleClient.kt not found — this test must not pass by default")
+    }
+
+    /**
+     * `familyEstablished` must be read BEFORE `connectedFamily`, and the family passed as null when it is
+     * false. `connectedFamily` is non-null and defaults to WHOOP4, so the naive read puts a guess in the
+     * log — and a guessed WHOOP4 suppresses the explanation on precisely the 5/MG case this exists for.
+     * The ordering additionally carries the happens-before that makes the family read safe at all, which
+     * is the same rule `batterySource(familyEstablished, connectedFamily)` is documented to follow.
+     */
+    @Test
+    fun `the backfill line never reports a guessed family`() {
+        val src = clientSource()
+        assertTrue("familyEstablished must be latched before the family is read",
+                   src.contains("val established = familyEstablished"))
+        assertTrue("an unestablished family must be passed as null, not guessed",
+                   src.contains("family = if (established) connectedFamily.name else null"))
+    }
+
+    /**
+     * A CLIENT_HELLO the stack REJECTED never went out, so the link must not go on claiming one was
+     * written: that would suppress the "no hello was written" explanation on a link where it is exactly
+     * right, since a rejected write can never be acked and didBond can never become true.
+     */
+    @Test
+    fun `a stack-rejected hello does not count as written`() {
+        val src = clientSource()
+        val reject = src.substringAfter("log(\"CLIENT_HELLO write rejected by stack\")")
+            .substringBefore("}")
+        assertTrue("the reject path must clear helloWrittenThisLink",
+                   reject.contains("helloWrittenThisLink = false"))
     }
 
     @Test
