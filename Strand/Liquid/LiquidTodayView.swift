@@ -453,7 +453,16 @@ struct LiquidTodayView: View {
     private func handlePull(_ y: CGFloat) {
         pullY = max(0, y)
         guard !refreshing else { return }
-        if pullY >= pullThreshold, !refreshArmed {
+        // #1748 twin: gate the ARM, not the release. `syncNow()`'s own gate checks connected + bonded, and
+        // `bonded` is set by the live-HR path for a 5/MG that has never completed a handshake — so the pull
+        // was accepted and then declined in silence. `historyReady` is the client's OWN precondition, so
+        // this cannot withhold a sync that would have run.
+        //
+        // On the ARM specifically: gating the RELEASE below would leave `refreshArmed` stuck true for the
+        // rest of the gesture, since that branch is the only thing that clears it — a worse failure than
+        // the silent one being fixed. Not arming also withholds the haptic, which is the honest signal
+        // that the gesture is unavailable rather than unresponsive.
+        if pullY >= pullThreshold, !refreshArmed, ble.state.historyReady {
             refreshArmed = true
             pullHaptic &+= 1
         }

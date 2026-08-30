@@ -24,6 +24,14 @@ public final class LiveState: ObservableObject {
     /// connect/disconnect. Drives the Live pill's two-state distinction; the encrypted channel (buzz,
     /// alarm, double-tap, history offload) only works when this is true.
     @Published public var encryptedBond: Bool = false
+    /// True once this strap can actually hand over history — the UI mirror of `BLEManager`'s
+    /// `connectHandshakeDone`, which `beginBackfill` already requires before it will request an offload.
+    ///
+    /// Exposed because `bonded` is NOT that condition and reads true too early: the live-HR path sets it
+    /// for a 5/MG that has never completed a handshake, so the sync controls were offered, accepted, and
+    /// then refused deeper down in silence. Gating on this makes them unavailable exactly when the sync
+    /// would have been declined anyway — never when it would have run. Kotlin twin: `LiveState.historyReady`.
+    @Published public var historyReady: Bool = false
     /// #34: bumped by BLEManager once a WHOOP 4.0 connection has BOTH run its connect handshake (hello +
     /// SET_CLOCK, exactly once — `connectHandshakeDone`) AND had the cmd-notify characteristic confirm
     /// subscribed (`didUpdateNotificationStateFor` for it fired with `isNotifying == true`) — whichever of
