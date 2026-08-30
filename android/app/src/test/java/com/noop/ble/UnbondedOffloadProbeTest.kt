@@ -210,6 +210,58 @@ class UnbondedOffloadProbeTest {
     }
 
     /**
+     * The gap that would have made the whole probe dead code. It needs a link with no hello on it, but the
+     * two branches that schedule it are barely reached on the strap this is for: across 41 field captures
+     * the suppression latch fired in three, all on one day, and the explicit-bond deferral yields after
+     * its first connect by design — so every later link writes a hello. Opting in has to supersede the
+     * handshake, or the probe waits for a state the app almost never enters.
+     */
+    @Test
+    fun `opting in replaces the handshake for that connect`() {
+        assertTrue(unbondedProbeSupersedesHandshake(
+            optedIn = true, isWhoop5 = true, appLevelBonded = false, userInitiated = false))
+        assertFalse(unbondedProbeSupersedesHandshake(
+            optedIn = false, isWhoop5 = true, appLevelBonded = false, userInitiated = false))
+        assertFalse(unbondedProbeSupersedesHandshake(
+            optedIn = true, isWhoop5 = false, appLevelBonded = false, userInitiated = false))
+    }
+
+    /**
+     * Pressing Connect is an explicit request for the HANDSHAKE, and must never be answered with a
+     * different experiment — the same rule the suppression latch already follows.
+     */
+    @Test
+    fun `pressing Connect still gets the handshake`() {
+        assertFalse(unbondedProbeSupersedesHandshake(
+            optedIn = true, isWhoop5 = true, appLevelBonded = false, userInitiated = true))
+    }
+
+    @Test
+    fun `a strap that already bonded has nothing to prove`() {
+        assertFalse(unbondedProbeSupersedesHandshake(
+            optedIn = true, isWhoop5 = true, appLevelBonded = true, userInitiated = false))
+    }
+
+    /**
+     * The supersede line must say the hello is absent BY CHOICE. An absent hello looks identical to one
+     * that failed silently, which is the ambiguity that made #1635 unreadable for eleven weeks — and it
+     * must name the explicit-bond clash, because a pairing in flight costs the probe its ability to
+     * attribute a refusal to the strap.
+     */
+    @Test
+    fun `the supersede line explains the absence and flags the clash`() {
+        val clean = unbondedProbeSupersedesLine(explicitBondOptedIn = false)
+        assertTrue(clean.contains("handshake skipped"))
+        assertTrue(clean.contains("press Connect"))
+        assertFalse(clean.contains("Ask Android to pair"))
+        assertTrue(clean.contains("#1635"))
+
+        val clash = unbondedProbeSupersedesLine(explicitBondOptedIn = true)
+        assertTrue(clash.contains("Ask Android to pair"))
+        assertTrue(clash.contains("unattributable"))
+    }
+
+    /**
      * The expectation has to be set BEFORE the transfer, not after an empty one comes back. A strap that
      * has never been clocked has never been told to persist to flash, so "nothing banked" is a plausible
      * SUCCESS of the probe, and a reader who has not been told that will read it as a failure.

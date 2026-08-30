@@ -96,6 +96,54 @@ internal fun unbondedProbeGaveUpLine(silentLinks: Int): String =
         " written to them. Not asking again this session. History offload is unavailable until the strap" +
         " completes a handshake (#1635)."
 
+/**
+ * Does opting into the unbonded offload probe replace the handshake attempt on this connect?
+ *
+ * Found in the field, and it is the difference between the probe running and never running at all.
+ * [shouldProbeUnbondedOffload] requires a link carrying NO hello, because a refusal on a link the bond
+ * watchdog is about to bounce is unattributable. But the probe is only SCHEDULED from the two no-hello
+ * branches, and on this strap neither is reached in practice: across 41 captures the suppression latch
+ * fired in three, all on one day, and never since — while the explicit-bond deferral yields after its
+ * first connect by design (#1642), so every subsequent link writes a hello. The probe would have sat
+ * behind a state the app almost never enters.
+ *
+ * The resolution is not to loosen the attributability gate, which is what makes the answer worth having.
+ * It is to notice that these are MUTUALLY EXCLUSIVE experiments: "does the hello work" and "is the hello
+ * needed at all" cannot both be asked of one link, because asking the first is what destroys the second's
+ * link. Turning this switch on is choosing the second question, so it supersedes the handshake for that
+ * connect — both the explicit pairing request and the hello itself.
+ *
+ * [userInitiated] still wins, exactly as it does for the suppression latch. Pressing Connect is an
+ * explicit request for the handshake, and it must never be answered with a different experiment.
+ *
+ * Narrow on purpose: 5/MG only, never on a strap that has already bonded (that one reaches the offload the
+ * proven way and has nothing to prove), and default off, so no one who has not asked for this is affected.
+ */
+internal fun unbondedProbeSupersedesHandshake(
+    optedIn: Boolean,
+    isWhoop5: Boolean,
+    appLevelBonded: Boolean,
+    userInitiated: Boolean,
+): Boolean = optedIn && isWhoop5 && !appLevelBonded && !userInitiated
+
+/**
+ * Said once per superseded connect, because a hello that is absent looks identical to one that failed
+ * silently — the ambiguity that made #1635 unreadable for eleven weeks.
+ *
+ * Names the explicit-bond switch when it is also on. The two do not conflict fatally, but a pairing in
+ * flight makes a subscribe refusal unattributable to the strap, so the probe declines to latch it and the
+ * capture is weaker for no gain.
+ */
+internal fun unbondedProbeSupersedesLine(explicitBondOptedIn: Boolean): String =
+    "WHOOP 5/MG: handshake skipped for this connect — \"try history sync without pairing\" is on, and it" +
+        " asks whether the offload needs a bond at all. That question needs a link with no CLIENT_HELLO on" +
+        " it, so the hello is not written here (press Connect to try the handshake instead)." +
+        (if (explicitBondOptedIn)
+            " NOTE: \"Ask Android to pair\" is also on. A pairing in flight makes a refusal unattributable" +
+                " to the strap, so turn it off for a clean answer."
+        else "") +
+        " (#1635, experimental)"
+
 /** Persisted key for "this strap refused the unbonded puffin subscriptions". Per device and lowercased,
  *  for the same reason [firmwarePrefKey] is. */
 internal fun unbondedOffloadRefusedPrefKey(peripheralId: String?): String? =

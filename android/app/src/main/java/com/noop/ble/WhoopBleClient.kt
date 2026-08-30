@@ -8186,6 +8186,27 @@ class WhoopBleClient(
                     log(bondStateAtConnectLine(g.device.bondState, g.device.address),
                         com.noop.testcentre.TestDomain.CONNECTION)
                 }
+                // #1635: the unbonded offload probe replaces the handshake on this connect, and it must
+                // run BEFORE the pairing request as well as before the hello — its question needs a link
+                // with neither on it. Placed here rather than beside the hello decision because the
+                // deferral branch below returns early, and a probe scheduled after that never runs.
+                if (unbondedProbeSupersedesHandshake(
+                        optedIn = puffinExperiment.unbondedOffload,
+                        isWhoop5 = true,
+                        appLevelBonded = didBond,
+                        userInitiated = helloRetryRequested,
+                    )
+                ) {
+                    log(unbondedProbeSupersedesLine(explicitBondOptedIn = puffinExperiment.explicitBond))
+                    // The watchdog was armed at discovery and bounces the link whenever didBond is false,
+                    // which skipping the handshake guarantees. Same reasoning as the suppression path: with
+                    // no handshake outstanding there is nothing left for it to time out, and leaving it
+                    // armed would tear down the stable link the probe needs.
+                    cancelBondWatchdog()
+                    scheduleUnbondedDisRead()
+                    scheduleUnbondedOffloadProbe()
+                    return
+                }
                 if (shouldRequestExplicitBond(
                         optedIn = puffinExperiment.explicitBond,
                         isWhoop5 = true,

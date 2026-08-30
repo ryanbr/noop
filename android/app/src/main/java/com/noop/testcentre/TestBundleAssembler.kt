@@ -105,7 +105,7 @@ object TestBundleAssembler {
         //    strap-log share writes. Already scrubbed by the log() sink; the redactEntries pass re-scrubs.
         val header = buildString {
             appendLine("NOOP strap log")
-            appendLine("App:     ${BuildConfig.VERSION_NAME} (${BuildConfig.TIER})")
+            appendLine("App:     ${BuildConfig.VERSION_NAME} (${BuildConfig.TIER}) build ${BuildConfig.VERSION_CODE}")
             for (line in AndroidDiagnostics.summaryLines(context)) appendLine(line)
             appendLine("-".repeat(40))
         }

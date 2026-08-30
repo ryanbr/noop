@@ -137,7 +137,7 @@ object LogExport {
             val dynamic = com.noop.testcentre.AndroidDiagnostics.dynamicLines(context)
             val header = buildString {
                 appendLine("NOOP strap log (scheduled debug export)")
-                appendLine("App:     ${BuildConfig.VERSION_NAME} (${BuildConfig.TIER})")
+                appendLine("App:     ${BuildConfig.VERSION_NAME} (${BuildConfig.TIER}) build ${BuildConfig.VERSION_CODE}")
                 // #453: the rolling BODY is scrubbed by WhoopBleClient.log(), but these HEADER lines never pass
                 // through it - and they carry device ids, which embed a BLE address for a re-added or second
                 // strap. Same redactor, so one export cannot be safe while the other leaks.
@@ -252,7 +252,7 @@ object LogExport {
         val dynamic = com.noop.testcentre.AndroidDiagnostics.dynamicLines(context)
         val header = buildString {
             appendLine("NOOP strap log")
-            appendLine("App:     ${BuildConfig.VERSION_NAME} (${BuildConfig.TIER})")
+            appendLine("App:     ${BuildConfig.VERSION_NAME} (${BuildConfig.TIER}) build ${BuildConfig.VERSION_CODE}")
             // #453: the rolling BODY is scrubbed by WhoopBleClient.log(), but these HEADER lines never pass
             // through it - and they carry device ids, which embed a BLE address for a re-added or second
             // strap. Same redactor, so one export cannot be safe while the other leaks.
