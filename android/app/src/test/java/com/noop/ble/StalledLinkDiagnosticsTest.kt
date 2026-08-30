@@ -56,6 +56,24 @@ class StalledLinkDiagnosticsTest {
     }
 
     /**
+     * The paragraph fires once per CONNECT on a path documented to loop (57 cycles in an hour), so the
+     * full text is one-shot and later occurrences must stay countable but terse. If the short form
+     * dropped the count it would be unreadable; if it kept the paragraph it would bury the capture.
+     */
+    @Test
+    fun `the repeat form keeps the count but drops the guidance`() {
+        val terse = helloDeferredByExplicitBondLine(9, overrideOptedIn = false, overrideAttempts = 0,
+                                                    full = false)
+        assertTrue("the count is the point of the repeat", terse.contains("9 consecutive connects"))
+        assertTrue(terse.contains("see the first occurrence above"))
+        assertFalse("advice already given must not repeat", terse.contains("pairing experiment OFF"))
+        assertFalse(terse.contains("SMP 0x05"))
+        // A FIRST occurrence is unaffected by the flag: there is no guidance to suppress yet.
+        val firstShort = helloDeferredByExplicitBondLine(1, false, 0, full = false)
+        assertTrue(firstShort.contains("Deferred once so far"))
+    }
+
+    /**
      * A spent override must not read as an untried option — that is the `didBond`-reader trap pointed at
      * the log: a reader who sees "override on" stops looking for why no hello went out.
      */
@@ -235,17 +253,27 @@ class StalledLinkDiagnosticsTest {
     }
 
     /**
-     * A CLIENT_HELLO the stack REJECTED never went out, so the link must not go on claiming one was
-     * written: that would suppress the "no hello was written" explanation on a link where it is exactly
-     * right, since a rejected write can never be acked and didBond can never become true.
+     * A CLIENT_HELLO the stack REJECTED never went out, so nothing may claim one was written: that would
+     * suppress the "no hello was written" explanation on a link where it is exactly right, since a
+     * rejected write can never be acked and didBond can never become true.
+     *
+     * Asserted as an ORDERING rather than a presence, because the first version of this passed a
+     * presence check while still being wrong — it set the flag before the stack call and cleared it
+     * afterwards, which both opened a window for a concurrent reader and cleared the deferral run on an
+     * attempt that had failed.
      */
     @Test
-    fun `a stack-rejected hello does not count as written`() {
-        val src = clientSource()
-        val reject = src.substringAfter("log(\"CLIENT_HELLO write rejected by stack\")")
-            .substringBefore("}")
-        assertTrue("the reject path must clear helloWrittenThisLink",
-                   reject.contains("helloWrittenThisLink = false"))
+    fun `a hello is only counted as written after the stack accepts it`() {
+        val fn = clientSource()
+            .substringAfter("private fun writeClientHello(")
+            .substringBefore("\n    }")
+        val call = fn.indexOf("val ok = safeGatt(\"writeClientHello\")")
+        val claim = fn.indexOf("helloWrittenThisLink = true")
+        val run = fn.indexOf("helloDeferredConsecutive = 0")
+        assertTrue("writeClientHello must call safeGatt", call >= 0)
+        assertTrue("the write must be claimed, somewhere", claim >= 0)
+        assertTrue("helloWrittenThisLink must be set AFTER the stack accepts", claim > call)
+        assertTrue("the deferral run must only be cleared AFTER the stack accepts", run > call)
     }
 
     @Test

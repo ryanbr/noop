@@ -39,6 +39,7 @@ internal fun helloDeferredByExplicitBondLine(
     consecutive: Int,
     overrideOptedIn: Boolean,
     overrideAttempts: Int,
+    full: Boolean = true,
     cap: Int = HELLO_OVERRIDE_MAX_ATTEMPTS,
 ): String {
     val override = when {
@@ -46,7 +47,14 @@ internal fun helloDeferredByExplicitBondLine(
         overrideHelloStillAllowed(overrideAttempts, cap) -> "override on ($overrideAttempts/$cap used)"
         else -> "override SPENT ($overrideAttempts/$cap)"
     }
-    val tail = if (consecutive >= 2) {
+    val tail = if (consecutive >= 2 && !full) {
+        // The guidance is a paragraph and this fires once per CONNECT, on a path documented to loop —
+        // HelloSuppression records 57 reconnect cycles in an hour. Printing the paragraph 57 times would
+        // bury the rest of the capture under advice already given, so the full text is one-shot (the
+        // same latch idiom as helloOverrideExhaustedLine) and later occurrences stay countable but terse.
+        " $consecutive consecutive connects deferred, still no bond and no hello written — see the first" +
+            " occurrence above for what to do."
+    } else if (consecutive >= 2) {
         // Observed here vs cited from elsewhere, kept apart on purpose: the deferral count and the
         // absent bond ARE measured on this link; SMP 0x05 is not, and cannot be without an HCI capture.
         // Stating the cited cause as this strap's would be the #1635 mistake of a diagnostic claiming

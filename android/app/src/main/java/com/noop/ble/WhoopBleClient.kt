@@ -2386,6 +2386,12 @@ class WhoopBleClient(
      *  when a hello is written or a genuine bond is reached. Per app process, like the override budget. */
     @Volatile private var helloDeferredConsecutive = 0
 
+    /** Whether the deferral's full guidance paragraph has been printed for the CURRENT run. The deferral
+     *  fires once per connect on a path documented to loop (57 cycles in an hour, see [HelloSuppression]),
+     *  so the paragraph is one-shot per run and later connects log a terse countable line instead. Same
+     *  latch idiom as [helloOverrideExhaustedLogged]. Cleared wherever [helloDeferredConsecutive] is. */
+    @Volatile private var helloDeferredGuidanceLogged = false
+
     /** How many times [beginBackfill] has declined on this link, so repeats carry a count instead of
      *  reading as new information each time. Cleared in [reset]. */
     @Volatile private var backfillDeferralsThisLink = 0
@@ -5947,6 +5953,7 @@ class WhoopBleClient(
                     // realtime HR with puffin framing. Mirrors the macOS post-bond flow.
                     didBond = true
                     helloDeferredConsecutive = 0  // the handshake works on this strap; the run is over
+                    helloDeferredGuidanceLogged = false
                     helloOverrideAttempts = 0     // #1635: the strap answered — the override's budget resets
                     helloOverrideExhaustedLogged = false
                     cancelBondWatchdog()          // genuine bond reached — the handshake watchdog stands down (#50)
@@ -7777,24 +7784,21 @@ class WhoopBleClient(
         }
         log("WHOOP 5/MG: writing CLIENT_HELLO to fd4b0002 with response (to trigger bonding, experimental).")
         writeInFlight = true
-        // A hello is genuinely going out, so the deferral run is over. Recorded BEFORE the stack call:
-        // the run describes connects that never attempted one, and a stack rejection below is an
-        // attempt that failed, which is a different fact and has its own line.
-        helloWrittenThisLink = true
-        helloDeferredConsecutive = 0
         clientHelloWriteAtMs = System.currentTimeMillis()
         val ok = safeGatt("writeClientHello") {
             ops.writeCharacteristicCompat(ch, hello, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
         }
-        if (!ok) {
+        if (ok) {
+            // Claimed only once the stack ACCEPTED the write. Setting these before the call left a window
+            // where a concurrent reader saw a hello that had not gone out, and cleared the deferral run
+            // on an attempt that failed — under-reporting the very run the count exists to measure.
+            helloWrittenThisLink = true
+            helloDeferredConsecutive = 0
+            helloDeferredGuidanceLogged = false
+        } else {
             writeInFlight = false
             log("CLIENT_HELLO write rejected by stack")
             clientHelloWriteAtMs = 0L   // never went out; no callback is owed
-            // ...and therefore no hello was written on this link after all. Leaving this true would tell
-            // backfillDeferredLine a hello had gone out and suppress the "no hello was written"
-            // explanation on a link where it is exactly right: a rejected write cannot be acked, so
-            // didBond cannot become true either.
-            helloWrittenThisLink = false
         }
     }
 
@@ -7905,10 +7909,13 @@ class WhoopBleClient(
                     // as a line that never appeared — and the deferral reads identically on the first
                     // connect and the fiftieth. The count is what separates them.
                     helloDeferredConsecutive += 1
+                    val fullGuidance = !helloDeferredGuidanceLogged
+                    if (helloDeferredConsecutive >= 2) helloDeferredGuidanceLogged = true
                     log(helloDeferredByExplicitBondLine(
                         consecutive = helloDeferredConsecutive,
                         overrideOptedIn = overrideOptedIn,
                         overrideAttempts = helloOverrideAttempts,
+                        full = fullGuidance,
                     ))
                     // Same trap as the suppression path below, and worse here. The watchdog was armed at
                     // discovery and bounces the link whenever didBond is false — which deferring the hello
