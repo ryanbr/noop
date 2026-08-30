@@ -112,6 +112,62 @@ internal fun completionIsClientHelloAck(
 }
 
 /**
+ * The shortest an ATT round trip can plausibly take, in milliseconds.
+ *
+ * BLE's minimum connection interval is 7.5ms. A peripheral may answer inside the same connection event,
+ * so this is not a hard floor and is NOT used to reject anything - it decides only whether the log points
+ * the reader at the timing. It earns its place from the field distribution, which is starkly bimodal:
+ * across 41 captures every hello either "completed" in 0, 4, 5 or 7ms, or produced no callback at all
+ * about 3150ms later. Nothing in between, and 0ms cannot be a round trip at all.
+ */
+internal const val MIN_PLAUSIBLE_ATT_ROUND_TRIP_MS = 8L
+
+/**
+ * Does a completed CLIENT_HELLO write prove the link is ENCRYPTED?
+ *
+ * No, and conflating the two is the second false bond. [completionIsClientHelloAck] answers a narrower
+ * question - "is this completion the hello's?" - and the ack branch then took a yes as proof of an
+ * encrypted just-works bond. Those are different facts. A write completion says the stack considers the
+ * write finished. Encryption is a property of the LINK, and on Android the only thing that attests it is
+ * the OS bond state.
+ *
+ * The field capture shows them disagreeing outright: "CLIENT_HELLO acked after 5ms", "encryptedBond
+ * family=whoop5", and then two seconds later "bond state poll: BOND_NONE" on the same link - with an HCI
+ * capture already showing this strap answers SMP `Pairing Not Supported`, so an encrypted bond is not
+ * merely absent but impossible. The app displayed "Bonded, streaming." for it.
+ *
+ * So the completion still drives the HANDSHAKE - subscribe the puffin chars, clock the strap, offload,
+ * all of which only need the strap to be listening - while `encryptedBond` waits for something that
+ * actually attests encryption: the OS bond state, or the strap's own BLE_BONDED event.
+ *
+ * ANDROID-ONLY, deliberately, and this one has no Swift twin. CoreBluetooth exposes no link-encryption
+ * or bond state at all, so Apple has nothing to supply for [osBonded] — a twin taking it would be handed
+ * a constant `false` and would suppress bonds that are genuine there. The gap is real on Apple too; it
+ * simply cannot be closed the same way, and pretending otherwise in a shared helper would be worse than
+ * leaving it Android-only and saying so.
+ */
+internal fun helloCompletionProvesEncryptedBond(osBonded: Boolean): Boolean = osBonded
+
+/**
+ * The line for a hello completion that did NOT come with encryption.
+ *
+ * Without it the split is invisible: the log would show the handshake proceeding and no bond claim, and a
+ * reader would have to infer why. It also carries the elapsed time, because on a completion faster than a
+ * connection interval the timing is itself the evidence that the callback came from the local stack rather
+ * than the strap - and a 0ms "round trip" is the clearest thing in the whole #1635 capture set.
+ */
+internal fun helloAckedWithoutEncryptionLine(elapsedMs: Long, osBondState: String): String =
+    "CLIENT_HELLO outcome: the write completed after ${elapsedMs}ms, but the OS bond state is" +
+        " $osBondState — a completed write says the stack finished it, NOT that the link is encrypted," +
+        " so this is not a bond." +
+        (if (elapsedMs < MIN_PLAUSIBLE_ATT_ROUND_TRIP_MS)
+            " ${elapsedMs}ms is under one BLE connection interval, so the callback most likely came from" +
+                " the local stack rather than the strap."
+        else "") +
+        " Continuing the handshake anyway — subscribing, clocking and offloading need the strap to be" +
+        " listening, not the link to be encrypted (#1635)."
+
+/**
  * A pre-bond write completion on a 5/MG link that arrived with NO CLIENT_HELLO outstanding.
  *
  * [completionIsClientHelloAck] declines these, and without a line it declines in SILENCE — which is worse

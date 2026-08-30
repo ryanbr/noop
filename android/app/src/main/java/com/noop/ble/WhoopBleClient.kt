@@ -6272,20 +6272,42 @@ class WhoopBleClient(
                     // just-works bonding completed. Now subscribe the puffin notify chars (realtime HR rides
                     // these as REALTIME_DATA — the strap rejected them on the unauthenticated link), then arm
                     // realtime HR with puffin framing. Mirrors the macOS post-bond flow.
+                    // A completed write means the STACK finished it. Encryption is a property of the
+                    // link, and on Android only the OS bond state attests it — so the two are split here
+                    // rather than inferred from one another. See [helloCompletionProvesEncryptedBond]:
+                    // the field capture has "acked after 5ms" and "BOND_NONE" two seconds apart on the
+                    // same link, for a strap an HCI capture shows refusing SMP outright.
+                    val encrypted = helloCompletionProvesEncryptedBond(
+                        osBonded = g.device.bondState == BluetoothDevice.BOND_BONDED,
+                    )
                     didBond = true
-                    setHelloDeferredRun(0)        // the handshake works on this strap; the run is over
-                    helloDeferredGuidanceLogged = false
-                    helloOverrideAttempts = 0     // #1635: the strap answered — the override's budget resets
-                    helloOverrideExhaustedLogged = false
-                    cancelBondWatchdog()          // genuine bond reached — the handshake watchdog stands down (#50)
-                    noteGenuineBond(g.device.address)   // #52: this strap bonds fine; clears any pin-refusal streak
-                    clearPairingHint()            // #78: a genuine bond means the pairing guidance no longer applies
+                    cancelBondWatchdog()          // the hello is answered either way — nothing left to time out (#50)
                     bondedDirectAttempt = false   // fast-path connect reached a real session (#78 fork)
-                    staleDirectFailures = 0       // genuine bond — clear the wiped-bond counter (#84 parity)
-                    _state.update { it.copy(bonded = true, encryptedBond = true) }   // genuine bond (#69)
+                    // Everything below claims something about the STRAP'S WILLINGNESS TO BOND, and a write
+                    // completion is not evidence of that. Clearing them on an unencrypted completion is how
+                    // a strap that never bonds gets recorded as one that bonds fine — and it retires the
+                    // very counters that exist to notice it never did.
+                    if (encrypted) {
+                        setHelloDeferredRun(0)        // the handshake works on this strap; the run is over
+                        helloDeferredGuidanceLogged = false
+                        helloOverrideAttempts = 0     // #1635: the strap answered — the override's budget resets
+                        helloOverrideExhaustedLogged = false
+                        noteGenuineBond(g.device.address)   // #52: this strap bonds fine; clears any pin-refusal streak
+                        clearPairingHint()            // #78: a genuine bond means the pairing guidance no longer applies
+                        staleDirectFailures = 0       // genuine bond — clear the wiped-bond counter (#84 parity)
+                    }
+                    _state.update { it.copy(bonded = true, encryptedBond = encrypted) }
                     bondedAtMs = System.currentTimeMillis()   // #617: stamp the bond so handleDisconnect can spot a bond-then-quick-timeout loop
-                    emitConnectionBondState("encryptedBond family=whoop5 (CLIENT_HELLO acked)")
-                    log("WHOOP 5/MG: CLIENT_HELLO acked — link established; subscribing notify chars (experimental).")
+                    if (encrypted) {
+                        emitConnectionBondState("encryptedBond family=whoop5 (CLIENT_HELLO acked)")
+                        log("WHOOP 5/MG: CLIENT_HELLO acked — link established; subscribing notify chars (experimental).")
+                    } else {
+                        log(helloAckedWithoutEncryptionLine(
+                            elapsedMs = if (clientHelloWriteAtMs > 0L)
+                                System.currentTimeMillis() - clientHelloWriteAtMs else -1L,
+                            osBondState = bondStateName(g.device.bondState),
+                        ))
+                    }
                     g.getService(WHOOP5_SERVICE)?.let { svc ->
                         for (u in WHOOP5_NOTIFY_CHARS) svc.getCharacteristic(u)?.let { cccdQueue.add(it) }
                     }
