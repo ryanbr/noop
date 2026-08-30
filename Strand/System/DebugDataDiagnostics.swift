@@ -46,9 +46,11 @@ enum DebugDataDiagnostics {
         lines.append("Firmware:    \(d.string(forKey: "noop.lastFirmware") ?? "unknown (connect to record)")")
         // NOTE: still the legacy GLOBAL key, for the same reason the firmware line above is — strapStateLines
         // is sync and prefs-only by contract, and the per-device rule needs a registry read for pairedCount.
-        // Unlike firmware there is no per-device block further down to supersede it, so this line can name
-        // the OTHER strap's sync on a multi-strap install; the Kotlin twin resolves it because its export
-        // has the registry in hand. Tracked with the same follow-up.
+        // The BLE layer therefore keeps writing the global alongside the per-device one; without that this
+        // line would not become per-device, it would simply freeze at its pre-upgrade value. Unlike
+        // firmware there is no per-device block further down to supersede it, so on a multi-strap install
+        // it can still name the OTHER strap's sync — the Kotlin twin resolves it because its export has the
+        // registry in hand. Tracked with the same follow-up.
         let syncSec = d.double(forKey: "lastSyncedAt")
         lines.append("Last sync:   \(syncSec > 0 ? relTime(Date().timeIntervalSince1970 - syncSec) : "never")")
         // #57: write-health. "Last sync" fires even on an empty/failed offload, so distinguish "rows

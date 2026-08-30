@@ -2536,8 +2536,20 @@ public final class BLEManager: NSObject, ObservableObject {
                                                                kind: "lastWriteOkAt")
             let whoStalled = LastSyncAttribution.writeHealthPrefKey(peripheralId: peripheral?.identifier.uuidString,
                                                                     kind: "lastWriteStalledAt")
-            if (backfiller?.sessionRowsPersisted ?? 0) > 0, let k = whoOk { du.set(Date().timeIntervalSince1970, forKey: k) }
-            if backfiller?.persistStalled == true, let k = whoStalled { du.set(Date().timeIntervalSince1970, forKey: k) }
+            // The global keys are STILL written, deliberately, exactly as `noop.lastFirmware` still is
+            // (FrameRouter). DebugDataDiagnostics.strapStateLines is sync and prefs-only by contract, so it
+            // cannot resolve per device — and dropping the global write would not make that line
+            // per-device, it would freeze it at whatever it held before the upgrade and then read "no rows
+            // ever persisted" forever, for everyone. A stale global is the smaller lie than a dead one, and
+            // every reader that CAN attribute prefers the per-device key.
+            if (backfiller?.sessionRowsPersisted ?? 0) > 0 {
+                du.set(Date().timeIntervalSince1970, forKey: "sync.lastWriteOkAt")
+                if let k = whoOk { du.set(Date().timeIntervalSince1970, forKey: k) }
+            }
+            if backfiller?.persistStalled == true {
+                du.set(Date().timeIntervalSince1970, forKey: "sync.lastWriteStalledAt")
+                if let k = whoStalled { du.set(Date().timeIntervalSince1970, forKey: k) }
+            }
             if unarchived > 0 {
                 state.lastSyncError = "Synced, but \(archived + unarchived) record(s) couldn't be decoded (unrecognised strap firmware layout), and the on-device archive is full - the \(unarchived) newest weren't preserved. Please share a strap log so the layout can be mapped."
             } else if archived > 0 {
@@ -2600,6 +2612,11 @@ public final class BLEManager: NSObject, ObservableObject {
             if let key = LastSyncAttribution.prefKey(peripheralId: peripheral?.identifier.uuidString) {
                 UserDefaults.standard.set(state.lastSyncedAt, forKey: key)
             }
+            // Global kept for the same reason as the write-health pair above: the prefs-only debug header
+            // is its only remaining reader and cannot resolve per device, so dropping this write would
+            // freeze that line rather than fix it. It is also what `seedLastSyncFromActiveStrap`'s
+            // single-strap fallback reads across the upgrade.
+            UserDefaults.standard.set(state.lastSyncedAt, forKey: "lastSyncedAt")
             // NOTE: the auto-continue streak is NOT reset here. A HISTORY_COMPLETE is no longer assumed to
             // mean "caught up" (#25): a strap whose firmware segments a deep offload into many small
             // HISTORY_COMPLETE slices would otherwise reset the streak on every slice and never engage the
