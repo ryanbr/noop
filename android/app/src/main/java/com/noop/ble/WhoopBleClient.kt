@@ -1791,8 +1791,17 @@ class WhoopBleClient(
     // MARK: Published state — the single source of truth the UI observes. Seeded with the PERSISTED
     // last-sync time (PR #556 reimpl) so a freshly-recreated client doesn't show "Never" when this
     // install has actually synced before; a 0 (never) leaves it null, unchanged.
+    //
+    // THIS STRAP's stamp only. The legacy global is a valid fallback on a single-strap install, but that
+    // needs the paired count, which needs the registry, which is not available synchronously in a
+    // constructor — so [seedLegacyLastSyncIfSingleStrap] resolves it a moment later. Seeding from the
+    // global here instead would show the other strap's timestamp for as long as it took to correct,
+    // which is the bug rather than a smaller version of it.
     private val _state = MutableStateFlow(
-        LiveState(lastSyncAt = NoopPrefs.lastSyncAt(context).takeIf { it > 0L }),
+        LiveState(
+            lastSyncAt = NoopPrefs.lastSyncAtFor(context, NoopPrefs.lastDevice(context)?.first)
+                .takeIf { it > 0L },
+        ),
     )
     val state: StateFlow<LiveState> = _state.asStateFlow()
 
@@ -2690,6 +2699,30 @@ class WhoopBleClient(
     private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /**
+     * Fill in the last-sync seed from the LEGACY global key, but only on a single-strap install.
+     *
+     * The global key cannot say which strap stamped it, so it is trustworthy exactly when there is one
+     * strap it could have come from — see [resolveLastSync]. That count lives in the registry and the
+     * registry is suspend, which is why this runs just after construction rather than in the seed itself.
+     *
+     * Writes nothing and touches nothing when this strap already has its own stamp, or when more than one
+     * strap is paired. On the install that produced the capture (two straps) it correctly does nothing,
+     * and the 5/MG reads "never" — which is the true answer it has never once been given.
+     */
+    private fun seedLegacyLastSyncIfSingleStrap() {
+        if (_state.value.lastSyncAt != null) return
+        val legacy = runCatching { NoopPrefs.lastSyncAt(context) }.getOrDefault(0L)
+        if (legacy <= 0L) return
+        val registry = (context.applicationContext as? com.noop.NoopApplication)?.deviceRegistry ?: return
+        ioScope.launch {
+            val paired = runCatching { registry.all().size }.getOrDefault(0)
+            resolveLastSync(perDevice = 0L, legacyGlobal = legacy, pairedCount = paired)?.let { seed ->
+                _state.update { st -> if (st.lastSyncAt == null) st.copy(lastSyncAt = seed) else st }
+            }
+        }
+    }
+
+    /**
      * Durable archive for undecodable history record frames (#77/#91). Written BEFORE the strap is
      * acked, so an unrecognised firmware layout can't cost the user their only copy: the ack frees
      * the strap's records, and this archive is the only remaining copy until the layout is mapped.
@@ -2697,6 +2730,7 @@ class WhoopBleClient(
     private val rawHistoryArchive = RawHistoryArchive(context)
 
     init {
+        seedLegacyLastSyncIfSingleStrap()
         // Retro-decode (#151): when the decoder gains a historical layout (WHOOP 4.0 v25), re-run every
         // archived undecodable frame through it and insert whatever now decodes — the only path by
         // which already-acked, strap-freed history backfills after an update. Runs once per APP version
@@ -9040,15 +9074,23 @@ class WhoopBleClient(
         }
         // PR #556 reimpl: persist the HISTORY_COMPLETE instant so "Last synced N ago" survives a BLE-client
         // recreation / process restart and stops reverting to "Never".
-        if (reason == "HISTORY_COMPLETE") NoopPrefs.setLastSyncAt(context, nowSec)
+        // Stamped against the strap that actually completed this offload, never globally. The old single
+        // key reported one strap's sync on another's screen — a 5/MG with zero banked rows reading
+        // "Last sync: 4d ago" from its paired 4.0, which is what sent this whole investigation after a
+        // regression that never existed.
+        if (reason == "HISTORY_COMPLETE") NoopPrefs.setLastSyncAtFor(context, lastDeviceAddress, nowSec)
         // #57 debug: write-health signal for the export. "Last sync" fires even on an empty/failed offload,
         // so it can't distinguish "0 rows because the strap was empty" from "0 rows because writes FAILED".
         // Record the last time rows actually landed, and the last time an offload STALLED on a persist
         // failure (the closed-DB-after-restore class) — so a future "sync stuck at 0" report is decidable.
         runCatching {
+            // Per strap, for the same reason the last-sync stamp above is: these two lines sat together
+            // in the capture, both global, both reporting the 4.0's activity on the 5/MG's screen.
             val p = NoopPrefs.of(context).edit()
-            if (backfiller.sessionRowsPersisted > 0) p.putLong("sync.lastWriteOkAt", nowSec)
-            if (backfiller.persistStalled) p.putLong("sync.lastWriteStalledAt", nowSec)
+            val okKey = writeHealthPrefKey(lastDeviceAddress, "lastWriteOkAt")
+            val stalledKey = writeHealthPrefKey(lastDeviceAddress, "lastWriteStalledAt")
+            if (backfiller.sessionRowsPersisted > 0 && okKey != null) p.putLong(okKey, nowSec)
+            if (backfiller.persistStalled && stalledKey != null) p.putLong(stalledKey, nowSec)
             p.apply()
         }
         // #580: a WHOOP 5/MG whose firmware serves no history offload (acks SEND_HISTORICAL_DATA but emits

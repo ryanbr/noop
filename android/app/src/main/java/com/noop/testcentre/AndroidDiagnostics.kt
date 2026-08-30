@@ -88,14 +88,35 @@ object AndroidDiagnostics {
                 pairedCount = fwRows.size,
             )
             add("Firmware:    ${fw ?: "unknown (connect to record)"}")
-            val syncSec = com.noop.ui.NoopPrefs.lastSyncAt(context)
-            add("Last sync:   ${if (syncSec > 0L) relTime(System.currentTimeMillis() - syncSec * 1000L) else "never"}")
+            // THIS strap's own sync, attributed the same way the firmware above is. The old global key
+            // reported whichever strap synced last, so a 5/MG that had never banked a row showed its
+            // paired 4.0's timestamp — the line that made a non-existent sync regression look real.
+            val syncSec = com.noop.ble.resolveLastSync(
+                perDevice = com.noop.ui.NoopPrefs.lastSyncAtFor(context, fwRow?.peripheralId),
+                legacyGlobal = com.noop.ui.NoopPrefs.lastSyncAt(context),
+                pairedCount = fwRows.size,
+            ) ?: 0L
+            add("Last sync:   ${if (syncSec > 0L) relTime(System.currentTimeMillis() - syncSec * 1000L)
+                else "never (this strap)"}")
             // #57: write-health. "Last sync" fires even on an empty/failed offload, so distinguish "rows
             // actually landed" from "an offload STALLED on a persist failure" (history won't persist —
             // usually a backup restored without an app restart, the closed-DB class).
             val p = com.noop.ui.NoopPrefs.of(context)
-            val okAt = p.getLong("sync.lastWriteOkAt", 0L)
-            val stalledAt = p.getLong("sync.lastWriteStalledAt", 0L)
+            // Attributed exactly like "Last sync" above — the legacy global counts only when a single
+            // strap could have written it, so the pair can never mix one strap's stall with another's
+            // success. Read together: "stalled more recently than ok" is the alarm.
+            val okAt = com.noop.ble.resolveLastSync(
+                perDevice = com.noop.ble.writeHealthPrefKey(fwRow?.peripheralId, "lastWriteOkAt")
+                    ?.let { p.getLong(it, 0L) } ?: 0L,
+                legacyGlobal = p.getLong("sync.lastWriteOkAt", 0L),
+                pairedCount = fwRows.size,
+            ) ?: 0L
+            val stalledAt = com.noop.ble.resolveLastSync(
+                perDevice = com.noop.ble.writeHealthPrefKey(fwRow?.peripheralId, "lastWriteStalledAt")
+                    ?.let { p.getLong(it, 0L) } ?: 0L,
+                legacyGlobal = p.getLong("sync.lastWriteStalledAt", 0L),
+                pairedCount = fwRows.size,
+            ) ?: 0L
             val restoreAt = p.getLong("backup.lastRestoreAt", 0L)
             val now = System.currentTimeMillis()
             add("Data write:  ${if (okAt > 0L) "rows last landed ${relTime(now - okAt * 1000L)}" else "no rows ever persisted"}")

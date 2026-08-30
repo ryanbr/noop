@@ -1317,10 +1317,20 @@ object NoopPrefs {
      *  recreation / process restart and stops reverting to "Never". 0 = never synced on this install. */
     const val KEY_LAST_SYNC_AT = "noop.lastSyncAtSec"
 
+    /** LEGACY global reader. Kept only as [com.noop.ble.resolveLastSync]'s single-strap fallback, so an
+     *  install that has one strap keeps its timestamp across the upgrade. No longer written. */
     fun lastSyncAt(context: Context): Long = of(context).getLong(KEY_LAST_SYNC_AT, 0L)
 
-    fun setLastSyncAt(context: Context, epochSec: Long) {
-        of(context).edit().putLong(KEY_LAST_SYNC_AT, epochSec).apply()
+    /** This strap's own last completed offload, keyed by BLE address — see
+     *  [com.noop.ble.lastSyncPrefKey]. 0 when this strap has never synced. */
+    fun lastSyncAtFor(context: Context, peripheralId: String?): Long =
+        com.noop.ble.lastSyncPrefKey(peripheralId)?.let { of(context).getLong(it, 0L) } ?: 0L
+
+    /** Stamp a completed offload against the strap it came from. A blank address writes nothing rather
+     *  than writing to a key that belongs to no device. */
+    fun setLastSyncAtFor(context: Context, peripheralId: String?, epochSec: Long) {
+        val key = com.noop.ble.lastSyncPrefKey(peripheralId) ?: return
+        of(context).edit().putLong(key, epochSec).apply()
     }
 
     /** Last-known strap firmware string, persisted on connect so the debug export can name it OFFLINE
