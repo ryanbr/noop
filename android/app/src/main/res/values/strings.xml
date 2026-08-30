@@ -1681,6 +1681,8 @@
     <string name="l10n_settings_screen_this_is_a_plain_unencrypted_archive_b0dfe63d">This is a plain, unencrypted archive — anyone who gets the file can open it with any zip tool. Store it somewhere you trust.</string>
     <string name="l10n_settings_screen_this_restarts_the_roughly_4_night_c610a93d">This restarts the roughly 4-night build-up for Charge and your HRV baseline. Your history stays. Use it if a bad first week, like wearing it while sick, set your baseline off.</string>
     <string name="l10n_settings_screen_trend_charts_19085c81">Trend charts</string>
+    <string name="l10n_settings_screen_try_history_sync_without_pairing_experimental_54c31ea2">Try history sync without pairing (experimental)</string>
+    <string name="l10n_settings_screen_try_history_sync_without_pairing_33ae8594">Try history sync without pairing</string>
     <string name="l10n_settings_screen_try_whoop_5_mg_protocol_probes_1d584653">Try WHOOP 5/MG protocol probes</string>
     <string name="l10n_settings_screen_units_12748281">Units</string>
     <string name="l10n_settings_screen_unlock_whoop_5_mg_deep_data_2f2bd226">Unlock WHOOP 5/MG deep data (R22)</string>
@@ -2636,6 +2638,7 @@
     <string name="raw_diag_protocol_probes">Protocol probes</string>
     <string name="raw_diag_broadcast_hr">Broadcast heart rate from the strap</string>
     <string name="raw_diag_pair">Ask Android to pair</string>
+    <string name="raw_diag_unbonded_offload">Try history sync without pairing</string>
     <string name="raw_diag_r22">Legacy R22 feature-flag experiment</string>
     <string name="raw_diag_r22_enable">Send legacy R22 enable sequence</string>
     <string name="raw_diag_r22_clear">Clear legacy R22 flags on strap</string>

@@ -1585,6 +1585,8 @@
     <string name="l10n_settings_screen_this_is_a_plain_unencrypted_archive_b0dfe63d">Das ist ein einfaches, unverschlüsseltes Archiv — wer die Datei bekommt, kann sie mit jedem Zip-Programm öffnen. Bewahren Sie sie an einem Ort auf, dem Sie vertrauen.</string>
     <string name="l10n_settings_screen_this_restarts_the_roughly_4_night_c610a93d">Das startet den etwa 4-nächtigen Aufbau für Ladung und deine HRV-Basislinie neu. Dein Verlauf bleibt. Nutze es, wenn eine schlechte erste Woche, etwa krank getragen, deine Basislinie verzerrt hat.</string>
     <string name="l10n_settings_screen_trend_charts_19085c81">Trenddiagramme</string>
+    <string name="l10n_settings_screen_try_history_sync_without_pairing_experimental_54c31ea2">Verlaufssynchronisierung ohne Kopplung versuchen (experimentell)</string>
+    <string name="l10n_settings_screen_try_history_sync_without_pairing_33ae8594">Verlaufssynchronisierung ohne Kopplung versuchen</string>
     <string name="l10n_settings_screen_try_whoop_5_mg_protocol_probes_1d584653">WHOOP 5/MG-Protokolltests ausprobieren</string>
     <string name="l10n_settings_screen_units_12748281">Einheiten</string>
     <string name="l10n_settings_screen_unlock_whoop_5_mg_deep_data_2f2bd226">WHOOP-5/MG-Tiefendaten freischalten (R22)</string>
@@ -2623,6 +2625,7 @@
     <string name="raw_diag_protocol_probes">Protokolltests</string>
     <string name="raw_diag_broadcast_hr">Herzfrequenz vom Band übertragen</string>
     <string name="raw_diag_pair">Android um Kopplung bitten</string>
+    <string name="raw_diag_unbonded_offload">Verlaufssynchronisierung ohne Kopplung versuchen</string>
     <string name="raw_diag_r22">Altes R22-Feature-Flag-Experiment</string>
     <string name="raw_diag_r22_enable">Alte R22-Aktivierungssequenz senden</string>
     <string name="raw_diag_r22_clear">R22-Flags auf dem Band löschen</string>

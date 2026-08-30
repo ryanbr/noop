@@ -1,0 +1,232 @@
+package com.noop.ble
+
+/**
+ * Should NOOP try the historical offload on a WHOOP 5/MG that has NOT bonded?
+ *
+ * The offload has always been gated on the CLIENT_HELLO ack — `beginBackfill` refuses while
+ * `connectHandshakeDone` is false, and for a 5/MG that flag is set in exactly one place, behind `didBond`.
+ * On a strap that answers SMP with `Pairing Not Supported` (#1635) the ack can never arrive, so the gate
+ * can never open, and the app never asks the strap for history at all.
+ *
+ * What makes that worth re-examining is that the gate is OURS, not the strap's, and the link underneath it
+ * is not the broken thing it was assumed to be. With the hello suppressed the link is stable for tens of
+ * minutes (a field capture holds one up for 2431s), live HR streams over the standard profile the whole
+ * time, the unbonded DIS identity read succeeds (#490/#1455), and puffin commands — DISABLE_ALARM,
+ * TOGGLE_REALTIME_HR — are written to fd4b0002 without the stack objecting. Every bounce in the capture
+ * traces to the bond watchdog after an unanswered hello, never to the link itself.
+ *
+ * What is NOT established is the part that matters, and it is important to be exact about why. Those
+ * puffin writes go out WITHOUT response, so their `GATT_SUCCESS` is Android reporting a Write Command
+ * handed to the controller — a local fact that says nothing about whether the strap parsed it. And the
+ * offload does not arrive on fd4b0002 at all: it arrives on the puffin NOTIFY characteristics
+ * (fd4b0003/4/5/7), which this app has never once subscribed on a healthy unbonded link. The single
+ * attempt on record (28 Aug, 13:25:00) rode a FALSE bond — a DISABLE_ALARM completion misread as a hello
+ * ack, the bug #1635 fixed — and produced `writeDescriptor busy; retry 1/8`, an Android queue error,
+ * before the link died 4s later with the hello still outstanding. No answer was ever obtained.
+ *
+ * The belief that it cannot work is a comment, not a measurement: `BLEManager.swift` records that the
+ * strap rejects those subscriptions with "Authentication is insufficient", from a 5/MG that was still
+ * bonded to the official WHOOP app (issue #17). That may well be right. It has never been tested against
+ * a strap in this state, on a link that stays up long enough to hear the answer.
+ *
+ * So this probe asks, in stages, each one falsifying the next:
+ *
+ *  1. subscribe the four puffin notify characteristics. An insufficient-authentication status here is the
+ *     whole answer — the offload needs an encrypted link, and #1635 is a wall rather than a gate.
+ *  2. if they subscribe, send GET_CLOCK. Read-only on purpose: it changes nothing on the strap, and a
+ *     COMMAND_RESPONSE to it is the first hard evidence that puffin commands are acted on unbonded.
+ *  3. only then SET_CLOCK and the ordinary offload, which is the existing hardware-proven sequence.
+ *
+ * Self-limiting the same way [shouldReadDisUnbonded] is: opt-in, once per link, and never again after a
+ * refusal is latched for that device. This area has a habit of producing "keeps retrying something that
+ * cannot work", and the point of a probe is to stop being one after it has its answer.
+ *
+ * A refusal is a RESULT. Either outcome closes the last open question on #1635.
+ */
+internal fun shouldProbeUnbondedOffload(
+    isWhoop5: Boolean,
+    optedIn: Boolean,
+    bonded: Boolean,
+    helloWrittenThisLink: Boolean,
+    alreadyProbedThisLink: Boolean,
+    previouslyRefused: Boolean,
+    silentLinksSoFar: Int = 0,
+): Boolean {
+    if (!isWhoop5) return false
+    if (!optedIn) return false
+    // A bonded strap reaches the offload through the proven post-hello handshake; this exists only for the
+    // straps that path never reaches.
+    if (bonded) return false
+    // The hello is what drops the link. On a link carrying one, the bond watchdog has ~5s to bounce us, so
+    // a refusal here would be unattributable — exactly the ambiguity that made the hello unreadable for
+    // eleven weeks. Only the stable no-hello link can answer this question.
+    if (helloWrittenThisLink) return false
+    if (alreadyProbedThisLink) return false
+    if (previouslyRefused) return false
+    return unbondedProbeStillWorthAsking(silentLinksSoFar)
+}
+
+/**
+ * How many links may end in SILENCE before the probe retires itself.
+ *
+ * A refusal latches per device; silence deliberately does not, because the subscriptions were accepted and
+ * one quiet link is not the strap's verdict. But "not latched" cannot mean "forever": the probe re-runs on
+ * every reconnect, and a strap that reconnects often would re-ask a question already answered the same way
+ * three times, which is the exact shape of the unbounded retry this whole area keeps producing.
+ *
+ * Counted per app process, like [HELLO_OVERRIDE_MAX_ATTEMPTS], and reset by a genuine answer. A process
+ * restart resets it too — the honest limit of an in-memory bound, and the loop it exists to stop runs
+ * within one process.
+ */
+internal const val UNBONDED_PROBE_MAX_SILENT_LINKS = 3
+
+/** Has the probe any budget left after [silentLinksSoFar] links that subscribed but drew no reply? */
+internal fun unbondedProbeStillWorthAsking(
+    silentLinksSoFar: Int,
+    cap: Int = UNBONDED_PROBE_MAX_SILENT_LINKS,
+): Boolean = silentLinksSoFar < cap
+
+/**
+ * The line printed when the probe retires on repeated silence, so the log says why it stopped rather than
+ * leaving a reader to notice its absence — the same failure the CLIENT_HELLO's silent suppression caused.
+ */
+internal fun unbondedProbeGaveUpLine(silentLinks: Int): String =
+    "Unbonded offload probe: $silentLinks links have subscribed the puffin chars and drawn no" +
+        " COMMAND_RESPONSE — this strap serves those characteristics unbonded but does not act on commands" +
+        " written to them. Not asking again this session. History offload is unavailable until the strap" +
+        " completes a handshake (#1635)."
+
+/** Persisted key for "this strap refused the unbonded puffin subscriptions". Per device and lowercased,
+ *  for the same reason [firmwarePrefKey] is. */
+internal fun unbondedOffloadRefusedPrefKey(peripheralId: String?): String? =
+    peripheralId?.trim()?.takeIf { it.isNotEmpty() }?.let { "noop.unbondedOffloadRefused.${it.lowercase()}" }
+
+/**
+ * What a frame arriving on a puffin notify characteristic proves about an unbonded link.
+ *
+ * The distinction is the whole point of the probe and is easy to lose. A frame — any frame — proves the
+ * strap SERVES those characteristics without encryption, which is what the offload transport needs. It
+ * does not prove the strap ACTED on anything we wrote, because a stream it would have sent anyway looks
+ * identical from here. Only a reply to a command we issued shows the command channel is live, and that is
+ * the finding the offload actually depends on.
+ *
+ * Treating the weaker evidence as the stronger one is how the false bond of 28 Aug happened: an unrelated
+ * completion on a shared characteristic was read as an answer to a question nobody had been asked.
+ */
+internal enum class UnbondedProbeEvidence {
+    /** Nothing decodable has arrived. */
+    NONE,
+
+    /** A valid frame arrived on a puffin notify characteristic: the strap serves them unbonded. */
+    SERVES_NOTIFICATIONS,
+
+    /** A COMMAND_RESPONSE arrived: the strap parsed a puffin command written over an unencrypted link and
+     *  answered it. This is the evidence the offload needs. */
+    ANSWERS_COMMANDS,
+}
+
+/** The COMMAND_RESPONSE type name as `Framing.parseFrame` reports it. */
+internal const val COMMAND_RESPONSE_TYPE_NAME = "COMMAND_RESPONSE"
+
+/**
+ * Classify one parsed puffin frame as probe evidence.
+ *
+ * CRC-gated, and deliberately strict about it. A frame whose CRC does not verify is noise on a link we are
+ * testing precisely because we do not know whether it is allowed to carry this traffic, and counting noise
+ * as proof would let the probe conclude the opposite of the truth. `crcOk == null` (no CRC to check) is
+ * not a pass either — [ok] alone is an envelope check.
+ */
+internal fun unbondedProbeEvidenceOf(
+    ok: Boolean,
+    crcOk: Boolean?,
+    typeName: String?,
+): UnbondedProbeEvidence = when {
+    !ok || crcOk != true || typeName.isNullOrBlank() -> UnbondedProbeEvidence.NONE
+    typeName == COMMAND_RESPONSE_TYPE_NAME -> UnbondedProbeEvidence.ANSWERS_COMMANDS
+    else -> UnbondedProbeEvidence.SERVES_NOTIFICATIONS
+}
+
+/**
+ * Keep the strongest evidence seen on this link.
+ *
+ * The probe's verdict must not depend on which frame happened to arrive last. A REALTIME_DATA burst
+ * following the COMMAND_RESPONSE would otherwise walk the conclusion back down to the weaker finding.
+ */
+internal fun strongerProbeEvidence(
+    a: UnbondedProbeEvidence,
+    b: UnbondedProbeEvidence,
+): UnbondedProbeEvidence = if (b.ordinal > a.ordinal) b else a
+
+/** Announced before stage 1 so a capture shows the probe starting, not just its outcome. */
+internal fun unbondedProbeStartLine(): String =
+    "Unbonded offload probe: subscribing the puffin notify chars (fd4b0003/4/5/7) on a link with no" +
+        " CLIENT_HELLO. Never attempted on a healthy link before — an insufficient-authentication status" +
+        " here means the offload requires an encrypted bond and #1635 ends it (experimental, #1635)."
+
+/**
+ * Stage 1's refusal — the answer the probe exists to get.
+ *
+ * Named as a finding rather than an error: it settles for Android what only a comment has claimed, and it
+ * is latched per device so the strap says it once instead of on every reconnect.
+ */
+internal fun puffinSubscribeRefusedLine(uuid: String, status: String): String =
+    "Unbonded offload probe: subscribe of $uuid failed $status. If this is an insufficient-authentication" +
+        " or -encryption status, the puffin notify chars need an encrypted link, the historical offload" +
+        " cannot be reached without a bond, and a 5/MG that refuses SMP can never sync history (#1635)."
+
+/**
+ * Stage 2's question, logged so the wait that follows is attributable to it.
+ *
+ * Carries the CONFIRMED count, not the attempted one. A CCCD write can also end by being abandoned after
+ * its busy retries, which reaches the same completion path as four clean subscribes — so a line that said
+ * "subscribed" flatly would overstate a partial result in the one log this experiment exists to produce.
+ */
+internal fun unbondedProbeAskingLine(subscribed: Int, total: Int, waitMs: Long): String =
+    "Unbonded offload probe: $subscribed of $total puffin notify chars subscribed — the strap serves them" +
+        " on an unencrypted link. Sending GET_CLOCK (read-only, changes nothing on the strap) and" +
+        " listening ${waitMs}ms for a COMMAND_RESPONSE, which would be the first proof it acts on puffin" +
+        " commands unbonded (#1635)."
+
+/**
+ * Stage 1 ended with nothing confirmed and no refusal to name.
+ *
+ * Distinct from both other stage-1 outcomes on purpose. A refusal is the strap's answer; this is the
+ * absence of one — every write was abandoned by our own stack before the strap ever ruled — and reporting
+ * it as either a refusal or a success would put a fact in the capture that was never established.
+ */
+internal fun unbondedProbeNoSubscriptionsLine(total: Int): String =
+    "Unbonded offload probe: none of the $total puffin notify chars completed their subscribe, and none" +
+        " was refused either — the writes were abandoned locally, so the strap never ruled on them. No" +
+        " question asked; this link proves nothing either way (#1635)."
+
+/**
+ * Stage 2's silence.
+ *
+ * Distinguished from a refusal on purpose: the subscriptions landed, so the transport is open and the
+ * strap simply did not answer. That is a different fact about the strap than "it declined the link", and a
+ * capture that conflated them would send the next reader after the wrong thing.
+ */
+internal fun unbondedProbeSilentLine(waitedMs: Long, sawNotifications: Boolean): String =
+    "Unbonded offload probe: no COMMAND_RESPONSE after ${waitedMs}ms. The subscriptions were accepted" +
+        (if (sawNotifications) " and frames did arrive on them," else " but nothing arrived on them,") +
+        " so the transport is open and the strap is not answering commands on an unencrypted link." +
+        " Not retrying on this strap (#1635)."
+
+/** Stage 2's success — the finding that unlocks the rest. */
+internal fun unbondedProbeAnsweredLine(): String =
+    "Unbonded offload probe: COMMAND_RESPONSE received — the strap ACTS on puffin commands over an" +
+        " unencrypted link. Clocking the strap and requesting the historical offload (#1635)."
+
+/**
+ * The expectation to set the moment the probe succeeds, not after the offload returns empty.
+ *
+ * An un-clocked 5/MG is hardware-known not to persist sensor data to flash at all ("RTC timestamp … is
+ * invalid; not saving data to flash", #78 fork). A strap that has never completed a handshake has never
+ * been clocked by NOOP, so the honest expectation is that an offload which finally runs may find little or
+ * nothing banked — and that this buys FUTURE syncing rather than recovering the backlog. GET_DATA_RANGE
+ * answers it directly, which is why it is the stage before the transfer rather than after it.
+ */
+internal fun unbondedProbeBacklogCaveatLine(): String =
+    "Unbonded offload probe: note that this strap has never been clocked by NOOP, and an un-clocked 5/MG" +
+        " does not save sensor data to flash — so GET_DATA_RANGE may legitimately report little or nothing" +
+        " banked. That would mean history works from now on, not that the probe failed (#1635)."

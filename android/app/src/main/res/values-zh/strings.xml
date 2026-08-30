@@ -1528,6 +1528,8 @@
     <string name="l10n_settings_screen_this_is_a_plain_unencrypted_archive_b0dfe63d">这是一个未加密的普通压缩包——任何拿到文件的人都能用任意压缩工具打开它。请把它存放在你信任的地方。</string>
     <string name="l10n_settings_screen_this_restarts_the_roughly_4_night_c610a93d">这将重新启动大约需要 4 个晚上的充能(Charge)与 HRV 基准建立过程。您的历史数据都会被保留下来。如果因为您第一周佩戴时状态不佳（比如生病），导致基线严重偏离了正常水平，请使用此功能。</string>
     <string name="l10n_settings_screen_trend_charts_19085c81">趋势图表</string>
+    <string name="l10n_settings_screen_try_history_sync_without_pairing_experimental_54c31ea2">尝试在未配对状态下同步历史数据（实验性）</string>
+    <string name="l10n_settings_screen_try_history_sync_without_pairing_33ae8594">尝试在未配对状态下同步历史数据</string>
     <string name="l10n_settings_screen_try_whoop_5_mg_protocol_probes_1d584653">尝试触发 WHOOP 5.0/MG 协议探针</string>
     <string name="l10n_settings_screen_units_12748281">度量单位</string>
     <string name="l10n_settings_screen_unlock_whoop_5_mg_deep_data_2f2bd226">解锁 WHOOP 5.0/MG 的深层数据 (R22协议)</string>
@@ -2521,6 +2523,7 @@
     <string name="raw_diag_protocol_probes">协议探测</string>
     <string name="raw_diag_broadcast_hr">从手环广播心率</string>
     <string name="raw_diag_pair">请求 Android 配对</string>
+    <string name="raw_diag_unbonded_offload">尝试在未配对状态下同步历史数据</string>
     <string name="raw_diag_r22">旧版 R22 功能标志实验</string>
     <string name="raw_diag_r22_enable">发送旧版 R22 启用序列</string>
     <string name="raw_diag_r22_clear">清除手环上的 R22 标志</string>

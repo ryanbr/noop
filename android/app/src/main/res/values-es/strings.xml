@@ -1385,6 +1385,8 @@
     <string name="l10n_settings_screen_this_is_a_plain_unencrypted_archive_b0dfe63d">Es un archivo sencillo y sin cifrar: cualquiera que consiga el archivo puede abrirlo con cualquier herramienta zip. Guárdelo en un lugar de confianza.</string>
     <string name="l10n_settings_screen_this_restarts_the_roughly_4_night_c610a93d">Esto reinicia el período de unas 4 noches de construcción de la Carga y tu línea base de VFC. Tu historial se conserva. Úsalo si una mala primera semana, como usarla estando enfermo, desvió tu línea base.</string>
     <string name="l10n_settings_screen_trend_charts_19085c81">Gráficos de tendencias</string>
+    <string name="l10n_settings_screen_try_history_sync_without_pairing_experimental_54c31ea2">Probar la sincronización del historial sin vinculación (experimental)</string>
+    <string name="l10n_settings_screen_try_history_sync_without_pairing_33ae8594">Probar la sincronización del historial sin vinculación</string>
     <string name="l10n_settings_screen_try_whoop_5_mg_protocol_probes_1d584653">Prueba las sondas del protocolo WHOOP 5/MG</string>
     <string name="l10n_settings_screen_units_12748281">Unidades</string>
     <string name="l10n_settings_screen_unlock_whoop_5_mg_deep_data_2f2bd226">Desbloquear datos profundos de WHOOP 5/MG (R22)</string>
@@ -2608,6 +2610,7 @@
     <string name="raw_diag_protocol_probes">Sondas de protocolo</string>
     <string name="raw_diag_broadcast_hr">Transmitir frecuencia cardíaca desde la pulsera</string>
     <string name="raw_diag_pair">Pedir a Android que vincule</string>
+    <string name="raw_diag_unbonded_offload">Probar la sincronización del historial sin vinculación</string>
     <string name="raw_diag_r22">Experimento antiguo de indicadores R22</string>
     <string name="raw_diag_r22_enable">Enviar secuencia de activación R22 antigua</string>
     <string name="raw_diag_r22_clear">Borrar indicadores R22 de la pulsera</string>

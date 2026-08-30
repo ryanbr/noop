@@ -104,6 +104,7 @@ fun TestCentreScreen(vm: AppViewModel, onOpenGroundTruthCollector: () -> Unit = 
     var deepData by remember { mutableStateOf(puffinExperiment.isDeepDataEnabled) }
     var broadcastHr by remember { mutableStateOf(puffinExperiment.broadcastHr) }
     var explicitBond by remember { mutableStateOf(puffinExperiment.explicitBond) }
+    var unbondedOffload by remember { mutableStateOf(puffinExperiment.unbondedOffload) }
     var ecgRawData by remember { mutableStateOf(puffinExperiment.ecgRawData) }
     val r22DisableReport by vm.ble.r22DisableReport.collectAsStateWithLifecycle()
     val ecgGateReport by vm.ble.ecgRawDataGate.collectAsStateWithLifecycle()
@@ -243,6 +244,19 @@ fun TestCentreScreen(vm: AppViewModel, onOpenGroundTruthCollector: () -> Unit = 
                         onCheckedChange = {
                             explicitBond = it
                             puffinExperiment.explicitBond = it
+                        },
+                    )
+                    DeveloperToggleRow(
+                        title = stringResource(R.string.raw_diag_unbonded_offload),
+                        detail = "Subscribes the puffin notify characteristics on a link with no " +
+                            "CLIENT_HELLO, then asks the strap a read-only GET_CLOCK. If it answers, the " +
+                            "clock is set and history is requested. Once per link, and never again on a " +
+                            "strap that refuses. Takes effect on the next connect, not this one. " +
+                            "Leave it off unless you are testing #1635.",
+                        checked = unbondedOffload,
+                        onCheckedChange = {
+                            unbondedOffload = it
+                            puffinExperiment.unbondedOffload = it
                         },
                     )
                     DeveloperToggleRow(

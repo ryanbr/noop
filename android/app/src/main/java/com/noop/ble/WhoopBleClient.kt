@@ -868,6 +868,13 @@ class WhoopBleClient(
         /** 5/MG fail-open gate: how long to wait for a GET_DATA_RANGE SUCCESS before requesting
          *  history anyway (real hardware sometimes swallows the first range query, #78 fork). */
         private const val DATA_RANGE_GATE_MS = 2_000L
+
+        /** #1635: how long the unbonded probe listens for a COMMAND_RESPONSE to its GET_CLOCK.
+         *  Generous next to [DATA_RANGE_GATE_MS] on purpose — a strap that has never held a session may be
+         *  slower than one mid-sync, and the cost of waiting is a few seconds on a link that is already
+         *  stable, while the cost of asking too early is a false "does not answer" that closes #1635 the
+         *  wrong way. */
+        private const val UNBONDED_PROBE_REPLY_WAIT_MS = 8_000L
         /** 5/MG zero-frame retry: pause before re-requesting history when a session timed out having
          *  produced nothing (the first request after connect can go entirely unanswered). */
         private const val WHOOP5_HISTORY_RETRY_DELAY_MS = 700L
@@ -2335,6 +2342,43 @@ class WhoopBleClient(
      *  written in a GATT callback (binder thread), read in beginBackfill (main-looper timer). (ryanbr, #1032) */
     @Volatile
     private var connectHandshakeDone = false
+
+    /** #1635 unbonded offload probe: stage 1 (the puffin CCCD writes) is in flight. @Volatile — set on the
+     *  main looper, read in onDescriptorWrite on the binder thread. */
+    @Volatile
+    private var unbondedProbeSubscribing = false
+
+    /** #1635: stage 2 is in flight — GET_CLOCK is out and we are listening for a COMMAND_RESPONSE.
+     *  @Volatile: cleared on the main looper, read in the notify handler on the binder thread. */
+    @Volatile
+    private var unbondedProbeAwaitingReply = false
+
+    /** #1635: the probe has run on THIS link. Separate from [unbondedProbeAwaitingReply] because the
+     *  keep-alive drains the same CCCD queue every 30s and would otherwise re-enter the probe's own
+     *  completion branch for the life of the connection. */
+    private var unbondedProbeStartedThisLink = false
+
+    /** #1635: the strongest evidence seen this link, never the most recent — REALTIME_DATA follows a
+     *  COMMAND_RESPONSE continuously once realtime is armed, and last-one-wins would report "not
+     *  answering" about a strap that had just answered. @Volatile: written in the notify handler. */
+    @Volatile
+    private var unbondedProbeEvidence = UnbondedProbeEvidence.NONE
+
+    /** #1635: when stage 2's GET_CLOCK went out, so the verdict line can state the wait it actually
+     *  waited rather than the one it intended to. */
+    private var unbondedProbeAskedAtMs = 0L
+
+    /** #1635: puffin CCCD writes the stack CONFIRMED this link. A subscribe can also end by being
+     *  abandoned after its busy retries, which reaches the same drain-empty branch as a clean one — so the
+     *  count, not the branch, is what says the transport is open. @Volatile: incremented in
+     *  onDescriptorWrite on the binder thread, read on the main looper. */
+    @Volatile
+    private var unbondedProbeSubscribed = 0
+
+    /** #1635: links that subscribed the puffin chars and drew no reply. Per PROCESS, deliberately NOT
+     *  cleared by [reset] — its whole job is to bound a retry that spans reconnects. A refusal latches per
+     *  device instead; silence is weaker evidence and gets a budget rather than a verdict. */
+    private var unbondedProbeSilentLinks = 0
 
     /** True when the user asked to disconnect; suppresses the auto-rescan (Swift `intentionalDisconnect`).
      *  Written on the main looper (connect/disconnect/keep-alive bounce) and read on the GATT binder
@@ -4615,6 +4659,204 @@ class WhoopBleClient(
         readDisIdentity()
     }
 
+    /**
+     * Schedule the unbonded offload probe on a link that will carry NO CLIENT_HELLO (#1635).
+     *
+     * Called from BOTH no-hello paths for the same reason [scheduleUnbondedDisRead] is: the deferral path
+     * returns early, so scheduling it in the suppression path alone would skip exactly the people testing.
+     *
+     * Staggered AFTER the DIS chain rather than beside it. Both ride one serialized GATT queue, and the DIS
+     * reads are the cheaper, already-proven operation — letting four CCCD writes contend with them would
+     * make a failure in either unattributable to the one that caused it.
+     */
+    private fun scheduleUnbondedOffloadProbe() {
+        handler.postDelayed({ gatt?.let { beginUnbondedOffloadProbe(it) } }, BATTERY_ON_CONNECT_DELAY_MS * 4)
+    }
+
+    /**
+     * Stage 1: subscribe the puffin notify characteristics on an unbonded link.
+     *
+     * This is the operation nothing on record has ever completed. The offload arrives on fd4b0003/4/5/7,
+     * and those are subscribed in exactly one place — the post-CLIENT_HELLO branch — so a strap that never
+     * bonds never has them enabled and could not receive history even if it offered it. See
+     * [shouldProbeUnbondedOffload] for why the assumption that they need encryption has never been tested
+     * here.
+     */
+    @SuppressLint("MissingPermission")
+    private fun beginUnbondedOffloadProbe(g: BluetoothGatt) {
+        val refused = runCatching {
+            unbondedOffloadRefusedPrefKey(g.device.address)?.let {
+                context.getSharedPreferences(com.noop.ui.NoopPrefs.NAME, android.content.Context.MODE_PRIVATE)
+                    .getBoolean(it, false)
+            } ?: false
+        }.getOrDefault(false)
+        if (!shouldProbeUnbondedOffload(
+                isWhoop5 = connectedFamily == DeviceFamily.WHOOP5,
+                optedIn = PuffinExperiment.from(context).unbondedOffload,
+                bonded = didBond,
+                helloWrittenThisLink = helloWrittenThisLink,
+                alreadyProbedThisLink = unbondedProbeStartedThisLink,
+                previouslyRefused = refused,
+                silentLinksSoFar = unbondedProbeSilentLinks,
+            )
+        ) return
+        val svc = g.getService(WHOOP5_SERVICE) ?: return
+        // Claim the link BEFORE queueing, so a keep-alive drain landing between the two cannot start a
+        // second probe against the same four characteristics.
+        unbondedProbeStartedThisLink = true
+        var queued = 0
+        for (u in WHOOP5_NOTIFY_CHARS) svc.getCharacteristic(u)?.let { cccdQueue.add(it); queued++ }
+        // An empty queue drains INSTANTLY to the probe's own completion branch, which would announce
+        // "puffin chars subscribed — the strap serves them on an unencrypted link" having subscribed
+        // nothing at all. That is a fabricated finding in the one log this experiment exists to produce,
+        // so the claim is made only once there is something behind it.
+        if (queued == 0) {
+            log("Unbonded offload probe: the strap exposes none of the puffin notify chars on this link" +
+                " — nothing to subscribe, so there is no question to ask (#1635)")
+            return
+        }
+        unbondedProbeSubscribing = true
+        unbondedProbeSubscribed = 0
+        unbondedProbeEvidence = UnbondedProbeEvidence.NONE
+        log(unbondedProbeStartLine())
+        drainCccdQueue(g)
+    }
+
+    /**
+     * Stage 1 came back refused — the answer the probe exists to obtain.
+     *
+     * Latched per device so the strap declines once rather than on every reconnect, with the same carve-out
+     * [noteReadFailure] makes: a link with an OS pairing in flight can fail a descriptor write for reasons
+     * that are ours, not the strap's, and latching that would blame the strap for our own timing forever.
+     */
+    private fun noteUnbondedProbeRefused(uuid: java.util.UUID, status: Int) {
+        unbondedProbeSubscribing = false
+        unbondedProbeAwaitingReply = false
+        log(puffinSubscribeRefusedLine(uuid.toString(), gattWriteStatusLabel(status)))
+        if (explicitBondRequestedThisLink) {
+            log("Unbonded offload probe: not latching that refusal — a pairing was requested on this link," +
+                " so the failure is not attributable to the strap (#1635)")
+            return
+        }
+        runCatching {
+            unbondedOffloadRefusedPrefKey(lastDeviceAddress)?.let {
+                context.getSharedPreferences(com.noop.ui.NoopPrefs.NAME, android.content.Context.MODE_PRIVATE)
+                    .edit().putBoolean(it, true).apply()
+            }
+        }
+    }
+
+    /**
+     * Stage 2: the subscriptions landed, so ask the strap a read-only question.
+     *
+     * GET_CLOCK and not GET_DATA_RANGE, and certainly not SET_CLOCK. It changes nothing on the strap, so a
+     * strap that turns out not to be listening has had nothing done to it — and a COMMAND_RESPONSE to it is
+     * the first evidence in this whole thread that a puffin command written over an unencrypted link is
+     * parsed and answered rather than merely handed to the controller.
+     */
+    private fun askUnbondedProbeQuestion() {
+        unbondedProbeAwaitingReply = true
+        unbondedProbeAskedAtMs = System.currentTimeMillis()
+        log(unbondedProbeAskingLine(
+            subscribed = unbondedProbeSubscribed,
+            total = WHOOP5_NOTIFY_CHARS.size,
+            waitMs = UNBONDED_PROBE_REPLY_WAIT_MS,
+        ))
+        // WITHOUT response, and that is not a detail. A with-response write to fd4b0002 is precisely what
+        // the CLIENT_HELLO does, and on this strap it never completes - leaving writeInFlight set and the
+        // whole write queue starved behind a callback that is never coming. Using it here would risk the
+        // working live-HR state to ask a question that does not need it: the evidence this probe wants is
+        // the strap's own COMMAND_RESPONSE arriving on the notify chars, not an ATT acknowledgement of the
+        // write. DISABLE_ALARM and TOGGLE_REALTIME_HR already go out this way on exactly these links.
+        send(CommandNumber.GET_CLOCK, byteArrayOf())
+        handler.postDelayed({ concludeUnbondedProbe() }, UNBONDED_PROBE_REPLY_WAIT_MS)
+    }
+
+    /**
+     * Stage 2's verdict, and the handover to the ordinary offload if it passed.
+     *
+     * Runs on the timeout OR early on the first COMMAND_RESPONSE; [unbondedProbeAwaitingReply] makes it
+     * once-only, so the timer firing after an early success is a no-op rather than a second verdict.
+     *
+     * On success this sets [connectHandshakeDone] and NOTHING else about the bond state. `didBond` stays
+     * false deliberately: it is the record of an acked CLIENT_HELLO, which did not happen, and every one of
+     * its readers — the bond watchdog, the never-bonded self-drop counter, the stale-pairing guide — is
+     * reasoning about a handshake, not about whether history can flow. Setting it to unlock the offload is
+     * exactly the false-bond bug of 28 Aug, arrived at deliberately instead of by accident.
+     */
+    private fun concludeUnbondedProbe() {
+        if (!unbondedProbeAwaitingReply) return
+        unbondedProbeAwaitingReply = false
+        val waited = System.currentTimeMillis() - unbondedProbeAskedAtMs
+        if (unbondedProbeEvidence != UnbondedProbeEvidence.ANSWERS_COMMANDS) {
+            log(unbondedProbeSilentLine(
+                waitedMs = waited,
+                sawNotifications = unbondedProbeEvidence == UnbondedProbeEvidence.SERVES_NOTIFICATIONS,
+            ))
+            // Not latched per device: the subscriptions were accepted, so this says the strap did not
+            // answer THIS time, and the carve-out the refusal path makes for a pairing in flight would
+            // apply here with less certainty, not more. Once-per-LINK does not bound it, though — the
+            // probe re-runs on every reconnect — so silence spends a per-process budget instead of writing
+            // a permanent verdict from an ambiguous result.
+            unbondedProbeSilentLinks++
+            if (!unbondedProbeStillWorthAsking(unbondedProbeSilentLinks)) {
+                log(unbondedProbeGaveUpLine(unbondedProbeSilentLinks))
+            }
+            return
+        }
+        log(unbondedProbeAnsweredLine())
+        log(unbondedProbeBacklogCaveatLine())
+        // A genuine answer clears the silence budget: whatever the quiet links were, they were not this
+        // strap declining to talk, and a later reconnect must not inherit their count.
+        unbondedProbeSilentLinks = 0
+        // The proven 5/MG handshake tail, minus the hello that cannot happen: clock the strap, then offload.
+        // Clock-before-history is mandatory — an un-clocked 5/MG discards sensor data rather than banking it
+        // — and it is only reached here because the strap has just demonstrated it answers commands.
+        connectHandshakeDone = true
+        // requestSync ALSO gates on state.bonded, and for a 5/MG that flag is set by the live-HR path -
+        // the first plausible reading over the standard profile. A strap sitting on a charger streams no
+        // HR, so without this the probe would succeed, announce it, and then be refused by a second gate
+        // in silence - on exactly the strap you would reach for history sync on. Same flag and same
+        // meaning the live-HR path sets ("the link is established"), NOT encryptedBond, which remains the
+        // record of a genuine handshake and stays false because none happened.
+        _state.update { it.copy(bonded = true) }
+        // Deliberately NOT startKeepAlive(), which the live-HR path pairs with this same flag. The
+        // keep-alive bounces a link that has been quiet for 120s, and a strap on a charger with no offload
+        // yet running is exactly that - so arming it here would tear down the stable link this probe spent
+        // three stages establishing. The link needs no keep-alive to be probed; it needs to be left alone.
+        noteRebootReconnectIfNeeded()
+        // Also without response, for the reason above. The bonded tail uses with-response here, but it
+        // runs on a link that completed a handshake; this one has proved only that the strap ANSWERS, not
+        // that it acknowledges. The offload that follows still writes GET_DATA_RANGE and
+        // SEND_HISTORICAL_DATA with response through the ordinary path, so if with-response is the thing
+        // this strap will not do, the log separates that cleanly from the stages above rather than
+        // wedging the queue before any of them can be read.
+        send(CommandNumber.SET_CLOCK, setClockPayload())
+        send(CommandNumber.GET_CLOCK, byteArrayOf())
+        if (!backfillStarted) {
+            backfillStarted = true
+            handler.postDelayed({ requestSync(BackfillTrigger.CONNECT) }, INITIAL_BACKFILL_DELAY_MS)
+            startBackfillTimer()
+        }
+    }
+
+    /**
+     * Record what a puffin frame proves while the probe is listening.
+     *
+     * Called from the notify handler on the binder thread, which is why the conclusion hops to the main
+     * looper: [concludeUnbondedProbe] queues GATT writes and touches handler-scoped timers.
+     */
+    private fun noteUnbondedProbeFrame(parsed: com.noop.protocol.ParsedFrame) {
+        if (!unbondedProbeAwaitingReply) return
+        unbondedProbeEvidence = strongerProbeEvidence(
+            unbondedProbeEvidence,
+            unbondedProbeEvidenceOf(ok = parsed.ok, crcOk = parsed.crcOk, typeName = parsed.typeName),
+        )
+        if (unbondedProbeEvidence == UnbondedProbeEvidence.ANSWERS_COMMANDS) {
+            handler.post { concludeUnbondedProbe() }
+        }
+    }
+
     /** Chained second half of [readDisIdentity] — issued only after the serial read has landed. */
     private fun readDisHardwareRevision() {
         val g = gatt ?: return
@@ -6094,8 +6336,19 @@ class WhoopBleClient(
         ) {
             if (status != BluetoothGatt.GATT_SUCCESS) {
                 log("Notify enable failed for ${descriptor.characteristic?.uuid}: status=$status")
+                // #1635: on the puffin notify chars during the unbonded probe, this IS the result — the
+                // generic line above cannot say so, because it is written for a transient stack failure
+                // and this is a verdict about whether the offload needs an encrypted link at all.
+                descriptor.characteristic?.uuid?.let { u ->
+                    if (unbondedProbeSubscribing && u in WHOOP5_NOTIFY_CHARS) noteUnbondedProbeRefused(u, status)
+                }
             } else {
                 log("Subscribed ${descriptor.characteristic?.uuid}")
+                // #1635: only a CONFIRMED puffin subscribe counts toward the probe's claim that the strap
+                // serves these chars unbonded.
+                descriptor.characteristic?.uuid?.let { u ->
+                    if (unbondedProbeSubscribing && u in WHOOP5_NOTIFY_CHARS) unbondedProbeSubscribed++
+                }
                 // A subscribe landed — replenish the shared BUSY-retry budget so a transient stall on
                 // one characteristic can't starve the others' retries (the counter is global).
                 cccdRetries = 0
@@ -6233,6 +6486,9 @@ class WhoopBleClient(
                     // live collector) instead of each re-parsing it — steady-state drops 2→1 parse per live
                     // frame. Family-aware, so it's correct for WHOOP4 and 5/MG alike.
                     val parsed = Framing.parseFrame(frame, connectedFamily)
+                    // #1635: while the unbonded probe is listening, this frame is the measurement. Gated
+                    // inside the call so a normal link pays one boolean read per frame.
+                    noteUnbondedProbeFrame(parsed)
                     // A frame replayed as part of the historical offload (type 47/48/… during a backfill)
                     recordGroundTruthImuFrame(frame)
                     // must not drive LIVE-only state (the charging pill). (PR #568 reimpl)
@@ -7998,6 +8254,7 @@ class WhoopBleClient(
                     // path uses — and without this the DIS read never runs for anyone with the pairing
                     // experiment on, which is precisely who is testing.
                     scheduleUnbondedDisRead()
+                    scheduleUnbondedOffloadProbe()
                     return
                 }
 
@@ -8044,6 +8301,7 @@ class WhoopBleClient(
                     // both harder to read. If the read is what tears a stable link down, that is
                     // unambiguous — and it latches, so it costs one link and not a loop.
                     scheduleUnbondedDisRead()
+                    scheduleUnbondedOffloadProbe()
                 }
             }
         }
@@ -8060,6 +8318,18 @@ class WhoopBleClient(
         if (cccdInFlight) return
         val ch = cccdQueue.poll()
         if (ch == null) {
+            // #1635: the unbonded probe's own drain. BEFORE the bonded branch because that one requires
+            // didBond, which the probe deliberately never sets — and this must not fall through to
+            // startSession, which would re-enter the hello decision on a link that already made it.
+            if (connectedFamily == DeviceFamily.WHOOP5 && unbondedProbeSubscribing) {
+                unbondedProbeSubscribing = false
+                if (unbondedProbeSubscribed == 0) {
+                    log(unbondedProbeNoSubscriptionsLine(WHOOP5_NOTIFY_CHARS.size))
+                    return
+                }
+                askUnbondedProbeQuestion()
+                return
+            }
             // 5/MG handshake tail: after the PUFFIN notify chars are subscribed (the post-CLIENT_HELLO
             // drain — didBond is true by then), clock the strap and only then kick the offload. An
             // un-clocked WHOOP 5 discards sensor data ("RTC timestamp … is invalid; not saving data to
@@ -9394,6 +9664,14 @@ class WhoopBleClient(
         // exactly the gap this stopwatch was added to close. It is overwritten by the next request, and a
         // stale value can only ever produce a large elapsed against a label that names what it measures.
         connectHandshakeDone = false
+        // #1635: the probe is per LINK — its whole basis is one stable link's behaviour, and carrying the
+        // "already asked" flag across a reconnect would let one silent link retire the experiment. The
+        // REFUSAL, by contrast, is persisted per device: that one is the strap's answer, not the link's.
+        unbondedProbeStartedThisLink = false
+        unbondedProbeSubscribed = 0
+        unbondedProbeSubscribing = false
+        unbondedProbeAwaitingReply = false
+        unbondedProbeEvidence = UnbondedProbeEvidence.NONE
         helloWrittenThisLink = false
         backfillDeferralsThisLink = 0
         // The deferral run is deliberately NOT cleared: it counts ACROSS connections AND across process

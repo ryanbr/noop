@@ -1403,6 +1403,8 @@
     <string name="l10n_settings_screen_this_is_a_plain_unencrypted_archive_b0dfe63d">C\'est une archive simple, non chiffrée : quiconque récupère le fichier peut l\'ouvrir avec n\'importe quel outil zip. Conservez-le dans un endroit de confiance.</string>
     <string name="l10n_settings_screen_this_restarts_the_roughly_4_night_c610a93d">Cela relance la montée en puissance d\'environ 4 nuits pour la charge et votre référence VFC. Votre historique reste. Utilisez-la si une mauvaise première semaine, comme le porter en étant malade, a faussé votre référence.</string>
     <string name="l10n_settings_screen_trend_charts_19085c81">Tableaux de tendances</string>
+    <string name="l10n_settings_screen_try_history_sync_without_pairing_experimental_54c31ea2">Essayer la synchronisation de l\'historique sans appairage (expérimental)</string>
+    <string name="l10n_settings_screen_try_history_sync_without_pairing_33ae8594">Essayer la synchronisation de l\'historique sans appairage</string>
     <string name="l10n_settings_screen_try_whoop_5_mg_protocol_probes_1d584653">Essayer les sondes de protocole WHOOP 5/MG</string>
     <string name="l10n_settings_screen_units_12748281">Unités</string>
     <string name="l10n_settings_screen_unlock_whoop_5_mg_deep_data_2f2bd226">Débloquer les données approfondies WHOOP 5/MG (R22)</string>
@@ -2607,6 +2609,7 @@
     <string name="raw_diag_protocol_probes">Sondes de protocole</string>
     <string name="raw_diag_broadcast_hr">Diffuser la fréquence cardiaque du bracelet</string>
     <string name="raw_diag_pair">Demander l’appairage à Android</string>
+    <string name="raw_diag_unbonded_offload">Essayer la synchronisation de l\'historique sans appairage</string>
     <string name="raw_diag_r22">Ancienne expérience d’indicateurs R22</string>
     <string name="raw_diag_r22_enable">Envoyer l’ancienne séquence d’activation R22</string>
     <string name="raw_diag_r22_clear">Effacer les indicateurs R22 du bracelet</string>
