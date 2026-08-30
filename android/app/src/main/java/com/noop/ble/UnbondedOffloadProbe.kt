@@ -252,6 +252,24 @@ internal fun unbondedProbeLinkLostLine(
         " reachable on this strap without a bond (#1635)."
 
 /**
+ * Stage 2 ended because the link did, with GET_CLOCK already on the wire.
+ *
+ * Deliberately NOT the same line as [unbondedProbeLinkLostLine], and that distinction is the whole point.
+ * A stage-1 link loss carries a finding — the subscribes drew no callback and no ATT error before the drop,
+ * which is the CLIENT_HELLO's signature. A stage-2 link loss carries none: the subscribes LANDED, the
+ * transport was open, and the strap was still within its window to answer when the link went. Reporting
+ * that as evidence the strap will not answer would be the same conflation this probe keeps having to
+ * unpick.
+ *
+ * It still spends a budget attempt, because an inconclusive link is not a reason to retry forever — that
+ * is the hole this exists to close, and leaving stage 2 uncounted would reopen it one stage later.
+ */
+internal fun unbondedProbeLinkLostAskingLine(uptimeMs: Long, waitedMs: Long): String =
+    "Unbonded offload probe: the link dropped ${uptimeMs}ms into this connect, ${waitedMs}ms after" +
+        " GET_CLOCK went out. The subscribes had landed, so the transport was open and the strap was still" +
+        " inside its window to answer — this link settles nothing either way (#1635)."
+
+/**
  * Stage 2's question, logged so the wait that follows is attributable to it.
  *
  * Carries the CONFIRMED count, not the attempted one. A CCCD write can also end by being abandoned after

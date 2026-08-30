@@ -108,6 +108,28 @@ class UnbondedOffloadProbeTest {
     }
 
     /**
+     * The same hole, one stage later. The verdict timer is cancelled on teardown, so a link lost during
+     * the GET_CLOCK wait would also report nothing and also fail to spend a budget attempt — reopening the
+     * unbounded retry immediately below where it was closed.
+     *
+     * It must NOT reuse stage 1's line. Stage 1's loss carries a finding (no callback, no ATT error, then
+     * a drop — the CLIENT_HELLO's signature). Stage 2's carries none: the subscribes landed, so the
+     * transport was open and the strap was still inside its window. Conflating them would manufacture
+     * evidence out of an inconclusive link.
+     */
+    @Test
+    fun `a link lost while asking settles nothing, and says so`() {
+        val line = unbondedProbeLinkLostAskingLine(uptimeMs = 9_000L, waitedMs = 2_500L)
+        assertTrue(line.contains("9000ms"))
+        assertTrue(line.contains("2500ms"))
+        assertTrue(line.contains("settles nothing"))
+        assertTrue(line.contains("#1635"))
+        // The stage-1 finding must not leak into it.
+        assertFalse(line.contains("CLIENT_HELLO"))
+        assertFalse(line.contains("no ATT error"))
+    }
+
+    /**
      * A partial subscribe must report honestly rather than rounding to zero — it is a different fact about
      * the strap than "none of them landed".
      */
