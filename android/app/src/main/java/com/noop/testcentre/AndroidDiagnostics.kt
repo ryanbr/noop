@@ -290,7 +290,11 @@ object AndroidDiagnostics {
             // per-bout tracing for that sits behind the Test Centre WORKOUTS domain, which a reporter
             // filing a non-test-mode bug will not have on. Counts read from the store, so this states what
             // IS, not what the code intends.
-            add(
+            // Guarded SEPARATELY from the section: this file's contract is that every probe is guarded,
+            // and a throw in here would otherwise be caught by the outer handler and reported as
+            // "(workout sources unavailable)" - blaming the store for a failure in the auto-detect probe,
+            // with the sources sitting right above it having plainly worked.
+            runCatching {
                 autoDetectStateLine(
                     suggestionCardEnabled = com.noop.ui.NoopPrefs.autoDetectWorkouts(context),
                     storedDetectedRows = perSource.flatMap { it.second }.count { it.sport == "detected" },
@@ -301,8 +305,8 @@ object AndroidDiagnostics {
                     dismissedMarkers = runCatching {
                         listOf(active, "my-whoop").distinct().sumOf { repo.dismissedDetected(it).size }
                     }.getOrNull(),
-                ),
-            )
+                )
+            }.onSuccess { add(it) }.onFailure { add("(auto-detect state unavailable: ${it.message})") }
         }.onFailure { add("(workout sources unavailable: ${it.message})") }
     }
 
@@ -619,7 +623,7 @@ object AndroidDiagnostics {
         val card = if (suggestionCardEnabled) "on" else "off"
         val dismissed = dismissedMarkers?.toString() ?: "n/a"
         val note = if (!suggestionCardEnabled && storedDetectedRows > 0) {
-            " (rows present with the card off is EXPECTED: a different detector makes them)"
+            " (rows with the card off are EXPECTED: a different detector makes them)"
         } else {
             ""
         }

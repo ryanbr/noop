@@ -19,12 +19,12 @@ class AutoDetectStateLineTest {
     fun `only the misleading combination gets the reassurance`() {
         val misleading = AndroidDiagnostics.autoDetectStateLine(false, storedDetectedRows = 12, dismissedMarkers = 3)
         assertTrue(misleading.contains("suggestion card=off"))
-        assertTrue(misleading.contains("is EXPECTED"))
+        assertTrue(misleading.contains("are EXPECTED"))
 
         // Card off and NO rows: nothing to explain.
-        assertFalse(AndroidDiagnostics.autoDetectStateLine(false, 0, 0).contains("is EXPECTED"))
+        assertFalse(AndroidDiagnostics.autoDetectStateLine(false, 0, 0).contains("are EXPECTED"))
         // Card ON: rows are unsurprising to a reader who just enabled it.
-        assertFalse(AndroidDiagnostics.autoDetectStateLine(true, 12, 0).contains("is EXPECTED"))
+        assertFalse(AndroidDiagnostics.autoDetectStateLine(true, 12, 0).contains("are EXPECTED"))
     }
 
     /** The load-bearing fact: the engine rows are not governed by the toggle. Always stated. */
