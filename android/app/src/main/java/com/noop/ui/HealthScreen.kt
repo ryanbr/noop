@@ -2079,6 +2079,19 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
                     formatValue = { "${detail.format(it)} ${detail.unit}".trim() },
                     segmentIds = if (key == "vo2max_est") vo2MaxTrendSegmentIds(filteredReadings) else null,
                 )
+                // #1662: the VO2max line is SPLIT on purpose wherever the estimator changes, so two
+                // non-adjacent Nes runs are never joined across an incompatible Uth stretch. Nothing said
+                // so, and a silent gap in a trend is indistinguishable from a rendering fault - it was
+                // reported as "something weird with a broken line". Shown only when a break actually
+                // exists, so it explains the chart in front of the reader rather than describing a
+                // behaviour they cannot see.
+                if (key == "vo2max_est" && vo2MaxTrendHasMethodChange(filteredReadings)) {
+                    Text(
+                        text = uiString(R.string.vo2max_method_change_caption),
+                        style = NoopType.footnote,
+                        color = Palette.textTertiary,
+                    )
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -2351,7 +2364,13 @@ private suspend fun buildSeriesVitalDetail(vm: AppViewModel, key: String): Vital
                 )
                 VitalReading(point.day, point.value, vo2MaxAttributionSource(estimator))
             },
-            format = { it.roundToInt().toString() },
+            // #1662: ONE decimal, matching the iOS catalog's `decimals: 1` for this key. Android rounded
+            // to an integer, so a chart plotted at full precision sat under labels that could not move
+            // with it: VO2max shifts well under 1 ml/kg between weekly points, so the line visibly sloped
+            // while every read-out, the Min/Avg/Max row and the readings table all printed the same
+            // number. #1664 made those text surfaces agree with each other; it could not make them agree
+            // with the LINE, because the precision was too coarse to express what the line draws.
+            format = { String.format(Locale.US, "%.1f", it) },
         )
     }
     "steps_est" -> {

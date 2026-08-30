@@ -49,6 +49,17 @@ internal fun vo2MaxTrendSegmentIds(readings: List<VitalReading>): List<String> {
     }
 }
 
+/**
+ * Does this VO2max trend actually contain a method change, i.e. will the chart show a visible break?
+ *
+ * Derived from [vo2MaxTrendSegmentIds] rather than recomputed, so the caption and the segmentation can
+ * never disagree: if the ids collapse to one group the line is continuous and there is nothing to
+ * explain. Two readings from the SAME estimator with a gap in days are one segment and correctly get no
+ * caption - the break this describes is a change of method, not a pause in the data.
+ */
+internal fun vo2MaxTrendHasMethodChange(readings: List<VitalReading>): Boolean =
+    vo2MaxTrendSegmentIds(readings).distinct().size > 1
+
 /** #377: merge the three step stores into one per-day series with the SAME precedence as the Today
  *  Steps tile — a REAL on-device count ([real], WHOOP 5/MG @57 → DailyMetric.steps) wins, else an
  *  [imported] Health Connect / Apple Health count, else the motion-model [est] (`steps_est`). The three

@@ -182,6 +182,16 @@ func vo2MaxAttributionSource(_ estimator: Vo2MaxEstimator?) -> String {
     vo2MaxAttributionPrefix + (estimator?.rawValue ?? "unknown")
 }
 
+/// Does this VO₂max trend actually contain a method change, i.e. will the chart show a visible break?
+///
+/// Derived from `vo2MaxTrendSegmentIds` rather than recomputed, so the caption and the segmentation can
+/// never disagree. A GAP IN DAYS under one estimator is still a single segment and draws no break, so it
+/// correctly gets no caption: the break this describes is a change of method, not a pause in the data.
+/// Kotlin twin `vo2MaxTrendHasMethodChange`.
+func vo2MaxTrendHasMethodChange(days: [String], sourceByDay: [String: String]) -> Bool {
+    Set(vo2MaxTrendSegmentIds(days: days, sourceByDay: sourceByDay)).count > 1
+}
+
 /// Sequential segment ids for the VO₂max trend. The counter matters when a user changes Nes → Uth → Nes:
 /// using the method name alone would reconnect the two non-adjacent Nes runs across the Uth interval.
 func vo2MaxTrendSegmentIds(days: [String], sourceByDay: [String: String]) -> [String] {
@@ -1073,6 +1083,18 @@ struct MetricDetailView: View {
                 height: NoopMetrics.chartHeight,
                 valueFormat: { fmt($0) }
             )
+            // #1662: the VO₂max line is SPLIT on purpose wherever the estimator changes, so two
+            // non-adjacent Nes runs are never joined across an incompatible Uth stretch. Nothing said so,
+            // and a silent gap in a trend is indistinguishable from a rendering fault — it was reported
+            // as "something weird with a broken line". Shown only when a break actually exists, so it
+            // explains the chart in front of the reader rather than a behaviour they cannot see.
+            if metric.key == "vo2max_est",
+               vo2MaxTrendHasMethodChange(days: windowed.map(\.day), sourceByDay: sourceByDay) {
+                Text("A break in the line marks where the estimation method changed.")
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         } footer: {
             ChartFooter([
                 ("Window", effectiveRange.label),
