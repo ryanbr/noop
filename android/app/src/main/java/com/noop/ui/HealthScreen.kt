@@ -278,7 +278,9 @@ private fun SyncStatusSection(vm: AppViewModel, onSyncNow: () -> Unit) {
     // leaf re-runs per tick. Appearance + behaviour identical.
     val live by vm.live.collectAsStateWithLifecycle()
     // The strap link is usable for a manual offload kick (matches WhoopBleClient.syncNow's own gate).
-    val canSync = live.connected && live.bonded && !live.backfilling
+    // historyReady, not `bonded`: on a 5/MG the live-HR path sets `bonded` for a strap that has never
+    // completed a handshake, so this button enabled itself and beginBackfill then declined it silently.
+    val canSync = live.connected && live.bonded && live.historyReady && !live.backfilling
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
         SectionHeader(
             "Sync",

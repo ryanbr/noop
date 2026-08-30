@@ -201,6 +201,14 @@ data class LiveState(
     /** Set when an offload ended abnormally (strap went quiet mid-sync / idle-watchdog fired), so a
      *  stalled history download isn't silent. Cleared on the next successful HISTORY_COMPLETE. (PR #85) */
     val lastSyncError: String? = null,
+    /** True once this strap can actually hand over history — the UI mirror of the client's
+     *  `connectHandshakeDone`, which [beginBackfill] already requires before it will request an offload.
+     *
+     *  Exposed because [bonded] is NOT that condition and reads true too early: the live-HR path sets it
+     *  for a 5/MG that has never completed a handshake, so Today offered a pull-to-sync that was accepted
+     *  by the gesture and then refused deeper down, silently. Gating on this makes the control unavailable
+     *  exactly when the sync would have been declined anyway — never when it would have run. */
+    val historyReady: Boolean = false,
     /** Set when a connect attempt fails because the strap wiped its Bluetooth bond — a firmware reset,
      *  or the official WHOOP app re-bonding it. The OS still holds a now-stale bond, so retrying the
      *  direct connect just re-fails. Carries an actionable forget+re-pair guide; cleared on the next
@@ -4869,6 +4877,7 @@ class WhoopBleClient(
         // Clock-before-history is mandatory — an un-clocked 5/MG discards sensor data rather than banking it
         // — and it is only reached here because the strap has just demonstrated it answers commands.
         connectHandshakeDone = true
+        _state.update { it.copy(historyReady = true) }
         // requestSync ALSO gates on state.bonded, and for a 5/MG that flag is set by the live-HR path -
         // the first plausible reading over the standard profile. A strap sitting on a charger streams no
         // HR, so without this the probe would succeed, announce it, and then be refused by a second gate
@@ -6380,6 +6389,7 @@ class WhoopBleClient(
             // WHOOP 5.0/MG uses CLIENT_HELLO, not this WHOOP4 command sequence, so it is skipped for it.
             if (!connectHandshakeDone && connectedFamily == DeviceFamily.WHOOP4) {
                 connectHandshakeDone = true
+                _state.update { it.copy(historyReady = true) }
                 noteRebootReconnectIfNeeded()
                 runConnectHandshake()
             }
@@ -8437,6 +8447,7 @@ class WhoopBleClient(
             // once-per-connection (keep-alive resubscribes also land here). (#78 fork, hardware-proven)
             if (connectedFamily == DeviceFamily.WHOOP5 && didBond && !connectHandshakeDone) {
                 connectHandshakeDone = true
+                _state.update { it.copy(historyReady = true) }
                 noteRebootReconnectIfNeeded()
                 send(CommandNumber.SET_CLOCK, setClockPayload(), withResponse = true)
                 send(CommandNumber.GET_CLOCK, byteArrayOf(), withResponse = true)
@@ -9771,6 +9782,9 @@ class WhoopBleClient(
         // exactly the gap this stopwatch was added to close. It is overwritten by the next request, and a
         // stale value can only ever produce a large elapsed against a label that names what it measures.
         connectHandshakeDone = false
+        // Mirrors the flag above: a new link has not done the handshake, so it cannot hand over history
+        // until it does. Cleared HERE and nowhere else, so the two can never disagree.
+        _state.update { it.copy(historyReady = false) }
         // #1635: the probe is per LINK — its whole basis is one stable link's behaviour, and carrying the
         // "already asked" flag across a reconnect would let one silent link retire the experiment. The
         // REFUSAL, by contrast, is persisted per device: that one is the strap's answer, not the link's.

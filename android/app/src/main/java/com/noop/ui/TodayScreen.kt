@@ -252,6 +252,9 @@ private data class TodayLiveSnapshot(
     val lastSyncAt: Long?,
     val backfilling: Boolean,
     val syncChunksThisSession: Int,
+    /** Mirrors `LiveState.historyReady` — whether this strap can actually hand over history. Flips at
+     *  most once per connection, so it costs the snapshot nothing. */
+    val historyReady: Boolean,
     val historySyncExperimental: Boolean,
     val batteryPct: Double?,
     /** True once a WHOOP 5/MG strap has been seen this session, picks the 5/MG rated-life fallback for the
@@ -332,6 +335,7 @@ fun TodayScreen(
                 lastSyncAt = s.lastSyncAt,
                 backfilling = s.backfilling,
                 syncChunksThisSession = s.syncChunksThisSession,
+                historyReady = s.historyReady,
                 historySyncExperimental = s.historySyncExperimental,
                 batteryPct = s.batteryPct,
                 whoop5 = s.whoop5Detected,
@@ -1152,7 +1156,8 @@ fun TodayScreen(
             onHorizontalDrag = { _, dragAmount -> accumulatedX += dragAmount },
         )
     }
-    val canPullToSync = todayPullToSyncEnabled(liveSnap.connected, liveSnap.bonded, liveSnap.backfilling)
+    val canPullToSync =
+        todayPullToSyncEnabled(liveSnap.connected, liveSnap.bonded, liveSnap.backfilling, liveSnap.historyReady)
     // material3 1.2.1's rememberPullToRefreshState CAPTURES the `enabled` lambda ONCE (rememberSaveable,
     // no rememberUpdatedState), so `{ canPullToSync }` would freeze the plain Boolean from the FIRST
     // composition — and Today usually first composes before the strap has (re)connected, leaving the
@@ -1160,7 +1165,11 @@ fun TodayScreen(
     // instead, so each gesture check sees the current connected/bonded/backfilling. (syncNow is triple-gated
     // anyway; this just makes the gesture actually enable once the strap is ready.)
     val pullToSyncState = rememberPullToRefreshState(
-        enabled = { todayPullToSyncEnabled(liveSnap.connected, liveSnap.bonded, liveSnap.backfilling) },
+        enabled = {
+            todayPullToSyncEnabled(
+                liveSnap.connected, liveSnap.bonded, liveSnap.backfilling, liveSnap.historyReady,
+            )
+        },
     )
     LaunchedEffect(pullToSyncState.isRefreshing, canPullToSync) {
         if (pullToSyncState.isRefreshing) {

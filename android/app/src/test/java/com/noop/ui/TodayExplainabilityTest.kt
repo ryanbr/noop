@@ -422,10 +422,44 @@ class TodayExplainabilityTest {
 
     @Test
     fun pullToSync_onlyEnabledWhenConnectedBondedAndIdle() {
-        assertTrue(todayPullToSyncEnabled(connected = true, bonded = true, backfilling = false))
+        assertTrue(todayPullToSyncEnabled(
+            connected = true, bonded = true, backfilling = false, historyReady = true))
 
-        assertFalse(todayPullToSyncEnabled(connected = false, bonded = true, backfilling = false))
-        assertFalse(todayPullToSyncEnabled(connected = true, bonded = false, backfilling = false))
-        assertFalse(todayPullToSyncEnabled(connected = true, bonded = true, backfilling = true))
+        assertFalse(todayPullToSyncEnabled(
+            connected = false, bonded = true, backfilling = false, historyReady = true))
+        assertFalse(todayPullToSyncEnabled(
+            connected = true, bonded = false, backfilling = false, historyReady = true))
+        assertFalse(todayPullToSyncEnabled(
+            connected = true, bonded = true, backfilling = true, historyReady = true))
+    }
+
+    /**
+     * THE case this argument exists for, from the field: a WHOOP 5/MG that has never completed a
+     * handshake. `bonded` is true — the live-HR path sets it — so every other condition passes and the
+     * gesture was offered, accepted, and then refused by `beginBackfill`'s own `connectHandshakeDone`
+     * gate with nothing shown. Reported four times as "refresh doesn't work"; it worked, it was silent.
+     */
+    @Test
+    fun `a strap that cannot hand over history does not offer the gesture`() {
+        assertFalse(todayPullToSyncEnabled(
+            connected = true, bonded = true, backfilling = false, historyReady = false))
+    }
+
+    /**
+     * The no-regression contract, and the reason this is safe to add: the new argument mirrors a
+     * precondition `beginBackfill` ALREADY enforces, so the gesture can only disappear where the sync
+     * would have been declined regardless. It can never withhold a refresh that would have run — which
+     * is exactly what a strap-family check could not promise.
+     */
+    @Test
+    fun `it never withholds a sync that would have run`() {
+        // Every combination the old three-argument gate allowed still passes, provided the client would
+        // actually have accepted it. historyReady=true is that condition, not an extra hurdle.
+        assertTrue(todayPullToSyncEnabled(
+            connected = true, bonded = true, backfilling = false, historyReady = true))
+        // And it catches a case a family check would miss entirely: a WHOOP 4.0 whose bond has not landed
+        // is just as unable to sync as an unpaired 5/MG, and its gesture is just as dead.
+        assertFalse(todayPullToSyncEnabled(
+            connected = true, bonded = false, backfilling = false, historyReady = false))
     }
 }

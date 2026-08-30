@@ -161,13 +161,27 @@ internal fun scoreHeroSourceLabel(
     )
 }
 
-/** Today pull-to-sync mirrors the BLE client's manual-sync guard, so the gesture never starts a sync while
- *  disconnected, still bonding, or already offloading. Kept pure for the UI-specific contract test. */
+/**
+ * Today pull-to-sync mirrors the BLE client's manual-sync guard, so the gesture never starts a sync while
+ * disconnected, still bonding, or already offloading. Kept pure for the UI-specific contract test.
+ *
+ * [historyReady] is the second half of that mirror and was missing. `canRequestSync` checks `bonded`,
+ * which on a 5/MG is set by the live-HR path — true on a strap that has never completed a handshake. So
+ * the gesture was offered, accepted, and then refused by `beginBackfill`'s own `connectHandshakeDone`
+ * gate with nothing shown: a control that ran and did nothing, reported four times as "refresh doesn't
+ * work". It was working; it was silent.
+ *
+ * Adding the client's OWN precondition cannot disable a sync that would have run, because
+ * `beginBackfill` already requires exactly this flag before it will request an offload. The gesture now
+ * goes away precisely when the sync would have been declined anyway — including on a WHOOP 4.0 whose
+ * bond has not landed yet, which a strap-family check would have missed.
+ */
 internal fun todayPullToSyncEnabled(
     connected: Boolean,
     bonded: Boolean,
     backfilling: Boolean,
-): Boolean = WhoopBleClient.canRequestSync(connected, bonded, backfilling)
+    historyReady: Boolean,
+): Boolean = WhoopBleClient.canRequestSync(connected, bonded, backfilling) && historyReady
 
 /** The tint for a per-metric provenance badge, keyed on the resolved LABEL, gold for Whoop, cyan for
  *  Apple Health, the positive status hue for on-device (and anything else). Matches the Data Sources

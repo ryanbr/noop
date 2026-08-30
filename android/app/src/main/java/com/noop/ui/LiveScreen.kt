@@ -640,12 +640,17 @@ fun LiveScreen(viewModel: AppViewModel, onManageDevices: () -> Unit = {}) {
         }
 
         // Manual "Sync now" — kick a historical offload on demand instead of waiting for the 15-min
-        // periodic timer (#93). Only meaningful once bonded (the offload needs the command channel), and
-        // disabled mid-session so a double-tap can't fight the in-flight offload — viewModel.syncNow()
-        // also no-ops in that case, this is just the matching UI state. While syncing, the button shows
+        // periodic timer (#93). Needs a strap that can actually hand over history, and disabled
+        // mid-session so a double-tap can't fight the in-flight offload — viewModel.syncNow() also
+        // no-ops in that case, this is just the matching UI state.
+        //
+        // `bonded` alone was NOT that condition and this comment used to say it was: the live-HR path
+        // sets it for a 5/MG that has never completed a handshake, so the button appeared, was pressed,
+        // and beginBackfill declined it in silence. historyReady is the client's own precondition, so
+        // the button can only vanish where the offload would have been refused anyway. While syncing, the button shows
         // an INDETERMINATE spinner (NEVER a percent — total pending records are unknowable from the
         // protocol); the "Syncing your strap history… N chunks pulled" line above carries the live count.
-        if (live.bonded) {
+        if (live.bonded && live.historyReady) {
             item {
             OutlinedButton(
                 onClick = { viewModel.syncNow() },
