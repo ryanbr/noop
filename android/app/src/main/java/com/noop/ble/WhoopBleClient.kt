@@ -1792,17 +1792,16 @@ class WhoopBleClient(
     // last-sync time (PR #556 reimpl) so a freshly-recreated client doesn't show "Never" when this
     // install has actually synced before; a 0 (never) leaves it null, unchanged.
     //
-    // THIS STRAP's stamp only. The legacy global is a valid fallback on a single-strap install, but that
-    // needs the paired count, which needs the registry, which is not available synchronously in a
-    // constructor — so [seedLegacyLastSyncIfSingleStrap] resolves it a moment later. Seeding from the
-    // global here instead would show the other strap's timestamp for as long as it took to correct,
-    // which is the bug rather than a smaller version of it.
-    private val _state = MutableStateFlow(
-        LiveState(
-            lastSyncAt = NoopPrefs.lastSyncAtFor(context, NoopPrefs.lastDevice(context)?.first)
-                .takeIf { it > 0L },
-        ),
-    )
+    // Deliberately seeded with NOTHING. The value belongs to the ACTIVE strap, and resolving which strap
+    // that is needs the registry, which is suspend — so [seedLastSyncFromActiveStrap] fills it in a moment
+    // later and the screens show no last-sync until it does.
+    //
+    // The obvious cheap seed, NoopPrefs.lastDevice, is the trap: it records the last strap to BOND, which
+    // on a two-strap install is whichever one was worn most recently, not the one the screens are scoped
+    // to. Seeding from it would put the 4.0's sync time on a 5/MG's Today screen — the exact bug this
+    // change exists to remove, surviving inside the fix for it. A blank moment is honest; another strap's
+    // timestamp is not.
+    private val _state = MutableStateFlow(LiveState())
     val state: StateFlow<LiveState> = _state.asStateFlow()
 
     private val _groundTruthImuStatus = MutableStateFlow(GroundTruthImuStatus())
@@ -2699,26 +2698,31 @@ class WhoopBleClient(
     private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /**
-     * Fill in the last-sync seed from the LEGACY global key, but only on a single-strap install.
+     * Seed the last-sync display from the ACTIVE strap's own stamp — PR #556's intent, correctly attributed.
      *
-     * The global key cannot say which strap stamped it, so it is trustworthy exactly when there is one
-     * strap it could have come from — see [resolveLastSync]. That count lives in the registry and the
-     * registry is suspend, which is why this runs just after construction rather than in the seed itself.
+     * Resolved against the registry's active row, exactly as the strap-log header resolves firmware and
+     * last-sync. NOT against `NoopPrefs.lastDevice`, which records the last strap to BOND: on a two-strap
+     * install that is whichever was worn most recently, not the one the screens are scoped to, so seeding
+     * from it would put one strap's sync time on the other's Today screen.
      *
-     * Writes nothing and touches nothing when this strap already has its own stamp, or when more than one
-     * strap is paired. On the install that produced the capture (two straps) it correctly does nothing,
-     * and the 5/MG reads "never" — which is the true answer it has never once been given.
+     * The legacy global still applies when exactly one strap is paired, because only then can it not be
+     * ambiguous (see [resolveLastSync]). On the install that produced the capture — two straps, the active
+     * one having never synced — this correctly leaves the display empty and the 5/MG reads "never".
      */
-    private fun seedLegacyLastSyncIfSingleStrap() {
-        if (_state.value.lastSyncAt != null) return
-        val legacy = runCatching { NoopPrefs.lastSyncAt(context) }.getOrDefault(0L)
-        if (legacy <= 0L) return
+    private fun seedLastSyncFromActiveStrap() {
         val registry = (context.applicationContext as? com.noop.NoopApplication)?.deviceRegistry ?: return
         ioScope.launch {
-            val paired = runCatching { registry.all().size }.getOrDefault(0)
-            resolveLastSync(perDevice = 0L, legacyGlobal = legacy, pairedCount = paired)?.let { seed ->
-                _state.update { st -> if (st.lastSyncAt == null) st.copy(lastSyncAt = seed) else st }
-            }
+            val rows = runCatching { registry.all() }.getOrDefault(emptyList())
+            val activeId = runCatching { registry.activeDeviceId() }.getOrNull()
+            val activeAddr = rows.firstOrNull { it.id == activeId }?.peripheralId
+            val seed = resolveLastSync(
+                perDevice = runCatching { NoopPrefs.lastSyncAtFor(context, activeAddr) }.getOrDefault(0L),
+                legacyGlobal = runCatching { NoopPrefs.lastSyncAt(context) }.getOrDefault(0L),
+                pairedCount = rows.size,
+            ) ?: return@launch
+            // Never overwrite a value this session earned: a HISTORY_COMPLETE landing while the registry
+            // read is in flight is newer than anything persisted, and must win.
+            _state.update { st -> if (st.lastSyncAt == null) st.copy(lastSyncAt = seed) else st }
         }
     }
 
@@ -2730,7 +2734,7 @@ class WhoopBleClient(
     private val rawHistoryArchive = RawHistoryArchive(context)
 
     init {
-        seedLegacyLastSyncIfSingleStrap()
+        seedLastSyncFromActiveStrap()
         // Retro-decode (#151): when the decoder gains a historical layout (WHOOP 4.0 v25), re-run every
         // archived undecodable frame through it and insert whatever now decodes — the only path by
         // which already-acked, strap-freed history backfills after an update. Runs once per APP version
