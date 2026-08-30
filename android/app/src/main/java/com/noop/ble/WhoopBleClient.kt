@@ -2375,6 +2375,22 @@ class WhoopBleClient(
     @Volatile
     private var unbondedProbeSubscribed = 0
 
+    /**
+     * #1635: the probe's two scheduled steps as NAMED runnables, so [reset] can cancel them.
+     *
+     * Anonymous lambdas here were a real race, not a style point. The verdict is posted 8s out and a
+     * bouncing link reconnects in about 3 — so an OLD link's timer could fire while a NEW link's probe was
+     * mid-question, concluding it early with a "no reply" verdict it never waited for and charging the
+     * silence budget for a link that had answered nothing yet. Same instance for the early-success post, so
+     * one removeCallbacks cancels every path.
+     */
+    private val unbondedProbeVerdictRunnable = Runnable { concludeUnbondedProbe() }
+
+    /** #1635: the deferred probe start. Cancellable for the same reason — a stale start would arrive on a
+     *  link that never scheduled it. Its own gates would still hold, but a timer that outlives its link is
+     *  how surprises get in. */
+    private val unbondedProbeStartRunnable = Runnable { gatt?.let { beginUnbondedOffloadProbe(it) } }
+
     /** #1635: links that subscribed the puffin chars and drew no reply. Per PROCESS, deliberately NOT
      *  cleared by [reset] — its whole job is to bound a retry that spans reconnects. A refusal latches per
      *  device instead; silence is weaker evidence and gets a budget rather than a verdict. */
@@ -4670,7 +4686,8 @@ class WhoopBleClient(
      * make a failure in either unattributable to the one that caused it.
      */
     private fun scheduleUnbondedOffloadProbe() {
-        handler.postDelayed({ gatt?.let { beginUnbondedOffloadProbe(it) } }, BATTERY_ON_CONNECT_DELAY_MS * 4)
+        handler.removeCallbacks(unbondedProbeStartRunnable)
+        handler.postDelayed(unbondedProbeStartRunnable, BATTERY_ON_CONNECT_DELAY_MS * 4)
     }
 
     /**
@@ -4769,7 +4786,8 @@ class WhoopBleClient(
         // the strap's own COMMAND_RESPONSE arriving on the notify chars, not an ATT acknowledgement of the
         // write. DISABLE_ALARM and TOGGLE_REALTIME_HR already go out this way on exactly these links.
         send(CommandNumber.GET_CLOCK, byteArrayOf())
-        handler.postDelayed({ concludeUnbondedProbe() }, UNBONDED_PROBE_REPLY_WAIT_MS)
+        handler.removeCallbacks(unbondedProbeVerdictRunnable)
+        handler.postDelayed(unbondedProbeVerdictRunnable, UNBONDED_PROBE_REPLY_WAIT_MS)
     }
 
     /**
@@ -4853,7 +4871,7 @@ class WhoopBleClient(
             unbondedProbeEvidenceOf(ok = parsed.ok, crcOk = parsed.crcOk, typeName = parsed.typeName),
         )
         if (unbondedProbeEvidence == UnbondedProbeEvidence.ANSWERS_COMMANDS) {
-            handler.post { concludeUnbondedProbe() }
+            handler.post(unbondedProbeVerdictRunnable)
         }
     }
 
@@ -9667,6 +9685,10 @@ class WhoopBleClient(
         // #1635: the probe is per LINK — its whole basis is one stable link's behaviour, and carrying the
         // "already asked" flag across a reconnect would let one silent link retire the experiment. The
         // REFUSAL, by contrast, is persisted per device: that one is the strap's answer, not the link's.
+        // Cancel BEFORE clearing the flags: a runnable already dequeued and waiting to run would otherwise
+        // see the cleared state, which is harmless, but one still queued must not reach the next link.
+        handler.removeCallbacks(unbondedProbeStartRunnable)
+        handler.removeCallbacks(unbondedProbeVerdictRunnable)
         unbondedProbeStartedThisLink = false
         unbondedProbeSubscribed = 0
         unbondedProbeSubscribing = false

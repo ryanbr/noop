@@ -870,6 +870,12 @@ fun DataSourcesScreen(vm: AppViewModel) {
                 // encryptedBond, not bonded — see strapStatusTitle. A 5/MG streaming over the open
                 // profile has bonded == true with no pairing at all, and after #1635 hello suppression it
                 // stays there for good rather than passing through.
+                //
+                // "Live HR" reads a little wide here: bonded means REACHABLE, not currently streaming. It
+                // survives the stream stopping (take the strap off mid-link and it stays true), and the
+                // unbonded offload probe is a second way in — it sets bonded on a strap that answered a
+                // command without ever having sent an HR reading. Both are the same state: reachable over
+                // the open profile, never encrypted.
                 live.encryptedBond -> "Bonded, streaming." to StrandTone.Positive
                 live.bonded -> "Live HR (not fully paired)" to StrandTone.Warning
                 live.connected -> "Connected, pairing…" to StrandTone.Warning
