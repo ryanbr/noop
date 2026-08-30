@@ -88,6 +88,48 @@ class UnbondedOffloadProbeTest {
         assertFalse(probe(silentLinksSoFar = UNBONDED_PROBE_MAX_SILENT_LINKS + 5))
     }
 
+    /**
+     * The exit that had no verdict, and it cost the probe its bound. Field capture: 16 probe starts, 0
+     * verdicts of any kind, 0 confirmed subscribes, 0 refusals, every link dying 10.8s in — about three
+     * seconds after the CCCD writes. With nothing concluded the silence budget never advanced, so it
+     * re-ran on every reconnect forever: the unbounded retry this file's own doc claims to prevent.
+     */
+    @Test
+    fun `a link lost mid-subscribe is a verdict, not an absence`() {
+        val line = unbondedProbeLinkLostLine(uptimeMs = 10_800L, confirmedSubscribes = 0, total = 4)
+        assertTrue(line.contains("10800ms"))
+        assertTrue(line.contains("0 of 4"))
+        // It must name the signature rather than just the failure: no callback AND no error, then a drop,
+        // is what the CLIENT_HELLO does on the same service — that is the finding, not the silence.
+        assertTrue(line.contains("no ATT error"))
+        assertTrue(line.contains("CLIENT_HELLO"))
+        assertTrue(line.contains("not\n        reachable") || line.contains("not reachable"))
+        assertTrue(line.contains("#1635"))
+    }
+
+    /**
+     * A partial subscribe must report honestly rather than rounding to zero — it is a different fact about
+     * the strap than "none of them landed".
+     */
+    @Test
+    fun `a partial subscribe is reported as partial`() {
+        assertTrue(unbondedProbeLinkLostLine(9_000L, confirmedSubscribes = 2, total = 4).contains("2 of 4"))
+    }
+
+    /**
+     * The supersede line must not warn about a pairing the SAME branch prevents. It said "a pairing in
+     * flight makes a refusal unattributable" while returning before the pairing request — so the one
+     * capture this exists to produce carried a caveat that could not apply, and it briefly cast doubt on
+     * a clean result.
+     */
+    @Test
+    fun `the supersede line does not warn about a pairing it prevents`() {
+        val clash = unbondedProbeSupersedesLine(explicitBondOptedIn = true)
+        assertTrue(clash.contains("ALSO skipped"))
+        assertTrue(clash.contains("attributable to the strap"))
+        assertFalse(clash.contains("in flight makes a refusal unattributable"))
+    }
+
     @Test
     fun `the give-up line says why it stopped, not merely that it did`() {
         // The CLIENT_HELLO's suppression stopped silently and cost eleven weeks of unreadable captures.
@@ -249,16 +291,16 @@ class UnbondedOffloadProbeTest {
      * attribute a refusal to the strap.
      */
     @Test
-    fun `the supersede line explains the absence and flags the clash`() {
+    fun `the supersede line explains the absence and names the other switch`() {
         val clean = unbondedProbeSupersedesLine(explicitBondOptedIn = false)
         assertTrue(clean.contains("handshake skipped"))
         assertTrue(clean.contains("press Connect"))
         assertFalse(clean.contains("Ask Android to pair"))
         assertTrue(clean.contains("#1635"))
 
-        val clash = unbondedProbeSupersedesLine(explicitBondOptedIn = true)
-        assertTrue(clash.contains("Ask Android to pair"))
-        assertTrue(clash.contains("unattributable"))
+        // Mentioned so a reader knows it is on, but as SKIPPED rather than as interference — the
+        // attributability claim it used to make is asserted in its own case below.
+        assertTrue(unbondedProbeSupersedesLine(explicitBondOptedIn = true).contains("Ask Android to pair"))
     }
 
     /**

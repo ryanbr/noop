@@ -9792,6 +9792,22 @@ class WhoopBleClient(
         // see the cleared state, which is harmless, but one still queued must not reach the next link.
         handler.removeCallbacks(unbondedProbeStartRunnable)
         handler.removeCallbacks(unbondedProbeVerdictRunnable)
+        // A probe still mid-subscribe when the link goes is stage 1 ending with the LINK, and it is a
+        // verdict rather than an absence — see [unbondedProbeLinkLostLine]. Without this the probe
+        // reported nothing at all and its silence budget never advanced, so it re-ran on every reconnect:
+        // 16 starts and 0 verdicts in one capture. Charged to the budget, because "the link will not
+        // survive being asked" is a stronger reason to stop asking than a strap that merely stayed quiet.
+        if (unbondedProbeSubscribing) {
+            log(unbondedProbeLinkLostLine(
+                uptimeMs = if (connectedAtMs > 0L) System.currentTimeMillis() - connectedAtMs else -1L,
+                confirmedSubscribes = unbondedProbeSubscribed,
+                total = WHOOP5_NOTIFY_CHARS.size,
+            ))
+            unbondedProbeSilentLinks++
+            if (!unbondedProbeStillWorthAsking(unbondedProbeSilentLinks)) {
+                log(unbondedProbeGaveUpLine(unbondedProbeSilentLinks))
+            }
+        }
         unbondedProbeStartedThisLink = false
         unbondedProbeSubscribed = 0
         unbondedProbeSubscribing = false

@@ -139,8 +139,9 @@ internal fun unbondedProbeSupersedesLine(explicitBondOptedIn: Boolean): String =
         " asks whether the offload needs a bond at all. That question needs a link with no CLIENT_HELLO on" +
         " it, so the hello is not written here (press Connect to try the handshake instead)." +
         (if (explicitBondOptedIn)
-            " NOTE: \"Ask Android to pair\" is also on. A pairing in flight makes a refusal unattributable" +
-                " to the strap, so turn it off for a clean answer."
+            " \"Ask Android to pair\" is on but is ALSO skipped on this connect — this branch returns" +
+                " before the pairing request, so no SMP is in flight and a refusal here is attributable" +
+                " to the strap."
         else "") +
         " (#1635, experimental)"
 
@@ -221,6 +222,34 @@ internal fun puffinSubscribeRefusedLine(uuid: String, status: String): String =
     "Unbonded offload probe: subscribe of $uuid failed $status. If this is an insufficient-authentication" +
         " or -encryption status, the puffin notify chars need an encrypted link, the historical offload" +
         " cannot be reached without a bond, and a 5/MG that refuses SMP can never sync history (#1635)."
+
+/**
+ * Stage 1 ended because the LINK did, before any subscribe was confirmed or refused.
+ *
+ * The outcome the probe had no verdict for, and the field capture is unambiguous about how much that
+ * matters: 16 probe starts, 0 verdicts of any kind, 0 confirmed subscribes, 0 refusals, and the link
+ * dying 10.8s into every connect — roughly three seconds after the CCCD writes went out. With no verdict
+ * the silence budget never advanced, so the probe re-ran on every reconnect indefinitely. That is exactly
+ * the unbounded retry [shouldProbeUnbondedOffload]'s own doc claims this design prevents, reintroduced by
+ * an unhandled exit.
+ *
+ * It is also a FINDING, not just a gap. No callback and no ATT error, then a teardown about three seconds
+ * later, is the CLIENT_HELLO's signature — the same silent elevate-and-drop, on the same service. It does
+ * not prove the puffin characteristics require encryption, but it is what that would look like from here,
+ * and it says plainly that the offload is not reachable on this strap without a bond.
+ *
+ * Charged to the silence budget, because "the link will not survive being asked" is a stronger reason to
+ * stop asking than a strap that merely stayed quiet.
+ */
+internal fun unbondedProbeLinkLostLine(
+    uptimeMs: Long,
+    confirmedSubscribes: Int,
+    total: Int,
+): String =
+    "Unbonded offload probe: the link dropped ${uptimeMs}ms into this connect with $confirmedSubscribes" +
+        " of $total puffin subscribes confirmed and no refusal — no callback and no ATT error, then a" +
+        " teardown. That is the CLIENT_HELLO's own signature on the same service, so the offload is not" +
+        " reachable on this strap without a bond (#1635)."
 
 /**
  * Stage 2's question, logged so the wait that follows is attributable to it.
