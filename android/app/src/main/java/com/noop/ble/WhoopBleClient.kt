@@ -2375,6 +2375,27 @@ class WhoopBleClient(
      *  can be reported with an elapsed time. 0 means none is outstanding. Cleared in [reset]. */
     @Volatile private var clientHelloWriteAtMs: Long = 0L
 
+    /** Was a CLIENT_HELLO actually WRITTEN on this link? Distinct from [clientHelloWriteAtMs], which is
+     *  cleared the moment the write completes: this stays true for the rest of the connection so a later
+     *  backfill deferral can say whether the handshake was ever reachable. Cleared in [reset]. */
+    @Volatile private var helloWrittenThisLink = false
+
+    /** Consecutive connects that deferred the hello to the pairing experiment without writing one.
+     *  Deliberately NOT cleared in [reset] — the whole point is that it survives the connection, since
+     *  one deferral is the experiment working and a run of them is the permanent SMP-0x05 state. Reset
+     *  when a hello is written or a genuine bond is reached. Per app process, like the override budget. */
+    @Volatile private var helloDeferredConsecutive = 0
+
+    /** How many times [beginBackfill] has declined on this link, so repeats carry a count instead of
+     *  reading as new information each time. Cleared in [reset]. */
+    @Volatile private var backfillDeferralsThisLink = 0
+
+    /** Consecutive live-persist failures, and when the failure was last reported. The live cadence is
+     *  seconds, so the line is rate-limited; the COUNT is what separates a transient the re-buffer
+     *  absorbs from a store that is never going to accept these rows. */
+    @Volatile private var liveInsertFailuresConsecutive = 0
+    @Volatile private var lastLiveInsertFailureLogMs = 0L
+
     /** #1635: ms since the CLIENT_HELLO write, or null when none is outstanding. Lets the bond-state
      *  observer time a pairing transition against the write that may have triggered it, and report no
      *  elapsed time at all for a transition belonging to some other pairing. */
@@ -5914,6 +5935,7 @@ class WhoopBleClient(
                     // these as REALTIME_DATA — the strap rejected them on the unauthenticated link), then arm
                     // realtime HR with puffin framing. Mirrors the macOS post-bond flow.
                     didBond = true
+                    helloDeferredConsecutive = 0  // the handshake works on this strap; the run is over
                     helloOverrideAttempts = 0     // #1635: the strap answered — the override's budget resets
                     helloOverrideExhaustedLogged = false
                     cancelBondWatchdog()          // genuine bond reached — the handshake watchdog stands down (#50)
@@ -7744,6 +7766,11 @@ class WhoopBleClient(
         }
         log("WHOOP 5/MG: writing CLIENT_HELLO to fd4b0002 with response (to trigger bonding, experimental).")
         writeInFlight = true
+        // A hello is genuinely going out, so the deferral run is over. Recorded BEFORE the stack call:
+        // the run describes connects that never attempted one, and a stack rejection below is an
+        // attempt that failed, which is a different fact and has its own line.
+        helloWrittenThisLink = true
+        helloDeferredConsecutive = 0
         clientHelloWriteAtMs = System.currentTimeMillis()
         val ok = safeGatt("writeClientHello") {
             ops.writeCharacteristicCompat(ch, hello, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
@@ -7858,6 +7885,15 @@ class WhoopBleClient(
                     log(helloOverrideExhaustedLine(helloOverrideAttempts))
                 }
                 if (explicitBondDefersHello(explicitBondRequestedThisLink, helloOverride = helloOverride)) {
+                    // This branch used to return without a word, so the hello's absence was visible only
+                    // as a line that never appeared — and the deferral reads identically on the first
+                    // connect and the fiftieth. The count is what separates them.
+                    helloDeferredConsecutive += 1
+                    log(helloDeferredByExplicitBondLine(
+                        consecutive = helloDeferredConsecutive,
+                        overrideOptedIn = overrideOptedIn,
+                        overrideAttempts = helloOverrideAttempts,
+                    ))
                     // Same trap as the suppression path below, and worse here. The watchdog was armed at
                     // discovery and bounces the link whenever didBond is false — which deferring the hello
                     // guarantees. Tearing the link down while an OS pairing is in flight is the single
@@ -8132,8 +8168,23 @@ class WhoopBleClient(
         }
         try {
             repository.insert(StreamBatch(hr = hr, rr = rr), deviceId)
+            liveInsertFailuresConsecutive = 0
         } catch (t: Throwable) {
             synchronized(collectorLock) { stdHr.addAll(0, hr); stdRr.addAll(0, rr) }
+            // Swallowing this made the instrumentation above read like success: a store failing every
+            // insert produced a log full of `rr emit ... offered=N` and no sign that none of it landed.
+            liveInsertFailuresConsecutive += 1
+            val nowMs = System.currentTimeMillis()
+            if (shouldEmitLiveInsertFailure(lastLiveInsertFailureLogMs, nowMs)) {
+                lastLiveInsertFailureLogMs = nowMs
+                log(liveInsertFailedLine(
+                    throwableName = t.javaClass.simpleName,
+                    message = t.message,
+                    hrFrames = hr.size,
+                    rrFrames = rr.size,
+                    consecutiveFailures = liveInsertFailuresConsecutive,
+                ))
+            }
         }
     }
 
@@ -8151,7 +8202,15 @@ class WhoopBleClient(
      */
     private fun beginBackfill() {
         if (!connectHandshakeDone) {
-            log("Backfill: deferred — connect handshake not done yet")
+            backfillDeferralsThisLink += 1
+            log(backfillDeferredLine(
+                family = connectedFamily?.name ?: "unknown",
+                didBond = didBond,
+                helloEverWrittenThisLink = helloWrittenThisLink,
+                explicitBondRequestedThisLink = explicitBondRequestedThisLink,
+                deferralsThisLink = backfillDeferralsThisLink,
+                msSinceConnect = if (connectedAtMs > 0L) System.currentTimeMillis() - connectedAtMs else -1L,
+            ))
             return
         }
         if (backfilling) return
@@ -9219,6 +9278,10 @@ class WhoopBleClient(
         // exactly the gap this stopwatch was added to close. It is overwritten by the next request, and a
         // stale value can only ever produce a large elapsed against a label that names what it measures.
         connectHandshakeDone = false
+        helloWrittenThisLink = false
+        backfillDeferralsThisLink = 0
+        // helloDeferredConsecutive is deliberately NOT cleared: it counts ACROSS connections, which is
+        // the only way a permanent deferral is distinguishable from a pending one.
         familyEstablished = false   // the next link re-establishes it at service discovery
         loggedFirmwareGate = null
         clientHelloWriteAtMs = 0L
