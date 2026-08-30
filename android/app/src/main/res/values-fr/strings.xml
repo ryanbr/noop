@@ -2631,5 +2631,5 @@
     <string name="l10n_body_clock_dial_card_body_clock_dial_03cdbc31">Cadran de l\'horloge biologique</string>
     <string name="l10n_body_clock_dial_card_last_night_6eaba4dd">La nuit dernière</string>
     <string name="l10n_body_clock_dial_card_your_clock_1b91f5ee">Votre horloge</string>
-    <string name="vo2max_method_change_caption">Une rupture dans la courbe indique un changement de méthode d’estimation.</string>
+    <string name="vo2max_method_change_caption">La courbe est interrompue là où la méthode d’estimation a changé ou n’a pas été enregistrée.</string>
 </resources>

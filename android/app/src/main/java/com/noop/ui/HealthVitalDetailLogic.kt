@@ -50,14 +50,18 @@ internal fun vo2MaxTrendSegmentIds(readings: List<VitalReading>): List<String> {
 }
 
 /**
- * Does this VO2max trend actually contain a method change, i.e. will the chart show a visible break?
+ * Will the chart show a visible break in this VO2max trend?
  *
  * Derived from [vo2MaxTrendSegmentIds] rather than recomputed, so the caption and the segmentation can
  * never disagree: if the ids collapse to one group the line is continuous and there is nothing to
  * explain. Two readings from the SAME estimator with a gap in days are one segment and correctly get no
- * caption - the break this describes is a change of method, not a pause in the data.
+ * caption - a break means the readings were not produced alike, not that the data paused.
+ *
+ * Named for the BREAK, not for a method change: an untagged legacy reading resolves to
+ * "...estimator:unknown" (see [vo2MaxAttributionSource]), so an unknown -> Nes transition also splits the
+ * line while the method itself may never have changed. The caption is worded for both causes.
  */
-internal fun vo2MaxTrendHasMethodChange(readings: List<VitalReading>): Boolean =
+internal fun vo2MaxTrendHasBreak(readings: List<VitalReading>): Boolean =
     vo2MaxTrendSegmentIds(readings).distinct().size > 1
 
 /** #377: merge the three step stores into one per-day series with the SAME precedence as the Today

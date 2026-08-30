@@ -2632,5 +2632,5 @@
     <string name="l10n_body_clock_dial_card_body_clock_dial_03cdbc31">Esfera del reloj interno</string>
     <string name="l10n_body_clock_dial_card_last_night_6eaba4dd">Anoche</string>
     <string name="l10n_body_clock_dial_card_your_clock_1b91f5ee">Tu reloj interno</string>
-    <string name="vo2max_method_change_caption">Una interrupción en la línea indica un cambio en el método de estimación.</string>
+    <string name="vo2max_method_change_caption">La línea se interrumpe donde el método de estimación cambió o no se registró.</string>
 </resources>

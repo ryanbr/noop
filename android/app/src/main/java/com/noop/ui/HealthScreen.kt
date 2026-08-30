@@ -2085,7 +2085,7 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
                 // reported as "something weird with a broken line". Shown only when a break actually
                 // exists, so it explains the chart in front of the reader rather than describing a
                 // behaviour they cannot see.
-                if (key == "vo2max_est" && vo2MaxTrendHasMethodChange(filteredReadings)) {
+                if (key == "vo2max_est" && vo2MaxTrendHasBreak(filteredReadings)) {
                     Text(
                         text = uiString(R.string.vo2max_method_change_caption),
                         style = NoopType.footnote,

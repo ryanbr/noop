@@ -182,13 +182,15 @@ func vo2MaxAttributionSource(_ estimator: Vo2MaxEstimator?) -> String {
     vo2MaxAttributionPrefix + (estimator?.rawValue ?? "unknown")
 }
 
-/// Does this VO₂max trend actually contain a method change, i.e. will the chart show a visible break?
+/// Will the chart show a visible break in this VO₂max trend?
 ///
 /// Derived from `vo2MaxTrendSegmentIds` rather than recomputed, so the caption and the segmentation can
 /// never disagree. A GAP IN DAYS under one estimator is still a single segment and draws no break, so it
-/// correctly gets no caption: the break this describes is a change of method, not a pause in the data.
-/// Kotlin twin `vo2MaxTrendHasMethodChange`.
-func vo2MaxTrendHasMethodChange(days: [String], sourceByDay: [String: String]) -> Bool {
+/// correctly gets no caption: a break means the readings were not produced alike, not that the data
+/// paused. Named for the BREAK: an untagged legacy reading resolves to "...estimator:unknown", so an
+/// unknown -> Nes transition splits the line while the method itself may never have changed.
+/// Kotlin twin `vo2MaxTrendHasBreak`.
+func vo2MaxTrendHasBreak(days: [String], sourceByDay: [String: String]) -> Bool {
     Set(vo2MaxTrendSegmentIds(days: days, sourceByDay: sourceByDay)).count > 1
 }
 
@@ -1097,8 +1099,8 @@ struct MetricDetailView: View {
             // feature parity, not pixel parity.
             VStack(alignment: .leading, spacing: 8) {
                 if metric.key == "vo2max_est",
-                   vo2MaxTrendHasMethodChange(days: windowed.map(\.day), sourceByDay: sourceByDay) {
-                    Text("A break in the line marks where the estimation method changed.")
+                   vo2MaxTrendHasBreak(days: windowed.map(\.day), sourceByDay: sourceByDay) {
+                    Text("The line breaks where the estimation method changed or was not recorded.")
                         .font(StrandFont.footnote)
                         .foregroundStyle(StrandPalette.textTertiary)
                         .frame(maxWidth: .infinity, alignment: .leading)

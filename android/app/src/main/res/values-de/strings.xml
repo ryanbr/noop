@@ -2646,5 +2646,5 @@
     <string name="l10n_body_clock_dial_card_body_clock_dial_03cdbc31">Zifferblatt der inneren Uhr</string>
     <string name="l10n_body_clock_dial_card_last_night_6eaba4dd">Letzte Nacht</string>
     <string name="l10n_body_clock_dial_card_your_clock_1b91f5ee">Deine innere Uhr</string>
-    <string name="vo2max_method_change_caption">Eine Unterbrechung der Linie markiert einen Wechsel der Schätzmethode.</string>
+    <string name="vo2max_method_change_caption">Die Linie bricht dort ab, wo sich die Schätzmethode geändert hat oder nicht erfasst wurde.</string>
 </resources>

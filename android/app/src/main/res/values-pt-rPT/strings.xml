@@ -2625,5 +2625,5 @@
     <string name="l10n_body_clock_dial_card_body_clock_dial_03cdbc31">Mostrador do relógio biológico</string>
     <string name="l10n_body_clock_dial_card_last_night_6eaba4dd">A noite passada</string>
     <string name="l10n_body_clock_dial_card_your_clock_1b91f5ee">O seu relógio</string>
-    <string name="vo2max_method_change_caption">Uma quebra na linha indica uma mudança no método de estimativa.</string>
+    <string name="vo2max_method_change_caption">A linha é interrompida onde o método de estimativa mudou ou não foi registado.</string>
 </resources>
