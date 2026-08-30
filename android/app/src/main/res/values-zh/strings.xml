@@ -11,6 +11,14 @@
     <string name="nav_live">实时心率</string>
     <string name="nav_intervals">间歇训练</string>
     <string name="nav_sleep">睡眠</string>
+    <string name="sleep_status_calculating_title">正在计算昨夜睡眠…</string>
+    <string name="sleep_status_calculating_body">手环历史数据已到达。NOOP 正在识别并分析这一夜的睡眠。</string>
+    <string name="sleep_status_sync_failed_title">昨夜睡眠尚未同步</string>
+    <string name="sleep_status_sync_failed_body">历史同步未完成就停止了。请将手环放在附近并再次尝试同步。</string>
+    <string name="sleep_status_waiting_title">正在等待昨夜睡眠</string>
+    <string name="sleep_status_waiting_body">连接手环并同步历史。收到夜间数据后，NOOP 会计算这一夜的睡眠。</string>
+    <string name="sleep_status_not_detected_title">未检测到昨夜睡眠</string>
+    <string name="sleep_status_not_detected_body">同步已完成，但 NOOP 无法可靠识别睡眠时段。请保持手环连接并再次同步；下方较早的一夜仍是最近一次检测到的睡眠。</string>
     <string name="nav_breathe">正念呼吸</string>
     <string name="nav_stress">压力</string>
     <string name="nav_workouts">运动</string>

@@ -8,6 +8,21 @@ import androidx.room.Transaction
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
+/** Kept as one compile-time constant so Room and the plain-JVM SQLite regression test execute the exact
+ * same statement. Swift's twin lives in WhoopStore.analysisFingerprint(). */
+internal const val ANALYSIS_FINGERPRINT_SQL =
+    "SELECT 'v2|' || " +
+        "'h' || (SELECT COUNT(*) FROM hrSample) || ':' || (SELECT COALESCE(MAX(ts), 0) FROM hrSample) || '|' || " +
+        "'p' || (SELECT COALESCE(MAX(rowid), 0) FROM ppgHrSample) || '|' || " +
+        "'r' || (SELECT COALESCE(MAX(rowid), 0) FROM rrInterval) || '|' || " +
+        "'x' || (SELECT COALESCE(MAX(rowid), 0) FROM respSample) || '|' || " +
+        "'g' || (SELECT COALESCE(MAX(rowid), 0) FROM gravitySample) || '|' || " +
+        "'s' || (SELECT COALESCE(MAX(rowid), 0) FROM sleepStateSample) || '|' || " +
+        "'e' || (SELECT COALESCE(MAX(rowid), 0) FROM event) || '|' || " +
+        "'o' || (SELECT COALESCE(MAX(rowid), 0) FROM spo2Sample) || '|' || " +
+        "'t' || (SELECT COALESCE(MAX(rowid), 0) FROM skinTempSample) || '|' || " +
+        "'z' || (SELECT COALESCE(MAX(rowid), 0) FROM stepSample)"
+
 /**
  * Data-access for the local store. Mirrors the GRDB reads/writes in WhoopStore
  * (StreamStore.swift, Reads.swift, MetricsCache.swift).
@@ -923,19 +938,7 @@ interface WhoopDao : DeviceRegistryDao {
     @Query("SELECT COALESCE(MAX(ts), 0) FROM hrSample") suspend fun maxHrTs(): Long
     /** Complete raw-analysis fingerprint. A sleep offload can add gravity/RR after HR, so the whole-pass
      * gate must move when any scoring input changes, not only when measured HR changes. */
-    @Query(
-        "SELECT 'v2|' || " +
-            "'h' || (SELECT COUNT(*) FROM hrSample) || ':' || (SELECT COALESCE(MAX(ts), 0) FROM hrSample) || '|' || " +
-            "'p' || (SELECT COALESCE(MAX(rowid), 0) FROM ppgHrSample) || '|' || " +
-            "'r' || (SELECT COALESCE(MAX(rowid), 0) FROM rrInterval) || '|' || " +
-            "'x' || (SELECT COALESCE(MAX(rowid), 0) FROM respSample) || '|' || " +
-            "'g' || (SELECT COALESCE(MAX(rowid), 0) FROM gravitySample) || '|' || " +
-            "'s' || (SELECT COALESCE(MAX(rowid), 0) FROM sleepStateSample) || '|' || " +
-            "'e' || (SELECT COALESCE(MAX(rowid), 0) FROM event) || '|' || " +
-            "'o' || (SELECT COALESCE(MAX(rowid), 0) FROM spo2Sample) || '|' || " +
-            "'t' || (SELECT COALESCE(MAX(rowid), 0) FROM skinTempSample) || '|' || " +
-            "'z' || (SELECT COALESCE(MAX(rowid), 0) FROM stepSample)"
-    )
+    @Query(ANALYSIS_FINGERPRINT_SQL)
     suspend fun analysisFingerprint(): String
     // #1005: per-day (device + window) HR fingerprint — row count + newest ts — for analyzeRecent's per-day
     // reuse cache. Cheap COUNT/MAX aggregate over the (deviceId, ts) index, never a row fetch; mirrors Swift
