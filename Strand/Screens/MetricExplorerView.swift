@@ -1083,24 +1083,32 @@ struct MetricDetailView: View {
                 height: NoopMetrics.chartHeight,
                 valueFormat: { fmt($0) }
             )
+        } footer: {
             // #1662: the VO₂max line is SPLIT on purpose wherever the estimator changes, so two
             // non-adjacent Nes runs are never joined across an incompatible Uth stretch. Nothing said so,
             // and a silent gap in a trend is indistinguishable from a rendering fault — it was reported
             // as "something weird with a broken line". Shown only when a break actually exists, so it
             // explains the chart in front of the reader rather than a behaviour they cannot see.
-            if metric.key == "vo2max_est",
-               vo2MaxTrendHasMethodChange(days: windowed.map(\.day), sourceByDay: sourceByDay) {
-                Text("A break in the line marks where the estimation method changed.")
-                    .font(StrandFont.footnote)
-                    .foregroundStyle(StrandPalette.textTertiary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            //
+            // In the FOOTER, not beside the chart: `ChartCard` applies `chart().frame(height:)` to that
+            // whole closure, so a caption in there would be squeezed into the chart's fixed height and
+            // steal space from the line it is explaining. The footer is the only full-height slot under
+            // the chart. Android places it directly under the plot because its card has no such frame -
+            // feature parity, not pixel parity.
+            VStack(alignment: .leading, spacing: 8) {
+                if metric.key == "vo2max_est",
+                   vo2MaxTrendHasMethodChange(days: windowed.map(\.day), sourceByDay: sourceByDay) {
+                    Text("A break in the line marks where the estimation method changed.")
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                ChartFooter([
+                    ("Window", effectiveRange.label),
+                    ("Points", "\(windowed.count)"),
+                    ("Latest", heroValue),
+                ])
             }
-        } footer: {
-            ChartFooter([
-                ("Window", effectiveRange.label),
-                ("Points", "\(windowed.count)"),
-                ("Latest", heroValue),
-            ])
         }
     }
 
