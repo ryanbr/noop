@@ -867,6 +867,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                             ") - history re-pointed off the transient pairing id (#1303)",
                     )
                     deviceRegistry.setActive(serialId)
+                    // The process-wide handle too, not just the registry and the coordinator. It is read
+                    // by the diagnostics export and threaded into the BLE client and the source
+                    // coordinator at startup; leaving it behind meant the engine kept deriving days under
+                    // the PRE-adoption id until the next cold start, splitting the computed history across
+                    // both ids (field-confirmed on a 5/MG before this line existed).
+                    noopApp.onActiveDeviceAdopted(serialId)
                     noopApp.sourceCoordinator.onActiveDeviceChanged(serialId)
                 }
             }

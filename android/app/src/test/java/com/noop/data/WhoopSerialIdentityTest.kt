@@ -69,6 +69,40 @@ class WhoopSerialIdentityTest {
         assertFalse(WhoopSerialIdentity.mayAdopt("oura-2H3B2405003655"))
     }
 
+    /**
+     * The process-wide handle must follow adoption, not wait for a cold start.
+     *
+     * `NoopApplication.activeDeviceId` was a `by lazy`, frozen for the life of the process. Adoption
+     * re-pointed the registry while every consumer of that handle kept the OLD id, so the scoring engine
+     * went on deriving days under the pre-adoption id and the computed history split across both until the
+     * phone was restarted. Confirmed on a real 5/MG: the registry read the serial id while the export
+     * still printed the address id and the old computed bucket kept growing.
+     *
+     * `NoopApplication` needs a Context, so the invariant is pinned against the source the way the other
+     * un-constructable callers are.
+     */
+    @Test fun adoptionRePointsTheProcessWideActiveIdHandle() {
+        var root = java.io.File(System.getProperty("user.dir") ?: ".").canonicalFile
+        var app: String? = null
+        var vm: String? = null
+        repeat(4) {
+            val a = java.io.File(root, "android/app/src/main/java/com/noop/NoopApplication.kt")
+            val v = java.io.File(root, "android/app/src/main/java/com/noop/ui/AppViewModel.kt")
+            if (a.isFile && app == null) app = a.readText()
+            if (v.isFile && vm == null) vm = v.readText()
+            root = root.parentFile ?: root
+        }
+        val application = app ?: error("NoopApplication.kt not found - this test must not pass by default")
+        val viewModel = vm ?: error("AppViewModel.kt not found - this test must not pass by default")
+
+        assertFalse("activeDeviceId must not be a frozen `by lazy` again",
+                    application.contains("val activeDeviceId: String by lazy"))
+        assertTrue("it must expose a way to follow an adoption",
+                   application.contains("fun onActiveDeviceAdopted(newId: String)"))
+        assertTrue("and adoption must actually call it",
+                   viewModel.contains("noopApp.onActiveDeviceAdopted(serialId)"))
+    }
+
     @Test fun logSafeNeverLeaksTheFullSerial() {
         assertEquals("5AG…", WhoopSerialIdentity.logSafe("5AG12345678"))
         assertEquals("?", WhoopSerialIdentity.logSafe(null))
