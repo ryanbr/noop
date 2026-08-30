@@ -2771,6 +2771,13 @@ class WhoopBleClient(
                 }.onSuccess {
                     // Advance the shared watermark so the next 15-min tick sees no change and skips (#836).
                     NoopPrefs.setAnalyzeWatermark(context, analyzeFp)
+                    // #1735: stamp the post-sync pass too, not just the idle one in AppViewModel. This is
+                    // the pass that runs right after an offload, so it is the one a "synced but nothing
+                    // appeared" report is actually asking about.
+                    runCatching {
+                        NoopPrefs.of(context).edit()
+                            .putLong("score.lastPassAt", System.currentTimeMillis() / 1000).apply()
+                    }
                     log("Backfill: post-sync scoring pass done")
                     // #277 diagnostic: surface the day-key the dashboard treats as "today" against the
                     // newest banked row, so a UTC-bucket vs local-day split (rows persist but Today

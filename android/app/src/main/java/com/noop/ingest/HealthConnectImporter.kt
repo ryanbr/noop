@@ -158,6 +158,21 @@ object HealthConnectImporter {
     private fun prefs(context: Context) =
         context.getSharedPreferences(NoopPrefs.NAME, Context.MODE_PRIVATE)
 
+    /** #1735: stamp a COMPLETED import run so the diagnostics header can say when data last moved, not
+     *  merely how many rows exist. Raw keys written inline, read back by AndroidDiagnostics - the same
+     *  shape `sync.lastWriteOkAt` uses. Guarded: a stamp is never worth failing an import over. */
+    private fun recordImportRun(context: Context, rows: Int, throughDay: String?) {
+        runCatching {
+            prefs(context).edit()
+                .putLong("hc.lastImportOkAt", System.currentTimeMillis() / 1000)
+                .putInt("hc.lastImportRows", rows)
+                .apply {
+                    if (throughDay != null) putString("hc.lastImportThroughDay", throughDay)
+                }
+                .apply()
+        }
+    }
+
     /**
      * Whether Health Connect is installed/available on this device.
      * One of [HealthConnectClient.SDK_AVAILABLE],
@@ -559,6 +574,13 @@ object HealthConnectImporter {
         }
 
         if (acc.isEmpty() && workouts.isEmpty()) {
+        // #1735: record that an import RAN and what it brought. "Hours after a ride it still is not
+        // there" cannot be told from "Health Connect never imported it" without this: the log had per-source
+        // row counts but nothing about WHEN they last moved. Mirrors the sync.lastWriteOkAt pattern the
+        // strap-write path already uses. Best-effort - a stamp failure must not sink a good import.
+            // Stamped on the EMPTY path too, deliberately: "ran and found nothing" and "never ran" are
+            // different diagnoses and this is the only line that separates them.
+            recordImportRun(context, rows = 0, throughDay = null)
             return ImportSummary(
                 source = SOURCE,
                 counts = emptyMap(),
@@ -704,6 +726,11 @@ object HealthConnectImporter {
         val lastDay = touchedDays.lastOrNull()
 
         val total = counts.values.sum()
+        // #1735: record that an import RAN and what it brought. "Hours after a ride it still is not
+        // there" cannot be told from "Health Connect never imported it" without this: the log had per-source
+        // row counts but nothing about WHEN they last moved. Mirrors the sync.lastWriteOkAt pattern the
+        // strap-write path already uses. Best-effort - a stamp failure must not sink a good import.
+        recordImportRun(context, rows = total, throughDay = lastDay)
         return ImportSummary(
             source = SOURCE,
             counts = counts,

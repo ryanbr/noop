@@ -104,6 +104,20 @@ object AndroidDiagnostics {
                     "(if you restored a backup, fully restart the app — #57)")
             }
             if (restoreAt > 0L) add("Last restore: ${relTime(now - restoreAt * 1000L)}")
+            // #1735: row COUNTS alone cannot separate "Health Connect never brought the ride in" from
+            // "it did, but nothing has re-scored since". Both halves of that need a WHEN, and neither had
+            // one: the importer recorded no run time at all, and the engine's "re-score: done" goes only to
+            // the live log, so an export written hours later has already rolled it away.
+            val hcAt = p.getLong("hc.lastImportOkAt", 0L)
+            add(
+                hcImportLine(
+                    ago = if (hcAt > 0L) relTime(now - hcAt * 1000L) else null,
+                    rows = p.getInt("hc.lastImportRows", 0),
+                    throughDay = p.getString("hc.lastImportThroughDay", null),
+                ),
+            )
+            val scoredAt = p.getLong("score.lastPassAt", 0L)
+            add(scoringPassLine(ago = if (scoredAt > 0L) relTime(now - scoredAt * 1000L) else null))
             add("Timezone:    ${tzLine()}")
             val repo = com.noop.data.WhoopRepository.from(context)
             val days = repo.days("my-whoop")
@@ -595,6 +609,39 @@ object AndroidDiagnostics {
             null -> "unknown"
         }
     }.getOrDefault("unknown")
+
+    /**
+     * When Health Connect last completed an import, and what it brought.
+     *
+     * The export already listed per-source row counts, which answer "is there data" but never "is it
+     * MOVING". #1735 turns on exactly that difference: a ride that has not appeared is either one Health
+     * Connect never imported or one it imported and nothing re-scored, and a static count cannot tell
+     * those apart. [rows] of 0 with a recent [ago] is a real and useful state - the import ran and found
+     * nothing - which is why the empty path is stamped too.
+     *
+     * A null [ago] means no import has ever completed on this install. Stated plainly rather than dressed
+     * up as a fault: plenty of installs never connect Health Connect at all.
+     */
+    internal fun hcImportLine(ago: String?, rows: Int, throughDay: String?): String {
+        if (ago == null) return "HC import:   never completed on this install"
+        val through = throughDay?.let { " · through $it" } ?: ""
+        return "HC import:   $rows row(s) $ago$through"
+    }
+
+    /**
+     * When the scoring engine last completed a pass.
+     *
+     * The analyze watermark records WHAT was scored (an HR fingerprint) and never WHEN, and the engine's
+     * own "re-score: done" line is live-log only, so an export written hours after the pass has already
+     * rolled it away. Without this, "I synced and nothing appeared" cannot distinguish a pass that ran and
+     * found nothing new from one that never ran - and those need opposite next steps.
+     *
+     * Stamped at BOTH completion sites (the idle pass and the post-sync pass), so the freshest of the two
+     * is what shows.
+     */
+    internal fun scoringPassLine(ago: String?): String =
+        if (ago == null) "Scoring:     no pass has completed on this install"
+        else "Scoring:     last pass $ago"
 
     /**
      * Which workout detector produced what, and whether the Settings toggle has anything to do with it.
