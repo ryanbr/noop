@@ -284,6 +284,25 @@ object AndroidDiagnostics {
             add("Stored: " + perSource.joinToString("  ") { "${it.first}=${it.second.size}" })
             val latest = perSource.flatMap { it.second }.maxByOrNull { it.startTs }
             add(if (latest != null) "Latest: ${dayStamp(latest.startTs)} · ${latest.sport} (${latest.source})" else "Latest: none")
+            // #1735: "auto-detect is off but workouts keep appearing" is answerable only if the log says
+            // which of the TWO detectors is meant. The Settings toggle governs the opt-in suggestion card
+            // ONLY; the engine derives durable sport="detected" rows on every pass regardless, and all the
+            // per-bout tracing for that sits behind the Test Centre WORKOUTS domain, which a reporter
+            // filing a non-test-mode bug will not have on. Counts read from the store, so this states what
+            // IS, not what the code intends.
+            add(
+                autoDetectStateLine(
+                    suggestionCardEnabled = com.noop.ui.NoopPrefs.autoDetectWorkouts(context),
+                    storedDetectedRows = perSource.flatMap { it.second }.count { it.sport == "detected" },
+                    // Summed over the SAME strap ids whose rows were counted above. A two-strap install
+                    // banks detected rows under both "<active>-noop" and "my-whoop-noop", so reading
+                    // dismissals for the active strap alone could print "detected=52 dismissed=0" while
+                    // the dismissals sat under the other id, sending a reader after the #107 mechanism.
+                    dismissedMarkers = runCatching {
+                        listOf(active, "my-whoop").distinct().sumOf { repo.dismissedDetected(it).size }
+                    }.getOrNull(),
+                ),
+            )
         }.onFailure { add("(workout sources unavailable: ${it.message})") }
     }
 
@@ -572,6 +591,41 @@ object AndroidDiagnostics {
             null -> "unknown"
         }
     }.getOrDefault("unknown")
+
+    /**
+     * Which workout detector produced what, and whether the Settings toggle has anything to do with it.
+     *
+     * NOOP has TWO detectors and they are deliberately separate (see AutoWorkoutDetector's header). The
+     * Settings toggle governs the opt-in SUGGESTION card, which only ever offers a workout and saves
+     * nothing until the user taps Save. The IntelligenceEngine separately derives durable sport="detected"
+     * rows from the 1 Hz store on every scoring pass, and that has never been gated by the toggle.
+     *
+     * Both are called "detect" in the UI, so #1735 read the second one's rows as the first one ignoring
+     * its own switch, which is an entirely reasonable reading. Every per-bout line that would have shown
+     * the difference sits behind the Test Centre WORKOUTS domain, and that report was filed as "not a
+     * test-mode bug" with the domain off, so the log carried nothing about it at all.
+     *
+     * Reads COUNTS from the store rather than describing intent: it states what is on disk, not what the
+     * code believes it does. The reassurance clause is emitted only for the combination that actually
+     * misleads (card off, rows present) so it never claims to explain a state it is not looking at.
+     * [dismissedMarkers] is null when the query failed, and renders "n/a" rather than a wrong zero, which
+     * would read as "your dismissals are not sticking".
+     */
+    internal fun autoDetectStateLine(
+        suggestionCardEnabled: Boolean,
+        storedDetectedRows: Int,
+        dismissedMarkers: Int?,
+    ): String {
+        val card = if (suggestionCardEnabled) "on" else "off"
+        val dismissed = dismissedMarkers?.toString() ?: "n/a"
+        val note = if (!suggestionCardEnabled && storedDetectedRows > 0) {
+            " (rows present with the card off is EXPECTED: a different detector makes them)"
+        } else {
+            ""
+        }
+        return "Auto-detect: suggestion card=$card · engine \"Activity\" rows=always on, not gated by " +
+            "that toggle · stored detected=$storedDetectedRows · dismissed markers=$dismissed$note"
+    }
 
     /** A coarse OEM-kill heuristic by manufacturer (the aggressive-background-kill vendors). Pure and
      *  internal so it unit-tests without a Context (the suite stays Robolectric-free). */
