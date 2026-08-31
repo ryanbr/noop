@@ -1449,8 +1449,13 @@ public final class BLEManager: NSObject, ObservableObject {
         }
         // #1635: the suppression path pauses NOTHING, so the reset above never fires for it. An explicit
         // Connect is exactly the signal that the user has acted (pairing mode, closed the WHOOP app), so
-        // it must grant a fresh handshake regardless — that is also the only way to clear the latch short
-        // of a genuine bond. Deliberately NOT in connectCore: a system-initiated reconnect must not.
+        // it must grant a fresh handshake regardless. Be exact about what that does and does not do: it
+        // grants ONE connect's worth of hello and leaves the latch standing, so if the strap still will
+        // not answer, the automatic reconnects behind this attempt stay suppressed. The latch is cleared
+        // by the attempt SUCCEEDING (didWriteValueFor's genuine ack) or by forgetDevice, never by the tap
+        // itself — Kotlin `pairingHintClearDropsSuppressionLatch` is the twin of that rule, and it had to
+        // be made one: clearing on the tap there re-paid the whole give-up on every press.
+        // Deliberately NOT in connectCore: a system-initiated reconnect must not.
         helloRetryRequested = true
         bondGiveUp.reset()
         connectCore(model: model)
