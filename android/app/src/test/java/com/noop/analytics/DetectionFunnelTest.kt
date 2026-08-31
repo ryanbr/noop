@@ -166,7 +166,11 @@ class DetectionFunnelTest {
             droppedShort = 4, droppedNoHR = 0, droppedLowIntensity = 0, kept = 0,
         )
         assertEquals(
-            "effort detect day=2026-08-24 hr=34137 motion=34136 restHR=59 floor=74 " +
+            // Renamed from "effort detect": this funnel is WORKOUT-BOUT detection, and sitting under
+            // the Effort name made it read as the explanation for the Today ring's number. It is not -
+            // StrainScorer.strain computes that from HR alone, with no motion input - and the confusion
+            // has already produced one wrong diagnosis from a real log. `effort score` is the ring's line.
+            "workout detect day=2026-08-24 hr=34137 motion=34136 restHR=59 floor=74 " +
                 "motionOK=1203 hrMissing=12 hrTooLow=1103 active=88 runs=6 bridged=4 " +
                 "longestRunS=212 meanRunS=74 " +
                 "short=4 noHR=0 lowIntensity=0 kept=0",

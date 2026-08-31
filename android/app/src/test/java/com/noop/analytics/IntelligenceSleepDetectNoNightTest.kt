@@ -25,8 +25,11 @@ class IntelligenceSleepDetectNoNightTest {
             gravCount = 0, stepCount = 12, providedCount = 0, windowHours = 54,
         )
         assertEquals(
+            // reason=no-motion is the point of this fixture: grav=0 means the stager has no HR-only
+            // fallback, so no quantity of HR could have staged a night. That is a strap capability limit,
+            // and it wants a different follow-up from a night that had motion and still staged nothing.
             "sleep-detect day=2026-08-11 NO-NIGHT hr=41230 rr=0 resp=880 " +
-                "grav=0 steps=12 provided=0 window=54h",
+                "grav=0 steps=12 provided=0 window=54h reason=no-motion",
             line,
         )
     }
@@ -39,6 +42,9 @@ class IntelligenceSleepDetectNoNightTest {
             gravCount = 4, stepCount = 0, providedCount = 0, windowHours = 48,
         )
         assertTrue(line, line.contains("window=48h"))
+        // The other branch: motion WAS present and staging still produced nothing, which is the case
+        // worth investigating rather than a capability limit.
+        assertTrue(line, line.contains("reason=staged-none"))
     }
 
     @Test

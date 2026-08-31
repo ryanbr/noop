@@ -501,6 +501,33 @@ interface WhoopDao : DeviceRegistryDao {
     )
     suspend fun gravitySamples(deviceId: String, from: Long, to: Long, limit: Int): List<GravitySample>
 
+    /**
+     * Which raw streams a device has ANY rows for in a window — the strap-capability question, answered
+     * without counting.
+     *
+     * EXISTS rather than COUNT on purpose. The question is presence, and every one of these tables is
+     * keyed `(deviceId, ts)`, so each subquery is an index seek that stops at the first row instead of
+     * walking a night's worth — a 4.0 night carries ~190k gravity rows and counting them to learn "yes"
+     * would be absurd. One statement so it is one round trip.
+     *
+     * Answers what no existing line could: a strap streaming live HR with no motion cannot produce a
+     * staged night or an auto-detected workout, and until now a reader had to infer that from the absence
+     * of other lines. Diagnostics-export only, like [rawSampleCountsByDevice]. Swift twin:
+     * `WhoopStore.streamPresence`.
+     */
+    data class StreamPresence(
+        val hr: Boolean, val rr: Boolean, val gravity: Boolean, val steps: Boolean,
+    )
+
+    @Query(
+        "SELECT " +
+            "EXISTS(SELECT 1 FROM hrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) AS hr, " +
+            "EXISTS(SELECT 1 FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) AS rr, " +
+            "EXISTS(SELECT 1 FROM gravitySample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) AS gravity, " +
+            "EXISTS(SELECT 1 FROM stepSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) AS steps"
+    )
+    suspend fun streamPresence(deviceId: String, from: Long, to: Long): StreamPresence
+
     /** Raw biometric sample counts per device id in a window - see [rawSampleCountsByDevice]. */
     data class DeviceSampleCount(val deviceId: String, val total: Int)
 

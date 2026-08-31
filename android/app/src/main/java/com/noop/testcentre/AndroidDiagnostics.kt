@@ -55,6 +55,23 @@ object AndroidDiagnostics {
     }
 
     /**
+     * What the active strap actually delivered over the window — the line that says which scores can
+     * exist at all.
+     *
+     * A 5/MG that never completes its handshake streams live HR and R-R over the standard characteristic
+     * and nothing else: motion and steps arrive only with the proprietary offload. Without motion the
+     * sleep stager has no HR-only fallback and the workout detector returns before it looks at heart rate,
+     * so Rest reads "No data" and no bout is ever found — and until now a report showed those absences
+     * with nothing connecting them to their single cause. A reader had to know the pipeline to infer it.
+     *
+     * Pure so it is unit-tested directly; byte-identical to the Swift twin.
+     */
+    internal fun strapProvidesLine(hr: Boolean, rr: Boolean, motion: Boolean, steps: Boolean): String {
+        fun mark(b: Boolean) = if (b) "yes" else "NO"
+        return "Provides:    HR ${mark(hr)} · R-R ${mark(rr)} · motion ${mark(motion)} · steps ${mark(steps)}"
+    }
+
+    /**
      * Strap identity + data-state lines for the debug export. Offline-safe: reads persisted prefs and the
      * canonical "my-whoop" daily spine, so it works from the scheduled background export too. Model,
      * last-known firmware, last-sync, timezone, days of history, and the most recent sleep + recovery day.
@@ -125,6 +142,20 @@ object AndroidDiagnostics {
                     "(if you restored a backup, fully restart the app — #57)")
             }
             if (restoreAt > 0L) add("Last restore: ${relTime(now - restoreAt * 1000L)}")
+            // #1770 follow-up: which streams the ACTIVE strap actually delivered over the last 48 h. Four
+            // EXISTS seeks, not counts — see WhoopDao.streamPresence for why that distinction matters on a
+            // table holding ~190k motion rows a night.
+            runCatching {
+                // Same resolution funnelLines uses: the registry's ACTIVE id, not the canonical label, so
+                // a two-strap install reports the strap actually being worn.
+                val activeId = runCatching {
+                    (context.applicationContext as? com.noop.NoopApplication)?.deviceRegistry?.activeDeviceId()
+                }.getOrNull() ?: "my-whoop"
+                val nowSec = now / 1000L
+                val present = com.noop.data.WhoopRepository.from(context)
+                    .streamPresence(activeId, nowSec - 48L * 3600L, nowSec)
+                add(strapProvidesLine(present.hr, present.rr, present.gravity, present.steps))
+            }
             // #1735: row COUNTS alone cannot separate "Health Connect never brought the ride in" from
             // "it did, but nothing has re-scored since". Both halves of that need a WHEN, and neither had
             // one: the importer recorded no run time at all, and the engine's "re-score: done" goes only to

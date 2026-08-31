@@ -373,6 +373,38 @@ object StrainScorer {
         return exp(maxStrain * sumXX / sumXY)
     }
 
+    /**
+     * One line naming what an Effort score was computed FROM, or why it could not be computed.
+     *
+     * The gap this closes: [strain] is the only score in the app with no trace at all. WorkoutDetector,
+     * SleepStager and both engines each emit a funnel; the number on the Today hero ring emitted nothing,
+     * so a log could not distinguish "measured, and the day was genuinely calm" from "could not measure".
+     * A reader looking for the latter finds `effort detect`, which is WORKOUT-BOUT detection and answers a
+     * different question — a confusion that has already produced one wrong diagnosis.
+     *
+     * `enough` is the [strain] gate spelled out: dense (>= minReadings) OR sparse-but-sustained. `trimp`
+     * and `strain` are absent when the gate refused, which is exactly the case a bare 0 hides.
+     */
+    fun scoreFunnelLine(
+        day: String,
+        hrSamples: Int,
+        enough: Boolean,
+        maxHR: Double,
+        maxHRProvided: Boolean,
+        restingHR: Double,
+        method: Method,
+        trimp: Double?,
+        strain: Double?,
+    ): String =
+        "effort score day=$day hr=$hrSamples enough=$enough" +
+            " hrMax=${round1(maxHR)}(${if (maxHRProvided) "provided" else "default"})" +
+            " rhr=${round1(restingHR)} reserve=${round1(maxHR - restingHR)}" +
+            " method=${method.name.lowercase()}" +
+            " trimp=${trimp?.let { round1(it) } ?: "n/a"} strain=${strain?.let { round1(it) } ?: "n/a"}"
+
+    /** One decimal, locale-independent, so two platforms' lines compare byte for byte. */
+    private fun round1(v: Double): String = String.format(java.util.Locale.US, "%.1f", v)
+
     // ---- Public API ----
 
     /**
@@ -398,6 +430,11 @@ object StrainScorer {
         // null (the default) resolves to the denominator that BELONGS to [method] — Edwards' 7201, or
         // Banister's sex-dependent ceiling. Pass a value only to override.
         denominator: Double? = null,
+        // Optional diagnostic sink. Null by default and the line is built ONLY when one is supplied, so a
+        // scoring pass that nobody is watching pays nothing — which matters because a pass re-scores many
+        // days. Callers hand this in for the day worth explaining, not for all of them.
+        diag: ((String) -> Unit)? = null,
+        day: String = "",
     ): Double? {
         val resolvedDenominator = denominator ?: logMapDenominator(method, sex)
         val effMax = maxHR ?: defaultMaxHR().toDouble()
@@ -411,7 +448,15 @@ object StrainScorer {
             }
             else -> false
         }
-        if (!enoughData || effMax <= restingHR) return null
+        if (!enoughData || effMax <= restingHR) {
+            // The refusal is the half a bare number cannot show: null here and 0.0 on a calm day look
+            // identical on the ring, and only one of them is a measurement.
+            diag?.let {
+                it(scoreFunnelLine(day, hr.size, enoughData, effMax, maxHR != null, restingHR, method,
+                                   trimp = null, strain = null))
+            }
+            return null
+        }
 
         val durations = sampleDurationsMinutes(hr)
         val hrReserve = effMax - restingHR
@@ -428,6 +473,11 @@ object StrainScorer {
                 edwardsTRIMP(hr, restingHR, hrReserve, durations)
             }
         }
-        return trimpToStrain(trimp, resolvedDenominator)
+        val scored = trimpToStrain(trimp, resolvedDenominator)
+        diag?.let {
+            it(scoreFunnelLine(day, hr.size, enoughData, effMax, maxHR != null, restingHR, method,
+                               trimp = trimp, strain = scored))
+        }
+        return scored
     }
 }

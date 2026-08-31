@@ -172,7 +172,7 @@ object WorkoutDetector {
      * day was measured against — the same privacy class as the sibling `sleep day=` line.
      */
     fun detectionFunnelLine(day: String, f: DetectionFunnel): String =
-        "effort detect day=$day hr=${f.hrSamples} motion=${f.motionSamples} " +
+        "workout detect day=$day hr=${f.hrSamples} motion=${f.motionSamples} " +
             "restHR=${round0(f.restingHR)} floor=${round0(f.hrFloor)} " +
             "motionOK=${f.motionPassed} hrMissing=${f.hrMissing} hrTooLow=${f.hrTooLow} " +
             "active=${f.active} runs=${f.runs} bridged=${f.bridged} " +

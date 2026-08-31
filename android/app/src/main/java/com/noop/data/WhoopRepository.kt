@@ -1336,6 +1336,11 @@ class WhoopRepository(
     suspend fun gravitySamplesForDevice(deviceId: String, from: Long, to: Long, limit: Int = DEFAULT_LIMIT) =
         dao.gravitySamples(deviceId, from, to, limit)
 
+    /** Which raw streams this device has any rows for — see [WhoopDao.streamPresence]. Presence, not
+     *  counts, so it is four index seeks that stop at the first row. Diagnostics-export only. */
+    suspend fun streamPresence(deviceId: String, from: Long, to: Long) =
+        dao.streamPresence(deviceId, from, to)
+
     /**
      * Gravity samples over the read-side union of the active strap id and canonical "my-whoop",
      * deduped by timestamp with the active strap winning. A re-added strap banks live motion under its

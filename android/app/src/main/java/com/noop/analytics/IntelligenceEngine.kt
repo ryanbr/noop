@@ -2901,8 +2901,15 @@ object IntelligenceEngine {
         day: String, hrCount: Int, rrCount: Int, respCount: Int, gravCount: Int,
         stepCount: Int, providedCount: Int, windowHours: Int,
     ): String {
+        // `reason` names WHICH absence this is, because grav=0 is printed but its consequence is not.
+        // With no motion the stager has no HR-only fallback, so no quantity of HR can stage a night — a
+        // strap capability limit, not a coverage gap, and the two want completely different follow-ups.
+        // With motion present the inputs were there and staging still produced nothing, which is the case
+        // actually worth investigating.
+        val reason = if (gravCount == 0) "no-motion" else "staged-none"
         return "sleep-detect day=$day NO-NIGHT hr=$hrCount rr=$rrCount resp=$respCount " +
-            "grav=$gravCount steps=$stepCount provided=$providedCount window=${windowHours}h"
+            "grav=$gravCount steps=$stepCount provided=$providedCount window=${windowHours}h " +
+            "reason=$reason"
     }
 
     /**

@@ -203,7 +203,7 @@ public enum WorkoutDetector {
     /// Byte-identical string to the Kotlin twin. No PII: a day key and counts, plus the two bpm thresholds
     /// the day was measured against — the same privacy class as the sibling `sleep day=` line.
     public static func detectionFunnelLine(day: String, funnel f: DetectionFunnel) -> String {
-        "effort detect day=\(day) hr=\(f.hrSamples) motion=\(f.motionSamples) "
+        "workout detect day=\(day) hr=\(f.hrSamples) motion=\(f.motionSamples) "
             + "restHR=\(round0(f.restingHR)) floor=\(round0(f.hrFloor)) "
             + "motionOK=\(f.motionPassed) hrMissing=\(f.hrMissing) hrTooLow=\(f.hrTooLow) "
             + "active=\(f.active) runs=\(f.runs) bridged=\(f.bridged) "

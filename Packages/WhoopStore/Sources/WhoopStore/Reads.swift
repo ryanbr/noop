@@ -359,6 +359,41 @@ extension WhoopStore {
     /// is an index-ONLY scan (both columns live in that index, so no table rows are touched) with
     /// `deviceId` leading, which also lets the GROUP BY skip a temp b-tree. Cheap enough for a
     /// user-triggered diagnostics export, which is the only caller.
+    /// Which raw streams a device has ANY rows for in a window — the strap-capability question,
+    /// answered without counting.
+    ///
+    /// EXISTS rather than COUNT on purpose. The question is presence, every one of these tables is keyed
+    /// `(deviceId, ts)`, so each subquery is an index seek that stops at the first row instead of walking a
+    /// night's worth — a 4.0 night carries ~190k gravity rows and counting them to learn "yes" would be
+    /// absurd. One statement so it is one round trip.
+    ///
+    /// Answers what no existing line could: a strap streaming live HR with no motion cannot produce a
+    /// staged night or an auto-detected workout, and until now a reader had to infer that from the absence
+    /// of other lines. Diagnostics-export only, like `rawSampleCountsByDevice`. Kotlin twin:
+    /// `WhoopDao.streamPresence`.
+    public struct StreamPresence: Sendable, Equatable {
+        public let hr: Bool, rr: Bool, gravity: Bool, steps: Bool
+        public init(hr: Bool, rr: Bool, gravity: Bool, steps: Bool) {
+            self.hr = hr; self.rr = rr; self.gravity = gravity; self.steps = steps
+        }
+    }
+
+    public func streamPresence(deviceId: String, from: Int, to: Int) async throws -> StreamPresence {
+        try syncRead { db in
+            let row = try Row.fetchOne(db, sql: """
+                SELECT
+                  EXISTS(SELECT 1 FROM hrSample WHERE deviceId = ? AND ts >= ? AND ts <= ?) AS hr,
+                  EXISTS(SELECT 1 FROM rrInterval WHERE deviceId = ? AND ts >= ? AND ts <= ?) AS rr,
+                  EXISTS(SELECT 1 FROM gravitySample WHERE deviceId = ? AND ts >= ? AND ts <= ?) AS gravity,
+                  EXISTS(SELECT 1 FROM stepSample WHERE deviceId = ? AND ts >= ? AND ts <= ?) AS steps
+                """, arguments: [deviceId, from, to, deviceId, from, to,
+                                 deviceId, from, to, deviceId, from, to])
+            return StreamPresence(
+                hr: (row?["hr"] ?? 0) != 0, rr: (row?["rr"] ?? 0) != 0,
+                gravity: (row?["gravity"] ?? 0) != 0, steps: (row?["steps"] ?? 0) != 0)
+        }
+    }
+
     public func rawSampleCountsByDevice(from: Int, to: Int) async throws -> [(String, Int)] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """
