@@ -170,5 +170,27 @@ final class HelloSuppressionTests: XCTestCase {
             XCTAssertFalse(keepAliveMayRun(connected: false, didBond: true, bonded: true, family: family))
         }
     }
-}
 
+    // MARK: - giveUpThresholdFor
+
+    /// The Kotlin twin is `HelloSuppressionTest."an unanswered handshake gives up sooner than an auth
+    /// refusal"`. Both numbers matter: 5 keeps the auth branch's patience, 3 is the unanswered branch.
+    func testUnansweredHandshakeGivesUpSoonerThanAuthRefusal() {
+        XCTAssertEqual(5, giveUpThresholdFor(authRefusal: true, pauseThreshold: 5))
+        XCTAssertEqual(3, giveUpThresholdFor(authRefusal: false, pauseThreshold: 5))
+        // Above the hint threshold, so a PERSISTED verdict still keeps a cycle of margin.
+        XCTAssertGreaterThan(unansweredGiveUpThreshold, 2)
+    }
+
+    /// Patience and treatment read the SAME refusal. Keyed apart they could disagree — pausing on a branch
+    /// that waited the suppression count, or vice versa. Kotlin twin: "the threshold and the treatment
+    /// read the same refusal".
+    func testThresholdAndTreatmentReadTheSameRefusal() {
+        for auth in [true, false] {
+            let suppresses = giveUpSuppressesHello(authRefusal: auth)
+            let threshold = giveUpThresholdFor(authRefusal: auth, pauseThreshold: 5)
+            XCTAssertEqual(suppresses, threshold == unansweredGiveUpThreshold)
+        }
+    }
+
+}

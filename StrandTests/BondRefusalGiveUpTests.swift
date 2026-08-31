@@ -68,4 +68,25 @@ final class BondRefusalGiveUpTests: XCTestCase {
         XCTAssertTrue(hint.contains("Forget This Device"))
         XCTAssertFalse(hint.contains("\u{2014}"))
     }
+
+    /// A per-refusal threshold moves the crossing without duplicating it. Kotlin twin:
+    /// `BondRefusalGiveUpTest."a lower threshold latches sooner, and the latch still reports once"`.
+    func testPerRefusalThresholdLatchesSoonerAndStillReportsOnce() {
+        var g = BondRefusalGiveUp()          // pause threshold 5
+        XCTAssertFalse(g.recordRefusal(threshold: 3))
+        XCTAssertFalse(g.recordRefusal(threshold: 3))
+        XCTAssertTrue(g.recordRefusal(threshold: 3), "crossed at 3, not 5")
+        XCTAssertTrue(g.gaveUp)
+        XCTAssertFalse(g.recordRefusal(threshold: 3), "the latch reports exactly once")
+        XCTAssertEqual(4, g.refusals)
+    }
+
+    /// Omitting it keeps the constructed threshold, so every existing caller is unchanged.
+    func testOmittingTheThresholdKeepsTheConstructedOne() {
+        var g = BondRefusalGiveUp()
+        XCTAssertEqual(5, g.giveUpThreshold)
+        for _ in 1...4 { XCTAssertFalse(g.recordRefusal()) }
+        XCTAssertTrue(g.recordRefusal())
+    }
+
 }
