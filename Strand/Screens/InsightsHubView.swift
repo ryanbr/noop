@@ -546,6 +546,8 @@ final class InsightsHubViewModel: ObservableObject {
     // MARK: Loaded inputs (kept so the outcome segmented control can re-rank cheaply)
 
     private var behaviours: [String: Set<String>] = [:]
+    /// Per behaviour, the days it was logged NO — the only legitimate control group.
+    private var controls: [String: Set<String>] = [:]
     private var outcomeByKey: [String: [String: Double]] = [:]
     private var currentOutcome: Outcome = .recovery
 
@@ -559,9 +561,13 @@ final class InsightsHubViewModel: ObservableObject {
     func load(repo: Repository) async {
         // Journal → behaviour → days (only "yes" answers count as the behaviour occurring).
         let entries = await repo.journalEntries()
+        // Yes days and NO days, kept apart. A day with no journal row for the question lands in
+        // neither, so an unanswered day is never counted as a No (BehaviorInsights.effect).
         var byBehaviour: [String: Set<String>] = [:]
-        for e in entries where e.answeredYes {
-            byBehaviour[e.question, default: []].insert(e.day)
+        var controlsByBehaviour: [String: Set<String>] = [:]
+        for e in entries {
+            if e.answeredYes { byBehaviour[e.question, default: []].insert(e.day) }
+            else { controlsByBehaviour[e.question, default: []].insert(e.day) }
         }
 
         // Outcome series: imported metricSeries ∪ the DailyMetric column fallback so an
@@ -611,6 +617,7 @@ final class InsightsHubViewModel: ObservableObject {
         }
 
         self.behaviours = byBehaviour
+        self.controls = controlsByBehaviour
         self.outcomeByKey = byKey
         self.doseCards = cards
         self.loaded = true
@@ -622,6 +629,7 @@ final class InsightsHubViewModel: ObservableObject {
         currentOutcome = outcome
         let outcomeDays = outcomeByKey[outcome.key] ?? [:]
         ranked = EffectRanker.rank(behaviors: behaviours,
+                                   controls: controls,
                                    outcomeByDay: outcomeDays,
                                    outcome: outcome.outcomeName)
     }

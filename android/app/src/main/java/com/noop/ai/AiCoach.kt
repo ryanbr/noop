@@ -308,11 +308,12 @@ class AiCoach(
         val sb = StringBuilder()
 
         // --- Strongest associations on the user's own logged days (recovery as the outcome) ---
-        val behaviours = runCatching { journalBehaviours() }.getOrDefault(emptyMap())
+        val (behaviours, controls) = runCatching { journalBehaviours() }
+            .getOrDefault(emptyMap<String, Set<String>>() to emptyMap())
         val days = runCatching { repo.daysMerged(activeStrapId()) }.getOrDefault(emptyList())
         if (behaviours.isNotEmpty() && days.isNotEmpty()) {
             val recoveryByDay = days.mapNotNull { d -> d.recovery?.let { d.day to it } }.toMap()
-            val ranked = runCatching { EffectRanker.rank(behaviours, recoveryByDay, "Charge") }
+            val ranked = runCatching { EffectRanker.rank(behaviours, controls, recoveryByDay, "Charge") }
                 .getOrDefault(emptyList())
                 .take(3)
             if (ranked.isNotEmpty()) {
@@ -341,16 +342,22 @@ class AiCoach(
         return sb.toString().trim().takeIf { it.isNotEmpty() }
     }
 
-    /** Behaviour → set of "yyyy-MM-dd" days it was logged "yes" (imported ∪ native), for EffectRanker. */
-    private suspend fun journalBehaviours(): Map<String, Set<String>> {
+    /** Behaviour → the days it was logged YES and the days it was logged NO (imported ∪ native), for
+     *  EffectRanker. Kept apart: a day with no journal row for a question belongs to neither, so an
+     *  unanswered day is never counted as a No — see [EffectRanker.effect]. */
+    private suspend fun journalBehaviours(): Pair<Map<String, Set<String>>, Map<String, Set<String>>> {
         val imported = repo.journal(deviceId, "0000-01-01", "9999-12-31")
         val native = repo.journal(journalDeviceId, "0000-01-01", "9999-12-31")
         val byKey = LinkedHashMap<Pair<String, String>, JournalEntry>()
         for (e in imported) byKey[e.day to e.question] = e
         for (e in native) byKey[e.day to e.question] = e   // native wins on a collision
-        val out = HashMap<String, MutableSet<String>>()
-        for (e in byKey.values) if (e.answeredYes) out.getOrPut(e.question) { mutableSetOf() }.add(e.day)
-        return out.mapValues { it.value.toSet() }
+        val yes = HashMap<String, MutableSet<String>>()
+        val no = HashMap<String, MutableSet<String>>()
+        for (e in byKey.values) {
+            val bucket = if (e.answeredYes) yes else no
+            bucket.getOrPut(e.question) { mutableSetOf() }.add(e.day)
+        }
+        return yes.mapValues { it.value.toSet() } to no.mapValues { it.value.toSet() }
     }
 
     /** The latest reading per Lab Book marker key (stored under the ACTIVE strap deviceId). #1304/#512:

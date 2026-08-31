@@ -38,6 +38,7 @@ final class EffectRankerTests: XCTestCase {
         }
 
         let out = EffectRanker.rank(behaviors: ["Alcohol": behaviorDays],
+                                    controls: ["Alcohol": Set(outcome.keys).subtracting(behaviorDays)],
                                     outcomeByDay: outcome, outcome: "Charge")
         let r = row(out, "Alcohol")
         XCTAssertNotNil(r)
@@ -62,7 +63,7 @@ final class EffectRankerTests: XCTestCase {
     private func effectAtLag(_ behaviorDays: Set<String>, _ outcome: [String: Double],
                              _ lag: Int) -> BehaviorEffect? {
         let shifted = EffectRanker.shiftedOutcome(outcome, byLag: lag)
-        return BehaviorInsights.effect(behaviorDays: behaviorDays, outcomeByDay: shifted,
+        return BehaviorInsights.effect(behaviorDays: behaviorDays, controlDays: Set(shifted.keys).subtracting(behaviorDays), outcomeByDay: shifted,
                                        behavior: "Alcohol", outcome: "Charge")
     }
 
@@ -82,6 +83,7 @@ final class EffectRankerTests: XCTestCase {
         for d in 1...8 { outcome[ymd(2026, 7, d)] = 70 + jitter(d) }   // plenty of "without"
 
         let out = EffectRanker.rank(behaviors: ["Sparse": thin],
+                                    controls: ["Sparse": Set(outcome.keys).subtracting(thin)],
                                     outcomeByDay: outcome, outcome: "Charge")
         XCTAssertTrue(out.isEmpty)
     }
@@ -110,6 +112,8 @@ final class EffectRankerTests: XCTestCase {
         for d in 10...20 { outcome[ymd(2026, 5, d)] = 70 + jitter(d) }
 
         let out = EffectRanker.rank(behaviors: ["Big": big, "Small": small],
+                                    controls: ["Big": Set(outcome.keys).subtracting(big),
+                                               "Small": Set(outcome.keys).subtracting(small)],
                                     outcomeByDay: outcome, outcome: "Charge")
         XCTAssertEqual(out.map { $0.behavior }, ["Big", "Small"])   // |d| Big > Small
         XCTAssertEqual(row(out, "Big")!.lag, 0)                     // both are same-day effects

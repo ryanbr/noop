@@ -153,6 +153,9 @@ private data class Relationship(
 private data class InsightModel(
     /** behaviour question → set of days it was answered "yes". */
     val behaviours: Map<String, Set<String>>,
+    /** Per behaviour, the days it was logged NO — the only legitimate control group. A day with no
+     *  journal row for the question is in neither map and takes part in no comparison. */
+    val controls: Map<String, Set<String>>,
     /** day → value, per outcome. */
     val outcomeByDay: Map<Outcome, Map<String, Double>>,
     /** ordered (day, value) per outcome for correlations. */
@@ -184,6 +187,7 @@ fun InsightsScreen(vm: AppViewModel, onOpenInsightsHub: () -> Unit = {}) {
     // rows (native wins per (day, question)). Keyed on journalSeq so the logging card's saves and
     // clears refresh the effects immediately; re-loaded too when the cached days change underneath.
     var behaviours by remember { mutableStateOf<Map<String, Set<String>>>(emptyMap()) }
+    var controls by remember { mutableStateOf<Map<String, Set<String>>>(emptyMap()) }
     // #322: numeric journal item (question) -> [day: value]. A numeric journal series is a daily series
     // the effect ranker consumes exactly like a metric series (EffectRanker.effect already takes a
     // Map<String, Double> outcome), so "caffeine mg" / "alcohol units" can rank as a numeric outcome.
@@ -233,15 +237,18 @@ fun InsightsScreen(vm: AppViewModel, onOpenInsightsHub: () -> Unit = {}) {
         val native = vm.repo.journal(JOURNAL_DEVICE_ID, "0000-01-01", "9999-12-31")
         val entries = mergeJournalEntries(imported, native)
         val byBehaviour = mutableMapOf<String, MutableSet<String>>()
+        val controlsByBehaviour = mutableMapOf<String, MutableSet<String>>()
         // #322: a numeric log writes answeredYes=true too, so a numeric item lands in the with/without
         // split here unchanged; its per-day value is captured separately for a numeric series the effect
         // ranker can consume like any metric outcome (dose-response lands in the v5 hub). Additive.
         val numericByBehaviour = mutableMapOf<String, MutableMap<String, Double>>()
         for (e in entries) {
-            if (e.answeredYes) byBehaviour.getOrPut(e.question) { mutableSetOf() }.add(e.day)
+            val bucket = if (e.answeredYes) byBehaviour else controlsByBehaviour
+            bucket.getOrPut(e.question) { mutableSetOf() }.add(e.day)
             e.numericValue?.let { v -> numericByBehaviour.getOrPut(e.question) { mutableMapOf() }[e.day] = v }
         }
         behaviours = byBehaviour.mapValues { it.value.toSet() }
+        controls = controlsByBehaviour.mapValues { it.value.toSet() }
         numericJournalSeries = numericByBehaviour.mapValues { it.value.toMap() }
         importedQuestions = imported.map { it.question }.distinct()
         val key = journalDayKey(dayOffset)
@@ -290,7 +297,9 @@ fun InsightsScreen(vm: AppViewModel, onOpenInsightsHub: () -> Unit = {}) {
 
     // Build outcome day-maps + ordered series off the cached daily metrics. Cheap and
     // recomputed only when `days` changes (not on every recomposition).
-    val model = remember(days, behaviours, numericJournalSeries) { buildModel(days, behaviours, numericJournalSeries) }
+    val model = remember(days, behaviours, controls, numericJournalSeries) {
+        buildModel(days, behaviours, controls, numericJournalSeries)
+    }
 
     // Ranked behaviour effects for the current outcome (recomputed when outcome/data change).
     val ranked = remember(model, outcome) { rankEffects(model, outcome) }
@@ -1584,6 +1593,7 @@ private fun RBar(r: Double, color: Color) {
 private fun buildModel(
     days: List<DailyMetric>,
     behaviours: Map<String, Set<String>>,
+    controls: Map<String, Set<String>>,
     numericJournalSeries: Map<String, Map<String, Double>> = emptyMap(),
 ): InsightModel {
     val outcomeByDay = mutableMapOf<Outcome, Map<String, Double>>()
@@ -1594,7 +1604,7 @@ private fun buildModel(
         seriesByOutcome[o] = series
         outcomeByDay[o] = series.toMap()
     }
-    return InsightModel(behaviours, outcomeByDay, seriesByOutcome, numericJournalSeries)
+    return InsightModel(behaviours, controls, outcomeByDay, seriesByOutcome, numericJournalSeries)
 }
 
 /** Rank behaviour effects for one outcome by |Cohen's d|, significant first. */
@@ -1603,10 +1613,17 @@ private fun rankEffects(model: InsightModel, outcome: Outcome): List<BehaviorEff
     if (outcomeDays.isEmpty()) return emptyList()
 
     val effects = model.behaviours.mapNotNull { (behaviour, yesDays) ->
+        // Controls are the days answered NO, never the days never answered. This screen carries its own
+        // copy of the with/without split rather than calling EffectRanker, so it needed the same
+        // correction — see [EffectRanker.effect] for why unlogged days are not controls.
+        val noDays = model.controls[behaviour].orEmpty()
         val with = mutableListOf<Double>()
         val without = mutableListOf<Double>()
         for ((day, value) in outcomeDays) {
-            if (day in yesDays) with.add(value) else without.add(value)
+            when {
+                day in yesDays -> with.add(value)
+                day in noDays -> without.add(value)
+            }
         }
         // Need both groups to compare; require ≥2 each so a mean/SD is meaningful.
         if (with.size < 2 || without.size < 2) return@mapNotNull null

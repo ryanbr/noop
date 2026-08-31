@@ -14,7 +14,7 @@ final class BehaviorInsightsTests: XCTestCase {
             "d13": 70, "d14": 68,
         ]
         let behaviorDays: Set<String> = ["d01", "d02", "d03", "d04", "d05", "d06"]
-        let e = BehaviorInsights.effect(behaviorDays: behaviorDays, outcomeByDay: outcome,
+        let e = BehaviorInsights.effect(behaviorDays: behaviorDays, controlDays: Set(outcome.keys).subtracting(behaviorDays), outcomeByDay: outcome,
                                         behavior: "Alcohol", outcome: "Recovery")!
         XCTAssertEqual(e.nWith, 6)
         XCTAssertEqual(e.nWithout, 8)
@@ -34,6 +34,7 @@ final class BehaviorInsightsTests: XCTestCase {
             "f": 70, "g": 72, "h": 68, "i": 71, "j": 69,   // without (mean 70)
         ]
         let e = BehaviorInsights.effect(behaviorDays: ["a", "b", "c", "d", "e"],
+                                        controlDays: Set(outcome.keys).subtracting(["a", "b", "c", "d", "e"]),
                                         outcomeByDay: outcome,
                                         behavior: "Meditation", outcome: "Recovery")!
         XCTAssertEqual(e.delta, 10.0, accuracy: 1e-9)
@@ -46,10 +47,12 @@ final class BehaviorInsightsTests: XCTestCase {
         // Behavior logged every day → no "without" group.
         let outcome: [String: Double] = ["a": 60, "b": 61, "c": 62]
         XCTAssertNil(BehaviorInsights.effect(behaviorDays: ["a", "b", "c"],
+                                             controlDays: Set(outcome.keys).subtracting(["a", "b", "c"]),
                                              outcomeByDay: outcome,
                                              behavior: "X", outcome: "Recovery"))
         // Behavior never logged → no "with" group.
         XCTAssertNil(BehaviorInsights.effect(behaviorDays: [],
+                                             controlDays: Set(outcome.keys).subtracting([]),
                                              outcomeByDay: outcome,
                                              behavior: "X", outcome: "Recovery"))
     }
@@ -58,6 +61,7 @@ final class BehaviorInsightsTests: XCTestCase {
         // "z" is in behaviorDays but has no outcome value → not counted in nWith.
         let outcome: [String: Double] = ["a": 60, "b": 62, "c": 70, "d": 72]
         let e = BehaviorInsights.effect(behaviorDays: ["a", "b", "z"],
+                                        controlDays: Set(outcome.keys).subtracting(["a", "b", "z"]),
                                         outcomeByDay: outcome,
                                         behavior: "X", outcome: "Recovery")!
         XCTAssertEqual(e.nWith, 2)        // a, b only
@@ -74,6 +78,7 @@ final class BehaviorInsightsTests: XCTestCase {
             "o1": 70, "o2": 71, "o3": 69, "o4": 70,
         ]
         let small = BehaviorInsights.effect(behaviorDays: ["w1", "w2", "w3", "w4"],
+                                            controlDays: Set(smallOutcome.keys).subtracting(["w1", "w2", "w3", "w4"]),
                                             outcomeByDay: smallOutcome,
                                             behavior: "X", outcome: "Recovery")!
         XCTAssertLessThan(small.pApprox, 0.05)       // strong evidence numerically…
@@ -86,6 +91,7 @@ final class BehaviorInsightsTests: XCTestCase {
             "o1": 70, "o2": 71, "o3": 69, "o4": 70, "o5": 70,
         ]
         let big = BehaviorInsights.effect(behaviorDays: ["w1", "w2", "w3", "w4", "w5"],
+                                          controlDays: Set(bigOutcome.keys).subtracting(["w1", "w2", "w3", "w4", "w5"]),
                                           outcomeByDay: bigOutcome,
                                           behavior: "X", outcome: "Recovery")!
         XCTAssertEqual(Swift.min(big.nWith, big.nWithout), 5)
@@ -99,6 +105,7 @@ final class BehaviorInsightsTests: XCTestCase {
             "o1": 64, "o2": 72, "o3": 61, "o4": 74, "o5": 67, "o6": 69,
         ]
         let e = BehaviorInsights.effect(behaviorDays: ["w1", "w2", "w3", "w4", "w5", "w6"],
+                                        controlDays: Set(outcome.keys).subtracting(["w1", "w2", "w3", "w4", "w5", "w6"]),
                                         outcomeByDay: outcome,
                                         behavior: "X", outcome: "Recovery")!
         XCTAssertGreaterThan(e.pApprox, 0.05)    // no separation → weak evidence
@@ -120,7 +127,13 @@ final class BehaviorInsightsTests: XCTestCase {
         // Tiny-but-significant-impossible: 2 days only.
         let tiny: Set<String> = ["d3", "d9"]
 
+        // Predates the Yes/No split and tests the ranking math, so it keeps its original partition
+        // by declaring the complement as controls explicitly.
+        let all = Set(outcome.keys)
         let ranked = BehaviorInsights.rank(behaviors: ["Strong": strong, "Weak": weak, "Tiny": tiny],
+                                           controls: ["Strong": all.subtracting(strong),
+                                                      "Weak": all.subtracting(weak),
+                                                      "Tiny": all.subtracting(tiny)],
                                            outcomeByDay: outcome, outcome: "Recovery")
         XCTAssertEqual(ranked.count, 3)
         XCTAssertEqual(ranked.first?.behavior, "Strong")   // significant + largest |d|
@@ -135,9 +148,15 @@ final class BehaviorInsightsTests: XCTestCase {
     func testRankDropsUncomputableBehaviors() {
         let outcome: [String: Double] = ["a": 60, "b": 62, "c": 70, "d": 72]
         // "AllDays" covers every day → no without group → dropped.
+        // Predates the Yes/No split and tests the ranking math, so it keeps its original partition
+        // by declaring the complement as controls explicitly.
+        let all = Set(outcome.keys)
         let ranked = BehaviorInsights.rank(behaviors: [
             "AllDays": ["a", "b", "c", "d"],
             "Half": ["a", "b"],
+        ], controls: [
+            "AllDays": all.subtracting(["a", "b", "c", "d"]),
+            "Half": all.subtracting(["a", "b"]),
         ], outcomeByDay: outcome, outcome: "Recovery")
         XCTAssertEqual(ranked.count, 1)
         XCTAssertEqual(ranked.first?.behavior, "Half")
@@ -153,6 +172,7 @@ final class BehaviorInsightsTests: XCTestCase {
             "o1": 78, "o2": 82, "o3": 80, "o4": 79, "o5": 81,   // mean 80
         ]
         let e = BehaviorInsights.effect(behaviorDays: ["w1", "w2", "w3", "w4", "w5"],
+                                        controlDays: Set(outcome.keys).subtracting(["w1", "w2", "w3", "w4", "w5"]),
                                         outcomeByDay: outcome,
                                         behavior: "Alcohol", outcome: "Recovery")!
         let s = BehaviorInsights.sentence(e)
@@ -165,6 +185,7 @@ final class BehaviorInsightsTests: XCTestCase {
             "o1": 49, "o2": 51, "o3": 50,    // mean 50
         ]
         let e = BehaviorInsights.effect(behaviorDays: ["w1", "w2", "w3"],
+                                        controlDays: Set(outcome.keys).subtracting(["w1", "w2", "w3"]),
                                         outcomeByDay: outcome,
                                         behavior: "Meditation", outcome: "Recovery")!
         let s = BehaviorInsights.sentence(e)
@@ -179,10 +200,62 @@ final class BehaviorInsightsTests: XCTestCase {
             "o1": 0, "o2": 0, "o3": 0,
         ]
         let e = BehaviorInsights.effect(behaviorDays: ["w1", "w2", "w3"],
+                                        controlDays: Set(outcome.keys).subtracting(["w1", "w2", "w3"]),
                                         outcomeByDay: outcome,
                                         behavior: "X", outcome: "HRV")!
         XCTAssertNil(e.pctChange)
         let s = BehaviorInsights.sentence(e)
         XCTAssertEqual(s, "On days you logged ‘X’, HRV was 5.0 higher (avg 5 vs 0, n=3 vs 3).")
     }
+    // MARK: - Unlogged days are not answers (the Reddit report)
+
+    /// "If I didn't track something for 100 days, NOOP takes that as a NO for 100 days, whereas it simply
+    /// was not logged at all." Reported by a user on Reddit, and it was exactly what the split did.
+    ///
+    /// Twin of Kotlin `EffectRankerTest.daysWithNoJournalRowAreNotControls`.
+    func testDaysWithNoJournalRowAreNotControls() {
+        var outcome: [String: Double] = [:]
+        var yes: Set<String> = []
+        var no: Set<String> = []
+        for d in 1...6 { let k = "y\(d)"; yes.insert(k); outcome[k] = Double(58 + d) }
+        for d in 1...6 { let k = "n\(d)"; no.insert(k); outcome[k] = Double(68 + d) }
+        // Never opened the journal on these, and their values sit far from BOTH answered groups.
+        for d in 1...40 { outcome["u\(d)"] = Double(20 + (d % 3)) }
+
+        let e = BehaviorInsights.effect(behaviorDays: yes, controlDays: no,
+                                        outcomeByDay: outcome,
+                                        behavior: "Alcohol", outcome: "Recovery")!
+        // Controls are the six NO days only. Were the 40 unlogged days leaking in, nWithout would be 46
+        // and meanWithout would be dragged towards 20.
+        XCTAssertEqual(e.nWith, 6)
+        XCTAssertEqual(e.nWithout, 6)
+        XCTAssertGreaterThan(e.meanWithout, 60.0)
+    }
+
+    /// A behaviour the user only ever ticks Yes has no control group, so there is no comparison to make
+    /// and the honest answer is none. Twin of Kotlin `aBehaviourNeverLoggedNoYieldsNothing`.
+    func testBehaviourNeverLoggedNoYieldsNothing() {
+        var outcome: [String: Double] = [:]
+        var yes: Set<String> = []
+        for d in 1...10 { let k = "y\(d)"; yes.insert(k); outcome[k] = Double(50 + d) }
+        for d in 1...10 { outcome["u\(d)"] = Double(80 + d) }
+
+        XCTAssertNil(BehaviorInsights.effect(behaviorDays: yes, controlDays: [],
+                                             outcomeByDay: outcome,
+                                             behavior: "Alcohol", outcome: "Recovery"))
+    }
+
+    /// rank() fails CLOSED on a caller that forgets the controls: no insight, rather than a wrong one
+    /// measured against every day the user never opened the journal. Twin of Kotlin
+    /// `rankWithoutControlsProducesNothingRatherThanGuessing`.
+    func testRankWithoutControlsProducesNothingRatherThanGuessing() {
+        var outcome: [String: Double] = [:]
+        var yes: Set<String> = []
+        for d in 1...10 { let k = "y\(d)"; yes.insert(k); outcome[k] = Double(50 + d) }
+        for d in 1...20 { outcome["u\(d)"] = Double(75 + (d % 4)) }
+
+        XCTAssertTrue(BehaviorInsights.rank(behaviors: ["Alcohol": yes], controls: [:],
+                                            outcomeByDay: outcome, outcome: "Recovery").isEmpty)
+    }
+
 }

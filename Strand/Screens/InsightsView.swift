@@ -40,6 +40,9 @@ private struct InsightsLoadKey: Equatable {
 /// the seq AND the dayKey still match (see `Repository.insightsLoadedSeq` / `insightsLoadedDayKey`).
 struct InsightsLoadCache {
     let behaviours: [String: Set<String>]
+    /// Per behaviour, the days it was logged NO. Cached alongside `behaviours` because a restore that
+    /// dropped it would leave the ranker with no controls and silently produce no insights at all.
+    let controls: [String: Set<String>]
     let importedQuestions: [String]
     let dayAnswers: [String: Bool]
     /// The journal day offset the `dayAnswers` were read for (0 = today, 1 = yesterday, -1 = tomorrow). The
@@ -152,6 +155,8 @@ struct InsightsView: View {
 
     /// behaviour question → set of days where it was answered yes.
     @State private var behaviours: [String: Set<String>] = [:]
+    /// Per behaviour, the days it was logged NO — the only legitimate control group.
+    @State private var controls: [String: Set<String>] = [:]
     /// outcome key → [day: value].
     @State private var outcomeByKey: [String: [String: Double]] = [:]
     /// outcome key → ordered (day, value) series for correlations.
@@ -351,10 +356,14 @@ struct InsightsView: View {
         // log writes answeredYes=true too (#322), so a numeric item lands in the with/without split
         // here unchanged, on top of the numeric series read below.
         let entries = await repo.journalEntries()
+        // Yes days and NO days, kept apart. A day with no journal row for the question lands in
+        // neither, so an unanswered day is never counted as a No (BehaviorInsights.effect).
         var byBehaviour: [String: Set<String>] = [:]
+        var controlsByBehaviour: [String: Set<String>] = [:]
         var numericByBehaviour: [String: [String: Double]] = [:]
-        for e in entries where e.answeredYes {
-            byBehaviour[e.question, default: []].insert(e.day)
+        for e in entries {
+            if e.answeredYes { byBehaviour[e.question, default: []].insert(e.day) }
+            else { controlsByBehaviour[e.question, default: []].insert(e.day) }
         }
         // #322: per-question numeric series (question → [day: value]) for numeric journal items. A
         // numeric series is the same [day: value] shape a metric outcome is, so the effect ranker can
@@ -415,6 +424,7 @@ struct InsightsView: View {
 
         await MainActor.run {
             self.behaviours = byBehaviour
+            self.controls = controlsByBehaviour
             self.importedQuestions = importedQs
             self.dayAnswers = nativeAnswers
             self.dayNumeric = nativeNumeric
@@ -432,6 +442,7 @@ struct InsightsView: View {
             // freshest read, a subsequent re-mount never restores stale data behind a journal toggle.
             self.repo.insightsCache = InsightsLoadCache(
                 behaviours: byBehaviour,
+                controls: controlsByBehaviour,
                 importedQuestions: importedQs,
                 dayAnswers: nativeAnswers,
                 journalDayOffset: self.journalDayOffset,
@@ -450,6 +461,7 @@ struct InsightsView: View {
     @MainActor
     private func restoreFromCache(_ c: InsightsLoadCache) {
         behaviours = c.behaviours
+        controls = c.controls
         importedQuestions = c.importedQuestions
         dayAnswers = c.dayAnswers
         // Numeric journal rows are native-only (imported WHOOP rows never carry a numericValue), so the
@@ -516,6 +528,7 @@ struct InsightsView: View {
         let outcomeDays = outcomeByKey[outcome.key] ?? [:]
         ranked = BehaviorInsights.rank(
             behaviors: behaviours,
+            controls: controls,
             outcomeByDay: outcomeDays,
             outcome: outcome.outcomeName
         )

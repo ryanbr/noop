@@ -77,13 +77,27 @@ public enum BehaviorInsights {
 
     // MARK: - Single behavior effect
 
-    /// Compute the effect of `behavior` on `outcome`. Days are partitioned into
-    /// "with" (day ∈ behaviorDays) and "without" (day ∉ behaviorDays), restricted
-    /// to days that have an outcome value in `outcomeByDay`.
+    /// Compute the effect of `behavior` on `outcome`. "With" is day ∈ `behaviorDays`; "without" is
+    /// day ∈ `controlDays`. Days in NEITHER are dropped, and that is the point of the second set.
+    ///
+    /// The split used to be `if behaviorDays.contains(day) { with } else { without }`, which made every
+    /// day carrying an outcome a control — so a behaviour logged Yes on 20 days and never logged at all
+    /// on the other 100 was measured against those 100 as though the user had answered No. Reported by a
+    /// user on Reddit, in those terms: "if I didn't track something for 100 days, NOOP takes that as a
+    /// NO for 100 days, whereas it simply was not logged at all."
+    ///
+    /// The journal already distinguishes the three states — a No writes a row with `answeredYes = false`,
+    /// and only Clear deletes the row — so nothing but this split was conflating them.
+    ///
+    /// Expect FEWER findings, not better-looking ones. Unlogged days inflated nWithout, which shrinks the
+    /// Welch p and helps clear the min(nWith, nWithout) gate; dropping them removes confidence that was
+    /// never earned. A behaviour with no No days now yields nothing, which is the honest answer: with no
+    /// controls there is no comparison to make.
     ///
     /// Returns nil unless BOTH groups are non-empty AND the total is large enough
     /// to form a variance estimate (at least 1 value per side and ≥ 3 total).
     public static func effect(behaviorDays: Set<String>,
+                              controlDays: Set<String>,
                               outcomeByDay: [String: Double],
                               behavior: String,
                               outcome: String) -> BehaviorEffect? {
@@ -91,7 +105,8 @@ public enum BehaviorInsights {
         var withoutVals: [Double] = []
         for (day, value) in outcomeByDay {
             if behaviorDays.contains(day) { withVals.append(value) }
-            else { withoutVals.append(value) }
+            else if controlDays.contains(day) { withoutVals.append(value) }
+            // Neither: the behaviour was not logged that day. Not a control — no information.
         }
 
         let n1 = withVals.count
@@ -125,11 +140,16 @@ public enum BehaviorInsights {
     /// return them sorted by |cohensD| descending, with significant effects first.
     /// Behaviors that don't yield a computable effect are dropped.
     public static func rank(behaviors: [String: Set<String>],
+                            controls: [String: Set<String>],
                             outcomeByDay: [String: Double],
                             outcome: String) -> [BehaviorEffect] {
         var effects: [BehaviorEffect] = []
         for (name, days) in behaviors {
-            if let e = effect(behaviorDays: days, outcomeByDay: outcomeByDay,
+            // A behaviour absent from `controls` has no controls and yields nothing — failing CLOSED, so
+            // a caller that forgets loses the insight rather than getting a wrong one measured against
+            // every day the user never opened the journal.
+            if let e = effect(behaviorDays: days, controlDays: controls[name] ?? [],
+                              outcomeByDay: outcomeByDay,
                               behavior: name, outcome: outcome) {
                 effects.append(e)
             }

@@ -611,13 +611,20 @@ final class AICoachEngine: ObservableObject {
 
         // 1. Strongest behaviour→outcome associations (EffectRanker over the journal × Charge).
         let entries = await repo.journalEntries()
+        // Yes days and NO days, kept apart. A day with no journal row for the question lands in
+        // neither, so an unanswered day is never counted as a No (BehaviorInsights.effect).
         var byBehaviour: [String: Set<String>] = [:]
-        for e in entries where e.answeredYes { byBehaviour[e.question, default: []].insert(e.day) }
+        var controls: [String: Set<String>] = [:]
+        for e in entries {
+            if e.answeredYes { byBehaviour[e.question, default: []].insert(e.day) }
+            else { controls[e.question, default: []].insert(e.day) }
+        }
         if !byBehaviour.isEmpty {
             let outcomeByDay = Dictionary(
                 repo.days.compactMap { d in d.recovery.map { (d.day, $0) } },
                 uniquingKeysWith: { _, last in last })
-            let ranked = EffectRanker.rank(behaviors: byBehaviour, outcomeByDay: outcomeByDay, outcome: "Charge")
+            let ranked = EffectRanker.rank(behaviors: byBehaviour, controls: controls,
+                                           outcomeByDay: outcomeByDay, outcome: "Charge")
                 .filter { $0.effect.significant }
                 .prefix(3)
             if !ranked.isEmpty {

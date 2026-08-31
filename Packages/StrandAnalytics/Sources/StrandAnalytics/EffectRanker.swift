@@ -104,13 +104,18 @@ public enum EffectRanker {
     ///   significant-first, |cohensD| desc, then behaviour name asc. Behaviours with no
     ///   computable lag are dropped.
     public static func rank(behaviors: [String: Set<String>],
+                            controls: [String: Set<String>],
                             outcomeByDay: [String: Double],
                             outcome: String) -> [RankedEffect] {
         var rows: [RankedEffect] = []
         // Sort behaviour names so the build order is deterministic regardless of dict order.
         for name in behaviors.keys.sorted() {
             let days = behaviors[name]!
-            if let row = bestLag(behaviorDays: days, outcomeByDay: outcomeByDay,
+            // Absent from `controls` means no control group, which yields nothing — see
+            // BehaviorInsights.effect. Failing closed is deliberate: a caller that forgets loses the
+            // insight rather than getting one measured against every unlogged day.
+            if let row = bestLag(behaviorDays: days, controlDays: controls[name] ?? [],
+                                 outcomeByDay: outcomeByDay,
                                  behavior: name, outcome: outcome) {
                 rows.append(row)
             }
@@ -121,6 +126,7 @@ public enum EffectRanker {
     /// Find the best-lag RankedEffect for ONE behaviour against ONE outcome, or nil when no
     /// lag in `lagSet` yields a computable effect that clears the group gate.
     public static func bestLag(behaviorDays: Set<String>,
+                               controlDays: Set<String>,
                                outcomeByDay: [String: Double],
                                behavior: String,
                                outcome: String) -> RankedEffect? {
@@ -128,6 +134,7 @@ public enum EffectRanker {
         for lag in lagSet {
             let shifted = shiftedOutcome(outcomeByDay, byLag: lag)
             guard let e = BehaviorInsights.effect(behaviorDays: behaviorDays,
+                                                  controlDays: controlDays,
                                                   outcomeByDay: shifted,
                                                   behavior: behavior,
                                                   outcome: outcome) else { continue }
