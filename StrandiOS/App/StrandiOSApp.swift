@@ -107,6 +107,36 @@ struct StrandiOSApp: App {
         }
     }
 
+    /// The Shortcut-import alert's message, hoisted OUT of the `.alert` chain.
+    ///
+    /// Not a style preference. This closure — an `if let` around two interpolated `Text`s — sits on a
+    /// modifier chain that grew past the Swift type-checker's budget, and the build failed with
+    /// "unable to type-check this expression in reasonable time" pointing at `} message: {`. The
+    /// expression did not change; the chain around it did. Hoisting a sub-expression into its own
+    /// declaration gives the solver a fixed type to work from instead of one more unknown in a chain
+    /// it is already struggling with.
+    @ViewBuilder
+    private var healthImportAlertMessage: some View {
+        if let pending = model.pendingShortcutHealthImport {
+            Text("A Shortcut wants to add \(pending.daysCount) days and \(pending.workoutsCount) workouts to the Apple Health import source.")
+        } else {
+            Text("A Shortcut wants to add data to the Apple Health import source.")
+        }
+    }
+
+    /// Give buffered standard-HR rows a persistence attempt at a lifecycle edge (#1767).
+    ///
+    /// One method for both edges rather than the same four lines twice inside two closures: the
+    /// duplication was part of what pushed this scene's body over the type-check budget, and a helper
+    /// costs the solver nothing.
+    private func scheduleStandardHRFlush(_ event: StandardHRLifecycleFlush.Event) {
+        Task {
+            await StandardHRLifecycleFlush.run(event: event) { reason in
+                await model.ble.flushStandardHRForLifecycle(reason: reason)
+            }
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
             iOSRootView()
@@ -236,11 +266,7 @@ struct StrandiOSApp: App {
                     Button("Import") { model.confirmPendingHealthImport() }
                     Button("Cancel", role: .cancel) { model.cancelPendingHealthImport() }
                 } message: {
-                    if let pending = model.pendingShortcutHealthImport {
-                        Text("A Shortcut wants to add \(pending.daysCount) days and \(pending.workoutsCount) workouts to the Apple Health import source.")
-                    } else {
-                        Text("A Shortcut wants to add data to the Apple Health import source.")
-                    }
+                    healthImportAlertMessage
                 }
                 // Bring the watch link up once at launch (WCSession ignores a redundant activate), then
                 // push the first snapshot so a watch that's already on-wrist gets current scores without
@@ -301,11 +327,7 @@ struct StrandiOSApp: App {
                 // A connected strap does not emit a disconnect edge when iOS suspends the app. Route the
                 // lifecycle edge through the same tested seam as termination so a sub-cadence 0x2A37 batch
                 // gets a real store attempt and an accepted/rejected + inserted-count outcome before sleep.
-                Task {
-                    await StandardHRLifecycleFlush.run(event: .background) { reason in
-                        await model.ble.flushStandardHRForLifecycle(reason: reason)
-                    }
-                }
+                scheduleStandardHRFlush(.background)
                 // Re-submit on every transition because iOS may discard an old best-effort request.
                 HealthWritebackBackgroundScheduler.updateSchedule(
                     isAuthorized: health.auth == .authorized)
@@ -329,11 +351,7 @@ struct StrandiOSApp: App {
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
             // Usually background already drained this buffer. This is the final retry edge for a foreground
             // termination or a failed background attempt; an empty Collector is a cheap no-op.
-            Task {
-                await StandardHRLifecycleFlush.run(event: .termination) { reason in
-                    await model.ble.flushStandardHRForLifecycle(reason: reason)
-                }
-            }
+            scheduleStandardHRFlush(.termination)
         }
     }
 }
