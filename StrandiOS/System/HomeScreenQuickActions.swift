@@ -1,4 +1,5 @@
 #if os(iOS)
+import StrandAnalytics
 import SwiftUI
 import UIKit
 
@@ -82,6 +83,67 @@ final class HomeScreenQuickActionAppDelegate: NSObject, UIApplicationDelegate {
 /// automatically places an observable scene delegate in the environment for the scene it manages.
 @MainActor
 final class HomeScreenQuickActionSceneDelegate: NSObject, UIWindowSceneDelegate, ObservableObject {
+    // MARK: - Standard-HR persistence at the lifecycle edges (#1770)
+    //
+    // On the SCENE delegate, not the app delegate, and not on `StrandiOSApp.body`. Both placements are
+    // load-bearing and both were arrived at the hard way.
+    //
+    // Not the body: the same two edges were added there in #1767 and took the iOS build down. `body` is a
+    // SINGLE expression carrying ~28 chained modifiers; two more tipped it past the type-checker's budget,
+    // and the error was reported at a modifier a hundred lines from the change. The cost was the
+    // expression's length, not any leaf of it.
+    //
+    // Not the app delegate: this app is scene-based — it returns a UISceneConfiguration from
+    // `application(_:configurationForConnecting:options:)` — and UIKit does not call
+    // applicationDidEnterBackground or applicationWillTerminate on the app delegate of a scene-based app.
+    // Those methods would have compiled, shipped, and silently never run, which is a worse failure than a
+    // red build because nothing reports it.
+
+    /// Give buffered standard-HR rows a real persistence attempt as the scene leaves the foreground.
+    ///
+    /// iOS suspends a connected strap WITHOUT a disconnect edge, and the Collector's 30-sample /
+    /// 30-second cadence timer does not run while suspended — so a sub-cadence 0x2A37 batch sits in
+    /// memory and dies with the app if iOS terminates it before it resumes.
+    func sceneDidEnterBackground(_ scene: UIScene) {
+        // A bare Task is suspended along with the app, which would leave this doing nothing at the one
+        // moment it exists for. Ask UIKit for a window and end it on BOTH paths, so the assertion is
+        // always released rather than expiring.
+        let application = UIApplication.shared
+        var taskID: UIBackgroundTaskIdentifier = .invalid
+        taskID = application.beginBackgroundTask(withName: "standard-hr-lifecycle-flush") {
+            application.endBackgroundTask(taskID)
+            taskID = .invalid
+        }
+        // @MainActor explicitly: AppModel and BLEManager are both main-actor isolated, and a bare Task
+        // from a nonisolated delegate callback does not inherit that. Same idiom BLEManager uses for this
+        // exact call on the disconnect edge.
+        Task { @MainActor in
+            await Self.flushStandardHR(.background)
+            if taskID != .invalid {
+                application.endBackgroundTask(taskID)
+                taskID = .invalid
+            }
+        }
+    }
+
+    /// The final retry edge, for a scene the system is discarding. Best effort BY CONSTRUCTION: there is
+    /// no background window here and little time, so this is not a guarantee and must not be described as
+    /// one. Usually `sceneDidEnterBackground` has already drained the buffer and an empty Collector is a
+    /// cheap no-op.
+    func sceneDidDisconnect(_ scene: UIScene) {
+        Task { @MainActor in await Self.flushStandardHR(.termination) }
+    }
+
+    /// Reaches the live Collector through `AppModel.shared`, the seam App Intents already use. It is
+    /// `weak`, so a nil here means no model is alive and there is nothing buffered to lose.
+    @MainActor
+    private static func flushStandardHR(_ event: StandardHRLifecycleFlush.Event) async {
+        guard let ble = AppModel.shared?.ble else { return }
+        await StandardHRLifecycleFlush.run(event: event) { reason in
+            await ble.flushStandardHRForLifecycle(reason: reason)
+        }
+    }
+
     @Published private(set) var pendingAction: HomeScreenQuickAction?
 
     func scene(
