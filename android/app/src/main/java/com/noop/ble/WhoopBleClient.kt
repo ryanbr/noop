@@ -4687,6 +4687,11 @@ class WhoopBleClient(
      */
     private fun noteReadFailure(uuid: java.util.UUID, status: Int) {
         if (uuid !in DIS_CHARS) return
+        // The chain is over. readNextDisExtra is only reached from the SUCCESS path, so a refused read
+        // ends it with nothing further in flight — and #490's whole subject is a strap that refuses. Left
+        // set, the unbonded offload probe would stand aside for its full budget waiting on a chain that
+        // had already died, in exactly the case the probe most wants a clear queue for.
+        disChainInFlight = false
         log(disReadFailureLine(uuid.toString(), gattWriteStatusLabel(status)))
         // Report it, but do NOT latch it when WE put a pairing in flight on this link. The latch is
         // persisted per device and permanent, and a read issued into a link that is mid-encryption
