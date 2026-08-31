@@ -148,9 +148,13 @@ struct PostBondTimeoutLoopDetector {
 /// The streak accumulates across the reconnect loop (a disconnect does NOT reset it) and is cleared only by
 /// a genuine bond or an explicit user reconnect, exactly like BLEManager's existing `bondRefusalStreak`.
 struct BondRefusalGiveUp {
-    /// Consecutive bond refusals before we pause auto-reconnect + write the epitaph. 5 (not 2, where the
+    /// Consecutive bond refusals before we PAUSE auto-reconnect + write the epitaph. 5 (not 2, where the
     /// pairing HINT already shows): the hint asks the user to act; we give them several reconnect cycles to
     /// do it before we stop hammering. A genuinely held/stale strap reaches 5 within a couple of minutes.
+    ///
+    /// This is the AUTH-REFUSAL number specifically, and `recordRefusal` takes a per-refusal override for
+    /// that reason: an unanswered handshake asks the user for nothing, so waiting five cycles for a decision
+    /// they cannot make just buys ~4.8s link drops. See `giveUpThresholdFor`.
     let giveUpThreshold: Int
 
     private(set) var refusals = 0
@@ -162,9 +166,9 @@ struct BondRefusalGiveUp {
 
     /// Record one bond refusal. Returns true if THIS refusal freshly crossed the give-up threshold (so the
     /// caller pauses the reconnect + writes the epitaph exactly once).
-    mutating func recordRefusal() -> Bool {
+    mutating func recordRefusal(threshold: Int? = nil) -> Bool {
         refusals += 1
-        if !gaveUp && refusals >= giveUpThreshold {
+        if !gaveUp && refusals >= (threshold ?? giveUpThreshold) {
             gaveUp = true
             return true
         }
@@ -5300,7 +5304,12 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
     /// Shared by both call sites so the split cannot drift: the auth path (a write error) and the
     /// unanswered path (a disconnect with a hello still outstanding) reach the same decision.
     private func recordWhoop5BondRefusal(authRefusal: Bool, peripheralUUID: String) {
-        guard bondGiveUp.recordRefusal() else { return }
+        // #1635: the two causes want different patience, for the same reason they want different
+        // outcomes - see `giveUpThresholdFor`. Keyed on the same authRefusal as the branch below, so the
+        // threshold and the treatment can never disagree about which kind of refusal this is.
+        guard bondGiveUp.recordRefusal(
+            threshold: giveUpThresholdFor(authRefusal: authRefusal, pauseThreshold: bondGiveUp.giveUpThreshold)
+        ) else { return }
         let opaque = BondRefusalGiveUp.opaqueId(fromLocalUUID: peripheralUUID)
         let suppress = giveUpSuppressesHello(authRefusal: authRefusal)
         if suppress {

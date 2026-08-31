@@ -3391,6 +3391,23 @@ class WhoopBleClient(
         // pipeline consistent. A stale connection or bond falls back to a scan via handleDisconnect.
         val direct = getConnectedWhoopDevice() ?: bondedWhoopDevice()
         if (direct != null) {
+            // #1635: we may already HOLD this link. getConnectedWhoopDevice() answers "the OS has this
+            // device connected", which is true of our own live GATT too — so without this, a Connect tap
+            // tore down a working link and rebuilt it. Field log 260901-0121: gen=6 had been up 18m 32s
+            // streaming HR when a tap replaced it with gen=7.
+            //
+            // Only when a reconnect could achieve NOTHING, which is exactly the genuinely-bonded case:
+            // the handshake is done, so there is no retry to spend and no state a fresh link would fix.
+            // A suppressed strap is deliberately NOT covered — there the tap IS the handshake retry, and
+            // the hello can only be written on a new link's discovery, so it must still reconnect.
+            if (didBond && _state.value.connected && gatt?.device?.address == direct.address) {
+                // Consume it. The retry belongs to the tap that asked, and leaving it set would hand a
+                // stale one to a later AUTOMATIC reconnect - the same leak the deferral branch warns of.
+                helloRetryRequested = false
+                log("Connect: already connected and bonded to ${direct.name ?: "WHOOP"} — keeping the link" +
+                    " rather than rebuilding it (#1635).")
+                return
+            }
             selectedModel = WhoopModel.WHOOP5_MG
             log("Easy-connect: attaching directly to ${direct.name ?: "WHOOP"} (no scan needed)")
             _state.update { it.copy(
@@ -5871,7 +5888,10 @@ class WhoopBleClient(
         // (the pairing hint has had several cycles to be acted on), pause auto-reconnect so we stop hammering
         // a strap that can't bond, write the one-line epitaph (opaque hashed id only, no PII), and surface
         // the honest paused hint. A genuine bond or a manual reconnect re-arms it.
-        if (bondGiveUp.recordRefusal()) {
+        // #1635: the two causes want different patience, for the same reason they want different
+        // outcomes — see [giveUpThresholdFor]. Keyed on the same authRefusal as the branch below, so the
+        // threshold and the treatment can never disagree about which kind of refusal this is.
+        if (bondGiveUp.recordRefusal(giveUpThresholdFor(authRefusal, bondGiveUp.giveUpThreshold))) {
             // #1635: an unanswered handshake and an auth refusal want opposite treatment — see
             // [giveUpSuppressesHello]. Suppressing keeps a link that is streaming live HR; pausing is for a
             // strap that actively declined and cannot be helped by reconnecting.

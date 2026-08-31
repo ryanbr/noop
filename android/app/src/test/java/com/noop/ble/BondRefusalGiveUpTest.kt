@@ -81,4 +81,24 @@ class BondRefusalGiveUpTest {
         assertTrue(hint.contains("Forget This Device"))
         assertFalse(hint.contains("\u2014"))
     }
+
+    @Test
+    fun `a lower threshold latches sooner, and the latch still reports once`() {
+        var g = BondRefusalGiveUp()          // pause threshold 5
+        assertFalse(g.recordRefusal(threshold = 3))
+        assertFalse(g.recordRefusal(threshold = 3))
+        assertTrue(g.recordRefusal(threshold = 3))   // crossed at 3, not 5
+        assertTrue(g.gaveUp)
+        // Still exactly one crossing: the epitaph and the latch write are once-per-give-up.
+        assertFalse(g.recordRefusal(threshold = 3))
+        assertEquals(4, g.refusals)
+    }
+
+    @Test
+    fun `omitting the threshold keeps the constructed one`() {
+        val g = BondRefusalGiveUp()
+        assertEquals(5, g.giveUpThreshold)
+        repeat(4) { assertFalse(g.recordRefusal()) }
+        assertTrue(g.recordRefusal())
+    }
 }

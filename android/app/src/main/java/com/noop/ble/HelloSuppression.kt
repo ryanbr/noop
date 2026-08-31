@@ -116,6 +116,32 @@ internal fun helloOverrideExhaustedLine(attempts: Int): String =
         " the stable live-HR state (#1635)."
 
 /**
+ * How many consecutive refusals this cause needs before the give-up latches.
+ *
+ * The flat 5 was argued for the AUTH-REFUSAL branch and only makes sense there: the pairing hint shows at
+ * 2, the hint asks the user to do something (close the official app, free a stale phone pairing), and the
+ * extra cycles are the time to do it before NOOP stops hammering.
+ *
+ * An unanswered handshake gives the user nothing to act on. The write vanishes, the strap is not refusing
+ * anything it could be talked out of, and the outcome — suppress the hello and keep streaming live HR —
+ * needs no permission and costs no capability that was reachable anyway. Every cycle spent waiting is a
+ * ~4.8s link drop bought for nothing, so this branch stops at 3.
+ *
+ * Not 2, which is exactly where the pairing hint fires: a strap whose hello is unanswered twice by some
+ * transient would latch a PERSISTED verdict with no margin at all. 3 keeps one cycle of margin and still
+ * takes roughly 40% off the churn.
+ */
+internal const val UNANSWERED_GIVE_UP_THRESHOLD = 3
+
+/**
+ * The give-up threshold for the refusal in hand. Keyed on the same [authRefusal] that decides whether the
+ * give-up suppresses or pauses ([giveUpSuppressesHello]), so the two can never disagree about which branch
+ * a refusal belongs to.
+ */
+internal fun giveUpThresholdFor(authRefusal: Boolean, pauseThreshold: Int): Int =
+    if (authRefusal) pauseThreshold else UNANSWERED_GIVE_UP_THRESHOLD
+
+/**
  * May a pairing-hint clear also drop the PERSISTED hello-suppression latch?
  *
  * Only a genuine bond. A bond is proof the handshake works on this strap NOW, so the old verdict is stale
