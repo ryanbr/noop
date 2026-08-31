@@ -150,11 +150,14 @@ object AndroidDiagnostics {
             // EXISTS seeks, not counts — see WhoopDao.streamPresence for why that distinction matters on a
             // table holding ~190k motion rows a night.
             runCatching {
-                // Same resolution funnelLines uses: the registry's ACTIVE id, not the canonical label, so
-                // a two-strap install reports the strap actually being worn.
+                // Same resolution funnelLines uses, blank guard included: the registry's ACTIVE id, not
+                // the canonical label, so a two-strap install reports the strap actually being worn. A
+                // BLANK id must fall back rather than be queried — it matches no rows, so every stream
+                // would read NO and the line would report a working strap as providing nothing, which is
+                // the exact misreading it exists to prevent.
                 val activeId = runCatching {
                     (context.applicationContext as? com.noop.NoopApplication)?.deviceRegistry?.activeDeviceId()
-                }.getOrNull() ?: "my-whoop"
+                }.getOrNull()?.takeIf { it.isNotBlank() } ?: "my-whoop"
                 val nowSec = now / 1000L
                 val present = com.noop.data.WhoopRepository.from(context)
                     .streamPresence(activeId, nowSec - 48L * 3600L, nowSec)
