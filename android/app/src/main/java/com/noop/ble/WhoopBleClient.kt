@@ -3340,15 +3340,37 @@ class WhoopBleClient(
     // ====================================================================================
 
     /**
-     * Begin scanning for the WHOOP custom service, then connect to the first match.
+     * USER-initiated connect (the Connect button, the scan flow, Add-a-WHOOP). Begin scanning for the
+     * WHOOP custom service, then connect to the first match.
      * Port of `BLEManager.connect()` → `central.scanForPeripherals(withServices:[customService])`.
+     *
+     * The ONLY entry that grants the #1635 one-shot handshake retry. System-initiated paths — the
+     * radio-on rescan, the bond-loop salvage probe, both deferred reconnect timers — MUST use
+     * [connectFromSystem]. Field log 260901-1022: the stale-OS-bond fallback routed a SCAN-driven
+     * reconnect through here, so a suppressed strap wrote a second unanswered hello and paid a second
+     * ~4.8s drop that no user had asked for. Apple has kept these two entries apart since #78 hole-2.
      */
     @SuppressLint("MissingPermission")
-    fun connect(model: WhoopModel = WhoopModel.WHOOP4) {
+    fun connect(model: WhoopModel = WhoopModel.WHOOP4) = connectInternal(model, userInitiated = true)
+
+    /**
+     * SYSTEM-initiated connect: identical to [connect] except it never grants the handshake retry.
+     *
+     * A timer firing is not the user saying "try again". Suppression exists precisely so the automatic
+     * reconnects behind a failed attempt stop writing the hello; handing them the retry re-opens the loop
+     * one link at a time, and does it invisibly, because every line it produces looks exactly like the
+     * user having tapped Connect. Kotlin twin of `BLEManager.connectFromSystem`.
+     */
+    @SuppressLint("MissingPermission")
+    fun connectFromSystem(model: WhoopModel = WhoopModel.WHOOP4) = connectInternal(model, userInitiated = false)
+
+    @SuppressLint("MissingPermission")
+    private fun connectInternal(model: WhoopModel, userInitiated: Boolean) {
         intentionalDisconnect = false
         // #1635: an explicit Connect is the user saying "try the handshake again" — the documented way out
-        // of hello suppression, and the reason suppression is never a permanent verdict.
-        helloRetryRequested = true
+        // of hello suppression, and the reason suppression is never a permanent verdict. Consumed by the
+        // first connect that reaches the hello decision, so it is granted here and nowhere else.
+        if (userInitiated) helloRetryRequested = true
         // PR #588: an explicit user-driven Connect is never an out-of-range retry — clear the involuntary-
         // reconnect streak so this scan (and any reconnects it spawns) starts back at the snappy
         // LOW_LATENCY scan mode + the 3s backoff base, never inheriting a backed-off lower-power scan.
@@ -3589,7 +3611,7 @@ class WhoopBleClient(
                 connectToDevice(dev, autoConnect = true)
             } else {
                 log("Bluetooth radio back on — rescanning for your ${selectedModel.displayName}")
-                connect(selectedModel)
+                connectFromSystem(selectedModel)
             }
         }
     }
@@ -3616,7 +3638,7 @@ class WhoopBleClient(
             intentionalDisconnect = false
             val dev = lastDevice
             if (dev != null && isPreferred(dev)) connectToDevice(dev, autoConnect = true)
-            else connect(selectedModel)
+            else connectFromSystem(selectedModel)
         }
     }
 
@@ -9963,7 +9985,7 @@ class WhoopBleClient(
                 }
                 // #1030 (ryanbr): route through scheduleReconnect so this backoff timer is cancellable
                 // and can't tear down a link that returns before it fires.
-                scheduleReconnect(RECONNECT_DELAY_MS) { connect(selectedModel) }
+                scheduleReconnect(RECONNECT_DELAY_MS) { connectFromSystem(selectedModel) }
                 return
             }
             val dev = lastDevice
@@ -9999,7 +10021,7 @@ class WhoopBleClient(
                 val rescanDelay = nextReconnectDelayMs()
                 log("Disconnected (status=$status); rescanning in ${rescanDelay / 1000}s (attempt $failedReconnectAttempts$heldSuffix)")
                 // #1030 (ryanbr): cancellable backoff timer (see scheduleReconnect).
-                scheduleReconnect(rescanDelay) { connect(selectedModel) }
+                scheduleReconnect(rescanDelay) { connectFromSystem(selectedModel) }
             }
         } else {
             log("Disconnected (intentional)")
