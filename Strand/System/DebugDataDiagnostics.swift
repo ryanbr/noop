@@ -87,14 +87,6 @@ enum DebugDataDiagnostics {
                 + "(if you restored a backup, fully restart the app — #57)")
         }
         if restoreAt > 0 { lines.append("Last restore: \(relTime(now - restoreAt))") }
-        // #1770 follow-up: which streams the ACTIVE strap actually delivered over the last 48 h. Four
-        // EXISTS seeks, not counts — see WhoopStore.streamPresence for why that distinction matters on a
-        // table holding ~190k motion rows a night.
-        if let present = try? await store.streamPresence(
-            deviceId: repo.deviceId, from: Int(now) - 48 * 3600, to: Int(now)) {
-            lines.append(strapProvidesLine(hr: present.hr, rr: present.rr,
-                                           motion: present.gravity, steps: present.steps))
-        }
         #if os(iOS)
         // #52: iOS Backup & Sync folder-picker health. When users report "won't let me pick a folder",
         // this pins the failure stage: "cancelled"/"never used" ⇒ the picker's Open button never fired
@@ -131,6 +123,24 @@ enum DebugDataDiagnostics {
     /// recomputed for the most recent night. Async — it reads the on-device store. Never throws.
     @MainActor static func dynamicLines(repo: Repository) async -> [String] {
         var lines = strapStateLines()
+
+        // #1770 follow-up: which streams the ACTIVE strap actually delivered over the last 48 h. Four
+        // EXISTS seeks, not counts — see WhoopStore.streamPresence for why that distinction matters on a
+        // table holding ~190k motion rows a night.
+        //
+        // HERE and not in strapStateLines() beside `Data write:`, where it belongs by subject: that
+        // function is synchronous and holds neither `repo` nor a store handle. The first attempt put it
+        // there and would not have compiled — in a file the comment below already notes needs macOS to
+        // build, which is exactly why it went unnoticed locally. Appended first so the output order is
+        // still the one the reader wants.
+        if let presenceStore = await repo.storeHandle(),
+           let present = try? await presenceStore.streamPresence(
+               deviceId: repo.deviceId,
+               from: Int(Date().timeIntervalSince1970) - 48 * 3600,
+               to: Int(Date().timeIntervalSince1970)) {
+            lines.append(strapProvidesLine(hr: present.hr, rr: present.rr,
+                                           motion: present.gravity, steps: present.steps))
+        }
 
         // Data state from the preloaded day spine.
         let days = repo.days
