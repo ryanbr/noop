@@ -968,6 +968,9 @@ object IntelligenceEngine {
             dayPrepNanos += tScore0 - tPrep0
             val res = AnalyticsEngine.analyzeDay(
                 day = day,
+                // #1770 follow-up: route the Effort funnel through the SAME per-day recorder as the
+                // `workout detect` and `sleep-detect` lines, so a report explains all three the same way.
+                strainDiag = ::dayDiag,
                 hr = hr,
                 rr = rr,
                 resp = resp,

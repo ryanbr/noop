@@ -273,6 +273,9 @@ object AnalyticsEngine {
      */
     fun analyzeDay(
         day: String,
+        // Optional sink for the Effort funnel line. Null (the default) builds nothing at all — see
+        // StrainScorer.strain. Kept a parameter rather than a field so this engine stays pure.
+        strainDiag: ((String) -> Unit)? = null,
         hr: List<HrSample> = emptyList(),
         rr: List<RrInterval> = emptyList(),
         resp: List<RespSample> = emptyList(),
@@ -747,6 +750,11 @@ object AnalyticsEngine {
             restingHR = restForStrain,
             method = effortMethod,
             sex = profile.sex,
+            // The Effort ring's own funnel. Null sink = no line built, so a caller that does not want
+            // diagnostics pays nothing; IntelligenceEngine passes its per-day recorder, the same one the
+            // `workout detect` and `sleep-detect` lines beside it already use.
+            diag = strainDiag,
+            day = day,
         )
 
         // ── Workouts ──────────────────────────────────────────────────────────

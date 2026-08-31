@@ -293,6 +293,10 @@ public enum AnalyticsEngine {
     public static let vendorRespMinSpanS = 3_600
 
     public static func analyzeDay(day: String,
+                                  // Optional sink for the Effort funnel line. Nil (the default) builds
+                                  // nothing at all — see StrainScorer.strain. A parameter rather than a
+                                  // field so this engine stays pure.
+                                  strainDiag: ((String) -> Void)? = nil,
                                   hr: [HRSample] = [],
                                   rr: [RRInterval] = [],
                                   resp: [RespSample] = [],
@@ -820,8 +824,12 @@ public enum AnalyticsEngine {
         // night `hr` for pure-function callers/tests.
         let effMaxHR: Double? = maxHROverride ?? (profile.age > 0 ? StrainScorer.tanakaHRmax(age: profile.age) : nil)
         let restForStrain = restingHRDaily.map(Double.init) ?? StrainScorer.defaultRestingHR
+        // The Effort ring's own funnel. A nil sink builds nothing at all, so a caller that does not want
+        // diagnostics pays nothing; IntelligenceEngine passes its per-day recorder, the same one the
+        // `workout detect` and `sleep-detect` lines beside it already use.
         let strain = StrainScorer.strain(dayHr ?? hr, maxHR: effMaxHR, restingHR: restForStrain,
-                                         method: effortMethod, sex: profile.sex)
+                                         method: effortMethod, sex: profile.sex,
+                                         diag: strainDiag, day: day)
 
         // ── Workouts ──────────────────────────────────────────────────────────
         // Detect over the full CALENDAR day (dayHr/dayGravity) when the caller supplies it, so a
