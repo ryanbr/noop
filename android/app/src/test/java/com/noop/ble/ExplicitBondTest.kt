@@ -33,15 +33,19 @@ class ExplicitBondTest {
     /**
      * The recurrence, stated so nothing downstream may treat this request as one-shot.
      *
-     * On a strap that answers SMP "Pairing Not Supported" neither bond flag ever becomes true, and the
-     * only remaining bound is per LINK — so with the switch on, this fires on every connect, forever. Code
-     * that hangs a once-only side effect off "we asked to pair" is therefore doing it on every connect: on
-     * 31 Aug that was clearing the hello-suppression latch, 36 times, which made the latch unable to end
-     * the loop it exists to end.
+     * The two assertions belong together: the first is the PERMANENT state of a strap that answers SMP
+     * "Pairing Not Supported" — never OS-bonded, never app-bonded — and the gate still says yes; the
+     * second is the only thing left that says no, and it is per LINK, so every new link clears it. With
+     * the switch on, this therefore fires on every connect, forever.
+     *
+     * Code that hangs a once-only side effect off "we asked to pair" is doing it on every connect. On
+     * 31 Aug that was clearing the hello-suppression latch — 18 requests, 18 hellos, one of each per
+     * link — which left the latch unable to end the loop it exists to end.
      */
     @Test
     fun `asking recurs on every link, so it is not a once-only event`() {
-        repeat(5) { assertTrue(ask(already = false)) }
+        assertTrue(ask(osBonded = false, appBonded = false, already = false))
+        assertFalse(ask(already = true))
     }
 
     @Test
