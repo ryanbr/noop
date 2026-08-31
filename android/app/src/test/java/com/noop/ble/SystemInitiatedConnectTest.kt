@@ -21,13 +21,27 @@ import java.io.File
  */
 class SystemInitiatedConnectTest {
 
+    /**
+     * Deliberately FAILS rather than skipping when the source cannot be found.
+     *
+     * The nearby [com.noop.protocol.CommandCatalogueTest] uses `Assume` for its schema, and that is right
+     * there: it reads a file from a SIBLING Swift package that a stripped checkout may genuinely not have.
+     * This one reads the file its own module is compiled from, so "not found" means the search is wrong,
+     * not that the environment is thin — and a regression gate that quietly declines to run is worse than
+     * no gate, because the green tick then means nothing. Walk the parents so any working directory
+     * resolves, and if none does, say so loudly.
+     */
     private fun clientSource(): String {
         val rel = "android/app/src/main/java/com/noop/ble/WhoopBleClient.kt"
-        val userDir = File(System.getProperty("user.dir") ?: ".")
-        val f = listOf(File(userDir, rel), File(userDir, "../../$rel"), File(userDir, "../$rel"))
-            .firstOrNull { it.exists() }
-        org.junit.Assume.assumeTrue(
-            "WhoopBleClient.kt not found from user.dir=$userDir — skipping the entry-point check", f != null)
+        val start = File(System.getProperty("user.dir") ?: ".").absoluteFile
+        val f = generateSequence(start) { it.parentFile }
+            .map { File(it, rel) }
+            .firstOrNull { it.isFile }
+        assertTrue(
+            "WhoopBleClient.kt not found walking up from user.dir=$start — this gate cannot run, and a " +
+                "gate that silently skips is worse than none. Fix the path, do not re-add an Assume.",
+            f != null,
+        )
         return f!!.readText()
     }
 
