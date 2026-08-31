@@ -887,15 +887,6 @@ class WhoopBleClient(
         /** #1635: how long the probe waits between checks while the unbonded DIS chain is still running. */
         private const val UNBONDED_PROBE_DEFER_MS = 1_000L
 
-        /**
-         * How many times the probe may stand aside for the DIS chain before going anyway.
-         *
-         * A cap rather than an open wait, because the chain has exits that never reach its terminal — a
-         * refused read, or a strap that stops answering mid-way — and a probe that waited on a flag
-         * nobody will clear would simply never run. Eight seconds of patience, then it takes its chances
-         * and the trace says which happened.
-         */
-        private const val UNBONDED_PROBE_MAX_DEFERRALS = 8
         /** 5/MG zero-frame retry: pause before re-requesting history when a session timed out having
          *  produced nothing (the first request after connect can go entirely unanswered). */
         private const val WHOOP5_HISTORY_RETRY_DELAY_MS = 700L
@@ -4664,18 +4655,23 @@ class WhoopBleClient(
      * hardware-revision read is issued from [onInbound] once the serial lands. Firing both here would
      * silently drop the second. Read-only and non-fatal: any failure just leaves the variant UNKNOWN.
      */
-    fun readDisIdentity() {
-        if (disRead) return
-        val g = gatt ?: return
-        if (connectedFamily == DeviceFamily.WHOOP4) return
-        val ops = gattOps ?: return
+    fun readDisIdentity(): Boolean {
+        // Returns whether a read was actually ISSUED, so a caller can tell "the chain is running" from
+        // "the chain never started". Every branch above the read is an exit that leaves nothing in
+        // flight, and the unbonded offload probe waits on this answer — told `true` unconditionally it
+        // would stand aside for a chain that does not exist and burn its whole budget for nothing.
+        if (disRead) return false
+        val g = gatt ?: return false
+        if (connectedFamily == DeviceFamily.WHOOP4) return false
+        val ops = gattOps ?: return false
         val ch = g.getService(DIS_SERVICE)?.getCharacteristic(DIS_SERIAL_CHAR)
         if (ch != null && (ch.properties and BluetoothGattCharacteristic.PROPERTY_READ) != 0) {
             disRead = true
             safeGatt("readCharacteristic(dis-serial)") { ops.readCharacteristicCompat(ch) }
-        } else {
-            log("DIS: serial characteristic unavailable — hardware variant stays unknown")
+            return true
         }
+        log("DIS: serial characteristic unavailable — hardware variant stays unknown")
+        return false
     }
 
     /**
@@ -4745,8 +4741,7 @@ class WhoopBleClient(
         ) return
         log("DIS: trying the identity read on an UNbonded link — unproven, and a refusal is itself the" +
             " answer to whether DIS needs an encrypted bond (#490)")
-        disChainInFlight = true
-        readDisIdentity()
+        disChainInFlight = readDisIdentity()
     }
 
     /**
@@ -4796,7 +4791,7 @@ class WhoopBleClient(
         // running at 7s, every CCCD write returning busy, all four abandoned after the shared retry
         // budget, and the link yielding no answer. Waiting on the actual signal costs a second and
         // removes the guess.
-        if (disChainInFlight && unbondedProbeDeferrals < UNBONDED_PROBE_MAX_DEFERRALS) {
+        if (unbondedProbeShouldWaitForDis(disChainInFlight, unbondedProbeDeferrals)) {
             unbondedProbeDeferrals++
             if (unbondedProbeDeferrals == 1) log(unbondedProbeWaitingForDisLine())
             handler.removeCallbacks(unbondedProbeStartRunnable)

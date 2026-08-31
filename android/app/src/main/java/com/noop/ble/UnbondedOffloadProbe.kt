@@ -270,6 +270,29 @@ internal fun unbondedProbeLinkLostAskingLine(uptimeMs: Long, waitedMs: Long): St
         " inside its window to answer — this link settles nothing either way (#1635)."
 
 /**
+ * How many times the probe may stand aside for the DIS chain before going anyway.
+ *
+ * A cap rather than an open wait, because the chain has exits that never reach its terminal — a refused
+ * read, or a strap that stops answering part-way — and a probe waiting on a flag nobody will clear would
+ * simply never run. Eight checks at a second each, then it takes its chances and the trace says which
+ * happened.
+ */
+internal const val UNBONDED_PROBE_MAX_DEFERRALS = 8
+
+/**
+ * Should the probe wait rather than start?
+ *
+ * Pure so the decision is testable without a GATT stack, like every other judgement in this file. It was
+ * briefly inline in the client, which is how the same class of gap reached #1755: the behaviour was
+ * argued for in a comment and asserted nowhere.
+ */
+internal fun unbondedProbeShouldWaitForDis(
+    disChainInFlight: Boolean,
+    deferralsSoFar: Int,
+    cap: Int = UNBONDED_PROBE_MAX_DEFERRALS,
+): Boolean = disChainInFlight && deferralsSoFar < cap
+
+/**
  * The probe is holding off because the unbonded DIS chain still has the GATT queue.
  *
  * Logged once per link rather than per deferral: the useful fact is that it waited at all, and a line a

@@ -383,4 +383,22 @@ class UnbondedOffloadProbeTest {
         assertTrue(line.contains("not the strap"))
         assertTrue(line.contains("#1635"))
     }
+
+    /**
+     * The decision itself, not just the line that describes it. It was briefly inline in the client,
+     * argued for in a comment and asserted nowhere — which is exactly how #1755 shipped a bound that
+     * every unit test agreed with and the real pipeline rejected.
+     */
+    @Test
+    fun `the probe waits only while the DIS chain is actually running, and only so long`() {
+        assertTrue(unbondedProbeShouldWaitForDis(disChainInFlight = true, deferralsSoFar = 0))
+        assertTrue(unbondedProbeShouldWaitForDis(true, UNBONDED_PROBE_MAX_DEFERRALS - 1))
+        // The cap must end the wait: the chain has exits that never reach its terminal, so a probe
+        // waiting on a flag nobody clears would never run at all.
+        assertFalse(unbondedProbeShouldWaitForDis(true, UNBONDED_PROBE_MAX_DEFERRALS))
+        assertFalse(unbondedProbeShouldWaitForDis(true, UNBONDED_PROBE_MAX_DEFERRALS + 5))
+        // And no chain means no waiting — the whole point of readDisIdentity reporting whether it
+        // actually issued a read rather than being assumed to have.
+        assertFalse(unbondedProbeShouldWaitForDis(disChainInFlight = false, deferralsSoFar = 0))
+    }
 }
