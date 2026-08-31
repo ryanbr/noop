@@ -132,9 +132,15 @@ internal fun explicitBondThrewLine(throwableName: String, bondStateName: String)
  * unreadable captures. This one has a second job: the user has been watching Android say "Pairing
  * rejected", so the log should be able to tell them the app heard it and stopped asking, and what would
  * make it ask again.
+ *
+ * It claims the RETIREMENT, not a skip — "on this strap again", matching [helloOverrideExhaustedLine]'s
+ * "stopping" and the offload probe's "Not asking this strap again". It is printed once per process while
+ * governing every connect after it, so wording it as a one-connect decision would leave a reader looking
+ * at twenty later connects to conclude the line was stale or the gate was per-connect. Both wrong, and
+ * both cost more than the two words it takes to be accurate.
  */
 internal fun explicitBondGivenUpLine(): String =
-    "WHOOP 5/MG: not asking Android to pair on this connect — this strap has refused the encrypted bond" +
+    "WHOOP 5/MG: not asking Android to pair on this strap again — it has refused the encrypted bond" +
         " enough times for the handshake to be latched off, and every further request only produces" +
         " another system \"Pairing rejected\" notice. Press Connect to ask again (put the strap in" +
         " pairing mode first if you want the pairing itself to have a chance), or turn \"Ask Android to" +

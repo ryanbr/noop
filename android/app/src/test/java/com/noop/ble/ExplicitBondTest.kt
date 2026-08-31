@@ -76,6 +76,11 @@ class ExplicitBondTest {
         // The system notice is what the user has been looking at; the line has to connect the two or it
         // reads as unrelated.
         assertTrue(line.contains("Pairing rejected"))
+        // And it claims the retirement rather than a one-connect skip. It prints once while governing
+        // every connect after it, so "on this connect" would have a reader seeing twenty later connects
+        // conclude the line was stale - the same shape as every other misleading line in this area.
+        assertTrue(line.contains("again"))
+        assertFalse(line.contains("on this connect"))
     }
 
     @Test
