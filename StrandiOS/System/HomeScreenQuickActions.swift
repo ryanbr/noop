@@ -106,22 +106,23 @@ final class HomeScreenQuickActionSceneDelegate: NSObject, UIWindowSceneDelegate,
     /// memory and dies with the app if iOS terminates it before it resumes.
     func sceneDidEnterBackground(_ scene: UIScene) {
         // A bare Task is suspended along with the app, which would leave this doing nothing at the one
-        // moment it exists for. The assertion buys the flush a window to finish in.
-        //
-        // No expiration handler, and no mutable identifier. The usual idiom assigns the id into a `var`
-        // that the handler also mutates, and that var is then captured and mutated inside Task's @Sendable
-        // closure — "mutation of captured var in concurrently-executing code", an error even in Swift 5
-        // mode. A `let` id is a Sendable struct and needs no box. What the handler would have bought is
-        // small by comparison: the flush is a sub-second write of at most 30 buffered rows, so the window
-        // is not realistically at risk of expiring.
-        let taskID = UIApplication.shared.beginBackgroundTask(withName: "standard-hr-lifecycle-flush")
+        // moment it exists for. Ask UIKit for a window and end it on BOTH paths, so the assertion is
+        // always released rather than expiring.
+        let application = UIApplication.shared
+        var taskID: UIBackgroundTaskIdentifier = .invalid
+        taskID = application.beginBackgroundTask(withName: "standard-hr-lifecycle-flush") {
+            application.endBackgroundTask(taskID)
+            taskID = .invalid
+        }
         // @MainActor explicitly: AppModel and BLEManager are both main-actor isolated, and a bare Task
         // from a nonisolated delegate callback does not inherit that. Same idiom BLEManager uses for this
-        // exact call on its disconnect edge. UIApplication is re-read inside rather than captured, so the
-        // closure carries nothing non-Sendable.
+        // exact call on the disconnect edge.
         Task { @MainActor in
             await Self.flushStandardHR(.background)
-            if taskID != .invalid { UIApplication.shared.endBackgroundTask(taskID) }
+            if taskID != .invalid {
+                application.endBackgroundTask(taskID)
+                taskID = .invalid
+            }
         }
     }
 
