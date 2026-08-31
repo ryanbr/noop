@@ -1,7 +1,6 @@
 #if os(iOS)
 import SwiftUI
 import StrandDesign
-import StrandAnalytics
 import UserNotifications
 
 /// iOS entry point. Unlike the macOS app (which adds a `MenuBarExtra` scene), iOS uses a single
@@ -143,19 +142,6 @@ struct StrandiOSApp: App {
             Text("A Shortcut wants to add \(pending.daysCount) days and \(pending.workoutsCount) workouts to the Apple Health import source.")
         } else {
             Text("A Shortcut wants to add data to the Apple Health import source.")
-        }
-    }
-
-    /// Give buffered standard-HR rows a persistence attempt at a lifecycle edge (#1767).
-    ///
-    /// One method for both edges rather than the same four lines twice inside two closures: the
-    /// duplication was part of what pushed this scene's body over the type-check budget, and a helper
-    /// costs the solver nothing.
-    private func scheduleStandardHRFlush(_ event: StandardHRLifecycleFlush.Event) {
-        Task {
-            await StandardHRLifecycleFlush.run(event: event) { reason in
-                await model.ble.flushStandardHRForLifecycle(reason: reason)
-            }
         }
     }
 
@@ -340,10 +326,6 @@ struct StrandiOSApp: App {
                     await watch.pushLatest(from: model)
                 }
             } else if phase == .background {
-                // A connected strap does not emit a disconnect edge when iOS suspends the app. Route the
-                // lifecycle edge through the same tested seam as termination so a sub-cadence 0x2A37 batch
-                // gets a real store attempt and an accepted/rejected + inserted-count outcome before sleep.
-                scheduleStandardHRFlush(.background)
                 // Re-submit on every transition because iOS may discard an old best-effort request.
                 HealthWritebackBackgroundScheduler.updateSchedule(
                     isAuthorized: health.auth == .authorized)
@@ -363,11 +345,6 @@ struct StrandiOSApp: App {
                 // no-op until the user turns on Shortcuts Export.
                 Task { await ShortcutHealthExport.writeIfEnabled(repo: model.repo) }
             }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
-            // Usually background already drained this buffer. This is the final retry edge for a foreground
-            // termination or a failed background attempt; an empty Collector is a cheap no-op.
-            scheduleStandardHRFlush(.termination)
         }
     }
 }
