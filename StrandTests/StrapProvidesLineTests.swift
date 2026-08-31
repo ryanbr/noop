@@ -11,14 +11,14 @@ final class StrapProvidesLineTests: XCTestCase {
     func testAnUnbondedMGStreamsHeartDataAndNothingElse() {
         XCTAssertEqual(
             DebugDataDiagnostics.strapProvidesLine(hr: true, rr: true, motion: false, steps: false),
-            "Provides(48h): HR yes · R-R yes · motion NO · steps NO"
+            "Provides:    HR yes · R-R yes · motion NO · steps NO (last 48h)"
         )
     }
 
     func testAFullySyncedStrapProvidesAllFour() {
         XCTAssertEqual(
             DebugDataDiagnostics.strapProvidesLine(hr: true, rr: true, motion: true, steps: true),
-            "Provides(48h): HR yes · R-R yes · motion yes · steps yes"
+            "Provides:    HR yes · R-R yes · motion yes · steps yes (last 48h)"
         )
     }
 
@@ -27,6 +27,6 @@ final class StrapProvidesLineTests: XCTestCase {
     func testAbsenceIsTheHalfThatStandsOut() {
         let line = DebugDataDiagnostics.strapProvidesLine(hr: true, rr: false, motion: false, steps: true)
         XCTAssertEqual(line.components(separatedBy: "NO").count - 1, 2, line)
-        XCTAssertEqual(line, "Provides(48h): HR yes · R-R NO · motion NO · steps yes")
+        XCTAssertEqual(line, "Provides:    HR yes · R-R NO · motion NO · steps yes (last 48h)")
     }
 }

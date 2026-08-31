@@ -68,11 +68,15 @@ object AndroidDiagnostics {
      * strap simply not worn for two days would be reported as incapable of motion — the opposite kind of
      * wrong from the one this line exists to prevent. Over a window of actual wear, delivered and capable
      * are the same thing; the label keeps that assumption visible instead of implied.
+     * The label is padded to 13 like every other in this block ("Model:", "Data write:"), and the window
+     * rides the VALUE. "Provides(48h):" is 15 and overhung the column in a report that is aligned by hand
+     * and read by eye.
      * Pure so it is unit-tested directly; byte-identical to the Swift twin.
      */
     internal fun strapProvidesLine(hr: Boolean, rr: Boolean, motion: Boolean, steps: Boolean): String {
         fun mark(b: Boolean) = if (b) "yes" else "NO"
-        return "Provides(48h): HR ${mark(hr)} · R-R ${mark(rr)} · motion ${mark(motion)} · steps ${mark(steps)}"
+        return "Provides:    HR ${mark(hr)} · R-R ${mark(rr)} · motion ${mark(motion)} · steps ${mark(steps)}" +
+            " (last 48h)"
     }
 
     /**
