@@ -3685,6 +3685,11 @@ class WhoopBleClient(
             // handshake on a re-add and leaving a stale pref behind for a strap the user removed.
             // Re-latching costs the same five refusals it always did. Twin of the Swift `forgetDevice`.
             runCatching { com.noop.ui.NoopPrefs.setHelloSuppressed(context, releasedAddress, false) }
+            // #1635: clearing the latch means the pairing request is asked again, so its one-shot line has
+            // to be able to report the next retirement. Twin of the reset in [clearPairingHint]; without
+            // it a re-added strap stops asking with nothing in the log saying why, which is the silent
+            // stop this whole area exists to stop repeating.
+            explicitBondGiveUpLogged = false
             autoReconnectPausedForBondLoop = false
             bondLoopPausedAtMs = null
             // Drop the persisted last-device pin so a relaunch / radio-on doesn't auto-reconnect to it (#67).
@@ -8440,8 +8445,18 @@ class WhoopBleClient(
                         },
                         onFailure = { log(explicitBondThrewLine(it.javaClass.simpleName, where)) },
                     )
-                } else if (puffinExperiment.explicitBond && suppressed && !didBond && !osBonded &&
-                    !explicitBondGiveUpLogged
+                } else if (suppressed && !explicitBondGiveUpLogged && shouldRequestExplicitBond(
+                        optedIn = puffinExperiment.explicitBond,
+                        isWhoop5 = true,
+                        alreadyBondedAtOsLevel = osBonded,
+                        appLevelBonded = didBond,
+                        alreadyRequestedThisLink = explicitBondRequestedThisLink,
+                        // The question this branch is actually asking: would we be asking to pair if the
+                        // give-up were not latched? Restating the gate's other conditions here instead
+                        // would drift the moment a sixth one is added — and drift silently, into a line
+                        // that blames the give-up for a decision some other check made.
+                        bondGivenUpForDevice = false,
+                    )
                 ) {
                     // Say it, once. The switch is on and doing nothing, which without a line looks exactly
                     // like the switch being broken — and the user has just been reading Android's pairing
