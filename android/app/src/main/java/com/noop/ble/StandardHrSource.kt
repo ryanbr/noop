@@ -271,20 +271,31 @@ class StandardHrSource(
         if (shouldFlush) flush()
     }
 
+    /**
+     * The rows a set of buffered samples would offer, applying the SAME gates in one place.
+     *
+     * Mirrors `StandardHRMapping`: HrRow + RrRow only, HR range-gated so an off-wrist 0 is dropped, R-R
+     * gated to plausible beat-to-beat ms — matching `ingestStandardHr`. Shared with the re-buffer path
+     * deliberately: a pending count that applied different gates from the offered count would report two
+     * numbers that cannot be compared, in the one line whose job is comparing them.
+     */
+    private fun rowsOf(samples: List<Sample>): Pair<List<HrRow>, List<RrRow>> {
+        val hrRows = ArrayList<HrRow>()
+        val rrRows = ArrayList<RrRow>()
+        for (s in samples) {
+            if (s.hr in 30..220) hrRows.add(HrRow(s.ts, s.hr))
+            for (r in s.rr) if (r in 250..3000) rrRows.add(RrRow(s.ts, r))
+        }
+        return hrRows to rrRows
+    }
+
     private fun flush(reason: StandardHrFlushReason = StandardHrFlushReason.CADENCE) {
         val snapshot = synchronized(bufferLock) {
             lastFlushMs = System.currentTimeMillis()
             if (buffer.isEmpty()) return
             val s = ArrayList(buffer); buffer.clear(); s
         }
-        // Mirror StandardHRMapping: HrRow + RrRow only. HR is range-gated (off-wrist 0/garbage dropped);
-        // R-R is gated to physiologically plausible beat-to-beat ms, matching ingestStandardHr.
-        val hrRows = ArrayList<HrRow>()
-        val rrRows = ArrayList<RrRow>()
-        for (s in snapshot) {
-            if (s.hr in 30..220) hrRows.add(HrRow(s.ts, s.hr))
-            for (r in s.rr) if (r in 250..3000) rrRows.add(RrRow(s.ts, r))
-        }
+        val (hrRows, rrRows) = rowsOf(snapshot)
         if (hrRows.isEmpty() && rrRows.isEmpty()) return
         log(standardHrFlushAttemptLine(reason.raw, hrRows.size, rrRows.size))
         persist(StreamBatch(hr = hrRows, rr = rrRows), deviceId) { result ->
@@ -297,15 +308,16 @@ class StandardHrSource(
                     // Put the batch BACK, at the front, so the next flush retries it in order — the Swift
                     // Collector's `insert(contentsOf:at:0)`. Without this the rows were already gone the
                     // moment the snapshot was taken.
-                    val pending = synchronized(bufferLock) {
+                    val (pendingHr, pendingRr) = synchronized(bufferLock) {
                         buffer.addAll(0, snapshot)
-                        buffer.size
+                        val (h, r) = rowsOf(buffer)
+                        h.size to r.size
                     }
                     val runLength = insertFailures.incrementAndGet()
                     log(standardHrRebufferedForRetryLine(
                         reason = reason.raw,
                         attemptedHrRows = hrRows.size, attemptedRrRows = rrRows.size,
-                        pendingHrRows = pending, pendingRrRows = pending,
+                        pendingHrRows = pendingHr, pendingRrRows = pendingRr,
                         consecutiveFailures = runLength,
                     ))
                     // Rate-limited, and the SAME helper the WHOOP live path uses, so one strap log carries
