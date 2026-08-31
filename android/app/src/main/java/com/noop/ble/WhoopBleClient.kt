@@ -8367,6 +8367,11 @@ class WhoopBleClient(
                 // Read ONCE, here, above both decisions that consult it. The pairing request is made
                 // before the hello is considered, so a latch read only at the hello would leave the
                 // request unable to see the verdict it is supposed to respect.
+                //
+                // This is only safe because NOTHING between here and the hello writes the latch, and that
+                // became true when the pairing request stopped clearing it. Anything reintroducing a write
+                // in that window silently hands the hello a stale verdict — so put the write before this
+                // read, or take a second one, rather than leaving the two decisions disagreeing.
                 val suppressed = runCatching {
                     com.noop.ui.NoopPrefs.helloSuppressed(context, g.device.address)
                 }.getOrDefault(false)
