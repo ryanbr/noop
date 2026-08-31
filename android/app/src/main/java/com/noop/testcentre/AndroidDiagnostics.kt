@@ -64,11 +64,15 @@ object AndroidDiagnostics {
      * so Rest reads "No data" and no bout is ever found — and until now a report showed those absences
      * with nothing connecting them to their single cause. A reader had to know the pipeline to infer it.
      *
+     * The window is IN the label. Without it "Provides: motion NO" reads as a capability claim, and a
+     * strap simply not worn for two days would be reported as incapable of motion — the opposite kind of
+     * wrong from the one this line exists to prevent. Over a window of actual wear, delivered and capable
+     * are the same thing; the label keeps that assumption visible instead of implied.
      * Pure so it is unit-tested directly; byte-identical to the Swift twin.
      */
     internal fun strapProvidesLine(hr: Boolean, rr: Boolean, motion: Boolean, steps: Boolean): String {
         fun mark(b: Boolean) = if (b) "yes" else "NO"
-        return "Provides:    HR ${mark(hr)} · R-R ${mark(rr)} · motion ${mark(motion)} · steps ${mark(steps)}"
+        return "Provides(48h): HR ${mark(hr)} · R-R ${mark(rr)} · motion ${mark(motion)} · steps ${mark(steps)}"
     }
 
     /**

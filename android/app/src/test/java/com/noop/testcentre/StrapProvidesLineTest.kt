@@ -17,7 +17,7 @@ class StrapProvidesLineTest {
     @Test
     fun `an unbonded 5MG streams heart data and nothing else`() {
         assertEquals(
-            "Provides:    HR yes · R-R yes · motion NO · steps NO",
+            "Provides(48h): HR yes · R-R yes · motion NO · steps NO",
             AndroidDiagnostics.strapProvidesLine(hr = true, rr = true, motion = false, steps = false),
         )
     }
@@ -25,7 +25,7 @@ class StrapProvidesLineTest {
     @Test
     fun `a fully synced strap provides all four`() {
         assertEquals(
-            "Provides:    HR yes · R-R yes · motion yes · steps yes",
+            "Provides(48h): HR yes · R-R yes · motion yes · steps yes",
             AndroidDiagnostics.strapProvidesLine(hr = true, rr = true, motion = true, steps = true),
         )
     }
@@ -38,6 +38,6 @@ class StrapProvidesLineTest {
     fun `absence is the half that stands out`() {
         val line = AndroidDiagnostics.strapProvidesLine(hr = true, rr = false, motion = false, steps = true)
         assertEquals(2, Regex("NO").findAll(line).count())
-        assertEquals("Provides:    HR yes · R-R NO · motion NO · steps yes", line)
+        assertEquals("Provides(48h): HR yes · R-R NO · motion NO · steps yes", line)
     }
 }
