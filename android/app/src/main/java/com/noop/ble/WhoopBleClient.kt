@@ -8373,15 +8373,40 @@ class WhoopBleClient(
                     runCatching { g.device.createBond() }.fold(
                         onSuccess = { initiated ->
                             log(explicitBondRequestLine(initiated, where))
-                            // Asking for a pairing voids the previous verdict: suppression latched because
-                            // the write never completed on an UNENCRYPTED link, and that premise is exactly
-                            // what this is trying to change. Cleared ONCE, here, rather than re-armed by
-                            // "an OS pairing exists" — that condition never goes away, so it would bypass
-                            // the latch on every connect and restore the unbounded loop for good.
+                            // The suppression latch is NOT cleared here, and this is the correction to the
+                            // comment that used to stand in its place. That comment reasoned the clear was
+                            // safe because it happened "ONCE, here", as opposed to being re-armed by "an OS
+                            // pairing exists" — a condition that never goes away. It guarded the wrong
+                            // recurrence. [shouldRequestExplicitBond] is bounded only by
+                            // `alreadyRequestedThisLink`, a per-LINK flag, and on a strap that answers SMP
+                            // "Pairing Not Supported" neither bond condition ever becomes true — so
+                            // createBond fires on EVERY connect, and clearing here fired on every connect
+                            // with it. The 31 Aug capture: 36 pairing requests, the latch written once at
+                            // 17:32:48, the "CLIENT_HELLO suppressed" line zero times, and 13 more hellos
+                            // after the give-up, each dropping the link ~4.8s in.
+                            //
+                            // It could not recover, either: BondRefusalGiveUp.recordRefusal() reports the
+                            // crossing exactly once and stays gaveUp until reset, so the latch is written
+                            // once per session. Anything recurring that clears it does not cost one link —
+                            // it costs the latch permanently.
+                            //
+                            // What replaces it is the explicit Connect, which clears the latch through
+                            // clearPairingHintForUserConnect() — precisely what the epitaph tells the user
+                            // to do, and pinned by HelloSuppressionTest's "suppression is never
+                            // permanent". Be exact about the alternative: the encrypted-bond clear at
+                            // clearPairingHint() lives inside the hello WRITE-COMPLETION callback, so a
+                            // suppressed hello cannot reach it. Claiming it as an automatic route would be
+                            // the same overclaim the give-up line just had to be corrected for.
+                            //
+                            // That costs nothing real. The latch is only set after five consecutive
+                            // refusals, so "latched, and pairing now works" needs something to have
+                            // CHANGED — new firmware, the strap put into pairing mode (@Zebsi235's MG) —
+                            // and a user who has changed something taps Connect. Voiding the verdict on
+                            // the mere REQUEST voided it on a hope this strap never fulfils, every eleven
+                            // seconds. The pairing experiment itself is untouched: createBond still runs
+                            // on every link, it just no longer drags the hello back with it, which is what
+                            // [helloDeferredByExplicitBond] says must never share a link.
                             if (initiated) {
-                                runCatching {
-                                    com.noop.ui.NoopPrefs.setHelloSuppressed(context, g.device.address, false)
-                                }
                                 // Ask the device directly rather than waiting on our own broadcast
                                 // receiver, which is a suspect in exactly the silence being investigated.
                                 handler.postDelayed({
