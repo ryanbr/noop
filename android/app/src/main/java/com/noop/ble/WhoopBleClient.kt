@@ -5602,8 +5602,14 @@ class WhoopBleClient(
      *  off the involuntary-reconnect path on purpose: the streak must SURVIVE automatic reconnects (like
      *  the #52 pinnedBondRefusals counter) so it can accumulate to the threshold across the strap dropping
      *  and re-bonding. Only an explicit user tap (AppViewModel.connect) starts it over. Public so the
-     *  ViewModel can call it; a thin wrapper over the private [clearPairingHint]. */
-    fun clearPairingHintForUserConnect() = clearPairingHint()
+     *  ViewModel can call it; a thin wrapper over the private [clearPairingHint].
+     *
+     *  #1635: does NOT drop the hello-suppression latch. The fresh handshake attempt a Connect grants is
+     *  carried by [helloRetryRequested], not by clearing the latch, so keeping it costs the user nothing —
+     *  and clearing it un-suppressed every AUTOMATIC reconnect that followed, which is what re-paid the
+     *  full five refusals on every tap. Apple has always cleared it on a genuine bond and on forget only;
+     *  this is the twin of that. */
+    fun clearPairingHintForUserConnect() = clearPairingHint(genuineBond = false)
 
     /** Bonded-handshake watchdog (#50): every other connect phase has a timeout (scan; MTU settle delay;
      *  keep-alive) but the post-discovery bond/CCCD handshake had none — so a WHOOP 4.0 that wedges
@@ -5901,11 +5907,18 @@ class WhoopBleClient(
 
     /** Clear the pairing-hint streak + published hint after a genuine bond or a fresh connect. Also clears
      *  the mirrored [statusNote] only when it still carries the hint, so we never wipe an unrelated note. */
-    private fun clearPairingHint() {
+    private fun clearPairingHint(genuineBond: Boolean = true) {
         bondRefusalStreak = 0
         // #1635: a genuine bond proves the handshake works on this strap — drop the suppression latch so a
         // later transient failure starts from a clean slate rather than inheriting an old verdict.
-        runCatching { com.noop.ui.NoopPrefs.setHelloSuppressed(context, lastDeviceAddress, false) }
+        //
+        // Only a genuine bond. A user Connect passes false: it already gets its fresh attempt from
+        // [helloRetryRequested], and dropping the latch as well left every automatic reconnect after that
+        // attempt un-suppressed, so the give-up had to re-earn itself over five more refusals — ~55s of
+        // link churn per tap, on a strap whose firmware cannot answer the handshake either way.
+        if (pairingHintClearDropsSuppressionLatch(genuineBond)) {
+            runCatching { com.noop.ui.NoopPrefs.setHelloSuppressed(context, lastDeviceAddress, false) }
+        }
         // #1635: the pairing request is asked again from here too, so its one-shot line must be able to
         // report a SECOND retirement. Without this the switch would go quiet for good after one round.
         explicitBondGiveUpLogged = false
@@ -8386,6 +8399,18 @@ class WhoopBleClient(
                         alreadyBondedAtOsLevel = osBonded,
                         appLevelBonded = didBond,
                         alreadyRequestedThisLink = explicitBondRequestedThisLink,
+                        // #1635: deliberately the raw latch, with no `userInitiated` escape hatch beside
+                        // the hello's. A Connect used to re-fire createBond only as a side effect of
+                        // clearing the latch; now that the latch survives the tap, the pairing request
+                        // stays retired and the tap's one fresh attempt is the HELLO. That is the right
+                        // half to keep — the hello is the implicit pairing trigger, so a strap put into
+                        // pairing mode still has a route, while each createBond this strap declines
+                        // raises a system "Pairing rejected" notice the user never asked for.
+                        //
+                        // Do NOT "fix" this by passing `suppressed && !helloRetryRequested`. The deferral
+                        // branch below returns BEFORE the hello consumes that flag, so a re-armed request
+                        // would defer the hello, leave the retry set, and re-arm itself on the next link.
+                        // A full pairing retry is Forget + re-add, which clears the latch outright.
                         bondGivenUpForDevice = suppressed,
                     )
                 ) {
@@ -8417,22 +8442,30 @@ class WhoopBleClient(
                             // once per session. Anything recurring that clears it does not cost one link —
                             // it costs the latch permanently.
                             //
-                            // What replaces it is the explicit Connect, which clears the latch through
-                            // clearPairingHintForUserConnect() — precisely what the epitaph tells the user
-                            // to do, and pinned by HelloSuppressionTest's "suppression is never
-                            // permanent". Be exact about the alternative: the encrypted-bond clear at
-                            // clearPairingHint() lives inside the hello WRITE-COMPLETION callback, so a
-                            // suppressed hello cannot reach it. Claiming it as an automatic route would be
-                            // the same overclaim the give-up line just had to be corrected for.
+                            // What replaces it is the explicit Connect, which grants ONE fresh handshake
+                            // attempt through [helloRetryRequested] — precisely what the epitaph tells the
+                            // user to do, and pinned by HelloSuppressionTest's "suppression is never
+                            // permanent". Note it is the retry flag that carries this, NOT a clear of the
+                            // latch: clearPairingHintForUserConnect() deliberately leaves the latch set so
+                            // the automatic reconnects AFTER that attempt stay suppressed. Be exact about
+                            // the alternative: the encrypted-bond clear at clearPairingHint() lives inside
+                            // the hello WRITE-COMPLETION callback, so a suppressed hello cannot reach it.
+                            // Claiming it as an automatic route would be the same overclaim the give-up
+                            // line just had to be corrected for.
                             //
                             // That costs nothing real. The latch is only set after five consecutive
                             // refusals, so "latched, and pairing now works" needs something to have
                             // CHANGED — new firmware, the strap put into pairing mode (@Zebsi235's MG) —
                             // and a user who has changed something taps Connect. Voiding the verdict on
                             // the mere REQUEST voided it on a hope this strap never fulfils, every eleven
-                            // seconds. The pairing experiment itself is untouched: createBond still runs
-                            // on every link, it just no longer drags the hello back with it, which is what
-                            // [helloDeferredByExplicitBond] says must never share a link.
+                            // seconds. The pairing experiment itself is untouched in the window that
+                            // matters: createBond runs on every link until the latch is set, and it no
+                            // longer drags the hello back with it, which is what
+                            // [helloDeferredByExplicitBond] says must never share a link. Be precise
+                            // about after: `bondGivenUpForDevice = suppressed` retires the request for as
+                            // long as the latch stands, and since the latch now survives a Connect, the
+                            // way back is a genuine bond or Forget + re-add — not a tap. The field log
+                            // read as "createBond on every link" only because every tap wiped the latch.
                             if (initiated) {
                                 // Ask the device directly rather than waiting on our own broadcast
                                 // receiver, which is a suspect in exactly the silence being investigated.

@@ -27,6 +27,23 @@ class HelloSuppressionTest {
     }
 
     @Test
+    fun `a user Connect spends one attempt and leaves the latch standing`() {
+        // The tap's own connect re-attempts — that is what makes suppression non-permanent...
+        assertTrue(shouldSendClientHello(suppressedForDevice = true, userInitiated = true))
+        // ...but the tap is not evidence about the firmware, so it must not drop the latch.
+        assertFalse(pairingHintClearDropsSuppressionLatch(genuineBond = false))
+        // Which is the whole point: the AUTOMATIC reconnect behind that attempt is still suppressed.
+        // The regression cleared the latch on the tap, so this read false for every reconnect that
+        // followed and the give-up had to re-earn itself over five more refusals (~55s of churn).
+        assertFalse(shouldSendClientHello(suppressedForDevice = true, userInitiated = false))
+    }
+
+    @Test
+    fun `a genuine bond drops the latch - it is the one event that proves the handshake works`() {
+        assertTrue(pairingHintClearDropsSuppressionLatch(genuineBond = true))
+    }
+
+    @Test
     fun `only an unanswered handshake suppresses - an auth refusal still pauses`() {
         // An auth refusal is evidence the strap actively declined and reconnecting cannot help, so the
         // existing pause is right. An unanswered write is not that, and pausing would throw away live HR.

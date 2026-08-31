@@ -24,8 +24,11 @@ package com.noop.ble
  * never at all.
  *
  * [userInitiated] always re-attempts: suppression is a fallback for automatic reconnects, never a
- * permanent verdict. Someone who puts the strap in pairing mode and presses Connect must get a fresh try,
- * and that is also how the suppression is cleared.
+ * permanent verdict. Someone who puts the strap in pairing mode and presses Connect must get a fresh try.
+ * That try is ONE connect's worth and nothing more — the latch itself survives the tap, so if the strap
+ * still will not answer, the automatic reconnects behind it stay suppressed instead of re-earning the
+ * give-up over five more refusals. The latch is dropped by a genuine bond (it demonstrably works now) or
+ * by forgetting the strap, which are the two events that are actually evidence about this device.
  *
  * Deliberately NOT re-armed by "an OS pairing exists". That looks right — a pairing is new evidence the
  * handshake might work — but the condition never goes away, so a strap that pairs and STILL will not
@@ -111,6 +114,24 @@ internal fun helloOverrideExhaustedLine(attempts: Int): String =
         " The strap answers the write with Insufficient Authentication and refuses SMP pairing, so the" +
         " handshake cannot complete; continuing would only loop the link. Turn the switch off to return to" +
         " the stable live-HR state (#1635)."
+
+/**
+ * May a pairing-hint clear also drop the PERSISTED hello-suppression latch?
+ *
+ * Only a genuine bond. A bond is proof the handshake works on this strap NOW, so the old verdict is stale
+ * and must go. A user Connect is not proof of anything: it already gets its one fresh attempt from the
+ * retry flag ([shouldSendClientHello]'s `userInitiated`), and dropping the latch on top of that un-
+ * suppressed every AUTOMATIC reconnect behind the attempt — so a single tap cost five more refusals and
+ * ~55s of link churn to re-earn a verdict about firmware that had not changed. Field log 260901-0121:
+ * latched 01:02:31, stable for 18 minutes, one tap at 01:21:09, straight back into the loop.
+ *
+ * Forgetting the strap clears it too, but writes the pref directly — the strap is being released, so there
+ * is no hint left to clear and nothing to route through here.
+ *
+ * Apple has only ever cleared the latch on a genuine bond or a forget; this predicate is what makes the
+ * Android side say the same thing.
+ */
+internal fun pairingHintClearDropsSuppressionLatch(genuineBond: Boolean): Boolean = genuineBond
 
 /**
  * Should the give-up latch suppress the hello, rather than pause auto-reconnect?

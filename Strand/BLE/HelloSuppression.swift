@@ -18,8 +18,11 @@ import WhoopProtocol
 /// the app already models (#69), reached deliberately instead of never at all.
 ///
 /// [userInitiated] always re-attempts: suppression is a fallback for automatic reconnects, never a
-/// permanent verdict. Someone who puts the strap in pairing mode and presses Connect must get a fresh try,
-/// and that is also how the suppression is cleared.
+/// permanent verdict. Someone who puts the strap in pairing mode and presses Connect must get a fresh try.
+/// That try is ONE connect's worth and nothing more — the latch itself survives the tap, so if the strap
+/// still will not answer, the automatic reconnects behind it stay suppressed instead of re-earning the
+/// give-up over five more refusals. The latch is dropped by a genuine bond (it demonstrably works now) or
+/// by forgetting the strap, which are the two events that are actually evidence about this device.
 ///
 /// Kotlin twin: `com.noop.ble.shouldSendClientHello`.
 func shouldSendClientHello(suppressedForDevice: Bool, userInitiated: Bool) -> Bool {
