@@ -205,4 +205,26 @@ class SleepStagerActiveBridgeTest {
         assertTrue("an awake interruption must not be absorbed (got ${sessions.size} sessions, $spanMin min)",
             sessions.size != 1 || spanMin < 5 * 60)
     }
+
+    /**
+     * The RENDERED line, not just the fields — and deliberately the whole string, byte for byte.
+     *
+     * The Swift twin asserts this identical literal. Nothing in the tree compares the two languages'
+     * trace output automatically (Tools/parity_cases holds one unrelated fixture), so a format change on
+     * one side would otherwise diverge in silence and only surface when someone tried to read a capture
+     * from the other platform. Pinning the same literal both sides turns that into a failing test on
+     * whichever side moved.
+     */
+    @Test
+    fun `the pair line renders exactly as its Swift twin does`() {
+        val line = SleepStagerTrace.runLine(
+            -1, 0, 0, SleepStagerTrace.Verdict.DROPPED, "sparseBridgePair",
+            "pair=0 gapMin=23 activeMin=21 hrInSleepBand=true reason=activeTooLong",
+        )
+        assertEquals(
+            "gate run=-1 spanS=0 DROPPED gate=sparseBridgePair " +
+                "pair=0 gapMin=23 activeMin=21 hrInSleepBand=true reason=activeTooLong",
+            line,
+        )
+    }
 }

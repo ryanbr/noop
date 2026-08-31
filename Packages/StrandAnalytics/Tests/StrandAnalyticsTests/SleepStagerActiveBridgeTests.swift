@@ -185,4 +185,19 @@ final class SleepStagerActiveBridgeTests: XCTestCase {
         XCTAssertTrue(sessions.count != 1 || spanMin < 5 * 60,
                       "an awake interruption must not be absorbed (\(sessions.count) sessions, \(spanMin) min)")
     }
+
+    /// The RENDERED line, not just the fields — and deliberately the whole string, byte for byte.
+    ///
+    /// The Kotlin twin asserts this identical literal. Nothing in the tree compares the two languages'
+    /// trace output automatically, so a format change on one side would otherwise diverge in silence and
+    /// only surface when someone tried to read a capture from the other platform.
+    func testThePairLineRendersExactlyAsItsKotlinTwinDoes() {
+        let line = SleepStager.GateTrace.runLine(
+            index: -1, startTs: 0, endTs: 0, verdict: SleepStager.GateVerdict.dropped, gate: "sparseBridgePair",
+            detail: "pair=0 gapMin=23 activeMin=21 hrInSleepBand=true reason=activeTooLong")
+        XCTAssertEqual(
+            line,
+            "gate run=-1 spanS=0 DROPPED gate=sparseBridgePair "
+                + "pair=0 gapMin=23 activeMin=21 hrInSleepBand=true reason=activeTooLong")
+    }
 }
