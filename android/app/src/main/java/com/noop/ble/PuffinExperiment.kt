@@ -142,7 +142,9 @@ class PuffinExperiment(private val prefs: SharedPreferences) {
      * Its own switch because it SENDS to the strap and, if the strap answers, writes its clock — the same
      * line every other state-changing probe here sits behind ([isDeepDataEnabled], [broadcastHr],
      * [ecgRawData]). Nothing is written until the strap has proved it answers a read-only GET_CLOCK, and a
-     * refusal is latched per device, so opting in costs one link and not a loop.
+     * refusal is latched per device and silence spends a bounded, persisted budget, so opting in costs at
+     * most [UNBONDED_PROBE_MAX_SILENT_LINKS] links on a strap and not a loop. It said "one link and not a
+     * loop" while costing 18 across 24 connects, which is the correction this doc exists to record.
      *
      * Turning it ON also clears every strap's silence budget ([unbondedProbeSilentLinksPrefKey]). That
      * budget is now persisted, so without this a strap that spent it would never probe again — and
@@ -153,10 +155,11 @@ class PuffinExperiment(private val prefs: SharedPreferences) {
     var unbondedOffload: Boolean
         get() = prefs.getBoolean(KEY_UNBONDED_OFFLOAD, false)
         set(v) {
+            val rearms = unbondedProbeBudgetRearms(v, prefs.getBoolean(KEY_UNBONDED_OFFLOAD, false))
             val e = prefs.edit().putBoolean(KEY_UNBONDED_OFFLOAD, v)
             // Every strap, not just the connected one: the switch is global, so "try again" is too, and
             // this setter is the only path that runs with no device in hand.
-            if (v) {
+            if (rearms) {
                 prefs.all.keys
                     .filter { it.startsWith(UNBONDED_PROBE_SILENT_LINKS_KEY_PREFIX) }
                     .forEach { e.remove(it) }

@@ -69,10 +69,11 @@ internal fun shouldProbeUnbondedOffload(
 /**
  * How many links may end in SILENCE before the probe retires itself.
  *
- * A refusal latches per device; silence deliberately does not, because the subscriptions were accepted and
- * one quiet link is not the strap's verdict. But "not latched" cannot mean "forever": the probe re-runs on
- * every reconnect, and a strap that reconnects often would re-ask a question already answered the same way
- * three times, which is the exact shape of the unbounded retry this whole area keeps producing.
+ * A refusal is the strap's verdict and latches outright; silence is weaker evidence — the subscriptions
+ * were accepted, and one quiet link says little — so it spends a budget instead. But weaker evidence
+ * cannot mean unbounded: the probe re-runs on every reconnect, and a strap that reconnects often would
+ * re-ask a question already answered the same way three times, which is the exact shape of the retry this
+ * whole area keeps producing.
  *
  * Counted PER DEVICE and persisted ([unbondedProbeSilentLinksPrefKey]), not per process. It was per
  * process, and that was wrong in the field: the foreground service restarts often, every restart re-armed
@@ -155,6 +156,17 @@ internal fun unbondedProbeSupersedesLine(explicitBondOptedIn: Boolean): String =
  *  for the same reason [firmwarePrefKey] is. */
 internal fun unbondedOffloadRefusedPrefKey(peripheralId: String?): String? =
     peripheralId?.trim()?.takeIf { it.isNotEmpty() }?.let { "noop.unbondedOffloadRefused.${it.lowercase()}" }
+
+/**
+ * Does writing [PuffinExperiment.unbondedOffload] hand every strap's silence budget back?
+ *
+ * The off->ON EDGE, and not merely "on". A setter that cleared on every true would return the budget to
+ * any caller that rewrites the current value, and the budget's whole job is to stop a retry that takes the
+ * link down with it. Only the two switches write it today; making this the setter's property rather than
+ * its callers' is what keeps that true.
+ */
+internal fun unbondedProbeBudgetRearms(optedInNow: Boolean, optedInBefore: Boolean): Boolean =
+    optedInNow && !optedInBefore
 
 /** Prefix of every persisted silence budget, so opting back in can clear them all without knowing which
  *  straps have one. Sole reason it is a constant rather than an inlined string. */

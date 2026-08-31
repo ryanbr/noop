@@ -79,9 +79,14 @@ class UnbondedOffloadProbeTest {
     }
 
     /**
-     * Silence is not latched per device, so once-per-link does NOT bound it — the probe re-runs on every
-     * reconnect, and a strap that reconnects often would re-ask a question already answered the same way.
-     * That is the unbounded retry this whole area keeps producing, so silence spends a per-process budget.
+     * Silence does not latch the way a refusal does, so once-per-link cannot bound it — the probe re-runs
+     * on every reconnect, and a strap that reconnects often would re-ask a question already answered the
+     * same way. Silence therefore spends a budget.
+     *
+     * That budget is PERSISTED, which is the whole of the 31 Aug loop: 18 probe starts across 24 connects.
+     * It bounded the retry within a process; nothing bounded the processes, the foreground service
+     * restarts, and every restart re-armed three more links — each torn down ~4.8s after the subscriptions
+     * reach the air, which the user sees as an endless "Reconnecting to your WHOOP".
      */
     @Test
     fun `repeated silence retires the probe`() {
@@ -183,12 +188,14 @@ class UnbondedOffloadProbeTest {
     }
 
     @Test
-    fun `a spent budget stops the probe on a fresh process`() {
-        // The 31 Aug loop: 18 probe starts across 24 connects. The budget bounded the retry within a
-        // process; nothing bounded the processes, and the service restarts. Each re-armed link is torn
-        // down ~4.8s after the subscriptions reach the air, which is what the user saw as an endless
-        // "Reconnecting to your WHOOP".
-        assertFalse(probe(silentLinksSoFar = UNBONDED_PROBE_MAX_SILENT_LINKS))
+    fun `only the off-to-on edge hands the budget back`() {
+        assertTrue(unbondedProbeBudgetRearms(optedInNow = true, optedInBefore = false))
+        // Rewriting "on" while already on is not the user asking for anything. If this cleared, any
+        // caller that re-set the current value would re-arm three more link-killing attempts — the loop
+        // the budget exists to end, restored by the mechanism meant to bound it.
+        assertFalse(unbondedProbeBudgetRearms(optedInNow = true, optedInBefore = true))
+        assertFalse(unbondedProbeBudgetRearms(optedInNow = false, optedInBefore = true))
+        assertFalse(unbondedProbeBudgetRearms(optedInNow = false, optedInBefore = false))
     }
 
     @Test
