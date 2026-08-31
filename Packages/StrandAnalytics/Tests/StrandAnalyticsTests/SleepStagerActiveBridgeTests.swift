@@ -120,4 +120,69 @@ final class SleepStagerActiveBridgeTests: XCTestCase {
         XCTAssertFalse(SleepStager.hrSleepBandAcross(0, 3660, hr: calmHr(0, 3660, bpm: 110),
                                                      baseline: baseline))
     }
+
+    // MARK: - End to end, through detectSleep
+    //
+    // The unit cases above pin the bridge. These pin the thing the reporter actually saw: a night with
+    // one interruption arriving as ONE session instead of a truncated fragment.
+    //
+    // This twin is not optional. The Kotlin version of exactly this test is what found the bound wrong —
+    // every unit case passed at 20 while the real pipeline still returned two sessions, because
+    // classifyStill smears the still/moving boundary and buildRuns closes at sample edges, so a 15-minute
+    // interruption becomes a 21-minute run. That smear is a property of THIS implementation, so without
+    // the twin a divergence in Swift's windowing would leave the bound silently wrong on Apple only.
+
+    /// 2025-06-10 00:00:00 UTC.
+    private var refMidnight: Int { 1_749_513_600 }
+    private func at(_ hour: Int, _ minute: Int = 0) -> Int { refMidnight + hour * 3_600 + minute * 60 }
+
+    /// Still gravity at 1/min — constant orientation, so every delta is 0.
+    private func stillG(_ from: Int, _ toExclusive: Int) -> [GravitySample] {
+        stride(from: from, to: toExclusive, by: 60).map { GravitySample(ts: $0, x: 0, y: 0, z: 1.0) }
+    }
+
+    /// Moving gravity at 1/min — orientation swings every sample, so deltas are large.
+    private func movingG(_ from: Int, _ toExclusive: Int) -> [GravitySample] {
+        stride(from: from, to: toExclusive, by: 60).enumerated().map { i, t in
+            i % 2 == 0 ? GravitySample(ts: t, x: 1.0, y: 0, z: 0)
+                       : GravitySample(ts: t, x: 0, y: 1.0, z: 0)
+        }
+    }
+
+    private func hr1Hz(_ from: Int, _ toExclusive: Int, _ bpm: Int) -> [HRSample] {
+        (from ..< toExclusive).map { HRSample(ts: $0, bpm: bpm) }
+    }
+
+    /// A night with a 30-minute gravity dropout early (so it reads sparse, as a 5/MG's does) and a
+    /// 15-minute up-and-about in the middle.
+    private func interruptedNight(tripBpm: Int) -> ([HRSample], [GravitySample]) {
+        let grav = stillG(at(0), at(0, 30))
+            + stillG(at(1), at(2))
+            + movingG(at(2), at(2, 15))
+            + stillG(at(2, 15), at(6))
+        let hr = hr1Hz(at(0), at(2), 50)
+            + hr1Hz(at(2), at(2, 15), tripBpm)
+            + hr1Hz(at(2, 15), at(6), 50)
+        return (hr, grav)
+    }
+
+    func testANightWithOneShortInterruptionIsDetectedAsASingleSession() {
+        let (hr, grav) = interruptedNight(tripBpm: 52)
+        XCTAssertTrue(SleepStager.isGravitySparse(grav, hr: hr), "the fixture must read as sparse")
+        let sessions = SleepStager.detectSleep(hr: hr, gravity: grav)
+        XCTAssertEqual(sessions.count, 1, "the interruption must not end the night")
+        let spanMin = Double((sessions[0].end - sessions[0].start)) / 60.0
+        XCTAssertGreaterThan(spanMin, 5 * 60, "the whole night should survive, got \(spanMin) min")
+    }
+
+    /// The same night with the wearer genuinely up — HR elevated for the whole quarter hour. Absorbing
+    /// that would score wakefulness as sleep: wrong in a new direction and harder to notice than the
+    /// truncation being fixed.
+    func testTheSameNightWithAGenuinelyAwakeInterruptionIsNotBridgedIntoOne() {
+        let (hr, grav) = interruptedNight(tripBpm: 110)
+        let sessions = SleepStager.detectSleep(hr: hr, gravity: grav)
+        let spanMin = sessions.reduce(0.0) { $0 + Double($1.end - $1.start) / 60.0 }
+        XCTAssertTrue(sessions.count != 1 || spanMin < 5 * 60,
+                      "an awake interruption must not be absorbed (\(sessions.count) sessions, \(spanMin) min)")
+    }
 }
