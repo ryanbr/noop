@@ -438,8 +438,11 @@ class SourceCoordinator(
                     context = ctx,
                     deviceId = id,
                     liveSink = liveSink,
-                    persist = { batch: StreamBatch, deviceId: String ->
-                        scope.launch { runCatching { repo.insert(batch, deviceId) } }
+                    // Hand the OUTCOME back. This was `runCatching { ... }` with no onFailure while the
+                    // source had already cleared its buffer, so a rejected batch vanished with the
+                    // surrounding log still reading like a healthy stream.
+                    persist = { batch: StreamBatch, deviceId: String, done ->
+                        scope.launch { done(runCatching { repo.insert(batch, deviceId) }) }
                     },
                     log = straplog,   // generic-HR lifecycle → the SAME exported strap log (issue #421)
                     onBattery = batterySink,  // strap battery → the same live state the WHOOP strap battery uses

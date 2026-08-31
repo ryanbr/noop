@@ -278,7 +278,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             context = appContext,
             deviceId = "scan-preview",
             liveSink = { _, _ -> },
-            persist = { _, _ -> },
+            // Discovery-only scanner: nothing is persisted, so the outcome callback never fires.
+            persist = { _, _, _ -> },
             // Route the throwaway scanner's diagnostics into the SAME exported strap log the active path
             // uses (issue #421 parity), so a tester's wizard scan is captured. The source self-prefixes
             // "HR-strap: "; [externalLog] redacts addresses. Privacy-safe: statuses / counts only.

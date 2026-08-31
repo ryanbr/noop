@@ -334,4 +334,50 @@ class StalledLinkDiagnosticsTest {
         assertEquals(true, shouldEmitLiveInsertFailure(1L, 60_001L))
         assertEquals(false, shouldEmitLiveInsertFailure(1L, 30_000L))
     }
+    // Standard-HR transport lines — byte-identical twins of Swift's LivePersistTrace.
+
+    /**
+     * The expected strings are copied from the Swift `LivePersistTraceTests`, not regenerated from the
+     * Kotlin. That is the point: a twin asserted against its own implementation proves only that the
+     * implementation is self-consistent, and these two lines exist so an Android and an Apple log of the
+     * same stall compare directly.
+     */
+    @Test
+    fun `flush success separates offered from actually inserted rows`() {
+        assertEquals(
+            "standard-hr transport flush-attempt reason=cadence offeredHRRows=4 offeredRRRows=5",
+            standardHrFlushAttemptLine(StandardHrFlushReason.CADENCE.raw, 4, 5),
+        )
+        // Offered 4/5 and inserted 1/2 is the failure that reads like success: the batch was accepted by
+        // the call and mostly discarded by the store. Only the store's own count shows it.
+        assertEquals(
+            "standard-hr transport flush-succeeded reason=cadence offeredHRRows=4 offeredRRRows=5" +
+                " insertedHRRows=1 insertedRRRows=2",
+            standardHrFlushSucceededLine(StandardHrFlushReason.CADENCE.raw, 4, 5, 1, 2),
+        )
+    }
+
+    @Test
+    fun `retry names the lifecycle reason and the total pending rows`() {
+        assertEquals(
+            "standard-hr transport rebuffered-for-retry reason=disconnect" +
+                " attemptedHRRows=1 attemptedRRRows=2 pendingHRRows=3 pendingRRRows=4" +
+                " consecutiveFailures=1",
+            standardHrRebufferedForRetryLine(StandardHrFlushReason.DISCONNECT.raw, 1, 2, 3, 4, 1),
+        )
+    }
+
+    /**
+     * The raw values are what the log line carries, so they are the parity surface — not the enum's
+     * Kotlin spelling. background and termination have no Android emitter today (the foreground service
+     * gives no suspension edge); they exist so the two enums cannot drift apart before one does.
+     */
+    @Test
+    fun `the flush reasons match the Swift raw values exactly`() {
+        assertEquals(
+            listOf("cadence", "disconnect", "background", "termination", "explicit"),
+            StandardHrFlushReason.entries.map { it.raw },
+        )
+    }
+
 }

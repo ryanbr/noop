@@ -118,6 +118,69 @@ internal fun backfillDeferredLine(
 }
 
 /**
+ * Standard-HR (0x2A37) transport-state lines — the Kotlin twins of Swift's `LivePersistTrace`
+ * (`Packages/StrandAnalytics`), byte-identical so an Android and an Apple log of the same stall compare
+ * directly. They live here, beside their caller, for the same reason [liveInsertFailedLine] does.
+ *
+ * They describe host observation and buffer/persistence state only. Nothing here carries a physiological
+ * measurement, and nothing claims a sensor-origin time: the BLE Heart Rate Measurement characteristic
+ * does not provide one, so a receipt time is the host's observation and is labelled as such.
+ *
+ * The pair that matters is offered vs inserted. [standardHrFlushAttemptLine] reports what was handed to
+ * the store and [standardHrFlushSucceededLine] what the store actually took, because a batch that is
+ * offered in full and inserted as zero is precisely the failure that otherwise reads like success.
+ */
+internal fun standardHrFlushAttemptLine(
+    reason: String,
+    offeredHrRows: Int,
+    offeredRrRows: Int,
+): String =
+    "standard-hr transport flush-attempt reason=$reason" +
+        " offeredHRRows=$offeredHrRows offeredRRRows=$offeredRrRows"
+
+/** Twin of Swift `LivePersistTrace.standardHRFlushSucceededLine`. */
+internal fun standardHrFlushSucceededLine(
+    reason: String,
+    offeredHrRows: Int,
+    offeredRrRows: Int,
+    insertedHrRows: Int,
+    insertedRrRows: Int,
+): String =
+    "standard-hr transport flush-succeeded reason=$reason" +
+        " offeredHRRows=$offeredHrRows offeredRRRows=$offeredRrRows" +
+        " insertedHRRows=$insertedHrRows insertedRRRows=$insertedRrRows"
+
+/** Twin of Swift `LivePersistTrace.standardHRRebufferedForRetryLine`. */
+internal fun standardHrRebufferedForRetryLine(
+    reason: String,
+    attemptedHrRows: Int,
+    attemptedRrRows: Int,
+    pendingHrRows: Int,
+    pendingRrRows: Int,
+    consecutiveFailures: Int,
+): String =
+    "standard-hr transport rebuffered-for-retry reason=$reason" +
+        " attemptedHRRows=$attemptedHrRows attemptedRRRows=$attemptedRrRows" +
+        " pendingHRRows=$pendingHrRows pendingRRRows=$pendingRrRows" +
+        " consecutiveFailures=$consecutiveFailures"
+
+/**
+ * Why a standard-HR flush ran. Twin of Swift's `LivePersistTrace.StandardHRFlushReason`, and the raw
+ * values must stay identical because they are what the log line carries.
+ *
+ * `background` and `termination` are Apple-only today: iOS suspends a connected strap without a
+ * disconnect edge, which Android's foreground service does not do. They exist here so the two enums do
+ * not drift, and so an Android answer to "should an OEM kill flush this buffer?" has a name already.
+ */
+internal enum class StandardHrFlushReason(val raw: String) {
+    CADENCE("cadence"),
+    DISCONNECT("disconnect"),
+    BACKGROUND("background"),
+    TERMINATION("termination"),
+    EXPLICIT("explicit"),
+}
+
+/**
  * A live HR/R-R batch failed to persist and was re-buffered.
  *
  * The catch that owns this re-queues the frames and swallows the throwable, so a store that is failing

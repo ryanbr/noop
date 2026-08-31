@@ -20,6 +20,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.ParcelUuid
 import com.noop.data.HrRow
+import com.noop.data.InsertCounts
 import com.noop.data.RrRow
 import com.noop.data.StreamBatch
 import com.noop.polar.PolarModel
@@ -57,9 +58,20 @@ class StandardHrSource(
     private val deviceId: String,
     /** Push live HR (bpm) + R-R (ms) into whatever the UI observes. Called on the main looper. */
     private val liveSink: (hr: Int, rr: List<Int>) -> Unit,
-    /** Persist a batch under [deviceId] — wired to `repository.insert`. Called off the main looper is
-     *  fine; the implementation hops to its own IO scope (see [SourceCoordinator]). */
-    private val persist: (StreamBatch, String) -> Unit,
+    /**
+     * Persist a batch under [deviceId] — wired to `repository.insert`. Called off the main looper is
+     * fine; the implementation hops to its own IO scope (see [SourceCoordinator]).
+     *
+     * Reports its OUTCOME through [done], and that is the point of the third parameter. The seam used to
+     * return Unit and the app wired it as `runCatching { repo.insert(...) }` with no onFailure, while
+     * [flush] had already cleared the buffer — so a store that rejected the batch lost those rows in
+     * silence, with the surrounding log reading exactly like a healthy stream. The Swift Collector
+     * re-buffers and retries; this could not, because it was never told.
+     *
+     * [InsertCounts] rather than a bare success flag: a batch offered in full and inserted as zero is
+     * the failure that most looks like success, and only the store's own count distinguishes it.
+     */
+    private val persist: (StreamBatch, String, (Result<InsertCounts>) -> Unit) -> Unit,
     /** Diagnostic sink for the connect lifecycle. Wired (via [SourceCoordinator]) to the SAME in-app strap
      *  log the user exports, so the generic-HR path is no longer invisible in a bug report (issue #421).
      *  Every line is prefixed "HR-strap: " so it's distinguishable from WHOOP lines in the shared log.
@@ -152,6 +164,13 @@ class StandardHrSource(
     private val bufferLock = Any()
     private val buffer = ArrayList<Sample>()
     private var lastFlushMs = System.currentTimeMillis()
+    /** Consecutive failed inserts, for the run-length the rate-limited failure line reports. Reset by a
+     *  success, exactly like the WHOOP path's counter. */
+    private val insertFailures = java.util.concurrent.atomic.AtomicInteger(0)
+
+    /** Last emission of [liveInsertFailedLine], for [shouldEmitLiveInsertFailure]'s one-a-minute gap. */
+    @Volatile private var lastInsertFailureLogMs = 0L
+
     private val flushCount = 30
     private val flushIntervalMs = 30_000L
 
@@ -229,7 +248,7 @@ class StandardHrSource(
         loggedFirstHr = false   // a later reconnect should log its first sample again
         loggedFirstSensor = false
         _batteryPct.value = null // a stale charge must not outlive the link
-        flush()
+        flush(StandardHrFlushReason.DISCONNECT)
         clearSensorState()       // a stale speed/cadence/power panel must not outlive the link
     }
 
@@ -252,7 +271,7 @@ class StandardHrSource(
         if (shouldFlush) flush()
     }
 
-    private fun flush() {
+    private fun flush(reason: StandardHrFlushReason = StandardHrFlushReason.CADENCE) {
         val snapshot = synchronized(bufferLock) {
             lastFlushMs = System.currentTimeMillis()
             if (buffer.isEmpty()) return
@@ -266,8 +285,45 @@ class StandardHrSource(
             if (s.hr in 30..220) hrRows.add(HrRow(s.ts, s.hr))
             for (r in s.rr) if (r in 250..3000) rrRows.add(RrRow(s.ts, r))
         }
-        if (hrRows.isNotEmpty() || rrRows.isNotEmpty()) {
-            persist(StreamBatch(hr = hrRows, rr = rrRows), deviceId)
+        if (hrRows.isEmpty() && rrRows.isEmpty()) return
+        log(standardHrFlushAttemptLine(reason.raw, hrRows.size, rrRows.size))
+        persist(StreamBatch(hr = hrRows, rr = rrRows), deviceId) { result ->
+            result.fold(
+                onSuccess = { counts ->
+                    insertFailures.set(0)
+                    log(standardHrFlushSucceededLine(reason.raw, hrRows.size, rrRows.size, counts.hr, counts.rr))
+                },
+                onFailure = { t ->
+                    // Put the batch BACK, at the front, so the next flush retries it in order — the Swift
+                    // Collector's `insert(contentsOf:at:0)`. Without this the rows were already gone the
+                    // moment the snapshot was taken.
+                    val pending = synchronized(bufferLock) {
+                        buffer.addAll(0, snapshot)
+                        buffer.size
+                    }
+                    val runLength = insertFailures.incrementAndGet()
+                    log(standardHrRebufferedForRetryLine(
+                        reason = reason.raw,
+                        attemptedHrRows = hrRows.size, attemptedRrRows = rrRows.size,
+                        pendingHrRows = pending, pendingRrRows = pending,
+                        consecutiveFailures = runLength,
+                    ))
+                    // Rate-limited, and the SAME helper the WHOOP live path uses, so one strap log carries
+                    // one shape of insert failure however it arrived.
+                    val nowMs = System.currentTimeMillis()
+                    if (shouldEmitLiveInsertFailure(lastInsertFailureLogMs, nowMs)) {
+                        lastInsertFailureLogMs = nowMs
+                        log(liveInsertFailedLine(
+                            transport = "standard-hr",
+                            throwableName = t.javaClass.simpleName,
+                            message = t.message,
+                            hrFrames = hrRows.size,
+                            rrFrames = rrRows.size,
+                            consecutiveFailures = runLength,
+                        ))
+                    }
+                },
+            )
         }
     }
 
@@ -324,7 +380,7 @@ class StandardHrSource(
                     loggedPolarIdentity = false
                     loggedFirstSensor = false
                     _batteryPct.value = null // a stale charge must not outlive the link
-                    flush()
+                    flush(StandardHrFlushReason.DISCONNECT)
                     clearSensorState()
                     if (gatt === g) { runCatching { g.close() }; gatt = null }
                     // Hardening: status 133 is Android's infamous generic GATT_ERROR on connect — almost
