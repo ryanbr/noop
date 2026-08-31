@@ -661,7 +661,12 @@ final class AICoachEngine: ObservableObject {
     /// timezone change, an NTP correction — must not wipe a conversation they are in the middle of.
     /// Only real elapsed days retire a transcript. A nil `lastEpochDay` (nothing sent yet) is never
     /// stale. Kotlin twin: `CoachViewModel.isStaleConversation`.
-    static func isStaleConversation(lastEpochDay: Int?, todayEpochDay: Int) -> Bool {
+    ///
+    /// `nonisolated` because it is a pure function of its arguments. AICoachEngine is @MainActor, so
+    /// without this the rule inherits that isolation and cannot be called from a synchronous test —
+    /// which is exactly how the first attempt at this twin failed to compile. Isolating a function
+    /// that touches no state buys nothing and costs its testability.
+    nonisolated static func isStaleConversation(lastEpochDay: Int?, todayEpochDay: Int) -> Bool {
         guard let lastEpochDay else { return false }
         return todayEpochDay > lastEpochDay
     }
@@ -672,7 +677,7 @@ final class AICoachEngine: ObservableObject {
     /// a day is not always 86,400 seconds (DST), and the rule only needs a value that increments
     /// exactly once per local midnight and orders correctly. Injectable so the tests never depend on
     /// the machine's clock or zone.
-    static func localEpochDay(_ date: Date = Date(), calendar: Calendar = .current) -> Int {
+    nonisolated static func localEpochDay(_ date: Date = Date(), calendar: Calendar = .current) -> Int {
         let start = calendar.startOfDay(for: date)
         let epoch = Date(timeIntervalSince1970: 0)
         return calendar.dateComponents([.day], from: epoch, to: start).day ?? 0
