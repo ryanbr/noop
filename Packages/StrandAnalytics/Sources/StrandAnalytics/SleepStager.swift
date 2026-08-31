@@ -224,6 +224,17 @@ public enum SleepStager {
     /// floor (a real continuous night never has a true >90 min wake bridge mid-sleep).
     public static let sparseBridgeGapMin: Int = 90
 
+    /// A single intervening ACTIVE run up to this long may be absorbed when bridging two sleep runs
+    /// (#1657). Deliberately DEFINED as `maxGapMin` rather than given a number of its own: that is
+    /// already this file's threshold for "a discontinuity this long is decisive", and reusing it means
+    /// there is one such judgement in the detector instead of two that can drift apart.
+    ///
+    /// The bound is the cheap half of the guard. The real one is the HR band across the whole span — a
+    /// genuine wake keeps HR elevated for its duration and fails it, while a brief stir does not.
+    /// `mergeMin` (15) already absorbs shorter active runs upstream in `mergePeriods`, so this covers the
+    /// band between that and a wake long enough to be a real break in the night.
+    public static let sparseBridgeActiveMaxMin: Int = maxGapMin
+
     // MARK: - Stage 1–3 constants (sleep_features.py)
 
     public static let epochS: Double = 30.0
@@ -358,8 +369,15 @@ public enum SleepStager {
         guard let baseline = baseline else { return false }
         let seg = hr.filter { $0.ts > a && $0.ts <= b }
         if seg.isEmpty { return false }
-        let meanHR = Double(seg.reduce(0) { $0 + $1.bpm }) / Double(seg.count)
-        return meanHR <= baseline * hrSleepBandMult
+        // MEDIAN, not mean (#1657). `confirmSleepWithHR` below already documents why the mean is the
+        // wrong statistic here — "a real sleep night carries brief arousal / wake HR spikes (observed to
+        // ~190 bpm)" that drag it above the band — and uses the median for exactly that reason. This gate
+        // answers the same question over a SHORTER window, where a single spike dominates the mean even
+        // harder: a two-minute stir inside a fifteen-minute interval can put the mean out of band while
+        // the wearer was asleep for thirteen of those minutes. The median rejects a SUSTAINED elevation
+        // just as firmly, which is the discrimination this gate exists to make.
+        let medianHR = HRVAnalyzer.median(seg.map { Double($0.bpm) })
+        return medianHR <= baseline * hrSleepBandMult
     }
 
     /// Per-record sleep flags from a rolling fraction of "still" samples.
@@ -472,11 +490,13 @@ public enum SleepStager {
     struct SparseBridgeAttempt: Equatable, Sendable {
         /// Gap between the two runs, in whole minutes (negative when they overlap).
         let gapMin: Int
+        /// Minutes of intervening ACTIVE run, or 0 when the pair was only separated by a gap (#1657).
+        let activeMin: Int
         /// Whether the intervening HR stayed in the sleep band (the bridge's second condition).
         let hrInSleepBand: Bool
         /// Whether this pair was merged.
         let bridged: Bool
-        /// Stable token for the log: bridged / gapTooLong / hrOutOfBand / overlap.
+        /// Stable token for the log: bridged / gapTooLong / hrOutOfBand / overlap / activeTooLong.
         let reason: String
     }
 
@@ -485,57 +505,90 @@ public enum SleepStager {
     /// actually happened rather than an approximation. Only pairs the bridge itself CONSIDERS (two
     /// adjacent sleep runs) produce an attempt; a pair separated by an active run is never considered,
     /// which is itself the answer when no attempts are reported. Pure — no I/O, no side effects.
-    static func sparseBridgeAttempts(_ periods: [Period], sparse: Bool,
-                                     hr: [HRSample], baseline: Double?) -> [SparseBridgeAttempt] {
-        guard sparse, !periods.isEmpty else { return [] }
+    /// The bridge, plus what it considered. See `bridgeSparseSleep` for the merge rule.
+    ///
+    /// #1657: an intervening ACTIVE run no longer blocks the merge permanently. The original loop could
+    /// only join runs already adjacent in its own output, so any active run between two sleep runs was
+    /// appended first and made the next pair unreachable — and a field trace found the bridge merging
+    /// NOTHING on 14 of 14 sparse nights for exactly that reason. Since a bathroom trip is definitionally
+    /// an active run, the rescue built for fragmentation was unavailable in the case that needs it most.
+    ///
+    /// A single active run up to `sparseBridgeActiveMaxMin` is now absorbed, with the whole span still
+    /// subject to `sparseBridgeGapMin` and to the HR band. Two or more consecutive active runs are not:
+    /// that is a night with real structure in it, not one interruption.
+    ///
+    /// This USED to be a shadow copy of the loop kept only for tracing, which had to be edited in step
+    /// with the real one — a trace that quietly disagrees with the behaviour it describes is worse than
+    /// no trace. Merge and trace are one pass now. Kotlin twin: `bridgeSparseSleepTraced`.
+    static func bridgeSparseSleepTraced(_ periods: [Period], sparse: Bool, hr: [HRSample],
+                                        baseline: Double?) -> ([Period], [SparseBridgeAttempt]) {
+        if !sparse || periods.isEmpty { return (periods, []) }
         let bridgeGapS = sparseBridgeGapMin * 60
-        var attempts: [SparseBridgeAttempt] = []
+        let activeMaxS = sparseBridgeActiveMaxMin * 60
         var out: [Period] = []
+        var attempts: [SparseBridgeAttempt] = []
+
+        /// Judge one candidate pair, record it, and merge when it passes.
+        ///
+        /// The order of the checks fixes which reason a failing pair reports, and it is deliberate:
+        /// overlap and gap are properties of the pair, activeTooLong is a property of what sits between
+        /// them, and hrOutOfBand is last because it is the only one that needed the HR series to decide.
+        func consider(_ left: Period, _ right: Period, activeS: Int,
+                      dropTrailing: Bool, activeMaxS: Int) -> Bool {
+            let gap = right.start - left.end
+            let inBand = hrSleepBandAcross(left.end, right.start, hr: hr, baseline: baseline)
+            let reason: String
+            if gap < 0 { reason = "overlap" }
+            else if gap > bridgeGapS { reason = "gapTooLong" }
+            else if activeS > activeMaxS { reason = "activeTooLong" }
+            else if !inBand { reason = "hrOutOfBand" }
+            else { reason = "bridged" }
+            let bridged = reason == "bridged"
+            attempts.append(SparseBridgeAttempt(gapMin: gap / 60, activeMin: activeS / 60,
+                                                hrInSleepBand: inBand, bridged: bridged, reason: reason))
+            guard bridged else { return false }
+            if dropTrailing { out.removeLast() }
+            out[out.count - 1] = Period(stage: "sleep", start: left.start, end: right.end)
+            return true
+        }
+
         for p in periods {
-            if let last = out.last, last.stage == "sleep", p.stage == "sleep" {
-                let gap = p.start - last.end
-                let inBand = hrSleepBandAcross(last.end, p.start, hr: hr, baseline: baseline)
-                let bridged = gap >= 0 && gap <= bridgeGapS && inBand
-                let reason: String
-                if bridged { reason = "bridged" }
-                else if gap < 0 { reason = "overlap" }
-                else if gap > bridgeGapS { reason = "gapTooLong" }
-                else { reason = "hrOutOfBand" }
-                attempts.append(SparseBridgeAttempt(gapMin: gap / 60, hrInSleepBand: inBand,
-                                                    bridged: bridged, reason: reason))
-                if bridged {
-                    out[out.count - 1] = Period(stage: "sleep", start: last.start, end: p.end)
-                    continue
+            if p.stage == "sleep" {
+                // Case 1: the previous run is sleep — the original adjacent-pair merge.
+                if let last = out.last, last.stage == "sleep" {
+                    if consider(last, p, activeS: 0, dropTrailing: false, activeMaxS: 0) { continue }
+                }
+                // Case 2: exactly one active run sits between two sleep runs. Absorbed when short
+                // enough, which is the #1657 case the original loop could never reach.
+                if out.count >= 2, let last = out.last, last.stage == "active",
+                   out[out.count - 2].stage == "sleep" {
+                    let prev = out[out.count - 2]
+                    if consider(prev, p, activeS: last.end - last.start,
+                                dropTrailing: true, activeMaxS: activeMaxS) { continue }
                 }
             }
             out.append(p)
         }
-        return attempts
+        return (out, attempts)
     }
 
-    /// Sparse-gravity bridge (#308): merge two adjacent SLEEP runs separated ONLY by a gap up to
-    /// sparseBridgeGapMin minutes when the intervening HR stays in the sleep band — so a real night
-    /// fragmented by gravity dropouts is re-stitched into one continuous in-bed span BEFORE the
-    /// minSleepMin gate drops the pieces. Active runs and over-threshold gaps are left untouched;
-    /// the span between two bridged sleep runs (an "active"/gap run, if present) is absorbed.
-    /// A no-op when `sparse == false`, so the dense 4.0 path is unchanged.
+    /// Sparse-gravity bridge (#308): merge two SLEEP runs when the intervening HR stays in the sleep
+    /// band — so a real night fragmented by gravity dropouts is re-stitched into one continuous in-bed
+    /// span BEFORE the minSleepMin gate drops the pieces. A no-op when `sparse == false`, so the dense
+    /// 4.0 path is unchanged.
+    ///
+    /// What sits between the two runs may be a bare gap (up to `sparseBridgeGapMin`) or ONE active run
+    /// (additionally up to `sparseBridgeActiveMaxMin`). Over-threshold gaps, longer active runs and two
+    /// consecutive active runs are all left untouched.
+    ///
+    /// The previous wording here — "Active runs … are left untouched; the span between two bridged sleep
+    /// runs (an "active"/gap run, if present) is absorbed" — read as though an intervening active run was
+    /// already handled. It was not: only a bare gap was, and that sentence is a large part of why #1657
+    /// went unnoticed. Kept in the history rather than quietly deleted, because the next person to widen
+    /// this function will read this comment first.
     static func bridgeSparseSleep(_ periods: [Period], sparse: Bool,
                                   hr: [HRSample], baseline: Double?) -> [Period] {
-        if !sparse || periods.isEmpty { return periods }
-        let bridgeGapS = sparseBridgeGapMin * 60
-        var out: [Period] = []
-        for p in periods {
-            if let last = out.last, last.stage == "sleep", p.stage == "sleep" {
-                let gap = p.start - last.end
-                if gap >= 0 && gap <= bridgeGapS
-                    && hrSleepBandAcross(last.end, p.start, hr: hr, baseline: baseline) {
-                    out[out.count - 1] = Period(stage: "sleep", start: last.start, end: p.end)
-                    continue
-                }
-            }
-            out.append(p)
-        }
-        return out
+        bridgeSparseSleepTraced(periods, sparse: sparse, hr: hr, baseline: baseline).0
     }
 
     // MARK: - HR refinement
@@ -1048,9 +1101,9 @@ public enum SleepStager {
         let runsBeforeBridge = traceSink == nil ? 0 : runs.filter { $0.stage == "sleep" }.count
         // #737: capture the per-pair reasons BEFORE the merge mutates `runs`, so a bridge that changed
         // nothing still says why (gapTooLong / hrOutOfBand / overlap) instead of only before==after.
-        let bridgeAttempts = traceSink == nil ? [] : sparseBridgeAttempts(runs, sparse: sparse, hr: hrS,
-                                                                         baseline: baseline)
-        runs = bridgeSparseSleep(runs, sparse: sparse, hr: hrS, baseline: baseline)
+        let bridgeResult = bridgeSparseSleepTraced(runs, sparse: sparse, hr: hrS, baseline: baseline)
+        let bridgeAttempts = bridgeResult.1
+        runs = bridgeResult.0
         // Sleep & Rest test mode (E3): record the sparse-gravity bridge result, so a sparse 5.0 night
         // rescued from fragmentation is visible. Only emitted when gravity is sparse (the only case the
         // bridge can act) and only when tracing. Side-effect-only.
@@ -1059,19 +1112,24 @@ public enum SleepStager {
             traceSink(GateTrace.runLine(index: -1, startTs: 0, endTs: 0,
                 verdict: runsAfterBridge < runsBeforeBridge ? .kept : .dropped, gate: "sparseBridge",
                 detail: "sparse=true gapMin=\(sparseBridgeGapMin) runsBefore=\(runsBeforeBridge) runsAfter=\(runsAfterBridge)"))
-            // #737: one line per pair the bridge CONSIDERED. No lines at all means no two adjacent sleep
-            // runs were ever seen — i.e. the fragments are separated by active runs, which the bridge
-            // deliberately never crosses. That absence is itself the diagnosis.
+            // #737: one line per pair the bridge CONSIDERED, each naming what it decided.
+            //
+            // #1657 changed what an empty list MEANS, so the wording changed with it. It used to mean
+            // "the fragments are separated by active runs", because such a pair could never be reached —
+            // that absence was the diagnosis. A single short active run is now a considered pair, so an
+            // empty list can only mean there was no candidate at all: one sleep run, or fragments split
+            // by two or more consecutive active runs. Leaving the old text would have pointed the next
+            // reader at a cause that had just been removed.
             if bridgeAttempts.isEmpty {
                 traceSink(GateTrace.runLine(index: -1, startTs: 0, endTs: 0, verdict: .dropped,
                     gate: "sparseBridge",
-                    detail: "no adjacent sleep pairs considered (fragments separated by active runs)"))
+                    detail: "no candidate pairs (one sleep run, or fragments split by consecutive active runs)"))
             }
             for (i, a) in bridgeAttempts.enumerated() {
                 traceSink(GateTrace.runLine(index: -1, startTs: 0, endTs: 0,
                     verdict: a.bridged ? .kept : .dropped, gate: "sparseBridgePair",
-                    detail: "pair=\(i) gapMin=\(a.gapMin) hrInSleepBand=\(a.hrInSleepBand) "
-                        + "reason=\(a.reason)"))
+                    detail: "pair=\(i) gapMin=\(a.gapMin) activeMin=\(a.activeMin) "
+                        + "hrInSleepBand=\(a.hrInSleepBand) reason=\(a.reason)"))
             }
         }
 

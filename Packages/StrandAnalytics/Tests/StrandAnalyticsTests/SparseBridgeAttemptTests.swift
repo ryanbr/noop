@@ -23,7 +23,7 @@ final class SparseBridgeAttemptTests: XCTestCase {
     /// must equal the reduction in sleep-run count the REAL bridge produces.
     private func assertAgreesWithBridge(_ periods: [SleepStager.Period], hr: [HRSample],
                                         baseline: Double?, file: StaticString = #filePath, line: UInt = #line) {
-        let attempts = SleepStager.sparseBridgeAttempts(periods, sparse: true, hr: hr, baseline: baseline)
+        let attempts = SleepStager.bridgeSparseSleepTraced(periods, sparse: true, hr: hr, baseline: baseline).1
         let before = periods.filter { $0.stage == "sleep" }.count
         let after = SleepStager.bridgeSparseSleep(periods, sparse: true, hr: hr, baseline: baseline)
             .filter { $0.stage == "sleep" }.count
@@ -35,7 +35,7 @@ final class SparseBridgeAttemptTests: XCTestCase {
         // Two sleep runs 10 min apart, HR asleep across the gap → bridged.
         let periods = [sleep(0, 3_600), sleep(4_200, 8_000)]
         let hr = sleepHR(from: 0, to: 8_000)
-        let a = SleepStager.sparseBridgeAttempts(periods, sparse: true, hr: hr, baseline: 70)
+        let a = SleepStager.bridgeSparseSleepTraced(periods, sparse: true, hr: hr, baseline: 70).1
         XCTAssertEqual(a.count, 1)
         XCTAssertEqual(a[0].gapMin, 10)
         XCTAssertTrue(a[0].bridged)
@@ -48,7 +48,7 @@ final class SparseBridgeAttemptTests: XCTestCase {
         let gap = (SleepStager.sparseBridgeGapMin + 30) * 60
         let periods = [sleep(0, 3_600), sleep(3_600 + gap, 3_600 + gap + 3_600)]
         let hr = sleepHR(from: 0, to: 3_600 + gap + 3_600)
-        let a = SleepStager.sparseBridgeAttempts(periods, sparse: true, hr: hr, baseline: 70)
+        let a = SleepStager.bridgeSparseSleepTraced(periods, sparse: true, hr: hr, baseline: 70).1
         XCTAssertEqual(a.count, 1)
         XCTAssertFalse(a[0].bridged)
         XCTAssertEqual(a[0].reason, "gapTooLong")
@@ -60,7 +60,7 @@ final class SparseBridgeAttemptTests: XCTestCase {
         // Gap is short enough, but HR across it is clearly awake → the HR condition is what refused.
         let periods = [sleep(0, 3_600), sleep(4_200, 8_000)]
         let hr = sleepHR(from: 0, to: 8_000, bpm: 110)
-        let a = SleepStager.sparseBridgeAttempts(periods, sparse: true, hr: hr, baseline: 60)
+        let a = SleepStager.bridgeSparseSleepTraced(periods, sparse: true, hr: hr, baseline: 60).1
         XCTAssertEqual(a.count, 1)
         XCTAssertFalse(a[0].bridged)
         XCTAssertFalse(a[0].hrInSleepBand)
@@ -68,21 +68,28 @@ final class SparseBridgeAttemptTests: XCTestCase {
         assertAgreesWithBridge(periods, hr: hr, baseline: 60)
     }
 
-    /// The reporter's shape (#737): fragments separated by ACTIVE runs are never adjacent sleep pairs, so
-    /// the bridge considers nothing — which is exactly why their log showed runsBefore == runsAfter with
-    /// no explanation. An EMPTY attempt list is the diagnosis, and the emitter says so in words.
-    func testFragmentsSeparatedByActiveRunsProduceNoAttempts() {
+    /// REPINNED for #1657. This used to assert the opposite — "an intervening active run is never a
+    /// considered pair" — which was true, and was the bug: the shape it describes is the reporter's
+    /// bathroom break, and the bridge built to rescue fragmentation was structurally unable to reach it.
+    /// A field trace then found the bridge merging nothing on 14 of 14 sparse nights for this reason.
+    ///
+    /// The test was correct when written and quietly became a guard on the wrong behaviour. Kept pointing
+    /// at the same shape so the history reads straight.
+    func testAShortActiveRunBetweenFragmentsIsNowConsideredAndBridged() {
         let periods = [sleep(0, 3_000), active(3_000, 3_300), sleep(3_300, 6_000)]
         let hr = sleepHR(from: 0, to: 6_000)
-        let a = SleepStager.sparseBridgeAttempts(periods, sparse: true, hr: hr, baseline: 70)
-        XCTAssertTrue(a.isEmpty, "an intervening active run is never a considered pair")
-        assertAgreesWithBridge(periods, hr: hr, baseline: 70)   // and the real bridge merges nothing
+        let (out, a) = SleepStager.bridgeSparseSleepTraced(periods, sparse: true, hr: hr, baseline: 70)
+        XCTAssertEqual(a.count, 1, "the pair is now considered")
+        XCTAssertEqual(a.first?.reason, "bridged")
+        XCTAssertEqual(a.first?.activeMin, 5)
+        XCTAssertEqual(out.count, 1, "and the night is one run again")
+        XCTAssertEqual(out.first?.end, 6_000)
     }
 
     func testNoOpWhenNotSparse() {
         let periods = [sleep(0, 3_600), sleep(4_200, 8_000)]
         let hr = sleepHR(from: 0, to: 8_000)
-        XCTAssertTrue(SleepStager.sparseBridgeAttempts(periods, sparse: false, hr: hr, baseline: 70).isEmpty,
+        XCTAssertTrue(SleepStager.bridgeSparseSleepTraced(periods, sparse: false, hr: hr, baseline: 70).1.isEmpty,
                       "the dense 4.0 path is untouched, so there is nothing to explain")
     }
 
@@ -91,7 +98,7 @@ final class SparseBridgeAttemptTests: XCTestCase {
     func testChainOfThreeReportsTwoPairsAndAgrees() {
         let periods = [sleep(0, 3_600), sleep(4_200, 8_000), sleep(8_600, 12_000)]
         let hr = sleepHR(from: 0, to: 12_000)
-        let a = SleepStager.sparseBridgeAttempts(periods, sparse: true, hr: hr, baseline: 70)
+        let a = SleepStager.bridgeSparseSleepTraced(periods, sparse: true, hr: hr, baseline: 70).1
         XCTAssertEqual(a.count, 2)
         XCTAssertTrue(a.allSatisfy { $0.bridged })
         assertAgreesWithBridge(periods, hr: hr, baseline: 70)

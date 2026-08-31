@@ -320,6 +320,19 @@ object SleepStager {
      */
     const val sparseBridgeGapMin: Int = 90
 
+    /**
+     * A single intervening ACTIVE run up to this long may be absorbed when bridging two sleep runs
+     * (#1657). Deliberately DEFINED as [maxGapMin] rather than given a number of its own: that is
+     * already this file's threshold for "a discontinuity this long is decisive", and reusing it means
+     * there is one such judgement in the detector instead of two that can drift apart.
+     *
+     * The bound is the cheap half of the guard. The real one is the HR band across the whole span —
+     * a genuine wake keeps HR elevated for its duration and fails it, while a brief stir does not.
+     * [mergeMin] (15) already absorbs shorter active runs upstream in [mergePeriods], so this covers
+     * the band between that and a wake long enough to be a real break in the night.
+     */
+    const val sparseBridgeActiveMaxMin: Int = maxGapMin
+
     // ── Stage 1–3 constants (sleep_features.py) ──────────────────────────────
 
     const val epochS: Double = 30.0
@@ -471,8 +484,15 @@ object SleepStager {
         if (baseline == null) return false
         val seg = hr.filter { it.ts > a && it.ts <= b }
         if (seg.isEmpty()) return false
-        val meanHR = seg.sumOf { it.bpm }.toDouble() / seg.size.toDouble()
-        return meanHR <= baseline * hrSleepBandMult
+        // MEDIAN, not mean (#1657). [confirmSleepWithHR] twelve lines below already documents why the
+        // mean is the wrong statistic here — "a real sleep night carries brief arousal / wake HR spikes
+        // (observed to ~190 bpm)" that drag it above the band — and uses the median for exactly that
+        // reason. This gate answers the same question over a SHORTER window, where a single spike
+        // dominates the mean even harder: a two-minute stir inside a fifteen-minute interval can put the
+        // mean out of band while the wearer was asleep for thirteen of those minutes. The median rejects
+        // a SUSTAINED elevation just as firmly, which is the discrimination this gate exists to make.
+        val medianHR = HrvAnalyzer.median(seg.map { it.bpm.toDouble() })
+        return medianHR <= baseline * hrSleepBandMult
     }
 
     /** Per-record sleep flags from a rolling fraction of "still" samples. */
@@ -594,31 +614,116 @@ object SleepStager {
     }
 
     /**
-     * Sparse-gravity bridge (#308): merge two adjacent SLEEP runs separated ONLY by a gap up to
-     * sparseBridgeGapMin minutes when the intervening HR stays in the sleep band — so a real night
-     * fragmented by gravity dropouts is re-stitched into one continuous in-bed span BEFORE the
-     * minSleepMin gate drops the pieces. Active runs and over-threshold gaps are left untouched; the
-     * span between two bridged sleep runs (an "active"/gap run, if present) is absorbed. A no-op when
-     * [sparse] == false, so the dense 4.0 path is unchanged. Mirrors Swift.
+     * Sparse-gravity bridge (#308): merge two SLEEP runs when the intervening HR stays in the sleep
+     * band — so a real night fragmented by gravity dropouts is re-stitched into one continuous in-bed
+     * span BEFORE the minSleepMin gate drops the pieces. A no-op when [sparse] == false, so the dense
+     * 4.0 path is unchanged. Mirrors Swift.
+     *
+     * What sits between the two runs may be a bare gap (up to [sparseBridgeGapMin]) or ONE active run
+     * (additionally up to [sparseBridgeActiveMaxMin]). Over-threshold gaps, longer active runs and two
+     * consecutive active runs are all left untouched.
+     *
+     * The previous wording here — "Active runs … are left untouched; the span between two bridged sleep
+     * runs (an "active"/gap run, if present) is absorbed" — read as though an intervening active run was
+     * already handled. It was not: only a bare gap was, and that sentence is a large part of why #1657
+     * went unnoticed. Kept in the history rather than quietly deleted, because the next person to widen
+     * this function will read this comment first.
      */
     internal fun bridgeSparseSleep(
         periods: List<Period>, sparse: Boolean, hr: List<HrSample>, baseline: Double?,
-    ): List<Period> {
-        if (!sparse || periods.isEmpty()) return periods
+    ): List<Period> = bridgeSparseSleepTraced(periods, sparse, hr, baseline).first
+
+    /**
+     * One pair the bridge looked at, for the Sleep & Rest trace. Kept beside the merge itself rather
+     * than recomputed by a shadow pass: a second implementation of this loop would have to be edited in
+     * step with the first, and a trace that silently disagrees with the behaviour it describes is worse
+     * than no trace. Mirrors Swift `SparseBridgeAttempt`.
+     */
+    internal data class SparseBridgeAttempt(
+        /** Gap between the two sleep runs, whole minutes (negative when they overlap). */
+        val gapMin: Long,
+        /** Minutes of intervening ACTIVE run, or 0 when the pair was only separated by a gap. */
+        val activeMin: Long,
+        /** Whether the intervening HR stayed in the sleep band. */
+        val hrInSleepBand: Boolean,
+        /** Whether this pair was merged. */
+        val bridged: Boolean,
+        /** Stable token: bridged / gapTooLong / hrOutOfBand / overlap / activeTooLong. */
+        val reason: String,
+    )
+
+    /**
+     * The bridge, plus what it considered. See [bridgeSparseSleep] for the merge rule.
+     *
+     * #1657: an intervening ACTIVE run no longer blocks the merge permanently. The original loop could
+     * only join runs already adjacent in its own output, so any active run between two sleep runs was
+     * appended first and made the next pair unreachable — and a field trace found the bridge merging
+     * NOTHING on 14 of 14 sparse nights for exactly that reason. Since a bathroom trip is definitionally
+     * an active run, the rescue built for fragmentation was unavailable in the case that needs it most.
+     *
+     * A single active run up to [sparseBridgeActiveMaxMin] is now absorbed, with the whole span still
+     * subject to [sparseBridgeGapMin] and to the HR band. Two or more consecutive active runs are not:
+     * that is a night with real structure in it, not one interruption.
+     */
+    internal fun bridgeSparseSleepTraced(
+        periods: List<Period>, sparse: Boolean, hr: List<HrSample>, baseline: Double?,
+    ): Pair<List<Period>, List<SparseBridgeAttempt>> {
+        if (!sparse || periods.isEmpty()) return periods to emptyList()
         val bridgeGapS = (sparseBridgeGapMin * 60).toLong()
+        val activeMaxS = (sparseBridgeActiveMaxMin * 60).toLong()
         val out = ArrayList<Period>()
+        val attempts = ArrayList<SparseBridgeAttempt>()
         for (p in periods) {
-            val last = out.lastOrNull()
-            if (last != null && last.stage == "sleep" && p.stage == "sleep") {
-                val gap = p.start - last.end
-                if (gap in 0..bridgeGapS && hrSleepBandAcross(last.end, p.start, hr, baseline)) {
-                    out[out.size - 1] = Period(stage = "sleep", start = last.start, end = p.end)
-                    continue
+            if (p.stage == "sleep") {
+                val last = out.lastOrNull()
+                // Case 1: the previous run is sleep — the original adjacent-pair merge.
+                if (last != null && last.stage == "sleep") {
+                    if (considerBridge(out, attempts, last, p, activeS = 0L, bridgeGapS, hr, baseline)) continue
+                }
+                // Case 2: exactly one active run sits between two sleep runs. Absorbed when short
+                // enough, which is the #1657 case the original loop could never reach.
+                val prev = if (out.size >= 2) out[out.size - 2] else null
+                if (last != null && last.stage == "active" && prev != null && prev.stage == "sleep") {
+                    val activeS = last.end - last.start
+                    if (considerBridge(out, attempts, prev, p, activeS, bridgeGapS, hr, baseline,
+                                       dropTrailing = true, activeMaxS = activeMaxS)) continue
                 }
             }
             out.add(p)
         }
-        return out
+        return out to attempts
+    }
+
+    /**
+     * Judge one candidate pair, record it, and merge when it passes. Returns true when [p] was absorbed.
+     *
+     * [dropTrailing] removes the intervening active run from [out] before merging — the whole point of
+     * case 2. The order of the checks fixes which reason a failing pair reports, and it is deliberate:
+     * overlap and gap are properties of the pair, activeTooLong is a property of what sits between them,
+     * and hrOutOfBand is last because it is the only one that needed the HR series to decide.
+     */
+    private fun considerBridge(
+        out: ArrayList<Period>, attempts: ArrayList<SparseBridgeAttempt>,
+        left: Period, right: Period, activeS: Long, bridgeGapS: Long,
+        hr: List<HrSample>, baseline: Double?,
+        dropTrailing: Boolean = false, activeMaxS: Long = 0L,
+    ): Boolean {
+        val gap = right.start - left.end
+        val inBand = hrSleepBandAcross(left.end, right.start, hr, baseline)
+        val reason = when {
+            gap < 0 -> "overlap"
+            gap > bridgeGapS -> "gapTooLong"
+            activeS > activeMaxS -> "activeTooLong"
+            !inBand -> "hrOutOfBand"
+            else -> "bridged"
+        }
+        val bridged = reason == "bridged"
+        attempts.add(SparseBridgeAttempt(gapMin = gap / 60, activeMin = activeS / 60,
+                                         hrInSleepBand = inBand, bridged = bridged, reason = reason))
+        if (!bridged) return false
+        if (dropTrailing) out.removeAt(out.size - 1)
+        out[out.size - 1] = Period(stage = "sleep", start = left.start, end = right.end)
+        return true
     }
 
     // ── HR refinement ────────────────────────────────────────────────────────
@@ -1148,7 +1253,8 @@ object SleepStager {
         runs = mergePeriods(runs)
         // Re-stitch sleep runs fragmented by pure gravity dropouts (sparse only) before minSleepMin.
         val runsBeforeBridge = if (traceSink == null) 0 else runs.count { it.stage == "sleep" }
-        runs = bridgeSparseSleep(runs, sparse = sparse, hr = hrS, baseline = baseline)
+        val bridged = bridgeSparseSleepTraced(runs, sparse = sparse, hr = hrS, baseline = baseline)
+        runs = bridged.first
         // Sleep & Rest test mode (E10): record the sparse-gravity bridge result, so a sparse 5.0 night
         // rescued from fragmentation is visible. Only when gravity is sparse and only when tracing.
         if (traceSink != null && sparse) {
@@ -1156,6 +1262,24 @@ object SleepStager {
             traceSink(SleepStagerTrace.runLine(-1, 0, 0,
                 if (runsAfterBridge < runsBeforeBridge) SleepStagerTrace.Verdict.KEPT else SleepStagerTrace.Verdict.DROPPED,
                 "sparseBridge", "sparse=true gapMin=$sparseBridgeGapMin runsBefore=$runsBeforeBridge runsAfter=$runsAfterBridge"))
+            // #1657: one line per pair the bridge CONSIDERED, ported from Swift and extended with the
+            // intervening active run's length. No lines at all still means no candidate pair existed;
+            // an activeTooLong line names the bound that blocked one, which is the number a future
+            // reader needs and the old trace could not supply. Android had NONE of this before — the
+            // line that made #1657 diagnosable was iOS-only, so an Android reporter saw runsBefore ==
+            // runsAfter and no reason at all.
+            if (bridged.second.isEmpty()) {
+                traceSink(SleepStagerTrace.runLine(-1, 0, 0, SleepStagerTrace.Verdict.DROPPED,
+                    "sparseBridge",
+                    "no candidate pairs (one sleep run, or fragments split by consecutive active runs)"))
+            }
+            for ((i, a) in bridged.second.withIndex()) {
+                traceSink(SleepStagerTrace.runLine(-1, 0, 0,
+                    if (a.bridged) SleepStagerTrace.Verdict.KEPT else SleepStagerTrace.Verdict.DROPPED,
+                    "sparseBridgePair",
+                    "pair=$i gapMin=${a.gapMin} activeMin=${a.activeMin} " +
+                        "hrInSleepBand=${a.hrInSleepBand} reason=${a.reason}"))
+            }
         }
 
         val minSleepS = (minSleepMin * 60).toLong()
