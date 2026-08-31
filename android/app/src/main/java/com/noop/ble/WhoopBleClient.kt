@@ -8557,7 +8557,14 @@ class WhoopBleClient(
                     // Placed HERE, next to the line reporting the same fact, because Swift already does
                     // exactly this (BLEManager.swift, the matching suppression branch): the gap was
                     // one-sided, and this closes it rather than inventing a second placement.
-                    _state.update { it.copy(pairingHint = seededPairingHint(it.pairingHint, true)) }
+                    //
+                    // Assigned, not seeded. A first attempt kept any hint already published, on the
+                    // reasoning that a live observation beats a remembered one — but the only hint that can
+                    // be present here came from a PREVIOUS link, since refusals are detected on teardown
+                    // and this runs during setup. A stale hint about a condition that may no longer hold
+                    // is not the fresher fact; the state of the link in hand is. Swift assigns for the
+                    // same reason, and mirrored code diverging quietly is worse than either choice.
+                    _state.update { it.copy(pairingHint = BondRefusalGiveUp.helloSuppressedHint()) }
                     // The unbonded DIS attempt rides HERE, on the suppressed link, and nowhere else. This
                     // is the only 5/MG state known to be stable: the handshake is off, the watchdog is
                     // cancelled, and the link holds. During the reconnect loop it would have ~4.8s and
