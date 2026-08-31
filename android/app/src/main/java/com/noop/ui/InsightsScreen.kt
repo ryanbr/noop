@@ -66,8 +66,9 @@ import kotlin.math.sqrt
 // The "interrogate what affects what" screen, ported from the macOS InsightsView.
 // Two halves:
 //
-//  1. BEHAVIOUR EFFECTS, split logged journal answers (the days each behaviour WAS
-//     logged "yes" vs NOT) and compare a chosen outcome metric (Charge / HRV /
+//  1. BEHAVIOUR EFFECTS, split logged journal answers (the days each behaviour was
+//     logged "yes" vs the days it was logged "no" — a day it was not logged at all
+//     is in neither group) and compare a chosen outcome metric (Charge / HRV /
 //     Rest / RHR) between the two groups. Ranked by effect size (Cohen's d), with
 //     significant effects first. Each card carries a plain-English sentence, the
 //     with/without means, group counts, a significance pill, and the magnitude word.

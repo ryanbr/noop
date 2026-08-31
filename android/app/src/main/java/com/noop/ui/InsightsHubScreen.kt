@@ -579,7 +579,8 @@ internal class InsightsHubViewModel {
     }
 
     suspend fun load(vm: AppViewModel, days: List<DailyMetric>) {
-        // Journal → behaviour → days (imported ∪ native, native wins; only "yes" counts).
+        // Journal → behaviour → days (imported ∪ native, native wins). BOTH answers count now, kept in
+        // separate maps; the merge is what guarantees a day cannot be Yes and No for one question.
         val imported = vm.repo.journal("my-whoop", "0000-01-01", "9999-12-31")
         val native = vm.repo.journal(JOURNAL_DEVICE_ID, "0000-01-01", "9999-12-31")
         val entries = mergeJournalEntries(imported, native)

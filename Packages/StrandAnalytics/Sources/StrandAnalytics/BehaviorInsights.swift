@@ -107,6 +107,8 @@ public enum BehaviorInsights {
             if behaviorDays.contains(day) { withVals.append(value) }
             else if controlDays.contains(day) { withoutVals.append(value) }
             // Neither: the behaviour was not logged that day. Not a control — no information.
+            // A day in BOTH would count as "with"; callers merge imported ∪ native before building
+            // these, so one question cannot hold two answers for one day.
         }
 
         let n1 = withVals.count

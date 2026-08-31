@@ -221,6 +221,8 @@ object EffectRanker {
                 behaviorDays.contains(day) -> withVals.add(value)
                 controlDays.contains(day) -> withoutVals.add(value)
                 // Neither: the behaviour was not logged that day. Not a control — no information.
+                // A day in BOTH would count as "with"; callers merge imported ∪ native before building
+                // these, so one question cannot hold two answers for one day.
             }
         }
 
