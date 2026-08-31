@@ -32,6 +32,26 @@ package com.noop.ble
  * pairing API at all — on Apple platforms pairing happens only as a side effect of touching an encrypted
  * characteristic, which is the very mechanism this file exists because it does not work. There is nothing
  * to mirror, so an audit finding this one-sided should leave it rather than delete it as untwinned.
+ *
+ * ## Why the bond give-up reaches this request, having been built for the CLIENT_HELLO
+ *
+ * The two are separate experiments, and gating one on the other is deliberate rather than sloppy.
+ * [BondRefusalGiveUp] does not track the hello; it tracks whether this strap will form an encrypted bond,
+ * which is the single thing both routes are trying to achieve and neither has. Its threshold is reached on
+ * the strap's own refusals, so by the time it latches the pairing request has had its five links and
+ * returned the same answer every time — BOND_NONE, with an HCI capture showing SMP "Pairing Not Supported"
+ * underneath. That is the experiment concluding, not being cut short.
+ *
+ * Every other probe here is bounded and this one was not. The hello has a give-up, the unbonded offload
+ * probe has a silence budget, and asking Android to pair had nothing at all: it fired once per link,
+ * forever, on a strap that had definitively said no. The 31 Aug capture caught the consequence — repeated
+ * system "Pairing rejected" notices, which is worse than a quiet loop because the user has to read them.
+ *
+ * `bondGivenUpForDevice` is the PERSISTED suppression latch and not [BondRefusalGiveUp.gaveUp], which
+ * lives in one process; a bound that dies with the process is the bug this area has now had to fix twice.
+ * Both things that clear the latch are user actions that could have changed the answer — tapping Connect
+ * (`clearPairingHintForUserConnect`) and forgetting the device. Putting a 5/MG into pairing mode and
+ * tapping Connect is the one flow known to have worked on real hardware, and it still asks.
  */
 internal fun shouldRequestExplicitBond(
     optedIn: Boolean,
@@ -39,11 +59,15 @@ internal fun shouldRequestExplicitBond(
     alreadyBondedAtOsLevel: Boolean,
     appLevelBonded: Boolean,
     alreadyRequestedThisLink: Boolean,
+    bondGivenUpForDevice: Boolean,
 ): Boolean {
     if (!optedIn) return false
     if (!isWhoop5) return false
     if (alreadyBondedAtOsLevel) return false
     if (appLevelBonded) return false
+    // The strap has refused the bond by every route the app has, and Android says so out loud: each
+    // request it declines surfaces a system "Pairing rejected" notice the user did not ask for. Stop.
+    if (bondGivenUpForDevice) return false
     return !alreadyRequestedThisLink
 }
 
@@ -100,6 +124,21 @@ internal fun explicitBondThrewLine(throwableName: String, bondStateName: String)
     "WHOOP 5/MG: could not ask Android to pair — createBond threw $throwableName from $bondStateName." +
         " This is a local problem (usually a missing Bluetooth permission), NOT the strap refusing" +
         " (#1635, experimental)"
+
+/**
+ * The line printed when the pairing request retires, so the log says why the requests stopped.
+ *
+ * The give-up lines in this area all exist because something stopped silently and cost weeks of
+ * unreadable captures. This one has a second job: the user has been watching Android say "Pairing
+ * rejected", so the log should be able to tell them the app heard it and stopped asking, and what would
+ * make it ask again.
+ */
+internal fun explicitBondGivenUpLine(): String =
+    "WHOOP 5/MG: not asking Android to pair on this connect — this strap has refused the encrypted bond" +
+        " enough times for the handshake to be latched off, and every further request only produces" +
+        " another system \"Pairing rejected\" notice. Press Connect to ask again (put the strap in" +
+        " pairing mode first if you want the pairing itself to have a chance), or turn \"Ask Android to" +
+        " pair\" off (#1635, experimental)."
 
 /** The outcome line for a `createBond()` call that returned. [initiated] is the API's own return value:
  *  false means the stack refused to even start, which is a different answer from a pairing that starts and

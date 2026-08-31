@@ -13,7 +13,8 @@ class ExplicitBondTest {
         osBonded: Boolean = false,
         appBonded: Boolean = false,
         already: Boolean = false,
-    ) = shouldRequestExplicitBond(optedIn, isWhoop5, osBonded, appBonded, already)
+        gaveUp: Boolean = false,
+    ) = shouldRequestExplicitBond(optedIn, isWhoop5, osBonded, appBonded, already, gaveUp)
 
     @Test
     fun `off by default - nothing happens without opt-in`() {
@@ -46,6 +47,35 @@ class ExplicitBondTest {
     fun `asking recurs on every link, so it is not a once-only event`() {
         assertTrue(ask(osBonded = false, appBonded = false, already = false))
         assertFalse(ask(already = true))
+    }
+
+    /**
+     * The bound this request never had.
+     *
+     * The hello has a give-up and the unbonded offload probe has a silence budget; asking Android to pair
+     * had nothing, so on a strap that answers SMP "Pairing Not Supported" it fired once per link forever.
+     * That is not a quiet loop: every declined request surfaces a system "Pairing rejected" notice, so the
+     * cost lands on the user rather than in a log nobody reads.
+     */
+    @Test
+    fun `a strap that has refused the bond is not asked again, until the user asks`() {
+        assertFalse(ask(gaveUp = true))
+        // The contrast is the test: the give-up ends the LOOP, not the experiment. Both things that clear
+        // the latch are user actions that could have changed the answer - tapping Connect, and forgetting
+        // the device - and putting a 5/MG into pairing mode then tapping Connect is the one flow known to
+        // have worked on real hardware. A cleared latch must ask again on the very next link.
+        assertTrue(ask(gaveUp = false))
+    }
+
+    @Test
+    fun `the retirement line names both ways out and blames neither the app nor the user`() {
+        val line = explicitBondGivenUpLine()
+        assertTrue(line.contains("Press Connect"))
+        assertTrue(line.contains("pairing mode"))
+        assertTrue(line.contains("off"))
+        // The system notice is what the user has been looking at; the line has to connect the two or it
+        // reads as unrelated.
+        assertTrue(line.contains("Pairing rejected"))
     }
 
     @Test

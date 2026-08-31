@@ -2422,6 +2422,11 @@ class WhoopBleClient(
      */
     private var disChainInFlight = false
 
+    /** #1635: has the "stopped asking Android to pair" line been printed this process? Same one-shot
+     *  latch idiom as [helloOverrideExhaustedLogged] — the reason does not change between links, and the
+     *  give-up it reports is persisted, so repeating it every connect would be noise. */
+    private var explicitBondGiveUpLogged = false
+
     /** #1635: how many times the probe has stood aside for the DIS chain on this link. */
     private var unbondedProbeDeferrals = 0
 
@@ -5896,6 +5901,9 @@ class WhoopBleClient(
         // #1635: a genuine bond proves the handshake works on this strap — drop the suppression latch so a
         // later transient failure starts from a clean slate rather than inheriting an old verdict.
         runCatching { com.noop.ui.NoopPrefs.setHelloSuppressed(context, lastDeviceAddress, false) }
+        // #1635: the pairing request is asked again from here too, so its one-shot line must be able to
+        // report a SECOND retirement. Without this the switch would go quiet for good after one round.
+        explicitBondGiveUpLogged = false
         // #747/#750: a genuine bond or a fresh user connect re-arms auto-reconnect and clears the give-up.
         bondGiveUp.reset()
         // #971: a genuine bond or a fresh user connect also clears the bond-watchdog bounce streak, so the
@@ -8356,12 +8364,19 @@ class WhoopBleClient(
                     scheduleUnbondedOffloadProbe()
                     return
                 }
+                // Read ONCE, here, above both decisions that consult it. The pairing request is made
+                // before the hello is considered, so a latch read only at the hello would leave the
+                // request unable to see the verdict it is supposed to respect.
+                val suppressed = runCatching {
+                    com.noop.ui.NoopPrefs.helloSuppressed(context, g.device.address)
+                }.getOrDefault(false)
                 if (shouldRequestExplicitBond(
                         optedIn = puffinExperiment.explicitBond,
                         isWhoop5 = true,
                         alreadyBondedAtOsLevel = osBonded,
                         appLevelBonded = didBond,
                         alreadyRequestedThisLink = explicitBondRequestedThisLink,
+                        bondGivenUpForDevice = suppressed,
                     )
                 ) {
                     explicitBondRequestedThisLink = true
@@ -8420,6 +8435,14 @@ class WhoopBleClient(
                         },
                         onFailure = { log(explicitBondThrewLine(it.javaClass.simpleName, where)) },
                     )
+                } else if (puffinExperiment.explicitBond && suppressed && !didBond && !osBonded &&
+                    !explicitBondGiveUpLogged
+                ) {
+                    // Say it, once. The switch is on and doing nothing, which without a line looks exactly
+                    // like the switch being broken — and the user has just been reading Android's pairing
+                    // rejections, so they are owed the app's side of it.
+                    explicitBondGiveUpLogged = true
+                    log(explicitBondGivenUpLine())
                 }
                 // #1635: read once, before the deferral gate — the override has to reach BOTH, or a
                 // deferred hello returns early and the switch below is never evaluated at all.
@@ -8481,9 +8504,6 @@ class WhoopBleClient(
                 // restart the loop the suppression exists to end.
                 val userAsked = helloRetryRequested
                 helloRetryRequested = false
-                val suppressed = runCatching {
-                    com.noop.ui.NoopPrefs.helloSuppressed(context, g.device.address)
-                }.getOrDefault(false)
                 if (shouldSendClientHello(suppressed, userInitiated = userAsked, overrideSuppression = helloOverride)) {
                     // Charge the budget only when the override is what put this hello on the wire: a
                     // strap that is neither suppressed nor deferring would have sent it anyway, and
