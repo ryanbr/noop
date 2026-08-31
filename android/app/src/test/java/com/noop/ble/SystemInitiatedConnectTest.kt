@@ -42,14 +42,24 @@ class SystemInitiatedConnectTest {
         )
     }
 
+    /**
+     * Deliberately "no internal caller uses the user entry" rather than "the system entry is used N
+     * times". A count would fail the day someone adds a FIFTH system path correctly, which trains people
+     * to edit the number instead of thinking; this phrasing passes for any correct addition and fails for
+     * any incorrect one. The client never needs to call its own public user entry — every internal path
+     * is by definition system-initiated.
+     */
     @Test
-    fun `the system entry point exists and is actually used`() {
+    fun `no internal path calls the user-facing connect`() {
         val src = clientSource()
         assertTrue("connectFromSystem must exist as the system-initiated entry",
                    src.contains("fun connectFromSystem("))
-        // Radio-on rescan, salvage probe, and both deferred reconnect timers.
-        val uses = Regex("""connectFromSystem\(selectedModel\)""").findAll(src).count()
-        assertEquals("every system-initiated connect should route here", 4, uses)
+        val offenders = Regex("""(?<![A-Za-z])connect\((selectedModel|model|persistedWhoopModel\(\))\)""")
+            .findAll(src).map { it.value }.toList()
+        assertEquals(
+            "an internal caller is by definition not the user — use connectFromSystem(...): $offenders",
+            0, offenders.size,
+        )
     }
 
     @Test
