@@ -78,4 +78,43 @@ final class CoachConversationDayTests: XCTestCase {
         XCTAssertEqual(d1 - d0, 1, "a 23-hour day must still be one day")
         XCTAssertTrue(AICoachEngine.isStaleConversation(lastEpochDay: d0, todayEpochDay: d1))
     }
+
+    /// The symmetric DST case, and the one that actually threatens this implementation. `localEpochDay`
+    /// counts whole days from the epoch INSTANT to a local midnight, so the count truncates — and on a
+    /// 25-hour autumn day the extra hour is exactly the kind of slack that could make two local midnights
+    /// land in the same whole-day bucket. If that happened, a transcript would survive a night once a
+    /// year and the bug this whole change fixes would come back, seasonally.
+    ///
+    /// Spring-forward was tested first because it is the obvious one. It is not the dangerous one.
+    func testLocalEpochDayAdvancesByOneAcrossTheAutumnFallBack() {
+        var london = Calendar(identifier: .gregorian)
+        london.timeZone = TimeZone(identifier: "Europe/London")!
+        var before = DateComponents()
+        before.year = 2026; before.month = 10; before.day = 24; before.hour = 12
+        var after = DateComponents()
+        after.year = 2026; after.month = 10; after.day = 25; after.hour = 12   // clocks go back
+        let d0 = AICoachEngine.localEpochDay(london.date(from: before)!, calendar: london)
+        let d1 = AICoachEngine.localEpochDay(london.date(from: after)!, calendar: london)
+        XCTAssertEqual(d1 - d0, 1, "a 25-hour day must still be one day")
+        XCTAssertTrue(AICoachEngine.isStaleConversation(lastEpochDay: d0, todayEpochDay: d1))
+    }
+
+    /// A zone far west of UTC, where the epoch instant itself falls on the PREVIOUS local day. The origin
+    /// this counts from is not local midnight, so the arithmetic has to stay monotonic anyway — ordering
+    /// is the only property the rule depends on.
+    func testLocalEpochDayIsMonotonicWestOfUTC() {
+        var la = Calendar(identifier: .gregorian)
+        la.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        var comps = DateComponents()
+        comps.year = 2026; comps.month = 8; comps.day = 21; comps.hour = 23; comps.minute = 30
+        let lateEvening = la.date(from: comps)!
+        let nextMorning = lateEvening.addingTimeInterval(3_600)   // 00:30 the next local day
+        let d0 = AICoachEngine.localEpochDay(lateEvening, calendar: la)
+        let d1 = AICoachEngine.localEpochDay(nextMorning, calendar: la)
+        XCTAssertEqual(d1 - d0, 1, "crossing local midnight is one day, whatever the UTC offset")
+        XCTAssertTrue(AICoachEngine.isStaleConversation(lastEpochDay: d0, todayEpochDay: d1))
+        // And the hour before midnight is emphatically the same day.
+        let earlier = lateEvening.addingTimeInterval(-3_600)
+        XCTAssertEqual(AICoachEngine.localEpochDay(earlier, calendar: la), d0)
+    }
 }
