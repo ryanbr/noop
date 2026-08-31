@@ -107,6 +107,28 @@ struct StrandiOSApp: App {
         }
     }
 
+    /// The Shortcut-import alert's presentation binding, hoisted OUT of the `.alert` chain.
+    ///
+    /// An inline `Binding(get:set:)` is two untyped closures the solver must infer in place, on a
+    /// modifier chain that had already blown the type-check budget. Declaring it as a `Binding<Bool>`
+    /// property replaces all of that with one known type. Hoisting the message alone was not enough —
+    /// the build failed again at the same modifier, which is why this one is here too.
+    private var healthImportAlertPresented: Binding<Bool> {
+        Binding(
+            get: { model.pendingShortcutHealthImport != nil },
+            set: { showing in
+                if !showing { model.cancelPendingHealthImport() }
+            }
+        )
+    }
+
+    /// The Shortcut-import alert's buttons, hoisted for the same reason as the binding above.
+    @ViewBuilder
+    private var healthImportAlertButtons: some View {
+        Button("Import") { model.confirmPendingHealthImport() }
+        Button("Cancel", role: .cancel) { model.cancelPendingHealthImport() }
+    }
+
     /// The Shortcut-import alert's message, hoisted OUT of the `.alert` chain.
     ///
     /// Not a style preference. This closure — an `if let` around two interpolated `Text`s — sits on a
@@ -257,14 +279,8 @@ struct StrandiOSApp: App {
                         model.handleHealthImportURL(url)
                     }
                 }
-                .alert("Import Apple Health data?", isPresented: Binding(
-                    get: { model.pendingShortcutHealthImport != nil },
-                    set: { showing in
-                        if !showing { model.cancelPendingHealthImport() }
-                    }
-                )) {
-                    Button("Import") { model.confirmPendingHealthImport() }
-                    Button("Cancel", role: .cancel) { model.cancelPendingHealthImport() }
+                .alert("Import Apple Health data?", isPresented: healthImportAlertPresented) {
+                    healthImportAlertButtons
                 } message: {
                     healthImportAlertMessage
                 }
