@@ -8381,9 +8381,11 @@ class WhoopBleClient(
                             // `alreadyRequestedThisLink`, a per-LINK flag, and on a strap that answers SMP
                             // "Pairing Not Supported" neither bond condition ever becomes true — so
                             // createBond fires on EVERY connect, and clearing here fired on every connect
-                            // with it. The 31 Aug capture: 36 pairing requests, the latch written once at
-                            // 17:32:48, the "CLIENT_HELLO suppressed" line zero times, and 13 more hellos
-                            // after the give-up, each dropping the link ~4.8s in.
+                            // with it. The 31 Aug capture: 18 pairing requests and 18 hellos — one of each
+                            // on every link, which is the pairing [helloDeferredByExplicitBond] forbids —
+                            // with the latch written once at 17:32:48, the "CLIENT_HELLO suppressed" line
+                            // zero times, and 13 of those hellos landing after the give-up, each dropping
+                            // the link ~4.8s in.
                             //
                             // It could not recover, either: BondRefusalGiveUp.recordRefusal() reports the
                             // crossing exactly once and stays gaveUp until reset, so the latch is written
