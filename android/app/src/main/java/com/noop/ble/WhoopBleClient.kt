@@ -883,6 +883,19 @@ class WhoopBleClient(
          *  stable, while the cost of asking too early is a false "does not answer" that closes #1635 the
          *  wrong way. */
         private const val UNBONDED_PROBE_REPLY_WAIT_MS = 8_000L
+
+        /** #1635: how long the probe waits between checks while the unbonded DIS chain is still running. */
+        private const val UNBONDED_PROBE_DEFER_MS = 1_000L
+
+        /**
+         * How many times the probe may stand aside for the DIS chain before going anyway.
+         *
+         * A cap rather than an open wait, because the chain has exits that never reach its terminal — a
+         * refused read, or a strap that stops answering mid-way — and a probe that waited on a flag
+         * nobody will clear would simply never run. Eight seconds of patience, then it takes its chances
+         * and the trace says which happened.
+         */
+        private const val UNBONDED_PROBE_MAX_DEFERRALS = 8
         /** 5/MG zero-frame retry: pause before re-requesting history when a session timed out having
          *  produced nothing (the first request after connect can go entirely unanswered). */
         private const val WHOOP5_HISTORY_RETRY_DELAY_MS = 700L
@@ -2406,6 +2419,20 @@ class WhoopBleClient(
      *  link that never scheduled it. Its own gates would still hold, but a timer that outlives its link is
      *  how surprises get in. */
     private val unbondedProbeStartRunnable = Runnable { gatt?.let { beginUnbondedOffloadProbe(it) } }
+
+    /**
+     * #1635: the unbonded DIS read chain is mid-flight.
+     *
+     * DIS reads and CCCD writes share ONE serialized GATT queue, and a field capture showed why that
+     * matters: the probe fired while the chain was still running, every descriptor write came back
+     * `writeDescriptor busy`, all four gave up after the shared 8-retry budget, and the link produced no
+     * answer at all. The probe had been scheduled on a fixed delay chosen on the reasoning that three
+     * seconds was enough separation — on that link the chain was still going at seven.
+     */
+    private var disChainInFlight = false
+
+    /** #1635: how many times the probe has stood aside for the DIS chain on this link. */
+    private var unbondedProbeDeferrals = 0
 
     /** #1635: links that subscribed the puffin chars and drew no reply. Per PROCESS, deliberately NOT
      *  cleared by [reset] — its whole job is to bound a retry that spans reconnects. A refusal latches per
@@ -4718,6 +4745,7 @@ class WhoopBleClient(
         ) return
         log("DIS: trying the identity read on an UNbonded link — unproven, and a refusal is itself the" +
             " answer to whether DIS needs an encrypted bond (#490)")
+        disChainInFlight = true
         readDisIdentity()
     }
 
@@ -4763,6 +4791,19 @@ class WhoopBleClient(
                 silentLinksSoFar = unbondedProbeSilentLinks,
             )
         ) return
+        // Stand aside while the DIS chain still holds the one serialized GATT queue. The fixed 6s delay
+        // this used to rely on was chosen by reasoning and was wrong: a capture caught the chain still
+        // running at 7s, every CCCD write returning busy, all four abandoned after the shared retry
+        // budget, and the link yielding no answer. Waiting on the actual signal costs a second and
+        // removes the guess.
+        if (disChainInFlight && unbondedProbeDeferrals < UNBONDED_PROBE_MAX_DEFERRALS) {
+            unbondedProbeDeferrals++
+            if (unbondedProbeDeferrals == 1) log(unbondedProbeWaitingForDisLine())
+            handler.removeCallbacks(unbondedProbeStartRunnable)
+            handler.postDelayed(unbondedProbeStartRunnable, UNBONDED_PROBE_DEFER_MS)
+            return
+        }
+        if (disChainInFlight) log(unbondedProbeStoppedWaitingLine(unbondedProbeDeferrals))
         val svc = g.getService(WHOOP5_SERVICE) ?: return
         // Claim the link BEFORE queueing, so a keep-alive drain landing between the two cannot start a
         // second probe against the same four characteristics.
@@ -4967,10 +5008,12 @@ class WhoopBleClient(
             DIS_FW_REV_CHAR -> DIS_MANUFACTURER_CHAR
             DIS_MANUFACTURER_CHAR -> DIS_MODEL_NUMBER_CHAR
             DIS_MODEL_NUMBER_CHAR -> DIS_SW_REV_CHAR
-            else -> return
+            // Chain complete. Releasing the queue here is what lets the unbonded offload probe start
+            // without contending with it (#1635).
+            else -> { disChainInFlight = false; return }
         }
-        val g = gatt ?: return
-        val ops = gattOps ?: return
+        val g = gatt ?: run { disChainInFlight = false; return }
+        val ops = gattOps ?: run { disChainInFlight = false; return }
         val ch = g.getService(DIS_SERVICE)?.getCharacteristic(next)
         if (ch == null || (ch.properties and BluetoothGattCharacteristic.PROPERTY_READ) == 0) {
             // Not present on this strap: skip it and carry on down the chain rather than stopping.
@@ -9831,6 +9874,8 @@ class WhoopBleClient(
             }
         }
         unbondedProbeStartedThisLink = false
+        unbondedProbeDeferrals = 0
+        disChainInFlight = false
         unbondedProbeSubscribed = 0
         unbondedProbeSubscribing = false
         unbondedProbeAwaitingReply = false

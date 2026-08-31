@@ -353,4 +353,34 @@ class UnbondedOffloadProbeTest {
         )
         for (line in lines) assertTrue(line, line.contains("#1635"))
     }
+
+    /**
+     * #1635, from the field. The probe used to start on a fixed 6-second delay, chosen on the reasoning
+     * that the DIS chain (scheduled at 3s) would be done by then. A capture caught the chain still
+     * running at 7s: every CCCD write returned busy, all four were abandoned after the shared 8-retry
+     * budget, and the link produced no answer at all. Reasoning about a delay lost to measuring one.
+     */
+    @Test
+    fun `the waiting line says why the probe is late, and names the shared queue`() {
+        val line = unbondedProbeWaitingForDisLine()
+        assertTrue(line.contains("DIS read chain"))
+        assertTrue(line.contains("one GATT queue"))
+        assertTrue(line.contains("busy"))
+        assertTrue(line.contains("#1635"))
+    }
+
+    /**
+     * The wait must end. The DIS chain has exits that never reach its terminal — a refused read, or a
+     * strap that stops answering part-way — so a probe that waited on the flag would never run at all.
+     * The line has to distinguish "started cleanly" from "gave up waiting", because a busy queue after
+     * the full budget is a different capture from a busy queue at second one.
+     */
+    @Test
+    fun `giving up waiting is reported as a choice, not a failure`() {
+        val line = unbondedProbeStoppedWaitingLine(8)
+        assertTrue(line.contains("after 8 checks"))
+        assertTrue(line.contains("starting anyway"))
+        assertTrue(line.contains("not the strap"))
+        assertTrue(line.contains("#1635"))
+    }
 }

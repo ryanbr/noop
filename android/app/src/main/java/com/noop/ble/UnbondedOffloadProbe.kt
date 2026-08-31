@@ -270,6 +270,29 @@ internal fun unbondedProbeLinkLostAskingLine(uptimeMs: Long, waitedMs: Long): St
         " inside its window to answer — this link settles nothing either way (#1635)."
 
 /**
+ * The probe is holding off because the unbonded DIS chain still has the GATT queue.
+ *
+ * Logged once per link rather than per deferral: the useful fact is that it waited at all, and a line a
+ * second for eight seconds would bury it. Without this the probe simply appears late in a capture with
+ * no reason given, which is the shape of problem this whole area keeps producing.
+ */
+internal fun unbondedProbeWaitingForDisLine(): String =
+    "Unbonded offload probe: waiting for the DIS read chain to finish — they share one GATT queue, and" +
+        " starting on top of it makes every CCCD write come back busy (#1635)."
+
+/**
+ * The wait ran out and the probe went anyway.
+ *
+ * Not a failure. The DIS chain has exits that never reach its terminal — a refused read, or a strap that
+ * stops answering part-way — so a probe that waited on the flag forever would never run at all. Saying
+ * which of the two happened is the point: a probe that waited the full budget and then found a busy queue
+ * is a different capture from one that started cleanly.
+ */
+internal fun unbondedProbeStoppedWaitingLine(deferrals: Int): String =
+    "Unbonded offload probe: the DIS chain has not finished after $deferrals checks — starting anyway." +
+        " If the subscribes come back busy, that queue is why, not the strap (#1635)."
+
+/**
  * Stage 2's question, logged so the wait that follows is attributable to it.
  *
  * Carries the CONFIRMED count, not the attempted one. A CCCD write can also end by being abandoned after
