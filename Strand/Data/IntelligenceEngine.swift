@@ -336,7 +336,7 @@ final class IntelligenceEngine: ObservableObject {
         return parts.isEmpty ? nil : parts.joined(separator: "\n")
     }
 
-        nonisolated static func sleepDetectNoNightLogLine(day: String, hrCount: Int, rrCount: Int,
+    nonisolated static func sleepDetectNoNightLogLine(day: String, hrCount: Int, rrCount: Int,
                                                       respCount: Int, gravCount: Int, stepCount: Int,
                                                       providedCount: Int, windowHours: Int) -> String {
         // `reason` names WHICH absence this is, because grav=0 is printed but its consequence is not.
