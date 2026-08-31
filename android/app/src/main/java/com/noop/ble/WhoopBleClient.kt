@@ -2425,10 +2425,24 @@ class WhoopBleClient(
     /** #1635: how many times the probe has stood aside for the DIS chain on this link. */
     private var unbondedProbeDeferrals = 0
 
-    /** #1635: links that subscribed the puffin chars and drew no reply. Per PROCESS, deliberately NOT
-     *  cleared by [reset] — its whole job is to bound a retry that spans reconnects. A refusal latches per
-     *  device instead; silence is weaker evidence and gets a budget rather than a verdict. */
-    private var unbondedProbeSilentLinks = 0
+    /** #1635: links that subscribed the puffin chars and drew no reply — the silence budget for the
+     *  connected strap, read through prefs on every use.
+     *
+     *  Was a field, and the field was the bug: the foreground service restarts, the count went back to
+     *  zero, and the probe bought three more link-killing attempts on a strap that had already answered
+     *  the same way three times (18 starts across 24 connects, 31 Aug). Reading it through prefs is a
+     *  handful of cheap lookups per link and leaves exactly one source of truth.
+     *
+     *  Held by [PuffinExperiment] rather than `NoopPrefs`, unlike the refusal latch beside it: the switch's
+     *  setter clears these budgets by prefix and can only sweep its own prefs file. */
+    private val unbondedProbeSilentLinks: Int
+        get() = runCatching {
+            PuffinExperiment.from(context).unbondedProbeSilentLinks(lastDeviceAddress)
+        }.getOrDefault(0)
+
+    private fun setUnbondedProbeSilentLinks(value: Int) {
+        runCatching { PuffinExperiment.from(context).setUnbondedProbeSilentLinks(lastDeviceAddress, value) }
+    }
 
     /** True when the user asked to disconnect; suppresses the auto-rescan (Swift `intentionalDisconnect`).
      *  Written on the main looper (connect/disconnect/keep-alive bounce) and read on the GATT binder
@@ -4851,6 +4865,21 @@ class WhoopBleClient(
     }
 
     /**
+     * Charge one link that subscribed the puffin characteristics and produced no answer, retiring the
+     * probe for this strap when the budget runs out.
+     *
+     * Both the "asked and heard nothing" path and the "link died mid-probe" path end here, and they must:
+     * a quiet link and a link torn down by the very subscriptions we wrote are the same evidence about
+     * this strap. Counting only the first is how the probe kept re-running across 24 connects.
+     */
+    private fun chargeUnbondedProbeSilence() {
+        val spent = unbondedProbeSilentLinks + 1
+        setUnbondedProbeSilentLinks(spent)
+        if (unbondedProbeStillWorthAsking(spent)) return
+        log(unbondedProbeGaveUpLine(spent))
+    }
+
+    /**
      * Stage 2: the subscriptions landed, so ask the strap a read-only question.
      *
      * GET_CLOCK and not GET_DATA_RANGE, and certainly not SET_CLOCK. It changes nothing on the strap, so a
@@ -4898,22 +4927,20 @@ class WhoopBleClient(
                 waitedMs = waited,
                 sawNotifications = unbondedProbeEvidence == UnbondedProbeEvidence.SERVES_NOTIFICATIONS,
             ))
-            // Not latched per device: the subscriptions were accepted, so this says the strap did not
+            // Not the refusal latch: the subscriptions were accepted, so this says the strap did not
             // answer THIS time, and the carve-out the refusal path makes for a pairing in flight would
-            // apply here with less certainty, not more. Once-per-LINK does not bound it, though — the
-            // probe re-runs on every reconnect — so silence spends a per-process budget instead of writing
-            // a permanent verdict from an ambiguous result.
-            unbondedProbeSilentLinks++
-            if (!unbondedProbeStillWorthAsking(unbondedProbeSilentLinks)) {
-                log(unbondedProbeGaveUpLine(unbondedProbeSilentLinks))
-            }
+            // apply here with less certainty, not more. Once-per-LINK does not bound it either — the probe
+            // re-runs on every reconnect — so silence spends a budget rather than writing a verdict from
+            // an ambiguous result. The budget is persisted, because the process is not a bound.
+            chargeUnbondedProbeSilence()
             return
         }
         log(unbondedProbeAnsweredLine())
         log(unbondedProbeBacklogCaveatLine())
         // A genuine answer clears the silence budget: whatever the quiet links were, they were not this
-        // strap declining to talk, and a later reconnect must not inherit their count.
-        unbondedProbeSilentLinks = 0
+        // strap declining to talk, and a later reconnect — or a later app launch — must not inherit
+        // their count.
+        setUnbondedProbeSilentLinks(0)
         // The proven 5/MG handshake tail, minus the hello that cannot happen: clock the strap, then offload.
         // Clock-before-history is mandatory — an un-clocked 5/MG discards sensor data rather than banking it
         // — and it is only reached here because the strap has just demonstrated it answers commands.
@@ -9868,10 +9895,7 @@ class WhoopBleClient(
                         System.currentTimeMillis() - unbondedProbeAskedAtMs else -1L,
                 ),
             )
-            unbondedProbeSilentLinks++
-            if (!unbondedProbeStillWorthAsking(unbondedProbeSilentLinks)) {
-                log(unbondedProbeGaveUpLine(unbondedProbeSilentLinks))
-            }
+            chargeUnbondedProbeSilence()
         }
         unbondedProbeStartedThisLink = false
         unbondedProbeDeferrals = 0

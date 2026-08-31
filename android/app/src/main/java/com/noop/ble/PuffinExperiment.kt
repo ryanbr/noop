@@ -143,10 +143,52 @@ class PuffinExperiment(private val prefs: SharedPreferences) {
      * line every other state-changing probe here sits behind ([isDeepDataEnabled], [broadcastHr],
      * [ecgRawData]). Nothing is written until the strap has proved it answers a read-only GET_CLOCK, and a
      * refusal is latched per device, so opting in costs one link and not a loop.
+     *
+     * Turning it ON also clears every strap's silence budget ([unbondedProbeSilentLinksPrefKey]). That
+     * budget is now persisted, so without this a strap that spent it would never probe again — and
+     * silently, the give-up line having latched on a run the user may never have seen. This setter is the
+     * one place the intent is unambiguous: sampling the switch at connect cannot see it flipped off and
+     * on while the link sits idle, which is exactly what a user does after being told to turn it off.
      */
     var unbondedOffload: Boolean
         get() = prefs.getBoolean(KEY_UNBONDED_OFFLOAD, false)
-        set(v) = prefs.edit().putBoolean(KEY_UNBONDED_OFFLOAD, v).apply()
+        set(v) {
+            val e = prefs.edit().putBoolean(KEY_UNBONDED_OFFLOAD, v)
+            // Every strap, not just the connected one: the switch is global, so "try again" is too, and
+            // this setter is the only path that runs with no device in hand.
+            if (v) {
+                prefs.all.keys
+                    .filter { it.startsWith(UNBONDED_PROBE_SILENT_LINKS_KEY_PREFIX) }
+                    .forEach { e.remove(it) }
+            }
+            e.apply()
+        }
+
+    /**
+     * The probe's persisted silence budget for one strap — links that subscribed the puffin
+     * characteristics and drew no answer, capped by [UNBONDED_PROBE_MAX_SILENT_LINKS].
+     *
+     * It lives HERE, and not beside the refusal latch in `NoopPrefs`, on purpose. The setter above clears
+     * these by prefix because it has no device in hand, and a sweep can only reach its own prefs file:
+     * written to `NoopPrefs` and swept from `noop_experiments`, re-enabling the switch would clear nothing
+     * and the probe would stay retired forever, silently. Keeping the budget on the object that owns the
+     * switch makes that drift unrepresentable rather than merely documented.
+     *
+     * Unreadable prefs read as 0 — the probe's other gates bound it, and a prefs failure must not be the
+     * thing that keeps a spent budget spent.
+     */
+    fun unbondedProbeSilentLinks(peripheralId: String?): Int = runCatching {
+        unbondedProbeSilentLinksPrefKey(peripheralId)?.let { prefs.getInt(it, 0) } ?: 0
+    }.getOrDefault(0)
+
+    /** Record that budget. A null address (no device in hand) is a no-op, as the read is. */
+    fun setUnbondedProbeSilentLinks(peripheralId: String?, value: Int) {
+        runCatching {
+            unbondedProbeSilentLinksPrefKey(peripheralId)?.let {
+                prefs.edit().putInt(it, value).apply()
+            }
+        }
+    }
 
     /** True if the user opted in to "Ask Android to pair" (#1635, default false): NOOP calls
      *  `BluetoothDevice.createBond()` explicitly instead of relying on a write to the encrypted

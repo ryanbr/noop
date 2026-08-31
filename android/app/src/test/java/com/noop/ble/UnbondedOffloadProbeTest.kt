@@ -2,6 +2,8 @@ package com.noop.ble
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -158,6 +160,59 @@ class UnbondedOffloadProbeTest {
         val line = unbondedProbeGaveUpLine(3)
         assertTrue(line.contains("serves those characteristics unbonded"))
         assertTrue(line.contains("does not act on commands"))
+        // And it no longer promises only a session: the retirement is persisted, and the line has to say
+        // the one thing that undoes it, or the switch looks broken to whoever turns it back on.
+        assertFalse(line.contains("this session"))
+        assertTrue(line.contains("off and on"))
+    }
+
+    /**
+     * The budget outlives the process, so the sweep that hands it back has to find it.
+     *
+     * [PuffinExperiment.unbondedOffload]'s setter clears the budgets by PREFIX, having no device in hand.
+     * If the key the probe writes and the prefix that setter sweeps ever drift apart, the sweep matches
+     * nothing, re-enabling the switch does nothing, and it does it silently — the give-up line having
+     * already latched. That is the same shape as every other dead gate in this file's history, so it is
+     * pinned rather than left to inspection.
+     */
+    @Test
+    fun `the key the probe writes is the key opting back in sweeps`() {
+        val key = unbondedProbeSilentLinksPrefKey("AA:BB:CC:DD:EE:FF")
+        assertNotNull(key)
+        assertTrue(key!!.startsWith(UNBONDED_PROBE_SILENT_LINKS_KEY_PREFIX))
+    }
+
+    @Test
+    fun `a spent budget stops the probe on a fresh process`() {
+        // The 31 Aug loop: 18 probe starts across 24 connects. The budget bounded the retry within a
+        // process; nothing bounded the processes, and the service restarts. Each re-armed link is torn
+        // down ~4.8s after the subscriptions reach the air, which is what the user saw as an endless
+        // "Reconnecting to your WHOOP".
+        assertFalse(probe(silentLinksSoFar = UNBONDED_PROBE_MAX_SILENT_LINKS))
+    }
+
+    @Test
+    fun `the silence budget is not the refusal latch`() {
+        // Both stop the probe; only one is the strap's answer. One key for the two would have the log
+        // report a refusal that never happened.
+        assertNotEquals(
+            unbondedProbeSilentLinksPrefKey("AA:BB:CC:DD:EE:FF"),
+            unbondedOffloadRefusedPrefKey("AA:BB:CC:DD:EE:FF"),
+        )
+    }
+
+    @Test
+    fun `the budget key is per device and case-insensitive, like the refusal key`() {
+        assertEquals(
+            unbondedProbeSilentLinksPrefKey("AA:BB:CC:DD:EE:FF"),
+            unbondedProbeSilentLinksPrefKey(" aa:bb:cc:dd:ee:ff "),
+        )
+        assertNotEquals(
+            unbondedProbeSilentLinksPrefKey("AA:BB:CC:DD:EE:FF"),
+            unbondedProbeSilentLinksPrefKey("11:22:33:44:55:66"),
+        )
+        assertNull(unbondedProbeSilentLinksPrefKey(null))
+        assertNull(unbondedProbeSilentLinksPrefKey("   "))
     }
 
     @Test
