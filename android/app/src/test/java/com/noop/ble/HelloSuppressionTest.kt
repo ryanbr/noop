@@ -62,8 +62,11 @@ class HelloSuppressionTest {
         //
         // Asking for a pairing was treated as the self-limiting alternative, and it is not: the REQUEST
         // recurs on every link too (see ExplicitBondTest), so clearing the latch there produced the very
-        // loop described above. Nothing clears the latch on a recurring event now - only a completed bond
-        // or an explicit Connect, both of which are things that actually happened.
+        // loop described above. Nothing clears the latch on a recurring event now. Three things clear it,
+        // all of them events rather than intentions: an explicit Connect, forgetting the device, and a
+        // genuine bond - and be exact about that last one, because it is the easy overclaim here. It is
+        // reached through the hello WRITE-COMPLETION callback, so a suppressed hello cannot reach it. The
+        // live route out of suppression is the Connect tap the epitaph names.
         assertFalse(shouldSendClientHello(suppressedForDevice = true, userInitiated = false))
     }
 
