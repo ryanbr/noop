@@ -257,6 +257,9 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
     fun clearKey(ctx: Context) {
         AiKeyStore.clear(ctx)
         _messages.value = emptyList()
+        // The day belongs to the transcript, so it goes with it. Harmless if left (a stale day only ever
+        // clears an already-empty list) but it would be a field claiming something untrue.
+        conversationDay = null
         _error.value = null
         _keyVersion.value += 1
     }
@@ -270,6 +273,7 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
         _customConnected.value = false
         AiKeyStore.saveCustomConnected(ctx, false)
         _messages.value = emptyList()
+        conversationDay = null
         _error.value = null
         _keyVersion.value += 1
     }

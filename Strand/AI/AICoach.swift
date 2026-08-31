@@ -365,6 +365,12 @@ final class AICoachEngine: ObservableObject {
     func disconnect() {
         AIKeyStore.clear()
         customConnected = false
+        // Retire the transcript with the connection. Kotlin has done this since the method existed
+        // (CoachViewModel.disconnect) and this side never did, so returning to the setup screen on Apple
+        // left the whole conversation sitting behind it — including whatever the user had told a coach
+        // they were in the middle of disconnecting from.
+        messages = []
+        conversationDay = nil
         objectWillChange.send()
     }
 
@@ -388,6 +394,11 @@ final class AICoachEngine: ObservableObject {
     /// Forget the stored key.
     func clearKey() {
         AIKeyStore.clear()
+        // Same reasoning as `disconnect`: clearing the key returns the user to the setup screen, and
+        // Kotlin empties the transcript when it does. Leaving it meant a "clear my key" on Apple removed
+        // the credential and kept the conversation.
+        messages = []
+        conversationDay = nil
         objectWillChange.send()
     }
 
