@@ -136,6 +136,38 @@ object EffectRanker {
         return sorted(rows)
     }
 
+    /**
+     * Rank every behaviour against one outcome at lag 0 only — the Kotlin twin of Swift's
+     * `BehaviorInsights.rank`, ordering included.
+     *
+     * Exists because the Insights screen ranks at lag 0 while the Insights Hub searches the lag set, and
+     * Android had been doing the lag-0 version with its OWN copy of the math: a "crude significance"
+     * (|d| ≥ 0.5 with ≥ 3 a side, self-described as a stand-in for a t-test) against iOS's Welch p on the
+     * same screen. Two platforms flagged different behaviours as significant from identical journals.
+     * Routing it here retires that copy; the parity contract wants one implementation, not two that agree
+     * on a good day.
+     *
+     * Sort mirrors Swift exactly: significant first, then larger |Cohen's d|, then behaviour name — the
+     * last one so a dictionary-ordered walk still produces a stable list.
+     */
+    fun rankNoLag(
+        behaviors: Map<String, Set<String>>,
+        controls: Map<String, Set<String>>,
+        outcomeByDay: Map<String, Double>,
+        outcome: String,
+    ): List<BehaviorEffect> {
+        val effects = ArrayList<BehaviorEffect>()
+        for ((name, days) in behaviors) {
+            val e = effect(days, controls[name].orEmpty(), outcomeByDay, name, outcome)
+            if (e != null) effects.add(e)
+        }
+        return effects.sortedWith(
+            compareByDescending<BehaviorEffect> { it.significant }
+                .thenByDescending { abs(it.cohensD) }
+                .thenBy { it.behavior },
+        )
+    }
+
     /** Find the best-lag RankedEffect for ONE behaviour against ONE outcome, or null. */
     fun bestLag(
         behaviorDays: Set<String>,

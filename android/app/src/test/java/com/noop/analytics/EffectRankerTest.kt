@@ -1,6 +1,7 @@
 package com.noop.analytics
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -218,6 +219,55 @@ class EffectRankerTest {
         for (d in 1..10) { yes.add(ymd(2026, 6, d)); outcome[ymd(2026, 6, d)] = 50.0 + jitter(d) }
         for (d in 11..30) outcome[ymd(2026, 6, d)] = 75.0 + jitter(d)
         assertTrue(EffectRanker.rank(mapOf("Alcohol" to yes), emptyMap(), outcome, "Charge").isEmpty())
+    }
+
+    // rankNoLag: the Kotlin twin of Swift BehaviorInsights.rank, which the Insights screen now uses.
+
+    /**
+     * Twin of Swift `testRankOrdersByEffectSizeSignificantFirst`, same fixture and same expectations.
+     *
+     * The Insights screen used to rank with its own copy of this — a "crude significance" of |d| >= 0.5
+     * with >= 3 a side, where iOS ran a Welch p on the same screen. Identical journals could flag
+     * different behaviours per platform. Pinning the ordering here is what stops that reopening.
+     */
+    @Test
+    fun rankNoLagOrdersByEffectSizeSignificantFirst() {
+        val outcome = mapOf(
+            "d1" to 50.0, "d2" to 52.0, "d3" to 48.0, "d4" to 51.0, "d5" to 49.0, "d6" to 53.0,
+            "d7" to 70.0, "d8" to 72.0, "d9" to 68.0, "d10" to 71.0, "d11" to 69.0, "d12" to 73.0,
+        )
+        val strong = setOf("d1", "d2", "d3", "d4", "d5", "d6")
+        val weak = setOf("d1", "d7", "d2")
+        val tiny = setOf("d3", "d9")
+        val all = outcome.keys
+        val ranked = EffectRanker.rankNoLag(
+            mapOf("Strong" to strong, "Weak" to weak, "Tiny" to tiny),
+            mapOf("Strong" to (all - strong), "Weak" to (all - weak), "Tiny" to (all - tiny)),
+            outcome, "Recovery",
+        )
+        assertEquals(3, ranked.size)
+        assertEquals("Strong", ranked.first().behavior)
+        assertTrue(ranked.first().significant)
+        assertFalse(ranked[1].significant)
+        assertFalse(ranked[2].significant)
+        assertTrue(abs(ranked[1].cohensD) >= abs(ranked[2].cohensD))
+    }
+
+    /** Twin of Swift `testRankDropsUncomputableBehaviors`: a behaviour covering every day has no
+     *  without-group and is dropped rather than ranked at zero. */
+    @Test
+    fun rankNoLagDropsUncomputableBehaviours() {
+        val outcome = mapOf("a" to 60.0, "b" to 62.0, "c" to 70.0, "d" to 72.0)
+        val allDays = setOf("a", "b", "c", "d")
+        val half = setOf("a", "b")
+        val all = outcome.keys
+        val ranked = EffectRanker.rankNoLag(
+            mapOf("AllDays" to allDays, "Half" to half),
+            mapOf("AllDays" to (all - allDays), "Half" to (all - half)),
+            outcome, "Recovery",
+        )
+        assertEquals(1, ranked.size)
+        assertEquals("Half", ranked.first().behavior)
     }
 
 }

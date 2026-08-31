@@ -60,6 +60,8 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
+import com.noop.analytics.BehaviorEffect
+import com.noop.analytics.EffectRanker
 
 // MARK: - Insights
 //
@@ -124,20 +126,6 @@ private enum class Outcome(
 
 /** One behaviour's effect on the selected outcome: with/without means, counts,
  *  Cohen's d and a crude significance flag. */
-private data class BehaviorEffect(
-    val behavior: String,
-    val meanWith: Double,
-    val meanWithout: Double,
-    val nWith: Int,
-    val nWithout: Int,
-    val cohensD: Double,
-) {
-    val delta: Double get() = meanWith - meanWithout
-    /** Crude significance: a non-trivial effect with enough days on both sides.
-     *  Honest stand-in for a t-test, |d| ≥ 0.5 ("moderate") with ≥3 days each side. */
-    val significant: Boolean get() = abs(cohensD) >= 0.5 && nWith >= 3 && nWithout >= 3
-}
-
 /** A curated metric relationship plus its computed Pearson correlation. */
 private data class Relationship(
     val id: String,
@@ -1612,35 +1600,12 @@ private fun buildModel(
 private fun rankEffects(model: InsightModel, outcome: Outcome): List<BehaviorEffect> {
     val outcomeDays = model.outcomeByDay[outcome] ?: emptyMap()
     if (outcomeDays.isEmpty()) return emptyList()
-
-    val effects = model.behaviours.mapNotNull { (behaviour, yesDays) ->
-        // Controls are the days answered NO, never the days never answered. This screen carries its own
-        // copy of the with/without split rather than calling EffectRanker, so it needed the same
-        // correction — see [EffectRanker.effect] for why unlogged days are not controls.
-        val noDays = model.controls[behaviour].orEmpty()
-        val with = mutableListOf<Double>()
-        val without = mutableListOf<Double>()
-        for ((day, value) in outcomeDays) {
-            when {
-                day in yesDays -> with.add(value)
-                day in noDays -> without.add(value)
-            }
-        }
-        // Need both groups to compare; require ≥2 each so a mean/SD is meaningful.
-        if (with.size < 2 || without.size < 2) return@mapNotNull null
-        BehaviorEffect(
-            behavior = behaviour,
-            meanWith = with.average(),
-            meanWithout = without.average(),
-            nWith = with.size,
-            nWithout = without.size,
-            cohensD = cohensD(with, without),
-        )
-    }
-    return effects.sortedWith(
-        compareByDescending<BehaviorEffect> { it.significant }
-            .thenByDescending { abs(it.cohensD) },
-    )
+    // Through the shared engine, not a local copy. This screen used to carry its own with/without split,
+    // its own pooled-SD Cohen's d and a "crude significance" (|d| >= 0.5 with >= 3 a side) where iOS's
+    // same screen ran a Welch p — so identical journals could flag different behaviours on the two
+    // platforms. EffectRanker.rankNoLag is the byte-identical twin of Swift's BehaviorInsights.rank,
+    // which is what iOS calls here.
+    return EffectRanker.rankNoLag(model.behaviours, model.controls, outcomeDays, outcome.outcomeName)
 }
 
 /** The curated metric relationships, computed via Pearson r over aligned day pairs. */
@@ -1685,25 +1650,6 @@ private fun computeRelationships(model: InsightModel): List<Relationship> {
 }
 
 // MARK: - Statistics (pooled-SD Cohen's d, Pearson r)
-
-/** Cohen's d using pooled standard deviation. 0 when either side lacks spread. */
-private fun cohensD(a: List<Double>, b: List<Double>): Double {
-    if (a.size < 2 || b.size < 2) return 0.0
-    val ma = a.average()
-    val mb = b.average()
-    val va = variance(a, ma)
-    val vb = variance(b, mb)
-    val pooled = sqrt(((a.size - 1) * va + (b.size - 1) * vb) / (a.size + b.size - 2).toDouble())
-    if (pooled <= 0.0 || !pooled.isFinite()) return 0.0
-    return (ma - mb) / pooled
-}
-
-/** Sample variance (n-1 denominator) about a known mean. */
-private fun variance(xs: List<Double>, mean: Double): Double {
-    if (xs.size < 2) return 0.0
-    val ss = xs.sumOf { val d = it - mean; d * d }
-    return ss / (xs.size - 1).toDouble()
-}
 
 /** Pearson r over two (day,value) series aligned on shared days. Returns (r, n) or
  *  null if fewer than 3 overlapping pairs or no variance. */
