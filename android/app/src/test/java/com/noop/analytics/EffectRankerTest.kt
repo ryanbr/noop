@@ -253,6 +253,22 @@ class EffectRankerTest {
         assertTrue(abs(ranked[1].cohensD) >= abs(ranked[2].cohensD))
     }
 
+    /**
+     * rankNoLag fails CLOSED too, not only rank().
+     *
+     * It is a second public entry point into the same split, and this PR exists because that split had
+     * four separate homes. A new door into it gets the same lock: no controls means no comparison, so a
+     * caller that forgets loses the insight rather than getting one measured against unlogged days.
+     */
+    @Test
+    fun rankNoLagWithoutControlsProducesNothing() {
+        val outcome = HashMap<String, Double>()
+        val yes = HashSet<String>()
+        for (d in 1..10) { yes.add(ymd(2026, 6, d)); outcome[ymd(2026, 6, d)] = 50.0 + jitter(d) }
+        for (d in 11..30) outcome[ymd(2026, 6, d)] = 75.0 + jitter(d)
+        assertTrue(EffectRanker.rankNoLag(mapOf("Alcohol" to yes), emptyMap(), outcome, "Charge").isEmpty())
+    }
+
     /** Twin of Swift `testRankDropsUncomputableBehaviors`: a behaviour covering every day has no
      *  without-group and is dropped rather than ranked at zero. */
     @Test
