@@ -70,6 +70,11 @@ class StandardHrSource(
      *
      * [InsertCounts] rather than a bare success flag: a batch offered in full and inserted as zero is
      * the failure that most looks like success, and only the store's own count distinguishes it.
+     *
+     * The re-buffer is only as good as [done] being called. The live wiring launches on a scope, and a
+     * scope cancelled before the body runs drops the batch with no line — the same loss the old
+     * `runCatching`-with-no-onFailure had, now narrowed to a cancelled teardown rather than every
+     * rejected insert. An implementation that can fail to answer should answer with a failure.
      */
     private val persist: (StreamBatch, String, (Result<InsertCounts>) -> Unit) -> Unit,
     /** Diagnostic sink for the connect lifecycle. Wired (via [SourceCoordinator]) to the SAME in-app strap
