@@ -156,6 +156,10 @@ final class AICoachEngine: ObservableObject {
 
     // Published state the UI binds to.
     @Published var messages: [ChatMessage] = []
+
+    /// Local day the current transcript was last written on; nil while it is empty. Drives the day
+    /// boundary in `send` — see `isStaleConversation`. Kotlin twin: `CoachViewModel.conversationDay`.
+    private var conversationDay: Int?
     @Published var sending = false
     @Published var errorText: String?
     @Published var provider: AIProvider {
@@ -482,6 +486,21 @@ final class AICoachEngine: ObservableObject {
         guard !trimmed.isEmpty else { errorText = AICoachError.emptyQuestion.errorDescription; return }
         guard let key = resolvedKey else { errorText = AICoachError.noKey.errorDescription; return }
 
+        // A transcript from an earlier local day is retired before the new turn is appended (#1542,
+        // Kotlin twin merged first). `messages` outlives a night — the engine is held for the app's
+        // lifetime — so without this the coach answers TODAY's question inside YESTERDAY's
+        // conversation. The DATA was never stale: buildFullContext() re-reads on every send. It is the
+        // assistant's own earlier turns stating yesterday's figures, and the model staying consistent
+        // with them, which reads as "the coach only talks about my imported data" after a night of
+        // fresh strap data.
+        //
+        // Placed AFTER the guards on purpose: a send that never happens must not wipe a transcript.
+        let today = Self.localEpochDay()
+        if Self.isStaleConversation(lastEpochDay: conversationDay, todayEpochDay: today) {
+            messages = []
+        }
+        conversationDay = today
+
         errorText = nil
         appendMessage(ChatMessage(role: .user, text: trimmed))
         sending = true
@@ -635,6 +654,30 @@ final class AICoachEngine: ObservableObject {
     /// recent `maxHistoryMessages`, dropping the middle. Sending the whole growing history crowds out the
     /// reply on small-context local servers (Ollama defaults to a 2048-token window, the Custom
     /// provider's main use case) and balloons token cost/latency on cloud providers. (parity with Android)
+    /// True when a transcript last written on `lastEpochDay` should be retired before a question asked
+    /// on `todayEpochDay` — i.e. the conversation crossed into a new local day.
+    ///
+    /// STRICTLY forward (`>`, never `!=`): a clock that moves BACKWARDS — the user flying west, a
+    /// timezone change, an NTP correction — must not wipe a conversation they are in the middle of.
+    /// Only real elapsed days retire a transcript. A nil `lastEpochDay` (nothing sent yet) is never
+    /// stale. Kotlin twin: `CoachViewModel.isStaleConversation`.
+    static func isStaleConversation(lastEpochDay: Int?, todayEpochDay: Int) -> Bool {
+        guard let lastEpochDay else { return false }
+        return todayEpochDay > lastEpochDay
+    }
+
+    /// Days since the epoch in the LOCAL calendar — the twin of Kotlin's `LocalDate.now().toEpochDay()`.
+    ///
+    /// Counted with calendar day arithmetic from `startOfDay`, not by dividing an interval by 86,400:
+    /// a day is not always 86,400 seconds (DST), and the rule only needs a value that increments
+    /// exactly once per local midnight and orders correctly. Injectable so the tests never depend on
+    /// the machine's clock or zone.
+    static func localEpochDay(_ date: Date = Date(), calendar: Calendar = .current) -> Int {
+        let start = calendar.startOfDay(for: date)
+        let epoch = Date(timeIntervalSince1970: 0)
+        return calendar.dateComponents([.day], from: epoch, to: start).day ?? 0
+    }
+
     private static let maxHistoryMessages = 10
     private func windowedMessages() -> [ChatMessage] {
         guard messages.count > Self.maxHistoryMessages + 1,
