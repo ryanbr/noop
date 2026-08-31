@@ -322,16 +322,26 @@ object SleepStager {
 
     /**
      * A single intervening ACTIVE run up to this long may be absorbed when bridging two sleep runs
-     * (#1657). Deliberately DEFINED as [maxGapMin] rather than given a number of its own: that is
-     * already this file's threshold for "a discontinuity this long is decisive", and reusing it means
-     * there is one such judgement in the detector instead of two that can drift apart.
+     * (#1657).
      *
-     * The bound is the cheap half of the guard. The real one is the HR band across the whole span —
-     * a genuine wake keeps HR elevated for its duration and fails it, while a brief stir does not.
-     * [mergeMin] (15) already absorbs shorter active runs upstream in [mergePeriods], so this covers
-     * the band between that and a wake long enough to be a real break in the night.
+     * This started as [maxGapMin] (20), on the reasoning that the file already had a threshold for
+     * "a discontinuity this long is decisive". An end-to-end test through [detectSleep] showed that was
+     * too tight to reach the case the issue is about: a FIFTEEN-minute interruption produced a
+     * TWENTY-ONE-minute active run, because [classifyStill] smears the still/moving boundary by roughly
+     * its rolling window and [buildRuns] closes runs at sample edges. The detected run is systematically
+     * longer than the interruption it represents, so a bound set from the interruption's true length
+     * rejects it.
+     *
+     * 30 is a judgement, and stated as one rather than dressed up as derived: a realistic trip out of
+     * bed of up to about a quarter of an hour, plus the ~6 minutes of smear that measurement showed,
+     * with a little headroom. It is deliberately well under [minSleepMin] — an interruption long enough
+     * to be a session in its own right is a genuine awakening and should split the night.
+     *
+     * The bound is the cheap half of the guard. The real one is the HR band across the whole span: a
+     * wearer who is actually up keeps HR elevated for the duration and fails it, while a brief stir does
+     * not. [mergeMin] (15) already absorbs shorter active runs upstream in [mergePeriods].
      */
-    const val sparseBridgeActiveMaxMin: Int = maxGapMin
+    const val sparseBridgeActiveMaxMin: Int = 30
 
     // ── Stage 1–3 constants (sleep_features.py) ──────────────────────────────
 

@@ -138,4 +138,71 @@ class SleepStagerActiveBridgeTest {
         val sustained = calmHr(0, 3660, bpm = 110)
         assertFalse(SleepStager.hrSleepBandAcross(0, 3660, sustained, baseline))
     }
+
+    // ── End to end, through detectSleep ──────────────────────────────────────────────────────────
+    //
+    // The unit cases above pin the bridge. These pin the thing the reporter actually saw: a night with
+    // one interruption in it arriving as ONE session instead of a truncated fragment.
+
+    private val dev = "test"
+    /** 2025-06-10 00:00:00 UTC. */
+    private val refMidnight = 1_749_513_600L
+    private fun at(hour: Int, min: Int = 0) = refMidnight + hour * 3_600L + min * 60L
+
+    /** Still gravity at 1/min — constant orientation, so every delta is 0. */
+    private fun still(from: Long, toExclusive: Long) =
+        (from until toExclusive step 60).map {
+            com.noop.data.GravitySample(deviceId = dev, ts = it, x = 0.0, y = 0.0, z = 1.0)
+        }
+
+    /** Moving gravity at 1/min — orientation swings every sample, so deltas are large. */
+    private fun moving(from: Long, toExclusive: Long) =
+        (from until toExclusive step 60).mapIndexed { i, _ -> i }.map { i ->
+            val t = from + i * 60L
+            if (i % 2 == 0) com.noop.data.GravitySample(deviceId = dev, ts = t, x = 1.0, y = 0.0, z = 0.0)
+            else com.noop.data.GravitySample(deviceId = dev, ts = t, x = 0.0, y = 1.0, z = 0.0)
+        }
+
+    private fun hr1Hz(from: Long, toExclusive: Long, bpm: Int) =
+        (from until toExclusive).map { HrSample(deviceId = dev, ts = it, bpm = bpm) }
+
+    /**
+     * A night with a 30-minute gravity dropout early (so the night reads sparse, as a 5/MG's does) and a
+     * 15-minute up-and-about in the middle. Before #1657 the active run made the two sleep halves
+     * unreachable to the bridge and each half faced the 60-minute floor alone.
+     */
+    private fun interruptedNight(tripBpm: Int): Pair<List<HrSample>, List<com.noop.data.GravitySample>> {
+        val grav = still(at(0), at(0, 30)) +           // 00:00-00:30 asleep
+            still(at(1), at(2)) +                       // 00:30-01:00 DROPOUT, then 01:00-02:00 asleep
+            moving(at(2), at(2, 15)) +                  // 02:00-02:15 up
+            still(at(2, 15), at(6))                     // 02:15-06:00 asleep again
+        val hr = hr1Hz(at(0), at(2), 50) +
+            hr1Hz(at(2), at(2, 15), tripBpm) +
+            hr1Hz(at(2, 15), at(6), 50)
+        return hr to grav
+    }
+
+    @Test
+    fun `a night with one short interruption is detected as a single session`() {
+        val (hr, grav) = interruptedNight(tripBpm = 52)
+        assertTrue("the fixture must read as sparse", SleepStager.isGravitySparse(grav, hr))
+        val sessions = SleepStager.detectSleep(hr = hr, gravity = grav)
+        assertEquals("the interruption must not end the night", 1, sessions.size)
+        val spanMin = (sessions[0].end - sessions[0].start) / 60.0
+        assertTrue("the whole night should survive, got $spanMin min", spanMin > 5 * 60)
+    }
+
+    /**
+     * The same night with the wearer genuinely up — HR elevated for the whole quarter hour. The bridge
+     * must decline, because absorbing that would score wakefulness as sleep: wrong in a new direction and
+     * harder to notice than the truncation being fixed.
+     */
+    @Test
+    fun `the same night with a genuinely awake interruption is not bridged into one`() {
+        val (hr, grav) = interruptedNight(tripBpm = 110)
+        val sessions = SleepStager.detectSleep(hr = hr, gravity = grav)
+        val spanMin = sessions.sumOf { (it.end - it.start) / 60.0 }
+        assertTrue("an awake interruption must not be absorbed (got ${sessions.size} sessions, $spanMin min)",
+            sessions.size != 1 || spanMin < 5 * 60)
+    }
 }
