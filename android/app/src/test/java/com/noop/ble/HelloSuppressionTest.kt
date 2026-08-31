@@ -1,6 +1,8 @@
 package com.noop.ble
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -86,6 +88,36 @@ class HelloSuppressionTest {
         // And only an explicit reset - a genuine bond, or the user tapping Connect - earns another.
         g.reset()
         assertEquals(1, (1..12).count { g.recordRefusal() })
+    }
+
+    /**
+     * The Devices card told the truth once and then stopped.
+     *
+     * "Connected · not paired" keys on pairingHint, written only where a refusal freshly crosses the
+     * give-up. The latch that records the give-up is persisted; the hint was not. So the launch that gave
+     * up showed the pill correctly and every launch after it showed a green "Active · Live" - next to a
+     * feature list naming Sleep, Strain and HRV, on a strap that has never banked a row.
+     */
+    @Test
+    fun `a strap already given up on carries its hint into the next launch`() {
+        assertNotNull(seededPairingHint(current = null, helloSuppressed = true))
+        assertEquals(BondRefusalGiveUp.helloSuppressedHint(), seededPairingHint(null, true))
+    }
+
+    @Test
+    fun `a strap that has not been given up on raises nothing`() {
+        // The guard that kept this from false-alarming a working 4.0, which never latches, or a 5/MG
+        // mid-handshake, which has not been given up on yet.
+        assertNull(seededPairingHint(current = null, helloSuppressed = false))
+    }
+
+    @Test
+    fun `a hint from this session outranks the remembered one`() {
+        // A hint already published came from a real refusal on this link and says something more specific
+        // than "we gave up earlier". Seeding must not trade a live observation for a remembered one.
+        val live = "a more specific refusal seen on this link"
+        assertEquals(live, seededPairingHint(current = live, helloSuppressed = true))
+        assertEquals(live, seededPairingHint(current = live, helloSuppressed = false))
     }
 
     // #1635: the opt-in override, after the HCI capture changed the premise

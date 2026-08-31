@@ -235,9 +235,12 @@ fun DevicesScreen(
                 isLiveConnected = device.status == DeviceStatus.active.name && live.connected,
                 // #221: a WHOOP 5/MG can be BLE-connected yet have its ENCRYPTED bond refused (the WHOOP
                 // app, or a stale pairing, holds the single-app bond) — no HR/biometric data flows even
-                // though the link is up, so "Active · Live" overstates it. pairingHint is set only once
-                // that refusal is genuinely detected (#78), never during a normal connect, so this can't
-                // false-alarm a working 4.0 (its pairingHint stays null) or a fresh 5/MG connect.
+                // though the link is up, so "Active · Live" overstates it. pairingHint is raised either by
+                // a refusal detected on this link (#78) or, on connect, by the persisted give-up latch for
+                // a strap already known to be unpaired ([seededPairingHint]) — the latter because the
+                // latch outlives the process and the hint did not, so every launch after the one that gave
+                // up came back green. Neither route false-alarms a working 4.0, which never latches and is
+                // not on this code path at all, nor a fresh 5/MG, which has no latch to read.
                 bondRefused = device.status == DeviceStatus.active.name && live.connected && live.pairingHint != null,
                 // The full #78 how-to-fix guidance, surfaced on the card itself when bondRefused so the
                 // fix is self-service instead of buried in the strap log.

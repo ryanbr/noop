@@ -130,6 +130,29 @@ internal fun helloOverrideExhaustedLine(attempts: Int): String =
 internal fun giveUpSuppressesHello(authRefusal: Boolean): Boolean = !authRefusal
 
 /**
+ * The pairing hint a connect should carry when the handshake is already latched off.
+ *
+ * The Devices card's "Connected · not paired" pill keys on `pairingHint != null`, and that hint is set
+ * only where a refusal FRESHLY crosses the give-up threshold. The latch outlives the process; the hint did
+ * not. So the first launch after a strap was given up on showed the give-up correctly, and every launch
+ * after it fell through to a green "Active · Live" — beside a feature list naming Sleep, Strain and HRV,
+ * on a strap that has never banked a row.
+ *
+ * It was masked until the pairing request stopped wiping the latch on every link: the give-up used to
+ * re-cross constantly and keep the hint fresh by accident. Removing that wipe was right, and it left this
+ * standing on its own.
+ *
+ * Seeds rather than overwrites. A hint already published this session came from a real refusal on this
+ * link and says something more specific than "we gave up earlier"; replacing it would trade a live
+ * observation for a remembered one.
+ */
+internal fun seededPairingHint(current: String?, helloSuppressed: Boolean): String? = when {
+    current != null -> current
+    helloSuppressed -> BondRefusalGiveUp.helloSuppressedHint()
+    else -> null
+}
+
+/**
  * SharedPreferences key holding the hello-suppression latch for one device.
  *
  * Per device, and lowercased for the same reason [firmwarePrefKey] is: the same strap can present its
