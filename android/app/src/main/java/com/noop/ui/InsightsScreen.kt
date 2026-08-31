@@ -122,10 +122,8 @@ private enum class Outcome(
     ),
 }
 
-// MARK: - Computed shapes (plain data, no analytics package dependency)
+// MARK: - Computed shapes (plain data; behaviour effects come from the analytics package)
 
-/** One behaviour's effect on the selected outcome: with/without means, counts,
- *  Cohen's d and a crude significance flag. */
 /** A curated metric relationship plus its computed Pearson correlation. */
 private data class Relationship(
     val id: String,
