@@ -3400,15 +3400,31 @@ class WhoopBleClient(
             // the handshake is done, so there is no retry to spend and no state a fresh link would fix.
             // A suppressed strap is deliberately NOT covered — there the tap IS the handshake retry, and
             // the hello can only be written on a new link's discovery, so it must still reconnect.
-            if (didBond && _state.value.connected && gatt?.device?.address == direct.address) {
+            //
+            // AFTER the selectedModel pin, not before: both helpers match only a 5/MG, so this branch is
+            // also where a stale selection gets corrected. Returning above it would leave the picker and
+            // any later rescan on the wrong family.
+            selectedModel = WhoopModel.WHOOP5_MG
+            // `connected` alone is not evidence the link WORKS — a silently dead GATT reports connected
+            // until the watchdog bounces it, and that is precisely when someone taps Connect. Declining
+            // to act there would turn the button inert in the one state it exists for, so require the
+            // link to be live by the watchdog's own measure.
+            val silentMs = System.currentTimeMillis() - lastDataAtMs
+            if (connectKeepsExistingLink(
+                    genuinelyBonded = didBond,
+                    connected = _state.value.connected,
+                    sameDevice = gatt?.device?.address == direct.address,
+                    silentMs = silentMs,
+                    stallFuseMs = liveLinkStallFuseMs(),
+                )
+            ) {
                 // Consume it. The retry belongs to the tap that asked, and leaving it set would hand a
                 // stale one to a later AUTOMATIC reconnect - the same leak the deferral branch warns of.
                 helloRetryRequested = false
-                log("Connect: already connected and bonded to ${direct.name ?: "WHOOP"} — keeping the link" +
-                    " rather than rebuilding it (#1635).")
+                log("Connect: already connected and bonded to ${direct.name ?: "WHOOP"}, last data" +
+                    " ${silentMs / 1000}s ago — keeping the link rather than rebuilding it (#1635).")
                 return
             }
-            selectedModel = WhoopModel.WHOOP5_MG
             log("Easy-connect: attaching directly to ${direct.name ?: "WHOOP"} (no scan needed)")
             _state.update { it.copy(
                 scanning = false, whoop5Detected = false,
@@ -7499,6 +7515,17 @@ class WhoopBleClient(
     // MARK: Live-stream keep-alive  (port of BLEManager.startKeepAlive / keepAliveFire)
     // ====================================================================================
 
+    /**
+     * How long this family's live link may go silent before the app stops calling it healthy.
+     *
+     * Shared by the keep-alive's bounce decision and the Connect no-op below, deliberately: the no-op
+     * says "a reconnect would achieve nothing", and the only honest measure of that is the same one the
+     * watchdog uses to decide a reconnect IS needed. Two numbers here could disagree, and the way they
+     * would fail is a Connect button that declines to act on a link the watchdog has already given up on.
+     */
+    private fun liveLinkStallFuseMs(): Long =
+        if (connectedFamily == DeviceFamily.WHOOP5) KEEPALIVE_STALL_5MG_EMPTY_MS else KEEPALIVE_STALL_MS
+
     /** (Re)start the 30s keep-alive. Called from the connect handshake; cancelled in [reset]. */
     private fun startKeepAlive() {
         handler.removeCallbacks(keepAliveRunnable)
@@ -7537,8 +7564,7 @@ class WhoopBleClient(
             // data — #580 mistakenly gated the wide fuse on `historyEmpty`, so a 5/MG that DID serve history
             // still thrashed on the 120s fuse (#1414). Widen to the whole 5/MG family; WHOOP 4 keeps 120s.
             // (`historyEmpty` still gates the battery-backfill interval — a separate concern, left as-is.)
-            val bounceFuse = if (connectedFamily == DeviceFamily.WHOOP5)
-                KEEPALIVE_STALL_5MG_EMPTY_MS else KEEPALIVE_STALL_MS
+            val bounceFuse = liveLinkStallFuseMs()
             if (silentMs > bounceFuse) {
                 // Nothing for the fuse window — the live stream/link stalled. Bounce it: the auto-rescan on
                 // disconnect re-bonds and resumes streaming (the automatic version of the manual fix).

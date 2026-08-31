@@ -116,6 +116,31 @@ internal fun helloOverrideExhaustedLine(attempts: Int): String =
         " the stable live-HR state (#1635)."
 
 /**
+ * Should an explicit Connect keep the link it already holds, instead of rebuilding it?
+ *
+ * `getConnectedWhoopDevice()` answers "the OS has this device connected", which is true of our own live
+ * GATT too — so the Easy-connect path re-attached over a link that was already working. Field log
+ * 260901-0121: a link up 18m 32s and streaming was replaced on a tap.
+ *
+ * Every clause is load-bearing:
+ *  - [genuinelyBonded]: the ONLY state where a reconnect can achieve nothing. A suppressed strap is
+ *    deliberately excluded — there the tap IS the handshake retry, and the hello can only be written on a
+ *    new link's discovery, so it has to reconnect.
+ *  - [sameDevice]: a tap meant for a different strap must not be swallowed by the one in hand.
+ *  - [silentMs] < [stallFuseMs]: `connected` alone is not evidence the link WORKS. A silently dead GATT
+ *    reports connected until the watchdog bounces it, and that is exactly when someone taps Connect —
+ *    keeping the link there would make the button inert in the one state it exists for. The fuse is the
+ *    watchdog's own, so the two can never disagree about whether this link is alive.
+ */
+internal fun connectKeepsExistingLink(
+    genuinelyBonded: Boolean,
+    connected: Boolean,
+    sameDevice: Boolean,
+    silentMs: Long,
+    stallFuseMs: Long,
+): Boolean = genuinelyBonded && connected && sameDevice && silentMs < stallFuseMs
+
+/**
  * How many consecutive refusals this cause needs before the give-up latches.
  *
  * The flat 5 was argued for the AUTH-REFUSAL branch and only makes sense there: the pairing hint shows at

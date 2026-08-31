@@ -44,6 +44,34 @@ class HelloSuppressionTest {
     }
 
     @Test
+    fun `a Connect keeps a live bonded link it already holds`() {
+        assertTrue(connectKeepsExistingLink(genuinelyBonded = true, connected = true, sameDevice = true,
+                                            silentMs = 5_000, stallFuseMs = 600_000))
+    }
+
+    @Test
+    fun `a Connect rebuilds when a reconnect could still achieve something`() {
+        // Suppressed / never bonded: the tap IS the handshake retry, and that needs a new link.
+        assertFalse(connectKeepsExistingLink(genuinelyBonded = false, connected = true, sameDevice = true,
+                                             silentMs = 5_000, stallFuseMs = 600_000))
+        // A tap aimed at a different strap must not be swallowed by the one in hand.
+        assertFalse(connectKeepsExistingLink(genuinelyBonded = true, connected = true, sameDevice = false,
+                                             silentMs = 5_000, stallFuseMs = 600_000))
+        assertFalse(connectKeepsExistingLink(genuinelyBonded = true, connected = false, sameDevice = true,
+                                             silentMs = 5_000, stallFuseMs = 600_000))
+    }
+
+    @Test
+    fun `a silently dead link does NOT keep the button inert`() {
+        // The regression this clause exists for: GATT still says connected, nothing has arrived, and the
+        // watchdog is about to bounce it. That is exactly when Connect is tapped, so it must act.
+        assertFalse(connectKeepsExistingLink(genuinelyBonded = true, connected = true, sameDevice = true,
+                                             silentMs = 600_000, stallFuseMs = 600_000))
+        assertFalse(connectKeepsExistingLink(genuinelyBonded = true, connected = true, sameDevice = true,
+                                             silentMs = 900_000, stallFuseMs = 600_000))
+    }
+
+    @Test
     fun `an unanswered handshake gives up sooner than an auth refusal`() {
         // The auth refusal keeps the full patience: the hint asks the user to act, and 5 is the time
         // to act in. An unanswered handshake asks nothing of them, so waiting only buys link drops.
