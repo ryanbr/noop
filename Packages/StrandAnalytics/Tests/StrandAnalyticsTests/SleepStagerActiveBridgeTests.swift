@@ -38,7 +38,8 @@ final class SleepStagerActiveBridgeTests: XCTestCase {
     /// absorbing it would score wakefulness as sleep — wrong in a new direction and harder to notice than
     /// the truncation being fixed.
     func testAnActiveRunLongerThanTheBoundIsLeftAlone() {
-        let tooLong = SleepStager.sparseBridgeActiveMaxMin * 60 + 60
+        // Repinned past the IN-BAND bound: this HR is calm, so that is the bound in force.
+        let tooLong = SleepStager.sparseBridgeActiveMaxInBandMin * 60 + 60
         let out = SleepStager.bridgeSparseSleep(
             [sleep(0, 3000), active(3000, 3000 + tooLong), sleep(3000 + tooLong, 9000)],
             sparse: true, hr: calmHr(0, 9000), baseline: baseline)
@@ -87,14 +88,17 @@ final class SleepStagerActiveBridgeTests: XCTestCase {
     /// The trace has to say WHY, and the blocking length is the number a reader needs. The old trace could
     /// only report runsBefore == runsAfter, which says the bridge did nothing and not what stopped it.
     func testABlockedPairReportsTheBoundThatBlockedItWithTheActiveLength() {
-        let tooLong = SleepStager.sparseBridgeActiveMaxMin * 60 + 60
+        // Repinned past the IN-BAND bound: this HR is calm, so that is the bound in force.
+        let tooLong = SleepStager.sparseBridgeActiveMaxInBandMin * 60 + 60
         let (_, attempts) = SleepStager.bridgeSparseSleepTraced(
             [sleep(0, 3000), active(3000, 3000 + tooLong), sleep(3000 + tooLong, 9000)],
             sparse: true, hr: calmHr(0, 9000), baseline: baseline)
         XCTAssertEqual(attempts.count, 1)
         XCTAssertEqual(attempts.first?.reason, "activeTooLong")
         XCTAssertEqual(attempts.first?.bridged, false)
-        XCTAssertEqual(attempts.first?.activeMin, SleepStager.sparseBridgeActiveMaxMin + 1)
+        XCTAssertEqual(attempts.first?.activeMin, SleepStager.sparseBridgeActiveMaxInBandMin + 1)
+        // And it names WHICH bound, or the same activeMin reads blocked in one log, merged in another.
+        XCTAssertEqual(attempts.first?.activeCapMin, SleepStager.sparseBridgeActiveMaxInBandMin)
     }
 
     /// The tracer and the merge are ONE pass now. This file used to keep a shadow copy of the loop purely
@@ -199,5 +203,54 @@ final class SleepStagerActiveBridgeTests: XCTestCase {
             line,
             "gate run=-1 spanS=0 DROPPED gate=sparseBridgePair "
                 + "pair=0 gapMin=23 activeMin=21 hrInSleepBand=true reason=activeTooLong")
+    }
+
+    /// The change this constant exists for. A 45-minute interruption sits between the two bounds: over
+    /// the 30-minute default, under the 60-minute in-band one. With HR in the sleep band the whole way it
+    /// is now absorbed, where before the minute bound vetoed before HR was ever consulted.
+    ///
+    /// Field shape, not invented: log 260901-1022 had a 42-minute active run with hrInSleepBand=true
+    /// dropped as activeTooLong, and the 52-minute sleep run it would have joined then died on the
+    /// 60-minute minimum. Kotlin twin: "an active run past the default bound is absorbed when HR stays
+    /// in the sleep band".
+    func testActiveRunPastTheDefaultBoundIsAbsorbedWhenHRStaysInTheSleepBand() {
+        let mid = SleepStager.sparseBridgeActiveMaxMin * 60 + 15 * 60   // 45 min
+        let periods = [sleep(0, 3000), active(3000, 3000 + mid), sleep(3000 + mid, 9000)]
+        let out = SleepStager.bridgeSparseSleep(periods, sparse: true, hr: calmHr(0, 9000), baseline: baseline)
+        XCTAssertEqual(out.count, 1)
+        XCTAssertEqual(out.first?.stage, "sleep")
+        XCTAssertEqual(out.first?.start, 0)
+        XCTAssertEqual(out.first?.end, 9000)
+    }
+
+    /// ...and the widened bound is not a licence. The same 45 minutes with the wearer plainly up still
+    /// fails, because in-band is the CONDITION for the wider bound, not a separate escape from it.
+    func testTheWiderBoundDoesNotApplyWhenHRIsElevated() {
+        let mid = SleepStager.sparseBridgeActiveMaxMin * 60 + 15 * 60
+        let periods = [sleep(0, 3000), active(3000, 3000 + mid), sleep(3000 + mid, 9000)]
+        let hot = calmHr(0, 3000) + calmHr(3001, 3000 + mid, bpm: 110) + calmHr(3001 + mid, 9000)
+        let out = SleepStager.bridgeSparseSleep(periods, sparse: true, hr: hot, baseline: baseline)
+        XCTAssertEqual(out.count, 3)
+    }
+
+    /// The in-band bound may only ever widen, and it stops at `minSleepMin`.
+    func testTheInBandBoundIsAMaximumNeverAReplacement() {
+        XCTAssertGreaterThanOrEqual(SleepStager.sparseBridgeActiveMaxInBandMin,
+                                    SleepStager.sparseBridgeActiveMaxMin)
+        XCTAssertEqual(SleepStager.sparseBridgeActiveMaxInBandMin, SleepStager.minSleepMin)
+    }
+
+    /// Case 1 (two adjacent sleep runs, nothing between) has NO active run, so the bound it reports must
+    /// be 0 on both platforms — not the in-band 60. Computing the cap from a captured local rather than a
+    /// parameter made this report 60 for the identical decision: same behaviour, divergent trace.
+    /// Kotlin twin: "an adjacent-pair merge reports no active bound".
+    func testAnAdjacentPairMergeReportsNoActiveBound() {
+        let (_, attempts) = SleepStager.bridgeSparseSleepTraced(
+            [sleep(0, 3000), sleep(3600, 9000)],
+            sparse: true, hr: calmHr(0, 9000), baseline: baseline)
+        XCTAssertEqual(attempts.count, 1)
+        XCTAssertEqual(attempts.first?.reason, "bridged")
+        XCTAssertEqual(attempts.first?.activeMin, 0)
+        XCTAssertEqual(attempts.first?.activeCapMin, 0)
     }
 }

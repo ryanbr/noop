@@ -245,6 +245,23 @@ public enum SleepStager {
     /// not. `mergeMin` (15) already absorbs shorter active runs upstream in `mergePeriods`.
     public static let sparseBridgeActiveMaxMin: Int = 30
 
+    /// The same bound when HR across the whole span stays in the sleep band.
+    ///
+    /// `sparseBridgeActiveMaxMin`'s own doc calls the minute bound "the cheap half of the guard" and the
+    /// HR band "the real one" — but the check order meant the cheap half vetoed first, so the real one
+    /// never got to speak for a run over 30 minutes. A 42-minute active run with sleep-band HR was
+    /// rejected identically to one with a wearer plainly up and about.
+    ///
+    /// That is the wrong way round on a strap whose "active" verdict comes from MOTION, which is the
+    /// sparse and unreliable signal on the hardware this fires for (field log 260901-1022: 20,647 gravity
+    /// samples across a 54-hour window, against 109,868 HR). HR is the better witness there, and it is
+    /// already computed. 60 rather than something larger because it is `minSleepMin`: an interruption
+    /// long enough to be a session in its own right is a genuine awakening whatever HR says.
+    ///
+    /// Applied as a MAXIMUM against `sparseBridgeActiveMaxMin`, never a replacement, so the in-band path
+    /// can only ever be more permissive — an out-of-band span keeps the 30-minute bound exactly.
+    public static let sparseBridgeActiveMaxInBandMin: Int = 60
+
     // MARK: - Stage 1–3 constants (sleep_features.py)
 
     public static let epochS: Double = 30.0
@@ -502,6 +519,8 @@ public enum SleepStager {
         let gapMin: Int
         /// Minutes of intervening ACTIVE run, or 0 when the pair was only separated by a gap (#1657).
         let activeMin: Int
+        /// The bound this pair was actually judged against — 30, or 60 when HR stayed in the sleep band.
+        let activeCapMin: Int
         /// Whether the intervening HR stayed in the sleep band (the bridge's second condition).
         let hrInSleepBand: Bool
         /// Whether this pair was merged.
@@ -535,6 +554,7 @@ public enum SleepStager {
         if !sparse || periods.isEmpty { return (periods, []) }
         let bridgeGapS = sparseBridgeGapMin * 60
         let activeMaxS = sparseBridgeActiveMaxMin * 60
+        let activeMaxInBandS = sparseBridgeActiveMaxInBandMin * 60
         var out: [Period] = []
         var attempts: [SparseBridgeAttempt] = []
 
@@ -543,18 +563,27 @@ public enum SleepStager {
         /// The order of the checks fixes which reason a failing pair reports, and it is deliberate:
         /// overlap and gap are properties of the pair, activeTooLong is a property of what sits between
         /// them, and hrOutOfBand is last because it is the only one that needed the HR series to decide.
+        /// `activeMaxInBandS` is a PARAMETER rather than a capture, mirroring the Kotlin default of 0.
+        /// Captured, case 1 (adjacent sleep runs, no intervening active run) would report activeCapMin=60
+        /// on Apple and 0 on Android for the identical decision — same behaviour, divergent trace, which
+        /// is exactly the byte-for-byte comparison these lines exist to allow.
         func consider(_ left: Period, _ right: Period, activeS: Int,
-                      dropTrailing: Bool, activeMaxS: Int) -> Bool {
+                      dropTrailing: Bool, activeMaxS: Int, activeMaxInBandS: Int = 0) -> Bool {
             let gap = right.start - left.end
             let inBand = hrSleepBandAcross(left.end, right.start, hr: hr, baseline: baseline)
+            // The HR band is the real guard, so let it widen the minute bound rather than be vetoed by
+            // it. max, not a swap: in-band can only ever be MORE permissive, and case 1 (activeMaxS = 0,
+            // no intervening run) is untouched because activeS is 0 there too.
+            let activeCapS = inBand ? max(activeMaxS, activeMaxInBandS) : activeMaxS
             let reason: String
             if gap < 0 { reason = "overlap" }
             else if gap > bridgeGapS { reason = "gapTooLong" }
-            else if activeS > activeMaxS { reason = "activeTooLong" }
+            else if activeS > activeCapS { reason = "activeTooLong" }
             else if !inBand { reason = "hrOutOfBand" }
             else { reason = "bridged" }
             let bridged = reason == "bridged"
             attempts.append(SparseBridgeAttempt(gapMin: gap / 60, activeMin: activeS / 60,
+                                                activeCapMin: activeCapS / 60,
                                                 hrInSleepBand: inBand, bridged: bridged, reason: reason))
             guard bridged else { return false }
             if dropTrailing { out.removeLast() }
@@ -574,7 +603,8 @@ public enum SleepStager {
                    out[out.count - 2].stage == "sleep" {
                     let prev = out[out.count - 2]
                     if consider(prev, p, activeS: last.end - last.start,
-                                dropTrailing: true, activeMaxS: activeMaxS) { continue }
+                                dropTrailing: true, activeMaxS: activeMaxS,
+                                activeMaxInBandS: activeMaxInBandS) { continue }
                 }
             }
             out.append(p)
@@ -1138,7 +1168,7 @@ public enum SleepStager {
             for (i, a) in bridgeAttempts.enumerated() {
                 traceSink(GateTrace.runLine(index: -1, startTs: 0, endTs: 0,
                     verdict: a.bridged ? .kept : .dropped, gate: "sparseBridgePair",
-                    detail: "pair=\(i) gapMin=\(a.gapMin) activeMin=\(a.activeMin) "
+                    detail: "pair=\(i) gapMin=\(a.gapMin) activeMin=\(a.activeMin) activeCapMin=\(a.activeCapMin) "
                         + "hrInSleepBand=\(a.hrInSleepBand) reason=\(a.reason)"))
             }
         }

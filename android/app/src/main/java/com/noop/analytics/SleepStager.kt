@@ -343,6 +343,25 @@ object SleepStager {
      */
     const val sparseBridgeActiveMaxMin: Int = 30
 
+    /**
+     * The same bound when HR across the whole span stays in the sleep band.
+     *
+     * [sparseBridgeActiveMaxMin]'s own doc calls the minute bound "the cheap half of the guard" and the HR
+     * band "the real one" — but the check order meant the cheap half vetoed first, so the real one never
+     * got to speak for a run over 30 minutes. A 42-minute active run with sleep-band HR was rejected
+     * identically to one with a wearer plainly up and about.
+     *
+     * That is the wrong way round on a strap whose "active" verdict comes from MOTION, which is the sparse
+     * and unreliable signal on the hardware this fires for (field log 260901-1022: 20,647 gravity samples
+     * across a 54-hour window, against 109,868 HR). HR is the better witness there, and it is already
+     * computed. 60 rather than something larger because it is [minSleepMin]: an interruption long enough
+     * to be a session in its own right is a genuine awakening whatever HR says, and must still split.
+     *
+     * Applied as a MAXIMUM against [sparseBridgeActiveMaxMin], never a replacement, so the in-band path
+     * can only ever be more permissive — an out-of-band span keeps the 30-minute bound exactly.
+     */
+    const val sparseBridgeActiveMaxInBandMin: Int = 60
+
     // ── Stage 1–3 constants (sleep_features.py) ──────────────────────────────
 
     const val epochS: Double = 30.0
@@ -654,6 +673,8 @@ object SleepStager {
         val gapMin: Long,
         /** Minutes of intervening ACTIVE run, or 0 when the pair was only separated by a gap. */
         val activeMin: Long,
+        /** The bound this pair was actually judged against — 30, or 60 when HR stayed in the sleep band. */
+        val activeCapMin: Long,
         /** Whether the intervening HR stayed in the sleep band. */
         val hrInSleepBand: Boolean,
         /** Whether this pair was merged. */
@@ -681,6 +702,7 @@ object SleepStager {
         if (!sparse || periods.isEmpty()) return periods to emptyList()
         val bridgeGapS = (sparseBridgeGapMin * 60).toLong()
         val activeMaxS = (sparseBridgeActiveMaxMin * 60).toLong()
+        val activeMaxInBandS = (sparseBridgeActiveMaxInBandMin * 60).toLong()
         val out = ArrayList<Period>()
         val attempts = ArrayList<SparseBridgeAttempt>()
         for (p in periods) {
@@ -696,7 +718,8 @@ object SleepStager {
                 if (last != null && last.stage == "active" && prev != null && prev.stage == "sleep") {
                     val activeS = last.end - last.start
                     if (considerBridge(out, attempts, prev, p, activeS, bridgeGapS, hr, baseline,
-                                       dropTrailing = true, activeMaxS = activeMaxS)) continue
+                                       dropTrailing = true, activeMaxS = activeMaxS,
+                                       activeMaxInBandS = activeMaxInBandS)) continue
                 }
             }
             out.add(p)
@@ -716,19 +739,24 @@ object SleepStager {
         out: ArrayList<Period>, attempts: ArrayList<SparseBridgeAttempt>,
         left: Period, right: Period, activeS: Long, bridgeGapS: Long,
         hr: List<HrSample>, baseline: Double?,
-        dropTrailing: Boolean = false, activeMaxS: Long = 0L,
+        dropTrailing: Boolean = false, activeMaxS: Long = 0L, activeMaxInBandS: Long = 0L,
     ): Boolean {
         val gap = right.start - left.end
         val inBand = hrSleepBandAcross(left.end, right.start, hr, baseline)
+        // The HR band is the real guard, so let it widen the minute bound rather than be vetoed by it.
+        // maxOf, not a swap: in-band can only ever be MORE permissive, and case 1 (activeMaxS = 0, no
+        // intervening run) is untouched because activeS is 0 there too.
+        val activeCapS = if (inBand) maxOf(activeMaxS, activeMaxInBandS) else activeMaxS
         val reason = when {
             gap < 0 -> "overlap"
             gap > bridgeGapS -> "gapTooLong"
-            activeS > activeMaxS -> "activeTooLong"
+            activeS > activeCapS -> "activeTooLong"
             !inBand -> "hrOutOfBand"
             else -> "bridged"
         }
         val bridged = reason == "bridged"
         attempts.add(SparseBridgeAttempt(gapMin = gap / 60, activeMin = activeS / 60,
+                                         activeCapMin = activeCapS / 60,
                                          hrInSleepBand = inBand, bridged = bridged, reason = reason))
         if (!bridged) return false
         if (dropTrailing) out.removeAt(out.size - 1)
@@ -1287,7 +1315,7 @@ object SleepStager {
                 traceSink(SleepStagerTrace.runLine(-1, 0, 0,
                     if (a.bridged) SleepStagerTrace.Verdict.KEPT else SleepStagerTrace.Verdict.DROPPED,
                     "sparseBridgePair",
-                    "pair=$i gapMin=${a.gapMin} activeMin=${a.activeMin} " +
+                    "pair=$i gapMin=${a.gapMin} activeMin=${a.activeMin} activeCapMin=${a.activeCapMin} " +
                         "hrInSleepBand=${a.hrInSleepBand} reason=${a.reason}"))
             }
         }

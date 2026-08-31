@@ -46,7 +46,10 @@ class SleepStagerActiveBridgeTest {
      */
     @Test
     fun `an active run longer than the bound is left alone`() {
-        val tooLong = (SleepStager.sparseBridgeActiveMaxMin * 60L) + 60L
+        // Repinned, same shape: with calm HR the applicable bound is the IN-BAND one, so "longer than
+        // the bound" has to be measured against that. Using the 30-minute figure here would now be
+        // asserting the old behaviour rather than the invariant, which is still "past the bound, no merge".
+        val tooLong = (SleepStager.sparseBridgeActiveMaxInBandMin * 60L) + 60L
         val periods = listOf(sleep(0, 3000), active(3000, 3000 + tooLong), sleep(3000 + tooLong, 9000))
         val out = SleepStager.bridgeSparseSleep(periods, sparse = true, hr = calmHr(0, 9000), baseline = baseline)
         assertEquals(3, out.size)
@@ -100,7 +103,10 @@ class SleepStagerActiveBridgeTest {
      */
     @Test
     fun `a blocked pair reports the bound that blocked it, with the active length`() {
-        val tooLong = (SleepStager.sparseBridgeActiveMaxMin * 60L) + 60L
+        // Repinned past the IN-BAND bound: this HR is calm, so that is the bound in force. Same
+        // invariant — a pair blocked on length says so and reports the length — measured against the
+        // rule that actually applied rather than the one that used to.
+        val tooLong = (SleepStager.sparseBridgeActiveMaxInBandMin * 60L) + 60L
         val periods = listOf(sleep(0, 3000), active(3000, 3000 + tooLong), sleep(3000 + tooLong, 9000))
         val (_, attempts) = SleepStager.bridgeSparseSleepTraced(
             periods, sparse = true, hr = calmHr(0, 9000), baseline = baseline,
@@ -108,7 +114,9 @@ class SleepStagerActiveBridgeTest {
         assertEquals(1, attempts.size)
         assertEquals("activeTooLong", attempts[0].reason)
         assertFalse(attempts[0].bridged)
-        assertEquals(SleepStager.sparseBridgeActiveMaxMin + 1L, attempts[0].activeMin)
+        assertEquals(SleepStager.sparseBridgeActiveMaxInBandMin + 1L, attempts[0].activeMin)
+        // And it names WHICH bound, or the same activeMin looks blocked in one log and merged in another.
+        assertEquals(SleepStager.sparseBridgeActiveMaxInBandMin.toLong(), attempts[0].activeCapMin)
     }
 
     /**
@@ -226,5 +234,64 @@ class SleepStagerActiveBridgeTest {
                 "pair=0 gapMin=23 activeMin=21 hrInSleepBand=true reason=activeTooLong",
             line,
         )
+    }
+
+    /**
+     * The change this constant exists for. A 45-minute interruption sits between the two bounds: over the
+     * 30-minute default, under the 60-minute in-band one. With HR in the sleep band the whole way it is
+     * now absorbed, where before the minute bound vetoed before HR was ever consulted.
+     *
+     * Field shape, not invented: log 260901-1022 had a 42-minute active run with hrInSleepBand=true
+     * dropped as activeTooLong, and the 52-minute sleep run it would have joined then died on the
+     * 60-minute minimum. One threshold stood between a staged night and No Data.
+     */
+    @Test
+    fun `an active run past the default bound is absorbed when HR stays in the sleep band`() {
+        val mid = (SleepStager.sparseBridgeActiveMaxMin * 60L) + (15 * 60L)   // 45 min
+        val periods = listOf(sleep(0, 3000), active(3000, 3000 + mid), sleep(3000 + mid, 9000))
+        val out = SleepStager.bridgeSparseSleep(periods, sparse = true, hr = calmHr(0, 9000), baseline = baseline)
+        assertEquals(1, out.size)
+        assertEquals("sleep", out[0].stage)
+        assertEquals(0L, out[0].start)
+        assertEquals(9000L, out[0].end)
+    }
+
+    /**
+     * ...and the widened bound is not a licence. The same 45 minutes with the wearer plainly up still
+     * fails, because in-band is the CONDITION for the wider bound, not a separate escape from it.
+     */
+    @Test
+    fun `the wider bound does not apply when HR is elevated`() {
+        val mid = (SleepStager.sparseBridgeActiveMaxMin * 60L) + (15 * 60L)
+        val periods = listOf(sleep(0, 3000), active(3000, 3000 + mid), sleep(3000 + mid, 9000))
+        val hot = calmHr(0, 3000) + calmHr(3001, 3000 + mid, bpm = 110) + calmHr(3001 + mid, 9000)
+        val out = SleepStager.bridgeSparseSleep(periods, sparse = true, hr = hot, baseline = baseline)
+        assertEquals(3, out.size)
+    }
+
+    /** The in-band bound may only ever widen: an out-of-band span keeps the 30-minute one exactly. */
+    @Test
+    fun `the in-band bound is a maximum, never a replacement`() {
+        assertTrue(SleepStager.sparseBridgeActiveMaxInBandMin >= SleepStager.sparseBridgeActiveMaxMin)
+        // And it stops at minSleepMin: past that an interruption is a session of its own, whatever HR says.
+        assertEquals(SleepStager.minSleepMin, SleepStager.sparseBridgeActiveMaxInBandMin)
+    }
+
+    /**
+     * Case 1 (two adjacent sleep runs, nothing between) has NO active run, so the bound it reports must
+     * be 0 on both platforms — not the in-band 60. Swift computed the cap from a captured local rather
+     * than a parameter, which made it report 60 here for the identical decision: same behaviour, divergent
+     * trace, defeating the byte-for-byte comparison these lines exist to allow.
+     */
+    @Test
+    fun `an adjacent-pair merge reports no active bound`() {
+        val (_, attempts) = SleepStager.bridgeSparseSleepTraced(
+            listOf(sleep(0, 3000), sleep(3600, 9000)),
+            sparse = true, hr = calmHr(0, 9000), baseline = baseline,
+        )
+        assertEquals(1, attempts.size)
+        assertEquals("bridged", attempts[0].reason)
+        assertEquals(0L, attempts[0].activeMin)
+        assertEquals(0L, attempts[0].activeCapMin)
     }
 }
