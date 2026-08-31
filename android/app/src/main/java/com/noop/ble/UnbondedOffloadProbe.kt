@@ -86,20 +86,31 @@ internal fun shouldProbeUnbondedOffload(
  */
 internal const val UNBONDED_PROBE_MAX_SILENT_LINKS = 3
 
-/** Has the probe any budget left after [silentLinksSoFar] links that subscribed but drew no reply? */
+/** Has the probe any budget left after [silentLinksSoFar] links that ended without an answer — whether
+ *  they subscribed and stayed quiet, or were torn down while being asked? */
 internal fun unbondedProbeStillWorthAsking(
     silentLinksSoFar: Int,
     cap: Int = UNBONDED_PROBE_MAX_SILENT_LINKS,
 ): Boolean = silentLinksSoFar < cap
 
 /**
- * The line printed when the probe retires on repeated silence, so the log says why it stopped rather than
- * leaving a reader to notice its absence — the same failure the CLIENT_HELLO's silent suppression caused.
+ * The line printed when the probe retires, so the log says why it stopped rather than leaving a reader to
+ * notice its absence — the same failure the CLIENT_HELLO's silent suppression caused.
+ *
+ * It must NOT claim the strap served the subscriptions. It said so, and that was only ever true of the
+ * links that subscribed and then stayed quiet. Since #1749 a link LOST mid-probe charges the same budget,
+ * and those links confirm no subscribes at all — so on the 31 Aug capture, where every charge was a lost
+ * link, this line would have recorded "serves those characteristics unbonded" about a strap that had
+ * demonstrated the opposite. Overclaiming from the weaker evidence is the mistake this file is built to
+ * avoid, and the retirement line is exactly where a future reader goes looking. The per-link lines
+ * ([unbondedProbeLinkLostLine], [unbondedProbeSilentLine]) already say which happened each time; this one
+ * states only what holds either way.
  */
 internal fun unbondedProbeGaveUpLine(silentLinks: Int): String =
-    "Unbonded offload probe: $silentLinks links have subscribed the puffin chars and drawn no" +
-        " COMMAND_RESPONSE — this strap serves those characteristics unbonded but does not act on commands" +
-        " written to them. Not asking this strap again — turn the experiment off and on to retry." +
+    "Unbonded offload probe: $silentLinks links have ended with no COMMAND_RESPONSE — this strap either" +
+        " does not act on puffin commands written over an unencrypted link, or does not hold the link up" +
+        " long enough to answer one; the per-link lines above say which happened each time." +
+        " Not asking this strap again — turn the experiment off and on to retry." +
         " History offload is unavailable until the strap" +
         " completes a handshake (#1635)."
 

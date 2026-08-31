@@ -163,8 +163,15 @@ class UnbondedOffloadProbeTest {
     fun `the give-up line says why it stopped, not merely that it did`() {
         // The CLIENT_HELLO's suppression stopped silently and cost eleven weeks of unreadable captures.
         val line = unbondedProbeGaveUpLine(3)
-        assertTrue(line.contains("serves those characteristics unbonded"))
-        assertTrue(line.contains("does not act on commands"))
+        // Both ways the budget can be spent are named...
+        assertTrue(line.contains("does not act on puffin commands"))
+        assertTrue(line.contains("does not hold the link up"))
+        // ...and neither is asserted as established. This line USED to claim the strap "serves those
+        // characteristics unbonded", which only ever held for links that subscribed and then stayed
+        // quiet. Since a link lost mid-probe charges the same budget, a budget spent entirely by lost
+        // links — every charge in the 31 Aug capture — confirms no subscribes at all, and the retirement
+        // line would have recorded the opposite of what that strap demonstrated.
+        assertFalse(line.contains("serves those characteristics"))
         // And it no longer promises only a session: the retirement is persisted, and the line has to say
         // the one thing that undoes it, or the switch looks broken to whoever turns it back on.
         assertFalse(line.contains("this session"))
