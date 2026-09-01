@@ -209,10 +209,18 @@ struct NOOPWidgetView: View {
             scoreRings(diameter: 88, lineWidth: 8, labelFont: .caption)
             Divider()
             HStack(alignment: .top, spacing: 0) {
-                statCell("HRV", value: snap.hrv.map { "\($0)" }, unit: "ms")
-                statCell("Rest HR", value: snap.restingHr.map { "\($0)" }, unit: "bpm")
-                statCell("HR", value: snap.bpm.map { "\($0)" }, unit: "bpm")
-                statCell("Battery", value: snap.batteryPct.map { "\($0)%" })
+                statCell("HRV", value: snap.hrv.map { "\($0)" }, unit: "ms",
+                         name: "Heart rate variability",
+                         spoken: snap.hrv.map { "\($0) milliseconds" })
+                statCell("Rest HR", value: snap.restingHr.map { "\($0)" }, unit: "bpm",
+                         name: "Resting heart rate",
+                         spoken: snap.restingHr.map { "\($0) beats per minute" })
+                statCell("HR", value: snap.bpm.map { "\($0)" }, unit: "bpm",
+                         name: "Heart rate",
+                         spoken: snap.bpm.map { "\($0) beats per minute" })
+                statCell("Battery", value: snap.batteryPct.map { "\($0)%" },
+                         name: "Strap battery",
+                         spoken: snap.batteryPct.map { "\($0) percent" })
             }
             Spacer(minLength: 0)
         }
@@ -324,8 +332,15 @@ struct NOOPWidgetView: View {
     }
 
     /// One labelled stat in the large grid — value over a caption, equal-width so the columns align.
+    ///
+    /// `name` and `spoken` exist because the on-screen caption is abbreviated for width and the unit is a
+    /// separate view: read as-is, VoiceOver produces "64", "ms", "HRV" — three fragments, value before
+    /// label, with "ms" and "bpm" spelled out letter by letter. Collapsing to one element lets the cell
+    /// speak "Heart rate variability, 64 milliseconds". `spoken` falls back to the rendered value rather
+    /// than to "No data", so a caller that omits it degrades to the old reading instead of lying.
     private func statCell(_ label: String, value: String?, unit: String? = nil,
-                          tint: Color = StrandPalette.textPrimary) -> some View {
+                          tint: Color = StrandPalette.textPrimary,
+                          name: String? = nil, spoken: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(alignment: .firstTextBaseline, spacing: 2) {
                 Text(value ?? "–")
@@ -338,6 +353,9 @@ struct NOOPWidgetView: View {
             Text(label).font(.caption2).foregroundStyle(StrandPalette.textTertiary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(name ?? label))
+        .accessibilityValue(Text(spoken ?? value ?? "No data"))
     }
 }
 
