@@ -254,14 +254,19 @@ NOOP runs a **deliberately lean CI**: fast, no-hardware checks guard the point o
 and hardware-dependent verification runs at release time or on demand. This is a choice for an
 anonymous, offline, sideloaded project — not a gap to fill with more gates.
 
-- **On every PR (required):** `swift-packages` runs `swift test` for `Packages/**`; `i18n-coverage`
-  runs the string audit. These catch the regressions that matter most (protocol/analytics math,
-  storage, i18n) without a device or an Xcode/Gradle app build.
+- **On every PR (required):** `source-hygiene`, `tools-python` and `i18n-coverage` have no path
+  filter, so all three run on everything. `swift-packages` (`swift test` for `Packages/**`) and
+  `android` (`assembleFullDebug` + `testFullDebugUnitTest`) are **path-filtered** — they run when you
+  touch what they cover, which is most substantive PRs. Between them these catch the regressions that
+  matter most (protocol/analytics math, storage, i18n) without a device or an app build. The check
+  names you see are JOB names and do not resemble the workflow names; the table in the root
+  [CONTRIBUTING.md](../CONTRIBUTING.md#what-ci-checks) maps them.
 - **Disabled by design — you build the app yourself:** `app-build.yml` (app-target compile, iOS needs
-  `macos-26`) and `android.yml` (Android app build) are **off**. So a compile error in **app-target**
-  code (SwiftUI Views, `BLEManager`, `Repository`, a Compose screen) passes every default check.
-  Before you push app-layer changes, compile locally — `xcodebuild … build` /
-  `./gradlew compileFullDebugKotlin` — or dispatch `app-build.yml` on demand.
+  `macos-26`) is **off**. So a compile error in **app-target** code (SwiftUI Views, `BLEManager`,
+  `Repository`, a Compose screen) passes every default check — `android.yml` builds and unit-tests the
+  Android app but nothing compiles the Apple app target. Before you push app-layer changes, compile
+  locally — `xcodebuild … build` / `./gradlew compileFullDebugKotlin` — or dispatch `app-build.yml`
+  on demand.
 - **Gated at release, not per PR:** Android release lint (`lintVitalFullRelease`) runs inside
   `assembleFullRelease` in the staging/release builds, so lint-fatal issues (e.g. an
   `ExtraTranslation` in a `values-<lang>` file) surface there. Run `./gradlew lintVitalFullRelease`
