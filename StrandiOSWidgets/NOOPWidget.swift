@@ -314,6 +314,11 @@ struct NOOPWidgetView: View {
     /// localized and render English anyway.
     private func vital(symbol: String, text: String?, name: String, spoken: String?) -> some View {
         Label(text ?? "–", systemImage: symbol)
+            // Collapse first, like `accessoryScore` and `WidgetScoreRing` already do. A `Label` under
+            // `.titleAndIcon` renders an image beside a text, so without this the bare number stays its
+            // own element and whether the label below wins is SwiftUI container semantics rather than
+            // something this file decides. Every other labelled graphic here ignores its children.
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text(name))
             .accessibilityValue(Text(spoken ?? "No data"))
     }
