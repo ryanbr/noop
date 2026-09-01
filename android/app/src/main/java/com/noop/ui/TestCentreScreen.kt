@@ -105,6 +105,7 @@ fun TestCentreScreen(vm: AppViewModel, onOpenGroundTruthCollector: () -> Unit = 
     var broadcastHr by remember { mutableStateOf(puffinExperiment.broadcastHr) }
     var explicitBond by remember { mutableStateOf(puffinExperiment.explicitBond) }
     var unbondedOffload by remember { mutableStateOf(puffinExperiment.unbondedOffload) }
+    var clearStaleBond by remember { mutableStateOf(puffinExperiment.clearStaleBond) }
     var ecgRawData by remember { mutableStateOf(puffinExperiment.ecgRawData) }
     val r22DisableReport by vm.ble.r22DisableReport.collectAsStateWithLifecycle()
     val ecgGateReport by vm.ble.ecgRawDataGate.collectAsStateWithLifecycle()
@@ -257,6 +258,20 @@ fun TestCentreScreen(vm: AppViewModel, onOpenGroundTruthCollector: () -> Unit = 
                         onCheckedChange = {
                             unbondedOffload = it
                             puffinExperiment.unbondedOffload = it
+                        },
+                    )
+                    DeveloperToggleRow(
+                        title = stringResource(R.string.raw_diag_clear_stale_bond),
+                        detail = "When a bonded fast-path connect keeps dropping before it reaches a " +
+                            "session, the phone is holding a pairing the strap no longer honours. NOOP " +
+                            "already shows the forget-and-re-pair guide at two failures; with this on it " +
+                            "does that step for you at five, once, and only until the strap bonds again. " +
+                            "It cannot make a strap that refuses pairing pair. Leave it off unless you " +
+                            "are testing #1635.",
+                        checked = clearStaleBond,
+                        onCheckedChange = {
+                            clearStaleBond = it
+                            puffinExperiment.clearStaleBond = it
                         },
                     )
                     DeveloperToggleRow(
