@@ -4,9 +4,19 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
+import java.time.LocalDate
+import java.time.ZoneId
 import org.junit.Test
 
 class PushCursorTest {
+    /**
+     * Pinned for the same reason as `PushCoordinatorTest`: `PushCoordinator` defaults to
+     * `LocalDate.now()`, so an omitted clock makes a test depend on the date it runs. These cases
+     * exercise cursor-based append tables rather than the day window, so they were not the ones that
+     * broke on 2026-09-01 — but they are the same latent shape, and pinning costs nothing.
+     */
+    private val pinnedToday = { LocalDate.of(2026, 8, 18) }
+
     @Test
     fun olderTimestampWithHigherRowidIsNotStranded() = runBlocking {
         val old = hr(10, 200)
@@ -19,7 +29,7 @@ class PushCursorTest {
             )
         }
         val transport = AckingTransport()
-        val coordinator = PushCoordinator(source, transport, progress, SOURCE_A)
+        val coordinator = PushCoordinator(source, transport, progress, SOURCE_A, pinnedToday, ZoneId.of("UTC"))
 
         val result = coordinator.pushAppend(PushAppendTable.HR_SAMPLE, "a")
 
@@ -43,7 +53,7 @@ class PushCursorTest {
         }
         val transport = AckingTransport()
 
-        PushCoordinator(source, transport, progress, SOURCE_A).pushAppend(PushAppendTable.HR_SAMPLE, "a")
+        PushCoordinator(source, transport, progress, SOURCE_A, pinnedToday, ZoneId.of("UTC")).pushAppend(PushAppendTable.HR_SAMPLE, "a")
 
         assertEquals(0L, source.afterCursors.single())
         assertTrue(transport.bodies.single().toString(Charsets.UTF_8).contains("\"ts\":50"))
@@ -90,7 +100,7 @@ class PushCursorTest {
         )
         val progress = MemoryProgress()
         val transport = AckingTransport()
-        val coordinator = PushCoordinator(source, transport, progress, SOURCE_A)
+        val coordinator = PushCoordinator(source, transport, progress, SOURCE_A, pinnedToday, ZoneId.of("UTC"))
 
         val first = coordinator.pushAppend(PushAppendTable.RR_INTERVAL, "a")
         val second = coordinator.pushAppend(PushAppendTable.RR_INTERVAL, "a")
@@ -110,7 +120,7 @@ class PushCursorTest {
             ),
         )
         val progress = MemoryProgress()
-        val coordinator = PushCoordinator(source, AckingTransport(), progress, SOURCE_A)
+        val coordinator = PushCoordinator(source, AckingTransport(), progress, SOURCE_A, pinnedToday, ZoneId.of("UTC"))
 
         coordinator.pushAppend(PushAppendTable.HR_SAMPLE, "a")
 

@@ -74,7 +74,7 @@ class PushCoordinatorTest {
         val progress = MemoryProgress()
         val partial = AckingTransport { batch -> PushAck.fromBatch(batch).copy(acceptedRows = 0) }
 
-        val result = PushCoordinator(source, partial, progress, SOURCE_A).pushAppend(PushAppendTable.HR_SAMPLE, "a")
+        val result = PushCoordinator(source, partial, progress, SOURCE_A, pinnedToday, ZoneId.of("UTC")).pushAppend(PushAppendTable.HR_SAMPLE, "a")
 
         assertTrue(result is PushResult.Rejected)
         assertTrue(progress.cursors.isEmpty())
@@ -87,7 +87,7 @@ class PushCoordinatorTest {
         val progress = MemoryProgress()
         val wrongStatus = AckingTransport { batch -> PushAck.fromBatch(batch).copy(status = "partial") }
 
-        val result = PushCoordinator(source, wrongStatus, progress, SOURCE_A)
+        val result = PushCoordinator(source, wrongStatus, progress, SOURCE_A, pinnedToday, ZoneId.of("UTC"))
             .pushAppend(PushAppendTable.HR_SAMPLE, "a")
 
         assertTrue(result is PushResult.Rejected)
@@ -107,7 +107,7 @@ class PushCoordinatorTest {
                 return PushTransportResponse(200, "{not-json".toByteArray())
             }
         }
-        val coordinator = PushCoordinator(source, malformed, progress, SOURCE_A)
+        val coordinator = PushCoordinator(source, malformed, progress, SOURCE_A, pinnedToday, ZoneId.of("UTC"))
 
         coordinator.pushAppend(PushAppendTable.HR_SAMPLE, "a")
         coordinator.pushAppend(PushAppendTable.HR_SAMPLE, "a")
@@ -129,7 +129,7 @@ class PushCoordinatorTest {
             )
         }
 
-        val result = PushCoordinator(source, transport, progress, SOURCE_A).pushAppend(PushAppendTable.HR_SAMPLE, "a")
+        val result = PushCoordinator(source, transport, progress, SOURCE_A, pinnedToday, ZoneId.of("UTC")).pushAppend(PushAppendTable.HR_SAMPLE, "a")
 
         assertTrue(result is PushResult.Rejected)
         assertTrue(progress.cursors.isEmpty())
@@ -149,7 +149,7 @@ class PushCoordinatorTest {
             }
         }
 
-        val result = PushCoordinator(source, transport, progress, SOURCE_A)
+        val result = PushCoordinator(source, transport, progress, SOURCE_A, pinnedToday, ZoneId.of("UTC"))
             .pushAppend(PushAppendTable.HR_SAMPLE, "a")
 
         assertTrue(result is PushResult.Rejected)
@@ -168,7 +168,7 @@ class PushCoordinatorTest {
                 override suspend fun post(batch: PushBatch) = PushTransportResponse(status, ByteArray(0))
             }
 
-            val result = PushCoordinator(source, transport, progress, SOURCE_A)
+            val result = PushCoordinator(source, transport, progress, SOURCE_A, pinnedToday, ZoneId.of("UTC"))
                 .pushAppend(PushAppendTable.HR_SAMPLE, "a")
 
             assertTrue("HTTP $status", result is PushResult.Rejected && result.retryable == retryable)
@@ -437,7 +437,7 @@ class PushCoordinatorTest {
         )
         val progress = MemoryProgress()
         val firstTransport = AckingTransport()
-        val first = PushCoordinator(source, firstTransport, progress, SOURCE_A)
+        val first = PushCoordinator(source, firstTransport, progress, SOURCE_A, pinnedToday, ZoneId.of("UTC"))
             .pushKnownDevices(startDeviceIndex = 0, maxDevices = 1)
 
         assertTrue(first.hasMoreDevices)
@@ -447,7 +447,7 @@ class PushCoordinatorTest {
         assertTrue(firstTransport.batches.all { it.deviceId == "a" })
 
         val secondTransport = AckingTransport()
-        val second = PushCoordinator(source, secondTransport, progress, SOURCE_A)
+        val second = PushCoordinator(source, secondTransport, progress, SOURCE_A, pinnedToday, ZoneId.of("UTC"))
             .pushKnownDevices(startDeviceIndex = first.nextDeviceIndex, maxDevices = 1)
 
         assertEquals(0, second.nextDeviceIndex)
@@ -468,12 +468,12 @@ class PushCoordinatorTest {
             ),
         )
         val progress = MemoryProgress()
-        PushCoordinator(source, AckingTransport(), progress, SOURCE_A)
+        PushCoordinator(source, AckingTransport(), progress, SOURCE_A, pinnedToday, ZoneId.of("UTC"))
             .pushKnownDevices()
         source.mutable.remove(key(PushMutableTable.JOURNAL, "noop-journal"))
 
         val afterDelete = AckingTransport()
-        PushCoordinator(source, afterDelete, progress, SOURCE_A)
+        PushCoordinator(source, afterDelete, progress, SOURCE_A, pinnedToday, ZoneId.of("UTC"))
             .pushKnownDevices()
 
         val journal = afterDelete.batches.single {
