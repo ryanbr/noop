@@ -586,6 +586,7 @@ fun SettingsScreen(
     var broadcastHr by remember(rev) { mutableStateOf(puffinExperiment.broadcastHr) }
     var explicitBond by remember(rev) { mutableStateOf(puffinExperiment.explicitBond) }
     var unbondedOffload by remember(rev) { mutableStateOf(puffinExperiment.unbondedOffload) }
+    var clearStaleBond by remember(rev) { mutableStateOf(puffinExperiment.clearStaleBond) }
     var helloDespiteRefusal by remember(rev) { mutableStateOf(puffinExperiment.helloDespiteBondRefusal) }
     // ECG raw-data gate (#891): the opt-in, the write result, and the attested-MG gate the buttons need.
     var ecgRawData by remember(rev) { mutableStateOf(puffinExperiment.ecgRawData) }
@@ -2352,6 +2353,36 @@ fun SettingsScreen(
                         modifier = Modifier.semantics {
                             contentDescription = uiString(R.string.l10n_settings_screen_ask_android_to_pair_323fccbe)
                         },
+                    )
+                }
+
+                // --- Clear a stale phone pairing — the removeBond() escalation. (#1635) ---
+                // Sits after "Ask Android to pair" on purpose: one forms a pairing, this one deletes it,
+                // and a reader should meet them together.
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Text(
+                        uiString(R.string.l10n_settings_screen_clear_a_stale_phone_pairing_experimental_cd1e4af7),
+                        style = NoopType.subhead,
+                        color = Palette.textPrimary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(
+                        checked = clearStaleBond,
+                        onCheckedChange = {
+                            clearStaleBond = it
+                            puffinExperiment.clearStaleBond = it
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Palette.surfaceBase,
+                            checkedTrackColor = Palette.accent,
+                            uncheckedThumbColor = Palette.textSecondary,
+                            uncheckedTrackColor = Palette.surfaceInset,
+                            uncheckedBorderColor = Palette.hairline,
+                        ),
                     )
                 }
 

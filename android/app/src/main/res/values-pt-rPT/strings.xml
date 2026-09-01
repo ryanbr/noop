@@ -2541,6 +2541,7 @@
     <string name="l10n_health_screen_no_blood_oxygen_percentage_from_a_1d3d383e">Sem percentagem de oxigénio no sangue a partir de um WHOOP 4.0</string>
     <string name="l10n_health_screen_your_strap_banks_the_raw_optical_b52a0f80">A sua bracelete guarda os canais óticos em bruto, mas o NOOP não os converte numa percentagem de oxigénio no sangue, por isso isto fica vazio por muito tempo que a use. Importe uma exportação WHOOP em Fontes de dados para preencher a partir do seu histórico.</string>
     <string name="l10n_settings_screen_ask_android_to_pair_experimental_250a81e9">Pedir ao Android para emparelhar (experimental)</string>
+    <string name="l10n_settings_screen_clear_a_stale_phone_pairing_experimental_cd1e4af7">Limpar um emparelhamento obsoleto do telemóvel (experimental)</string>
     <string name="l10n_settings_screen_noop_has_always_hoped_that_writing_19967036">O NOOP sempre contou que escrever na sua 5.0/MG fizesse o Android emparelhar. Isso nunca acontece. Esta opção pede diretamente ao Android, pelo que pode mostrar uma caixa de diálogo de emparelhamento do sistema. A frequência cardíaca em direto continua a funcionar de qualquer forma; desative se a caixa de diálogo incomodar.</string>
     <string name="l10n_settings_screen_ask_android_to_pair_323fccbe">Pedir ao Android para emparelhar</string>
     <string name="ground_truth_title">Recolha de dados em bruto 5/MG</string>

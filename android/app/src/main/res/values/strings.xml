@@ -1573,6 +1573,7 @@
     <string name="l10n_settings_screen_battery_pct_roundtoint_e02e2891">Battery %1$s%%</string>
     <string name="l10n_settings_screen_broadcast_heart_rate_d1af1c79">Broadcast heart rate</string>
     <string name="l10n_settings_screen_ask_android_to_pair_experimental_250a81e9">Ask Android to pair (experimental)</string>
+    <string name="l10n_settings_screen_clear_a_stale_phone_pairing_experimental_cd1e4af7">Clear a stale phone pairing (experimental)</string>
     <string name="l10n_settings_screen_noop_has_always_hoped_that_writing_19967036">NOOP has always hoped that writing to your 5.0/MG would make Android pair with it. It never does. This asks Android directly, so it may show a system pairing dialog. Live heart rate keeps working either way; turn it off if the dialog is a nuisance.</string>
     <string name="l10n_settings_screen_ask_android_to_pair_323fccbe">Ask Android to pair</string>
     <string name="l10n_settings_screen_broadcast_strap_hr_garmin_ant_a39d0654">Broadcast strap HR (Garmin/ANT)</string>

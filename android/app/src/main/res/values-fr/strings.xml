@@ -2548,6 +2548,7 @@
     <string name="l10n_health_screen_no_blood_oxygen_percentage_from_a_1d3d383e">Pas de pourcentage d\'oxygène sanguin depuis un WHOOP 4.0</string>
     <string name="l10n_health_screen_your_strap_banks_the_raw_optical_b52a0f80">Votre bracelet enregistre les canaux optiques bruts, mais NOOP ne les convertit pas en pourcentage d\'oxygène sanguin : cette section restera vide quel que soit le temps de port. Importez un export WHOOP dans Sources de données pour la remplir depuis votre historique.</string>
     <string name="l10n_settings_screen_ask_android_to_pair_experimental_250a81e9">Demander à Android de s\'appairer (expérimental)</string>
+    <string name="l10n_settings_screen_clear_a_stale_phone_pairing_experimental_cd1e4af7">Supprimer un appairage obsolète du téléphone (expérimental)</string>
     <string name="l10n_settings_screen_noop_has_always_hoped_that_writing_19967036">NOOP a toujours compté sur l\'écriture vers votre 5.0/MG pour qu\'Android s\'appaire. Cela n\'arrive jamais. Cette option le demande directement à Android et peut afficher une boîte de dialogue d\'appairage du système. La fréquence cardiaque en direct continue de fonctionner dans les deux cas ; désactivez-la si la boîte de dialogue vous gêne.</string>
     <string name="l10n_settings_screen_ask_android_to_pair_323fccbe">Demander à Android de s\'appairer</string>
     <string name="ground_truth_title">Collecteur de données brutes 5/MG</string>

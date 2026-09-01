@@ -2462,6 +2462,7 @@
     <string name="l10n_health_screen_no_blood_oxygen_percentage_from_a_1d3d383e">WHOOP 4.0 无法提供血氧百分比</string>
     <string name="l10n_health_screen_your_strap_banks_the_raw_optical_b52a0f80">你的手环会记录原始光学通道，但 NOOP 不会将其换算成血氧百分比，因此无论佩戴多久这里都会是空的。请在“数据来源”中导入 WHOOP 导出文件，以用账户历史填充。</string>
     <string name="l10n_settings_screen_ask_android_to_pair_experimental_250a81e9">请求 Android 配对（实验性）</string>
+    <string name="l10n_settings_screen_clear_a_stale_phone_pairing_experimental_cd1e4af7">清除手机上的过期配对（实验性）</string>
     <string name="l10n_settings_screen_noop_has_always_hoped_that_writing_19967036">NOOP 一直寄望于向 5.0/MG 写入数据来促使 Android 配对，但这从未发生。此选项会直接请求 Android，因此可能弹出系统配对对话框。无论哪种方式，实时心率都会继续工作；如果对话框造成困扰，请关闭此选项。</string>
     <string name="l10n_settings_screen_ask_android_to_pair_323fccbe">请求 Android 配对</string>
     <string name="ground_truth_title">5/MG 原始数据采集器</string>

@@ -5533,6 +5533,10 @@ class WhoopBleClient(
      *  nag the user. Reset to 0 on any genuine bond. (5/MG firmware reset parity, 2026-06) */
     private var staleDirectFailures = 0
 
+    /** #1635: the stale-pairing clear is once per streak. Cleared by a genuine bond, the event that
+     *  proves the phone and the strap agree again. */
+    private var staleBondRemoved = false
+
     /**
      * Which of OUR OWN paths last tore the link down, and when the current session started (#1020).
      *
@@ -6506,6 +6510,7 @@ class WhoopBleClient(
                         noteGenuineBond(g.device.address)   // #52: this strap bonds fine; clears any pin-refusal streak
                         clearPairingHint()            // #78: a genuine bond means the pairing guidance no longer applies
                         staleDirectFailures = 0       // genuine bond — clear the wiped-bond counter (#84 parity)
+                        staleBondRemoved = false      // ...and re-arm the one-shot stale-pairing clear
                     }
                     _state.update { it.copy(bonded = true, encryptedBond = encrypted) }
                     bondedAtMs = System.currentTimeMillis()   // #617: stamp the bond so handleDisconnect can spot a bond-then-quick-timeout loop
@@ -9730,6 +9735,15 @@ class WhoopBleClient(
     // MARK: Disconnect / teardown  (port of didDisconnectPeripheral)
     // ====================================================================================
 
+    /**
+     * Ask Android to delete this device's pairing. Reflection because `removeBond()` is not public API;
+     * a throw or a `false` is a REFUSAL, not a crash, and the caller reports which happened.
+     */
+    @SuppressLint("MissingPermission")
+    private fun removeOsBond(device: BluetoothDevice): Boolean = runCatching {
+        device.javaClass.getMethod("removeBond").invoke(device) as? Boolean ?: false
+    }.getOrDefault(false)
+
     @SuppressLint("MissingPermission")
     private fun handleDisconnect(status: Int) {
         val helloWasUnacked = clientHelloWriteAtMs > 0L
@@ -9980,6 +9994,26 @@ class WhoopBleClient(
             }
             if (staleDirectBond) {
                 staleDirectFailures++
+                // Before `lastDevice = null` below: that handle is the only device left to act on here.
+                val staleDevice = lastDevice
+                if (staleDevice != null && shouldRemoveStaleBond(
+                        optedIn = puffinExperiment.clearStaleBond,
+                        // Belt and braces. `staleDirectBond` can only be set by the Easy-connect path,
+                        // whose helpers match a 5/MG and which pins selectedModel to it — so this is
+                        // already implied. Kept because `connectedFamily` fails CLOSED when it is stale
+                        // (it holds the previous link's value), and the direction that matters is never
+                        // removing a pairing we should not.
+                        isWhoop5 = connectedFamily == DeviceFamily.WHOOP5,
+                        osBonded = runCatching {
+                            staleDevice.bondState == BluetoothDevice.BOND_BONDED
+                        }.getOrDefault(false),
+                        consecutiveStaleFailures = staleDirectFailures,
+                        alreadyRemovedThisRun = staleBondRemoved,
+                    )
+                ) {
+                    staleBondRemoved = true
+                    log(staleBondRemovalLine(staleDirectFailures, removeOsBond(staleDevice)))
+                }
                 log("Disconnected (status=$status) before the bonded fast-path reached a session — stale OS bond (attempt $staleDirectFailures); falling back to a scan")
                 lastDevice = null
                 // Two consecutive wiped-bond failures = the strap really reset its pairing (firmware

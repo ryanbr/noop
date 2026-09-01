@@ -223,6 +223,15 @@ class PuffinExperiment(private val prefs: SharedPreferences) {
         editor.apply()
     }
 
+    /**
+     * "Clear a stale phone pairing" - may NOOP call removeBond() when the OS holds a pairing the strap
+     * no longer honours? Default OFF, like every other switch here that changes hardware or OS state.
+     * See [shouldRemoveStaleBond] for the gate and why the threshold is above the guide's.
+     */
+    var clearStaleBond: Boolean
+        get() = prefs.getBoolean(KEY_CLEAR_STALE_BOND, false)
+        set(v) { prefs.edit().putBoolean(KEY_CLEAR_STALE_BOND, v).apply() }
+
     companion object {
         /** Persisted preferences file. Internal so a UI screen can observe external writes to it. */
         internal const val PREFS = "noop_experiments"
@@ -247,6 +256,9 @@ class PuffinExperiment(private val prefs: SharedPreferences) {
          *  so no macOS key to mirror. */
         const val KEY_EXPLICIT_BOND = "noopWhoop5ExplicitBond"
 
+        /** "Clear a stale phone pairing" opt-in — see [shouldRemoveStaleBond]. */
+        const val KEY_CLEAR_STALE_BOND = "noopWhoop5ClearStaleBond"
+
         /** "Try history sync without pairing" opt-in — the unbonded offload probe (#1635). Android-only,
          *  so no macOS key to mirror. */
         const val KEY_UNBONDED_OFFLOAD = "noopWhoop5UnbondedOffload"
@@ -258,7 +270,7 @@ class PuffinExperiment(private val prefs: SharedPreferences) {
          *  SettingsScreen watches exactly these for external writes. Two lists would drift. */
         internal val FIVE_MG_GATED_KEYS =
             listOf(KEY, KEY_CAPTURE, KEY_DEEP_DATA, KEY_BROADCAST_HR, KEY_ECG_RAW_DATA, KEY_EXPLICIT_BOND,
-                   KEY_UNBONDED_OFFLOAD)
+                   KEY_UNBONDED_OFFLOAD, KEY_CLEAR_STALE_BOND)
 
         /** "Experimental sleep staging (V2)" opt-in (mirrors macOS `PuffinExperiment.experimentalSleepV2Key`). */
         const val KEY_EXPERIMENTAL_SLEEP_V2 = "noopExperimentalSleepV2"
