@@ -169,7 +169,12 @@ object PreSleepHeartRateFeedback {
         if (valid.size < minimumValidSamples) {
             return closed(Eligibility.InsufficientPreSleepSamples(valid.size, minimumValidSamples))
         }
-        val mean = valid.sumOf { it.bpm }.toDouble() / valid.size.toDouble()
+        // `toLong()` before summing, not after: `sumOf { it.bpm }` accumulates in Int and would WRAP
+        // silently, where Apple's `reduce` accumulates in 64-bit and cannot. Unreachable with a real
+        // window — 220 bpm needs ~9.7M samples to overflow — but a wrapped sum produces a plausible
+        // wrong mean rather than a failure, and this file guards its other arithmetic explicitly
+        // (`subtractOrNull`). Exact integer sum then divide, which is Apple's order too.
+        val mean = valid.sumOf { it.bpm.toLong() }.toDouble() / valid.size.toDouble()
         val observation = Observation(
             primarySleepStartTs = primary.start, primarySleepEndTs = primary.end,
             windowStartTs = start, windowEndTs = primary.start, meanBpm = mean,
