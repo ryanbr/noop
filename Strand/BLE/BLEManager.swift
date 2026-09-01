@@ -5608,11 +5608,12 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         // side deliberately cannot, and the blocker is identity rather than a missing call:
         //
         //  - iOS has no route at all; forgetting a pairing is reserved to the user by design.
-        //  - macOS has one in IOBluetooth, but it addresses devices by MAC and CoreBluetooth never
-        //    exposes one — `peripheral.identifier` is a per-app UUID, deliberately not the hardware
-        //    address. The only bridge left is matching `IOBluetoothDevice.pairedDevices()` by NAME, and
-        //    deleting a pairing on a name match removes the wrong device the moment there are two straps
-        //    or one has been renamed.
+        //  - macOS ships IOBluetooth, a separate classic-Bluetooth framework, and whether its device
+        //    removal works on a BLE pairing is a question that never arises for us: it addresses devices
+        //    by MAC, and we never have one. `epitaphLine`'s doc already says why — the peripheral UUID is
+        //    "per-install, not the hardware address". The only bridge left is matching
+        //    `IOBluetoothDevice.pairedDevices()` by NAME, and deleting a pairing on a name match removes
+        //    the wrong device the moment there are two straps or one has been renamed.
         //
         // So both platforms detect this and both give the same advice; only Android can act on it. Do not
         // close the gap with a name match. Kotlin twin: `StaleBondRemoval.kt`.

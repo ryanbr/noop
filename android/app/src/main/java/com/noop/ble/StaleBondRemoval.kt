@@ -28,15 +28,16 @@ package com.noop.ble
  *
  *  - iOS has no route at all. Removing a pairing is a Settings > Bluetooth > Forget action reserved to
  *    the user, by design.
- *  - macOS does have one, in `IOBluetooth` — a separate, classic-Bluetooth framework — but it addresses
- *    devices by MAC, and CoreBluetooth never exposes one. A peripheral's identity there is
- *    `CBPeripheral.identifier`, a per-app UUID that deliberately is not the hardware address. The only
- *    bridge left is matching `IOBluetoothDevice.pairedDevices()` by NAME, and deleting a pairing on a
- *    name match is precisely the mistake this file's guards exist to prevent: two straps, or a renamed
- *    device, and it removes the wrong one.
+ *  - macOS ships `IOBluetooth`, a separate classic-Bluetooth framework. Whether its device removal
+ *    works on a BLE pairing is a question that never arises: it addresses devices by MAC, and Apple's
+ *    side never has one — `BLEManager.epitaphLine`'s doc already states it, the peripheral UUID being
+ *    "per-install, not the hardware address". The only bridge left is matching
+ *    `IOBluetoothDevice.pairedDevices()` by NAME, and deleting a pairing on a name match is precisely the
+ *    mistake this file's guards exist to prevent: two straps, or a renamed device, and it removes the
+ *    wrong one.
  *
- * So the gap is real and stays: both platforms detect and ask, only this one can act. If a future macOS
- * SDK exposes the hardware address, or CoreBluetooth grows a removal call, revisit it — do not close it
+ * So the gap is real and stays: both platforms detect and ask, only this one can act. If CoreBluetooth
+ * ever exposes the hardware address, or grows a removal call of its own, revisit it — do not close it
  * with a name match.
  */
 
