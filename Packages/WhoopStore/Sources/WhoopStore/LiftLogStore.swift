@@ -342,12 +342,43 @@ extension WhoopStore {
     /// twice updates its classification and recency instead of duplicating it. A muscle field is
     /// only overwritten when the caller supplies one, so merely using an exercise never erases the
     /// classification the user set for it.
+    /// How many exercises one device remembers.
+    ///
+    /// A cap exists because the vocabulary is typo-accumulating by design: every misspelling becomes
+    /// a permanent picker entry ("Chest supported row3"). It is set high enough that no real
+    /// training history reaches it — a broad lifter's whole vocabulary is well under a hundred — so
+    /// hitting it means something has gone wrong, and the honest response is to say so rather than
+    /// to silently drop what the user typed or to evict something they still use.
+    ///
+    /// An EXISTING name always updates, cap or no cap: only genuinely NEW names are refused.
+    public static let maxRememberedExercises = 500
+
+    /// Thrown when the vocabulary is full and the name is a new one.
+    public struct LiftExerciseVocabularyFull: Error, Equatable {
+        public let limit: Int
+        public init(limit: Int) { self.limit = limit }
+    }
+
     @discardableResult
     public func upsertLiftExercises(_ rows: [LiftExerciseRow]) async throws -> Int {
         guard !rows.isEmpty else { return 0 }
         return try syncWrite { db in
             var n = 0
             for r in rows {
+                // Only a NEW name can push the vocabulary over: re-saving one that already exists is
+                // an update and must always be allowed, or a user at the cap could no longer correct
+                // the classification of an exercise they use every week.
+                let known = try Int.fetchOne(db, sql: """
+                    SELECT COUNT(*) FROM liftExercise WHERE deviceId = ? AND name = ?
+                    """, arguments: [r.deviceId, r.name]) ?? 0
+                if known == 0 {
+                    let total = try Int.fetchOne(db, sql: """
+                        SELECT COUNT(*) FROM liftExercise WHERE deviceId = ?
+                        """, arguments: [r.deviceId]) ?? 0
+                    if total >= WhoopStore.maxRememberedExercises {
+                        throw LiftExerciseVocabularyFull(limit: WhoopStore.maxRememberedExercises)
+                    }
+                }
                 try db.execute(sql: """
                     INSERT INTO liftExercise
                         (id, deviceId, name, primaryMuscle, secondaryMuscles, createdAt, lastUsedTs)

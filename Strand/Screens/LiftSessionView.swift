@@ -63,6 +63,7 @@ struct LiftSessionView: View {
         #endif
         .background(StrandPalette.surfaceBase)
         .keyboardDoneToolbar($focused)
+        .dismissesKeyboardOnTap($focused)
         .task { await loadLastTime() }
         .sheet(isPresented: $showingFinish) { finishSheet }
     }

@@ -465,7 +465,7 @@ public final class FrameRouter {
                 // Physical inputs the strap exposes — live only (this path never sees historical
                 // replay, which goes through the Backfiller). Event strings are "NAME(rawValue)".
                 if ev.hasPrefix("DOUBLE_TAP") {
-                    state.onDoubleTap?()
+                    dispatchDoubleTapOnce(eventTimestamp: parsed.parsed["event_timestamp"]?.intValue)
                 } else if ev.hasPrefix("WRIST_ON") {
                     if !state.worn { state.worn = true; state.onWristChange?(true) }
                 } else if ev.hasPrefix("WRIST_OFF") {
@@ -700,11 +700,38 @@ public final class FrameRouter {
         guard let ts = parsed.parsed["event_timestamp"]?.intValue, ts > 0 else { return }   // fail closed
         guard abs(now - ts) <= FrameRouter.liveGestureWindowSeconds else { return }
         if ev.hasPrefix("DOUBLE_TAP") {
-            state.onDoubleTap?()
+            dispatchDoubleTapOnce(eventTimestamp: ts)
         } else if ev.hasPrefix("WRIST_ON") {
             if !state.worn { state.worn = true; state.onWristChange?(true) }
         } else if ev.hasPrefix("WRIST_OFF") {
             if state.worn { state.worn = false; state.onWristChange?(false) }
         }
+    }
+
+    // MARK: - Double-tap de-duplication
+
+    /// `event_timestamp` of the last DOUBLE_TAP handed to the app.
+    ///
+    /// ONE physical gesture can reach us TWICE. It arrives live through `handle(frame:)`, and then
+    /// again when the strap offloads its banked event log — `dispatchLiveGestureIfFresh` runs over
+    /// every offload frame and accepts any event whose timestamp is within
+    /// `liveGestureWindowSeconds` (45 s) of now, which a gesture from moments ago obviously is.
+    ///
+    /// `AppModel.handleDoubleTap`'s 1.2 s debounce cannot catch that: the replay can land many
+    /// seconds after the tap, by which time the debounce has long expired. The result is a phantom
+    /// second gesture — and with the Lift Log claiming the double-tap, a phantom gesture silently
+    /// advances the session and costs a logged set.
+    ///
+    /// The event's OWN timestamp is what distinguishes the two cases: one gesture replayed carries
+    /// one timestamp, while two genuine taps carry two. Nil fails OPEN (dispatch), because a real
+    /// gesture must never be swallowed by a missing field.
+    private var lastDispatchedDoubleTapEventTs: Int?
+
+    private func dispatchDoubleTapOnce(eventTimestamp ts: Int?) {
+        if let ts {
+            guard ts != lastDispatchedDoubleTapEventTs else { return }
+            lastDispatchedDoubleTapEventTs = ts
+        }
+        state.onDoubleTap?()
     }
 }
