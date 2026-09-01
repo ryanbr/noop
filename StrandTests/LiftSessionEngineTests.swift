@@ -20,57 +20,114 @@ final class LiftSessionEngineTests: XCTestCase {
         ]
     }
 
-    // MARK: - The loop
+    private func slot(_ e: Int, _ s: Int) -> LiftSlot { LiftSlot(exerciseIndex: e, setIndex: s) }
 
-    func testASessionStartsInTheWarmUp() {
+    // MARK: - The sheet
+
+    func testTheSheetListsEverySetOfEveryExercise() {
+        let e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
+        XCTAssertEqual(e.slots(forExercise: 0), [slot(0, 1), slot(0, 2)])
+        XCTAssertEqual(e.slots(forExercise: 1), [slot(1, 1)])
+        XCTAssertEqual(e.allSlots.count, 3)
+        XCTAssertEqual(e.plannedWorkingSets, 3)
+    }
+
+    func testASessionStartsInTheWarmUpWithNothingCompleted() {
         let e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
         XCTAssertEqual(e.stage, .warmup)
         XCTAssertTrue(e.sets.isEmpty)
         XCTAssertFalse(e.canUndo)
+        XCTAssertEqual(e.nextPendingSlot, slot(0, 1))
     }
 
-    func testTheFullTapThroughReachesFinishedAndRecordsEverySet() {
+    // MARK: - The default in-order path
+
+    func testTheFullTapThroughRecordsEverySetInOrder() {
         var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
 
         e.advance(now: t0 + 300)                                  // warm-up → set 1
-        XCTAssertEqual(e.stage, .working(item: 0, set: 1))
+        XCTAssertEqual(e.stage, .working(slot(0, 1)))
 
-        e.advance(now: t0 + 340)                                  // set 1 done → rest
-        XCTAssertEqual(e.stage, .resting(item: 0, set: 1, endsAt: t0 + 340 + 90))
-        // The numbers are typed DURING the rest that follows the set, not while holding the bar.
-        e.updateLastSet(weightKg: 30, reps: 10, rpe: 8, isWarmup: false)
+        e.advance(now: t0 + 340)                                  // done → rest (90s)
+        XCTAssertEqual(e.stage, .resting(slot(0, 1), endsAt: t0 + 430))
+        e.updateSet(slot(0, 1), weightKg: 30, reps: 10, rpe: 8, isWarmup: false)
 
         e.advance(now: t0 + 440)                                  // rest → set 2
-        XCTAssertEqual(e.stage, .working(item: 0, set: 2))
+        XCTAssertEqual(e.stage, .working(slot(0, 2)))
 
-        e.advance(now: t0 + 480)                                  // set 2 done → rest
-        XCTAssertEqual(e.stage, .resting(item: 0, set: 2, endsAt: t0 + 480 + 90))
-        e.updateLastSet(weightKg: 30, reps: 8, rpe: 9, isWarmup: false)
+        e.advance(now: t0 + 480)
+        e.updateSet(slot(0, 2), weightKg: 30, reps: 8, rpe: 9, isWarmup: false)
 
-        e.advance(now: t0 + 580)                                  // rest → next exercise, set 1
-        XCTAssertEqual(e.stage, .working(item: 1, set: 1))
+        e.advance(now: t0 + 580)                                  // rest → next exercise
+        XCTAssertEqual(e.stage, .working(slot(1, 1)))
 
-        e.advance(now: t0 + 620)                                  // last set → cool-down, no rest
-        XCTAssertEqual(e.stage, .cooldown)
-        // The final set has no rest after it, so its numbers are entered during the cool-down.
-        e.updateLastSet(weightKg: 55, reps: 12, rpe: 7, isWarmup: false)
+        e.advance(now: t0 + 620)
+        e.updateSet(slot(1, 1), weightKg: 55, reps: 12, rpe: 7, isWarmup: false)
 
-        e.advance(now: t0 + 700)                                  // cool-down → finished
-        XCTAssertEqual(e.stage, .finished)
-        XCTAssertTrue(e.isFinished)
-
+        XCTAssertTrue(e.allCompleted)
         XCTAssertEqual(e.sets.count, 3)
-        XCTAssertEqual(e.sets.map(\.exerciseIndex), [0, 0, 1])
-        XCTAssertEqual(e.sets.map(\.setIndex), [1, 2, 1])
         XCTAssertEqual(e.sets.map(\.reps), [10, 8, 12])
     }
 
-    func testNoRestFollowsTheFinalSet() {
+    func testFinishClosesTheRunningRestSoItsDurationIsNotLost() {
+        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
+        e.advance(now: t0)
+        e.advance(now: t0 + 40)                                   // resting from t0+40
+        e.finish(now: t0 + 160)
+        XCTAssertEqual(e.stage, .finished)
+        XCTAssertEqual(e.sets[0].restSec, 120, "the rest that was running still happened")
+    }
+
+    // MARK: - Out of order: the reason this model exists
+
+    func testAnyPendingSetCanBeStartedWhenAMachineIsBusy() {
+        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
+        e.start(slot(1, 1), now: t0 + 60)                         // skip straight to the second exercise
+        XCTAssertEqual(e.stage, .working(slot(1, 1)))
+
+        e.advance(now: t0 + 100)
+        e.updateSet(slot(1, 1), weightKg: 55, reps: 12, rpe: nil, isWarmup: false)
+        XCTAssertTrue(e.isCompleted(slot(1, 1)))
+        XCTAssertEqual(e.nextPendingSlot, slot(0, 1),
+                       "the skipped sets are still outstanding and come back round")
+    }
+
+    func testAdvancingFromRestGoesToTheFirstOUTSTANDINGSetNotTheNextInLine() {
+        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
+        e.start(slot(0, 2), now: t0)                              // did set 2 first
+        e.advance(now: t0 + 40)                                   // → resting
+        e.advance(now: t0 + 140)                                  // → next OUTSTANDING
+        XCTAssertEqual(e.stage, .working(slot(0, 1)),
+                       "set 1 was never done, so it is what comes next")
+    }
+
+    func testStartingAnAlreadyCompletedSetRedoesItRatherThanDoubleCounting() {
+        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
+        e.advance(now: t0)
+        e.advance(now: t0 + 40)
+        e.updateSet(slot(0, 1), weightKg: 30, reps: 10, rpe: nil, isWarmup: false)
+        XCTAssertEqual(e.sets.count, 1)
+
+        e.start(slot(0, 1), now: t0 + 200)                        // redo it
+        XCTAssertEqual(e.sets.count, 0, "the old record is dropped, not duplicated")
+        XCTAssertEqual(e.stage, .working(slot(0, 1)))
+    }
+
+    func testStartingAnotherSetMidSetRecordsNothingForTheAbandonedOne() {
+        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
+        e.advance(now: t0)                                        // working set 1
+        e.start(slot(1, 1), now: t0 + 20)                         // changed mind
+        XCTAssertTrue(e.sets.isEmpty, "an unfinished set is not a set")
+        XCTAssertEqual(e.stage, .working(slot(1, 1)))
+    }
+
+    func testAdvancingWhenEverythingIsDoneDoesNotInventASet() {
         var e = LiftSessionEngine(plan: [LiftPlanItem(exercise: "Curl", targetSets: 1)], startTs: t0)
-        e.advance(now: t0 + 60)                                   // → set 1
-        e.advance(now: t0 + 100)          // final set → cool-down
-        XCTAssertEqual(e.stage, .cooldown, "the last set is followed by the cool-down, not a rest")
-        XCTAssertNil(e.sets[0].restSec, "no rest was taken after the final set, so none is recorded")
+        e.advance(now: t0)
+        e.advance(now: t0 + 30)                                   // → resting, all done
+        e.advance(now: t0 + 120)                                  // nothing left to start
+        XCTAssertEqual(e.sets.count, 1)
+        XCTAssertTrue(e.allCompleted)
     }
 
     // MARK: - Time
@@ -78,12 +135,11 @@ final class LiftSessionEngineTests: XCTestCase {
     func testRestIsAnchoredToAnAbsoluteInstantNotACountdown() {
         var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
         e.advance(now: t0)
-        e.advance(now: t0 + 10)           // rest ends at t0+100 (90s)
+        e.advance(now: t0 + 10)                                   // rest ends at t0+100
 
         XCTAssertEqual(e.restRemaining(now: t0 + 10), 90)
         XCTAssertEqual(e.restRemaining(now: t0 + 55), 45)
-        // The phone sleeping for a minute must not "pause" the rest: the answer depends only on the
-        // clock, which is the whole reason the end instant is stored rather than a counter.
+        // A phone sleeping through a rest must not "pause" it — the answer depends only on the clock.
         XCTAssertEqual(e.restRemaining(now: t0 + 100), 0)
     }
 
@@ -91,28 +147,87 @@ final class LiftSessionEngineTests: XCTestCase {
         var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
         e.advance(now: t0)
         e.advance(now: t0 + 10)
-
         XCTAssertEqual(e.restRemaining(now: t0 + 5_000), 0, "an overrun rest reads 0:00, never negative")
-        XCTAssertEqual(e.stage, .resting(item: 0, set: 1, endsAt: t0 + 100),
+        XCTAssertEqual(e.stage, .resting(slot(0, 1), endsAt: t0 + 100),
                        "rest waits for the user; nothing starts a set on its own")
     }
 
     func testRestRecordedIsWhatWasActuallyTakenNotWhatWasPlanned() {
         var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
         e.advance(now: t0)
-        e.advance(now: t0 + 10)           // planned rest 90s
+        e.advance(now: t0 + 10)                                   // planned 90s
         e.advance(now: t0 + 210)                                  // actually rested 200s
-
         XCTAssertEqual(e.sets[0].restSec, 200,
-                       "the work-vs-rest split is measured from the taps, not assumed from the plan")
+                       "work-vs-rest is measured from the taps, not assumed from the plan")
     }
 
     func testASetCarriesTheDurationItWasPerformedOver() {
         var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
-        e.advance(now: t0 + 300)                                  // set 1 begins
-        e.advance(now: t0 + 345)          // set 1 ends
+        e.advance(now: t0 + 300)
+        e.advance(now: t0 + 345)
         XCTAssertEqual(e.sets[0].startTs, t0 + 300)
         XCTAssertEqual(e.sets[0].endTs, t0 + 345)
+    }
+
+    // MARK: - Entering what you lifted
+
+    func testASetIsRecordedWithItsTimingBeforeAnyNumbersAreTyped() {
+        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
+        e.advance(now: t0 + 300)
+        e.advance(now: t0 + 345)
+        XCTAssertEqual(e.sets.count, 1)
+        XCTAssertNil(e.sets[0].weightKg, "numbers are typed during the rest, not while lifting")
+        XCTAssertNil(e.sets[0].reps)
+    }
+
+    func testTypingEditsTheSetRatherThanAddingOne() {
+        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
+        e.advance(now: t0)
+        e.advance(now: t0 + 40)
+        e.updateSet(slot(0, 1), weightKg: 30, reps: 10, rpe: nil, isWarmup: false)
+        e.updateSet(slot(0, 1), weightKg: 32.5, reps: 9, rpe: 8, isWarmup: false)
+        XCTAssertEqual(e.sets.count, 1)
+        XCTAssertEqual(e.sets[0].weightKg, 32.5)
+        XCTAssertEqual(e.sets[0].rpe, 8)
+    }
+
+    func testTypingIntoASetThatWasNeverPerformedInventsNothing() {
+        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
+        e.updateSet(slot(0, 1), weightKg: 100, reps: 5, rpe: 10, isWarmup: false)
+        XCTAssertTrue(e.sets.isEmpty, "a number nobody performed must never become a set")
+    }
+
+    func testAWarmUpSetIsRecordedButDoesNotCountAsAWorkingSet() {
+        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
+        e.advance(now: t0)
+        e.advance(now: t0 + 40)
+        e.updateSet(slot(0, 1), weightKg: 20, reps: 12, rpe: nil, isWarmup: true)
+        XCTAssertEqual(e.sets.count, 1)
+        XCTAssertEqual(e.completedWorkingSets, 0,
+                       "studies count working sets; a warm-up must not inflate the tally")
+    }
+
+    // MARK: - Ghost values
+
+    func testThePreviousSetInThisSessionIsWhatASetGhostsFrom() {
+        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
+        e.advance(now: t0)
+        e.advance(now: t0 + 40)
+        e.updateSet(slot(0, 1), weightKg: 30, reps: 10, rpe: 8, isWarmup: false)
+
+        let ghost = e.previousSetInSession(for: slot(0, 2))
+        XCTAssertEqual(ghost?.weightKg, 30, "set 2 ghosts from set 1 of the same exercise")
+        XCTAssertEqual(ghost?.reps, 10)
+    }
+
+    func testTheFirstSetOfAnExerciseHasNothingToGhostFrom() {
+        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
+        e.advance(now: t0)
+        e.advance(now: t0 + 40)
+        e.updateSet(slot(0, 1), weightKg: 30, reps: 10, rpe: 8, isWarmup: false)
+        XCTAssertNil(e.previousSetInSession(for: slot(0, 1)))
+        XCTAssertNil(e.previousSetInSession(for: slot(1, 1)),
+                     "a different exercise never ghosts from this one")
     }
 
     // MARK: - Undo
@@ -122,9 +237,8 @@ final class LiftSessionEngineTests: XCTestCase {
         e.advance(now: t0)
         e.advance(now: t0 + 40)
         XCTAssertEqual(e.sets.count, 1)
-
         e.undo()
-        XCTAssertEqual(e.stage, .working(item: 0, set: 1))
+        XCTAssertEqual(e.stage, .working(slot(0, 1)))
         XCTAssertTrue(e.sets.isEmpty, "undoing a mis-tap must take the set back with it")
     }
 
@@ -144,122 +258,41 @@ final class LiftSessionEngineTests: XCTestCase {
         XCTAssertEqual(e.stage, .warmup)
     }
 
-    func testTappingPastTheEndDoesNothingAndCannotFillTheUndoStack() {
-        var e = LiftSessionEngine(plan: [LiftPlanItem(exercise: "Curl", targetSets: 1)], startTs: t0)
+    func testUndoTakesBackARedoRestoringTheSetItDropped() {
+        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
         e.advance(now: t0)
-        e.advance(now: t0 + 30)
-        e.advance(now: t0 + 60)
-        XCTAssertEqual(e.stage, .finished)
-
-        e.advance(now: t0 + 90)
-        e.advance(now: t0 + 120)
-        XCTAssertEqual(e.stage, .finished, "finished is terminal")
-
+        e.advance(now: t0 + 40)
+        e.updateSet(slot(0, 1), weightKg: 30, reps: 10, rpe: nil, isWarmup: false)
+        e.start(slot(0, 1), now: t0 + 200)                        // redo drops it
+        XCTAssertTrue(e.sets.isEmpty)
         e.undo()
-        XCTAssertEqual(e.stage, .cooldown, "a stray tap after the end must not consume the undo history")
-    }
-
-    // MARK: - Warm-ups and counting
-
-    func testAWarmUpSetIsRecordedButDoesNotCountAsAWorkingSet() {
-        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
-        e.advance(now: t0)
-        e.advance(now: t0 + 40)
-        e.updateLastSet(weightKg: 20, reps: 12, rpe: nil, isWarmup: true)
-
-        XCTAssertEqual(e.sets.count, 1)
-        XCTAssertTrue(e.sets[0].isWarmup)
-        XCTAssertEqual(e.completedWorkingSets, 0,
-                       "studies count working sets; a warm-up must not inflate the tally")
-    }
-
-    // MARK: - Entering the set during the rest that follows it
-
-    func testASetIsRecordedWithItsTimingBeforeAnyNumbersAreTyped() {
-        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
-        e.advance(now: t0 + 300)
-        e.advance(now: t0 + 345)
-
-        XCTAssertEqual(e.sets.count, 1, "the set exists the moment it ends")
-        XCTAssertEqual(e.sets[0].startTs, t0 + 300)
-        XCTAssertEqual(e.sets[0].endTs, t0 + 345)
-        XCTAssertNil(e.sets[0].weightKg, "numbers are typed during the rest, not while lifting")
-        XCTAssertNil(e.sets[0].reps)
-    }
-
-    func testTheSetAwaitingEntryIsTheOneJustPerformed() {
-        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
-        XCTAssertNil(e.setAwaitingEntry, "nothing to fill in during the warm-up")
-        e.advance(now: t0)
-        XCTAssertNil(e.setAwaitingEntry, "nothing to fill in while the set is being performed")
-        e.advance(now: t0 + 40)
-        XCTAssertEqual(e.setAwaitingEntry?.setIndex, 1, "resting → the set just done is editable")
-    }
-
-    func testTypingDuringRestEditsTheSetRatherThanAddingOne() {
-        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
-        e.advance(now: t0)
-        e.advance(now: t0 + 40)
-
-        // Someone correcting themselves mid-rest must not accumulate sets.
-        e.updateLastSet(weightKg: 30, reps: 10, rpe: nil, isWarmup: false)
-        e.updateLastSet(weightKg: 32.5, reps: 9, rpe: 8, isWarmup: false)
-
-        XCTAssertEqual(e.sets.count, 1)
-        XCTAssertEqual(e.sets[0].weightKg, 32.5)
-        XCTAssertEqual(e.sets[0].reps, 9)
-        XCTAssertEqual(e.sets[0].rpe, 8)
-    }
-
-    func testTheFinalSetIsEditableDuringTheCoolDown() {
-        var e = LiftSessionEngine(plan: [LiftPlanItem(exercise: "Curl", targetSets: 1)], startTs: t0)
-        e.advance(now: t0)
-        e.advance(now: t0 + 40)
-        XCTAssertEqual(e.stage, .cooldown)
-        XCTAssertNotNil(e.setAwaitingEntry, "the last set has no rest after it, so the cool-down is its entry window")
-        e.updateLastSet(weightKg: 20, reps: 12, rpe: 9, isWarmup: false)
-        XCTAssertEqual(e.sets[0].reps, 12)
-    }
-
-    func testUpdatingWithNoSetRecordedIsHarmless() {
-        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
-        e.updateLastSet(weightKg: 100, reps: 5, rpe: 10, isWarmup: false)
-        XCTAssertTrue(e.sets.isEmpty, "typing before any set exists must not invent one")
-    }
-
-    func testPlannedWorkingSetsSumsTheWholePlan() {
-        let e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
-        XCTAssertEqual(e.plannedWorkingSets, 3)
+        XCTAssertEqual(e.sets.count, 1, "a redo started by accident is recoverable")
+        XCTAssertEqual(e.sets[0].weightKg, 30)
     }
 
     // MARK: - Degenerate plans
 
-    func testAnEmptyPlanGoesStraightToTheCoolDownRatherThanTrapping() {
-        var e = LiftSessionEngine(plan: [], startTs: t0)
-        XCTAssertEqual(e.stage, .cooldown)
-        e.advance(now: t0 + 10)
-        XCTAssertEqual(e.stage, .finished)
-    }
-
     func testALineWithNoTargetStillGetsOneTappableSet() {
-        let item = LiftPlanItem(exercise: "Face pull", targetSets: nil)
-        XCTAssertEqual(item.targetSets, 1, "a plan that schedules zero sets could not be tapped through")
+        XCTAssertEqual(LiftPlanItem(exercise: "Face pull", targetSets: nil).targetSets, 1)
     }
 
     func testAMissingRestFallsBackToTheDefault() {
-        let item = LiftPlanItem(exercise: "Face pull", restSec: nil)
-        XCTAssertEqual(item.restSec, LiftPlanItem.defaultRestSec)
+        XCTAssertEqual(LiftPlanItem(exercise: "Face pull", restSec: nil).restSec,
+                       LiftPlanItem.defaultRestSec)
     }
 
-    func testCurrentItemTracksTheExerciseBeingWorked() {
+    func testAnEmptyPlanHasNothingToStartAndCannotTrap() {
+        var e = LiftSessionEngine(plan: [], startTs: t0)
+        XCTAssertNil(e.nextPendingSlot)
+        e.advance(now: t0 + 10)
+        XCTAssertEqual(e.stage, .warmup, "with no sets there is nothing to advance into")
+        e.finish(now: t0 + 20)
+        XCTAssertEqual(e.stage, .finished, "and it can still be ended")
+    }
+
+    func testStartingASlotOutsideThePlanIsIgnored() {
         var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
-        XCTAssertNil(e.currentItem, "there is no exercise during the warm-up")
-        e.advance(now: t0)
-        XCTAssertEqual(e.currentItem?.exercise, "Incline dumbbell press")
-        e.advance(now: t0 + 40)
-        e.advance(now: t0 + 140)
-        e.advance(now: t0 + 180)
-        e.advance(now: t0 + 280)
-        XCTAssertEqual(e.currentItem?.exercise, "Lat pulldown")
+        e.start(slot(99, 1), now: t0)
+        XCTAssertEqual(e.stage, .warmup)
     }
 }

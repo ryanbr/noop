@@ -163,27 +163,35 @@ enum LiftSessionPersistence {
 
     private static func box(_ stage: LiftSessionEngine.Stage) -> Snapshot.StageBox {
         switch stage {
-        case .warmup:  return .init(kind: "warmup", item: nil, set: nil, endsAt: nil)
-        case .working(let i, let s): return .init(kind: "working", item: i, set: s, endsAt: nil)
-        case .resting(let i, let s, let e): return .init(kind: "resting", item: i, set: s, endsAt: e)
-        case .cooldown: return .init(kind: "cooldown", item: nil, set: nil, endsAt: nil)
-        case .finished: return .init(kind: "finished", item: nil, set: nil, endsAt: nil)
+        case .warmup:
+            return .init(kind: "warmup", item: nil, set: nil, endsAt: nil)
+        case .working(let slot):
+            return .init(kind: "working", item: slot.exerciseIndex, set: slot.setIndex, endsAt: nil)
+        case .resting(let slot, let endsAt):
+            return .init(kind: "resting", item: slot.exerciseIndex, set: slot.setIndex, endsAt: endsAt)
+        case .finished:
+            return .init(kind: "finished", item: nil, set: nil, endsAt: nil)
         }
     }
 
-    /// Anything unrecognised (or a `working`/`resting` box missing its indices) falls back to the
-    /// warm-up: the session is still recoverable and still saveable, which beats refusing to load.
+    /// Anything unrecognised — a `working`/`resting` box missing its indices, or the retired
+    /// "cooldown" kind written by an earlier build — falls back to the warm-up.
+    ///
+    /// That is a real recovery, not a shrug: every COMPLETED set is carried in `sets` regardless, so
+    /// nothing logged is lost. Only the cursor's position is forgotten, and the next tap simply
+    /// resumes at the first set still outstanding.
     private static func unbox(_ box: Snapshot.StageBox) -> LiftSessionEngine.Stage {
         switch box.kind {
         case "working":
             guard let i = box.item, let s = box.set else { return .warmup }
-            return .working(item: i, set: s)
+            return .working(LiftSlot(exerciseIndex: i, setIndex: s))
         case "resting":
             guard let i = box.item, let s = box.set, let e = box.endsAt else { return .warmup }
-            return .resting(item: i, set: s, endsAt: e)
-        case "cooldown": return .cooldown
-        case "finished": return .finished
-        default: return .warmup
+            return .resting(LiftSlot(exerciseIndex: i, setIndex: s), endsAt: e)
+        case "finished":
+            return .finished
+        default:
+            return .warmup
         }
     }
 }
