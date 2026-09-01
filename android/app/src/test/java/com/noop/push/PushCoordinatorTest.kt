@@ -10,6 +10,18 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 class PushCoordinatorTest {
+    /**
+     * A PINNED "today" for every coordinator built in this file.
+     *
+     * `PushCoordinator` defaults to `LocalDate.now()` and `PushWindow` spans `today.minusDays(13)`, so a
+     * test that omits it silently depends on the wall clock. The journal fixtures here are dated
+     * 2026-08-18, which sat inside that window until 2026-09-01 and then fell out: CI was green at
+     * 23:21Z on 31 Aug and red at 00:13Z on 1 Sep, with `expected:<[journal]> but was:<[]>`. Nothing had
+     * changed but the date. Pin it, and the suite asserts the coordinator's behaviour rather than the
+     * calendar's.
+     */
+    private val pinnedToday = { LocalDate.of(2026, 8, 18) }
+
     @Test
     fun endpointChangeFencesRemainingPostsToCapturedDestination() = runBlocking {
         val settings = SelfHostedPushSettings.forTest(
@@ -360,7 +372,7 @@ class PushCoordinatorTest {
             }
         }
 
-        PushCoordinator(source, transport, MemoryProgress(), SOURCE_A)
+        PushCoordinator(source, transport, MemoryProgress(), SOURCE_A, pinnedToday, ZoneId.of("UTC"))
             .pushAppend(PushAppendTable.HR_SAMPLE, "a")
         Unit
     }
@@ -380,7 +392,7 @@ class PushCoordinatorTest {
         )
         val transport = AckingTransport()
 
-        val result = PushCoordinator(source, transport, MemoryProgress(), SOURCE_A)
+        val result = PushCoordinator(source, transport, MemoryProgress(), SOURCE_A, pinnedToday, ZoneId.of("UTC"))
             .pushMutable(PushMutableTable.JOURNAL, "a")
 
         assertTrue(result is PushResult.Rejected && !result.retryable)
@@ -394,7 +406,7 @@ class PushCoordinatorTest {
         }
         val transport = AckingTransport()
 
-        val result = PushCoordinator(source, transport, MemoryProgress(), SOURCE_A)
+        val result = PushCoordinator(source, transport, MemoryProgress(), SOURCE_A, pinnedToday, ZoneId.of("UTC"))
             .pushAppend(PushAppendTable.EVENT, "a")
 
         assertTrue(result is PushResult.Rejected && !result.retryable)
@@ -408,7 +420,7 @@ class PushCoordinatorTest {
         }
         val transport = AckingTransport()
 
-        val result = PushCoordinator(source, transport, MemoryProgress(), SOURCE_A)
+        val result = PushCoordinator(source, transport, MemoryProgress(), SOURCE_A, pinnedToday, ZoneId.of("UTC"))
             .pushMutable(PushMutableTable.JOURNAL, "a")
 
         assertTrue(result is PushResult.Rejected && !result.retryable)
@@ -490,7 +502,7 @@ class PushCoordinatorTest {
             mutableTables = setOf(PushMutableTable.JOURNAL),
         )
 
-        PushCoordinator(source, transport, MemoryProgress(), SOURCE_A)
+        PushCoordinator(source, transport, MemoryProgress(), SOURCE_A, pinnedToday, ZoneId.of("UTC"))
             .pushKnownDevices(capabilities = capabilities)
 
         assertEquals(emptyList<PushAppendTable>(), source.appendTablesRead)
@@ -503,7 +515,7 @@ class PushCoordinatorTest {
     fun emptyCapabilitiesAvoidEvenDeviceDiscovery() = runBlocking {
         val source = FakePushSource().apply { knownDeviceIdsFailure = AssertionError("Room must stay unopened") }
 
-        val result = PushCoordinator(source, AckingTransport(), MemoryProgress(), SOURCE_A)
+        val result = PushCoordinator(source, AckingTransport(), MemoryProgress(), SOURCE_A, pinnedToday, ZoneId.of("UTC"))
             .pushKnownDevices(capabilities = PushCapabilities(emptySet(), emptySet()))
 
         assertEquals(0, result.acceptedBatches)
@@ -521,7 +533,7 @@ class PushCoordinatorTest {
             }
         }
 
-        val result = PushCoordinator(source, transport, MemoryProgress(), SOURCE_A)
+        val result = PushCoordinator(source, transport, MemoryProgress(), SOURCE_A, pinnedToday, ZoneId.of("UTC"))
             .pushKnownDevices(
                 capabilities = PushCapabilities(setOf(PushAppendTable.HR_SAMPLE), emptySet()),
             )
@@ -543,7 +555,7 @@ class PushCoordinatorTest {
             )
         }
 
-        val result = PushCoordinator(source, transport, MemoryProgress(), SOURCE_A)
+        val result = PushCoordinator(source, transport, MemoryProgress(), SOURCE_A, pinnedToday, ZoneId.of("UTC"))
             .pushKnownDevices(capabilities = PushCapabilities(setOf(PushAppendTable.HR_SAMPLE), emptySet()))
 
         assertEquals("registry_mismatch", result.failure?.receiverCode)
