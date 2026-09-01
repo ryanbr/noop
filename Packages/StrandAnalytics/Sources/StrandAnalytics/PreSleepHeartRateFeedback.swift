@@ -242,11 +242,14 @@ public enum PreSleepHeartRateFeedback {
                         journalContext: context)
     }
 
-    private static var gregorianUTC: Calendar {
+    /// Stored, not computed (#1784). `canonicalDay` reads this once per history row, so a computed
+    /// property built a fresh `Calendar` for every prior night. `Calendar` is a `Sendable` value type,
+    /// so one shared instance is safe and the construction happens once.
+    private static let gregorianUTC: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         return calendar
-    }
+    }()
 
     private static func canonicalDay(_ day: String) -> Date? {
         let bytes = Array(day.utf8)
@@ -268,6 +271,13 @@ public enum PreSleepHeartRateFeedback {
         return date
     }
 
+    /// One sample per timestamp, FIRST occurrence wins.
+    ///
+    /// First-wins is the caller's precedence order, not an arbitrary pick: `evaluate`'s contract is an
+    /// already-coalesced timeline where measured data outranks PPG-derived, so the first element for a
+    /// timestamp is the one the repository chose. Stated here as well as on `evaluate` because the rule
+    /// is invisible at this call site, and a later reader changing it to last-wins would silently invert
+    /// that precedence (#1784).
     private static func deduplicated(_ hr: [HRSample]) -> [HRSample] {
         var seen = Set<Int>()
         return hr.filter { seen.insert($0.ts).inserted }
