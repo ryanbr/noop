@@ -25,6 +25,10 @@ struct StrandiOSApp: App {
     /// observes it and presents the Devices manager.
     @StateObject private var router: NavRouter
     @State private var liveActivity = LiveActivityController()
+    /// The live gym session. Owned HERE, at the app root, rather than by the screen that shows it:
+    /// swiping the workout sheet away must not stop the clock, silence the strap or drop the
+    /// double-tap handler. See `LiftSessionController`.
+    @StateObject private var liftSession: LiftSessionController
     @Environment(\.scenePhase) private var scenePhase
     /// Appearance preference (System/Light/Dark). Default follows the OS; the Settings picker writes it.
     @AppStorage(AppearanceMode.storageKey) private var appearanceRaw = AppearanceMode.system.rawValue
@@ -72,6 +76,15 @@ struct StrandiOSApp: App {
         NotificationPresenter.shared.onCoachBriefTapped = { [weak router] in router?.openCoach() }
         let model = AppModel()
         _model = StateObject(wrappedValue: model)
+        // The buzz and the strap-gesture claim are injected, so the controller itself knows nothing
+        // about BLE and stays testable.
+        _liftSession = StateObject(wrappedValue: LiftSessionController(
+            buzz: { [weak model] loops in
+                model?.buzz(loops: loops, gate: HapticPrefs.liftRest)
+            },
+            setStrapHandler: { [weak model] handler in
+                model?.strapDoubleTapOverride = handler
+            }))
         // #1538: a strap offload completes while the app is BACKGROUNDED — it stays alive as a
         // bluetooth-central to receive it — and the re-score it triggers took nearly eight minutes on the
         // reporter's install, far longer than that wake survives. The pass is all-or-nothing, so being
@@ -163,6 +176,7 @@ struct StrandiOSApp: App {
                 .environmentObject(health)
                 .environmentObject(router)
                 .environmentObject(UpdateStore.shared)
+                .environmentObject(liftSession)
                 // v5 L3: the shared stress check-in nudge surface, so the Breathe screen's passive
                 // card observes the SAME instance the central detector (AppModel.evaluateStress) posts to.
                 .environment(\.stressNudgeCenter, model.stressNudgeCenter)
