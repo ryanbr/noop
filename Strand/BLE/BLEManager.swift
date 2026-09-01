@@ -5603,6 +5603,19 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
             }
             state.append(log: "reconnect n=\(connReconnectCount) failedConnect reason=\(reason)", domain: .connection)
         }
+        // PARITY (#1790): Android can now CLEAR this pairing itself, behind a default-off Test Centre
+        // switch, once, after five of these failures — the step guide-line 2 asks the user to take. This
+        // side deliberately cannot, and the blocker is identity rather than a missing call:
+        //
+        //  - iOS has no route at all; forgetting a pairing is reserved to the user by design.
+        //  - macOS has one in IOBluetooth, but it addresses devices by MAC and CoreBluetooth never
+        //    exposes one — `peripheral.identifier` is a per-app UUID, deliberately not the hardware
+        //    address. The only bridge left is matching `IOBluetoothDevice.pairedDevices()` by NAME, and
+        //    deleting a pairing on a name match removes the wrong device the moment there are two straps
+        //    or one has been renamed.
+        //
+        // So both platforms detect this and both give the same advice; only Android can act on it. Do not
+        // close the gap with a name match. Kotlin twin: `StaleBondRemoval.kt`.
         if let cbErr = error as? CBError, cbErr.code == .peerRemovedPairingInformation {
             state.reconnectGuide = """
             Your strap's Bluetooth pairing was reset - usually by a WHOOP firmware update, or the official WHOOP app reconnecting. NOOP works fine on the new firmware; you just need to re-pair:
