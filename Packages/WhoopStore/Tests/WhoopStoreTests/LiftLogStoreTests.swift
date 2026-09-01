@@ -126,6 +126,65 @@ final class LiftLogStoreTests: XCTestCase {
                      "a skipped rating must stay nil — a 0 would read as 'effortless' and corrupt the load")
     }
 
+    // MARK: - The vocabulary cap
+
+    func testAnExistingExerciseAlwaysUpdatesEvenAtTheCap() async throws {
+        let store = try await WhoopStore.inMemory()
+        let row = LiftExerciseRow(id: UUID().uuidString, deviceId: "dev", name: "Bench press",
+                                  primaryMuscle: .chest, secondaryMuscles: [],
+                                  createdAt: 1_700_000_000, lastUsedTs: nil)
+        _ = try await store.upsertLiftExercises([row])
+        // Re-saving a KNOWN name is an update, not a new entry — it must never be refused, or a user
+        // at the cap could no longer fix the classification of something they train weekly.
+        var reclassified = row
+        reclassified.primaryMuscle = .triceps
+        _ = try await store.upsertLiftExercises([reclassified])
+
+        let back = try await store.liftExercises(deviceId: "dev")
+        XCTAssertEqual(back.count, 1)
+        XCTAssertEqual(back[0].primaryMuscle, .triceps)
+    }
+
+    func testANewExerciseIsRefusedOnceTheVocabularyIsFull() async throws {
+        let store = try await WhoopStore.inMemory()
+        let limit = WhoopStore.maxRememberedExercises
+        let rows = (0..<limit).map {
+            LiftExerciseRow(id: UUID().uuidString, deviceId: "dev", name: "Exercise \($0)",
+                            primaryMuscle: nil, secondaryMuscles: [],
+                            createdAt: 1_700_000_000, lastUsedTs: nil)
+        }
+        _ = try await store.upsertLiftExercises(rows)
+
+        let overflow = LiftExerciseRow(id: UUID().uuidString, deviceId: "dev", name: "One too many",
+                                       primaryMuscle: nil, secondaryMuscles: [],
+                                       createdAt: 1_700_000_000, lastUsedTs: nil)
+        do {
+            _ = try await store.upsertLiftExercises([overflow])
+            XCTFail("a new name past the cap should be refused, not silently dropped")
+        } catch let error as WhoopStore.LiftExerciseVocabularyFull {
+            XCTAssertEqual(error.limit, limit, "the message must be able to name the limit")
+        }
+        // And nothing already remembered was evicted to make room.
+        let back = try await store.liftExercises(deviceId: "dev")
+        XCTAssertEqual(back.count, limit)
+    }
+
+    func testTheCapIsPerDeviceNotGlobal() async throws {
+        let store = try await WhoopStore.inMemory()
+        _ = try await store.upsertLiftExercises([
+            LiftExerciseRow(id: UUID().uuidString, deviceId: "dev-a", name: "Row",
+                            primaryMuscle: nil, secondaryMuscles: [],
+                            createdAt: 1, lastUsedTs: nil)])
+        _ = try await store.upsertLiftExercises([
+            LiftExerciseRow(id: UUID().uuidString, deviceId: "dev-b", name: "Row",
+                            primaryMuscle: nil, secondaryMuscles: [],
+                            createdAt: 1, lastUsedTs: nil)])
+        let a = try await store.liftExercises(deviceId: "dev-a")
+        let b = try await store.liftExercises(deviceId: "dev-b")
+        XCTAssertEqual(a.count, 1)
+        XCTAssertEqual(b.count, 1)
+    }
+
     // MARK: - The user's own exercise vocabulary
 
     /// Anything the user types becomes an exercise they can reuse, with the muscle group they gave

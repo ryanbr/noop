@@ -252,6 +252,41 @@ final class LiftSessionEngineTests: XCTestCase {
         XCTAssertTrue(e.sets.isEmpty)
     }
 
+    func testUndoIsGlobalAndWalksBackACROSSExercises() {
+        // Undo is one stack for the WHOLE session, not a per-exercise one: from the last set of the
+        // last exercise you can walk all the way back to the first set of the first.
+        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
+        e.advance(now: t0)                                        // ex0 set1
+        e.advance(now: t0 + 40)
+        e.updateSet(slot(0, 1), weightKg: 30, reps: 10, rpe: nil, isWarmup: false)
+        e.advance(now: t0 + 140)                                  // ex0 set2
+        e.advance(now: t0 + 180)
+        e.advance(now: t0 + 280)                                  // ex1 set1
+        e.advance(now: t0 + 320)
+        XCTAssertEqual(e.sets.count, 3)
+        XCTAssertEqual(e.currentSlot?.exerciseIndex, 1)
+
+        // One undo steps back out of the SECOND exercise into the first — no boundary in the way.
+        e.undo()
+        XCTAssertEqual(e.sets.count, 2)
+        e.undo()
+        XCTAssertEqual(e.currentSlot?.exerciseIndex, 0,
+                       "undo crosses from one exercise back into the previous one")
+
+        while e.canUndo { e.undo() }
+        XCTAssertEqual(e.stage, .warmup)
+        XCTAssertTrue(e.sets.isEmpty, "the whole session unwinds, set by set, with no cap")
+    }
+
+    func testUndoHasNoDepthLimit() {
+        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
+        for i in 0..<60 { e.advance(now: t0 + i * 10) }           // far more steps than the plan has
+        var undone = 0
+        while e.canUndo { e.undo(); undone += 1 }
+        XCTAssertGreaterThan(undone, 10, "undo depth is not capped")
+        XCTAssertEqual(e.stage, .warmup)
+    }
+
     func testUndoOnAFreshSessionIsHarmless() {
         var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
         e.undo()

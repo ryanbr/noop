@@ -63,6 +63,7 @@ struct LiftProgramEditorSheet: View {
         #endif
         .background(StrandPalette.surfaceBase)
         .keyboardDoneToolbar($focused)
+        .dismissesKeyboardOnTap($focused)
         .task { await loadIfNeeded() }
         .sheet(item: $editingItem) { target in
             LiftProgramItemSheet(item: target.item) { saved in

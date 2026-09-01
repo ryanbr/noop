@@ -36,6 +36,10 @@ struct LiftProgramItemSheet: View {
     /// The user's own exercise vocabulary, for suggestions and for adopting a known classification.
     @State private var vocabulary: [LiftExerciseRow] = []
     @State private var loaded = false
+    /// The vocabulary entry the user is about to forget (nil = no confirmation showing).
+    @State private var forgetting: LiftExerciseRow?
+    /// Set when the vocabulary is full, so the refusal is explained rather than silent.
+    @State private var vocabularyFullLimit: Int?
 
     /// The app's existing metric/imperial preference — the Lift Log never adds a second weight unit
     /// setting of its own, so the plan is typed in the same unit the session records in.
@@ -84,7 +88,35 @@ struct LiftProgramItemSheet: View {
         #endif
         .background(StrandPalette.surfaceBase)
         .keyboardDoneToolbar($focused)
+        .dismissesKeyboardOnTap($focused)
         .task { await loadIfNeeded() }
+        .confirmationDialog(
+            forgetting.map { Text(String(localized: "Forget \($0.name)?")) } ?? Text(""),
+            isPresented: Binding(get: { forgetting != nil },
+                                 set: { if !$0 { forgetting = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("Forget", role: .destructive) { Task { await forget() } }
+            Button("Cancel", role: .cancel) { forgetting = nil }
+        } message: {
+            Text("It stops being offered here. Sessions you already logged with it are kept exactly as they are.")
+        }
+        .alert("You've saved the most exercises NOOP remembers",
+               isPresented: Binding(get: { vocabularyFullLimit != nil },
+                                    set: { if !$0 { vocabularyFullLimit = nil } })) {
+            Button("OK", role: .cancel) { vocabularyFullLimit = nil }
+        } message: {
+            Text("Forget one you no longer use and this one will save. Your logged sessions are never affected.")
+        }
+    }
+
+    /// Forget an exercise. The logged sets keep their own copy of the name and muscles, so this
+    /// removes it from the picker WITHOUT touching a single recorded session.
+    private func forget() async {
+        guard let row = forgetting, let store = await repo.storeHandle() else { return }
+        _ = try? await store.deleteLiftExercise(id: row.id)
+        vocabulary.removeAll { $0.id == row.id }
+        forgetting = nil
     }
 
     // MARK: - Exercise name + suggestions
@@ -104,27 +136,42 @@ struct LiftProgramItemSheet: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Used before").strandOverline()
                             ForEach(suggestions, id: \.id) { row in
-                                Button {
-                                    adopt(row)
-                                } label: {
-                                    HStack(spacing: 8) {
-                                        Image(systemName: "arrow.up.left")
-                                            .font(.system(size: 10, weight: .semibold))
-                                            .foregroundStyle(StrandPalette.textTertiary)
-                                        VStack(alignment: .leading, spacing: 1) {
-                                            Text(row.name)
-                                                .font(StrandFont.body)
-                                                .foregroundStyle(StrandPalette.textPrimary)
-                                            Text(LiftMuscleSummary.line(primary: row.primaryMuscle,
-                                                                        secondaries: row.secondaryMuscles))
-                                                .font(StrandFont.caption)
+                                HStack(spacing: 8) {
+                                    Button {
+                                        adopt(row)
+                                    } label: {
+                                        HStack(spacing: 8) {
+                                            Image(systemName: "arrow.up.left")
+                                                .font(.system(size: 10, weight: .semibold))
                                                 .foregroundStyle(StrandPalette.textTertiary)
+                                            VStack(alignment: .leading, spacing: 1) {
+                                                Text(row.name)
+                                                    .font(StrandFont.body)
+                                                    .foregroundStyle(StrandPalette.textPrimary)
+                                                Text(LiftMuscleSummary.line(primary: row.primaryMuscle,
+                                                                            secondaries: row.secondaryMuscles))
+                                                    .font(StrandFont.caption)
+                                                    .foregroundStyle(StrandPalette.textTertiary)
+                                            }
+                                            Spacer(minLength: 0)
                                         }
-                                        Spacer(minLength: 0)
+                                        .contentShape(Rectangle())
                                     }
-                                    .contentShape(Rectangle())
+                                    .buttonStyle(.plain)
+
+                                    // A typo becomes a permanent picker entry otherwise. Forgetting a
+                                    // name is safe by construction: every logged set SNAPSHOTS its
+                                    // exercise name and classification, so history is untouched.
+                                    Button(role: .destructive) {
+                                        forgetting = row
+                                    } label: {
+                                        Image(systemName: "trash")
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .foregroundStyle(StrandPalette.textTertiary)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("Forget this exercise")
                                 }
-                                .buttonStyle(.plain)
                             }
                         }
                     }
@@ -359,7 +406,16 @@ struct LiftProgramItemSheet: View {
                 createdAt: existing?.createdAt ?? now,
                 lastUsedTs: now
             )
-            _ = try? await store.upsertLiftExercises([row])
+            do {
+                _ = try await store.upsertLiftExercises([row])
+            } catch let full as WhoopStore.LiftExerciseVocabularyFull {
+                // Refused rather than silently dropped: the user typed a name and deserves to know
+                // it was not remembered.
+                vocabularyFullLimit = full.limit
+                return
+            } catch {
+                return
+            }
         }
 
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
