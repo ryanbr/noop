@@ -26,8 +26,8 @@ package com.noop.ble
  * `CBError.peerRemovedPairingInformation` and publishes a forget-and-re-pair guide naming the strap. It
  * simply cannot perform the step.
  *
- *  - iOS has no route at all. Removing a pairing is a Settings > Bluetooth > Forget action reserved to
- *    the user, by design.
+ *  - iOS: the same identity problem, with nothing else to reach for. The app's own guide already tells
+ *    the user to do it in Settings, which is the honest answer rather than a claim about Apple's intent.
  *  - macOS ships `IOBluetooth`, a separate classic-Bluetooth framework. Whether its device removal
  *    works on a BLE pairing is a question that never arises: it addresses devices by MAC, and Apple's
  *    side never has one — `BLEManager.epitaphLine`'s doc already states it, the peripheral UUID being

@@ -5607,7 +5607,9 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         // switch, once, after five of these failures — the step guide-line 2 asks the user to take. This
         // side deliberately cannot, and the blocker is identity rather than a missing call:
         //
-        //  - iOS has no route at all; forgetting a pairing is reserved to the user by design.
+        //  - iOS: the same identity problem, with nothing else to reach for. The guide below already
+        //    tells the user to do it themselves, which is the honest answer rather than a claim about
+        //    Apple's intent.
         //  - macOS ships IOBluetooth, a separate classic-Bluetooth framework, and whether its device
         //    removal works on a BLE pairing is a question that never arises for us: it addresses devices
         //    by MAC, and we never have one. `epitaphLine`'s doc already says why — the peripheral UUID is
