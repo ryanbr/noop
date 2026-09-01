@@ -79,4 +79,42 @@ class StaleBondRemovalTest {
             assertFalse("no serial prefix", line.contains("MGB"))
         }
     }
+
+    /**
+     * The switch has to be REACHABLE, and nothing else in this suite can tell you that.
+     *
+     * The first cut of this feature put its row in SettingsScreen inside `if (false && ...)` — a block
+     * whose own comment says developer 5/MG controls moved to Test Centre and that it must never render.
+     * Every test passed and CI was green with a toggle no user could turn on. It looked right because
+     * the sibling "Ask Android to pair" row sits in the same dead block and appears to work only
+     * because its pref persists from before that block was disabled.
+     *
+     * So this reads the source: the switch must be wired in Test Centre, and Test Centre must not have
+     * grown a disabled block of its own.
+     */
+    @Test
+    fun `the toggle is wired somewhere a user can actually reach`() {
+        val testCentre = uiSource("TestCentreScreen.kt")
+        assertTrue("the toggle must be wired in Test Centre, which is where 5/MG switches live",
+                   testCentre.contains("R.string.raw_diag_clear_stale_bond"))
+        assertTrue("and bound to the experiment it gates",
+                   testCentre.contains("puffinExperiment.clearStaleBond = it"))
+        assertFalse("Test Centre must not grow a disabled block the way Settings did",
+                    testCentre.contains("if (false"))
+
+        // And it must NOT have been added to the retained-but-dead Settings copy: a row that never
+        // shipped there needs no compatibility copy, and one would only be more to delete later.
+        assertFalse("the dead Settings block must not gain new switches",
+                    uiSource("SettingsScreen.kt").contains("clearStaleBond"))
+    }
+
+    private fun uiSource(name: String): String {
+        val rel = "android/app/src/main/java/com/noop/ui/$name"
+        val start = java.io.File(System.getProperty("user.dir") ?: ".").absoluteFile
+        val f = generateSequence(start) { it.parentFile }.map { java.io.File(it, rel) }
+            .firstOrNull { it.isFile }
+        assertTrue("$name not found walking up from $start — this check cannot run, and one that " +
+                   "silently skips is worse than none", f != null)
+        return f!!.readText()
+    }
 }
