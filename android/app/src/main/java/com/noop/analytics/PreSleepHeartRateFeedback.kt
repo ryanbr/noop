@@ -236,7 +236,14 @@ object PreSleepHeartRateFeedback {
         )
     }
 
-    /** `a - b`, or null when it would overflow. The Long twin of Swift's `subtractingReportingOverflow`. */
+    /**
+     * `a - b`, or null when it would overflow.
+     *
+     * NOT a twin claim, though it reads like one and originally said so. Apple expresses the same
+     * contract with `subtractingReportingOverflow`, which is Swift STDLIB on `FixedWidthInteger` and
+     * therefore not a declaration in this repository at all — so a reader chasing the reference finds
+     * nothing, and a parity audit resolves it to nothing either.
+     */
     private fun subtractOrNull(a: Long, b: Long): Long? =
         try { Math.subtractExact(a, b) } catch (_: ArithmeticException) { null }
 
