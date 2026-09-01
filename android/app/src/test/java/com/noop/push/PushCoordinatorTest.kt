@@ -52,7 +52,7 @@ class PushCoordinatorTest {
 
         try {
             PushCoordinator(
-                source, transport, MemoryProgress(), SOURCE_A,
+                source, transport, MemoryProgress(), SOURCE_A, pinnedToday, ZoneId.of("UTC"),
                 destinationStillCurrent = { settings.enabledEndpoint() == first },
             ).pushKnownDevices(
                 capabilities = PushCapabilities(
@@ -186,6 +186,8 @@ class PushCoordinatorTest {
             throwing,
             progress,
             SOURCE_A,
+            pinnedToday,
+            ZoneId.of("UTC"),
         ).pushAppend(PushAppendTable.HR_SAMPLE, "a")
         assertTrue(result is PushResult.Rejected && result.retryable)
         assertTrue(progress.cursors.isEmpty())

@@ -8,6 +8,8 @@ import androidx.work.ListenableWorker
 import androidx.work.WorkerParameters
 import com.noop.R
 import com.noop.data.WhoopDatabase
+import java.time.LocalDate
+import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
 
 internal fun persistedDeviceIndex(startDeviceIndex: Int, nextDeviceIndex: Int, retryableFailure: Boolean): Int =
@@ -223,6 +225,10 @@ class SelfHostedPushWorker(
             transport = transport,
             progress = progress,
             sourceId = sourceId,
+            // The real clock and zone live HERE, at the one caller that wants them, rather than as
+            // defaults 35 test constructions could inherit without saying so (#1787).
+            today = { LocalDate.now() },
+            zoneId = ZoneId.systemDefault(),
             destinationStillCurrent = { settings.enabledEndpoint() == endpoint },
         ).pushKnownDevices(startDeviceIndex, MAX_DEVICES_PER_RUN, capabilities)
         settings.recordAcceptedBatches(

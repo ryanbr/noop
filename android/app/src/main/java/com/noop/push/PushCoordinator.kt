@@ -11,8 +11,8 @@ class PushCoordinator(
     private val transport: PushTransport,
     private val progress: PushProgressStore,
     private val sourceId: String,
-    private val today: () -> LocalDate = { LocalDate.now() },
-    private val zoneId: ZoneId = ZoneId.systemDefault(),
+    private val today: () -> LocalDate,
+    private val zoneId: ZoneId,
     private val destinationStillCurrent: () -> Boolean = { true },
 ) {
     suspend fun pushAppend(table: PushAppendTable, deviceId: String): PushResult {
