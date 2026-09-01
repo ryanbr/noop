@@ -60,9 +60,11 @@ cd android
 
 ## What CI checks
 
-**Five** GitHub Actions workflows can run on a PR. Three run on *every* PR; two are
-path-filtered and only run when you touch what they cover. All of them compile and run
-unit tests only — no code signing, no secrets, no release.
+Some GitHub Actions workflows run on *every* PR; others are path-filtered and only run when
+you touch what they cover. All of them compile and run unit tests only — no code signing, no
+secrets, no release. The table is the source of truth, deliberately — the section this
+replaced led with a count, and a count in prose is what goes stale while the list below it
+looks fine.
 
 The check names GitHub shows you are **job** names, which do not resemble the workflow
 names. That column is why this table exists:
@@ -75,8 +77,8 @@ names. That column is why this table exists:
 | `build-and-test` | **Android CI** (`android.yml`) | `android/**`, the protocol/store test resources, `Strand/Resources/Localizable.xcstrings` |
 | `test (…)`, `tools (…)` | **Swift Packages CI** (`swift-packages.yml`) | `Packages/**`, the `Tools/SleepBench`, `Tools/SleepPSG` and `Tools/Backfill` packages, `android/app/src/test/resources/**`, `Strand/Liquid/LiquidCore.swift` |
 
-So an Android-only PR shows **four** checks, not one: Android CI plus the three that always
-run. Seeing a short list does not mean little was checked.
+Read that as a worked example: an Android-only PR runs Android CI plus the three that always
+run, so a short list of checks does not mean little was checked.
 
 **App build** (`app-build.yml`, app-target compile + the `StrandTests` macOS suite) is
 `disabled_manually` and is **not** in that list. App-target code — SwiftUI views,
