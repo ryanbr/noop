@@ -273,19 +273,49 @@ struct NOOPWidgetView: View {
         .frame(maxWidth: .infinity)
     }
 
+    /// Home-Screen footer: heart rate, HRV, strap battery, under the score rings.
+    ///
+    /// `heart.fill` is HR and `waveform.path.ecg` is HRV, which is the metric pairing the rest of the app
+    /// uses — `TodayView` renders them as adjacent rows that way, and `DashboardCards`,
+    /// `TodayCustomizationMetadata`, `MetricCatalog` and this extension's own Live Activity all agree.
+    /// The two were inverted here from #1022 until #1795 reported it.
+    ///
+    /// The inversion was an easy one to make and is worth naming so it is not "corrected" back:
+    /// `waveform.path.ecg` IS the right symbol for Live HR as a FEATURE — `RootView`, `RootTabView` and
+    /// `HomeScreenQuickActions` all use it for the Live screen. As a METRIC icon it belongs to HRV, and
+    /// this footer is the one place that renders both metrics side by side, where the collision is the
+    /// entire problem: nothing here carries a text label, so the glyph is the only thing naming a number.
     private func vitalsFooter(compact: Bool) -> some View {
         HStack {
-            Label(snap.bpm.map(String.init) ?? "–", systemImage: "waveform.path.ecg")
+            vital(symbol: "heart.fill", text: snap.bpm.map(String.init),
+                  name: "Heart rate", spoken: snap.bpm.map { "\($0) beats per minute" })
             Spacer()
             if !compact, let hrv = snap.hrv {
-                Label("\(hrv)", systemImage: "heart.fill")
+                vital(symbol: "waveform.path.ecg", text: "\(hrv)",
+                      name: "Heart rate variability", spoken: "\(hrv) milliseconds")
                 Spacer()
             }
-            Label(snap.batteryPct.map { "\($0)%" } ?? "–", systemImage: "battery.50")
+            vital(symbol: "battery.50", text: snap.batteryPct.map { "\($0)%" },
+                  name: "Strap battery", spoken: snap.batteryPct.map { "\($0) percent" })
         }
         .font(.caption2)
         .foregroundStyle(StrandPalette.textSecondary)
         .labelStyle(.titleAndIcon)
+    }
+
+    /// One footer vital. `spoken` is carried separately from the rendered `text` because VoiceOver gets
+    /// neither of the two things a sighted reader uses here: the glyph that names the metric, and the
+    /// unit, which the footer shows for none of them. Without this a reader hears "58", "64", "84 percent"
+    /// — three anonymous numbers. Same reasoning as `accessoryScore`, which #1715 fixed for the lock
+    /// screen; this footer predates it.
+    ///
+    /// Plain literals rather than `String(localized:)`, for the reason spelled out on `accessoryScore`:
+    /// this extension does not carry the app's string catalog, so `String(localized:)` would look
+    /// localized and render English anyway.
+    private func vital(symbol: String, text: String?, name: String, spoken: String?) -> some View {
+        Label(text ?? "–", systemImage: symbol)
+            .accessibilityLabel(Text(name))
+            .accessibilityValue(Text(spoken ?? "No data"))
     }
 
     /// One labelled stat in the large grid — value over a caption, equal-width so the columns align.
