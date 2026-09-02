@@ -611,8 +611,11 @@ public enum SleepStager {
     /// would contribute are exactly what Charge and the baselines fold in, and a baseline is the one
     /// thing a false positive cannot be unwound from. Withholding the values is structural; a downstream
     /// filter would be one forgotten call site away from failing open.
-    static func hrOnlySessions(hr: [HRSample], rr: [RRInterval], resp: [RespSample],
-                               minMinutes: Int = minSleepMin) -> [SleepSession] {
+    /// `public` because the app target calls it: `Strand/Data/IntelligenceEngine.swift` is the day scan,
+    /// and it lives outside this package. The spine and the anchor below it stay `internal` — the tests
+    /// reach them with `@testable`, and nothing outside should be building its own spine.
+    public static func hrOnlySessions(hr: [HRSample], rr: [RRInterval], resp: [RespSample],
+                                      minMinutes: Int = minSleepMin) -> [SleepSession] {
         let hrS = hr.sorted { $0.ts < $1.ts }
         guard let baseline = hrOnlyBaseline(hrS) else { return [] }
         let rrS = rr.sorted { $0.ts < $1.ts }
