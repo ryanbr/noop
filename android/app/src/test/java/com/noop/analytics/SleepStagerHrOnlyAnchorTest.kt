@@ -41,6 +41,23 @@ class SleepStagerHrOnlyAnchorTest {
     }
 
     /**
+     * The percentile index, pinned against the Swift twin's OWN output across the sizes where a
+     * nearest-rank rule can disagree — n below 1/p, and either side of an exact boundary. Every value
+     * below is stdout from `hrOnlyBaseline` compiled standalone, not read off the Kotlin.
+     */
+    @Test
+    fun `the percentile index matches the Swift twin`() {
+        val cases = listOf(
+            1 to 1.0, 2 to 1.0, 3 to 1.0, 7 to 1.0, 10 to 1.0,
+            11 to 2.0, 99 to 10.0, 100 to 10.0, 101 to 11.0, 1000 to 100.0,
+        )
+        for ((n, expected) in cases) {
+            val hr = (1..n).map { HrSample("d", 1_788_300_000L + it, it) }
+            assertEquals("n=$n", expected, SleepStager.hrOnlyBaseline(hr)!!, 1e-9)
+        }
+    }
+
+    /**
      * The regression this file exists for. The first draft anchored on [SleepStager.hrBaseline], the
      * window MEDIAN — which admits over half of any window by definition, because a median splits the
      * samples in half and the band then adds 5% on top. On a field-shaped day that called 14.4 h sleep

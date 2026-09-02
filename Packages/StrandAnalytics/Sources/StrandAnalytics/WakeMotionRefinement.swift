@@ -135,8 +135,14 @@ public enum WakeMotionRefinement {
         let newStages = refine(session.stages, grav: grav, steps: steps)
         guard newStages != session.stages else { return session }
         let newEfficiency = SleepStager.efficiency(start: session.start, end: session.end, stages: newStages)
+        // `hrOnly` carried explicitly. The Kotlin twin is a `copy`, which preserves a new field for
+        // free; this rebuilds the struct field by field and drops one BY DEFAULT. Refinement only ever
+        // sees motion-detected sessions today, so an HR-only night never reaches here — but the two
+        // platforms would have disagreed silently the moment it did, which is the shape of divergence
+        // the parity contract exists to catch.
         return SleepSession(start: session.start, end: session.end, efficiency: newEfficiency,
-                            stages: newStages, restingHR: session.restingHR, avgHRV: session.avgHRV)
+                            stages: newStages, restingHR: session.restingHR, avgHRV: session.avgHRV,
+                            hrOnly: session.hrOnly)
     }
 
     /// Toggle-shaped convenience for the session-level overload (see `apply(_:grav:steps:enabled:)`).
