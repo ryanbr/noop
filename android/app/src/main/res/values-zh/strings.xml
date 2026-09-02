@@ -660,7 +660,9 @@
     <string name="l10n_noop_compact_glance_widget_strap_battery_a6c7f09c">手环电量</string>
     <string name="l10n_noop_glance_widget_charge_49a8cb83">充能</string>
     <string name="l10n_noop_glance_widget_effort_660752e7">负荷</string>
+    <string name="l10n_noop_glance_widget_heart_rate_410aa15c">心率</string>
     <string name="l10n_noop_glance_widget_rest_cbaaa181">恢复</string>
+    <string name="l10n_noop_glance_widget_strap_battery_a6c7f09c">手环电量</string>
     <string name="l10n_notifications_settings_screen_02d_02d_ce23a78c">%1$02d:%2$02d</string>
     <string name="l10n_notifications_settings_screen_all_other_apps_51a8af2c">所有其他 App</string>
     <string name="l10n_notifications_settings_screen_app_name_wrist_alerts_dd3540fa">%1$s 手腕震动提醒</string>

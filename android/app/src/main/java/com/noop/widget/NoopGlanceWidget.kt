@@ -23,6 +23,8 @@ import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
+import androidx.glance.semantics.contentDescription
+import androidx.glance.semantics.semantics
 import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
@@ -150,16 +152,36 @@ private fun WidgetContent(snap: WidgetSnapshot, dark: Boolean) {
             )
         }
         Spacer(modifier = GlanceModifier.height(8.dp))
+        // The ♥ and ⚡ are characters inside the text, not labelled images, so TalkBack reads whatever
+        // the glyph happens to be called - or skips it - and the metric arrives as a bare number with no
+        // name and no unit. The compact widget already labels the same two values (its battery Image
+        // carries a contentDescription); this one never did. (#1799)
+        //
+        // Built here rather than inside the semantics lambda. uiString would resolve there too - it is a
+        // plain function over the Application resources, not a composable - but #571 recorded that the
+        // i18n audit cannot see copy assigned inside a semantics {} lambda, so a literal written there
+        // would pass CI and ship English to every locale. Keeping the lookup outside puts it where the
+        // audit can see it.
+        val hrLabel = uiString(R.string.l10n_noop_glance_widget_heart_rate_410aa15c)
+        val batteryLabel = uiString(R.string.l10n_noop_glance_widget_strap_battery_a6c7f09c)
+        val hrDescription = snap.heartRate
+            ?.let { "$hrLabel ${uiString(R.string.l10n_today_screen_value_bpm_8f3a90c3, it)}" }
+            ?: hrLabel
+        val batteryDescription = snap.batteryPct
+            ?.let { "$batteryLabel ${uiString(R.string.l10n_today_screen_pct_ee63e247, it)}" }
+            ?: batteryLabel
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = snap.heartRate?.let { "♥ $it" } ?: "♥ - ",
                 // Dim a carried-over reading so a stale HR can't masquerade as a live one.
                 style = TextStyle(color = if (snap.heartRateStale) textSecondary else textPrimary, fontSize = 13.sp),
+                modifier = GlanceModifier.semantics { contentDescription = hrDescription },
             )
             Spacer(modifier = GlanceModifier.width(10.dp))
             Text(
                 text = snap.batteryPct?.let { "⚡ $it%" } ?: "⚡ - ",
                 style = TextStyle(color = textPrimary, fontSize = 13.sp),
+                modifier = GlanceModifier.semantics { contentDescription = batteryDescription },
             )
         }
         Spacer(modifier = GlanceModifier.height(2.dp))

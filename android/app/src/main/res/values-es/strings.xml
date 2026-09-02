@@ -512,7 +512,9 @@
     <string name="l10n_noop_compact_glance_widget_strap_battery_a6c7f09c">Batería de la pulsera</string>
     <string name="l10n_noop_glance_widget_charge_49a8cb83">CHARGE</string>
     <string name="l10n_noop_glance_widget_effort_660752e7">ESFUERZO</string>
+    <string name="l10n_noop_glance_widget_heart_rate_410aa15c">Frecuencia cardíaca</string>
     <string name="l10n_noop_glance_widget_rest_cbaaa181">DESCANSO</string>
+    <string name="l10n_noop_glance_widget_strap_battery_a6c7f09c">Batería de la pulsera</string>
     <string name="l10n_notifications_settings_screen_02d_02d_ce23a78c">%1$02d:%2$02d</string>
     <string name="l10n_notifications_settings_screen_all_other_apps_51a8af2c">Todas las demás aplicaciones</string>
     <string name="l10n_notifications_settings_screen_app_name_wrist_alerts_dd3540fa">Alertas de muñeca %1$s</string>
