@@ -1195,6 +1195,10 @@ final class IntelligenceEngine: ObservableObject {
                             gravRows: grav.count, storedNights: stored.count))
                         providedSleep = []
                     } else {
+                        // Reachable for ANY owner now, which widens this past the 5/MG it was built for:
+                        // a WHOOP 4.0 day that banked nothing at all also lands here, where the owner
+                        // check previously blocked it. A normal 4.0 day is untouched — it streams
+                        // gravity, so it never reaches this gate.
                         traceSink?(SleepStager.GateTrace.hrOnlyGateLine(
                             attempted: true, reason: "no-motion-no-hypnogram",
                             gravRows: grav.count, storedNights: 0))

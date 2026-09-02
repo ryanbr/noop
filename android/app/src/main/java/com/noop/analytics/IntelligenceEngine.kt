@@ -993,6 +993,13 @@ object IntelligenceEngine {
                         emptyList()
                     }
                     else -> {
+                        // Reachable for ANY owner now, which widens this past the 5/MG it was built for:
+                        // a WHOOP 4.0 day that banked nothing at all (`grav.size < 2`, no stored night)
+                        // also lands here, where the owner check previously blocked it. A normal 4.0 day
+                        // is untouched — it streams gravity, so it never reaches this gate — and a day
+                        // with no motion has too little of anything to clear `minSleepMin`, but "too
+                        // little" is not "none", so the night it could produce is display-only and
+                        // marked [DetectedSleep.hrOnly] like every other.
                         dayDiag(SleepStagerTrace.hrOnlyGateLine(
                             attempted = true, reason = "no-motion-no-hypnogram",
                             gravRows = grav.size, storedNights = 0,
