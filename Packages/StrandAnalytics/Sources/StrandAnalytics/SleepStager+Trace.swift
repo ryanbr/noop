@@ -39,6 +39,10 @@ extension SleepStager {
         /// see its note: `printf` rounds half-to-even on the binary value while Java's `String.format`
         /// rounds HALF_UP on the decimal expansion, so the two disagreed on 64.05. This does the same
         /// IEEE arithmetic on both platforms and cannot.
+        ///
+        /// NON-NEGATIVE ONLY, same as the Kotlin twin: `-0.5` would print "0.5", because the integer
+        /// division truncates toward zero and the sign is then lost to `abs`. Every current caller is a
+        /// bpm, which cannot be negative.
         private static func round1(_ v: Double?) -> String {
             guard let v else { return "nil" }
             let tenths = Int((v * 10.0).rounded())

@@ -1,4 +1,5 @@
 import XCTest
+import WhoopProtocol
 @testable import StrandAnalytics
 
 /// Twin of the Kotlin `SleepStagerHrOnlyTraceTest`. The expected strings are byte-identical on both
@@ -20,6 +21,21 @@ final class SleepStagerHrOnlyTraceTests: XCTestCase {
                                                     mergedRuns: 0, sleepRuns: 0, longestSleepMin: 0,
                                                     staged: 0, kept: 0, minSleepMin: 60)
         XCTAssertTrue(line.contains("anchorBpm=nil bandBpm=nil"))
+    }
+
+    /// `epochs` counts EPOCHS, not samples — the axis every other number is measured on. Twin of the
+    /// Kotlin test, which guards a bug I actually made: the first version reported the HR sample count.
+    func testEpochsCountsEpochsNotSamples() {
+        var lines: [String] = []
+        // 10 epochs x 6 samples = 60 samples.
+        var hr: [HRSample] = []
+        for i in 0..<10 {
+            let base = (1000 + i) * 60
+            for k in 0..<6 { hr.append(HRSample(ts: base + k * 10, bpm: 120)) }
+        }
+        _ = SleepStager.hrOnlySessions(hr: hr, rr: [], resp: [], traceSink: { lines.append($0) })
+        XCTAssertEqual(lines.count, 1, "exactly one funnel line per call")
+        XCTAssertTrue(lines[0].contains("epochs=10 "), "got: \(lines[0])")
     }
 
     /// The rounding is ARITHMETIC, not `printf`. A harness caught `String(format: "%.1f", 64.05)`

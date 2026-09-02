@@ -39,6 +39,10 @@ object SleepStagerTrace {
      * real values. Multiplying and rounding is IEEE-deterministic, so both platforms do the same
      * arithmetic to the same bits and cannot disagree, whichever side of .5 the product lands on.
      * Same reasoning as [round2] one line down, which was already arithmetic.
+     *
+     * NON-NEGATIVE ONLY. `-0.5` would print "0.5", because the integer division truncates toward zero
+     * and the sign is then lost to `abs`. Every current caller is a bpm, which cannot be negative;
+     * a caller that could be would need the sign carried separately.
      */
     private fun round1(v: Double?): String {
         if (v == null) return "nil"
