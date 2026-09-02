@@ -237,6 +237,10 @@ class ConnectionReadoutTest {
         assertFalse(charged.contains("Charge the strap to 100%"))
         assertTrue(charged.contains("already charged"))
         assertTrue(charged.contains("strap log"))
+        // The charged copy must stay true for EVERY strap. "NOOP re-sends the clock on every connect"
+        // holds on WHOOP4 but not on a 5/MG, where the write is gated behind didBond and an unbondable
+        // strap (#1635) is never clocked at all - the strap most likely to be showing this warning.
+        assertFalse(charged.contains("every connect"))
 
         // Boundary: the constant is inclusive, so exactly-at-threshold takes the charged branch.
         val atThreshold = ConnectionReadout.rtcWarning(

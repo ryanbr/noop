@@ -238,6 +238,11 @@ final class ConnectionReadoutTests: XCTestCase {
                        "an already-charged strap must not be sent round the loop it just ran")
         XCTAssertEqual(charged?.contains("already charged"), true)
         XCTAssertEqual(charged?.contains("strap log"), true, "it must name the next actionable step")
+        // The charged copy must stay true for EVERY strap. "NOOP re-sends the clock on every connect"
+        // holds on WHOOP4 but not on a 5/MG, where the write is gated behind didBond and an unbondable
+        // strap (#1635) is never clocked at all - the strap most likely to be showing this warning.
+        XCTAssertEqual(charged?.contains("every connect"), false,
+                       "no model-specific mechanism claim in copy shown to every model")
 
         // Boundary: the constant is inclusive, so exactly-at-threshold takes the charged branch.
         let atThreshold = ConnectionReadout.rtcWarning(

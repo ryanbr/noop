@@ -225,9 +225,15 @@ object ConnectionReadout {
      *  look sane or neither was seen yet - we never fabricate a fault. Twin of the Swift warning.
      *
      *  #1818: the remedy is battery-dependent. A flat battery resets the RTC, so on a low strap
-     *  "charge it" is real advice. On an ALREADY-charged strap it is not: runConnectHandshake sends
-     *  SET_CLOCK (both payload forms, #120) on every WHOOP4 connect with no battery gate, so charging
-     *  again changes nothing and the old copy sent users at 100% round a loop they had already run.
+     *  "charge it" is real advice. On an ALREADY-charged strap it is not, and the old copy sent users
+     *  at 100% round a loop they had already run.
+     *
+     *  The charged branch deliberately states only what holds for EVERY strap - that charging again
+     *  will not change it - and asks for a log. It must NOT claim NOOP re-sends the clock on every
+     *  connect: that is true on WHOOP4 (runConnectHandshake calls SET_CLOCK unconditionally, both
+     *  payload forms, #120) but FALSE on a 5/MG, where the clock write is gated behind didBond, and an
+     *  unbondable 5/MG (#1635) is never clocked at all - precisely the strap most likely to be showing
+     *  this warning. Explaining the mechanism in the sentence is how the original bug happened.
      *  [batteryPct] null (not yet read) keeps the charge advice - we only withdraw it on evidence.
      *  Callers MUST pass a reading from the CURRENT link and not a last-known charge that outlives it -
      *  a stale 100% would suppress the advice in the one case it is right, a strap that ran flat and
@@ -240,9 +246,8 @@ object ConnectionReadout {
         val lead = "Strap clock reads 1970/71 (never set since its last reset), so it is not banking history. "
         if (batteryPct != null && batteryPct >= RTC_ALREADY_CHARGED_PCT) {
             return lead +
-                "The strap is already charged and NOOP resends the clock on every connect, so charging " +
-                "again will not change this. Export a strap log from Test Centre so the clock exchange " +
-                "can be read."
+                "The strap is already charged, so charging again will not change this. Export a strap " +
+                "log from Test Centre so the clock exchange can be read."
         }
         return lead + "Charge the strap to 100% and reconnect so the clock latches."
     }
