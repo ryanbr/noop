@@ -3088,9 +3088,6 @@ fun SettingsScreen(
             }
         }
 
-        // #174: the switch going OFF is the moment to offer the undo. Declining leaves the flags set and
-        // says so — still an improvement on the old behaviour, where the same tap silently left them set
-        // with no indication either way.
         oversizeRestore?.let { (pendingUri, pendingMessage) ->
             AlertDialog(
                 onDismissRequest = { oversizeRestore = null },
@@ -3135,6 +3132,9 @@ fun SettingsScreen(
             )
         }
 
+        // #174: the switch going OFF is the moment to offer the undo. Declining leaves the flags set and
+        // says so — still an improvement on the old behaviour, where the same tap silently left them set
+        // with no indication either way.
         if (confirmingDeepDataDisable) {
             AlertDialog(
                 onDismissRequest = { confirmingDeepDataDisable = false },
