@@ -36,6 +36,12 @@ final class LiftSessionController: ObservableObject {
     /// Rest period the five-second warning has already fired for. Lives HERE, not in a view, so
     /// re-opening the sheet mid-rest cannot re-fire it.
     private var warnedFor: Int?
+
+    /// Slots the user marked as a warm-up BEFORE performing them. You know a set is a warm-up on the
+    /// way in, not afterwards, but an unperformed set has no record to carry the flag — and inventing
+    /// one would create a set nobody did. So the mark is held here and applied the instant the set is
+    /// recorded. Owned by the controller rather than a view so it survives the sheet being minimised.
+    @Published private(set) var pendingWarmups: Set<LiftSlot> = []
     private var ticker: AnyCancellable?
 
     /// Fires the strap buzz. Injected so the controller has no opinion about BLE and stays testable.
@@ -110,6 +116,7 @@ final class LiftSessionController: ObservableObject {
         programId = nil
         programName = nil
         warnedFor = nil
+        pendingWarmups = []
         isPresented = false
         ticker?.cancel()
         ticker = nil
@@ -144,9 +151,34 @@ final class LiftSessionController: ObservableObject {
 
         let stamp = Int(Date().timeIntervalSince1970)
         engine?.advance(now: stamp)
+        applyPendingWarmup()
         now = stamp
         warnedFor = nil
         persist()
+    }
+
+    /// Mark a slot as a warm-up (or not). Applies immediately when the set already exists, and is
+    /// remembered for when it does not yet.
+    func setWarmup(_ slot: LiftSlot, _ isWarmup: Bool) {
+        if isWarmup { pendingWarmups.insert(slot) } else { pendingWarmups.remove(slot) }
+        if let row = engine?.recordedSet(for: slot) {
+            engine?.updateSet(slot, weightKg: row.weightKg, reps: row.reps,
+                              rpe: row.rpe, isWarmup: isWarmup)
+        }
+        persist()
+    }
+
+    func isWarmup(_ slot: LiftSlot) -> Bool {
+        if let row = engine?.recordedSet(for: slot) { return row.isWarmup }
+        return pendingWarmups.contains(slot)
+    }
+
+    /// Carry a pre-marked warm-up onto the set that was just recorded.
+    private func applyPendingWarmup() {
+        guard let engine, let last = engine.sets.last, pendingWarmups.contains(last.slot),
+              !last.isWarmup else { return }
+        self.engine?.updateSet(last.slot, weightKg: last.weightKg, reps: last.reps,
+                               rpe: last.rpe, isWarmup: true)
     }
 
     /// Begin a specific set — the out-of-order path, for when a machine is occupied.
@@ -155,6 +187,8 @@ final class LiftSessionController: ObservableObject {
         if fromStrap { buzz(LiftSessionController.advanceConfirmBuzzes) }
         let stamp = Int(Date().timeIntervalSince1970)
         engine?.start(slot, now: stamp)
+        // Starting a slot drops any record it had, so its warm-up mark reverts to pending — which is
+        // where it already lives.
         now = stamp
         warnedFor = nil
         persist()
