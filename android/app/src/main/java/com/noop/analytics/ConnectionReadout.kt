@@ -264,10 +264,13 @@ object ConnectionReadout {
      *  burst was actually armed; armed=no says up front that the detector cannot trip for this link,
      *  however many times the loop repeats.
      *
-     *  Milliseconds are printed raw: no float formatting, so the two platforms cannot round apart. */
-    fun linkEpitaph(upMillis: Int, inboundFrames: Int, inboundBytes: Int, cmdChannelFrames: Int,
+     *  Milliseconds are printed raw: no float formatting, so the two platforms cannot round apart.
+     *  [upMillis] is Long, not Int: Swift's Int is 64-bit, so an Int here would be the NARROWER type and
+     *  a link held past ~24.8 days would wrap negative and print "up 0ms" - a dead-looking link that was
+     *  in fact the healthiest one we ever had. Rare, silent, and exactly backwards, so use the real twin. */
+    fun linkEpitaph(upMillis: Long, inboundFrames: Int, inboundBytes: Int, cmdChannelFrames: Int,
                     realtimeArmed: Boolean, ended: String): String {
-        var line = "Link epitaph: up ${maxOf(0, upMillis)}ms, inbound ${maxOf(0, inboundFrames)} frames / " +
+        var line = "Link epitaph: up ${maxOf(0L, upMillis)}ms, inbound ${maxOf(0, inboundFrames)} frames / " +
             "${maxOf(0, inboundBytes)} bytes (cmd-channel ${maxOf(0, cmdChannelFrames)}), " +
             "realtime armed=${if (realtimeArmed) "yes" else "no"}, ended=$ended"
         if (inboundFrames <= 0) {

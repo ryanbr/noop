@@ -265,7 +265,7 @@ class ConnectionReadoutTest {
      *  the two strings must match byte for byte or one platform's report reads differently. */
     @Test fun linkEpitaph() {
         val silent = ConnectionReadout.linkEpitaph(
-            upMillis = 4_123, inboundFrames = 0, inboundBytes = 0, cmdChannelFrames = 0,
+            upMillis = 4_123L, inboundFrames = 0, inboundBytes = 0, cmdChannelFrames = 0,
             realtimeArmed = false, ended = "CBError.connectionTimeout(6)",
         )
         assertEquals(
@@ -277,7 +277,7 @@ class ConnectionReadoutTest {
 
         // A link that carried traffic must NOT claim silence.
         val alive = ConnectionReadout.linkEpitaph(
-            upMillis = 61_000, inboundFrames = 812, inboundBytes = 40_990, cmdChannelFrames = 9,
+            upMillis = 61_000L, inboundFrames = 812, inboundBytes = 40_990, cmdChannelFrames = 9,
             realtimeArmed = true, ended = "intentional",
         )
         assertEquals(
@@ -289,7 +289,7 @@ class ConnectionReadoutTest {
 
         // Negatives are clamped rather than printed: a clock hiccup must not emit "up -3ms".
         assertTrue(
-            ConnectionReadout.linkEpitaph(-3, -1, -9, -2, false, "x")
+            ConnectionReadout.linkEpitaph(-3L, -1, -9, -2, false, "x")
                 .startsWith("Link epitaph: up 0ms, inbound 0 frames / 0 bytes (cmd-channel 0)"),
         )
     }

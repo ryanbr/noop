@@ -9811,7 +9811,7 @@ class WhoopBleClient(
         // hazard the hold-time snapshot below already guards.
         linkUpSinceMs?.let { since ->
             log(ConnectionReadout.linkEpitaph(
-                upMillis = (System.currentTimeMillis() - since).toInt(),
+                upMillis = System.currentTimeMillis() - since,
                 inboundFrames = inboundFrames, inboundBytes = inboundBytes,
                 cmdChannelFrames = cmdChannelFrames, realtimeArmed = realtimeArmedThisLink,
                 ended = "status=$status",
