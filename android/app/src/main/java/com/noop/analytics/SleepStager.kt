@@ -567,9 +567,19 @@ object SleepStager {
      * trace reports is measured by the SAME rule as the anchor it is meant to be judged against — a
      * diagnostic computed a different way would invite exactly the wrong conclusion.
      */
-    internal fun hrPercentile(hr: List<HrSample>, p: Double): Double? {
-        if (hr.isEmpty()) return null
-        val sorted = hr.map { it.bpm.toDouble() }.sorted()
+    internal fun hrPercentile(hr: List<HrSample>, p: Double): Double? =
+        percentileOfSorted(hr.map { it.bpm.toDouble() }.sorted(), p)
+
+    /**
+     * The `p` percentile of an ALREADY-SORTED bpm list, nearest-rank.
+     *
+     * Split out because the caller needs three percentiles from the same window, and the obvious
+     * spelling sorts once per percentile. On a 5/MG day that is ~160k samples sorted three times, on
+     * every scored day, across the 21-day rescore window - a cost this file has been burned by before
+     * (#836, #841). One sort, three reads.
+     */
+    internal fun percentileOfSorted(sorted: List<Double>, p: Double): Double? {
+        if (sorted.isEmpty()) return null
         val idx = ((sorted.size - 1) * p).toInt().coerceIn(0, sorted.size - 1)
         return sorted[idx]
     }
@@ -690,7 +700,9 @@ object SleepStager {
         traceSink: ((String) -> Unit)? = null,
     ): List<DetectedSleep> {
         val hrS = hr.sortedBy { it.ts }
-        val baseline = hrOnlyBaseline(hrS)
+        // ONE sort of the bpm axis, reused for the anchor and for the spread the trace reports.
+        val sortedBpm = hrS.map { it.bpm.toDouble() }.sorted()
+        val baseline = percentileOfSorted(sortedBpm, hrOnlyAnchorPercentile)
         if (baseline == null) {
             traceSink?.invoke(SleepStagerTrace.hrOnlyLine(
                 anchorBpm = null, bandBpm = null, hrP50 = null, hrP90 = null, epochs = 0, runs = 0, mergedRuns = 0,
@@ -734,8 +746,8 @@ object SleepStager {
             // The wearer's own spread. An anchor alone cannot be judged: p10 of 60 means one thing when
             // the median is 63 and quite another when it is 74, and only the second leaves a night the
             // band can separate.
-            hrP50 = hrPercentile(hrS, 0.50),
-            hrP90 = hrPercentile(hrS, 0.90),
+            hrP50 = percentileOfSorted(sortedBpm, 0.50),
+            hrP90 = percentileOfSorted(sortedBpm, 0.90),
             // The real epoch count, not the sample count: the spine buckets by [hrOnlyEpochS] before it
             // decides anything, so this is the axis every other number here is measured on.
             epochs = hrS.mapTo(HashSet()) { it.ts / hrOnlyEpochS }.size,

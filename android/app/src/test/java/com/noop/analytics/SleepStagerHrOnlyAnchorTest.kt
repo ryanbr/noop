@@ -58,6 +58,25 @@ class SleepStagerHrOnlyAnchorTest {
     }
 
     /**
+     * One sort, three reads. The anchor and the trace's spread come from the SAME sorted axis, so a
+     * refactor that sorts per percentile - ~160k samples three times per scored day across a 21-day
+     * rescore - shows up here as a disagreement rather than only as a slower pass.
+     */
+    @Test
+    fun `the shared percentile helper agrees with the anchor`() {
+        val hr = (1..100).map { HrSample("d", 1_788_300_000L + it, it) }
+        val sorted = hr.map { it.bpm.toDouble() }.sorted()
+        assertEquals(
+            SleepStager.hrOnlyBaseline(hr)!!,
+            SleepStager.percentileOfSorted(sorted, SleepStager.hrOnlyAnchorPercentile)!!,
+            1e-9,
+        )
+        assertEquals(50.0, SleepStager.percentileOfSorted(sorted, 0.50)!!, 1e-9)
+        assertEquals(90.0, SleepStager.percentileOfSorted(sorted, 0.90)!!, 1e-9)
+        assertTrue(SleepStager.percentileOfSorted(emptyList(), 0.5) == null)
+    }
+
+    /**
      * The regression this file exists for. The first draft anchored on [SleepStager.hrBaseline], the
      * window MEDIAN — which admits over half of any window by definition, because a median splits the
      * samples in half and the band then adds 5% on top. On a field-shaped day that called 14.4 h sleep
