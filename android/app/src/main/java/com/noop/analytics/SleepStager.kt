@@ -566,9 +566,20 @@ object SleepStager {
         if (baseline == null || baseline <= 0.0) return emptyList()
         if (hr.isEmpty() || epochS <= 0L) return emptyList()
         val byEpoch = HashMap<Long, MutableList<Double>>()
-        for (s in hr) byEpoch.getOrPut(s.ts / epochS) { ArrayList() }.add(s.bpm.toDouble())
+        val lastTs = HashMap<Long, Long>()
+        for (s in hr) {
+            val k = s.ts / epochS
+            byEpoch.getOrPut(k) { ArrayList() }.add(s.bpm.toDouble())
+            lastTs[k] = maxOf(lastTs[k] ?: Long.MIN_VALUE, s.ts)
+        }
         val keys = byEpoch.keys.sorted()
+        // Two axes, deliberately. A gap and a run's START use the epoch's own start, so a gap is measured
+        // between epochs rather than between whichever samples sat at their edges. A run's END is the last
+        // SAMPLE observed in its final epoch, which is what [buildRuns] means by `end` — reading the epoch
+        // start there would report every run one whole epoch shorter than the data it covers, and that
+        // understatement would then be weighed against the caller's minimum-duration gate.
         val times = keys.map { it * epochS }
+        val ends = keys.map { lastTs.getValue(it) }
         val flags = keys.map { HrvAnalyzer.median(byEpoch.getValue(it)) <= baseline * hrSleepBandMult }
         val maxGapS = (maxGapMinutes * 60).toLong()
         val periods = ArrayList<Period>()
@@ -585,7 +596,7 @@ object SleepStager {
                     Period(
                         stage = if (flags[runStart]) "sleep" else "active",
                         start = times[runStart],
-                        end = times[i - 1],
+                        end = ends[i - 1],
                     )
                 )
                 runStart = i

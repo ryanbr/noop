@@ -41,7 +41,7 @@ class SleepStagerHrOnlySpineTest {
     @Test
     fun `all in band is one sleep run`() {
         assertEquals(
-            listOf("sleep 60000-60120"),
+            listOf("sleep 60000-60170"),
             tuples(SleepStager.hrOnlySleepRuns(hr(1000, listOf(55, 55, 55)), 60.0)),
         )
     }
@@ -49,7 +49,7 @@ class SleepStagerHrOnlySpineTest {
     @Test
     fun `all out of band is one active run`() {
         assertEquals(
-            listOf("active 60000-60120"),
+            listOf("active 60000-60170"),
             tuples(SleepStager.hrOnlySleepRuns(hr(1000, listOf(90, 90, 90)), 60.0)),
         )
     }
@@ -57,7 +57,7 @@ class SleepStagerHrOnlySpineTest {
     @Test
     fun `sleep active sleep segments into three`() {
         assertEquals(
-            listOf("sleep 60000-60060", "active 60120-60120", "sleep 60180-60240"),
+            listOf("sleep 60000-60110", "active 60120-60170", "sleep 60180-60290"),
             tuples(SleepStager.hrOnlySleepRuns(hr(1000, listOf(55, 55, 90, 55, 55)), 60.0)),
         )
     }
@@ -69,7 +69,7 @@ class SleepStagerHrOnlySpineTest {
     @Test
     fun `gap wider than maxGap breaks a same-class run`() {
         assertEquals(
-            listOf("sleep 60000-60000", "sleep 61800-61800"),
+            listOf("sleep 60000-60050", "sleep 61800-61850"),
             tuples(SleepStager.hrOnlySleepRuns(hr(1000, listOf(55)) + hr(1030, listOf(55)), 60.0)),
         )
     }
@@ -83,20 +83,32 @@ class SleepStagerHrOnlySpineTest {
         val samples = hr(1000, listOf(55)).toMutableList()
         samples[5] = samples[5].copy(bpm = 190)
         assertEquals(
-            listOf("sleep 60000-60000"),
+            listOf("sleep 60000-60050"),
             tuples(SleepStager.hrOnlySleepRuns(samples, 60.0)),
         )
+    }
+
+    /**
+     * A run's `end` is the last SAMPLE seen, not the final epoch's start. Pinned because reading the
+     * epoch start reports every run one epoch short of the data it covers — silently, and straight into
+     * the caller's minimum-duration gate. Three 60 s epochs of samples laid every 10 s end at 60170.
+     */
+    @Test
+    fun `run end is the last sample not the epoch start`() {
+        val runs = SleepStager.hrOnlySleepRuns(hr(1000, listOf(55, 55, 55)), 60.0)
+        assertEquals(60170L, runs.first().end)
+        assertEquals(170L, runs.first().end - runs.first().start)
     }
 
     /** The band is inclusive: 63 is `60 * 1.05` exactly. */
     @Test
     fun `band boundary is inclusive`() {
         assertEquals(
-            listOf("sleep 60000-60000"),
+            listOf("sleep 60000-60050"),
             tuples(SleepStager.hrOnlySleepRuns(hr(1000, listOf(63)), 60.0)),
         )
         assertEquals(
-            listOf("active 60000-60000"),
+            listOf("active 60000-60050"),
             tuples(SleepStager.hrOnlySleepRuns(hr(1000, listOf(64)), 60.0)),
         )
     }

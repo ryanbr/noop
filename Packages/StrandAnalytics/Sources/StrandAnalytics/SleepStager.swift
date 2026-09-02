@@ -509,9 +509,20 @@ public enum SleepStager {
         guard let baseline = baseline, baseline > 0 else { return [] }
         if hr.isEmpty || epochS <= 0 { return [] }
         var byEpoch: [Int: [Double]] = [:]
-        for s in hr { byEpoch[s.ts / epochS, default: []].append(Double(s.bpm)) }
+        var lastTs: [Int: Int] = [:]
+        for s in hr {
+            let k = s.ts / epochS
+            byEpoch[k, default: []].append(Double(s.bpm))
+            lastTs[k] = max(lastTs[k] ?? Int.min, s.ts)
+        }
         let keys = byEpoch.keys.sorted()
+        // Two axes, deliberately. A gap and a run's START use the epoch's own start, so a gap is measured
+        // between epochs rather than between whichever samples sat at their edges. A run's END is the last
+        // SAMPLE observed in its final epoch, which is what `buildRuns` means by `end` — reading the epoch
+        // start there would report every run one whole epoch shorter than the data it covers, and that
+        // understatement would then be weighed against the caller's minimum-duration gate.
         let times = keys.map { $0 * epochS }
+        let ends = keys.map { lastTs[$0]! }
         let flags = keys.map { HRVAnalyzer.median(byEpoch[$0]!) <= baseline * hrSleepBandMult }
         let maxGapS = maxGapMinutes * 60
         var periods: [Period] = []
@@ -526,7 +537,7 @@ public enum SleepStager {
             }
             if close {
                 periods.append(Period(stage: flags[runStart] ? "sleep" : "active",
-                                      start: times[runStart], end: times[i - 1]))
+                                      start: times[runStart], end: ends[i - 1]))
                 runStart = i
             }
         }
