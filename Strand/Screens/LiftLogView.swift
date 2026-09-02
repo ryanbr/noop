@@ -123,7 +123,7 @@ struct LiftLogView: View {
                 Text("No programs yet")
                     .font(StrandFont.headline)
                     .foregroundStyle(StrandPalette.textPrimary)
-                Text("A program is a name and an ordered list of exercises with your targets — working sets, rep range, target RPE, rest and your own technique note.")
+                Text("A program is a name and an ordered list of exercises with your targets — working sets, reps, weight, rest and your own technique note.")
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)

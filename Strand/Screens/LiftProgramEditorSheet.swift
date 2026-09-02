@@ -3,7 +3,7 @@ import StrandDesign
 import WhoopStore
 
 // Build or edit a program: a name and an ordered list of exercise lines carrying the TARGETS —
-// working sets, rep range, target RPE, rest and the user's own technique note.
+// working sets, reps, weight, rest and the user's own technique note.
 //
 // Lines are edited as local drafts and written in one go on Save, through
 // `replaceLiftProgramItems`, which swaps the whole list transactionally. Editing a program never
