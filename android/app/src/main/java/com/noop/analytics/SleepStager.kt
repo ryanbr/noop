@@ -674,9 +674,23 @@ object SleepStager {
         rr: List<RrInterval>,
         resp: List<RespSample>,
         minMinutes: Int = minSleepMin,
+        /**
+         * #1801 follow-up: this path shipped SILENT, and the first field log then showed
+         * `reason=no-motion` with no way to tell whether the spine ran and found nothing or never ran.
+         * Everything it decides is derived from the wearer's own window, so a report is unreadable
+         * without it. Optional, so pure-function callers and tests stay free of a sink.
+         */
+        traceSink: ((String) -> Unit)? = null,
     ): List<DetectedSleep> {
         val hrS = hr.sortedBy { it.ts }
-        val baseline = hrOnlyBaseline(hrS) ?: return emptyList()
+        val baseline = hrOnlyBaseline(hrS)
+        if (baseline == null) {
+            traceSink?.invoke(SleepStagerTrace.hrOnlyLine(
+                anchorBpm = null, bandBpm = null, epochs = 0, runs = 0, mergedRuns = 0,
+                sleepRuns = 0, longestSleepMin = 0, staged = 0, kept = 0, minSleepMin = minMinutes,
+            ))
+            return emptyList()
+        }
         val rrS = rr.sortedBy { it.ts }
         val out = ArrayList<DetectedSleep>()
         // mergePeriods for the same reason the motion path calls it: a run boundary is a threshold
@@ -684,10 +698,16 @@ object SleepStager {
         // spine returns the night's minutes correctly but shredded into sub-mergeMin fragments, every one
         // of which then fails the minimum-duration gate below — 8 h of detected sleep yielding zero
         // sessions. Absorbing the short runs first is what turns a spine into a night.
-        for (p in mergePeriods(hrOnlySleepRuns(hrS, baseline))) {
+        val rawRuns = hrOnlySleepRuns(hrS, baseline)
+        val merged = mergePeriods(rawRuns)
+        var staged = 0
+        var longestSleepS = 0L
+        for (p in merged) {
             if (p.stage != "sleep") continue
+            longestSleepS = maxOf(longestSleepS, p.end - p.start)
             if ((p.end - p.start) < minMinutes * 60L) continue
             val stages = SleepStagerV2.stageSession(p.start, p.end, emptyList(), hrS, rrS, resp)
+            staged++
             if (stages.isEmpty()) continue
             out.add(
                 DetectedSleep(
@@ -701,6 +721,20 @@ object SleepStager {
                 )
             )
         }
+        traceSink?.invoke(SleepStagerTrace.hrOnlyLine(
+            anchorBpm = baseline,
+            bandBpm = baseline * hrOnlyBandMult,
+            // The real epoch count, not the sample count: the spine buckets by [hrOnlyEpochS] before it
+            // decides anything, so this is the axis every other number here is measured on.
+            epochs = hrS.mapTo(HashSet()) { it.ts / hrOnlyEpochS }.size,
+            runs = rawRuns.size,
+            mergedRuns = merged.size,
+            sleepRuns = merged.count { it.stage == "sleep" },
+            longestSleepMin = (longestSleepS / 60L).toInt(),
+            staged = staged,
+            kept = out.size,
+            minSleepMin = minMinutes,
+        ))
         return out
     }
 

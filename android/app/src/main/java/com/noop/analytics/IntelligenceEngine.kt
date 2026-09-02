@@ -966,7 +966,13 @@ object IntelligenceEngine {
                     // `reason=no-motion` however much HR it held. Fall back to the HR-only spine ONLY when
                     // the device supplied nothing of its own: a hypnogram the device actually recorded is
                     // always better evidence than one inferred from heart rate.
-                    if (stored.isNotEmpty()) stored else SleepStager.hrOnlySessions(hr, rr, resp)
+                    if (stored.isNotEmpty()) {
+                        stored
+                    } else {
+                        // Route the spine's funnel through the SAME per-day recorder as `sleep-detect`,
+                        // so one report explains both halves rather than one of them going quiet.
+                        SleepStager.hrOnlySessions(hr, rr, resp, traceSink = ::dayDiag)
+                    }
                 } else {
                     emptyList()
                 }
