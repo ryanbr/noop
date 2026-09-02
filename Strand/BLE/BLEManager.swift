@@ -6103,7 +6103,11 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                 // Hardware-validated ordering (#78 fork).
                 send(.setClock, payload: BLEManager.setClockPayload())
                 send(.getClock, payload: [])
-                log("WHOOP 5/MG: clock synced (set/get) — strap can persist history now")
+                // #1823: say what was SENT, not what resulted. This previously read "clock synced —
+                // strap can persist history now", logged before any reply had arrived, so a log could
+                // assert the clock was set while the Devices readout said 1970/71. The strap's actual
+                // answer now arrives as the "clock: …" ack line from FrameRouter.
+                log("WHOOP 5/MG: SET_CLOCK + GET_CLOCK sent — awaiting the strap's answer")
                 log("WHOOP 5/MG: scheduling first historical offload (connect)")
                 // Deferred ~1.5s so the puffin notify subscriptions settle before SEND_HISTORICAL_DATA,
                 // mirroring the WHOOP4 kick. requestSync → beginBackfill is itself gated on

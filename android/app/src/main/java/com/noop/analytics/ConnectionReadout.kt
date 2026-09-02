@@ -211,7 +211,10 @@ object ConnectionReadout {
     fun clockLatchedLabel(deviceClockUnix: Long?, strapNewestUnix: Long? = null): String {
         val ceiling = ConnectionTrace.RTC_EPOCH_CEILING_UNIX
         if (deviceClockUnix != null) return if (deviceClockUnix < ceiling) "no (RTC reads 1970/71)" else "yes"
-        if (strapNewestUnix != null) return if (strapNewestUnix < ceiling) "no (RTC reads 1970/71)" else "yes"
+        // #1823: this branch has NOT read a clock - it is reached when no correlation exists, which is
+        // every 5/MG. The only evidence is how the strap DATED its records, so say that rather than
+        // claiming a clock reading we never took. Twin of the Swift wording.
+        if (strapNewestUnix != null) return if (strapNewestUnix < ceiling) "no (records dated 1970/71)" else "yes"
         return "no (waiting for the strap clock)"
     }
 

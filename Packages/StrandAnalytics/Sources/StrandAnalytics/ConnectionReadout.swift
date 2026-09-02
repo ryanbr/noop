@@ -227,8 +227,13 @@ public enum ConnectionReadout {
         if let d = deviceClockUnix {
             return d < ConnectionTrace.rtcEpochCeilingUnix ? "no (RTC reads 1970/71)" : "yes"
         }
+        // #1823: this branch has NOT read a clock. It is reached when no clock correlation exists - which
+        // is every 5/MG, whose GET_CLOCK reply rides the puffin notify chars and never touches the WHOOP4
+        // correlation path - so the only evidence is how the strap DATED its banked records. Saying "RTC
+        // reads 1970/71" there claimed a reading we never took, in the one readout a reporter quotes when
+        // asking why nothing syncs. Report the evidence we actually have.
         if let n = strapNewestUnix {
-            return n < ConnectionTrace.rtcEpochCeilingUnix ? "no (RTC reads 1970/71)" : "yes"
+            return n < ConnectionTrace.rtcEpochCeilingUnix ? "no (records dated 1970/71)" : "yes"
         }
         return "no (waiting for the strap clock)"
     }

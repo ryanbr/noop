@@ -156,6 +156,18 @@ public final class FrameRouter {
                 let verdict = r == nil ? "no result byte" : (accepted ? "accepted" : "REJECTED")
                 state.append(log: "reboot: strap acked result=\(rhex) (\(verdict))")
             }
+            // #1823: the clock exchange, on BOTH families. NOOP wrote "clock synced" the instant it queued
+            // the writes and never read the answer, so a strap log asserted the clock was set while the
+            // readout said 1970/71 — two contradictory lines with nothing to separate them. Same
+            // accept/reject shape REBOOT_STRAP already uses: the family's own result offset and polarity
+            // (5/MG 1=SUCCESS, 4.0 0=SUCCESS). LOG-ONLY; it never gates behaviour.
+            if let cmd = parsed.cmdName, cmd.hasPrefix("SET_CLOCK") || cmd.hasPrefix("GET_CLOCK") {
+                let r = Self.commandResultByte(in: frame, family: family)
+                let rhex = r.map { String(format: "0x%02x", UInt8(truncatingIfNeeded: $0)) } ?? "none"
+                let accepted = (family == .whoop5) ? (r == 1) : (r == 0)
+                let verdict = r == nil ? "no result byte" : (accepted ? "accepted" : "REJECTED")
+                state.append(log: "clock: \(cmd) strap acked result=\(rhex) (\(verdict))", domain: .connection)
+            }
             if family == .whoop4, let cmd = parsed.cmdName {
                 if cmd.hasPrefix("GET_ADVERTISING_NAME_HARVARD") {
                     if let name = Self.advertisingName(in: frame), !name.isEmpty {

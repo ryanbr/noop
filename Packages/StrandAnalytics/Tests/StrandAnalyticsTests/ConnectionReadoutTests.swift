@@ -204,9 +204,11 @@ final class ConnectionReadoutTests: XCTestCase {
         XCTAssertEqual(
             ConnectionReadout.clockLatchedLabel(deviceClockUnix: nil, strapNewestUnix: 1_782_475_600),
             "yes")
+        // #1823: no clock was READ on this path - it is the 5/MG fallback, where the only evidence is
+        // how the strap dated its records. The wording must not claim a clock reading.
         XCTAssertEqual(
             ConnectionReadout.clockLatchedLabel(deviceClockUnix: nil, strapNewestUnix: 40_000_000),
-            "no (RTC reads 1970/71)")
+            "no (records dated 1970/71)")
         XCTAssertEqual(
             ConnectionReadout.clockLatchedLabel(deviceClockUnix: nil, strapNewestUnix: nil),
             "no (waiting for the strap clock)")

@@ -213,7 +213,8 @@ class ConnectionReadoutTest {
     // "waiting" forever on a strap that's actually fine.
     @Test fun clockLatchedLabelFallsBackToStrapNewestForFiveMG() {
         assertEquals("yes", ConnectionReadout.clockLatchedLabel(null, 1_782_475_600L))
-        assertEquals("no (RTC reads 1970/71)", ConnectionReadout.clockLatchedLabel(null, 40_000_000L))
+        // #1823: no clock was READ on this path - the wording must not claim one.
+        assertEquals("no (records dated 1970/71)", ConnectionReadout.clockLatchedLabel(null, 40_000_000L))
         assertEquals("no (waiting for the strap clock)", ConnectionReadout.clockLatchedLabel(null, null))
         // deviceClockUnix wins when BOTH signals are present (the WHOOP4 correlation is the more direct one).
         assertEquals("yes", ConnectionReadout.clockLatchedLabel(1_782_475_600L, 40_000_000L))
