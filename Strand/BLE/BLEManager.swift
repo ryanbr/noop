@@ -5392,12 +5392,16 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         } else {
             endedReason = "no error reported"
         }
-        let upMs = linkUpSince.map {
-            Int(Double(DispatchTime.now().uptimeNanoseconds &- $0.uptimeNanoseconds) / 1_000_000)
-        } ?? 0
-        log(ConnectionReadout.linkEpitaph(upMillis: upMs, inboundFrames: inboundFrames,
-                                          inboundBytes: inboundBytes, cmdChannelFrames: cmdChannelFrames,
-                                          realtimeArmed: realtimeArmedAt != nil, ended: endedReason))
+        // Only for a link we actually held. Emitting without one would report "the strap sent NOTHING on
+        // this link" using the PREVIOUS link's counters, fabricating the very symptom #1809 is about.
+        if let since = linkUpSince {
+            let upMs = Int(Double(DispatchTime.now().uptimeNanoseconds &- since.uptimeNanoseconds) / 1_000_000)
+            log(ConnectionReadout.linkEpitaph(upMillis: upMs, inboundFrames: inboundFrames,
+                                              inboundBytes: inboundBytes, cmdChannelFrames: cmdChannelFrames,
+                                              realtimeArmed: realtimeArmedAt != nil, ended: endedReason))
+        }
+        // Clear the tally with the link, so a second teardown for the same drop cannot re-report it.
+        inboundFrames = 0; inboundBytes = 0; cmdChannelFrames = 0
         linkUpSince = nil
 
         let timedOut = !intentionalDisconnect && error != nil
