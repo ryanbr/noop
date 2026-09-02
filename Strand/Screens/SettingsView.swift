@@ -3319,6 +3319,15 @@ struct StepsCalibrationSheet: View {
     @State private var draftManual: Double = 0
     @State private var didLoad = false
 
+    /// The strap has banked no motion, and we have looked.
+    ///
+    /// Named once because two places depend on it and they must stay exactly complementary: the
+    /// no-motion banner appears, and the calibration countdown does NOT. Written as two separate
+    /// expressions they drifted immediately — the guard's first draft tested `sampleMotion == nil`
+    /// alone, which is also true during the load, so the countdown vanished in a window where the
+    /// banner had not appeared yet and the card explained nothing at all.
+    private var strapHasNoMotion: Bool { didLoad && sampleMotion == nil }
+
     /// #107: the sheet's guidance depends on the strap family. A WHOOP 4.0 streams motion automatically, so
     /// "let it sync" is right; a 5/MG only streams motion once the experimental deep-data unlock is on, so
     /// the 4.0 advice is futile there and the empty state must say so instead.
@@ -3339,7 +3348,7 @@ struct StepsCalibrationSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: NoopMetrics.sectionSpacing) {
                     explainerCard
-                    if didLoad && sampleMotion == nil { noMotionNote }
+                    if strapHasNoMotion { noMotionNote }
                     currentFitCard
                     comparisonCard
                     manualAdjustCard
@@ -3508,7 +3517,7 @@ struct StepsCalibrationSheet: View {
                     //
                     // The no-motion banner at the top of this sheet already explains the real blocker, so
                     // the honest move is to stop competing with it rather than to add more copy.
-                    if sampleMotion != nil {
+                    if !strapHasNoMotion {
                     // #589: a concrete countdown instead of a vague "a few days". Headline comes straight
                     // from the engine's needsMoreDays state so the wording matches the Today steps tile.
                     // #693: drive `have` off `profile.stepsCalibrationSampleDays` — the value the engine
