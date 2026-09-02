@@ -532,6 +532,22 @@ public enum SleepStager {
         return sorted[idx]
     }
 
+    /// How many distinct `hrOnlyEpochS` buckets `sortedByTs` spans.
+    ///
+    /// A single pass rather than a Set, because `hrS` is already sorted by timestamp so the bucket key
+    /// is non-decreasing. The obvious spelling (`Set(hrS.map { … })`) builds a full intermediate array
+    /// AND a set over every sample to end up with a few thousand distinct keys — per scored day, across
+    /// the 21-day rescore. A diagnostic must not cost what it is measuring.
+    static func distinctEpochs(_ sortedByTs: [HRSample]) -> Int {
+        var count = 0
+        var last = Int.min
+        for s in sortedByTs {
+            let key = s.ts / hrOnlyEpochS
+            if key != last { count += 1; last = key }
+        }
+        return count
+    }
+
     /// Epoch for the HR-only spine, in seconds.
     public static let hrOnlyEpochS: Int = 60
 
@@ -672,7 +688,7 @@ public enum SleepStager {
             hrP90: percentileOfSorted(sortedBpm, 0.90),
             // The real epoch count, not the sample count: the spine buckets by `hrOnlyEpochS` before it
             // decides anything, so this is the axis every other number here is measured on.
-            epochs: Set(hrS.map { $0.ts / hrOnlyEpochS }).count,
+            epochs: distinctEpochs(hrS),
             runs: rawRuns.count,
             mergedRuns: merged.count,
             sleepRuns: merged.filter { $0.stage == "sleep" }.count,

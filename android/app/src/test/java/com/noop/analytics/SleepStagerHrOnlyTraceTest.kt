@@ -76,6 +76,19 @@ class SleepStagerHrOnlyTraceTest {
         assertTrue("and the trace says so: ${lines[0]}", lines[0].contains("sleepRuns=1"))
     }
 
+    /**
+     * The single-pass epoch count relies on `hrS` being sorted by timestamp, which `hrOnlySessions`
+     * guarantees. Pinned because the zero-allocation version trades a set for that assumption, and an
+     * unsorted input would silently over-count rather than fail.
+     */
+    @Test
+    fun `distinctEpochs counts buckets in one pass over sorted input`() {
+        // 10 epochs x 6 samples, already ts-ordered.
+        assertEquals(10, SleepStager.distinctEpochs(hr(1000, List(10) { 60 })))
+        assertEquals(1, SleepStager.distinctEpochs(hr(1000, listOf(60))))
+        assertEquals(0, SleepStager.distinctEpochs(emptyList()))
+    }
+
     /** `epochs` counts EPOCHS, not samples — the axis every other number is measured on. */
     @Test
     fun `epochs counts epochs not samples`() {

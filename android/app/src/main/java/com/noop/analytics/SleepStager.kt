@@ -584,6 +584,26 @@ object SleepStager {
         return sorted[idx]
     }
 
+    /**
+     * How many distinct [hrOnlyEpochS] buckets `sortedByTs` spans.
+     *
+     * A single pass rather than a set, because `hrS` is already sorted by timestamp so the bucket key
+     * is non-decreasing and a running comparison is enough. The obvious spelling
+     * (`mapTo(HashSet()) { it.ts / hrOnlyEpochS }`) boxes EVERY sample to end up with a few thousand
+     * distinct keys - ~160k boxed longs per scored day across the 21-day rescore, which is the exact
+     * allocation shape #707 names as the heap-churn source under the OOM. A diagnostic must not cost
+     * what it is measuring.
+     */
+    internal fun distinctEpochs(sortedByTs: List<HrSample>): Int {
+        var count = 0
+        var last = Long.MIN_VALUE
+        for (s in sortedByTs) {
+            val key = s.ts / hrOnlyEpochS
+            if (key != last) { count++; last = key }
+        }
+        return count
+    }
+
     /** Epoch for the HR-only spine, in seconds. */
     const val hrOnlyEpochS: Long = 60
 
@@ -750,7 +770,7 @@ object SleepStager {
             hrP90 = percentileOfSorted(sortedBpm, 0.90),
             // The real epoch count, not the sample count: the spine buckets by [hrOnlyEpochS] before it
             // decides anything, so this is the axis every other number here is measured on.
-            epochs = hrS.mapTo(HashSet()) { it.ts / hrOnlyEpochS }.size,
+            epochs = distinctEpochs(hrS),
             runs = rawRuns.size,
             mergedRuns = merged.size,
             sleepRuns = merged.count { it.stage == "sleep" },
