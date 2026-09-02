@@ -164,10 +164,25 @@ struct LiftSessionView: View {
         }()
 
         return HStack(spacing: 8) {
-            Text("\(slot.setIndex)")
-                .font(StrandFont.captionNumber)
-                .foregroundStyle(isWorking ? StrandPalette.textPrimary : StrandPalette.textSecondary)
-                .frame(width: 26, alignment: .leading)
+            // The set number IS the warm-up toggle. Warm-ups are excluded from volume and from the
+            // per-muscle counts, so being unable to mark one silently inflates the single figure the
+            // whole feature rests on — it has to be reachable in one tap, without leaving the row.
+            Button {
+                toggleWarmup(slot)
+            } label: {
+                Text(isWarmup(slot) ? String(localized: "W") : "\(slot.setIndex)")
+                    .font(StrandFont.captionNumber)
+                    .foregroundStyle(isWarmup(slot)
+                                     ? StrandPalette.metricAmber
+                                     : (isWorking ? StrandPalette.textPrimary
+                                                  : StrandPalette.textSecondary))
+                    .frame(width: 26, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isWarmup(slot)
+                                ? String(localized: "Warm-up set — tap to make it a working set")
+                                : String(localized: "Set \(slot.setIndex) — tap to mark it a warm-up"))
 
             numberField(slot: slot, field: .weight(slot),
                         text: weightBinding(slot),
@@ -200,6 +215,14 @@ struct LiftSessionView: View {
         .padding(.horizontal, 8)
         .background(rowBackground(isWorking: isWorking, isResting: isResting, done: recorded != nil),
                     in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    /// Warm-up state lives in the controller, so a mark survives the sheet being minimised and
+    /// applies however the set was closed out — button, strap, or the minimised bar.
+    private func isWarmup(_ slot: LiftSlot) -> Bool { session.isWarmup(slot) }
+
+    private func toggleWarmup(_ slot: LiftSlot) {
+        session.setWarmup(slot, !session.isWarmup(slot))
     }
 
     /// Green = working now, amber = the rest that follows it, faint = done, clear = still to come.

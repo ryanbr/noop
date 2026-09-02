@@ -207,6 +207,43 @@ final class LiftSessionEngineTests: XCTestCase {
                        "studies count working sets; a warm-up must not inflate the tally")
     }
 
+    // MARK: - Warm-ups
+
+    func testAWarmUpMarkedBeforeTheSetIsPerformedSurvivesOntoIt() {
+        // You know a set is a warm-up on the way IN. The mark is held until the set exists, then
+        // applied — the regression this guards against silently counted every warm-up as a working
+        // set, inflating the one figure the whole feature rests on.
+        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
+        e.advance(now: t0)                                        // working set 1
+        e.advance(now: t0 + 40)                                   // recorded
+        e.updateSet(slot(0, 1), weightKg: 20, reps: 12, rpe: nil, isWarmup: true)
+
+        XCTAssertTrue(e.sets[0].isWarmup)
+        XCTAssertEqual(e.completedWorkingSets, 0,
+                       "a warm-up must not count toward the working-set tally")
+    }
+
+    func testAWarmUpCanBeUnmarkedBackToAWorkingSet() {
+        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
+        e.advance(now: t0)
+        e.advance(now: t0 + 40)
+        e.updateSet(slot(0, 1), weightKg: 20, reps: 12, rpe: nil, isWarmup: true)
+        XCTAssertEqual(e.completedWorkingSets, 0)
+
+        e.updateSet(slot(0, 1), weightKg: 20, reps: 12, rpe: nil, isWarmup: false)
+        XCTAssertEqual(e.completedWorkingSets, 1, "un-marking restores it to a working set")
+    }
+
+    func testAWarmUpStillCarriesItsWeightAndRepsForTheRecord() {
+        // Excluded from the COUNTS, but still logged: what you warmed up with is worth keeping.
+        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
+        e.advance(now: t0)
+        e.advance(now: t0 + 40)
+        e.updateSet(slot(0, 1), weightKg: 20, reps: 12, rpe: nil, isWarmup: true)
+        XCTAssertEqual(e.sets[0].weightKg, 20)
+        XCTAssertEqual(e.sets[0].reps, 12)
+    }
+
     // MARK: - Ghost values
 
     func testThePreviousSetInThisSessionIsWhatASetGhostsFrom() {
