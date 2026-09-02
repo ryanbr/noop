@@ -264,7 +264,7 @@ class AiCoach(
             val deep = d.deepMin?.let { fmt1(it / 60.0) + "h" } ?: "-"
             val rem = d.remMin?.let { fmt1(it / 60.0) + "h" } ?: "-"
             val light = d.lightMin?.let { fmt1(it / 60.0) + "h" } ?: "-"
-            val eff = d.efficiency?.let { "${(it * 100).roundToInt()}%" } ?: "-"
+            val eff = effPctOrDash(d.efficiency)
             sb.append(
                 "  ${d.day}: charge $recovery, effort $strain, rest $sleepH, " +
                     "deep $deep, REM $rem, light $light, eff $eff, HRV $hrv, RHR $rhr\n"
@@ -730,6 +730,27 @@ class AiCoach(
     // ---------------------------------------------------------------------------------------
     // Small numeric formatting helpers
     // ---------------------------------------------------------------------------------------
+
+    /**
+     * Efficiency as a percentage, NORMALISING the stored value first.
+     *
+     * `DailyMetric.efficiency` is not reliably a 0-1 fraction - it arrives as a percentage on some
+     * import paths, which SleepMetricDetailLogic and SleepModelLogic each guard against inline. A bare
+     * `* 100` would hand the coach "eff 9400%" for an imported night, and a model given a nonsense
+     * number reasons about it confidently rather than ignoring it.
+     *
+     * 1.5 rather than 1.0 because a genuine fraction can exceed 1.0 only by floating-point noise, while
+     * a genuine percentage is 30-100. The two existing Kotlin copies split at 1.0; matching the Swift
+     * twin here keeps the COACH line consistent across platforms, and the wider divergence between
+     * those thresholds is pre-existing and not this change's to settle.
+     */
+    private fun effPctOrDash(raw: Double?): String {
+        var e = raw ?: return "-"
+        if (e <= 0.0) return "-"
+        if (e > 1.5) e /= 100.0
+        if (e <= 0.0 || e > 1.0) return "-"
+        return "${(e * 100).roundToInt()}%"
+    }
 
     private fun fmt1(v: Double): String =
         if (v == v.roundToInt().toDouble()) v.roundToInt().toString()

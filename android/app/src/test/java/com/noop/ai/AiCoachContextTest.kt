@@ -68,6 +68,20 @@ class AiCoachContextTest {
             AiCoach.DEFAULT_SYSTEM_PROMPT.contains("deep/REM/light"))
     }
 
+    /**
+     * Efficiency arrives as a PERCENTAGE on some import paths, not a 0-1 fraction — SleepMetricDetail
+     * and SleepModel each guard against that inline. Without the same guard here a bare `* 100` sends
+     * the coach "eff 9400%", and a model handed a nonsense number reasons about it confidently.
+     */
+    @Test
+    fun anEfficiencyStoredAsAPercentageIsNotMultipliedAgain() {
+        val asFraction = coach().buildContext(listOf(computedRow(june(1)).copy(efficiency = 0.94)))
+        val asPercent = coach().buildContext(listOf(computedRow(june(1)).copy(efficiency = 94.0)))
+        assertTrue("fraction", asFraction.contains("eff 94%"))
+        assertTrue("percentage", asPercent.contains("eff 94%"))
+        assertFalse("never multiplied twice", asPercent.contains("9400%"))
+    }
+
     /** A night with no staging says so, rather than the field vanishing from the line. */
     @Test
     fun anUnstagedNightReportsDashesNotSilence() {

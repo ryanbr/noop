@@ -812,7 +812,7 @@ final class AICoachEngine: ObservableObject {
         parts.append("deep " + hoursOrDash(d.deepMin))
         parts.append("REM " + hoursOrDash(d.remMin))
         parts.append("light " + hoursOrDash(d.lightMin))
-        parts.append("eff " + (d.efficiency.map { "\(Int(($0 * 100).rounded()))%" } ?? "—"))
+        parts.append("eff " + efficiencyPercentOrDash(d.efficiency))
         parts.append("HRV " + (d.avgHrv.map { "\(Int($0.rounded()))ms" } ?? "—"))
         parts.append("RHR " + (d.restingHr.map { "\($0)bpm" } ?? "—"))
         return parts.joined(separator: ", ")
@@ -822,6 +822,23 @@ final class AICoachEngine: ObservableObject {
     /// stage total and the total it is part of read on the same scale.
     private func hoursOrDash(_ minutes: Double?) -> String {
         minutes.map { String(format: "%.1fh", $0 / 60) } ?? "—"
+    }
+
+    /// Efficiency as a percentage, NORMALISING the stored value first.
+    ///
+    /// `DailyMetric.efficiency` is not reliably a 0–1 fraction: it "arrives as % on some import paths",
+    /// which `SleepView` and `StagesCard` each guard against inline with this same `> 1.5` test. A bare
+    /// `* 100` would therefore hand the coach "eff 9400%" for an imported night — and a model given a
+    /// nonsense number reasons about it confidently rather than ignoring it.
+    ///
+    /// 1.5 rather than 1.0 because a genuine fraction can exceed 1.0 only by floating-point noise, while
+    /// a genuine percentage is 30–100 and nowhere near the threshold. Android's two copies of this guard
+    /// split at 1.0 instead, which is a pre-existing divergence and not this change's to settle.
+    private func efficiencyPercentOrDash(_ raw: Double?) -> String {
+        guard var e = raw, e > 0 else { return "—" }
+        if e > 1.5 { e /= 100 }
+        guard e > 0, e <= 1 else { return "—" }
+        return "\(Int((e * 100).rounded()))%"
     }
 
     private func avgOne(_ xs: [Double]) -> String {
