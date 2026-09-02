@@ -341,9 +341,14 @@ struct LiveWorkoutView: View {
     ///
     /// The trade is deliberate: the timer now sits centred in the space the buttons leave rather than
     /// in the bar, so it reads slightly right of true centre because the left chrome is heavier. That
-    /// is the cost of the layout being unable to collide at all — and it keeps full width for a
-    /// `1:30:00`, which the alternative (padding the timer clear of the widest group) would have
-    /// truncated.
+    /// is the cost of the layout being unable to collide at all.
+    ///
+    /// It can still run out of ROOM, and the arithmetic is tighter than it looks: three 56pt circles
+    /// and their gaps leave the timer roughly 161pt on a 393pt screen, against about 144pt for a
+    /// `1:30:00` at 40pt monospaced. On a 375pt device, or at a larger Dynamic Type, that does not fit,
+    /// so the timer scales rather than overflowing the capsule. The alternative considered — padding
+    /// the timer clear of the widest group to keep true centring — left it barely 105pt and would have
+    /// truncated the same clock outright.
     private var bottomControlRow: some View {
         HStack(spacing: NoopMetrics.space2) {
             deleteWorkoutGlassButton
@@ -352,6 +357,10 @@ struct LiveWorkoutView: View {
             bottomElapsedTimer
                 .allowsHitTesting(false)
                 .layoutPriority(1)
+                // Scaling down is the honest failure when the room runs out: truncating a clock to
+                // "1:30:0" would be worse than a smaller one. Same idiom the rest of this file uses.
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
             Spacer(minLength: NoopMetrics.space2)
             endWorkoutGlassButton
         }
