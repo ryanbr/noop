@@ -244,11 +244,18 @@ final class ConnectionReadoutTests: XCTestCase {
         XCTAssertEqual(charged?.contains("every connect"), false,
                        "no model-specific mechanism claim in copy shown to every model")
 
-        // Boundary: the constant is inclusive, so exactly-at-threshold takes the charged branch.
-        let atThreshold = ConnectionReadout.rtcWarning(
-            deviceClockUnix: 40_000_000, strapNewestUnix: nil,
-            batteryPct: ConnectionReadout.rtcAlreadyChargedPct)
+        // Pin the VALUE, not just the symbol: feeding the constant back into the function under test
+        // can never catch a wrong threshold, and nothing else would catch it drifting away from the
+        // Kotlin twin - the two platforms would each keep passing while giving different advice.
+        XCTAssertEqual(ConnectionReadout.rtcAlreadyChargedPct, 95)
+
+        // Boundary, from both sides, with literals: inclusive at 95, charge advice at 94.
+        let atThreshold = ConnectionReadout.rtcWarning(deviceClockUnix: 40_000_000,
+                                                       strapNewestUnix: nil, batteryPct: 95)
         XCTAssertEqual(atThreshold?.contains("already charged"), true)
+        let justBelow = ConnectionReadout.rtcWarning(deviceClockUnix: 40_000_000,
+                                                     strapNewestUnix: nil, batteryPct: 94)
+        XCTAssertEqual(justBelow?.contains("Charge the strap to 100%"), true)
 
         // Battery not read yet: we only withdraw advice on evidence, so the default stands.
         let unknown = ConnectionReadout.rtcWarning(deviceClockUnix: 40_000_000, strapNewestUnix: nil)

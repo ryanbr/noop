@@ -242,10 +242,16 @@ class ConnectionReadoutTest {
         // strap (#1635) is never clocked at all - the strap most likely to be showing this warning.
         assertFalse(charged.contains("every connect"))
 
-        // Boundary: the constant is inclusive, so exactly-at-threshold takes the charged branch.
-        val atThreshold = ConnectionReadout.rtcWarning(
-            40_000_000L, null, batteryPct = ConnectionReadout.RTC_ALREADY_CHARGED_PCT)!!
+        // Pin the VALUE, not just the symbol: feeding the constant back into the function under test
+        // can never catch a wrong threshold, and nothing else would catch it drifting away from the
+        // Swift twin - the two platforms would each keep passing while giving different advice.
+        assertEquals(95.0, ConnectionReadout.RTC_ALREADY_CHARGED_PCT, 0.0)
+
+        // Boundary, from both sides, with literals: inclusive at 95, charge advice at 94.
+        val atThreshold = ConnectionReadout.rtcWarning(40_000_000L, null, batteryPct = 95.0)!!
         assertTrue(atThreshold.contains("already charged"))
+        val justBelow = ConnectionReadout.rtcWarning(40_000_000L, null, batteryPct = 94.0)!!
+        assertTrue(justBelow.contains("Charge the strap to 100%"))
 
         // Battery not read yet: we only withdraw advice on evidence, so the default stands.
         assertTrue(ConnectionReadout.rtcWarning(40_000_000L, null)!!.contains("Charge the strap to 100%"))
