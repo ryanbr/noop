@@ -23,9 +23,9 @@ import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
+import androidx.glance.layout.width
 import androidx.glance.semantics.contentDescription
 import androidx.glance.semantics.semantics
-import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
@@ -154,8 +154,9 @@ private fun WidgetContent(snap: WidgetSnapshot, dark: Boolean) {
         Spacer(modifier = GlanceModifier.height(8.dp))
         // The ♥ and ⚡ are characters inside the text, not labelled images, so TalkBack reads whatever
         // the glyph happens to be called - or skips it - and the metric arrives as a bare number with no
-        // name and no unit. The compact widget already labels the same two values (its battery Image
-        // carries a contentDescription); this one never did. (#1799)
+        // name and no unit. The compact widget is not the accessible counterexample it looks like: only
+        // its battery IMAGE ever carried a contentDescription, and its heart-rate line is the same
+        // unlabelled text as this one, fixed alongside it here. (#1799)
         //
         // Built here rather than inside the semantics lambda. uiString would resolve there too - it is a
         // plain function over the Application resources, not a composable - but #571 recorded that the
