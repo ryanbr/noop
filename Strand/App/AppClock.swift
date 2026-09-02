@@ -25,6 +25,12 @@ enum AppClock {
     /// converted from `static let` to computed properties, that put an ICU build behind every time label
     /// on screen. The cache saved the cheap allocation and missed the expensive call entirely.
     static var systemUses24Hour: Bool {
+        // Arm the invalidator HERE, not in hourMinuteFormatter(): four call sites reach AppClock only
+        // through `formattingLocale` and would never have registered it, leaving their memo pinned to a
+        // stale clock for the life of the process. Every path lands here — Swift evaluates both arguments
+        // of ClockFormat.uses24Hour(preference:systemUses24Hour:) eagerly — so this is the one chokepoint.
+        // Touched before the lock: registration does not need it, and taking it twice would not nest.
+        _ = localeObserver
         cacheLock.lock(); defer { cacheLock.unlock() }
         if let cachedSystem24 { return cachedSystem24 }
         let template = DateFormatter.dateFormat(fromTemplate: "j", options: 0,
@@ -94,7 +100,6 @@ enum AppClock {
 
     /// Wall-clock time at minute precision, honouring the setting.
     static func hourMinuteFormatter() -> DateFormatter {
-        _ = localeObserver   // first call registers the invalidator; later calls are a no-op read
         let template = ClockFormat.hourMinuteTemplate(uses24Hour: uses24Hour)
         let locale = activeLocale
         cacheLock.lock(); defer { cacheLock.unlock() }
