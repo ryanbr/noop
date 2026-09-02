@@ -794,7 +794,11 @@ final class AICoachEngine: ObservableObject {
 
     // MARK: Formatting helpers
 
-    private func dayLine(_ d: DailyMetric) -> String {
+    /// `internal`, not private, so `AICoachSleepContextTests` can assert the emitted line directly.
+    /// Swift's `buildContext()` takes no arguments (it reads the repo), unlike the Kotlin twin which is
+    /// handed the day list — so without this the formatter has no seam and the Swift half of a change
+    /// with fifteen Kotlin tests would ship untested.
+    func dayLine(_ d: DailyMetric) -> String {
         var parts: [String] = [d.day + ":"]
         parts.append("charge " + (d.recovery.map { "\(Int($0.rounded()))" } ?? "—"))
         parts.append("effort " + (d.strain.map { String(format: "%.1f", $0) } ?? "—"))
@@ -834,7 +838,7 @@ final class AICoachEngine: ObservableObject {
     /// 1.5 rather than 1.0 because a genuine fraction can exceed 1.0 only by floating-point noise, while
     /// a genuine percentage is 30–100 and nowhere near the threshold. Android's two copies of this guard
     /// split at 1.0 instead, which is a pre-existing divergence and not this change's to settle.
-    private func efficiencyPercentOrDash(_ raw: Double?) -> String {
+    func efficiencyPercentOrDash(_ raw: Double?) -> String {
         guard var e = raw, e > 0 else { return "—" }
         if e > 1.5 { e /= 100 }
         guard e > 0, e <= 1 else { return "—" }
