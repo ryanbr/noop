@@ -318,27 +318,42 @@ struct LiveWorkoutView: View {
 
     // MARK: - Bottom floating controls
 
-    /// Diameter shared by the exit and workout-type Liquid Glass circles so the centered timer stays
-    /// optically balanced against equal side chrome.
+    /// Diameter shared by every Liquid Glass circle in the bottom capsule, so the row reads as one
+    /// set of controls rather than a mix of sizes.
+    ///
+    /// It used to justify itself as keeping "the centered timer optically balanced against equal side
+    /// chrome". The side chrome has not been equal since #1533 put two circles on the left and one on
+    /// the right, and the timer is no longer centred against them — see `bottomControlRow`.
     private static let bottomControlDiameter: CGFloat = 56
     /// Tight inset so the glass circles nest into the capsule ends (stopwatch-bar proportions).
     private static let bottomBarInset: CGFloat = 4
 
-    /// One shared dark floating capsule: Liquid Glass exit · elapsed · Liquid Glass workout-type.
-    /// The timer is centered in the bar via ZStack; the glass circles sit in a separate HStack so
-    /// uneven label widths cannot pull the time off-center. The capsule itself is solid elevated
-    /// chrome — not Liquid Glass.
+    /// One shared dark floating capsule: discard · pause · elapsed · end.
+    ///
+    /// Laid out in ONE HStack, so the timer and the controls cannot overlap. #1068 built this as a
+    /// ZStack with the timer centred independently — deliberately, "so uneven label widths cannot pull
+    /// the time off-center" — and that held while the bar carried one circle per side. #1533 added the
+    /// discard and pause controls to the left group, and a centred 40pt timer then began where two
+    /// 56pt circles plus their spacing end: `0:02` merely touched the pause button, and anything wider
+    /// went under it. A field report of "two timers" was this one half-occluded, read as a duplicate of
+    /// the big TIME readout above. `.allowsHitTesting(false)` on the timer was already a tell that it
+    /// sat beneath something tappable.
+    ///
+    /// The trade is deliberate: the timer now sits centred in the space the buttons leave rather than
+    /// in the bar, so it reads slightly right of true centre because the left chrome is heavier. That
+    /// is the cost of the layout being unable to collide at all — and it keeps full width for a
+    /// `1:30:00`, which the alternative (padding the timer clear of the widest group) would have
+    /// truncated.
     private var bottomControlRow: some View {
-        ZStack {
+        HStack(spacing: NoopMetrics.space2) {
+            deleteWorkoutGlassButton
+            pauseWorkoutGlassButton
+            Spacer(minLength: NoopMetrics.space2)
             bottomElapsedTimer
                 .allowsHitTesting(false)
-
-            HStack(spacing: NoopMetrics.space2) {
-                deleteWorkoutGlassButton
-                pauseWorkoutGlassButton
-                Spacer(minLength: 0)
-                endWorkoutGlassButton
-            }
+                .layoutPriority(1)
+            Spacer(minLength: NoopMetrics.space2)
+            endWorkoutGlassButton
         }
         .padding(Self.bottomBarInset)
         .background {
