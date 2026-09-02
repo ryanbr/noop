@@ -164,9 +164,29 @@ public final class FrameRouter {
             if let cmd = parsed.cmdName, cmd.hasPrefix("SET_CLOCK") || cmd.hasPrefix("GET_CLOCK") {
                 let r = Self.commandResultByte(in: frame, family: family)
                 let rhex = r.map { String(format: "0x%02x", UInt8(truncatingIfNeeded: $0)) } ?? "none"
-                let accepted = (family == .whoop5) ? (r == 1) : (r == 0)
-                let verdict = r == nil ? "no result byte" : (accepted ? "accepted" : "REJECTED")
-                state.append(log: "clock: \(cmd) strap acked result=\(rhex) (\(verdict))", domain: .connection)
+                // A VERDICT only where the polarity is known. 5/MG's 1=SUCCESS is established (the
+                // BodyLocation probe + MG vectors); WHOOP 4.0's 0=accepted is the reboot probe's
+                // explicitly UNVERIFIED reading. #1818 is a 4.0 report, so rendering "REJECTED" there
+                // from a guess would hand that triage a confident answer resting on nothing - the exact
+                // mistake this whole line exists to stop. Print the raw byte and say the meaning is
+                // unverified; a maintainer can still compare it across straps, which is the point.
+                let verdict: String
+                if r == nil {
+                    verdict = "no result byte"
+                } else if family == .whoop5 {
+                    verdict = (r == 1) ? "accepted" : "REJECTED"
+                } else {
+                    verdict = "meaning unverified on 4.0"
+                }
+                // The strap's own answer to GET_CLOCK is the direct evidence of whether the write took,
+                // and on 5/MG nothing else decodes it - the reply never reaches the WHOOP4 correlation
+                // path. Raw hex, uncapped: a truncated clock payload answers nothing.
+                let payload = cmd.hasPrefix("GET_CLOCK")
+                    ? (Self.commandResponsePayloadHex(in: frame, family: family)
+                        .map { " payload=\($0)" } ?? " payload=empty")
+                    : ""
+                state.append(log: "clock: \(cmd) strap acked result=\(rhex) (\(verdict))\(payload)",
+                             domain: .connection)
             }
             if family == .whoop4, let cmd = parsed.cmdName {
                 if cmd.hasPrefix("GET_ADVERTISING_NAME_HARVARD") {
@@ -474,8 +494,14 @@ public final class FrameRouter {
 
     /// Space-separated lowercase hex of a COMMAND_RESPONSE payload, for the raw-hex diagnostic fallback
     /// when a readback payload doesn't decode. nil when the frame carries no payload.
-    nonisolated static func commandResponsePayloadHex(in frame: [UInt8]) -> String? {
-        guard let payload = commandResponsePayload(in: frame), !payload.isEmpty else { return nil }
+    /// #1823: takes `family` because `commandResponsePayload` slices at a family-specific inner offset
+    /// (5/MG 8, 4.0 its own). This wrapper used to drop the argument and always slice at the 4.0 offset,
+    /// so a 5/MG payload came back shifted - the same fixed-offset mistake the REBOOT_STRAP comment
+    /// records, and it would have mis-read the clock payload on the family the clock diagnostic is for.
+    /// Defaulted to `.whoop4` so the existing WHOOP4-gated alarm caller is unchanged.
+    nonisolated static func commandResponsePayloadHex(in frame: [UInt8],
+                                                      family: DeviceFamily = .whoop4) -> String? {
+        guard let payload = commandResponsePayload(in: frame, family: family), !payload.isEmpty else { return nil }
         return payload.map { String(format: "%02x", $0) }.joined(separator: " ")
     }
 
