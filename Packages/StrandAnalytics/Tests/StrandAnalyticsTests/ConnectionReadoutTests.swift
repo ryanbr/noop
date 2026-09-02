@@ -266,6 +266,33 @@ final class ConnectionReadoutTests: XCTestCase {
                                                   strapNewestUnix: 1_782_475_000, batteryPct: 100))
     }
 
+    /// #1809: the epitaph exists so a strap log can STATE that nothing arrived, rather than a reporter
+    /// inferring it from the fact that every logged line happened to be outgoing.
+    func testLinkEpitaph() {
+        let silent = ConnectionReadout.linkEpitaph(upMillis: 4_123, inboundFrames: 0, inboundBytes: 0,
+                                                   cmdChannelFrames: 0, realtimeArmed: false,
+                                                   ended: "CBError.connectionTimeout(6)")
+        XCTAssertEqual(silent,
+                       "Link epitaph: up 4123ms, inbound 0 frames / 0 bytes (cmd-channel 0), "
+                       + "realtime armed=no, ended=CBError.connectionTimeout(6)"
+                       + " - the strap sent NOTHING on this link")
+
+        // A link that carried traffic must NOT claim silence.
+        let alive = ConnectionReadout.linkEpitaph(upMillis: 61_000, inboundFrames: 812,
+                                                  inboundBytes: 40_990, cmdChannelFrames: 9,
+                                                  realtimeArmed: true, ended: "intentional")
+        XCTAssertEqual(alive,
+                       "Link epitaph: up 61000ms, inbound 812 frames / 40990 bytes (cmd-channel 9), "
+                       + "realtime armed=yes, ended=intentional")
+        XCTAssertFalse(alive.contains("NOTHING"))
+
+        // Negatives are clamped rather than printed: a monotonic-clock hiccup must not emit "up -3ms".
+        XCTAssertTrue(ConnectionReadout.linkEpitaph(upMillis: -3, inboundFrames: -1, inboundBytes: -9,
+                                                    cmdChannelFrames: -2, realtimeArmed: false,
+                                                    ended: "x")
+                        .hasPrefix("Link epitaph: up 0ms, inbound 0 frames / 0 bytes (cmd-channel 0)"))
+    }
+
     func testLastFrameLabel() {
         XCTAssertEqual(ConnectionReadout.lastFrameLabel(lastFrameUnix: 990, nowUnix: 1_002), "12s ago")
         XCTAssertEqual(ConnectionReadout.lastFrameLabel(lastFrameUnix: nil, nowUnix: 1_002), "no frames yet")

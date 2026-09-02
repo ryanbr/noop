@@ -260,6 +260,40 @@ class ConnectionReadoutTest {
         assertNull(ConnectionReadout.rtcWarning(1_782_475_600L, 1_782_475_000L, batteryPct = 100.0))
     }
 
+    /** #1809: the epitaph exists so a strap log can STATE that nothing arrived, rather than a reporter
+     *  inferring it from the fact that every logged line happened to be outgoing. Twin of the Swift test -
+     *  the two strings must match byte for byte or one platform's report reads differently. */
+    @Test fun linkEpitaph() {
+        val silent = ConnectionReadout.linkEpitaph(
+            upMillis = 4_123, inboundFrames = 0, inboundBytes = 0, cmdChannelFrames = 0,
+            realtimeArmed = false, ended = "CBError.connectionTimeout(6)",
+        )
+        assertEquals(
+            "Link epitaph: up 4123ms, inbound 0 frames / 0 bytes (cmd-channel 0), " +
+                "realtime armed=no, ended=CBError.connectionTimeout(6)" +
+                " - the strap sent NOTHING on this link",
+            silent,
+        )
+
+        // A link that carried traffic must NOT claim silence.
+        val alive = ConnectionReadout.linkEpitaph(
+            upMillis = 61_000, inboundFrames = 812, inboundBytes = 40_990, cmdChannelFrames = 9,
+            realtimeArmed = true, ended = "intentional",
+        )
+        assertEquals(
+            "Link epitaph: up 61000ms, inbound 812 frames / 40990 bytes (cmd-channel 9), " +
+                "realtime armed=yes, ended=intentional",
+            alive,
+        )
+        assertFalse(alive.contains("NOTHING"))
+
+        // Negatives are clamped rather than printed: a clock hiccup must not emit "up -3ms".
+        assertTrue(
+            ConnectionReadout.linkEpitaph(-3, -1, -9, -2, false, "x")
+                .startsWith("Link epitaph: up 0ms, inbound 0 frames / 0 bytes (cmd-channel 0)"),
+        )
+    }
+
     @Test fun lastFrameLabel() {
         assertEquals("12s ago", ConnectionReadout.lastFrameLabel(990L, nowUnix = 1_002L))
         assertEquals("no frames yet", ConnectionReadout.lastFrameLabel(null, nowUnix = 1_002L))

@@ -272,6 +272,31 @@ public enum ConnectionReadout {
         return lead + "Charge the strap to 100% and reconnect so the clock latches."
     }
 
+    /// #1809: one-line account of a finished BLE link, logged on every disconnect.
+    ///
+    /// A strap log could not previously answer "did the strap send anything?". Inbound notifications only
+    /// stamped a liveness timestamp that was then discarded, and the disconnect error reached the log as
+    /// the OS `localizedDescription` while the `CBError` code the #617 branch computes was thrown away. A
+    /// reporter chasing a silent strap had to infer silence from the fact that every LOGGED line happened
+    /// to be outgoing - which measures NOOP's logging, not the strap. This measures the strap.
+    ///
+    /// `armed` matters because the #80 marginal-radio fallback only counts a drop when the R10/R11 burst
+    /// was actually armed; `armed=no` says up front that the detector cannot trip for this link, however
+    /// many times the loop repeats.
+    ///
+    /// Milliseconds are printed raw: no float formatting, so the two platforms cannot round apart.
+    public static func linkEpitaph(upMillis: Int, inboundFrames: Int, inboundBytes: Int,
+                                   cmdChannelFrames: Int, realtimeArmed: Bool, ended: String) -> String {
+        let armed = realtimeArmed ? "yes" : "no"
+        var line = "Link epitaph: up \(max(0, upMillis))ms, inbound \(max(0, inboundFrames)) frames / "
+            + "\(max(0, inboundBytes)) bytes (cmd-channel \(max(0, cmdChannelFrames))), "
+            + "realtime armed=\(armed), ended=\(ended)"
+        if inboundFrames <= 0 {
+            line += " - the strap sent NOTHING on this link"
+        }
+        return line
+    }
+
     /// #987: freshness label for the "last frame" readout row: how long ago the most recent strap frame
     /// was routed ("12s ago"), or "no frames yet" before the first one. `nowUnix` injected for testability.
     public static func lastFrameLabel(lastFrameUnix: Int?, nowUnix: Int) -> String {

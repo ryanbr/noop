@@ -63,6 +63,7 @@ import com.noop.protocol.WhoopGattServiceFamily
 import com.noop.protocol.whoopGattScanDecision
 import com.noop.analytics.Baselines
 import com.noop.analytics.BatterySocLine
+import com.noop.analytics.ConnectionReadout
 import com.noop.analytics.IntelligenceEngine
 import com.noop.analytics.NapDetector
 import com.noop.analytics.NapPrefs
@@ -6141,6 +6142,9 @@ class WhoopBleClient(
                     // exactly what distinguishes a healthy connection from the flapping loop that keeps
                     // the reconnect streak — and so the scan mode — pinned at its most power-hungry.
                     linkUpSinceMs = System.currentTimeMillis()
+                    // #1809: this link's inbound tally starts empty, so the epitaph on disconnect reports
+                    // exactly what arrived on THIS link and never a previous session's traffic.
+                    inboundFrames = 0; inboundBytes = 0; cmdChannelFrames = 0
                     // A connect succeeded → clear the stale-bond re-pair guide UNLESS we are in a known
                     // bond-loop (#617). In that loop the strap "connects" every ~3 s before timing out
                     // again, so clearing here wiped the guide on EVERY cycle: it flashed for ~1 s and
@@ -6662,7 +6666,18 @@ class WhoopBleClient(
     // MARK: Inbound routing  (port of didUpdateValueFor + FrameRouter.handle)
     // ====================================================================================
 
+    /** #1809: per-connection inbound accounting for the link epitaph - the strap log could not previously
+     *  say whether the strap transmitted anything at all. Twin of the Swift counters. */
+    private var inboundFrames = 0
+    private var inboundBytes = 0
+    private var cmdChannelFrames = 0
+
     private fun onInbound(uuid: UUID, bytes: ByteArray) {
+        // Count BEFORE any routing below, so the tally covers every inbound frame including ones no branch
+        // consumes - the epitaph must answer "did anything arrive at all".
+        inboundFrames++
+        inboundBytes += bytes.size
+        if (uuid == CMD_NOTIFY_CHAR) cmdChannelFrames++
         lastDataAtMs = System.currentTimeMillis()   // feeds the keep-alive liveness watchdog
         resubscribedSinceData = false               // data is flowing again — re-arm the one-shot resubscribe
         when {
@@ -9772,6 +9787,16 @@ class WhoopBleClient(
         // Snapshot the hold time and clear it IMMEDIATELY: every drop log below reads the snapshot, and a
         // stale `linkUpSinceMs` surviving into the next drop would report a hold time for a link that never
         // reached STATE_CONNECTED — the diagnostic would then invent exactly the evidence it exists to find.
+        // #1809: the epitaph reads linkUpSinceMs BEFORE the snapshot below clears it, and realtimeArmed
+        // before the state reset further down. Twin of the Apple disconnect epitaph: it answers "did the
+        // strap send anything on this link", which no strap log could previously state as a measurement.
+        val upMs = linkUpSinceMs?.let { (System.currentTimeMillis() - it).toInt() } ?: 0
+        log(ConnectionReadout.linkEpitaph(
+            upMillis = upMs, inboundFrames = inboundFrames, inboundBytes = inboundBytes,
+            cmdChannelFrames = cmdChannelFrames, realtimeArmed = realtimeArmed,
+            ended = "status=$status",
+        ))
+
         val heldSuffix = heldForLogSuffix()
         linkUpSinceMs = null
         // Reboot trail: if a user reboot is in flight, this drop is the strap acting on it. Log how long the
