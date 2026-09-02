@@ -673,7 +673,18 @@ public enum AnalyticsEngine {
         // negligible shift. The Rest/sleep-quality term is main-night; the recovery physiology is
         // day-best-resting, night-dominated. Keep these two definitions distinct on purpose.
         // Daily resting HR = lowest per-session resting HR across matched sessions.
-        let restingHRDaily = matched.compactMap { $0.restingHR }.min()
+        // #1801: the sessions whose PHYSIOLOGY may be folded into the day's aggregates. An HR-only night
+        // is excluded — it may describe its own duration, stages and Rest, but resting HR, HRV and SDNN
+        // are what Charge and the baselines are built from, and a baseline is the one thing a false
+        // positive cannot be unwound from.
+        //
+        // Named once rather than filtered at each use, because the nil restingHR/avgHRV an HR-only
+        // session carries only protects the aggregates that READ those fields. The deep-window HRV pool
+        // and the SDNN index below re-derive from `rr` over the session's own stages and would have
+        // folded one in regardless — which is precisely the "one forgotten call site" a scattered filter
+        // invites.
+        let physiologySessions = matched.filter { !$0.hrOnly }
+        let restingHRDaily = physiologySessions.compactMap { $0.restingHR }.min()
         // Daily avg HRV = in-bed-weighted mean of per-session avg HRV.
         let avgHRVDaily: Double? = {
             if deepHrvWindow {
@@ -683,13 +694,13 @@ public enum AnalyticsEngine {
                 // = successive diffs). nil when no deep sleep is detected (WHOOP-4.0 staging can be sparse) —
                 // the caller shows calibrating, never a fabricated number.
                 let rrSorted = rr.sortedByTsStable()
-                let deep = matched.flatMap { s in
+                let deep = physiologySessions.flatMap { s in
                     SleepStager.sessionHrvWindows(start: s.start, end: s.end, rr: rrSorted, stages: s.stages)
                         .filter { $0.stage == "deep" }.compactMap { $0.rmssd }
                 }
                 return deep.isEmpty ? nil : deep.reduce(0, +) / Double(deep.count)
             }
-            let pairs = matched.compactMap { s -> (Double, Double)? in
+            let pairs = physiologySessions.compactMap { s -> (Double, Double)? in
                 s.avgHRV.map { ($0, Double(s.end - s.start)) }
             }
             guard !pairs.isEmpty else { return nil }
@@ -706,7 +717,7 @@ public enum AnalyticsEngine {
         // against a watch meaningless. The 5-min index is window-comparable to those. nil when no segment has
         // enough clean beats (HRVAnalyzer's own gate). Keeps the R-R timestamps (segmentation needs them).
         let avgSDNNDaily: Double? = {
-            let inBed = rr.filter { r in matched.contains { r.ts >= $0.start && r.ts < $0.end } }
+            let inBed = rr.filter { r in physiologySessions.contains { r.ts >= $0.start && r.ts < $0.end } }
             return inBed.isEmpty ? nil : HRVAnalyzer.sdnnIndex(inBed, segmentSec: 300)
         }()
 

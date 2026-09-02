@@ -550,7 +550,18 @@ object AnalyticsEngine {
         // negligible shift. The Rest/sleep-quality term is main-night; the recovery physiology is
         // day-best-resting, night-dominated. Mirrors the Swift note in AnalyticsEngine.swift.
         // Daily resting HR = lowest per-session resting HR across matched sessions.
-        val restingHRDaily: Int? = matched.mapNotNull { it.restingHR }.minOrNull()
+        // #1801: the sessions whose PHYSIOLOGY may be folded into the day's aggregates. An HR-only night
+        // is excluded — it may describe its own duration, stages and Rest, but resting HR, HRV and SDNN
+        // are what Charge and the baselines are built from, and a baseline is the one thing a false
+        // positive cannot be unwound from.
+        //
+        // Named once rather than filtered at each use, because the null restingHR/avgHRV an HR-only
+        // session carries only protects the aggregates that READ those fields. The deep-window HRV pool
+        // and the SDNN index below re-derive from `rr` over the session's own stages and would have
+        // folded one in regardless — which is precisely the "one forgotten call site" a scattered filter
+        // invites.
+        val physiologySessions = matched.filter { !it.hrOnly }
+        val restingHRDaily: Int? = physiologySessions.mapNotNull { it.restingHR }.minOrNull()
         // Daily avg HRV = in-bed-weighted mean of per-session avg HRV.
         val avgHRVDaily: Double? = if (deepHrvWindow) {
             // #141: WHOOP-style HRV — pool RMSSD over DEEP-stage 5-min windows only (slow-wave sleep),
@@ -559,13 +570,13 @@ object AnalyticsEngine {
             // (RMSSD = successive diffs). null when the night has no detected deep sleep (WHOOP-4.0 staging
             // can be sparse) — the caller then shows calibrating, never a fabricated number.
             val rrSorted = rr.sortedBy { it.ts }
-            val deep = matched.flatMap { s ->
+            val deep = physiologySessions.flatMap { s ->
                 SleepStager.sessionHrvWindows(s.start, s.end, rrSorted, s.stages)
                     .filter { it.stage == "deep" }.mapNotNull { it.rmssd }
             }
             if (deep.isEmpty()) null else deep.sum() / deep.size
         } else run {
-            val pairs = matched.mapNotNull { s ->
+            val pairs = physiologySessions.mapNotNull { s ->
                 s.avgHRV?.let { it to (s.end - s.start).toDouble() }
             }
             if (pairs.isEmpty()) {
@@ -581,7 +592,7 @@ object AnalyticsEngine {
         // timestamps needed for segmentation and stays distinct from avgHrv (RMSSD). The half-open sleep
         // bounds match every other in-bed aggregate; no qualifying 20-clean-beat segment means null.
         val avgSDNNDaily = HrvAnalyzer.sdnnIndex(
-            rr.filter { sample -> matched.any { sample.ts >= it.start && sample.ts < it.end } },
+            rr.filter { sample -> physiologySessions.any { sample.ts >= it.start && sample.ts < it.end } },
             segmentSec = 300,
         )
 
