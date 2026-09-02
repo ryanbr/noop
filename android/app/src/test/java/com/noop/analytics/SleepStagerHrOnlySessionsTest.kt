@@ -109,6 +109,17 @@ class SleepStagerHrOnlySessionsTest {
             expr.contains("SleepStager.hrOnlySessions("))
         assertTrue("and must only run when the device supplied no hypnogram of its own",
             expr.contains("stored.isNotEmpty()"))
+        // The bug this replaced: the fallback inherited #804's `owner != importedDeviceId` exclusion,
+        // written to keep WHOOP straps OUT of a ring's hypnogram path — and so it never fired on the
+        // WHOOP strap it exists for. `resolveDayOwner` returns importedDeviceId whenever the owner
+        // source is absent, which on a live 5/MG install is every day. Pinned by asserting the owner
+        // check does not stand between the gravity gate and the call: it may still scope the STORED
+        // branch, but not the heart-rate one.
+        val hrOnlyBranch = expr.substring(expr.indexOf("else ->"))
+        assertTrue("the HR-only branch must not be gated on the day's owner",
+            !hrOnlyBranch.contains("importedDeviceId"))
+        assertTrue("but the stored-hypnogram branch keeps #804's exclusion",
+            expr.substring(0, expr.indexOf("else ->")).contains("owner != importedDeviceId"))
     }
 
     /** No HR at all cannot produce a night, and must not throw. */

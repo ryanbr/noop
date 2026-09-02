@@ -1167,45 +1167,44 @@ final class IntelligenceEngine: ObservableObject {
                 // untouched; analyzeDay still lets a DETECTED session win where the two overlap. Reconstruct the
                 // pure SleepSession from each stored CachedSleepSession (a minute-dict import row decodes to
                 // nothing and is skipped, so only real stage timelines are injected).
+                // #804 Fix A + #1801. Two different questions share the "this day has no motion" gate.
+                //
+                // #804 hands over a device's OWN persisted hypnogram (an Oura ring's SleepNet night) and is
+                // deliberately not applied to the import namespace. #1801 stages from heart rate when there
+                // is no hypnogram at all — and must NOT inherit #804's owner exclusion, which is the bug
+                // this replaces: `resolveDayOwner` returns the imported id whenever the owner source is
+                // absent or the candidates collapse to it, so on a live 5/MG install the whole branch was
+                // skipped before any heart rate was looked at.
+                //
+                // The stored lookup now runs for every no-motion day, so "nothing else knows about this
+                // night" is checked rather than assumed. A day that HAS stored sessions is left alone
+                // whoever owns it.
                 let providedSleep: [SleepSession]
-                if owner != Repository.whoopSource, grav.count < 2 {
+                if grav.count < 2 {
                     let persisted = (try? await store.sleepSessions(deviceId: owner, from: from, to: to,
                                                                     limit: 4000)) ?? []
                     let stored = persisted.compactMap { AnalyticsEngine.sleepSession(fromProvided: $0) }
-                    // #1801: the comment above assumes a WHOOP always streams a gravity vector. A 5/MG that
-                    // cannot bond does not — it is never clocked, so it banks nothing and persists no
-                    // hypnogram either, leaving neither a spine nor a stored night however much HR it holds.
-                    // Fall back to the HR-only spine ONLY when the device supplied nothing of its own: a
-                    // hypnogram the device actually recorded is always better evidence than one inferred
-                    // from heart rate.
-                    // Route the spine's funnel through the SAME `traceSink` the gate lines use, so one
-                    // report explains both halves rather than one going quiet — which is exactly what
-                    // shipping it silent cost on Android (#1801). That sink is nil unless Sleep test mode
-                    // is active, so this collects nothing on a normal pass; passing a closure of my own
-                    // here would have appended on every scored day regardless.
-                    if stored.isEmpty {
+                    if owner != Repository.whoopSource, !stored.isEmpty {
+                        traceSink?(SleepStager.GateTrace.hrOnlyGateLine(
+                            attempted: false, reason: "stored-hypnogram",
+                            gravRows: grav.count, storedNights: stored.count))
+                        providedSleep = stored
+                    } else if !stored.isEmpty {
+                        traceSink?(SleepStager.GateTrace.hrOnlyGateLine(
+                            attempted: false, reason: "stored-sessions-exist",
+                            gravRows: grav.count, storedNights: stored.count))
+                        providedSleep = []
+                    } else {
                         traceSink?(SleepStager.GateTrace.hrOnlyGateLine(
                             attempted: true, reason: "no-motion-no-hypnogram",
                             gravRows: grav.count, storedNights: 0))
                         providedSleep = SleepStager.hrOnlySessions(hr: hr, rr: rr, resp: resp,
                                                                    traceSink: traceSink)
-                    } else {
-                        traceSink?(SleepStager.GateTrace.hrOnlyGateLine(
-                            attempted: false, reason: "stored-hypnogram",
-                            gravRows: grav.count, storedNights: stored.count))
-                        providedSleep = stored
                     }
                 } else {
-                    // Only worth saying on a day with NO motion: there the spine was the remaining option
-                    // and something declined it, which a silent absence could not distinguish. A day WITH
-                    // motion skips this — the motion spine is the answer there.
-                    if grav.count < 2 {
-                        traceSink?(SleepStager.GateTrace.hrOnlyGateLine(
-                            attempted: false, reason: "imported-owner",
-                            gravRows: grav.count, storedNights: 0))
-                    }
                     providedSleep = []
                 }
+
                 let tScore0 = Date()
                 dayPrepSeconds += tScore0.timeIntervalSince(tPrep0)
                 // #1770 follow-up: the Effort ring's funnel. Collected here rather than sent straight

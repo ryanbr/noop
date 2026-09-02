@@ -956,44 +956,53 @@ object IntelligenceEngine {
             // scores. Gated on absent gravity (`grav.size < 2` — a ring streams zero; a WHOOP always streams a
             // gravity vector) plus a non-canonical-WHOOP-import owner, so WHOOP straps and the "my-whoop"
             // import namespace are untouched; analyzeDay still lets a DETECTED session win where they overlap.
-            val providedSleep: List<DetectedSleep> =
-                if (owner != importedDeviceId && grav.size < 2) {
-                    val stored = repo.sleepSessionsForDevice(owner, from, to, 4000)
-                        .mapNotNull { AnalyticsEngine.sleepSessionFromProvided(it) }
-                    // #1801: a ring persists its OWN hypnogram, so `stored` covers it. A 5/MG that cannot
-                    // bond persists nothing (it is never clocked, so it banks nothing) and streams no motion
-                    // either — neither a spine nor a stored night, which is why this day scored blank with
-                    // `reason=no-motion` however much HR it held. Fall back to the HR-only spine ONLY when
-                    // the device supplied nothing of its own: a hypnogram the device actually recorded is
-                    // always better evidence than one inferred from heart rate.
-                    if (stored.isNotEmpty()) {
+            // #804 Fix A + #1801. Two different questions share the "this day has no motion" gate.
+            //
+            // #804 hands over a device's OWN persisted hypnogram (an Oura ring's SleepNet night), and is
+            // deliberately not applied to the import namespace. #1801 stages from heart rate when there is
+            // no hypnogram at all — and that one must NOT inherit #804's owner exclusion, which is the bug
+            // this replaces: `resolveDayOwner` returns [importedDeviceId] whenever the owner source is
+            // absent or the candidates collapse to it, so on a live 5/MG install the whole branch was
+            // skipped before any heart rate was looked at. The field log said so outright once the gate
+            // line existed: `attempted=false reason=imported-owner grav=0`, on a day holding 165,980 HR
+            // rows. A condition written to exclude WHOOP straps was guarding a fallback FOR one.
+            //
+            // The stored lookup now runs for every no-motion day, so "nothing else knows about this
+            // night" is checked rather than assumed. A day that HAS stored sessions is left alone whoever
+            // owns it: inferring a night from heart rate when the device recorded a real one would be
+            // strictly worse evidence replacing better.
+            val providedSleep: List<DetectedSleep> = if (grav.size < 2) {
+                val stored = repo.sleepSessionsForDevice(owner, from, to, 4000)
+                    .mapNotNull { AnalyticsEngine.sleepSessionFromProvided(it) }
+                when {
+                    owner != importedDeviceId && stored.isNotEmpty() -> {
                         dayDiag(SleepStagerTrace.hrOnlyGateLine(
                             attempted = false, reason = "stored-hypnogram",
                             gravRows = grav.size, storedNights = stored.size,
                         ))
                         stored
-                    } else {
+                    }
+                    stored.isNotEmpty() -> {
+                        // The import namespace keeps #804's exclusion — its rows are not handed to
+                        // analyzeDay as "provided" — but they still mean this night is already known,
+                        // so the heart-rate fallback stays out of it.
+                        dayDiag(SleepStagerTrace.hrOnlyGateLine(
+                            attempted = false, reason = "stored-sessions-exist",
+                            gravRows = grav.size, storedNights = stored.size,
+                        ))
+                        emptyList()
+                    }
+                    else -> {
                         dayDiag(SleepStagerTrace.hrOnlyGateLine(
                             attempted = true, reason = "no-motion-no-hypnogram",
                             gravRows = grav.size, storedNights = 0,
                         ))
-                        // Route the spine's funnel through the SAME per-day recorder as `sleep-detect`,
-                        // so one report explains both halves rather than one of them going quiet.
                         SleepStager.hrOnlySessions(hr, rr, resp, traceSink = ::dayDiag)
                     }
-                } else {
-                    // Only worth saying on a day with NO motion: there the spine was the remaining
-                    // option and something declined it, which is precisely what a silent absence could
-                    // not distinguish. A day WITH motion skips this — the motion spine is the answer
-                    // there and nothing was passed over.
-                    if (grav.size < 2) {
-                        dayDiag(SleepStagerTrace.hrOnlyGateLine(
-                            attempted = false, reason = "imported-owner",
-                            gravRows = grav.size, storedNights = 0,
-                        ))
-                    }
-                    emptyList()
                 }
+            } else {
+                emptyList()
+            }
 
             val tScore0 = System.nanoTime()
             dayPrepNanos += tScore0 - tPrep0
