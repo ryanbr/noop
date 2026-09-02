@@ -807,7 +807,10 @@
     <string name="l10n_scoring_guide_screen_scorecardhighlight_4af6985c">scoreCardHighlight</string>
     <string name="l10n_scoring_guide_screen_these_are_independent_approximations_from_a_301457ed">Das sind unabhängige Näherungen von einem Consumer-Strap, gebaut auf offener Wissenschaft: kein medizinischer Rat und nicht WHOOPs offizielle Werte.</string>
     <string name="l10n_scoring_guide_screen_vs_whoop_9a8126a7">VS WHOOP</string>
+    <string name="l10n_settings_screen_12_hour_41c18ba0">12 Stunden</string>
+    <string name="l10n_settings_screen_24_hour_18e86819">24 Stunden</string>
     <string name="l10n_settings_screen_advancedchevron_f22dfa01">AdvancedChevron</string>
+    <string name="l10n_settings_screen_clock_04f6b3ea">Uhr</string>
     <string name="l10n_settings_screen_note_a2481d6c">· %1$s</string>
     <string name="l10n_settings_screen_repo_note_0a694b50">%1$s, %2$s</string>
     <string name="l10n_skin_temp_cards_screen_cycle_awareness_ffb94783">Zyklusbewusstsein</string>

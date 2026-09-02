@@ -53,6 +53,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
+import com.noop.analytics.ClockFormat
 
 // MARK: - Coupled view (task #43) — Kotlin twin of CoupledView.swift
 //
@@ -244,7 +245,7 @@ fun CoupledScreen(
             sleepPerformance = sleepPerformance,
             asleepMin = todayRow?.totalSleepMin,
             needMin = sleepNeedForDay(todayRow, days, importedNeed),
-            bedWakeSpan = bedWakeSpan(sleeps, habitualMidsleepSec),
+            bedWakeSpan = bedWakeSpan(sleeps, habitualMidsleepSec, ClockPrefs.uses24Hour(LocalContext.current)),
             onOpenSleep = onOpenSleep,
         )
         Text(
@@ -636,11 +637,11 @@ private fun sleepNeedForDay(day: DailyMetric?, days: List<DailyMetric>, imported
  * session" pick, which could name a different block -- and so a different span -- than the Sleep tab and
  * Today's HR graph for a night stored as more than one block (#294).
  */
-private fun bedWakeSpan(sleeps: List<SleepSession>, habitualMidsleepSec: Long?): String? {
+private fun bedWakeSpan(sleeps: List<SleepSession>, habitualMidsleepSec: Long?, is24h: Boolean): String? {
     val windowStart = System.currentTimeMillis() / 1000L - 36 * 3600L // within the last 36h counts as last night
     val candidates = sleeps.filter { it.endTs > windowStart }
     val span = mainSleepSpan(candidates, habitualMidsleepSec) ?: return null
-    val fmt = SimpleDateFormat("HH:mm", Locale.getDefault())
+    val fmt = SimpleDateFormat(ClockFormat.hourMinutePattern(is24h), Locale.getDefault())   // #1821
     return "${fmt.format(Date(span.first * 1000L))} - ${fmt.format(Date(span.second * 1000L))}"
 }
 

@@ -34,6 +34,9 @@ internal fun selectNight(
     // group order onto HeroNight.groupMotion. Empty/absent → honest empty state. Default empty so existing
     // callers/tests compile unchanged.
     motionByStart: Map<Long, List<Double>> = emptyMap(),
+    // #1821: the reader's chosen clock, for the hero's onset-wake label. Defaults to the 24h the label
+    // was hardcoded to, so existing callers and tests are unchanged until they opt in.
+    is24h: Boolean = true,
 ): HeroNight? {
     if (navDays.isEmpty()) return null
     val dayIdx = offset.coerceIn(0, navDays.size - 1)
@@ -114,7 +117,7 @@ internal fun selectNight(
     val groupInBedMin = if (heroGroup.size > 1) {
         heroGroup.sumOf { (it.endTs - it.effectiveStartTs).coerceAtLeast(0L) } / 60.0
     } else null
-    return HeroNight(session, dayKey, segments, clockLabelFor(heroOnsetTs, heroWakeTs), napBlocks, groupStages,
+    return HeroNight(session, dayKey, segments, clockLabelFor(heroOnsetTs, heroWakeTs, is24h), napBlocks, groupStages,
         groupSegments, groupMotion, groupInBedMin, heroOnsetTs, heroWakeTs, heroGroup)
 }
 

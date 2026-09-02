@@ -118,12 +118,12 @@ struct Night {
     // Clock for the Asleep/Woke row — the times people read at a glance. The "jmm" skeleton
     // follows the device's 12-/24-hour setting ("11:42 PM" or "23:42") instead of forcing one
     // on everyone, matching the HR-tooltip / workout times (#337).
-    private static let timeFmt: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = AppLanguage.activeLocale
-        f.setLocalizedDateFormatFromTemplate("jmm")
-        return f
-    }()
+    /// #1821: routed through `AppClock` so the Clock format setting reaches every night time on screen -
+    /// this is the formatter behind the sleep card's ASLEEP/WOKE values in the report. It used the `jmm`
+    /// template, whose `j` resolves the hour from the locale, which is how a reader's explicit 12-hour
+    /// choice was being discarded. `AppClock` caches per resolved template, so this is no more expensive
+    /// than the `static let` it replaces and it responds when the setting changes.
+    private static var timeFmt: DateFormatter { AppClock.hourMinuteFormatter() }
     private static let dateFmt: DateFormatter = {
         let f = DateFormatter(); f.dateFormat = "EEE d MMM"; return f
     }()

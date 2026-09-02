@@ -93,6 +93,7 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import com.noop.analytics.ClockFormat
 
 internal enum class SleepFreshnessStatus {
     SYNCING, CALCULATING, SYNC_FAILED, AWAITING_SYNC, NOT_DETECTED,
@@ -493,8 +494,11 @@ fun SleepScreen(
     // The navigated night, decoded once per (offset, data) change — chevron taps re-pick
     // instantly without re-parsing stagesJSON on every recomposition. The offset now indexes
     // DAYS (navDays), so a day with a detected night always resolves to that night. (#160, #59)
-    val night = remember(nightOffset, navDays, days, habitualMidsleep, motionByStart) {
-        selectNight(navDays, days, nightOffset, habitualMidsleep, motionByStart)
+    // #1821: the reader's chosen clock, resolved once for this screen. It is a remember KEY below so
+    // changing the setting re-derives the labels instead of leaving the old clock on screen.
+    val is24h = ClockPrefs.uses24Hour(LocalContext.current)
+    val night = remember(nightOffset, navDays, days, habitualMidsleep, motionByStart, is24h) {
+        selectNight(navDays, days, nightOffset, habitualMidsleep, motionByStart, is24h = is24h)
     }
 
     // #1311: label the carousel by CALENDAR nights, not the flat recorded-night index — a night with no
@@ -509,10 +513,10 @@ fun SleepScreen(
     // at-a-glance TILES, the debt ledger, the personal need and the trend stay full-history /
     // latest-anchored, matching iOS SleepView. `selectedDay` re-points only the hero. Model is null
     // when the selected day has no stage minutes. (#5)
-    val model = remember(days, night, imported, napSleepMinByDay, sleeps) {
+    val model = remember(days, night, imported, napSleepMinByDay, sleeps, is24h) {
         buildSleepModel(days, night?.session, imported, selectedDay = night?.dayKey,
             heroStages = night?.groupStages, heroSegments = night?.groupSegments,
-            napSleepMinByDay = napSleepMinByDay, sessions = sleeps)
+            napSleepMinByDay = napSleepMinByDay, sessions = sleeps, is24h = is24h)
     }
     val display = remember(model, night) { heroDisplay(model, night) }
 
@@ -1018,7 +1022,9 @@ private fun SleepUndoBanner(undo: SleepUndoState, onUndo: () -> Unit) {
     // it retired something), but `first()` on an empty list would take the whole Sleep tab down — too
     // steep a price for a strip that is only ever informational. Render nothing instead.
     val session = undo.sessions.firstOrNull() ?: return
-    val timeFmt = SimpleDateFormat("HH:mm", Locale.US)
+    val timeFmt = SimpleDateFormat(                                   // #1821
+        ClockFormat.hourMinutePattern(ClockPrefs.uses24Hour(LocalContext.current)), Locale.US,
+    )
     // effectiveStartTs is the displayed onset (a userEdited night's corrected bed time), matching iOS.
     val startText = timeFmt.format(java.util.Date(session.effectiveStartTs * 1000L))
     val endText = timeFmt.format(java.util.Date(session.endTs * 1000L))
@@ -1733,7 +1739,8 @@ private fun NapRow(
     // with the Edit next-step. Inline disclosure (Compose has no anchored popover here); the COPY matches
     // iOS SleepView.whyPopover(napSuffix:) exactly. (spec 2026-06-20)
     var showWhy by remember(nap.startTs) { mutableStateOf(false) }
-    val window = "${clockTimeLabel(nap.effectiveStartTs)} - ${clockTimeLabel(nap.endTs)}"
+    val napIs24h = ClockPrefs.uses24Hour(LocalContext.current)   // #1821
+    val window = "${clockTimeLabel(nap.effectiveStartTs, napIs24h)} - ${clockTimeLabel(nap.endTs, napIs24h)}"
     val durMin = (nap.endTs - nap.effectiveStartTs) / 60.0
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.space10)) {
         Row(

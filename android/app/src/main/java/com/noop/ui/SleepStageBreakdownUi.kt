@@ -436,9 +436,10 @@ private fun hypnogramSummaryFor(intervals: List<StageInterval>): String =
  */
 @Composable
 internal fun ClockLabelRow(onsetTs: Long, wakeTs: Long) {
-    val onset = clockTimeLabel(onsetTs)
-    val mid = clockTimeLabel((onsetTs + wakeTs) / 2L)
-    val wake = clockTimeLabel(wakeTs)
+    val is24h = ClockPrefs.uses24Hour(LocalContext.current)   // #1821
+    val onset = clockTimeLabel(onsetTs, is24h)
+    val mid = clockTimeLabel((onsetTs + wakeTs) / 2L, is24h)
+    val wake = clockTimeLabel(wakeTs, is24h)
     Row(modifier = Modifier.fillMaxWidth()) {
         Text(
             onset,

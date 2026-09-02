@@ -2,6 +2,7 @@ package com.noop.ui
 
 import com.noop.data.DailyMetric
 import com.noop.data.SleepSession
+import com.noop.analytics.ClockFormat
 import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -15,8 +16,8 @@ internal fun shortDayLabel(day: String): String =
         LocalDate.parse(day).format(DateTimeFormatter.ofPattern("d MMM", Locale.US))
     }.getOrDefault(day)
 
-internal fun clockLabel(latest: DailyMetric, session: SleepSession?): String {
-    if (session != null) return sessionClockLabel(session)
+internal fun clockLabel(latest: DailyMetric, session: SleepSession?, is24h: Boolean): String {
+    if (session != null) return sessionClockLabel(session, is24h)
     // Fall back to the daily metric's day string (YYYY-MM-DD), formatted to "EEE d MMM".
     val dateFmt = SimpleDateFormat("EEE d MMM", Locale.US)
     return runCatching {
@@ -26,12 +27,12 @@ internal fun clockLabel(latest: DailyMetric, session: SleepSession?): String {
 }
 
 /** "Wed 4 Jun · 22:50–06:48" — the night-nav header's date · onset–wake line. (#160) */
-internal fun sessionClockLabel(session: SleepSession): String =
-    clockLabelFor(session.effectiveStartTs, session.endTs) // EFFECTIVE onset so an edited bedtime shows (PR #395)
+internal fun sessionClockLabel(session: SleepSession, is24h: Boolean): String =
+    clockLabelFor(session.effectiveStartTs, session.endTs, is24h) // EFFECTIVE onset so an edited bedtime shows (PR #395)
 
 /** Same date · onset–wake line from explicit unix-second bounds (the #736 group-aligned bedtime). */
-internal fun clockLabelFor(onsetTs: Long, wakeTs: Long): String {
-    val timeFmt = SimpleDateFormat("HH:mm", Locale.US)
+internal fun clockLabelFor(onsetTs: Long, wakeTs: Long, is24h: Boolean): String {
+    val timeFmt = SimpleDateFormat(ClockFormat.hourMinutePattern(is24h), Locale.US)
     val dateFmt = SimpleDateFormat("EEE d MMM", Locale.US)
     val onset = Date(onsetTs * 1000L)
     val wake = Date(wakeTs * 1000L)
@@ -42,9 +43,13 @@ internal fun clockLabelFor(onsetTs: Long, wakeTs: Long): String {
 internal fun localDayString(ts: Long): String =
     SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(ts * 1000L))
 
-/** Unix seconds → a local wall-clock "HH:mm" (same 24h formatting the nav-header span uses). */
-internal fun clockTimeLabel(ts: Long): String =
-    SimpleDateFormat("HH:mm", Locale.US).format(Date(ts * 1000L))
+/**
+ * Unix seconds → a local wall-clock time, in the reader's chosen clock (#1821). [is24h] comes from
+ * `ClockPrefs.uses24Hour(context)` at the call site, keeping this pure and unit-testable - the same
+ * shape [axisEdgeLabel] already used.
+ */
+internal fun clockTimeLabel(ts: Long, is24h: Boolean): String =
+    SimpleDateFormat(ClockFormat.hourMinutePattern(is24h), Locale.US).format(Date(ts * 1000L))
 
 /**
  * Hypnogram-axis EDGE label (onset / wake) at minute precision, honouring the device 12/24h setting:
@@ -52,7 +57,7 @@ internal fun clockTimeLabel(ts: Long): String =
  * `DateFormat.is24HourFormat(context)` at the call site so this stays pure/unit-testable.
  */
 internal fun axisEdgeLabel(ts: Long, is24h: Boolean): String =
-    SimpleDateFormat(if (is24h) "HH:mm" else "h:mm a", Locale.US).format(Date(ts * 1000L))
+    SimpleDateFormat(ClockFormat.hourMinutePattern(is24h), Locale.US).format(Date(ts * 1000L))
 
 /**
  * Hypnogram-axis INTERIOR round-hour mark — the label is always on the hour, so it drops the minutes and

@@ -131,6 +131,10 @@ internal fun buildSleepModel(
     // Today's logical-day key, the anchor for each tile's staleness bound (see [metric]). Injectable so
     // tests can pin the clock instead of depending on the day they happen to run.
     todayKey: String = logicalDayKeyNow(),
+    // #1821: the reader's chosen clock. Defaults to 24h, which is what every one of these labels was
+    // hardcoded to before the setting existed, so tests and any caller not yet updated keep their old
+    // output rather than silently flipping.
+    is24h: Boolean = true,
 ): SleepModel? {
     val effectiveDay = selectedDay ?: days.lastOrNull()?.day ?: return null
     // The HERO night = the selected day's stage-bearing row. The TILE / debt / need / trend
@@ -279,7 +283,7 @@ internal fun buildSleepModel(
 
     return SleepModel(
         stages = stages,
-        clockLabel = clockLabel(latest, session),
+        clockLabel = clockLabel(latest, session, is24h),
         efficiencyText = efficiency.latest?.let { "${it.roundToInt()}%" } ?: "—",
         performance = performance,
         efficiency = efficiency,
@@ -316,12 +320,13 @@ internal fun fallbackSleepModel(
     napSleepMinByDay: Map<String, Double> = emptyMap(),
     sessions: List<SleepSession> = emptyList(),
     todayKey: String = logicalDayKeyNow(),
+    is24h: Boolean = true,   // #1821, threaded to the hero's clock label
 ): SleepModel? {
     val anchorDay = days.lastOrNull {
         (it.deepMin ?: 0.0) + (it.remMin ?: 0.0) + (it.lightMin ?: 0.0) > 0.0
     }?.day ?: return null
     return buildSleepModel(days, null, imported, selectedDay = anchorDay,
-        napSleepMinByDay = napSleepMinByDay, sessions = sessions, todayKey = todayKey)
+        napSleepMinByDay = napSleepMinByDay, sessions = sessions, todayKey = todayKey, is24h = is24h)
 }
 
 /**

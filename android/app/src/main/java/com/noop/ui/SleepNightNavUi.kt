@@ -53,6 +53,7 @@ import java.util.Date
 import java.util.Locale
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import com.noop.analytics.ClockFormat
 
 // Sleep window row + night navigation / edit / delete controls.
 // Extracted from SleepScreen.kt (behavioral no-op; pure UI code-motion).
@@ -66,8 +67,11 @@ import androidx.compose.runtime.setValue
  */
 @Composable
 internal fun SleepWindowRow(onsetTs: Long, wakeTs: Long) {
-    val asleep = clockTimeLabel(onsetTs)
-    val woke = clockTimeLabel(wakeTs)
+    // #1821: the reader's chosen clock. Read here rather than threaded, because this is a composable and
+    // LocalContext is the idiomatic source; the label helpers stay pure.
+    val is24h = ClockPrefs.uses24Hour(LocalContext.current)
+    val asleep = clockTimeLabel(onsetTs, is24h)
+    val woke = clockTimeLabel(wakeTs, is24h)
     // A frosted Rest-tinted card (was a flat surfaceRaised block) so the window row sits in the
     // same colour world as the rest of the screen. Bevel treatment — content unchanged.
     NoopCard(
@@ -180,7 +184,9 @@ internal fun NightNavHeader(
     // once; Cancel discards it. This mirrors Apple SleepTimeEditor's single start+end save funnel.
     val currentDraft = sleepEditDraft
     if (showTimeChoice && session != null && currentDraft != null) {
-        val timeFmt = SimpleDateFormat("HH:mm", Locale.US)
+        val timeFmt = SimpleDateFormat(                               // #1821
+            ClockFormat.hourMinutePattern(ClockPrefs.uses24Hour(LocalContext.current)), Locale.US,
+        )
         val bedText = timeFmt.format(Date(currentDraft.startTs * 1000L))
         val wakeText = timeFmt.format(Date(currentDraft.endTs * 1000L))
         val validated = currentDraft.validatedWindow(System.currentTimeMillis() / 1000L)

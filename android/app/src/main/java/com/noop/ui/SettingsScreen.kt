@@ -140,6 +140,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
+import com.noop.analytics.ClockFormatPreference
 
 // MARK: - Settings (ported from Strand/Screens/SettingsView.swift)
 //
@@ -666,6 +667,7 @@ fun SettingsScreen(
     // `temperatureRaw` is "" (match the system) or a TemperatureUnit raw value. SharedPreferences isn't
     // reactive, so these mirror into local state like the toggles above.
     var unitSystem by remember { mutableStateOf(UnitPrefs.system(context)) }
+    var clockFormat by remember { mutableStateOf(ClockPrefs.preference(context)) }   // #1821
     var temperatureRaw by remember {
         mutableStateOf(NoopPrefs.of(context).getString(NoopPrefs.KEY_TEMPERATURE_UNIT, "") ?: "")
     }
@@ -1302,6 +1304,33 @@ fun SettingsScreen(
                             AppLanguagePrefs.set(context, selected)
                             context.hostingActivity()?.recreate()
                         }
+                    },
+                )
+            }
+            SettingsRowDivider()
+            // #1821: Clock format. Sits with Language because it is an app-owned display CONVENTION, and
+            // like Language it offers "System default" - which here means the device's own 12/24h switch,
+            // not the region default that was silently deciding this for everyone. Twin of the Apple row.
+            SettingsFormRow(label = uiString(R.string.l10n_settings_screen_clock_04f6b3ea)) {
+                SegmentedPillControl(
+                    items = listOf(
+                        ClockFormatPreference.SYSTEM,
+                        ClockFormatPreference.TWELVE_HOUR,
+                        ClockFormatPreference.TWENTY_FOUR_HOUR,
+                    ),
+                    selection = clockFormat,
+                    label = {
+                        when (it) {
+                            ClockFormatPreference.TWELVE_HOUR ->
+                                uiString(R.string.l10n_settings_screen_12_hour_41c18ba0)
+                            ClockFormatPreference.TWENTY_FOUR_HOUR ->
+                                uiString(R.string.l10n_settings_screen_24_hour_18e86819)
+                            else -> uiString(R.string.settings_language_system)
+                        }
+                    },
+                    onSelect = {
+                        clockFormat = it
+                        ClockPrefs.setPreference(context, it)
                     },
                 )
             }

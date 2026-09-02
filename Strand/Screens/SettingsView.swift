@@ -173,6 +173,9 @@ struct SettingsView: View {
     // Imperial/Metric display preference (D#103). Stored data is always SI; this only changes how
     // distances/weights/heights/temperatures are SHOWN — and lets the profile fields below take
     // imperial entry. Temperature has a separate override so °C/°F can be picked independently.
+    /// #1821: Clock format. Defaults to `.system`, so upgrading changes nobody's displayed times.
+    @AppStorage(ClockFormatPreference.defaultsKey)
+    private var clockFormatRaw = ClockFormatPreference.system.rawValue
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
     @AppStorage(UnitPrefs.temperatureKey) private var temperatureRaw = ""
     // Effort display scale (#268). Display-only — Effort stays stored 0–100, this only chooses whether
@@ -1122,6 +1125,22 @@ struct SettingsView: View {
                     .foregroundStyle(StrandPalette.textTertiary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, NoopMetrics.space1)
+                rowDivider
+                // #1821: sits with Language rather than in Units because it is an app-owned display
+                // CONVENTION, not a unit of measurement — and like Language it offers "System default",
+                // which here means the device's own 24-Hour Time switch rather than the region default.
+                // Unlike Language this needs no relaunch: the formatter caches per resolved template.
+                FormRow(label: "Clock") {
+                    Picker("Clock", selection: $clockFormatRaw) {
+                        Text("System default").tag(ClockFormatPreference.system.rawValue)
+                        Text("12-hour").tag(ClockFormatPreference.twelveHour.rawValue)
+                        Text("24-hour").tag(ClockFormatPreference.twentyFourHour.rawValue)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .tint(StrandPalette.accent)
+                    .accessibilityLabel("Clock")
+                }
                 rowDivider
                 // Theme presets — one-tap bundles coordinating accent + chart world + backdrop + card
                 // opacity. Derived (no stored value): tweaking any control below flips this to Custom.
