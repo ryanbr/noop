@@ -708,6 +708,7 @@
     <string name="l10n_mind_section_reading_your_check_ins_71a100a9">Lesen Sie Ihre Check-ins...</string>
     <string name="l10n_noop_compact_glance_widget_charge_49a8cb83">GEBÜHR</string>
     <string name="l10n_noop_compact_glance_widget_effort_660752e7">ANSTRENGUNG</string>
+    <string name="l10n_noop_compact_glance_widget_heart_rate_410aa15c">Herzfrequenz</string>
     <string name="l10n_noop_compact_glance_widget_rest_cbaaa181">RUHE</string>
     <string name="l10n_noop_compact_glance_widget_strap_battery_a6c7f09c">Strap-Akku</string>
     <string name="l10n_noop_glance_widget_charge_49a8cb83">GEBÜHR</string>

@@ -656,6 +656,7 @@
     <string name="l10n_mind_section_reading_your_check_ins_71a100a9">正在读取您的打卡记录…</string>
     <string name="l10n_noop_compact_glance_widget_charge_49a8cb83">充能</string>
     <string name="l10n_noop_compact_glance_widget_effort_660752e7">负荷</string>
+    <string name="l10n_noop_compact_glance_widget_heart_rate_410aa15c">心率</string>
     <string name="l10n_noop_compact_glance_widget_rest_cbaaa181">恢复</string>
     <string name="l10n_noop_compact_glance_widget_strap_battery_a6c7f09c">手环电量</string>
     <string name="l10n_noop_glance_widget_charge_49a8cb83">充能</string>

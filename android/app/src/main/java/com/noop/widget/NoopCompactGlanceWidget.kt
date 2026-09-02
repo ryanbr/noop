@@ -27,6 +27,8 @@ import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
 import androidx.glance.layout.width
+import androidx.glance.semantics.contentDescription
+import androidx.glance.semantics.semantics
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
@@ -128,11 +130,19 @@ private fun CompactWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
             )
         }
         Spacer(modifier = GlanceModifier.height(6.dp))
+        // Same glyph-in-the-text problem as the standard widget: TalkBack gets a bare number with no
+        // name and no unit. The battery Image below has carried a contentDescription all along; this
+        // line never did. (#1799)
+        val hrLabel = uiString(R.string.l10n_noop_compact_glance_widget_heart_rate_410aa15c)
+        val hrDescription = snap.heartRate
+            ?.let { "$hrLabel ${uiString(R.string.l10n_today_screen_value_bpm_8f3a90c3, it)}" }
+            ?: hrLabel
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = snap.heartRate?.let { "♥ $it" } ?: "♥ - ",
                 // Dim a carried-over reading so a stale HR can't masquerade as a live one.
                 style = TextStyle(color = if (snap.heartRateStale) textSecondary else textPrimary, fontSize = 13.sp),
+                modifier = GlanceModifier.semantics { contentDescription = hrDescription },
             )
             Spacer(modifier = GlanceModifier.width(10.dp))
             Image(

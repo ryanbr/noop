@@ -665,6 +665,7 @@
     <string name="l10n_mind_section_reading_your_check_ins_71a100a9">Czytanie Twoich meldowań…</string>
     <string name="l10n_noop_compact_glance_widget_charge_49a8cb83">OPŁATA</string>
     <string name="l10n_noop_compact_glance_widget_effort_660752e7">WYSIŁEK</string>
+    <string name="l10n_noop_compact_glance_widget_heart_rate_410aa15c">Tętno</string>
     <string name="l10n_noop_compact_glance_widget_rest_cbaaa181">ODPOCZYNEK</string>
     <string name="l10n_noop_compact_glance_widget_strap_battery_a6c7f09c">Bateria na pasek</string>
     <string name="l10n_noop_glance_widget_charge_49a8cb83">OPŁATA</string>
