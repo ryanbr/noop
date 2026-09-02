@@ -2644,4 +2644,7 @@
     <string name="units_kilometres">公里</string>
     <string name="units_miles">英里</string>
     <string name="units_follow_body">跟随身体测量</string>
+    <string name="l10n_devices_screen_battery_pack_probe_151_re_d722af00">电池盒探测 (151 RE)…</string>
+    <string name="l10n_devices_screen_battery_pack_probe_result_151_df43dff2">电池盒探测结果 (151)</string>
+    <string name="l10n_devices_screen_battery_pack_probe_explainer_40b3470d">发送只读的电池盒命令 (151) 并解码手环的回复——电池盒的电量、序列号和蓝牙地址。不会向手环写入任何内容，也不会影响您的数据。WHOOP 4.0 没有电池盒命令，预期会保持静默；这种静默本身就是有用的结果。</string>
 </resources>

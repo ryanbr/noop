@@ -250,6 +250,9 @@
     <string name="l10n_devices_screen_body_location_probe_690_re_7def8c39">Sonda de posición corporal (#690 RE)…</string>
     <string name="l10n_devices_screen_body_location_probe_result_690_60c5ee79">Resultado de la sonda de posición corporal (#690)</string>
     <string name="l10n_devices_screen_body_location_probe_explainer_a9363239">Envía el comando de posición corporal de solo lectura (0x54) y vuelca la respuesta cruda completa de la banda al registro, decodificando el registro (revisión / posición / confianza / estado) en la WHOOP 4.0. No se escribe nada en la banda y nunca cambia la detección de uso ni la puntuación.</string>
+    <string name="l10n_devices_screen_battery_pack_probe_151_re_d722af00">Prueba del pack de batería (151 RE)…</string>
+    <string name="l10n_devices_screen_battery_pack_probe_result_151_df43dff2">Resultado de la prueba del pack de batería (151)</string>
+    <string name="l10n_devices_screen_battery_pack_probe_explainer_40b3470d">Envía el comando de solo lectura del pack de batería (151) y descodifica la respuesta de la banda: carga, número de serie y dirección Bluetooth del pack. No se escribe nada en la banda y nada afecta a tus datos. Una WHOOP 4.0 no tiene comando de pack y se espera que no responda; ese silencio también es un resultado útil.</string>
     <string name="l10n_devices_screen_delete_this_device_s_data_3cae7a2a">Eliminar los datos de este dispositivo…</string>
     <string name="l10n_devices_screen_disconnect_ed28e068">Desconectar</string>
     <string name="l10n_devices_screen_feature_flag_probe_761_re_21241d68">Sonda de indicadores de función (#761 RE)…</string>

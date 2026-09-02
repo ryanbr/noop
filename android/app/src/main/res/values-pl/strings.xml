@@ -415,6 +415,9 @@
     <string name="l10n_devices_screen_body_location_probe_690_re_7def8c39">Sonda do lokalizacji ciała (#690 RE)…</string>
     <string name="l10n_devices_screen_body_location_probe_result_690_60c5ee79">Wynik sondy lokalizacji ciała (#690)</string>
     <string name="l10n_devices_screen_body_location_probe_explainer_a9363239">Wysyła polecenie lokalizacji ciała tylko do odczytu (0x54) i zrzuca pełną nieprzetworzoną odpowiedź paska do dziennika paska, dekodując zapis (wersja/lokalizacja/pewność/status) w WHOOP 4.0. Nic nie jest zapisane na pasku i nigdy nie zmienia sposobu wykrywania zużycia ani punktacji.</string>
+    <string name="l10n_devices_screen_battery_pack_probe_151_re_d722af00">Test pakietu baterii (151 RE)…</string>
+    <string name="l10n_devices_screen_battery_pack_probe_result_151_df43dff2">Wynik testu pakietu baterii (151)</string>
+    <string name="l10n_devices_screen_battery_pack_probe_explainer_40b3470d">Wysyła tylko do odczytu polecenie pakietu baterii (151) i dekoduje odpowiedź opaski — poziom naładowania, numer seryjny i adres Bluetooth pakietu. Nic nie jest zapisywane na opasce i nic nie trafia do Twoich danych. WHOOP 4.0 nie ma polecenia pakietu i zgodnie z oczekiwaniami milczy; samo to milczenie jest użytecznym wynikiem.</string>
     <string name="l10n_devices_screen_feature_flag_probe_761_re_21241d68">Sonda z flagą funkcji (#761 RE)…</string>
     <string name="l10n_devices_screen_stop_sync_4a1f2b6e">Zatrzymaj synchronizację</string>
     <string name="l10n_devices_screen_feature_flag_probe_result_761_c50ef4d4">Wynik sondy z flagą funkcji (nr 761)</string>

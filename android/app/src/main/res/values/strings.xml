@@ -540,6 +540,9 @@
     <string name="l10n_devices_screen_battery_clamped_2494c8c9">Battery %1$s%%</string>
     <string name="l10n_devices_screen_battery_info_probe_592_re_1dbd4c0f">Battery-info probe (#592 RE)…</string>
     <string name="l10n_devices_screen_battery_info_probe_result_592_b97c0bb8">Battery-info probe result (#592)</string>
+    <string name="l10n_devices_screen_battery_pack_probe_151_re_d722af00">Battery-pack probe (151 RE)…</string>
+    <string name="l10n_devices_screen_battery_pack_probe_result_151_df43dff2">Battery-pack probe result (151)</string>
+    <string name="l10n_devices_screen_battery_pack_probe_explainer_40b3470d">Sends the read-only battery-pack command (151) and decodes the strap\'s reply — the pack\'s charge, serial and Bluetooth address. Nothing is written to the strap and nothing feeds your data. A WHOOP 4.0 has no pack command and is expected to stay silent; that silence is itself a useful result.</string>
     <string name="l10n_devices_screen_body_location_probe_690_re_7def8c39">Body-location probe (#690 RE)…</string>
     <string name="l10n_devices_screen_body_location_probe_result_690_60c5ee79">Body-location probe result (#690)</string>
     <string name="l10n_devices_screen_body_location_probe_explainer_a9363239">Sends the read-only body-location command (0x54) and dumps the strap\'s full raw reply to the strap log, decoding the record (revision / location / confidence / status) on WHOOP 4.0. Nothing is written to the strap, and it never changes wear detection or scoring.</string>

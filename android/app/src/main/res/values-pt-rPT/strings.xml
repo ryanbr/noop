@@ -415,6 +415,9 @@
     <string name="l10n_devices_screen_body_location_probe_690_re_7def8c39">Sonda de localização corporal (#690 RE)…</string>
     <string name="l10n_devices_screen_body_location_probe_result_690_60c5ee79">Resultado da sonda de localização corporal (#690)</string>
     <string name="l10n_devices_screen_body_location_probe_explainer_a9363239">Envia o comando body-location de leitura apenas (0x54) e regista a resposta bruta completa do bracelete no registo da bracelete, descodificando o registo (revisão/localização/confiança/estado) no WHOOP 4.0. Nada é escrito na bracelete e nunca altera a deteção ou pontuação de desgaste.</string>
+    <string name="l10n_devices_screen_battery_pack_probe_151_re_d722af00">Teste do pack de bateria (151 RE)…</string>
+    <string name="l10n_devices_screen_battery_pack_probe_result_151_df43dff2">Resultado do teste do pack de bateria (151)</string>
+    <string name="l10n_devices_screen_battery_pack_probe_explainer_40b3470d">Envia o comando só de leitura do pack de bateria (151) e descodifica a resposta da banda — carga, número de série e endereço Bluetooth do pack. Nada é escrito na banda e nada alimenta os teus dados. Uma WHOOP 4.0 não tem comando de pack e deverá permanecer silenciosa; esse silêncio é, em si, um resultado útil.</string>
     <string name="l10n_devices_screen_delete_this_device_s_data_3cae7a2a">Eliminar os dados deste dispositivo…</string>
     <string name="l10n_devices_screen_disconnect_ed28e068">Desconectar</string>
     <string name="l10n_devices_screen_feature_flag_probe_761_re_21241d68">Sonda de sinalizadores de funcionalidade (#761 RE)…</string>

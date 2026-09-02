@@ -2614,4 +2614,7 @@
     <string name="units_kilometres">Километры</string>
     <string name="units_miles">Мили</string>
     <string name="units_follow_body">Как для параметров тела</string>
+    <string name="l10n_devices_screen_battery_pack_probe_151_re_d722af00">Проба батарейного блока (151 RE)…</string>
+    <string name="l10n_devices_screen_battery_pack_probe_result_151_df43dff2">Результат пробы батарейного блока (151)</string>
+    <string name="l10n_devices_screen_battery_pack_probe_explainer_40b3470d">Отправляет команду батарейного блока только для чтения (151) и декодирует ответ браслета — заряд блока, серийный номер и Bluetooth-адрес. На браслет ничего не записывается, и это не влияет на ваши данные. У WHOOP 4.0 нет команды блока, и ожидается молчание; само это молчание — полезный результат.</string>
 </resources>

@@ -450,6 +450,9 @@
     <string name="l10n_devices_screen_body_location_probe_690_re_7def8c39">Körperpositions-Test (#690 RE)…</string>
     <string name="l10n_devices_screen_body_location_probe_result_690_60c5ee79">Ergebnis des Körperpositions-Tests (#690)</string>
     <string name="l10n_devices_screen_body_location_probe_explainer_a9363239">Sendet den nur lesenden Körperpositions-Befehl (0x54) und schreibt die vollständige Rohantwort des Bands ins Strap-Log, wobei der Datensatz (Revision / Position / Konfidenz / Status) auf der WHOOP 4.0 dekodiert wird. Es wird nichts auf das Band geschrieben, und Trageerkennung oder Bewertung werden nie verändert.</string>
+    <string name="l10n_devices_screen_battery_pack_probe_151_re_d722af00">Akkupack-Test (151 RE)…</string>
+    <string name="l10n_devices_screen_battery_pack_probe_result_151_df43dff2">Ergebnis des Akkupack-Tests (151)</string>
+    <string name="l10n_devices_screen_battery_pack_probe_explainer_40b3470d">Sendet den nur lesenden Akkupack-Befehl (151) und dekodiert die Antwort des Bands — Ladestand, Seriennummer und Bluetooth-Adresse des Akkupacks. Es wird nichts auf das Band geschrieben und nichts fließt in deine Daten. Eine WHOOP 4.0 hat keinen Akkupack-Befehl und bleibt erwartungsgemäß stumm; dieses Schweigen ist selbst ein nützliches Ergebnis.</string>
     <string name="l10n_devices_screen_delete_this_device_s_data_3cae7a2a">Daten dieses Geräts löschen…</string>
     <string name="l10n_devices_screen_disconnect_ed28e068">Trennen</string>
     <string name="l10n_devices_screen_feature_flag_probe_761_re_21241d68">Feature-Flag-Test (#761 RE)…</string>
