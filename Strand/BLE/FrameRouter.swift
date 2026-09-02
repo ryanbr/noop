@@ -407,6 +407,22 @@ public final class FrameRouter {
                 } else if ev.hasPrefix("CHARGING_OFF") {
                     state.charging = false
                 }
+                // #1826: BATTERY_PACK_CONNECTED(21) / BATTERY_PACK_REMOVED(22), declared in the shared
+                // schema and handled on neither platform until @Zebsi235 measured them. On a 5/MG they
+                // fire on every attach and detach and LEAD the 7/8 edges above, so the pill responds when
+                // a pack goes on instead of waiting to catch a later edge. A WHOOP 4.0 never sends them.
+                //
+                // NO replay guard here, unlike the Kotlin twin. That is deliberate and not an omission:
+                // this router is live-only — the Backfiller holds no reference to it, so a replayed
+                // offload event never reaches this code, which is the same reason the CHARGING_ON/OFF
+                // branch above carries none. Android's EVENT routing does see replays, and its capture
+                // showed the strap re-sending these edges with byte-identical payloads, so the gate is
+                // load-bearing THERE. Copying it here would guard against something that cannot happen.
+                if ev.hasPrefix("BATTERY_PACK_CONNECTED") {
+                    state.charging = true
+                } else if ev.hasPrefix("BATTERY_PACK_REMOVED") {
+                    state.charging = false
+                }
                 // Physical inputs the strap exposes — live only (this path never sees historical
                 // replay, which goes through the Backfiller). Event strings are "NAME(rawValue)".
                 if ev.hasPrefix("DOUBLE_TAP") {
