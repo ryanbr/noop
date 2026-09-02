@@ -164,8 +164,15 @@ private fun WidgetContent(snap: WidgetSnapshot, dark: Boolean) {
         // audit can see it.
         val hrLabel = uiString(R.string.l10n_noop_glance_widget_heart_rate_410aa15c)
         val batteryLabel = uiString(R.string.l10n_noop_glance_widget_strap_battery_a6c7f09c)
+        // The stale/live distinction is drawn ONLY by dimming the text below, which is a colour-only
+        // channel: TalkBack, and anyone who cannot perceive the dim, was told a carried-over reading was
+        // current. Marked on the LIVE side rather than the stale one, so a stale value simply carries no
+        // claim instead of needing a word for it - and because "live" already exists in all seven
+        // locales as the Today sync chip, so this adds no new copy to translate.
+        val liveSuffix =
+            if (snap.heartRateStale) "" else " " + uiString(R.string.l10n_today_screen_sync_chip_live_98aadb37)
         val hrDescription = snap.heartRate
-            ?.let { "$hrLabel ${uiString(R.string.l10n_today_screen_value_bpm_8f3a90c3, it)}" }
+            ?.let { "$hrLabel ${uiString(R.string.l10n_today_screen_value_bpm_8f3a90c3, it)}$liveSuffix" }
             ?: hrLabel
         val batteryDescription = snap.batteryPct
             ?.let { "$batteryLabel ${uiString(R.string.l10n_today_screen_pct_ee63e247, it)}" }

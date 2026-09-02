@@ -134,8 +134,12 @@ private fun CompactWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
         // name and no unit. The battery Image below has carried a contentDescription all along; this
         // line never did. (#1799)
         val hrLabel = uiString(R.string.l10n_noop_compact_glance_widget_heart_rate_410aa15c)
+        // Live-marked, not stale-marked, for the reason spelled out on the standard widget: the dimming
+        // below is colour-only, and "live" already exists in every locale so this needs no new copy.
+        val liveSuffix =
+            if (snap.heartRateStale) "" else " " + uiString(R.string.l10n_today_screen_sync_chip_live_98aadb37)
         val hrDescription = snap.heartRate
-            ?.let { "$hrLabel ${uiString(R.string.l10n_today_screen_value_bpm_8f3a90c3, it)}" }
+            ?.let { "$hrLabel ${uiString(R.string.l10n_today_screen_value_bpm_8f3a90c3, it)}$liveSuffix" }
             ?: hrLabel
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
