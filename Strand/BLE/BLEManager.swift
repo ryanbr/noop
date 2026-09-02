@@ -726,7 +726,6 @@ public final class BLEManager: NSObject, ObservableObject {
     /// DIAGNOSTIC ONLY — it never cancels or retries; recovery is separate work.
     private var pendingConnectProbe: DispatchWorkItem?
     static let pendingConnectProbeSeconds: TimeInterval = 15
-    /// Last time ANY notification arrived — drives the liveness watchdog.
     /// #1809: per-connection inbound accounting for the link epitaph. A strap log could not say whether
     /// the strap transmitted anything; these three make it a measurement. Reset in `didConnect`, so they
     /// describe THIS link and never carry a previous session's traffic into its epitaph.
@@ -735,6 +734,7 @@ public final class BLEManager: NSObject, ObservableObject {
     private var cmdChannelFrames = 0
     /// Uptime clock for the epitaph. Monotonic, so a wall-clock change mid-link cannot make it negative.
     private var linkUpSince: DispatchTime?
+    /// Last time ANY notification arrived — drives the liveness watchdog.
     private var lastDataAt = Date()
     /// True while a Live/Health screen is on-screen and wants the realtime stream. One of the two
     /// inputs to `wantsRealtime`. Driven by `startRealtime()` / `stopRealtime()`.

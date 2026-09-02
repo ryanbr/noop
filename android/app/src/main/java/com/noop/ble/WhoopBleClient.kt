@@ -6675,8 +6675,14 @@ class WhoopBleClient(
     /** #1809: was realtime armed at ANY point on THIS link. Not the same thing as [realtimeArmed], which
      *  is persistent edge state: it can carry true in from a previous link, or read false at the drop
      *  after a mid-link disarm. The epitaph needs the per-link fact, which is what the Apple twin's
-     *  `realtimeArmedAt` gives (it is cleared on every disconnect). Reset with the counters on connect. */
-    private var realtimeArmedThisLink = false
+     *  `realtimeArmedAt` gives (it is cleared on every disconnect). Reset with the counters on connect.
+     *
+     *  @Volatile for the same reason [realtimeArmed] is: the arm sites include the reconcile path, which
+     *  does not run on the GATT callback thread that reads this at the drop. A stale read here would print
+     *  "armed=no" for a link that WAS armed, and that word is what a reader uses to decide whether #80
+     *  applies. The frame/byte counters above are deliberately plain - ++ is not atomic whatever we
+     *  annotate them with, and an approximate count still answers "did anything arrive at all". */
+    @Volatile private var realtimeArmedThisLink = false
 
     private fun onInbound(uuid: UUID, bytes: ByteArray) {
         // Count BEFORE any routing below, so the tally covers every inbound frame including ones no branch
