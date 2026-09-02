@@ -87,6 +87,16 @@ data class DetectedSleep(
     val restingHR: Int?,
     /** Mean RMSSD over 5-min windows across the session (ms), or null. */
     val avgHRV: Double?,
+    /**
+     * Staged WITHOUT a motion spine, from heart rate alone (#1801).
+     *
+     * True only for a strap that streams HR but banks no motion, where Stage 0's gravity-stillness spine
+     * has nothing to work with. Such a night is weaker by construction, not by tuning: with motion gone a
+     * quiet evening at rest can sit in the sleep band. It is allowed to describe itself — duration,
+     * stages, Rest — and must NOT reach anything it cannot be unwound from, which is why
+     * [restingHR] and [avgHRV] are left null on one rather than filtered out downstream.
+     */
+    val hrOnly: Boolean = false,
 )
 
 /**

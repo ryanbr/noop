@@ -50,11 +50,22 @@ public struct SleepSession: Equatable, Sendable {
     public let restingHR: Int?
     /// Mean RMSSD over 5-min windows across the session (ms), or nil.
     public let avgHRV: Double?
+    /// Staged WITHOUT a motion spine, from heart rate alone (#1801).
+    ///
+    /// True only for a strap that streams HR but banks no motion, where Stage 0's gravity-stillness
+    /// spine has nothing to work with. Such a night is weaker by construction, not by tuning: with
+    /// motion gone a quiet evening at rest can sit in the sleep band. It is allowed to describe itself
+    /// — duration, stages, Rest — and must NOT reach anything it cannot be unwound from, which is why
+    /// `restingHR` and `avgHRV` are left nil on one rather than filtered out downstream.
+    ///
+    /// Kotlin twin: `DetectedSleep.hrOnly` (the model names diverge, `DetectedSleep`/`SleepSession`).
+    public let hrOnly: Bool
 
     public init(start: Int, end: Int, efficiency: Double, stages: [StageSegment],
-                restingHR: Int?, avgHRV: Double?) {
+                restingHR: Int?, avgHRV: Double?, hrOnly: Bool = false) {
         self.start = start; self.end = end; self.efficiency = efficiency
         self.stages = stages; self.restingHR = restingHR; self.avgHRV = avgHRV
+        self.hrOnly = hrOnly
     }
 }
 
