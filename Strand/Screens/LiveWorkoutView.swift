@@ -341,7 +341,10 @@ struct LiveWorkoutView: View {
     ///
     /// The trade is deliberate: the timer now sits centred in the space the buttons leave rather than
     /// in the bar, so it reads slightly right of true centre because the left chrome is heavier. That
-    /// is the cost of the layout being unable to collide at all.
+    /// is the cost of the layout being unable to collide at all. The buttons keep the positions they
+    /// have shipped with — moving pause to the right would centre the timer better and would also move
+    /// a control under the thumb of everyone already using this screen, which is a worse trade than an
+    /// off-centre clock.
     ///
     /// It can still run out of ROOM, and the arithmetic is tighter than it looks: three 56pt circles
     /// and their gaps leave the timer roughly 161pt on a 393pt screen, against about 144pt for a
@@ -356,11 +359,16 @@ struct LiveWorkoutView: View {
             Spacer(minLength: NoopMetrics.space2)
             bottomElapsedTimer
                 .allowsHitTesting(false)
-                .layoutPriority(1)
                 // Scaling down is the honest failure when the room runs out: truncating a clock to
                 // "1:30:0" would be worse than a smaller one. Same idiom the rest of this file uses.
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
+                // NO layoutPriority here, deliberately. Raising the timer's priority sizes it BEFORE
+                // the three circles, and those are fixed 56pt frames — inflexible, so when the space
+                // runs out they do not shrink, they clip. That inverts which element gives way: a
+                // half-drawn pause button is worse than a smaller clock, and a clipped control is the
+                // failure this whole change exists to remove. At equal priority the inflexible frames
+                // are satisfied first and the Text scales into what is left, which is the order wanted.
             Spacer(minLength: NoopMetrics.space2)
             endWorkoutGlassButton
         }
