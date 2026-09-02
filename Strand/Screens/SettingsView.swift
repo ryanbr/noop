@@ -3497,6 +3497,18 @@ struct StepsCalibrationSheet: View {
                     Text("Not calibrated yet")
                         .font(StrandFont.bodyNumber)
                         .foregroundStyle(StrandPalette.textPrimary)
+                    // Only ask for phone-step days when phone-step days are what is actually missing.
+                    //
+                    // A step estimate is `motion * coefficient` (`StepsEstimateEngine.estimate`) and a
+                    // calibration point is the ratio `steps / motion`, so BOTH halves are required. With no
+                    // banked strap motion neither the estimate nor the fit can move however many days the
+                    // phone counts. The countdown below then names the half the user already has and hides
+                    // the half they do not — a field report asked whether entering Apple Health steps by
+                    // hand would start the calibration, which is exactly the conclusion it invites.
+                    //
+                    // The no-motion banner at the top of this sheet already explains the real blocker, so
+                    // the honest move is to stop competing with it rather than to add more copy.
+                    if sampleMotion != nil {
                     // #589: a concrete countdown instead of a vague "a few days". Headline comes straight
                     // from the engine's needsMoreDays state so the wording matches the Today steps tile.
                     // #693: drive `have` off `profile.stepsCalibrationSampleDays` — the value the engine
@@ -3514,6 +3526,7 @@ struct StepsCalibrationSheet: View {
                         .font(StrandFont.footnote)
                         .foregroundStyle(StrandPalette.textTertiary)
                         .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
         }
