@@ -162,30 +162,24 @@ public final class FrameRouter {
             // accept/reject shape REBOOT_STRAP already uses: the family's own result offset and polarity
             // (5/MG 1=SUCCESS, 4.0 0=SUCCESS). LOG-ONLY; it never gates behaviour.
             if let cmd = parsed.cmdName, cmd.hasPrefix("SET_CLOCK") || cmd.hasPrefix("GET_CLOCK") {
+                // NO accept/reject verdict here, on EITHER family, and that is deliberate.
+                //
+                // 4.0's 0=accepted is the reboot probe's own explicitly UNVERIFIED reading. And on 5/MG
+                // the result byte may not exist at all for this command: the captured-frame fixture builds
+                // a puffin COMMAND_RESPONSE as [36, seq, cmd] + payload at offset 8, so @11 is already
+                // PAYLOAD and the @12 that `commandResultByte` reads is a payload byte, not a result code.
+                // REBOOT_STRAP's use of it was validated against reboot's own frames; nothing establishes
+                // it for the clock.
+                //
+                // Inventing a verdict from that is precisely the fault this line was added to fix - the
+                // old "clock synced" log asserted an outcome nobody had checked. So quote the evidence
+                // and let a maintainer decode it: the byte at the family's result offset, and the WHOLE
+                // frame (#900's format), uncapped. A truncated clock frame answers nothing, and the full
+                // frame is what makes a wrong offset assumption visible instead of silently misleading.
                 let r = Self.commandResultByte(in: frame, family: family)
                 let rhex = r.map { String(format: "0x%02x", UInt8(truncatingIfNeeded: $0)) } ?? "none"
-                // A VERDICT only where the polarity is known. 5/MG's 1=SUCCESS is established (the
-                // BodyLocation probe + MG vectors); WHOOP 4.0's 0=accepted is the reboot probe's
-                // explicitly UNVERIFIED reading. #1818 is a 4.0 report, so rendering "REJECTED" there
-                // from a guess would hand that triage a confident answer resting on nothing - the exact
-                // mistake this whole line exists to stop. Print the raw byte and say the meaning is
-                // unverified; a maintainer can still compare it across straps, which is the point.
-                let verdict: String
-                if r == nil {
-                    verdict = "no result byte"
-                } else if family == .whoop5 {
-                    verdict = (r == 1) ? "accepted" : "REJECTED"
-                } else {
-                    verdict = "meaning unverified on 4.0"
-                }
-                // The strap's own answer to GET_CLOCK is the direct evidence of whether the write took,
-                // and on 5/MG nothing else decodes it - the reply never reaches the WHOOP4 correlation
-                // path. Raw hex, uncapped: a truncated clock payload answers nothing.
-                let payload = cmd.hasPrefix("GET_CLOCK")
-                    ? (Self.commandResponsePayloadHex(in: frame, family: family)
-                        .map { " payload=\($0)" } ?? " payload=empty")
-                    : ""
-                state.append(log: "clock: \(cmd) strap acked result=\(rhex) (\(verdict))\(payload)",
+                state.append(log: "clock: \(cmd) reply byte@resultOffset=\(rhex) "
+                                + "frame=\(Self.fullFrameHex(frame))",
                              domain: .connection)
             }
             if family == .whoop4, let cmd = parsed.cmdName {
