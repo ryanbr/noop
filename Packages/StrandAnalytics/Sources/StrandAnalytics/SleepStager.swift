@@ -615,9 +615,15 @@ public enum SleepStager {
     /// and it lives outside this package. The spine and the anchor below it stay `internal` — the tests
     /// reach them with `@testable`, and nothing outside should be building its own spine.
     public static func hrOnlySessions(hr: [HRSample], rr: [RRInterval], resp: [RespSample],
-                                      minMinutes: Int = minSleepMin) -> [SleepSession] {
+                                      minMinutes: Int = minSleepMin,
+                                      traceSink: ((String) -> Void)? = nil) -> [SleepSession] {
         let hrS = hr.sorted { $0.ts < $1.ts }
-        guard let baseline = hrOnlyBaseline(hrS) else { return [] }
+        guard let baseline = hrOnlyBaseline(hrS) else {
+            traceSink?(GateTrace.hrOnlyLine(anchorBpm: nil, bandBpm: nil, epochs: 0, runs: 0,
+                                            mergedRuns: 0, sleepRuns: 0, longestSleepMin: 0,
+                                            staged: 0, kept: 0, minSleepMin: minMinutes))
+            return []
+        }
         let rrS = rr.sorted { $0.ts < $1.ts }
         var out: [SleepSession] = []
         // mergePeriods for the same reason the motion path calls it: a run boundary is a threshold
@@ -625,16 +631,35 @@ public enum SleepStager {
         // spine returns the night's minutes correctly but shredded into sub-mergeMin fragments, every one
         // of which then fails the minimum-duration gate below — 8 h of detected sleep yielding zero
         // sessions. Absorbing the short runs first is what turns a spine into a night.
-        for p in mergePeriods(hrOnlySleepRuns(hrS, baseline: baseline)) {
+        let rawRuns = hrOnlySleepRuns(hrS, baseline: baseline)
+        let merged = mergePeriods(rawRuns)
+        var staged = 0
+        var longestSleepS = 0
+        for p in merged {
             if p.stage != "sleep" { continue }
+            longestSleepS = max(longestSleepS, p.end - p.start)
             if (p.end - p.start) < minMinutes * 60 { continue }
             let stages = SleepStagerV2.stageSession(start: p.start, end: p.end, grav: [],
                                                     hr: hrS, rr: rrS, resp: resp)
+            staged += 1
             if stages.isEmpty { continue }
             out.append(SleepSession(start: p.start, end: p.end,
                                     efficiency: efficiency(start: p.start, end: p.end, stages: stages),
                                     stages: stages, restingHR: nil, avgHRV: nil, hrOnly: true))
         }
+        traceSink?(GateTrace.hrOnlyLine(
+            anchorBpm: baseline,
+            bandBpm: baseline * hrOnlyBandMult,
+            // The real epoch count, not the sample count: the spine buckets by `hrOnlyEpochS` before it
+            // decides anything, so this is the axis every other number here is measured on.
+            epochs: Set(hrS.map { $0.ts / hrOnlyEpochS }).count,
+            runs: rawRuns.count,
+            mergedRuns: merged.count,
+            sleepRuns: merged.filter { $0.stage == "sleep" }.count,
+            longestSleepMin: longestSleepS / 60,
+            staged: staged,
+            kept: out.count,
+            minSleepMin: minMinutes))
         return out
     }
 

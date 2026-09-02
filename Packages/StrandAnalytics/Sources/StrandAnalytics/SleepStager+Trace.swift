@@ -15,6 +15,36 @@ extension SleepStager {
     /// The gate-trace line formatters. Compact, parseable, no em-dashes.
     public enum GateTrace {
 
+        /// The HR-only spine's own funnel line (#1801). Byte-identical twin of the Kotlin
+        /// `SleepStagerTrace.hrOnlyLine`, so an Android and an Apple log of the same night compare
+        /// directly — which is the entire reason these formatters are twinned at all.
+        ///
+        /// The path shipped SILENT on both platforms, and a field log then showed `reason=no-motion`
+        /// with no way to tell whether the spine had run and found nothing or never ran. Every number
+        /// separates the two failures that actually happen: a band too tight (`sleepRuns` near zero)
+        /// from a duration gate eating real runs (`sleepRuns` high, `longestMin` under `minSleepMin`).
+        ///
+        /// `anchorBpm` and `bandBpm` are printed because they are DERIVED, not configured: the anchor is
+        /// a percentile of THIS window, so the same code gives every wearer a different threshold.
+        public static func hrOnlyLine(anchorBpm: Double?, bandBpm: Double?, epochs: Int,
+                                      runs: Int, mergedRuns: Int, sleepRuns: Int,
+                                      longestSleepMin: Int, staged: Int, kept: Int,
+                                      minSleepMin: Int) -> String {
+            "[sleep] hr-only spine anchorBpm=\(round1(anchorBpm)) bandBpm=\(round1(bandBpm)) "
+                + "epochs=\(epochs) runs=\(runs) merged=\(mergedRuns) sleepRuns=\(sleepRuns) "
+                + "longestMin=\(longestSleepMin) staged=\(staged) kept=\(kept) minSleepMin=\(minSleepMin)"
+        }
+
+        /// One decimal, by ARITHMETIC rather than `String(format:)`. Twin of the Kotlin `round1`, and
+        /// see its note: `printf` rounds half-to-even on the binary value while Java's `String.format`
+        /// rounds HALF_UP on the decimal expansion, so the two disagreed on 64.05. This does the same
+        /// IEEE arithmetic on both platforms and cannot.
+        private static func round1(_ v: Double?) -> String {
+            guard let v else { return "nil" }
+            let tenths = Int((v * 10.0).rounded())
+            return "\(tenths / 10).\(abs(tenths % 10))"
+        }
+
         /// One verdict line for a candidate run. `gate` names the constant that decided it
         /// (minSleepMin, maxMainSleepSpanS, offWrist, daytimeGuard, morningStillness, hrConfirm,
         /// sparseBridge, accepted); `detail` carries that gate's numbers. `startTs`/`endTs` give the

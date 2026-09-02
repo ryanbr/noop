@@ -29,8 +29,22 @@ object SleepStagerTrace {
             "epochs=$epochs runs=$runs merged=$mergedRuns sleepRuns=$sleepRuns " +
             "longestMin=$longestSleepMin staged=$staged kept=$kept minSleepMin=$minSleepMin"
 
-    private fun round1(v: Double?): String =
-        if (v == null) "nil" else String.format(java.util.Locale.US, "%.1f", v)
+    /**
+     * One decimal, by ARITHMETIC rather than `printf`.
+     *
+     * `String.format("%.1f", …)` is not a twin: Java rounds HALF_UP on the decimal expansion while
+     * Swift's `String(format:)` goes through C `printf`, which rounds half-to-even on the actual
+     * binary value. A harness caught them disagreeing on 64.05 — Kotlin 64.1, Swift 64.0 — and a band
+     * of `anchor * 1.05` produces trailing decimals constantly, so that would have diverged on most
+     * real values. Multiplying and rounding is IEEE-deterministic, so both platforms do the same
+     * arithmetic to the same bits and cannot disagree, whichever side of .5 the product lands on.
+     * Same reasoning as [round2] one line down, which was already arithmetic.
+     */
+    private fun round1(v: Double?): String {
+        if (v == null) return "nil"
+        val tenths = Math.round(v * 10.0)
+        return "${tenths / 10}.${Math.abs(tenths % 10)}"
+    }
 
     fun runLine(index: Int, startTs: Long, endTs: Long, verdict: Verdict, gate: String, detail: String): String {
         val spanS = maxOf(0L, endTs - startTs)

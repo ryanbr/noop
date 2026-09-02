@@ -1178,8 +1178,14 @@ final class IntelligenceEngine: ObservableObject {
                     // Fall back to the HR-only spine ONLY when the device supplied nothing of its own: a
                     // hypnogram the device actually recorded is always better evidence than one inferred
                     // from heart rate.
+                    // Route the spine's funnel through the SAME `traceSink` the gate lines use, so one
+                    // report explains both halves rather than one going quiet — which is exactly what
+                    // shipping it silent cost on Android (#1801). That sink is nil unless Sleep test mode
+                    // is active, so this collects nothing on a normal pass; passing a closure of my own
+                    // here would have appended on every scored day regardless.
                     providedSleep = stored.isEmpty
-                        ? SleepStager.hrOnlySessions(hr: hr, rr: rr, resp: resp)
+                        ? SleepStager.hrOnlySessions(hr: hr, rr: rr, resp: resp,
+                                                     traceSink: traceSink)
                         : stored
                 } else {
                     providedSleep = []
