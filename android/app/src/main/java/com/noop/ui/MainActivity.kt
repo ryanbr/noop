@@ -700,13 +700,13 @@ object NoopPrefs {
         of(context).edit().putBoolean(KEY_APP_ICON_NAVY, navy).apply()
     }
 
-    /** Imperial/Metric display preference (D#103). Display-only, stored data stays SI. The length/mass
-     *  system is read by [UnitPrefs.system]; the temperature override (empty = "match the system") by
-     *  [UnitPrefs.temperature]. Mirrors macOS @AppStorage("units.system" / "units.temperature"). */
     /** #1821: Clock format ("system" / "twelveHour" / "twentyFourHour"). Shares its stored vocabulary
      *  with the Apple @AppStorage binding via [com.noop.analytics.ClockFormatPreference]. */
     const val KEY_CLOCK_FORMAT = com.noop.analytics.ClockFormatPreference.PREFS_KEY
 
+    /** Imperial/Metric display preference (D#103). Display-only, stored data stays SI. The length/mass
+     *  system is read by [UnitPrefs.system]; the temperature override (empty = "match the system") by
+     *  [UnitPrefs.temperature]. Mirrors macOS @AppStorage("units.system" / "units.temperature"). */
     const val KEY_UNIT_SYSTEM = "units.system"
     const val KEY_TEMPERATURE_UNIT = "units.temperature"
 
