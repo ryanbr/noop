@@ -27,7 +27,12 @@ import ZIPFoundation
 /// security-scoped access on the panel-returned URLs. Every path is best-effort — failures surface
 /// as a `.failure` result and never crash.
 enum DataBackup {
-    private static let maxBackupSQLiteBytes: Int64 = 2_147_483_648
+    /// Uncompressed ceiling for the SQLite entry, enforced while EXTRACTING (see `extractBackupZip`).
+    /// Deliberately measured on the decompressed stream: this is a zip-bomb guard, and a zip bomb is by
+    /// definition small compressed and enormous expanded, so a cap on the archive's own size would be
+    /// trivially defeated. Compressing harder cannot help a user past it — the backup is already
+    /// `.deflate`d and the count is of bytes landing on disk. (#1807)
+    static let maxBackupSQLiteBytes: Int64 = 2_147_483_648
     private static let maxBackupSettingsBytes: Int64 = 1_048_576
 
     // MARK: - Result
@@ -35,11 +40,21 @@ enum DataBackup {
     enum BackupResult {
         /// Export wrote the backup to `url`.
         case exported(URL)
+        /// Export wrote the backup, but the database is larger than [maxBackupSQLiteBytes], the ceiling
+        /// the restore path enforces. The file is valid and worth keeping — restoring it just needs the
+        /// user to confirm once. Reported at EXPORT time because the alternative is finding out during a
+        /// restore, which is exactly when the original is gone. (#1807)
+        case exportedOversize(URL, bytes: Int64, limit: Int64)
         /// Import succeeded; a relaunch is required for it to take effect. `sidecar` is where the
         /// previous database was preserved, in case the user wants to roll back.
         case imported(sidecar: URL)
         /// The user dismissed the save/open panel — nothing happened, show nothing loud.
         case cancelled
+        /// The restore stopped ONLY because an entry exceeds the size ceiling. Distinct from `failure`
+        /// so the caller can offer to go ahead anyway: the cap is a decompression guard against a hostile
+        /// archive, and a backup the user just picked out of their own files is a different threat model
+        /// than the one it defends against. (#1807)
+        case restoreTooLarge(name: String, limit: Int64)
         /// Something went wrong; `message` is user-facing.
         case failure(String)
     }
@@ -94,7 +109,7 @@ enum DataBackup {
             try await Task.detached(priority: .utility) {
                 try writeVerifiedBackupZip(dbURL: dbURL, to: dest, settingsJSON: currentSettingsJSON())
             }.value
-            return .exported(dest)
+            return exportOutcome(dest, dbURL: dbURL)
         } catch {
             return .failure(String(localized: "Export failed: \(error.localizedDescription)"))
         }
@@ -113,7 +128,7 @@ enum DataBackup {
             return .failure(String(localized: "Export failed: \(error.localizedDescription)"))
         }
         guard let dest = await DocumentPicker.export(staged) else { return .cancelled }
-        return .exported(dest)
+        return exportOutcome(dest, dbURL: dbURL)
         #endif
     }
 
@@ -144,6 +159,17 @@ enum DataBackup {
     /// when the original data may be long gone; failing loudly NOW is the honest move. The read-only
     /// probe sits safely beside the app's open GRDB pool (WAL allows concurrent readers).
     /// `writeBackupForTesting` deliberately bypasses this so tests can build damaged containers.
+    /// `.exported`, or `.exportedOversize` when the database is past the ceiling the restore path
+    /// enforces. Measured on the DATABASE, not the finished archive: the archive is `.deflate`d and the
+    /// cap the restore checks counts the DECOMPRESSED stream, so the zip's own size says nothing about
+    /// whether it can be read back. (#1807)
+    private static func exportOutcome(_ dest: URL, dbURL: URL) -> BackupResult {
+        let attrs = try? FileManager.default.attributesOfItem(atPath: dbURL.path)
+        guard let bytes = (attrs?[.size] as? NSNumber)?.int64Value,
+              bytes > maxBackupSQLiteBytes else { return .exported(dest) }
+        return .exportedOversize(dest, bytes: bytes, limit: maxBackupSQLiteBytes)
+    }
+
     private static func writeVerifiedBackupZip(dbURL: URL, to dest: URL, settingsJSON: Data?) throws {
         if let complaint = DatabaseIntegrity.quickCheckFailure(atPath: dbURL.path) {
             throw ExportIntegrityFailure(complaint: complaint)
@@ -246,7 +272,7 @@ enum DataBackup {
             let fm = FileManager.default
             if fm.fileExists(atPath: dest.path) { try fm.removeItem(at: dest) }
             try writeVerifiedBackupZip(dbURL: dbURL, to: dest, settingsJSON: currentSettingsJSON())
-            return .exported(dest)
+            return exportOutcome(dest, dbURL: dbURL)
         } catch {
             return .failure(String(localized: "Backup failed: \(error.localizedDescription)"))
         }
@@ -273,7 +299,7 @@ enum DataBackup {
     /// siblings). The store stays open, so the swapped-in file only takes effect after a relaunch —
     /// the caller informs the user.
     @MainActor
-    static func runImport() async -> BackupResult {
+    static func runImport(allowOversize: Bool = false) async -> BackupResult {
         let dbPath: String
         do { dbPath = try StorePaths.defaultDatabasePath() }
         catch { return .failure(String(localized: "Couldn't locate the NOOP database. \(error.localizedDescription)")) }
@@ -305,7 +331,7 @@ enum DataBackup {
         // stays valid because the surrounding function is still awaiting here. Only Sendable value
         // types (URL, String) cross the hop; the result hops back to main for handleBackup.
         return await Task.detached(priority: .utility) {
-            restore(from: pickedSource, toDatabaseAt: dbPath)
+            restore(from: pickedSource, toDatabaseAt: dbPath, allowOversize: allowOversize)
         }.value
     }
 
@@ -330,7 +356,8 @@ enum DataBackup {
     /// `settingsDefaults` is where a `settings.json` entry (#1000) is re-applied — injected for the
     /// same reason as `dbPath` (tests use a suite-scoped UserDefaults, never the runner's real domain).
     static func restore(from pickedSource: URL, toDatabaseAt dbPath: String,
-                        settingsDefaults: UserDefaults = .standard) -> BackupResult {
+                        settingsDefaults: UserDefaults = .standard,
+                        allowOversize: Bool = false) -> BackupResult {
         // If the picked file is a .noopbak ZIP, extract the SQLite entry to a temp dir first.
         // Legacy plain-SQLite files fall straight through. The extracted dir is cleaned up below.
         let fm = FileManager.default
@@ -343,7 +370,15 @@ enum DataBackup {
             do {
                 if fm.fileExists(atPath: tmpExtract.path) { try fm.removeItem(at: tmpExtract) }
                 try fm.createDirectory(at: tmpExtract, withIntermediateDirectories: true)
-                try extractBackupZip(at: pickedSource, into: tmpExtract)
+                try extractBackupZip(at: pickedSource, into: tmpExtract, allowOversize: allowOversize)
+            } catch let err as BackupArchiveError {
+                try? fm.removeItem(at: tmpExtract)
+                // Reported as its own case, not a generic failure: this one is RECOVERABLE, and the caller
+                // is the only layer that can ask the user whether to go ahead. (#1807)
+                switch err {
+                case .entryTooLarge(let name):
+                    return .restoreTooLarge(name: name, limit: maxBackupSQLiteBytes)
+                }
             } catch {
                 try? fm.removeItem(at: tmpExtract)
                 return .failure(String(localized: "Couldn't open the backup archive: \(error.localizedDescription)"))
@@ -591,14 +626,15 @@ enum DataBackup {
     /// Extract only the canonical entries from a `.noopbak` ZIP at `zipURL` into `destDir`.
     /// Unknown files are ignored, and each accepted entry is streamed through an uncompressed-size cap
     /// before it lands on disk.
-    private static func extractBackupZip(at zipURL: URL, into destDir: URL) throws {
+    private static func extractBackupZip(at zipURL: URL, into destDir: URL,
+                                         allowOversize: Bool = false) throws {
         let archive = try Archive(url: zipURL, accessMode: .read)
         for entry in archive where entry.type == .file {
             let name = (entry.path as NSString).lastPathComponent
             let limit: Int64
             switch name {
             case backupEntryName:
-                limit = maxBackupSQLiteBytes
+                limit = allowOversize ? Int64.max : maxBackupSQLiteBytes
             case BackupSettings.entryName:
                 limit = maxBackupSettingsBytes
             default:

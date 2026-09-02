@@ -35,6 +35,10 @@ struct SettingsView: View {
     @State private var backupAlertTitle = ""
     @State private var backupAlertMessage = ""
     @State private var showBackupAlert = false
+    /// #1807: a restore refused ONLY for size is recoverable, so it gets its own two-button alert rather
+    /// than the shared single-OK one every other backup outcome uses.
+    @State private var showOversizeRestoreConfirm = false
+    @State private var oversizeRestoreMessage = ""
 
     /// Opt-in WHOOP 5/MG protocol experiments (off by default). See [PuffinExperiment].
     @AppStorage(PuffinExperiment.defaultsKey) private var puffinExperiments = false
@@ -347,6 +351,15 @@ struct SettingsView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text(backupAlertMessage)
+        }
+        // Title and buttons reuse catalogue strings that already carry all nine locales, rather than
+        // minting new copy that would ship English everywhere until someone translated it. The message
+        // below is where the specifics live. (#1807)
+        .alert("Backup problem", isPresented: $showOversizeRestoreConfirm) {
+            Button("Restore") { runImport(allowOversize: true) }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text(oversizeRestoreMessage)
         }
         .confirmationDialog("Recalibrate your Charge baseline?",
                             isPresented: $showRecalibrateConfirm, titleVisibility: .visible) {
@@ -2576,10 +2589,10 @@ struct SettingsView: View {
         }
     }
 
-    private func runImport() {
+    private func runImport(allowOversize: Bool = false) {
         backupBusy = true
         Task {
-            let result = await DataBackup.runImport()
+            let result = await DataBackup.runImport(allowOversize: allowOversize)
             handleBackup(result)
         }
     }
@@ -2614,6 +2627,19 @@ struct SettingsView: View {
             backupAlertTitle = String(localized: "Backup exported")
             backupAlertMessage = String(localized: "Saved to \(url.lastPathComponent). Copy this file to your other \(Platform.deviceNoun) and use Import there to restore everything.")
             showBackupAlert = true
+        case .exportedOversize(let url, let bytes, let limit):
+            // #1807: the file is written and worth keeping — say so first, then say what restoring it
+            // will ask for. The old behaviour said nothing here and refused at restore, which is the
+            // one moment the original is already gone.
+            let size = ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+            let cap = ByteCountFormatter.string(fromByteCount: limit, countStyle: .file)
+            backupAlertTitle = String(localized: "Backup exported")
+            backupAlertMessage = String(localized: "Saved to \(url.lastPathComponent). Your database is \(size), over the \(cap) NOOP restores without asking — the backup is complete and valid, and restoring it will ask you to confirm once.")
+            showBackupAlert = true
+        case .restoreTooLarge(let name, let limit):
+            let cap = ByteCountFormatter.string(fromByteCount: limit, countStyle: .file)
+            oversizeRestoreMessage = String(localized: "\(name) is larger than the \(cap) NOOP restores without asking. That limit guards against a malicious archive expanding to fill this \(Platform.deviceNoun) — a backup you exported yourself is not that. Restoring it needs the space the database will take. You'll be asked to choose the file again.")
+            showOversizeRestoreConfirm = true
         case .imported:
             backupAlertTitle = String(localized: "Backup imported")
             backupAlertMessage = String(localized: "Your data has been restored. Quit and reopen NOOP for it to take effect.")

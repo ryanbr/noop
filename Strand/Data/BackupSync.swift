@@ -265,7 +265,13 @@ enum FolderBackup {
 
         let nowMs = Int(Date().timeIntervalSince1970 * 1000.0)
         let dest = folder.appendingPathComponent(BackupSync.snapshotName(nowMs))
-        guard case .exported = await DataBackup.writeBackup(checkpoint: checkpoint, to: dest) else { return false }
+        // #1807: an oversize write still WROTE the file, so it is a success here. The folder sync has
+        // nowhere to surface a warning and must not report failure for a backup that exists — the
+        // interactive export is where the user is told, because that is where they can act on it.
+        switch await DataBackup.writeBackup(checkpoint: checkpoint, to: dest) {
+        case .exported, .exportedOversize: break
+        default: return false
+        }
 
         UserDefaults.standard.set(nowMs, forKey: lastKey)
         prune(in: folder)

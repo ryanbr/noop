@@ -270,7 +270,14 @@ struct BackupSyncView: View {
                     alertMessage = String(localized: "Fully quit and reopen NOOP to load it.")
                 case .failure(let m):
                     alertTitle = String(localized: "Restore problem"); alertMessage = m
-                case .cancelled, .exported:
+                case .restoreTooLarge(let name, let limit):
+                    // #1807: recoverable, but not from here — this view restores a snapshot directly and
+                    // has no confirm step to hang the override on. Point at the path that does, rather
+                    // than leaving the user with a refusal and nowhere to go.
+                    let cap = ByteCountFormatter.string(fromByteCount: limit, countStyle: .file)
+                    alertTitle = String(localized: "Backup problem")
+                    alertMessage = String(localized: "\(name) is larger than the \(cap) NOOP restores without asking. You can still restore it from Settings → Backup & restore → Import, which will ask you to confirm.")
+                case .cancelled, .exported, .exportedOversize:
                     alertTitle = String(localized: "Restore problem"); alertMessage = String(localized: "Couldn't restore that backup.")
                 }
                 showAlert = true
