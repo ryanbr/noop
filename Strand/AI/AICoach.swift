@@ -225,8 +225,10 @@ final class AICoachEngine: ObservableObject {
     static let defaultSystemPrompt = """
     You are an elite, supportive recovery and performance coach with a real training methodology. \
     You may be given a summary of the user's own wearable data (charge 0-100, effort 0-100, rest 0-100, \
-    HRV, resting heart rate) and recent workouts. Charge is the daily recovery/readiness score, effort \
-    is the daily cardiovascular load score, and rest is the nightly sleep-quality score. \
+    sleep duration and its deep/REM/light breakdown, sleep efficiency, HRV, resting heart rate) and \
+    recent workouts. Charge is the daily recovery/readiness score, effort is the daily cardiovascular \
+    load score, and rest is the nightly sleep-quality score. A dash in the data means that value was \
+    NOT MEASURED that day — say so rather than treating it as a zero. \
     Coach using autoregulation:
     • Readiness → prescription: charge 67-100 = green light to build/push, higher effort is fine; \
     34-66 = maintain, quality over volume, keep it controlled; 0-33 = active recovery only \
@@ -746,7 +748,8 @@ final class AICoachEngine: ObservableObject {
         // Last ~14 days, newest first for readability.
         let recent = Array(days.suffix(14)).reversed()
         lines.append("")
-        lines.append("Recent days (newest first) — charge(0-100), effort(0-100), rest/sleep(h), HRV(ms), RHR(bpm):")
+        lines.append("Recent days (newest first) — charge(0-100), effort(0-100), rest/sleep(h), "
+                     + "deep/REM/light(h), eff(%), HRV(ms), RHR(bpm). A dash means NOT MEASURED, not zero:")
         for d in recent {
             lines.append("  " + dayLine(d))
         }
@@ -796,9 +799,29 @@ final class AICoachEngine: ObservableObject {
         parts.append("charge " + (d.recovery.map { "\(Int($0.rounded()))" } ?? "—"))
         parts.append("effort " + (d.strain.map { String(format: "%.1f", $0) } ?? "—"))
         parts.append("rest " + (d.totalSleepMin.map { String(format: "%.1fh", $0 / 60) } ?? "—"))
+        // The stage breakdown and efficiency, which the coach could not see at all: a user asked why it
+        // said it had no access to sleep stages, and it was answering honestly — `rest 7.8h` was every
+        // word it got about a night. These four sit on the SAME DailyMetric the line already reads, so
+        // nothing new is plumbed; they were simply never included. (#124 widened this context once
+        // before, for the same reason.)
+        //
+        // Always emitted, "—" when absent, like every other field here. A night with no staging then
+        // says so rather than going quiet, which matters more than line length: the alternative — only
+        // appending stages when present — gives the model a schema that changes shape between days and
+        // invites it to read a missing field as a zero.
+        parts.append("deep " + hoursOrDash(d.deepMin))
+        parts.append("REM " + hoursOrDash(d.remMin))
+        parts.append("light " + hoursOrDash(d.lightMin))
+        parts.append("eff " + (d.efficiency.map { "\(Int(($0 * 100).rounded()))%" } ?? "—"))
         parts.append("HRV " + (d.avgHrv.map { "\(Int($0.rounded()))ms" } ?? "—"))
         parts.append("RHR " + (d.restingHr.map { "\($0)bpm" } ?? "—"))
         return parts.joined(separator: ", ")
+    }
+
+    /// Minutes as "1.4h", or "—" when the night has no value. Matches the `rest` field's format so a
+    /// stage total and the total it is part of read on the same scale.
+    private func hoursOrDash(_ minutes: Double?) -> String {
+        minutes.map { String(format: "%.1fh", $0 / 60) } ?? "—"
     }
 
     private func avgOne(_ xs: [Double]) -> String {

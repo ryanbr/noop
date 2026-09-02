@@ -255,8 +255,19 @@ class AiCoach(
             val sleepH = d.totalSleepMin?.let { fmt1(it / 60.0) + "h" } ?: "-"
             val hrv = d.avgHrv?.let { "${it.roundToInt()}ms" } ?: "-"
             val rhr = d.restingHr?.let { "${it}bpm" } ?: "-"
+            // The stage breakdown and efficiency, which the coach could not see at all: a user asked why
+            // it said it had no access to sleep stages, and it was answering honestly — `rest 7.8h` was
+            // every word it got about a night. These sit on the SAME DailyMetric this line already reads.
+            // Always emitted, "-" when absent, like every other field: a night with no staging then says
+            // so, rather than the schema changing shape between days and inviting the model to read a
+            // missing field as a zero. Twin of the Swift `AICoach.dayLine`.
+            val deep = d.deepMin?.let { fmt1(it / 60.0) + "h" } ?: "-"
+            val rem = d.remMin?.let { fmt1(it / 60.0) + "h" } ?: "-"
+            val light = d.lightMin?.let { fmt1(it / 60.0) + "h" } ?: "-"
+            val eff = d.efficiency?.let { "${(it * 100).roundToInt()}%" } ?: "-"
             sb.append(
-                "  ${d.day}: charge $recovery, effort $strain, rest $sleepH, HRV $hrv, RHR $rhr\n"
+                "  ${d.day}: charge $recovery, effort $strain, rest $sleepH, " +
+                    "deep $deep, REM $rem, light $light, eff $eff, HRV $hrv, RHR $rhr\n"
             )
         }
 
@@ -905,7 +916,8 @@ class AiCoach(
         const val DEFAULT_SYSTEM_PROMPT =
             "You are an elite, supportive recovery and performance coach with a real training " +
                 "methodology. You may be given a summary of the user's own wearable data (charge " +
-                "0-100, effort 0-100, rest/sleep, HRV, resting heart rate) and recent workouts. " +
+                "0-100, effort 0-100, rest/sleep and its deep/REM/light breakdown, sleep " +
+                "efficiency, HRV, resting heart rate) and recent workouts. " +
                 "Charge is the daily recovery/readiness score; effort is the day's cardiovascular " +
                 "load. Coach using autoregulation: charge 67-100 = green light to build/push, " +
                 "higher effort is fine; 34-66 = maintain, quality over volume, keep it controlled; " +
