@@ -519,6 +519,12 @@ fun SettingsScreen(
     }
 
     var backupBusy by remember { mutableStateOf(false) }
+    /**
+     * #1807: a restore refused ONLY for size, held with the uri that produced it so confirming can
+     * retry the SAME file. Android keeps a usable uri across the dialog, so unlike Apple there is no
+     * need to send the user back through the picker.
+     */
+    var oversizeRestore by remember { mutableStateOf<Pair<android.net.Uri, String>?>(null) }
 
     // #646/#651: LogExport's zip build + file read now run on Dispatchers.IO instead of blocking the
     // caller, so these buttons no longer freeze the UI — but nothing else stopped a second tap mid-export
@@ -713,12 +719,18 @@ fun SettingsScreen(
             }
             backupBusy = false
             result.fold(
-                onSuccess = {
-                    Toast.makeText(
-                        context,
-                        "Backup exported. Copy this file to your new phone and use Import there to restore everything.",
-                        Toast.LENGTH_LONG,
-                    ).show()
+                onSuccess = { outcome ->
+                    // #1807: the file is written and valid either way. When the database is past the
+                    // ceiling the RESTORE path enforces, say so NOW — the alternative is finding out
+                    // during a restore, which is the one moment the original is gone. The second
+                    // sentence is the refusal's own wording, reused so this adds no untranslated copy.
+                    val note = if (outcome.overRestoreCeiling) {
+                        "Backup exported. The backup archive is too large to restore safely — " +
+                            "restoring it will ask you to confirm."
+                    } else {
+                        "Backup exported. Copy this file to your new phone and use Import there to restore everything."
+                    }
+                    Toast.makeText(context, note, Toast.LENGTH_LONG).show()
                 },
                 onFailure = { e ->
                     Toast.makeText(context, "Backup problem: ${e.message}", Toast.LENGTH_LONG).show()
@@ -772,6 +784,11 @@ fun SettingsScreen(
                 is DataBackup.ImportResult.Failed -> Toast.makeText(
                     context, result.message, Toast.LENGTH_LONG,
                 ).show()
+                // #1807: refused ONLY for size, which is recoverable — offer to go ahead rather than
+                // ending on a Toast the user can do nothing about. The cap is a decompression guard
+                // against a hostile archive; a backup they just picked out of their own files is not
+                // that threat, and refusing outright strands real history.
+                is DataBackup.ImportResult.TooLarge -> oversizeRestore = uri to result.message
             }
         }
     }
@@ -3074,6 +3091,50 @@ fun SettingsScreen(
         // #174: the switch going OFF is the moment to offer the undo. Declining leaves the flags set and
         // says so — still an improvement on the old behaviour, where the same tap silently left them set
         // with no indication either way.
+        oversizeRestore?.let { (pendingUri, pendingMessage) ->
+            AlertDialog(
+                onDismissRequest = { oversizeRestore = null },
+                containerColor = Palette.surfaceOverlay,
+                // The message is the sentence the refusal already carried — reused rather than replaced,
+                // so surfacing the override adds no untranslated copy. Buttons reuse existing keys.
+                text = {
+                    Text(pendingMessage, style = NoopType.subhead, color = Palette.textSecondary)
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        oversizeRestore = null
+                        backupBusy = true
+                        scope.launch {
+                            val again = withContext(Dispatchers.IO) {
+                                DataBackup.importFrom(context, pendingUri, allowOversize = true)
+                            }
+                            backupBusy = false
+                            val note = when (again) {
+                                is DataBackup.ImportResult.NeedsRestart ->
+                                    "Backup imported. Fully close and reopen NOOP for it to take effect."
+                                is DataBackup.ImportResult.Failed -> again.message
+                                is DataBackup.ImportResult.TooLarge -> again.message
+                            }
+                            Toast.makeText(context, note, Toast.LENGTH_LONG).show()
+                        }
+                    }) {
+                        Text(
+                            uiString(R.string.l10n_settings_screen_restore_3cbe6d6b),
+                            color = Palette.accent,
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { oversizeRestore = null }) {
+                        Text(
+                            uiString(R.string.l10n_settings_screen_cancel_77dfd213),
+                            color = Palette.textSecondary,
+                        )
+                    }
+                },
+            )
+        }
+
         if (confirmingDeepDataDisable) {
             AlertDialog(
                 onDismissRequest = { confirmingDeepDataDisable = false },

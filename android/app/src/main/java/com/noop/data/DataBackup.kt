@@ -50,7 +50,7 @@ object DataBackup {
     // restored). Written LAST so older importers that stop at the first .sqlite entry are unaffected.
     private const val MANIFEST_ENTRY_NAME = BackupManifest.ENTRY_NAME
 
-    private const val MAX_BACKUP_SQLITE_BYTES = 2_147_483_648L
+    internal const val MAX_BACKUP_SQLITE_BYTES = 2_147_483_648L
     private const val MAX_BACKUP_SETTINGS_BYTES = 1_048_576L
 
     /** First 16 bytes of every SQLite 3 file: "SQLite format 3\0". */
@@ -101,7 +101,26 @@ object DataBackup {
 
         /** Import failed and the original database is untouched. */
         data class Failed(val message: String) : ImportResult
+
+        /**
+         * The restore stopped ONLY because an entry exceeds [MAX_BACKUP_SQLITE_BYTES]. Distinct from
+         * [Failed] so the caller can offer to go ahead: the cap is a decompression guard against a
+         * hostile archive, and a backup the user just picked out of their own files is a different
+         * threat model than the one it defends against. (#1807)
+         */
+        data class TooLarge(val message: String, val limitBytes: Long) : ImportResult
     }
+
+    /**
+     * What an export produced. [overRestoreCeiling] is true when the database is past the ceiling the
+     * RESTORE path enforces, so the caller can say so while the user still has their data — the
+     * alternative is finding out during a restore, which is the one moment the original is gone.
+     *
+     * Measured on the DATABASE, not the finished archive: the archive is deflated and the cap counts the
+     * DECOMPRESSED stream, so the zip's own size says nothing about whether it can be read back. That is
+     * also why compressing harder cannot help anyone past it. (#1807)
+     */
+    data class ExportOutcome(val bytes: Long, val overRestoreCeiling: Boolean, val limitBytes: Long)
 
     /**
      * Export the live database to [uri] as a compressed `.noopbak` (single-entry ZIP).
@@ -111,7 +130,7 @@ object DataBackup {
      * Throws on failure so the caller can surface the message in a toast/snackbar.
      */
     @Throws(IOException::class)
-    fun exportTo(context: Context, uri: Uri) {
+    fun exportTo(context: Context, uri: Uri): ExportOutcome {
         val appContext = context.applicationContext
 
         // Fold the WAL back into the main file so the snapshot is complete.
@@ -179,6 +198,15 @@ object DataBackup {
                 }
             }
         }
+        // #1807: the file is written and valid either way — this only reports whether restoring it will
+        // need the user to confirm. Read AFTER the checkpoint above, so the length is the one the
+        // restore path will actually meet.
+        val bytes = dbFile.length()
+        return ExportOutcome(
+            bytes = bytes,
+            overRestoreCeiling = bytes > MAX_BACKUP_SQLITE_BYTES,
+            limitBytes = MAX_BACKUP_SQLITE_BYTES,
+        )
     }
 
     /**
@@ -190,7 +218,7 @@ object DataBackup {
      * On any error the current database is left exactly as it was. On success the caller
      * MUST instruct the user to fully restart the app.
      */
-    fun importFrom(context: Context, uri: Uri): ImportResult {
+    fun importFrom(context: Context, uri: Uri, allowOversize: Boolean = false): ImportResult {
         val appContext = context.applicationContext
         val resolver = appContext.contentResolver
 
@@ -214,7 +242,8 @@ object DataBackup {
         val tempSettings = File(appContext.cacheDir, "import-settings.json")
         tempSettings.delete()
         try {
-            when (stageBackupSqlite(resolver.openInputStream(uri), header, tempSqlite, tempSettings)) {
+            when (stageBackupSqlite(resolver.openInputStream(uri), header, tempSqlite, tempSettings,
+                                    allowOversize = allowOversize)) {
                 StageResult.OK -> Unit
                 StageResult.CANNOT_OPEN -> return ImportResult.Failed("Could not open the chosen file.")
                 StageResult.NO_DB_IN_ZIP -> {
@@ -224,7 +253,14 @@ object DataBackup {
                 StageResult.ENTRY_TOO_LARGE -> {
                     tempSqlite.delete()
                     tempSettings.delete()
-                    return ImportResult.Failed("The backup archive is too large to restore safely.")
+                    // #1807: recoverable, so the caller gets a case it can offer to override rather than
+                    // a dead-end message.
+                    // Carries the SAME sentence the old Failed branch showed, deliberately: it is already
+                    // in the audit baseline, so surfacing the override needs no new untranslated copy.
+                    return ImportResult.TooLarge(
+                        "The backup archive is too large to restore safely.",
+                        MAX_BACKUP_SQLITE_BYTES,
+                    )
                 }
                 StageResult.NOT_A_BACKUP -> return ImportResult.Failed(
                     "That file is not a NOOP backup - it doesn't look like a .noopbak archive or a SQLite database."
@@ -405,6 +441,8 @@ object DataBackup {
         header: ByteArray,
         dest: File,
         settingsDest: File? = null,
+        /** #1807: lift the SQLite cap for a file the USER chose. See [ImportResult.TooLarge]. */
+        allowOversize: Boolean = false,
     ): StageResult {
         if (input == null) return StageResult.CANNOT_OPEN
         input.use { stream ->
@@ -419,7 +457,7 @@ object DataBackup {
                                 !entry.isDirectory && !foundDb &&
                                     entry.name.substringAfterLast('/') == ZIP_ENTRY_NAME -> {
                                     FileOutputStream(dest).use { out ->
-                                        if (!copyBounded(zip, out, MAX_BACKUP_SQLITE_BYTES)) {
+                                        if (!copyBounded(zip, out, sqliteCap(allowOversize))) {
                                             dest.delete()
                                             return StageResult.ENTRY_TOO_LARGE
                                         }
@@ -446,7 +484,7 @@ object DataBackup {
                 }
                 header.startsWith(SQLITE_MAGIC) -> {
                     FileOutputStream(dest).use { out ->
-                        if (!copyBounded(stream, out, MAX_BACKUP_SQLITE_BYTES)) {
+                        if (!copyBounded(stream, out, sqliteCap(allowOversize))) {
                             dest.delete()
                             return StageResult.ENTRY_TOO_LARGE
                         }
@@ -457,6 +495,10 @@ object DataBackup {
             }
         }
     }
+
+    /** The SQLite cap, lifted when the user has chosen to go ahead for a file they picked. (#1807) */
+    internal fun sqliteCap(allowOversize: Boolean): Long =
+        if (allowOversize) Long.MAX_VALUE else MAX_BACKUP_SQLITE_BYTES
 
     private fun copyBounded(input: java.io.InputStream, out: java.io.OutputStream, cap: Long): Boolean {
         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)

@@ -112,6 +112,11 @@ fun BackupSyncScreen() {
                 }
                 is DataBackup.ImportResult.Failed ->
                     Toast.makeText(context, r.message, Toast.LENGTH_LONG).show()
+                // #1807: recoverable, but not from here — this screen restores a folder snapshot
+                // directly and has no confirm step to hang the override on. Settings → Backup & restore
+                // → Import does, and shows the same sentence with a way through.
+                is DataBackup.ImportResult.TooLarge ->
+                    Toast.makeText(context, r.message, Toast.LENGTH_LONG).show()
             }
         }
     }

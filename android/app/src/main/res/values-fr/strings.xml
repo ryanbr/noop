@@ -1311,6 +1311,7 @@
     <string name="l10n_settings_screen_broadcast_strap_hr_garmin_ant_a39d0654">Diffusion de la FC du bracelet (Garmin/ANT)</string>
     <string name="l10n_settings_screen_buzz_the_time_on_your_strap_06fc879d">Buzz l\'heure sur votre bracelet</string>
     <string name="l10n_settings_screen_cancel_77dfd213">Annuler</string>
+    <string name="l10n_settings_screen_restore_3cbe6d6b">Restaurer</string>
     <string name="l10n_settings_screen_card_transparency_c5c7b4f3">Transparence des cartes</string>
     <string name="l10n_settings_screen_charge_d4e1aee4">Charge</string>
     <string name="l10n_settings_screen_charge_effort_and_rest_and_how_d2c423a4">Charge, effort et repos, et comment ils diffèrent de WHOOP</string>

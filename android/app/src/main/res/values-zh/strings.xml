@@ -1436,6 +1436,7 @@
     <string name="l10n_settings_screen_broadcast_strap_hr_garmin_ant_a39d0654">广播手环心率 (适配 Garmin/ANT)</string>
     <string name="l10n_settings_screen_buzz_the_time_on_your_strap_06fc879d">在手环上通过震动播报时间</string>
     <string name="l10n_settings_screen_cancel_77dfd213">取消</string>
+    <string name="l10n_settings_screen_restore_3cbe6d6b">恢复</string>
     <string name="l10n_settings_screen_card_transparency_c5c7b4f3">卡片透明度</string>
     <string name="l10n_settings_screen_charge_d4e1aee4">充能(Charge)</string>
     <string name="l10n_settings_screen_charge_effort_and_rest_and_how_d2c423a4">充能(Charge)、负荷(Effort)与恢复(Rest)，以及它们与官方 WHOOP 指标的区别</string>
