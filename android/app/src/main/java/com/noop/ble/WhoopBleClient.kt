@@ -7209,6 +7209,19 @@ class WhoopBleClient(
                     }
                     log("reboot: strap acked result=${result ?: "none"} ($verdict)")
                 }
+                // #1823: the clock exchange, on BOTH families. NOOP wrote "clock synced" the moment it
+                // queued the writes and never read the answer, so a strap log asserted the clock was set
+                // while the readout said 1970/71. Android has the DECODED result name here - the richer
+                // twin of the Apple raw byte, and the reason the reboot verdict was correct on this side -
+                // but for the clock nothing establishes what a result means, so this states no verdict
+                // either. It quotes the decoded name when there is one and the WHOLE frame in hex, which
+                // is what makes a wrong assumption visible instead of silently misleading. Log-only.
+                if (respCmd?.startsWith("SET_CLOCK") == true || respCmd?.startsWith("GET_CLOCK") == true) {
+                    log(
+                        "clock: $respCmd reply result=${result ?: "none"} " +
+                            "frame=${frame.joinToString("") { "%02x".format(it) }}",
+                    )
+                }
                 // 5/MG range-query gate: a GET_DATA_RANGE SUCCESS releases the history request
                 // (PENDING precedes it; the 2s fail-open fallback covers a swallowed reply). (#78 fork)
                 if (connectedFamily == DeviceFamily.WHOOP5 && backfilling && !historicalKickSent &&
@@ -8765,7 +8778,11 @@ class WhoopBleClient(
                 // #520: read the DIS identity on the same post-handshake schedule, staggered after the
                 // battery read so the two do not contend for the serialized GATT queue.
                 handler.postDelayed({ readDisIdentity() }, BATTERY_ON_CONNECT_DELAY_MS * 2)
-                log("WHOOP 5/MG: clock synced (set/get) — strap can persist history now")
+                // #1823: say what was SENT, not what resulted. This read "clock synced — strap can
+                // persist history now", logged before any reply existed, so a log could assert the clock
+                // was set while the Devices readout said 1970/71. The strap's own answer now arrives as
+                // the "clock: …" line above. Twin of the Apple wording.
+                log("WHOOP 5/MG: SET_CLOCK + GET_CLOCK sent — awaiting the strap's answer")
                 if (!backfillStarted) {
                     backfillStarted = true
                     handler.postDelayed({ requestSync(BackfillTrigger.CONNECT) }, INITIAL_BACKFILL_DELAY_MS)
