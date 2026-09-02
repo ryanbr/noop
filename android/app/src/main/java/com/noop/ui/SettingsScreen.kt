@@ -2895,7 +2895,9 @@ fun SettingsScreen(
                     kind = NoopButtonKind.Secondary,
                     fullWidth = true,
                     onClick = {
-                        vm.ble.buzzTimeNow(is24h = android.text.format.DateFormat.is24HourFormat(context))
+                        // #1821: buzzTimeNow's doc asked for "a Settings toggle" to supply this.
+                        // Now there is one, so the pulses read the clock the user chose.
+                        vm.ble.buzzTimeNow(is24h = ClockPrefs.uses24Hour(context))
                     },
                 )
                 Text(

@@ -32,12 +32,18 @@ enum AppClock {
     /// scrolling lists, but the cache MUST key on the template rather than being a plain `static let`, or
     /// changing the setting would not take effect until the app restarted.
     private static var cached: (template: String, locale: String, formatter: DateFormatter)?
+    /// The cache is mutable global state and `onsetText` is read from whatever thread builds a
+    /// `SleepModel`, so the read-modify-write below is serialised. SWIFT_VERSION is 5.0 here, so the
+    /// compiler would not have objected - a torn read would just have been a rare, baffling crash.
+    private static let cacheLock = NSLock()
 
     /// Wall-clock time at minute precision, honouring the setting. The locale still supplies ordering,
     /// separator and AM/PM wording; only the hour cycle is ours.
     static func hourMinuteFormatter() -> DateFormatter {
         let template = ClockFormat.hourMinuteTemplate(uses24Hour: uses24Hour)
         let locale = AppLanguage.activeLocale
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
         if let cached, cached.template == template, cached.locale == locale.identifier {
             return cached.formatter
         }
