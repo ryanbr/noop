@@ -248,6 +248,9 @@ public enum ConnectionReadout {
     /// SET_CLOCK (both payload forms, #120) on every WHOOP4 connect with no battery gate, so charging
     /// again changes nothing and the old copy sent users at 100% round a loop they had already run.
     /// `batteryPct` nil (not yet read) keeps the charge advice - we only withdraw it on evidence.
+    /// Callers MUST pass a reading from the CURRENT link (iOS: `batterySamples.last?.soc`, which is
+    /// cleared on disconnect) and not a last-known charge that outlives it - a stale 100% would
+    /// suppress the advice in the one case it is right, a strap that ran flat and reset its RTC.
     public static func rtcWarning(deviceClockUnix: Int?, strapNewestUnix: Int?,
                                   batteryPct: Double? = nil) -> String? {
         let ceiling = ConnectionTrace.rtcEpochCeilingUnix

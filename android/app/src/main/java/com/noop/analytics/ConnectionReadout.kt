@@ -228,7 +228,10 @@ object ConnectionReadout {
      *  "charge it" is real advice. On an ALREADY-charged strap it is not: runConnectHandshake sends
      *  SET_CLOCK (both payload forms, #120) on every WHOOP4 connect with no battery gate, so charging
      *  again changes nothing and the old copy sent users at 100% round a loop they had already run.
-     *  [batteryPct] null (not yet read) keeps the charge advice - we only withdraw it on evidence. */
+     *  [batteryPct] null (not yet read) keeps the charge advice - we only withdraw it on evidence.
+     *  Callers MUST pass a reading from the CURRENT link and not a last-known charge that outlives it -
+     *  a stale 100% would suppress the advice in the one case it is right, a strap that ran flat and
+     *  reset its RTC. */
     fun rtcWarning(deviceClockUnix: Long?, strapNewestUnix: Long?, batteryPct: Double? = null): String? {
         val ceiling = ConnectionTrace.RTC_EPOCH_CEILING_UNIX
         val clockBad = deviceClockUnix != null && deviceClockUnix > 0L && deviceClockUnix < ceiling

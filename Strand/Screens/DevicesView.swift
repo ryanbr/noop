@@ -91,6 +91,13 @@ private struct DevicesContent: View {
     /// has produced any clock signal - a routed frame, a clock correlation, or a data-range reply - so a
     /// generic HR strap or an idle card never shows a fabricated "waiting" state. One computation for
     /// both the line and the warning (the log scan is the cost worth paying once, not twice).
+    ///
+    /// #1818: the battery term reads `batterySamples.last`, NOT `batteryPct`. `batteryPct` deliberately
+    /// outlives the link (`clearBiometrics` leaves it) so Today/the widget can show a last-known charge,
+    /// and a 21 h old reading is indistinguishable from a fresh one there (#530). Withdrawing the "charge
+    /// it" advice on a stale 100% would suppress it in exactly the case it is right - a strap that ran
+    /// flat, which is what reset the RTC, reconnecting before its first battery event. `batterySamples`
+    /// is cleared on disconnect, so `.last` is a reading from THIS link or nothing.
     private var strapClockState: (line: String, warning: String?)? {
         guard live.connected else { return nil }
         let deviceClock = ConnectionReadout.clockCorrelatedDevice(logLines: live.log)
@@ -101,7 +108,7 @@ private struct DevicesContent: View {
                                                      nowUnix: Int(Date().timeIntervalSince1970))
         let warning = ConnectionReadout.rtcWarning(deviceClockUnix: deviceClock,
                                                    strapNewestUnix: live.strapRange?.newestUnix,
-                                                   batteryPct: live.batteryPct)
+                                                   batteryPct: live.batterySamples.last?.soc)
         return (String(localized: "Clock latched: \(latched) · last frame \(frame)"), warning)
     }
 
