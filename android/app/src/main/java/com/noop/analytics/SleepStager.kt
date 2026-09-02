@@ -538,9 +538,15 @@ object SleepStager {
      *
      * Deliberately the SAME rule the confirm path already trusts: per-epoch MEDIAN bpm against
      * `baseline * `[hrSleepBandMult], median for the reason [hrSleepBandAcross] spells out. The run
-     * construction mirrors [buildRuns] line for line — close on a class change or a gap over
-     * [maxGapMin] — so the two spines segment identically once flags exist, and only the flag SOURCE
-     * differs.
+     * construction follows [buildRuns] — close on a class change or a gap over [maxGapMin] — so the two
+     * spines segment alike once flags exist, and only the flag SOURCE differs.
+     *
+     * With ONE branch deliberately absent, and it is not an oversight. [buildRuns] can forgive a gap when
+     * [hrSleepBandAcross] vouches that HR stayed in band across it, which rescues a night whose GRAVITY
+     * dropped out. Here the gap IS in the heart rate, so there is nothing left to vouch with and no
+     * analogue to port. A long HR dropout therefore breaks an HR-only run where it would not break a
+     * motion-backed one, and a night fragmented that way is dropped by the caller's minimum-duration
+     * gate rather than bridged.
      *
      * WEAKER THAN THE MOTION SPINE, by construction rather than by tuning. The file already notes that a
      * long still daytime stretch is gravity-indistinguishable from a nap and that HR is what saves it;
