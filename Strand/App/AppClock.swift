@@ -17,43 +17,87 @@ enum AppClock {
     }
 
     /// What the DEVICE is set to, read from `autoupdatingCurrent` precisely because that is the locale
-    /// the 24-Hour Time switch modifies. A 12-hour locale's `j` template contains the AM/PM symbol.
+    /// the 24-Hour Time switch modifies.
+    ///
+    /// #1829: MEMOISED. This calls `DateFormatter.dateFormat(fromTemplate:options:locale:)`, which builds
+    /// an ICU pattern generator - one of the more expensive things Foundation offers - and the first cut
+    /// of this ran it on EVERY access, ahead of the formatter cache. Since ~17 call sites had just been
+    /// converted from `static let` to computed properties, that put an ICU build behind every time label
+    /// on screen. The cache saved the cheap allocation and missed the expensive call entirely.
     static var systemUses24Hour: Bool {
+        cacheLock.lock(); defer { cacheLock.unlock() }
+        if let cachedSystem24 { return cachedSystem24 }
         let template = DateFormatter.dateFormat(fromTemplate: "j", options: 0,
                                                 locale: Locale.autoupdatingCurrent) ?? "H"
-        return !template.contains("a")
+        let v = !template.contains("a")
+        cachedSystem24 = v
+        return v
     }
 
     static var uses24Hour: Bool {
         ClockFormat.uses24Hour(preference: preference, systemUses24Hour: systemUses24Hour)
     }
 
-    /// The locale to hand any time-rendering `DateFormatter`. Carries an explicit hour cycle, so the
-    /// setting also reaches the formatters that never name a pattern - the ones using `timeStyle = .short`
-    /// or a `"jmm"` template, which ask the LOCALE for the hour and were therefore getting the region
-    /// default. Everything else about the locale (date order, separators, AM/PM wording, month names)
-    /// still comes from `AppLanguage.activeLocale`, exactly as before.
-    static var formattingLocale: Locale {
-        Locale(identifier: ClockFormat.hourCycleLocaleIdentifier(
-            base: AppLanguage.activeLocale.identifier, uses24Hour: uses24Hour))
+    /// #1829: memoised for the same reason - `AppLanguage.activeLocale` reads
+    /// `Bundle.main.preferredLocalizations` and then CONSTRUCTS a `Locale`, per access.
+    static var activeLocale: Locale {
+        cacheLock.lock(); defer { cacheLock.unlock() }
+        if let cachedActiveLocale { return cachedActiveLocale }
+        let l = AppLanguage.activeLocale
+        cachedActiveLocale = l
+        return l
     }
 
-    /// Cached by resolved template: building a `DateFormatter` is expensive and these are read per row in
-    /// scrolling lists, but the cache MUST key on the template rather than being a plain `static let`, or
-    /// changing the setting would not take effect until the app restarted.
+    /// The locale to hand any time-rendering `DateFormatter`. Carries an explicit hour cycle, so the
+    /// setting also reaches formatters that never name a pattern (`timeStyle`, a `"jmm"` template).
+    static var formattingLocale: Locale {
+        let id = ClockFormat.hourCycleLocaleIdentifier(base: activeLocale.identifier,
+                                                       uses24Hour: uses24Hour)
+        cacheLock.lock(); defer { cacheLock.unlock() }
+        if let cachedFormattingLocale, cachedFormattingLocaleID == id { return cachedFormattingLocale }
+        let l = Locale(identifier: id)
+        cachedFormattingLocale = l
+        cachedFormattingLocaleID = id
+        return l
+    }
+
     private static var cached: (template: String, locale: String, formatter: DateFormatter)?
-    /// The cache is mutable global state and `onsetText` is read from whatever thread builds a
-    /// `SleepModel`, so the read-modify-write below is serialised. SWIFT_VERSION is 5.0 here, so the
-    /// compiler would not have objected - a torn read would just have been a rare, baffling crash.
+    private static var cachedSystem24: Bool?
+    private static var cachedActiveLocale: Locale?
+    private static var cachedFormattingLocale: Locale?
+    private static var cachedFormattingLocaleID: String?
+    /// One lock for every cache here. Each accessor takes it around its own read-modify-write and
+    /// releases before returning, so none of them nest - NSLock is not recursive and a nested take would
+    /// deadlock the main thread, which is a far worse failure than the cost this exists to avoid.
     private static let cacheLock = NSLock()
 
-    /// Wall-clock time at minute precision, honouring the setting. The locale still supplies ordering,
-    /// separator and AM/PM wording; only the hour cycle is ours.
-    static func hourMinuteFormatter() -> DateFormatter {
-        let template = ClockFormat.hourMinuteTemplate(uses24Hour: uses24Hour)
-        let locale = AppLanguage.activeLocale
+    /// Drop every memo. Called when the reader changes the setting, and when the SYSTEM clock or locale
+    /// changes underneath us - `systemUses24Hour` can flip with no write of our own, so without this the
+    /// memo would pin a stale answer for the life of the process.
+    static func invalidate() {
         cacheLock.lock()
-        defer { cacheLock.unlock() }
+        cached = nil
+        cachedSystem24 = nil
+        cachedActiveLocale = nil
+        cachedFormattingLocale = nil
+        cachedFormattingLocaleID = nil
+        cacheLock.unlock()
+    }
+
+    /// #1829: registers exactly once, on first use — a `static let` is lazy and thread-safe in Swift, so
+    /// touching it below is the whole registration. The system 24-hour switch and the device locale can
+    /// both change with no write from us; without this the memo above would serve a stale answer for the
+    /// rest of the process, which is worse than the per-access cost it replaced.
+    private static let localeObserver: NSObjectProtocol = NotificationCenter.default.addObserver(
+        forName: NSLocale.currentLocaleDidChangeNotification, object: nil, queue: nil
+    ) { _ in AppClock.invalidate() }
+
+    /// Wall-clock time at minute precision, honouring the setting.
+    static func hourMinuteFormatter() -> DateFormatter {
+        _ = localeObserver   // first call registers the invalidator; later calls are a no-op read
+        let template = ClockFormat.hourMinuteTemplate(uses24Hour: uses24Hour)
+        let locale = activeLocale
+        cacheLock.lock(); defer { cacheLock.unlock() }
         if let cached, cached.template == template, cached.locale == locale.identifier {
             return cached.formatter
         }
