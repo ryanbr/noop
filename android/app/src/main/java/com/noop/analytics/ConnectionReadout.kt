@@ -215,16 +215,33 @@ object ConnectionReadout {
         return "no (waiting for the strap clock)"
     }
 
+    /** #1818: at or above this charge the "charge it" remedy is already satisfied, so repeating it is
+     *  noise. Twin of the Swift constant - the two must move together or the platforms give different
+     *  advice for the same strap. */
+    const val RTC_ALREADY_CHARGED_PCT: Double = 95.0
+
     /** #987: a plain-words warning when the strap RTC reads epoch-era (~1970/71), from EITHER signal we
      *  hold (the correlated device clock or the strap's newest banked-record timestamp). null when both
-     *  look sane or neither was seen yet - we never fabricate a fault. Twin of the Swift warning. */
-    fun rtcWarning(deviceClockUnix: Long?, strapNewestUnix: Long?): String? {
+     *  look sane or neither was seen yet - we never fabricate a fault. Twin of the Swift warning.
+     *
+     *  #1818: the remedy is battery-dependent. A flat battery resets the RTC, so on a low strap
+     *  "charge it" is real advice. On an ALREADY-charged strap it is not: runConnectHandshake sends
+     *  SET_CLOCK (both payload forms, #120) on every WHOOP4 connect with no battery gate, so charging
+     *  again changes nothing and the old copy sent users at 100% round a loop they had already run.
+     *  [batteryPct] null (not yet read) keeps the charge advice - we only withdraw it on evidence. */
+    fun rtcWarning(deviceClockUnix: Long?, strapNewestUnix: Long?, batteryPct: Double? = null): String? {
         val ceiling = ConnectionTrace.RTC_EPOCH_CEILING_UNIX
         val clockBad = deviceClockUnix != null && deviceClockUnix > 0L && deviceClockUnix < ceiling
         val newestBad = strapNewestUnix != null && strapNewestUnix > 0L && strapNewestUnix < ceiling
         if (!clockBad && !newestBad) return null
-        return "Strap clock reads 1970/71 (never set since its last reset), so it is not banking history. " +
-            "Charge the strap to 100% and reconnect so the clock latches."
+        val lead = "Strap clock reads 1970/71 (never set since its last reset), so it is not banking history. "
+        if (batteryPct != null && batteryPct >= RTC_ALREADY_CHARGED_PCT) {
+            return lead +
+                "The strap is already charged and NOOP resends the clock on every connect, so charging " +
+                "again will not change this. Export a strap log from Test Centre so the clock exchange " +
+                "can be read."
+        }
+        return lead + "Charge the strap to 100% and reconnect so the clock latches."
     }
 
     /** #987: freshness label for the "last frame" readout row ("12s ago" / "no frames yet"). [nowUnix]

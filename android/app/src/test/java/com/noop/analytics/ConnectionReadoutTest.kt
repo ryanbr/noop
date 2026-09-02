@@ -227,6 +227,29 @@ class ConnectionReadoutTest {
         assertNull(ConnectionReadout.rtcWarning(null, null))
     }
 
+    /** #1818: the remedy must track the battery. A charged strap told to "charge to 100%" is the bug
+     *  the field report hit - the user had already done it, twice. Twin of the Swift test. */
+    @Test fun rtcWarningRemedyTracksBattery() {
+        val flat = ConnectionReadout.rtcWarning(40_000_000L, null, batteryPct = 40.0)
+        assertTrue(flat!!.contains("Charge the strap to 100%"))
+
+        val charged = ConnectionReadout.rtcWarning(40_000_000L, null, batteryPct = 100.0)!!
+        assertFalse(charged.contains("Charge the strap to 100%"))
+        assertTrue(charged.contains("already charged"))
+        assertTrue(charged.contains("strap log"))
+
+        // Boundary: the constant is inclusive, so exactly-at-threshold takes the charged branch.
+        val atThreshold = ConnectionReadout.rtcWarning(
+            40_000_000L, null, batteryPct = ConnectionReadout.RTC_ALREADY_CHARGED_PCT)!!
+        assertTrue(atThreshold.contains("already charged"))
+
+        // Battery not read yet: we only withdraw advice on evidence, so the default stands.
+        assertTrue(ConnectionReadout.rtcWarning(40_000_000L, null)!!.contains("Charge the strap to 100%"))
+
+        // A sane clock stays silent no matter how full the battery is.
+        assertNull(ConnectionReadout.rtcWarning(1_782_475_600L, 1_782_475_000L, batteryPct = 100.0))
+    }
+
     @Test fun lastFrameLabel() {
         assertEquals("12s ago", ConnectionReadout.lastFrameLabel(990L, nowUnix = 1_002L))
         assertEquals("no frames yet", ConnectionReadout.lastFrameLabel(null, nowUnix = 1_002L))

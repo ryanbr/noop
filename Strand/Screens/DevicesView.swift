@@ -100,7 +100,8 @@ private struct DevicesContent: View {
         let frame = ConnectionReadout.lastFrameLabel(lastFrameUnix: live.lastFrameAtUnix,
                                                      nowUnix: Int(Date().timeIntervalSince1970))
         let warning = ConnectionReadout.rtcWarning(deviceClockUnix: deviceClock,
-                                                   strapNewestUnix: live.strapRange?.newestUnix)
+                                                   strapNewestUnix: live.strapRange?.newestUnix,
+                                                   batteryPct: live.batteryPct)
         return (String(localized: "Clock latched: \(latched) · last frame \(frame)"), warning)
     }
 
