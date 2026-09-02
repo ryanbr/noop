@@ -8,6 +8,18 @@ object SleepStagerTrace {
     enum class Verdict(val tag: String) { KEPT("KEPT"), DROPPED("DROPPED") }
 
     /**
+     * Why the HR-only spine did or did not run (#1801).
+     *
+     * The funnel line below only exists when the spine is CALLED, so its absence was ambiguous in
+     * exactly the way that made the first field report unreadable: it could mean the gate never
+     * opened, or that the sink was never wired. This says which, on any day with no motion — the only
+     * days where the question arises. A day that HAS motion never prints it, because the motion spine
+     * is the answer there and nothing was skipped.
+     */
+    fun hrOnlyGateLine(attempted: Boolean, reason: String, gravRows: Int, storedNights: Int): String =
+        "[sleep] hr-only gate attempted=$attempted reason=$reason grav=$gravRows stored=$storedNights"
+
+    /**
      * The HR-only spine's own funnel line (#1801).
      *
      * The path shipped silent, and a field log then showed `reason=no-motion` with no way to tell
@@ -21,11 +33,12 @@ object SleepStagerTrace {
      * complaint is unreadable without knowing which one they got.
      */
     fun hrOnlyLine(
-        anchorBpm: Double?, bandBpm: Double?, epochs: Int,
+        anchorBpm: Double?, bandBpm: Double?, hrP50: Double?, hrP90: Double?, epochs: Int,
         runs: Int, mergedRuns: Int, sleepRuns: Int,
         longestSleepMin: Int, staged: Int, kept: Int, minSleepMin: Int,
     ): String =
         "[sleep] hr-only spine anchorBpm=${round1(anchorBpm)} bandBpm=${round1(bandBpm)} " +
+            "hrP50=${round1(hrP50)} hrP90=${round1(hrP90)} " +
             "epochs=$epochs runs=$runs merged=$mergedRuns sleepRuns=$sleepRuns " +
             "longestMin=$longestSleepMin staged=$staged kept=$kept minSleepMin=$minSleepMin"
 

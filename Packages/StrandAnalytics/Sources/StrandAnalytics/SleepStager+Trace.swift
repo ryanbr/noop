@@ -15,6 +15,18 @@ extension SleepStager {
     /// The gate-trace line formatters. Compact, parseable, no em-dashes.
     public enum GateTrace {
 
+        /// Why the HR-only spine did or did not run (#1801). Twin of the Kotlin `hrOnlyGateLine`.
+        ///
+        /// The funnel line below only exists when the spine is CALLED, so its absence was ambiguous in
+        /// exactly the way that made the first field report unreadable: it could mean the gate never
+        /// opened, or that the sink was never wired. This says which, on any day with no motion — the
+        /// only days where the question arises.
+        public static func hrOnlyGateLine(attempted: Bool, reason: String,
+                                          gravRows: Int, storedNights: Int) -> String {
+            "[sleep] hr-only gate attempted=\(attempted) reason=\(reason) "
+                + "grav=\(gravRows) stored=\(storedNights)"
+        }
+
         /// The HR-only spine's own funnel line (#1801). Byte-identical twin of the Kotlin
         /// `SleepStagerTrace.hrOnlyLine`, so an Android and an Apple log of the same night compare
         /// directly — which is the entire reason these formatters are twinned at all.
@@ -26,11 +38,13 @@ extension SleepStager {
         ///
         /// `anchorBpm` and `bandBpm` are printed because they are DERIVED, not configured: the anchor is
         /// a percentile of THIS window, so the same code gives every wearer a different threshold.
-        public static func hrOnlyLine(anchorBpm: Double?, bandBpm: Double?, epochs: Int,
+        public static func hrOnlyLine(anchorBpm: Double?, bandBpm: Double?,
+                                      hrP50: Double?, hrP90: Double?, epochs: Int,
                                       runs: Int, mergedRuns: Int, sleepRuns: Int,
                                       longestSleepMin: Int, staged: Int, kept: Int,
                                       minSleepMin: Int) -> String {
             "[sleep] hr-only spine anchorBpm=\(round1(anchorBpm)) bandBpm=\(round1(bandBpm)) "
+                + "hrP50=\(round1(hrP50)) hrP90=\(round1(hrP90)) "
                 + "epochs=\(epochs) runs=\(runs) merged=\(mergedRuns) sleepRuns=\(sleepRuns) "
                 + "longestMin=\(longestSleepMin) staged=\(staged) kept=\(kept) minSleepMin=\(minSleepMin)"
         }

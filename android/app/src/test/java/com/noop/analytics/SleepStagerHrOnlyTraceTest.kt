@@ -27,11 +27,12 @@ class SleepStagerHrOnlyTraceTest {
     @Test
     fun `the line names the derived threshold and the longest candidate`() {
         val line = SleepStagerTrace.hrOnlyLine(
-            anchorBpm = 61.0, bandBpm = 64.05, epochs = 3021, runs = 48, mergedRuns = 12,
+            anchorBpm = 61.0, bandBpm = 64.05, hrP50 = 74.0, hrP90 = 88.0, epochs = 3021, runs = 48, mergedRuns = 12,
             sleepRuns = 7, longestSleepMin = 41, staged = 0, kept = 0, minSleepMin = 60,
         )
         assertEquals(
-            "[sleep] hr-only spine anchorBpm=61.0 bandBpm=64.1 epochs=3021 runs=48 merged=12 " +
+            "[sleep] hr-only spine anchorBpm=61.0 bandBpm=64.1 hrP50=74.0 hrP90=88.0 " +
+                "epochs=3021 runs=48 merged=12 " +
                 "sleepRuns=7 longestMin=41 staged=0 kept=0 minSleepMin=60",
             line,
         )
@@ -41,7 +42,7 @@ class SleepStagerHrOnlyTraceTest {
     @Test
     fun `an absent anchor prints nil rather than zero`() {
         val line = SleepStagerTrace.hrOnlyLine(
-            anchorBpm = null, bandBpm = null, epochs = 0, runs = 0, mergedRuns = 0,
+            anchorBpm = null, bandBpm = null, hrP50 = null, hrP90 = null, epochs = 0, runs = 0, mergedRuns = 0,
             sleepRuns = 0, longestSleepMin = 0, staged = 0, kept = 0, minSleepMin = 60,
         )
         assertTrue("must not claim an anchor of 0.0", line.contains("anchorBpm=nil bandBpm=nil"))

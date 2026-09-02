@@ -967,13 +967,31 @@ object IntelligenceEngine {
                     // the device supplied nothing of its own: a hypnogram the device actually recorded is
                     // always better evidence than one inferred from heart rate.
                     if (stored.isNotEmpty()) {
+                        dayDiag(SleepStagerTrace.hrOnlyGateLine(
+                            attempted = false, reason = "stored-hypnogram",
+                            gravRows = grav.size, storedNights = stored.size,
+                        ))
                         stored
                     } else {
+                        dayDiag(SleepStagerTrace.hrOnlyGateLine(
+                            attempted = true, reason = "no-motion-no-hypnogram",
+                            gravRows = grav.size, storedNights = 0,
+                        ))
                         // Route the spine's funnel through the SAME per-day recorder as `sleep-detect`,
                         // so one report explains both halves rather than one of them going quiet.
                         SleepStager.hrOnlySessions(hr, rr, resp, traceSink = ::dayDiag)
                     }
                 } else {
+                    // Only worth saying on a day with NO motion: there the spine was the remaining
+                    // option and something declined it, which is precisely what a silent absence could
+                    // not distinguish. A day WITH motion skips this — the motion spine is the answer
+                    // there and nothing was passed over.
+                    if (grav.size < 2) {
+                        dayDiag(SleepStagerTrace.hrOnlyGateLine(
+                            attempted = false, reason = "imported-owner",
+                            gravRows = grav.size, storedNights = 0,
+                        ))
+                    }
                     emptyList()
                 }
 

@@ -95,12 +95,20 @@ class SleepStagerHrOnlySessionsTest {
             }
             error("IntelligenceEngine.kt not found — this test must not pass by default")
         }
-        val idx = src.indexOf("SleepStager.hrOnlySessions(")
-        assertTrue("IntelligenceEngine must call the HR-only fallback", idx > 0)
-        val guard = src.substring(maxOf(0, idx - 1200), idx)
-        assertTrue("the fallback must sit behind the absent-gravity gate", guard.contains("grav.size < 2"))
+        // Scoped to the `providedSleep` expression rather than a fixed window of characters before the
+        // call. The first version measured PROXIMITY — 1200 chars back — and broke the moment a couple
+        // of diagnostic lines were inserted between the gate and the call, even though the gate still
+        // held. Containment is the actual invariant; distance never was.
+        val from = src.indexOf("val providedSleep: List<DetectedSleep> =")
+        assertTrue("IntelligenceEngine must build providedSleep", from > 0)
+        val to = src.indexOf("val tScore0", from)
+        assertTrue("expected the scoring call to follow providedSleep", to > from)
+        val expr = src.substring(from, to)
+        assertTrue("the fallback must sit inside the absent-gravity gate", expr.contains("grav.size < 2"))
+        assertTrue("IntelligenceEngine must call the HR-only fallback",
+            expr.contains("SleepStager.hrOnlySessions("))
         assertTrue("and must only run when the device supplied no hypnogram of its own",
-            guard.contains("stored.isNotEmpty()"))
+            expr.contains("stored.isNotEmpty()"))
     }
 
     /** No HR at all cannot produce a night, and must not throw. */

@@ -1183,11 +1183,27 @@ final class IntelligenceEngine: ObservableObject {
                     // shipping it silent cost on Android (#1801). That sink is nil unless Sleep test mode
                     // is active, so this collects nothing on a normal pass; passing a closure of my own
                     // here would have appended on every scored day regardless.
-                    providedSleep = stored.isEmpty
-                        ? SleepStager.hrOnlySessions(hr: hr, rr: rr, resp: resp,
-                                                     traceSink: traceSink)
-                        : stored
+                    if stored.isEmpty {
+                        traceSink?(SleepStager.GateTrace.hrOnlyGateLine(
+                            attempted: true, reason: "no-motion-no-hypnogram",
+                            gravRows: grav.count, storedNights: 0))
+                        providedSleep = SleepStager.hrOnlySessions(hr: hr, rr: rr, resp: resp,
+                                                                   traceSink: traceSink)
+                    } else {
+                        traceSink?(SleepStager.GateTrace.hrOnlyGateLine(
+                            attempted: false, reason: "stored-hypnogram",
+                            gravRows: grav.count, storedNights: stored.count))
+                        providedSleep = stored
+                    }
                 } else {
+                    // Only worth saying on a day with NO motion: there the spine was the remaining option
+                    // and something declined it, which a silent absence could not distinguish. A day WITH
+                    // motion skips this — the motion spine is the answer there.
+                    if grav.count < 2 {
+                        traceSink?(SleepStager.GateTrace.hrOnlyGateLine(
+                            attempted: false, reason: "imported-owner",
+                            gravRows: grav.count, storedNights: 0))
+                    }
                     providedSleep = []
                 }
                 let tScore0 = Date()

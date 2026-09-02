@@ -560,10 +560,17 @@ object SleepStager {
      * the value is always one the wearer actually recorded and the two platforms cannot disagree on a
      * rounding rule.
      */
-    internal fun hrOnlyBaseline(hr: List<HrSample>): Double? {
+    internal fun hrOnlyBaseline(hr: List<HrSample>): Double? = hrPercentile(hr, hrOnlyAnchorPercentile)
+
+    /**
+     * The `p` percentile of `hr` by bpm, nearest-rank. Shared with [hrOnlyBaseline] so the spread the
+     * trace reports is measured by the SAME rule as the anchor it is meant to be judged against — a
+     * diagnostic computed a different way would invite exactly the wrong conclusion.
+     */
+    internal fun hrPercentile(hr: List<HrSample>, p: Double): Double? {
         if (hr.isEmpty()) return null
         val sorted = hr.map { it.bpm.toDouble() }.sorted()
-        val idx = ((sorted.size - 1) * hrOnlyAnchorPercentile).toInt().coerceIn(0, sorted.size - 1)
+        val idx = ((sorted.size - 1) * p).toInt().coerceIn(0, sorted.size - 1)
         return sorted[idx]
     }
 
@@ -686,7 +693,7 @@ object SleepStager {
         val baseline = hrOnlyBaseline(hrS)
         if (baseline == null) {
             traceSink?.invoke(SleepStagerTrace.hrOnlyLine(
-                anchorBpm = null, bandBpm = null, epochs = 0, runs = 0, mergedRuns = 0,
+                anchorBpm = null, bandBpm = null, hrP50 = null, hrP90 = null, epochs = 0, runs = 0, mergedRuns = 0,
                 sleepRuns = 0, longestSleepMin = 0, staged = 0, kept = 0, minSleepMin = minMinutes,
             ))
             return emptyList()
@@ -724,6 +731,11 @@ object SleepStager {
         traceSink?.invoke(SleepStagerTrace.hrOnlyLine(
             anchorBpm = baseline,
             bandBpm = baseline * hrOnlyBandMult,
+            // The wearer's own spread. An anchor alone cannot be judged: p10 of 60 means one thing when
+            // the median is 63 and quite another when it is 74, and only the second leaves a night the
+            // band can separate.
+            hrP50 = hrPercentile(hrS, 0.50),
+            hrP90 = hrPercentile(hrS, 0.90),
             // The real epoch count, not the sample count: the spine buckets by [hrOnlyEpochS] before it
             // decides anything, so this is the axis every other number here is measured on.
             epochs = hrS.mapTo(HashSet()) { it.ts / hrOnlyEpochS }.size,
