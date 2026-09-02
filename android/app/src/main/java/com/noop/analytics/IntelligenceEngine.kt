@@ -958,8 +958,15 @@ object IntelligenceEngine {
             // import namespace are untouched; analyzeDay still lets a DETECTED session win where they overlap.
             val providedSleep: List<DetectedSleep> =
                 if (owner != importedDeviceId && grav.size < 2) {
-                    repo.sleepSessionsForDevice(owner, from, to, 4000)
+                    val stored = repo.sleepSessionsForDevice(owner, from, to, 4000)
                         .mapNotNull { AnalyticsEngine.sleepSessionFromProvided(it) }
+                    // #1801: a ring persists its OWN hypnogram, so `stored` covers it. A 5/MG that cannot
+                    // bond persists nothing (it is never clocked, so it banks nothing) and streams no motion
+                    // either — neither a spine nor a stored night, which is why this day scored blank with
+                    // `reason=no-motion` however much HR it held. Fall back to the HR-only spine ONLY when
+                    // the device supplied nothing of its own: a hypnogram the device actually recorded is
+                    // always better evidence than one inferred from heart rate.
+                    if (stored.isNotEmpty()) stored else SleepStager.hrOnlySessions(hr, rr, resp)
                 } else {
                     emptyList()
                 }
@@ -2905,10 +2912,17 @@ object IntelligenceEngine {
         stepCount: Int, providedCount: Int, windowHours: Int,
     ): String {
         // `reason` names WHICH absence this is, because grav=0 is printed but its consequence is not.
-        // With no motion the stager has no HR-only fallback, so no quantity of HR can stage a night — a
-        // strap capability limit, not a coverage gap, and the two want completely different follow-ups.
-        // With motion present the inputs were there and staging still produced nothing, which is the case
-        // actually worth investigating.
+        //
+        // `no-motion` USED to mean "and therefore nothing further was attempted" — the stager had no
+        // HR-only fallback, so no quantity of HR could stage a night. Since #1801 it does: a day with no
+        // gravity now also runs [SleepStager.hrOnlySessions], so this line printing `no-motion` means the
+        // motion spine was absent AND heart rate alone did not yield a night either — too little of it in
+        // the sleep band, or a run that staged to nothing. That is a stronger statement than it used to
+        // be, and the follow-up it wants is different: no longer "this strap cannot", but "why did the
+        // HR-only spine find nothing here".
+        //
+        // With motion present the inputs were there and staging still produced nothing, which remains the
+        // case most worth investigating.
         val reason = if (gravCount == 0) "no-motion" else "staged-none"
         return "sleep-detect day=$day NO-NIGHT hr=$hrCount rr=$rrCount resp=$respCount " +
             "grav=$gravCount steps=$stepCount provided=$providedCount window=${windowHours}h " +

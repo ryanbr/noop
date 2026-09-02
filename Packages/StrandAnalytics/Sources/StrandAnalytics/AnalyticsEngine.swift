@@ -506,11 +506,19 @@ public enum AnalyticsEngine {
         } else {
             let rrSorted = rr.sortedByTsStable()
             let enrichedProvided: [SleepSession] = providedSleep.map { s in
+                // #1801: an HR-only night keeps its NIL restingHR/avgHRV. This is the ONE call site that
+                // can undo the display-only guarantee — enriching here would hand Charge and the baselines
+                // exactly the two values that decision withholds, silently and by default.
+                if s.hrOnly { return s }
                 guard s.restingHR == nil || s.avgHRV == nil else { return s }
                 let rhr = s.restingHR ?? SleepStager.sessionRestingHR(start: s.start, end: s.end, hr: hr)
                 let hrv = s.avgHRV ?? SleepStager.sessionAvgHRV(start: s.start, end: s.end, rr: rrSorted)
+                // `hrOnly` carried explicitly: unlike Kotlin's `copy`, this rebuilds the struct field by
+                // field, so a new flag is dropped by DEFAULT unless named here. The guard above means an
+                // HR-only night never reaches this line today; passing it anyway keeps that a belt rather
+                // than the only thing standing between the flag and silent loss.
                 return SleepSession(start: s.start, end: s.end, efficiency: s.efficiency,
-                                    stages: s.stages, restingHR: rhr, avgHRV: hrv)
+                                    stages: s.stages, restingHR: rhr, avgHRV: hrv, hrOnly: s.hrOnly)
             }
             let keptDetected = refinedSessions.filter { d in
                 !enrichedProvided.contains { $0.start < d.end && d.start < $0.end }

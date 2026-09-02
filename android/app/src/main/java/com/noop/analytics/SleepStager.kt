@@ -524,6 +524,49 @@ object SleepStager {
         return medianHR <= baseline * hrSleepBandMult
     }
 
+    /**
+     * Percentile of the window's bpm that anchors the HR-only sleep band.
+     *
+     * NOT [hrBaseline]. That is the window MEDIAN, and it is the right anchor where it is used — as a
+     * CONFIRMATION gate on a run gravity stillness already found, where being permissive is deliberate.
+     * As a PRIMARY threshold it is disqualified by arithmetic rather than by tuning: a median splits the
+     * samples in half by definition, so a band of `median * 1.05` admits strictly more than half of any
+     * window whatever the data. Measured on a realistic 24 h (16 h awake 74-96, 8 h night 59-70) it
+     * called 14.4 hours sleep against a truth of 8.
+     *
+     * A tenth percentile sits in the night's trough instead, which is what a sleep band should be
+     * anchored to, and cannot admit half the window however the day is shaped.
+     */
+    const val hrOnlyAnchorPercentile: Double = 0.10
+
+    /**
+     * Multiplier above [hrOnlyAnchorPercentile] that still counts as asleep.
+     *
+     * Numerically equal to [hrSleepBandMult] today, and deliberately a SEPARATE constant: that one is a
+     * confirmation gate's tolerance and this one is a detector's, and a future change to either has no
+     * business silently moving the other.
+     *
+     * Chosen conservatively from a sweep over anchor x multiplier against windows with known truth,
+     * because the two failure directions are not symmetric. Over-detection puts a wrong Rest number on
+     * screen; under-detection leaves "No data", which is the state this feature is trying to improve on
+     * and therefore a safe place to fail. p10 x 1.05 measured 8.1 h against a truth of 8 on a field-shaped
+     * 24 h window, and under-reads a long multi-night window rather than over-reading it (8.7 h of 16 h
+     * across two nights in 54 h) — pinned in `SleepStagerHrOnlyAnchorTest`.
+     */
+    const val hrOnlyBandMult: Double = 1.05
+
+    /**
+     * The [hrOnlyAnchorPercentile] of `hr` by bpm, or null when empty. Nearest-rank (no interpolation), so
+     * the value is always one the wearer actually recorded and the two platforms cannot disagree on a
+     * rounding rule.
+     */
+    internal fun hrOnlyBaseline(hr: List<HrSample>): Double? {
+        if (hr.isEmpty()) return null
+        val sorted = hr.map { it.bpm.toDouble() }.sorted()
+        val idx = ((sorted.size - 1) * hrOnlyAnchorPercentile).toInt().coerceIn(0, sorted.size - 1)
+        return sorted[idx]
+    }
+
     /** Epoch for the HR-only spine, in seconds. */
     const val hrOnlyEpochS: Long = 60
 
@@ -580,7 +623,7 @@ object SleepStager {
         // understatement would then be weighed against the caller's minimum-duration gate.
         val times = keys.map { it * epochS }
         val ends = keys.map { lastTs.getValue(it) }
-        val flags = keys.map { HrvAnalyzer.median(byEpoch.getValue(it)) <= baseline * hrSleepBandMult }
+        val flags = keys.map { HrvAnalyzer.median(byEpoch.getValue(it)) <= baseline * hrOnlyBandMult }
         val maxGapS = (maxGapMinutes * 60).toLong()
         val periods = ArrayList<Period>()
         var runStart = 0
@@ -603,6 +646,62 @@ object SleepStager {
             }
         }
         return periods
+    }
+
+    /**
+     * Whole sleep SESSIONS from heart rate alone, for a strap that banks no motion (#1801).
+     *
+     * [hrOnlySleepRuns] supplies the spine this normally gets from gravity stillness; [SleepStagerV2]
+     * then stages each surviving run from HR and R-R with an EMPTY gravity list. That is not a
+     * degenerate call: V2's epoch features read HR and R-R directly and only its motion-quiescence terms
+     * go quiet, so it returns a real hypnogram rather than one flat stage. A stageless session would be
+     * dropped by `AnalyticsEngine.sleepSessionFromProvided` anyway, so a night that fails to stage is
+     * correctly omitted here rather than passed on hollow.
+     *
+     * The anchor is [hrOnlyBaseline] — the [hrOnlyAnchorPercentile] of the window — and NOT the
+     * [hrBaseline] median the motion path derives. Reusing that median looked like parity and was a bug:
+     * as a confirmation gate on an already-detected run it is deliberately permissive, but as a primary
+     * threshold it admits over half of any window by definition. See [hrOnlyAnchorPercentile].
+     *
+     * [DetectedSleep.restingHR] and [DetectedSleep.avgHRV] are left NULL deliberately, and that is the
+     * whole display-only guarantee. An HR-only night may describe itself — duration, stages, Rest — but
+     * the resting HR and HRV it would contribute are exactly what Charge and the baselines fold in, and
+     * a baseline is the one thing a false positive cannot be unwound from. Withholding the values is
+     * structural; a downstream filter would be one forgotten call site away from failing open.
+     */
+    internal fun hrOnlySessions(
+        hr: List<HrSample>,
+        rr: List<RrInterval>,
+        resp: List<RespSample>,
+        minMinutes: Int = minSleepMin,
+    ): List<DetectedSleep> {
+        val hrS = hr.sortedBy { it.ts }
+        val baseline = hrOnlyBaseline(hrS) ?: return emptyList()
+        val rrS = rr.sortedBy { it.ts }
+        val out = ArrayList<DetectedSleep>()
+        // mergePeriods for the same reason the motion path calls it: a run boundary is a threshold
+        // crossing, and a sleeping heart rate oscillates across the band all night. Without this the
+        // spine returns the night's minutes correctly but shredded into sub-mergeMin fragments, every one
+        // of which then fails the minimum-duration gate below — 8 h of detected sleep yielding zero
+        // sessions. Absorbing the short runs first is what turns a spine into a night.
+        for (p in mergePeriods(hrOnlySleepRuns(hrS, baseline))) {
+            if (p.stage != "sleep") continue
+            if ((p.end - p.start) < minMinutes * 60L) continue
+            val stages = SleepStagerV2.stageSession(p.start, p.end, emptyList(), hrS, rrS, resp)
+            if (stages.isEmpty()) continue
+            out.add(
+                DetectedSleep(
+                    start = p.start,
+                    end = p.end,
+                    efficiency = efficiency(start = p.start, end = p.end, stages = stages),
+                    stages = stages,
+                    restingHR = null,
+                    avgHRV = null,
+                    hrOnly = true,
+                )
+            )
+        }
+        return out
     }
 
     /** Per-record sleep flags from a rolling fraction of "still" samples. */

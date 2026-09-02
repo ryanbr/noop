@@ -483,6 +483,43 @@ public enum SleepStager {
         return periods
     }
 
+    /// Percentile of the window's bpm that anchors the HR-only sleep band.
+    ///
+    /// NOT `hrBaseline`. That is the window MEDIAN, and it is the right anchor where it is used — as a
+    /// CONFIRMATION gate on a run gravity stillness already found, where being permissive is deliberate.
+    /// As a PRIMARY threshold it is disqualified by arithmetic rather than by tuning: a median splits the
+    /// samples in half by definition, so a band of `median * 1.05` admits strictly more than half of any
+    /// window whatever the data. Measured on a realistic 24 h (16 h awake 74-96, 8 h night 59-70) it
+    /// called 14.4 hours sleep against a truth of 8.
+    ///
+    /// A tenth percentile sits in the night's trough instead, which is what a sleep band should be
+    /// anchored to, and cannot admit half the window however the day is shaped.
+    public static let hrOnlyAnchorPercentile: Double = 0.10
+
+    /// Multiplier above `hrOnlyAnchorPercentile` that still counts as asleep.
+    ///
+    /// Numerically equal to `hrSleepBandMult` today, and deliberately a SEPARATE constant: that one is a
+    /// confirmation gate's tolerance and this one is a detector's, and a future change to either has no
+    /// business silently moving the other.
+    ///
+    /// Chosen conservatively from a sweep over anchor x multiplier against windows with known truth,
+    /// because the two failure directions are not symmetric. Over-detection puts a wrong Rest number on
+    /// screen; under-detection leaves "No data", which is the state this feature is trying to improve on
+    /// and therefore a safe place to fail. p10 x 1.05 measured 8.1 h against a truth of 8 on a
+    /// field-shaped 24 h window, and under-reads a long multi-night window rather than over-reading it
+    /// (8.7 h of 16 h across two nights in 54 h) — pinned in `SleepStagerHrOnlyAnchorTests`.
+    public static let hrOnlyBandMult: Double = 1.05
+
+    /// The `hrOnlyAnchorPercentile` of `hr` by bpm, or nil when empty. Nearest-rank (no interpolation), so
+    /// the value is always one the wearer actually recorded and the two platforms cannot disagree on a
+    /// rounding rule.
+    static func hrOnlyBaseline(_ hr: [HRSample]) -> Double? {
+        if hr.isEmpty { return nil }
+        let sorted = hr.map { Double($0.bpm) }.sorted()
+        let idx = min(max(Int(Double(sorted.count - 1) * hrOnlyAnchorPercentile), 0), sorted.count - 1)
+        return sorted[idx]
+    }
+
     /// Epoch for the HR-only spine, in seconds.
     public static let hrOnlyEpochS: Int = 60
 
@@ -534,7 +571,7 @@ public enum SleepStager {
         // understatement would then be weighed against the caller's minimum-duration gate.
         let times = keys.map { $0 * epochS }
         let ends = keys.map { lastTs[$0]! }
-        let flags = keys.map { HRVAnalyzer.median(byEpoch[$0]!) <= baseline * hrSleepBandMult }
+        let flags = keys.map { HRVAnalyzer.median(byEpoch[$0]!) <= baseline * hrOnlyBandMult }
         let maxGapS = maxGapMinutes * 60
         var periods: [Period] = []
         var runStart = 0
@@ -553,6 +590,49 @@ public enum SleepStager {
             }
         }
         return periods
+    }
+
+    /// Whole sleep SESSIONS from heart rate alone, for a strap that banks no motion (#1801).
+    ///
+    /// `hrOnlySleepRuns` supplies the spine this normally gets from gravity stillness; `SleepStagerV2`
+    /// then stages each surviving run from HR and R-R with an EMPTY gravity array. That is not a
+    /// degenerate call: V2's epoch features read HR and R-R directly and only its motion-quiescence terms
+    /// go quiet, so it returns a real hypnogram rather than one flat stage. A stageless session would be
+    /// dropped by `sleepSessionFromProvided` anyway, so a night that fails to stage is correctly omitted
+    /// here rather than passed on hollow.
+    ///
+    /// The anchor is `hrOnlyBaseline` — the `hrOnlyAnchorPercentile` of the window — and NOT the
+    /// `hrBaseline` median the motion path derives. Reusing that median looked like parity and was a bug:
+    /// as a confirmation gate on an already-detected run it is deliberately permissive, but as a primary
+    /// threshold it admits over half of any window by definition. See `hrOnlyAnchorPercentile`.
+    ///
+    /// `restingHR` and `avgHRV` are left NIL deliberately, and that is the whole display-only guarantee.
+    /// An HR-only night may describe itself — duration, stages, Rest — but the resting HR and HRV it
+    /// would contribute are exactly what Charge and the baselines fold in, and a baseline is the one
+    /// thing a false positive cannot be unwound from. Withholding the values is structural; a downstream
+    /// filter would be one forgotten call site away from failing open.
+    static func hrOnlySessions(hr: [HRSample], rr: [RRInterval], resp: [RespSample],
+                               minMinutes: Int = minSleepMin) -> [SleepSession] {
+        let hrS = hr.sorted { $0.ts < $1.ts }
+        guard let baseline = hrOnlyBaseline(hrS) else { return [] }
+        let rrS = rr.sorted { $0.ts < $1.ts }
+        var out: [SleepSession] = []
+        // mergePeriods for the same reason the motion path calls it: a run boundary is a threshold
+        // crossing, and a sleeping heart rate oscillates across the band all night. Without this the
+        // spine returns the night's minutes correctly but shredded into sub-mergeMin fragments, every one
+        // of which then fails the minimum-duration gate below — 8 h of detected sleep yielding zero
+        // sessions. Absorbing the short runs first is what turns a spine into a night.
+        for p in mergePeriods(hrOnlySleepRuns(hrS, baseline: baseline)) {
+            if p.stage != "sleep" { continue }
+            if (p.end - p.start) < minMinutes * 60 { continue }
+            let stages = SleepStagerV2.stageSession(start: p.start, end: p.end, grav: [],
+                                                    hr: hrS, rr: rrS, resp: resp)
+            if stages.isEmpty { continue }
+            out.append(SleepSession(start: p.start, end: p.end,
+                                    efficiency: efficiency(start: p.start, end: p.end, stages: stages),
+                                    stages: stages, restingHR: nil, avgHRV: nil, hrOnly: true))
+        }
+        return out
     }
 
     /// Absorb runs shorter than mergeMin minutes into their neighbours.

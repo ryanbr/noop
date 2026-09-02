@@ -940,8 +940,10 @@ final class IntelligenceEngine: ObservableObject {
                 // since we last scored it THIS session, skipping the 7 stream reads + `analyzeDay`. Gated to a
                 // registered WHOOP owner (4.0 or 5/MG) via the UN-coalesced `forRegistryDevice` — which
                 // returns nil for a ring/import/unknown, so the cache never treats one as a WHOOP (a ring's
-                // `providedSleep` could change a day without an HR move; a WHOOP always streams gravity, so
-                // its `providedSleep` is empty and the reuse is byte-identical). The per-day key folds the
+                // `providedSleep` could change a day without an HR move; a WHOOP normally streams gravity, so
+                // its `providedSleep` is empty and the reuse is byte-identical — and since #1801 a WHOOP with
+                // NO gravity gets an HR-only `providedSleep` instead, which is derived from the very HR the
+                // key already fingerprints, so the reuse stays sound by a different route). The per-day key folds the
                 // night's HR fingerprint (a narrower per-day witness than the whole-pass raw-input gate) and, for a
                 // 4.0, the window-wide skin anchor (a re-anchor from another night shifts that night's skin
                 // conversion without moving its HR). A 5/MG banks skin-temp centidegrees directly — no
@@ -1169,7 +1171,16 @@ final class IntelligenceEngine: ObservableObject {
                 if owner != Repository.whoopSource, grav.count < 2 {
                     let persisted = (try? await store.sleepSessions(deviceId: owner, from: from, to: to,
                                                                     limit: 4000)) ?? []
-                    providedSleep = persisted.compactMap { AnalyticsEngine.sleepSession(fromProvided: $0) }
+                    let stored = persisted.compactMap { AnalyticsEngine.sleepSession(fromProvided: $0) }
+                    // #1801: the comment above assumes a WHOOP always streams a gravity vector. A 5/MG that
+                    // cannot bond does not — it is never clocked, so it banks nothing and persists no
+                    // hypnogram either, leaving neither a spine nor a stored night however much HR it holds.
+                    // Fall back to the HR-only spine ONLY when the device supplied nothing of its own: a
+                    // hypnogram the device actually recorded is always better evidence than one inferred
+                    // from heart rate.
+                    providedSleep = stored.isEmpty
+                        ? SleepStager.hrOnlySessions(hr: hr, rr: rr, resp: resp)
+                        : stored
                 } else {
                     providedSleep = []
                 }

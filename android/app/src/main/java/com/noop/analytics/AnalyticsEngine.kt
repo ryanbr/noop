@@ -443,7 +443,10 @@ object AnalyticsEngine {
         } else {
             val rrSorted = rr.sortedBy { it.ts }
             val enrichedProvided = providedSleep.map { s ->
-                if (s.restingHR != null && s.avgHRV != null) s
+                // #1801: an HR-only night keeps its NULL restingHR/avgHRV. This is the ONE call site that
+                // can undo the display-only guarantee — enriching here would hand Charge and the baselines
+                // exactly the two values that decision withholds, silently and by default.
+                if (s.hrOnly || (s.restingHR != null && s.avgHRV != null)) s
                 else s.copy(
                     restingHR = s.restingHR ?: SleepStager.sessionRestingHR(s.start, s.end, hr),
                     avgHRV = s.avgHRV ?: SleepStager.sessionAvgHRV(s.start, s.end, rrSorted),
