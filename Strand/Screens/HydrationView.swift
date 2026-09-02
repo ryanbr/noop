@@ -274,9 +274,9 @@ struct HydrationView: View {
         }
     }
 
-    private static let entryTimeFmt: DateFormatter = {
-        let f = DateFormatter(); f.timeStyle = .short; f.dateStyle = .none; return f
-    }()
+    /// #1821: routed through AppClock so the Clock format setting reaches this label. Was a `static
+    /// let`, which would have frozen the reader's choice at first use until the app relaunched.
+    private static var entryTimeFmt: DateFormatter { AppClock.hourMinuteFormatter() }
 
     // MARK: - 7-day mini history (flat bars, today on the right)
 

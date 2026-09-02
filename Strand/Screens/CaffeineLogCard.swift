@@ -201,12 +201,9 @@ struct CaffeineLogCard: View {
         return Self.cutoffTimeFormatter.string(from: date)
     }
 
-    private static let cutoffTimeFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.timeStyle = .short
-        f.dateStyle = .none
-        return f
-    }()
+    /// #1821: routed through AppClock so the Clock format setting reaches this label. Was a `static
+    /// let`, which would have frozen the reader's choice at first use until the app relaunched.
+    private static var cutoffTimeFormatter: DateFormatter { AppClock.hourMinuteFormatter() }
 
     // MARK: - Active hint
 
@@ -335,10 +332,7 @@ struct CaffeineLogCard: View {
         .buttonStyle(.plain)
     }
 
-    private static let timeFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.timeStyle = .short
-        f.dateStyle = .none
-        return f
-    }()
+    /// #1821: routed through AppClock so the Clock format setting reaches this label. Was a `static
+    /// let`, which would have frozen the reader's choice at first use until the app relaunched.
+    private static var timeFormatter: DateFormatter { AppClock.hourMinuteFormatter() }
 }

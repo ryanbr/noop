@@ -294,6 +294,8 @@ struct BackupSyncView: View {
 
     private func absoluteTime(_ ms: Int) -> String {
         let f = DateFormatter()
+        // #1821: localized DATE style untouched; only the hour cycle is the reader's.
+        f.locale = AppClock.formattingLocale
         f.dateStyle = .medium
         f.timeStyle = .short
         return f.string(from: Date(timeIntervalSince1970: Double(ms) / 1000.0))
@@ -362,6 +364,9 @@ private struct RestorePickerSheet: View {
 
     private func absoluteTime(_ ms: Int) -> String {
         let f = DateFormatter()
+        // #1821: localized DATE style untouched; only the hour cycle is the reader's. Second copy of
+        // this helper in the file - a single-shot replace fixed only the first, which the sweep caught.
+        f.locale = AppClock.formattingLocale
         f.dateStyle = .medium
         f.timeStyle = .short
         return f.string(from: Date(timeIntervalSince1970: Double(ms) / 1000.0))

@@ -1735,12 +1735,9 @@ struct WorkoutsView: View {
 
     // The "jmm" skeleton respects the device's 12-/24-hour setting (#337): "4:34 PM" where 12-hour is
     // preferred, "16:34" where 24-hour is — instead of forcing 24-hour on everyone (matches TodayView).
-    private static let timeFmt: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = AppLanguage.activeLocale
-        f.setLocalizedDateFormatFromTemplate("jmm")
-        return f
-    }()
+    /// #1821: routed through AppClock so the Clock format setting reaches this label. Was a `static
+    /// let`, which would have frozen the reader's choice at first use until the app relaunched.
+    private static var timeFmt: DateFormatter { AppClock.hourMinuteFormatter() }
 
     private func dateLabel(_ ts: Int) -> String {
         Self.dateFmt.string(from: Date(timeIntervalSince1970: TimeInterval(ts)))

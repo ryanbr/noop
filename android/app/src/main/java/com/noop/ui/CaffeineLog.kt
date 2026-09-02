@@ -44,6 +44,7 @@ import org.json.JSONObject
 import java.util.Calendar
 import java.util.UUID
 import kotlin.math.roundToInt
+import com.noop.analytics.ClockFormat
 
 // MARK: - Caffeine window (#526) — pure persistence helpers + the Insights logging card.
 //
@@ -326,8 +327,10 @@ private fun caffeineHoursLabel(hrs: Double): String {
 }
 
 private fun caffeineIntakeLabel(intake: CaffeineIntake, context: Context): String {
-    val time = android.text.format.DateFormat.getTimeFormat(context)
-        .format(java.util.Date(intake.atEpochSec * 1000L))
+    // #1821: the reader's chosen clock, not the raw device format.
+    val time = java.text.SimpleDateFormat(
+        ClockFormat.hourMinutePattern(ClockPrefs.uses24Hour(context)), java.util.Locale.getDefault(),
+    ).format(java.util.Date(intake.atEpochSec * 1000L))
     return if (intake.mg != null) "$time · ${intake.mg.roundToInt()} mg" else "$time · amount not logged"
 }
 

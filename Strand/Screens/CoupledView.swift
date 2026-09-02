@@ -705,12 +705,9 @@ struct CoupledView: View {
         Self.clockFmt.string(from: Date(timeIntervalSince1970: TimeInterval(ts)))
     }
 
-    private static let clockFmt: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = AppLanguage.activeLocale
-        f.setLocalizedDateFormatFromTemplate("jmm")
-        return f
-    }()
+    /// #1821: routed through AppClock so the Clock format setting reaches this label. Was a `static
+    /// let`, which would have frozen the reader's choice at first use until the app relaunched.
+    private static var clockFmt: DateFormatter { AppClock.hourMinuteFormatter() }
 
     /// "6h 42m" from a minutes count, for the slept-vs-needed read. Mirror EXACTLY in Kotlin.
     static func hoursMinutes(_ minutes: Double) -> String {

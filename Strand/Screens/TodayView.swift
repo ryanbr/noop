@@ -5035,12 +5035,9 @@ struct TodayView: View {
     /// show times, not the day-granularity default ("EEE d MMM"). Also formats the workout-tile caption's
     /// time range (#157). The "jmm" skeleton respects the device's 12-/24-hour setting (#337): "7:10 AM"
     /// where 12-hour is preferred, "19:10" where 24-hour is, instead of forcing one on everyone.
-    static let hrTimeFmt: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = AppLanguage.activeLocale
-        f.setLocalizedDateFormatFromTemplate("jmm")
-        return f
-    }()
+    /// #1821: routed through AppClock so the Clock format setting reaches this label. Was a `static
+    /// let`, which would have frozen the reader's choice at first use until the app relaunched.
+    static var hrTimeFmt: DateFormatter { AppClock.hourMinuteFormatter() }
 }
 
 /// `.task(id:)` key combining the data refresh sequence with the selected day so a reload runs on

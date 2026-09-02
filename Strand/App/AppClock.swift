@@ -28,6 +28,16 @@ enum AppClock {
         ClockFormat.uses24Hour(preference: preference, systemUses24Hour: systemUses24Hour)
     }
 
+    /// The locale to hand any time-rendering `DateFormatter`. Carries an explicit hour cycle, so the
+    /// setting also reaches the formatters that never name a pattern - the ones using `timeStyle = .short`
+    /// or a `"jmm"` template, which ask the LOCALE for the hour and were therefore getting the region
+    /// default. Everything else about the locale (date order, separators, AM/PM wording, month names)
+    /// still comes from `AppLanguage.activeLocale`, exactly as before.
+    static var formattingLocale: Locale {
+        Locale(identifier: ClockFormat.hourCycleLocaleIdentifier(
+            base: AppLanguage.activeLocale.identifier, uses24Hour: uses24Hour))
+    }
+
     /// Cached by resolved template: building a `DateFormatter` is expensive and these are read per row in
     /// scrolling lists, but the cache MUST key on the template rather than being a plain `static let`, or
     /// changing the setting would not take effect until the app restarted.

@@ -34,6 +34,8 @@ import com.noop.R
 import com.noop.ui.MainActivity
 import java.text.DateFormat
 import java.util.Date
+import com.noop.analytics.ClockFormat
+import com.noop.ui.ClockPrefs
 
 /**
  * Home-screen widget: today's three top scores (Rest · Charge · Effort, Charge centred), with live HR
@@ -197,7 +199,10 @@ private fun WidgetContent(snap: WidgetSnapshot, dark: Boolean) {
             text = when {
                 snap.connected -> "Connected"
                 snap.updatedAtMs > 0L ->
-                    DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(snap.updatedAtMs))
+                    java.text.SimpleDateFormat(   // #1821: the reader's chosen clock
+                        ClockFormat.hourMinutePattern(ClockPrefs.uses24Hour(androidx.glance.LocalContext.current)),
+                        java.util.Locale.getDefault(),
+                    ).format(Date(snap.updatedAtMs))
                 else -> "Open NOOP to connect"
             },
             style = TextStyle(color = textSecondary, fontSize = 11.sp),

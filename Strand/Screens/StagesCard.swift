@@ -453,9 +453,9 @@ struct StageDetailView: View {
     }
 
     /// Clock labels for the timeline axis; "jmm" respects the device 12/24-hour setting.
-    private static let stageAxisFormatter: DateFormatter = {
-        let f = DateFormatter(); f.locale = AppLanguage.activeLocale; f.setLocalizedDateFormatFromTemplate("jmm"); return f
-    }()
+    /// #1821: routed through AppClock so the Clock format setting reaches this label. Was a `static
+    /// let`, which would have frozen the reader's choice at first use until the app relaunched.
+    private static var stageAxisFormatter: DateFormatter { AppClock.hourMinuteFormatter() }
 
     /// The WHOOP sleep-stages chart: a stack of four per-stage timeline rows (AWAKE · LIGHT ·
     /// DEEP · REM, WHOOP's order) over a shared onset→wake time axis. Each row is independently

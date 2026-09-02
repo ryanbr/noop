@@ -358,7 +358,9 @@ struct RawDataCollectorView: View {
     }
 
     private static func time(_ ms: Int64) -> String {
-        Date(timeIntervalSince1970: Double(ms) / 1_000).formatted(date: .omitted, time: .shortened)
+        Date(timeIntervalSince1970: Double(ms) / 1_000)
+            .formatted(Date.FormatStyle(date: .omitted, time: .shortened)
+                .locale(AppClock.formattingLocale))   // #1821
     }
 
     static func fullSecondBounds(fromMs: Int64, toMs: Int64) -> (from: Int, to: Int)? {

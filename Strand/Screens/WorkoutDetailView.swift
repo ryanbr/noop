@@ -573,18 +573,12 @@ struct WorkoutDetailView: View {
         f.dateFormat = "EEEE d MMM yyyy"
         return f
     }()
-    private static let timeFmt: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = AppLanguage.activeLocale
-        f.setLocalizedDateFormatFromTemplate("jmm")
-        return f
-    }()
-    private static let tooltipTime: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = AppLanguage.activeLocale
-        f.setLocalizedDateFormatFromTemplate("jmm")
-        return f
-    }()
+    /// #1821: routed through AppClock so the Clock format setting reaches this label. Was a `static
+    /// let`, which would have frozen the reader's choice at first use until the app relaunched.
+    private static var timeFmt: DateFormatter { AppClock.hourMinuteFormatter() }
+    /// #1821: routed through AppClock so the Clock format setting reaches this label. Was a `static
+    /// let`, which would have frozen the reader's choice at first use until the app relaunched.
+    private static var tooltipTime: DateFormatter { AppClock.hourMinuteFormatter() }
 
     private func dateLabel(_ ts: Int) -> String {
         Self.dateFmt.string(from: Date(timeIntervalSince1970: TimeInterval(ts)))

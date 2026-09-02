@@ -131,13 +131,9 @@ struct AutoWorkoutCard: View {
     }
 
     /// HH:mm in the user's locale/timezone.
-    private static let timeFmt: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = AppLanguage.activeLocale
-        f.timeStyle = .short
-        f.dateStyle = .none
-        return f
-    }()
+    /// #1821: routed through AppClock so the Clock format setting reaches this label. Was a `static
+    /// let`, which would have frozen the reader's choice at first use until the app relaunched.
+    private static var timeFmt: DateFormatter { AppClock.hourMinuteFormatter() }
 
     /// Localized medium date ("Jun 23, 2026") for a bout older than yesterday.
     private static let dateFmt: DateFormatter = {

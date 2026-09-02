@@ -45,6 +45,21 @@ public enum ClockFormat {
         uses24Hour ? "HH:mm" : "h:mm a"
     }
 
+    /// A locale identifier carrying an explicit HOUR CYCLE, so a formatter driven by `timeStyle` or by a
+    /// `j`-bearing template resolves the clock the reader chose instead of the region default.
+    ///
+    /// This is what lets the setting reach the ~17 Apple formatters that never mention "HH:mm" at all -
+    /// they say `timeStyle = .short` or template `"jmm"`, and both ask the LOCALE for the hour. Rewriting
+    /// each into an explicit pattern would have thrown away localized date order, separators and AM/PM
+    /// wording; setting the hour cycle keeps all of it and changes only the part the reader asked for.
+    ///
+    /// `h23`/`h12` are the ICU `hours` keyword values. A malformed identifier would silently fall back to
+    /// the base locale - a no-op that looks like a working setting - so `ClockFormatLocaleTests` asserts
+    /// against a real `DateFormatter` on macOS rather than trusting the string.
+    public static func hourCycleLocaleIdentifier(base: String, uses24Hour: Bool) -> String {
+        "\(base)@hours=\(uses24Hour ? "h23" : "h12")"
+    }
+
     /// SKELETON template for the same time, for `setLocalizedDateFormatFromTemplate`. Apple uses this
     /// rather than the literal above so the locale still decides ordering, separator and AM/PM wording,
     /// while the H-vs-h choice - the only part the reader asked to control - stays ours. Note this is

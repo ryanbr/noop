@@ -759,11 +759,7 @@ struct BodyClockCard: View {
         components.hour = hh
         components.minute = mm
         guard let date = components.date else { return "\(hh):\(String(format: "%02d", mm))" }
-        let formatter = DateFormatter()
-        formatter.locale = AppLanguage.activeLocale
-        formatter.dateStyle = .none
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
+        return AppClock.hourMinute(date)   // #1821
     }
 }
 

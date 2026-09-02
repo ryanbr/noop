@@ -107,10 +107,7 @@ struct SleepMark: Equatable, Sendable {
 
     /// Device-locale clock for the log line ("11:42 PM" / "23:42") — follows the 12-/24-hour setting,
     /// matching the Sleep screen's Asleep/Woke row.
-    private static let clockFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = AppLanguage.activeLocale
-        f.setLocalizedDateFormatFromTemplate("jmm")
-        return f
-    }()
+    /// #1821: routed through AppClock so the Clock format setting reaches this label. Was a `static
+    /// let`, which would have frozen the reader's choice at first use until the app relaunched.
+    private static var clockFormatter: DateFormatter { AppClock.hourMinuteFormatter() }
 }
