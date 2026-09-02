@@ -41,11 +41,20 @@ class BackupOversizeOverrideTest {
         assertEquals(DataBackup.MAX_BACKUP_SQLITE_BYTES, (r as DataBackup.ImportResult.TooLarge).limitBytes)
     }
 
-    /** An export past the ceiling reports it; one under it does not, and neither is a failure. */
+    /**
+     * The export-side decision, at its boundary. The earlier version of this test built an
+     * `ExportOutcome` with the comparison already evaluated and then asserted that boolean back — it
+     * proved its own arithmetic and nothing about the code. This calls the decision itself.
+     *
+     * Strictly greater is the correct boundary: a database exactly at the cap still restores, because
+     * `copyBounded` refuses only when a write would take it OVER.
+     */
     @Test
-    fun `export outcome flags only a database past the ceiling`() {
+    fun `only a database past the ceiling is flagged`() {
         val cap = DataBackup.MAX_BACKUP_SQLITE_BYTES
-        assertTrue(DataBackup.ExportOutcome(cap + 1, cap + 1 > cap, cap).overRestoreCeiling)
-        assertTrue(!DataBackup.ExportOutcome(cap, cap > cap, cap).overRestoreCeiling)
+        assertTrue("one byte over must be flagged", DataBackup.overRestoreCeiling(cap + 1))
+        assertTrue("exactly at the cap still restores", !DataBackup.overRestoreCeiling(cap))
+        assertTrue("well under must not be flagged", !DataBackup.overRestoreCeiling(cap - 1))
+        assertTrue("an empty database is not oversize", !DataBackup.overRestoreCeiling(0L))
     }
 }

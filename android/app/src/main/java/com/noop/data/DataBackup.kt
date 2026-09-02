@@ -174,6 +174,8 @@ object DataBackup {
         val resolver = appContext.contentResolver
         val output = resolver.openOutputStream(uri)
             ?: throw IOException("Could not open the chosen file for writing.")
+        // Assigned inside the transaction below, where the entry is actually written.
+        var entryBytes = 0L
         output.use { out ->
             // #1014: copy the file while HOLDING Room's write transaction. In WAL mode the main
             // file is only rewritten by a checkpoint, and a checkpoint only runs on a commit — so
@@ -185,7 +187,12 @@ object DataBackup {
             db.runInTransaction {
                 ZipOutputStream(out).use { zip ->
                     zip.putNextEntry(ZipEntry(ZIP_ENTRY_NAME))
-                    dbFile.inputStream().use { input -> input.copyTo(zip) }
+                    // #1807: count what actually LANDS in the entry, rather than reading dbFile.length()
+                    // afterwards. The copy runs inside this transaction against a snapshot; once it
+                    // commits, Room can checkpoint again and the main file's length can move, so a later
+                    // read is a different number from the one the restore path will meet. The cap is
+                    // enforced on this entry, so this is the only measurement that answers the question.
+                    dbFile.inputStream().use { input -> entryBytes = input.copyTo(zip) }
                     zip.closeEntry()
                     if (settingsJson != null) {
                         zip.putNextEntry(ZipEntry(SETTINGS_ENTRY_NAME))
@@ -199,12 +206,10 @@ object DataBackup {
             }
         }
         // #1807: the file is written and valid either way — this only reports whether restoring it will
-        // need the user to confirm. Read AFTER the checkpoint above, so the length is the one the
-        // restore path will actually meet.
-        val bytes = dbFile.length()
+        // need the user to confirm.
         return ExportOutcome(
-            bytes = bytes,
-            overRestoreCeiling = bytes > MAX_BACKUP_SQLITE_BYTES,
+            bytes = entryBytes,
+            overRestoreCeiling = overRestoreCeiling(entryBytes),
             limitBytes = MAX_BACKUP_SQLITE_BYTES,
         )
     }
@@ -495,6 +500,16 @@ object DataBackup {
             }
         }
     }
+
+    /**
+     * Whether a database of [entryBytes] is past the ceiling the RESTORE path enforces (#1807).
+     *
+     * Strictly greater: a database exactly at the cap still restores, because `copyBounded` refuses only
+     * when a write would take it OVER. Extracted so the boundary is testable — proving it end to end
+     * would need a >2 GiB fixture, and a test that recomputes the comparison and asserts its own
+     * arithmetic proves nothing.
+     */
+    internal fun overRestoreCeiling(entryBytes: Long): Boolean = entryBytes > MAX_BACKUP_SQLITE_BYTES
 
     /** The SQLite cap, lifted when the user has chosen to go ahead for a file they picked. (#1807) */
     internal fun sqliteCap(allowOversize: Boolean): Long =
