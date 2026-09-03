@@ -233,6 +233,23 @@ class SkinTempBackfillTest {
         assertEquals("my-whoop-noop", SkinTempBackfill.computedIdFor("my-whoop"))
     }
 
+    /**
+     * #1855: the STRAP id a row's raw samples sit under is DERIVED FROM THE ROW, never predicted.
+     *
+     * Two releases of this backfill found nothing because they guessed the id — first the strap id for
+     * rows the engine writes under "-noop", then the active device's id for rows that may belong to
+     * another strap entirely (#1303 serial adoption, a second strap, an imported history). Both failures
+     * were silent and read as "already done".
+     */
+    @Test
+    fun theSampleIdComesOffTheRowsOwnId() {
+        assertEquals("my-whoop", SkinTempBackfill.sampleIdFor("my-whoop-noop"))
+        // An id that never carried the suffix is already a strap id.
+        assertEquals("whoop-4A2B", SkinTempBackfill.sampleIdFor("whoop-4A2B"))
+        // Round-trips with computedIdFor, so the pair cannot drift apart.
+        assertEquals("whoop-4A2B", SkinTempBackfill.sampleIdFor(SkinTempBackfill.computedIdFor("whoop-4A2B")))
+    }
+
     /** Idempotent on an id that is already computed, mirroring the repository's own ownerComputed idiom —
      *  otherwise a re-entry would look for "…-noop-noop" and, again, find nothing. */
     @Test

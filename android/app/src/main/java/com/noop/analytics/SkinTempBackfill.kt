@@ -177,19 +177,37 @@ object SkinTempBackfill {
     fun computedIdFor(deviceId: String): String =
         if (deviceId.endsWith("-noop")) deviceId else "$deviceId-noop"
 
+    /**
+     * The STRAP id a scored row's raw samples are banked under — its own id with the computed suffix
+     * removed. Derived from the row rather than from whatever device happens to be active, because the
+     * two are not reliably the same (#1303 serial adoption, a second strap, an imported history).
+     */
+    fun sampleIdFor(rowDeviceId: String): String = rowDeviceId.removeSuffix("-noop")
+
     /** One PAGE of candidate day keys, strictly after [afterDay]. See the DAO's note on why this pages. */
     suspend fun candidates(
         repo: WhoopRepository,
-        deviceId: String,
         afterDay: String,
         max: Int = DEFAULT_MAX_NIGHTS,
-    ): List<String> = repo.daysMissingSkinTempAbsolute(deviceId, afterDay, max)
+    ): List<com.noop.data.SkinTempBackfillRow> = repo.daysMissingSkinTempAbsolute(afterDay, max)
+
+    /**
+     * Everything a strap's nights need to convert raw to °C. Null from the resolver DECLINES that strap —
+     * used when a WHOOP 4.0 has no anchor, where writing on the global default would bank temperatures
+     * outside human range.
+     */
+    data class DeviceContext(
+        val family: DeviceFamily,
+        val anchorRaw: Double?,
+        val wornToleranceSec: Long,
+    )
 
     /**
      * Walk the candidate nights and fill what can be re-derived.
      *
-     * [currentAnchorRaw] must be the anchor the engine is using NOW, not one learned from the window being
-     * filled — see the anchor note on this object. A 4.0 without one is declined outright.
+     * Every id comes off the ROW, and every conversion context off [deviceContext] for that row's strap —
+     * nothing here predicts which device a night belongs to. A 4.0 whose anchor will not resolve is
+     * declined for that strap alone, so one unusable device cannot stall the rest.
      *
      * Reads one night at a time rather than one big span: the deep-history case is exactly where a single
      * unbounded read would be worst, and a per-night read is also what lets a cancelled run leave every
@@ -197,23 +215,23 @@ object SkinTempBackfill {
      */
     suspend fun run(
         repo: WhoopRepository,
-        /** The STRAP id. Row reads/writes use its computed twin; raw sample reads use it directly. */
-        deviceId: String,
-        family: DeviceFamily,
-        currentAnchorRaw: Double?,
-        wornToleranceSec: Long,
+        /**
+         * Resolves a STRAP id to its conversion context, or null to decline it.
+         *
+         * A lambda rather than three fixed values because rows can belong to ANY device — a second strap,
+         * an imported history, an id #1303's serial adoption has moved. Resolving once from whatever
+         * device is "active" and applying it to every row is the same predicted-id mistake that made two
+         * earlier releases of this find nothing, just one level up: here it would not find nothing, it
+         * would convert one strap's raw register on another strap's scale.
+         */
+        deviceContext: suspend (String) -> DeviceContext?,
         zone: java.time.ZoneId = java.time.ZoneId.systemDefault(),
         nowSeconds: Long = System.currentTimeMillis() / 1000,
         afterDay: String = "",
         max: Int = DEFAULT_MAX_NIGHTS,
         limit: Int = STREAM_LIMIT,
     ): Report {
-        if (requiresAnchor(family) && currentAnchorRaw == null) {
-            return Report(declinedNoAnchor = true)
-        }
-        val anchor = anchorFor(family, currentAnchorRaw)
-        val rowId = computedIdFor(deviceId)
-        val days = candidates(repo, rowId, afterDay, max)
+        val days = candidates(repo, afterDay, max)
         if (days.isEmpty()) return Report(sweepComplete = true)
 
         val nowLocalMidnight = java.time.Instant.ofEpochSecond(nowSeconds)
@@ -222,7 +240,19 @@ object SkinTempBackfill {
         var noMean = 0
         var noSamples = 0
         var noSessions = 0
-        for (day in days) {
+        var declined = 0
+        // One resolve per strap, not per night.
+        val contexts = HashMap<String, DeviceContext?>()
+        for (row in days) {
+            val day = row.day
+            // Both namespaces come FROM THE ROW: the scored row's own id, and the strap id its raw
+            // samples sit under. Nothing here predicts an id.
+            val rowId = row.deviceId
+            val sampleId = sampleIdFor(rowId)
+            val ctx = contexts.getOrPut(sampleId) { deviceContext(sampleId) }
+            if (ctx == null) { declined++; continue }
+            if (requiresAnchor(ctx.family) && ctx.anchorRaw == null) { declined++; continue }
+            val anchor = anchorFor(ctx.family, ctx.anchorRaw)
             val dayStart = runCatching {
                 java.time.LocalDate.parse(day).atStartOfDay(zone).toEpochSecond()
             }.getOrNull() ?: continue
@@ -239,18 +269,18 @@ object SkinTempBackfill {
             if (sessions.isEmpty()) { noSessions++; continue }
             val readFrom = sessions.minOf { it.start }
             val readTo = sessions.maxOf { it.end }
-            val skin = repo.skinTempSamples(deviceId, readFrom, readTo, limit)
+            val skin = repo.skinTempSamples(sampleId, readFrom, readTo, limit)
             if (skin.isEmpty()) { noSamples++; continue }
-            val hr = repo.hrSamplesForDevice(deviceId, readFrom, readTo, limit)
-            val mean = nightlyAbsolute(sessions, hr, skin, family, anchor, wornToleranceSec)
+            val hr = repo.hrSamplesForDevice(sampleId, readFrom, readTo, limit)
+            val mean = nightlyAbsolute(sessions, hr, skin, ctx.family, anchor, ctx.wornToleranceSec)
             if (mean == null) { noMean++; continue }
             // Fill-only by construction; a row that gained an absolute meanwhile reports 0 and is left be.
             if (repo.fillSkinTempAbsolute(rowId, day, mean) > 0) filled++ else noMean++
         }
         return Report(
             candidates = days.size, filled = filled, noMean = noMean,
-            noSamples = noSamples, noSessions = noSessions,
-            lastDay = days.last(),
+            noSamples = noSamples, noSessions = noSessions, declinedNoAnchor = declined > 0,
+            lastDay = days.last().day,
             // A short page means this sweep has seen every outstanding night.
             sweepComplete = days.size < max,
         )
