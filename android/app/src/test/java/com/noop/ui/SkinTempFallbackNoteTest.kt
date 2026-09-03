@@ -16,19 +16,22 @@ class SkinTempFallbackNoteTest {
     /** Asked for a temperature, no night has one — the reported case, and the only one that explains. */
     @Test
     fun explainsWhenTemperatureWasAskedForAndNoneExists() {
-        assertTrue(shouldExplainSkinTempFallback(SkinTempDisplay.Kind.ABSOLUTE, leadsAbsolute = false))
+        assertTrue(shouldExplainSkinTempFallback(SkinTempDisplay.Kind.ABSOLUTE, leadsAbsolute = false,
+                                                  anyAbsoluteInWindow = false))
     }
 
     /** Asked for a temperature and got one: nothing to explain. */
     @Test
     fun silentWhenTheChoiceWasHonoured() {
-        assertFalse(shouldExplainSkinTempFallback(SkinTempDisplay.Kind.ABSOLUTE, leadsAbsolute = true))
+        assertFalse(shouldExplainSkinTempFallback(SkinTempDisplay.Kind.ABSOLUTE, leadsAbsolute = true,
+                                                   anyAbsoluteInWindow = true))
     }
 
     /** Asked for the baseline delta and got it. */
     @Test
     fun silentWhenTheDeviationWasChosen() {
-        assertFalse(shouldExplainSkinTempFallback(SkinTempDisplay.Kind.DEVIATION, leadsAbsolute = false))
+        assertFalse(shouldExplainSkinTempFallback(SkinTempDisplay.Kind.DEVIATION, leadsAbsolute = false,
+                                                   anyAbsoluteInWindow = false))
     }
 
     /** Chose the delta but only an absolute exists: the reverse fallback. It shows a temperature under a
@@ -36,7 +39,8 @@ class SkinTempFallbackNoteTest {
      *  deliberate rather than an oversight. */
     @Test
     fun silentOnTheReverseFallback() {
-        assertFalse(shouldExplainSkinTempFallback(SkinTempDisplay.Kind.DEVIATION, leadsAbsolute = true))
+        assertFalse(shouldExplainSkinTempFallback(SkinTempDisplay.Kind.DEVIATION, leadsAbsolute = true,
+                                                   anyAbsoluteInWindow = true))
     }
 
     // MARK: the shortened series (#1847, found in re-review)
@@ -45,19 +49,47 @@ class SkinTempFallbackNoteTest {
      *  drops the deviation-only nights and the reading count visibly falls. Say why. */
     @Test
     fun explainsWhenNightsWereDroppedFromTheSeries() {
-        assertTrue(shouldExplainShortenedSkinTempSeries(shownReadings = 21, rowsWithEitherNumber = 40))
+        assertTrue(shouldExplainShortenedSkinTempSeries(leadsAbsolute = true, shownReadings = 21,
+                                                        rowsWithEitherNumber = 40))
     }
 
     /** A complete series says nothing — the note must not appear on a healthy screen. */
     @Test
     fun silentWhenEveryNightIsShown() {
-        assertFalse(shouldExplainShortenedSkinTempSeries(shownReadings = 23, rowsWithEitherNumber = 23))
+        assertFalse(shouldExplainShortenedSkinTempSeries(leadsAbsolute = true, shownReadings = 23,
+                                                         rowsWithEitherNumber = 23))
     }
 
     /** No data at all is the empty state's job, not this note's. */
     @Test
     fun silentWhenThereIsNothingToShow() {
-        assertFalse(shouldExplainShortenedSkinTempSeries(shownReadings = 0, rowsWithEitherNumber = 0))
+        assertFalse(shouldExplainShortenedSkinTempSeries(leadsAbsolute = true, shownReadings = 0,
+                                                         rowsWithEitherNumber = 0))
+    }
+
+
+    // MARK: what the second re-review caught — the note must never say the opposite of what happened
+
+    /**
+     * The deviation-led branch ALSO drops rows: calibrating nights that have only an absolute, and the #622
+     * bimodal partition. Those are the OPPOSITE kind, so "only nights with a measured temperature are
+     * shown" would be precisely backwards. Ungated, this fired the moment a wearer picked "vs baseline"
+     * with any calibrating night in the window.
+     */
+    @Test
+    fun neverExplainsAShortenedSeriesWhenLeadingWithTheDeviation() {
+        assertFalse(shouldExplainShortenedSkinTempSeries(leadsAbsolute = false, shownReadings = 21,
+                                                         rowsWithEitherNumber = 40))
+    }
+
+    /**
+     * The newest night has no absolute but an older one does. "No measured temperature for these nights" is
+     * false for those older nights, so the screen says nothing rather than something untrue.
+     */
+    @Test
+    fun silentWhenSomeOlderNightDoesHaveATemperature() {
+        assertFalse(shouldExplainSkinTempFallback(SkinTempDisplay.Kind.ABSOLUTE, leadsAbsolute = false,
+                                                  anyAbsoluteInWindow = true))
     }
 
 }

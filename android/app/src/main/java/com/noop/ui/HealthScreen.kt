@@ -2352,11 +2352,15 @@ private fun buildVitalDetail(
             // the deviation instead. Say so — silently falling back is why the setting reads as broken.
             // Nights scored before skinTempC shipped kept only the deviation; a scoring pass refills them.
             fallbackNote = when {
-                shouldExplainSkinTempFallback(skinTempPreferred, leadsAbsolute) ->
+                shouldExplainSkinTempFallback(
+                    skinTempPreferred, leadsAbsolute,
+                    anyAbsoluteInWindow = days.any { it.skinTempC != null },
+                ) ->
                     uiString(R.string.l10n_health_screen_no_measured_temperature_for_these_nights_showing_the_differe_69d4efae)
                 // Leading with the absolute drops deviation-only nights from the series, so the reading
                 // count falls. Say why rather than letting history look like it vanished.
                 shouldExplainShortenedSkinTempSeries(
+                    leadsAbsolute = leadsAbsolute,
                     shownReadings = skinReadings.size,
                     rowsWithEitherNumber = days.count { it.skinTempC != null || it.skinTempDevC != null },
                 ) -> uiString(R.string.l10n_health_screen_only_nights_with_a_measured_temperature_are_shown_earlier_ni_a45140da)
