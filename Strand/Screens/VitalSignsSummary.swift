@@ -133,7 +133,10 @@ enum BodyVitalSigns {
                          temperatureUnit: TemperatureUnit,
                          now: Date = Date(),
                          spo2CandidateByDay: [String: Double] = [:],
-                         hrvOverCountByDay: [String: Double] = [:]) -> [BodyVitalReading] {
+                         hrvOverCountByDay: [String: Double] = [:],
+                         // #1846: the Settings lead-with choice, so this tile agrees with Today and the
+                         // detail screen. A setting that reaches two of three surfaces is worse than none.
+                         skinTempPreferred: SkinTempDisplay.Kind = .absolute) -> [BodyVitalReading] {
         let logicalDay = logicalDayKey(now)
 
         // Resolve one metric to a per-day series, taking the FIRST source (by precedence) that carries
@@ -238,8 +241,14 @@ enum BodyVitalSigns {
         // sitting unshown behind it).
         let skinAbsCandidate = latest(skinAbsPoints)
         let skinRowDay: String? = [skinRowDeviation?.day, skinAbsCandidate?.day].compactMap { $0 }.max()
-        let skinAbsRow = skinAbsCandidate.flatMap { $0.day == skinRowDay ? $0 : nil }
-        let skinRow = skinAbsRow ?? skinRowDeviation
+        let skinAbsCandidateOnDay = skinAbsCandidate.flatMap { $0.day == skinRowDay ? $0 : nil }
+        // #1846: the same `leadReading` rule the other surfaces use — the preference picks which number is
+        // tried first, the other stays the fallback, so choosing one never empties the tile.
+        let skinLeadsAbsolute = SkinTempDisplay.leadReading(absC: skinAbsCandidateOnDay?.value,
+                                                            devC: skinRowDeviation?.value,
+                                                            prefer: skinTempPreferred)?.kind == .absolute
+        let skinAbsRow = skinLeadsAbsolute ? skinAbsCandidateOnDay : nil
+        let skinRow = skinAbsRow ?? skinRowDeviation ?? skinAbsCandidateOnDay
         let skin = skinRow?.value
         let skinIsAbsolute = skinAbsRow != nil || (skin.map(VitalBands.isAbsoluteSkinTemp) ?? true)
         // The series the tile is actually showing — banding and the sparkline must both read from it, or

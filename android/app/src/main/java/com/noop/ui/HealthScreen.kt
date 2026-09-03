@@ -1219,8 +1219,13 @@ fun VitalSignsScreen(vm: AppViewModel, onVitalClick: (String) -> Unit = {}) {
     // Read the toggle here in the composable body, NOT inside remember{} — LocalContext.current is a
     // @Composable read and is illegal inside the calculation lambda; pass the resolved value in + key on it.
     val spo2CandidateDisplay = NoopPrefs.spo2CandidateDisplay(LocalContext.current)
-    val vitals = remember(selectedMetric, days, tempUnit, spo2CandidateByDay, spo2CandidateDisplay, hrvOverCountByDay) {
-        selectedMetric?.let { vitalsFor(it, days, tempUnit, spo2CandidateByDay, spo2CandidateDisplay, hrvOverCountByDay) }.orEmpty()
+    val skinTempPreferred = UnitPrefs.skinTempPreferred(LocalContext.current)   // #1846, same rule
+    val vitals = remember(selectedMetric, days, tempUnit, spo2CandidateByDay, spo2CandidateDisplay,
+                          hrvOverCountByDay, skinTempPreferred) {
+        selectedMetric?.let {
+            vitalsFor(it, days, tempUnit, spo2CandidateByDay, spo2CandidateDisplay, hrvOverCountByDay,
+                      skinTempPreferred)   // #1846
+        }.orEmpty()
     }
 
     ScreenScaffold(

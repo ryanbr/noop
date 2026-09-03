@@ -55,6 +55,7 @@ object BackupSettingsCodec {
         "profile.hrZoneThresholds" to Kind.STRING,
         "units.system" to Kind.STRING,
         "units.temperature" to Kind.STRING,
+        "units.skinTempDisplay" to Kind.STRING,   // #1846, carried like the other display units
         "effort.scale" to Kind.STRING,
         // The ONE layout pref carried (#today-hosted-cards): the Trends/Sleep cards the user chose to host
         // in Today, a JSON [String] of ids. Unlike section order, this is a deliberate composition the user
@@ -145,6 +146,11 @@ object BackupSettingsBridge {
         if (noop.contains(NoopPrefs.KEY_TEMPERATURE_UNIT)) {
             noop.getString(NoopPrefs.KEY_TEMPERATURE_UNIT, null)?.let { values["units.temperature"] = it }
         }
+        // #1846: carried like the other display units. The whitelist entry alone does NOTHING — export and
+        // import are both explicit per key here, so a whitelisted-but-unwired pref silently never restores.
+        if (noop.contains(NoopPrefs.KEY_SKIN_TEMP_DISPLAY)) {
+            noop.getString(NoopPrefs.KEY_SKIN_TEMP_DISPLAY, null)?.let { values["units.skinTempDisplay"] = it }
+        }
         if (noop.contains(UnitPrefs.KEY_EFFORT_SCALE)) {
             noop.getString(UnitPrefs.KEY_EFFORT_SCALE, null)?.let { values["effort.scale"] = it }
         }
@@ -184,6 +190,12 @@ object BackupSettingsBridge {
             // "" is the Apple side's "match the length/mass system"; here that state is key-absent.
             if (raw.isEmpty()) editor.remove(NoopPrefs.KEY_TEMPERATURE_UNIT)
             else editor.putString(NoopPrefs.KEY_TEMPERATURE_UNIT, raw)
+        }
+        (values["units.skinTempDisplay"] as? String)?.let { raw ->
+            // Absent/"" is "lead with a temperature", stored as key-absent — same convention as the
+            // temperature override above, and what an older backup without this key restores to.
+            if (raw.isEmpty()) editor.remove(NoopPrefs.KEY_SKIN_TEMP_DISPLAY)
+            else editor.putString(NoopPrefs.KEY_SKIN_TEMP_DISPLAY, raw)
         }
         (values["effort.scale"] as? String)?.let { editor.putString(UnitPrefs.KEY_EFFORT_SCALE, it) }
         (values[HostedCardPrefs.KEY_SELECTION] as? String)?.let { editor.putString(HostedCardPrefs.KEY_SELECTION, it) }
