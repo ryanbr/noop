@@ -4988,7 +4988,7 @@ struct TodayView: View {
     /// unit that read as broken. Returns nil off-today (a past day keeps the plain unit, it's missing data the
     /// user can't act on now). Pure copy/gate so it can be unit-tested without a live view. Mirror in Kotlin.
     static func emptyVitalCaption(unit: String, isToday: Bool) -> String? {
-        guard selectedDayOffset == 0 else { return nil }
+        guard isToday else { return nil }
         return String(localized: "After tonight's sleep")
     }
 
@@ -5003,7 +5003,7 @@ struct TodayView: View {
     /// Rest fills in after a night's sleep; Effort fills in once cardio load is logged. Em-dash-free
     /// house style. Returns nil off-today and for any metric other than Effort/Rest (#527).
     static func buildingHintCopy(_ metric: KeyMetric, isToday: Bool) -> String? {
-        guard selectedDayOffset == 0 else { return nil }
+        guard isToday else { return nil }
         switch metric {
         case .rest:   return String(localized: "Building, wear it tonight")
         case .effort: return String(localized: "Building, moves as you do")
