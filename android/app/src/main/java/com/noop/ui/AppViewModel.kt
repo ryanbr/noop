@@ -738,7 +738,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      */
     private suspend fun backfillSkinTempAbsolutes(deviceId: String) {
         val prefs = NoopPrefs.of(appContext)
-        val outstanding = repository.countDaysMissingSkinTempAbsolute(deviceId)
+        // Scored rows live in the COMPUTED namespace; raw samples under the strap id. Counting the strap
+        // id here found nothing at all, so the sweep looked finished before it began.
+        val outstanding = repository.countDaysMissingSkinTempAbsolute(
+            com.noop.analytics.SkinTempBackfill.computedIdFor(deviceId),
+        )
         if (outstanding == 0) return
         if (prefs.getInt(skinTempBackfillStuckKey, -1) == outstanding) return
 

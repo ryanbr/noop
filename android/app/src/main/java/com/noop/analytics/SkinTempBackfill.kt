@@ -163,6 +163,20 @@ object SkinTempBackfill {
             avgHRV = null,
         )
 
+    /**
+     * The COMPUTED namespace a scored row lives in — `<strap>-noop`, matching the engine's
+     * `computedId = importedDeviceId + "-noop"`.
+     *
+     * This backfill straddles two namespaces and querying one for both finds nothing at all:
+     *  - dailyMetric rows and sleepSession rows are written by the engine under the COMPUTED id;
+     *  - raw skinTempSample / hrSample rows are banked under the STRAP id ("raw rows sit under the strap
+     *    id and the ... computed rows under the -noop id").
+     *
+     * Idempotent on an id that is already computed, mirroring the repository's own `ownerComputed` idiom.
+     */
+    fun computedIdFor(deviceId: String): String =
+        if (deviceId.endsWith("-noop")) deviceId else "$deviceId-noop"
+
     /** One PAGE of candidate day keys, strictly after [afterDay]. See the DAO's note on why this pages. */
     suspend fun candidates(
         repo: WhoopRepository,
@@ -183,6 +197,7 @@ object SkinTempBackfill {
      */
     suspend fun run(
         repo: WhoopRepository,
+        /** The STRAP id. Row reads/writes use its computed twin; raw sample reads use it directly. */
         deviceId: String,
         family: DeviceFamily,
         currentAnchorRaw: Double?,
@@ -197,7 +212,8 @@ object SkinTempBackfill {
             return Report(declinedNoAnchor = true)
         }
         val anchor = anchorFor(family, currentAnchorRaw)
-        val days = candidates(repo, deviceId, afterDay, max)
+        val rowId = computedIdFor(deviceId)
+        val days = candidates(repo, rowId, afterDay, max)
         if (days.isEmpty()) return Report(sweepComplete = true)
 
         val nowLocalMidnight = java.time.Instant.ofEpochSecond(nowSeconds)
@@ -214,7 +230,7 @@ object SkinTempBackfill {
             // Sessions FIRST, and attributed to this day, so the reads below cover one night rather than
             // the 54 h window — which also shrinks the HR read, the expensive one, from ~54 h to ~8 h.
             val sessions = sessionsEndingOnDay(
-                repo.sleepSessionsForDevice(deviceId, window.first, window.last, limit)
+                repo.sleepSessionsForDevice(rowId, window.first, window.last, limit)
                     // Honour a user-edited start the same way every other surface does.
                     .map { (it.startTsAdjusted ?: it.startTs) to it.endTs },
                 dayStartLocal = dayStart,
@@ -229,7 +245,7 @@ object SkinTempBackfill {
             val mean = nightlyAbsolute(sessions, hr, skin, family, anchor, wornToleranceSec)
             if (mean == null) { noMean++; continue }
             // Fill-only by construction; a row that gained an absolute meanwhile reports 0 and is left be.
-            if (repo.fillSkinTempAbsolute(deviceId, day, mean) > 0) filled++ else noMean++
+            if (repo.fillSkinTempAbsolute(rowId, day, mean) > 0) filled++ else noMean++
         }
         return Report(
             candidates = days.size, filled = filled, noMean = noMean,

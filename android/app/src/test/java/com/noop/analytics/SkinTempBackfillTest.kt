@@ -217,4 +217,26 @@ class SkinTempBackfillTest {
         val r = SkinTempBackfill.Report(candidates = 2, filled = 1, lastDay = "2026-08-11")
         assertEquals("2026-08-11", r.lastDay)
     }
+
+    // MARK: re-review 4 — the backfill straddles TWO device namespaces
+
+    /**
+     * Querying one namespace for both finds nothing at all, and silently: the sweep reports zero
+     * outstanding and looks finished before it has begun.
+     *
+     * The engine writes scored rows under `computedId = importedDeviceId + "-noop"` — dailyMetric AND
+     * sleepSession — while raw skinTempSample / hrSample rows are banked under the STRAP id. The first cut
+     * used the strap id for all four, so it found no candidates and no sessions.
+     */
+    @Test
+    fun scoredRowsLiveInTheComputedNamespace() {
+        assertEquals("my-whoop-noop", SkinTempBackfill.computedIdFor("my-whoop"))
+    }
+
+    /** Idempotent on an id that is already computed, mirroring the repository's own ownerComputed idiom —
+     *  otherwise a re-entry would look for "…-noop-noop" and, again, find nothing. */
+    @Test
+    fun theComputedIdIsIdempotent() {
+        assertEquals("my-whoop-noop", SkinTempBackfill.computedIdFor("my-whoop-noop"))
+    }
 }
