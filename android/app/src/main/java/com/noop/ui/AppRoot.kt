@@ -100,6 +100,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -328,9 +331,18 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                 // The empty slot reserves nothing, so the bar's height is added here — the one place the
                 // inset used to come from. A scrollable that later wants content to pass UNDER the glass
                 // adds this measured height to its own contentPadding instead; no shared modifier can.
-                modifier = Modifier
-                    .padding(inner)
-                    .padding(bottom = barHeight),
+                modifier = Modifier.padding(
+                    // Take the top and sides from the Scaffold, but REPLACE its bottom rather than adding
+                    // to it. Scaffold's default contentWindowInsets is WindowInsets.systemBars, so
+                    // `inner.bottom` already carries the navigation-bar inset — and the bar's measured
+                    // height carries it too, via its own navigationBarsPadding(). Adding both counted that
+                    // inset twice and left roughly a nav-bar's worth of dead space above the bar, widest
+                    // on 3-button navigation. The bar owns that inset; content just clears the bar.
+                    top = inner.calculateTopPadding(),
+                    start = inner.calculateStartPadding(LocalLayoutDirection.current),
+                    end = inner.calculateEndPadding(LocalLayoutDirection.current),
+                    bottom = barHeight,
+                ),
                 // README motion: top-level destinations crossfade (~240ms) on the calm,
                 // decelerating global easing — nothing slides or bounces between tabs. The
                 // same fade is used for back (pop) so the bar never feels jerky. Drill-ins
