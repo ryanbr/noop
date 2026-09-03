@@ -7,8 +7,14 @@ import StrandDesign
 /// "More" list. Every screen is the same `StrandDesign`-built view the macOS app uses.
 struct RootTabView: View {
     /// #1841: shared with Android by NAME and meaning, not by storage — the two platforms keep their own
-    /// stores, exactly as the Clock format setting does. Default true, matching Android.
-    @AppStorage("noop.bottomBarAutoHide") private var bottomBarAutoHide = true
+    /// stores, exactly as the Clock format setting does.
+    ///
+    /// Default FALSE here while Android defaults true, and the divergence is deliberate. Apple's forums
+    /// report `.tabBarMinimizeBehavior(.onScrollDown)` failing to trigger in tabs built on
+    /// `NavigationStack(path:)` — which is every primary tab in this file, bound deliberately so a tab
+    /// root can pop and re-scroll. So this may well be inert on our structure, and defaulting ON would
+    /// advertise a behaviour that never happens. Off until someone confirms it on an iOS 26 device.
+    @AppStorage("noop.bottomBarAutoHide") private var bottomBarAutoHide = false
 
     /// External entry points must wait until the mandatory first-run gates have completed. The root owns
     /// that state; keeping it explicit here prevents this shell's window-level sheet from covering a gate.

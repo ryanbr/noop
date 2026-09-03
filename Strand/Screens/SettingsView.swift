@@ -174,8 +174,10 @@ struct SettingsView: View {
     // distances/weights/heights/temperatures are SHOWN — and lets the profile fields below take
     // imperial entry. Temperature has a separate override so °C/°F can be picked independently.
     /// #1821: Clock format. Defaults to `.system`, so upgrading changes nobody's displayed times.
-    /// #1841: shared with Android by name and meaning; each platform keeps its own store.
-    @AppStorage("noop.bottomBarAutoHide") private var bottomBarAutoHide = true
+    /// #1841: shared with Android by name and meaning; each platform keeps its own store. Default FALSE
+    /// on Apple (Android defaults true) because the system behaviour may not fire on our
+    /// `NavigationStack(path:)` tabs — see RootTabView.
+    @AppStorage("noop.bottomBarAutoHide") private var bottomBarAutoHide = false
     @AppStorage(ClockFormatPreference.defaultsKey)
     private var clockFormatRaw = ClockFormatPreference.system.rawValue
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
