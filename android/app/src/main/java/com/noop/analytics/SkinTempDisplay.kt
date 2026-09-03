@@ -64,11 +64,15 @@ object SkinTempDisplay {
         } else {
             value
         }
-        return if (kind == Kind.ABSOLUTE) {
-            String.format(java.util.Locale.US, "%.${decimals}f", display)
-        } else {
-            String.format(java.util.Locale.US, "%+.${decimals}f", display)
+        if (kind == Kind.ABSOLUTE) {
+            return String.format(java.util.Locale.US, "%.${decimals}f", display)
         }
+        val signed = String.format(java.util.Locale.US, "%+.${decimals}f", display)
+        // #1842: a deviation that ROUNDS to zero must not keep its sign. `%+` prints "-0.0" for anything
+        // in (-0.05, 0), and "-0.0 Δ°C" on a card reads as a fault rather than as "no change from your
+        // baseline" — which is exactly what it means. Drop the sign only when the rounded value is zero;
+        // a real -0.1 keeps it.
+        return if (signed.drop(1).toDoubleOrNull() == 0.0) signed.drop(1) else signed
     }
 
     /** Full `"34.2 °C"` / `"+0.1 Δ°C"` string for one-shot call sites (Today cards, explorers). */

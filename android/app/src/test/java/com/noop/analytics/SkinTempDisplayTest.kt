@@ -106,4 +106,20 @@ class SkinTempDisplayTest {
         assertEquals(SkinTempDisplay.Kind.DEVIATION, SkinTempDisplay.kind(unfilteredMean))
         assertTrue(kotlin.math.abs(kept.average()) < 0.3)
     }
+
+    /**
+     * #1842: a deviation that rounds to zero must not carry a sign. `%+` prints "-0.0" for anything in
+     * (-0.05, 0), and the Today card showed "-0.0 Δ°C" — which reads as a fault rather than as "no change
+     * from your baseline". A real -0.1 must still keep its sign.
+     */
+    @Test fun aDeviationRoundingToZeroLosesItsSign() {
+        assertEquals("0.0", SkinTempDisplay.numberString(-0.04, SkinTempDisplay.Kind.DEVIATION, false))
+        assertEquals("0.0", SkinTempDisplay.numberString(0.0, SkinTempDisplay.Kind.DEVIATION, false))
+        assertEquals("0.0", SkinTempDisplay.numberString(0.04, SkinTempDisplay.Kind.DEVIATION, false))
+        // Real deviations keep theirs.
+        assertEquals("-0.1", SkinTempDisplay.numberString(-0.1, SkinTempDisplay.Kind.DEVIATION, false))
+        assertEquals("+0.1", SkinTempDisplay.numberString(0.1, SkinTempDisplay.Kind.DEVIATION, false))
+        // Absolute readings were never signed and must be untouched.
+        assertEquals("34.2", SkinTempDisplay.numberString(34.2, SkinTempDisplay.Kind.ABSOLUTE, false))
+    }
 }

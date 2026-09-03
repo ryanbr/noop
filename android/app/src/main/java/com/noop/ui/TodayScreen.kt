@@ -3562,10 +3562,16 @@ private fun dashboardCardValue(
     val vd = carriedDay ?: day
 
     return when (card) {
+        // #1842: the CARRIED day is in the chain, matching the Key Metrics tile a section above
+        // (`d?.avgHrv ?: carriedDay?.avgHrv`). Without it the tile carried last night's value while the
+        // card for the same metric read "No data" on the same screen — and tapping that card opened a
+        // detail screen full of graph, because the detail reads history directly. The Blood Oxygen branch
+        // below already states this precedence as deliberate; HRV and Resting HR were simply missed.
         DashboardCard.HRV ->
-            withUnit((day?.avgHrv ?: vitalsDay?.avgHrv)?.let { it.roundToInt().toString() } ?: NO_DATA)
+            withUnit((day?.avgHrv ?: vd?.avgHrv ?: vitalsDay?.avgHrv)?.let { it.roundToInt().toString() }
+                ?: NO_DATA)
         DashboardCard.RESTING_HR ->
-            withUnit((day?.restingHr ?: vitalsDay?.restingHr)?.toString() ?: NO_DATA)
+            withUnit((day?.restingHr ?: vd?.restingHr ?: vitalsDay?.restingHr)?.toString() ?: NO_DATA)
         DashboardCard.RESPIRATORY ->
             // PER-FIELD carry: today → the STALENESS-BOUNDED `respDay` (lastRespRow). The unbounded
             // `vitalsDay?.respRateBpm` is dropped on purpose (see the gauge site + Swift `lastRespDay`):

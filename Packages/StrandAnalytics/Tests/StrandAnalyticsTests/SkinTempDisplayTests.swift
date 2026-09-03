@@ -99,4 +99,16 @@ final class SkinTempDisplayTests: XCTestCase {
         let filteredMean = kept.reduce(0, +) / Double(kept.count)
         XCTAssertLessThan(abs(filteredMean), 0.3)
     }
+
+    /// #1842: a deviation that rounds to zero must not carry a sign. `%+` prints "-0.0" for anything in
+    /// (-0.05, 0), and the Today card showed "-0.0 Δ°C" — which reads as a fault rather than as "no
+    /// change from your baseline". A real -0.1 must still keep its sign. Twin of the Kotlin test.
+    func testADeviationRoundingToZeroLosesItsSign() {
+        XCTAssertEqual(SkinTempDisplay.numberString(-0.04, kind: .deviation, fahrenheit: false), "0.0")
+        XCTAssertEqual(SkinTempDisplay.numberString(0.0, kind: .deviation, fahrenheit: false), "0.0")
+        XCTAssertEqual(SkinTempDisplay.numberString(0.04, kind: .deviation, fahrenheit: false), "0.0")
+        XCTAssertEqual(SkinTempDisplay.numberString(-0.1, kind: .deviation, fahrenheit: false), "-0.1")
+        XCTAssertEqual(SkinTempDisplay.numberString(0.1, kind: .deviation, fahrenheit: false), "+0.1")
+        XCTAssertEqual(SkinTempDisplay.numberString(34.2, kind: .absolute, fahrenheit: false), "34.2")
+    }
 }

@@ -68,7 +68,13 @@ public enum SkinTempDisplay {
         if kind == .absolute {
             return String(format: "%.\(decimals)f", display)
         }
-        return String(format: "%+.\(decimals)f", display)
+        let signed = String(format: "%+.\(decimals)f", display)
+        // #1842: a deviation that ROUNDS to zero must not keep its sign. `%+` prints "-0.0" for anything
+        // in (-0.05, 0), and "-0.0 Δ°C" on a card reads as a fault rather than as "no change from your
+        // baseline" — which is what it means. Drop the sign only when the rounded value is zero; a real
+        // -0.1 keeps it. Twin of the Kotlin numberString.
+        if Double(signed.dropFirst()) == 0 { return String(signed.dropFirst()) }
+        return signed
     }
 
     /// Full `"34.2 °C"` / `"+0.1 Δ°C"` string for one-shot call sites (Today cards, explorers).
