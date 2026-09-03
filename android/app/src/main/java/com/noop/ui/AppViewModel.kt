@@ -762,7 +762,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         ble.externalLog(
             "skinTempBackfill: candidates=${report.candidates} filled=${report.filled} " +
-                "noMean=${report.noMean} noSamples=${report.noSamples} declined=${report.declinedNoAnchor}",
+                "noMean=${report.noMean} noSamples=${report.noSamples} " +
+                "noSessions=${report.noSessions} declined=${report.declinedNoAnchor}",
             com.noop.testcentre.TestDomain.UNIVERSAL,
         )
     }

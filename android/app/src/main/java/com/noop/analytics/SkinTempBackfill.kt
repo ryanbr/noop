@@ -70,9 +70,11 @@ object SkinTempBackfill {
         val filled: Int = 0,
         val noMean: Int = 0,
         val noSamples: Int = 0,
+        /** Nights with no stored sleep session ending on them — nothing to compute a nightly mean over. */
+        val noSessions: Int = 0,
         val declinedNoAnchor: Boolean = false,
     ) {
-        val examined: Int get() = filled + noMean + noSamples
+        val examined: Int get() = filled + noMean + noSamples + noSessions
     }
 
     /**
@@ -126,6 +128,26 @@ object SkinTempBackfill {
         wornToleranceSec = wornToleranceSec,
     ).mean
 
+    /**
+     * The sessions belonging to a day, by the engine's own rule (#277):
+     *
+     *     val matched = allSessions.filter { tsInDay(it.end) }
+     *     // Sessions attributed to `day` = those whose end falls on `day` (LOCAL day)
+     *
+     * The night window is 54 h wide — 30 h before local midnight through the next one — because a night
+     * belonging to day D starts on the evening of D-1. That width also catches the night belonging to
+     * D-1, so handing the funnel everything the window returned would average two nights into one
+     * temperature and store it as D's. Attribute by END, exactly as the engine does, or the backfill
+     * writes numbers that are wrong rather than merely absent.
+     */
+    fun sessionsEndingOnDay(
+        sessions: List<Pair<Long, Long>>,
+        dayStartLocal: Long,
+        dayEndExclusive: Long,
+    ): List<DetectedSleep> =
+        sessions.filter { (_, end) -> end >= dayStartLocal && end < dayEndExclusive }
+            .map { (start, end) -> sessionOf(start, end) }
+
     /** A stored sleep row as the funnel's session type. Only `start`/`end` are read; the rest is inert. */
     fun sessionOf(startTs: Long, endTs: Long): DetectedSleep =
         DetectedSleep(
@@ -174,26 +196,39 @@ object SkinTempBackfill {
         var filled = 0
         var noMean = 0
         var noSamples = 0
+        var noSessions = 0
         for (day in days) {
             val dayStart = runCatching {
                 java.time.LocalDate.parse(day).atStartOfDay(zone).toEpochSecond()
             }.getOrNull() ?: continue
             val window = nightWindow(dayStart, IntelligenceEngine.sleepReadWindowEnd(dayStart, nowLocalMidnight, nowSeconds))
-            val skin = repo.skinTempSamples(deviceId, window.first, window.last, limit)
+            // Sessions FIRST, and attributed to this day, so the reads below cover one night rather than
+            // the 54 h window — which also shrinks the HR read, the expensive one, from ~54 h to ~8 h.
+            val sessions = sessionsEndingOnDay(
+                repo.sleepSessionsForDevice(deviceId, window.first, window.last, limit)
+                    // Honour a user-edited start the same way every other surface does.
+                    .map { (it.startTsAdjusted ?: it.startTs) to it.endTs },
+                dayStartLocal = dayStart,
+                dayEndExclusive = dayStart + SECONDS_PER_DAY,
+            )
+            if (sessions.isEmpty()) { noSessions++; continue }
+            val readFrom = sessions.minOf { it.start }
+            val readTo = sessions.maxOf { it.end }
+            val skin = repo.skinTempSamples(deviceId, readFrom, readTo, limit)
             if (skin.isEmpty()) { noSamples++; continue }
-            val sessions = repo.sleepSessionsForDevice(deviceId, window.first, window.last, limit)
-                // Honour a user-edited start the same way every other surface does.
-                .map { sessionOf(it.startTsAdjusted ?: it.startTs, it.endTs) }
-            if (sessions.isEmpty()) { noSamples++; continue }
-            val hr = repo.hrSamplesForDevice(deviceId, window.first, window.last, limit)
+            val hr = repo.hrSamplesForDevice(deviceId, readFrom, readTo, limit)
             val mean = nightlyAbsolute(sessions, hr, skin, family, anchor, wornToleranceSec)
             if (mean == null) { noMean++; continue }
             // Fill-only by construction; a row that gained an absolute meanwhile reports 0 and is left be.
             if (repo.fillSkinTempAbsolute(deviceId, day, mean) > 0) filled++ else noMean++
         }
-        return Report(candidates = days.size, filled = filled, noMean = noMean, noSamples = noSamples)
+        return Report(candidates = days.size, filled = filled, noMean = noMean,
+                      noSamples = noSamples, noSessions = noSessions)
     }
 
     /** Per-night read cap, matching the engine's stream limit. */
     const val STREAM_LIMIT = 200_000
+
+    /** Seconds in a local day, for the end-of-day bound the engine attributes sessions by. */
+    const val SECONDS_PER_DAY: Long = 86_400L
 }

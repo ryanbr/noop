@@ -125,4 +125,59 @@ class SkinTempBackfillTest {
         assertEquals(0, declined.examined)
         assertEquals(5, fruitless.examined)
     }
+
+    // MARK: re-review 2 — the 54 h window holds TWO nights, and only one belongs to the day
+
+    /**
+     * The bug this pins would have written WRONG temperatures rather than none.
+     *
+     * The night window runs 30 h before local midnight to the next one, because a night belonging to day D
+     * starts on the evening of D-1. At 54 h wide it also contains the night belonging to D-1, so handing
+     * the funnel everything the window returned averaged two nights into one value and stored it as D's.
+     *
+     * The engine attributes by END (#277): `matched = allSessions.filter { tsInDay(it.end) }`.
+     */
+    @Test
+    fun onlyTheNightEndingOnThatDayIsUsed() {
+        val dayStart = 1_760_000_000L
+        val dayEnd = dayStart + SkinTempBackfill.SECONDS_PER_DAY
+        val previousNight = (dayStart - 26 * 3_600L) to (dayStart - 18 * 3_600L)   // ends on D-1
+        val thisNight = (dayStart - 2 * 3_600L) to (dayStart + 6 * 3_600L)         // ends on D
+        val nextNight = (dayEnd - 2 * 3_600L) to (dayEnd + 6 * 3_600L)             // ends on D+1
+
+        val matched = SkinTempBackfill.sessionsEndingOnDay(
+            listOf(previousNight, thisNight, nextNight), dayStart, dayEnd,
+        )
+        assertEquals(1, matched.size)
+        assertEquals(thisNight.first, matched.single().start)
+        assertEquals(thisNight.second, matched.single().end)
+    }
+
+    /** A daytime nap ending on the same day counts too — the engine keeps both in `matched`. */
+    @Test
+    fun aNapEndingOnTheSameDayIsIncluded() {
+        val dayStart = 1_760_000_000L
+        val dayEnd = dayStart + SkinTempBackfill.SECONDS_PER_DAY
+        val night = (dayStart - 2 * 3_600L) to (dayStart + 6 * 3_600L)
+        val nap = (dayStart + 14 * 3_600L) to (dayStart + 15 * 3_600L)
+        assertEquals(2, SkinTempBackfill.sessionsEndingOnDay(listOf(night, nap), dayStart, dayEnd).size)
+    }
+
+    /** The day bound is [start, end) — a session ending exactly at the next midnight belongs to the NEXT
+     *  day, matching a local-day bucket that cannot claim the same instant twice. */
+    @Test
+    fun theDayBoundIsHalfOpen() {
+        val dayStart = 1_760_000_000L
+        val dayEnd = dayStart + SkinTempBackfill.SECONDS_PER_DAY
+        assertEquals(1, SkinTempBackfill.sessionsEndingOnDay(listOf(0L to dayStart), dayStart, dayEnd).size)
+        assertEquals(0, SkinTempBackfill.sessionsEndingOnDay(listOf(0L to dayEnd), dayStart, dayEnd).size)
+    }
+
+    /** "No session for this night" is not "no samples" — they are different answers to the user, so the
+     *  report keeps them apart. */
+    @Test
+    fun theReportSeparatesMissingSessionsFromMissingSamples() {
+        val r = SkinTempBackfill.Report(candidates = 6, filled = 1, noMean = 1, noSamples = 2, noSessions = 2)
+        assertEquals(6, r.examined)
+    }
 }
