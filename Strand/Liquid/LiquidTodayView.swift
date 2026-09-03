@@ -955,7 +955,7 @@ struct LiquidTodayView: View {
             // #1844: lead with the night's measured ABSOLUTE when it has one; deviation nights unchanged.
             let skin = skinTempLeadReading
             cardLink(.metric("skin_temp"), title: card.title, sub: card.subtitle,
-                     value: TodayView.skinTempCardValue(skin, fahrenheit: temperatureUnit == .fahrenheit),
+                     value: TodayView.skinTempCardValue(reading: skin, fahrenheit: temperatureUnit == .fahrenheit),
                      tint: StrandPalette.metricAmber, frac: nil)
         case .calories:
             // #616: show the resolved imported-first value and route to the matching detail source, like
@@ -1258,7 +1258,7 @@ struct LiquidTodayView: View {
             // reads "+0.1 Δ°C" here exactly as it does on "Your Cards"/the Deep Timeline, never the plain
             // `%+.1f°` that read a fabricated absolute value for a signed deviation (#622).
             // #1844: same lead-with-the-absolute resolution as "Your Cards" above, so the two agree.
-            let skinText = TodayView.skinTempCardValue(skinTempLeadReading,
+            let skinText = TodayView.skinTempCardValue(reading: skinTempLeadReading,
                                                        fahrenheit: temperatureUnit == .fahrenheit)
             // The card's own unit is deliberately empty — the value carries "°C"/"Δ°F" itself, same as
             // the classic TodayView Skin Temp card.

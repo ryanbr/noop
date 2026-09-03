@@ -2652,7 +2652,7 @@ struct TodayView: View {
             // Same per-field carry as Blood Oxygen; both are sparse enough that an old reading is honest.
             // #1844: lead with the night's measured ABSOLUTE when it has one (the #1665 rule, applied
             // here too) — a deviation with no anchor cannot be read. Deviation-only nights are unchanged.
-            return Self.skinTempCardValue(skinTempLeadReading, fahrenheit: temperatureUnit == .fahrenheit)
+            return Self.skinTempCardValue(reading: skinTempLeadReading, fahrenheit: temperatureUnit == .fahrenheit)
         case .sleep:
             return sleepValue(d)
         case .steps:
@@ -3898,7 +3898,7 @@ struct TodayView: View {
             let skinTempValue = skinTempLeadReading
             StatTile(
                 label: "Skin Temp",
-                value: Self.skinTempCardValue(skinTempValue, fahrenheit: temperatureUnit == .fahrenheit),
+                value: Self.skinTempCardValue(reading: skinTempValue, fahrenheit: temperatureUnit == .fahrenheit),
                 caption: skinTempValue == nil ? Self.needsStrapCaption : "",
                 accent: skinTempValue == nil ? StrandPalette.textPrimary : StrandPalette.metricAmber,
                 sparkline: sparks["skin_temp"],
@@ -5010,7 +5010,7 @@ struct TodayView: View {
     /// numbers and `SkinTempDisplay.leadReading` picks, so a night that measured a real temperature shows
     /// one and only a night without falls back to the signed deviation. Nil (neither number anywhere in the
     /// carry chain) reads as an em-dash. The `Double?` sibling below stays for the deviation-only callers.
-    static func skinTempCardValue(_ reading: SkinTempDisplay.Reading?, fahrenheit: Bool) -> String {
+    static func skinTempCardValue(reading: SkinTempDisplay.Reading?, fahrenheit: Bool) -> String {
         guard let reading else { return "—" }
         return SkinTempDisplay.formatReading(reading, fahrenheit: fahrenheit)
     }
