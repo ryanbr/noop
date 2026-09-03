@@ -421,7 +421,6 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
     val collapse by animateFloatAsState(
         targetValue = collapseTarget,
         animationSpec = tween(durationMillis = 220),
-        label = "bottomBarCollapse",
     )
     val autoHideScroll = remember {
         object : NestedScrollConnection {
