@@ -174,6 +174,8 @@ struct SettingsView: View {
     // distances/weights/heights/temperatures are SHOWN — and lets the profile fields below take
     // imperial entry. Temperature has a separate override so °C/°F can be picked independently.
     /// #1821: Clock format. Defaults to `.system`, so upgrading changes nobody's displayed times.
+    /// #1841: shared with Android by name and meaning; each platform keeps its own store.
+    @AppStorage("noop.bottomBarAutoHide") private var bottomBarAutoHide = true
     @AppStorage(ClockFormatPreference.defaultsKey)
     private var clockFormatRaw = ClockFormatPreference.system.rawValue
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
@@ -1144,6 +1146,22 @@ struct SettingsView: View {
                     // picker would appear to do nothing until the app restarted.
                     .onChangeCompat(of: clockFormatRaw) { _ in AppClock.invalidate() }
                 }
+                #if os(iOS)
+                rowDivider
+                // #1841: the same preference Android drives its own bar with, by name and meaning. Here
+                // the SYSTEM owns the behaviour — iOS 26 minimises the tab bar to a pill on scroll rather
+                // than sliding it away — so this asks for the platform's reading of the intent rather
+                // than reproducing ours. Below iOS 26 the modifier is inert and the row simply does
+                // nothing, which is why it is not offered there.
+                if #available(iOS 26.0, *) {
+                    FormRow(label: "Hide bar when scrolling") {
+                        Toggle("", isOn: $bottomBarAutoHide)
+                            .labelsHidden()
+                            .tint(StrandPalette.accent)
+                            .accessibilityLabel("Hide bar when scrolling")
+                    }
+                }
+                #endif
                 rowDivider
                 // Theme presets — one-tap bundles coordinating accent + chart world + backdrop + card
                 // opacity. Derived (no stored value): tweaking any control below flips this to Custom.
