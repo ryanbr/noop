@@ -72,8 +72,9 @@ object SkinTempBackfill {
         val noSamples: Int = 0,
         /** Nights with no stored sleep session ending on them — nothing to compute a nightly mean over. */
         val noSessions: Int = 0,
-        /** The newest day this page examined; the caller's cursor for the next page. Empty when none. */
-        val lastDay: String = "",
+        /** COMPOSITE cursor (`day|deviceId`) for the next page — a day alone would skip a same-day row on
+         *  the far side of a page boundary. Empty when the page was empty. */
+        val lastCursor: String = "",
         /** True when the page came back short — every outstanding night has now been visited this sweep. */
         val sweepComplete: Boolean = false,
         val declinedNoAnchor: Boolean = false,
@@ -187,9 +188,9 @@ object SkinTempBackfill {
     /** One PAGE of candidate day keys, strictly after [afterDay]. See the DAO's note on why this pages. */
     suspend fun candidates(
         repo: WhoopRepository,
-        afterDay: String,
+        afterCursor: String,
         max: Int = DEFAULT_MAX_NIGHTS,
-    ): List<com.noop.data.SkinTempBackfillRow> = repo.daysMissingSkinTempAbsolute(afterDay, max)
+    ): List<com.noop.data.SkinTempBackfillRow> = repo.daysMissingSkinTempAbsolute(afterCursor, max)
 
     /**
      * Everything a strap's nights need to convert raw to °C. Null from the resolver DECLINES that strap —
@@ -227,11 +228,11 @@ object SkinTempBackfill {
         deviceContext: suspend (String) -> DeviceContext?,
         zone: java.time.ZoneId = java.time.ZoneId.systemDefault(),
         nowSeconds: Long = System.currentTimeMillis() / 1000,
-        afterDay: String = "",
+        afterCursor: String = "",
         max: Int = DEFAULT_MAX_NIGHTS,
         limit: Int = STREAM_LIMIT,
     ): Report {
-        val days = candidates(repo, afterDay, max)
+        val days = candidates(repo, afterCursor, max)
         if (days.isEmpty()) return Report(sweepComplete = true)
 
         val nowLocalMidnight = java.time.Instant.ofEpochSecond(nowSeconds)
@@ -280,7 +281,7 @@ object SkinTempBackfill {
         return Report(
             candidates = days.size, filled = filled, noMean = noMean,
             noSamples = noSamples, noSessions = noSessions, declinedNoAnchor = declined > 0,
-            lastDay = days.last().day,
+            lastCursor = cursorOf(days.last()),
             // A short page means this sweep has seen every outstanding night.
             sweepComplete = days.size < max,
         )
@@ -288,6 +289,9 @@ object SkinTempBackfill {
 
     /** Per-night read cap, matching the engine's stream limit. */
     const val STREAM_LIMIT = 200_000
+
+    /** The composite paging cursor for a row — see [Report.lastCursor]. */
+    fun cursorOf(row: com.noop.data.SkinTempBackfillRow): String = "${row.day}|${row.deviceId}"
 
     /** Seconds in a local day, for the end-of-day bound the engine attributes sessions by. */
     const val SECONDS_PER_DAY: Long = 86_400L

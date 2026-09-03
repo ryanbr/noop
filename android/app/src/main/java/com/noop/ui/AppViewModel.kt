@@ -772,19 +772,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 )
             },
             nowSeconds = now,
-            afterDay = cursor,
+            afterCursor = cursor,
         )
-        // A decline records nothing: a 4.0 whose anchor resolves later must still get its backfill.
-        if (!report.declinedNoAnchor) {
+        // The cursor ALWAYS advances. `declinedNoAnchor` now means "some strap was declined", not "the run
+        // did nothing" — withholding the bookkeeping on it would freeze the cursor and re-process page one
+        // on every tick, forever, for any install holding one un-anchored 4.0. A decline only withholds
+        // the STUCK watermark, so the sweep retries once that strap's anchor resolves.
+        run {
             val sweepFills = prefs.getInt(skinTempBackfillSweepFillsKey, 0) + report.filled
             val edit = prefs.edit()
             if (report.sweepComplete) {
                 // Every outstanding night has been visited. Start the next sweep from the top, and only
-                // stop paying for reads when the WHOLE sweep — not just its last page — found nothing.
+                // stop paying for reads when the WHOLE sweep — not just its last page — found nothing AND
+                // nothing was declined.
                 edit.remove(skinTempBackfillCursorKey).remove(skinTempBackfillSweepFillsKey)
-                if (sweepFills == 0) edit.putInt(skinTempBackfillStuckKey, outstanding)
+                if (sweepFills == 0 && !report.declinedNoAnchor) {
+                    edit.putInt(skinTempBackfillStuckKey, outstanding)
+                }
             } else {
-                edit.putString(skinTempBackfillCursorKey, report.lastDay)
+                edit.putString(skinTempBackfillCursorKey, report.lastCursor)
                     .putInt(skinTempBackfillSweepFillsKey, sweepFills)
             }
             if (report.filled > 0) edit.remove(skinTempBackfillStuckKey)

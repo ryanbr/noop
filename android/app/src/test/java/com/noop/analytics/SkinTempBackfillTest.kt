@@ -206,16 +206,42 @@ class SkinTempBackfillTest {
     fun anEmptyPageEndsTheSweep() {
         val empty = SkinTempBackfill.Report(sweepComplete = true)
         assertTrue(empty.sweepComplete)
-        assertEquals("", empty.lastDay)
+        assertEquals("", empty.lastCursor)
         assertEquals(0, empty.examined)
     }
 
-    /** The cursor is the newest day the page examined, so the next page starts strictly after it and no
-     *  night is visited twice within one sweep. */
+    /**
+     * The cursor is COMPOSITE (`day|deviceId`), not the day alone.
+     *
+     * With no device filter a single day can hold rows for several devices. A day-only cursor would skip
+     * whichever same-day row fell on the far side of a page boundary — a night silently never attempted,
+     * which is the failure mode this whole feature keeps producing.
+     */
     @Test
-    fun theCursorIsThePagesNewestDay() {
-        val r = SkinTempBackfill.Report(candidates = 2, filled = 1, lastDay = "2026-08-11")
-        assertEquals("2026-08-11", r.lastDay)
+    fun theCursorCarriesTheDeviceToo() {
+        val row = com.noop.data.SkinTempBackfillRow(deviceId = "my-whoop-noop", day = "2026-08-11")
+        assertEquals("2026-08-11|my-whoop-noop", SkinTempBackfill.cursorOf(row))
+        // Two rows sharing a day produce DIFFERENT cursors, which is the whole point.
+        val other = com.noop.data.SkinTempBackfillRow(deviceId = "my-whoop", day = "2026-08-11")
+        assertTrue(SkinTempBackfill.cursorOf(row) != SkinTempBackfill.cursorOf(other))
+    }
+
+    /**
+     * A decline must not look like "the run did nothing".
+     *
+     * `declinedNoAnchor` now means SOME strap was declined, not that the run examined nothing. The caller
+     * must still advance its cursor on it — withholding the bookkeeping would freeze the sweep on page one
+     * and re-read it every tick, forever, on any install holding one un-anchored 4.0.
+     */
+    @Test
+    fun aDeclinedStrapStillLeavesUsableProgress() {
+        val r = SkinTempBackfill.Report(
+            candidates = 60, filled = 3, noSamples = 40, declinedNoAnchor = true,
+            lastCursor = "2026-08-11|my-whoop-noop",
+        )
+        assertTrue(r.declinedNoAnchor)
+        assertTrue("a declining run can still fill other straps' nights", r.filled > 0)
+        assertTrue("and must still hand back a cursor", r.lastCursor.isNotEmpty())
     }
 
     // MARK: re-review 4 — the backfill straddles TWO device namespaces

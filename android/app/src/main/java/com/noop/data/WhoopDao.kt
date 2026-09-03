@@ -172,17 +172,22 @@ interface WhoopDao : DeviceRegistryDao {
      * strap id itself. Guessing it wrong finds nothing and is indistinguishable from "already done" —
      * which is exactly how this shipped twice. The row carries its own id; take it from there.
      *
-     * PAGED on [afterDay], not just capped. A plain "oldest N" returns the SAME nights every pass, so a
+     * The cursor is COMPOSITE (`day|deviceId`), not the day alone. Without a device filter a single day
+     * can hold rows for several devices, and a page boundary falling between them would skip the row on
+     * the far side for the whole sweep — a night silently never attempted.
+     *
+     * PAGED, not just capped. A plain "oldest N" returns the SAME nights every pass, so a
      * run whose first page cannot fill — and the oldest nights are exactly the ones most likely to have
      * lost their raw samples — would latch on that page and never reach the newer nights that CAN fill.
      * The caller advances a cursor, so one sweep visits every candidate exactly once.
      */
     @Query(
         "SELECT deviceId, day FROM dailyMetric " +
-            "WHERE skinTempC IS NULL AND skinTempDevC IS NOT NULL AND day > :afterDay " +
-            "ORDER BY day ASC LIMIT :limit"
+            "WHERE skinTempC IS NULL AND skinTempDevC IS NOT NULL " +
+            "AND (day || '|' || deviceId) > :afterCursor " +
+            "ORDER BY day ASC, deviceId ASC LIMIT :limit"
     )
-    suspend fun daysMissingSkinTempAbsolute(afterDay: String, limit: Int): List<SkinTempBackfillRow>
+    suspend fun daysMissingSkinTempAbsolute(afterCursor: String, limit: Int): List<SkinTempBackfillRow>
 
     /** #1851: how many nights are outstanding in total — the uncapped count the "nothing left to try"
      *  watermark keys on, so a newly imported night re-arms the sweep. */
