@@ -90,8 +90,8 @@ class SkinTempBackfillTest {
     fun theReportDistinguishesWhyANightDidNotFill() {
         val r = SkinTempBackfill.Report(candidates = 10, filled = 4, noMean = 2, noSamples = 4)
         assertEquals(10, r.examined)
-        val declined = SkinTempBackfill.Report(declinedNoAnchor = true)
-        assertEquals(0, declined.examined)
+        val declined = SkinTempBackfill.Report(candidates = 2, declined = 2)
+        assertEquals(2, declined.examined)
         assertTrue(declined.declinedNoAnchor)
     }
 
@@ -115,14 +115,14 @@ class SkinTempBackfillTest {
      */
     @Test
     fun aDeclineIsDistinguishableFromAFruitlessRun() {
-        val declined = SkinTempBackfill.Report(declinedNoAnchor = true)
+        val declined = SkinTempBackfill.Report(candidates = 3, declined = 3)
         val fruitless = SkinTempBackfill.Report(candidates = 5, noSamples = 5)
         assertTrue(declined.declinedNoAnchor)
         assertFalse(fruitless.declinedNoAnchor)
         assertEquals(0, declined.filled)
         assertEquals(0, fruitless.filled)
-        // The two differ in whether anything was looked at, which is what the caller keys on.
-        assertEquals(0, declined.examined)
+        // Both examined their nights; they differ in WHY nothing filled, which is what the log must say.
+        assertEquals(3, declined.examined)
         assertEquals(5, fruitless.examined)
     }
 
@@ -211,6 +211,29 @@ class SkinTempBackfillTest {
     }
 
     /**
+     * Every candidate on a page must be accounted for by exactly one outcome.
+     *
+     * The run's log line exists to answer "why did nothing fill?". A candidates/examined pair that does
+     * not reconcile sends the reader hunting for a missing category — and declined nights were counted
+     * locally but never surfaced, so a page of un-anchored 4.0 nights reported candidates=60, examined=0
+     * and no reason at all.
+     */
+    @Test
+    fun everyCandidateIsAccountedFor() {
+        val r = SkinTempBackfill.Report(
+            candidates = 10, filled = 2, noMean = 1, noSamples = 3, noSessions = 1, declined = 3,
+        )
+        assertEquals("candidates must reconcile with the outcomes", r.candidates, r.examined)
+    }
+
+    /** The flag is DERIVED from the count, so the two cannot drift apart. */
+    @Test
+    fun theDeclineFlagFollowsTheCount() {
+        assertFalse(SkinTempBackfill.Report(declined = 0).declinedNoAnchor)
+        assertTrue(SkinTempBackfill.Report(declined = 1).declinedNoAnchor)
+    }
+
+    /**
      * The cursor is COMPOSITE (`day|deviceId`), not the day alone.
      *
      * With no device filter a single day can hold rows for several devices. A day-only cursor would skip
@@ -236,7 +259,7 @@ class SkinTempBackfillTest {
     @Test
     fun aDeclinedStrapStillLeavesUsableProgress() {
         val r = SkinTempBackfill.Report(
-            candidates = 60, filled = 3, noSamples = 40, declinedNoAnchor = true,
+            candidates = 60, filled = 3, noSamples = 40, declined = 17,
             lastCursor = "2026-08-11|my-whoop-noop",
         )
         assertTrue(r.declinedNoAnchor)

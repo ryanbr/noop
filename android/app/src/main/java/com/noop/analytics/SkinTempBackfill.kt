@@ -77,9 +77,17 @@ object SkinTempBackfill {
         val lastCursor: String = "",
         /** True when the page came back short — every outstanding night has now been visited this sweep. */
         val sweepComplete: Boolean = false,
-        val declinedNoAnchor: Boolean = false,
+        /**
+         * Nights skipped because their strap could not be converted — a WHOOP 4.0 with no resolvable
+         * anchor. Counted, not silent: this log line exists to answer "why did nothing fill?", and a
+         * candidates/examined pair that does not reconcile sends the reader looking in the wrong place.
+         */
+        val declined: Int = 0,
     ) {
-        val examined: Int get() = filled + noMean + noSamples + noSessions
+        val examined: Int get() = filled + noMean + noSamples + noSessions + declined
+
+        /** Whether ANY strap was declined this page. Derived, so it cannot drift from [declined]. */
+        val declinedNoAnchor: Boolean get() = declined > 0
     }
 
     /**
@@ -280,7 +288,7 @@ object SkinTempBackfill {
         }
         return Report(
             candidates = days.size, filled = filled, noMean = noMean,
-            noSamples = noSamples, noSessions = noSessions, declinedNoAnchor = declined > 0,
+            noSamples = noSamples, noSessions = noSessions, declined = declined,
             lastCursor = cursorOf(days.last()),
             // A short page means this sweep has seen every outstanding night.
             sweepComplete = days.size < max,
@@ -290,7 +298,14 @@ object SkinTempBackfill {
     /** Per-night read cap, matching the engine's stream limit. */
     const val STREAM_LIMIT = 200_000
 
-    /** The composite paging cursor for a row — see [Report.lastCursor]. */
+    /**
+     * The composite paging cursor for a row — see [Report.lastCursor].
+     *
+     * Safe as a plain string comparison because [com.noop.data.DailyMetric.day] is FIXED-WIDTH ISO
+     * (`yyyy-MM-dd`): the separator always lands at the same offset, so comparing the concatenation is
+     * exactly comparing `(day, deviceId)`, which is the order the query pages in. A variable-width key
+     * here would silently reorder the sweep.
+     */
     fun cursorOf(row: com.noop.data.SkinTempBackfillRow): String = "${row.day}|${row.deviceId}"
 
     /** Seconds in a local day, for the end-of-day bound the engine attributes sessions by. */
