@@ -1021,6 +1021,14 @@ fun TodayScreen(
     val lastSkinTempDay: DailyMetric? = remember(days, carryOverTodayKey, selectedDayOffset, displayMetric) {
         if (selectedDayOffset == 0) lastSkinTempRow(days, maxOf(displayMetric?.day ?: "", carryOverTodayKey)) else null
     }
+    // #1842: per-field HRV / resting-HR carries, the twins of the SpO₂ and skin-temp rows above. Same
+    // shape, same future-clock bound; see lastHrvRow for why the shared lastVitalsRow is not enough.
+    val lastHrvDay: DailyMetric? = remember(days, carryOverTodayKey, selectedDayOffset, displayMetric) {
+        if (selectedDayOffset == 0) lastHrvRow(days, maxOf(displayMetric?.day ?: "", carryOverTodayKey)) else null
+    }
+    val lastRestingHrDay: DailyMetric? = remember(days, carryOverTodayKey, selectedDayOffset, displayMetric) {
+        if (selectedDayOffset == 0) lastRestingHrRow(days, maxOf(displayMetric?.day ?: "", carryOverTodayKey)) else null
+    }
     // PER-FIELD respiratory carry (#1331): the freshest strictly-prior row that actually HAS a breaths/min,
     // since lastVitalsDay can land on a night with HRV/RHR but no respiratory. Twin of lastSpo2Day.
     val lastRespDay: DailyMetric? = remember(days, carryOverTodayKey, selectedDayOffset, displayMetric) {
@@ -1619,6 +1627,8 @@ fun TodayScreen(
                             vitalsDay = lastVitalsDay,
                             spo2Day = lastSpo2Day,
                             skinTempDay = lastSkinTempDay,
+                            hrvDay = lastHrvDay,
+                            rhrDay = lastRestingHrDay,
                             respDay = lastRespDay,
                             stress = stressToday,
                             fitnessAge = fitnessAgeToday,
@@ -3295,6 +3305,8 @@ private fun YourCardsSection(
     vitalsDay: DailyMetric?,
     spo2Day: DailyMetric?,
     skinTempDay: DailyMetric?,
+    hrvDay: DailyMetric?,
+    rhrDay: DailyMetric?,
     respDay: DailyMetric?,
     stress: Double?,
     fitnessAge: Double?,
@@ -3337,6 +3349,8 @@ private fun YourCardsSection(
                         vitalsDay = vitalsDay,
                         spo2Day = spo2Day,
                         skinTempDay = skinTempDay,
+                        hrvDay = hrvDay,
+                        rhrDay = rhrDay,
                         respDay = respDay,
                         fahrenheit = fahrenheit,
                         stress = stress,
@@ -3542,6 +3556,8 @@ private fun dashboardCardValue(
     vitalsDay: DailyMetric?,
     spo2Day: DailyMetric?,
     skinTempDay: DailyMetric?,
+    hrvDay: DailyMetric?,
+    rhrDay: DailyMetric?,
     respDay: DailyMetric?,
     stress: Double?,
     fitnessAge: Double?,
@@ -3562,16 +3578,19 @@ private fun dashboardCardValue(
     val vd = carriedDay ?: day
 
     return when (card) {
-        // #1842: the CARRIED day is in the chain, matching the Key Metrics tile a section above
-        // (`d?.avgHrv ?: carriedDay?.avgHrv`). Without it the tile carried last night's value while the
-        // card for the same metric read "No data" on the same screen — and tapping that card opened a
-        // detail screen full of graph, because the detail reads history directly. The Blood Oxygen branch
-        // below already states this precedence as deliberate; HRV and Resting HR were simply missed.
+        // #1842: PER-FIELD carry, the fourth of these. `lastVitalsRow`'s predicate is an OR across
+        // HRV / resting-HR / respiratory, so it can select a row that has respRateBpm and a NULL avgHrv —
+        // and the card then reads null and prints "No data" while the tile, carrying a different row,
+        // shows a value. That is the same failure `lastSpo2Row` and `lastSkinTempRow` were split out to
+        // fix ("can select a row whose spo2Pct is null … while an OLDER row has a real reading"); HRV and
+        // resting HR were the two left on the shared predicate.
+        //
+        // Deliberately NOT the recovery-scored carry: the comment on `lastVitalsDay` is explicit that
+        // vitals must not fall back to an older recovery-scored day.
         DashboardCard.HRV ->
-            withUnit((day?.avgHrv ?: vd?.avgHrv ?: vitalsDay?.avgHrv)?.let { it.roundToInt().toString() }
-                ?: NO_DATA)
+            withUnit((day?.avgHrv ?: hrvDay?.avgHrv)?.let { it.roundToInt().toString() } ?: NO_DATA)
         DashboardCard.RESTING_HR ->
-            withUnit((day?.restingHr ?: vd?.restingHr ?: vitalsDay?.restingHr)?.toString() ?: NO_DATA)
+            withUnit((day?.restingHr ?: rhrDay?.restingHr)?.toString() ?: NO_DATA)
         DashboardCard.RESPIRATORY ->
             // PER-FIELD carry: today → the STALENESS-BOUNDED `respDay` (lastRespRow). The unbounded
             // `vitalsDay?.respRateBpm` is dropped on purpose (see the gauge site + Swift `lastRespDay`):
