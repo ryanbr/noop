@@ -2666,4 +2666,5 @@
     <string name="vo2max_method_change_caption">La courbe est interrompue là où la méthode d’estimation a changé ou n’a pas été enregistrée.</string>
     <string name="l10n_app_changelog_a_whoop_5_that_stays_connected_7b490eee">Une WHOOP 5 qui reste connectée, votre horloge interne sur l\'écran Sommeil, et un journal qui distingue Non de rien</string>
     <string name="l10n_app_changelog_choose_a_12_hour_clock_sleep_8a19db5c">Choisissez l\'horloge 12 heures, le sommeil depuis des bracelets sans données de mouvement, et un journal qui cesse de deviner</string>
+    <string name="l10n_settings_screen_skin_temperature_fc103030">Température cutanée</string>
 </resources>

@@ -64,11 +64,19 @@ public enum SkinTempDisplay {
     ///    (~4 nights) while the absolute is measured from night one, so those wearers otherwise see an
     ///    empty card with a real temperature sitting behind it.
     ///
+    /// `prefer` is the user's Settings choice (#1846): `.absolute` — the default, a temperature — or
+    /// `.deviation` for wearers who read the ±baseline move, which is the more sensitive illness signal. It
+    /// picks which number is tried FIRST; the other is still the fallback, so choosing one never blanks a
+    /// card whose night only measured the other, and the unit always names the scale actually shown.
+    ///
     /// Both values must come from the SAME row; see `DailyMetric.lastSkinTempReadingDay`. Twin of the
     /// Kotlin `SkinTempDisplay.leadReading`.
-    public static func leadReading(absC: Double?, devC: Double?) -> Reading? {
-        if let a = absC { return Reading(value: a, kind: .absolute) }
-        if let d = devC { return Reading(value: d, kind: .deviation) }
+    public static func leadReading(absC: Double?, devC: Double?, prefer: Kind = .absolute) -> Reading? {
+        let first = prefer == .absolute ? absC : devC
+        if let f = first { return Reading(value: f, kind: prefer) }
+        let other = prefer == .absolute ? devC : absC
+        let otherKind: Kind = prefer == .absolute ? .deviation : .absolute
+        if let o = other { return Reading(value: o, kind: otherKind) }
         return nil
     }
 

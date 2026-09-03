@@ -3356,6 +3356,9 @@ private fun YourCardsSection(
                         rhrDay = rhrDay,
                         respDay = respDay,
                         fahrenheit = fahrenheit,
+                        // #1846: the user's lead-with choice. Read at the call site, not defaulted inside —
+                        // a defaulted parameter no caller passes is a setting that silently does nothing.
+                        skinTempPreferred = com.noop.ui.UnitPrefs.skinTempPreferred(LocalContext.current),
                         stress = stress,
                         fitnessAge = fitnessAge,
                         vo2max = vo2max,
@@ -3573,6 +3576,8 @@ private fun dashboardCardValue(
     hydrationGoalMl: Int,
     spo2CandidateByDay: Map<String, Double> = emptyMap(),
     fahrenheit: Boolean = false,
+    skinTempPreferred: com.noop.analytics.SkinTempDisplay.Kind =
+        com.noop.analytics.SkinTempDisplay.Kind.ABSOLUTE,
 ): String {
     fun withUnit(s: String): String =
         if (s == NO_DATA) NO_DATA else if (card.unit.isEmpty()) s else "$s ${card.unit}"
@@ -3620,7 +3625,7 @@ private fun dashboardCardValue(
                 // twin already made in a comment and that now actually holds on both platforms. It also puts
                 // today's own reading FIRST: `vd` is `carriedDay ?: day`, so a live carry hid a temperature
                 // measured today, which `todaysOwnReadingWinsOverEitherCarry` has asserted all along.
-                resolveSkinTempReading(day, carriedDay, skinTempDay)
+                resolveSkinTempReading(day, carriedDay, skinTempDay, skinTempPreferred)
                     ?.let { com.noop.analytics.SkinTempDisplay.formatReading(it, fahrenheit = fahrenheit) }
                     ?: NO_DATA
             }
@@ -4947,10 +4952,11 @@ internal fun resolveSkinTempReading(
     d: DailyMetric?,
     carriedDay: DailyMetric?,
     skinTempCarryDay: DailyMetric?,
+    prefer: com.noop.analytics.SkinTempDisplay.Kind = com.noop.analytics.SkinTempDisplay.Kind.ABSOLUTE,
 ): com.noop.analytics.SkinTempDisplay.Reading? =
     listOfNotNull(d, carriedDay, skinTempCarryDay)
         .firstOrNull { it.skinTempC != null || it.skinTempDevC != null }
-        ?.let { com.noop.analytics.SkinTempDisplay.leadReading(it.skinTempC, it.skinTempDevC) }
+        ?.let { com.noop.analytics.SkinTempDisplay.leadReading(it.skinTempC, it.skinTempDevC, prefer) }
 
 /**
  * The full 14-day metric grid, mirroring the macOS LazyVGrid order:
@@ -5187,7 +5193,10 @@ private fun MetricGrid(
             // `d ?: carriedDay` idiom every other simple tile above uses (HRV/RESTING_HR), and the SAME
             // `SkinTempDisplay` formatter the DashboardCard.SKIN_TEMP branch uses so a deviation reads
             // "+0.1 Δ°C" identically on both surfaces (#622: bimodal absolute-vs-deviation field).
-            val reading = resolveSkinTempReading(d, carriedDay, skinTempCarryDay)
+            val reading = resolveSkinTempReading(
+                d, carriedDay, skinTempCarryDay,
+                com.noop.ui.UnitPrefs.skinTempPreferred(LocalContext.current),
+            )
             val fahrenheit = UnitPrefs.temperature(LocalContext.current) == TemperatureUnit.FAHRENHEIT
             KeyTileData(
                 label = uiString(R.string.today_card_skin_temp),

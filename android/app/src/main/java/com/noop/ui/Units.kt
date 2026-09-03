@@ -157,6 +157,17 @@ object UnitPrefs {
     fun system(context: Context): UnitSystem =
         UnitSystem.fromRaw(NoopPrefs.of(context).getString(NoopPrefs.KEY_UNIT_SYSTEM, null))
 
+    /**
+     * Which skin-temp number the cards LEAD with (#1846). Absolute by default — a temperature is what a
+     * temperature reading should say — with DEVIATION for wearers who track the ±baseline move. Only a
+     * preference: [com.noop.analytics.SkinTempDisplay.leadReading] still falls back to the other number,
+     * so a night that measured only one is never blanked by this choice.
+     */
+    fun skinTempPreferred(context: Context): com.noop.analytics.SkinTempDisplay.Kind =
+        com.noop.analytics.SkinTempDisplay.Kind.fromRaw(
+            NoopPrefs.of(context).getString(NoopPrefs.KEY_SKIN_TEMP_DISPLAY, null),
+        ) ?: com.noop.analytics.SkinTempDisplay.Kind.ABSOLUTE
+
     /** The resolved temperature unit, applying the "match the length/mass system" default. */
     fun temperature(context: Context): TemperatureUnit {
         val override = TemperatureUnit.fromRaw(

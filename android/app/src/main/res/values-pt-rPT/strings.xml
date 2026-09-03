@@ -2659,4 +2659,5 @@
     <string name="vo2max_method_change_caption">A linha é interrompida onde o método de estimativa mudou ou não foi registado.</string>
     <string name="l10n_app_changelog_a_whoop_5_that_stays_connected_7b490eee">Uma WHOOP 5 que se mantém ligada, o seu relógio interno no ecrã de Sono e um diário que distingue Não de nada</string>
     <string name="l10n_app_changelog_choose_a_12_hour_clock_sleep_8a19db5c">Escolha o relógio de 12 horas, sono a partir de pulseiras sem dados de movimento e um registo que deixa de adivinhar</string>
+    <string name="l10n_settings_screen_skin_temperature_fc103030">Temperatura da pele</string>
 </resources>

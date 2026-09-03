@@ -12,11 +12,22 @@ package com.noop.analytics
  */
 object SkinTempDisplay {
 
-    enum class Kind {
+    /**
+     * [raw] is the PERSISTED form of the #1846 setting and is byte-identical to the Swift `Kind.rawValue`
+     * — lower-case, so `name` ("DEVIATION") must never be written to prefs. Same reasoning as
+     * `KeyMetric.raw`: two independent implementations must not drift on how they spell a stored token,
+     * and this one shares the `units.skinTempDisplay` key with Apple.
+     */
+    enum class Kind(val raw: String) {
         /** Absolute wrist temperature (°C scale, typically ~30–35 worn). */
-        ABSOLUTE,
+        ABSOLUTE("absolute"),
         /** Signed deviation from the personal nightly baseline (±°C). */
-        DEVIATION,
+        DEVIATION("deviation"),
+        ;
+
+        companion object {
+            fun fromRaw(raw: String?): Kind? = entries.firstOrNull { it.raw == raw }
+        }
     }
 
     /**
@@ -62,11 +73,21 @@ object SkinTempDisplay {
      *    usable (~4 nights) while the absolute is measured from night one, so those wearers otherwise see
      *    an empty card with a real temperature sitting behind it.
      *
+     * [prefer] is the user's Settings choice (#1846): ABSOLUTE — the default, a temperature — or DEVIATION
+     * for wearers who read the ±baseline move, which is the more sensitive illness signal. It picks which
+     * number is tried FIRST; the other is still the fallback, so choosing one never blanks a card whose
+     * night only measured the other, and the unit always names the scale actually shown.
+     *
      * Both values must come from the SAME row; see `lastSkinTempReadingRow`. Twin of the Swift
      * `SkinTempDisplay.leadReading`.
      */
-    fun leadReading(absC: Double?, devC: Double?): Reading? =
-        absC?.let { Reading(it, Kind.ABSOLUTE) } ?: devC?.let { Reading(it, Kind.DEVIATION) }
+    fun leadReading(absC: Double?, devC: Double?, prefer: Kind = Kind.ABSOLUTE): Reading? {
+        val first = if (prefer == Kind.ABSOLUTE) absC else devC
+        first?.let { return Reading(it, prefer) }
+        val other = if (prefer == Kind.ABSOLUTE) devC else absC
+        val otherKind = if (prefer == Kind.ABSOLUTE) Kind.DEVIATION else Kind.ABSOLUTE
+        return other?.let { Reading(it, otherKind) }
+    }
 
     /** Formats whichever number [leadReading] chose, with the unit for THAT scale. */
     fun formatReading(reading: Reading, fahrenheit: Boolean, decimals: Int = 1): String =

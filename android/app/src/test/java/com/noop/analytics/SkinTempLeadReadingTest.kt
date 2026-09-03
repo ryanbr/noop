@@ -60,4 +60,61 @@ class SkinTempLeadReadingTest {
         val r = SkinTempDisplay.leadReading(absC = null, devC = -0.02)!!
         assertEquals("0.0 Δ°C", SkinTempDisplay.formatReading(r, fahrenheit = false))
     }
+
+    // MARK: the Settings choice (#1846)
+
+    /** Choosing the deviation leads with it even on a night that measured a real temperature. */
+    @Test
+    fun deviationPreferenceLeadsWithTheDelta() {
+        val r = SkinTempDisplay.leadReading(absC = 33.8, devC = -0.1,
+                                            prefer = SkinTempDisplay.Kind.DEVIATION)!!
+        assertEquals(SkinTempDisplay.Kind.DEVIATION, r.kind)
+        assertEquals("-0.1 Δ°C", SkinTempDisplay.formatReading(r, fahrenheit = false))
+    }
+
+    /** The choice is a PREFERENCE, not a filter: a night with only the other number still shows it,
+     *  so flipping the setting can never blank a card. Both directions. */
+    @Test
+    fun eitherPreferenceFallsBackToTheNumberTheNightHas() {
+        val devOnly = SkinTempDisplay.leadReading(absC = null, devC = -0.4,
+                                                   prefer = SkinTempDisplay.Kind.ABSOLUTE)!!
+        assertEquals("-0.4 Δ°C", SkinTempDisplay.formatReading(devOnly, fahrenheit = false))
+
+        val absOnly = SkinTempDisplay.leadReading(absC = 34.2, devC = null,
+                                                   prefer = SkinTempDisplay.Kind.DEVIATION)!!
+        assertEquals("34.2 °C", SkinTempDisplay.formatReading(absOnly, fahrenheit = false))
+    }
+
+    /** The unit always names the scale ACTUALLY shown, never the one that was asked for — otherwise a
+     *  fallback would print a temperature under a Δ label, or a delta as a wrist temperature. */
+    @Test
+    fun theUnitFollowsTheValueNotThePreference() {
+        val r = SkinTempDisplay.leadReading(absC = 34.2, devC = null,
+                                            prefer = SkinTempDisplay.Kind.DEVIATION)!!
+        assertEquals(SkinTempDisplay.Kind.ABSOLUTE, r.kind)
+        assertEquals("°C", SkinTempDisplay.unitSymbol(r.kind, fahrenheit = false))
+    }
+
+    /** Default is unchanged, so an install that never opens Settings behaves exactly as #1844 shipped. */
+    @Test
+    fun defaultIsAbsolute() {
+        assertEquals(SkinTempDisplay.Kind.ABSOLUTE,
+                     SkinTempDisplay.leadReading(absC = 33.0, devC = 0.5)!!.kind)
+    }
+
+
+    /** The PERSISTED token, byte-identical to the Swift `Kind.rawValue` — both platforms share the
+     *  `units.skinTempDisplay` key, so a drift here (e.g. writing `Kind.name`) would make one platform
+     *  unable to read the other's stored choice. Same contract `KeyMetric.raw` already pins. */
+    @Test
+    fun rawTokensMatchTheSwiftRawValues() {
+        assertEquals("absolute", SkinTempDisplay.Kind.ABSOLUTE.raw)
+        assertEquals("deviation", SkinTempDisplay.Kind.DEVIATION.raw)
+        assertEquals(SkinTempDisplay.Kind.DEVIATION, SkinTempDisplay.Kind.fromRaw("deviation"))
+        assertEquals(SkinTempDisplay.Kind.ABSOLUTE, SkinTempDisplay.Kind.fromRaw("absolute"))
+        // Anything unrecognised (including the old uppercase spelling) falls back at the read site.
+        assertNull(SkinTempDisplay.Kind.fromRaw("DEVIATION"))
+        assertNull(SkinTempDisplay.Kind.fromRaw(null))
+    }
+
 }

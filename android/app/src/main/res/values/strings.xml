@@ -2693,4 +2693,5 @@
     <string name="vo2max_method_change_caption">The line breaks where the estimation method changed or was not recorded.</string>
     <string name="l10n_app_changelog_a_whoop_5_that_stays_connected_7b490eee">A WHOOP 5 that stays connected, your body clock on the Sleep screen, and a Journal that knows No from nothing</string>
     <string name="l10n_app_changelog_choose_a_12_hour_clock_sleep_8a19db5c">Choose a 12-hour clock, sleep from straps that bank no motion, and a strap log that stops guessing</string>
+    <string name="l10n_settings_screen_skin_temperature_fc103030">Skin temperature</string>
 </resources>

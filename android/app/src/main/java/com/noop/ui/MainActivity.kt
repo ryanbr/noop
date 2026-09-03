@@ -719,11 +719,25 @@ object NoopPrefs {
     const val KEY_UNIT_SYSTEM = "units.system"
     const val KEY_TEMPERATURE_UNIT = "units.temperature"
 
+    /** #1846: which skin-temp number the cards lead with — "" / absent = a temperature (default), or the
+     *  DEVIATION raw to lead with the ±baseline move. Display-only; nothing stored ever changes. */
+    const val KEY_SKIN_TEMP_DISPLAY = "units.skinTempDisplay"
+
     fun setUnitSystem(context: Context, system: UnitSystem) {
         of(context).edit().putString(KEY_UNIT_SYSTEM, system.raw).apply()
     }
 
     /** Persist the temperature override, or pass null to clear it back to "match the system". */
+    fun setSkinTempDisplay(context: Context, kind: com.noop.analytics.SkinTempDisplay.Kind?) {
+        of(context).edit().apply {
+            if (kind == null || kind == com.noop.analytics.SkinTempDisplay.Kind.ABSOLUTE) {
+                remove(KEY_SKIN_TEMP_DISPLAY)
+            } else {
+                putString(KEY_SKIN_TEMP_DISPLAY, kind.raw)
+            }
+        }.apply()
+    }
+
     fun setTemperatureUnit(context: Context, unit: TemperatureUnit?) {
         of(context).edit().apply {
             if (unit == null) remove(KEY_TEMPERATURE_UNIT) else putString(KEY_TEMPERATURE_UNIT, unit.raw)

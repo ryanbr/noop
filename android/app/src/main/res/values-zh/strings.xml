@@ -2580,4 +2580,5 @@
     <string name="vo2max_method_change_caption">线条在估算方法发生变化或未记录之处中断。</string>
     <string name="l10n_app_changelog_a_whoop_5_that_stays_connected_7b490eee">不再频繁掉线的 WHOOP 5、睡眠页上的生物钟，以及能分清「否」与「未记录」的日志</string>
     <string name="l10n_app_changelog_choose_a_12_hour_clock_sleep_8a19db5c">自选 12 小时制、从无运动数据的手环读取睡眠，以及不再靠猜测的手环日志</string>
+    <string name="l10n_settings_screen_skin_temperature_fc103030">皮肤温度</string>
 </resources>

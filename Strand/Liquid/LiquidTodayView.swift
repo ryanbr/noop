@@ -197,7 +197,8 @@ struct LiquidTodayView: View {
         let row = [displayDay, vitalsDay, cachedSkinTempReadingDay]
             .compactMap { $0 }
             .first { $0.skinTempC != nil || $0.skinTempDevC != nil }
-        return SkinTempDisplay.leadReading(absC: row?.skinTempC, devC: row?.skinTempDevC)
+        return SkinTempDisplay.leadReading(absC: row?.skinTempC, devC: row?.skinTempDevC,
+                                           prefer: SkinTempDisplay.Kind(rawValue: skinTempDisplayRaw) ?? .absolute)
     }
     /// The Charge hero's resolved state (see `cachedChargeDisplay`), read O(1) from the cache.
     private var chargeDisplay: ChargeDisplay { cachedChargeDisplay }
@@ -1779,6 +1780,7 @@ struct LiquidTodayView: View {
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
     private var unitSystem: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .metric }
     @AppStorage(UnitPrefs.temperatureKey) private var temperatureRaw = ""
+    @AppStorage(UnitPrefs.skinTempDisplayKey) private var skinTempDisplayRaw = ""   // #1846
     private var temperatureUnit: TemperatureUnit {
         UnitPrefs.resolveTemperature(system: unitSystem, override: temperatureRaw)
     }

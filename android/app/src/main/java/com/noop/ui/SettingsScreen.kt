@@ -671,6 +671,9 @@ fun SettingsScreen(
     var temperatureRaw by remember {
         mutableStateOf(NoopPrefs.of(context).getString(NoopPrefs.KEY_TEMPERATURE_UNIT, "") ?: "")
     }
+    // #1846: which skin-temp number the cards lead with. Display-only, like the row above — the stored
+    // value never changes, so flipping it just re-reads the same night on the other scale.
+    var skinTempKind by remember { mutableStateOf(UnitPrefs.skinTempPreferred(context)) }
     // Effort display scale (#268) — show NOOP's native 0–100 Effort or WHOOP's 0–21 Day Strain axis.
     // Display-only; the stored value never changes. Mirrors into local state like the toggles above.
     var effortScale by remember { mutableStateOf(UnitPrefs.effortScale(context)) }
@@ -1214,6 +1217,30 @@ fun SettingsScreen(
                         onSelect = {
                             temperatureRaw = it
                             NoopPrefs.setTemperatureUnit(context, TemperatureUnit.fromRaw(it))
+                        },
+                    )
+                }
+                SettingsRowDivider()
+                SettingsFormRow(label = uiString(R.string.l10n_settings_screen_skin_temperature_fc103030)) {
+                    // #1846: lead with a temperature ("33.5 °C") or with the move from your own baseline
+                    // ("-0.1 Δ°C"). Only a PREFERENCE — a night that measured just one of the two still
+                    // shows that one, so the choice can never blank a card.
+                    SegmentedPillControl(
+                        items = listOf(
+                            com.noop.analytics.SkinTempDisplay.Kind.ABSOLUTE,
+                            com.noop.analytics.SkinTempDisplay.Kind.DEVIATION,
+                        ),
+                        selection = skinTempKind,
+                        label = {
+                            if (it == com.noop.analytics.SkinTempDisplay.Kind.ABSOLUTE) {
+                                uiString(R.string.l10n_settings_screen_temperature_0a9062a9)
+                            } else {
+                                uiString(R.string.skin_temp_vs_baseline)
+                            }
+                        },
+                        onSelect = {
+                            skinTempKind = it
+                            NoopPrefs.setSkinTempDisplay(context, it)
                         },
                     )
                 }
