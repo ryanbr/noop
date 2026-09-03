@@ -157,7 +157,12 @@ fun StepsCalibrationScreen(
                     .weight(1f)
                     .fillMaxWidth()
                     .verticalScroll(scroll)
-                    .padding(20.dp),
+                    // #1836: this is a NavHost destination that scrolls WITHOUT ScreenScaffold, so it does
+                    // not inherit the scaffold's bar clearance. In the overlay layout the screen reaches the
+                    // bottom edge, so without this the last rows sit behind the bar. Zero when the overlay
+                    // is off. Any future destination that scrolls outside ScreenScaffold needs the same.
+                    .padding(20.dp)
+                    .padding(bottom = BottomBarStyleStore.barHeightForContent()),
                 verticalArrangement = Arrangement.spacedBy(Metrics.sectionGap),
             ) {
                 ExplainerCard()
