@@ -1018,8 +1018,11 @@ fun TodayScreen(
     val lastSpo2Day: DailyMetric? = remember(days, carryOverTodayKey, selectedDayOffset, displayMetric) {
         if (selectedDayOffset == 0) lastSpo2Row(days, maxOf(displayMetric?.day ?: "", carryOverTodayKey)) else null
     }
+    // #1844: the carry must find a night with EITHER number now that these surfaces lead with the
+    // absolute — a calibrating night has a real temperature and no deviation yet, and lastSkinTempRow
+    // (deviation-only) would skip straight past it. Both Today consumers below want that row.
     val lastSkinTempDay: DailyMetric? = remember(days, carryOverTodayKey, selectedDayOffset, displayMetric) {
-        if (selectedDayOffset == 0) lastSkinTempRow(days, maxOf(displayMetric?.day ?: "", carryOverTodayKey)) else null
+        if (selectedDayOffset == 0) lastSkinTempReadingRow(days, maxOf(displayMetric?.day ?: "", carryOverTodayKey)) else null
     }
     // #1842: per-field HRV / resting-HR carries, the twins of the SpO₂ and skin-temp rows above. Same
     // shape, same future-clock bound; see lastHrvRow for why the shared lastVitalsRow is not enough.
@@ -3607,13 +3610,17 @@ private fun dashboardCardValue(
             (vd?.spo2Pct ?: spo2Day?.spo2Pct)?.let { String.format(Locale.getDefault(), "%.0f%%", it) }
                 ?: (vd?.day ?: day?.day)?.let { spo2CandidateByDay[it] }?.let { String.format(Locale.getDefault(), "%.0f%%", it) }
                 ?: NO_DATA
-        DashboardCard.SKIN_TEMP -> {
-            // #622: bimodal field — absolute °C (import) vs signed Δ°C vs baseline (live).
-            // Always label the scale; bare "−0.1°" next to a 34° deep-timeline chart looked broken.
-            val v = vd?.skinTempDevC ?: skinTempDay?.skinTempDevC
-            if (v == null) NO_DATA
-            else com.noop.analytics.SkinTempDisplay.format(v, fahrenheit = fahrenheit)
-        }
+            DashboardCard.SKIN_TEMP -> {
+                // #1844: LEAD WITH THE ABSOLUTE when the night measured one, the rule the Health tile has
+                // used since #1665 — a deviation with no anchor cannot be read ("+0.9" is a fever or a warm
+                // bedroom). Both numbers come off the SAME row so the scale shown is that night's own.
+                // #622 still applies to the fallback: a deviation keeps its Δ unit so "−0.1 °C" is never
+                // read as a wrist temperature.
+                val row = vd?.takeIf { it.skinTempC != null || it.skinTempDevC != null } ?: skinTempDay
+                com.noop.analytics.SkinTempDisplay.leadReading(row?.skinTempC, row?.skinTempDevC)
+                    ?.let { com.noop.analytics.SkinTempDisplay.formatReading(it, fahrenheit = fahrenheit) }
+                    ?: NO_DATA
+            }
         DashboardCard.SLEEP -> sleepValue(vd)
         DashboardCard.STEPS -> {
             val real = day?.steps?.let { intStringGrouped(it.toDouble()) }
@@ -4925,6 +4932,23 @@ private fun RecordingStatusChip(state: RecordingState, onConnect: () -> Unit) {
 // `provenanceBadgeLabel` By-Day mappers are kept (Intelligence/Trends + tests still use that vocabulary).
 
 /**
+ * The skin-temp reading a Today surface should LEAD with (#1844): the first of today / the recovery carry
+ * / the per-field carry that holds EITHER number, resolved to absolute-or-deviation by
+ * [com.noop.analytics.SkinTempDisplay.leadReading].
+ *
+ * Both numbers are read off the SAME row, so an absolute is never paired with another night's deviation.
+ * [resolveSkinTempDevC] stays for the deviation-only call sites.
+ */
+internal fun resolveSkinTempReading(
+    d: DailyMetric?,
+    carriedDay: DailyMetric?,
+    skinTempCarryDay: DailyMetric?,
+): com.noop.analytics.SkinTempDisplay.Reading? =
+    listOfNotNull(d, carriedDay, skinTempCarryDay)
+        .firstOrNull { it.skinTempC != null || it.skinTempDevC != null }
+        ?.let { com.noop.analytics.SkinTempDisplay.leadReading(it.skinTempC, it.skinTempDevC) }
+
+/**
  * The Key Metrics Skin Temp tile's 3-way fallback: today's row, then the whole-row recovery carry,
  * then the per-field skin-temp carry (mirrors spo2CarryDay/respCarryDay's reasoning — carriedDay can
  * land on a row with null skinTempDevC even when a genuine reading exists further back). Extracted so
@@ -5171,13 +5195,13 @@ private fun MetricGrid(
             // `d ?: carriedDay` idiom every other simple tile above uses (HRV/RESTING_HR), and the SAME
             // `SkinTempDisplay` formatter the DashboardCard.SKIN_TEMP branch uses so a deviation reads
             // "+0.1 Δ°C" identically on both surfaces (#622: bimodal absolute-vs-deviation field).
-            val v = resolveSkinTempDevC(d, carriedDay, skinTempCarryDay)
+            val reading = resolveSkinTempReading(d, carriedDay, skinTempCarryDay)
             val fahrenheit = UnitPrefs.temperature(LocalContext.current) == TemperatureUnit.FAHRENHEIT
             KeyTileData(
                 label = uiString(R.string.today_card_skin_temp),
                 // The value carries its own "°C"/"Δ°F" (SkinTempDisplay.format), so unit stays empty —
                 // same as the DashboardCard.SKIN_TEMP card and the classic TodayView Skin Temp tile.
-                value = v?.let { com.noop.analytics.SkinTempDisplay.format(it, fahrenheit = fahrenheit) } ?: NO_DATA,
+                value = reading?.let { com.noop.analytics.SkinTempDisplay.formatReading(it, fahrenheit = fahrenheit) } ?: NO_DATA,
                 unit = "",
                 tint = Palette.metricAmber,
                 frac = null,

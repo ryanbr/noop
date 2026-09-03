@@ -42,6 +42,42 @@ public enum SkinTempDisplay {
         values.last.map(kind(of:))
     }
 
+    /// A resolved reading: the number to show and the scale it is on.
+    public struct Reading: Sendable, Equatable {
+        public let value: Double
+        public let kind: Kind
+        public init(value: Double, kind: Kind) { self.value = value; self.kind = kind }
+    }
+
+    /// Which of a night's two skin-temp numbers a surface should LEAD with (#1844), the pure form of the
+    /// rule the Health tile has applied since #1665.
+    ///
+    /// The absolute wins whenever the night measured one, because a deviation with no anchor cannot be
+    /// read — "+0.9" is a fever or a warm bedroom and nothing on a card says which. The deviation is the
+    /// fallback, not the default, and keeps its Δ unit so it is never mistaken for a wrist temperature
+    /// (#622).
+    ///
+    /// Two shapes make this more than a preference, both real rows:
+    ///  - a night scored before `skinTempC` shipped (2026-08-27) has only a deviation, and keeps exactly
+    ///    the display that shipped before until a scoring pass refills it;
+    ///  - a CALIBRATING night is the reverse — the deviation is nil until the baseline is usable
+    ///    (~4 nights) while the absolute is measured from night one, so those wearers otherwise see an
+    ///    empty card with a real temperature sitting behind it.
+    ///
+    /// Both values must come from the SAME row; see `DailyMetric.lastSkinTempReadingDay`. Twin of the
+    /// Kotlin `SkinTempDisplay.leadReading`.
+    public static func leadReading(absC: Double?, devC: Double?) -> Reading? {
+        if let a = absC { return Reading(value: a, kind: .absolute) }
+        if let d = devC { return Reading(value: d, kind: .deviation) }
+        return nil
+    }
+
+    /// Formats whichever number `leadReading` chose, with the unit for THAT scale.
+    public static func formatReading(_ reading: Reading, fahrenheit: Bool, decimals: Int = 1) -> String {
+        let n = numberString(reading.value, kind: reading.kind, fahrenheit: fahrenheit, decimals: decimals)
+        return "\(n) \(unitSymbol(kind: reading.kind, fahrenheit: fahrenheit))"
+    }
+
     /// Trailing unit chip: `"°C"` / `"°F"` for absolute, `"Δ°C"` / `"Δ°F"` for deviation.
     public static func unitSymbol(kind: Kind, fahrenheit: Bool) -> String {
         let base = fahrenheit ? "°F" : "°C"

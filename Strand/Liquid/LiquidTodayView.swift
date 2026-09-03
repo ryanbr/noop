@@ -116,6 +116,7 @@ struct LiquidTodayView: View {
     @State private var cachedRespDay: DailyMetric?
     @State private var cachedHrvDay: DailyMetric?
     @State private var cachedRestingHrDay: DailyMetric?
+    @State private var cachedSkinTempReadingDay: DailyMetric?
     /// The Charge hero's resolved state (#543 carry + the honest label), resolved ONCE in load() alongside
     /// the other caches. It composes `TodayView.lastScoredRecoveryDay`, which is O(days) — exactly the scan
     /// this cache exists to keep out of body. Never resolved in body.
@@ -188,6 +189,16 @@ struct LiquidTodayView: View {
     private var hrvDay: DailyMetric? { cachedHrvDay }
 
     private var restingHrDay: DailyMetric? { cachedRestingHrDay }
+
+    /// The skin-temp reading these cards LEAD with (#1844): today's row if it holds either number, else the
+    /// vitals carry, else the freshest prior row with either. Both numbers come off the SAME row, so an
+    /// absolute is never paired with another night's deviation. Twin of `TodayView.skinTempLeadReading`.
+    private var skinTempLeadReading: SkinTempDisplay.Reading? {
+        let row = [displayDay, vitalsDay, cachedSkinTempReadingDay]
+            .compactMap { $0 }
+            .first { $0.skinTempC != nil || $0.skinTempDevC != nil }
+        return SkinTempDisplay.leadReading(absC: row?.skinTempC, devC: row?.skinTempDevC)
+    }
     /// The Charge hero's resolved state (see `cachedChargeDisplay`), read O(1) from the cache.
     private var chargeDisplay: ChargeDisplay { cachedChargeDisplay }
 
@@ -941,7 +952,8 @@ struct LiquidTodayView: View {
             //
             // frac stays nil deliberately. A signed deviation has no natural 0–100 fill, and a ring drawn
             // from one would imply a magnitude the number does not carry.
-            let skin = displayDay?.skinTempDevC ?? vitalsDay?.skinTempDevC
+            // #1844: lead with the night's measured ABSOLUTE when it has one; deviation nights unchanged.
+            let skin = skinTempLeadReading
             cardLink(.metric("skin_temp"), title: card.title, sub: card.subtitle,
                      value: TodayView.skinTempCardValue(skin, fahrenheit: temperatureUnit == .fahrenheit),
                      tint: StrandPalette.metricAmber, frac: nil)
@@ -1245,10 +1257,9 @@ struct LiquidTodayView: View {
             // and the SAME `SkinTempDisplay` formatter every other skin-temp surface uses so a deviation
             // reads "+0.1 Δ°C" here exactly as it does on "Your Cards"/the Deep Timeline, never the plain
             // `%+.1f°` that read a fabricated absolute value for a signed deviation (#622).
-            let skinValue = displayDay?.skinTempDevC ?? vitalsDay?.skinTempDevC
-            let skinText = skinValue.map {
-                SkinTempDisplay.format($0, fahrenheit: temperatureUnit == .fahrenheit)
-            } ?? "—"
+            // #1844: same lead-with-the-absolute resolution as "Your Cards" above, so the two agree.
+            let skinText = TodayView.skinTempCardValue(skinTempLeadReading,
+                                                       fahrenheit: temperatureUnit == .fahrenheit)
             // The card's own unit is deliberately empty — the value carries "°C"/"Δ°F" itself, same as
             // the classic TodayView Skin Temp card.
             ktile(String(localized: "Skin Temp"), icon: keyMetricIcon(metric), skinText, "", StrandPalette.metricAmber, nil, key: "skin_temp")
@@ -1447,6 +1458,7 @@ struct LiquidTodayView: View {
         cachedRespDay = (selectedDayOffset == 0) ? Repository.lastRespDay(days: repo.days, todayKey: tkey) : nil
         cachedHrvDay = (selectedDayOffset == 0) ? Repository.lastHrvDay(days: repo.days, todayKey: tkey) : nil
         cachedRestingHrDay = (selectedDayOffset == 0) ? Repository.lastRestingHrDay(days: repo.days, todayKey: tkey) : nil
+        cachedSkinTempReadingDay = (selectedDayOffset == 0) ? Repository.lastSkinTempReadingDay(days: repo.days, todayKey: tkey) : nil
         // Charge carry (#543) + the honest label, resolved here for the same reason as the two above: the
         // selector below scans repo.days. Calibration nights come from the SAME `RecoveryScorer` helper the
         // classic Today reads, so the two screens agree on when a wearer is genuinely mid-calibration

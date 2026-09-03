@@ -194,4 +194,42 @@ final class DailyMetricLastVitalsDayTests: XCTestCase {
         XCTAssertNil(DailyMetric.lastRestingHrDay(days: days, todayKey: "2026-09-03"))
     }
 
+
+    // MARK: skin-temp reading row — EITHER number, one night (#1844)
+
+    private func skinDay(_ key: String, abs: Double? = nil, dev: Double? = nil) -> DailyMetric {
+        DailyMetric(day: key, totalSleepMin: nil, efficiency: nil, deepMin: nil, remMin: nil,
+                    lightMin: nil, disturbances: nil, restingHr: nil, avgHrv: nil, recovery: nil,
+                    strain: nil, exerciseCount: nil, spo2Pct: nil, skinTempDevC: dev,
+                    respRateBpm: nil, skinTempC: abs)
+    }
+
+    /// The calibrating night the deviation-only selector skipped: a real temperature, no deviation yet.
+    func testFindsANightWithOnlyAnAbsolute() {
+        let days = [skinDay("2026-09-01", dev: -0.3), skinDay("2026-09-02", abs: 34.1)]
+        XCTAssertEqual(DailyMetric.lastSkinTempReadingDay(days: days, todayKey: "2026-09-03")?.day, "2026-09-02")
+        // The deviation-only row reaches back past it, which is what left the card empty.
+        XCTAssertEqual(DailyMetric.lastSkinTempDay(days: days, todayKey: "2026-09-03")?.day, "2026-09-01")
+    }
+
+    /// Both numbers come off ONE row, so an absolute is never paired with another night's deviation.
+    func testBothSkinNumbersComeFromOneNight() {
+        let days = [skinDay("2026-09-01", abs: 33.0, dev: -0.9), skinDay("2026-09-02", abs: 34.1, dev: 0.2)]
+        let row = DailyMetric.lastSkinTempReadingDay(days: days, todayKey: "2026-09-03")
+        XCTAssertEqual(row?.skinTempC, 34.1)
+        XCTAssertEqual(row?.skinTempDevC, 0.2)
+    }
+
+    /// Same future-clock bound as every sibling carry.
+    func testSkinReadingRowNeverCarriesTodayOrLater() {
+        let days = [skinDay("2026-09-03", abs: 34.0), skinDay("2026-09-04", abs: 34.2)]
+        XCTAssertNil(DailyMetric.lastSkinTempReadingDay(days: days, todayKey: "2026-09-03"))
+    }
+
+    /// A row with neither number is not a reading.
+    func testSkinRowsWithNeitherNumberAreSkipped() {
+        let days = [skinDay("2026-09-01", abs: 33.5), skinDay("2026-09-02")]
+        XCTAssertEqual(DailyMetric.lastSkinTempReadingDay(days: days, todayKey: "2026-09-03")?.day, "2026-09-01")
+    }
+
 }

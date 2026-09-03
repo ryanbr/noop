@@ -608,6 +608,12 @@ final class Repository: ObservableObject {
         DailyMetric.lastSkinTempDay(days: days, todayKey: todayKey)
     }
 
+    /// The freshest strictly-prior row with EITHER skin-temp number (#1844), for the surfaces that lead
+    /// with the absolute. See `DailyMetric.lastSkinTempReadingDay`.
+    nonisolated static func lastSkinTempReadingDay(days: [DailyMetric], todayKey: String) -> DailyMetric? {
+        DailyMetric.lastSkinTempReadingDay(days: days, todayKey: todayKey)
+    }
+
     /// PER-FIELD HRV carry — twin of the above, for a field `lastVitalsDay`'s OR predicate DOES check but
     /// can still resolve nil on (#1842). See `DailyMetric.lastHrvDay`.
     nonisolated static func lastHrvDay(days: [DailyMetric], todayKey: String) -> DailyMetric? {

@@ -153,6 +153,19 @@ public struct DailyMetric: Equatable, Codable {
         days.last(where: { $0.skinTempDevC != nil && $0.day < todayKey })
     }
 
+    /// The freshest strictly-prior row carrying EITHER skin-temp number (#1844), so a surface can lead
+    /// with the absolute and fall back to the deviation from ONE night rather than mixing two.
+    ///
+    /// The OR here is deliberate and is NOT the #1842 defect. That bug read field X off a row selected on
+    /// (X or Y), so a row holding only Y blanked X. This selects a row for a value that is "whichever of
+    /// the two this night has", and the caller reads both fields off THAT row and lets
+    /// `SkinTempDisplay.leadReading` pick — so the chosen row always supplies the number shown, and an
+    /// absolute is never paired with another night's deviation. `lastSkinTempDay` stays as-is for the
+    /// deviation-only surfaces. Byte-twin of the Android `lastSkinTempReadingRow`.
+    public nonisolated static func lastSkinTempReadingDay(days: [DailyMetric], todayKey: String) -> DailyMetric? {
+        days.last(where: { ($0.skinTempC != nil || $0.skinTempDevC != nil) && $0.day < todayKey })
+    }
+
     /// PER-FIELD HRV carry — the twin of `lastSpo2Day` for a field `lastVitalsDay` DOES check, which is
     /// precisely why it needs one. That predicate is an OR across HRV / resting-HR / respiratory, so it
     /// resolves the freshest row carrying ANY of the three — including a respiratory-only row whose

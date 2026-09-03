@@ -2292,9 +2292,18 @@ private fun buildVitalDetail(
         format = { it.roundToInt().toString() },
     )
     "skin" -> {
-        val latest = days.asReversed().asSequence().mapNotNull { it.skinTempDevC }.firstOrNull() ?: return null
-        val kind = SkinTempDisplay.kind(latest)
         val fahrenheit = tempUnit == TemperatureUnit.FAHRENHEIT
+        // #1844: the newest reading decides the whole screen — title, unit, chart and every row — and it
+        // leads with the measured ABSOLUTE when that night has one (the #1665 rule, applied here too).
+        // The series must follow the same choice: an absolute plotted against a history of deviations is
+        // arithmetic on two scales, so the readings come from the matching column only.
+        val newest = days.asReversed().asSequence()
+            .firstOrNull { it.skinTempC != null || it.skinTempDevC != null } ?: return null
+        val lead = SkinTempDisplay.leadReading(newest.skinTempC, newest.skinTempDevC) ?: return null
+        val leadsAbsolute = lead.kind == SkinTempDisplay.Kind.ABSOLUTE && newest.skinTempC != null
+        // Deviation-led keeps the #622 bimodal read: a CSV import writes an absolute INTO skinTempDevC, so
+        // the kind is re-derived from the value and the series partitioned to it.
+        val kind = if (leadsAbsolute) SkinTempDisplay.Kind.ABSOLUTE else SkinTempDisplay.kind(lead.value)
         val unit = SkinTempDisplay.unitSymbol(kind, fahrenheit)
         val title = if (kind == SkinTempDisplay.Kind.ABSOLUTE) {
             uiString(R.string.l10n_health_screen_skin_temperature_f59127f6)
@@ -2306,10 +2315,14 @@ private fun buildVitalDetail(
             title = title,
             unit = unit,
             color = Palette.metricAmber,
-            readings = days.mapNotNull { row ->
-                row.skinTempDevC
-                    ?.takeIf { VitalBands.isAbsoluteSkinTemp(it) == (kind == SkinTempDisplay.Kind.ABSOLUTE) }
-                    ?.let { value -> VitalReading(row.day, value, row.deviceId) }
+            readings = if (leadsAbsolute) {
+                days.mapNotNull { row -> row.skinTempC?.let { VitalReading(row.day, it, row.deviceId) } }
+            } else {
+                days.mapNotNull { row ->
+                    row.skinTempDevC
+                        ?.takeIf { VitalBands.isAbsoluteSkinTemp(it) == (kind == SkinTempDisplay.Kind.ABSOLUTE) }
+                        ?.let { value -> VitalReading(row.day, value, row.deviceId) }
+                }
             },
             format = { c -> SkinTempDisplay.numberString(c, kind, fahrenheit, decimals = 1) },
         )
