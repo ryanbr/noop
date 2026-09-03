@@ -75,6 +75,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import com.noop.R
 import com.noop.analytics.FusionSource
 import androidx.compose.ui.Alignment
@@ -270,6 +271,19 @@ internal object MoreSectionPrefs {
 }
 
 /**
+ * #1836: the height the overlay bar occupies, so content can clear it.
+ *
+ * The bar used to be a `Scaffold(bottomBar = …)` slot, which reserved space OUTSIDE the screen content.
+ * A screen's own backdrop therefore stopped where the bar began, and an 0.80-alpha "glass" surface over
+ * `surfaceBase` is just a flat colour — which is why a bar built to float rendered as a dark strip.
+ *
+ * Exposed as a local so a scrollable can later add it to its own `contentPadding` and let content pass
+ * under the glass. That half is deliberately not here: a single shared modifier cannot do it, so it wants
+ * doing per screen with a device to look at.
+ */
+val LocalBottomBarHeight = staticCompositionLocalOf { 76.dp }
+
+/**
  * App shell: a single [Scaffold] with a floating [GlassBottomBar] (Today · Trends · Sleep · More)
  * driving one [NavHost], mirroring the iOS RootTabView. There is NO global toolbar and no nav drawer
  * — every screen self-titles via [ScreenScaffold], and the "More" sheet (opened from the bar) reaches
@@ -294,7 +308,12 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
     // survives the inbox sheet closing — the tap dismisses the inbox and presents this over the app.
     var showWhatsNewFromInbox by remember { mutableStateOf(false) }
 
-    run {
+    // #1836: an overlay container, not a bottomBar slot. The slot sat OUTSIDE the screen content, so a
+    // screen's own backdrop (LiquidScreenSky / BackgroundImageBackdrop) stopped where the bar began and
+    // the bar's 0.80 "glass" had nothing behind it but surfaceBase — a bar built to float rendered as a
+    // dark strip cut out of the background. As a sibling drawn OVER the Scaffold it sits on the screen's
+    // own sky, which is what the translucency was written for.
+    Box(Modifier.fillMaxSize()) {
         Scaffold(
             containerColor = Palette.surfaceBase,
             bottomBar = {
@@ -303,18 +322,19 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                 // top-right (balancing the avatar), so the bar is clean tabs only. "More" navigates to
                 // its own page (mirroring the iOS More tab) that reaches every grouped destination, so no
                 // destination is lost without the drawer.
-                GlassBottomBar(
-                    current = current,
-                    onTabSelected = { dest ->
-                        if (dest.route != currentRoute) nav.navigateTopLevel(dest.route)
-                    },
-                )
+                // Intentionally empty: the bar is drawn as an overlay below so the backdrop shows
+                // through it. Content still clears it — the NavHost carries the inset the slot used to.
             },
         ) { inner ->
             NavHost(
                 navController = nav,
                 startDestination = Destination.Today.route,
-                modifier = Modifier.padding(inner),
+                // The empty slot reserves nothing, so the bar's height is added here — the one place the
+                // inset used to come from. A scrollable that later wants content to pass UNDER the glass
+                // adds LocalBottomBarHeight to its own contentPadding instead; a shared modifier cannot.
+                modifier = Modifier
+                    .padding(inner)
+                    .padding(bottom = LocalBottomBarHeight.current),
                 // README motion: top-level destinations crossfade (~240ms) on the calm,
                 // decelerating global easing — nothing slides or bounces between tabs. The
                 // same fade is used for back (pop) so the bar never feels jerky. Drill-ins
@@ -614,6 +634,16 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                 }
             }
         }
+
+        // Drawn OVER the Scaffold, so it floats on whatever backdrop the current screen painted rather
+        // than on the shell's own container colour. Same composable, same insets — only its parent moved.
+        GlassBottomBar(
+            current = current,
+            onTabSelected = { dest ->
+                if (dest.route != currentRoute) nav.navigateTopLevel(dest.route)
+            },
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
     }
 }
 
@@ -777,10 +807,11 @@ private val barTrailingTabs = listOf(
 private fun GlassBottomBar(
     current: Destination,
     onTabSelected: (Destination) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val barShape = RoundedCornerShape(50)
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             // Clear the gesture-nav bar (home indicator) first, then add breathing room so the capsule
             // floats free of the bottom edge rather than jamming against it — iOS clears the home-indicator
