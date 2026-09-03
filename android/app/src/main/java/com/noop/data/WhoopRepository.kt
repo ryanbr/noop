@@ -1175,6 +1175,18 @@ class WhoopRepository(
     suspend fun spo2Samples(deviceId: String, from: Long, to: Long, limit: Int = DEFAULT_LIMIT) =
         dao.spo2Samples(deviceId, from, to, limit)
 
+    /** #1851: nights holding a skin-temp deviation but no absolute, oldest first. See [SkinTempBackfill]. */
+    suspend fun daysMissingSkinTempAbsolute(deviceId: String, limit: Int): List<String> =
+        dao.daysMissingSkinTempAbsolute(deviceId, limit)
+
+    /**
+     * #1851: fill ONE night's absolute, only where none exists. Returns rows changed (0 = already had one).
+     * The statement itself carries the guarantee — a single-column UPDATE with `AND skinTempC IS NULL`, so
+     * this can never overwrite a value or blank a neighbouring column.
+     */
+    suspend fun fillSkinTempAbsolute(deviceId: String, day: String, celsius: Double): Int =
+        dao.fillSkinTempAbsolute(deviceId, day, celsius)
+
     suspend fun skinTempSamples(deviceId: String, from: Long, to: Long, limit: Int = DEFAULT_LIMIT) =
         dao.skinTempSamples(deviceId, from, to, limit)
 

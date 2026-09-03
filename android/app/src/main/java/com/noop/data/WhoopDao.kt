@@ -163,6 +163,35 @@ interface WhoopDao : DeviceRegistryDao {
     @Upsert
     suspend fun upsertDailyMetrics(rows: List<DailyMetric>)
 
+    /**
+     * #1851: the day keys that have a skin-temp DEVIATION but no ABSOLUTE beside it — the nights the
+     * 21-night `analyzeRecent` window never revisited after `skinTempC` shipped (2026-08-27). Oldest
+     * first, so a bounded backfill fills the deepest history it can reach rather than re-doing recent
+     * nights the engine already covers.
+     */
+    @Query(
+        "SELECT day FROM dailyMetric WHERE deviceId = :deviceId " +
+            "AND skinTempC IS NULL AND skinTempDevC IS NOT NULL ORDER BY day ASC LIMIT :limit"
+    )
+    suspend fun daysMissingSkinTempAbsolute(deviceId: String, limit: Int): List<String>
+
+    /**
+     * #1851: fill ONE night's absolute, and only when it is absent.
+     *
+     * A targeted UPDATE, deliberately not an `@Upsert` of a rebuilt entity: an upsert writes every column,
+     * so a row assembled from partial data would silently blank whatever it did not carry. This touches
+     * exactly one column on one row.
+     *
+     * `AND skinTempC IS NULL` is the second half of that guarantee — the statement can only ever fill a
+     * hole, never overwrite a value the engine or an import already wrote. Returns rows changed, so a
+     * caller can tell "filled" from "already had one" without reading first.
+     */
+    @Query(
+        "UPDATE dailyMetric SET skinTempC = :celsius " +
+            "WHERE deviceId = :deviceId AND day = :day AND skinTempC IS NULL"
+    )
+    suspend fun fillSkinTempAbsolute(deviceId: String, day: String, celsius: Double): Int
+
     @Upsert
     suspend fun upsertSleepSessions(rows: List<SleepSession>)
 

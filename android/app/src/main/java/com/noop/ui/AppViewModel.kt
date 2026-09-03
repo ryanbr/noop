@@ -699,6 +699,75 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var todayVo2maxCache: Double? = null
 
     /**
+     * #1851: the candidate count at which a run filled NOTHING, so the next pass can skip work it has
+     * already proved fruitless. Not a "done" flag — history GROWS (an import brings in old nights), and a
+     * one-shot flag would strand every night that arrived after it was set.
+     */
+    private val skinTempBackfillStuckKey = "skinTemp.backfillStuckAt"
+
+    /**
+     * #1851: re-derive the nightly ABSOLUTE skin temperature for nights that only ever stored a deviation.
+     *
+     * Runs after a successful scoring pass, and independently of the #1846 display preference — the data
+     * must be there whichever way the setting is left, so switching between Temperature and vs baseline is
+     * instant rather than kicking off work.
+     *
+     * Drains across passes rather than doing everything at once: each fillable night costs a large HR read,
+     * so [SkinTempBackfill.DEFAULT_MAX_NIGHTS] are taken per pass until none remain. When a pass fills
+     * nothing, the candidate count is remembered and identical counts are skipped thereafter — so the
+     * nights that can never fill (no banked samples) stop costing reads, while an import that adds older
+     * nights changes the count and re-arms the work.
+     *
+     * The WHOOP 4.0 anchor is resolved from the CURRENT scan window, the same span the engine learns its
+     * own anchor over — never from the old window being filled. An absolute is offset-sensitive, so nights
+     * written on a re-learned anchor would sit on a different scale from the ones already stored and the
+     * chart would plot two scales as one line. A 4.0 with no resolvable anchor is declined by the runner,
+     * and a decline never records progress, so it retries once an anchor exists.
+     */
+    private suspend fun backfillSkinTempAbsolutes(deviceId: String) {
+        val prefs = NoopPrefs.of(appContext)
+        val outstanding = repository.daysMissingSkinTempAbsolute(
+            deviceId, com.noop.analytics.SkinTempBackfill.DEFAULT_MAX_NIGHTS,
+        ).size
+        if (outstanding == 0) return
+        if (prefs.getInt(skinTempBackfillStuckKey, -1) == outstanding) return
+
+        val ownerSource = RegistryDayOwnerSource(noopApp.deviceRegistry)
+        val family = ownerSource.skinTempFamily(deviceId)
+        val tolerance = ownerSource.skinTempWornToleranceSec(deviceId)
+        val now = System.currentTimeMillis() / 1000
+        val anchor = if (family == com.noop.protocol.DeviceFamily.WHOOP4) {
+            // Same span the engine learns its anchor over, NOT the window being filled.
+            val scanFrom = now - 21L * 24 * 3_600
+            val windowSkin = repository.skinTempSamples(
+                deviceId, scanFrom, now, com.noop.analytics.SkinTempBackfill.STREAM_LIMIT,
+            )
+            com.noop.protocol.Whoop4SkinTemp.deviceAnchorRaw(windowSkin.map { it.raw })
+        } else {
+            null
+        }
+        val report = com.noop.analytics.SkinTempBackfill.run(
+            repo = repository,
+            deviceId = deviceId,
+            family = family,
+            currentAnchorRaw = anchor,
+            wornToleranceSec = tolerance,
+            nowSeconds = now,
+        )
+        // A decline records nothing: a 4.0 whose anchor resolves later must still get its backfill.
+        if (!report.declinedNoAnchor && report.filled == 0) {
+            prefs.edit().putInt(skinTempBackfillStuckKey, outstanding).apply()
+        } else if (report.filled > 0) {
+            prefs.edit().remove(skinTempBackfillStuckKey).apply()
+        }
+        ble.externalLog(
+            "skinTempBackfill: candidates=${report.candidates} filled=${report.filled} " +
+                "noMean=${report.noMean} noSamples=${report.noSamples} declined=${report.declinedNoAnchor}",
+            com.noop.testcentre.TestDomain.UNIVERSAL,
+        )
+    }
+
+    /**
      * Recent daily metrics (newest last), backing the Today grid + illness watch.
      * MERGED: imported "my-whoop" rows win per day; on-device computed "my-whoop-noop"
      * rows (from [IntelligenceEngine]) gap-fill, so recovery/strain/sleep populate from
@@ -1188,6 +1257,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     // own cancellation — rethrow it so onCleared() actually stops the loop. (#125)
                 }.onSuccess {
                     NoopPrefs.setAnalyzeWatermark(appContext, analyzeFp)
+                    // #1851: fill the skin-temp absolutes the 21-night window never reaches. Runs AFTER a
+                    // successful pass so it never competes with scoring, and independently of the #1846
+                    // display preference — the data must be there whichever way the setting is left, so
+                    // flipping it is instant rather than kicking off work.
+                    //
+                    // Once per install (a prefs flag), because the nights it fills stay filled; a later
+                    // night that misses out is picked up by the scoring pass that owns it.
+                    runCatching { backfillSkinTempAbsolutes(deviceId) }
+                        .onFailure { if (it is kotlin.coroutines.cancellation.CancellationException) throw it }
                     // #1735: the watermark says WHAT was scored, never WHEN. "re-score: done" goes only to
                     // the live log, so hours later the rolling buffer has dropped it and an export cannot
                     // tell a pass that ran from one that never did - which is half of "my ride still is not
@@ -2961,6 +3039,9 @@ enum class DoubleTapAction {
         }
 
     companion object {
+        /** #1851 one-shot guard: the absolutes backfill has completed for this install. */
+        const val skinTempBackfillDoneKey = "skinTemp.backfillDone"
+
         /** Decode a persisted name back to an action; tolerant of an unknown/blank value (→ [NONE]). */
         fun fromRaw(raw: String?): DoubleTapAction =
             entries.firstOrNull { it.name == raw } ?: NONE
