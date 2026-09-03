@@ -1,5 +1,6 @@
 package com.noop.ui
 
+import android.content.Context
 import androidx.annotation.StringRes
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -276,6 +277,31 @@ internal object MoreSectionPrefs {
 }
 
 /**
+ * #1836: which bottom-bar layout to use, snapshot-backed so the Settings toggle applies without a
+ * relaunch (the same shape as `BackgroundImageStore.enabled`).
+ *
+ * Default OFF — the shipped slot layout. The overlay is the better-looking one and the reason this change
+ * exists, but it is app-shell layout no test can judge, so it ships behind a switch people can turn off if
+ * a screen misbehaves rather than as the only option.
+ */
+object BottomBarStyleStore {
+    /** True = the overlay bar (glass over the screen's own backdrop). False = the reserved slot. */
+    var overlay by mutableStateOf(false)
+        private set
+
+    fun load(ctx: Context) {
+        overlay = NoopPrefs.of(ctx.applicationContext)
+            .getBoolean(NoopPrefs.KEY_OVERLAY_BOTTOM_BAR, false)
+    }
+
+    fun set(ctx: Context, value: Boolean) {
+        overlay = value
+        NoopPrefs.of(ctx.applicationContext).edit()
+            .putBoolean(NoopPrefs.KEY_OVERLAY_BOTTOM_BAR, value).apply()
+    }
+}
+
+/**
  * App shell: a single [Scaffold] with a floating [GlassBottomBar] (Today · Trends · Sleep · More)
  * driving one [NavHost], mirroring the iOS RootTabView. There is NO global toolbar and no nav drawer
  * — every screen self-titles via [ScreenScaffold], and the "More" sheet (opened from the bar) reaches
@@ -321,8 +347,16 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                 // top-right (balancing the avatar), so the bar is clean tabs only. "More" navigates to
                 // its own page (mirroring the iOS More tab) that reaches every grouped destination, so no
                 // destination is lost without the drawer.
-                // Intentionally empty: the bar is drawn as an overlay below so the backdrop shows
-                // through it. Content still clears it — the NavHost carries the inset the slot used to.
+                // DEFAULT path: the shipped reserved slot, unchanged. Empty only when the overlay is
+                // on, where the bar is drawn below as a sibling and the slot must reserve nothing.
+                if (!BottomBarStyleStore.overlay) {
+                    GlassBottomBar(
+                        current = current,
+                        onTabSelected = { dest ->
+                            if (dest.route != currentRoute) nav.navigateTopLevel(dest.route)
+                        },
+                    )
+                }
             },
         ) { inner ->
             NavHost(
@@ -331,7 +365,9 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                 // The empty slot reserves nothing, so the bar's height is added here — the one place the
                 // inset used to come from. A scrollable that later wants content to pass UNDER the glass
                 // adds this measured height to its own contentPadding instead; no shared modifier can.
-                modifier = Modifier.padding(
+                // Slot layout: the Scaffold measured the bar into `inner`, so use it as-is.
+                // Overlay layout: the slot reserves nothing, so the bottom comes from the measured bar.
+                modifier = if (!BottomBarStyleStore.overlay) Modifier.padding(inner) else Modifier.padding(
                     // Take the top and sides from the Scaffold, but REPLACE its bottom rather than adding
                     // to it. Scaffold's default contentWindowInsets is WindowInsets.systemBars, so
                     // `inner.bottom` already carries the navigation-bar inset — and the bar's measured
@@ -645,7 +681,7 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
 
         // Drawn OVER the Scaffold, so it floats on whatever backdrop the current screen painted rather
         // than on the shell's own container colour. Same composable, same insets — only its parent moved.
-        GlassBottomBar(
+        if (BottomBarStyleStore.overlay) GlassBottomBar(
             current = current,
             onTabSelected = { dest ->
                 if (dest.route != currentRoute) nav.navigateTopLevel(dest.route)

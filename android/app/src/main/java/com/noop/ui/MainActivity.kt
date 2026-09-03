@@ -146,6 +146,7 @@ class MainActivity : ComponentActivity() {
         // Decode the optional custom background image (if set) + its toggles before first composition so
         // the backdrop is right from the first frame on every tab. No-op when no image is set.
         BackgroundImageStore.load(this)
+        BottomBarStyleStore.load(this)   // #1836: bottom-bar layout choice, default the shipped slot
 
         setContent {
             NoopTheme {
@@ -699,6 +700,10 @@ object NoopPrefs {
     fun setAppIconNavy(context: Context, navy: Boolean) {
         of(context).edit().putBoolean(KEY_APP_ICON_NAVY, navy).apply()
     }
+
+    /** #1836: draw the bottom bar as an overlay (glass over the screen's backdrop) instead of a reserved
+     *  Scaffold slot. Default false — the shipped layout — until the overlay has been seen on a device. */
+    const val KEY_OVERLAY_BOTTOM_BAR = "noop.overlayBottomBar"
 
     /** #1821: Clock format ("system" / "twelveHour" / "twentyFourHour"). Shares its stored vocabulary
      *  with the Apple @AppStorage binding via [com.noop.analytics.ClockFormatPreference]. */

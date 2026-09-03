@@ -1308,6 +1308,16 @@ fun SettingsScreen(
                 )
             }
             SettingsRowDivider()
+            // #1836: which bottom-bar layout to draw. Default OFF — the shipped reserved slot. The
+            // overlay lets a screen's own backdrop show through the bar's glass, which is what it was
+            // built for, but it is app-shell layout no test can judge, so it ships switchable.
+            SettingsFormRow(label = uiString(R.string.l10n_settings_screen_bottom_bar_overlay_f257c96f)) {
+                Switch(
+                    checked = BottomBarStyleStore.overlay,
+                    onCheckedChange = { BottomBarStyleStore.set(context, it) },
+                )
+            }
+            SettingsRowDivider()
             // #1821: Clock format. Sits with Language because it is an app-owned display CONVENTION, and
             // like Language it offers "System default" - which here means the device's own 12/24h switch,
             // not the region default that was silently deciding this for everyone. Twin of the Apple row.

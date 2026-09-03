@@ -895,6 +895,7 @@
     <string name="l10n_settings_screen_12_hour_41c18ba0">12-hour</string>
     <string name="l10n_settings_screen_24_hour_18e86819">24-hour</string>
     <string name="l10n_settings_screen_advancedchevron_f22dfa01">advancedChevron</string>
+    <string name="l10n_settings_screen_bottom_bar_overlay_f257c96f">Bottom bar overlay</string>
     <string name="l10n_settings_screen_clock_04f6b3ea">Clock</string>
     <string name="l10n_settings_screen_note_a2481d6c">· %1$s</string>
     <string name="l10n_settings_screen_repo_note_0a694b50">%1$s, %2$s</string>
