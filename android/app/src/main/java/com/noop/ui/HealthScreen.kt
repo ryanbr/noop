@@ -2328,7 +2328,15 @@ private fun buildVitalDetail(
         val kind = if (leadsAbsolute) SkinTempDisplay.Kind.ABSOLUTE else SkinTempDisplay.kind(lead.value)
         val unit = SkinTempDisplay.unitSymbol(kind, fahrenheit)
         val skinReadings = if (leadsAbsolute) {
-            days.mapNotNull { row -> row.skinTempC?.let { VitalReading(row.day, it, row.deviceId) } }
+            // An absolute-led series takes EVERY absolute reading, whichever column holds it. A WHOOP CSV
+            // import writes absolute °C straight into skinTempDevC (`skin_temp_celsius`, #622 bimodal), so
+            // reading skinTempC alone hid a wearer's imported temperatures from a temperature chart — and
+            // made the shortened-series note call them "a baseline difference only", which they are not.
+            // Mixing is only unsound ACROSS scales; these are the same scale.
+            days.mapNotNull { row ->
+                (row.skinTempC ?: row.skinTempDevC?.takeIf { VitalBands.isAbsoluteSkinTemp(it) })
+                    ?.let { VitalReading(row.day, it, row.deviceId) }
+            }
         } else {
             days.mapNotNull { row ->
                 row.skinTempDevC

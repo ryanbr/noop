@@ -1,6 +1,7 @@
 package com.noop.ui
 
 import com.noop.analytics.SkinTempDisplay
+import com.noop.analytics.VitalBands
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -90,6 +91,33 @@ class SkinTempFallbackNoteTest {
     fun silentWhenSomeOlderNightDoesHaveATemperature() {
         assertFalse(shouldExplainSkinTempFallback(SkinTempDisplay.Kind.ABSOLUTE, leadsAbsolute = false,
                                                   anyAbsoluteInWindow = true))
+    }
+
+
+    // MARK: third re-review — an absolute is an absolute, whichever column holds it
+
+    /**
+     * A WHOOP CSV import writes absolute °C into skinTempDevC (`skin_temp_celsius`, the #622 bimodal
+     * field). Those nights belong in an absolute-led series — same scale — and counting them as dropped
+     * made the note describe real temperatures as "a baseline difference only".
+     *
+     * Pins the discriminator the series selection leans on, so a change to the 20.0 threshold surfaces
+     * here rather than as a mislabelled chart.
+     */
+    @Test
+    fun anImportedAbsoluteIsRecognisedAsAbsolute() {
+        assertTrue(VitalBands.isAbsoluteSkinTemp(34.0))    // WHOOP export, stored in skinTempDevC
+        assertTrue(VitalBands.isAbsoluteSkinTemp(20.0))    // boundary is inclusive
+        assertFalse(VitalBands.isAbsoluteSkinTemp(0.5))    // a real deviation
+        assertFalse(VitalBands.isAbsoluteSkinTemp(-0.6))
+    }
+
+    /** With imported absolutes now IN the series, only genuine deviations count as dropped — so a window
+     *  holding nothing but absolutes (however stored) shows no note. */
+    @Test
+    fun silentWhenEveryDroppedRowWasActuallyAnAbsolute() {
+        assertFalse(shouldExplainShortenedSkinTempSeries(leadsAbsolute = true, shownReadings = 12,
+                                                         rowsWithEitherNumber = 12))
     }
 
 }
