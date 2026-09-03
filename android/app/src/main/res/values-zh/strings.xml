@@ -759,6 +759,7 @@
     <string name="l10n_settings_screen_advancedchevron_f22dfa01">高级选项</string>
     <string name="l10n_settings_screen_bottom_bar_overlay_f257c96f">底部栏叠加显示</string>
     <string name="l10n_settings_screen_clock_04f6b3ea">时钟</string>
+    <string name="l10n_settings_screen_hide_bar_when_scrolling_b077d9f3">滚动时隐藏底部栏</string>
     <string name="l10n_settings_screen_note_a2481d6c">· %1$s</string>
     <string name="l10n_settings_screen_repo_note_0a694b50">%1$s, %2$s</string>
     <string name="l10n_skin_temp_cards_screen_cycle_awareness_ffb94783">生理周期推断</string>

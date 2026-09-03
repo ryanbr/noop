@@ -701,6 +701,10 @@ object NoopPrefs {
         of(context).edit().putBoolean(KEY_APP_ICON_NAVY, navy).apply()
     }
 
+    /** #1839: hide the overlay bottom bar while scrolling down, restore it on scrolling up. Default
+     *  false. Only meaningful with the overlay layout, where the bar sits over content. */
+    const val KEY_BOTTOM_BAR_AUTO_HIDE = "noop.bottomBarAutoHide"
+
     /** #1836: draw the bottom bar as an overlay (glass over the screen's backdrop) instead of a reserved
      *  Scaffold slot. Default false — the shipped layout — until the overlay has been seen on a device. */
     const val KEY_OVERLAY_BOTTOM_BAR = "noop.overlayBottomBar"
