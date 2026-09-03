@@ -745,16 +745,3 @@ data class V18AuxSampleEntity(
         return result
     }
 }
-
-/**
- * #1855: one candidate row for the skin-temp absolutes backfill — the day AND the device namespace it
- * actually lives in.
- *
- * The id is READ, never assumed. Scored rows sit under the engine's `<strap>-noop` namespace while raw
- * samples sit under the strap id, and #1303's serial adoption can move the strap id underneath both. Two
- * separate releases of this backfill found nothing because they predicted the id instead of reading it.
- */
-data class SkinTempBackfillRow(
-    val deviceId: String,
-    val day: String,
-)

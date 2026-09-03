@@ -163,56 +163,6 @@ interface WhoopDao : DeviceRegistryDao {
     @Upsert
     suspend fun upsertDailyMetrics(rows: List<DailyMetric>)
 
-    /**
-     * #1851: the day keys that have a skin-temp DEVIATION but no ABSOLUTE beside it — the nights the
-     * 21-night `analyzeRecent` window never revisited after `skinTempC` shipped (2026-08-27).
-     *
-     * NOT filtered by device, deliberately. The id a scored row carries is not something a caller can
-     * safely predict: the engine writes under `<strap>-noop`, and #1303's serial adoption can move the
-     * strap id itself. Guessing it wrong finds nothing and is indistinguishable from "already done" —
-     * which is exactly how this shipped twice. The row carries its own id; take it from there.
-     *
-     * The cursor is COMPOSITE (`day|deviceId`), not the day alone. Without a device filter a single day
-     * can hold rows for several devices, and a page boundary falling between them would skip the row on
-     * the far side for the whole sweep — a night silently never attempted.
-     *
-     * PAGED, not just capped. A plain "oldest N" returns the SAME nights every pass, so a
-     * run whose first page cannot fill — and the oldest nights are exactly the ones most likely to have
-     * lost their raw samples — would latch on that page and never reach the newer nights that CAN fill.
-     * The caller advances a cursor, so one sweep visits every candidate exactly once.
-     */
-    @Query(
-        "SELECT deviceId, day FROM dailyMetric " +
-            "WHERE skinTempC IS NULL AND skinTempDevC IS NOT NULL " +
-            "AND (day || '|' || deviceId) > :afterCursor " +
-            "ORDER BY day ASC, deviceId ASC LIMIT :limit"
-    )
-    suspend fun daysMissingSkinTempAbsolute(afterCursor: String, limit: Int): List<SkinTempBackfillRow>
-
-    /** #1851: how many nights are outstanding in total — the uncapped count the "nothing left to try"
-     *  watermark keys on, so a newly imported night re-arms the sweep. */
-    @Query(
-        "SELECT COUNT(*) FROM dailyMetric WHERE skinTempC IS NULL AND skinTempDevC IS NOT NULL"
-    )
-    suspend fun countDaysMissingSkinTempAbsolute(): Int
-
-    /**
-     * #1851: fill ONE night's absolute, and only when it is absent.
-     *
-     * A targeted UPDATE, deliberately not an `@Upsert` of a rebuilt entity: an upsert writes every column,
-     * so a row assembled from partial data would silently blank whatever it did not carry. This touches
-     * exactly one column on one row.
-     *
-     * `AND skinTempC IS NULL` is the second half of that guarantee — the statement can only ever fill a
-     * hole, never overwrite a value the engine or an import already wrote. Returns rows changed, so a
-     * caller can tell "filled" from "already had one" without reading first.
-     */
-    @Query(
-        "UPDATE dailyMetric SET skinTempC = :celsius " +
-            "WHERE deviceId = :deviceId AND day = :day AND skinTempC IS NULL"
-    )
-    suspend fun fillSkinTempAbsolute(deviceId: String, day: String, celsius: Double): Int
-
     @Upsert
     suspend fun upsertSleepSessions(rows: List<SleepSession>)
 
