@@ -44,6 +44,17 @@ final class HexPayloadRedactionTests: XCTestCase {
         XCTAssertFalse(out.contains(serialAsHex), "odd-length run left the serial exposed: \(out)")
     }
 
+    /// The Kotlin rule is a regex over the printable projection (`[A-Za-z][0-9A-Za-z]{8,}`), so it finds
+    /// a serial ANYWHERE inside an alphanumeric run. Testing only the run's first byte left the serial
+    /// exposed when a digit preceded it with no separator — masked on Android, printed on Apple.
+    func testSerialIsMaskedEvenWhenDigitsPrecedeItInTheSameRun() {
+        // "0123" + "WBB5AP0539852" as one unbroken alphanumeric run, then a NUL to close it.
+        let hex = "3031323357424235415030353339383532" + "00" + "0000000000000000"
+        let out = LiveState.redactPii("payload=\(hex)")
+        XCTAssertFalse(out.contains(serialAsHex), "digit-prefixed run left the serial exposed: \(out)")
+        XCTAssertTrue(out.contains("30313233"), "the non-serial digits must survive: \(out)")
+    }
+
     func testPayloadWithNoAsciiRunIsUntouched() {
         // The charging payloads from the same capture carry no ASCII run — they must pass through whole.
         for p in ["707d0000707d0000", "b87e0000b87e0000", "0000000000000000"] {

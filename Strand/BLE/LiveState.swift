@@ -806,11 +806,22 @@ public final class LiveState: ObservableObject {
         var runStart = -1
         func closeRun(_ end: Int) {
             defer { runStart = -1 }
-            guard runStart >= 0, end - runStart >= 9 else { return }
-            let first = bytes[runStart]
-            let isLetter = (first >= 65 && first <= 90) || (first >= 97 && first <= 122)
-            guard isLetter else { return }          // a serial starts with a letter, not a digit
-            for k in runStart..<end { out[k * 2] = "•"; out[k * 2 + 1] = "•" }
+            guard runStart >= 0 else { return }
+            // Anchor on the first LETTER with enough run left after it, mirroring the Kotlin regex
+            // `[A-Za-z][0-9A-Za-z]{8,}` — which finds a serial ANYWHERE inside an alphanumeric run, not
+            // only at its start. Testing just the run's first byte left the serial exposed whenever a
+            // digit happened to precede it with no separator, and Kotlin masked the same bytes. Two
+            // halves of one rule disagreeing about which payloads are safe is the failure to avoid.
+            var i = runStart
+            while i < end {
+                let b = bytes[i]
+                let isLetter = (b >= 65 && b <= 90) || (b >= 97 && b <= 122)
+                if isLetter, end - i >= 9 {
+                    for k in i..<end { out[k * 2] = "•"; out[k * 2 + 1] = "•" }
+                    return
+                }
+                i += 1
+            }
         }
         for (idx, b) in bytes.enumerated() {
             let alnum = (b >= 48 && b <= 57) || (b >= 65 && b <= 90) || (b >= 97 && b <= 122)
