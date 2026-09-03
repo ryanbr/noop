@@ -27,6 +27,27 @@ ID**. Nothing about this touches NOOP's identity or Apple's servers on our side.
    and installs NOOP. First launch may need **Settings → General → VPN & Device Management → trust
    your Apple ID**.
 
+### If AltStore's Error Log says "Install NOOP Failed"
+
+The same failure also shows up **on the phone**, in AltStore's own Error Log, where it names NOOP and so
+looks like NOOP's fault:
+
+> **Install NOOP Failed** — `NSCocoaErrorDomain 3840`
+> *The data couldn't be read because it isn't in the correct format.*
+
+**Read the whole log before concluding anything.** If it also contains:
+
+> **Refresh AltStore Failed** — `NSCocoaErrorDomain 3840`
+
+then AltStore could not refresh **its own app**, which nothing about NOOP's `.ipa` or NOOP's source can
+cause. Every "… Failed" line is the same decode failure hitting whatever AltStore happened to be doing at
+that minute — installing NOOP, refreshing NOOP, refreshing itself. The NOOP-named lines are the symptom,
+not the cause.
+
+`NSCocoaErrorDomain 3840` is a parse error: AltStore expected structured data and got something else back
+(usually an HTML page). See the section below — it is the same underlying problem as the desktop sign-in
+failure, just reported from the phone instead of AltServer.
+
 ### If AltServer can't sign in with your Apple ID
 
 A failure at **step 1** — before NOOP is involved at all — looks like this:
