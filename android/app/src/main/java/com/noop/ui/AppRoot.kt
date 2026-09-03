@@ -289,6 +289,25 @@ object BottomBarStyleStore {
     var overlay by mutableStateOf(false)
         private set
 
+    /**
+     * The bar's MEASURED height, published so [ScreenScaffold] can clear it.
+     *
+     * This is the half that makes the overlay actually do something. Moving the bar out of the slot is not
+     * enough on its own: a screen's backdrop is painted INSIDE the screen, so while the screen is inset
+     * above the bar the backdrop stops there too and the glass has nothing behind it but the shell's
+     * container colour. The screen has to reach the bottom edge, with its scrolling CONTENT clearing the
+     * bar instead — which is what this height is for.
+     */
+    var barHeight by mutableStateOf(0.dp)
+        internal set
+
+    /**
+     * The inset a screen's CONTENT should add, which is the bar height only while the overlay is on.
+     * A single accessor so callers cannot forget the `overlay` half and inset content in the slot
+     * layout, where the Scaffold has already reserved that space.
+     */
+    fun barHeightForContent(): Dp = if (overlay) barHeight else 0.dp
+
     fun load(ctx: Context) {
         overlay = NoopPrefs.of(ctx.applicationContext)
             .getBoolean(NoopPrefs.KEY_OVERLAY_BOTTOM_BAR, false)
@@ -337,7 +356,8 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
     // content behind the bar on exactly the devices the report came from. One extra layout pass at
     // startup, then stable.
     var barHeightPx by remember { mutableIntStateOf(0) }
-    val barHeight = with(LocalDensity.current) { barHeightPx.toDp() }
+    val density = LocalDensity.current
+    val barHeight = with(density) { barHeightPx.toDp() }
     Box(Modifier.fillMaxSize()) {
         Scaffold(
             containerColor = Palette.surfaceBase,
@@ -377,7 +397,11 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                     top = inner.calculateTopPadding(),
                     start = inner.calculateStartPadding(LocalLayoutDirection.current),
                     end = inner.calculateEndPadding(LocalLayoutDirection.current),
-                    bottom = barHeight,
+                    // Bottom is ZERO on purpose: the screen must reach the bottom edge so its own backdrop
+                    // paints behind the glass. ScreenScaffold clears the bar from the scrolling CONTENT
+                    // instead, using BottomBarStyleStore.barHeight. Insetting here is what made the first
+                    // version of this change invisible — the bar moved, the backdrop did not follow.
+                    bottom = 0.dp,
                 ),
                 // README motion: top-level destinations crossfade (~240ms) on the calm,
                 // decelerating global easing — nothing slides or bounces between tabs. The
@@ -688,7 +712,10 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
             },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .onSizeChanged { barHeightPx = it.height },
+                .onSizeChanged {
+                    barHeightPx = it.height
+                    BottomBarStyleStore.barHeight = with(density) { it.height.toDp() }
+                },
         )
     }
 }
