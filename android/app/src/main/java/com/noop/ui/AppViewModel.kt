@@ -1281,15 +1281,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     // own cancellation — rethrow it so onCleared() actually stops the loop. (#125)
                 }.onSuccess {
                     NoopPrefs.setAnalyzeWatermark(appContext, analyzeFp)
-                    // #1851: fill the skin-temp absolutes the 21-night window never reaches. Runs AFTER a
-                    // successful pass so it never competes with scoring, and independently of the #1846
-                    // display preference — the data must be there whichever way the setting is left, so
-                    // flipping it is instant rather than kicking off work.
-                    //
-                    // Once per install (a prefs flag), because the nights it fills stay filled; a later
-                    // night that misses out is picked up by the scoring pass that owns it.
-                    runCatching { backfillSkinTempAbsolutes(deviceId) }
-                        .onFailure { if (it is kotlin.coroutines.cancellation.CancellationException) throw it }
                     // #1735: the watermark says WHAT was scored, never WHEN. "re-score: done" goes only to
                     // the live log, so hours later the rolling buffer has dropped it and an export cannot
                     // tell a pass that ran from one that never did - which is half of "my ride still is not
@@ -1299,6 +1290,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                             .putLong("score.lastPassAt", System.currentTimeMillis() / 1000).apply()
                     }
                 }
+                    .onFailure { if (it is kotlin.coroutines.cancellation.CancellationException) throw it }
+                // #1854: OUTSIDE the `analyzeHasNewData` gate on purpose.
+                //
+                // This was inside the scoring pass's onSuccess, which only runs when the fingerprint moved
+                // — so a feature whose entire job is reprocessing OLD nights never ran on the installs that
+                // need it most: a strap that has not synced has no new data, so no pass, so no backfill.
+                // The one install this was built for sat with five temperatures and never attempted the
+                // rest.
+                //
+                // Safe to run on every tick: it costs one COUNT when there is nothing outstanding, and the
+                // fruitless watermark stops it paying for reads once a whole sweep has come back empty.
+                runCatching { backfillSkinTempAbsolutes(deviceId) }
                     .onFailure { if (it is kotlin.coroutines.cancellation.CancellationException) throw it }
                 // Opt-in writeback: push the freshly computed nights into Health Connect so other
                 // apps see them. Idempotent (clientRecordId per metric+day), so re-running every
