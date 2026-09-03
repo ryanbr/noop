@@ -36,6 +36,14 @@ final class HexPayloadRedactionTests: XCTestCase {
         }
     }
 
+    /// The run regex matches consecutive hex characters, so a dump abutting other hex-valid text gives
+    /// an ODD-length match. Bailing on that returned the serial unredacted while Kotlin masked it — the
+    /// two halves of one rule must not disagree about which lines are safe.
+    func testOddLengthRunStillMasksTheSerial() {
+        let out = LiveState.redactPii("payload=\(payloadWithSerial)f")   // 1 trailing half-byte
+        XCTAssertFalse(out.contains(serialAsHex), "odd-length run left the serial exposed: \(out)")
+    }
+
     func testPayloadWithNoAsciiRunIsUntouched() {
         // The charging payloads from the same capture carry no ASCII run — they must pass through whole.
         for p in ["707d0000707d0000", "b87e0000b87e0000", "0000000000000000"] {

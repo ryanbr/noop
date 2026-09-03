@@ -790,7 +790,12 @@ public final class LiveState: ObservableObject {
     /// payload is exactly where an undocumented field would be found. Twin of `redactHexDumpPii`.
     nonisolated static func redactHexDump(_ hex: String) -> String {
         let chars = Array(hex)
-        guard chars.count >= 16, chars.count % 2 == 0 else { return hex }
+        // NO even-length requirement, deliberately. The run regex matches consecutive hex characters, so
+        // a dump abutting other hex-valid text yields an ODD-length match — and bailing on that returned
+        // the serial UNREDACTED, while the Kotlin twin processed the even prefix and masked it. Swift was
+        // the weaker half of a pair that has to behave identically. Process what pairs up, ignore a
+        // trailing half-byte.
+        guard chars.count >= 16 else { return hex }
         var bytes = [UInt8](); bytes.reserveCapacity(chars.count / 2)
         var i = 0
         while i + 1 < chars.count {
