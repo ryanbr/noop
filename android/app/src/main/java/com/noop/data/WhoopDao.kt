@@ -165,15 +165,27 @@ interface WhoopDao : DeviceRegistryDao {
 
     /**
      * #1851: the day keys that have a skin-temp DEVIATION but no ABSOLUTE beside it — the nights the
-     * 21-night `analyzeRecent` window never revisited after `skinTempC` shipped (2026-08-27). Oldest
-     * first, so a bounded backfill fills the deepest history it can reach rather than re-doing recent
-     * nights the engine already covers.
+     * 21-night `analyzeRecent` window never revisited after `skinTempC` shipped (2026-08-27).
+     *
+     * PAGED on [afterDay], not just capped. A plain "oldest N" returns the SAME nights every pass, so a
+     * run whose first page cannot fill — and the oldest nights are exactly the ones most likely to have
+     * lost their raw samples — would latch on that page and never reach the newer nights that CAN fill.
+     * The caller advances a cursor, so one sweep visits every candidate exactly once.
      */
     @Query(
         "SELECT day FROM dailyMetric WHERE deviceId = :deviceId " +
-            "AND skinTempC IS NULL AND skinTempDevC IS NOT NULL ORDER BY day ASC LIMIT :limit"
+            "AND skinTempC IS NULL AND skinTempDevC IS NOT NULL AND day > :afterDay " +
+            "ORDER BY day ASC LIMIT :limit"
     )
-    suspend fun daysMissingSkinTempAbsolute(deviceId: String, limit: Int): List<String>
+    suspend fun daysMissingSkinTempAbsolute(deviceId: String, afterDay: String, limit: Int): List<String>
+
+    /** #1851: how many nights are outstanding in total — the uncapped count the "nothing left to try"
+     *  watermark keys on, so a newly imported night re-arms the sweep. */
+    @Query(
+        "SELECT COUNT(*) FROM dailyMetric WHERE deviceId = :deviceId " +
+            "AND skinTempC IS NULL AND skinTempDevC IS NOT NULL"
+    )
+    suspend fun countDaysMissingSkinTempAbsolute(deviceId: String): Int
 
     /**
      * #1851: fill ONE night's absolute, and only when it is absent.

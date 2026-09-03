@@ -72,6 +72,10 @@ object SkinTempBackfill {
         val noSamples: Int = 0,
         /** Nights with no stored sleep session ending on them — nothing to compute a nightly mean over. */
         val noSessions: Int = 0,
+        /** The newest day this page examined; the caller's cursor for the next page. Empty when none. */
+        val lastDay: String = "",
+        /** True when the page came back short — every outstanding night has now been visited this sweep. */
+        val sweepComplete: Boolean = false,
         val declinedNoAnchor: Boolean = false,
     ) {
         val examined: Int get() = filled + noMean + noSamples + noSessions
@@ -159,9 +163,13 @@ object SkinTempBackfill {
             avgHRV = null,
         )
 
-    /** Candidate day keys for [deviceId], oldest first and capped. */
-    suspend fun candidates(repo: WhoopRepository, deviceId: String, max: Int = DEFAULT_MAX_NIGHTS): List<String> =
-        repo.daysMissingSkinTempAbsolute(deviceId, max)
+    /** One PAGE of candidate day keys, strictly after [afterDay]. See the DAO's note on why this pages. */
+    suspend fun candidates(
+        repo: WhoopRepository,
+        deviceId: String,
+        afterDay: String,
+        max: Int = DEFAULT_MAX_NIGHTS,
+    ): List<String> = repo.daysMissingSkinTempAbsolute(deviceId, afterDay, max)
 
     /**
      * Walk the candidate nights and fill what can be re-derived.
@@ -181,6 +189,7 @@ object SkinTempBackfill {
         wornToleranceSec: Long,
         zone: java.time.ZoneId = java.time.ZoneId.systemDefault(),
         nowSeconds: Long = System.currentTimeMillis() / 1000,
+        afterDay: String = "",
         max: Int = DEFAULT_MAX_NIGHTS,
         limit: Int = STREAM_LIMIT,
     ): Report {
@@ -188,8 +197,8 @@ object SkinTempBackfill {
             return Report(declinedNoAnchor = true)
         }
         val anchor = anchorFor(family, currentAnchorRaw)
-        val days = candidates(repo, deviceId, max)
-        if (days.isEmpty()) return Report()
+        val days = candidates(repo, deviceId, afterDay, max)
+        if (days.isEmpty()) return Report(sweepComplete = true)
 
         val nowLocalMidnight = java.time.Instant.ofEpochSecond(nowSeconds)
             .atZone(zone).toLocalDate().atStartOfDay(zone).toEpochSecond()
@@ -222,8 +231,13 @@ object SkinTempBackfill {
             // Fill-only by construction; a row that gained an absolute meanwhile reports 0 and is left be.
             if (repo.fillSkinTempAbsolute(deviceId, day, mean) > 0) filled++ else noMean++
         }
-        return Report(candidates = days.size, filled = filled, noMean = noMean,
-                      noSamples = noSamples, noSessions = noSessions)
+        return Report(
+            candidates = days.size, filled = filled, noMean = noMean,
+            noSamples = noSamples, noSessions = noSessions,
+            lastDay = days.last(),
+            // A short page means this sweep has seen every outstanding night.
+            sweepComplete = days.size < max,
+        )
     }
 
     /** Per-night read cap, matching the engine's stream limit. */

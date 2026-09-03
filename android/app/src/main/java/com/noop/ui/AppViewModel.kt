@@ -699,36 +699,46 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var todayVo2maxCache: Double? = null
 
     /**
-     * #1851: the candidate count at which a run filled NOTHING, so the next pass can skip work it has
-     * already proved fruitless. Not a "done" flag — history GROWS (an import brings in old nights), and a
-     * one-shot flag would strand every night that arrived after it was set.
+     * #1851 sweep state. A CURSOR, not a "done" flag.
+     *
+     * The candidate query is paged, because a plain "oldest N" returns the same nights every pass — and
+     * the oldest nights are exactly the ones most likely to have lost their raw samples. A page that
+     * cannot fill would otherwise latch, and every newer night that CAN fill would never be reached.
+     */
+    private val skinTempBackfillCursorKey = "skinTemp.backfillCursor"
+
+    /**
+     * The outstanding count at which a COMPLETE sweep filled nothing, so later passes can stop paying for
+     * reads that have already been proved fruitless. Keyed on the uncapped count, so a night arriving
+     * later — an import brings in old history — changes it and re-arms the sweep.
      */
     private val skinTempBackfillStuckKey = "skinTemp.backfillStuckAt"
+
+    /** Fills accumulated across the CURRENT sweep, so "the whole sweep found nothing" is distinguishable
+     *  from "this page found nothing". */
+    private val skinTempBackfillSweepFillsKey = "skinTemp.backfillSweepFills"
 
     /**
      * #1851: re-derive the nightly ABSOLUTE skin temperature for nights that only ever stored a deviation.
      *
-     * Runs after a successful scoring pass, and independently of the #1846 display preference — the data
+     * Runs after a successful scoring pass and independently of the #1846 display preference — the data
      * must be there whichever way the setting is left, so switching between Temperature and vs baseline is
      * instant rather than kicking off work.
      *
-     * Drains across passes rather than doing everything at once: each fillable night costs a large HR read,
-     * so [SkinTempBackfill.DEFAULT_MAX_NIGHTS] are taken per pass until none remain. When a pass fills
-     * nothing, the candidate count is remembered and identical counts are skipped thereafter — so the
-     * nights that can never fill (no banked samples) stop costing reads, while an import that adds older
-     * nights changes the count and re-arms the work.
+     * One PAGE per pass ([SkinTempBackfill.DEFAULT_MAX_NIGHTS]), advancing a cursor, so a deep history
+     * drains over successive passes instead of turning one pass into the #836/#841 battery shape. When a
+     * page comes back short the sweep has seen everything: the cursor resets, and if the whole sweep filled
+     * nothing the outstanding count is recorded so identical counts are skipped thereafter.
      *
      * The WHOOP 4.0 anchor is resolved from the CURRENT scan window, the same span the engine learns its
      * own anchor over — never from the old window being filled. An absolute is offset-sensitive, so nights
      * written on a re-learned anchor would sit on a different scale from the ones already stored and the
      * chart would plot two scales as one line. A 4.0 with no resolvable anchor is declined by the runner,
-     * and a decline never records progress, so it retries once an anchor exists.
+     * and a decline records no progress, so it retries once an anchor exists.
      */
     private suspend fun backfillSkinTempAbsolutes(deviceId: String) {
         val prefs = NoopPrefs.of(appContext)
-        val outstanding = repository.daysMissingSkinTempAbsolute(
-            deviceId, com.noop.analytics.SkinTempBackfill.DEFAULT_MAX_NIGHTS,
-        ).size
+        val outstanding = repository.countDaysMissingSkinTempAbsolute(deviceId)
         if (outstanding == 0) return
         if (prefs.getInt(skinTempBackfillStuckKey, -1) == outstanding) return
 
@@ -746,6 +756,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         } else {
             null
         }
+        val cursor = prefs.getString(skinTempBackfillCursorKey, "") ?: ""
         val report = com.noop.analytics.SkinTempBackfill.run(
             repo = repository,
             deviceId = deviceId,
@@ -753,17 +764,29 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             currentAnchorRaw = anchor,
             wornToleranceSec = tolerance,
             nowSeconds = now,
+            afterDay = cursor,
         )
         // A decline records nothing: a 4.0 whose anchor resolves later must still get its backfill.
-        if (!report.declinedNoAnchor && report.filled == 0) {
-            prefs.edit().putInt(skinTempBackfillStuckKey, outstanding).apply()
-        } else if (report.filled > 0) {
-            prefs.edit().remove(skinTempBackfillStuckKey).apply()
+        if (!report.declinedNoAnchor) {
+            val sweepFills = prefs.getInt(skinTempBackfillSweepFillsKey, 0) + report.filled
+            val edit = prefs.edit()
+            if (report.sweepComplete) {
+                // Every outstanding night has been visited. Start the next sweep from the top, and only
+                // stop paying for reads when the WHOLE sweep — not just its last page — found nothing.
+                edit.remove(skinTempBackfillCursorKey).remove(skinTempBackfillSweepFillsKey)
+                if (sweepFills == 0) edit.putInt(skinTempBackfillStuckKey, outstanding)
+            } else {
+                edit.putString(skinTempBackfillCursorKey, report.lastDay)
+                    .putInt(skinTempBackfillSweepFillsKey, sweepFills)
+            }
+            if (report.filled > 0) edit.remove(skinTempBackfillStuckKey)
+            edit.apply()
         }
         ble.externalLog(
-            "skinTempBackfill: candidates=${report.candidates} filled=${report.filled} " +
-                "noMean=${report.noMean} noSamples=${report.noSamples} " +
-                "noSessions=${report.noSessions} declined=${report.declinedNoAnchor}",
+            "skinTempBackfill: page=${report.candidates} filled=${report.filled} noMean=${report.noMean} " +
+                "noSamples=${report.noSamples} noSessions=${report.noSessions} " +
+                "outstanding=$outstanding sweepComplete=${report.sweepComplete} " +
+                "declined=${report.declinedNoAnchor}",
             com.noop.testcentre.TestDomain.UNIVERSAL,
         )
     }

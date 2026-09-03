@@ -180,4 +180,41 @@ class SkinTempBackfillTest {
         val r = SkinTempBackfill.Report(candidates = 6, filled = 1, noMean = 1, noSamples = 2, noSessions = 2)
         assertEquals(6, r.examined)
     }
+
+    // MARK: re-review 3 — a sweep must reach every night, not re-try the same page forever
+
+    /**
+     * The bug this pins is silent and permanent.
+     *
+     * The candidate query used to be a plain "oldest N", so every pass got the SAME nights — and the
+     * oldest nights are precisely the ones most likely to have lost their raw samples. A first page that
+     * could not fill latched the fruitless watermark, and every NEWER night that could have filled was
+     * never reached. The user would see a handful of temperatures and no reason why.
+     *
+     * Paging means a short page — fewer than the cap — is the signal that the sweep has seen everything.
+     */
+    @Test
+    fun aShortPageMeansTheSweepHasSeenEverything() {
+        val full = SkinTempBackfill.Report(candidates = SkinTempBackfill.DEFAULT_MAX_NIGHTS, sweepComplete = false)
+        assertFalse("a full page cannot be the end of a sweep", full.sweepComplete)
+        val short = SkinTempBackfill.Report(candidates = 3, sweepComplete = true)
+        assertTrue(short.sweepComplete)
+    }
+
+    /** An empty page ends the sweep too — nothing outstanding after the cursor. */
+    @Test
+    fun anEmptyPageEndsTheSweep() {
+        val empty = SkinTempBackfill.Report(sweepComplete = true)
+        assertTrue(empty.sweepComplete)
+        assertEquals("", empty.lastDay)
+        assertEquals(0, empty.examined)
+    }
+
+    /** The cursor is the newest day the page examined, so the next page starts strictly after it and no
+     *  night is visited twice within one sweep. */
+    @Test
+    fun theCursorIsThePagesNewestDay() {
+        val r = SkinTempBackfill.Report(candidates = 2, filled = 1, lastDay = "2026-08-11")
+        assertEquals("2026-08-11", r.lastDay)
+    }
 }

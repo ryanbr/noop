@@ -1176,8 +1176,12 @@ class WhoopRepository(
         dao.spo2Samples(deviceId, from, to, limit)
 
     /** #1851: nights holding a skin-temp deviation but no absolute, oldest first. See [SkinTempBackfill]. */
-    suspend fun daysMissingSkinTempAbsolute(deviceId: String, limit: Int): List<String> =
-        dao.daysMissingSkinTempAbsolute(deviceId, limit)
+    suspend fun daysMissingSkinTempAbsolute(deviceId: String, afterDay: String, limit: Int): List<String> =
+        dao.daysMissingSkinTempAbsolute(deviceId, afterDay, limit)
+
+    /** #1851: total outstanding nights, uncapped. See [daysMissingSkinTempAbsolute]. */
+    suspend fun countDaysMissingSkinTempAbsolute(deviceId: String): Int =
+        dao.countDaysMissingSkinTempAbsolute(deviceId)
 
     /**
      * #1851: fill ONE night's absolute, only where none exists. Returns rows changed (0 = already had one).
