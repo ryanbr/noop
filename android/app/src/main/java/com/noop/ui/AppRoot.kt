@@ -75,7 +75,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.staticCompositionLocalOf
 import com.noop.R
 import com.noop.analytics.FusionSource
 import androidx.compose.ui.Alignment
@@ -98,6 +97,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -271,19 +273,6 @@ internal object MoreSectionPrefs {
 }
 
 /**
- * #1836: the height the overlay bar occupies, so content can clear it.
- *
- * The bar used to be a `Scaffold(bottomBar = …)` slot, which reserved space OUTSIDE the screen content.
- * A screen's own backdrop therefore stopped where the bar began, and an 0.80-alpha "glass" surface over
- * `surfaceBase` is just a flat colour — which is why a bar built to float rendered as a dark strip.
- *
- * Exposed as a local so a scrollable can later add it to its own `contentPadding` and let content pass
- * under the glass. That half is deliberately not here: a single shared modifier cannot do it, so it wants
- * doing per screen with a device to look at.
- */
-val LocalBottomBarHeight = staticCompositionLocalOf { 76.dp }
-
-/**
  * App shell: a single [Scaffold] with a floating [GlassBottomBar] (Today · Trends · Sleep · More)
  * driving one [NavHost], mirroring the iOS RootTabView. There is NO global toolbar and no nav drawer
  * — every screen self-titles via [ScreenScaffold], and the "More" sheet (opened from the bar) reaches
@@ -313,6 +302,13 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
     // the bar's 0.80 "glass" had nothing behind it but surfaceBase — a bar built to float rendered as a
     // dark strip cut out of the background. As a sibling drawn OVER the Scaffold it sits on the screen's
     // own sky, which is what the translucency was written for.
+    // #1836: the inset MEASURED, never assumed. The bar's height includes navigationBarsPadding(), which
+    // differs by roughly 24dp between gesture navigation and 3-button navigation, and changes on rotation
+    // and on a foldable unfolding. The Scaffold slot used to measure it for us; a constant here would put
+    // content behind the bar on exactly the devices the report came from. One extra layout pass at
+    // startup, then stable.
+    var barHeightPx by remember { mutableIntStateOf(0) }
+    val barHeight = with(LocalDensity.current) { barHeightPx.toDp() }
     Box(Modifier.fillMaxSize()) {
         Scaffold(
             containerColor = Palette.surfaceBase,
@@ -331,10 +327,10 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                 startDestination = Destination.Today.route,
                 // The empty slot reserves nothing, so the bar's height is added here — the one place the
                 // inset used to come from. A scrollable that later wants content to pass UNDER the glass
-                // adds LocalBottomBarHeight to its own contentPadding instead; a shared modifier cannot.
+                // adds this measured height to its own contentPadding instead; no shared modifier can.
                 modifier = Modifier
                     .padding(inner)
-                    .padding(bottom = LocalBottomBarHeight.current),
+                    .padding(bottom = barHeight),
                 // README motion: top-level destinations crossfade (~240ms) on the calm,
                 // decelerating global easing — nothing slides or bounces between tabs. The
                 // same fade is used for back (pop) so the bar never feels jerky. Drill-ins
@@ -642,7 +638,9 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
             onTabSelected = { dest ->
                 if (dest.route != currentRoute) nav.navigateTopLevel(dest.route)
             },
-            modifier = Modifier.align(Alignment.BottomCenter),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .onSizeChanged { barHeightPx = it.height },
         )
     }
 }
