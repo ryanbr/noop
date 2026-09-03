@@ -101,6 +101,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -418,10 +419,22 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
     val collapseTarget = barCollapseFraction(hidden, reduceMotion)
     // The transform is a graphicsLayer only — GPU, per frame, NO relayout — so content never reflows as
     // the bar comes and goes and scrolling stays smooth. (The approach #90 got right.)
-    val collapse by animateFloatAsState(
+    // Held as the State, not unwrapped with `by`, ON PURPOSE. Reading a `Float` in composition would
+    // recompose this whole shell — Scaffold and NavHost included — on EVERY animation frame, which is the
+    // exact jank the graphicsLayer-only approach exists to avoid. Instead:
+    //   - the transform reads `.value` INSIDE graphicsLayer, a deferred read that updates the layer with
+    //     no recomposition at all;
+    //   - presence is a derivedStateOf, so composition is invalidated once when the bar appears or
+    //     disappears, not sixty times a second while it moves.
+    val collapseState = animateFloatAsState(
         targetValue = collapseTarget,
         animationSpec = tween(durationMillis = 220),
     )
+    val barPresent by remember { derivedStateOf { collapseState.value < 1f } }
+    // Landing on a new screen with no visible way to navigate is disorienting, and the bar cannot be
+    // tapped to fix it because it is the thing that is hidden. Reset on every route change so a screen
+    // always opens with its navigation present; scrolling down again hides it as before.
+    LaunchedEffect(currentRoute) { scrollingDown = false }
     val autoHideScroll = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
@@ -777,7 +790,11 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
 
         // Drawn OVER the Scaffold, so it floats on whatever backdrop the current screen painted rather
         // than on the shell's own container colour. Same composable, same insets — only its parent moved.
-        if (BottomBarStyleStore.overlay) GlassBottomBar(
+        // `collapse < 1f` and not just `overlay`: at alpha 0 the bar is invisible but still COMPOSED, so
+        // TalkBack could focus a bar nobody can see and a tap could land on a control that is not there.
+        // Dropping it at the end of the animation removes both. Safe precisely because it is an overlay —
+        // it reserves no space, so composing or not composing it never reflows content.
+        if (BottomBarStyleStore.overlay && barPresent) GlassBottomBar(
             current = current,
             onTabSelected = { dest ->
                 if (dest.route != currentRoute) nav.navigateTopLevel(dest.route)
@@ -787,8 +804,9 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                 .graphicsLayer {
                     // Slide it out past its own height so the whole capsule clears the edge, and fade so
                     // it does not read as a bar stuck half off-screen mid-animation.
-                    translationY = collapse * (barHeightPx.toFloat())
-                    alpha = 1f - collapse
+                    val c = collapseState.value      // deferred read: layer only, no recomposition
+                    translationY = c * (barHeightPx.toFloat())
+                    alpha = 1f - c
                 }
                 .onSizeChanged {
                     barHeightPx = it.height
