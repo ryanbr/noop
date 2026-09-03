@@ -120,32 +120,15 @@ internal fun shouldExplainShortenedSkinTempSeries(
 ): Boolean = leadsAbsolute && shownReadings < rowsWithEitherNumber
 
 /**
- * The MIXED case (#1850): a temperature was asked for, the newest night has none, but an older night does.
- *
- * Re-review pass 2 on #1847 silenced this rather than print "no measured temperature for these nights",
- * which is false for the nights that have one. Silence turned out to be the wrong trade: it is the COMMON
- * shape, not a rarity, because a scoring pass only refills the nights whose raw skinTempSample rows
- * survived pruning — so a wearer sets Temperature, sees deltas, and is told nothing at all.
- *
- * It gets its own sentence instead, which is accurate about both halves.
- */
-internal fun shouldExplainNewestNightHasNoTemperature(
-    prefer: SkinTempDisplay.Kind,
-    leadsAbsolute: Boolean,
-    anyAbsoluteInWindow: Boolean,
-): Boolean = prefer == SkinTempDisplay.Kind.ABSOLUTE && !leadsAbsolute && anyAbsoluteInWindow
-
-/**
  * Whether the skin-temp screen must EXPLAIN itself (#1847).
  *
  * `leadReading` deliberately falls back: asking for a temperature on a night that only ever recorded a
  * deviation shows the deviation rather than blanking. That is right, but silent — the setting then looks
  * broken, because both choices render the same Δ°C.
  *
- * Requires that NO night in the window has an absolute, not merely that the newest lacks one. When the
- * newest night has no absolute but an older one does, the sentence "no measured temperature for these
- * nights" is false for those older nights — so that case shows nothing. Saying nothing is a gap; saying
- * something untrue about the user's own data is worse.
+ * Requires that NO night in the window carries a temperature. #1850 removed the other case entirely:
+ * the preference now applies across the window, so a single stored temperature anywhere means the screen
+ * leads with temperatures rather than falling back and needing to explain itself.
  *
  * Pure so the decision is testable without Compose.
  */

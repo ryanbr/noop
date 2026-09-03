@@ -2314,18 +2314,26 @@ private fun buildVitalDetail(
     )
     "skin" -> {
         val fahrenheit = tempUnit == TemperatureUnit.FAHRENHEIT
-        // #1844: the newest reading decides the whole screen — title, unit, chart and every row — and it
-        // leads with the measured ABSOLUTE when that night has one (the #1665 rule, applied here too).
-        // The series must follow the same choice: an absolute plotted against a history of deviations is
-        // arithmetic on two scales, so the readings come from the matching column only.
-        val newest = days.asReversed().asSequence()
-            .firstOrNull { it.skinTempC != null || it.skinTempDevC != null } ?: return null
-        val lead = SkinTempDisplay.leadReading(newest.skinTempC, newest.skinTempDevC, skinTempPreferred)
-            ?: return null
-        val leadsAbsolute = lead.kind == SkinTempDisplay.Kind.ABSOLUTE && newest.skinTempC != null
-        // Deviation-led keeps the #622 bimodal read: a CSV import writes an absolute INTO skinTempDevC, so
-        // the kind is re-derived from the value and the series partitioned to it.
-        val kind = if (leadsAbsolute) SkinTempDisplay.Kind.ABSOLUTE else SkinTempDisplay.kind(lead.value)
+        // #1850: the preference applies across the WINDOW, not just the newest row. Keying the whole
+        // screen off the newest night meant a wearer with twenty stored temperatures and one recent night
+        // without saw twenty-three deltas — the setting says Temperature and the app HAS temperatures.
+        // `leadReading`'s rule lifted to the window: the chosen kind wins whenever any night carries it,
+        // the other is still the fallback, so a choice can never empty the screen.
+        //
+        // An absolute may live in EITHER column (#622: a WHOOP CSV import writes absolute °C into
+        // skinTempDevC), so both count here and in the series below.
+        val anyAbsolute = days.any { row ->
+            row.skinTempC != null || row.skinTempDevC?.let { VitalBands.isAbsoluteSkinTemp(it) } == true
+        }
+        val anyDeviation = days.any { row ->
+            row.skinTempDevC?.let { !VitalBands.isAbsoluteSkinTemp(it) } == true
+        }
+        if (!anyAbsolute && !anyDeviation) return null
+        val leadsAbsolute = when (skinTempPreferred) {
+            SkinTempDisplay.Kind.ABSOLUTE -> anyAbsolute
+            SkinTempDisplay.Kind.DEVIATION -> !anyDeviation && anyAbsolute
+        }
+        val kind = if (leadsAbsolute) SkinTempDisplay.Kind.ABSOLUTE else SkinTempDisplay.Kind.DEVIATION
         val unit = SkinTempDisplay.unitSymbol(kind, fahrenheit)
         val skinReadings = if (leadsAbsolute) {
             // An absolute-led series takes EVERY absolute reading, whichever column holds it. A WHOOP CSV
@@ -2338,9 +2346,11 @@ private fun buildVitalDetail(
                     ?.let { VitalReading(row.day, it, row.deviceId) }
             }
         } else {
+            // Genuine deviations only — an imported absolute sitting in this column belongs to the other
+            // scale and is excluded, exactly as before.
             days.mapNotNull { row ->
                 row.skinTempDevC
-                    ?.takeIf { VitalBands.isAbsoluteSkinTemp(it) == (kind == SkinTempDisplay.Kind.ABSOLUTE) }
+                    ?.takeIf { !VitalBands.isAbsoluteSkinTemp(it) }
                     ?.let { value -> VitalReading(row.day, value, row.deviceId) }
             }
         }
@@ -2361,24 +2371,16 @@ private fun buildVitalDetail(
             // Nights scored before skinTempC shipped kept only the deviation; a scoring pass refills them.
             fallbackNote = when {
                 shouldExplainSkinTempFallback(
-                    skinTempPreferred, leadsAbsolute,
-                    anyAbsoluteInWindow = days.any { it.skinTempC != null },
+                    skinTempPreferred, leadsAbsolute, anyAbsolute,
                 ) ->
                     uiString(R.string.l10n_health_screen_no_measured_temperature_for_these_nights_showing_the_differe_69d4efae)
-                // #1850: the newest night has none but an older one does — the shape a partial refill
-                // leaves behind, and the one that showed NOTHING before this.
-                shouldExplainNewestNightHasNoTemperature(
-                    skinTempPreferred, leadsAbsolute,
-                    anyAbsoluteInWindow = days.any { it.skinTempC != null },
-                ) ->
-                    uiString(R.string.l10n_health_screen_the_most_recent_night_has_no_measured_temperature_so_the_who_16ddbd6b)
-                // Leading with the absolute drops deviation-only nights from the series, so the reading
-                // count falls. Say why rather than letting history look like it vanished.
+                // Leading with the absolute drops deviation-only nights from the series — which can now
+                // include the most recent one. Say why rather than letting history look like it vanished.
                 shouldExplainShortenedSkinTempSeries(
                     leadsAbsolute = leadsAbsolute,
                     shownReadings = skinReadings.size,
                     rowsWithEitherNumber = days.count { it.skinTempC != null || it.skinTempDevC != null },
-                ) -> uiString(R.string.l10n_health_screen_only_nights_with_a_measured_temperature_are_shown_earlier_ni_a45140da)
+                ) -> uiString(R.string.l10n_health_screen_only_nights_with_a_measured_temperature_are_shown_the_others_b6f7c45b)
                 else -> null
             },
         )

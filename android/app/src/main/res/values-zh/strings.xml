@@ -2582,6 +2582,5 @@
     <string name="l10n_app_changelog_choose_a_12_hour_clock_sleep_8a19db5c">自选 12 小时制、从无运动数据的手环读取睡眠，以及不再靠猜测的手环日志</string>
     <string name="l10n_settings_screen_skin_temperature_fc103030">皮肤温度</string>
     <string name="l10n_health_screen_no_measured_temperature_for_these_nights_showing_the_differe_69d4efae">这些夜晚没有实测温度，显示的是与基线的差值。同步后会重新计算近期夜晚并补上。</string>
-    <string name="l10n_health_screen_only_nights_with_a_measured_temperature_are_shown_earlier_ni_a45140da">仅显示有实测温度的夜晚。更早的夜晚只记录了与基线的差值。</string>
-    <string name="l10n_health_screen_the_most_recent_night_has_no_measured_temperature_so_the_who_16ddbd6b">最近一晚没有实测温度，因此整个趋势以与基线的差值显示。</string>
+    <string name="l10n_health_screen_only_nights_with_a_measured_temperature_are_shown_the_others_b6f7c45b">仅显示有实测温度的夜晚；其余夜晚只记录了与基线的差值。</string>
 </resources>
