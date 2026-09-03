@@ -2695,4 +2695,5 @@
     <string name="l10n_app_changelog_choose_a_12_hour_clock_sleep_8a19db5c">Choose a 12-hour clock, sleep from straps that bank no motion, and a strap log that stops guessing</string>
     <string name="l10n_settings_screen_skin_temperature_fc103030">Skin temperature</string>
     <string name="l10n_health_screen_no_measured_temperature_for_these_nights_showing_the_differe_69d4efae">No measured temperature for these nights — showing the difference from your baseline. A sync re-scores recent nights and fills it in.</string>
+    <string name="l10n_health_screen_only_nights_with_a_measured_temperature_are_shown_earlier_ni_a45140da">Only nights with a measured temperature are shown. Earlier nights recorded a baseline difference only.</string>
 </resources>

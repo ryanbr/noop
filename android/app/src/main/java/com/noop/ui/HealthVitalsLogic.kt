@@ -99,6 +99,21 @@ internal data class Vital(
 }
 
 /**
+ * Whether the skin-temp screen must explain a SHORTENED series (#1847).
+ *
+ * Leading with the absolute means the chart and table must read the absolute column, because an absolute
+ * plotted against a history of deviations is arithmetic on two scales. Nights that only ever recorded a
+ * deviation therefore drop out — and after a sync refills the 21-night `analyzeRecent` window on an install
+ * with older history, the reading count visibly falls with nothing on screen saying why.
+ *
+ * True only when rows were actually dropped, so a complete series stays silent.
+ */
+internal fun shouldExplainShortenedSkinTempSeries(
+    shownReadings: Int,
+    rowsWithEitherNumber: Int,
+): Boolean = shownReadings < rowsWithEitherNumber
+
+/**
  * Whether the skin-temp screen must EXPLAIN itself (#1847).
  *
  * `leadReading` deliberately falls back: asking for a temperature on a night that only ever recorded a

@@ -38,4 +38,26 @@ class SkinTempFallbackNoteTest {
     fun silentOnTheReverseFallback() {
         assertFalse(shouldExplainSkinTempFallback(SkinTempDisplay.Kind.DEVIATION, leadsAbsolute = true))
     }
+
+    // MARK: the shortened series (#1847, found in re-review)
+
+    /** After a sync refills the 21-night window on an install with older history, the absolute-led series
+     *  drops the deviation-only nights and the reading count visibly falls. Say why. */
+    @Test
+    fun explainsWhenNightsWereDroppedFromTheSeries() {
+        assertTrue(shouldExplainShortenedSkinTempSeries(shownReadings = 21, rowsWithEitherNumber = 40))
+    }
+
+    /** A complete series says nothing — the note must not appear on a healthy screen. */
+    @Test
+    fun silentWhenEveryNightIsShown() {
+        assertFalse(shouldExplainShortenedSkinTempSeries(shownReadings = 23, rowsWithEitherNumber = 23))
+    }
+
+    /** No data at all is the empty state's job, not this note's. */
+    @Test
+    fun silentWhenThereIsNothingToShow() {
+        assertFalse(shouldExplainShortenedSkinTempSeries(shownReadings = 0, rowsWithEitherNumber = 0))
+    }
+
 }
