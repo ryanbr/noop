@@ -42,17 +42,24 @@ class KeyMetricSkinTempTest {
     private fun day(skinTempDevC: Double?) =
         DailyMetric(deviceId = "my-whoop-noop", day = "2026-08-25", skinTempDevC = skinTempDevC)
 
+    private fun value(d: DailyMetric?, carriedDay: DailyMetric?, skinTempCarryDay: DailyMetric?) =
+        resolveSkinTempReading(d, carriedDay, skinTempCarryDay)?.value
+
     /**
      * Regression for ryanbr's PR #1589 review: carriedDay (lastScoredRecoveryDay) is a whole-row
      * carry that lands on a row with null skinTempDevC even when a genuine reading exists further
      * back, so the tile must fall through to the per-field skinTempCarryDay — exactly like
-     * spo2CarryDay/respCarryDay, and matching iOS TodayView's lastSkinTempDay chain.
+     * spo2CarryDay/respCarryDay, and matching the iOS `skinTempLeadReading` chain.
+     *
+     * Repinned onto `resolveSkinTempReading` (#1844) when both Today surfaces moved onto it: same carry
+     * ORDER, same fixtures, now reading `.value` off the resolved reading. The order is the part worth
+     * guarding, and it did not change.
      */
     @Test fun nullSkinTempDevCFallsThroughToPerFieldCarry() {
         val perFieldCarry = day(skinTempDevC = 0.4)
         assertEquals(
             0.4,
-            resolveSkinTempDevC(d = null, carriedDay = day(skinTempDevC = null), skinTempCarryDay = perFieldCarry)!!,
+            value(d = null, carriedDay = day(skinTempDevC = null), skinTempCarryDay = perFieldCarry)!!,
             0.0,
         )
     }
@@ -60,7 +67,7 @@ class KeyMetricSkinTempTest {
     @Test fun todaysOwnReadingWinsOverEitherCarry() {
         assertEquals(
             0.2,
-            resolveSkinTempDevC(
+            value(
                 d = day(skinTempDevC = 0.2),
                 carriedDay = day(skinTempDevC = -0.1),
                 skinTempCarryDay = day(skinTempDevC = 0.4),
@@ -72,7 +79,7 @@ class KeyMetricSkinTempTest {
     @Test fun wholeRowCarryWinsOverPerFieldCarryWhenBothPresent() {
         assertEquals(
             -0.1,
-            resolveSkinTempDevC(
+            value(
                 d = null,
                 carriedDay = day(skinTempDevC = -0.1),
                 skinTempCarryDay = day(skinTempDevC = 0.4),
@@ -82,6 +89,6 @@ class KeyMetricSkinTempTest {
     }
 
     @Test fun noRowAnywhereYieldsNull() {
-        assertNull(resolveSkinTempDevC(d = null, carriedDay = null, skinTempCarryDay = null))
+        assertNull(value(d = null, carriedDay = null, skinTempCarryDay = null))
     }
 }

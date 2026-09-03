@@ -3616,8 +3616,11 @@ private fun dashboardCardValue(
                 // bedroom). Both numbers come off the SAME row so the scale shown is that night's own.
                 // #622 still applies to the fallback: a deviation keeps its Δ unit so "−0.1 °C" is never
                 // read as a wrist temperature.
-                val row = vd?.takeIf { it.skinTempC != null || it.skinTempDevC != null } ?: skinTempDay
-                com.noop.analytics.SkinTempDisplay.leadReading(row?.skinTempC, row?.skinTempDevC)
+                // Same resolver as the Key Metrics tile, so the two can never disagree — the claim the iOS
+                // twin already made in a comment and that now actually holds on both platforms. It also puts
+                // today's own reading FIRST: `vd` is `carriedDay ?: day`, so a live carry hid a temperature
+                // measured today, which `todaysOwnReadingWinsOverEitherCarry` has asserted all along.
+                resolveSkinTempReading(day, carriedDay, skinTempDay)
                     ?.let { com.noop.analytics.SkinTempDisplay.formatReading(it, fahrenheit = fahrenheit) }
                     ?: NO_DATA
             }
@@ -4937,7 +4940,8 @@ private fun RecordingStatusChip(state: RecordingState, onConnect: () -> Unit) {
  * [com.noop.analytics.SkinTempDisplay.leadReading].
  *
  * Both numbers are read off the SAME row, so an absolute is never paired with another night's deviation.
- * [resolveSkinTempDevC] stays for the deviation-only call sites.
+ * Replaces `resolveSkinTempDevC`, which had no caller left once both Today surfaces moved onto
+ * this one; its carry-order tests were repinned here rather than dropped.
  */
 internal fun resolveSkinTempReading(
     d: DailyMetric?,
@@ -4947,18 +4951,6 @@ internal fun resolveSkinTempReading(
     listOfNotNull(d, carriedDay, skinTempCarryDay)
         .firstOrNull { it.skinTempC != null || it.skinTempDevC != null }
         ?.let { com.noop.analytics.SkinTempDisplay.leadReading(it.skinTempC, it.skinTempDevC) }
-
-/**
- * The Key Metrics Skin Temp tile's 3-way fallback: today's row, then the whole-row recovery carry,
- * then the per-field skin-temp carry (mirrors spo2CarryDay/respCarryDay's reasoning — carriedDay can
- * land on a row with null skinTempDevC even when a genuine reading exists further back). Extracted so
- * the carry regression ryanbr's PR #1589 review flagged is testable without Compose/Robolectric.
- */
-internal fun resolveSkinTempDevC(
-    d: DailyMetric?,
-    carriedDay: DailyMetric?,
-    skinTempCarryDay: DailyMetric?,
-): Double? = d?.skinTempDevC ?: carriedDay?.skinTempDevC ?: skinTempCarryDay?.skinTempDevC
 
 /**
  * The full 14-day metric grid, mirroring the macOS LazyVGrid order:
