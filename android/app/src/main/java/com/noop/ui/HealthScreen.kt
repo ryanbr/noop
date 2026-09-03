@@ -2365,6 +2365,13 @@ private fun buildVitalDetail(
                     anyAbsoluteInWindow = days.any { it.skinTempC != null },
                 ) ->
                     uiString(R.string.l10n_health_screen_no_measured_temperature_for_these_nights_showing_the_differe_69d4efae)
+                // #1850: the newest night has none but an older one does — the shape a partial refill
+                // leaves behind, and the one that showed NOTHING before this.
+                shouldExplainNewestNightHasNoTemperature(
+                    skinTempPreferred, leadsAbsolute,
+                    anyAbsoluteInWindow = days.any { it.skinTempC != null },
+                ) ->
+                    uiString(R.string.l10n_health_screen_the_most_recent_night_has_no_measured_temperature_so_the_who_16ddbd6b)
                 // Leading with the absolute drops deviation-only nights from the series, so the reading
                 // count falls. Say why rather than letting history look like it vanished.
                 shouldExplainShortenedSkinTempSeries(

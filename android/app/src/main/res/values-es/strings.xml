@@ -2670,4 +2670,5 @@
     <string name="l10n_settings_screen_skin_temperature_fc103030">Temperatura cutánea</string>
     <string name="l10n_health_screen_no_measured_temperature_for_these_nights_showing_the_differe_69d4efae">No hay temperatura medida para estas noches: se muestra la diferencia respecto a tu referencia. Una sincronización vuelve a analizar las noches recientes y la completa.</string>
     <string name="l10n_health_screen_only_nights_with_a_measured_temperature_are_shown_earlier_ni_a45140da">Solo se muestran las noches con temperatura medida. En las noches anteriores solo se registró la diferencia respecto a la referencia.</string>
+    <string name="l10n_health_screen_the_most_recent_night_has_no_measured_temperature_so_the_who_16ddbd6b">La noche más reciente no tiene temperatura medida, por lo que toda la tendencia se muestra como la diferencia respecto a tu referencia.</string>
 </resources>

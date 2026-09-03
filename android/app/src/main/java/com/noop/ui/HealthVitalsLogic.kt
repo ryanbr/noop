@@ -120,6 +120,22 @@ internal fun shouldExplainShortenedSkinTempSeries(
 ): Boolean = leadsAbsolute && shownReadings < rowsWithEitherNumber
 
 /**
+ * The MIXED case (#1850): a temperature was asked for, the newest night has none, but an older night does.
+ *
+ * Re-review pass 2 on #1847 silenced this rather than print "no measured temperature for these nights",
+ * which is false for the nights that have one. Silence turned out to be the wrong trade: it is the COMMON
+ * shape, not a rarity, because a scoring pass only refills the nights whose raw skinTempSample rows
+ * survived pruning — so a wearer sets Temperature, sees deltas, and is told nothing at all.
+ *
+ * It gets its own sentence instead, which is accurate about both halves.
+ */
+internal fun shouldExplainNewestNightHasNoTemperature(
+    prefer: SkinTempDisplay.Kind,
+    leadsAbsolute: Boolean,
+    anyAbsoluteInWindow: Boolean,
+): Boolean = prefer == SkinTempDisplay.Kind.ABSOLUTE && !leadsAbsolute && anyAbsoluteInWindow
+
+/**
  * Whether the skin-temp screen must EXPLAIN itself (#1847).
  *
  * `leadReading` deliberately falls back: asking for a temperature on a night that only ever recorded a

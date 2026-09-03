@@ -120,4 +120,47 @@ class SkinTempFallbackNoteTest {
                                                          rowsWithEitherNumber = 12))
     }
 
+
+    // MARK: #1850 — the case re-review pass 2 silenced, which turned out to be the common one
+
+    /**
+     * Reported from a real install: Temperature selected, deltas on screen, and NO note. The only path
+     * producing both is "newest night has no absolute, an older one does" — silenced in #1847 because the
+     * all-or-nothing sentence would have been false for the nights that do have one. It now has its own.
+     */
+    @Test
+    fun explainsWhenOnlyTheNewestNightLacksATemperature() {
+        assertTrue(shouldExplainNewestNightHasNoTemperature(SkinTempDisplay.Kind.ABSOLUTE,
+                                                            leadsAbsolute = false,
+                                                            anyAbsoluteInWindow = true))
+    }
+
+    /** The three ABSOLUTE-preference cases are mutually exclusive and together total: nothing anywhere,
+     *  newest-only missing, or honoured. No combination can leave the screen silent again. */
+    @Test
+    fun everyAbsolutePreferenceCaseIsCovered() {
+        for (anyAbsolute in listOf(false, true)) {
+            for (leads in listOf(false, true)) {
+                val nothingAnywhere = shouldExplainSkinTempFallback(
+                    SkinTempDisplay.Kind.ABSOLUTE, leads, anyAbsolute)
+                val newestOnly = shouldExplainNewestNightHasNoTemperature(
+                    SkinTempDisplay.Kind.ABSOLUTE, leads, anyAbsolute)
+                // Never both at once.
+                assertFalse("both fired for leads=$leads any=$anyAbsolute", nothingAnywhere && newestOnly)
+                // When the choice was NOT honoured, exactly one of them must speak.
+                if (!leads) {
+                    assertTrue("silent for leads=false any=$anyAbsolute", nothingAnywhere || newestOnly)
+                }
+            }
+        }
+    }
+
+    /** Choosing the delta never triggers the temperature explanations. */
+    @Test
+    fun deviationPreferenceStaysSilentInTheMixedCase() {
+        assertFalse(shouldExplainNewestNightHasNoTemperature(SkinTempDisplay.Kind.DEVIATION,
+                                                             leadsAbsolute = false,
+                                                             anyAbsoluteInWindow = true))
+    }
+
 }

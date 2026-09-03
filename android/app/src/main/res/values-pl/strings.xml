@@ -2674,4 +2674,5 @@
     <string name="l10n_settings_screen_skin_temperature_fc103030">Temperatura skóry</string>
     <string name="l10n_health_screen_no_measured_temperature_for_these_nights_showing_the_differe_69d4efae">Brak zmierzonej temperatury dla tych nocy — pokazano różnicę względem Twojej wartości bazowej. Synchronizacja ponownie przelicza ostatnie noce i ją uzupełnia.</string>
     <string name="l10n_health_screen_only_nights_with_a_measured_temperature_are_shown_earlier_ni_a45140da">Pokazywane są tylko noce ze zmierzoną temperaturą. We wcześniejszych nocach zapisano jedynie różnicę względem wartości bazowej.</string>
+    <string name="l10n_health_screen_the_most_recent_night_has_no_measured_temperature_so_the_who_16ddbd6b">Ostatnia noc nie ma zmierzonej temperatury, więc cały trend jest pokazany jako różnica względem Twojej wartości bazowej.</string>
 </resources>
