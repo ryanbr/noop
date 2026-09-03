@@ -2668,4 +2668,5 @@
     <string name="l10n_app_changelog_a_whoop_5_that_stays_connected_7b490eee">Una WHOOP 5 que no se desconecta, tu reloj interno en la pantalla de Sueño y un diario que distingue No de nada</string>
     <string name="l10n_app_changelog_choose_a_12_hour_clock_sleep_8a19db5c">Elige el reloj de 12 horas, sueño desde correas que no registran movimiento y un registro que deja de suponer</string>
     <string name="l10n_settings_screen_skin_temperature_fc103030">Temperatura cutánea</string>
+    <string name="l10n_health_screen_no_measured_temperature_for_these_nights_showing_the_differe_69d4efae">No hay temperatura medida para estas noches: se muestra la diferencia respecto a tu referencia. Una sincronización vuelve a analizar las noches recientes y la completa.</string>
 </resources>

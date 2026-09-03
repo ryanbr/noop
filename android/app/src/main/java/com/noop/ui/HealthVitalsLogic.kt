@@ -99,6 +99,21 @@ internal data class Vital(
 }
 
 /**
+ * Whether the skin-temp screen must EXPLAIN itself (#1847).
+ *
+ * `leadReading` deliberately falls back: asking for a temperature on a night that only ever recorded a
+ * deviation shows the deviation rather than blanking. That is right, but silent — the setting then looks
+ * broken, because both choices render the same Δ°C. True exactly when the user asked for a temperature and
+ * no night in the window has one.
+ *
+ * Pure so the decision is testable without Compose.
+ */
+internal fun shouldExplainSkinTempFallback(
+    prefer: SkinTempDisplay.Kind,
+    leadsAbsolute: Boolean,
+): Boolean = prefer == SkinTempDisplay.Kind.ABSOLUTE && !leadsAbsolute
+
+/**
  * Whether the skin-temp tile leads with the night's ABSOLUTE (#1636).
  *
  * True whenever the displayed night measured one. A deviation with no anchor cannot be read — "+0.9" is

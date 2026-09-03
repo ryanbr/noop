@@ -2681,4 +2681,5 @@
     <string name="l10n_app_changelog_a_whoop_5_that_stays_connected_7b490eee">Eine WHOOP 5, die verbunden bleibt, deine innere Uhr im Schlaf-Screen und ein Journal, das Nein von gar nichts unterscheidet</string>
     <string name="l10n_app_changelog_choose_a_12_hour_clock_sleep_8a19db5c">Wähle dein Zeitformat, Schlaf von Straps ohne Bewegungsdaten und ein Strap-Log, das nicht mehr rät</string>
     <string name="l10n_settings_screen_skin_temperature_fc103030">Hauttemperatur</string>
+    <string name="l10n_health_screen_no_measured_temperature_for_these_nights_showing_the_differe_69d4efae">Für diese Nächte liegt keine gemessene Temperatur vor — angezeigt wird die Abweichung von deinem Basiswert. Eine Synchronisierung bewertet die letzten Nächte neu und ergänzt sie.</string>
 </resources>

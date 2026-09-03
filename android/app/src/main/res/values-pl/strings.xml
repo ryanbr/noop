@@ -2672,4 +2672,5 @@
     <string name="l10n_app_changelog_a_whoop_5_that_stays_connected_7b490eee">WHOOP 5, który nie traci połączenia, zegar biologiczny na ekranie snu i dziennik odróżniający Nie od braku wpisu</string>
     <string name="l10n_app_changelog_choose_a_12_hour_clock_sleep_8a19db5c">Wybierz zegar 12-godzinny, sen z opasek bez danych o ruchu i dziennik, który przestaje zgadywać</string>
     <string name="l10n_settings_screen_skin_temperature_fc103030">Temperatura skóry</string>
+    <string name="l10n_health_screen_no_measured_temperature_for_these_nights_showing_the_differe_69d4efae">Brak zmierzonej temperatury dla tych nocy — pokazano różnicę względem Twojej wartości bazowej. Synchronizacja ponownie przelicza ostatnie noce i ją uzupełnia.</string>
 </resources>

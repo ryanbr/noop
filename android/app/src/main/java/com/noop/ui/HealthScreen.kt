@@ -1747,6 +1747,8 @@ private data class VitalDetailModel(
     val color: Color,
     val readings: List<VitalReading>,
     val format: (Double) -> String,
+    /** #1847: why the screen is not showing what Settings asked for. Null when it is. */
+    val fallbackNote: String? = null,
 ) {
     /** (day, value) projection the trend chart + range helpers consume — SAME order as [readings], so the
      *  chart, the header count, and the table can never drift apart. */
@@ -2059,6 +2061,14 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
                             style = NoopType.footnote,
                             color = Palette.textTertiary,
                         )
+                        detail.fallbackNote?.let { note ->
+                            Text(
+                                text = note,
+                                style = NoopType.footnote,
+                                color = Palette.textTertiary,
+                                modifier = Modifier.padding(top = 6.dp),
+                            )
+                        }
                     }
                 }
                 SegmentedPillControl(
@@ -2337,6 +2347,14 @@ private fun buildVitalDetail(
                 }
             },
             format = { c -> SkinTempDisplay.numberString(c, kind, fahrenheit, decimals = 1) },
+            // #1847: Settings asked for a temperature and none of these nights has one, so the screen shows
+            // the deviation instead. Say so — silently falling back is why the setting reads as broken.
+            // Nights scored before skinTempC shipped kept only the deviation; a scoring pass refills them.
+            fallbackNote = if (shouldExplainSkinTempFallback(skinTempPreferred, leadsAbsolute)) {
+                uiString(R.string.l10n_health_screen_no_measured_temperature_for_these_nights_showing_the_differe_69d4efae)
+            } else {
+                null
+            },
         )
     }
     else -> null
