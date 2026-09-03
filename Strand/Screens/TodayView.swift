@@ -590,6 +590,20 @@ struct TodayView: View {
         return Repository.lastSpo2Day(days: repo.days, todayKey: displayDay?.day ?? selectedDayKey)
     }
 
+    /// PER-FIELD HRV carry — twin of `lastSpo2Day` for a field `lastVitalsDay`'s OR predicate checks but can
+    /// still resolve nil on: it picks the freshest row with ANY vital, so a respiratory-only row blanks HRV
+    /// (#1842). Mirrors the Android `lastHrvRow`.
+    private var lastHrvDay: DailyMetric? {
+        guard isToday else { return nil }
+        return Repository.lastHrvDay(days: repo.days, todayKey: displayDay?.day ?? selectedDayKey)
+    }
+
+    /// PER-FIELD resting-HR carry — twin of `lastHrvDay`. Mirrors the Android `lastRestingHrRow`.
+    private var lastRestingHrDay: DailyMetric? {
+        guard isToday else { return nil }
+        return Repository.lastRestingHrDay(days: repo.days, todayKey: displayDay?.day ?? selectedDayKey)
+    }
+
     /// PER-FIELD skin-temperature-deviation carry — twin of `lastSpo2Day`; mirrors the Android `lastSkinTempRow`.
     private var lastSkinTempDay: DailyMetric? {
         guard selectedDayOffset == 0 else { return nil }
@@ -2574,12 +2588,18 @@ struct TodayView: View {
             #if DEBUG
             if let f = DemoDayHarness.active { return withUnit("\(f.hrvMs)") }
             #endif
-            return withUnit(d?.avgHrv.map { "\(Int($0.rounded()))" } ?? "—")
+            // PER-FIELD carry: today → the freshest prior row that actually HAS an HRV (#1842). Was
+            // today-only, so this card blanked to "—" every rollover while the Key Metrics tile — which
+            // has carried via `carriedVital(perField:)` all along — showed a number on the same screen.
+            // Not the whole-row `lastVitalsDay`: its OR predicate resolves nil HRV on a respiratory-only
+            // row. Mirrors the Android dashboardCardValue.
+            return withUnit((d?.avgHrv ?? lastHrvDay?.avgHrv).map { "\(Int($0.rounded()))" } ?? "—")
         case .restingHr:
             #if DEBUG
             if let f = DemoDayHarness.active { return withUnit("\(f.rhrBpm)") }
             #endif
-            return withUnit(d?.restingHr.map { "\($0)" } ?? "—")
+            // PER-FIELD carry — twin of `.hrv` above (#1842).
+            return withUnit((d?.restingHr ?? lastRestingHrDay?.restingHr).map { "\($0)" } ?? "—")
         case .respiratory:
             // PER-FIELD carry: today → the STALENESS-BOUNDED prior night (`lastRespDay`). Recovery-
             // independent, so a night with real R-R but a null recovery still carries.
@@ -2793,16 +2813,26 @@ struct TodayView: View {
         // falls back to the last night that recorded THAT vital (`lastVitalsDay`, recovery-INDEPENDENT — a
         // night with real HRV/RHR but a null recovery is a valid source, which the old `lastScoredRecoveryDay`
         // row-swap skipped). Today's own value always wins the instant it lands.
+        // ...and PER FIELD means per field: `lastVitalsDay`'s predicate is an OR across the three, so it
+        // resolves the freshest row with ANY of them and blanks a vital that row happens to lack (#1842).
+        let hd = lastHrvDay
+        let rd = lastRestingHrDay
         let vd = lastVitalsDay
-        let hrv = d?.avgHrv ?? vd?.avgHrv
-        let rhr = d?.restingHr ?? vd?.restingHr
+        let hrv = d?.avgHrv ?? hd?.avgHrv
+        let rhr = d?.restingHr ?? rd?.restingHr
         let resp = d?.respRateBpm ?? vd?.respRateBpm
         // The provenance row a shown vital fell back to (nil when every shown vital is today's own): stamps
         // that row's own date, so the footnote can't claim "Last night" for a value that IS today's.
-        let carriedFromHrv = d?.avgHrv == nil && vd?.avgHrv != nil
-        let carriedFromRhr = d?.restingHr == nil && vd?.restingHr != nil
-        let carriedFromResp = d?.respRateBpm == nil && vd?.respRateBpm != nil
-        let provenance: DailyMetric? = (carriedFromHrv || carriedFromRhr || carriedFromResp) ? vd : nil
+        // Each vital can now carry from a DIFFERENT row, so the one card-level footnote stamps the OLDEST
+        // row any SHOWN carried vital came from. Erring old is the only safe direction for a caption whose
+        // job is to stop a stale read passing as today's, and it keeps `carriedCaption`'s "Latest sleep"
+        // relabel (#779) firing on the value that actually is weeks old. A row is only a source if it
+        // SUPPLIED the value — `vd` can hold a nil respiratory, which carries nothing and stamps nothing.
+        let carriedFromHrv: DailyMetric? = (d?.avgHrv == nil && hd?.avgHrv != nil) ? hd : nil
+        let carriedFromRhr: DailyMetric? = (d?.restingHr == nil && rd?.restingHr != nil) ? rd : nil
+        let carriedFromResp: DailyMetric? = (d?.respRateBpm == nil && vd?.respRateBpm != nil) ? vd : nil
+        let sources: [DailyMetric] = [carriedFromHrv, carriedFromRhr, carriedFromResp].compactMap { $0 }
+        let provenance: DailyMetric? = sources.min(by: { $0.day < $1.day })
         NoopCard(tint: StrandPalette.chargeColor) {
             VStack(spacing: 0) {
                 // DEBUG promo harness: pin HRV / Resting HR to the active frame's values. No-op otherwise.

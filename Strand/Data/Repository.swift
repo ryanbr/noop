@@ -608,6 +608,17 @@ final class Repository: ObservableObject {
         DailyMetric.lastSkinTempDay(days: days, todayKey: todayKey)
     }
 
+    /// PER-FIELD HRV carry — twin of the above, for a field `lastVitalsDay`'s OR predicate DOES check but
+    /// can still resolve nil on (#1842). See `DailyMetric.lastHrvDay`.
+    nonisolated static func lastHrvDay(days: [DailyMetric], todayKey: String) -> DailyMetric? {
+        DailyMetric.lastHrvDay(days: days, todayKey: todayKey)
+    }
+
+    /// PER-FIELD resting-HR carry — twin of `lastHrvDay`. See `DailyMetric.lastRestingHrDay`.
+    nonisolated static func lastRestingHrDay(days: [DailyMetric], todayKey: String) -> DailyMetric? {
+        DailyMetric.lastRestingHrDay(days: days, todayKey: todayKey)
+    }
+
     /// PER-FIELD respiratory carry — twin of `lastSpo2Day`, but STALENESS-BOUNDED to `Baselines.vitalCarryDays`.
     /// SpO₂/skin-temp are sparse/imported so last-known-of-any-age is expected; respiratory is nightly, so a
     /// weeks-old value shown as the current number is the "Respiratory 15.6 a fortnight later" bug that

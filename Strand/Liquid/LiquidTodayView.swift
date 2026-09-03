@@ -114,6 +114,8 @@ struct LiquidTodayView: View {
     /// resolved in body — body rescans repo.days ~23× per pass, and this cache keeps that read O(1).
     @State private var cachedVitalsDay: DailyMetric?
     @State private var cachedRespDay: DailyMetric?
+    @State private var cachedHrvDay: DailyMetric?
+    @State private var cachedRestingHrDay: DailyMetric?
     /// The Charge hero's resolved state (#543 carry + the honest label), resolved ONCE in load() alongside
     /// the other caches. It composes `TodayView.lastScoredRecoveryDay`, which is O(days) — exactly the scan
     /// this cache exists to keep out of body. Never resolved in body.
@@ -178,6 +180,14 @@ struct LiquidTodayView: View {
     /// The prior-day RESPIRATORY carry (#1331): staleness-bounded, so a recent missed night reads the last
     /// real value while a weeks-old one honestly shows "No Data". Non-nil only at offset 0.
     private var respDay: DailyMetric? { cachedRespDay }
+
+    /// PER-FIELD HRV / resting-HR carries (#1842), read O(1) from the cache like `vitalsDay`. `vitalsDay`'s
+    /// predicate is an OR across HRV / resting-HR / respiratory, so it resolves the freshest row with ANY of
+    /// them — a respiratory-only row blanks HRV and Resting HR on both the vitals card and the Key Metrics
+    /// tiles. Twins of `DailyMetric.lastHrvDay` / `lastRestingHrDay`; mirror the Android per-field rows.
+    private var hrvDay: DailyMetric? { cachedHrvDay }
+
+    private var restingHrDay: DailyMetric? { cachedRestingHrDay }
     /// The Charge hero's resolved state (see `cachedChargeDisplay`), read O(1) from the cache.
     private var chargeDisplay: ChargeDisplay { cachedChargeDisplay }
 
@@ -1078,9 +1088,10 @@ struct LiquidTodayView: View {
 
     private var recoveryVitalsSection: some View {
         // PER-FIELD, today-first carry: each vital reads today's own value, else falls back to the prior
-        // day that recorded it (`vitalsDay`). Coalesce ONCE so the number and its fill fraction agree.
-        let hrv = displayDay?.avgHrv ?? vitalsDay?.avgHrv
-        let rhr = (displayDay?.restingHr ?? vitalsDay?.restingHr).map(Double.init)
+        // day that recorded THAT vital (#1842 — `vitalsDay` is the freshest row with ANY of the three, so it
+        // blanks one the row lacks). Coalesce ONCE so the number and its fill fraction agree.
+        let hrv = displayDay?.avgHrv ?? hrvDay?.avgHrv
+        let rhr = (displayDay?.restingHr ?? restingHrDay?.restingHr).map(Double.init)
         let resp = displayDay?.respRateBpm ?? vitalsDay?.respRateBpm
         return card {
             VStack(alignment: .leading, spacing: 12) {
@@ -1142,8 +1153,8 @@ struct LiquidTodayView: View {
         // HRV / Rest HR (+ Blood Oxygen / Respiratory) tiles share the recovery vitals' per-field
         // today-first carry so they don't blank at the rollover while Recovery/Strain/Rest stay strictly
         // today's own (they are scored surfaces).
-        let hrv = displayDay?.avgHrv ?? vitalsDay?.avgHrv
-        let rhr = (displayDay?.restingHr ?? vitalsDay?.restingHr).map(Double.init)
+        let hrv = displayDay?.avgHrv ?? hrvDay?.avgHrv
+        let rhr = (displayDay?.restingHr ?? restingHrDay?.restingHr).map(Double.init)
         return VStack(spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 sectionHead("KEY METRICS", trailing: trendWindowLabel)
@@ -1434,6 +1445,8 @@ struct LiquidTodayView: View {
         let tkey = cachedDisplayDay?.day ?? selectedDayKey
         cachedVitalsDay = (selectedDayOffset == 0) ? Repository.lastVitalsDay(days: repo.days, todayKey: tkey) : nil
         cachedRespDay = (selectedDayOffset == 0) ? Repository.lastRespDay(days: repo.days, todayKey: tkey) : nil
+        cachedHrvDay = (selectedDayOffset == 0) ? Repository.lastHrvDay(days: repo.days, todayKey: tkey) : nil
+        cachedRestingHrDay = (selectedDayOffset == 0) ? Repository.lastRestingHrDay(days: repo.days, todayKey: tkey) : nil
         // Charge carry (#543) + the honest label, resolved here for the same reason as the two above: the
         // selector below scans repo.days. Calibration nights come from the SAME `RecoveryScorer` helper the
         // classic Today reads, so the two screens agree on when a wearer is genuinely mid-calibration
@@ -1794,11 +1807,15 @@ struct LiquidTodayView: View {
     /// "Latest sleep · <date>" (#779) instead of a false "Last night". When every shown vital is today's
     /// own (or there's nothing to carry), it returns nil — the card must not claim "Last night" at all.
     private var vitalsProvenanceLine: String? {
-        guard let carried = vitalsDay else { return nil }
-        let carriedHrv = displayDay?.avgHrv == nil && carried.avgHrv != nil
-        let carriedRhr = displayDay?.restingHr == nil && carried.restingHr != nil
-        let carriedResp = displayDay?.respRateBpm == nil && carried.respRateBpm != nil
-        guard carriedHrv || carriedRhr || carriedResp else { return nil }
+        // Each vital can carry from a DIFFERENT row (#1842), so the one card-level footnote stamps the
+        // OLDEST row any SHOWN carried vital came from — erring old is the only safe direction for a caption
+        // whose job is to stop a stale read passing as today's, and it keeps the "Latest sleep" relabel
+        // (#779) firing on the value that actually is weeks old. A row counts only if it SUPPLIED the value.
+        let fromHrv: DailyMetric? = (displayDay?.avgHrv == nil && hrvDay?.avgHrv != nil) ? hrvDay : nil
+        let fromRhr: DailyMetric? = (displayDay?.restingHr == nil && restingHrDay?.restingHr != nil) ? restingHrDay : nil
+        let fromResp: DailyMetric? = (displayDay?.respRateBpm == nil && vitalsDay?.respRateBpm != nil) ? vitalsDay : nil
+        let sources: [DailyMetric] = [fromHrv, fromRhr, fromResp].compactMap { $0 }
+        guard let carried = sources.min(by: { $0.day < $1.day }) else { return nil }
         return TodayView.carriedCaption(priorDayKey: carried.day,
                                         todayKey: displayDay?.day ?? selectedDayKey)
     }

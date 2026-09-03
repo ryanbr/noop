@@ -151,4 +151,47 @@ final class DailyMetricLastVitalsDayTests: XCTestCase {
                     fieldDay("2999-01-01", skinTemp: 2.1)]
         XCTAssertEqual(DailyMetric.lastSkinTempDay(days: days, todayKey: "2026-06-19")?.day, "2026-06-16")
     }
+
+    // MARK: PER-FIELD HRV / resting HR — the OR predicate's blind spot (#1842)
+
+    /// The reported shape: the freshest row carries respiratory ONLY, so the OR predicate selects it and its
+    /// nil `avgHrv` renders "—" on the card while a tile carrying a different row shows a number on the same
+    /// screen. Pins the BUG as well as the fix, so a future simplification back onto `lastVitalsDay` fails
+    /// here rather than in the field.
+    func testSharedPredicateSelectsARowWithNoHrv_perFieldDoesNot() {
+        let days = [day("2026-09-01", hrv: 35, rhr: 58),
+                    day("2026-09-02", resp: 14.2),
+                    day("2026-09-03")]   // today, nothing yet
+        let shared = DailyMetric.lastVitalsDay(days: days, todayKey: "2026-09-03")
+        XCTAssertEqual(shared?.day, "2026-09-02", "the OR predicate takes the respiratory-only row")
+        XCTAssertNil(shared?.avgHrv, "...and that row has no HRV — the blank the card was rendering")
+
+        XCTAssertEqual(DailyMetric.lastHrvDay(days: days, todayKey: "2026-09-03")?.avgHrv, 35)
+        XCTAssertEqual(DailyMetric.lastRestingHrDay(days: days, todayKey: "2026-09-03")?.restingHr, 58)
+    }
+
+    /// Freshest wins when several prior rows carry the field.
+    func testPerFieldCarriesTheFreshestRowHoldingTheField() {
+        let days = [day("2026-09-01", hrv: 30, rhr: 62),
+                    day("2026-09-02", hrv: 41, rhr: 55),
+                    day("2026-09-03")]
+        XCTAssertEqual(DailyMetric.lastHrvDay(days: days, todayKey: "2026-09-03")?.avgHrv, 41)
+        XCTAssertEqual(DailyMetric.lastRestingHrDay(days: days, todayKey: "2026-09-03")?.restingHr, 55)
+    }
+
+    /// Same future-clock bound as every sibling: strictly prior to today's key, so today's own still-forming
+    /// row and a bad-clock strap's future-dated row can never be carried as "last night's".
+    func testPerFieldNeverCarriesTodayOrLater() {
+        let days = [day("2026-09-03", hrv: 44, rhr: 50), day("2026-09-04", hrv: 45, rhr: 49)]
+        XCTAssertNil(DailyMetric.lastHrvDay(days: days, todayKey: "2026-09-03"))
+        XCTAssertNil(DailyMetric.lastRestingHrDay(days: days, todayKey: "2026-09-03"))
+    }
+
+    /// Nothing anywhere stays "—": the carry must never invent a value.
+    func testPerFieldCarriesNothingWhenNoRowHasTheField() {
+        let days = [day("2026-09-01", resp: 15.0), day("2026-09-02", resp: 14.0)]
+        XCTAssertNil(DailyMetric.lastHrvDay(days: days, todayKey: "2026-09-03"))
+        XCTAssertNil(DailyMetric.lastRestingHrDay(days: days, todayKey: "2026-09-03"))
+    }
+
 }
