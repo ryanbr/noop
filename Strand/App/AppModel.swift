@@ -305,6 +305,11 @@ final class AppModel: ObservableObject {
         repo.$days.sink { [weak self] days in
             self?.evaluateIllness(days)
             self?.evaluateStrainTarget()
+            if let self, let row = days.last(where: { $0.totalSleepMin != nil }) {
+                DailyCoachNotifier.onMorning(day: row.day, recovery: row.recovery, hrv: row.avgHrv,
+                                             restingHR: row.restingHr, sleepMinutes: row.totalSleepMin,
+                                             enabled: self.behavior.dailyCoach)
+            }
             // Keep the battery night-guard's learned bedtime warm off the same signal (throttled inside).
             self?.refreshHabitualMidsleep()
         }.store(in: &hrCancellables)

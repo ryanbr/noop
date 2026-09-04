@@ -29,6 +29,7 @@ final class NavRouter: ObservableObject {
         case activeWorkout
         case liveSession
         case journal
+        case coach
 
         var id: String { rawValue }
 
@@ -90,4 +91,7 @@ final class NavRouter: ObservableObject {
         pendingJournalDayOffset = offset
         requestedDestination = .journal
     }
+    /// Open the opt-in Coach. The caller may have placed a suggested question in the Coach composer;
+    /// routing itself never sends it or changes the Coach's data-consent setting.
+    func openCoach() { requestedDestination = .coach }
 }
