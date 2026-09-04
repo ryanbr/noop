@@ -95,4 +95,22 @@ class LapsedRealtimeReArmTest {
             ),
         )
     }
+
+    /**
+     * The threshold is the only thing standing between "recovers a dead stream" and "writes to a healthy
+     * one every five minutes", so it is pinned rather than left to a constant nobody re-reads.
+     *
+     * It must sit ABOVE the 45 s quiet threshold (an ordinary gap between samples) and BELOW the 600 s
+     * bounce fuse — not because the fuse would rescue this case (it cannot; it watches any inbound data,
+     * which is the bug) but because a threshold beyond it would mean the app had given up on the link
+     * before it ever tried the cheaper fix.
+     */
+    @Test
+    fun theThresholdSitsBetweenTheQuietMarkAndTheBounceFuse() {
+        val quietMs = 45_000L
+        val bounceFuse5mgMs = 600_000L
+        assertTrue("must not fire during an ordinary quiet spell", stall > quietMs)
+        assertTrue("must act before the app would give up on the link", stall < bounceFuse5mgMs)
+    }
+
 }

@@ -7154,7 +7154,12 @@ class WhoopBleClient(
                     // Only republish when the value actually changed: a same-HR frame's it.copy() allocates a
                     // whole throwaway LiveState that StateFlow drops as equal anyway — pure GC churn at ~1 Hz,
                     // every frame. Matches the Swift FrameRouter guard (`state.heartRate != hr`).
-                    if (hr in 30..220) noteLiveHr()
+                    // #1865: only a LIVE sample restarts the stall clock. Replayed offload frames reach
+                    // this branch too (handleFrame carries `replayedOffload`, and stopUnexpectedRealtimeImu
+                    // gates on it for exactly that reason), so counting them would let a history sync mask
+                    // a dead realtime stream — which is the very shape of the bug this recovers from:
+                    // healthy-looking traffic hiding the absence of HR.
+                    if (hr in 30..220 && !replayedOffload) noteLiveHr()
                     if (hr in 30..220 && _state.value.heartRate != hr) _state.update { it.copy(heartRate = hr) }
                 }
                 // The realtime stream usually reports rr_count=0; only update R-R when this frame
