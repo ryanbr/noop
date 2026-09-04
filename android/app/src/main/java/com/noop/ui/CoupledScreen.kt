@@ -497,11 +497,52 @@ private fun StrainCard(dayStrain21: Double?, recovery: Double?, calories: Double
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 HeroStat("Day Strain", dayStrain21?.let { String.format(Locale.US, "%.1f", it) } ?: COUPLED_NO_DATA, Palette.effortColor)
-                HeroStat("Optimal", optimalStrainRangeText(recovery), Palette.chargeColor)
+                OptimalStat("Optimal", recovery)
                 HeroStat("Calories", calories?.let { "${it.roundToInt()} kcal" } ?: COUPLED_NO_DATA, Palette.metricAmber)
                 HeroStat("Workouts", workouts.toString(), Palette.textPrimary)
             }
         }
+    }
+}
+
+/**
+ * The OPTIMAL strain band stat: the heroStat idiom plus a liquid tube visualising where the suggested band
+ * sits on the 0-21 axis. Twin of Swift CoupledView.optimalStat, which has had the tube since the coupled
+ * layout shipped while Android printed the range alone - the band was the one coupled stat with a shape to
+ * show and no shape shown.
+ *
+ * Not folded into [HeroStat]: Swift keeps optimalStat separate for the same reasons (4dp spacing rather
+ * than 2, and the tube), and every other stat here is a bare number with nothing to plot.
+ *
+ * A calibrating / unscored day shows the no-data token over an EMPTY tube, never a guessed band.
+ */
+@Composable
+private fun OptimalStat(title: String, recovery: Double?) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        // Takes the title as a parameter and uppercases it here, exactly as [HeroStat] does, rather than
+        // inlining "OPTIMAL". Not cosmetic: the four stat titles on this screen are unlocalized literals
+        // that the i18n gate cannot see as HeroStat arguments, and inlining one into a Text() makes that
+        // ONE of the four visible and fails the gate. Localising a single stat title while its three
+        // siblings stay hardcoded would be the wrong fix for a parity PR; the four of them are one
+        // pre-existing gap and belong to one change.
+        Text(title.uppercase(), style = NoopType.overline, color = Palette.textSecondary)
+        // Deliberately the same bare Text as [HeroStat]'s value, with no maxLines. Swift shrinks this
+        // (lineLimit(1).minimumScaleFactor(0.6)) but so does its heroStat, and Android's HeroStat does
+        // neither - so that divergence belongs to all four coupled stats, not to this one. Adding a
+        // maxLines here alone would truncate where the siblings wrap and where Swift shrinks: different
+        // from both.
+        Text(optimalStrainRangeText(recovery), style = NoopType.number(20f), color = Palette.chargeColor)
+        // animated = false matches the Swift call: the stat stack is a read-out, not an instrument, and a
+        // posed tube costs nothing per frame.
+        LiquidTube(
+            frac = optimalUpperFraction(recovery),
+            tint = Palette.chargeColor,
+            height = 8.dp,
+            animated = false,
+        )
     }
 }
 
@@ -666,6 +707,19 @@ internal fun optimalStrainRange(recovery: Double?): OptimalStrainRange? {
         r >= 34 -> OptimalStrainRange(10, 14)
         else -> OptimalStrainRange(4, 10)
     }
+}
+
+/**
+ * The optimal band's UPPER bound as a 0..1 fraction of the 0-21 axis, for the tube fill. 0 (an empty tube)
+ * when recovery is unknown, so the tube never fabricates a band the text is refusing to name.
+ *
+ * Twin of Swift CoupledView.optimalUpperFraction. Reads the upper bound rather than the midpoint because
+ * the tube shows how far up the axis the suggested band REACHES, which is what pairs with "14 to 18"
+ * printed above it.
+ */
+internal fun optimalUpperFraction(recovery: Double?): Double {
+    val band = optimalStrainRange(recovery) ?: return 0.0
+    return (band.high.toDouble() / 21.0).coerceIn(0.0, 1.0)
 }
 
 /** The optimal band as display text ("14 to 18" / the no-data token). Byte-identical to the Swift twin. */

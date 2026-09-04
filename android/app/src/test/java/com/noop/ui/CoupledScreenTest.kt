@@ -1,6 +1,7 @@
 package com.noop.ui
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -61,5 +62,37 @@ class CoupledScreenTest {
         assertEquals("7h 50m", hoursMinutes(470.0))
         assertEquals("0h 5m", hoursMinutes(5.0))
         assertEquals("8h 0m", hoursMinutes(480.0))
+    }
+
+    /**
+     * The tube fill beside the OPTIMAL range (#43). Twin of Swift CoupledView.optimalUpperFraction, which
+     * is `max(0, min(1, Double(band.upperBound) / 21))` - so these expectations are the Swift expression
+     * evaluated on the approved bands, not values read back off the Kotlin.
+     */
+    @Test
+    fun optimalUpperFractionMatchesTheSwiftTwin() {
+        assertEquals(18.0 / 21.0, optimalUpperFraction(90.0), 1e-12)
+        assertEquals(18.0 / 21.0, optimalUpperFraction(67.0), 1e-12)   // green, inclusive lower edge
+        assertEquals(14.0 / 21.0, optimalUpperFraction(66.9), 1e-12)
+        assertEquals(14.0 / 21.0, optimalUpperFraction(34.0), 1e-12)   // yellow, inclusive lower edge
+        assertEquals(10.0 / 21.0, optimalUpperFraction(33.9), 1e-12)
+        assertEquals(10.0 / 21.0, optimalUpperFraction(0.0), 1e-12)
+    }
+
+    @Test
+    fun optimalUpperFractionIsEmptyWhenRecoveryIsUnknown() {
+        // A calibrating / unscored day prints the no-data token, so the tube must be EMPTY rather than
+        // fabricate a band the text alongside it is refusing to name.
+        assertEquals(0.0, optimalUpperFraction(null), 1e-12)
+    }
+
+    @Test
+    fun optimalUpperFractionNeverLeavesTheAxis() {
+        // Every approved band is inside 0..21, so the clamp is defensive - but it is the reason a future
+        // band change cannot push the tube past full.
+        for (r in listOf(null, -50.0, 0.0, 33.9, 34.0, 66.9, 67.0, 100.0, 1000.0)) {
+            val f = optimalUpperFraction(r)
+            assertTrue("fraction out of range for recovery=$r: $f", f in 0.0..1.0)
+        }
     }
 }
