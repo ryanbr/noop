@@ -1,0 +1,48 @@
+import XCTest
+@testable import StrandAnalytics
+
+/// #1635: the per-link banked-rows line, the database-side companion to `linkEpitaph`.
+///
+/// Byte-identical twin of the Kotlin `LinkBankedSummaryTest`. The case it exists for: an unbonded 5/MG
+/// streams heart rate and R-R over the standard profile while every bond-gated stream banks nothing, and
+/// the epitaph reports that link as hundreds of healthy inbound frames.
+final class LinkBankedSummaryTests: XCTestCase {
+
+    func testNamesTheStreamsThatBankedNothingWhenOthersDid() {
+        let line = ConnectionReadout.linkBankedSummary(
+            hr: 456, rr: 187, gravity: 0, resp: 0, skinTemp: 0, spo2: 0, steps: 0, battery: 2)
+        XCTAssertTrue(line.contains("hr=456"))
+        XCTAssertTrue(line.contains("gravity=0"))
+        XCTAssertTrue(line.contains("nothing banked for: gravity, resp, skinTemp, spo2, steps"))
+    }
+
+    func testAFullyHealthyLinkGetsNoCallOut() {
+        let line = ConnectionReadout.linkBankedSummary(
+            hr: 400, rr: 380, gravity: 900, resp: 900, skinTemp: 900, spo2: 900, steps: 12, battery: 3)
+        XCTAssertTrue(line.hasPrefix("banked this link:"))
+        XCTAssertFalse(line.contains("nothing banked for"))
+    }
+
+    func testALinkThatStoredNothingSaysSoOnce() {
+        let line = ConnectionReadout.linkBankedSummary(
+            hr: 0, rr: 0, gravity: 0, resp: 0, skinTemp: 0, spo2: 0, steps: 0, battery: 0)
+        XCTAssertTrue(line.contains("NOTHING was stored on this link"))
+        XCTAssertFalse(line.contains("nothing banked for"))
+    }
+
+    func testNegativeCountsCannotLeakIntoADiagnostic() {
+        let line = ConnectionReadout.linkBankedSummary(
+            hr: -5, rr: 1, gravity: 0, resp: 0, skinTemp: 0, spo2: 0, steps: 0, battery: 0)
+        XCTAssertTrue(line.contains("hr=0"))
+        XCTAssertFalse(line.contains("-5"))
+    }
+
+    /// The two platforms must produce the SAME sentence, since a report may come from either.
+    func testTheExactSentenceForTheFieldCase() {
+        XCTAssertEqual(
+            ConnectionReadout.linkBankedSummary(
+                hr: 456, rr: 187, gravity: 0, resp: 0, skinTemp: 0, spo2: 0, steps: 0, battery: 2),
+            "banked this link: hr=456 rr=187 gravity=0 resp=0 skinTemp=0 spo2=0 steps=0 battery=2"
+                + " - nothing banked for: gravity, resp, skinTemp, spo2, steps")
+    }
+}

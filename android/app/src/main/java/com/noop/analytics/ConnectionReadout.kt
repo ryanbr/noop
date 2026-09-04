@@ -282,6 +282,39 @@ object ConnectionReadout {
         return line
     }
 
+    /**
+     * #1635: which STREAMS banked rows on a finished link, beside [linkEpitaph]'s "did anything arrive".
+     *
+     * The epitaph counts frames. That is the right measure for a silent strap, and the wrong one for a
+     * strap that is talking but only over part of its surface: an unbonded 5/MG streams heart rate and R-R
+     * over the standard profile all night while the bond-gated streams bank nothing, and the epitaph
+     * reports that as hundreds of healthy inbound frames. A field diagnosis had to establish the split by
+     * exporting twice, hours apart, and diffing the stored row counts by hand — the two logs each looked
+     * fine on their own. One line states it.
+     *
+     * Zero-banking streams are named explicitly rather than left to be inferred from a list of numbers,
+     * because "gravity=0 sitting among six other zeros" and "gravity=0 while hr=456" are the same text and
+     * opposite findings. Counts are ROWS ACCEPTED, so a stream that arrived as duplicates reads zero and
+     * is named — correct for this purpose: the question is what the database gained on this link.
+     *
+     * Pure and total: no clock, no I/O, and every count clamped, so it cannot itself become the reason a
+     * teardown path throws. Twin of the Swift formatter.
+     */
+    fun linkBankedSummary(
+        hr: Int, rr: Int, gravity: Int, resp: Int, skinTemp: Int, spo2: Int, steps: Int, battery: Int,
+    ): String {
+        val pairs = listOf(
+            "hr" to hr, "rr" to rr, "gravity" to gravity, "resp" to resp,
+            "skinTemp" to skinTemp, "spo2" to spo2, "steps" to steps, "battery" to battery,
+        ).map { (k, v) -> k to maxOf(0, v) }
+        val body = pairs.joinToString(" ") { (k, v) -> "$k=$v" }
+        val total = pairs.sumOf { it.second }
+        if (total == 0) return "banked this link: $body - NOTHING was stored on this link"
+        val empty = pairs.filter { it.second == 0 }.map { it.first }
+        if (empty.isEmpty()) return "banked this link: $body"
+        return "banked this link: $body - nothing banked for: ${empty.joinToString(", ")}"
+    }
+
     /** #987: freshness label for the "last frame" readout row ("12s ago" / "no frames yet"). [nowUnix]
      *  injected for testability. Twin of the Swift labeller. */
     fun lastFrameLabel(lastFrameUnix: Long?, nowUnix: Long): String {

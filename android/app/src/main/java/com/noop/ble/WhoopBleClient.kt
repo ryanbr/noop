@@ -26,6 +26,7 @@ import android.os.SystemClock
 import android.util.Log
 import com.noop.NoopApplication
 import com.noop.data.HrRow
+import com.noop.data.InsertCounts
 import com.noop.data.RrRow
 import com.noop.data.EventEntry
 import com.noop.data.StandardHrMapping
@@ -6724,6 +6725,25 @@ class WhoopBleClient(
     private var inboundFrames = 0
     private var inboundBytes = 0
     private var cmdChannelFrames = 0
+
+    // #1635: rows ACCEPTED per stream on this link, the database-side twin of the frame counters above.
+    // Cleared with them on teardown. Written only from the collector coroutines that already own the
+    // insert calls, so they inherit that serialization rather than adding their own.
+    private var bankedHr = 0
+    private var bankedRr = 0
+    private var bankedGravity = 0
+    private var bankedResp = 0
+    private var bankedSkinTemp = 0
+    private var bankedSpo2 = 0
+    private var bankedSteps = 0
+    private var bankedBattery = 0
+
+    /** Fold one persist round's accepted-row counts into the per-link tally. */
+    private fun addBanked(c: InsertCounts) {
+        bankedHr += c.hr; bankedRr += c.rr; bankedGravity += c.gravity; bankedResp += c.resp
+        bankedSkinTemp += c.skinTemp; bankedSpo2 += c.spo2; bankedSteps += c.steps
+        bankedBattery += c.battery
+    }
     /** #1809: was realtime armed at ANY point on THIS link. Not the same thing as [realtimeArmed], which
      *  is persistent edge state: it can carry true in from a previous link, or read false at the drop
      *  after a mid-link disarm. The epitaph needs the per-link fact, which is what the Apple twin's
@@ -9051,7 +9071,7 @@ class WhoopBleClient(
         }
         if (!batch.isEmpty) {
             try {
-                repository.insert(batch, deviceId)
+                addBanked(repository.insert(batch, deviceId))
                 liveInsertFailuresRealtime.set(0)
             } catch (t: Throwable) {
                 // Re-buffer at the front so these frames retry on the next cadence (port of Collector).
@@ -9134,7 +9154,7 @@ class WhoopBleClient(
             }
         }
         try {
-            repository.insert(StreamBatch(hr = hr, rr = rr, events = contact), deviceId)
+            addBanked(repository.insert(StreamBatch(hr = hr, rr = rr, events = contact), deviceId))
             liveInsertFailuresStd.set(0)
         } catch (t: Throwable) {
             synchronized(collectorLock) {
@@ -9986,9 +10006,20 @@ class WhoopBleClient(
                 // before handleDisconnect runs and is not reassigned above, so it is valid here.
                 ended = if (intentionalDisconnect) "intentional" else "status=$status",
             ))
+            // #1635: what the DATABASE gained, beside what the radio carried. An unbonded 5/MG keeps the
+            // epitaph looking healthy — hundreds of inbound frames — while every bond-gated stream banks
+            // nothing, and that split is invisible in a single export. Guarded by the SAME `linkUpSinceMs`
+            // as the epitaph: on a failed connect attempt the counters hold the previous link's tally, and
+            // reporting them here would describe a link that never existed.
+            log(ConnectionReadout.linkBankedSummary(
+                hr = bankedHr, rr = bankedRr, gravity = bankedGravity, resp = bankedResp,
+                skinTemp = bankedSkinTemp, spo2 = bankedSpo2, steps = bankedSteps, battery = bankedBattery,
+            ), com.noop.testcentre.TestDomain.CONNECTION)
         }
         // Clear the tally with the link, so a second teardown for the same drop cannot re-report it.
         inboundFrames = 0; inboundBytes = 0; cmdChannelFrames = 0
+        bankedHr = 0; bankedRr = 0; bankedGravity = 0; bankedResp = 0
+        bankedSkinTemp = 0; bankedSpo2 = 0; bankedSteps = 0; bankedBattery = 0
 
         val heldSuffix = heldForLogSuffix()
         linkUpSinceMs = null
