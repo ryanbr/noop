@@ -5,74 +5,80 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * #1635: the per-link banked-rows line, the database-side companion to `linkEpitaph`.
+ * #1635: the per-link banked line, split by PATH.
  *
- * The case it exists for: an unbonded WHOOP 5/MG streams heart rate and R-R over the standard profile
- * while every bond-gated stream banks nothing. The epitaph reports that link as hundreds of healthy
- * inbound frames, which is true and misleading. Establishing the split took two exports hours apart and
- * a manual diff of stored row counts; these pin the one line that states it outright.
+ * The case it exists for: an unbonded 5/MG streams heart rate and R-R over the standard profile while the
+ * offload never runs, and the epitaph reports that link as hundreds of healthy inbound frames.
+ *
+ * The split is by path rather than by stream because the realtime decoder yields only hr/rr/events/battery
+ * — gravity, respiratory, skin temperature, SpO2 and steps arrive solely through the offload. An earlier
+ * live-only version named those five as "nothing banked live for" on EVERY link, bonded or not, which is a
+ * constant rather than a finding. These pin the distinction.
  */
 class LinkBankedSummaryTest {
 
+    private fun line(
+        liveHr: Int = 0, liveRr: Int = 0,
+        oHr: Int = 0, oRr: Int = 0, oGrav: Int = 0, oResp: Int = 0,
+        oSkin: Int = 0, oSpo2: Int = 0, oSteps: Int? = 0,
+    ) = ConnectionReadout.linkBankedSummary(
+        liveHr = liveHr, liveRr = liveRr, offloadHr = oHr, offloadRr = oRr,
+        offloadGravity = oGrav, offloadResp = oResp, offloadSkinTemp = oSkin,
+        offloadSpo2 = oSpo2, offloadSteps = oSteps,
+    )
+
     @Test
-    fun `names the streams that banked nothing when others did`() {
-        val line = ConnectionReadout.linkBankedSummary(
-            hr = 456, rr = 187, gravity = 0, resp = 0, skinTemp = 0, spo2 = 0, steps = 0, battery = 2,
+    fun `an unbonded strap reads live traffic with an offload that never ran`() {
+        // The whole point: HR flowing while the offload banks nothing is the bond split, in one line.
+        assertEquals(
+            "banked this link: live hr=12 rr=7 | offload none - the offload banked NOTHING on this link",
+            line(liveHr = 12, liveRr = 7),
         )
-        assertTrue(line.contains("hr=456"))
-        assertTrue(line.contains("gravity=0"))
-        // The whole point: a reader must not have to spot which of eight numbers are zero.
-        assertTrue(line.contains("nothing banked live for: gravity, resp, skinTemp, spo2, steps"))
     }
 
     @Test
-    fun `a fully healthy link gets no call-out`() {
-        val line = ConnectionReadout.linkBankedSummary(
-            hr = 400, rr = 380, gravity = 900, resp = 900, skinTemp = 900, spo2 = 900, steps = 12, battery = 3,
+    fun `a healthy sync reads completely differently`() {
+        // The same shape on a bonded strap must NOT look like the unbonded one. This is the case the
+        // live-only version could not express: it printed the same zeros either way.
+        val healthy = line(liveHr = 3, liveRr = 2, oHr = 1200, oRr = 2400, oGrav = 8000,
+            oResp = 8000, oSkin = 8000, oSpo2 = 8000, oSteps = 40)
+        assertEquals(
+            "banked this link: live hr=3 rr=2 | offload hr=1200 rr=2400 gravity=8000 resp=8000" +
+                " skinTemp=8000 spo2=8000 steps=40",
+            healthy,
         )
-        assertTrue(line.startsWith("banked live this link:"))
-        assertTrue("a link where every stream banked must not carry a zero call-out",
-            !line.contains("nothing banked live for"))
+        assertTrue("a full sync carries no zero call-out", !healthy.contains("nothing banked"))
     }
 
     @Test
-    fun `a link that stored nothing at all says so once, not eight times`() {
-        val line = ConnectionReadout.linkBankedSummary(0, 0, 0, 0, 0, 0, 0, 0)
-        assertTrue(line.contains("NOTHING was stored from the live streams"))
-        // Not also the per-stream list: "nothing banked for: <all eight>" is noise when the total is zero.
-        assertTrue(!line.contains("nothing banked live for"))
+    fun `a partial offload names only the streams that stayed empty`() {
+        val l = line(liveHr = 1, oHr = 500, oRr = 900, oGrav = 0, oResp = 0, oSkin = 700, oSpo2 = 700)
+        assertTrue(l.contains("nothing banked from the offload for: gravity, resp, steps"))
+    }
+
+    @Test
+    fun `a stream this platform cannot measure is omitted, not reported as zero`() {
+        // Apple's store returns no step count. Printing steps=0 there would name it forever.
+        val l = line(liveHr = 5, oHr = 10, oSteps = null)
+        assertTrue("an unmeasured stream must not appear", !l.contains("steps"))
+    }
+
+    @Test
+    fun `battery never appears, on either path`() {
+        // It rides the standard 0x2A19 profile, so it banks with or without the bond and answers nothing
+        // here. A field log showed 306 battery banks against battery=0 in an earlier version of this line.
+        assertTrue(!line(liveHr = 9, oHr = 9).contains("battery"))
     }
 
     @Test
     fun `negative counts cannot leak into a diagnostic`() {
-        // Pure and total on purpose: this runs on the teardown path, where throwing would cost the very
-        // report it exists to produce.
-        val line = ConnectionReadout.linkBankedSummary(-5, 1, 0, 0, 0, 0, 0, 0)
-        assertTrue(line.contains("hr=0"))
-        assertEquals(false, line.contains("-5"))
-    }
-
-    @Test
-    fun `the exact sentence for the field case, pinned against the Swift twin`() {
-        assertEquals(
-            "banked live this link: hr=456 rr=187 gravity=0 resp=0 skinTemp=0 spo2=0 steps=0 battery=2" +
-                " - nothing banked live for: gravity, resp, skinTemp, spo2, steps",
-            ConnectionReadout.linkBankedSummary(
-                hr = 456, rr = 187, gravity = 0, resp = 0, skinTemp = 0, spo2 = 0, steps = 0, battery = 2,
-            ),
-        )
-    }
-
-
-    @Test
-    fun `a stream this platform cannot measure is omitted, not reported as zero`() {
-        // Apple's store does not return a step count (persist-only, outside its insert tuple). Printing
-        // steps=0 there would name it in the zero list forever - a permanent false alarm in a line whose
-        // entire job is to make a real zero stand out.
-        val line = ConnectionReadout.linkBankedSummary(
-            hr = 456, rr = 187, gravity = 0, resp = 0, skinTemp = 0, spo2 = 0, steps = null, battery = 2,
-        )
-        assertTrue("an unmeasured stream must not appear at all", !line.contains("steps"))
-        assertTrue(line.contains("nothing banked live for: gravity, resp, skinTemp, spo2"))
+        // Runs on the teardown path, where throwing would cost the report it exists to produce.
+        val l = line(liveHr = -5, liveRr = 1, oHr = -3, oGrav = 4)
+        assertTrue(l.contains("live hr=0 rr=1"))
+        assertTrue(l.contains("hr=0"))
+        // NOT `contains("-")`: the sentence separator is a hyphen, so that assertion fails on a correct
+        // line. Check the negative VALUES are gone, which is what clamping actually promises.
+        assertEquals(false, l.contains("-5"))
+        assertEquals(false, l.contains("-3"))
     }
 }

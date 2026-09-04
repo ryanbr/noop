@@ -2846,6 +2846,7 @@ class WhoopBleClient(
         deviceId = deviceId,
         cursorStore = cursorStore,
         ackTrim = { trim, endData -> ackHistoricalChunk(trim, endData) },
+        onBankedOffload = { counts -> addBankedOffload(counts) },
         onChunkCommitted = { batch -> onBackfillChunkCommitted(batch) },
         onConsoleChunk = { consoleChunksThisSession += 1 },
         // #77/#91: archive undecodable frames before the ack. append() returns ok=true (written, or
@@ -6201,8 +6202,9 @@ class WhoopBleClient(
                     // #1635: same guarantee for the banked tally. Clearing only on teardown would be enough if
                     // every link ended in one; a link that begins without a preceding clean teardown would
                     // otherwise open holding the previous link's rows and report them as banked on this one.
-                    bankedHr.set(0); bankedRr.set(0); bankedGravity.set(0); bankedResp.set(0)
-                    bankedSkinTemp.set(0); bankedSpo2.set(0); bankedSteps.set(0); bankedBattery.set(0)
+                    liveHr.set(0); liveRr.set(0); offloadHr.set(0); offloadRr.set(0)
+                    offloadGravity.set(0); offloadResp.set(0); offloadSkinTemp.set(0)
+                    offloadSpo2.set(0); offloadSteps.set(0)
                     realtimeArmedThisLink = false
                     // A connect succeeded → clear the stale-bond re-pair guide UNLESS we are in a known
                     // bond-loop (#617). In that loop the strap "connects" every ~3 s before timing out
@@ -6731,32 +6733,35 @@ class WhoopBleClient(
     private var inboundBytes = 0
     private var cmdChannelFrames = 0
 
-    // #1635: rows ACCEPTED per stream on this link, the database-side twin of the frame counters above.
-    // Cleared with them on teardown.
+    // #1635: rows ACCEPTED on this link, split by PATH. The realtime decoder (`extractStreams`) only
+    // ever produces hr/rr/events/battery; gravity, resp, skinTemp, spo2 and steps arrive solely through
+    // the offload's historical decoder. Counting one path and naming streams from the other printed a
+    // constant dressed as a finding, which is what the live-only first cut did.
     //
-    // ATOMIC, unlike those counters, because the writers are not the same. `inboundFrames` and friends are
-    // touched only from the serialized GATT callback; these are folded in from `flushLive` and
-    // `flushStandardHr`, which are two INDEPENDENT `ioScope.launch` coroutines that can run at once — the
-    // same reason `liveInsertFailuresStd` and `liveInsertFailuresRealtime` beside them are AtomicInteger.
-    // A plain `+=` there is a read-modify-write race, and the teardown read is a third thread again. Each
-    // counter stands alone (no cross-field invariant), so per-field atomicity is the whole requirement.
-    // An under-count would be worse than useless here: it reads as exactly the "banked nothing" finding
-    // this line exists to report.
-    private val bankedHr = java.util.concurrent.atomic.AtomicInteger(0)
-    private val bankedRr = java.util.concurrent.atomic.AtomicInteger(0)
-    private val bankedGravity = java.util.concurrent.atomic.AtomicInteger(0)
-    private val bankedResp = java.util.concurrent.atomic.AtomicInteger(0)
-    private val bankedSkinTemp = java.util.concurrent.atomic.AtomicInteger(0)
-    private val bankedSpo2 = java.util.concurrent.atomic.AtomicInteger(0)
-    private val bankedSteps = java.util.concurrent.atomic.AtomicInteger(0)
-    private val bankedBattery = java.util.concurrent.atomic.AtomicInteger(0)
+    // ATOMIC because the writers are not one thread: the live pair is folded in from `flushLive` and
+    // `flushStandardHr`, two independent `ioScope.launch` coroutines, the offload pair from the
+    // Backfiller's own coroutine, and the teardown read is a third context again.
+    private val liveHr = java.util.concurrent.atomic.AtomicInteger(0)
+    private val liveRr = java.util.concurrent.atomic.AtomicInteger(0)
+    private val offloadHr = java.util.concurrent.atomic.AtomicInteger(0)
+    private val offloadRr = java.util.concurrent.atomic.AtomicInteger(0)
+    private val offloadGravity = java.util.concurrent.atomic.AtomicInteger(0)
+    private val offloadResp = java.util.concurrent.atomic.AtomicInteger(0)
+    private val offloadSkinTemp = java.util.concurrent.atomic.AtomicInteger(0)
+    private val offloadSpo2 = java.util.concurrent.atomic.AtomicInteger(0)
+    private val offloadSteps = java.util.concurrent.atomic.AtomicInteger(0)
 
-    /** Fold one persist round's accepted-row counts into the per-link tally. */
-    private fun addBanked(c: InsertCounts) {
-        bankedHr.addAndGet(c.hr); bankedRr.addAndGet(c.rr)
-        bankedGravity.addAndGet(c.gravity); bankedResp.addAndGet(c.resp)
-        bankedSkinTemp.addAndGet(c.skinTemp); bankedSpo2.addAndGet(c.spo2)
-        bankedSteps.addAndGet(c.steps); bankedBattery.addAndGet(c.battery)
+    /** Fold one LIVE persist round into the per-link tally (hr/rr are all the realtime decoder yields). */
+    private fun addBankedLive(c: InsertCounts) {
+        liveHr.addAndGet(c.hr); liveRr.addAndGet(c.rr)
+    }
+
+    /** Fold one OFFLOAD persist round in. This is where the bond shows: an unbonded strap defers it. */
+    private fun addBankedOffload(c: InsertCounts) {
+        offloadHr.addAndGet(c.hr); offloadRr.addAndGet(c.rr)
+        offloadGravity.addAndGet(c.gravity); offloadResp.addAndGet(c.resp)
+        offloadSkinTemp.addAndGet(c.skinTemp); offloadSpo2.addAndGet(c.spo2)
+        offloadSteps.addAndGet(c.steps)
     }
     /** #1809: was realtime armed at ANY point on THIS link. Not the same thing as [realtimeArmed], which
      *  is persistent edge state: it can carry true in from a previous link, or read false at the drop
@@ -9085,7 +9090,7 @@ class WhoopBleClient(
         }
         if (!batch.isEmpty) {
             try {
-                addBanked(repository.insert(batch, deviceId))
+                addBankedLive(repository.insert(batch, deviceId))
                 liveInsertFailuresRealtime.set(0)
             } catch (t: Throwable) {
                 // Re-buffer at the front so these frames retry on the next cadence (port of Collector).
@@ -9168,7 +9173,7 @@ class WhoopBleClient(
             }
         }
         try {
-            addBanked(repository.insert(StreamBatch(hr = hr, rr = rr, events = contact), deviceId))
+            addBankedLive(repository.insert(StreamBatch(hr = hr, rr = rr, events = contact), deviceId))
             liveInsertFailuresStd.set(0)
         } catch (t: Throwable) {
             synchronized(collectorLock) {
@@ -10028,16 +10033,18 @@ class WhoopBleClient(
             // Guarded by the SAME `linkUpSinceMs` as the epitaph: on a failed connect attempt the counters
             // hold the previous link's tally, and reporting them would describe a link that never existed.
             log(ConnectionReadout.linkBankedSummary(
-                hr = bankedHr.get(), rr = bankedRr.get(),
-                gravity = bankedGravity.get(), resp = bankedResp.get(),
-                skinTemp = bankedSkinTemp.get(), spo2 = bankedSpo2.get(),
-                steps = bankedSteps.get(), battery = bankedBattery.get(),
+                liveHr = liveHr.get(), liveRr = liveRr.get(),
+                offloadHr = offloadHr.get(), offloadRr = offloadRr.get(),
+                offloadGravity = offloadGravity.get(), offloadResp = offloadResp.get(),
+                offloadSkinTemp = offloadSkinTemp.get(), offloadSpo2 = offloadSpo2.get(),
+                offloadSteps = offloadSteps.get(),
             ), com.noop.testcentre.TestDomain.CONNECTION)
         }
         // Clear the tally with the link, so a second teardown for the same drop cannot re-report it.
         inboundFrames = 0; inboundBytes = 0; cmdChannelFrames = 0
-        bankedHr.set(0); bankedRr.set(0); bankedGravity.set(0); bankedResp.set(0)
-        bankedSkinTemp.set(0); bankedSpo2.set(0); bankedSteps.set(0); bankedBattery.set(0)
+        liveHr.set(0); liveRr.set(0); offloadHr.set(0); offloadRr.set(0)
+        offloadGravity.set(0); offloadResp.set(0); offloadSkinTemp.set(0)
+        offloadSpo2.set(0); offloadSteps.set(0)
 
         val heldSuffix = heldForLogSuffix()
         linkUpSinceMs = null

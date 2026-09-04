@@ -1,57 +1,52 @@
 import XCTest
 @testable import StrandAnalytics
 
-/// #1635: the per-link banked-rows line, the database-side companion to `linkEpitaph`.
+/// #1635: the per-link banked line, split by PATH. Byte-identical twin of the Kotlin
+/// `LinkBankedSummaryTest`, including the exact sentences.
 ///
-/// Byte-identical twin of the Kotlin `LinkBankedSummaryTest`. The case it exists for: an unbonded 5/MG
-/// streams heart rate and R-R over the standard profile while every bond-gated stream banks nothing, and
-/// the epitaph reports that link as hundreds of healthy inbound frames.
+/// The split is by path rather than by stream because the realtime decoder yields only
+/// hr/rr/events/battery — gravity, respiratory, skin temperature, SpO2 and steps arrive solely through
+/// the offload. An earlier live-only version named those five as empty on EVERY link, bonded or not.
 final class LinkBankedSummaryTests: XCTestCase {
 
-    func testNamesTheStreamsThatBankedNothingWhenOthersDid() {
-        let line = ConnectionReadout.linkBankedSummary(
-            hr: 456, rr: 187, gravity: 0, resp: 0, skinTemp: 0, spo2: 0, steps: 0, battery: 2)
-        XCTAssertTrue(line.contains("hr=456"))
-        XCTAssertTrue(line.contains("gravity=0"))
-        XCTAssertTrue(line.contains("nothing banked live for: gravity, resp, skinTemp, spo2, steps"))
+    private func line(liveHr: Int = 0, liveRr: Int = 0, oHr: Int = 0, oRr: Int = 0, oGrav: Int = 0,
+                      oResp: Int = 0, oSkin: Int = 0, oSpo2: Int = 0, oSteps: Int? = 0) -> String {
+        ConnectionReadout.linkBankedSummary(
+            liveHr: liveHr, liveRr: liveRr, offloadHr: oHr, offloadRr: oRr, offloadGravity: oGrav,
+            offloadResp: oResp, offloadSkinTemp: oSkin, offloadSpo2: oSpo2, offloadSteps: oSteps)
     }
 
-    func testAFullyHealthyLinkGetsNoCallOut() {
-        let line = ConnectionReadout.linkBankedSummary(
-            hr: 400, rr: 380, gravity: 900, resp: 900, skinTemp: 900, spo2: 900, steps: 12, battery: 3)
-        XCTAssertTrue(line.hasPrefix("banked live this link:"))
-        XCTAssertFalse(line.contains("nothing banked live for"))
+    func testAnUnbondedStrapReadsLiveTrafficWithAnOffloadThatNeverRan() {
+        XCTAssertEqual(
+            line(liveHr: 12, liveRr: 7),
+            "banked this link: live hr=12 rr=7 | offload none - the offload banked NOTHING on this link")
     }
 
-    func testALinkThatStoredNothingSaysSoOnce() {
-        let line = ConnectionReadout.linkBankedSummary(
-            hr: 0, rr: 0, gravity: 0, resp: 0, skinTemp: 0, spo2: 0, steps: 0, battery: 0)
-        XCTAssertTrue(line.contains("NOTHING was stored from the live streams"))
-        XCTAssertFalse(line.contains("nothing banked live for"))
+    func testAHealthySyncReadsCompletelyDifferently() {
+        let healthy = line(liveHr: 3, liveRr: 2, oHr: 1200, oRr: 2400, oGrav: 8000,
+                           oResp: 8000, oSkin: 8000, oSpo2: 8000, oSteps: 40)
+        XCTAssertEqual(healthy,
+            "banked this link: live hr=3 rr=2 | offload hr=1200 rr=2400 gravity=8000 resp=8000"
+                + " skinTemp=8000 spo2=8000 steps=40")
+        XCTAssertFalse(healthy.contains("nothing banked"))
+    }
+
+    func testAPartialOffloadNamesOnlyTheStreamsThatStayedEmpty() {
+        let l = line(liveHr: 1, oHr: 500, oRr: 900, oGrav: 0, oResp: 0, oSkin: 700, oSpo2: 700)
+        XCTAssertTrue(l.contains("nothing banked from the offload for: gravity, resp, steps"))
+    }
+
+    func testAStreamThisPlatformCannotMeasureIsOmittedNotZero() {
+        XCTAssertFalse(line(liveHr: 5, oHr: 10, oSteps: nil).contains("steps"))
+    }
+
+    func testBatteryNeverAppearsOnEitherPath() {
+        XCTAssertFalse(line(liveHr: 9, oHr: 9).contains("battery"))
     }
 
     func testNegativeCountsCannotLeakIntoADiagnostic() {
-        let line = ConnectionReadout.linkBankedSummary(
-            hr: -5, rr: 1, gravity: 0, resp: 0, skinTemp: 0, spo2: 0, steps: 0, battery: 0)
-        XCTAssertTrue(line.contains("hr=0"))
-        XCTAssertFalse(line.contains("-5"))
-    }
-
-    /// The two platforms must produce the SAME sentence, since a report may come from either.
-    func testTheExactSentenceForTheFieldCase() {
-        XCTAssertEqual(
-            ConnectionReadout.linkBankedSummary(
-                hr: 456, rr: 187, gravity: 0, resp: 0, skinTemp: 0, spo2: 0, steps: 0, battery: 2),
-            "banked live this link: hr=456 rr=187 gravity=0 resp=0 skinTemp=0 spo2=0 steps=0 battery=2"
-                + " - nothing banked live for: gravity, resp, skinTemp, spo2, steps")
-    }
-
-
-    /// Apple's store does not return a step count, so the line must omit steps rather than print zero.
-    func testAStreamThisPlatformCannotMeasureIsOmittedNotZero() {
-        let line = ConnectionReadout.linkBankedSummary(
-            hr: 456, rr: 187, gravity: 0, resp: 0, skinTemp: 0, spo2: 0, steps: nil, battery: 2)
-        XCTAssertFalse(line.contains("steps"), "an unmeasured stream must not appear at all")
-        XCTAssertTrue(line.contains("nothing banked live for: gravity, resp, skinTemp, spo2"))
+        let l = line(liveHr: -5, liveRr: 1, oHr: -3, oGrav: 4)
+        XCTAssertTrue(l.contains("live hr=0 rr=1"))
+        XCTAssertFalse(l.contains("-3"))
     }
 }

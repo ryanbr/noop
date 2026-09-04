@@ -732,17 +732,19 @@ public final class BLEManager: NSObject, ObservableObject {
     private var inboundFrames = 0
     private var inboundBytes = 0
     private var cmdChannelFrames = 0
-    /// #1635: rows ACCEPTED per stream on this link — the database-side companion to the three above.
-    /// The epitaph counts frames, which reads healthy on an unbonded 5/MG streaming heart rate over the
-    /// standard profile while every bond-gated stream banks nothing. Cleared with them, so they describe
-    /// THIS link. Plain vars like their neighbours: `Collector` hands them up on the main actor.
-    private var bankedHr = 0
-    private var bankedRr = 0
-    private var bankedGravity = 0
-    private var bankedResp = 0
-    private var bankedSkinTemp = 0
-    private var bankedSpo2 = 0
-    private var bankedBattery = 0
+    /// #1635: rows ACCEPTED on this link, split by PATH. The realtime decoder yields only hr/rr/events/
+    /// battery; gravity, resp, skinTemp, SpO2 and steps arrive solely through the offload, so counting one
+    /// path and naming streams from the other prints a constant rather than a finding. Cleared with the
+    /// frame counters. Plain vars like their neighbours: both feeders hand up on the main actor.
+    private var liveHr = 0
+    private var liveRr = 0
+    private var offloadHr = 0
+    private var offloadRr = 0
+    private var offloadGravity = 0
+    private var offloadResp = 0
+    private var offloadSkinTemp = 0
+    private var offloadSpo2 = 0
+
     /// Uptime clock for the epitaph. Monotonic, so a wall-clock change mid-link cannot make it negative.
     private var linkUpSince: DispatchTime?
     /// Last time ANY notification arrived — drives the liveness watchdog.
@@ -1357,11 +1359,8 @@ public final class BLEManager: NSObject, ObservableObject {
                               enableRawCapture: enableRawCapture,
                               log: { [weak self] line in self?.log(line) },
                               onBanked: { [weak self] c in
-                                  guard let self else { return }
-                                  self.bankedHr += c.hr; self.bankedRr += c.rr
-                                  self.bankedGravity += c.gravity; self.bankedResp += c.resp
-                                  self.bankedSkinTemp += c.skinTemp; self.bankedSpo2 += c.spo2
-                                  self.bankedBattery += c.battery
+                                  // Live path: hr/rr are all the realtime decoder yields.
+                                  self?.liveHr += c.hr; self?.liveRr += c.rr
                               })
         // The store can finish bootstrapping AFTER connect(model:) already ran (both wait on
         // poweredOn), so apply the family/clock configuration here too — whichever runs last wins.
@@ -1369,6 +1368,12 @@ public final class BLEManager: NSObject, ObservableObject {
         backfiller = Backfiller(store: store, deviceId: deviceId,
                                 ackTrim: { [weak self] trim, endData in
                                     self?.ackHistoricalChunk(trim: trim, endData: endData)
+                                },
+                                onBankedOffload: { [weak self] c in
+                                    guard let self else { return }
+                                    self.offloadHr += c.hr; self.offloadRr += c.rr
+                                    self.offloadGravity += c.gravity; self.offloadResp += c.resp
+                                    self.offloadSkinTemp += c.skinTemp; self.offloadSpo2 += c.spo2
                                 },
                                 enableRawCapture: enableRawCapture,
                                 log: { [weak self] s in self?.log(s) },
@@ -5262,8 +5267,8 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         // #1635: same guarantee for the banked tally. Clearing only on teardown would be enough if every
         // link ended in one, and a link that begins without a preceding clean teardown would otherwise
         // open holding the previous link's rows — reporting them as banked on a link that never saw them.
-        bankedHr = 0; bankedRr = 0; bankedGravity = 0; bankedResp = 0
-        bankedSkinTemp = 0; bankedSpo2 = 0; bankedBattery = 0
+        liveHr = 0; liveRr = 0; offloadHr = 0; offloadRr = 0
+        offloadGravity = 0; offloadResp = 0; offloadSkinTemp = 0; offloadSpo2 = 0
         linkUpSince = DispatchTime.now()
         standingConnectAt = nil     // #1413: a live link means no standing connect is outstanding
         restoredPeripheral = nil
@@ -5426,14 +5431,16 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
             // accounting, so folding it in would make a healthy bonded sync read as "nothing banked live
             // for: gravity". Inside the same `linkUpSince` guard for the same reason the epitaph is.
             log(ConnectionReadout.linkBankedSummary(
-                hr: bankedHr, rr: bankedRr, gravity: bankedGravity, resp: bankedResp,
+                liveHr: liveHr, liveRr: liveRr,
+                offloadHr: offloadHr, offloadRr: offloadRr, offloadGravity: offloadGravity,
+                offloadResp: offloadResp, offloadSkinTemp: offloadSkinTemp, offloadSpo2: offloadSpo2,
                 // nil, not 0: this store does not return a step count, and a zero would read as a fault.
-                skinTemp: bankedSkinTemp, spo2: bankedSpo2, steps: nil, battery: bankedBattery))
+                offloadSteps: nil))
         }
         // Clear the tally with the link, so a second teardown for the same drop cannot re-report it.
         inboundFrames = 0; inboundBytes = 0; cmdChannelFrames = 0
-        bankedHr = 0; bankedRr = 0; bankedGravity = 0; bankedResp = 0
-        bankedSkinTemp = 0; bankedSpo2 = 0; bankedBattery = 0
+        liveHr = 0; liveRr = 0; offloadHr = 0; offloadRr = 0
+        offloadGravity = 0; offloadResp = 0; offloadSkinTemp = 0; offloadSpo2 = 0
         linkUpSince = nil
 
         let timedOut = !intentionalDisconnect && error != nil

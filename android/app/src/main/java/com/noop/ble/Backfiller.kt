@@ -64,6 +64,14 @@ class Backfiller(
      */
     private val ackTrim: (trim: Long, endData: ByteArray) -> Unit,
     /**
+     * #1635: what one offload chunk actually stored, handed up so the client can tally it per LINK and
+     * name it beside the link epitaph. The offload is the ONLY path that banks gravity, respiratory,
+     * skin temperature, SpO2 and steps — the realtime decoder yields hr/rr/events/battery and nothing
+     * else — so a link summary that omitted this could not distinguish an unbonded strap, which defers
+     * backfill entirely, from a healthy one. Defaulted so existing constructions are unchanged.
+     */
+    private val onBankedOffload: (counts: InsertCounts) -> Unit = {},
+    /**
      * Fires after a chunk's decoded rows are durably committed AND acked — i.e. real new data just
      * landed. Lets the client schedule on-device scoring right away instead of leaving fresh history
      * invisible until the next 15-min analysis tick. Empty chunks (metadata-only ENDs) don't fire.
@@ -563,6 +571,7 @@ class Backfiller(
                 // key has already absorbed part of it.
                 val rrCensus = com.noop.analytics.RrEmissionStats.compute(decoded.rr.map { it.ts.toInt() to it.rrMs })
                 val counts = repository.insert(decoded, deviceId)
+                onBankedOffload(counts)
                 committed = decoded
                 // Success-side observability (#150): tally what actually persisted so the session can emit
                 // "persisted N rows (M with motion) across K night(s)" — the win-rate signal we never logged.

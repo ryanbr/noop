@@ -48,6 +48,11 @@ final class Backfiller {
     /// of end_data, used for the `strap_trim` cursor) and the 8-byte `end_data` (= the raw
     /// HISTORY_END metadata.data[10:18]) that the high-freq-sync ack form requires verbatim.
     private let ackTrim: (_ trim: UInt32, _ endData: [UInt8]) -> Void
+    /// #1635: one offload chunk's accepted-row counts, handed up so `BLEManager` can tally them per LINK.
+    /// The offload is the only path that banks gravity/resp/skinTemp/SpO2/steps, so a link summary
+    /// without it cannot tell an unbonded strap — which defers backfill — from a healthy one.
+    private let onBankedOffload: (_ counts: (hr: Int, rr: Int, events: Int, battery: Int,
+                                             spo2: Int, skinTemp: Int, resp: Int, gravity: Int)) -> Void
     private let extract: Extractor
     /// Research toggle. When false (DEFAULT) no raw frames are persisted — the chunk's
     /// decoded streams are still durable and the trim is still acked (decoded is the product of
@@ -209,6 +214,9 @@ final class Backfiller {
     init(store: BackfillStoreWriting,
          deviceId: String,
          ackTrim: @escaping (_ trim: UInt32, _ endData: [UInt8]) -> Void,
+         onBankedOffload: @escaping (_ counts: (hr: Int, rr: Int, events: Int, battery: Int,
+                                                spo2: Int, skinTemp: Int, resp: Int,
+                                                gravity: Int)) -> Void = { _ in },
          enableRawCapture: Bool = false,
          log: ((String) -> Void)? = nil,
          rejectedSink: ((_ frames: [[UInt8]], _ trim: UInt32, _ family: DeviceFamily) -> Bool)? = nil,
@@ -225,6 +233,7 @@ final class Backfiller {
         self.store = store
         self.deviceId = deviceId
         self.ackTrim = ackTrim
+        self.onBankedOffload = onBankedOffload
         self.enableRawCapture = enableRawCapture
         self.log = log
         self.rejectedSink = rejectedSink
@@ -706,7 +715,10 @@ final class Backfiller {
             // emission can be measured, since every existing R-R number is taken after the ON CONFLICT key
             // has already absorbed part of it.
             let rrCensus = RrEmissionStats.compute(decoded.rr.map { (ts: $0.ts, rrMs: $0.rrMs) })
-            do { counts = try await store.insert(decoded, deviceId: deviceId) } catch {
+            do {
+                counts = try await store.insert(decoded, deviceId: deviceId)
+                onBankedOffload(counts)
+            } catch {
                 // Diag (#601): the decoded rows couldn't be written — this is the "history stalls but live HR
                 // works" class. We return WITHOUT acking so the strap keeps this chunk and re-sends it next
                 // session (no data loss), but a silent return left a strap log with no trace of the stall.
