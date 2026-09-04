@@ -315,6 +315,10 @@ public enum ConnectionReadout {
     /// ACCEPTED, so a stream arriving as duplicates reads zero and is named — correct here: the question
     /// is what the database gained on this link.
     ///
+    /// LIVE streams only, and the sentence says so. The history offload persists through its own path and
+    /// already has its own accounting; counting one and labelling it "this link" would make every healthy
+    /// bonded sync read as "nothing banked for: gravity" — the false alarm this line exists to prevent.
+    ///
     /// Pure and total, and every count clamped, so it cannot become the reason a teardown path throws.
     /// Twin of the Kotlin formatter. Apple does not emit it yet; the formatter exists so the two logs
     /// cannot drift apart when it does.
@@ -326,10 +330,10 @@ public enum ConnectionReadout {
         ].map { ($0.0, max(0, $0.1)) }
         let body = pairs.map { "\($0.0)=\($0.1)" }.joined(separator: " ")
         let total = pairs.reduce(0) { $0 + $1.1 }
-        if total == 0 { return "banked this link: \(body) - NOTHING was stored on this link" }
+        if total == 0 { return "banked live this link: \(body) - NOTHING was stored from the live streams" }
         let empty = pairs.filter { $0.1 == 0 }.map { $0.0 }
-        if empty.isEmpty { return "banked this link: \(body)" }
-        return "banked this link: \(body) - nothing banked for: \(empty.joined(separator: ", "))"
+        if empty.isEmpty { return "banked live this link: \(body)" }
+        return "banked live this link: \(body) - nothing banked live for: \(empty.joined(separator: ", "))"
     }
 
     /// #987: freshness label for the "last frame" readout row: how long ago the most recent strap frame

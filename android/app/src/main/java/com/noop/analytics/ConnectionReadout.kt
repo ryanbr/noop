@@ -297,6 +297,12 @@ object ConnectionReadout {
      * opposite findings. Counts are ROWS ACCEPTED, so a stream that arrived as duplicates reads zero and
      * is named — correct for this purpose: the question is what the database gained on this link.
      *
+     * LIVE streams only, and the sentence says so. The history offload persists through its own path
+     * (`Backfiller`) and already has its own accounting — `bankedSensorRecords`, `rowsPersisted`, the
+     * completed-offload classification. Counting one and labelling it "this link" would make every healthy
+     * bonded sync that banked its gravity through the offload read as "nothing banked for: gravity", which
+     * is the false alarm this line exists to make impossible. A narrow true claim beats a broad wrong one.
+     *
      * Pure and total: no clock, no I/O, and every count clamped, so it cannot itself become the reason a
      * teardown path throws. Twin of the Swift formatter.
      */
@@ -309,10 +315,10 @@ object ConnectionReadout {
         ).map { (k, v) -> k to maxOf(0, v) }
         val body = pairs.joinToString(" ") { (k, v) -> "$k=$v" }
         val total = pairs.sumOf { it.second }
-        if (total == 0) return "banked this link: $body - NOTHING was stored on this link"
+        if (total == 0) return "banked live this link: $body - NOTHING was stored from the live streams"
         val empty = pairs.filter { it.second == 0 }.map { it.first }
-        if (empty.isEmpty()) return "banked this link: $body"
-        return "banked this link: $body - nothing banked for: ${empty.joinToString(", ")}"
+        if (empty.isEmpty()) return "banked live this link: $body"
+        return "banked live this link: $body - nothing banked live for: ${empty.joinToString(", ")}"
     }
 
     /** #987: freshness label for the "last frame" readout row ("12s ago" / "no frames yet"). [nowUnix]

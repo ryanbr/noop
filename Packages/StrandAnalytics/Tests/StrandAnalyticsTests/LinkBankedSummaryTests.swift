@@ -13,21 +13,21 @@ final class LinkBankedSummaryTests: XCTestCase {
             hr: 456, rr: 187, gravity: 0, resp: 0, skinTemp: 0, spo2: 0, steps: 0, battery: 2)
         XCTAssertTrue(line.contains("hr=456"))
         XCTAssertTrue(line.contains("gravity=0"))
-        XCTAssertTrue(line.contains("nothing banked for: gravity, resp, skinTemp, spo2, steps"))
+        XCTAssertTrue(line.contains("nothing banked live for: gravity, resp, skinTemp, spo2, steps"))
     }
 
     func testAFullyHealthyLinkGetsNoCallOut() {
         let line = ConnectionReadout.linkBankedSummary(
             hr: 400, rr: 380, gravity: 900, resp: 900, skinTemp: 900, spo2: 900, steps: 12, battery: 3)
-        XCTAssertTrue(line.hasPrefix("banked this link:"))
-        XCTAssertFalse(line.contains("nothing banked for"))
+        XCTAssertTrue(line.hasPrefix("banked live this link:"))
+        XCTAssertFalse(line.contains("nothing banked live for"))
     }
 
     func testALinkThatStoredNothingSaysSoOnce() {
         let line = ConnectionReadout.linkBankedSummary(
             hr: 0, rr: 0, gravity: 0, resp: 0, skinTemp: 0, spo2: 0, steps: 0, battery: 0)
-        XCTAssertTrue(line.contains("NOTHING was stored on this link"))
-        XCTAssertFalse(line.contains("nothing banked for"))
+        XCTAssertTrue(line.contains("NOTHING was stored from the live streams"))
+        XCTAssertFalse(line.contains("nothing banked live for"))
     }
 
     func testNegativeCountsCannotLeakIntoADiagnostic() {
@@ -42,7 +42,7 @@ final class LinkBankedSummaryTests: XCTestCase {
         XCTAssertEqual(
             ConnectionReadout.linkBankedSummary(
                 hr: 456, rr: 187, gravity: 0, resp: 0, skinTemp: 0, spo2: 0, steps: 0, battery: 2),
-            "banked this link: hr=456 rr=187 gravity=0 resp=0 skinTemp=0 spo2=0 steps=0 battery=2"
-                + " - nothing banked for: gravity, resp, skinTemp, spo2, steps")
+            "banked live this link: hr=456 rr=187 gravity=0 resp=0 skinTemp=0 spo2=0 steps=0 battery=2"
+                + " - nothing banked live for: gravity, resp, skinTemp, spo2, steps")
     }
 }

@@ -6727,22 +6727,31 @@ class WhoopBleClient(
     private var cmdChannelFrames = 0
 
     // #1635: rows ACCEPTED per stream on this link, the database-side twin of the frame counters above.
-    // Cleared with them on teardown. Written only from the collector coroutines that already own the
-    // insert calls, so they inherit that serialization rather than adding their own.
-    private var bankedHr = 0
-    private var bankedRr = 0
-    private var bankedGravity = 0
-    private var bankedResp = 0
-    private var bankedSkinTemp = 0
-    private var bankedSpo2 = 0
-    private var bankedSteps = 0
-    private var bankedBattery = 0
+    // Cleared with them on teardown.
+    //
+    // ATOMIC, unlike those counters, because the writers are not the same. `inboundFrames` and friends are
+    // touched only from the serialized GATT callback; these are folded in from `flushLive` and
+    // `flushStandardHr`, which are two INDEPENDENT `ioScope.launch` coroutines that can run at once — the
+    // same reason `liveInsertFailuresStd` and `liveInsertFailuresRealtime` beside them are AtomicInteger.
+    // A plain `+=` there is a read-modify-write race, and the teardown read is a third thread again. Each
+    // counter stands alone (no cross-field invariant), so per-field atomicity is the whole requirement.
+    // An under-count would be worse than useless here: it reads as exactly the "banked nothing" finding
+    // this line exists to report.
+    private val bankedHr = java.util.concurrent.atomic.AtomicInteger(0)
+    private val bankedRr = java.util.concurrent.atomic.AtomicInteger(0)
+    private val bankedGravity = java.util.concurrent.atomic.AtomicInteger(0)
+    private val bankedResp = java.util.concurrent.atomic.AtomicInteger(0)
+    private val bankedSkinTemp = java.util.concurrent.atomic.AtomicInteger(0)
+    private val bankedSpo2 = java.util.concurrent.atomic.AtomicInteger(0)
+    private val bankedSteps = java.util.concurrent.atomic.AtomicInteger(0)
+    private val bankedBattery = java.util.concurrent.atomic.AtomicInteger(0)
 
     /** Fold one persist round's accepted-row counts into the per-link tally. */
     private fun addBanked(c: InsertCounts) {
-        bankedHr += c.hr; bankedRr += c.rr; bankedGravity += c.gravity; bankedResp += c.resp
-        bankedSkinTemp += c.skinTemp; bankedSpo2 += c.spo2; bankedSteps += c.steps
-        bankedBattery += c.battery
+        bankedHr.addAndGet(c.hr); bankedRr.addAndGet(c.rr)
+        bankedGravity.addAndGet(c.gravity); bankedResp.addAndGet(c.resp)
+        bankedSkinTemp.addAndGet(c.skinTemp); bankedSpo2.addAndGet(c.spo2)
+        bankedSteps.addAndGet(c.steps); bankedBattery.addAndGet(c.battery)
     }
     /** #1809: was realtime armed at ANY point on THIS link. Not the same thing as [realtimeArmed], which
      *  is persistent edge state: it can carry true in from a previous link, or read false at the drop
@@ -10006,20 +10015,24 @@ class WhoopBleClient(
                 // before handleDisconnect runs and is not reassigned above, so it is valid here.
                 ended = if (intentionalDisconnect) "intentional" else "status=$status",
             ))
-            // #1635: what the DATABASE gained, beside what the radio carried. An unbonded 5/MG keeps the
-            // epitaph looking healthy — hundreds of inbound frames — while every bond-gated stream banks
-            // nothing, and that split is invisible in a single export. Guarded by the SAME `linkUpSinceMs`
-            // as the epitaph: on a failed connect attempt the counters hold the previous link's tally, and
-            // reporting them here would describe a link that never existed.
+            // #1635: what the DATABASE gained from the LIVE streams, beside what the radio carried. An
+            // unbonded 5/MG keeps the epitaph looking healthy — hundreds of inbound frames — while every
+            // bond-gated stream banks nothing, and that split is invisible in a single export. Live only:
+            // the offload persists through `Backfiller` and has its own accounting, so folding it in here
+            // would be double-counted in one direction and, worse, its ABSENCE reads as a fault.
+            // Guarded by the SAME `linkUpSinceMs` as the epitaph: on a failed connect attempt the counters
+            // hold the previous link's tally, and reporting them would describe a link that never existed.
             log(ConnectionReadout.linkBankedSummary(
-                hr = bankedHr, rr = bankedRr, gravity = bankedGravity, resp = bankedResp,
-                skinTemp = bankedSkinTemp, spo2 = bankedSpo2, steps = bankedSteps, battery = bankedBattery,
+                hr = bankedHr.get(), rr = bankedRr.get(),
+                gravity = bankedGravity.get(), resp = bankedResp.get(),
+                skinTemp = bankedSkinTemp.get(), spo2 = bankedSpo2.get(),
+                steps = bankedSteps.get(), battery = bankedBattery.get(),
             ), com.noop.testcentre.TestDomain.CONNECTION)
         }
         // Clear the tally with the link, so a second teardown for the same drop cannot re-report it.
         inboundFrames = 0; inboundBytes = 0; cmdChannelFrames = 0
-        bankedHr = 0; bankedRr = 0; bankedGravity = 0; bankedResp = 0
-        bankedSkinTemp = 0; bankedSpo2 = 0; bankedSteps = 0; bankedBattery = 0
+        bankedHr.set(0); bankedRr.set(0); bankedGravity.set(0); bankedResp.set(0)
+        bankedSkinTemp.set(0); bankedSpo2.set(0); bankedSteps.set(0); bankedBattery.set(0)
 
         val heldSuffix = heldForLogSuffix()
         linkUpSinceMs = null
