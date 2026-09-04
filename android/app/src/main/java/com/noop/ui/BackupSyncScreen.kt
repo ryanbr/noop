@@ -87,8 +87,10 @@ fun BackupSyncScreen() {
         busy = true
         scope.launch {
             // Clear in a `finally` so it clears on ANY exit — the twin of the Apple `defer` in
-            // `BackupSyncView.runRestore`. Every control here is gated on `!busy`, so a flag left set
-            // disables the whole screen, the way out of it included.
+            // `BackupSyncView.runRestore`. All five controls in the screen body are gated on `!busy`
+            // — folder picker, auto toggle, keep-count, Back up now, Restore — so a flag left set is a
+            // dead end rather than one stuck button. (The restore sheet and confirm dialog are not
+            // gated, but they are transient overlays, not the way back to a working screen.)
             //
             // The NeedsRestart branch never reaches the `finally`: it exits the process first. That is
             // the wanted behaviour — the screen stays disabled through the restart rather than briefly
