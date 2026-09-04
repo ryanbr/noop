@@ -883,6 +883,16 @@ extension WhoopStore {
         migrator.registerMigration("v41-drop-raw-imu-sample") { db in
             try db.drop(table: "rawImuSample")
         }
+        // Whether every sleep session that day was staged from heart rate alone (#1801). The Kotlin twin
+        // is `DailyMetric.sleepHrOnly`, added by Room MIGRATION_35_36; the shared schema oracle pins the
+        // two shapes together, so this exists here even while only Android reads it — a column present on
+        // one side and absent on the other is the drift #775 tracks, and stagingSparse set the precedent
+        // for carrying a staging-quality flag on both.
+        migrator.registerMigration("v42-daily-sleep-hr-only") { db in
+            try db.alter(table: "dailyMetric") { t in
+                t.add(column: "sleepHrOnly", .boolean)
+            }
+        }
         return migrator
     }
 }

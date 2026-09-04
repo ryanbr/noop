@@ -2669,4 +2669,5 @@
     <string name="l10n_settings_screen_skin_temperature_fc103030">Température cutanée</string>
     <string name="l10n_health_screen_no_measured_temperature_for_these_nights_showing_the_differe_69d4efae">Aucune température mesurée pour ces nuits — l\'écart par rapport à votre référence est affiché. Une synchronisation réévalue les nuits récentes et le complète.</string>
     <string name="l10n_health_screen_only_nights_with_a_measured_temperature_are_shown_the_others_b6f7c45b">Seules les nuits avec une température mesurée sont affichées ; les autres n\'ont enregistré qu\'un écart par rapport à la référence.</string>
+    <string name="l10n_today_screen_this_night_was_staged_from_heart_rate_4d0f1f9b">Cette nuit a été analysée à partir de la seule fréquence cardiaque, sans mouvement enregistré, donc la variabilité de la fréquence cardiaque et la fréquence cardiaque au repos n\'ont pas pu être mesurées. La cause habituelle est un bracelet qui n\'est pas entièrement appairé.</string>
 </resources>

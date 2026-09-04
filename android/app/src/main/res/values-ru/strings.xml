@@ -2554,4 +2554,5 @@
         <item quantity="many">%1$s тренировок</item>
         <item quantity="other">%1$s тренировки</item>
     </plurals>
+    <string name="l10n_today_screen_this_night_was_staged_from_heart_rate_4d0f1f9b">Эта ночь определена только по пульсу, без записанного движения, поэтому вариабельность сердечного ритма и пульс в покое измерить не удалось. Обычная причина — ремешок, сопряжённый не полностью.</string>
 </resources>

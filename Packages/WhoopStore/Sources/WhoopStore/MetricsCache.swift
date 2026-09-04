@@ -105,13 +105,16 @@ public struct DailyMetric: Equatable, Codable {
     /// that column and `SkinTempDisplay.isAbsoluteSkinTemp` separates them by magnitude. This column is
     /// unambiguous: it is always an absolute, and only the strap pipeline writes it.
     public let skinTempC: Double?
+    /// Kotlin twin: `DailyMetric.sleepHrOnly`. Every session that night staged from heart rate alone.
+    public let sleepHrOnly: Bool?
     public init(day: String, totalSleepMin: Double?, efficiency: Double?, deepMin: Double?,
                 remMin: Double?, lightMin: Double?, disturbances: Int?, restingHr: Int?,
                 avgHrv: Double?, recovery: Double?, strain: Double?, exerciseCount: Int?,
                 spo2Pct: Double? = nil, skinTempDevC: Double? = nil, respRateBpm: Double? = nil,
                 steps: Int? = nil, activeKcalEst: Double? = nil,
                 spo2Red: Int? = nil, spo2Ir: Int? = nil, avgSdnn: Double? = nil,
-                skinTempC: Double? = nil) {
+                skinTempC: Double? = nil,
+                sleepHrOnly: Bool? = nil) {
         self.day = day; self.totalSleepMin = totalSleepMin; self.efficiency = efficiency
         self.deepMin = deepMin; self.remMin = remMin; self.lightMin = lightMin
         self.disturbances = disturbances; self.restingHr = restingHr; self.avgHrv = avgHrv
@@ -120,6 +123,7 @@ public struct DailyMetric: Equatable, Codable {
         self.steps = steps; self.activeKcalEst = activeKcalEst
         self.spo2Red = spo2Red; self.spo2Ir = spo2Ir; self.avgSdnn = avgSdnn
         self.skinTempC = skinTempC
+        self.sleepHrOnly = sleepHrOnly
     }
 
     /// The freshest STRICTLY-PRIOR day that carries at least one overnight vital (HRV / resting HR /
@@ -465,8 +469,8 @@ extension WhoopStore {
                     (deviceId, day, totalSleepMin, efficiency, deepMin, remMin, lightMin,
                      disturbances, restingHr, avgHrv, recovery, strain, exerciseCount,
                      spo2Pct, skinTempDevC, respRateBpm, steps, activeKcalEst,
-                     spo2Red, spo2Ir, avgSdnn, skinTempC)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     spo2Red, spo2Ir, avgSdnn, skinTempC, sleepHrOnly)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(deviceId, day) DO UPDATE SET
                     totalSleepMin = excluded.totalSleepMin,
                     efficiency = excluded.efficiency,
@@ -487,13 +491,14 @@ extension WhoopStore {
                     spo2Red = excluded.spo2Red,
                     spo2Ir = excluded.spo2Ir,
                     avgSdnn = excluded.avgSdnn,
-                    skinTempC = excluded.skinTempC
+                    skinTempC = excluded.skinTempC,
+                    sleepHrOnly = excluded.sleepHrOnly
                 """, arguments: [deviceId, d.day, d.totalSleepMin, d.efficiency, d.deepMin,
                                  d.remMin, d.lightMin, d.disturbances, d.restingHr, d.avgHrv,
                                  d.recovery, d.strain, d.exerciseCount,
                                  d.spo2Pct, d.skinTempDevC, d.respRateBpm,
                                  d.steps, d.activeKcalEst,
-                                 d.spo2Red, d.spo2Ir, d.avgSdnn, d.skinTempC])
+                                 d.spo2Red, d.spo2Ir, d.avgSdnn, d.skinTempC, d.sleepHrOnly])
             n += db.changesCount
         }
         return n
@@ -544,7 +549,7 @@ extension WhoopStore {
                 SELECT day, totalSleepMin, efficiency, deepMin, remMin, lightMin, disturbances,
                        restingHr, avgHrv, recovery, strain, exerciseCount,
                        spo2Pct, skinTempDevC, respRateBpm, steps, activeKcalEst,
-                       spo2Red, spo2Ir, avgSdnn, skinTempC FROM dailyMetric
+                       spo2Red, spo2Ir, avgSdnn, skinTempC, sleepHrOnly FROM dailyMetric
                 WHERE deviceId = ? AND day >= ? AND day <= ?
                 ORDER BY day ASC
                 """, arguments: [deviceId, from, to])
@@ -559,7 +564,8 @@ extension WhoopStore {
                                 respRateBpm: $0["respRateBpm"],
                                 steps: $0["steps"], activeKcalEst: $0["activeKcalEst"],
                                 spo2Red: $0["spo2Red"], spo2Ir: $0["spo2Ir"], avgSdnn: $0["avgSdnn"],
-                                skinTempC: $0["skinTempC"])
+                                skinTempC: $0["skinTempC"],
+                                sleepHrOnly: $0["sleepHrOnly"])
                 }
         }
     }

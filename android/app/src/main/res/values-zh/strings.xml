@@ -2583,4 +2583,5 @@
     <string name="l10n_settings_screen_skin_temperature_fc103030">皮肤温度</string>
     <string name="l10n_health_screen_no_measured_temperature_for_these_nights_showing_the_differe_69d4efae">这些夜晚没有实测温度，显示的是与基线的差值。同步后会重新计算近期夜晚并补上。</string>
     <string name="l10n_health_screen_only_nights_with_a_measured_temperature_are_shown_the_others_b6f7c45b">仅显示有实测温度的夜晚；其余夜晚只记录了与基线的差值。</string>
+    <string name="l10n_today_screen_this_night_was_staged_from_heart_rate_4d0f1f9b">这一晚仅根据心率推算，没有记录到动作，因此无法测量心率变异性和静息心率。通常的原因是手环尚未完全配对。</string>
 </resources>

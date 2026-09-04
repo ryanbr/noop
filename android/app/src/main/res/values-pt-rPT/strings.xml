@@ -2662,4 +2662,5 @@
     <string name="l10n_settings_screen_skin_temperature_fc103030">Temperatura da pele</string>
     <string name="l10n_health_screen_no_measured_temperature_for_these_nights_showing_the_differe_69d4efae">Sem temperatura medida para estas noites — a mostrar a diferença em relação à sua referência. Uma sincronização reavalia as noites recentes e preenche-a.</string>
     <string name="l10n_health_screen_only_nights_with_a_measured_temperature_are_shown_the_others_b6f7c45b">Só são mostradas as noites com temperatura medida; as restantes registaram apenas a diferença em relação à referência.</string>
+    <string name="l10n_today_screen_this_night_was_staged_from_heart_rate_4d0f1f9b">Esta noite foi analisada apenas a partir da frequência cardíaca, sem movimento registado, pelo que não foi possível medir a variabilidade da frequência cardíaca nem a frequência cardíaca em repouso. A causa habitual é uma pulseira que não está totalmente emparelhada.</string>
 </resources>

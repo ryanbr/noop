@@ -2674,4 +2674,5 @@
     <string name="l10n_settings_screen_skin_temperature_fc103030">Temperatura skóry</string>
     <string name="l10n_health_screen_no_measured_temperature_for_these_nights_showing_the_differe_69d4efae">Brak zmierzonej temperatury dla tych nocy — pokazano różnicę względem Twojej wartości bazowej. Synchronizacja ponownie przelicza ostatnie noce i ją uzupełnia.</string>
     <string name="l10n_health_screen_only_nights_with_a_measured_temperature_are_shown_the_others_b6f7c45b">Pokazywane są tylko noce ze zmierzoną temperaturą; w pozostałych zapisano jedynie różnicę względem wartości bazowej.</string>
+    <string name="l10n_today_screen_this_night_was_staged_from_heart_rate_4d0f1f9b">Ta noc została opracowana wyłącznie na podstawie tętna, bez zarejestrowanego ruchu, więc nie udało się zmierzyć zmienności rytmu serca ani tętna spoczynkowego. Zwykłą przyczyną jest opaska, która nie jest w pełni sparowana.</string>
 </resources>

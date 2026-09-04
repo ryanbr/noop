@@ -1,6 +1,6 @@
 {
   "_readme": "SHARED Room<->GRDB SCHEMA ORACLE (#775). Two byte-identical copies: Packages/WhoopStore/Tests/WhoopStoreTests/Resources/schema_oracle.json and android/app/src/test/resources/schema_oracle.json. SchemaOracleTests.swift compares GRDB's PRAGMA table_info/index_list against it; SchemaOracleTest.kt compares Room's exported schema JSON against it. `columns` is the iOS/GRDB shape in GRDB column order (macOS is the reference implementation); every way Android differs is spelled out in an `android` / `iosAbsent` / `androidColumnOrder` override naming a key in `divergenceReasons`. Adding a column, reordering one, or changing a type/nullability on one platform only fails both suites until it is either fixed or written down here.",
-  "roomVersion": 35,
+  "roomVersion": 36,
   "grdbMigrations": [
     "v1",
     "v2",
@@ -372,6 +372,16 @@
           "affinity": "REAL",
           "notNull": false,
           "default": null
+        },
+        {
+          "name": "sleepHrOnly",
+          "affinity": "NUMERIC",
+          "notNull": false,
+          "default": null,
+          "android": {
+            "affinity": "INTEGER"
+          },
+          "divergence": "grdb-boolean-affinity"
         }
       ],
       "primaryKey": [

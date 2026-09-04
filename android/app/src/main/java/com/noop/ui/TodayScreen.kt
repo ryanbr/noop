@@ -3085,6 +3085,28 @@ private fun RingNeedsTrackedNight() {
 // three vitals now read directly below the three-ring hero + Synthesis card. [HeroMetricRows] is the
 // README "Metric row" card; the SOLID/CALIBRATING pill + Synthesis insight moved into [SynthesisHeroCard].
 
+/**
+ * Whether the Recovery Vitals card should explain its blanks with the HR-only note (#1801).
+ *
+ * Reads the flag from the SAME row the shown vitals came from. [carriedFromVitals] already decides that
+ * for the date caption, so reusing it keeps the note and the numbers describing ONE night;
+ * `day?.sleepHrOnly ?: vitalsDay?.sleepHrOnly` would instead fall through whenever today's flag is merely
+ * unknown — every row scored before v36 — and caption today's blanks with a different night's staging.
+ *
+ * Gated on something actually being blank so a night that kept its vitals stays quiet, and on `== true`
+ * so the tri-state reads correctly: null means "not known", which earns no claim either way.
+ */
+internal fun showsHrOnlyNote(
+    day: DailyMetric?,
+    vitalsDay: DailyMetric?,
+    carriedFromVitals: Boolean,
+    hrv: Double?,
+    rhr: Int?,
+): Boolean {
+    val source = if (carriedFromVitals) vitalsDay else day
+    return source?.sleepHrOnly == true && (hrv == null || rhr == null)
+}
+
 /** The three hero vitals as README metric rows, HRV (teal) · Resting HR (rose) · Respiratory (blue).
  *  Reads PER-FIELD today-first with a recovery-INDEPENDENT vitals carry ([vitalsDay]) as the fallback
  *  (#543 follow-up), so a night whose recovery was nulled post-update still shows its OWN preserved HRV /
@@ -3103,6 +3125,12 @@ private fun HeroMetricRows(day: DailyMetric?, carriedDay: DailyMetric? = null, v
     // vital is carried do we stamp the carry's date (relabelled "Latest sleep · <date>" when weeks-old).
     val carriedFromVitals = day?.avgHrv == null && day?.restingHr == null && day?.respRateBpm == null &&
         (hrv != null || rhr != null || resp != null) && vitalsDay != null
+    // #1801: why the two blanks below are blank. Read from the SAME row the shown vitals came from —
+    // `carriedFromVitals` already decides that for the date caption, so reusing it keeps the note and the
+    // values describing one night. `day?.sleepHrOnly ?: vitalsDay?.sleepHrOnly` would instead fall through
+    // on a pre-v36 row whose flag is merely unknown, and explain a different night's numbers.
+    // Gated on something actually being blank, so a night that recovered its vitals stays quiet.
+    val hrOnlyNight = showsHrOnlyNote(day, vitalsDay, carriedFromVitals, hrv, rhr)
     // iOS `recoveryVitalsSection`: a frosted card with a "RECOVERY VITALS" header + a "last night · <date>"
     // on the right, then three `vitalRow`s (26dp mini LIQUID VESSEL + label + value). NoopCard supplies the
     // same neutral surfaceRaised + hairline as iOS's frosted card. Inner spacing 12, matching iOS.
@@ -3138,6 +3166,13 @@ private fun HeroMetricRows(day: DailyMetric?, carriedDay: DailyMetric? = null, v
                 tint = Palette.accent,
                 fraction = resp?.let { (it / 24.0).coerceIn(0.0, 1.0) },
             )
+            if (hrOnlyNight) {
+                Text(
+                    uiString(R.string.l10n_today_screen_this_night_was_staged_from_heart_rate_4d0f1f9b),
+                    style = NoopType.caption,
+                    color = Palette.textTertiary,
+                )
+            }
         }
     }
 }

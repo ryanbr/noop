@@ -53,7 +53,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         V18AuxSampleEntity::class,
         AppleStepHour::class,
     ],
-    version = 35,
+    version = 36,
     // #775: ON so Room's KSP processor writes the generated schema (every table's exact `CREATE TABLE`,
     // columns in declaration order with affinity/NOT NULL/default, PK and indices) as JSON. That export
     // is what lets a plain JVM test — no device, no Robolectric — read Android's REAL schema and compare
@@ -73,7 +73,7 @@ abstract class WhoopDatabase : RoomDatabase() {
         const val DB_NAME = "noop_whoop.db"
         /** Room schema version — MUST equal the `@Database(version = …)` above. Surfaced in the backup
          *  manifest (#1410) so an export states its schema. Bump both together on a migration. */
-        const val SCHEMA_VERSION = 35
+        const val SCHEMA_VERSION = 36
 
         @Volatile
         private var instance: WhoopDatabase? = null
@@ -928,6 +928,26 @@ abstract class WhoopDatabase : RoomDatabase() {
         }
 
         /**
+         * v35 -> v36: ADDITIVE, adds `dailyMetric.sleepHrOnly` (nullable INTEGER) so the Recovery Vitals
+         * card can say why HRV and resting HR are blank on a night staged from heart rate alone, rather
+         * than showing a bare "No data" that is indistinguishable from a failed sync (#1801). Nullable
+         * with no default and no backfill: existing rows stay null and read as "not known", which is
+         * honest — the flag is only knowable from a re-score, and a re-score writes it.
+         *
+         * Exposed as a constant so the migration test can pin its SHAPE without Room-testing, the same
+         * way [DAILY_SKIN_TEMP_ABSOLUTE_MIGRATION_SQL] is.
+         */
+        internal val DAILY_SLEEP_HR_ONLY_MIGRATION_SQL: List<String> = listOf(
+            "ALTER TABLE `dailyMetric` ADD COLUMN `sleepHrOnly` INTEGER",
+        )
+
+        internal val MIGRATION_35_36 = object : Migration(35, 36) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                for (stmt in DAILY_SLEEP_HR_ONLY_MIGRATION_SQL) db.execSQL(stmt)
+            }
+        }
+
+        /**
          * Every migration the builder registers, as a VALUE rather than an argument list.
          *
          * It was previously spelled inline in `addMigrations(...)`, which meant nothing could check it. A
@@ -952,7 +972,7 @@ abstract class WhoopDatabase : RoomDatabase() {
             MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22,
             MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26,
             MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30,
-            MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35,
+            MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36,
         )
 
 

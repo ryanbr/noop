@@ -870,6 +870,11 @@ object AnalyticsEngine {
             disturbances = if (matched.isEmpty()) null else disturbances,
             restingHr = restingHRDaily,
             avgHrv = avgHRVDaily,
+            // The SAME condition that just emptied the two fields above: `physiologySessions` is
+            // `matched` minus the HR-only ones, so an all-HR-only night leaves it empty and both vitals
+            // null. Recording it here rather than re-deriving in the UI keeps the explanation and the
+            // cause as one expression — a second definition could disagree with the values it explains.
+            sleepHrOnly = if (matched.isEmpty()) null else physiologySessions.isEmpty(),
             recovery = recovery,
             strain = strain,
             exerciseCount = workouts.size,

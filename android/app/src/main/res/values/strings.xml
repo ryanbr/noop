@@ -2696,4 +2696,5 @@
     <string name="l10n_settings_screen_skin_temperature_fc103030">Skin temperature</string>
     <string name="l10n_health_screen_no_measured_temperature_for_these_nights_showing_the_differe_69d4efae">No measured temperature for these nights — showing the difference from your baseline. A sync re-scores recent nights and fills it in.</string>
     <string name="l10n_health_screen_only_nights_with_a_measured_temperature_are_shown_the_others_b6f7c45b">Only nights with a measured temperature are shown; the others recorded a baseline difference only.</string>
+    <string name="l10n_today_screen_this_night_was_staged_from_heart_rate_4d0f1f9b">This night was staged from heart rate alone, with no motion recorded, so HRV and resting heart rate could not be measured. A strap that is not fully paired is the usual cause.</string>
 </resources>

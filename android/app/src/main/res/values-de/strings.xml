@@ -2683,4 +2683,5 @@
     <string name="l10n_settings_screen_skin_temperature_fc103030">Hauttemperatur</string>
     <string name="l10n_health_screen_no_measured_temperature_for_these_nights_showing_the_differe_69d4efae">Für diese Nächte liegt keine gemessene Temperatur vor — angezeigt wird die Abweichung von deinem Basiswert. Eine Synchronisierung bewertet die letzten Nächte neu und ergänzt sie.</string>
     <string name="l10n_health_screen_only_nights_with_a_measured_temperature_are_shown_the_others_b6f7c45b">Es werden nur Nächte mit gemessener Temperatur angezeigt; für die übrigen wurde nur eine Abweichung vom Basiswert erfasst.</string>
+    <string name="l10n_today_screen_this_night_was_staged_from_heart_rate_4d0f1f9b">Diese Nacht wurde allein anhand der Herzfrequenz ausgewertet, ohne aufgezeichnete Bewegung, daher konnten Herzfrequenzvariabilität und Ruheherzfrequenz nicht gemessen werden. Ein nicht vollständig gekoppelter Strap ist die übliche Ursache.</string>
 </resources>
