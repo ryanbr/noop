@@ -202,11 +202,53 @@ enum FolderBackup {
         return dir
     }
 
+    /// Whether a folder path sits in iCloud. The SINGLE definition of that rule — `restoreListHealth`
+    /// reports the same signal to diagnostics, and a screen that disagreed with the diagnostics dump
+    /// about where the backups are would make #278-style triage worse, not better.
+    ///
+    /// Ubiquity containers live under `Mobile Documents`, which covers both iCloud Drive proper
+    /// (`com~apple~CloudDocs`) and per-app containers. Pure and path-only, so it is testable without a
+    /// picker, a bookmark or a device.
+    static func isICloudPath(_ path: String) -> Bool { path.contains("Mobile Documents") }
+
+    /// The tail of a folder path, for display: `"NOOP › 2026"`.
+    ///
+    /// The bare last component is not enough to identify a folder — a "Backups" folder in iCloud Drive
+    /// and the #52 internal fallback's `Documents/Backups` render identically, which is exactly the
+    /// confusion this line is meant to settle. The FULL path is not shown either: on iOS it is a long
+    /// sandbox UUID and on macOS it carries the user's home directory, neither of which helps.
+    ///
+    /// For an iCloud path everything up to and including the sync root (`com~apple~CloudDocs`, or a
+    /// per-app `iCloud~…` container) is dropped, since [folderLabel] already names iCloud Drive and the
+    /// raw tilde form means nothing to a reader.
+    static func folderTrail(path: String, maxComponents: Int = 2) -> String {
+        var parts = path.split(separator: "/").map(String.init).filter { !$0.isEmpty }
+        // Slice AFTER the sync root rather than filtering it out: on macOS an iCloud path is
+        // `~/Library/Mobile Documents/com~apple~CloudDocs/NOOP`, so merely dropping the tilde component
+        // leaves "Mobile Documents › NOOP" — plumbing the reader should never see.
+        if let i = parts.lastIndex(where: {
+            $0 == "com~apple~CloudDocs" || $0.hasPrefix("iCloud~") || $0 == "Mobile Documents"
+        }) { parts = Array(parts[(i + 1)...]) }
+        return parts.suffix(max(1, maxComponents)).joined(separator: " › ")
+    }
+
     /// A short, human label for the chosen folder, or nil if none chosen. The internal fallback gets a
     /// friendly name instead of the raw "Backups" path component.
+    ///
+    /// Names iCloud explicitly (#52): the picker can already point anywhere, iCloud Drive included, so
+    /// the gap was never the choosing — it was that the result was unidentifiable afterwards. A user on
+    /// the internal fallback saw a bare "Backups" and could not tell their backups were on-device only.
     static func folderLabel() -> String? {
         if useInternalFolder { return String(localized: "NOOP (in Files)") }
-        return resolveFolder()?.lastPathComponent
+        guard let path = resolveFolder()?.path else { return nil }
+        let trail = folderTrail(path: path)
+        if isICloudPath(path) {
+            // Picking the iCloud Drive root itself leaves no trail; naming the place alone beats an
+            // empty separator dangling off the end.
+            return trail.isEmpty ? String(localized: "iCloud Drive")
+                                 : String(localized: "iCloud Drive › \(trail)")
+        }
+        return trail.isEmpty ? (path.split(separator: "/").last.map(String.init) ?? path) : trail
     }
 
     // MARK: - Security-scoped bookmark
@@ -310,8 +352,9 @@ enum FolderBackup {
         let raw = (try? FileManager.default.contentsOfDirectory(atPath: folder.path))?.count ?? 0
         // Report iCloud-vs-local (the actual #278 triage signal — undownloaded placeholders live in the
         // iCloud container) WITHOUT the folder's user-chosen name, which redactPii can't scrub and the
-        // iOS twin never exposes. The iCloud ubiquity container path contains "Mobile Documents".
-        let isICloud = folder.path.contains("Mobile Documents")
+        // iOS twin never exposes. Shares `isICloudPath` with the label the user sees, so the screen and
+        // this dump can never disagree about where the backups are.
+        let isICloud = isICloudPath(folder.path)
         return (isICloud, raw, listSnapshots().count)
     }
 
