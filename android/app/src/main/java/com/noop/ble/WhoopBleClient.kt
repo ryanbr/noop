@@ -8638,7 +8638,9 @@ class WhoopBleClient(
                         appLevelBonded = didBond,
                         userInitiated = helloRetryRequested,
                         // Same retirement the probe applies to itself — read here rather than assumed, so
-                        // the skip stops the moment the thing it serves does.
+                        // the skip stops the moment the thing it serves does. The two inputs address the
+                        // same strap: `lastDevice` is set at connect, long before this runs post-discovery,
+                        // and `beginUnbondedOffloadProbe` already pairs these two sources the same way.
                         probeRetired = unbondedProbeRetired(
                             previouslyRefused = unbondedOffloadPreviouslyRefused(g.device.address),
                             silentLinksSoFar = unbondedProbeSilentLinks,

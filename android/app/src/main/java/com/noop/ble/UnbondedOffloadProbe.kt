@@ -72,6 +72,12 @@ internal fun shouldProbeUnbondedOffload(
  * because TWO decisions depend on it and they were only wired to one: the probe retires itself correctly,
  * while the handshake skip that exists TO SERVE it kept applying forever.
  *
+ * What happens to a stranded strap once this is fixed, since "it starts writing helloes again" deserves an
+ * answer rather than a shrug: it resumes the ordinary handshake, a #1635 strap refuses it, and
+ * [BondRefusalGiveUp] latches `helloSuppressed` after its 5-refusal threshold — settling at the designed
+ * "Live HR, not fully paired" end state. Bounded, and strictly better than the state it replaces, which
+ * had no bond, no offload AND no probe.
+ *
  * That asymmetry strands the strap. With the hello skipped `didBond` can never become true, so the
  * ordinary offload gate can never open — and once the probe has retired there is nothing left the skip is
  * buying. A field log shows the end state plainly: the hello skipped on every connect, no probe lines at
