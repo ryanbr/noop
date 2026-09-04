@@ -703,6 +703,12 @@
             "state": "translated",
             "value": "%@ · typowo %@ do %@, %lld."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " %@ · обычно от %@ до %@, %lld."
+          }
         }
       }
     },
@@ -1032,6 +1038,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "%.2f V"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%.2f В"
           }
         }
       }
@@ -7404,6 +7416,12 @@
             "state": "translated",
             "value": "%@: %@. Za mało historii dla typowego asortymentu."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: %@. Пока недостаточно истории для типичного диапазона."
+          }
         }
       }
     },
@@ -8585,6 +8603,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld kilka dni temu"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld дней назад"
           }
         }
       }
@@ -13657,6 +13681,12 @@
             "state": "translated",
             "value": "%lld-%lld%@ · krok %lld"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld–%lld%@ · шаг %lld"
+          }
         }
       }
     },
@@ -14289,6 +14319,12 @@
             "state": "translated",
             "value": "%lld–%lld bpm"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld–%lld уд/мин"
+          }
         }
       }
     },
@@ -14862,6 +14898,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Skala 0-%lld"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Шкала 0–%lld"
           }
         }
       }
@@ -15824,6 +15866,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "1 minuta"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 мин"
           }
         }
       }
@@ -16973,6 +17021,12 @@
             "state": "translated",
             "value": "1 tydzień"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 неделя"
+          }
         }
       }
     },
@@ -17006,6 +17060,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "1 trening"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 тренировка"
           }
         }
       }
@@ -17621,6 +17681,12 @@
             "state": "translated",
             "value": "2 dni"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2 дня"
+          }
         }
       }
     },
@@ -17655,6 +17721,12 @@
             "state": "translated",
             "value": "2 minuty"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2 мин"
+          }
         }
       }
     },
@@ -17688,6 +17760,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "2 tygodnie"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2 недели"
           }
         }
       }
@@ -18309,6 +18387,12 @@
             "state": "translated",
             "value": "5 min"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5 мин"
+          }
         }
       }
     },
@@ -18690,6 +18774,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Wartość bazowa 7 nocy %lld ms, normalna %lld do %lld ms%@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Норма за 7 ночей %lld мс, обычный диапазон %lld–%lld мс%@"
           }
         }
       }
@@ -19329,6 +19419,12 @@
             "state": "translated",
             "value": "Skrót chce dodać dni %lld i treningi %lld do źródła importu Apple Health."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Команда хочет добавить %lld дней и %lld тренировок в источник импорта Apple Health."
+          }
         }
       }
     },
@@ -19362,6 +19458,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Skrót chce dodać dane do źródła importu Apple Health."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Команда хочет добавить данные в источник импорта Apple Health."
           }
         }
       }
@@ -21531,6 +21633,12 @@
             "state": "translated",
             "value": "Szturchnięcie raz dziennie, gdy Twój Wysiłek osiągnie dolną granicę dzisiejszego optymalnego zakresu obciążenia, obliczonego na podstawie Twojego powrotu do zdrowia."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Одно напоминание в день, когда ваше Усилие достигает нижней границы сегодняшнего оптимального диапазона нагрузки, рассчитанного по вашему восстановлению."
+          }
         }
       }
     },
@@ -21867,6 +21975,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Odczyt tylko do odczytu Plews/Altini dotyczący najmniejszej i wartej uwagi zmiany twojego nocnego HRV: pokazuje, czy twoja 7-dniowa linia bazowa HRV znajduje się powyżej, wewnątrz czy poniżej twojego osobistego normalnego pasma. Nie zmienia to niczego innego - pierścień Energia jest identyczny niezależnie od tego, czy jest on włączony, czy wyłączony. Są to przybliżone/wczesne testy, które nie zostały jeszcze zweryfikowane w oparciu o różne rzeczywiste dane (n=1)."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показатель ночной ВСР по методу наименьшего значимого изменения Plews/Altini, только для чтения: показывает, находится ли ваша 7-ночная норма ВСР выше, внутри или ниже вашего личного нормального диапазона. Больше он ничего не меняет — кольцо Заряда одинаково при включённой и выключенной настройке. Это черновое, раннее тестирование, ещё не проверенное на разнообразных реальных данных (n=1)."
           }
         }
       }
@@ -22604,6 +22718,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Przejrzysta receptura krążeniowo-oddechowa, która regeneruje głębiej i w fazie REM lepiej niż starsza wersja V1 i jest teraz domyślna. Zmienia się jedynie sposób podziału już wykrytych nocy na etapy (wykrywanie i wyniki pozostają niezmienione); wyłącz go, aby powrócić do wersji V1. Obowiązuje od kolejnych nocy scenicznych."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прозрачная кардиореспираторная методика, которая восстанавливает глубокий сон и REM лучше прежней разметки V1 и теперь используется по умолчанию. Она меняет только то, как уже определённые ночи делятся на стадии (определение и оценки не меняются); выключите, чтобы вернуться к V1. Вступает в силу для следующих размеченных ночей."
           }
         }
       }
@@ -25947,6 +26067,12 @@
             "state": "translated",
             "value": "Dodaj poświadczenia aplikacji Oura do pliku OuraSecrets.xcconfig, aby to włączyć."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавьте учётные данные приложения Oura в OuraSecrets.xcconfig, чтобы включить это."
+          }
         }
       }
     },
@@ -26677,6 +26803,12 @@
             "state": "translated",
             "value": "Po wysiłku o dużej intensywności"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "После высокоинтенсивной нагрузки"
+          }
         }
       }
     },
@@ -27314,6 +27446,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Wszystkie działania"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Все активности"
           }
         }
       }
@@ -29757,6 +29895,12 @@
             "state": "translated",
             "value": "Uzbrojony w sam pasek za pomocą eksperymentalnego polecenia 5/MG. Budzenie napędzane paskiem jest nadal niepotwierdzone na 5/MG po naszej stronie (potwierdzone tylko na WHOOP 4.0), więc miej alarm zapasowy na wypadek wszystkiego, czego naprawdę nie możesz przegapić."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Устанавливается на самом браслете экспериментальной командой 5/MG. Пробуждение с браслета на 5/MG у нас пока не подтверждено (подтверждено только на WHOOP 4.0), поэтому оставьте резервный будильник для всего, что действительно нельзя пропустить."
+          }
         }
       }
     },
@@ -29790,6 +29934,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Uzbrojony w sam pasek, dzięki czemu może wibrować, gdy się obudzisz, nawet jeśli Twój telefon jest uśpiony lub NOOP jest zamknięty. Wysyła dokładną komendę alarmową wysyłaną przez oficjalną aplikację, potwierdzone brzęczenie na prawdziwym WHOOP 4.0 (przechwytywanie połączeń społecznościowych + test na urządzeniu, #535). Zachowaj alarm zapasowy na wypadek wszystkiego, czego naprawdę nie możesz przegapić."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Устанавливается на самом браслете, поэтому он может завибрировать в час пробуждения, даже если телефон спит или NOOP закрыт. Отправляет ровно ту команду будильника, что и официальное приложение; вибрация подтверждена на настоящем WHOOP 4.0 (перехват трафика сообществом + проверка на устройстве, #535). Оставьте резервный будильник для всего, что действительно нельзя пропустить."
           }
         }
       }
@@ -29883,6 +30033,12 @@
             "state": "translated",
             "value": "Uzbraja pasek, aby brzęczał w momencie przebudzenia, nawet jeśli NOOP jest zamknięty. Wysyła dokładną komendę alarmową wysyłaną przez oficjalną aplikację, potwierdzone brzęczenie na prawdziwym WHOOP 4.0 (przechwytywanie połączeń społecznościowych + test na urządzeniu, #535). Zachowaj alarm zapasowy na wypadek wszystkiego, czego naprawdę nie możesz przegapić."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настраивает браслет на вибрацию в час пробуждения, даже если NOOP закрыт. Отправляет ровно ту команду будильника, что и официальное приложение; вибрация подтверждена на настоящем WHOOP 4.0 (перехват трафика сообществом + проверка на устройстве, #535). Оставьте резервный будильник для всего, что действительно нельзя пропустить."
+          }
         }
       }
     },
@@ -29962,6 +30118,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Organiser Aujourd'hui"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настроить «Сегодня»"
           }
         },
         "zh-Hans": {
@@ -34551,6 +34713,12 @@
             "state": "translated",
             "value": "Napięcie akumulatora %.2f w woltach"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Напряжение батареи %.2f вольт"
+          }
         }
       }
     },
@@ -34584,6 +34752,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sonda informacji o akumulatorze (#592 RE)"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проба сведений о батарее (#592 RE)"
           }
         }
       }
@@ -34619,6 +34793,12 @@
             "state": "translated",
             "value": "Sonda informacji o akumulatorze (#592 RE)…"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проба сведений о батарее (#592 RE)…"
+          }
         }
       }
     },
@@ -34652,6 +34832,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Wynik sondy informacji o akumulatorze (#592)"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Результат пробы батареи (#592)"
           }
         }
       }
@@ -36579,6 +36765,12 @@
             "state": "translated",
             "value": "Sonda do lokalizacji ciała (#690 RE)"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проба положения на теле (#690 RE)"
+          }
         }
       }
     },
@@ -36613,6 +36805,12 @@
             "state": "translated",
             "value": "Sonda do lokalizacji ciała (#690 RE)…"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проба положения на теле (#690 RE)…"
+          }
         }
       }
     },
@@ -36646,6 +36844,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Wynik sondy lokalizacji ciała (#690)"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Результат пробы положения на теле (#690)"
           }
         }
       }
@@ -37859,6 +38063,12 @@
             "state": "translated",
             "value": "Wprowadź znaczniki CSV (data, znacznik, wartość, jednostka). Nazwy pasujące do katalogu należy złożyć na istniejące znaczniki; wszystko inne pojawia się jako znacznik niestandardowy. Wiersze, których nie można odczytać, są pomijane i liczone, nigdy nie zgadywane. Wszystko, co importujesz, pozostaje w %@."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Загрузите CSV с маркерами (дата, маркер, значение, единица). Названия, совпадающие с каталогом, объединяются с вашими существующими маркерами; всё остальное добавляется как свой маркер. Строки, которые не удалось прочитать, пропускаются и подсчитываются — никогда не угадываются. Всё импортированное остаётся на %@."
+          }
         }
       }
     },
@@ -37938,6 +38148,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Diffusion des ressources humaines de ce téléphone"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Транслировать пульс с этого телефона"
           }
         },
         "zh-Hans": {
@@ -38210,6 +38426,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sangle de diffusion HR (Garmin/ANT)"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Транслировать пульс браслета (Garmin/ANT)"
           }
         },
         "zh-Hans": {
@@ -41359,6 +41581,12 @@
             "state": "translated",
             "value": "Kalibracja (%lld/%lld w nocy)"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Калибровка (%lld из %lld ночей)"
+          }
         }
       }
     },
@@ -43118,6 +43346,12 @@
             "state": "translated",
             "value": "Zmień na numer"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сменить на число"
+          }
         }
       }
     },
@@ -43151,6 +43385,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Zmień na Tak/Nie"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сменить на «Да/Нет»"
           }
         }
       }
@@ -44357,6 +44597,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Energia porównuje Twój HRV z Twoim osobistym poziomem bazowym (~55%%), tętnem spoczynkowym (~20%%), jakością odpoczynku (~15%%), oddychaniem (~5%%) i odchyleniem temperatury skóry (~5%%). Wysiłek to obciążenie układu krążenia 0-%lld od czasu w strefach tętna. Odpoczynek jest inscenizowany na podstawie ruchu i tętna. Wszystko jest tutaj obliczane na podstawie surowych danych paska. Działa każdego dnia NOOP zbiera surowe strumienie."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Заряд сопоставляет вашу ВСР с личной нормой (~55%%), пульс в покое (~20%%), качество отдыха (~15%%), дыхание (~5%%) и отклонение температуры кожи (~5%%). Усилие — это сердечно-сосудистая нагрузка 0–%lld по времени в зонах пульса. Отдых размечается по движению и пульсу. Всё вычисляется здесь по сырым данным браслета. Работает для любого дня, за который NOOP собрал сырые потоки."
           }
         }
       }
@@ -56090,6 +56336,12 @@
             "state": "translated",
             "value": "Dzień 1: jasne światło %@-%@, wyłączenie świateł wokół %@."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "День 1: яркий свет %@–%@, отбой около %@."
+          }
         }
       }
     },
@@ -57837,6 +58089,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Carreaux détaillés"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подробные плитки"
           }
         },
         "zh-Hans": {
@@ -61522,6 +61780,12 @@
             "state": "translated",
             "value": "ALGORYTMY EKSPERYMENTALNE"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Экспериментальные алгоритмы"
+          }
         }
       }
     },
@@ -61857,6 +62121,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Każda linia pokazuje, o ile uderzeń na minutę zmieniło się tętno po wysiłku. Uwzględniane są tylko treningi o wysokiej intensywności z zarejestrowanym tętnem po treningu."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Каждая линия показывает, на сколько ударов в минуту изменился ваш пульс после нагрузки. Учитываются только высокоинтенсивные тренировки с записанным пульсом после тренировки."
           }
         }
       }
@@ -70633,6 +70903,12 @@
             "state": "translated",
             "value": "Zapomnij o dostępie Oura"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Забыть доступ к Oura"
+          }
         }
       }
     },
@@ -73141,6 +73417,12 @@
             "state": "translated",
             "value": "Grupa"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Группа"
+          }
         }
       }
     },
@@ -73528,6 +73810,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "GODZINY SNU"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ЧАСОВ СНА"
           }
         }
       }
@@ -74272,6 +74560,12 @@
             "value": "Interpolation du sous-logement HR-from-PPG (v26)"
           }
         },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пульс из PPG: интерполяция внутри задержки (заполнение пропусков v26)"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -74898,6 +75192,12 @@
             "value": "Préparation à la VFC (Plews/Altini)"
           }
         },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Готовность по ВСР (Plews/Altini)"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -74936,6 +75236,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Préparation à la VFC (expérimental)"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Готовность по ВСР (эксперимент)"
           }
         },
         "zh-Hans": {
@@ -74988,6 +75294,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Gotowość HRV (eksperymentalna): %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Готовность по ВСР (эксперимент): %@"
           }
         }
       }
@@ -75126,6 +75438,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Fenêtre VFC"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Окно ВСР"
           }
         },
         "zh-Hans": {
@@ -75597,6 +75915,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Uwaga: ten tryb testowy jest wyłączony, więc raport nie zawiera jego przechwytywania. Aby otrzymać przydatny raport, włącz tryb, odtwórz problem podczas noszenia paska, a następnie zgłoś ponownie."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Внимание: этот тестовый режим выключен, поэтому в отчёте нет соответствующего захвата. Чтобы отчёт был полезен, включите режим, воспроизведите проблему в надетом браслете и отправьте отчёт заново."
           }
         }
       }
@@ -76120,6 +76444,12 @@
             "state": "translated",
             "value": "Tętno Regeneracja"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Восстановление пульса"
+          }
         }
       }
     },
@@ -76566,6 +76896,12 @@
             "state": "translated",
             "value": "Odzyskiwanie tętna przy %@, %lld uderzeń na minutę"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Восстановление пульса на %@, %lld ударов в минуту"
+          }
         }
       }
     },
@@ -76599,6 +76935,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Odzyskiwanie tętna przy %@, niedostępne"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Восстановление пульса на %@ — нет данных"
           }
         }
       }
@@ -77046,6 +77388,12 @@
             "state": "translated",
             "value": "Trend odzyskiwania tętna w uderzeniach na minutę"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тренд восстановления пульса в ударах в минуту"
+          }
         }
       }
     },
@@ -77079,6 +77427,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Odzyskiwanie tętna · %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Восстановление пульса · %@"
           }
         }
       }
@@ -78169,6 +78523,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "L'histoire reste sous la question originale donc WHOOP importations toujours en ligne."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "История остаётся под исходным вопросом, чтобы импорт из WHOOP по-прежнему совпадал."
           }
         },
         "zh-Hans": {
@@ -80313,6 +80673,12 @@
             "state": "translated",
             "value": "Jak to odczytać: HRV, tętno spoczynkowe, czas snu, częstość oddechów i temperatura skóry są mierzone za pomocą paska (temperatura skóry jest pokazana jako odchylenie od własnej wartości bazowej). Treningi to liczba zarejestrowanych lub wykrytych aktywności. Regeneracja, Obciążenie i Stres to własne wyniki NOOP na urządzeniu, a nie pomiary kliniczne: Regeneracja to połączenie codziennej gotowości (HRV, tętno spoczynkowe, trend snu i temperatury skóry), Obciążenie to obciążenie układu sercowo-naczyniowego obliczone na podstawie tętna, a Stres to wskaźnik obciążenia autonomicznego wynoszący 0-3 na podstawie tętna spoczynkowego i tętna HRV."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Как это читать: ВСР, пульс в покое, длительность сна, частота дыхания и температура кожи измеряются браслетом (температура кожи показана как отклонение от вашей собственной нормы). «Тренировки» — количество активностей, которые вы записали или которые были определены автоматически. Восстановление, Нагрузка и Стресс — собственные оценки NOOP на устройстве, а не клинические показатели: Восстановление — это суточный сводный показатель готовности (ВСР, пульс в покое, сон и тренд температуры кожи), Нагрузка — сердечно-сосудистая нагрузка, выведенная из пульса, а Стресс — индекс вегетативной нагрузки 0–3 по пульсу в покое и ВСР."
+          }
         }
       }
     },
@@ -82274,6 +82640,12 @@
             "state": "translated",
             "value": "Zaimportować dane Apple Health?"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Импортировать данные Apple Health?"
+          }
         }
       }
     },
@@ -82597,6 +82969,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Zaimportuj ponownie"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Импортировать снова"
           }
         }
       }
@@ -85694,6 +86072,12 @@
             "value": "Rappel du journal"
           }
         },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Напоминание о журнале"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -86080,6 +86464,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Garder les derniers instantanés"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Хранить последние снимки"
           }
         },
         "zh-Hans": {
@@ -86590,6 +86980,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Démarrage à (batterie)"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Включать при (заряде браслета)"
           }
         },
         "zh-Hans": {
@@ -90687,6 +91083,12 @@
             "state": "translated",
             "value": "Liquid Today (prototyp)"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Liquid Today (прототип)"
+          }
         }
       }
     },
@@ -91178,6 +91580,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sessions en direct (bêta)"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сессии в реальном времени (бета)"
           }
         },
         "zh-Hans": {
@@ -93409,6 +93817,12 @@
             "value": "Remplir le journal du jour"
           }
         },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Заполнить журнал за сегодня"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -94099,6 +94513,12 @@
             "value": "Des plages plus longues déverrouillent comme plus d'histoire construit."
           }
         },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Более длинные диапазоны открываются по мере накопления истории."
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -94156,6 +94576,12 @@
             "state": "translated",
             "value": "Najdłuższy: %lld dni"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дольше всего: %lld дней"
+          }
         }
       }
     },
@@ -94195,6 +94621,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Najdłuższy: 1 dzień"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дольше всего: 1 день"
           }
         }
       }
@@ -99475,6 +99907,12 @@
             "value": "Raffinement de la sillage en mouvement"
           }
         },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Уточнение пробуждения по движению"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -99812,6 +100250,12 @@
             "value": "Bouge de toute façon"
           }
         },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Всё равно перенести"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -99908,6 +100352,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Bouge ce sommeil ?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перенести этот сон?"
           }
         },
         "zh-Hans": {
@@ -100970,6 +101420,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "NOOP daje trzy dzienne wyniki (Energia, Wysiłek i Odpoczynek), każdy w skali 0-100. Są one tworzone na podstawie surowych sygnałów Twojego paska na podstawie opublikowanych, recenzowanych wyników badań sportowych i obliczane w całości na Twoim urządzeniu. NIE są to wyniki WHOOP: nie mamy prywatnych algorytmów WHOOP i nie udajemy, że je mamy. Mają na celu te same trzy pytania, korzystając z otwartej nauki, więc zazwyczaj śledzą kierunek WHOOP, ale nie dopasowują liczby do liczby. I o to właśnie chodzi."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP даёт три ежедневные оценки (Заряд, Усилие и Отдых), каждая по шкале 0–100. Они строятся по сырым сигналам вашего браслета на основе опубликованной, прошедшей рецензирование спортивной науки и вычисляются целиком на вашем устройстве. Это НЕ оценки WHOOP: у нас нет закрытых алгоритмов WHOOP, и мы не притворяемся, что есть. Они отвечают на те же три вопроса средствами открытой науки, поэтому обычно совпадают с оценками WHOOP по направлению, но не сходятся число в число. В этом и смысл."
           }
         }
       }
@@ -106456,6 +106912,12 @@
             "state": "translated",
             "value": "Brak szczegółów tętna tej nocy"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нет данных о пульсе за эту ночь"
+          }
         }
       }
     },
@@ -107244,6 +107706,12 @@
             "state": "translated",
             "value": "Żadnych nowych nocy z Twojego paska przez %lld dni. Sprawdź, czy jest podłączony i zapisuje dane."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нет новых ночей с вашего браслета уже %lld дней. Проверьте, что он подключён и сохраняет данные."
+          }
         }
       }
     },
@@ -107631,6 +108099,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Brak zdjęcia → rezerwowa osoba.przycięcie.koło"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нет фото → запасной вариант person.crop.circle"
           }
         }
       }
@@ -112265,6 +112739,12 @@
             "state": "translated",
             "value": "Powiadamiaj, kiedy zostanie osiągnięte optymalne napięcie"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Уведомлять о достижении оптимальной нагрузки"
+          }
         }
       }
     },
@@ -113343,6 +113823,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Starsze kopie zapasowe przekraczające tę liczbę są usuwane w kolejności od najstarszej (≈ tyle dni). Jeśli dane kiedykolwiek ulegną uszkodzeniu, przywróć najnowszą wersję."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Более старые копии сверх этого числа удаляются, начиная с самых старых (≈ столько дней). Если данные когда-нибудь повредятся, восстановите самую свежую."
           }
         }
       }
@@ -115248,6 +115734,12 @@
             "value": "Ouvrir le journal"
           }
         },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть журнал"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -115891,6 +116383,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Osiągnięto optymalne napięcie"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Достигнута оптимальная нагрузка"
           }
         }
       }
@@ -118741,6 +119239,12 @@
             "value": "Capture de la VFC en pause"
           }
         },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Приостановить сбор ВСР"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -118919,6 +119423,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Szczyt %lld bpm"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пик %lld уд/мин"
           }
         }
       }
@@ -120655,6 +121165,12 @@
             "value": "Veuillez confirmer chacun de ces éléments :"
           }
         },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пожалуйста, подтвердите каждый пункт:"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -120751,6 +121267,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Veuillez lire les points ci-dessous, puis confirmer chaque déclaration."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пожалуйста, прочитайте пункты ниже, затем подтвердите каждое утверждение."
           }
         },
         "zh-Hans": {
@@ -120984,6 +121506,12 @@
             "state": "translated",
             "value": "Posty po zsynchronizowaniu paska i zdobyciu punktów NOOP w danym dniu — a nie dokładnie w chwili, gdy go przekroczysz. Najwyżej raz dziennie."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Появляется после синхронизации браслета и подсчёта оценок за день — не в ту самую секунду, когда вы пересекаете порог. Не чаще раза в день."
+          }
         }
       }
     },
@@ -121005,6 +121533,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mode d'économie d'énergie"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Режим энергосбережения"
           }
         },
         "zh-Hans": {
@@ -124111,6 +124645,12 @@
             "state": "translated",
             "value": "REGENERUJĄCY SEN"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ВОССТАНАВЛИВАЮЩИЙ СОН"
+          }
         }
       }
     },
@@ -125608,6 +126148,12 @@
             "state": "translated",
             "value": "Odczytaj tętno, HRV, zawartość tlenu we krwi, częstość oddechów, sen, kroki i energię prosto z Apple Health i zapisz z powrotem dane paska NOOP: sen z pełnymi etapami, ciągłe tętno, treningi i nocne parametry życiowe. Wszystko pozostaje na %@."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Читайте пульс, ВСР, насыщение крови кислородом, частоту дыхания, сон, шаги и энергию прямо из Apple Health и записывайте данные браслета NOOP обратно: сон с полными стадиями, непрерывный пульс, тренировки и ночные показатели. Всё остаётся на %@."
+          }
         }
       }
     },
@@ -126670,6 +127216,12 @@
             "state": "translated",
             "value": "Odczyty"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Измерения"
+          }
         }
       }
     },
@@ -127179,6 +127731,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Zrestartuj sondę (4.0 RE)…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проба перезагрузки (4.0 RE)…"
           }
         }
       }
@@ -128688,6 +129246,12 @@
             "state": "translated",
             "value": "Trend Regeneracja"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тренд восстановления"
+          }
         }
       }
     },
@@ -129192,6 +129756,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Odśwież wiek fitness"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновить фитнес-возраст"
           }
         }
       }
@@ -130806,6 +131376,12 @@
             "value": "Renommer l'élément"
           }
         },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Переименовать пункт"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -130844,6 +131420,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Renommer..."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Переименовать…"
           }
         },
         "zh-Hans": {
@@ -131129,6 +131711,12 @@
             "state": "translated",
             "value": "Zastępuje zakładkę Dzisiaj przeprojektowanym prototypem. Wyłącz tę opcję w dowolnym momencie, aby powrócić do klasycznego pulpitu nawigacyjnego. Odczytuje te same dane w czasie rzeczywistym z Twojego paska."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Заменяет вкладку «Сегодня» прототипом нового дизайна. Выключите в любой момент, чтобы вернуться к классической панели. Читает те же живые данные с вашего браслета."
+          }
         }
       }
     },
@@ -131394,6 +131982,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Alternatywy klasy badawczej / ulepszenia precyzyjne. Możliwość zapisania się, domyślnie wyłączona, niekliniczna."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Исследовательские альтернативы и точная подстройка. По желанию, по умолчанию выключено, не для клинического применения."
           }
         }
       }
@@ -132923,6 +133517,12 @@
             "state": "translated",
             "value": "Uruchomić ponownie %@? Podczas ponownego uruchamiania rozłącza się na około 30 sekund, po czym samoczynnie łączy się ponownie. Twoje zapisane dane zostaną zachowane."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перезапустить %@? Он отключится примерно на 30 секунд, пока перезагружается, затем подключится сам. Записанные данные сохраняются."
+          }
         }
       }
     },
@@ -132957,6 +133557,12 @@
             "state": "translated",
             "value": "Uruchom ponownie pasek…"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перезапустить браслет…"
+          }
         }
       }
     },
@@ -132978,6 +133584,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Redémarrer cette sangle ?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перезапустить этот браслет?"
           }
         },
         "zh-Hans": {
@@ -133036,6 +133648,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Uruchomiony ponownie po ponownej kalibracji %@ — nie trzeba go ponownie dotykać."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перезапущено, когда вы откалибровали заново %@ — повторно нажимать не нужно."
           }
         }
       }
@@ -134545,6 +135163,12 @@
             "state": "translated",
             "value": "Przeglądaj każdy punktowany blok budzenia pod kątem rzeczywistych dowodów na wstawanie (rytm chodu, zmiana pozycji ciała), a nie tylko wzrost tętna. Blokada bez ruchu i stabilna postawa – gorąca noc, krótki obrót – ponownie zapada w lekki sen; prawdziwe wstawanie zostaje pozostawione w spokoju. Samoczynnie sprawdza, ile szczegółów ruchu faktycznie zarejestrował Twój pasek, i pozostaje wyłączony w nocy, w której nie można ufać (głównie starsze oprogramowanie WHOOP 4.0). Domyślnie wyłączone; obowiązuje od kolejnych wystawianych nocy."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверяет каждый оценённый блок бодрствования на реальные признаки подъёма (ритм шагов, смена положения тела), а не только на рост пульса. Блок бодрствования без перемещения и с устойчивой позой — жаркая ночь, короткий переворот — возвращается в лёгкий сон; настоящий подъём остаётся как есть. Сам проверяет, сколько данных о движении действительно записал браслет, и остаётся выключенным в ночь, где их слишком мало, чтобы доверять (в основном старые прошивки WHOOP 4.0). По умолчанию выключено; вступает в силу для следующих размеченных ночей."
+          }
         }
       }
     },
@@ -135744,6 +136368,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Uruchamia ciągły strumień HRV tylko w godzinach ciszy nocnej (domyślnie 22:00–07:00), co zmniejsza koszt baterii mniej więcej o połowę. Odczyty stresu w ciągu dnia będą rzadsze. Uwaga: ciągłe przechwytywanie HRV w tle (w tym drzemki w ciągu dnia) jest wstrzymywane poza tym oknem. W przypadku odczytów HRV na żądanie w ciągu dnia (w tym drzemek) użyj przycisku „Wykonaj odczyt HRV” na ekranie Na żywo."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запускает непрерывный поток ВСР только в ваши тихие часы (по умолчанию 22:00–07:00), примерно вдвое снижая расход батареи. Дневные измерения стресса станут реже. Примечание: непрерывный фоновый сбор ВСР (включая дневной сон) вне этого окна приостановлен. Для дневных измерений ВСР по запросу (в том числе во время дневного сна) используйте кнопку «Сделать замер ВСР» на экране «В реальном времени»."
           }
         }
       }
@@ -140099,6 +140729,12 @@
             "state": "translated",
             "value": "Wyślij sondę (tylko do odczytu)"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отправить пробу (только чтение)"
+          }
         }
       }
     },
@@ -140132,6 +140768,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Wysyła GET_BODY_LOCATION_AND_STATUS (0x54) tylko do odczytu i pokazuje pełną nieprzetworzoną odpowiedź paska, dekodując zapis lokalizacji ciała (wersja/lokalizacja/pewność/status) w WHOOP 4.0. Nic nie jest zapisane na pasku i nigdy nie zmienia sposobu wykrywania zużycia ani punktacji."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отправляет команду только для чтения GET_BODY_LOCATION_AND_STATUS (0x54) и показывает полный сырой ответ браслета, декодируя запись о положении на теле (ревизия / положение / достоверность / статус) на WHOOP 4.0. На браслет ничего не записывается, и это никогда не меняет определение ношения или оценки."
           }
         }
       }
@@ -141997,6 +142639,12 @@
             "value": "Afficher une carte Aujourd'hui vous rappelant de remplir votre journal"
           }
         },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показывать карточку на «Сегодня» с напоминанием заполнить журнал"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -142801,6 +143449,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Trening pasków polegający na ciszy podczas treningów."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подсказки браслета во время тренировок — по умолчанию молча."
           }
         }
       }
@@ -145440,6 +146094,12 @@
             "value": "Stade de sommeil (V2)"
           }
         },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Определение стадий сна (V2)"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -145664,6 +146324,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tętno podczas snu w nocy"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пульс во сне в течение ночи"
           }
         }
       }
@@ -145924,6 +146590,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lentifie le sangle de fond (toutes les 45 min au lieu de 15) tandis que la batterie de votre sangle est basse. Aucune perte de données — la sangle accumule tout, donc synchronise juste les lots dans des tirages plus grands et moins fréquents."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Замедляет фоновую синхронизацию с браслетом (каждые 45 минут вместо 15), пока заряд браслета низкий. Потери данных нет — браслет всё накапливает, поэтому синхронизация просто идёт более крупными и редкими порциями."
           }
         },
         "zh-Hans": {
@@ -147148,6 +147820,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tuiles carrées avec un graphique de tendance sous la barre."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Более квадратные плитки с графиком тренда под полосой."
           }
         },
         "zh-Hans": {
@@ -150631,6 +151309,12 @@
             "state": "translated",
             "value": "Cel Obciążenie"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Целевая нагрузка"
+          }
         }
       }
     },
@@ -152034,6 +152718,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pasemko"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Серия"
           }
         }
       }
@@ -155899,6 +156589,12 @@
             "state": "translated",
             "value": "Kliknij dzień, aby nadrobić zaległości"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нажмите на день, чтобы наверстать"
+          }
         }
       }
     },
@@ -155990,6 +156686,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kliknij etap, aby porównać go z typowym 30-dniowym."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нажмите на стадию, чтобы сравнить с вашим типичным значением за 30 дней."
           }
         }
       }
@@ -157087,6 +157789,12 @@
             "state": "translated",
             "value": "Dlatego Energia przeznaczony tylko do oglądania rozpoczyna się od „Kalibracji”. NOOP potrzebuje około siedmiu nocy Twojego HRV, aby dowiedzieć się, jak wygląda normalność w Twoim przypadku. Dopóki ich nie ma, raczej wstrzymuje wynik niż zgaduje. Po ustawieniu linii bazowej Twój Energia pojawi się pewnie, w tej samej skali 0-100, co pasek."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поэтому Заряд, построенный только по часам, сначала показывает «Калибровку». NOOP нужно около семи ночей вашей ВСР, чтобы понять, что для вас нормально. Пока их нет, он не показывает оценку, вместо того чтобы гадать. Как только норма определена, ваш Заряд появляется вместе с его достоверностью, по той же шкале 0–100, что и у браслета."
+          }
         }
       }
     },
@@ -157236,6 +157944,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ramka ponownego uruchomienia WHOOP 4.0 nie została potwierdzona — normalne ponowne uruchomienie jest ignorowane (#235). Wyślij każdego kandydata i obejrzyj ZARÓWNO dziennik paska, jak i sam pasek. „brak rozłączenia w ciągu 12 s” oznacza, że ​​pasek zignorował ramę. Linia „opuszczone ogniwo” oznacza, że ​​rama dotarła do paska — ale samo upuszczone ogniwo nie oznacza ponownego uruchomienia: prawdziwe ponowne uruchomienie powoduje również wyłączenie na kilka sekund lampki czujnika paska, zatem jeśli lampka pozostanie włączona, oznacza to po prostu zerwanie połączenia, a nie ponowne uruchomienie. Nieniszczące — Twoje dane są przechowywane. Udostępnij log, abyśmy mogli przypiąć prawdziwą ramkę."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Кадр перезагрузки WHOOP 4.0 не подтверждён — обычный перезапуск игнорируется (#235). Отправляйте каждый вариант и следите И за журналом браслета, И за самим браслетом. «нет отключения за 12 с» означает, что браслет проигнорировал кадр. Строка «связь потеряна» означает, что кадр дошёл до браслета, — но одна лишь потеря связи ещё не перезагрузка: при настоящей перезагрузке датчик браслета также гаснет на несколько секунд, поэтому если подсветка не погасла, это был просто обрыв соединения, а не перезагрузка. Ничего не разрушается — ваши данные сохраняются. Пожалуйста, поделитесь журналом, чтобы мы могли определить настоящий кадр."
           }
         }
       }
@@ -157503,6 +158217,12 @@
             "state": "translated",
             "value": "Zmiana tętna pod koniec ćwiczeń. Wartości dodatnie oznaczają spadek tętna; myślnik oznacza, że ​​w tej minucie pasek nie zarejestrował wystarczającej ilości danych."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изменение относительно вашего пульса в конце нагрузки. Положительные значения означают, что пульс снизился; прочерк означает, что браслет не записал достаточно данных около этой минуты."
+          }
         }
       }
     },
@@ -157652,6 +158372,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Linia to przybliżony wskaźnik 0-3 każdej godziny czuwania, porównany z Twoimi dzisiejszymi spokojnymi godzinami. Poniższy pasek dzieli Twój dzień na czas spokoju, umiarkowanego i dużego stresu."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Линия — это показатель 0–3 за каждый час бодрствования, оценённый относительно ваших собственных спокойных часов сегодня. Полоса ниже делит ваш день на время спокойного, умеренного и высокого стресса."
           }
         }
       }
@@ -158156,6 +158882,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pasek zgłasza inny czas niż wysyła NOOP, więc alarm oprogramowania sprzętowego nie włączy się o godzinie pobudki — zwykle jest to pasek, którego zegar lub alarm został zresetowany. Zresetuj pasek w oficjalnej aplikacji WHOOP (lub naładuj go do pełna i podłącz ponownie), a budzik w telefonie będzie włączał się do momentu, aż to nastąpi."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Браслет продолжает сообщать время, отличное от отправленного NOOP, поэтому его встроенный будильник не сработает в час вашего пробуждения — обычно это браслет, у которого сбросились часы или будильник. Сбросьте браслет в официальном приложении WHOOP (или полностью зарядите его и подключите заново), а до тех пор используйте будильник в «Часах» телефона."
           }
         }
       }
@@ -160377,6 +161109,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cela déplace la nuit à une heure sans données enregistrées. Les étapes ne peuvent pas être dérivées là, donc il peut apparaître comme vide jusqu'à ce que les données le couvrent."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Это перенесёт ночь на время, где нет записанных данных. Стадии там вывести нельзя, поэтому она может отображаться пустой, пока данные её не покроют."
           }
         },
         "zh-Hans": {
@@ -164371,6 +165109,12 @@
             "value": "Tableaux de tendances"
           }
         },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Графики трендов"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -164479,6 +165223,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Okno trendu"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Окно тренда"
           }
         }
       }
@@ -165350,6 +166100,12 @@
             "state": "translated",
             "value": "Włącz powiadomienia dla NOOP w Ustawieniach, aby otrzymać przypomnienie o odpoczynku."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Включите уведомления для NOOP в Настройках, чтобы получать напоминание о подготовке ко сну."
+          }
         }
       }
     },
@@ -165441,6 +166197,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dwie niezależne tabele protokołów nie zgadzają się co do kodu operacji o rozszerzonej baterii (98 vs 87). Spowoduje to wysłanie wybranego numeru 98 w trybie tylko do odczytu i wyświetlenie pełnej nieprzetworzonej odpowiedzi paska. Ładunek przypominający baterię potwierdza 98 w oprogramowaniu sprzętowym; krótki odcinek oznacza, że ​​pozostaje niejednoznaczny. Na pasku nic nie jest zapisane."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Две независимые таблицы протокола расходятся в коде расширенных данных о батарее (98 против 87). Здесь отправляется проверенная команда только для чтения 98 и показывается полный сырой ответ браслета. Ответ в формате батареи подтверждает 98 на вашей прошивке; короткая заглушка означает, что вопрос остаётся открытым. На браслет ничего не записывается."
           }
         }
       }
@@ -165695,6 +166457,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Annuler"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отменить"
           }
         },
         "zh-Hans": {
@@ -168499,6 +169267,12 @@
             "value": "Sonde de redémarrage WHOOP 4.0"
           }
         },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проба перезагрузки WHOOP 4.0"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -170297,6 +171071,12 @@
             "state": "translated",
             "value": "Czekam na odpowiedź paska…"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ожидание ответа браслета…"
+          }
         }
       }
     },
@@ -171438,6 +172218,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Porównujemy dzisiejsze tętno spoczynkowe i HRV z Twoją własną wartością bazową z 30 dni. Wyższe niż zwykle tętno spoczynkowe i niższe niż zwykle HRV podnoszą wynik, co jest klasycznym sygnałem, że organizm jest pobudzony. Połączone przesunięcie jest odwzorowywane na skali 0-3: 0 oznacza spokój, 1,5 znajduje się na poziomie podstawowym, 3 jest wysoce aktywowany."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Мы сравниваем сегодняшние пульс в покое и ВСР с вашей собственной 30-дневной нормой. Более высокий, чем обычно, пульс в покое и более низкая, чем обычно, ВСР — оба повышают оценку: классические признаки активации организма. Совокупный сдвиг отображается на шкалу 0–3: 0 — спокойствие, 1,5 — ваша норма, 3 — сильная активация."
           }
         }
       }
@@ -174177,6 +174963,12 @@
             "state": "translated",
             "value": "Kiedy NOOP rekonstruuje tętno na podstawie fali optycznej WHOOP 5/MG v26 (sekundy, w których pasek nie zapisuje HR), doprecyzuj pik autokorelacji za pomocą parabolicznego dopasowania z sub-opóźnieniem, aby oszacowanie nie było kwantyzowane do około 16 kroków bpm w pobliżu wysokiego HR. Wypełnia tylko sekundy, o których pasek nigdy nie raportował; nigdy nie zastępuje zapisanego HR. Tylko 5/MG, domyślnie wyłączone."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Когда NOOP восстанавливает пульс по оптическому сигналу v26 WHOOP 5/MG (за секунды, для которых браслет не сохранил пульс), уточнять пик автокорреляции параболической подгонкой внутри задержки, чтобы оценка не квантовалась шагами примерно по 16 уд/мин при высоком пульсе. Заполняются только секунды, которые браслет никогда не передавал; сохранённый пульс никогда не перезаписывается. Только 5/MG, по умолчанию выключено."
+          }
         }
       }
     },
@@ -175031,6 +175823,12 @@
             "value": "Quand la batterie de votre bracelet est basse, arrêtez le flux de VFC en arrière-plan, ce qui sollicite le plus votre bracelet. Un écran Live affiche toujours la fréquence cardiaque, et il recommence automatiquement une fois le bracelet chargé."
           }
         },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пока заряд браслета низкий, останавливать постоянный фоновый поток ВСР — самый большой непрерывный расход для браслета. Экран «В реальном времени» по-прежнему показывает пульс, а поток включится сам, как только браслет зарядится."
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -175069,6 +175867,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Toute la nuit est la mesure par défaut de NOOP; Le sommeil profond met en commun la VFC sur le sommeil à ondes lentes uniquement, en lisant plus bas et correspondant à WHOOP. Un changement recalcule vos dernières nuits sur la nouvelle fenêtre et prend effet dès que vous avez quelques nuits de données."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вся ночь — мера NOOP по умолчанию; «Глубокий сон» собирает ВСР только по медленноволновому сну, даёт более низкие значения и совпадает с WHOOP. Переключение пересчитает ваши недавние ночи по новому окну и вступит в силу сразу, как только накопится несколько ночей данных."
           }
         },
         "zh-Hans": {
@@ -178507,6 +179311,12 @@
             "state": "translated",
             "value": "Osiągnąłeś dzisiejsze optymalne docelowe odkształcenie %lld. Niezła robota – zasłużyłeś na powrót do zdrowia."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вы достигли сегодняшней цели по нагрузке — %lld. Отличная работа, ваше восстановление это заслужило."
+          }
         }
       }
     },
@@ -181132,6 +181942,12 @@
             "state": "translated",
             "value": "Twój pasek nie akceptuje alarmu"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ваш браслет не принимает будильник"
+          }
         }
       }
     },
@@ -181653,6 +182469,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Strefa %lld: %lld-%lld bpm (%lld-%lld%% max HR)"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Зона %lld: %lld–%lld уд/мин (%lld–%lld%% от макс. пульса)"
           }
         }
       }
@@ -184097,6 +184919,12 @@
             "state": "translated",
             "value": "dzień z rzędu"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "день подряд"
+          }
         }
       }
     },
@@ -184136,6 +184964,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "dni z rzędu"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "дней подряд"
           }
         }
       }
@@ -192416,6 +193250,12 @@
             "state": "translated",
             "value": "zazwyczaj %@"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "обычно %@"
+          }
         }
       }
     },
@@ -192919,6 +193759,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Historia v%lld"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "история v%lld"
           }
         }
       }
@@ -208106,6 +208952,12 @@
             "state": "translated",
             "value": "Obciążenie treningowe"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тренировочная нагрузка"
+          }
         }
       }
     },
@@ -208139,6 +208991,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "CTL · Kondycja"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CTL · Форма"
           }
         }
       }
@@ -208174,6 +209032,12 @@
             "state": "translated",
             "value": "ATL · Zmęczenie"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ATL · Усталость"
+          }
         }
       }
     },
@@ -208207,6 +209071,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kondycja 42-dniowa vs zmęczenie 7-dniowe"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "42-дневная форма против 7-дневной усталости"
           }
         }
       }
@@ -208242,6 +209112,12 @@
             "state": "translated",
             "value": "Budowanie — %1$lld z %2$lld dni"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Формируется — %lld из %lld дней"
+          }
         }
       }
     },
@@ -208275,6 +209151,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Obciążenie przewlekłe vs ostre"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Хроническая против острой нагрузки"
           }
         }
       }
@@ -208310,6 +209192,12 @@
             "state": "translated",
             "value": "Wymaga %1$lld+ kolejnych dni Wysiłku, aby zacząć. Na razie %2$lld."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нужно %lld+ подряд дней с Усилием, чтобы начать. Пока %lld."
+          }
         }
       }
     },
@@ -208343,6 +209231,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Forma"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Форма"
           }
         }
       }
@@ -208378,6 +209272,12 @@
             "state": "translated",
             "value": "Obciążenie treningowe: przewlekłe vs ostre"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тренировочная нагрузка: хроническая против острой"
+          }
         }
       }
     },
@@ -208411,6 +209311,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Rzadsze odświeżanie"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Редкое обновление"
           }
         }
       }
@@ -208446,6 +209352,12 @@
             "state": "translated",
             "value": "Synchronizuje w tle co godzinę zamiast co 15 minut, niezależnie od poziomu naładowania opaski — mniej ponownych połączeń to największa oszczędność w WHOOP 4.0. Nic nie ginie: opaska zapisuje wszystko i przekazuje w większych paczkach. Ręczna synchronizacja nadal działa od razu, a tętno na żywo pozostaje bez zmian."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Синхронизировать в фоне раз в час вместо каждых 15 минут, независимо от заряда браслета — меньше переподключений даёт наибольшую экономию на WHOOP 4.0. Ничего не теряется: браслет всё накапливает и отдаёт большими порциями. Синхронизация жестом по-прежнему работает сразу, а живой пульс не затрагивается."
+          }
         }
       }
     },
@@ -208479,6 +209391,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Oszczędzanie energii"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Энергосбережение"
           }
         }
       }
@@ -208514,6 +209432,12 @@
             "state": "translated",
             "value": "Odciąż opaskę, gdy jej bateria się kończy."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Снизьте нагрузку на браслет, когда его заряд на исходе."
+          }
         }
       }
     },
@@ -208547,6 +209471,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Opaska nadal zapisuje dane samodzielnie, więc nic nie ginie — NOOP po prostu rzadziej się z nią komunikuje, aby wystarczyła do naładowania."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Браслет продолжает накапливать данные сам, поэтому ничего не теряется — NOOP просто реже с ним общается, чтобы тот дожил до зарядки."
           }
         }
       }
