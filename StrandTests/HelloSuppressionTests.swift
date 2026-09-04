@@ -115,6 +115,13 @@ final class HelloSuppressionTests: XCTestCase {
         XCTAssertTrue(hint.contains("live heart rate keeps streaming"))
         XCTAssertTrue(hint.contains("History sync stays unavailable"))
         XCTAssertTrue(hint.contains("Tap Connect"))
+        // The hint must name what an unbonded strap actually costs, not just history sync: motion,
+        // skin temperature, SpO2 and respiratory stop, so sleep falls to the HR-only stager and HRV
+        // + resting HR are nulled. A field log showed a week of blank Recovery Vitals under the old
+        // wording, which pointed only at a feature the user was not missing.
+        XCTAssertTrue(hint.contains("motion"))
+        XCTAssertTrue(hint.contains("HRV"))
+        XCTAssertTrue(hint.contains("resting heart rate"))
         XCTAssertFalse(hint.lowercased().contains("paused"))
         XCTAssertFalse(hint.lowercased().contains("stopped retrying"))
     }

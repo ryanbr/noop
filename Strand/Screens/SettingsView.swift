@@ -1563,7 +1563,7 @@ struct SettingsView: View {
         // Live HR over the UNBONDED standard profile (#69). True whenever the handshake is suppressed or
         // simply has not landed, and the honest description either way.
         if live.bonded && live.connected {
-            return String(localized: "Live heart rate is streaming, but your strap is not fully paired. Buzz, alarms and history sync need the encrypted pairing.")
+            return String(localized: "Live heart rate is streaming, but your strap is not fully paired. The encrypted pairing is what carries motion, skin temperature, SpO₂ and respiratory rate — without it, sleep is staged from heart rate alone, and HRV and resting heart rate are unavailable. Buzz, alarms and history sync need it too.")
         }
         if live.connected { return String(localized: "Connected. Finishing the secure pairing handshake…") }
         if live.bonded { return String(localized: "Previously paired but not currently connected. Re-scan to reconnect.") }

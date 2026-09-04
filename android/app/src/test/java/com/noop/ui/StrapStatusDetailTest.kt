@@ -57,6 +57,17 @@ class StrapStatusDetailTest {
         assertFalse(detail.contains("is paired"))
         assertTrue(detail.contains("not fully paired"))
 
+        // The consequences, not just the state. This line used to name only buzz, alarms and history
+        // sync — but an unbonded strap also stops sending motion, skin temperature, SpO2 and
+        // respiratory rate, which drops sleep onto the HR-only stager and blanks HRV + resting HR
+        // (AnalyticsEngine gates both on `!hrOnly`). A field log showed a week of blank Recovery
+        // Vitals while this line pointed at three features the user was not missing.
+        assertTrue(detail.contains("motion"))
+        assertTrue(detail.contains("HRV"))
+        assertTrue(detail.contains("resting heart rate"))
+        // The original claim has to survive the rewrite.
+        assertTrue(detail.contains("history sync"))
+
         assertEquals("Live HR (not fully paired)",
             strapStatusTitle(encryptedBond = false, bonded = true, connected = true))
         assertEquals("Bonded · streaming",

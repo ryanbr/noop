@@ -128,6 +128,12 @@ class HelloSuppressionTest {
         assertFalse(hint.contains("paus", ignoreCase = true))
         assertFalse(hint.contains("WHOOP app", ignoreCase = true))
         assertTrue(hint.contains("Connect"))
+        // #1635 field log: a week of blank Recovery Vitals while this hint named only history sync.
+        // Unbonded, the strap also stops sending motion / skin temperature / SpO2 / respiratory, which
+        // drops sleep onto the HR-only stager and blanks HRV + resting HR by construction.
+        assertTrue(hint.contains("motion"))
+        assertTrue(hint.contains("HRV"))
+        assertTrue(hint.contains("resting heart rate"))
         val epitaph = BondRefusalGiveUp.helloSuppressedEpitaph(5, "abcd1234")
         assertFalse(epitaph.contains("held by", ignoreCase = true))
         assertTrue(epitaph.contains("abcd1234"))

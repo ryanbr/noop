@@ -99,7 +99,9 @@ class BondRefusalGiveUp(
         fun helloSuppressedHint(): String =
             "The secure handshake with your strap never completes, and the attempt itself is what drops " +
                 "the link. NOOP has switched it off for this strap so live heart rate keeps streaming. " +
-                "History sync stays unavailable until it pairs. Tap Connect to try the handshake again."
+                "History sync stays unavailable until it pairs, and so do motion, skin temperature, " +
+                "SpO₂ and respiratory rate — so sleep is staged from heart rate alone, and HRV and " +
+                "resting heart rate are unavailable. Tap Connect to try the handshake again."
 
         /**
          * #1635: the log epitaph for the suppression path.
