@@ -31,7 +31,7 @@ class LinkBankedSummaryTest {
     fun `an unbonded strap reads live traffic with an offload that never ran`() {
         // The whole point: HR flowing while the offload banks nothing is the bond split, in one line.
         assertEquals(
-            "banked this link: live hr=12 rr=7 | offload did NOT run on this link",
+            "banked this link: live hr=12 rr=7 | offload none",
             line(liveHr = 12, liveRr = 7, chunks = 0),
         )
     }
@@ -92,6 +92,6 @@ class LinkBankedSummaryTest {
             line(liveHr = 1, liveRr = 1, chunks = 6),
         )
         // And the bond signal stays distinct.
-        assertTrue(line(liveHr = 1, liveRr = 1, chunks = 0).contains("offload did NOT run"))
+        assertTrue(line(liveHr = 1, liveRr = 1, chunks = 0).contains("offload none"))
     }
 }

@@ -332,11 +332,15 @@ public enum ConnectionReadout {
         if let offloadSteps { raw.append(("steps", offloadSteps)) }
         let offload = raw.map { ($0.0, max(0, $0.1)) }
         let total = offload.reduce(0) { $0 + $1.1 }
-        // "Never ran" and "ran with nothing new" are DIFFERENT findings. Rows are counted as ACCEPTED, so
+        // Three states, reported as FACTS rather than verdicts. "No chunks" is not evidence of a fault on
+        // its own: a short or command-only link never reaches backfill, and the reason is already logged
+        // beside it. The epitaph supplies the uptime a reader needs to weigh it.
+        //
+        // "Never ran" and "ran with nothing new" are still DIFFERENT. Rows are counted as ACCEPTED, so
         // a reconnect re-offloading already-stored records banks zero while the strap plainly handed its
         // history over. Only the first case speaks to the bond.
         if (max(0, offloadChunks)) == 0 {
-            return "banked this link: \(live) | offload did NOT run on this link"
+            return "banked this link: \(live) | offload none"
         }
         if total == 0 {
             return "banked this link: \(live) | offload ran \(max(0, offloadChunks)) chunk(s), no new rows"

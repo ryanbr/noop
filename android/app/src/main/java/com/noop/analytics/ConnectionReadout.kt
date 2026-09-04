@@ -317,12 +317,19 @@ object ConnectionReadout {
             "skinTemp" to offloadSkinTemp, "spo2" to offloadSpo2,
         ) + listOfNotNull(offloadSteps?.let { "steps" to it })).map { (k, v) -> k to maxOf(0, v) }
         val offloadTotal = offload.sumOf { it.second }
-        // "Never ran" and "ran with nothing new" are DIFFERENT findings and must not share a sentence.
+        // Three distinguishable states, reported as FACTS rather than verdicts. "No chunks" is not
+        // evidence of a fault on its own: a short or command-only link never reaches backfill, and the
+        // reason it was skipped is already logged next to it ("Backfill: deferred — connect handshake not
+        // done yet (didBond=…)"). Editorialising here — an earlier draft said "offload did NOT run on this
+        // link" — reads as an accusation on a healthy 16-second connect. The epitaph above supplies the
+        // uptime a reader needs to weigh it.
+        //
+        // "Never ran" and "ran with nothing new" are still DIFFERENT and must not share a sentence.
         // Rows are counted as ACCEPTED, so a reconnect that re-offloads already-stored records banks zero
         // while the strap plainly handed its history over — `classifyCompletedOffload` already treats that
         // as `bankedSensorRecords`, not a fault. Only the first case speaks to the bond.
         if (maxOf(0, offloadChunks) == 0) {
-            return "banked this link: $live | offload did NOT run on this link"
+            return "banked this link: $live | offload none"
         }
         if (offloadTotal == 0) {
             return "banked this link: $live | offload ran ${maxOf(0, offloadChunks)} chunk(s), no new rows"

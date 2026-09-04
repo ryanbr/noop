@@ -21,7 +21,7 @@ final class LinkBankedSummaryTests: XCTestCase {
     func testAnUnbondedStrapReadsLiveTrafficWithAnOffloadThatNeverRan() {
         XCTAssertEqual(
             line(liveHr: 12, liveRr: 7, chunks: 0),
-            "banked this link: live hr=12 rr=7 | offload did NOT run on this link")
+            "banked this link: live hr=12 rr=7 | offload none")
     }
 
     func testAHealthySyncReadsCompletelyDifferently() {
@@ -56,6 +56,6 @@ final class LinkBankedSummaryTests: XCTestCase {
     func testAnOffloadThatRanWithNothingNewIsADifferentFinding() {
         XCTAssertEqual(line(liveHr: 1, liveRr: 1, chunks: 6),
                        "banked this link: live hr=1 rr=1 | offload ran 6 chunk(s), no new rows")
-        XCTAssertTrue(line(liveHr: 1, liveRr: 1, chunks: 0).contains("offload did NOT run"))
+        XCTAssertTrue(line(liveHr: 1, liveRr: 1, chunks: 0).contains("offload none"))
     }
 }
