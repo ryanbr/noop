@@ -72,4 +72,41 @@ final class DailySkinTempAbsoluteCarryTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(scored.skinTempDevC), 0.52, accuracy: 0.001)
         XCTAssertEqual(try XCTUnwrap(scored.recovery), 0.71, accuracy: 0.001)
     }
+
+    // MARK: - The same four seams, for the HR-only staging flag (#1801)
+
+    /// `sleepHrOnly` rides the identical rebuild path as the absolute above, and the struct has no
+    /// `copy()` — every seam respells the field list, so a new column is dropped by omission rather than
+    /// by error. These four are that column's version of the tests above.
+
+    func testScoringKeepsTheStagingFlag() throws {
+        let scored = row(skinTempC: 34.6).with(recovery: 0.71, skinTempDevC: 0.52, skinTempC: 34.6)
+        XCTAssertNil(scored.sleepHrOnly, "a row that never carried the flag must not invent one")
+        let hrOnly = DailyMetric(day: "2026-09-03", sleepHrOnly: true)
+            .with(recovery: 0.71, skinTempDevC: nil, skinTempC: nil)
+        XCTAssertEqual(hrOnly.sleepHrOnly, true, "scoring must not discard how the night was staged")
+    }
+
+    func testASleepEditKeepsTheStagingFlag() {
+        let edited = DailyMetric(day: "2026-09-03", sleepHrOnly: true)
+            .with(totalSleepMin: 400, efficiency: 0.93, deepMin: 80, remMin: 100, lightMin: 220)
+        // Correcting the wake window does not change whether the strap banked any motion.
+        XCTAssertEqual(edited.sleepHrOnly, true)
+    }
+
+    func testAnImportedRowTakesTheComputedStagingFlag() {
+        let imported = DailyMetric(day: "2026-09-03")
+        let computed = DailyMetric(day: "2026-09-03", sleepHrOnly: true)
+        XCTAssertEqual(imported.fillingNilFields(from: computed).sleepHrOnly, true,
+                       "only a scoring pass knows the staging; an import's nil must not erase it")
+    }
+
+    func testTheFlagMovesWithTheSleepColumnsItDescribes() {
+        let importRow = DailyMetric(day: "2026-09-03", totalSleepMin: 300)
+        let editedComputed = DailyMetric(day: "2026-09-03", totalSleepMin: 400, sleepHrOnly: true)
+        let merged = importRow.takingSleepFields(from: editedComputed)
+        XCTAssertEqual(merged.totalSleepMin, 400)
+        // The flag describes THOSE stage figures, so it travels with them rather than staying behind.
+        XCTAssertEqual(merged.sleepHrOnly, true)
+    }
 }

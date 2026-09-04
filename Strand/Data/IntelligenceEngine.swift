@@ -2915,7 +2915,8 @@ extension DailyMetric {
                     avgHrv: avgHrv, recovery: r, strain: strain, exerciseCount: exerciseCount,
                     spo2Pct: spo2Pct, skinTempDevC: sd, respRateBpm: respRateBpm,
                     steps: steps, activeKcalEst: activeKcalEst,
-                    spo2Red: spo2Red, spo2Ir: spo2Ir, avgSdnn: avgSdnn, skinTempC: sa)
+                    spo2Red: spo2Red, spo2Ir: spo2Ir, avgSdnn: avgSdnn, skinTempC: sa,
+                    sleepHrOnly: sleepHrOnly)
     }
 
     /// Rebuild with substituted sleep-derived fields (a user-corrected wake window), leaving every
@@ -2927,7 +2928,7 @@ extension DailyMetric {
                     strain: strain, exerciseCount: exerciseCount, spo2Pct: spo2Pct,
                     skinTempDevC: skinTempDevC, respRateBpm: respRateBpm, steps: steps,
                     activeKcalEst: activeKcalEst, spo2Red: spo2Red, spo2Ir: spo2Ir, avgSdnn: avgSdnn,
-                    skinTempC: skinTempC)
+                    skinTempC: skinTempC, sleepHrOnly: sleepHrOnly)
     }
 }
 

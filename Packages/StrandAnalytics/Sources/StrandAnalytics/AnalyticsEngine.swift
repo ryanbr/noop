@@ -950,7 +950,13 @@ public enum AnalyticsEngine {
             // The ABSOLUTE this pass's deviation was derived from (#1636). Set HERE, beside
             // `skinTempDevC`, so the engine's own row is symmetric: any path that persists this
             // struct directly keeps both thermal values, not just the one.
-            skinTempC: nightlySkinTempC)
+            skinTempC: nightlySkinTempC,
+            // The SAME condition that emptied `restingHr` and `avgHrv` above: `physiologySessions` is
+            // `matched` minus the HR-only ones, so an all-HR-only night leaves it empty and both vitals
+            // nil. Recorded rather than re-derived downstream, so the explanation and the values it
+            // explains cannot disagree. Byte-identical twin of Kotlin `AnalyticsEngine`'s
+            // `sleepHrOnly = if (matched.isEmpty()) null else physiologySessions.isEmpty()`.
+            sleepHrOnly: matched.isEmpty ? nil : physiologySessions.isEmpty)
         _ = sleepStart; _ = sleepEnd  // available for callers wiring sleep_start/end columns
 
         // ── Cache rows ────────────────────────────────────────────────────────
