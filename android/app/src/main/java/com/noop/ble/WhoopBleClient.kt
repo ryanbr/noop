@@ -6198,6 +6198,11 @@ class WhoopBleClient(
                     // #1809: this link's inbound tally starts empty, so the epitaph on disconnect reports
                     // exactly what arrived on THIS link and never a previous session's traffic.
                     inboundFrames = 0; inboundBytes = 0; cmdChannelFrames = 0
+                    // #1635: same guarantee for the banked tally. Clearing only on teardown would be enough if
+                    // every link ended in one; a link that begins without a preceding clean teardown would
+                    // otherwise open holding the previous link's rows and report them as banked on this one.
+                    bankedHr.set(0); bankedRr.set(0); bankedGravity.set(0); bankedResp.set(0)
+                    bankedSkinTemp.set(0); bankedSpo2.set(0); bankedSteps.set(0); bankedBattery.set(0)
                     realtimeArmedThisLink = false
                     // A connect succeeded → clear the stale-bond re-pair guide UNLESS we are in a known
                     // bond-loop (#617). In that loop the strap "connects" every ~3 s before timing out
