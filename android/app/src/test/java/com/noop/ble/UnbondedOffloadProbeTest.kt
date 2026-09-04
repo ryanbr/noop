@@ -352,11 +352,11 @@ class UnbondedOffloadProbeTest {
     @Test
     fun `opting in replaces the handshake for that connect`() {
         assertTrue(unbondedProbeSupersedesHandshake(
-            optedIn = true, isWhoop5 = true, appLevelBonded = false, userInitiated = false))
+            optedIn = true, isWhoop5 = true, appLevelBonded = false, userInitiated = false, probeRetired = false))
         assertFalse(unbondedProbeSupersedesHandshake(
-            optedIn = false, isWhoop5 = true, appLevelBonded = false, userInitiated = false))
+            optedIn = false, isWhoop5 = true, appLevelBonded = false, userInitiated = false, probeRetired = false))
         assertFalse(unbondedProbeSupersedesHandshake(
-            optedIn = true, isWhoop5 = false, appLevelBonded = false, userInitiated = false))
+            optedIn = true, isWhoop5 = false, appLevelBonded = false, userInitiated = false, probeRetired = false))
     }
 
     /**
@@ -366,13 +366,13 @@ class UnbondedOffloadProbeTest {
     @Test
     fun `pressing Connect still gets the handshake`() {
         assertFalse(unbondedProbeSupersedesHandshake(
-            optedIn = true, isWhoop5 = true, appLevelBonded = false, userInitiated = true))
+            optedIn = true, isWhoop5 = true, appLevelBonded = false, userInitiated = true, probeRetired = false))
     }
 
     @Test
     fun `a strap that already bonded has nothing to prove`() {
         assertFalse(unbondedProbeSupersedesHandshake(
-            optedIn = true, isWhoop5 = true, appLevelBonded = true, userInitiated = false))
+            optedIn = true, isWhoop5 = true, appLevelBonded = true, userInitiated = false, probeRetired = false))
     }
 
     /**
@@ -470,4 +470,60 @@ class UnbondedOffloadProbeTest {
         // actually issued a read rather than being assumed to have.
         assertFalse(unbondedProbeShouldWaitForDis(disChainInFlight = false, deferralsSoFar = 0))
     }
+
+    // MARK: #1867 — the skip must retire when the probe does
+
+    /**
+     * Found in a field log: the hello skipped on every connect, NO probe lines at all, `didBond=false` and
+     * `Backfill: deferred` nine times across sixteen hours.
+     *
+     * The probe retires itself correctly — on a latched refusal, or once the silent-link budget is spent —
+     * but the handshake skip that exists to serve it kept applying regardless. With no hello, `didBond` can
+     * never become true, so the ordinary offload gate can never open either. The strap could neither bond
+     * nor sync, in service of a question that had already stopped being asked.
+     */
+    @Test
+    fun `a retired probe stops superseding the handshake`() {
+        assertFalse(unbondedProbeSupersedesHandshake(
+            optedIn = true, isWhoop5 = true, appLevelBonded = false, userInitiated = false,
+            probeRetired = true))
+    }
+
+    /** A latched refusal is the strap's verdict — it retires the probe, so the handshake must resume. */
+    @Test
+    fun `a latched refusal retires the probe`() {
+        assertTrue(unbondedProbeRetired(previouslyRefused = true, silentLinksSoFar = 0))
+    }
+
+    /** Silence spends a budget rather than latching, so the probe stays live while it has one. */
+    @Test
+    fun `silence retires the probe only once its budget is spent`() {
+        assertFalse(unbondedProbeRetired(previouslyRefused = false, silentLinksSoFar = 0))
+        assertFalse(unbondedProbeRetired(
+            previouslyRefused = false, silentLinksSoFar = UNBONDED_PROBE_MAX_SILENT_LINKS - 1))
+        assertTrue(unbondedProbeRetired(
+            previouslyRefused = false, silentLinksSoFar = UNBONDED_PROBE_MAX_SILENT_LINKS))
+    }
+
+    /**
+     * The two gates must agree by construction, not by both being edited together. Whenever the probe
+     * declines for a RETIREMENT reason, the skip must decline too — otherwise the strap is stranded with a
+     * suppressed handshake and nothing using the link it creates.
+     */
+    @Test
+    fun `the skip and the probe retire on exactly the same conditions`() {
+        for (refused in listOf(false, true)) {
+            for (silent in 0..UNBONDED_PROBE_MAX_SILENT_LINKS + 1) {
+                val retired = unbondedProbeRetired(refused, silent)
+                val probeWouldRun = shouldProbeUnbondedOffload(
+                    isWhoop5 = true, optedIn = true, bonded = false, helloWrittenThisLink = false,
+                    alreadyProbedThisLink = false, previouslyRefused = refused, silentLinksSoFar = silent)
+                val skips = unbondedProbeSupersedesHandshake(
+                    optedIn = true, isWhoop5 = true, appLevelBonded = false, userInitiated = false,
+                    probeRetired = retired)
+                assertEquals("refused=$refused silent=$silent", probeWouldRun, skips)
+            }
+        }
+    }
+
 }

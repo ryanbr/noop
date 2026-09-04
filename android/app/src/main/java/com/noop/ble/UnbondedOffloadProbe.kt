@@ -62,9 +62,24 @@ internal fun shouldProbeUnbondedOffload(
     // eleven weeks. Only the stable no-hello link can answer this question.
     if (helloWrittenThisLink) return false
     if (alreadyProbedThisLink) return false
-    if (previouslyRefused) return false
-    return unbondedProbeStillWorthAsking(silentLinksSoFar)
+    return !unbondedProbeRetired(previouslyRefused, silentLinksSoFar)
 }
+
+/**
+ * Has the probe stopped asking — for good, on this device?
+ *
+ * True on a latched refusal (the strap's verdict) or once the silent-link budget is spent. Extracted
+ * because TWO decisions depend on it and they were only wired to one: the probe retires itself correctly,
+ * while the handshake skip that exists TO SERVE it kept applying forever.
+ *
+ * That asymmetry strands the strap. With the hello skipped `didBond` can never become true, so the
+ * ordinary offload gate can never open — and once the probe has retired there is nothing left the skip is
+ * buying. A field log shows the end state plainly: the hello skipped on every connect, no probe lines at
+ * all, `didBond=false` and `Backfill: deferred` nine times across sixteen hours. The strap could neither
+ * bond nor sync, in service of a question that had already stopped being asked.
+ */
+internal fun unbondedProbeRetired(previouslyRefused: Boolean, silentLinksSoFar: Int): Boolean =
+    previouslyRefused || !unbondedProbeStillWorthAsking(silentLinksSoFar)
 
 /**
  * How many links may end in SILENCE before the probe retires itself.
@@ -142,7 +157,13 @@ internal fun unbondedProbeSupersedesHandshake(
     isWhoop5: Boolean,
     appLevelBonded: Boolean,
     userInitiated: Boolean,
-): Boolean = optedIn && isWhoop5 && !appLevelBonded && !userInitiated
+    /**
+     * The probe has stopped asking ([unbondedProbeRetired]) — so skipping the hello now buys nothing and
+     * costs the strap its bond and its offload. Suppressing the handshake is only defensible while
+     * something is using the link it creates.
+     */
+    probeRetired: Boolean,
+): Boolean = optedIn && isWhoop5 && !appLevelBonded && !userInitiated && !probeRetired
 
 /**
  * Said once per superseded connect, because a hello that is absent looks identical to one that failed

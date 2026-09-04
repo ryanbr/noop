@@ -4912,13 +4912,17 @@ class WhoopBleClient(
      * here.
      */
     @SuppressLint("MissingPermission")
+    /** #1867: the latched per-device refusal, read the same way by the probe and by the handshake skip
+     *  that serves it — two readers of one fact, so neither can drift from the other. */
+    private fun unbondedOffloadPreviouslyRefused(address: String?): Boolean = runCatching {
+        unbondedOffloadRefusedPrefKey(address)?.let {
+            context.getSharedPreferences(com.noop.ui.NoopPrefs.NAME, android.content.Context.MODE_PRIVATE)
+                .getBoolean(it, false)
+        } ?: false
+    }.getOrDefault(false)
+
     private fun beginUnbondedOffloadProbe(g: BluetoothGatt) {
-        val refused = runCatching {
-            unbondedOffloadRefusedPrefKey(g.device.address)?.let {
-                context.getSharedPreferences(com.noop.ui.NoopPrefs.NAME, android.content.Context.MODE_PRIVATE)
-                    .getBoolean(it, false)
-            } ?: false
-        }.getOrDefault(false)
+        val refused = unbondedOffloadPreviouslyRefused(g.device.address)
         if (!shouldProbeUnbondedOffload(
                 isWhoop5 = connectedFamily == DeviceFamily.WHOOP5,
                 optedIn = PuffinExperiment.from(context).unbondedOffload,
@@ -8633,6 +8637,12 @@ class WhoopBleClient(
                         isWhoop5 = true,
                         appLevelBonded = didBond,
                         userInitiated = helloRetryRequested,
+                        // Same retirement the probe applies to itself — read here rather than assumed, so
+                        // the skip stops the moment the thing it serves does.
+                        probeRetired = unbondedProbeRetired(
+                            previouslyRefused = unbondedOffloadPreviouslyRefused(g.device.address),
+                            silentLinksSoFar = unbondedProbeSilentLinks,
+                        ),
                     )
                 ) {
                     log(unbondedProbeSupersedesLine(explicitBondOptedIn = puffinExperiment.explicitBond))
