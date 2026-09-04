@@ -206,6 +206,10 @@ class WhoopConnectionService : Service() {
      *  The detector is reset each time we (re)enter a window. */
     private val sleepWatcher = SleepWindowWatcher()
     private var inAlarmWindow = false
+    /** Whether this window has already logged a live-HR reading (#1858). The window-open line is worth
+     *  one line a night, and it must report a REAL reading: `heartRate ?: 0` means the collector also
+     *  runs when nothing is streaming, which is the very case the line exists to rule out. */
+    private var loggedAlarmWindowHr = false
 
     /** The smart-alarm HR collector, alive for the life of the service. */
     private var alarmJob: Job? = null
@@ -518,15 +522,71 @@ class WhoopConnectionService : Service() {
                 .conflate()
                 .collect { hr ->
                     if (!store.enabled || store.scheduledDeadlineMs <= 0L) {
+                        // Disarmed while we were inside the window. SmartAlarmReceiver zeroes the
+                        // edges before re-arming, and an explicit disable zeroes them for good, so
+                        // without this the end-of-window line is simply lost — and a window line with
+                        // no end line is documented to mean the HR stream stopped, which would be the
+                        // wrong reading. Log it here so every opened window closes with a line.
+                        if (inAlarmWindow) {
+                            ble.externalLog(
+                                "Smart alarm: wake window ended (alarm no longer armed), detector " +
+                                    "${if (sleepWatcher.hasFired) "fired" else "never fired"} - " +
+                                    "${sleepWatcher.trough?.let { "trough $it bpm" } ?: "trough never established"} " +
+                                    "from ${sleepWatcher.samples} readings",
+                            )
+                        }
                         inAlarmWindow = false
                         return@collect
                     }
                     val now = System.currentTimeMillis()
                     val inWindow = now in store.scheduledWindowStartMs until store.scheduledDeadlineMs
-                    if (inWindow && !inAlarmWindow) sleepWatcher.reset()   // fresh night
+                    if (inWindow && !inAlarmWindow) {
+                        sleepWatcher.reset()   // fresh night
+                        loggedAlarmWindowHr = false
+                    }
+                    // #1858: the alarm package had no logging at all, so "the smart alarm never works"
+                    // could not be told apart from "nothing was streaming all night" — the two need
+                    // opposite fixes. These lines are diagnostics ONLY; every decision below is
+                    // unchanged.
+                    //
+                    // Reading an exported log. It takes BOTH the window line and the end line, because
+                    // the end line carries the sample count and only that separates a detector that
+                    // declined to fire from a stream that stopped underneath it:
+                    //
+                    //   window + advance                  -> worked
+                    //   window + end (no fire, samples n) -> HR flowed all window and it still never
+                    //                                        fired: the detector's own defect
+                    //   window, NO end line               -> the stream stopped before the window ended
+                    //                                        (no post-deadline sample to log on)
+                    //   no window + end (samples 0)       -> nothing streamed inside the window at all
+                    //   neither line                      -> the collector never ran in-window: the
+                    //                                        service was down, or the alarm was off
+                    if (!inWindow && inAlarmWindow) {
+                        ble.externalLog(
+                            "Smart alarm: wake window ended, detector ${if (sleepWatcher.hasFired) "fired" else "never fired"} " +
+                                "- ${sleepWatcher.trough?.let { "trough $it bpm" } ?: "trough never established"} " +
+                                "from ${sleepWatcher.samples} readings",
+                        )
+                    }
                     inAlarmWindow = inWindow
                     if (!inWindow) return@collect
+                    if (hr > 0 && !loggedAlarmWindowHr) {
+                        loggedAlarmWindowHr = true
+                        val mins = (store.scheduledDeadlineMs - now) / 60_000L
+                        ble.externalLog("Smart alarm: in wake window with live HR $hr bpm, deadline in $mins min")
+                    }
                     if (sleepWatcher.shouldWake(hr)) {
+                        // advanceTo() returns silently when the OS will not honour an exact alarm (the
+                        // API 31+ permission can be revoked AFTER the alarm was armed, leaving a
+                        // deadline that can never be moved). Claiming "advancing" would then assert
+                        // something this line cannot attribute - and that is precisely the case someone
+                        // reading the log would be hunting. State the request and the permission apart.
+                        val permitted = SmartAlarmScheduler.canScheduleExact(this@WhoopConnectionService)
+                        ble.externalLog(
+                            "Smart alarm: detector fired, asking to advance the wake - HR $hr bpm vs " +
+                                "trough ${sleepWatcher.trough} after ${sleepWatcher.samples} readings" +
+                                if (permitted) "" else " - IGNORED, exact alarms are not permitted",
+                        )
                         SmartAlarmScheduler.advanceTo(this@WhoopConnectionService, store, now)
                     }
                 }

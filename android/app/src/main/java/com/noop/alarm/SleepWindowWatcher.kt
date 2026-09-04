@@ -30,6 +30,23 @@ class SleepWindowWatcher(
     /** Set once we've advanced the alarm so we don't keep re-advancing every sample. */
     private var fired: Boolean = false
 
+    /**
+     * The trough established so far, or null while no reading has qualified as a candidate. READ-ONLY
+     * diagnostics (#1858) — the detector's own decisions do not consult it.
+     *
+     * Null is the interesting value: it means no reading has ever been BELOW [troughCeilingBpm], which
+     * is what happens when the user is awake for the whole window, and it is the state [shouldWake]
+     * treats as "no reference yet" and refuses to fire on.
+     */
+    val trough: Int? get() = if (troughBpm == Int.MAX_VALUE) null else troughBpm
+
+    /** Readings folded in since [reset]. READ-ONLY diagnostics: distinguishes "no live HR" from
+     *  "HR arrived but the heuristic never fired". */
+    val samples: Int get() = sampleCount
+
+    /** Whether the alarm has already been advanced this window. READ-ONLY diagnostics. */
+    val hasFired: Boolean get() = fired
+
     /** Reset for a fresh night (called when the watcher (re)enters a window). */
     fun reset() {
         troughBpm = Int.MAX_VALUE
