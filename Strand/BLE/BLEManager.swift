@@ -732,6 +732,17 @@ public final class BLEManager: NSObject, ObservableObject {
     private var inboundFrames = 0
     private var inboundBytes = 0
     private var cmdChannelFrames = 0
+    /// #1635: rows ACCEPTED per stream on this link — the database-side companion to the three above.
+    /// The epitaph counts frames, which reads healthy on an unbonded 5/MG streaming heart rate over the
+    /// standard profile while every bond-gated stream banks nothing. Cleared with them, so they describe
+    /// THIS link. Plain vars like their neighbours: `Collector` hands them up on the main actor.
+    private var bankedHr = 0
+    private var bankedRr = 0
+    private var bankedGravity = 0
+    private var bankedResp = 0
+    private var bankedSkinTemp = 0
+    private var bankedSpo2 = 0
+    private var bankedBattery = 0
     /// Uptime clock for the epitaph. Monotonic, so a wall-clock change mid-link cannot make it negative.
     private var linkUpSince: DispatchTime?
     /// Last time ANY notification arrived — drives the liveness watchdog.
@@ -1344,7 +1355,14 @@ public final class BLEManager: NSObject, ObservableObject {
         let enableRawCapture = UserDefaults.standard.bool(forKey: "enableRawCapture")
         collector = Collector(store: store, deviceId: deviceId,
                               enableRawCapture: enableRawCapture,
-                              log: { [weak self] line in self?.log(line) })
+                              log: { [weak self] line in self?.log(line) },
+                              onBanked: { [weak self] c in
+                                  guard let self else { return }
+                                  self.bankedHr += c.hr; self.bankedRr += c.rr
+                                  self.bankedGravity += c.gravity; self.bankedResp += c.resp
+                                  self.bankedSkinTemp += c.skinTemp; self.bankedSpo2 += c.spo2
+                                  self.bankedBattery += c.battery
+                              })
         // The store can finish bootstrapping AFTER connect(model:) already ran (both wait on
         // poweredOn), so apply the family/clock configuration here too — whichever runs last wins.
         configureCollectorFamily()
@@ -5399,9 +5417,18 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
             log(ConnectionReadout.linkEpitaph(upMillis: upMs, inboundFrames: inboundFrames,
                                               inboundBytes: inboundBytes, cmdChannelFrames: cmdChannelFrames,
                                               realtimeArmed: realtimeArmedAt != nil, ended: endedReason))
+            // #1635: LIVE streams only — the offload persists through `Backfiller` and has its own
+            // accounting, so folding it in would make a healthy bonded sync read as "nothing banked live
+            // for: gravity". Inside the same `linkUpSince` guard for the same reason the epitaph is.
+            log(ConnectionReadout.linkBankedSummary(
+                hr: bankedHr, rr: bankedRr, gravity: bankedGravity, resp: bankedResp,
+                // nil, not 0: this store does not return a step count, and a zero would read as a fault.
+                skinTemp: bankedSkinTemp, spo2: bankedSpo2, steps: nil, battery: bankedBattery))
         }
         // Clear the tally with the link, so a second teardown for the same drop cannot re-report it.
         inboundFrames = 0; inboundBytes = 0; cmdChannelFrames = 0
+        bankedHr = 0; bankedRr = 0; bankedGravity = 0; bankedResp = 0
+        bankedSkinTemp = 0; bankedSpo2 = 0; bankedBattery = 0
         linkUpSince = nil
 
         let timedOut = !intentionalDisconnect && error != nil

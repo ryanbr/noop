@@ -62,4 +62,17 @@ class LinkBankedSummaryTest {
             ),
         )
     }
+
+
+    @Test
+    fun `a stream this platform cannot measure is omitted, not reported as zero`() {
+        // Apple's store does not return a step count (persist-only, outside its insert tuple). Printing
+        // steps=0 there would name it in the zero list forever - a permanent false alarm in a line whose
+        // entire job is to make a real zero stand out.
+        val line = ConnectionReadout.linkBankedSummary(
+            hr = 456, rr = 187, gravity = 0, resp = 0, skinTemp = 0, spo2 = 0, steps = null, battery = 2,
+        )
+        assertTrue("an unmeasured stream must not appear at all", !line.contains("steps"))
+        assertTrue(line.contains("nothing banked live for: gravity, resp, skinTemp, spo2"))
+    }
 }

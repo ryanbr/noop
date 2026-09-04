@@ -45,4 +45,13 @@ final class LinkBankedSummaryTests: XCTestCase {
             "banked live this link: hr=456 rr=187 gravity=0 resp=0 skinTemp=0 spo2=0 steps=0 battery=2"
                 + " - nothing banked live for: gravity, resp, skinTemp, spo2, steps")
     }
+
+
+    /// Apple's store does not return a step count, so the line must omit steps rather than print zero.
+    func testAStreamThisPlatformCannotMeasureIsOmittedNotZero() {
+        let line = ConnectionReadout.linkBankedSummary(
+            hr: 456, rr: 187, gravity: 0, resp: 0, skinTemp: 0, spo2: 0, steps: nil, battery: 2)
+        XCTAssertFalse(line.contains("steps"), "an unmeasured stream must not appear at all")
+        XCTAssertTrue(line.contains("nothing banked live for: gravity, resp, skinTemp, spo2"))
+    }
 }

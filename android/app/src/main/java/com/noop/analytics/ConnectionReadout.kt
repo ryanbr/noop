@@ -307,12 +307,18 @@ object ConnectionReadout {
      * teardown path throws. Twin of the Swift formatter.
      */
     fun linkBankedSummary(
-        hr: Int, rr: Int, gravity: Int, resp: Int, skinTemp: Int, spo2: Int, steps: Int, battery: Int,
+        hr: Int, rr: Int, gravity: Int, resp: Int, skinTemp: Int, spo2: Int, steps: Int?, battery: Int,
     ): String {
-        val pairs = listOf(
+        // [steps] is NULLABLE because Apple's store does not return a step count at all — steps are
+        // persist-only there, deliberately outside its 8-field insert tuple, while Room counts them. A
+        // platform that cannot measure a stream must OMIT it, not report zero: "banked nothing" is a
+        // finding and "not measured here" is not, and printing the second as the first would put a
+        // permanent false alarm in every Apple link's log.
+        val pairs = (listOf(
             "hr" to hr, "rr" to rr, "gravity" to gravity, "resp" to resp,
-            "skinTemp" to skinTemp, "spo2" to spo2, "steps" to steps, "battery" to battery,
-        ).map { (k, v) -> k to maxOf(0, v) }
+            "skinTemp" to skinTemp, "spo2" to spo2,
+        ) + listOfNotNull(steps?.let { "steps" to it }) + listOf("battery" to battery))
+            .map { (k, v) -> k to maxOf(0, v) }
         val body = pairs.joinToString(" ") { (k, v) -> "$k=$v" }
         val total = pairs.sumOf { it.second }
         if (total == 0) return "banked live this link: $body - NOTHING was stored from the live streams"

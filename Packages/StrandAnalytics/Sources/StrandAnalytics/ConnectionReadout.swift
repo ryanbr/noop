@@ -322,12 +322,20 @@ public enum ConnectionReadout {
     /// Pure and total, and every count clamped, so it cannot become the reason a teardown path throws.
     /// Twin of the Kotlin formatter. Apple does not emit it yet; the formatter exists so the two logs
     /// cannot drift apart when it does.
+    /// `steps` is OPTIONAL because this platform's store does not return a step count at all — steps are
+    /// persist-only here, deliberately outside the 8-field insert tuple, while Room counts them. A
+    /// platform that cannot measure a stream must OMIT it rather than report zero: "banked nothing" is a
+    /// finding and "not measured here" is not, and printing the second as the first would put a permanent
+    /// false alarm in every Apple link's log.
     public static func linkBankedSummary(hr: Int, rr: Int, gravity: Int, resp: Int,
-                                         skinTemp: Int, spo2: Int, steps: Int, battery: Int) -> String {
-        let pairs: [(String, Int)] = [
+                                         skinTemp: Int, spo2: Int, steps: Int?, battery: Int) -> String {
+        var raw: [(String, Int)] = [
             ("hr", hr), ("rr", rr), ("gravity", gravity), ("resp", resp),
-            ("skinTemp", skinTemp), ("spo2", spo2), ("steps", steps), ("battery", battery),
-        ].map { ($0.0, max(0, $0.1)) }
+            ("skinTemp", skinTemp), ("spo2", spo2),
+        ]
+        if let steps { raw.append(("steps", steps)) }
+        raw.append(("battery", battery))
+        let pairs: [(String, Int)] = raw.map { ($0.0, max(0, $0.1)) }
         let body = pairs.map { "\($0.0)=\($0.1)" }.joined(separator: " ")
         let total = pairs.reduce(0) { $0 + $1.1 }
         if total == 0 { return "banked live this link: \(body) - NOTHING was stored from the live streams" }

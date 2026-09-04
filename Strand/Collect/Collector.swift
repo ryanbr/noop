@@ -70,6 +70,11 @@ final class Collector {
     /// #1118: strap-log sink for the per-transport R-R census. Optional and defaulted to nil so the
     /// test fakes that construct a Collector are untouched; `BLEManager` wires its own `log`.
     private let log: ((String) -> Void)?
+    /// #1635: rows ACCEPTED per stream, handed up so `BLEManager` can tally them per LINK and say which
+    /// streams banked when it writes the link epitaph. The counts already exist — `StreamStore.insert`
+    /// returns them and the standard-HR path already binds them for its own trace line — so this carries
+    /// a measurement that was being discarded, rather than taking a new one.
+    private let onBanked: ((BankedCounts) -> Void)?
     /// #1118: last emit of each LIVE census line, unix seconds; 0 = never. Rate-limited — see
     /// `RrEmissionStats.shouldEmitLiveCensus`.
     ///
@@ -107,15 +112,22 @@ final class Collector {
     private var batchStartedAt: TimeInterval
     var bufferedCount: Int { buffer.count }
 
+    /// The per-stream accepted-row counts `StreamStore.insert` returns, named so the closure that carries
+    /// them is readable at both ends.
+    typealias BankedCounts = (hr: Int, rr: Int, events: Int, battery: Int,
+                              spo2: Int, skinTemp: Int, resp: Int, gravity: Int)
+
     init(store: StoreWriting, deviceId: String,
          policy: CollectorPolicy = .default,
          enableRawCapture: Bool = false,
          log: ((String) -> Void)? = nil,
+         onBanked: ((BankedCounts) -> Void)? = nil,
          now: @escaping () -> Int = { Int(Date().timeIntervalSince1970) },
          monotonic: @escaping () -> TimeInterval = { Date().timeIntervalSinceReferenceDate }) {
         self.store = store; self.deviceId = deviceId; self.policy = policy
         self.enableRawCapture = enableRawCapture
         self.log = log
+        self.onBanked = onBanked
         self.now = now; self.monotonic = monotonic
         self.batchStartedAt = monotonic()
         self.concreteStore = store as? WhoopStore
@@ -229,8 +241,9 @@ final class Collector {
             }
         }
         do {
-            try await store.insert(streams, deviceId: deviceId)   // DECODED FIRST (durable)
+            let inserted = try await store.insert(streams, deviceId: deviceId)   // DECODED FIRST (durable)
             realtimeInsertFailures = 0
+            onBanked?(inserted)
         } catch {
             // Re-buffer at the front so these frames (and their parses) are retried on the next cadence.
             buffer.insert(contentsOf: batch, at: 0)
@@ -318,6 +331,7 @@ final class Collector {
         do {
             let inserted = try await store.insert(Streams(hr: hr, rr: rr, events: contact), deviceId: deviceId)
             stdInsertFailures = 0
+            onBanked?(inserted)
             log?(LivePersistTrace.standardHRFlushSucceededLine(
                 reason: reason, offeredHRRows: hr.count, offeredRRRows: rr.count,
                 insertedHRRows: inserted.hr, insertedRRRows: inserted.rr))
