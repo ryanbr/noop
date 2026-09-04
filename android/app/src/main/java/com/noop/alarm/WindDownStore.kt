@@ -29,8 +29,25 @@ class WindDownStore(private val prefs: SharedPreferences) {
         set(v) = prefs.edit().putInt(KEY_LEAD, v.coerceIn(LEAD_MIN, LEAD_MAX)).apply()
 
     /**
+     * How many days BEFORE the wake day the nudge falls: 0 for the same day, -1 for the evening before.
+     *
+     * Only matters once the nudge is pinned to a WEEKDAY (#1858's per-day fan-out). The single daily
+     * schedule never needed it — it fires at a minute-of-day every day, so which day "owns" it is not a
+     * question anyone asks.
+     *
+     * It matters now because per-day wake times exist precisely to support EARLY wakes: a 03:30 wake with
+     * an 8 h need and a 30 min lead puts the nudge at 19:00 the PREVIOUS evening. Pinning that to the
+     * wake's own weekday would fire it eight hours AFTER the wake it is meant to precede — and it would be
+     * pointing at the next day's wake, which may be a different time entirely.
+     */
+    fun nudgeDayShift(wakeMinutes: Int): Int =
+        nudgeDayShift(wakeMinutes, sleepNeedMinutes, leadMinutes)
+
+    /**
      * Minute-of-day the nudge should fire, derived from a wake time: wake − sleepNeed − lead,
      * wrapped into [0, 1440). With an 06:30 wake, 8 h need and 30 min lead this is 22:00.
+     *
+     * The wrap loses WHICH day that minute belongs to, which is why [nudgeDayShift] exists beside it.
      */
     fun nudgeMinuteOfDay(wakeMinutes: Int): Int {
         val raw = wakeMinutes - sleepNeedMinutes - leadMinutes
@@ -39,6 +56,10 @@ class WindDownStore(private val prefs: SharedPreferences) {
     }
 
     companion object {
+        /** Pure form of [nudgeDayShift], so the day arithmetic is testable without a Context. */
+        fun nudgeDayShift(wakeMinutes: Int, sleepNeedMinutes: Int, leadMinutes: Int): Int =
+            Math.floorDiv(wakeMinutes - sleepNeedMinutes - leadMinutes, 24 * 60)
+
         private const val PREFS = "noop_wind_down"
         private const val KEY_ENABLED = "windDown.enabled"
         private const val KEY_SLEEP_NEED = "windDown.sleepNeedMinutes"

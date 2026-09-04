@@ -68,7 +68,10 @@ object WindDownScheduler {
         // seven PendingIntents are distinct rather than overwriting one another.
         for (weekday in 1..7) {
             val wake = perDayWake[weekday] ?: wakeMinutes
-            val first = nextWeeklyOccurrence(store.nudgeMinuteOfDay(wake), weekday)
+            // The nudge is pinned to the day it FIRES on, which is not always the day you wake on: an
+            // early wake pushes it back over midnight. See [WindDownStore.nudgeDayShift].
+            val nudgeWeekday = shiftWeekday(weekday, store.nudgeDayShift(wake))
+            val first = nextWeeklyOccurrence(store.nudgeMinuteOfDay(wake), nudgeWeekday)
             am.setInexactRepeating(
                 AlarmManager.RTC,
                 first.timeInMillis,
@@ -133,6 +136,15 @@ object WindDownScheduler {
             )
         }
     }
+
+    /**
+     * Move a `Calendar.DAY_OF_WEEK` by [shift] days, wrapping through the week end (1=Sun…7=Sat).
+     *
+     * [shift] is normally 0 or -1 — an early wake puts its wind-down on the previous evening — but the
+     * arithmetic is general so a long sleep-need plus lead cannot produce an out-of-range weekday.
+     */
+    internal fun shiftWeekday(weekday: Int, shift: Int): Int =
+        Math.floorMod(weekday - 1 + shift, 7) + 1
 
     /**
      * The next time [minuteOfDay] falls on [weekday] (Calendar 1=Sun…7=Sat) — the anchor for a weekly

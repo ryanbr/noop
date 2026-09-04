@@ -235,4 +235,34 @@ class PhoneAlarmWeekdayTest {
         assertEquals(31, at.get(Calendar.DAY_OF_MONTH))   // Mon 24 → Mon 31
     }
 
+
+    /**
+     * An EARLY wake puts its wind-down on the previous EVENING, so the nudge must be pinned to that day —
+     * not to the day you wake on.
+     *
+     * The reported schedule is exactly this shape: a 03:30 wake with an 8 h need and a 30 min lead puts
+     * the nudge at 19:00 the night before. Pinning it to the wake's own weekday would fire it eight hours
+     * AFTER the wake it exists to precede, pointing at the next day's wake — which per-day times mean may
+     * be a different hour entirely.
+     *
+     * Only reachable once the nudge is weekday-pinned: the single daily schedule fires at a minute-of-day
+     * every day, so which day owns it was never a question.
+     */
+    @Test fun anEarlyWakePinsTheNudgeToThePreviousEvening() {
+        val need = WindDownStore.DEFAULT_SLEEP_NEED   // 8 h
+        val lead = WindDownStore.DEFAULT_LEAD         // 30 min
+        // 03:30 wake ⇒ 19:00 the previous evening.
+        assertEquals(-1, WindDownStore.nudgeDayShift(3 * 60 + 30, need, lead))
+        // A late-morning wake keeps its nudge on the same day.
+        assertEquals(0, WindDownStore.nudgeDayShift(21 * 60, need, lead))
+    }
+
+    /** Shifting a weekday wraps through the week end in both directions. */
+    @Test fun theWeekdayShiftWrapsAtBothEnds() {
+        assertEquals(Calendar.SATURDAY, WindDownScheduler.shiftWeekday(Calendar.SUNDAY, -1))
+        assertEquals(Calendar.SUNDAY, WindDownScheduler.shiftWeekday(Calendar.MONDAY, -1))
+        assertEquals(Calendar.MONDAY, WindDownScheduler.shiftWeekday(Calendar.MONDAY, 0))
+        assertEquals(Calendar.SUNDAY, WindDownScheduler.shiftWeekday(Calendar.SATURDAY, 1))
+    }
+
 }
