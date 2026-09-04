@@ -320,7 +320,7 @@ public enum ConnectionReadout {
     /// bond. `offloadSteps` is optional: a platform that cannot measure a stream omits it rather than
     /// reporting a zero that reads as a fault. Counts are rows ACCEPTED. Pure, total and clamped.
     /// Twin of the Kotlin formatter.
-    public static func linkBankedSummary(liveHr: Int, liveRr: Int,
+    public static func linkBankedSummary(liveHr: Int, liveRr: Int, offloadChunks: Int,
                                          offloadHr: Int, offloadRr: Int, offloadGravity: Int,
                                          offloadResp: Int, offloadSkinTemp: Int, offloadSpo2: Int,
                                          offloadSteps: Int?) -> String {
@@ -332,8 +332,14 @@ public enum ConnectionReadout {
         if let offloadSteps { raw.append(("steps", offloadSteps)) }
         let offload = raw.map { ($0.0, max(0, $0.1)) }
         let total = offload.reduce(0) { $0 + $1.1 }
+        // "Never ran" and "ran with nothing new" are DIFFERENT findings. Rows are counted as ACCEPTED, so
+        // a reconnect re-offloading already-stored records banks zero while the strap plainly handed its
+        // history over. Only the first case speaks to the bond.
+        if (max(0, offloadChunks)) == 0 {
+            return "banked this link: \(live) | offload did NOT run on this link"
+        }
         if total == 0 {
-            return "banked this link: \(live) | offload none - the offload banked NOTHING on this link"
+            return "banked this link: \(live) | offload ran \(max(0, offloadChunks)) chunk(s), no new rows"
         }
         let body = offload.map { "\($0.0)=\($0.1)" }.joined(separator: " ")
         let empty = offload.filter { $0.1 == 0 }.map { $0.0 }

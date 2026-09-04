@@ -6204,7 +6204,7 @@ class WhoopBleClient(
                     // otherwise open holding the previous link's rows and report them as banked on this one.
                     liveHr.set(0); liveRr.set(0); offloadHr.set(0); offloadRr.set(0)
                     offloadGravity.set(0); offloadResp.set(0); offloadSkinTemp.set(0)
-                    offloadSpo2.set(0); offloadSteps.set(0)
+                    offloadSpo2.set(0); offloadSteps.set(0); offloadChunks.set(0)
                     realtimeArmedThisLink = false
                     // A connect succeeded → clear the stale-bond re-pair guide UNLESS we are in a known
                     // bond-loop (#617). In that loop the strap "connects" every ~3 s before timing out
@@ -6750,6 +6750,8 @@ class WhoopBleClient(
     private val offloadSkinTemp = java.util.concurrent.atomic.AtomicInteger(0)
     private val offloadSpo2 = java.util.concurrent.atomic.AtomicInteger(0)
     private val offloadSteps = java.util.concurrent.atomic.AtomicInteger(0)
+    /** Chunks the offload actually persisted on this link. Separates "never ran" from "nothing new". */
+    private val offloadChunks = java.util.concurrent.atomic.AtomicInteger(0)
 
     /** Fold one LIVE persist round into the per-link tally (hr/rr are all the realtime decoder yields). */
     private fun addBankedLive(c: InsertCounts) {
@@ -6758,6 +6760,7 @@ class WhoopBleClient(
 
     /** Fold one OFFLOAD persist round in. This is where the bond shows: an unbonded strap defers it. */
     private fun addBankedOffload(c: InsertCounts) {
+        offloadChunks.incrementAndGet()
         offloadHr.addAndGet(c.hr); offloadRr.addAndGet(c.rr)
         offloadGravity.addAndGet(c.gravity); offloadResp.addAndGet(c.resp)
         offloadSkinTemp.addAndGet(c.skinTemp); offloadSpo2.addAndGet(c.spo2)
@@ -10033,7 +10036,7 @@ class WhoopBleClient(
             // Guarded by the SAME `linkUpSinceMs` as the epitaph: on a failed connect attempt the counters
             // hold the previous link's tally, and reporting them would describe a link that never existed.
             log(ConnectionReadout.linkBankedSummary(
-                liveHr = liveHr.get(), liveRr = liveRr.get(),
+                liveHr = liveHr.get(), liveRr = liveRr.get(), offloadChunks = offloadChunks.get(),
                 offloadHr = offloadHr.get(), offloadRr = offloadRr.get(),
                 offloadGravity = offloadGravity.get(), offloadResp = offloadResp.get(),
                 offloadSkinTemp = offloadSkinTemp.get(), offloadSpo2 = offloadSpo2.get(),
@@ -10044,7 +10047,7 @@ class WhoopBleClient(
         inboundFrames = 0; inboundBytes = 0; cmdChannelFrames = 0
         liveHr.set(0); liveRr.set(0); offloadHr.set(0); offloadRr.set(0)
         offloadGravity.set(0); offloadResp.set(0); offloadSkinTemp.set(0)
-        offloadSpo2.set(0); offloadSteps.set(0)
+        offloadSpo2.set(0); offloadSteps.set(0); offloadChunks.set(0)
 
         val heldSuffix = heldForLogSuffix()
         linkUpSinceMs = null

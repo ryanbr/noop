@@ -744,6 +744,8 @@ public final class BLEManager: NSObject, ObservableObject {
     private var offloadResp = 0
     private var offloadSkinTemp = 0
     private var offloadSpo2 = 0
+    /// Chunks the offload actually persisted on this link — separates "never ran" from "nothing new".
+    private var offloadChunks = 0
 
     /// Uptime clock for the epitaph. Monotonic, so a wall-clock change mid-link cannot make it negative.
     private var linkUpSince: DispatchTime?
@@ -1371,6 +1373,7 @@ public final class BLEManager: NSObject, ObservableObject {
                                 },
                                 onBankedOffload: { [weak self] c in
                                     guard let self else { return }
+                                    self.offloadChunks += 1
                                     self.offloadHr += c.hr; self.offloadRr += c.rr
                                     self.offloadGravity += c.gravity; self.offloadResp += c.resp
                                     self.offloadSkinTemp += c.skinTemp; self.offloadSpo2 += c.spo2
@@ -5268,7 +5271,7 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         // link ended in one, and a link that begins without a preceding clean teardown would otherwise
         // open holding the previous link's rows — reporting them as banked on a link that never saw them.
         liveHr = 0; liveRr = 0; offloadHr = 0; offloadRr = 0
-        offloadGravity = 0; offloadResp = 0; offloadSkinTemp = 0; offloadSpo2 = 0
+        offloadGravity = 0; offloadResp = 0; offloadSkinTemp = 0; offloadSpo2 = 0; offloadChunks = 0
         linkUpSince = DispatchTime.now()
         standingConnectAt = nil     // #1413: a live link means no standing connect is outstanding
         restoredPeripheral = nil
@@ -5431,7 +5434,7 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
             // accounting, so folding it in would make a healthy bonded sync read as "nothing banked live
             // for: gravity". Inside the same `linkUpSince` guard for the same reason the epitaph is.
             log(ConnectionReadout.linkBankedSummary(
-                liveHr: liveHr, liveRr: liveRr,
+                liveHr: liveHr, liveRr: liveRr, offloadChunks: offloadChunks,
                 offloadHr: offloadHr, offloadRr: offloadRr, offloadGravity: offloadGravity,
                 offloadResp: offloadResp, offloadSkinTemp: offloadSkinTemp, offloadSpo2: offloadSpo2,
                 // nil, not 0: this store does not return a step count, and a zero would read as a fault.
@@ -5440,7 +5443,7 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         // Clear the tally with the link, so a second teardown for the same drop cannot re-report it.
         inboundFrames = 0; inboundBytes = 0; cmdChannelFrames = 0
         liveHr = 0; liveRr = 0; offloadHr = 0; offloadRr = 0
-        offloadGravity = 0; offloadResp = 0; offloadSkinTemp = 0; offloadSpo2 = 0
+        offloadGravity = 0; offloadResp = 0; offloadSkinTemp = 0; offloadSpo2 = 0; offloadChunks = 0
         linkUpSince = nil
 
         let timedOut = !intentionalDisconnect && error != nil
