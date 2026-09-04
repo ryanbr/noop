@@ -2382,6 +2382,10 @@ class WhoopRepository(
                 remMin = if (sleepFromFiller) filler.remMin else winner.remMin,
                 lightMin = if (sleepFromFiller) filler.lightMin else winner.lightMin,
                 disturbances = if (sleepFromFiller) filler.disturbances else winner.disturbances,
+                // Part of the SLEEP GROUP (#1801): it describes how the stage figures above were derived,
+                // so it moves with them. `copy()` would leave the WINNER's flag in place while the stages
+                // came from the filler — captioning one row's hypnogram with another row's staging.
+                sleepHrOnly = if (sleepFromFiller) filler.sleepHrOnly else winner.sleepHrOnly,
                 spo2Red = if (rawSpo2FromFiller) filler.spo2Red else winner.spo2Red,
                 spo2Ir = if (rawSpo2FromFiller) filler.spo2Ir else winner.spo2Ir,
                 // Independent columns: each stands alone, so a plain per-column fill is safe.

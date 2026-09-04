@@ -109,4 +109,18 @@ final class DailySkinTempAbsoluteCarryTests: XCTestCase {
         // The flag describes THOSE stage figures, so it travels with them rather than staying behind.
         XCTAssertEqual(merged.sleepHrOnly, true)
     }
+
+    /// The Swift twin of the Kotlin coalesce cases: the flag belongs to the sleep GROUP.
+    func testTheStagingFlagMovesWithTheSleepBlock() {
+        let winner = DailyMetric(day: "2026-09-03", restingHr: 55)
+        let filler = DailyMetric(day: "2026-09-03", totalSleepMin: 400, deepMin: 39,
+                                 remMin: 54, lightMin: 57, sleepHrOnly: true)
+        XCTAssertEqual(Repository.coalesceDay(winner, filler).sleepHrOnly, true)
+    }
+
+    func testAWinnerThatOwnsTheSleepBlockKeepsItsOwnStagingFlag() {
+        let winner = DailyMetric(day: "2026-09-03", totalSleepMin: 420, deepMin: 90, sleepHrOnly: false)
+        let filler = DailyMetric(day: "2026-09-03", totalSleepMin: 300, sleepHrOnly: true)
+        XCTAssertEqual(Repository.coalesceDay(winner, filler).sleepHrOnly, false)
+    }
 }

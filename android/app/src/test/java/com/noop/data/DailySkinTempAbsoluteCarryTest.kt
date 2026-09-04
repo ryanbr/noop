@@ -60,4 +60,28 @@ class DailySkinTempAbsoluteCarryTest {
         // And the deviation every downstream gate reads is untouched by carrying the absolute.
         assertEquals(0.2, merged.single().skinTempDevC!!, 1e-12)
     }
+
+    // MARK: - The HR-only staging flag rides the same seams (#1801)
+
+    @Test
+    fun `the staging flag moves with the sleep block, not independently`() {
+        // The winner has no sleep at all, so the sleep block comes from the filler — and the flag
+        // describing those stage figures has to come with them. `copy()` alone would leave the winner's
+        // null in place and caption the filler's hypnogram as if its staging were unknown.
+        val winner = DailyMetric(deviceId = "a", day = "2026-09-03", restingHr = 55)
+        val filler = DailyMetric(deviceId = "b", day = "2026-09-03", totalSleepMin = 400.0,
+            deepMin = 39.0, remMin = 54.0, lightMin = 57.0, sleepHrOnly = true)
+        assertEquals(true, WhoopRepository.coalesceDay(winner, filler).sleepHrOnly)
+    }
+
+    @Test
+    fun `a winner that owns the sleep block keeps its own staging flag`() {
+        // The reverse: the winner's stages win, so its staging answer must too — taking the filler's
+        // would describe one row's hypnogram with another row's provenance.
+        val winner = DailyMetric(deviceId = "a", day = "2026-09-03", totalSleepMin = 420.0,
+            deepMin = 90.0, sleepHrOnly = false)
+        val filler = DailyMetric(deviceId = "b", day = "2026-09-03", totalSleepMin = 300.0,
+            sleepHrOnly = true)
+        assertEquals(false, WhoopRepository.coalesceDay(winner, filler).sleepHrOnly)
+    }
 }
