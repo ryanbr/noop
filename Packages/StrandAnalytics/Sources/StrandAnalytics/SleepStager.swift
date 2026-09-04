@@ -674,9 +674,18 @@ public enum SleepStager {
                                                     hr: hrS, rr: rrS, resp: resp)
             staged += 1
             if stages.isEmpty { continue }
+            // #1884: MEASURED, not nilled. The bounds here are inferred from heart rate, which is why
+            // `hrOnly` marks the session — but each RMSSD is computed over its own 5-minute window tagged
+            // by the stage at its centre, so fuzzy bounds change WHICH windows are included, not whether
+            // any one of them is valid. A field log showed this path computing a stable 22-25ms deepOnly
+            // and discarding it, leaving Charge unscoreable. `hrOnly` still travels with the session, so
+            // it is a quality marker now rather than a delete. Kotlin twin: `SleepStager.hrOnlySessions`.
             out.append(SleepSession(start: p.start, end: p.end,
                                     efficiency: efficiency(start: p.start, end: p.end, stages: stages),
-                                    stages: stages, restingHR: nil, avgHRV: nil, hrOnly: true))
+                                    stages: stages,
+                                    restingHR: sessionRestingHR(start: p.start, end: p.end, hr: hrS),
+                                    avgHRV: sessionAvgHRV(start: p.start, end: p.end, rr: rrS),
+                                    hrOnly: true))
         }
         traceSink?(GateTrace.hrOnlyLine(
             anchorBpm: baseline,

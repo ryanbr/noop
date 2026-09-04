@@ -550,17 +550,23 @@ object AnalyticsEngine {
         // negligible shift. The Rest/sleep-quality term is main-night; the recovery physiology is
         // day-best-resting, night-dominated. Mirrors the Swift note in AnalyticsEngine.swift.
         // Daily resting HR = lowest per-session resting HR across matched sessions.
-        // #1801: the sessions whose PHYSIOLOGY may be folded into the day's aggregates. An HR-only night
-        // is excluded — it may describe its own duration, stages and Rest, but resting HR, HRV and SDNN
-        // are what Charge and the baselines are built from, and a baseline is the one thing a false
-        // positive cannot be unwound from.
+        // #1801/#1884: the sessions whose PHYSIOLOGY is folded into the day's aggregates. Motion-backed
+        // sessions are PREFERRED; an HR-only night is used only when the day has no other kind.
         //
-        // Named once rather than filtered at each use, because the null restingHR/avgHRV an HR-only
-        // session carries only protects the aggregates that READ those fields. The deep-window HRV pool
-        // and the SDNN index below re-derive from `rr` over the session's own stages and would have
-        // folded one in regardless — which is precisely the "one forgotten call site" a scattered filter
-        // invites.
-        val physiologySessions = matched.filter { !it.hrOnly }
+        // #1801 excluded HR-only nights outright, reasoning that a baseline is the one thing a false positive
+        // cannot be unwound from. #1884 narrowed that rather than reversing it: only the session BOUNDS are
+        // inferred from heart rate — each RMSSD is measured over its own 5-minute window — so excluding the
+        // night discarded a real 22-25ms HRV and left Charge with NO input instead of a slightly fuzzy one, on
+        // every scoring pass in the field log. Preferring keeps the original protection exactly where it earned its keep (a mixed
+        // day still ignores the HR-only night outright) and gives it up only where the alternative was
+        // nothing at all. The night still travels marked `hrOnly` for any consumer that wants to weigh it
+        // down; what it no longer gets is a silent delete.
+        //
+        // Named once rather than filtered at each use: the deep-window HRV pool and the SDNN index below
+        // re-derive from `rr` over each session's own stages instead of reading restingHR/avgHRV, so the
+        // only way to scope them is through the session set itself — which is precisely the "one forgotten
+        // call site" a scattered filter invites.
+        val physiologySessions = matched.filter { !it.hrOnly }.ifEmpty { matched }
         val restingHRDaily: Int? = physiologySessions.mapNotNull { it.restingHR }.minOrNull()
         // Daily avg HRV = in-bed-weighted mean of per-session avg HRV.
         val avgHRVDaily: Double? = if (deepHrvWindow) {

@@ -4,7 +4,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The display-only guarantee for an HR-only night (#1801), guarded at the level it actually fails.
+ * How an HR-only night reaches the day's physiology, guarded at the level it actually fails.
+ *
+ * #1801 made this an EXCLUSION: an HR-only night was kept out of every physiological aggregate. #1884
+ * made it a PREFERENCE, because the exclusion was discarding a computed HRV and leaving Charge with no
+ * input at all. The night is still marked `hrOnly` for anything that wants to weigh it down; what it no
+ * longer gets is a silent delete.
  *
  * A null `restingHR`/`avgHRV` only protects an aggregate that READS those fields. Two of the day's
  * physiological aggregates do not: the deep-window HRV pool and the SDNN index both re-derive from `rr`
@@ -40,7 +45,7 @@ class HrOnlyPhysiologyIsolationTest {
     }
 
     @Test
-    fun `the physiology set excludes HR-only nights`() {
+    fun `the physiology set prefers motion-backed nights and falls back rather than emptying`() {
         var root = java.io.File(System.getProperty("user.dir") ?: ".").canonicalFile
         val src = run {
             repeat(4) {
@@ -50,8 +55,18 @@ class HrOnlyPhysiologyIsolationTest {
             }
             error("AnalyticsEngine.kt not found — this test must not pass by default")
         }
-        assertTrue("physiologySessions must filter out hrOnly",
-            src.contains("val physiologySessions = matched.filter { !it.hrOnly }"))
+        // #1884 changed this from an exclusion to a PREFERENCE, and the old assertion could not tell the
+        // difference: it was a `contains` on a prefix, so appending `.ifEmpty { matched }` reversed the
+        // guarantee while the guard stayed green. Pin the whole expression, so the next change to it has
+        // to be deliberate rather than accidental.
+        assertTrue(
+            "physiologySessions must PREFER motion-backed sessions and fall back rather than emptying",
+            src.contains("val physiologySessions = matched.filter { !it.hrOnly }.ifEmpty { matched }"),
+        )
+        // The preference still has to exist: an aggregate that simply read `matched` would fold an
+        // HR-only night in even when a motion-backed one was available on the same day.
+        assertTrue("the hrOnly filter must survive the fallback",
+            src.contains("matched.filter { !it.hrOnly }"))
     }
 
     /**
