@@ -95,4 +95,32 @@ final class PiiRedactionTests: XCTestCase {
         XCTAssertEqual(LiveState.logSafeDeviceName("Polar OH1"), "Polar OH1")
     }
 
+
+    /// Field evidence (a 2026-09-05 staging log): serials beginning with a LETTER walked straight through
+    /// the old rule, which demanded a digit after "WHOOP ". Both spellings must mask.
+    func testMasksASerialWhateverCharacterItStartsWith() {
+        XCTAssertEqual(LiveState.redactPii("Discovered WHOOP MGB0779473 (rssi -48) - connecting"),
+                       "Discovered WHOOP <serial> (rssi -48) - connecting")
+        XCTAssertEqual(LiveState.redactPii("Discovered WHOOP 4C1594026 (rssi -63)"),
+                       "Discovered WHOOP <serial> (rssi -63)")
+        XCTAssertEqual(LiveState.redactPii("WHOOP 5AG0393796"), "WHOOP <serial>")
+    }
+
+    /// The digit requirement earns its keep here. "WHOOP PUFFIN service 1150" is a real diagnostic line
+    /// from the same log, and PUFFIN is six alnum characters - a length-only rule would mask it and
+    /// destroy the meaning of the line.
+    func testDoesNotMaskAWhoopPrefixedWord() {
+        let line = "WHOOP PUFFIN service 1150 detected but unsupported"
+        XCTAssertEqual(LiveState.redactPii(line), line)
+    }
+
+    /// A bare serial with no "WHOOP " in front of it is NOT covered here, and deliberately so: the only
+    /// rule that could catch it keys on shape alone and would mask ordinary prose. Discovery lines -
+    /// where this actually occurred - are handled at the call site by `logSafeDeviceName` instead.
+    func testABareSerialIsLeftToTheCallSiteNotGuessedAtHere() {
+        XCTAssertEqual(LiveState.redactPii("Discovered WBB5BP1174092 (rssi -64)"),
+                       "Discovered WBB5BP1174092 (rssi -64)")
+        XCTAssertEqual(LiveState.logSafeDeviceName("WBB5BP1174092"), "<name>")
+    }
+
 }

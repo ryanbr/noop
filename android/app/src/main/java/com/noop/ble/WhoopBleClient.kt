@@ -11233,10 +11233,18 @@ class WhoopBleClient(
 //     replace() threw IndexOutOfBoundsException("No group 3"), and the thrown exception aborted that
 //     strap's activation. The WHOOP path never hit it because it only ever logs "WHOOP <serial>", never
 //     a raw MAC, so the bug was invisible until a Polar H10 / other 0x180D strap was used.)
-//   • WHOOP serial: the device name carries it ("WHOOP 4C1594026"); the dotted model names ("WHOOP 4.0")
-//     are too short / dotted to match.
+//   • WHOOP serial: the device name carries it ("WHOOP 4C1594026"). This used to require a DIGIT straight
+//     after "WHOOP ", but real serials start with letters as often as digits - a field log had
+//     "WHOOP MGB0779473" sitting unredacted next to a masked "WHOOP 4C1594026". Any alnum run of 6+ that
+//     CONTAINS a digit now matches.
+//
+//     The digit requirement is what keeps this from eating words: "WHOOP PUFFIN service 1150" is a real
+//     diagnostic line and PUFFIN is six alnum characters. A serial always carries a digit; a word does
+//     not. The dotted model names ("WHOOP 4.0") stay untouched for a different reason - the dot ends the
+//     run at one character, short of the six the lookahead demands.
 private val PII_MAC_RE = Regex("([0-9A-Fa-f]{2}):[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:([0-9A-Fa-f]{2})")
-private val PII_WHOOP_SERIAL_RE = Regex("WHOOP (\\d[0-9A-Za-z]{5,})")
+private val PII_WHOOP_SERIAL_RE =
+    Regex("WHOOP (?=[0-9A-Za-z]{6,})[0-9A-Za-z]*[0-9][0-9A-Za-z]*")
 
 /**
  * The account holder's NAME, as WHOOP writes it into the advertised local name.

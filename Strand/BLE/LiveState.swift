@@ -898,8 +898,17 @@ public final class LiveState: ObservableObject {
         out = out.replacingOccurrences(
             of: "([0-9A-Fa-f]{2}):[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:([0-9A-Fa-f]{2})",
             with: "$1:••:••:••:••:$2", options: .regularExpression)
+        // #1193 field capture: the old rule required a DIGIT straight after "WHOOP ", but real serials
+        // start with letters as often as digits - "WHOOP MGB0779473" sat unredacted in a log attached to
+        // an issue while "WHOOP 4C1594026" beside it was masked. The rule now accepts any alnum run of 6+
+        // that CONTAINS a digit.
+        //
+        // The digit requirement is not decoration, it is what keeps this from eating words: "WHOOP PUFFIN
+        // service 1150" is a real diagnostic line, and PUFFIN is six alnum characters. A serial always
+        // carries a digit; a word does not. "WHOOP 4.0" stays untouched for a different reason - the dot
+        // stops the run at one character, short of the six the lookahead demands.
         out = out.replacingOccurrences(
-            of: "WHOOP (\\d[0-9A-Za-z]{5,})", with: "WHOOP <serial>", options: .regularExpression)
+            of: "WHOOP (?=[0-9A-Za-z]{6,})[0-9A-Za-z]*[0-9][0-9A-Za-z]*", with: "WHOOP <serial>", options: .regularExpression)
         // Mask a CoreBluetooth peripheral UUID, but NOT a standard-BLE / WHOOP-vendor service UUID.
         out = out.replacingOccurrences(
             of: "(?![0-9A-Fa-f]{8}-(?:0000-1000-8000-00805f9b34fb|8d6d-82b8-614a-1c8cb0f8dcc6))[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}",

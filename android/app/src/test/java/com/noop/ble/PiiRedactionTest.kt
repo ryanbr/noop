@@ -243,4 +243,38 @@ class PiiRedactionTest {
         assertEquals("Polar OH1", logSafeDeviceName("Polar OH1"))
     }
 
+
+    /**
+     * Field evidence (a 2026-09-05 staging log): serials beginning with a LETTER walked straight through
+     * the old rule, which demanded a digit after "WHOOP ". Both spellings must mask.
+     */
+    @Test fun `masks a serial whatever character it starts with`() {
+        assertEquals("Discovered WHOOP <serial> (rssi -48) - connecting",
+            redactStrapLogPii("Discovered WHOOP MGB0779473 (rssi -48) - connecting"))
+        assertEquals("Discovered WHOOP <serial> (rssi -63)",
+            redactStrapLogPii("Discovered WHOOP 4C1594026 (rssi -63)"))
+        assertEquals("WHOOP <serial>", redactStrapLogPii("WHOOP 5AG0393796"))
+    }
+
+    /**
+     * The digit requirement earns its keep here. "WHOOP PUFFIN service 1150" is a real diagnostic line
+     * from the same log, and PUFFIN is six alnum characters - a length-only rule would mask it and
+     * destroy the meaning of the line.
+     */
+    @Test fun `does not mask a WHOOP-prefixed WORD`() {
+        val line = "WHOOP PUFFIN service 1150 detected but unsupported"
+        assertEquals(line, redactStrapLogPii(line))
+    }
+
+    /**
+     * A bare serial with no "WHOOP " in front of it is NOT covered here, and deliberately so: the only
+     * rule that could catch it keys on shape alone and would mask ordinary prose. Discovery lines - where
+     * this actually occurred - are handled at the call site by [logSafeDeviceName] instead.
+     */
+    @Test fun `a bare serial is left to the call site, not guessed at here`() {
+        assertEquals("Discovered WBB5BP1174092 (rssi -64)",
+            redactStrapLogPii("Discovered WBB5BP1174092 (rssi -64)"))
+        assertEquals("<name>", logSafeDeviceName("WBB5BP1174092"))
+    }
+
 }
