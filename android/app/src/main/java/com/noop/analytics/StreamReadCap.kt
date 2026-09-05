@@ -74,6 +74,18 @@ object StreamReadCap {
     const val RR_ROWS_PER_SECOND = 2.0
 
     /**
+     * Gravity: one sample per second, like HR, and read over the SAME 54-hour window - the code's claim
+     * that "the other eight streams are thousands of rows" does not hold for this one. A field capture
+     * measured 192,698 gravity rows, 96% of the old shared cap.
+     *
+     * It is the most dangerous of the three, because it is a PLAIN read rather than a
+     * [SlidingStreamWindow]: nothing counts a truncation here, so a clip would be silent even by the
+     * standard that caught R-R. Sleep STAGING is what consumes it, so the cost of a clipped read is a
+     * mis-staged night rather than a slow one.
+     */
+    const val GRAVITY_ROWS_PER_SECOND = 1.0
+
+    /**
      * Headroom over a full window, so a legitimate read cannot land ON the cap and be mistaken for a
      * truncated one.
      */
@@ -93,4 +105,10 @@ object StreamReadCap {
 
     /** 583,200 - a full R-R window at its densest, plus half again. Stored for the reason [HR] gives. */
     val RR: Int = cap(RR_ROWS_PER_SECOND)
+
+    /**
+     * 291,600 - the same shape as [HR], for the same 54-hour window. Only the 54-hour read needs it; the
+     * day-scoped gravity reads span 24 hours and cannot approach any of these.
+     */
+    val GRAVITY: Int = cap(GRAVITY_ROWS_PER_SECOND)
 }

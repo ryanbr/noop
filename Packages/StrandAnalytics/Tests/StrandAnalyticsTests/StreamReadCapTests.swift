@@ -58,4 +58,14 @@ final class StreamReadCapTests: XCTestCase {
         XCTAssertEqual(StreamReadCap.hr, 291_600)
         XCTAssertEqual(StreamReadCap.rr, 583_200)
     }
+
+    /// Gravity is the third stream on the 54-hour window, and the field capture put it at 192,698 rows -
+    /// 96% of the old shared cap. Unlike HR and R-R it is a PLAIN read with no truncation counter, so a
+    /// clip there reports nothing at all; sleep staging simply gets a night missing its tail.
+    func testGravityClearsWhatTheFieldMeasured() {
+        let measuredInField = 192_698
+        XCTAssertGreaterThan(StreamReadCap.gravity, measuredInField)
+        XCTAssertGreaterThan(StreamReadCap.gravity, 200_000, "the old shared cap it sat 96% of")
+    }
+
 }

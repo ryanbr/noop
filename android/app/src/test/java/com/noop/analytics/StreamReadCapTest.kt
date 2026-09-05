@@ -69,4 +69,16 @@ class StreamReadCapTest {
         assertEquals(291_600, StreamReadCap.HR)
         assertEquals(583_200, StreamReadCap.RR)
     }
+
+    /**
+     * Gravity is the third stream on the 54-hour window, and the field capture put it at 192,698 rows -
+     * 96% of the old shared cap. Unlike HR and R-R it is a PLAIN read with no truncation counter, so a
+     * clip there reports nothing at all; sleep staging simply gets a night missing its tail.
+     */
+    @Test fun `gravity clears what the field measured`() {
+        val measuredInField = 192_698
+        assertTrue(StreamReadCap.GRAVITY > measuredInField)
+        assertTrue("the old shared cap it sat 96% of", StreamReadCap.GRAVITY > 200_000)
+    }
+
 }

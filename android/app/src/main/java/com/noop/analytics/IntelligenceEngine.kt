@@ -907,7 +907,7 @@ object IntelligenceEngine {
             val respRows = repo.respSamples(owner, from, to, STREAM_LIMIT)
             val resp = OuraRespScale.forScoring(respRows, owner)
             val vendorResp = OuraRespScale.forVendorRate(respRows, owner)
-            val grav = repo.gravitySamplesForDevice(owner, from, to, STREAM_LIMIT)
+            val grav = repo.gravitySamplesForDevice(owner, from, to, StreamReadCap.GRAVITY)
             val steps = repo.stepSamples(owner, from, to, STREAM_LIMIT)
             val skinReads = readDaySkinAndWristOff(
                 repo, owner, from, to, ownerSource, skinFamilyByOwner, skinWornToleranceByOwner,
