@@ -3427,7 +3427,11 @@ class WhoopBleClient(
 
     @SuppressLint("MissingPermission")
     private fun connectInternal(model: WhoopModel, userInitiated: Boolean) {
-        if (!whoopConnectAllowed("connect")) return
+        // #1881: only the SYSTEM path is gated. This class already draws that line — `connect()` is the
+        // user's explicit Connect button, `connectFromSystem()` is every automatic path — and the report's
+        // complaint is only ever about NOOP acting on its own. Gating both would have made the Connect
+        // button silently dead while DevicesScreen showed a "Reconnecting…" toast.
+        if (!userInitiated && !whoopConnectAllowed("connect-from-system")) return
         intentionalDisconnect = false
         // #1635: an explicit Connect is the user saying "try the handshake again" — the documented way out
         // of hello suppression, and the reason suppression is never a permanent verdict. Consumed by the
@@ -3514,7 +3518,7 @@ class WhoopBleClient(
                 scanning = false, whoop5Detected = false,
                 statusNote = "Connecting to your ${WhoopModel.WHOOP5_MG.displayName}…",
             ) }
-            connectToDevice(direct)
+            connectToDevice(direct, alreadyAuthorised = userInitiated)
             bondedDirectAttempt = true   // after connectToDevice: reset() must not clear it
             return
         }
@@ -3529,10 +3533,12 @@ class WhoopBleClient(
      * the fallback and the not-found timeout. Port of macOS BLEManager.startScan(for:allowFallback:).
      */
     @SuppressLint("MissingPermission")
+    /**
+     * No gate here, deliberately: the only callers are [connectInternal] — which gates the system path —
+     * and this method's own family-rotation timeout, which cannot start a scan that one of those did not.
+     * Gating here as well would block the user's explicit Connect.
+     */
     private fun startScan(model: WhoopModel, allowFallback: Boolean) {
-        // Without this the 4.0 <-> 5.0/MG rotation keeps the radio scanning indefinitely for a strap
-        // we would refuse to connect to anyway. Every connect site is gated independently.
-        if (!whoopConnectAllowed("scan")) return
         handler.removeCallbacks(scanFallbackRunnable)
         // Defensive: the normal auto-connect scan is NEVER a present-scan. Clearing the flag here means a
         // leaked wizard present-scan (e.g. the wizard was dismissed without stopWhoopScan) can't divert
@@ -5611,7 +5617,7 @@ class WhoopBleClient(
             _state.update { it.copy(statusNote = "Found $name, connecting…") }
             // Port of didDiscover: stop scanning, then connect to this peripheral.
             stopScan()
-            connectToDevice(device)
+            connectToDevice(device, alreadyAuthorised = true)   // #1881: a scan result is already authorised
         }
 
         override fun onScanFailed(errorCode: Int) {
@@ -6209,8 +6215,21 @@ class WhoopBleClient(
     }
 
     @SuppressLint("MissingPermission")
-    private fun connectToDevice(device: BluetoothDevice, autoConnect: Boolean = false) {
-        if (!whoopConnectAllowed("connect-to-device")) return
+    private fun connectToDevice(
+        device: BluetoothDevice,
+        autoConnect: Boolean = false,
+        /**
+         * #1881: true when the decision to connect was ALREADY authorised upstream — the user's explicit
+         * Connect, or a scan result, which can only exist because a gated-or-user scan is running. Every
+         * other caller is automatic (the radio-on re-arm, the reconnect backoff, launch auto-reconnect
+         * #67) and defaults to false, which is what the gate is for.
+         *
+         * Threaded rather than gated once upstream because, unlike Swift, these callers do NOT all funnel
+         * through a single system entry point.
+         */
+        alreadyAuthorised: Boolean = false,
+    ) {
+        if (!alreadyAuthorised && !whoopConnectAllowed("connect-to-device")) return
         // Reset per-connection state (mirrors the Swift flags cleared on connect/disconnect).
         reset()
         // Remember the device so a later dropout can reconnect straight to it (#61).

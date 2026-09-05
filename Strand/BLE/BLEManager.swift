@@ -1548,11 +1548,16 @@ public final class BLEManager: NSObject, ObservableObject {
     /// path schedules nothing afterwards, so the hammer loop cannot restart. A genuine bond still fully
     /// resets via the didWriteValueFor path, so a strap freed since the give-up self-heals.
     func connectFromSystem(model: WhoopModel = .persisted) {
+        // #1881: the gate belongs HERE, not in the shared `connectCore`. This file already draws the line
+        // the fix needs — `connect()` is the user's explicit Connect button, and every system-initiated
+        // path "MUST use connectFromSystem()" — and the report's complaint is only ever about NOOP acting
+        // on its own. Gating the shared core instead would have made the Connect button silently dead
+        // while the Devices screen showed a "Reconnecting…" toast.
+        guard whoopConnectAllowed("connect-from-system") else { return }
         connectCore(model: model)
     }
 
     private func connectCore(model: WhoopModel) {
-        guard whoopConnectAllowed("connect") else { return }
         intentionalDisconnect = false
         // Connection test mode: stamp when this connect attempt began so didConnect can report the connect
         // latency. A plain Date() assignment, no behaviour change; only read behind the .connection gate.
@@ -4593,10 +4598,10 @@ public final class BLEManager: NSObject, ObservableObject {
     /// `allowFallback` is true, schedule a one-shot rotation to the other WHOOP family after
     /// `scanFallbackDelaySeconds` of no discovery — recovers reconnect when the persisted preference is
     /// stale after an update/restore. Discovery/connect cancels the pending rotation. (PR#195)
+    /// No gate here, deliberately: the ONLY callers are `connectCore` — reached from the user's Connect or
+    /// from the already-gated `connectFromSystem` — and this method's own family-rotation timer, which
+    /// cannot start a scan that one of those did not. Gating here as well would block the user's Connect.
     private func startScan(for model: WhoopModel, allowFallback: Bool) {
-        // Not strictly required — every connect site is gated — but without it the 4.0 <-> 5.0/MG rotation
-        // keeps the radio scanning indefinitely for a strap we would refuse to connect to anyway.
-        guard whoopConnectAllowed("scan") else { return }
         cancelScanFallback()
         selectedModel = model
         reassembler = Reassembler(family: model.deviceFamily)
@@ -5368,7 +5373,8 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
             log("Discovered \(name) (\(peripheral.identifier)) — not the preferred strap; ignoring")
             return
         }
-        guard whoopConnectAllowed("discovered") else { return }
+        // No gate here for the same reason as `startScan`: reaching a discovery means a scan is running,
+        // and a scan only runs because the user asked or because the gated system entry allowed it.
         cancelScanFallback()
         persistSelectedModel(selectedModel)
         log("Discovered \(name) (rssi \(RSSI)) — connecting")
