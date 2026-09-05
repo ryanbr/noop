@@ -159,7 +159,13 @@ object IntelligenceEngine {
     /** Minimum HR samples in a day's window before it is worth scoring. */
     const val MIN_HR_SAMPLES: Int = 200
 
-    /** Read cap per stream read , matches the Swift 200_000 bound. */
+    /**
+     * Read cap for the SPARSE streams (aux, resp, gravity, skin temp), matching the Swift bound.
+     *
+     * NOT the two heavy streams any more: HR and R-R take their caps from [StreamReadCap], because one
+     * number sized for HR silently truncated R-R (#1538). Anything reading a stream dense enough to
+     * approach this bound belongs there too.
+     */
     const val STREAM_LIMIT: Int = 200_000
     internal const val PHYSIOLOGICAL_STEP_PAGE_SIZE: Int = 10_000
 
@@ -2687,14 +2693,14 @@ object IntelligenceEngine {
      *  element lambda nor the reader lambda counts against that method's bytecode budget, which the
      *  extraction next door exists to protect. */
     private fun hrReadWindow(repo: com.noop.data.WhoopRepository) =
-        SlidingStreamWindow<com.noop.data.HrSample>({ it.ts }, STREAM_LIMIT) { o, f, t ->
-            repo.hrSamplesForDevice(o, f, t, STREAM_LIMIT)
+        SlidingStreamWindow<com.noop.data.HrSample>({ it.ts }, StreamReadCap.HR) { o, f, t ->
+            repo.hrSamplesForDevice(o, f, t, StreamReadCap.HR)
         }
 
     /** The pass-1 R-R sliding read window. Same reason as [hrReadWindow] for living out here. */
     private fun rrReadWindow(repo: com.noop.data.WhoopRepository) =
-        SlidingStreamWindow<com.noop.data.RrInterval>({ it.ts }, STREAM_LIMIT) { o, f, t ->
-            repo.rrIntervalsForDevice(o, f, t, STREAM_LIMIT)
+        SlidingStreamWindow<com.noop.data.RrInterval>({ it.ts }, StreamReadCap.RR) { o, f, t ->
+            repo.rrIntervalsForDevice(o, f, t, StreamReadCap.RR)
         }
 
 
