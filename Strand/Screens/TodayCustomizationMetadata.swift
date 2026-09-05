@@ -78,6 +78,7 @@ extension DashboardCard {
         case .skinTemp, .calories: return StrandPalette.metricAmber
         case .sleep: return StrandPalette.restColor
         case .coupled: return StrandPalette.chargeColor
+        case .coach: return StrandPalette.accent
         }
     }
 }

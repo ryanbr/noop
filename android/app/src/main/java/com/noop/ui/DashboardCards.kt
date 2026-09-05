@@ -7,6 +7,7 @@ import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Favorite
@@ -64,7 +65,15 @@ enum class DashboardCard(
     // every other card it carries NO metric value of its own, it is a navigation row that opens the full
     // CoupledScreen. It is NOT in [defaultSelection], so a fresh install never shows it until the user adds
     // it via CUSTOMISE. Mirrors iOS DashboardCard.coupled (raw "coupled", byte-identical across OS).
-    COUPLED("coupled", R.string.today_card_coupled, R.string.today_card_coupled_subtitle, "", Icons.Filled.Hexagon);
+    COUPLED("coupled", R.string.today_card_coupled, R.string.today_card_coupled_subtitle, "", Icons.Filled.Hexagon),
+
+    // Optional, default-OFF (#1862): opens the Coach launcher BOTTOM SHEET rather than a screen — the one
+    // card that does. Coach is otherwise buried in More, and entering it means leaving Today. Like COUPLED
+    // it carries no metric value and is absent from [defaultSelection], so someone who does not use a
+    // provider never gains a fixed dashboard row for one. Opening the sheet makes NO provider request.
+    // Reuses the existing nav + Coach-screen strings, so the card adds nothing to translate.
+    // Mirrors iOS DashboardCard.coach (raw "coach", byte-identical across OS).
+    COACH("coach", R.string.nav_coach, R.string.l10n_coach_screen_ask_anything_about_your_recent_recovery_e6c287ca, "", Icons.AutoMirrored.Filled.Chat);
 
     companion object {
         fun fromRaw(raw: String?): DashboardCard? = entries.firstOrNull { it.raw == raw }

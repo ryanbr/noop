@@ -509,12 +509,13 @@ private fun ThinkingBubble() {
 
 // MARK: - Suggested prompts
 
-private val SUGGESTED_PROMPTS = listOf(
-    "How's my recovery trending this week?",
-    "Should I train hard or take it easy today?",
-    "Why might my HRV be low lately?",
-    "How can I improve my sleep?",
-)
+/**
+ * #1862: shared with the Today Coach launcher sheet — see [CoachPrompts].
+ *
+ * Two hardcoded lists would have drifted the moment either was edited, and the launcher's whole purpose
+ * is to be a shortcut INTO this screen rather than a second, subtly different Coach.
+ */
+internal val SUGGESTED_PROMPTS: List<String> get() = CoachPrompts.SUGGESTIONS
 
 @Composable
 private fun SuggestedPrompts(onPick: (String) -> Unit) {

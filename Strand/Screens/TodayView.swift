@@ -403,6 +403,9 @@ struct TodayView: View {
     @State private var showSettings = false
     @State private var showLiveSession = false
     /// The Updates inbox sheet (opened by the header bell). Shared across both platforms.
+    /// #1862: the optional Coach launcher sheet, opened from the default-OFF Coach dashboard card.
+    /// Presentation state only — nothing is requested from a provider by opening it.
+    @State private var showCoachLauncher = false
     @State private var showUpdatesInbox = false
 
     /// The NEWEST day-key (max yyyy-MM-dd in `repo.days`) announced to the inbox. Persisted (not @State)
@@ -1531,6 +1534,9 @@ struct TodayView: View {
             ScoringGuideView(onClose: { showGuideTop = false })
         }
         // The Updates inbox (the header bell). Both platforms.
+        .sheet(isPresented: $showCoachLauncher) {
+            CoachLauncherSheet()
+        }
         .sheet(isPresented: $showUpdatesInbox) {
             UpdatesInboxView(onClose: { showUpdatesInbox = false })
         }
@@ -2572,6 +2578,11 @@ struct TodayView: View {
             // coupled day screen. An empty value renders just the icon + title + subtitle + chevron.
             pinnedCardRow(icon: card.icon, tint: tint, title: card.title, subtitle: card.subtitle,
                           value: dashboardValue(card), route: .coupled)
+        case .coach:
+            // #1862: a SHEET, not a push — Coach is a thing you dip into and dismiss, and pushing it
+            // would take you off Today, which is the discoverability problem this card exists to solve.
+            pinnedCardActionRow(icon: card.icon, tint: tint, title: card.title, subtitle: card.subtitle,
+                                value: dashboardValue(card)) { showCoachLauncher = true }
         }
     }
 
@@ -2593,6 +2604,7 @@ struct TodayView: View {
         case .calories:    return StrandPalette.metricAmber
         case .hydration:   return StrandPalette.metricCyan
         case .coupled:     return StrandPalette.chargeColor
+        case .coach:       return StrandPalette.accent
         }
     }
 
@@ -2701,6 +2713,10 @@ struct TodayView: View {
             // A tap-through row with no metric value of its own, the row shows just the chevron. Returning
             // an empty string (not "—") renders no number and leaves it un-dimmed (it isn't a missing value).
             return ""
+        case .coach:
+            // #1862: likewise a launcher row. Empty rather than "—" for the same reason — there is no
+            // missing measurement here, there is no measurement at all.
+            return ""
         }
     }
 
@@ -2712,37 +2728,56 @@ struct TodayView: View {
     private func pinnedCardRow(icon: String, tint: Color, title: String, subtitle: String,
                                value: String, route: TabRoute) -> some View {
         NavigationLink(value: route) {
-            HStack(spacing: 12) {
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(tint.opacity(0.14))
-                    .frame(width: 34, height: 34)
-                    .overlay(Image(systemName: icon).font(.system(size: 15, weight: .semibold)).foregroundStyle(tint))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title.uppercased())
-                        .font(StrandFont.overline)
-                        .tracking(StrandFont.overlineTracking)
-                        .foregroundStyle(StrandPalette.textPrimary)
-                        .lineLimit(1)
-                    Text(subtitle)
-                        .font(StrandFont.footnote)
-                        .foregroundStyle(StrandPalette.textTertiary)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 8)
-                // A real number reads white; a placeholder (, / Calibrating) reads dimmed so it doesn't
-                // masquerade as a value.
-                let isPlaceholder = (value == "—" || value == Self.calibratingPlaceholder)
-                Text(value).font(StrandFont.rounded(18, weight: .semibold))
-                    .foregroundStyle(isPlaceholder ? StrandPalette.textTertiary : StrandPalette.textPrimary)
-                Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(StrandPalette.textTertiary)
-            }
-            .padding(.horizontal, 13).padding(.vertical, 11)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(FrostedCardSurface(cornerRadius: NoopMetrics.cardRadius))
-            .contentShape(Rectangle())
+            pinnedCardRowBody(icon: icon, tint: tint, title: title, subtitle: subtitle, value: value)
         }
         .buttonStyle(.plain)
+    }
+
+    /// The same row, but it runs `action` instead of pushing a route (#1862).
+    ///
+    /// Coach is the one dashboard card that opens a SHEET rather than a screen, so it cannot ride
+    /// `NavigationLink`. Both wrappers render `pinnedCardRowBody`, so the two kinds of row cannot drift
+    /// apart visually — which duplicating the HStack for one caller would have guaranteed eventually.
+    private func pinnedCardActionRow(icon: String, tint: Color, title: String, subtitle: String,
+                                     value: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            pinnedCardRowBody(icon: icon, tint: tint, title: title, subtitle: subtitle, value: value)
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func pinnedCardRowBody(icon: String, tint: Color, title: String, subtitle: String,
+                                   value: String) -> some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(tint.opacity(0.14))
+                .frame(width: 34, height: 34)
+                .overlay(Image(systemName: icon).font(.system(size: 15, weight: .semibold)).foregroundStyle(tint))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title.uppercased())
+                    .font(StrandFont.overline)
+                    .tracking(StrandFont.overlineTracking)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .lineLimit(1)
+                Text(subtitle)
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            // A real number reads white; a placeholder (, / Calibrating) reads dimmed so it doesn't
+            // masquerade as a value.
+            let isPlaceholder = (value == "—" || value == Self.calibratingPlaceholder)
+            Text(value).font(StrandFont.rounded(18, weight: .semibold))
+                .foregroundStyle(isPlaceholder ? StrandPalette.textTertiary : StrandPalette.textPrimary)
+            Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(StrandPalette.textTertiary)
+        }
+        .padding(.horizontal, 13).padding(.vertical, 11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(FrostedCardSurface(cornerRadius: NoopMetrics.cardRadius))
+        .contentShape(Rectangle())
     }
 
     // MARK: Component 2, explained score note (calibrating / carried / needs-strap)

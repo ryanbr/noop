@@ -34,12 +34,8 @@ struct CoachView: View {
     /// Sentinel tag for the "Custom…" entry in the model Picker.
     private let customModelTag = "__custom__"
 
-    private let suggestions = [
-        String(localized: "How's my charge trending?"),
-        String(localized: "What should today's training look like?"),
-        String(localized: "Analyse my sleep"),
-        String(localized: "Why am I run down?"),
-    ]
+    /// #1862: shared with the Today Coach launcher sheet — see `CoachPrompts`.
+    private var suggestions: [String] { CoachPrompts.suggestions }
 
     var body: some View {
         ScreenScaffold(title: "Coach",
@@ -81,6 +77,16 @@ struct CoachView: View {
             }
         }
         .task(id: coach.dataConsent) { await coach.startBriefIfNeeded() }
+        // #1862: a question handed over by the Today launcher sheet. Cleared BEFORE sending so a view
+        // rebuild mid-flight cannot send it twice, and gated on `isConfigured` so an unconfigured handoff
+        // (which the launcher does not produce, but a future caller might) degrades to showing setup
+        // rather than a failed request.
+        .task(id: coach.pendingPrompt) {
+            guard let prompt = coach.pendingPrompt, !prompt.isEmpty else { return }
+            coach.pendingPrompt = nil
+            guard coach.isConfigured else { return }
+            await coach.send(prompt)
+        }
     }
 
     /// Explicit, revocable permission for the coach to read & send the user's data. Off by default.

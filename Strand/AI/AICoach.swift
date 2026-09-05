@@ -162,6 +162,14 @@ final class AICoachEngine: ObservableObject {
     private var conversationDay: Int?
     @Published var sending = false
     @Published var errorText: String?
+
+    /// #1862: a question handed over by the Today Coach launcher sheet, for `CoachView` to send on appear.
+    ///
+    /// The launcher owns no send, stream, error or consent surface of its own — duplicating those is how a
+    /// second chat UI drifts from the first. It collects a question and hands it here; the Coach screen,
+    /// which already has all of that, consumes it exactly once and clears it. Nil is the normal state, and
+    /// setting it performs NO network work by itself.
+    @Published var pendingPrompt: String?
     @Published var provider: AIProvider {
         didSet {
             guard provider != oldValue else { return }

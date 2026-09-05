@@ -75,6 +75,8 @@ struct LiquidTodayView: View {
     // sheets / expanders
     @State private var guideSection: ScoreSection?
     @State private var customizationDestination: TodayCustomizationDestination?
+    /// #1862: the optional Coach launcher sheet. Presentation state only — opening it requests nothing.
+    @State private var showCoachLauncher = false
     @State private var showSettings = false
     @State private var synthesisExpanded = false
     @State private var showLiveSession = false
@@ -435,6 +437,9 @@ struct LiquidTodayView: View {
                 dashboardCardsRaw: $dashboardCardsRaw,
                 hostedCardsRaw: $hostedCardsRaw
             )
+        }
+        .sheet(isPresented: $showCoachLauncher) {
+            CoachLauncherSheet()
         }
         .sheet(isPresented: $showSettings) {
             NavigationStack {
@@ -987,6 +992,11 @@ struct LiquidTodayView: View {
             // A tap-through to the full Coupled day screen. No value.
             cardLink(.coupled, title: card.title, sub: card.subtitle,
                      value: "", tint: StrandPalette.chargeColor, frac: 0.6)
+        case .coach:
+            // #1862: a sheet rather than a push — the point of the card is to try Coach WITHOUT
+            // leaving Today.
+            cardAction(title: card.title, sub: card.subtitle, value: "",
+                       tint: StrandPalette.accent, frac: 0.5) { showCoachLauncher = true }
         }
     }
 
@@ -995,7 +1005,26 @@ struct LiquidTodayView: View {
     private func cardLink(_ route: TabRoute, title: String, sub: String,
                           value: String, tint: Color, frac: Double?) -> some View {
         NavigationLink(value: route) {
-            HStack(spacing: 12) {
+            cardLinkBody(title: title, sub: sub, value: value, tint: tint, frac: frac)
+        }
+        .buttonStyle(LiquidPressStyle())
+    }
+
+    /// The same row, running `action` instead of pushing (#1862). Coach is the one dashboard card that
+    /// opens a SHEET, so it cannot ride `NavigationLink`; sharing `cardLinkBody` keeps the two kinds of
+    /// row from drifting apart visually.
+    private func cardAction(title: String, sub: String, value: String, tint: Color, frac: Double?,
+                            action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            cardLinkBody(title: title, sub: sub, value: value, tint: tint, frac: frac)
+        }
+        .buttonStyle(LiquidPressStyle())
+    }
+
+    @ViewBuilder
+    private func cardLinkBody(title: String, sub: String, value: String,
+                              tint: Color, frac: Double?) -> some View {
+        HStack(spacing: 12) {
                 LiquidVessel(value: frac, tint: tint, animated: false).frame(width: 30, height: 30)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title.uppercased()).font(StrandFont.overlineScaled(11)).tracking(1.0)
@@ -1009,9 +1038,7 @@ struct LiquidTodayView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
-            .background(NoopPanelSurface(tint: tint, cornerRadius: 20, surfaceOpacity: cardOpacity))
-        }
-        .buttonStyle(LiquidPressStyle())
+        .background(NoopPanelSurface(tint: tint, cornerRadius: 20, surfaceOpacity: cardOpacity))
     }
 
     // MARK: - Synthesis (greeting + readiness pills + one-liner)
