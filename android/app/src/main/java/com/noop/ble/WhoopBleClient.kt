@@ -3242,8 +3242,15 @@ class WhoopBleClient(
      * SAME [onSerial] the 5/MG DIS read uses, so both families share one adoption path (#1193).
      */
     private fun noteHarvardSerial(serial: String) {
+        // Do NOT advance the gate without a listener. The gate confirms EXACTLY ONCE, so a confirmation
+        // delivered to a null [onSerial] is not deferred, it is lost for the lifetime of the process —
+        // every later sighting returns null because the value is already confirmed. And "no listener" is
+        // an ordinary state here, not a defensive hypothetical: [onSerial] is wired by AppViewModel, which
+        // is UI-scoped, while this client also runs under WhoopConnectionService with no UI alive. The
+        // 5/MG path survives the same hazard only because it re-offers its DIS serial on every connect.
+        val cb = onSerial ?: return
         val confirmed = harvardSerialGate.offer(serial) ?: return
-        onSerial?.invoke(confirmed)
+        cb.invoke(confirmed)
     }
 
     private var disSerial: String? = null

@@ -4864,6 +4864,13 @@ public final class BLEManager: NSObject, ObservableObject {
     /// #1193: a 4.0 hello serial arrived. Adopt only on the SECOND sighting of the same value — see
     /// `harvardSerialCandidate` for why a single sighting is not enough to act on destructively.
     private func noteHarvardSerial(_ serial: String) {
+        // Do NOT advance the gate before the store exists. The gate confirms EXACTLY ONCE, so a
+        // confirmation raised while `adoptWhoopSerialIdentity` would bail is not deferred, it is lost for
+        // the lifetime of the process — every later sighting returns nil because the value is already
+        // confirmed. The 5/MG path survives the same hazard only because it re-offers its DIS serial on
+        // every connect; a once-only gate has no such second chance, so it must not consume a sighting it
+        // cannot act on. Kotlin twin guards its own missing dependency the same way.
+        guard registryStore != nil else { return }
         guard let confirmed = harvardSerialGate.offer(serial) else { return }
         harvardSerialConfirmed = confirmed
         adoptWhoopSerialIdentity()
