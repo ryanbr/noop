@@ -22,15 +22,22 @@ final class DayCycleTests: XCTestCase {
         XCTAssertEqual(active.startInclusive, sleep.startInclusive)
     }
 
-    /// The 18-hour fallback rule, which the Kotlin twin
-    /// (`DayCycleResolverTest.fallbackUsesTheFirstMidnightAtLeastEighteenHoursAfterOnset`) pinned and this
-    /// side did not. It is a shared numeric contract with a branch that is easy to get subtly wrong: the
-    /// first midnight at least `minSyntheticMidnightAgeSeconds` after onset, rolling to the NEXT one when
-    /// that midnight falls short. A 23:00 onset is the case that exercises the roll — midnight is one hour
-    /// later, well inside 18 h, so the answer is the midnight after that.
-    func testFallbackUsesTheFirstMidnightAtLeastEighteenHoursAfterOnset() {
-        let monday2300 = 23 * 3_600
-        XCTAssertEqual(DayCycleResolver.fallbackMidnight(after: monday2300, offsetSec: 0), 2 * 86_400)
+    /// Both branches of the 18-hour fallback rule, which neither platform pinned.
+    ///
+    /// `fallbackMidnight` returns the first midnight at least `minSyntheticMidnightAgeSeconds` after onset.
+    /// Because the candidate is `floor(minimum / day) * day`, it is at or BELOW `minimum` always — so the
+    /// direct branch is reachable only on exact equality, when onset sits precisely 18 h before a midnight.
+    /// Every existing case here and on Kotlin used an onset that rolls, so a `>=` quietly weakened to `>`
+    /// would have moved that boundary a full day and nothing would have failed.
+    func testFallbackTakesTheMidnightExactlyEighteenHoursAfterOnset() {
+        // 06:00 + 18 h lands exactly on the next midnight: taken directly, not rolled past.
+        XCTAssertEqual(DayCycleResolver.fallbackMidnight(after: 6 * 3_600, offsetSec: 0), 86_400)
+    }
+
+    /// The rolling branch at a different onset from the case above, so the two are not the same test twice.
+    func testFallbackRollsWhenTheNextMidnightIsTooSoon() {
+        // 23:00 + 18 h overshoots the next midnight, so the one after it wins.
+        XCTAssertEqual(DayCycleResolver.fallbackMidnight(after: 23 * 3_600, offsetSec: 0), 2 * 86_400)
     }
 
     func testAbsoluteCapStillUsesSyntheticMidnight() {

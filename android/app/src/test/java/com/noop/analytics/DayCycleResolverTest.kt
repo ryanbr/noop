@@ -9,9 +9,20 @@ class DayCycleResolverTest {
         assertEquals(DayCycleMode.SLEEP_ONSET, DayCycleMode.fromPersisted("unknown"))
     }
 
-    @Test fun fallbackUsesTheFirstMidnightAtLeastEighteenHoursAfterOnset() {
+    @Test fun fallbackRollsWhenTheNextMidnightIsTooSoon() {
+        // 23:00 + 18 h overshoots the next midnight, so the one after it wins.
         val monday2300 = 23 * 3_600L
         assertEquals(2 * 86_400L, DayCycleResolver.fallbackMidnightAfter(monday2300, 0))
+    }
+
+    /**
+     * The other branch, which neither platform pinned. The candidate midnight is
+     * `floorDiv(minimum, day) * day`, so it is at or BELOW `minimum` always — the direct branch is
+     * reachable only on exact equality, when onset sits precisely 18 h before a midnight. Every other
+     * case here rolls, so a `>=` quietly weakened to `>` would move this boundary a full day unseen.
+     */
+    @Test fun fallbackTakesTheMidnightExactlyEighteenHoursAfterOnset() {
+        assertEquals(86_400L, DayCycleResolver.fallbackMidnightAfter(6 * 3_600L, 0))
     }
 
     @Test fun allNighterStaysOpenUntilTheAbsoluteCap() {
