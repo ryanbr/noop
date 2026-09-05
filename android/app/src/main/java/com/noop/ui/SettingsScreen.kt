@@ -1707,12 +1707,6 @@ fun SettingsScreen(
             }
         }
 
-        // --- Background image (#custom-background) ---
-        // An optional custom photo drawn full-bleed behind EVERY tab (including More), in place of the
-        // day-cycle sky (precedence: image > sky > flat canvas). Pick from Photos or Browse the files; the
-        // image is downscaled + kept on this phone only (NOOP is offline, so it's never uploaded), and left
-        // out of the .noopbak backup like the avatar. Reads BackgroundImageStore snapshot state, so the
-        // controls + the live backdrop update the instant an image is set, removed, or re-scaled.
         // The bar's own card. These four options are all about one piece of app-shell chrome, and living
         // among the theme controls in Appearance meant two of them sat between unrelated rows while the
         // other two had nowhere to go. Grouped, the size and transparency read as what they are: choices
@@ -1805,6 +1799,12 @@ fun SettingsScreen(
                 )
             }
         }
+        // --- Background image (#custom-background) ---
+        // An optional custom photo drawn full-bleed behind EVERY tab (including More), in place of the
+        // day-cycle sky (precedence: image > sky > flat canvas). Pick from Photos or Browse the files; the
+        // image is downscaled + kept on this phone only (NOOP is offline, so it's never uploaded), and left
+        // out of the .noopbak backup like the avatar. Reads BackgroundImageStore snapshot state, so the
+        // controls + the live backdrop update the instant an image is set, removed, or re-scaled.
         SettingsCard(
             icon = Icons.Outlined.Image,
             title = "Background image",
