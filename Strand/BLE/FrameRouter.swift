@@ -329,7 +329,7 @@ public final class FrameRouter {
                     // an exportable log. Three characters is enough to tell two packs apart, which is all a
                     // diagnostic needs.
                     state.append(log: "[pack] present=\(info.present) soc=\(soc) "
-                                 + "serial=\(WhoopSerialIdentity.logSafe(info.serial)) "
+                                 + "serial=\(WhoopSerialIdentity.logSafe(serial: info.serial)) "
                                  + "displayable=\(info.displayable) (#1303)")
                 } else {
                     state.append(log: "[pack] cmd 151 replied but did not decode — offsets may have moved")
