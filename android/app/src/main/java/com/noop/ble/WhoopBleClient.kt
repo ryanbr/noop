@@ -443,6 +443,11 @@ class WhoopBleClient(
      * ("my-whoop") — which matches the Swift default and the rest of the Android app, so behaviour
      * is unchanged today while the registry takes over as the single source of the active id.
      *
+     * `@Volatile` because #1881 added a SECOND cross-thread writer: [adoptSourceIdentity] resolves the
+     * connected strap's row on [ioScope] (the Room registry read is `suspend`) and re-points from there,
+     * while the persist sites read this on the BLE handler thread. Without it that thread could keep
+     * reading the pre-connect value and file the link's rows under the wrong device — the exact bug.
+     *
      * MUTABLE (multi-WHOOP, MW-3): [setActiveDeviceId] re-points it so a WHOOP→WHOOP switch attributes
      * new samples to the newly-active WHOOP immediately, without waiting for a relaunch. The single-WHOOP
      * path NEVER reassigns it (the coordinator only calls [setActiveDeviceId] for a non-legacy WHOOP), so
@@ -450,6 +455,7 @@ class WhoopBleClient(
      * sites + the analyze pass read this field directly; the [Backfiller] captured its own copy at
      * construction, so [setActiveDeviceId] re-points that too (see there).
      */
+    @Volatile
     private var deviceId: String = DEFAULT_DEVICE_ID,
     /** Durable trim-cursor store for the offload safe-trim watermark (see [Backfiller]). */
     private val cursorStore: TrimCursorStore = PrefsTrimCursorStore(context),
@@ -3925,6 +3931,13 @@ class WhoopBleClient(
      * Conservative by construction: only ever moves the id to a row that is BOTH a WHOOP and matched by
      * address. No registry, no match (the legacy single-WHOOP row before it has adopted an address), a
      * non-WHOOP match, or an id already correct all leave it alone.
+     *  - the matched row is already the current id -> no write.
+     *
+     * Known narrow residual: the disconnect path flushes buffered live rows best-effort, and the persist
+     * sites read [deviceId] at PERSIST time — so a flush still in flight when the next link re-points the
+     * id would attribute the previous link's tail to the new strap. It needs a re-point to happen at all,
+     * which only occurs when the resolved row differs from the current id: never on a settled
+     * single-WHOOP install. Swift twin carries the same note.
      */
     private fun adoptSourceIdentity(address: String?) {
         val addr = address ?: return

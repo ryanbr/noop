@@ -1993,6 +1993,15 @@ public final class BLEManager: NSObject, ObservableObject {
     ///     on this same connect, so the following one resolves.
     ///   • the matched row is not a WHOOP → leave it alone; nothing else reaches this delegate.
     ///   • already correct → no write.
+    ///
+    /// Known narrow residual: the disconnect handler flushes buffered 0x2A37 HR in a deliberately
+    /// fire-and-forget `Task`, and the Collector reads `deviceId` at PERSIST time — so a flush still in
+    /// flight when the next link re-points the id would attribute the previous link's tail to the new
+    /// strap. It needs a re-point to happen at all, which only occurs when the resolved row differs from
+    /// the current id: never on a settled single-WHOOP install. In the reported case the move is from the
+    /// ring to the strap, and those buffered rows are the STRAP's, so the new attribution is the correct
+    /// one. The genuinely wrong case is two WHOOPs where A's tail lands on B — a pre-existing hazard of
+    /// `setActiveDeviceId`, which the coordinator already calls on a WHOOP→WHOOP switch.
     private func adoptSourceIdentity(for peripheral: CBPeripheral) {
         guard let registry = registryStore, let rows = try? registry.all() else { return }
         guard let resolved = SourceIdentity.resolve(address: peripheral.identifier.uuidString,
