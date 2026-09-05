@@ -149,4 +149,41 @@ class PiiRedactionTest {
             assertTrue("must return a value, got null", out.isNotEmpty() || s.isEmpty())
         }
     }
+
+    /**
+     * The account holder's name, which WHOOP writes into the advertised local name and the scan path
+     * logs on every discovery. Nothing here could see it before: the other rules key on MAC shape, a
+     * "WHOOP " + digit serial, or a "whoop-" id. Swift twin in `PiiRedactionTests`.
+     */
+    @Test fun personalNameInDiscoveryLineIsRedacted() {
+        assertEquals(
+            "Discovered <name>'s Whoop (rssi -55) - connecting",
+            redactStrapLogPii("Discovered Ryan's Whoop (rssi -55) - connecting"),
+        )
+    }
+
+    /** Apple platforms write U+2019 into default device names, so the straight quote is not enough. */
+    @Test fun curlyApostropheNameIsRedacted() {
+        assertEquals(
+            "Discovered <name>\u2019s Whoop (rssi -55)",
+            redactStrapLogPii("Discovered Ryan\u2019s Whoop (rssi -55)"),
+        )
+    }
+
+    /** The MODEL after the possessive is diagnostic and identifies nobody, so it must survive. */
+    @Test fun modelSurvivesNameRedaction() {
+        assertEquals("<name>'s WHOOP 4.0", redactStrapLogPii("Ryan's WHOOP 4.0"))
+    }
+
+    /** The documented gap, pinned so it is visible rather than assumed: ONE token before the possessive. */
+    @Test fun multiTokenNameKeepsTheLeadingToken() {
+        assertEquals("Ryan <name>'s Whoop", redactStrapLogPii("Ryan B's Whoop"))
+    }
+
+    /** The rule must not touch ids or ordinary text that merely contain "whoop". */
+    @Test fun nameRuleLeavesIdsAndPlainTextAlone() {
+        assertEquals("my-whoop and my-whoop-noop", redactStrapLogPii("my-whoop and my-whoop-noop"))
+        assertEquals("no pii here", redactStrapLogPii("no pii here"))
+    }
+
 }

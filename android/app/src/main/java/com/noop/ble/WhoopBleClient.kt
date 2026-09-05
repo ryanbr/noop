@@ -11193,6 +11193,26 @@ private val PII_MAC_RE = Regex("([0-9A-Fa-f]{2}):[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[
 private val PII_WHOOP_SERIAL_RE = Regex("WHOOP (\\d[0-9A-Za-z]{5,})")
 
 /**
+ * The account holder's NAME, as WHOOP writes it into the advertised local name.
+ *
+ * WHOOP names a strap "<FirstName>'s Whoop" by default, and the scan path logs that name on every
+ * discovery, so the shareable strap log (#445) — the file we ask people to attach to public issues —
+ * carried a real person's name on both platforms. No other rule here could see it: they all key on
+ * MAC shape, a "WHOOP " + digit serial, or a "whoop-" id.
+ *
+ * Keeps the possessive and whatever follows it, so "Ryan's WHOOP 4.0" becomes "<name>'s WHOOP 4.0" and
+ * the MODEL survives — that part is diagnostic and identifies nobody. Matches a curly apostrophe too:
+ * Apple platforms write U+2019 into default device names, so a straight-quote-only rule would miss the
+ * iOS half of the logs entirely.
+ *
+ * LIMITATION, deliberate: exactly ONE token before the possessive. "Ryan B's Whoop" keeps "Ryan". A
+ * multi-token rule cannot tell a name apart from the surrounding log text and would eat "Discovered"
+ * along with it, mangling the line. This covers WHOOP's default naming, which is what the logs contain;
+ * a fully custom name with no possessive is not detectable here and stays a known gap.
+ */
+private val PII_DEVICE_NAME_RE = Regex("[\\p{L}\\p{N}_.\\-]+(['\u2019]s\\s+(?i:whoop))")
+
+/**
  * #1303: a device id that has ADOPTED its strap serial (`whoop-<SERIAL>`) is a device identifier in every
  * line that prints an id — the Devices list, each `dayOwner`, the per-source counts. Neither existing rule
  * catches it: [PII_MAC_RE] wants MAC shape, and [PII_WHOOP_SERIAL_RE] wants the literal word "WHOOP "
@@ -11402,6 +11422,9 @@ internal fun redactStrapLogPii(s: String): String = try {
         // for an adopted id. The -noop form runs before the general one so the sibling suffix survives.
         .replace(PII_ADOPTED_ID_NOOP_RE, "whoop-$1…$2")
         .replace(PII_ADOPTED_ID_RE, "whoop-$1…")
+        // Last: the name rule keys on literal text no earlier rule produces or consumes, so it neither
+        // masks a substitution marker nor depends on one.
+        .replace(PII_DEVICE_NAME_RE, "<name>$1")
 } catch (t: Throwable) {
     "[redaction error - line withheld]"
 }
