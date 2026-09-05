@@ -1147,22 +1147,48 @@ struct LiquidTodayView: View {
                         Text(line).font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
                     }
                 }
+                // #706/#684: the same trends the HRV / Resting HR / Respiratory dashboard cards push. These
+                // rows show the SAME three vitals and had no way through, so this card was the one place on
+                // Today where a metric was a dead end. Routes taken from `liquidCard`'s own cases so the two
+                // surfaces cannot send the same vital to different trends.
                 vitalRow(String(localized: "Heart-rate variability"), unitText(hrv, "ms"),
-                         StrandPalette.metricCyan, fracOver(hrv, 120))
+                         StrandPalette.metricCyan, fracOver(hrv, 120), route: .metric("hrv"))
                 vitalRow(String(localized: "Resting heart rate"), unitText(rhr, "bpm"),
-                         StrandPalette.metricRose, fracOver(rhr, 100))
+                         StrandPalette.metricRose, fracOver(rhr, 100), route: .metric("rhr"))
                 vitalRow(String(localized: "Breaths per minute"), unitText(resp, "rpm", decimals: 1),
-                         StrandPalette.accent, fracOver(resp, 24))
+                         StrandPalette.accent, fracOver(resp, 24), route: .metric("resp_rate"))
             }
         }
     }
 
-    private func vitalRow(_ label: String, _ value: String, _ tint: Color, _ frac: Double?) -> some View {
+    /// A recovery-vital row, optionally pushing its own metric trend.
+    ///
+    /// `route: nil` renders exactly what shipped before - no link, no chevron - so a row that goes nowhere
+    /// never claims otherwise. `LiquidPressStyle` is not decoration: a bare `NavigationLink` applies the
+    /// default link chrome and would tint the whole row, which is the same reason `cardLink` carries it.
+    private func vitalRow(_ label: String, _ value: String, _ tint: Color, _ frac: Double?,
+                          route: TabRoute? = nil) -> some View {
+        Group {
+            if let route {
+                NavigationLink(value: route) { vitalRowBody(label, value, tint, frac, linked: true) }
+                    .buttonStyle(LiquidPressStyle())
+            } else {
+                vitalRowBody(label, value, tint, frac, linked: false)
+            }
+        }
+    }
+
+    private func vitalRowBody(_ label: String, _ value: String, _ tint: Color, _ frac: Double?,
+                              linked: Bool) -> some View {
         HStack(spacing: 12) {
             LiquidVessel(value: frac, tint: tint, animated: false).frame(width: 26, height: 26)
             Text(label).font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)
             Spacer()
             Text(value).font(StrandFont.number(15)).foregroundStyle(StrandPalette.textPrimary)
+            if linked {
+                Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(StrandPalette.textTertiary)
+            }
         }
     }
 
