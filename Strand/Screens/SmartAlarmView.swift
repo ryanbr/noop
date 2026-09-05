@@ -1,10 +1,5 @@
 import SwiftUI
 import StrandDesign
-#if os(iOS)
-import UIKit
-#elseif os(macOS)
-import AppKit
-#endif
 
 /// Smart alarm (#207) — the iOS/macOS surface.
 ///
@@ -56,25 +51,11 @@ struct SmartAlarmView: View {
             }
         }
         .alert(String(localized: "Notifications are off"), isPresented: $showNotifDeniedAlert) {
-            Button(String(localized: "Open Settings")) { Self.openNotificationSettings() }
+            Button(String(localized: "Open Settings")) { NotificationPresenter.openSystemSettings() }
             Button(String(localized: "Not now"), role: .cancel) {}
         } message: {
             Text("Turn on notifications for NOOP in Settings to get your wind-down reminder.")
         }
-    }
-
-    /// Deep-link to the OS notification settings so a user who denied can flip it back on — the system
-    /// permission dialog only appears once, so Settings is the only recovery path.
-    private static func openNotificationSettings() {
-        #if os(iOS)
-        if let url = URL(string: UIApplication.openSettingsURLString) {
-            UIApplication.shared.open(url)
-        }
-        #elseif os(macOS)
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.notifications") {
-            NSWorkspace.shared.open(url)
-        }
-        #endif
     }
 
     // A small Rest-tinted hero — the wind-down readout as a clean time pairing (wind-down → wake)

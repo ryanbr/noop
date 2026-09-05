@@ -30,6 +30,10 @@ struct AutomationsView: View {
     /// from the BLE offload path (BLEManager.maybeBuzzInactivity → the shipped SedentaryDetector); this
     /// screen only edits the prefs the engine reads.
     @StateObject private var inactivity = InactivityPrefs()
+    /// Shown when the user flips "Battery alerts" on but notifications are denied at the OS level —
+    /// the alert can never fire, so we revert the switch and point them to Settings instead of
+    /// failing silently. Mirrors `SmartAlarmView`'s wind-down recovery alert.
+    @State private var showNotifDeniedAlert = false
     #if os(iOS)
     /// Wrist-alerts master gate (PR #572). On iOS the NotificationSettingsView (and its store) are
     /// excluded by project.yml, so `notif.masterEnabled` — the key SedentaryDetector + the wrist-buzz
@@ -69,6 +73,12 @@ struct AutomationsView: View {
             healthInsightsCard
             batteryCard
             strainTargetCard
+        }
+        .alert(String(localized: "Notifications are off"), isPresented: $showNotifDeniedAlert) {
+            Button(String(localized: "Open Settings")) { NotificationPresenter.openSystemSettings() }
+            Button(String(localized: "Not now"), role: .cancel) {}
+        } message: {
+            Text("Turn on notifications for NOOP in Settings to get your battery alerts.")
         }
     }
 
@@ -410,12 +420,38 @@ struct AutomationsView: View {
                       help: String(localized: "A reminder to recharge before bed when the strap drops to 15%, and a heads-up when it reaches 100%, each at most once per charge cycle."),
                       isOn: $behavior.batteryAlerts)
                 .onChangeCompat(of: behavior.batteryAlerts) { on in
-                    if on { BatteryNotifier.requestAuthorization() }
+                    guard on else { return }
+                    BatteryNotifier.ensureAuthorized { outcome in
+                        if outcome == .denied {
+                            // The OS won't deliver — don't leave the switch lying about being on.
+                            // This is a direct reaction to the user's own flip, so (unlike the
+                            // first-appearance check below) surface the recovery alert here.
+                            behavior.batteryAlerts = false
+                            showNotifDeniedAlert = true
+                        }
+                    }
                 }
             if behavior.batteryAlerts {
                 ToggleRow(label: String(localized: "Predictive runtime warning"),
                           help: String(localized: "An early \"recharge tonight\" heads-up when the strap has about a day of estimated runtime left, at most once per discharge cycle. Turn off to keep only the 15% warning."),
                           isOn: $behavior.batteryPredictiveAlerts)
+            }
+        }
+        // "Battery alerts" defaults ON (#368), so a fresh install has no on/off TRANSITION to hook
+        // the system prompt off of — the `onChangeCompat` above only fires on a genuine flip, never
+        // on the toggle's already-true initial value. That silence is the actual root cause of
+        // "never seen a single notification, including low-battery": permission was never asked, so
+        // `BatteryNotifier.post()` quietly no-ops on every crossing, forever. Ask once, defensively,
+        // the first time this card appears while alerts are (already) on — a settings-screen moment,
+        // not an app-launch ambush — so the prompt still appears somewhere. No extra alert on denial
+        // here: the user hasn't taken an explicit action on this control, so silently reflecting
+        // reality (toggle off) is the non-naggy choice; the loud recovery alert stays reserved for
+        // the direct-flip path above. Re-running on every appearance is harmless — the OS is never
+        // re-prompted once answered (see `BatteryNotifier.decision(for:)`).
+        .task {
+            guard behavior.batteryAlerts else { return }
+            BatteryNotifier.ensureAuthorized { outcome in
+                if outcome == .denied { behavior.batteryAlerts = false }
             }
         }
     }
