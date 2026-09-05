@@ -3216,6 +3216,36 @@ class WhoopBleClient(
      * when reading a capture where iOS shows the adoption line and Android does not.
      */
     var onSerial: ((String) -> Unit)? = null
+    /**
+     * #1193: the WHOOP 4.0 strap serial from `GET_HELLO_HARVARD`, once it has been seen TWICE.
+     *
+     * The 5/MG adopts its DIS serial on first read, because `0x2A25` is a spec-defined field that means
+     * one thing. The 4.0 offset is not that: it was read off a single capture, so "the 9-char alnum run at
+     * offset 14" is a strong inference rather than a documented field. If that run turned out to be
+     * per-session rather than per-strap, adopting it immediately would mint a NEW id on every connect and
+     * migrate the history each time — strictly worse than the duplicate row this exists to prevent.
+     *
+     * So a value must repeat before it is trusted. Two hellos carrying the same run cannot both be a fresh
+     * per-session token, which is the only failure mode that would do real damage. The cost is that a 4.0
+     * adopts one connect later than a 5/MG; the benefit is that the destructive failure cannot happen at
+     * all. Deliberately NOT cleared on disconnect — the two sightings are meant to span connects.
+     *
+     * The withholding rule itself lives in [com.noop.protocol.RepeatedSerialGate], beside the decoder,
+     * where it is unit tested; this pair is just the client's view of its outcome.
+     */
+    private val harvardSerialGate = com.noop.protocol.RepeatedSerialGate()
+    private var harvardSerialConfirmed: String? = null
+
+    /**
+     * A 4.0 hello serial arrived. Adopt only on the SECOND sighting of the same value, then hand it to the
+     * SAME [onSerial] the 5/MG DIS read uses, so both families share one adoption path (#1193).
+     */
+    private fun noteHarvardSerial(serial: String) {
+        val confirmed = harvardSerialGate.offer(serial) ?: return
+        harvardSerialConfirmed = confirmed
+        onSerial?.invoke(confirmed)
+    }
+
     private var disSerial: String? = null
     private var disHwRev: String? = null
     /** DIS 0x2A24, the strap's own model number — the authoritative variant signal (#520). */
@@ -7420,9 +7450,14 @@ class WhoopBleClient(
                 // falls outside and is withheld inside the probe rather than by this caller.
                 // knownNameOffset = -1 because 16 is the 5/MG device-name offset and means nothing in a
                 // cmd-35 payload. Log-only; decodes/persists nothing. Twin of the Swift FrameRouter probe.
-                if (connectedFamily == DeviceFamily.WHOOP4 && respCmd?.startsWith("GET_HELLO_HARVARD") == true &&
-                    testCentre.active(com.noop.testcentre.TestDomain.CONNECTION)) {
+                if (connectedFamily == DeviceFamily.WHOOP4 && respCmd?.startsWith("GET_HELLO_HARVARD") == true) {
                     val helloPay = whoop4CommandResponsePayload(frame) ?: ByteArray(0)
+                    // #1193: the identity read is UNGATED, unlike the probe below it. Adoption has to work
+                    // for every 4.0 user, and Test Centre is off for almost all of them — gating it would
+                    // ship a stable id only to the people already debugging. The decoder reads a fixed
+                    // 9-byte window and can never reach the device key beside it.
+                    com.noop.protocol.Whoop4HelloSerial.decode(helloPay)?.let { noteHarvardSerial(it) }
+                    if (testCentre.active(com.noop.testcentre.TestDomain.CONNECTION)) {
                     log(
                         com.noop.protocol.HelloIdentityProbe.report(
                             helloPay,
@@ -7430,6 +7465,7 @@ class WhoopBleClient(
                             knownNameOffset = -1,
                         ) + " — locate the strap serial offset (#1303)",
                     )
+                    }
                 }
                 // #1303: the 5/MG half of the same hunt. The 4.0 aid above is 4.0-only — correctly, since
                 // a 5/MG never answers cmd 35 — so this family had no capture at all, and it needs one

@@ -10,6 +10,11 @@ public final class FrameRouter {
     private let state: LiveState
     /// Called when the strap pushes an EVENT packet (WHOOP's strap-as-clock catch-up signal). The
     /// BLEManager wires this to a rate-limited requestSync(.strap). nil in pure/unit contexts.
+    /// #1193: the WHOOP 4.0 strap serial, decoded from the `GET_HELLO_HARVARD` (35) response. A 4.0 has
+    /// no DIS serial, so this is its only stable identity — see `Whoop4HelloSerial`. Fires on every hello;
+    /// the manager decides whether it is confirmed enough to adopt.
+    var onStrapSerial: ((String) -> Void)?
+
     var onSyncTrigger: (() -> Void)?
     /// #1706: which strap this connection is talking to, so an alarm readback can be attributed to a
     /// device. Set per connection by BLEManager immediately AFTER `family`, whose didSet clears this —
@@ -269,7 +274,7 @@ public final class FrameRouter {
                     let r = Self.commandResultByte(in: frame)
                     let rhex = r.map { String(format: "0x%02x", UInt8(truncatingIfNeeded: $0)) } ?? "none"
                     state.append(log: "Alarm: strap answered the arm (SET_ALARM_TIME) with result=\(rhex) — log-only, 4.0 result-code meaning unverified")
-                } else if cmd.hasPrefix("GET_HELLO_HARVARD"), TestCentre.active(.connection) {
+                } else if cmd.hasPrefix("GET_HELLO_HARVARD") {
                     // #1303: capture aid for WHOOP-4.0 stable-serial identity. The strap serial lives in this
                     // GET_HELLO_HARVARD (cmd 35) response. This used to dump the payload RAW, which answered
                     // the question — the serial is the 9-char alnum run at offset 14 — but a captured 4.0
@@ -285,10 +290,18 @@ public final class FrameRouter {
                     // the 5/MG device-name offset and means nothing in a cmd-35 payload — passing it would
                     // mislabel whatever run happened to start there. Log-only; decodes/persists nothing.
                     let helloPay = Self.commandResponsePayload(in: frame) ?? []
-                    state.append(log: HelloIdentityProbe.report(payload: helloPay,
-                                                                block: "HELLO_HARVARD(35)",
-                                                                knownNameOffset: -1)
-                                 + " — locate the strap serial offset (#1303)")
+                    // #1193: the identity read is UNGATED, unlike the probe below it. Adoption has to
+                    // work for every 4.0 user, and Test Centre is off for almost all of them — gating it
+                    // would ship a stable id only to the people already debugging. The decoder reads a
+                    // fixed 9-byte window and can never reach the device key beside it, so nothing here
+                    // widens what an ordinary session touches.
+                    if let serial = Whoop4HelloSerial.decode(payload: helloPay) { onStrapSerial?(serial) }
+                    if TestCentre.active(.connection) {
+                        state.append(log: HelloIdentityProbe.report(payload: helloPay,
+                                                                    block: "HELLO_HARVARD(35)",
+                                                                    knownNameOffset: -1)
+                                     + " — locate the strap serial offset (#1303)")
+                    }
                 }
             }
             // #1303: the 5/MG half of the same hunt. The 4.0 aid above is 4.0-only — correctly, since a

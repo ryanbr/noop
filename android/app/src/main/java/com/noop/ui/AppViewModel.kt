@@ -884,8 +884,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // is deliberately inert on the WHOOP path and never touches WhoopBleClient internals; this class
         // already owns the registry handle and a scope. Twin of Swift `BLEManager.adoptWhoopSerialIdentity`.
         //
-        // A WHOOP 4.0 never reaches here: it exposes no DIS serial, and the 4.0 serial's source on the wire
-        // is not yet identified, so there is nothing honest to adopt onto.
+        // A WHOOP 4.0 reaches here by a different road: it exposes no DIS serial, so its serial is decoded
+        // from the GET_HELLO_HARVARD response (`Whoop4HelloSerial`) and handed to this same callback only
+        // after a SECOND sighting of the same value — see `WhoopBleClient.noteHarvardSerial` for why a 4.0
+        // waits where a 5/MG adopts on the first read (#1193).
         ble.onSerial = { serial ->
             viewModelScope.launch {
                 val serialId = com.noop.data.WhoopSerialIdentity.adoptedId(serial)

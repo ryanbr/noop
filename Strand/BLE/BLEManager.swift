@@ -1001,6 +1001,24 @@ public final class BLEManager: NSObject, ObservableObject {
     /// number rather than an independently chosen one: this read can cost the link, so the two platforms
     /// should not be probing at different moments when a field capture has to explain a drop.
     static let unbondedDisReadDelay: TimeInterval = 3.0
+    /// #1193: the WHOOP 4.0 strap serial from `GET_HELLO_HARVARD`, once it has been seen TWICE.
+    ///
+    /// The withholding rule itself lives in `RepeatedSerialGate`, beside the decoder, where it is unit
+    /// tested; this pair is just the manager's view of its outcome.
+    ///
+    /// The 5/MG adopts its DIS serial on first read, because `0x2A25` is a spec-defined field that means
+    /// one thing. The 4.0 offset is not that: it was read off a single capture, so "the 9-char alnum run
+    /// at offset 14" is a strong inference rather than a documented field. If that run turned out to be
+    /// per-session rather than per-strap, adopting it immediately would mint a NEW id on every connect and
+    /// migrate the history each time — strictly worse than the duplicate row this exists to prevent.
+    ///
+    /// So a value must repeat before it is trusted. Two hellos carrying the same run cannot both be a
+    /// fresh per-session token, which is the only failure mode that would do real damage. The cost is that
+    /// a 4.0 adopts one connect later than a 5/MG; the benefit is that the destructive failure cannot
+    /// happen at all. Deliberately NOT reset on disconnect — the two sightings are meant to span connects.
+    private var harvardSerialGate = RepeatedSerialGate()
+    private var harvardSerialConfirmed: String?
+
     private var disSerial: String?
     private var disHwRev: String?
     /// #1635 follow-up: the DIS identity extras (firmware, manufacturer, model, software revision) as
@@ -1313,6 +1331,7 @@ public final class BLEManager: NSObject, ObservableObject {
         #endif
         // Strap-as-clock: an incoming EVENT packet kicks a rate-limited catch-up sync.
         router.onSyncTrigger = { [weak self] in self?.requestSync(.strap) }
+        router.onStrapSerial = { [weak self] serial in self?.noteHarvardSerial(serial) }   // #1193
         // #78 hole-4: a paused-for-bond-loop strap gets one bounded salvage attempt per app-foreground.
         installForegroundSalvageProbe()
     }
@@ -1512,6 +1531,7 @@ public final class BLEManager: NSObject, ObservableObject {
         #endif
         // Strap-as-clock: an incoming EVENT packet kicks a rate-limited catch-up sync.
         router.onSyncTrigger = { [weak self] in self?.requestSync(.strap) }
+        router.onStrapSerial = { [weak self] serial in self?.noteHarvardSerial(serial) }   // #1193
         // #78 hole-4: a paused-for-bond-loop strap gets one bounded salvage attempt per app-foreground.
         installForegroundSalvageProbe()
     }
@@ -4838,14 +4858,26 @@ public final class BLEManager: NSObject, ObservableObject {
         adoptWhoopSerialIdentity()
     }
 
+    /// The serial this pairing may adopt: the 5/MG's DIS read, or a 4.0's twice-seen hello serial.
+    private var adoptableSerial: String? { disSerial ?? harvardSerialConfirmed }
+
+    /// #1193: a 4.0 hello serial arrived. Adopt only on the SECOND sighting of the same value — see
+    /// `harvardSerialCandidate` for why a single sighting is not enough to act on destructively.
+    private func noteHarvardSerial(_ serial: String) {
+        guard let confirmed = harvardSerialGate.offer(serial) else { return }
+        harvardSerialConfirmed = confirmed
+        adoptWhoopSerialIdentity()
+    }
+
     /// #1303: the 5/MG DIS read hands us the strap's OWN serial, so re-point this pairing from its
     /// transient CoreBluetooth-UUID id onto a stable `whoop-<serial>` id — through the SAME generic
     /// migration the ring already uses (`adoptSerialIdentity`, #771), so a re-pair or factory reset stops
     /// forking one physical strap into a second row and orphaning its history (#1193).
     ///
-    /// A WHOOP 4.0 is deliberately untouched: it does not expose a DIS serial (the read above is gated
-    /// `!= .whoop4`) and the 4.0 serial's source on the wire is not yet identified, so there is nothing
-    /// honest to adopt onto here.
+    /// A WHOOP 4.0 reaches this by a different road. It exposes no DIS serial (the read above is gated
+    /// `!= .whoop4`), so its serial comes from the `GET_HELLO_HARVARD` response instead — see
+    /// `Whoop4HelloSerial` for the offset and `noteHarvardSerial` for why a 4.0 waits for a second
+    /// sighting before adopting where a 5/MG adopts on the first read (#1193).
     ///
     /// Deferred to the next main-loop turn, mirroring `adoptOuraSerial`: adoption re-points the ACTIVE
     /// device, and the observers that react tear down and rebuild the very connection this callback is
@@ -4856,7 +4888,7 @@ public final class BLEManager: NSObject, ObservableObject {
     /// onto a garbage key, which is worse than not adopting.
     private func adoptWhoopSerialIdentity() {
         guard let rs = registryStore,
-              let serialId = WhoopSerialIdentity.adoptedId(serial: disSerial),
+              let serialId = WhoopSerialIdentity.adoptedId(serial: adoptableSerial),
               let active = try? rs.all().first(where: { $0.status == .active }),
               WhoopSerialIdentity.mayAdopt(currentId: active.id),
               active.id != serialId
@@ -4876,7 +4908,7 @@ public final class BLEManager: NSObject, ObservableObject {
             // `SourceCoordinator.pointWhoop`, which re-points any non-legacy id.
             self.setActiveDeviceId(serialId)
             // Prefix only. `serialId` embeds the full serial, which must never reach a shareable log.
-            self.log("Adopted stable serial identity (serialPrefix=\(WhoopSerialIdentity.logSafe(serial: self.disSerial))) - history re-pointed off the transient pairing id (#1303)")
+            self.log("Adopted stable serial identity (serialPrefix=\(WhoopSerialIdentity.logSafe(serial: self.adoptableSerial))) - history re-pointed off the transient pairing id (#1303)")
             self.onSerialIdentityAdopted?(serialId)
         }
     }
