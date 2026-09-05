@@ -320,7 +320,7 @@ fun extractStreams(parsed: List<ParsedFrame>, deviceClockRef: Int, wallClockRef:
                     p.intOrNull("heart_rate")?.let { bpm -> out.hr.add(HrSample(ts, bpm)) }
                     // Drop RR rows when timestamp is absent (a ts-less RR row is unstorable).
                     p.intArrayOrNull("rr_intervals")?.let { rrs ->
-                        for (rr in rrs) out.rr.add(RrInterval(ts, rr))
+                        for (p2 in RrBatchTimestamps.spread(ts, rrs.toList())) out.rr.add(RrInterval(p2.ts, p2.rrMs))
                     }
                 }
             }

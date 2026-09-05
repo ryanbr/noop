@@ -415,7 +415,11 @@ class FramingTest {
         assertEquals(1, streams.hr.size)
         assertEquals(HrSample(ts = 1700000000, bpm = 62), streams.hr[0])
         assertEquals(2, streams.rr.size)
-        assertEquals(RrInterval(ts = 1700000000, rrMs = 850), streams.rr[0])
+        // #1118: the frame carries TWO intervals, so they are spread across the time they describe
+        // rather than both stamped at the frame. The most recent ends at the frame timestamp; the
+        // earlier one is back-dated by the 870 ms that follows it. Values are untouched - this moved
+        // timestamps only, and no beat is added or lost.
+        assertEquals(RrInterval(ts = 1699999999, rrMs = 850), streams.rr[0])
         assertEquals(RrInterval(ts = 1700000000, rrMs = 870), streams.rr[1])
     }
 

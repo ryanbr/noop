@@ -851,7 +851,13 @@ fun extractHistoricalStreams(
                 p.intOrNull("heart_rate")?.let { bpm -> if (bpm != 0) hr.add(HrRow(ts, bpm)) }
 
                 @Suppress("UNCHECKED_CAST")
-                (p["rr_intervals"] as? List<Int>)?.forEach { rrMs -> rr.add(RrRow(ts, rrMs)) }
+                (p["rr_intervals"] as? List<Int>)?.let { rrs ->
+                    // #1118: spread across the time the batch describes, not all at the frame. `ts` is a
+                    // Long here and an Int in the sibling paths; epoch seconds fit either, and the shared
+                    // helper stays Int so it is byte-identical with the Swift twin.
+                    RrBatchTimestamps.spread(ts.toInt(), rrs)
+                        .forEach { rr.add(RrRow(it.ts.toLong(), it.rrMs)) }
+                }
 
                 p.intOrNull("spo2_red")?.let { red ->
                     spo2.add(Spo2Row(ts, red = red, ir = p.intOrNull("spo2_ir") ?: 0))
@@ -987,8 +993,9 @@ fun extractHistoricalStreams(
                 if (!plausible(ts.toLong())) { droppedImplausible++; continue }
                 parsed.parsed.intOrNull("heart_rate")?.let { bpm -> hr.add(HrRow(ts.toLong(), bpm)) }
                 @Suppress("UNCHECKED_CAST")
-                (parsed.parsed["rr_intervals"] as? List<Int>)?.forEach { rrMs ->
-                    rr.add(RrRow(ts.toLong(), rrMs))
+                (parsed.parsed["rr_intervals"] as? List<Int>)?.let { rrs ->
+                    // #1118: spread across the time the batch describes, not all at the frame.
+                    RrBatchTimestamps.spread(ts, rrs).forEach { rr.add(RrRow(it.ts.toLong(), it.rrMs)) }
                 }
             }
 
