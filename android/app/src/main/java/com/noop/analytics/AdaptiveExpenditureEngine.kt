@@ -83,9 +83,18 @@ object AdaptiveExpenditureEngine {
             i to w
         }
         if (intake.size < MIN_INTAKE_DAYS) return null
-        val coverage = intake.size.toDouble() / window.toDouble()
+        // Clamped: `coverage` is "share of the window that was logged", so it cannot exceed 1. A caller
+        // that merged its two sparse series badly and passed a day twice would otherwise push it above 1,
+        // which SHRINKS the margin and RAISES the confidence — making the answer look more certain than
+        // its data, the one direction this engine must never err in. Clamping rather than de-duplicating
+        // on purpose: silently picking one of two conflicting values for a day would hide the caller's bug.
+        val coverage = minOf(1.0, intake.size.toDouble() / window.toDouble())
         if (coverage < MIN_INTAKE_COVERAGE) return null
-        if (weights.size < MIN_WEIGHT_READINGS) return null
+        // DISTINCT days, not readings. Two weigh-ins on one morning are one day of evidence about the
+        // trend, and counting both would let a chatty scale — or a caller that passed a day twice — buy
+        // the same confidence as a fortnight of extra data.
+        val weightDays = weights.map { it.first }.distinct().size
+        if (weightDays < MIN_WEIGHT_READINGS) return null
         val slope = leastSquaresSlope(weights) ?: return null
 
         val meanIntake = intake.sum() / intake.size.toDouble()
@@ -98,7 +107,7 @@ object AdaptiveExpenditureEngine {
         val margin = waterKcalPerDay + intakeUncertainty
 
         val confidence = when {
-            window >= 28 && coverage >= 0.90 && weights.size >= 12 -> AdaptiveExpenditureConfidence.HIGH
+            window >= 28 && coverage >= 0.90 && weightDays >= 12 -> AdaptiveExpenditureConfidence.HIGH
             window >= 21 && coverage >= 0.80 -> AdaptiveExpenditureConfidence.MODERATE
             else -> AdaptiveExpenditureConfidence.BUILDING
         }
@@ -109,8 +118,8 @@ object AdaptiveExpenditureEngine {
             upperKcal = estimate + margin,
             meanIntakeKcal = meanIntake,
             weightSlopeKgPerDay = slope,
-            intakeDays = intake.size,
-            weightReadings = weights.size,
+            intakeDays = minOf(intake.size, window),
+            weightReadings = weightDays,
             windowDays = window,
             confidence = confidence,
         )

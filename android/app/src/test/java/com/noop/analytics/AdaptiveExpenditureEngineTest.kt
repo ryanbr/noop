@@ -116,6 +116,26 @@ class AdaptiveExpenditureEngineTest {
         assertEquals(est.windowDays, est.intakeDays)
     }
 
+    /**
+     * A duplicated day must not buy confidence. Coverage is "share of the window that was logged", so it
+     * cannot exceed 1 — but a caller that merged its two sparse series badly could pass a day twice, and
+     * an unclamped ratio above 1 both shrinks the interval and lifts the confidence, making the answer
+     * look more certain than its data. That is the one direction this engine must never err in.
+     */
+    @Test
+    fun `duplicated days cannot buy a narrower interval or higher confidence`() {
+        val clean = history(days = 30)
+        val duped = clean + clean          // every day twice
+        val a = AdaptiveExpenditureEngine.estimate(clean)!!
+        val b = AdaptiveExpenditureEngine.estimate(duped)!!
+        val widthA = a.upperKcal - a.lowerKcal
+        val widthB = b.upperKcal - b.lowerKcal
+        assertEquals("a duplicate must not narrow the interval", widthA, widthB, 1e-6)
+        assertEquals("nor raise the confidence", a.confidence, b.confidence)
+        assertTrue("and the interval still brackets", b.lowerKcal < b.estimatedDailyKcal)
+        assertTrue(b.upperKcal > b.estimatedDailyKcal)
+    }
+
     /** A bad day key must not be read as 1970 and stretch the window by twenty thousand days. */
     @Test
     fun `an unparseable day key is refused not treated as 1970`() {

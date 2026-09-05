@@ -99,8 +99,8 @@ public enum AdaptiveExpenditureEngine {
             return (i, w)
         }
         guard intake.count >= minIntakeDays,
-              Double(intake.count) / Double(window) >= minIntakeCoverage,
-              weights.count >= minWeightReadings,
+              min(1.0, Double(intake.count) / Double(window)) >= minIntakeCoverage,
+              Set(weights.map { $0.0 }).count >= minWeightReadings,
               let slope = leastSquaresSlope(weights) else { return nil }
 
         let meanIntake = intake.reduce(0, +) / Double(intake.count)
@@ -113,12 +113,21 @@ public enum AdaptiveExpenditureEngine {
         // into an apparent daily gap; the intake half widens as coverage falls, because the days someone
         // fails to log are not a random sample of their eating.
         let waterKcalPerDay = (0.5 * kcalPerKg) / Double(window)
-        let coverage = Double(intake.count) / Double(window)
+        // Clamped: `coverage` is "share of the window that was logged", so it cannot exceed 1. A caller
+        // that merged its two sparse series badly and passed a day twice would otherwise push it above 1,
+        // which SHRINKS the margin and RAISES the confidence — making the answer look more certain than
+        // its data, the one direction this engine must never err in. Clamping rather than de-duplicating
+        // on purpose: silently picking one of two conflicting values for a day would hide the caller's bug.
+        let coverage = min(1.0, Double(intake.count) / Double(window))
         let intakeUncertainty = meanIntake * 0.10 * (1.0 - coverage) + meanIntake * 0.05
         let margin = waterKcalPerDay + intakeUncertainty
 
+        // DISTINCT days, not readings. Two weigh-ins on one morning are one day of evidence about the
+        // trend, and counting both would let a chatty scale — or a caller that passed a day twice — buy
+        // the same confidence as a fortnight of extra data.
+        let weightDays = Set(weights.map { $0.0 }).count
         let confidence: AdaptiveExpenditureConfidence
-        if window >= 28 && coverage >= 0.90 && weights.count >= 12 { confidence = .high }
+        if window >= 28 && coverage >= 0.90 && weightDays >= 12 { confidence = .high }
         else if window >= 21 && coverage >= 0.80 { confidence = .moderate }
         else { confidence = .building }
 
@@ -126,7 +135,7 @@ public enum AdaptiveExpenditureEngine {
             estimatedDailyKcal: estimate,
             lowerKcal: estimate - margin, upperKcal: estimate + margin,
             meanIntakeKcal: meanIntake, weightSlopeKgPerDay: slope,
-            intakeDays: intake.count, weightReadings: weights.count, windowDays: window,
+            intakeDays: min(intake.count, window), weightReadings: weightDays, windowDays: window,
             confidence: confidence)
     }
 

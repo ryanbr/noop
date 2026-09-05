@@ -98,6 +98,22 @@ final class AdaptiveExpenditureEngineTests: XCTestCase {
         XCTAssertEqual(est.intakeDays, est.windowDays)
     }
 
+    /// A duplicated day must not buy confidence. Coverage is "share of the window that was logged", so
+    /// it cannot exceed 1 — but a caller that merged its two sparse series badly could pass a day twice,
+    /// and an unclamped ratio above 1 both shrinks the interval and lifts the confidence, making the
+    /// answer look more certain than its data. That is the one direction this engine must never err in.
+    func testDuplicatedDaysCannotBuyANarrowerIntervalOrHigherConfidence() throws {
+        let clean = history(days: 30)
+        let duped = clean + clean          // every day twice
+        let a = try XCTUnwrap(AdaptiveExpenditureEngine.estimate(days: clean))
+        let b = try XCTUnwrap(AdaptiveExpenditureEngine.estimate(days: duped))
+        XCTAssertEqual(a.upperKcal - a.lowerKcal, b.upperKcal - b.lowerKcal, accuracy: 1e-6,
+                       "a duplicate must not narrow the interval")
+        XCTAssertEqual(a.confidence, b.confidence, "nor raise the confidence")
+        XCTAssertLessThan(b.lowerKcal, b.estimatedDailyKcal)
+        XCTAssertGreaterThan(b.upperKcal, b.estimatedDailyKcal)
+    }
+
     /// A bad day key must not be read as 1970 and stretch the window by twenty thousand days.
     func testUnparseableDayKeyIsRefusedNotTreatedAs1970() {
         XCTAssertNil(AdaptiveExpenditureEngine.dayCount(from: "not-a-day", to: "2026-01-01"))
