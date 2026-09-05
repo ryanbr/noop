@@ -443,10 +443,12 @@ object AnalyticsEngine {
         } else {
             val rrSorted = rr.sortedBy { it.ts }
             val enrichedProvided = providedSleep.map { s ->
-                // #1801: an HR-only night keeps its NULL restingHR/avgHRV. This is the ONE call site that
-                // can undo the display-only guarantee — enriching here would hand Charge and the baselines
-                // exactly the two values that decision withholds, silently and by default.
-                if (s.hrOnly || (s.restingHR != null && s.avgHRV != null)) s
+                // #1884: no HR-only special case any more. This used to short-circuit on `s.hrOnly` to
+                // preserve #1801's display-only guarantee, which withheld both values. Now that an HR-only
+                // session reports what it measured, that clause is not merely redundant — an HR-only night
+                // that measured a resting HR but no HRV (no R-R banked) would take the short-circuit and
+                // skip the fill every other session gets. The rule is uniform: fill what is missing.
+                if (s.restingHR != null && s.avgHRV != null) s
                 else s.copy(
                     restingHR = s.restingHR ?: SleepStager.sessionRestingHR(s.start, s.end, hr),
                     avgHRV = s.avgHRV ?: SleepStager.sessionAvgHRV(s.start, s.end, rrSorted),
@@ -876,11 +878,15 @@ object AnalyticsEngine {
             disturbances = if (matched.isEmpty()) null else disturbances,
             restingHr = restingHRDaily,
             avgHrv = avgHRVDaily,
-            // The SAME condition that just emptied the two fields above: `physiologySessions` is
-            // `matched` minus the HR-only ones, so an all-HR-only night leaves it empty and both vitals
-            // null. Recording it here rather than re-deriving in the UI keeps the explanation and the
-            // cause as one expression — a second definition could disagree with the values it explains.
-            sleepHrOnly = if (matched.isEmpty()) null else physiologySessions.isEmpty(),
+            // "Every session this day was staged from heart rate alone."
+            //
+            // #1884: read from the SESSIONS' own marker, NOT from `physiologySessions.isEmpty()`. Those
+            // two were equivalent while the set was `matched` minus the HR-only ones, so an all-HR-only
+            // night emptied it. They are NOT equivalent now that the set FALLS BACK to `matched`: it can
+            // never be empty when `matched` is not, which would have pinned this flag to false forever
+            // and silently retired the #1879 note. Deriving it from `hrOnly` states what the flag has
+            // always meant and is independent of how the physiology set is chosen.
+            sleepHrOnly = if (matched.isEmpty()) null else matched.all { it.hrOnly },
             recovery = recovery,
             strain = strain,
             exerciseCount = workouts.size,

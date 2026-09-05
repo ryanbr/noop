@@ -506,17 +506,18 @@ public enum AnalyticsEngine {
         } else {
             let rrSorted = rr.sortedByTsStable()
             let enrichedProvided: [SleepSession] = providedSleep.map { s in
-                // #1801: an HR-only night keeps its NIL restingHR/avgHRV. This is the ONE call site that
-                // can undo the display-only guarantee — enriching here would hand Charge and the baselines
-                // exactly the two values that decision withholds, silently and by default.
-                if s.hrOnly { return s }
+                // #1884: no HR-only special case any more. This used to short-circuit on `s.hrOnly` to
+                // preserve #1801's display-only guarantee, which withheld both values. Now that an HR-only
+                // session reports what it measured, that clause is not merely redundant — an HR-only night
+                // that measured a resting HR but no HRV (no R-R banked) would take the short-circuit and
+                // skip the fill every other session gets. The rule is uniform: fill what is missing.
                 guard s.restingHR == nil || s.avgHRV == nil else { return s }
                 let rhr = s.restingHR ?? SleepStager.sessionRestingHR(start: s.start, end: s.end, hr: hr)
                 let hrv = s.avgHRV ?? SleepStager.sessionAvgHRV(start: s.start, end: s.end, rr: rrSorted)
                 // `hrOnly` carried explicitly: unlike Kotlin's `copy`, this rebuilds the struct field by
-                // field, so a new flag is dropped by DEFAULT unless named here. The guard above means an
-                // HR-only night never reaches this line today; passing it anyway keeps that a belt rather
-                // than the only thing standing between the flag and silent loss.
+                // field, so a new flag is dropped by DEFAULT unless named here. #1884 removed the guard
+                // that used to keep HR-only nights away from this line, so this is now the only thing
+                // standing between the flag and silent loss rather than a belt.
                 return SleepSession(start: s.start, end: s.end, efficiency: s.efficiency,
                                     stages: s.stages, restingHR: rhr, avgHRV: hrv, hrOnly: s.hrOnly)
             }
@@ -958,12 +959,16 @@ public enum AnalyticsEngine {
             // `skinTempDevC`, so the engine's own row is symmetric: any path that persists this
             // struct directly keeps both thermal values, not just the one.
             skinTempC: nightlySkinTempC,
-            // The SAME condition that emptied `restingHr` and `avgHrv` above: `physiologySessions` is
-            // `matched` minus the HR-only ones, so an all-HR-only night leaves it empty and both vitals
-            // nil. Recorded rather than re-derived downstream, so the explanation and the values it
-            // explains cannot disagree. Byte-identical twin of Kotlin `AnalyticsEngine`'s
-            // `sleepHrOnly = if (matched.isEmpty()) null else physiologySessions.isEmpty()`.
-            sleepHrOnly: matched.isEmpty ? nil : physiologySessions.isEmpty)
+            // "Every session this day was staged from heart rate alone."
+            //
+            // #1884: read from the SESSIONS' own marker, NOT from `physiologySessions.isEmpty`. Those two
+            // were equivalent while the set was `matched` minus the HR-only ones, so an all-HR-only night
+            // emptied it. They are NOT equivalent now that the set FALLS BACK to `matched`: it can never
+            // be empty when `matched` is not, which would have pinned this flag to false forever and
+            // silently retired the #1879 note. Deriving it from `hrOnly` states what the flag has always
+            // meant and is independent of how the physiology set is chosen. Byte-identical twin of Kotlin
+            // `AnalyticsEngine`'s `sleepHrOnly = if (matched.isEmpty()) null else matched.all { it.hrOnly }`.
+            sleepHrOnly: matched.isEmpty ? nil : matched.allSatisfy { $0.hrOnly })
         _ = sleepStart; _ = sleepEnd  // available for callers wiring sleep_start/end columns
 
         // ── Cache rows ────────────────────────────────────────────────────────

@@ -1,3 +1,4 @@
+import Foundation
 import XCTest
 import WhoopProtocol
 @testable import StrandAnalytics
