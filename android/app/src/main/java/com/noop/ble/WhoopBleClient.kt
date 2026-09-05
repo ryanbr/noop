@@ -3878,11 +3878,32 @@ class WhoopBleClient(
     /** The one gate every WHOOP scan/connect entry point passes through (#1881). Swift twin: `BLEManager`. */
     private fun whoopConnectAllowed(reason: String): Boolean {
         if (whoopIsActiveDevice) return true
+        // The flag is a CACHE of a registry fact, and the registry is the authority. Re-validate so the
+        // gate can never latch: it is set from the coordinator's stop/start closures and seeded at
+        // startup, and if those ever disagree a stale `false` would stop the strap connecting for the
+        // whole session.
+        //
+        // Asynchronously, unlike the Swift twin's inline read: the Room registry is `suspend` and this
+        // runs on the BLE handler thread, where `runBlocking` would be a worse bug than the one it fixes.
+        // So the re-validation lands for the NEXT attempt rather than this one — which is enough, because
+        // every caller here retries (the family rotation, the reconnect backoff, the radio-on re-arm).
+        revalidateWhoopIsActive()
         if (lastBlockedConnectReason != reason) {
             lastBlockedConnectReason = reason
             log("Not connecting the WHOOP ($reason): a different device is active (#1881)")
         }
         return false
+    }
+
+    /** Re-read whether a WHOOP is active and un-block the gate if it is. See [whoopConnectAllowed]. */
+    private fun revalidateWhoopIsActive() {
+        val registry = (context.applicationContext as? com.noop.NoopApplication)?.deviceRegistry ?: return
+        ioScope.launch {
+            val activeId = runCatching { registry.activeDeviceId() }.getOrNull() ?: return@launch
+            val rows = runCatching { registry.all() }.getOrNull() ?: return@launch
+            val row = rows.firstOrNull { it.id == activeId }
+            if (row == null || SourceIdentity.isWhoop(row)) setWhoopIsActiveDevice(true)
+        }
     }
 
     /**

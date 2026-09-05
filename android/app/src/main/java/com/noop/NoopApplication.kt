@@ -6,6 +6,7 @@ import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import android.util.Log
 import com.noop.ble.SourceCoordinator
+import com.noop.ble.SourceIdentity
 import com.noop.ble.WhoopBleClient
 import com.noop.ble.WhoopModel
 import com.noop.data.DeviceRegistry
@@ -95,16 +96,39 @@ class NoopApplication : Application() {
         if (newId.isNotEmpty() && newId != activeDeviceId) activeDeviceId = newId
     }
 
+    /**
+     * The id the BLE client should stamp WHOOP samples with at startup (#1881).
+     *
+     * [activeDeviceId] answers "which device did the user select", which is NOT the same question once a
+     * non-WHOOP device can be active: handing it to the client made every WHOOP live sample and historical
+     * chunk persist under, say, an Oura ring. `adoptSourceIdentity` corrects the id when a strap actually
+     * connects, but not for the window between construction and that connect, so the wrong value must not
+     * be adopted in the first place.
+     *
+     * Fail-open: an unreadable registry or an unclassifiable row keeps today's behaviour. Only a
+     * POSITIVELY non-WHOOP active device falls back to the legacy id. Swift twin: `BLEManager.bootstrapStore`.
+     */
+    private fun whoopStartupDeviceId(): String {
+        val id = activeDeviceId
+        val rows = runCatching { runBlocking { deviceRegistry.all() } }.getOrNull() ?: return id
+        val row = rows.firstOrNull { it.id == id } ?: return id
+        return if (SourceIdentity.isWhoop(row)) id else WhoopBleClient.DEFAULT_DEVICE_ID
+    }
+
     /** Process-wide BLE client. Owns the GATT connection and outlives any single Activity/ViewModel. */
     val ble: WhoopBleClient by lazy {
+        val startupId = whoopStartupDeviceId()
         WhoopBleClient(
             applicationContext,
             repository = repository,
-            deviceId = activeDeviceId,
+            deviceId = startupId,
             successfulOffloadSink = {
                 SelfHostedPushScheduler.enqueueAfterSuccessfulOffload(applicationContext)
             },
         ).apply {
+            // #1881: the same fact seeds the connect gate, closing the launch race where the radio can
+            // reach the WHOOP flow before SourceCoordinator has wired up and asserted it.
+            if (startupId != activeDeviceId) setWhoopIsActiveDevice(false)
             // Apply the persisted "Debug logging" preference at the composition root so the low-level
             // client never has to read the UI/prefs layer. Default OFF — see WhoopBleClient.debugLogcat.
             debugLogcat = NoopPrefs.debugLogging(applicationContext)

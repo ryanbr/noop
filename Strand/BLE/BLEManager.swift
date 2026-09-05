@@ -1371,9 +1371,24 @@ public final class BLEManager: NSObject, ObservableObject {
         let registry = DeviceRegistryStore(dbQueue: store.registryWriter)
         self.registryStore = registry
         seedLastSyncFromActiveStrap(registry: registry)
-        if let activeId = try? registry.activeDeviceId(),
-           !activeId.isEmpty {
-            self.deviceId = activeId
+        if let activeId = try? registry.activeDeviceId(), !activeId.isEmpty {
+            // #1881: adopt the active id ONLY when the active device is a WHOOP. This is the line the
+            // report quotes, and its comment stated the assumption that falsified it — with a ring active
+            // this set `deviceId` to the RING, and every live sample and historical chunk persisted under
+            // it. `adoptSourceIdentity` corrects the id when a strap connects, but not for the window
+            // between here and that connect, so the wrong value must not be adopted in the first place.
+            //
+            // Fail-open on an unknown row (nil): unchanged behaviour for anything the registry can't
+            // classify. Only a POSITIVELY non-WHOOP active device is refused, and that same fact seeds the
+            // connect gate — which closes the launch race where `poweredOn` can reach the WHOOP flow
+            // before `SourceCoordinator` has wired up and asserted it.
+            let activeRow = (try? registry.all())?.first(where: { $0.id == activeId })
+            if let activeRow, !SourceIdentity.isWhoop(activeRow) {
+                setWhoopIsActiveDevice(false)
+                log("Active device \(activeId) is not a WHOOP — leaving sample attribution on \(deviceId) (#1881)")
+            } else {
+                self.deviceId = activeId
+            }
         }
         // Look up the active device's real brand/model instead of a hardcoded string — this predated
         // multi-device support and mislabeled every non-"WHOOP 4.0" device (a WHOOP 5.0/MG strap, an Oura
@@ -1942,6 +1957,18 @@ public final class BLEManager: NSObject, ObservableObject {
     /// flood the log.
     private func whoopConnectAllowed(_ reason: String) -> Bool {
         if whoopIsActiveDevice { return true }
+        // The flag is a CACHE of a registry fact, and the registry is the authority. Re-validate before
+        // refusing, so the gate can never latch: it is set from the coordinator's stop/start closures and
+        // seeded at bootstrap, and if those ever disagree — the coordinator failing to wire after the seed
+        // said "not a WHOOP", say — a stale `false` would stop the strap connecting for the whole session.
+        // Only on the blocked path, so the common case still costs nothing.
+        if let registry = registryStore, let activeId = try? registry.activeDeviceId() {
+            let row = (try? registry.all())?.first(where: { $0.id == activeId })
+            if row.map(SourceIdentity.isWhoop) ?? true {
+                setWhoopIsActiveDevice(true)
+                return true
+            }
+        }
         if lastBlockedConnectReason != reason {
             lastBlockedConnectReason = reason
             log("Not connecting the WHOOP (\(reason)): a different device is active (#1881)")
@@ -5863,7 +5890,13 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         clockRequested = false
         clockRetries = 0
         // Ensure the store is ready before restored BLE data arrives (idempotent; no-op if already built).
-        Task { @MainActor in await bootstrapStore() }
+        Task { @MainActor in
+            await bootstrapStore()
+            // #1881: `didConnect` never fires on this path (see above), so the identity adoption that lives
+            // there would be skipped for a restored link — the very path a radio toggle and a relaunch take.
+            // After `bootstrapStore`, because it is what creates `registryStore`.
+            if let p = self.peripheral ?? self.restoredPeripheral { self.adoptSourceIdentity(for: p) }
+        }
         if p.state == .connected {
             state.connected = true
             // #613: the inherited notify subscriptions come back reported-active but dead. Force one real
