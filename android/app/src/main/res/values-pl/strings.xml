@@ -2682,4 +2682,9 @@
     <string name="settings_day_cycle_midnight">00:00</string>
     <string name="settings_day_cycle_sleep_description">Domyślnie. Cykl rozpoczyna się wraz z wykrytym głównym snem. Gdy brakuje wiarygodnych danych o śnie, używana jest lokalna północ.</string>
     <string name="settings_day_cycle_midnight_description">Używa zwykłego lokalnego dnia kalendarzowego od 00:00 do 00:00.</string>
+    <string name="l10n_settings_screen_bottom_bar_f84098a9">Dolny pasek</string>
+    <string name="l10n_settings_screen_how_the_navigation_bar_looks_f186b099">Wygląd paska nawigacji — jego rozmiar i to, ile ekranu przez niego prześwituje.</string>
+    <string name="l10n_settings_screen_bar_size_2304bfbb">Rozmiar paska</string>
+    <string name="l10n_settings_screen_bar_transparency_3f648fbb">Przezroczystość paska</string>
+    <string name="l10n_settings_screen_how_see_through_the_bar_is_ddb0c208">Jak bardzo pasek jest przezroczysty. Najsłabszy stopień nadal pokazuje jego obramowanie, więc zawsze można go znaleźć.</string>
 </resources>

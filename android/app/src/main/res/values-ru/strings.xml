@@ -2562,4 +2562,9 @@
     <string name="settings_day_cycle_midnight">00:00</string>
     <string name="settings_day_cycle_sleep_description">По умолчанию цикл начинается с обнаруженного основного сна. Если данные о сне отсутствуют или ненадёжны, используется местная полночь.</string>
     <string name="settings_day_cycle_midnight_description">Используется обычный местный календарный день с 00:00 до 00:00.</string>
+    <string name="l10n_settings_screen_bottom_bar_f84098a9">Нижняя панель</string>
+    <string name="l10n_settings_screen_how_the_navigation_bar_looks_f186b099">Как выглядит панель навигации — её размер и насколько сквозь неё виден экран.</string>
+    <string name="l10n_settings_screen_bar_size_2304bfbb">Размер панели</string>
+    <string name="l10n_settings_screen_bar_transparency_3f648fbb">Прозрачность панели</string>
+    <string name="l10n_settings_screen_how_see_through_the_bar_is_ddb0c208">Насколько панель прозрачна. На самом слабом шаге её контур всё ещё виден, поэтому её всегда можно найти.</string>
 </resources>

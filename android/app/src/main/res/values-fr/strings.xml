@@ -2677,4 +2677,9 @@
     <string name="settings_day_cycle_midnight">00:00</string>
     <string name="settings_day_cycle_sleep_description">Par défaut. Le cycle suit le début du sommeil principal détecté. Si les données de sommeil sont absentes ou peu fiables, l’heure locale de minuit est utilisée.</string>
     <string name="settings_day_cycle_midnight_description">Utilise une journée civile locale classique de 00:00 à 00:00.</string>
+    <string name="l10n_settings_screen_bottom_bar_f84098a9">Barre inférieure</string>
+    <string name="l10n_settings_screen_how_the_navigation_bar_looks_f186b099">L’apparence de la barre de navigation : sa taille et la part de l’écran visible au travers.</string>
+    <string name="l10n_settings_screen_bar_size_2304bfbb">Taille de la barre</string>
+    <string name="l10n_settings_screen_bar_transparency_3f648fbb">Transparence de la barre</string>
+    <string name="l10n_settings_screen_how_see_through_the_bar_is_ddb0c208">À quel point la barre est transparente. Le niveau le plus faible affiche encore son contour, elle reste donc toujours repérable.</string>
 </resources>

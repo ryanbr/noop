@@ -351,6 +351,45 @@ object BottomBarStyleStore {
      */
     fun barHeightForContent(): Dp = if (overlay) barHeight else 0.dp
 
+    /**
+     * How see-through the bar's glass is, in EIGHT steps: 1 the most transparent, 8 solid.
+     *
+     * A step rather than a raw float so the two ends are reachable and every stop is repeatable - a
+     * continuous slider on a bar this small mostly produces values a user cannot tell apart or return to.
+     * The mapping is linear from 0.30 to 1.00, which puts the SHIPPED 0.80 exactly on step 6, so an
+     * install that never touches this is byte-identical to before.
+     */
+    var opacityStep by mutableStateOf(DEFAULT_OPACITY_STEP)
+        private set
+
+    /** The alpha for [opacityStep]. Step 1 = 0.30 ... step 6 = 0.80 (the shipped value) ... step 8 = 1.00. */
+    val barAlpha: Float get() = alphaForOpacityStep(opacityStep)
+
+    /**
+     * How much bigger the bar is drawn, from 1x to 2x.
+     *
+     * Scales the bar's CONTENT - icon, label and the padding around them - rather than applying a
+     * graphics scale to the finished bar, which would blur it and leave the touch targets where they
+     * were. The bar's height is measured and republished either way ([barHeight]), so screens keep
+     * clearing it correctly at any size without a second number to maintain.
+     */
+    var scale by mutableStateOf(DEFAULT_SCALE)
+        private set
+
+    fun setOpacityStep(ctx: Context, step: Int) {
+        val clamped = step.coerceIn(MIN_OPACITY_STEP, MAX_OPACITY_STEP)
+        opacityStep = clamped
+        NoopPrefs.of(ctx.applicationContext).edit()
+            .putInt(NoopPrefs.KEY_BOTTOM_BAR_OPACITY_STEP, clamped).apply()
+    }
+
+    fun setScale(ctx: Context, value: Float) {
+        val clamped = nearestScale(value)
+        scale = clamped
+        NoopPrefs.of(ctx.applicationContext).edit()
+            .putFloat(NoopPrefs.KEY_BOTTOM_BAR_SCALE, clamped).apply()
+    }
+
     /** #1839: hide the overlay bar while scrolling down, bring it back on scrolling up. Default ON. */
     var autoHide by mutableStateOf(true)
         private set
@@ -362,10 +401,14 @@ object BottomBarStyleStore {
     }
 
     fun load(ctx: Context) {
-        overlay = NoopPrefs.of(ctx.applicationContext)
-            .getBoolean(NoopPrefs.KEY_OVERLAY_BOTTOM_BAR, true)
-        autoHide = NoopPrefs.of(ctx.applicationContext)
-            .getBoolean(NoopPrefs.KEY_BOTTOM_BAR_AUTO_HIDE, true)
+        val prefs = NoopPrefs.of(ctx.applicationContext)
+        overlay = prefs.getBoolean(NoopPrefs.KEY_OVERLAY_BOTTOM_BAR, true)
+        autoHide = prefs.getBoolean(NoopPrefs.KEY_BOTTOM_BAR_AUTO_HIDE, true)
+        // Both are read through the same clamps the setters use, so a hand-edited or downgraded pref
+        // cannot put the bar in a state the UI has no way to leave.
+        opacityStep = prefs.getInt(NoopPrefs.KEY_BOTTOM_BAR_OPACITY_STEP, DEFAULT_OPACITY_STEP)
+            .coerceIn(MIN_OPACITY_STEP, MAX_OPACITY_STEP)
+        scale = nearestScale(prefs.getFloat(NoopPrefs.KEY_BOTTOM_BAR_SCALE, DEFAULT_SCALE))
     }
 
     fun set(ctx: Context, value: Boolean) {
@@ -1001,7 +1044,9 @@ private fun GlassBottomBar(
             // "Glass": a translucent raised surface — a frosted island, not a hard slab. Compose has no
             // cheap blur, so translucency (≈0.80) + a hairline rim is the Liquid-Glass stand-in. A soft,
             // low drop shadow reads as floating without a glow.
-            color = Palette.surfaceRaised.copy(alpha = 0.80f),
+            // The glass alpha is the user's transparency step; 0.80 was the shipped constant and remains
+            // the default (step 6), so an untouched install is unchanged.
+            color = Palette.surfaceRaised.copy(alpha = BottomBarStyleStore.barAlpha),
             tonalElevation = 2.dp,
             shadowElevation = 4.dp,
             modifier = Modifier
@@ -1013,7 +1058,11 @@ private fun GlassBottomBar(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 7.dp),
+                    // Scaling the PADDING and the slot contents grows the bar honestly - the touch
+                    // targets grow with it, and `barHeight` is measured afterwards so screens keep
+                    // clearing the bar at any size. A graphics scale would blur it and leave the hit
+                    // areas behind.
+                    .padding(horizontal = 8.dp, vertical = 7.dp * BottomBarStyleStore.scale),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
             ) {
@@ -1070,16 +1119,19 @@ private fun BarSlot(
                 indication = null,
                 onClick = onClick,
             )
-            .padding(vertical = 3.dp)
+            .padding(vertical = 3.dp * BottomBarStyleStore.scale)
             .semantics { contentDescription = label },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(Metrics.iconSmall))
+        // Icon and label scale together with the padding above, so the slot grows as one piece rather
+        // than a bigger box around the same small glyph.
+        Icon(icon, contentDescription = null, tint = tint,
+             modifier = Modifier.size(Metrics.iconSmall * BottomBarStyleStore.scale))
         Text(
             label,
             style = NoopType.footnote.copy(
-                fontSize = 10.sp,
+                fontSize = 10.sp * BottomBarStyleStore.scale,
                 fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
             ),
             color = tint,

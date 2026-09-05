@@ -2591,4 +2591,9 @@
     <string name="settings_day_cycle_midnight">00:00</string>
     <string name="settings_day_cycle_sleep_description">默认。周期从检测到的主要睡眠开始。睡眠数据缺失或不可靠时，将使用当地午夜。</string>
     <string name="settings_day_cycle_midnight_description">使用从 00:00 到次日 00:00 的常规当地日历日。</string>
+    <string name="l10n_settings_screen_bottom_bar_f84098a9">底部栏</string>
+    <string name="l10n_settings_screen_how_the_navigation_bar_looks_f186b099">导航栏的外观——它的大小，以及透过它能看到多少屏幕内容。</string>
+    <string name="l10n_settings_screen_bar_size_2304bfbb">栏大小</string>
+    <string name="l10n_settings_screen_bar_transparency_3f648fbb">栏透明度</string>
+    <string name="l10n_settings_screen_how_see_through_the_bar_is_ddb0c208">底部栏的透明程度。即使在最淡的一档也会保留边框，因此始终能找到它。</string>
 </resources>

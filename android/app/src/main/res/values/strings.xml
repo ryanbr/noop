@@ -2704,4 +2704,9 @@
     <string name="settings_day_cycle_midnight">00:00</string>
     <string name="settings_day_cycle_sleep_description">Default. The cycle follows the beginning of your detected main sleep. Before a main sleep is detected, local midnight is used.</string>
     <string name="settings_day_cycle_midnight_description">Uses a conventional local calendar day from 00:00 to 00:00.</string>
+    <string name="l10n_settings_screen_bottom_bar_f84098a9">Bottom bar</string>
+    <string name="l10n_settings_screen_how_the_navigation_bar_looks_f186b099">How the navigation bar looks — its size, and how much of the screen shows through it.</string>
+    <string name="l10n_settings_screen_bar_size_2304bfbb">Bar size</string>
+    <string name="l10n_settings_screen_bar_transparency_3f648fbb">Bar transparency</string>
+    <string name="l10n_settings_screen_how_see_through_the_bar_is_ddb0c208">How see-through the bar is. The faintest step still shows its rim, so it can always be found.</string>
 </resources>

@@ -718,6 +718,12 @@ object NoopPrefs {
      *  ON (#1841). Only meaningful with the overlay layout, where the bar sits over content. */
     const val KEY_BOTTOM_BAR_AUTO_HIDE = "noop.bottomBarAutoHide"
 
+    /** #1836 follow-up: the bar's glass alpha, as one of eight steps. See [com.noop.ui.alphaForOpacityStep]. */
+    const val KEY_BOTTOM_BAR_OPACITY_STEP = "noop.bottomBarOpacityStep"
+
+    /** #1836 follow-up: how much bigger the bar is drawn, one of [com.noop.ui.BOTTOM_BAR_SCALES]. */
+    const val KEY_BOTTOM_BAR_SCALE = "noop.bottomBarScale"
+
     /** #1836: draw the bottom bar as an overlay (glass over the screen's backdrop) instead of a reserved
      *  Scaffold slot. Default ON (#1841), after the overlay was confirmed on a device. */
     const val KEY_OVERLAY_BOTTOM_BAR = "noop.overlayBottomBar"

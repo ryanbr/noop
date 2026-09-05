@@ -2691,4 +2691,9 @@
     <string name="settings_day_cycle_midnight">00:00</string>
     <string name="settings_day_cycle_sleep_description">Standard. Der Zyklus folgt dem Beginn deines erkannten Hauptschlafs. Bei fehlenden oder unzuverlässigen Schlafdaten verwendet NOOP ersatzweise die lokale Mitternacht.</string>
     <string name="settings_day_cycle_midnight_description">Verwendet einen herkömmlichen lokalen Kalendertag von 00:00 bis 00:00 Uhr.</string>
+    <string name="l10n_settings_screen_bottom_bar_f84098a9">Untere Leiste</string>
+    <string name="l10n_settings_screen_how_the_navigation_bar_looks_f186b099">Wie die Navigationsleiste aussieht – ihre Größe und wie viel vom Bildschirm durchscheint.</string>
+    <string name="l10n_settings_screen_bar_size_2304bfbb">Leistengröße</string>
+    <string name="l10n_settings_screen_bar_transparency_3f648fbb">Transparenz der Leiste</string>
+    <string name="l10n_settings_screen_how_see_through_the_bar_is_ddb0c208">Wie durchsichtig die Leiste ist. Die schwächste Stufe zeigt weiterhin ihren Rand, damit sie immer auffindbar bleibt.</string>
 </resources>
