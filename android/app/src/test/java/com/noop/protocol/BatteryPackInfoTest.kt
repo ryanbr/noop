@@ -103,4 +103,28 @@ class BatteryPackInfoTest {
         // Even if a stale charge rides along, absence wins.
         assertFalse(BatteryPackInfo.Info(present = false, socPct = 80.0, serial = null, btAddr = null).displayable)
     }
+
+    /**
+     * The router branch that decodes this reply matches on the command NAME
+     * (`respCmd.startsWith("GET_BATTERY_PACK_INFO(")`), which comes from this lookup table. A rename or a
+     * removal there would not fail to compile — the branch would simply stop matching and the whole
+     * feature would go quiet, with the decoder back to having no caller. Pin the string.
+     */
+    @Test
+    fun `command 151 resolves to the name the router matches on`() {
+        assertEquals("GET_BATTERY_PACK_INFO", com.noop.protocol.CommandNames.byRaw[151])
+        assertTrue(com.noop.protocol.CommandNames.label(151).startsWith("GET_BATTERY_PACK_INFO("))
+    }
+
+    /**
+     * `displayable` is about a CHARGE percentage, and the 4.0 path carries a voltage instead — so it is
+     * always false there, correctly. Pinned because the name is generic enough that a future 4.0 voltage
+     * card might reach for this gate and get a permanent no.
+     */
+    @Test
+    fun `the 4-0 voltage path is never displayable`() {
+        val v = BatteryPackInfo.Info(present = true, socPct = null, serial = null, btAddr = null,
+                                     voltageMv = 3_900)
+        assertFalse(v.displayable)
+    }
 }
