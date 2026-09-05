@@ -25,6 +25,21 @@ class DayCycleResolverTest {
         assertEquals(86_400L, DayCycleResolver.fallbackMidnightAfter(6 * 3_600L, 0))
     }
 
+    /**
+     * The boundary is LOCAL midnight, not UTC midnight — and until now nothing said so. Every day-cycle
+     * case on both platforms passed a zero offset, so the offset arithmetic, which decides which local
+     * day a boundary lands on, was unpinned. This repo has already had days re-bucket on travel once.
+     *
+     * 06:00 local at UTC-5 is 11:00 UTC. Plus 18 h is 05:00 UTC the next day, which IS local midnight
+     * there, so the direct branch takes it: 104_400 = 29 h UTC = 00:00 local. A resolver that floored to
+     * UTC midnight would answer 86_400 and be a day out for a third of the planet.
+     */
+    @Test fun fallbackLandsOnLocalMidnightNotUtc() {
+        val offset = -5 * 3_600L
+        val onsetLocal0600 = 6 * 3_600L - offset
+        assertEquals(104_400L, DayCycleResolver.fallbackMidnightAfter(onsetLocal0600, offset))
+    }
+
     @Test fun allNighterStaysOpenUntilTheAbsoluteCap() {
         val sleep = DayCycleWindow("night", 0, 0, "1970-01-01", DayCycleWindow.Source.DETECTED_SLEEP)
         assertEquals(
