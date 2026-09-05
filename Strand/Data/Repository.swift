@@ -3215,7 +3215,11 @@ final class Repository: ObservableObject {
     }
 }
 
-private extension DailyMetric {
+// `internal`, not `private`: `DailySkinTempAbsoluteCarryTests` exercises these two directly, and a
+// `private` extension is invisible even to `@testable import`. They stayed private because the tests
+// that call them have never compiled (StrandTests runs only in the on-demand app-build), so nothing
+// ever demanded the wider access. Still confined to this module.
+extension DailyMetric {
     /// A copy of self where every nil field is backfilled from `fallback`. Used by the field-by-field
     /// daily merge so an imported export keeps its own values while a computed row fills the gaps it
     /// doesn't carry (e.g. on-device Charge / skin-temp deviation / activity totals).
