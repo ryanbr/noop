@@ -647,9 +647,13 @@ class SourceCoordinator(
             return isWhoop(device)
         }
 
-        /** A device is WHOOP when its id is "my-whoop" or its brand is "WHOOP" (the seeded row's brand). */
-        fun isWhoop(device: PairedDeviceRow): Boolean =
-            device.id == WhoopBleClient.DEFAULT_DEVICE_ID ||
-                device.brand.equals("WHOOP", ignoreCase = true)
+        /**
+         * A device is WHOOP when its id is "my-whoop" or its brand is "WHOOP" (the seeded row's brand).
+         *
+         * #1881 gave the BLE client the same question to answer, so the rule now lives in ONE place
+         * ([SourceIdentity]) and this delegates. Two spellings of "is this a WHOOP" that could disagree is
+         * precisely how a strap's samples end up filed under a ring.
+         */
+        fun isWhoop(device: PairedDeviceRow): Boolean = SourceIdentity.isWhoop(device)
     }
 }

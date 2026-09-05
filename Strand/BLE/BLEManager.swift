@@ -1121,6 +1121,7 @@ public final class BLEManager: NSObject, ObservableObject {
     /// `connectFromSystem`'s targeted path already makes: no new outbound command, nothing written to the
     /// strap, so the BLE safety contract is unaffected. Twin of `OuraLiveSource.issueStandingConnect`.
     private func issueStandingConnect(whilePausedForBondLoop: Bool = false) {
+        guard whoopConnectAllowed("standing-connect") else { return }
         guard !intentionalDisconnect else { return }
         // #1539: the bond-loop pause suppresses this by default, but the paused paths deliberately opt in —
         // a parked, timeout-free connect is what lets that pause end without the user.
@@ -1230,9 +1231,35 @@ public final class BLEManager: NSObject, ObservableObject {
     /// 4.0, or an unidentified strap all read false.
     var isWhoop5MG: Bool { whoop5Variant.isMG }
 
+    /// Whether a WHOOP is the device the user actually selected (#1881). FAIL-OPEN: `true` unless
+    /// something positively says otherwise, so the single-WHOOP path and every unknown state behave
+    /// exactly as before — a wrong `false` here would stop the strap connecting for everyone.
+    ///
+    /// This is the DURABLE form of the coordinator's `stopWhoop()`. That call is edge-triggered — it
+    /// fires once on the WHOOP→other-source transition and nothing re-asserts it — while the WHOOP flow
+    /// has system-driven entry points that consult nobody: `poweredOn` (every Bluetooth toggle and
+    /// `bluetoothd` restart), state restoration, and the standing connect CoreBluetooth honours while
+    /// the app is suspended. So a radio toggle resurrected a strap the user had switched away from,
+    /// drained its history, and — before the identity fix below — filed every row under the ACTIVE
+    /// device's id. Reported with a proven case: 770 `stepSample` rows under an Oura ring, which has no
+    /// pedometer.
+    ///
+    /// Set from the same two closures the coordinator already uses to stop and start WHOOP, so the
+    /// deliberate exception survives untouched: an Apple Watch becoming active must NOT stop a live
+    /// WHOOP, and `switchToAppleWatch` calls neither closure.
+    private var whoopIsActiveDevice = true
+
+    /// The last entry point `whoopConnectAllowed` turned away, so the block is logged once per path
+    /// rather than on every tick of the family-rotation timer.
+    private var lastBlockedConnectReason: String?
+
     /// Stable device id; matches the server's existing device for sync parity. Overridable.
     /// Seeded from the init argument, then refined once in bootstrapStore() to the device registry's
     /// active id (still "my-whoop" today) before any store writes use it — see bootstrapStore().
+    ///
+    /// #1881: this is "the device these bytes came from", NOT "the active device". Those were the same
+    /// thing only while every registered device was a WHOOP; `adoptSourceIdentity(for:)` re-points it
+    /// per connection from the peripheral that actually connected.
     private(set) var deviceId: String
     /// Captured (device↔wall) correlation from GET_CLOCK; nil until the response lands.
     private(set) var clockRef: ClockRef?
@@ -1510,6 +1537,7 @@ public final class BLEManager: NSObject, ObservableObject {
     }
 
     private func connectCore(model: WhoopModel) {
+        guard whoopConnectAllowed("connect") else { return }
         intentionalDisconnect = false
         // Connection test mode: stamp when this connect attempt began so didConnect can report the connect
         // latency. A plain Date() assignment, no behaviour change; only read behind the .connection gate.
@@ -1882,6 +1910,63 @@ public final class BLEManager: NSObject, ObservableObject {
         deviceId = id
         collector?.deviceId = id
         backfiller?.deviceId = id
+        // #1881: the alarm readback attributes through the router's own copy (#1706), which this used to
+        // leave pointing at the previous device. Same field, same conflation, one more consumer.
+        router.deviceId = id
+    }
+
+    /// Record whether a WHOOP is the active device (#1881). Called from the SAME two closures the
+    /// `SourceCoordinator` already uses to stop and start the WHOOP, so it inherits their semantics
+    /// exactly — including the deliberate Apple Watch exception, which calls neither.
+    ///
+    /// Re-asserts itself: if a WHOOP link is already up when a different source becomes active, the
+    /// coordinator's own `stopWhoop()` drops it: this only stops it coming back on its own.
+    public func setWhoopIsActiveDevice(_ active: Bool) {
+        guard whoopIsActiveDevice != active else { return }
+        whoopIsActiveDevice = active
+        log(active
+            ? "WHOOP is the active device again — scanning and reconnecting are allowed"
+            : "WHOOP is no longer the active device — not scanning or connecting until it is again (#1881)")
+    }
+
+    /// The one gate every WHOOP scan/connect entry point passes through (#1881).
+    ///
+    /// Deliberately at the CONNECT sites rather than only at `connectCore`: there are five
+    /// `central.connect` sites, and `connectCore` owns two. The rest are reached from `poweredOn` and
+    /// `willRestoreState` (via `connectRestored`), from `didDiscover`, and from the standing connect —
+    /// which involves no scan at all and is honoured while the app is suspended, so no scan-side guard
+    /// can cover it.
+    ///
+    /// `reason` names the entry point in the strap log, so a "why did my ring's data grow legs" report
+    /// says which path tried. Logged only on the transition into blocking, so a rotation timer cannot
+    /// flood the log.
+    private func whoopConnectAllowed(_ reason: String) -> Bool {
+        if whoopIsActiveDevice { return true }
+        if lastBlockedConnectReason != reason {
+            lastBlockedConnectReason = reason
+            log("Not connecting the WHOOP (\(reason)): a different device is active (#1881)")
+        }
+        return false
+    }
+
+    /// Attribute this connection to the strap that ACTUALLY connected, not to whatever device is active
+    /// (#1881). Resolves the registry row whose `peripheralId` matches the connected peripheral and
+    /// re-points `deviceId` + the in-flight `Collector`/`Backfiller`/router to it.
+    ///
+    /// Conservative by construction — it only ever moves the id to a row that is BOTH a WHOOP and
+    /// matched by peripheral:
+    ///   • no registry / unreadable → leave the id alone (today's behaviour).
+    ///   • no row matches this peripheral → leave it alone. This is the legacy single-WHOOP case before
+    ///     the row has adopted a `peripheralId`; `SourceCoordinator.connectedPeripheralChanged` adopts it
+    ///     on this same connect, so the following one resolves.
+    ///   • the matched row is not a WHOOP → leave it alone; nothing else reaches this delegate.
+    ///   • already correct → no write.
+    private func adoptSourceIdentity(for peripheral: CBPeripheral) {
+        guard let registry = registryStore, let rows = try? registry.all() else { return }
+        guard let resolved = SourceIdentity.resolve(address: peripheral.identifier.uuidString,
+                                                    rows: rows, currentId: deviceId) else { return }
+        log("Attributing this link to \(resolved) — the strap that connected, not the active device (#1881)")
+        setActiveDeviceId(resolved)
     }
 
     /// Add-a-WHOOP wizard: scan the selected family's WHOOP service and surface every nearby strap in
@@ -4482,6 +4567,9 @@ public final class BLEManager: NSObject, ObservableObject {
     /// `scanFallbackDelaySeconds` of no discovery — recovers reconnect when the persisted preference is
     /// stale after an update/restore. Discovery/connect cancels the pending rotation. (PR#195)
     private func startScan(for model: WhoopModel, allowFallback: Bool) {
+        // Not strictly required — every connect site is gated — but without it the 4.0 <-> 5.0/MG rotation
+        // keeps the radio scanning indefinitely for a strap we would refuse to connect to anyway.
+        guard whoopConnectAllowed("scan") else { return }
         cancelScanFallback()
         selectedModel = model
         reassembler = Reassembler(family: model.deviceFamily)
@@ -4526,6 +4614,7 @@ public final class BLEManager: NSObject, ObservableObject {
     /// #730 pending-connect probe. Both restore entry points funnel through here so the two paths can be
     /// told apart in a strap log.
     private func connectRestored(_ p: CBPeripheral, reason: String) {
+        guard whoopConnectAllowed("restored/\(reason)") else { return }
         log("Connecting to restored peripheral (\(reason)) — peripheral state=\(peripheralStateName(p.state))")
         central.connect(p, options: nil)
         pendingConnectProbe?.cancel()
@@ -5252,6 +5341,7 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
             log("Discovered \(name) (\(peripheral.identifier)) — not the preferred strap; ignoring")
             return
         }
+        guard whoopConnectAllowed("discovered") else { return }
         cancelScanFallback()
         persistSelectedModel(selectedModel)
         log("Discovered \(name) (rssi \(RSSI)) — connecting")
@@ -5276,6 +5366,9 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         standingConnectAt = nil     // #1413: a live link means no standing connect is outstanding
         restoredPeripheral = nil
         preparePeripheral(peripheral)
+        // #1881: BEFORE anything persists. The Collector and Backfiller read `deviceId` at flush and at
+        // finishChunk, so re-pointing here is what keeps this link's rows off another device's id.
+        adoptSourceIdentity(for: peripheral)
         // Clear the per-connection bond BEFORE publishing the connected uuid below. SourceCoordinator's #52
         // re-adoption gate keys off `encryptedBond` at the instant `connectedPeripheralUUID` is observed —
         // an ordinary `didConnect` publish must always read false (only the deliberate post-bond #52

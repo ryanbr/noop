@@ -3427,6 +3427,7 @@ class WhoopBleClient(
 
     @SuppressLint("MissingPermission")
     private fun connectInternal(model: WhoopModel, userInitiated: Boolean) {
+        if (!whoopConnectAllowed("connect")) return
         intentionalDisconnect = false
         // #1635: an explicit Connect is the user saying "try the handshake again" — the documented way out
         // of hello suppression, and the reason suppression is never a permanent verdict. Consumed by the
@@ -3529,6 +3530,9 @@ class WhoopBleClient(
      */
     @SuppressLint("MissingPermission")
     private fun startScan(model: WhoopModel, allowFallback: Boolean) {
+        // Without this the 4.0 <-> 5.0/MG rotation keeps the radio scanning indefinitely for a strap
+        // we would refuse to connect to anyway. Every connect site is gated independently.
+        if (!whoopConnectAllowed("scan")) return
         handler.removeCallbacks(scanFallbackRunnable)
         // Defensive: the normal auto-connect scan is NEVER a present-scan. Clearing the flag here means a
         // leaked wizard present-scan (e.g. the wizard was dismissed without stopWhoopScan) can't divert
@@ -3839,6 +3843,71 @@ class WhoopBleClient(
         if (id.isEmpty()) return
         deviceId = id
         backfiller.deviceId = id
+    }
+
+    /**
+     * Whether a WHOOP is the device the user actually selected (#1881). FAIL-OPEN: `true` unless
+     * something positively says otherwise, so the single-WHOOP path and every unknown state behave
+     * exactly as before — a wrong `false` here would stop the strap connecting for everyone.
+     *
+     * The DURABLE form of the coordinator's [SourceCoordinator] `stopWhoop`. That call is edge-triggered,
+     * fired once on the WHOOP -> other-source transition, while the WHOOP flow has system-driven entry
+     * points that consult nobody — [onBluetoothRadioOn] above all, which every radio toggle reaches and
+     * which explicitly clears `intentionalDisconnect` before reconnecting. Swift twin: `BLEManager`.
+     */
+    @Volatile
+    private var whoopIsActiveDevice = true
+
+    /** The last entry point [whoopConnectAllowed] turned away, so a rotation timer cannot flood the log. */
+    private var lastBlockedConnectReason: String? = null
+
+    /**
+     * Record whether a WHOOP is the active device (#1881). Called from the SAME closures the
+     * [SourceCoordinator] already uses to stop and start the WHOOP, so it inherits their semantics —
+     * including any deliberate exception that calls neither.
+     */
+    fun setWhoopIsActiveDevice(active: Boolean) {
+        if (whoopIsActiveDevice == active) return
+        whoopIsActiveDevice = active
+        log(
+            if (active) "WHOOP is the active device again — scanning and reconnecting are allowed"
+            else "WHOOP is no longer the active device — not scanning or connecting until it is again (#1881)"
+        )
+    }
+
+    /** The one gate every WHOOP scan/connect entry point passes through (#1881). Swift twin: `BLEManager`. */
+    private fun whoopConnectAllowed(reason: String): Boolean {
+        if (whoopIsActiveDevice) return true
+        if (lastBlockedConnectReason != reason) {
+            lastBlockedConnectReason = reason
+            log("Not connecting the WHOOP ($reason): a different device is active (#1881)")
+        }
+        return false
+    }
+
+    /**
+     * Attribute this connection to the strap that ACTUALLY connected, not to whatever device is active
+     * (#1881). Resolves the registry row whose `peripheralId` matches [address] and re-points [deviceId]
+     * and the in-flight [Backfiller] to it.
+     *
+     * Async because the Room registry read is `suspend` (the Swift twin is synchronous GRDB and does this
+     * inline in `didConnect`). The window is between STATE_CONNECTED and the first persisted sample —
+     * service discovery, notification subscription and the strap's first response all sit inside it — so
+     * a row is not expected to land first; if one ever did it would carry the previous id.
+     *
+     * Conservative by construction: only ever moves the id to a row that is BOTH a WHOOP and matched by
+     * address. No registry, no match (the legacy single-WHOOP row before it has adopted an address), a
+     * non-WHOOP match, or an id already correct all leave it alone.
+     */
+    private fun adoptSourceIdentity(address: String?) {
+        val addr = address ?: return
+        val registry = (context.applicationContext as? com.noop.NoopApplication)?.deviceRegistry ?: return
+        ioScope.launch {
+            val rows = runCatching { registry.all() }.getOrNull() ?: return@launch
+            val resolved = SourceIdentity.resolve(addr, rows, deviceId) ?: return@launch
+            log("Attributing this link to $resolved — the strap that connected, not the active device (#1881)")
+            setActiveDeviceId(resolved)
+        }
     }
 
     /**
@@ -6120,6 +6189,7 @@ class WhoopBleClient(
 
     @SuppressLint("MissingPermission")
     private fun connectToDevice(device: BluetoothDevice, autoConnect: Boolean = false) {
+        if (!whoopConnectAllowed("connect-to-device")) return
         // Reset per-connection state (mirrors the Swift flags cleared on connect/disconnect).
         reset()
         // Remember the device so a later dropout can reconnect straight to it (#61).
@@ -6182,6 +6252,9 @@ class WhoopBleClient(
                     // #1030 (ryanbr): a real link is up — cancel any pending involuntary reconnect so a
                     // stale backoff timer can't fire and reset+close this connection.
                     cancelPendingReconnect()
+                    // #1881: attribute this link to the strap that actually connected, before anything
+                    // persists. Swift twin: `BLEManager.didConnect` -> `adoptSourceIdentity(for:)`.
+                    adoptSourceIdentity(runCatching { g.device?.address }.getOrNull())
                     // A successful connect clears the reconnect backoff — the next involuntary drop starts
                     // the 3,6,12…s schedule afresh (iOS didConnect: failedConnectAttempts=0, #48). Reset
                     // IMMEDIATELY, not behind a survival dwell: a band the OS holds bonded/ACL-connected

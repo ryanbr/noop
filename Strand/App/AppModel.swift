@@ -542,8 +542,12 @@ final class AppModel: ObservableObject {
             registry: registry,
             live: live,
             storeHandle: { [weak self] in await self?.repo.storeHandle() },
-            startWhoop: { [weak self] in self?.scan() },
-            stopWhoop: { [weak self] in self?.disconnect() },
+            // #1881: the flag rides the SAME two closures, so it inherits the coordinator's semantics
+            // exactly — including the deliberate Apple Watch exception, which calls neither and so must
+            // never stop a live WHOOP. `stopWhoop` alone was edge-triggered: it dropped the link once and
+            // nothing stopped `poweredOn` / state restoration / the standing connect bringing it back.
+            startWhoop: { [weak self] in self?.ble.setWhoopIsActiveDevice(true); self?.scan() },
+            stopWhoop: { [weak self] in self?.ble.setWhoopIsActiveDevice(false); self?.disconnect() },
             // WHOOP targeting hooks , thin wrappers over BLEManager's existing additive setters, so the
             // coordinator never references BLEManager directly (mirrors the start/stop injection). On the
             // single-WHOOP path these are setPreferredPeripheral(nil) and (no setActiveDeviceId call),

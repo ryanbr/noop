@@ -139,8 +139,12 @@ class NoopApplication : Application() {
             // path (status=133 on an OS-bonded strap). Mirrors macOS AppModel.scan() reading the persisted
             // "selectedWhoopModel". Same-strap switches now adopt in place (no reconnect) via the
             // coordinator, so this only fires for a genuinely different WHOOP.
-            startWhoop = { ble.connect(persistedWhoopModel()) },
-            stopWhoop = { ble.disconnect() },
+            // #1881: the flag rides the SAME two closures, so it inherits the coordinator's semantics
+            // exactly. `stopWhoop` alone was edge-triggered: it dropped the link once and nothing stopped
+            // `onBluetoothRadioOn` bringing it straight back — every Bluetooth toggle reached it, and it
+            // clears `intentionalDisconnect` before reconnecting. Swift twin: AppModel.wireSourceCoordinator.
+            startWhoop = { ble.setWhoopIsActiveDevice(true); ble.connect(persistedWhoopModel()) },
+            stopWhoop = { ble.setWhoopIsActiveDevice(false); ble.disconnect() },
             // Multi-WHOOP (MW-2/MW-3): pin the connection to the active WHOOP's persisted address and
             // re-attribute live samples to it on a WHOOP→WHOOP switch. Both inert on the single-WHOOP
             // path — the coordinator only invokes them for a non-legacy WHOOP / a non-null peripheralId.
