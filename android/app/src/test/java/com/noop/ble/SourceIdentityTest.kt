@@ -78,6 +78,9 @@ class SourceIdentityTest {
         val blank = row("whoop-blank", "WHOOP", "")
         assertNull(SourceIdentity.resolve("", listOf(blank), currentId = "oura-abc"))
         assertNull(SourceIdentity.resolve(null, listOf(blank), currentId = "oura-abc"))
+        // Whitespace is blank on both platforms — the Swift twin was aligned to this.
+        val spaces = row("whoop-spaces", "WHOOP", "   ")
+        assertNull(SourceIdentity.resolve("   ", listOf(spaces), currentId = "oura-abc"))
     }
 
     /** The legacy id is a WHOOP by id even though its brand was never guaranteed. */

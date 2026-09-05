@@ -26,7 +26,11 @@ public enum SourceIdentity {
     /// `CBPeripheral.identifier.uuidString`, Android an uppercase MAC — but neither is guaranteed by the OS,
     /// and a row written by an older build may carry either.
     public static func resolve(address: String?, rows: [PairedDevice], currentId: String) -> String? {
-        guard let address, !address.isEmpty else { return nil }
+        // BLANK, not merely empty, so the two platforms agree: Kotlin's `isNullOrBlank` refuses a
+        // whitespace-only address, and a bare `isEmpty` here would let one match a stored blank.
+        guard let address, !address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
         guard let row = rows.first(where: {
             guard let pid = $0.peripheralId else { return false }
             return pid.caseInsensitiveCompare(address) == .orderedSame

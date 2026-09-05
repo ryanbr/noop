@@ -64,6 +64,9 @@ final class SourceIdentityTests: XCTestCase {
         let blank = row("whoop-blank", "WHOOP", "")
         XCTAssertNil(SourceIdentity.resolve(address: "", rows: [blank], currentId: "oura-abc"))
         XCTAssertNil(SourceIdentity.resolve(address: nil, rows: [blank], currentId: "oura-abc"))
+        // Whitespace is blank on both platforms — Kotlin's `isNullOrBlank` set the contract.
+        let spaces = row("whoop-spaces", "WHOOP", "   ")
+        XCTAssertNil(SourceIdentity.resolve(address: "   ", rows: [spaces], currentId: "oura-abc"))
     }
 
     /// The legacy id is a WHOOP by id even though its brand was never guaranteed.
