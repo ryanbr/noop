@@ -63,8 +63,11 @@ class StrapStatusDetailTest {
         // (AnalyticsEngine gates both on `!hrOnly`). A field log showed a week of blank Recovery
         // Vitals while this line pointed at three features the user was not missing.
         assertTrue(detail.contains("motion"))
-        assertTrue(detail.contains("HRV"))
-        assertTrue(detail.contains("resting heart rate"))
+        // #1884 repinned the tail of this: naming HRV and resting HR as CONSEQUENCES stopped being true
+        // when an HR-only night began reporting both. What survives is the reason they were named at all
+        // — the strap stops sending motion, so sleep falls to the HR-only stager.
+        assertTrue(detail.contains("staged from heart rate alone"))
+        assertFalse(detail.contains("HRV and resting heart rate are unavailable"))
         // The original claim has to survive the rewrite.
         assertTrue(detail.contains("history sync"))
 
