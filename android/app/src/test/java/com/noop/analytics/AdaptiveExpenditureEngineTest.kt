@@ -103,6 +103,19 @@ class AdaptiveExpenditureEngineTest {
         assertTrue(thin.confidence != AdaptiveExpenditureConfidence.HIGH)
     }
 
+    /**
+     * The window must hold exactly the days it claims. `dayCount` is inclusive, so a strict `<` in the
+     * recency filter drops the oldest day while still reporting the full window — losing a day of data
+     * and understating coverage, both silently. Every other case here logs every day, so a one-day loss
+     * crosses no gate and nothing else would notice.
+     */
+    @Test
+    fun `a fully logged window keeps every day it reports`() {
+        val est = AdaptiveExpenditureEngine.estimate(history(days = 30))!!
+        assertEquals(30, est.windowDays)
+        assertEquals(est.windowDays, est.intakeDays)
+    }
+
     /** A bad day key must not be read as 1970 and stretch the window by twenty thousand days. */
     @Test
     fun `an unparseable day key is refused not treated as 1970`() {

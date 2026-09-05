@@ -88,6 +88,16 @@ final class AdaptiveExpenditureEngineTests: XCTestCase {
         XCTAssertNotEqual(thin.confidence, .high)
     }
 
+    /// The window must hold exactly the days it claims. `dayCount` is inclusive, so a strict `<` in the
+    /// recency filter drops the oldest day while still reporting the full window — losing a day of data
+    /// and understating coverage, both silently. Every other case here logs every day, so a one-day loss
+    /// crosses no gate and nothing else would notice.
+    func testFullyLoggedWindowKeepsEveryDayItReports() throws {
+        let est = try XCTUnwrap(AdaptiveExpenditureEngine.estimate(days: history(days: 30)))
+        XCTAssertEqual(est.windowDays, 30)
+        XCTAssertEqual(est.intakeDays, est.windowDays)
+    }
+
     /// A bad day key must not be read as 1970 and stretch the window by twenty thousand days.
     func testUnparseableDayKeyIsRefusedNotTreatedAs1970() {
         XCTAssertNil(AdaptiveExpenditureEngine.dayCount(from: "not-a-day", to: "2026-01-01"))

@@ -87,7 +87,10 @@ public enum AdaptiveExpenditureEngine {
         // Keep the most RECENT `window` days: an adapted metabolism makes the tail the honest part.
         let recent = ordered.filter { d in
             guard let back = dayCount(from: d.day, to: last) else { return false }
-            return back < window
+            // `dayCount` is INCLUSIVE — `dayCount(last, last)` is 1 — so the last `window` days are
+            // `back <= window`. A strict `<` silently drops the oldest day while still reporting the
+            // full `window`, which both loses data and understates coverage.
+            return back <= window
         }
 
         let intake = recent.compactMap { $0.caloriesIn }.filter { $0 > 0 }

@@ -69,7 +69,10 @@ object AdaptiveExpenditureEngine {
         val window = minOf(span, MAX_WINDOW_DAYS)
         val recent = ordered.filter { d ->
             val back = dayCount(d.day, last) ?: return@filter false
-            back < window
+            // `dayCount` is INCLUSIVE — `dayCount(last, last)` is 1 — so the last `window` days are
+            // `back <= window`. A strict `<` silently drops the oldest day while still reporting the full
+            // `window`, which both loses data and understates coverage.
+            back <= window
         }
 
         val intake = recent.mapNotNull { it.caloriesIn }.filter { it > 0 }
