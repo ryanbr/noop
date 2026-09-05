@@ -305,7 +305,7 @@ extension StandardHRSource: @preconcurrency CBCentralManagerDelegate {
         seenPeripherals[id] = peripheral
         let advName = advertisementData[CBAdvertisementDataLocalNameKey] as? String
         let name = advName ?? peripheral.name ?? "Heart Rate Strap"
-        if firstSight { log("HR-strap: found \(name) (\(id)) rssi \(RSSI.intValue)") }
+        if firstSight { log("HR-strap: found \(LiveState.logSafeDeviceName(name)) (\(id)) rssi \(RSSI.intValue)") }
         let strap = DiscoveredStrap(id: id, name: name, rssi: RSSI.intValue)
         discovered = Self.upsertByProximity(discovered, strap)
         // If we were scanning specifically to reach this strap (a not-yet-cached active strap), connect now

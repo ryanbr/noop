@@ -831,9 +831,17 @@ public final class LiveState: ObservableObject {
         return String(out)
     }
 
-    /// Tokens that identify a MODEL rather than a person: "WHOOP", "MG", and versions like "4.0".
+    /// Tokens that identify a MODEL rather than a person, for `logSafeDeviceName`.
+    ///
+    /// Three shapes: a known vendor or product word, a version number ("4.0"), and a short model code
+    /// ("H10", "OH1"). The model code is bounded to at most four letters and three digits precisely
+    /// because it is the one loose rule here - it must not become a hole a personal name fits through,
+    /// and a name without digits cannot match it at all.
+    ///
+    /// Anything not on this list is DROPPED, which is the point: a naming shape nobody anticipated loses
+    /// by default. Kotlin twin: `SAFE_DEVICE_NAME_TOKEN_RE`.
     private static let safeDeviceNameToken = try? NSRegularExpression(
-        pattern: "^(whoop|mg|\\d+(\\.\\d+)?)$", options: [.caseInsensitive])
+        pattern: "^(whoop|mg|polar|verity|sense|wahoo|tickr|garmin|hrm|forerunner|fenix|vantage|ignite|amazfit|huami|zepp|xiaomi|mi|band|coospo|magene|suunto|scosche|rhythm|kickr|tacx|elite|cateye|decathlon|kalenji|geonaute|\\d+(\\.\\d+)?|[a-z]{1,4}\\d{1,3})$", options: [.caseInsensitive])
 
     /// A device name reduced to what is safe to put in a shared log: the MODEL, never the person.
     ///
@@ -849,11 +857,15 @@ public final class LiveState: ObservableObject {
     nonisolated static func logSafeDeviceName(_ name: String?) -> String {
         let n = (name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         if n.isEmpty || n == "unknown" { return "unknown" }
-        let safe = n.split(whereSeparator: { $0.isWhitespace }).filter { tok in
+        let tokens = n.split(whereSeparator: { $0.isWhitespace })
+        let safe = tokens.filter { tok in
             guard let re = Self.safeDeviceNameToken else { return false }
             let t = String(tok)
             return re.firstMatch(in: t, range: NSRange(location: 0, length: (t as NSString).length)) != nil
         }
+        // Say "<name>" only when something was actually removed. An unrenamed "WHOOP 4.0" or "Polar H10"
+        // carries nothing personal, and prefixing it would claim a redaction that never happened.
+        if safe.count == tokens.count { return n }
         return safe.isEmpty ? "<name>" : "<name> " + safe.joined(separator: " ")
     }
 

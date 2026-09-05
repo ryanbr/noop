@@ -222,7 +222,7 @@ class HuamiHrSource(
             val brand = ExperimentalBrand.recognise(name)
             if (brand != ExperimentalBrand.AMAZFIT && brand != ExperimentalBrand.MI_BAND) return
             val firstSight = seen.put(address, device) == null
-            if (firstSight) log("Huami: found $name ($address) rssi ${result.rssi}")
+            if (firstSight) log("Huami: found ${logSafeDeviceName(name)} ($address) rssi ${result.rssi}")
             val dev = DiscoveredDevice(
                 address = address,
                 name = name.ifBlank { brand.displayBrand },

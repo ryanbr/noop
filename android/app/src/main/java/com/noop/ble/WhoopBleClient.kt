@@ -11413,8 +11413,20 @@ internal fun redactHexDumpPii(hex: String): String {
     return out
 }
 
-/** Tokens that identify a MODEL rather than a person: "WHOOP", "MG", and versions like "4.0". */
-private val SAFE_DEVICE_NAME_TOKEN_RE = Regex("(?i)(whoop|mg|\\d+(\\.\\d+)?)")
+/**
+ * Tokens that identify a MODEL rather than a person, for [logSafeDeviceName].
+ *
+ * Three shapes: a known vendor or product word, a version number ("4.0"), and a short model code
+ * ("H10", "OH1"). The model code is bounded to at most four letters and three digits precisely because
+ * it is the one loose rule here - it must not become a hole a personal name fits through, and a name
+ * without digits cannot match it at all.
+ *
+ * Anything not on this list is DROPPED, which is the point: a naming shape nobody anticipated loses by
+ * default. Extend it when a device logs as "<name>" and its model is worth having. Swift twin:
+ * `LiveState.safeDeviceNameToken`.
+ */
+private val SAFE_DEVICE_NAME_TOKEN_RE =
+    Regex("(?i)(whoop|mg|polar|verity|sense|wahoo|tickr|garmin|hrm|forerunner|fenix|vantage|ignite|amazfit|huami|zepp|xiaomi|mi|band|coospo|magene|suunto|scosche|rhythm|kickr|tacx|elite|cateye|decathlon|kalenji|geonaute|\\d+(\\.\\d+)?|[a-z]{1,4}\\d{1,3})")
 
 /**
  * A device name reduced to what is safe to put in a shared log: the MODEL, never the person.
@@ -11432,8 +11444,15 @@ private val SAFE_DEVICE_NAME_TOKEN_RE = Regex("(?i)(whoop|mg|\\d+(\\.\\d+)?)")
 internal fun logSafeDeviceName(name: String?): String {
     val n = name?.trim().orEmpty()
     if (n.isEmpty() || n == "unknown") return "unknown"
-    val safe = n.split(Regex("\\s+")).filter { SAFE_DEVICE_NAME_TOKEN_RE.matches(it) }
-    return if (safe.isEmpty()) "<name>" else "<name> " + safe.joinToString(" ")
+    val tokens = n.split(Regex("\\s+"))
+    val safe = tokens.filter { SAFE_DEVICE_NAME_TOKEN_RE.matches(it) }
+    // Say "<name>" only when something was actually removed. An unrenamed "WHOOP 4.0" or "Polar H10"
+    // carries nothing personal, and prefixing it would claim a redaction that never happened.
+    return when {
+        safe.size == tokens.size -> n
+        safe.isEmpty() -> "<name>"
+        else -> "<name> " + safe.joinToString(" ")
+    }
 }
 
 /** Mask MAC addresses and WHOOP serials in a strap-log line before it's shown/exported.

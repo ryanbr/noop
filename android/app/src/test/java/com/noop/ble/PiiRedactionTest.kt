@@ -210,4 +210,18 @@ class PiiRedactionTest {
         assertEquals("unknown", logSafeDeviceName("   "))
     }
 
+
+    /** Third-party straps: the MODEL is the diagnostic, so a name carrying no person survives intact. */
+    @Test fun logSafeDeviceNameKeepsAnUnrenamedThirdPartyModel() {
+        assertEquals("Polar H10", logSafeDeviceName("Polar H10"))
+        assertEquals("TICKR", logSafeDeviceName("TICKR"))
+        assertEquals("WHOOP 4.0", logSafeDeviceName("WHOOP 4.0"))
+    }
+
+    /** ...but a renamed one loses the person and keeps the model. */
+    @Test fun logSafeDeviceNameStripsThePersonFromARenamedThirdPartyStrap() {
+        assertEquals("<name> Polar H10", logSafeDeviceName("Ryan's Polar H10"))
+        assertEquals("<name> TICKR", logSafeDeviceName("Sarah TICKR"))
+    }
+
 }

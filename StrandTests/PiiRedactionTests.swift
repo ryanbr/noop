@@ -64,4 +64,18 @@ final class PiiRedactionTests: XCTestCase {
         XCTAssertEqual(LiveState.logSafeDeviceName("   "), "unknown")
     }
 
+
+    /// Third-party straps: the MODEL is the diagnostic, so a name carrying no person survives intact.
+    func testLogSafeDeviceNameKeepsAnUnrenamedThirdPartyModel() {
+        XCTAssertEqual(LiveState.logSafeDeviceName("Polar H10"), "Polar H10")
+        XCTAssertEqual(LiveState.logSafeDeviceName("TICKR"), "TICKR")
+        XCTAssertEqual(LiveState.logSafeDeviceName("WHOOP 4.0"), "WHOOP 4.0")
+    }
+
+    /// ...but a renamed one loses the person and keeps the model.
+    func testLogSafeDeviceNameStripsThePersonFromARenamedThirdPartyStrap() {
+        XCTAssertEqual(LiveState.logSafeDeviceName("Ryan's Polar H10"), "<name> Polar H10")
+        XCTAssertEqual(LiveState.logSafeDeviceName("Sarah TICKR"), "<name> TICKR")
+    }
+
 }

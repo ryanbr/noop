@@ -169,7 +169,7 @@ class FtmsSource(
             val firstSight = seen.put(address, device) == null
             val name = result.scanRecord?.deviceName ?: runCatching { device.name }.getOrNull()
                 ?: "Gym Equipment"
-            if (firstSight) log("FTMS: found $name ($address) rssi ${result.rssi}")
+            if (firstSight) log("FTMS: found ${logSafeDeviceName(name)} ($address) rssi ${result.rssi}")
             val machine = DiscoveredMachine(address = address, name = name, rssi = result.rssi)
             val list = _discovered.value.toMutableList()
             val i = list.indexOfFirst { it.address == address }
