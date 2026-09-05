@@ -1639,7 +1639,8 @@ fun TodayScreen(
                         }
                         // The three hero vitals, HRV / Resting HR / Respiratory. Carried day (#543).
                         TodaySection.RECOVERY_VITALS -> Box(modifier = Modifier.fillMaxWidth().staggeredAppear(stagger)) {
-                            HeroMetricRows(day = displayMetric, carriedDay = lastScoredRecoveryDay, vitalsDay = lastVitalsDay)
+                            HeroMetricRows(day = displayMetric, carriedDay = lastScoredRecoveryDay,
+                                           vitalsDay = lastVitalsDay, onOpenMetric = onOpenMetric)
                         }
                         // YOUR CARDS, the user-customisable dashboard (WHOOP "My Dashboard"). Hydration is
                         // hidden when its tracking is OFF (the editor still offers it, so the choice
@@ -3139,7 +3140,16 @@ internal fun showsHrOnlyNote(
  *  for a vital neither today nor the carry supplies. */
 @Composable
 @Suppress("UNUSED_PARAMETER")
-private fun HeroMetricRows(day: DailyMetric?, carriedDay: DailyMetric? = null, vitalsDay: DailyMetric? = null) {
+private fun HeroMetricRows(
+    day: DailyMetric?,
+    carriedDay: DailyMetric? = null,
+    vitalsDay: DailyMetric? = null,
+    // #706/#684: the same `vital_detail/<key>` trends the HRV / Resting HR / Respiratory dashboard cards
+    // open. These three rows show the SAME metrics and had no way through, so the summary card was the one
+    // place on Today where a metric was a dead end. Keys come from `dashboardCardMetricKey`, so the two
+    // surfaces cannot drift onto different destinations for the same vital.
+    onOpenMetric: (String) -> Unit = {},
+) {
     // Per-field, today-first: today's own value wins; the vitals carry only fills a field today lacks.
     val hrv = day?.avgHrv ?: vitalsDay?.avgHrv
     val rhr = day?.restingHr ?: vitalsDay?.restingHr
@@ -3177,18 +3187,21 @@ private fun HeroMetricRows(day: DailyMetric?, carriedDay: DailyMetric? = null, v
                 value = hrv?.let { "${it.roundToInt()} ms" } ?: NO_DATA,
                 tint = Palette.metricCyan,
                 fraction = hrv?.let { (it / 120.0).coerceIn(0.0, 1.0) },
+                onClick = { onOpenMetric(vitalRowKey(DashboardCard.HRV)) },
             )
             HeroVitalRow(
                 label = uiString(R.string.l10n_today_screen_resting_heart_rate_348928d6),
                 value = rhr?.let { "$it bpm" } ?: NO_DATA,
                 tint = Palette.metricRose,
                 fraction = rhr?.let { (it / 100.0).coerceIn(0.0, 1.0) },
+                onClick = { onOpenMetric(vitalRowKey(DashboardCard.RESTING_HR)) },
             )
             HeroVitalRow(
                 label = uiString(R.string.l10n_today_screen_breaths_per_minute_2b197c54),
                 value = resp?.let { String.format(Locale.getDefault(), "%.1f rpm", it) } ?: NO_DATA,
                 tint = Palette.accent,
                 fraction = resp?.let { (it / 24.0).coerceIn(0.0, 1.0) },
+                onClick = { onOpenMetric(vitalRowKey(DashboardCard.RESPIRATORY)) },
             )
             if (hrOnlyNight) {
                 Text(
@@ -3211,12 +3224,19 @@ private fun heroVitalsLastNightLine(): String {
 /** One iOS `vitalRow`: a 26dp mini liquid VESSEL filled to [fraction] in [tint], the label (subhead,
  *  secondary), a spacer, and the value (number 15, primary). Replaces the old flat-Material-icon row. */
 @Composable
-private fun HeroVitalRow(label: String, value: String, tint: Color, fraction: Double?) {
+private fun HeroVitalRow(
+    label: String,
+    value: String,
+    tint: Color,
+    fraction: Double?,
+    onClick: (() -> Unit)? = null,
+) {
     val hasValue = value != NO_DATA
     val displayValue = localizedMetricValue(value)
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
             .semantics { contentDescription = uiString(R.string.l10n_today_screen_label_value_b781d590, label, displayValue) },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Metrics.space12),
@@ -3233,6 +3253,17 @@ private fun HeroVitalRow(label: String, value: String, tint: Color, fraction: Do
             style = NoopType.number(15f),
             color = if (hasValue) Palette.textPrimary else Palette.textTertiary,
         )
+        // Only when the row actually goes somewhere. `dashboardCardDestination` states the rule this
+        // follows - every card resolves to a destination, so the chevron is always honest (#706/#684) -
+        // and the inverse is what was wrong here: three rows that go somewhere and did not say so.
+        if (onClick != null) {
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = Palette.textTertiary,
+                modifier = Modifier.size(Metrics.iconSmall),
+            )
+        }
     }
 }
 
@@ -3501,11 +3532,26 @@ private fun sleepSourceSubtitle(card: DashboardCard, day: DailyMetric?): String?
     return uiString(R.string.today_sleep_source_last_night, source)
 }
 
+/**
+ * The metric-detail key a RECOVERY VITALS row opens, taken from the dashboard card resolver rather than
+ * written out again.
+ *
+ * The rows and the HRV / Resting HR / Respiratory cards show the SAME three vitals, so a literal here
+ * could send one surface to a different trend than the other and nothing would catch it - the same "one
+ * value, two places" shape that has bitten this codebase repeatedly. Sourcing it means they cannot drift.
+ *
+ * These three cards always resolve to a key; only Stress / Sleep / Hydration / Coupled / Coach return
+ * null, and none of those is a vital row. `vitalRowKeysResolve` pins that so the failure would be a red
+ * test rather than a crash.
+ */
+internal fun vitalRowKey(card: DashboardCard): String =
+    requireNotNull(dashboardCardMetricKey(card)) { "a vital row's card must resolve to a metric key" }
+
 /** The `vital_detail/<key>` key a metric/vital card opens, or null when the card has its OWN dedicated
  *  screen (Stress / Sleep / Hydration / Coupled) rather than a metric-detail trend. Mirrors the iOS
  *  `liquidCard` switch, where every metric/vital card opens `metricDetail(key)` (its own focused trend),
  *  NOT the shared Health hub (2026-07-03). Keys are the Android VitalDetailScreen keys. */
-private fun dashboardCardMetricKey(card: DashboardCard): String? = when (card) {
+internal fun dashboardCardMetricKey(card: DashboardCard): String? = when (card) {
     DashboardCard.HRV -> "hrv"
     DashboardCard.RESTING_HR -> "rhr"
     DashboardCard.RESPIRATORY -> "resp"
