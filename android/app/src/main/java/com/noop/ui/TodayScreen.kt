@@ -3187,21 +3187,24 @@ private fun HeroMetricRows(
                 value = hrv?.let { "${it.roundToInt()} ms" } ?: NO_DATA,
                 tint = Palette.metricCyan,
                 fraction = hrv?.let { (it / 120.0).coerceIn(0.0, 1.0) },
-                onClick = { onOpenMetric(vitalRowKey(DashboardCard.HRV)) },
+                metricKey = dashboardCardMetricKey(DashboardCard.HRV),
+                onOpenMetric = onOpenMetric,
             )
             HeroVitalRow(
                 label = uiString(R.string.l10n_today_screen_resting_heart_rate_348928d6),
                 value = rhr?.let { "$it bpm" } ?: NO_DATA,
                 tint = Palette.metricRose,
                 fraction = rhr?.let { (it / 100.0).coerceIn(0.0, 1.0) },
-                onClick = { onOpenMetric(vitalRowKey(DashboardCard.RESTING_HR)) },
+                metricKey = dashboardCardMetricKey(DashboardCard.RESTING_HR),
+                onOpenMetric = onOpenMetric,
             )
             HeroVitalRow(
                 label = uiString(R.string.l10n_today_screen_breaths_per_minute_2b197c54),
                 value = resp?.let { String.format(Locale.getDefault(), "%.1f rpm", it) } ?: NO_DATA,
                 tint = Palette.accent,
                 fraction = resp?.let { (it / 24.0).coerceIn(0.0, 1.0) },
-                onClick = { onOpenMetric(vitalRowKey(DashboardCard.RESPIRATORY)) },
+                metricKey = dashboardCardMetricKey(DashboardCard.RESPIRATORY),
+                onOpenMetric = onOpenMetric,
             )
             if (hrOnlyNight) {
                 Text(
@@ -3229,8 +3232,15 @@ private fun HeroVitalRow(
     value: String,
     tint: Color,
     fraction: Double?,
-    onClick: (() -> Unit)? = null,
+    // The metric-detail key this row opens, from `dashboardCardMetricKey` so the row and its dashboard-card
+    // twin cannot drift onto different trends for the same vital. NULL means the row simply does not
+    // navigate: it loses the tap AND the chevron together, which is the honest degradation. An earlier
+    // draft asserted the key was present, which would have turned a missing destination into a crash on
+    // tap - a worse outcome than a row that quietly does not move.
+    metricKey: String? = null,
+    onOpenMetric: (String) -> Unit = {},
 ) {
+    val onClick: (() -> Unit)? = metricKey?.let { key -> { onOpenMetric(key) } }
     val hasValue = value != NO_DATA
     val displayValue = localizedMetricValue(value)
     Row(
@@ -3531,21 +3541,6 @@ private fun sleepSourceSubtitle(card: DashboardCard, day: DailyMetric?): String?
     val source = daySourceBadge(d.deviceId).first
     return uiString(R.string.today_sleep_source_last_night, source)
 }
-
-/**
- * The metric-detail key a RECOVERY VITALS row opens, taken from the dashboard card resolver rather than
- * written out again.
- *
- * The rows and the HRV / Resting HR / Respiratory cards show the SAME three vitals, so a literal here
- * could send one surface to a different trend than the other and nothing would catch it - the same "one
- * value, two places" shape that has bitten this codebase repeatedly. Sourcing it means they cannot drift.
- *
- * These three cards always resolve to a key; only Stress / Sleep / Hydration / Coupled / Coach return
- * null, and none of those is a vital row. `vitalRowKeysResolve` pins that so the failure would be a red
- * test rather than a crash.
- */
-internal fun vitalRowKey(card: DashboardCard): String =
-    requireNotNull(dashboardCardMetricKey(card)) { "a vital row's card must resolve to a metric key" }
 
 /** The `vital_detail/<key>` key a metric/vital card opens, or null when the card has its OWN dedicated
  *  screen (Stress / Sleep / Hydration / Coupled) rather than a metric-detail trend. Mirrors the iOS
