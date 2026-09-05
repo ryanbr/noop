@@ -25,7 +25,7 @@ final class ScanAdvertisementSummaryTests: XCTestCase {
     /// The headline guarantee: shape is reported, payload never is.
     func testSummaryCarriesNoPayloadBytesAndNoName() {
         let s = line(svcData: ["fd4b": 9], mfg: [0x01D9: 14], nameLen: 13)
-        XCTAssertTrue(s.contains("fd4b:9B"))
+        XCTAssertTrue(s.contains("0000fd4b-0000-1000-8000-00805f9b34fb:9B"))
         XCTAssertTrue(s.contains("0x01d9:14B"))
         XCTAssertTrue(s.contains("nameLen=13"))
         XCTAssertFalse(s.contains("Whoop"))
@@ -41,7 +41,7 @@ final class ScanAdvertisementSummaryTests: XCTestCase {
         XCTAssertTrue(normal.contains("flags=0x06"))
         XCTAssertTrue(pairing.contains("flags=0x05"))
         XCTAssertTrue(normal.contains("svcData=none"))
-        XCTAssertTrue(pairing.contains("fd4b:4B"))
+        XCTAssertTrue(pairing.contains("0000fd4b-0000-1000-8000-00805f9b34fb:4B"))
     }
 
     /// Absent fields say so rather than vanishing, so two logs stay comparable field by field.
@@ -70,5 +70,25 @@ final class ScanAdvertisementSummaryTests: XCTestCase {
     func testConnectabilityIsReported() {
         XCTAssertTrue(line(connectable: true).contains("connectable=true"))
         XCTAssertTrue(line(connectable: false).contains("connectable=false"))
+    }
+
+    /// The cross-platform guarantee. CoreBluetooth reports an assigned 16-bit UUID as "180d" while
+    /// Android always expands it, so without canonicalisation the SAME strap would log two different
+    /// lines and an iOS capture could not be diffed against an Android one. Both spellings must collapse
+    /// to one string — this is the assertion the Kotlin twin makes verbatim.
+    func testShortAndLongUuidSpellingsProduceTheSameLine() {
+        let short = line(svc: ["180d"], svcData: ["fd4b": 4])
+        let long = line(svc: ["0000180d-0000-1000-8000-00805f9b34fb"],
+                        svcData: ["0000fd4b-0000-1000-8000-00805f9b34fb": 4])
+        XCTAssertEqual(short, long)
+        XCTAssertTrue(short.contains("svc=0000180d-0000-1000-8000-00805f9b34fb"))
+    }
+
+    /// A 32-bit assigned UUID takes the same base, and a 128-bit one is passed through untouched.
+    func testCanonicalisationCoversThirtyTwoBitAndLeavesFullUuidsAlone() {
+        XCTAssertEqual(ScanAdvertisementSummary.canonicalUuid("0000180d"),
+                       "0000180d-0000-1000-8000-00805f9b34fb")
+        let full = "61080001-8d6d-82b8-614a-1c8cb0f8dcc6"
+        XCTAssertEqual(ScanAdvertisementSummary.canonicalUuid(full), full)
     }
 }

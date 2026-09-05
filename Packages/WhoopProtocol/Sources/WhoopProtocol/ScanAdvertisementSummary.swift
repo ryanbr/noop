@@ -32,14 +32,35 @@ public enum ScanAdvertisementSummary {
         var parts: [String] = []
         parts.append("flags=" + (flags.map { String(format: "0x%02x", $0) } ?? "none"))
         parts.append("connectable=\(connectable)")
-        parts.append("svc=" + (serviceUuids.isEmpty ? "none" : serviceUuids.sorted().joined(separator: ",")))
-        parts.append("svcData=" + (serviceDataLengths.isEmpty ? "none"
-            : serviceDataLengths.sorted { $0.key < $1.key }.map { "\($0.key):\($0.value)B" }.joined(separator: ",")))
+        let svc = serviceUuids.map(canonicalUuid).sorted()
+        parts.append("svc=" + (svc.isEmpty ? "none" : svc.joined(separator: ",")))
+        // Normalise BEFORE sorting: the canonical form reorders keys that the short form would not.
+        let svcData = serviceDataLengths.map { (canonicalUuid($0.key), $0.value) }.sorted { $0.0 < $1.0 }
+        parts.append("svcData=" + (svcData.isEmpty ? "none"
+            : svcData.map { "\($0.0):\($0.1)B" }.joined(separator: ",")))
         parts.append("mfg=" + (manufacturerDataLengths.isEmpty ? "none"
             : manufacturerDataLengths.sorted { $0.key < $1.key }
                 .map { String(format: "0x%04x:%dB", $0.key, $0.value) }.joined(separator: ",")))
         parts.append("tx=" + (txPower.map(String.init) ?? "none"))
         parts.append("nameLen=" + (localNameLength.map(String.init) ?? "none"))
         return "[adv] " + parts.joined(separator: " ")
+    }
+
+    /// Expand an assigned short Bluetooth UUID to its canonical 128-bit form; pass anything else through.
+    ///
+    /// CoreBluetooth renders an assigned 16-bit UUID as "180d" and a 32-bit one as "0000180d", where
+    /// Android's `UUID.toString()` always expands to the full base UUID. Unnormalised, the same strap
+    /// advertising Heart Rate Service logs a different string on each platform, so an iOS capture cannot
+    /// be compared against an Android one — which is exactly what this line exists to allow. Normalising
+    /// inside `line` rather than at the call site means neither platform's scan path can forget to do it.
+    ///
+    /// A no-op on Android, whose input is already 128-bit; it lives in both twins so the two formatters
+    /// stay behaviourally identical rather than agreeing only by accident of their inputs.
+    static func canonicalUuid(_ s: String) -> String {
+        switch s.count {
+        case 4: return "0000\(s)-0000-1000-8000-00805f9b34fb"
+        case 8: return "\(s)-0000-1000-8000-00805f9b34fb"
+        default: return s
+        }
     }
 }

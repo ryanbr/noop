@@ -29,7 +29,7 @@ class ScanAdvertisementSummaryTest {
     fun `the summary carries no payload bytes and no name`() {
         val s = line(svcData = mapOf("fd4b" to 9), mfg = mapOf(0x01D9 to 14), nameLen = 13)
         // Lengths and ids, yes. Contents, no.
-        assertTrue(s.contains("fd4b:9B"))
+        assertTrue(s.contains("0000fd4b-0000-1000-8000-00805f9b34fb:9B"))
         assertTrue(s.contains("0x01d9:14B"))
         assertTrue(s.contains("nameLen=13"))
         // Nothing that could be a name or a serial.
@@ -50,7 +50,7 @@ class ScanAdvertisementSummaryTest {
         assertTrue(normal.contains("flags=0x06"))
         assertTrue(pairing.contains("flags=0x05"))
         assertTrue(normal.contains("svcData=none"))
-        assertTrue(pairing.contains("fd4b:4B"))
+        assertTrue(pairing.contains("0000fd4b-0000-1000-8000-00805f9b34fb:4B"))
     }
 
     /** Absent fields say so rather than vanishing, so two logs stay comparable field by field. */
@@ -76,5 +76,33 @@ class ScanAdvertisementSummaryTest {
     fun `connectability is reported`() {
         assertTrue(line(connectable = true).contains("connectable=true"))
         assertTrue(line(connectable = false).contains("connectable=false"))
+    }
+
+    /**
+     * The cross-platform guarantee. CoreBluetooth reports an assigned 16-bit UUID as "180d" while
+     * Android always expands it, so without canonicalisation the SAME strap would log two different
+     * lines and an iOS capture could not be diffed against an Android one. Both spellings must collapse
+     * to one string — the Swift twin asserts this verbatim.
+     */
+    @Test
+    fun `short and long uuid spellings produce the same line`() {
+        val short = line(svc = listOf("180d"), svcData = mapOf("fd4b" to 4))
+        val long = line(
+            svc = listOf("0000180d-0000-1000-8000-00805f9b34fb"),
+            svcData = mapOf("0000fd4b-0000-1000-8000-00805f9b34fb" to 4),
+        )
+        assertEquals(short, long)
+        assertTrue(short.contains("svc=0000180d-0000-1000-8000-00805f9b34fb"))
+    }
+
+    /** A 32-bit assigned UUID takes the same base, and a 128-bit one is passed through untouched. */
+    @Test
+    fun `canonicalisation covers 32-bit and leaves full uuids alone`() {
+        assertEquals(
+            "0000180d-0000-1000-8000-00805f9b34fb",
+            ScanAdvertisementSummary.canonicalUuid("0000180d"),
+        )
+        val full = "61080001-8d6d-82b8-614a-1c8cb0f8dcc6"
+        assertEquals(full, ScanAdvertisementSummary.canonicalUuid(full))
     }
 }

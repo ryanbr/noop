@@ -26,7 +26,7 @@ object ScanAdvertisementSummary {
 
     /**
      * @param flags the AD flags byte, or null when the advertisement carries none.
-     * @param serviceUuids advertised service UUIDs, already lowercased short form where possible.
+     * @param serviceUuids advertised service UUIDs, lowercased; short forms are canonicalised here.
      * @param serviceDataLengths bytes per service-data UUID, keyed by that UUID.
      * @param manufacturerDataLengths bytes per manufacturer id.
      * @param txPower advertised TX power, or null.
@@ -46,13 +46,31 @@ object ScanAdvertisementSummary {
         val parts = mutableListOf<String>()
         parts += "flags=" + (flags?.let { "0x%02x".format(it) } ?: "none")
         parts += "connectable=$connectable"
-        parts += "svc=" + if (serviceUuids.isEmpty()) "none" else serviceUuids.sorted().joinToString(",")
-        parts += "svcData=" + if (serviceDataLengths.isEmpty()) "none" else
-            serviceDataLengths.entries.sortedBy { it.key }.joinToString(",") { "${it.key}:${it.value}B" }
+        val svc = serviceUuids.map { canonicalUuid(it) }.sorted()
+        parts += "svc=" + if (svc.isEmpty()) "none" else svc.joinToString(",")
+        // Normalise BEFORE sorting: the canonical form reorders keys that the short form would not.
+        val svcData = serviceDataLengths.map { canonicalUuid(it.key) to it.value }.sortedBy { it.first }
+        parts += "svcData=" + if (svcData.isEmpty()) "none" else
+            svcData.joinToString(",") { "${it.first}:${it.second}B" }
         parts += "mfg=" + if (manufacturerDataLengths.isEmpty()) "none" else
             manufacturerDataLengths.entries.sortedBy { it.key }.joinToString(",") { "0x%04x:%dB".format(it.key, it.value) }
         parts += "tx=" + (txPower?.toString() ?: "none")
         parts += "nameLen=" + (localNameLength?.toString() ?: "none")
         return "[adv] " + parts.joinToString(" ")
+    }
+
+    /**
+     * Expand an assigned short Bluetooth UUID to its canonical 128-bit form; pass anything else through.
+     *
+     * A no-op on Android, whose `UUID.toString()` is always already 128-bit. It exists because
+     * CoreBluetooth renders an assigned 16-bit UUID as "180d" and a 32-bit one as "0000180d", so an
+     * unnormalised iOS capture of the same strap could not be compared against an Android one — which is
+     * exactly what this line exists to allow. Kept in BOTH twins so the formatters stay behaviourally
+     * identical rather than agreeing only by accident of what their callers happen to pass.
+     */
+    internal fun canonicalUuid(s: String): String = when (s.length) {
+        4 -> "0000$s-0000-1000-8000-00805f9b34fb"
+        8 -> "$s-0000-1000-8000-00805f9b34fb"
+        else -> s
     }
 }
