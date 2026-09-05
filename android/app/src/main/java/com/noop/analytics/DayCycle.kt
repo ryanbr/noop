@@ -54,13 +54,17 @@ object DayCycleResolver {
     /**
      * Resolve the active window. Sleep-onset mode stays open across midnight even when awake coverage is
      * unavailable. The absolute cap still prevents a stale sleep boundary from remaining active forever.
+     *
+     * That "even when" is unconditional, not a gate: an earlier design decided it from whether awake
+     * coverage was reliable and carried a `reliableAwakeCoverage` parameter for it. The gate was dropped
+     * but the parameter survived — unread on both platforms, and passed `false` by every one of its call
+     * sites — so it was removed rather than left looking like a switch someone could flip.
      */
     fun activeWindow(
         mode: DayCycleMode,
         latestSleep: DayCycleWindow?,
         now: Long,
         tzOffsetSeconds: Long,
-        reliableAwakeCoverage: Boolean,
     ): DayCycleWindow {
         if (mode == DayCycleMode.MIDNIGHT || latestSleep == null) {
             return calendarWindow(now, tzOffsetSeconds)

@@ -14,23 +14,23 @@ class DayCycleResolverTest {
         assertEquals(2 * 86_400L, DayCycleResolver.fallbackMidnightAfter(monday2300, 0))
     }
 
-    @Test fun reliableAllNighterStaysOpenUntilTheAbsoluteCap() {
+    @Test fun allNighterStaysOpenUntilTheAbsoluteCap() {
         val sleep = DayCycleWindow("night", 0, 0, "1970-01-01", DayCycleWindow.Source.DETECTED_SLEEP)
         assertEquals(
             DayCycleWindow.Source.DETECTED_SLEEP,
-            DayCycleResolver.activeWindow(DayCycleMode.SLEEP_ONSET, sleep, 39 * 3_600L, 0, true).source,
+            DayCycleResolver.activeWindow(DayCycleMode.SLEEP_ONSET, sleep, 39 * 3_600L, 0).source,
         )
         assertEquals(
             DayCycleWindow.Source.SYNTHETIC_MIDNIGHT,
-            DayCycleResolver.activeWindow(DayCycleMode.SLEEP_ONSET, sleep, 40 * 3_600L, 0, true).source,
+            DayCycleResolver.activeWindow(DayCycleMode.SLEEP_ONSET, sleep, 40 * 3_600L, 0).source,
         )
     }
 
-    @Test fun missingCoverageKeepsSleepOnsetCycleOpenAcrossMidnight() {
+    @Test fun sleepOnsetCycleStaysOpenAcrossMidnight() {
         val sleep = DayCycleWindow("night", 23 * 3_600L, 0, "1970-01-02", DayCycleWindow.Source.DETECTED_SLEEP)
         assertEquals(
             DayCycleWindow.Source.DETECTED_SLEEP,
-            DayCycleResolver.activeWindow(DayCycleMode.SLEEP_ONSET, sleep, 2 * 86_400L + 60, 0, false).source,
+            DayCycleResolver.activeWindow(DayCycleMode.SLEEP_ONSET, sleep, 2 * 86_400L + 60, 0).source,
         )
     }
 
@@ -38,7 +38,7 @@ class DayCycleResolverTest {
         val sleep = DayCycleWindow("night", 23 * 3_600L, 0, "1970-01-02", DayCycleWindow.Source.DETECTED_SLEEP)
         assertEquals(
             DayCycleWindow.Source.CALENDAR,
-            DayCycleResolver.activeWindow(DayCycleMode.MIDNIGHT, sleep, 2 * 86_400L + 60, 0, true).source,
+            DayCycleResolver.activeWindow(DayCycleMode.MIDNIGHT, sleep, 2 * 86_400L + 60, 0).source,
         )
     }
 }

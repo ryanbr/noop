@@ -50,12 +50,15 @@ public enum DayCycleResolver {
 
     /// Kotlin twin: `DayCycleResolver.activeWindow`.
     public static func activeWindow(mode: DayCycleMode, latestSleep: DayCycleWindow?, now: Int,
-                                    offsetSec: Int, reliableAwakeCoverage: Bool) -> DayCycleWindow {
+                                    offsetSec: Int) -> DayCycleWindow {
         guard mode == .sleepOnset, let latestSleep else { return calendarWindow(now: now, offsetSec: offsetSec) }
         let age = now - latestSleep.startInclusive
         let fallback = fallbackMidnight(after: latestSleep.startInclusive, offsetSec: offsetSec)
-        // Sleep-onset mode remains anchored across midnight when awake coverage is unavailable.
-        // Only the absolute safety cap may synthesize a fallback boundary.
+        // Sleep-onset mode stays anchored across midnight unconditionally: only the absolute safety cap
+        // may synthesize a fallback boundary. An earlier design gated this on whether awake coverage was
+        // reliable and carried a `reliableAwakeCoverage` parameter for it; the gate was dropped but the
+        // parameter survived, unread on both platforms and passed `false` by every one of its five call
+        // sites. Removed rather than left looking like a switch someone could flip.
         guard age < absoluteMaxOpenSeconds else {
             let day = AnalyticsEngine.dayString(fallback, offsetSec: offsetSec)
             return DayCycleWindow(id: "synthetic:\(day)", startInclusive: fallback, endExclusive: now,

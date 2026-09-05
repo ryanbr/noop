@@ -163,7 +163,7 @@ import WhoopStore
             let active = DayCycleResolver.activeWindow(mode: mode,
                 latestSleep: DayCycleWindow(id: latest.sleepId, startInclusive: latest.onset,
                     endExclusive: now, displayDay: day, source: .detectedSleep), now: now,
-                offsetSec: offsetSec, reliableAwakeCoverage: false)
+                offsetSec: offsetSec)
             if active.source == .syntheticMidnight {
                 boundaries.append(.init(sleepId: active.id, onset: active.startInclusive))
                 wakeDayById[active.id] = active.displayDay; ownerById[active.id] = owner

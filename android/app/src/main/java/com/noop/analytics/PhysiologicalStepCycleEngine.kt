@@ -174,7 +174,6 @@ internal object PhysiologicalStepCycleEngine {
                     ),
                     now = nowSeconds,
                     tzOffsetSeconds = tzOffsetSeconds,
-                    reliableAwakeCoverage = false,
                 )
                 if (active.source == DayCycleWindow.Source.SYNTHETIC_MIDNIGHT) {
                     val synthetic = PhysiologicalSteps.CycleBoundary(active.id, active.startInclusive)
