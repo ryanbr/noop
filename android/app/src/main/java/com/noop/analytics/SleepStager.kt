@@ -700,11 +700,14 @@ object SleepStager {
      * as a confirmation gate on an already-detected run it is deliberately permissive, but as a primary
      * threshold it admits over half of any window by definition. See [hrOnlyAnchorPercentile].
      *
-     * [DetectedSleep.restingHR] and [DetectedSleep.avgHRV] are left NULL deliberately, and that is the
-     * whole display-only guarantee. An HR-only night may describe itself — duration, stages, Rest — but
-     * the resting HR and HRV it would contribute are exactly what Charge and the baselines fold in, and
-     * a baseline is the one thing a false positive cannot be unwound from. Withholding the values is
-     * structural; a downstream filter would be one forgotten call site away from failing open.
+     * [DetectedSleep.restingHR] and [DetectedSleep.avgHRV] are MEASURED here and reported (#1884). They
+     * were withheld under #1801, which treated them as inferred; they are not. Only the session BOUNDS
+     * are inferred from heart rate — that is what [DetectedSleep.hrOnly] marks — while each RMSSD is
+     * computed over its own 5-minute window, so fuzzy bounds change WHICH windows are included, not
+     * whether any one of them is valid. Withholding them discarded a measured 22-25 ms and left Charge
+     * with no input at all, which is a worse error than a slightly fuzzy one.
+     *
+     * The flag travels on instead, so a consumer that wants to weigh an HR-only night down still can.
      */
     internal fun hrOnlySessions(
         hr: List<HrSample>,

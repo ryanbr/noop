@@ -9,7 +9,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Whole HR-only sessions (#1801), and the display-only guarantee that rides on them.
+ * Whole HR-only sessions (#1801), and the physiology they report (#1884).
  *
  * The night is synthetic: a slow HR drift well under the window median, so the spine puts it in the
  * sleep band. That is enough to exercise assembly and the null contract; it is NOT a claim that the
