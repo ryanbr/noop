@@ -376,6 +376,18 @@ object BottomBarStyleStore {
     var scale by mutableStateOf(DEFAULT_SCALE)
         private set
 
+    /**
+     * Move the bar NOW without persisting, for a slider drag.
+     *
+     * Separate from [setOpacityStep] because a drag emits a value per frame: persisting each one would
+     * write SharedPreferences dozens of times to record a decision the user makes once, on release. The
+     * card-opacity slider already splits it this way; this is the same split, not a new idea.
+     */
+    fun previewOpacityStep(step: Int) {
+        opacityStep = step.coerceIn(MIN_OPACITY_STEP, MAX_OPACITY_STEP)
+    }
+
+    /** Set and persist - for a committed choice, i.e. the end of a drag. */
     fun setOpacityStep(ctx: Context, step: Int) {
         val clamped = step.coerceIn(MIN_OPACITY_STEP, MAX_OPACITY_STEP)
         opacityStep = clamped

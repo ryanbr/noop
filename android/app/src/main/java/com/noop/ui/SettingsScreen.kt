@@ -1788,9 +1788,15 @@ fun SettingsScreen(
                 Text(uiString(R.string.l10n_settings_screen_how_see_through_the_bar_is_ddb0c208), style = NoopType.footnote, color = Palette.textTertiary)
                 Slider(
                     value = BottomBarStyleStore.opacityStep.toFloat(),
-                    onValueChange = { BottomBarStyleStore.setOpacityStep(context, it.toInt()) },
+                    // Live while dragging, persisted once on release: a drag emits a value per frame, and
+                    // writing each one records a decision the user makes once. Rounded, not truncated -
+                    // the snapped value can arrive as 5.9999998, which truncation would read as step 5.
+                    onValueChange = { BottomBarStyleStore.previewOpacityStep(it.roundToInt()) },
+                    onValueChangeFinished = {
+                        BottomBarStyleStore.setOpacityStep(context, BottomBarStyleStore.opacityStep)
+                    },
                     valueRange = MIN_OPACITY_STEP.toFloat()..MAX_OPACITY_STEP.toFloat(),
-                    // 8 stops means 7 gaps between them.
+                    // Compose counts the stops BETWEEN the ends, so eight stops is six.
                     steps = MAX_OPACITY_STEP - MIN_OPACITY_STEP - 1,
                     colors = SliderDefaults.colors(
                         thumbColor = Palette.accent,

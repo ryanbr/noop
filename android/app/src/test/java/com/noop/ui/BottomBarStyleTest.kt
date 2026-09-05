@@ -58,4 +58,15 @@ class BottomBarStyleTest {
         assertEquals("1.25x", scaleLabel(1.25f))
         assertEquals("2x", scaleLabel(2f))
     }
+
+    /**
+     * The rounding the slider relies on. A snapped slider value can arrive as 5.9999998; truncation
+     * reads that as step 5, so the bar lands one stop below where the thumb is sitting.
+     */
+    @Test fun `a snapped slider value rounds to its own step`() {
+        assertEquals(6, 5.9999998f.let { Math.round(it) })
+        assertEquals(alphaForOpacityStep(6), alphaForOpacityStep(Math.round(5.9999998f)), 0.0001f)
+        assertEquals(alphaForOpacityStep(5), alphaForOpacityStep(Math.round(5.4f)), 0.0001f)
+    }
+
 }
