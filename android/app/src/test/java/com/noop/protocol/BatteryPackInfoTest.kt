@@ -2,6 +2,8 @@ package com.noop.protocol
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -70,5 +72,35 @@ class BatteryPackInfoTest {
         assertNull(info.serial)
         assertNull(BatteryPackInfo.decodeExtended(bytes(attachedHex)))   // 151 frame is not a 98 response
         assertNull(BatteryPackInfo.decode(bytes(attachedHex))!!.voltageMv) // 5/MG decode never fills voltage
+    }
+
+    /**
+     * The gauge must be sanity-checked before it is shown. These offsets are an unvalidated candidate
+     * re-derived from two captures; a wrong one does not fail, it renders a confident wrong number — the
+     * failure this project treats as worse than a blank. A percentage outside 0..100 means the offset
+     * moved, so the caller renders nothing.
+     */
+    @Test
+    fun `an out-of-range charge is not displayable`() {
+        val absurd = BatteryPackInfo.Info(present = true, socPct = 2488.1, serial = "P", btAddr = "aa")
+        assertFalse(absurd.displayable)
+        val negative = BatteryPackInfo.Info(present = true, socPct = -1.0, serial = "P", btAddr = "aa")
+        assertFalse(negative.displayable)
+    }
+
+    /** A plausible gauge on an attached pack is the one case that shows. */
+    @Test
+    fun `an in-range charge on an attached pack is displayable`() {
+        assertTrue(BatteryPackInfo.Info(present = true, socPct = 73.4, serial = "P", btAddr = "aa").displayable)
+        assertTrue(BatteryPackInfo.Info(present = true, socPct = 0.0, serial = "P", btAddr = "aa").displayable)
+        assertTrue(BatteryPackInfo.Info(present = true, socPct = 100.0, serial = "P", btAddr = "aa").displayable)
+    }
+
+    /** A removed pack must clear the card, never hold the last reading. */
+    @Test
+    fun `an absent pack is never displayable`() {
+        assertFalse(BatteryPackInfo.Info(present = false, socPct = null, serial = null, btAddr = null).displayable)
+        // Even if a stale charge rides along, absence wins.
+        assertFalse(BatteryPackInfo.Info(present = false, socPct = 80.0, serial = null, btAddr = null).displayable)
     }
 }

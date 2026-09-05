@@ -4481,6 +4481,11 @@ public final class BLEManager: NSObject, ObservableObject {
         // #battery: ~60 s normally, ~30 s while charging (see `batteryPollDue`).
         if BLEManager.batteryPollDue(tick: keepAliveTick, charging: state.charging == true) {
             send(.getBatteryLevel, payload: [])
+            // The 5/MG battery pack rides the SAME cadence as the strap's own gauge — it is the same
+            // question about the same physical thing, and a second timer would only be a second thing to
+            // get wrong. 5/MG only: a 4.0 never answers 151 (its pack is voltage-only via 98), so asking
+            // would be traffic with no reply.
+            if selectedModel.deviceFamily == .whoop5 { send(.getBatteryPackInfo, payload: []) }
         }
     }
 

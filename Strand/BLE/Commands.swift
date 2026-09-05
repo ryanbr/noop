@@ -92,6 +92,11 @@ public enum WhoopCommand: UInt8, CaseIterable {
     /// payloads. If probing (#592): send THIS curated number first and capture the response — do NOT lead
     /// with the decompile's 87, an opcode unknown to this table (the curated-safe-subset rule).
     case getExtendedBatteryInfo = 98
+    /// The 5/MG battery pack's fuel gauge, read THROUGH the strap — the pack talks to the strap over its
+    /// own link, so there is no peripheral to connect to and nothing to scan for. `BatteryPackInfo` has
+    /// decoded this reply since the offsets were captured; until now nothing sent the command, so the
+    /// decoder had no caller. A 4.0 never answers it (its pack is voltage-only via 98).
+    case getBatteryPackInfo = 151
     /// #690: read-only body-location/status probe. Documented in the WHOOP protocol; driven only by the
     /// user-triggered, Test-Centre-gated probeBodyLocationAndStatus(). Decoded to a diagnostic report only.
     case getBodyLocationAndStatus = 84
@@ -226,6 +231,7 @@ public enum WhoopCommand: UInt8, CaseIterable {
         case .enterHighFreqSync:     return "Enter High-Freq Sync"
         case .exitHighFreqSync:      return "Exit High-Freq Sync"
         case .getExtendedBatteryInfo:return "Get Extended Battery Info"
+        case .getBatteryPackInfo:    return "Get Battery Pack Info"
         case .getBodyLocationAndStatus:return "Get Body Location And Status"
         case .startFeatureFlagKeyExchange: return "Start Feature-Flag Key Exchange"
         case .sendNextFeatureFlag:   return "Send Next Feature Flag"

@@ -309,6 +309,25 @@ public final class FrameRouter {
                let pay = Self.commandResponsePayload(in: frame, family: family) {
                 state.append(log: HelloIdentityProbe.report(payload: pay) + " — locate the strap serial (#1303)")
             }
+            // The 5/MG battery pack (cmd 151). `BatteryPackInfo` has decoded this reply since its offsets
+            // were captured, and until now nothing sent the command — so the decoder had no caller and the
+            // offsets have never been seen against a live strap.
+            //
+            // LOG-ONLY, deliberately. Those offsets are an unvalidated candidate re-derived from two
+            // frames, and a wrong one does not fail: it renders a confident wrong number. So this reports
+            // what it read AND whether the reading passes the `displayable` sanity check, which is exactly
+            // the evidence needed before a card can honestly show it. Test Centre → Connection gated, so
+            // nothing here reaches a default (shareable) strap log. Persists nothing.
+            if family == .whoop5, let cmd = parsed.cmdName, cmd.hasPrefix("GET_BATTERY_PACK_INFO("),
+               TestCentre.active(.connection) {
+                if let info = BatteryPackInfo.decode(frame: frame) {
+                    let soc = info.socPct.map { String(format: "%.1f%%", $0) } ?? "—"
+                    state.append(log: "[pack] present=\(info.present) soc=\(soc) "
+                                 + "serial=\(info.serial ?? "—") displayable=\(info.displayable) (#1303)")
+                } else {
+                    state.append(log: "[pack] cmd 151 replied but did not decode — offsets may have moved")
+                }
+            }
             // #900: surface a non-SUCCESS COMMAND_RESPONSE on BOTH families (a result=UNSUPPORTED here is how
             // the MG haptics rejection #48 would show), and — the key part — annotate a reply that DELIVERED
             // ITS VALUE rather than reporting a bare failure. The 4.0 GET_BATTERY_LEVEL replies on record carry

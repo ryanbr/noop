@@ -28,6 +28,22 @@ public enum BatteryPackInfo {
         /// read via GET_EXTENDED_BATTERY_INFO (98) which reports voltage, NOT a charge %. nil on 5/MG.
         public let voltageMv: Int?
 
+
+        /// Whether this reading is safe to SHOW.
+        ///
+        /// The offsets here are an unvalidated candidate re-derived from two captures, so a wrong one
+        /// would not fail — it would render a confident wrong number, which is the failure this project
+        /// treats as worse than a blank. A fuel gauge is a percentage: anything outside 0...100 means the
+        /// offset moved, and the caller must render nothing rather than the value.
+        ///
+        /// The fork that first shipped this hit exactly that shape from the other direction, reading a
+        /// 24,881 mV "cell voltage" off a 5/MG frame — a 4.0-path field read on a family that does not
+        /// answer it. A gauge that cannot be sanity-checked will eventually be believed.
+        public var displayable: Bool {
+            guard present, let soc = socPct else { return false }
+            return soc >= 0 && soc <= 100
+        }
+
         public init(present: Bool, socPct: Double?, serial: String?, btAddr: String?, voltageMv: Int? = nil) {
             self.present = present; self.socPct = socPct; self.serial = serial
             self.btAddr = btAddr; self.voltageMv = voltageMv

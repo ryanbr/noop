@@ -25,7 +25,18 @@ object BatteryPackInfo {
         /** WHOOP 4.0 only: pack VOLTAGE in mV — a 4.0 has no fuel-gauge command, so its pack is read via
          *  GET_EXTENDED_BATTERY_INFO (98) which reports voltage, not a charge %. null on 5/MG. */
         val voltageMv: Int? = null,
-    )
+    ) {
+        /**
+         * Whether this reading is safe to SHOW.
+         *
+         * The offsets here are an unvalidated candidate re-derived from two captures, so a wrong one
+         * would not fail — it would render a confident wrong number, which is the failure this project
+         * treats as worse than a blank. A fuel gauge is a percentage: anything outside 0..100 means the
+         * offset moved, and the caller must render nothing rather than the value.
+         */
+        val displayable: Boolean
+            get() = present && socPct != null && socPct >= 0.0 && socPct <= 100.0
+    }
 
     /** Resp-cmd byte sits at [cmdOff] (10 on WHOOP 5/MG — the only family with a pack). Null when the
      *  frame is not a well-formed 151 SUCCESS response; the caller CRC-gates the frame (framing layer does). */

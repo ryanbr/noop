@@ -7422,6 +7422,30 @@ class WhoopBleClient(
                         )
                     }
                 }
+                // The 5/MG battery pack (cmd 151). `BatteryPackInfo` has decoded this reply since its
+                // offsets were captured, and until now nothing sent the command — so the decoder had no
+                // caller and the offsets have never been seen against a live strap.
+                //
+                // LOG-ONLY, deliberately. Those offsets are an unvalidated candidate re-derived from two
+                // frames, and a wrong one does not fail: it renders a confident wrong number. So this
+                // reports what it read AND whether it passes the `displayable` sanity check, which is the
+                // evidence a card needs before it can honestly show anything. Twin of the Swift
+                // FrameRouter branch. Test Centre gated; persists nothing.
+                if (connectedFamily == DeviceFamily.WHOOP5 &&
+                    respCmd?.startsWith("GET_BATTERY_PACK_INFO(") == true &&
+                    testCentre.active(com.noop.testcentre.TestDomain.CONNECTION)
+                ) {
+                    val info = com.noop.protocol.BatteryPackInfo.decode(frame)
+                    if (info != null) {
+                        val soc = info.socPct?.let { String.format("%.1f%%", it) } ?: "—"
+                        log(
+                            "[pack] present=${info.present} soc=$soc serial=${info.serial ?: "—"} " +
+                                "displayable=${info.displayable} (#1303)",
+                        )
+                    } else {
+                        log("[pack] cmd 151 replied but did not decode — offsets may have moved")
+                    }
+                }
                 // Reboot ack (#166): log the COMMAND_RESPONSE result for a user reboot on BOTH families —
                 // the accept/reject signal (the same one that exposed 5/MG haptics rejection). So a 5/MG
                 // owner's strap log confirms whether the (unverified) puffin reboot frame is accepted. The
@@ -7980,6 +8004,12 @@ class WhoopBleClient(
                     // #battery: ~60 s normally, ~30 s while charging (see [batteryPollDue]).
                     if (batteryPollDue(keepAliveTick, s.charging == true)) send(CommandNumber.GET_BATTERY_LEVEL)
                 } else if (connectedFamily == DeviceFamily.WHOOP5) {
+                    // The battery pack rides the SAME cadence as the strap's own gauge — the same question
+                    // about the same physical thing, and a second timer would only be a second thing to get
+                    // wrong. 5/MG only: a 4.0 never answers 151 (its pack is voltage-only via 98).
+                    if (batteryPollDue(keepAliveTick, s.charging == true)) {
+                        send(CommandNumber.GET_BATTERY_PACK_INFO)
+                    }
                     // #1865: re-arm a LAPSED realtime stream. The WHOOP4 branch above re-sends
                     // TOGGLE_REALTIME_HR every tick precisely because "the firmware lets the realtime HR
                     // stream lapse if it isn't re-armed" — a 5/MG got none of that, on the reasoning that it
