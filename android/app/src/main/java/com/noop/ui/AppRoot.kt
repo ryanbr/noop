@@ -531,6 +531,9 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                         onOpenSleep = { nav.navigateTopLevel(Destination.Sleep.route) },
                         // Optional Coupled view card (task #43): a normal push so back returns to Today.
                         onOpenCoupled = { nav.navigate(Destination.CoupledView.route) },
+                        // #1862: the Coach launcher hands off here. Without this the sheet's buttons
+                        // would fall back to the parameter's no-op default and silently do nothing.
+                        onOpenCoach = { nav.navigateTopLevel(Destination.Coach.route) },
                         // The "workout in progress" indicator: raise the one-shot the Live screen consumes to
                         // re-open the in-exercise overlay, then route to Live. One tap from Today (iOS parity).
                         onOpenActiveWorkout = {

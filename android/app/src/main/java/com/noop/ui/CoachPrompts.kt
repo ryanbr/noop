@@ -18,3 +18,27 @@ object CoachPrompts {
         "How can I improve my sleep?",
     )
 }
+
+/**
+ * A question handed over by the Today Coach launcher sheet, for [CoachScreen] to send once (#1862).
+ *
+ * Swift passes this on the shared `AICoachEngine`, which is an app-wide `EnvironmentObject`. Android has
+ * no equivalent shared instance here: `CoachScreen` takes `viewModel()`, which is scoped to the nav
+ * back-stack entry, so state set from Today would reach a different object. A process-scoped holder is
+ * the smallest thing that actually crosses that boundary.
+ *
+ * `@Volatile` because it is written on the main thread and read by the screen's first composition.
+ * Setting it performs NO network work by itself; the send still happens in the Coach screen, which owns
+ * the consent and error surface.
+ */
+object CoachHandoff {
+    @Volatile
+    var pendingPrompt: String? = null
+
+    /** Take the pending question and clear it, so a recomposition cannot send it twice. */
+    fun consume(): String? {
+        val p = pendingPrompt
+        pendingPrompt = null
+        return p
+    }
+}

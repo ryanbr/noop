@@ -56,19 +56,24 @@ fun CoachLauncherSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Overline(uiString(R.string.nav_coach))
+            // Frames BOTH branches, so the sheet says what Coach is before it either offers questions or
+            // asks for a provider. Using it once also avoids the duplicate that an unconfigured-only
+            // explainer produced, where "Connect a provider" read as both the description and the button.
+            Text(
+                uiString(R.string.l10n_coach_screen_ask_anything_about_your_recent_recovery_e6c287ca),
+                style = NoopType.caption,
+                color = Palette.textTertiary,
+            )
             if (isConfigured) {
-                Text(uiString(R.string.l10n_coach_screen_ask_anything_about_your_recent_recovery_e6c287ca),
-                     style = NoopType.caption, color = Palette.textTertiary)
                 CoachPrompts.SUGGESTIONS.forEach { prompt ->
                     PromptRow(prompt = prompt, onClick = { onPick(prompt) })
                 }
             } else {
-                // The SAME explanation the Coach screen shows, so the bring-your-own-key model is
-                // described once. The action routes to that screen, still the only place a key is entered.
-                Text(uiString(R.string.l10n_coach_screen_connect_a_provider_6967f288),
-                     style = NoopType.caption, color = Palette.textTertiary)
-                PromptRow(prompt = uiString(R.string.l10n_coach_screen_connect_a_provider_6967f288),
-                          onClick = onSetup)
+                // The Coach screen stays the only place a key is entered; this just routes there.
+                PromptRow(
+                    prompt = uiString(R.string.l10n_coach_screen_connect_a_provider_6967f288),
+                    onClick = onSetup,
+                )
             }
         }
     }

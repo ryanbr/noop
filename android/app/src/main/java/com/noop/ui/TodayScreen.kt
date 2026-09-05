@@ -3399,7 +3399,11 @@ private fun YourCardsSection(
         val ctx = LocalContext.current
         CoachLauncherSheet(
             isConfigured = AiKeyStore.hasKey(ctx),
-            onPick = { prompt -> showCoachLauncher = false; onOpenCoach(prompt) },
+            onPick = { prompt ->
+                showCoachLauncher = false
+                CoachHandoff.pendingPrompt = prompt
+                onOpenCoach(prompt)
+            },
             onSetup = { showCoachLauncher = false; onOpenCoach(null) },
             onDismiss = { showCoachLauncher = false },
         )
