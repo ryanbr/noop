@@ -105,4 +105,19 @@ class ScanAdvertisementSummaryTest {
         val full = "61080001-8d6d-82b8-614a-1c8cb0f8dcc6"
         assertEquals(full, ScanAdvertisementSummary.canonicalUuid(full))
     }
+
+    /**
+     * The other cross-platform trap in this line, and the reason it is measured in bytes.
+     *
+     * Java's `String.length` would say 8 for this name and Swift's `String.count` would say 7, so the
+     * same strap logged a different size on each platform. The Swift twin asserts the SAME 10.
+     */
+    @Test
+    fun `local name length is utf-8 bytes, not characters`() {
+        assertEquals(10, ScanAdvertisementSummary.localNameLength("Whoop \uD83C\uDF89"))
+        assertEquals(8, "Whoop \uD83C\uDF89".length)  // guards the premise: length would disagree
+        assertEquals(12, ScanAdvertisementSummary.localNameLength("Ryan's Whoop"))
+        assertEquals(null, ScanAdvertisementSummary.localNameLength(null))
+    }
+
 }

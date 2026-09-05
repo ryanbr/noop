@@ -91,4 +91,16 @@ final class ScanAdvertisementSummaryTests: XCTestCase {
         let full = "61080001-8d6d-82b8-614a-1c8cb0f8dcc6"
         XCTAssertEqual(ScanAdvertisementSummary.canonicalUuid(full), full)
     }
+
+    /// The other cross-platform trap in this line, and the reason it is measured in bytes.
+    ///
+    /// Swift's `String.count` would say 7 for this name and Java's `String.length` would say 8, so the
+    /// same strap logged a different size on each platform. The Kotlin twin asserts the SAME 10.
+    func testLocalNameLengthIsUtf8BytesNotCharacters() {
+        XCTAssertEqual(ScanAdvertisementSummary.localNameLength("Whoop \u{1F389}"), 10)
+        XCTAssertEqual("Whoop \u{1F389}".count, 7, "guards the premise: characters would disagree")
+        XCTAssertEqual(ScanAdvertisementSummary.localNameLength("Ryan's Whoop"), 12)
+        XCTAssertNil(ScanAdvertisementSummary.localNameLength(nil))
+    }
+
 }

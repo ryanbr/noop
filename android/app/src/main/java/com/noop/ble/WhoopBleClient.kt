@@ -5595,7 +5595,7 @@ class WhoopBleClient(
                                 k to (rec.manufacturerSpecificData.valueAt(i)?.size ?: 0)
                             },
                         txPower = rec?.txPowerLevel?.takeIf { it != Int.MIN_VALUE },
-                        localNameLength = rec?.deviceName?.length,
+                        localNameLength = ScanAdvertisementSummary.localNameLength(rec?.deviceName),
                         connectable = result.isConnectable,
                     ),
                 )

@@ -20,8 +20,8 @@ import Foundation
 public enum ScanAdvertisementSummary {
 
     /// - Parameters:
-    ///   - localNameLength: the local name's SIZE, which can differ between advertising modes and,
-    ///     unlike the name itself, identifies nobody.
+    ///   - localNameLength: the local name's SIZE IN UTF-8 BYTES (see `localNameLength(_:)`), which can
+    ///     differ between advertising modes and, unlike the name itself, identifies nobody.
     public static func line(flags: Int?,
                             serviceUuids: [String],
                             serviceDataLengths: [String: Int],
@@ -63,4 +63,20 @@ public enum ScanAdvertisementSummary {
         default: return s
         }
     }
+
+    /// The local name's size in UTF-8 BYTES — what the advertisement actually carries.
+    ///
+    /// NOT `String.count`. Swift counts grapheme clusters and Java's `String.length` counts UTF-16 code
+    /// units, so a strap named "Whoop 🎉" reported 7 on iOS and 8 on Android — the same divergence, and
+    /// for the same reason, as the short-UUID spelling this file already canonicalises. Names carry
+    /// emoji and accents routinely (WHOOP seeds the name from the account holder), so this was not a
+    /// theoretical case.
+    ///
+    /// Bytes rather than either platform's string model because the AD local-name field IS a UTF-8 byte
+    /// run: it is the physically meaningful number, and it is identical on both platforms by
+    /// construction instead of by one imitating the other.
+    public static func localNameLength(_ name: String?) -> Int? {
+        name.map { $0.utf8.count }
+    }
+
 }

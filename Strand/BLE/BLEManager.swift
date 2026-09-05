@@ -5378,7 +5378,8 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
                 serviceDataLengths: svcLens,
                 manufacturerDataLengths: mfgLens,
                 txPower: (advertisementData[CBAdvertisementDataTxPowerLevelKey] as? NSNumber)?.intValue,
-                localNameLength: (advertisementData[CBAdvertisementDataLocalNameKey] as? String)?.count,
+                localNameLength: ScanAdvertisementSummary.localNameLength(
+                    advertisementData[CBAdvertisementDataLocalNameKey] as? String),
                 connectable: (advertisementData[CBAdvertisementDataIsConnectable] as? NSNumber)?.boolValue ?? true))
         }
         // #716: the seeded "my-whoop" device has model "WHOOP" (no generation). Once a live scan

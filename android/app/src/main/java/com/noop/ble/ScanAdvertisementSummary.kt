@@ -30,8 +30,8 @@ object ScanAdvertisementSummary {
      * @param serviceDataLengths bytes per service-data UUID, keyed by that UUID.
      * @param manufacturerDataLengths bytes per manufacturer id.
      * @param txPower advertised TX power, or null.
-     * @param localNameLength length of the local name — its SIZE can differ between advertising modes,
-     *   and unlike the name itself it identifies nobody.
+     * @param localNameLength the local name's size in UTF-8 BYTES (see [localNameLength]) — its SIZE can
+     *   differ between advertising modes, and unlike the name itself it identifies nobody.
      * @param connectable whether the advertisement was connectable.
      */
     fun line(
@@ -73,4 +73,20 @@ object ScanAdvertisementSummary {
         8 -> "$s-0000-1000-8000-00805f9b34fb"
         else -> s
     }
+
+    /**
+     * The local name's size in UTF-8 BYTES — what the advertisement actually carries.
+     *
+     * NOT `String.length`. Java counts UTF-16 code units and Swift's `String.count` counts grapheme
+     * clusters, so a strap named "Whoop \uD83C\uDF89" reported 8 here and 7 on iOS — the same divergence,
+     * and for the same reason, as the short-UUID spelling this file already canonicalises. Names carry
+     * emoji and accents routinely (WHOOP seeds the name from the account holder), so this was not a
+     * theoretical case.
+     *
+     * Bytes rather than either platform's string model because the AD local-name field IS a UTF-8 byte
+     * run: it is the physically meaningful number, and it is identical on both platforms by construction
+     * instead of by one imitating the other.
+     */
+    internal fun localNameLength(name: String?): Int? = name?.toByteArray(Charsets.UTF_8)?.size
+
 }
