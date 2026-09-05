@@ -15,14 +15,22 @@ import Foundation
 ///
 /// ## Why R-R and not HR
 ///
-/// The pass reads a 54-hour window per day. HR is one sample per second, so a full window is ~194,400
-/// rows - under 200,000 by 3%, which is why HR never truncated and why the shared cap looked fine. R-R
-/// is one row per BEAT, so it exceeds 1/s at any real heart rate, and a 4.0's cross-second overcount
-/// roughly doubles it (#1008). A full R-R window is therefore 233,000-389,000 rows and runs straight
-/// through a cap HR merely brushes.
+/// Measured, not reasoned from beat rate - the capture contradicts the obvious argument. R-R is one row
+/// per BEAT, so it "should" outrun HR's 1/s, yet a stride read in that same log returned 81,009 R-R rows
+/// against 107,415 HR: R-R is recorded in BURSTS, not continuously, so its average over a window sits
+/// BELOW HR's while its peaks run far above. Averages are why one cap looked safe; peaks are what
+/// truncated it.
 ///
-/// So the bug was not the number being too small. It was ONE number serving two streams with different
-/// row rates, where the safe value for the sparser one is a silent truncation for the denser one.
+/// What is certain is the behaviour: across 21 nights R-R came back at the 200,000 cap ten times and HR
+/// never did. HR's own margin is the other half of the story - a full 54-hour window at 1/s is ~194,400
+/// rows, 3% under the cap, so HR was never comfortable either, merely lucky.
+///
+/// The caps are therefore sized against what a window can PEAK at, not what it averages. The rate
+/// constants below are deliberately generous for that reason: they are a ceiling to stay clear of, not a
+/// prediction of typical density.
+///
+/// So the bug was not the number being too small. It was ONE number serving two streams whose peak
+/// densities differ, where a value comfortable for one is a silent truncation for the other.
 ///
 /// ## The invariant
 ///
@@ -40,8 +48,9 @@ public enum StreamReadCap {
     /// HR: one sample per second.
     public static let hrRowsPerSecond = 1.0
 
-    /// R-R: one row per beat. 1.2-1.5/s is ordinary; #1008's cross-second overcount can reach ~2/s, and
-    /// the cap must hold the worst case a real strap can produce, not the average one.
+    /// R-R at its PEAK. The measured average is below 1/s (it arrives in bursts, with gaps), but bursts
+    /// are what reach a cap - and #1008's cross-second overcount can double the rows a burst produces.
+    /// 2/s is a ceiling chosen to stay clear of, not a claim about typical density.
     public static let rrRowsPerSecond = 2.0
 
     /// Headroom over a full window, so a legitimate read cannot land ON the cap and be mistaken for a
@@ -54,8 +63,12 @@ public enum StreamReadCap {
     }
 
     /// 291,600 - a full HR window plus half again.
-    public static var hr: Int { cap(rowsPerSecond: hrRowsPerSecond) }
+    ///
+    /// STORED, not computed. A window's read cap and its truncation threshold must be the same number,
+    /// and the engine names this in both slots - a stored constant makes those two references provably
+    /// one value rather than two evaluations that merely ought to agree.
+    public static let hr = cap(rowsPerSecond: hrRowsPerSecond)
 
-    /// 583,200 - a full R-R window at its densest, plus half again.
-    public static var rr: Int { cap(rowsPerSecond: rrRowsPerSecond) }
+    /// 583,200 - a full R-R window at its densest, plus half again. Stored for the reason `hr` gives.
+    public static let rr = cap(rowsPerSecond: rrRowsPerSecond)
 }
