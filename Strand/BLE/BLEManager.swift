@@ -209,11 +209,18 @@ struct BondRefusalGiveUp {
     /// #1635: the hint shown when the hello is switched off and the link is KEPT.
     ///
     /// Nothing is paused on this branch, so it must not say auto-reconnect stopped. It names what was lost
-    /// (history sync) and the one action that restores the attempt, without asserting a cause.
+    /// and what to try, without asserting a cause.
+    ///
+    /// #1635 follow-up: it used to end "Tap Connect to try the handshake again", which framed a strap that
+    /// REFUSES pairing as a retryable failure — inviting exactly the hammering the give-up latch exists to
+    /// stop. A field report read all of this and still asked how to fix it, so the ending now leads with
+    /// the only thing anyone has recovered from this state with (pairing mode, reported once on #1635 and
+    /// hedged accordingly) and keeps Connect as the follow-up. It also no longer claims HRV and resting
+    /// heart rate are unavailable: since #1884 an HR-only night reports both.
     ///
     /// Pure. Byte-identical to the Kotlin `BondRefusalGiveUp.helloSuppressedHint`.
     static func helloSuppressedHint() -> String {
-        "The secure handshake with your strap never completes, and the attempt itself is what drops the link. NOOP has switched it off for this strap so live heart rate keeps streaming. History sync stays unavailable until it pairs, and so do motion, skin temperature, SpO₂ and respiratory rate — so sleep is staged from heart rate alone, and HRV and resting heart rate are unavailable. Tap Connect to try the handshake again."
+        "The secure handshake with your strap never completes, and the attempt itself is what drops the link. NOOP has switched it off for this strap so live heart rate keeps streaming. History sync stays unavailable until it pairs, and so do motion, skin temperature, SpO₂ and respiratory rate, so sleep is staged from heart rate alone. Some straps have paired again after being put in pairing mode: hold the strap until its lights flash blue, then tap Connect."
     }
 
     /// The paused hint for a bond that failed WITHOUT the strap ever answering (#1635).

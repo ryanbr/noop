@@ -127,13 +127,21 @@ class HelloSuppressionTest {
         // is holding the strap - the two mistakes this issue has already produced.
         assertFalse(hint.contains("paus", ignoreCase = true))
         assertFalse(hint.contains("WHOOP app", ignoreCase = true))
-        assertTrue(hint.contains("Connect"))
+        // #1635 follow-up: the hint no longer LEADS with a retry. Framing a strap that refuses pairing as
+        // a retryable failure invited the hammering the give-up latch exists to stop, and a field report
+        // read the whole hint and still asked how to fix it. Pairing mode comes first now; Connect follows.
+        assertTrue(hint.contains("pairing mode"))
+        assertTrue(hint.contains("tap Connect"))
+        // And it must NOT claim these are unavailable: since #1884 an HR-only night reports both.
+        assertFalse(hint.contains("HRV and resting heart rate are unavailable"))
         // #1635 field log: a week of blank Recovery Vitals while this hint named only history sync.
         // Unbonded, the strap also stops sending motion / skin temperature / SpO2 / respiratory, which
         // drops sleep onto the HR-only stager and blanks HRV + resting HR by construction.
         assertTrue(hint.contains("motion"))
-        assertTrue(hint.contains("HRV"))
-        assertTrue(hint.contains("resting heart rate"))
+        // #1884 repinned the tail of this: naming HRV and resting HR as LOSSES stopped being true when an
+        // HR-only night began reporting both. What survives from #1878 is the reason they were named at
+        // all — the strap stops sending motion, so sleep falls to the HR-only stager. That still holds.
+        assertTrue(hint.contains("staged from heart rate alone"))
         val epitaph = BondRefusalGiveUp.helloSuppressedEpitaph(5, "abcd1234")
         assertFalse(epitaph.contains("held by", ignoreCase = true))
         assertTrue(epitaph.contains("abcd1234"))

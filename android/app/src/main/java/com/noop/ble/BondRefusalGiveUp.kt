@@ -94,14 +94,20 @@ class BondRefusalGiveUp(
          * write is not evidence the strap is held by the official app, and the epitaph that asserts that is
          * reserved for an actual auth refusal. Says what was observed and what the user still gets.
          *
+         * #1635 follow-up: it used to end "Tap Connect to try the handshake again", which framed a strap
+         * that REFUSES pairing as a retryable failure. A field report read all of this and still asked how
+         * to fix it, so the ending now leads with pairing mode (reported once on #1635, hedged) and keeps
+         * Connect as the follow-up. It also no longer claims HRV and resting heart rate are unavailable:
+         * since #1884 an HR-only night reports both.
+         *
          * Pure; no em-dash. Byte-identical to the Swift `BondRefusalGiveUp.helloSuppressedHint`.
          */
         fun helloSuppressedHint(): String =
-            "The secure handshake with your strap never completes, and the attempt itself is what drops " +
-                "the link. NOOP has switched it off for this strap so live heart rate keeps streaming. " +
-                "History sync stays unavailable until it pairs, and so do motion, skin temperature, " +
-                "SpO₂ and respiratory rate — so sleep is staged from heart rate alone, and HRV and " +
-                "resting heart rate are unavailable. Tap Connect to try the handshake again."
+            "The secure handshake with your strap never completes, and the attempt itself is what drops t" +
+            "he link. NOOP has switched it off for this strap so live heart rate keeps streaming. History" +
+            " sync stays unavailable until it pairs, and so do motion, skin temperature, SpO₂ and respira" +
+            "tory rate, so sleep is staged from heart rate alone. Some straps have paired again after bei" +
+            "ng put in pairing mode: hold the strap until its lights flash blue, then tap Connect."
 
         /**
          * #1635: the log epitaph for the suppression path.
