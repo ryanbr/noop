@@ -9058,9 +9058,14 @@ class WhoopBleClient(
                     // didBond stays false, so leaving it armed would just move the drop from ~4.8s out to
                     // the 7s window — the same loop, slower. There is no handshake left to time out.
                     cancelBondWatchdog()
+                    // #1635: says what happened and what has actually worked, not "try again". This
+                    // strap refuses the handshake, so a retry is the one thing that cannot help — and
+                    // suggesting it invites the hammering this suppression exists to stop. Mirrors the
+                    // user-facing hint, which lost the same ending.
                     log("WHOOP 5/MG: CLIENT_HELLO suppressed for this strap — it was never acknowledged and" +
-                        " the write is what drops the link. Staying on live HR (not fully paired); press" +
-                        " Connect to try the handshake again (#1635).")
+                        " the write is what drops the link. Staying on live HR (not fully paired). Some straps" +
+                        " have paired again after being put in pairing mode (tap until the LEDs flash blue)" +
+                        " (#1635).")
                     // #221: republish the pairing hint, which the Devices card's "Connected · not paired"
                     // pill reads. It is otherwise written only where a refusal FRESHLY crosses the give-up,
                     // and the latch that records the give-up outlives the process while the hint did not —
