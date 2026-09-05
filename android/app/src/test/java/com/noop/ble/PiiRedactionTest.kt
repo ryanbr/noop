@@ -224,4 +224,23 @@ class PiiRedactionTest {
         assertEquals("<name> TICKR", logSafeDeviceName("Sarah TICKR"))
     }
 
+
+    /**
+     * The hole a model-code PATTERN opened, pinned shut. "[a-z]{1,4}\\d{1,3}" was meant to admit "H10"
+     * and admitted "Ryan1" and "Sam99" with it, passing a first name through untouched. Model codes are
+     * listed one by one for this reason; if a pattern is ever reintroduced, these fail.
+     */
+    @Test fun aNameWithDigitsIsNotMistakenForAModelCode() {
+        assertEquals("<name>", logSafeDeviceName("Ryan1"))
+        assertEquals("<name>", logSafeDeviceName("Anna2"))
+        assertEquals("<name>", logSafeDeviceName("Bob12"))
+        assertEquals("<name> Whoop", logSafeDeviceName("Sam99 Whoop"))
+    }
+
+    /** The listed codes still survive, so the tightening did not cost the diagnostic. */
+    @Test fun listedModelCodesStillSurvive() {
+        assertEquals("Polar H10", logSafeDeviceName("Polar H10"))
+        assertEquals("Polar OH1", logSafeDeviceName("Polar OH1"))
+    }
+
 }

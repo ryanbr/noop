@@ -78,4 +78,21 @@ final class PiiRedactionTests: XCTestCase {
         XCTAssertEqual(LiveState.logSafeDeviceName("Sarah TICKR"), "<name> TICKR")
     }
 
+
+    /// The hole a model-code PATTERN opened, pinned shut. "[a-z]{1,4}\\d{1,3}" was meant to admit "H10"
+    /// and admitted "Ryan1" and "Sam99" with it, passing a first name through untouched. Model codes are
+    /// listed one by one for this reason; if a pattern is ever reintroduced, these fail.
+    func testANameWithDigitsIsNotMistakenForAModelCode() {
+        XCTAssertEqual(LiveState.logSafeDeviceName("Ryan1"), "<name>")
+        XCTAssertEqual(LiveState.logSafeDeviceName("Anna2"), "<name>")
+        XCTAssertEqual(LiveState.logSafeDeviceName("Bob12"), "<name>")
+        XCTAssertEqual(LiveState.logSafeDeviceName("Sam99 Whoop"), "<name> Whoop")
+    }
+
+    /// The listed codes still survive, so the tightening did not cost the diagnostic.
+    func testListedModelCodesStillSurvive() {
+        XCTAssertEqual(LiveState.logSafeDeviceName("Polar H10"), "Polar H10")
+        XCTAssertEqual(LiveState.logSafeDeviceName("Polar OH1"), "Polar OH1")
+    }
+
 }

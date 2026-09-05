@@ -11416,17 +11416,23 @@ internal fun redactHexDumpPii(hex: String): String {
 /**
  * Tokens that identify a MODEL rather than a person, for [logSafeDeviceName].
  *
- * Three shapes: a known vendor or product word, a version number ("4.0"), and a short model code
- * ("H10", "OH1"). The model code is bounded to at most four letters and three digits precisely because
- * it is the one loose rule here - it must not become a hole a personal name fits through, and a name
- * without digits cannot match it at all.
+ * Two shapes only, both EXACT: a known vendor, product or model word, and a version number ("4.0").
+ *
+ * There is deliberately no letters-plus-digits pattern for model codes. One was tried and it defeated
+ * the whole design: "[a-z]{1,4}\\d{1,3}" matches "Ryan1" and "Sam99" as readily as "H10", so a first
+ * name with a digit passed through untouched. A pattern cannot be an allowlist - the moment a rule
+ * describes a SHAPE rather than a known value, it admits everything else of that shape. Model codes are
+ * therefore listed one by one.
+ *
+ * The cost is that an unlisted device logs as "<name>" until its code is added here, which is the right
+ * direction to fail: a missing model is an inconvenience, a leaked name is not.
  *
  * Anything not on this list is DROPPED, which is the point: a naming shape nobody anticipated loses by
  * default. Extend it when a device logs as "<name>" and its model is worth having. Swift twin:
  * `LiveState.safeDeviceNameToken`.
  */
 private val SAFE_DEVICE_NAME_TOKEN_RE =
-    Regex("(?i)(whoop|mg|polar|verity|sense|wahoo|tickr|garmin|hrm|forerunner|fenix|vantage|ignite|amazfit|huami|zepp|xiaomi|mi|band|coospo|magene|suunto|scosche|rhythm|kickr|tacx|elite|cateye|decathlon|kalenji|geonaute|\\d+(\\.\\d+)?|[a-z]{1,4}\\d{1,3})")
+    Regex("(?i)(whoop|mg|polar|verity|sense|wahoo|tickr|garmin|hrm|forerunner|fenix|vantage|ignite|amazfit|huami|zepp|xiaomi|mi|band|coospo|magene|suunto|scosche|rhythm|kickr|tacx|elite|cateye|decathlon|kalenji|geonaute|h6|h7|h9|h10|h64|h808s|oh1|dual|\\d+(\\.\\d+)?)")
 
 /**
  * A device name reduced to what is safe to put in a shared log: the MODEL, never the person.
