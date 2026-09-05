@@ -57,6 +57,7 @@ final class StreamReadCapTests: XCTestCase {
         XCTAssertEqual(StreamReadCap.windowSeconds, 54 * 3_600)
         XCTAssertEqual(StreamReadCap.hr, 291_600)
         XCTAssertEqual(StreamReadCap.rr, 583_200)
+        XCTAssertEqual(StreamReadCap.gravity, 291_600)
     }
 
     /// Gravity is the third stream on the 54-hour window, and the field capture put it at 192,698 rows -

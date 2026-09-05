@@ -68,6 +68,7 @@ class StreamReadCapTest {
         assertEquals(54 * 3_600, StreamReadCap.WINDOW_SECONDS)
         assertEquals(291_600, StreamReadCap.HR)
         assertEquals(583_200, StreamReadCap.RR)
+        assertEquals(291_600, StreamReadCap.GRAVITY)
     }
 
     /**
