@@ -136,7 +136,8 @@ class HelloSuppressionTest {
         assertFalse(hint.contains("HRV and resting heart rate are unavailable"))
         // #1635 field log: a week of blank Recovery Vitals while this hint named only history sync.
         // Unbonded, the strap also stops sending motion / skin temperature / SpO2 / respiratory, which
-        // drops sleep onto the HR-only stager and blanks HRV + resting HR by construction.
+        // drops sleep onto the HR-only stager. (This used to end "and blanks HRV + resting HR by
+        // construction" - #1884 made that false, and leaving it would contradict the assertion below.)
         assertTrue(hint.contains("motion"))
         // #1884 repinned the tail of this: naming HRV and resting HR as LOSSES stopped being true when an
         // HR-only night began reporting both. What survives from #1878 is the reason they were named at

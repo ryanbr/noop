@@ -122,9 +122,10 @@ final class HelloSuppressionTests: XCTestCase {
         // And it must NOT claim these are unavailable: since #1884 an HR-only night reports both.
         XCTAssertFalse(hint.contains("HRV and resting heart rate are unavailable"))
         // The hint must name what an unbonded strap actually costs, not just history sync: motion,
-        // skin temperature, SpO2 and respiratory stop, so sleep falls to the HR-only stager and HRV
-        // + resting HR are nulled. A field log showed a week of blank Recovery Vitals under the old
-        // wording, which pointed only at a feature the user was not missing.
+        // skin temperature, SpO2 and respiratory stop, so sleep falls to the HR-only stager. A field log
+        // showed a week of blank Recovery Vitals under the old wording, which pointed only at a feature
+        // the user was not missing. (It used to end "and HRV + resting HR are nulled" — #1884 made that
+        // false, and leaving it here would have contradicted the assertion four lines down.)
         XCTAssertTrue(hint.contains("motion"))
         // #1884 repinned the tail of this: naming HRV and resting HR as LOSSES stopped being true when an
         // HR-only night began reporting both. What survives from #1878 is the reason they were named at

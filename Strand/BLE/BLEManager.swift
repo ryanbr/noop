@@ -220,7 +220,7 @@ struct BondRefusalGiveUp {
     ///
     /// Pure. Byte-identical to the Kotlin `BondRefusalGiveUp.helloSuppressedHint`.
     static func helloSuppressedHint() -> String {
-        "The secure handshake with your strap never completes, and the attempt itself is what drops the link. NOOP has switched it off for this strap so live heart rate keeps streaming. History sync stays unavailable until it pairs, and so do motion, skin temperature, SpO₂ and respiratory rate, so sleep is staged from heart rate alone. Some straps have paired again after being put in pairing mode (tap until the LEDs flash blue), then tap Connect."
+        "The secure handshake with your strap never completes, and the attempt itself is what drops the link. NOOP has switched it off for this strap so live heart rate keeps streaming. History sync stays unavailable until it pairs, and so do motion, skin temperature, SpO₂ and respiratory rate, so sleep is staged from heart rate alone. Some straps have paired again after being put in pairing mode. Tap until the LEDs flash blue, then tap Connect."
     }
 
     /// The paused hint for a bond that failed WITHOUT the strap ever answering (#1635).
