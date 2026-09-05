@@ -1,4 +1,5 @@
 import SwiftUI
+import StrandDesign
 
 /// The compact Coach launcher opened from the optional Today card (#1862).
 ///
