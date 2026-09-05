@@ -48,8 +48,20 @@ import kotlin.math.ceil
  */
 object StreamReadCap {
 
-    /** The per-day read window: `dayStart - 30h` running through the night, i.e. 54 hours. */
-    const val WINDOW_SECONDS = 54 * 3_600
+    /**
+     * How far BEFORE the day boundary the pass reads. EVERY lookback in the engine takes this value -
+     * the per-day `from`, the window start, the skin-anchor scan - so the window and the caps derived
+     * from it cannot drift apart - widening the lookback there without
+     * resizing the caps here is precisely how a stream starts truncating again, and is the "one number in
+     * two places" shape this whole type exists because of.
+     */
+    const val LOOKBACK_SECONDS = 30 * 3_600
+
+    /** How far AFTER it, capped at `now` for a day still in progress. A whole day. */
+    const val FORWARD_SECONDS = 24 * 3_600
+
+    /** The per-day read window: `dayStart - 30h` through the night, i.e. 54 hours. */
+    const val WINDOW_SECONDS = LOOKBACK_SECONDS + FORWARD_SECONDS
 
     /** HR: one sample per second. */
     const val HR_ROWS_PER_SECOND = 1.0

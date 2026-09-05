@@ -7,12 +7,31 @@ final class StreamReadCapTests: XCTestCase {
 
     /// THE invariant. A cap must exceed what a full window can legitimately hold, or a complete read is
     /// indistinguishable from a truncated one — and the truncated one silently loses its newest rows.
-    /// If the window span or a stream's rate ever changes, this fails instead of a night being clipped.
     func testCapExceedsAFullWindowForEveryStream() {
         let fullHR = Double(StreamReadCap.windowSeconds) * StreamReadCap.hrRowsPerSecond
         let fullRR = Double(StreamReadCap.windowSeconds) * StreamReadCap.rrRowsPerSecond
         XCTAssertGreaterThan(Double(StreamReadCap.hr), fullHR)
         XCTAssertGreaterThan(Double(StreamReadCap.rr), fullRR)
+    }
+
+    /// The test above is derived from the same constants as the caps, so on its own it only asserts that
+    /// headroom exceeds 1. This one is anchored OUTSIDE the type, to a number the field produced: R-R
+    /// came back at 200,000 ten times in one capture, so that value is known-insufficient rather than
+    /// theorised. A cap at or below it would reintroduce the bug no matter how the arithmetic reads.
+    func testCapsClearTheValueThatTruncatedInTheField() {
+        let knownInsufficient = 200_000
+        XCTAssertGreaterThan(StreamReadCap.rr, knownInsufficient)
+        XCTAssertGreaterThan(StreamReadCap.hr, knownInsufficient,
+                             "HR sat 3% under this and was lucky, not safe")
+    }
+
+    /// The window is not restated here — the engine reads `dayStart - lookbackSeconds`, so these are the
+    /// same number by construction. Pinned so that splitting them again is a visible change.
+    func testWindowIsItsTwoHalves() {
+        XCTAssertEqual(StreamReadCap.windowSeconds,
+                       StreamReadCap.lookbackSeconds + StreamReadCap.forwardSeconds)
+        XCTAssertEqual(StreamReadCap.lookbackSeconds, 30 * 3_600)
+        XCTAssertEqual(StreamReadCap.forwardSeconds, 86_400)
     }
 
     /// The regression itself, in the numbers that caused it. The old shared cap of 200,000 was ABOVE a

@@ -20,6 +20,28 @@ class StreamReadCapTest {
     }
 
     /**
+     * The test above is derived from the same constants as the caps, so on its own it only asserts that
+     * headroom exceeds 1. This one is anchored OUTSIDE the type, to a number the field produced: R-R came
+     * back at 200,000 ten times in one capture, so that value is known-insufficient rather than
+     * theorised. A cap at or below it would reintroduce the bug no matter how the arithmetic reads.
+     */
+    @Test fun `caps clear the value that truncated in the field`() {
+        val knownInsufficient = 200_000
+        assertTrue(StreamReadCap.RR > knownInsufficient)
+        assertTrue("HR sat 3% under this and was lucky, not safe", StreamReadCap.HR > knownInsufficient)
+    }
+
+    /**
+     * The window is not restated here — the engine reads `dayStart - LOOKBACK_SECONDS`, so these are the
+     * same number by construction. Pinned so that splitting them again is a visible change.
+     */
+    @Test fun `window is its two halves`() {
+        assertEquals(StreamReadCap.LOOKBACK_SECONDS + StreamReadCap.FORWARD_SECONDS, StreamReadCap.WINDOW_SECONDS)
+        assertEquals(30 * 3_600, StreamReadCap.LOOKBACK_SECONDS)
+        assertEquals(86_400, StreamReadCap.FORWARD_SECONDS)
+    }
+
+    /**
      * The regression itself, in the numbers that caused it. The old shared cap of 200,000 was ABOVE a
      * full HR window and BELOW a full R-R one — which is exactly why HR never truncated, R-R always did,
      * and one number looked adequate from the HR side.

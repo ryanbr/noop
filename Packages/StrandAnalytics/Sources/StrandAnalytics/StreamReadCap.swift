@@ -42,8 +42,18 @@ import Foundation
 /// it costs nothing on a normal night and buys correctness on a dense one.
 public enum StreamReadCap {
 
-    /// The per-day read window: `dayStart - 30h` running through the night, i.e. 54 hours.
-    public static let windowSeconds = 54 * 3_600
+    /// How far BEFORE the day boundary the pass reads. EVERY lookback in the engine takes this value -
+    /// the per-day `from`, the window start, the skin-anchor scan - so the window and the caps derived
+    /// from it cannot drift apart - widening the lookback there without
+    /// resizing the caps here is precisely how a stream starts truncating again, and is the "one number
+    /// in two places" shape this whole type exists because of.
+    public static let lookbackSeconds = 30 * 3_600
+
+    /// How far AFTER it, capped at `now` for a day still in progress. A whole day.
+    public static let forwardSeconds = 24 * 3_600
+
+    /// The per-day read window: `dayStart - 30h` through the night, i.e. 54 hours.
+    public static let windowSeconds = lookbackSeconds + forwardSeconds
 
     /// HR: one sample per second.
     public static let hrRowsPerSecond = 1.0
