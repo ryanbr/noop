@@ -69,7 +69,7 @@ internal fun strapStatusDetail(
 ): String = when {
     scanning -> "Searching for your WHOOP… make sure it's charged, on your wrist, and the official WHOOP app isn't connected to it."
     encryptedBond && connected -> "Your strap is paired and sending data. Open Live for a real-time heart rate."
-    bonded && connected -> "Live heart rate is streaming, but your strap is not fully paired. The encrypted pairing is what carries motion, skin temperature, SpO₂ and respiratory rate — without it, sleep is staged from heart rate alone, and HRV and resting heart rate are unavailable. Buzz, alarms and history sync need it too."
+    bonded && connected -> "Live heart rate is streaming, but your strap is not fully paired. The encrypted pairing is what carries motion, skin temperature, SpO₂ and respiratory rate — without it, sleep is staged from heart rate alone. Buzz, alarms and history sync need it too."
     connected -> "Connected. Finishing the secure pairing handshake…"
     bonded -> "Previously paired but not currently connected. Re-scan to reconnect."
     else -> "No strap connected. Put your WHOOP nearby and tap Re-scan to pair."
