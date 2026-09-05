@@ -2507,6 +2507,9 @@ class WhoopBleClient(
     /// The strap family the user chose to pair, remembered so an auto-reconnect after a
     /// dropout re-scans for the same model instead of falling back to WHOOP 4.0.
     private var selectedModel = WhoopModel.WHOOP4
+    /** #1635: one [ScanAdvertisementSummary] line per scan session, not one per discovery burst. */
+    private var advertisementLogged = false
+
     /** #716: true once the seeded "WHOOP" model has been stamped to the correct family. */
     private var modelStamped = false
     /// The last device we connected to, kept so an auto-reconnect after a dropout can connect
@@ -3546,6 +3549,10 @@ class WhoopBleClient(
      * Gating here as well would block the user's explicit Connect.
      */
     private fun startScan(model: WhoopModel, allowFallback: Boolean) {
+        // #1635: one advertisement line per SCAN, not per process. The question this answers is whether
+        // a strap advertises differently in pairing mode, which is only visible by comparing a scan
+        // before it was put into pairing mode against one after — so the latch has to reopen here.
+        advertisementLogged = false
         handler.removeCallbacks(scanFallbackRunnable)
         // Defensive: the normal auto-connect scan is NEVER a present-scan. Clearing the flag here means a
         // leaked wizard present-scan (e.g. the wizard was dismissed without stopWhoopScan) can't divert
@@ -5569,6 +5576,30 @@ class WhoopBleClient(
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             val device: BluetoothDevice = result.device
             val name = result.scanRecord?.deviceName ?: device.name ?: "unknown"
+            // #1635: what the strap ADVERTISED, once per scan session. The open question on that issue
+            // is whether a refusing strap was in pairing mode, and a strap that accepts pairing should
+            // advertise differently — but nothing recorded the advertisement, so no log could say.
+            // Structure only, never payload: see ScanAdvertisementSummary. Test Centre gated.
+            if (!advertisementLogged && testCentre.active(com.noop.testcentre.TestDomain.CONNECTION)) {
+                advertisementLogged = true
+                val rec = result.scanRecord
+                log(
+                    ScanAdvertisementSummary.line(
+                        flags = rec?.advertiseFlags?.takeIf { it >= 0 },
+                        serviceUuids = rec?.serviceUuids?.map { it.uuid.toString() } ?: emptyList(),
+                        serviceDataLengths = rec?.serviceData?.entries
+                            ?.associate { it.key.uuid.toString() to (it.value?.size ?: 0) } ?: emptyMap(),
+                        manufacturerDataLengths = (0 until (rec?.manufacturerSpecificData?.size() ?: 0))
+                            .associate { i ->
+                                val k = rec!!.manufacturerSpecificData.keyAt(i)
+                                k to (rec.manufacturerSpecificData.valueAt(i)?.size ?: 0)
+                            },
+                        txPower = rec?.txPowerLevel?.takeIf { it != Int.MIN_VALUE },
+                        localNameLength = rec?.deviceName?.length,
+                        connectable = result.isConnectable,
+                    ),
+                )
+            }
             // #716: the seeded "my-whoop" device has model "WHOOP" (no generation). Once a live
             // scan confirms which service family the strap advertises, stamp the correct model so
             // forRegistryModel returns the right DeviceFamily (fixes skin-temp ADC scale + display).
