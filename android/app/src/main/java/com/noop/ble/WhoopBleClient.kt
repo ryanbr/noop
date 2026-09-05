@@ -5576,6 +5576,9 @@ class WhoopBleClient(
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             val device: BluetoothDevice = result.device
             val name = result.scanRecord?.deviceName ?: device.name ?: "unknown"
+            // The raw name goes to the DEVICE LIST (the user's own screen, where they need to recognise
+            // their strap); only the log gets the model-only form. See logSafeDeviceName.
+            val safeName = logSafeDeviceName(name)
             // #1635: what the strap ADVERTISED, once per scan session. The open question on that issue
             // is whether a refusing strap was in pairing mode, and a strap that accepts pairing should
             // advertise differently — but nothing recorded the advertisement, so no log could say.
@@ -5622,11 +5625,11 @@ class WhoopBleClient(
             val scanDecision = whoopGattScanDecision(selectedModel.service.toString(), advertisedServiceUuids)
             if (!scanDecision.shouldConnect) {
                 scanDecision.unsupportedFamily?.let { family ->
-                    log("Discovered $name (rssi ${result.rssi}) — ${family.diagnosticUnsupportedMessage}")
+                    log("Discovered $safeName (rssi ${result.rssi}) — ${family.diagnosticUnsupportedMessage}")
                     _state.update { it.copy(statusNote = family.diagnosticUnsupportedMessage) }
                     return
                 }
-                log("Discovered $name (rssi ${result.rssi}) without ${selectedModel.displayName} service — ignoring")
+                log("Discovered $safeName (rssi ${result.rssi}) without ${selectedModel.displayName} service — ignoring")
                 return
             }
             // Multi-WHOOP present-scan (Add-a-device wizard, MW-4): accumulate the strap, do NOT
@@ -5648,10 +5651,10 @@ class WhoopBleClient(
             // discovered" path below is byte-for-byte unchanged.
             val preferred = preferredAddress
             if (preferred != null && !device.address.equals(preferred, ignoreCase = true)) {
-                log("Discovered $name (${device.address}) — not the preferred strap; ignoring")
+                log("Discovered $safeName (${device.address}) — not the preferred strap; ignoring")
                 return
             }
-            log("Discovered $name (rssi ${result.rssi}) — connecting")
+            log("Discovered $safeName (rssi ${result.rssi}) — connecting")
             // Found it: cancel the not-found timeout AND the family-rotation fallback, then reflect
             // progress in the UI. (PR#195)
             handler.removeCallbacks(scanTimeoutRunnable)
@@ -11408,6 +11411,29 @@ internal fun redactHexDumpPii(hex: String): String {
         out = out.substring(0, start) + "••".repeat(m.value.length) + out.substring(end)
     }
     return out
+}
+
+/** Tokens that identify a MODEL rather than a person: "WHOOP", "MG", and versions like "4.0". */
+private val SAFE_DEVICE_NAME_TOKEN_RE = Regex("(?i)(whoop|mg|\\d+(\\.\\d+)?)")
+
+/**
+ * A device name reduced to what is safe to put in a shared log: the MODEL, never the person.
+ *
+ * WHOOP seeds a strap's name from the account holder ("<FirstName>'s Whoop") and people rename straps
+ * to anything at all. [redactStrapLogPii] can only GUESS which words in a line are a name; here the
+ * whole string IS the advertised name, so the safe move is an ALLOWLIST - keep the tokens known to name
+ * a model and drop everything else. A naming shape nobody anticipated is then dropped by default rather
+ * than needing a rule to catch it: "Ryan B's WHOOP 4.0" keeps only "WHOOP 4.0", and "Dad's spare" keeps
+ * nothing.
+ *
+ * The "no name advertised" sentinel survives, because "we saw no name" and "we removed a name" are
+ * different facts to whoever reads the log. Swift twin: `LiveState.logSafeDeviceName`.
+ */
+internal fun logSafeDeviceName(name: String?): String {
+    val n = name?.trim().orEmpty()
+    if (n.isEmpty() || n == "unknown") return "unknown"
+    val safe = n.split(Regex("\\s+")).filter { SAFE_DEVICE_NAME_TOKEN_RE.matches(it) }
+    return if (safe.isEmpty()) "<name>" else "<name> " + safe.joinToString(" ")
 }
 
 /** Mask MAC addresses and WHOOP serials in a strap-log line before it's shown/exported.

@@ -5355,6 +5355,9 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
                                advertisementData: [String: Any],
                                rssi RSSI: NSNumber) {
         let name = (advertisementData[CBAdvertisementDataLocalNameKey] as? String) ?? peripheral.name ?? "unknown"
+        // The raw name goes to the DEVICE LIST (the user's own screen, where they need to recognise
+        // their strap); only the log gets the model-only form. See LiveState.logSafeDeviceName.
+        let safeName = LiveState.logSafeDeviceName(name)
         // #1635: what the strap ADVERTISED, once per scan. The open question there is whether a
         // refusing strap was in pairing mode, and a strap that accepts pairing should advertise
         // differently — but nothing recorded the advertisement, so no log could say. Structure only,
@@ -5400,10 +5403,10 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         )
         if !scanDecision.shouldConnect {
             if let family = scanDecision.unsupportedFamily {
-                log("Discovered \(name) (rssi \(RSSI)) — \(family.diagnosticUnsupportedMessage)")
+                log("Discovered \(safeName) (rssi \(RSSI)) — \(family.diagnosticUnsupportedMessage)")
                 return
             }
-            log("Discovered \(name) (rssi \(RSSI)) without \(selectedModel.displayName) service — ignoring")
+            log("Discovered \(safeName) (rssi \(RSSI)) without \(selectedModel.displayName) service — ignoring")
             return
         }
         // Multi-WHOOP present-scan (Add-a-WHOOP wizard): collect the strap, do NOT auto-connect, and
@@ -5424,14 +5427,14 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         // WHOOP default) this guard is skipped and the original "connect to the first discovered" path
         // below is byte-for-byte unchanged.
         if let preferred = preferredPeripheralUUID, peripheral.identifier != preferred {
-            log("Discovered \(name) (\(peripheral.identifier)) — not the preferred strap; ignoring")
+            log("Discovered \(safeName) (\(peripheral.identifier)) — not the preferred strap; ignoring")
             return
         }
         // No gate here for the same reason as `startScan`: reaching a discovery means a scan is running,
         // and a scan only runs because the user asked or because the gated system entry allowed it.
         cancelScanFallback()
         persistSelectedModel(selectedModel)
-        log("Discovered \(name) (rssi \(RSSI)) — connecting")
+        log("Discovered \(safeName) (rssi \(RSSI)) — connecting")
         central.stopScan()
         preparePeripheral(peripheral)
         central.connect(peripheral, options: nil)

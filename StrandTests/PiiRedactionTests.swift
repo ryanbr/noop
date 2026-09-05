@@ -42,4 +42,26 @@ final class PiiRedactionTests: XCTestCase {
         XCTAssertEqual(LiveState.redactPii("my-whoop and my-whoop-noop"), "my-whoop and my-whoop-noop")
         XCTAssertEqual(LiveState.redactPii("no pii here"), "no pii here")
     }
+
+    /// The name never reaches a shared log at all. The sink rule is defence-in-depth; this is the real
+    /// guarantee, and it is an ALLOWLIST so an unanticipated naming shape is dropped by default.
+    func testLogSafeDeviceNameKeepsOnlyTheModel() {
+        XCTAssertEqual(LiveState.logSafeDeviceName("Ryan's Whoop"), "<name> Whoop")
+        XCTAssertEqual(LiveState.logSafeDeviceName("Ryan B's WHOOP 4.0"), "<name> WHOOP 4.0")
+        XCTAssertEqual(LiveState.logSafeDeviceName("Ryan\u{2019}s WHOOP 5.0 MG"), "<name> WHOOP 5.0 MG")
+    }
+
+    /// A fully custom name has no model token to keep, so nothing of it survives.
+    func testLogSafeDeviceNameDropsAWhollyCustomName() {
+        XCTAssertEqual(LiveState.logSafeDeviceName("Dad's spare"), "<name>")
+        XCTAssertEqual(LiveState.logSafeDeviceName("Sarah"), "<name>")
+    }
+
+    /// "We saw no name" and "we removed a name" are different facts to a reader, so the sentinel stays.
+    func testLogSafeDeviceNameKeepsTheNoNameSentinel() {
+        XCTAssertEqual(LiveState.logSafeDeviceName("unknown"), "unknown")
+        XCTAssertEqual(LiveState.logSafeDeviceName(nil), "unknown")
+        XCTAssertEqual(LiveState.logSafeDeviceName("   "), "unknown")
+    }
+
 }

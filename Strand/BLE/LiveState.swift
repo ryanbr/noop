@@ -831,6 +831,32 @@ public final class LiveState: ObservableObject {
         return String(out)
     }
 
+    /// Tokens that identify a MODEL rather than a person: "WHOOP", "MG", and versions like "4.0".
+    private static let safeDeviceNameToken = try? NSRegularExpression(
+        pattern: "^(whoop|mg|\\d+(\\.\\d+)?)$", options: [.caseInsensitive])
+
+    /// A device name reduced to what is safe to put in a shared log: the MODEL, never the person.
+    ///
+    /// WHOOP seeds a strap's name from the account holder ("<FirstName>'s Whoop") and people rename
+    /// straps to anything at all. `redactPii` can only GUESS which words in a line are a name; here the
+    /// whole string IS the advertised name, so the safe move is an ALLOWLIST - keep the tokens known to
+    /// name a model and drop everything else. A naming shape nobody anticipated is then dropped by
+    /// default rather than needing a rule to catch it: "Ryan B's WHOOP 4.0" keeps only "WHOOP 4.0", and
+    /// "Dad's spare" keeps nothing.
+    ///
+    /// The "no name advertised" sentinel survives, because "we saw no name" and "we removed a name" are
+    /// different facts to whoever reads the log. Kotlin twin: `logSafeDeviceName`.
+    nonisolated static func logSafeDeviceName(_ name: String?) -> String {
+        let n = (name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if n.isEmpty || n == "unknown" { return "unknown" }
+        let safe = n.split(whereSeparator: { $0.isWhitespace }).filter { tok in
+            guard let re = Self.safeDeviceNameToken else { return false }
+            let t = String(tok)
+            return re.firstMatch(in: t, range: NSRange(location: 0, length: (t as NSString).length)) != nil
+        }
+        return safe.isEmpty ? "<name>" : "<name> " + safe.joined(separator: " ")
+    }
+
     private static let hexRunRegex = try? NSRegularExpression(pattern: "[0-9a-fA-F]{16,}")
 
     nonisolated static func redactPii(_ s: String) -> String {

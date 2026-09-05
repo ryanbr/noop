@@ -186,4 +186,28 @@ class PiiRedactionTest {
         assertEquals("no pii here", redactStrapLogPii("no pii here"))
     }
 
+
+    /**
+     * The name never reaches a shared log at all. The sink rule below is defence-in-depth; this is the
+     * real guarantee, and it is an ALLOWLIST so an unanticipated naming shape is dropped by default.
+     */
+    @Test fun logSafeDeviceNameKeepsOnlyTheModel() {
+        assertEquals("<name> Whoop", logSafeDeviceName("Ryan's Whoop"))
+        assertEquals("<name> WHOOP 4.0", logSafeDeviceName("Ryan B's WHOOP 4.0"))
+        assertEquals("<name> WHOOP 5.0 MG", logSafeDeviceName("Ryan\u2019s WHOOP 5.0 MG"))
+    }
+
+    /** A fully custom name has no model token to keep, so nothing of it survives. */
+    @Test fun logSafeDeviceNameDropsAWhollyCustomName() {
+        assertEquals("<name>", logSafeDeviceName("Dad's spare"))
+        assertEquals("<name>", logSafeDeviceName("Sarah"))
+    }
+
+    /** "We saw no name" and "we removed a name" are different facts to a reader, so the sentinel stays. */
+    @Test fun logSafeDeviceNameKeepsTheNoNameSentinel() {
+        assertEquals("unknown", logSafeDeviceName("unknown"))
+        assertEquals("unknown", logSafeDeviceName(null))
+        assertEquals("unknown", logSafeDeviceName("   "))
+    }
+
 }
