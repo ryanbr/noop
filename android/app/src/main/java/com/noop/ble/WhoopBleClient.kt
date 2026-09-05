@@ -3231,10 +3231,11 @@ class WhoopBleClient(
      * all. Deliberately NOT cleared on disconnect — the two sightings are meant to span connects.
      *
      * The withholding rule itself lives in [com.noop.protocol.RepeatedSerialGate], beside the decoder,
-     * where it is unit tested; this pair is just the client's view of its outcome.
+     * where it is unit tested; the gate holds the confirmed value, so nothing here needs to store it. The
+     * Swift twin DOES keep a field, because its adoption reads a property where this side passes the
+     * value into [onSerial] directly - the shapes differ, the behaviour does not.
      */
     private val harvardSerialGate = com.noop.protocol.RepeatedSerialGate()
-    private var harvardSerialConfirmed: String? = null
 
     /**
      * A 4.0 hello serial arrived. Adopt only on the SECOND sighting of the same value, then hand it to the
@@ -3242,7 +3243,6 @@ class WhoopBleClient(
      */
     private fun noteHarvardSerial(serial: String) {
         val confirmed = harvardSerialGate.offer(serial) ?: return
-        harvardSerialConfirmed = confirmed
         onSerial?.invoke(confirmed)
     }
 
