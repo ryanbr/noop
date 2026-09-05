@@ -1,5 +1,6 @@
 import Foundation
 import WhoopProtocol
+import WhoopStore
 import StrandAnalytics
 
 /// Pure decode→state router. Takes a COMPLETE (already reassembled) frame, decodes it with
@@ -322,8 +323,14 @@ public final class FrameRouter {
                TestCentre.active(.connection) {
                 if let info = BatteryPackInfo.decode(frame: frame) {
                     let soc = info.socPct.map { String(format: "%.1f%%", $0) } ?? "—"
+                    // logSafe, NOT the raw serial. `redactPii` cannot catch this one — its rules key on a
+                    // literal "WHOOP " prefix or a `whoop-` id, and a bare `serial=BB5AP…` matches neither —
+                    // so the redaction that protects the strap's serial would have let the pack's through to
+                    // an exportable log. Three characters is enough to tell two packs apart, which is all a
+                    // diagnostic needs.
                     state.append(log: "[pack] present=\(info.present) soc=\(soc) "
-                                 + "serial=\(info.serial ?? "—") displayable=\(info.displayable) (#1303)")
+                                 + "serial=\(WhoopSerialIdentity.logSafe(info.serial)) "
+                                 + "displayable=\(info.displayable) (#1303)")
                 } else {
                     state.append(log: "[pack] cmd 151 replied but did not decode — offsets may have moved")
                 }

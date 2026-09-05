@@ -7438,8 +7438,13 @@ class WhoopBleClient(
                     val info = com.noop.protocol.BatteryPackInfo.decode(frame)
                     if (info != null) {
                         val soc = info.socPct?.let { String.format("%.1f%%", it) } ?: "—"
+                        // logSafe, NOT the raw serial. The log redaction keys on a literal "WHOOP " prefix
+                        // or a `whoop-` id, and a bare `serial=BB5AP…` matches neither — so the rule that
+                        // protects the strap's serial would have let the pack's through to an exportable
+                        // log. Three characters is enough to tell two packs apart.
+                        val safeSerial = com.noop.data.WhoopSerialIdentity.logSafe(info.serial)
                         log(
-                            "[pack] present=${info.present} soc=$soc serial=${info.serial ?: "—"} " +
+                            "[pack] present=${info.present} soc=$soc serial=$safeSerial " +
                                 "displayable=${info.displayable} (#1303)",
                         )
                     } else {
