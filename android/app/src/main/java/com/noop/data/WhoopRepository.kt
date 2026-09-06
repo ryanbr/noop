@@ -430,6 +430,12 @@ class WhoopRepository(
         suspend fun <R> run(block: suspend () -> R): R
     }
 
+    /** PPG waveform rows banked since its retention sweep last ran, PER DEVICE, for the same reason as
+     *  [v18AuxRowsSincePrune] below: the sweep is per device, so a shared counter would let one strap
+     *  spend another's budget. A separate counter because the two caps differ and a batch commonly writes
+     *  one table and not the other. Swift twin: `WhoopStore.ppgWaveformRowsSincePrune`. */
+    private val ppgWaveformRowsSincePrune = mutableMapOf<String, Int>()
+
     /** v18 aux rows banked since the retention sweep last ran, PER DEVICE — the sweep is per device too,
      *  so a shared counter would let one strap spend another's budget. Only the single-threaded offload
      *  path banks v18 rows, so a plain map is enough. Swift twin: `WhoopStore.v18AuxRowsSincePrune`. */
@@ -498,6 +504,8 @@ class WhoopRepository(
         // shipped constants. (#888)
         v18AuxRetentionRows: Int = V18_AUX_RETENTION_ROWS,
         v18AuxPruneEveryRows: Int = V18_AUX_PRUNE_EVERY_ROWS,
+        ppgWaveformRetentionRows: Int = PPG_WAVEFORM_RETENTION_ROWS,
+        ppgWaveformPruneEveryRows: Int = PPG_WAVEFORM_PRUNE_EVERY_ROWS,
     ): InsertCounts {
         if (streams.isEmpty) return InsertCounts()
 
@@ -507,6 +515,8 @@ class WhoopRepository(
                 deviceId = deviceId,
                 v18AuxRetentionRows = v18AuxRetentionRows,
                 v18AuxPruneEveryRows = v18AuxPruneEveryRows,
+                ppgWaveformRetentionRows = ppgWaveformRetentionRows,
+                ppgWaveformPruneEveryRows = ppgWaveformPruneEveryRows,
             )
         }
         val counts = result.counts
@@ -539,6 +549,8 @@ class WhoopRepository(
         deviceId: String,
         v18AuxRetentionRows: Int,
         v18AuxPruneEveryRows: Int,
+        ppgWaveformRetentionRows: Int,
+        ppgWaveformPruneEveryRows: Int,
     ): InsertResult {
         val hrIds = if (streams.hr.isEmpty()) emptyList() else
             dao.insertHr(streams.hr.map { HrSample(deviceId, it.ts, it.bpm) })
@@ -593,6 +605,19 @@ class WhoopRepository(
                         it.burstIndex)
                 },
             )
+            // #1911 rolling retention, amortised and best-effort on exactly the same terms as the v18-aux
+            // sweep below (see [PPG_WAVEFORM_RETENTION_ROWS] for why this is newest-N and not an age-based
+            // drop). Its own counter: a batch routinely writes one of these two tables and not the other.
+            val bankedPpg = (ppgWaveformRowsSincePrune[deviceId] ?: 0) + streams.ppgWaveform.size
+            ppgWaveformRowsSincePrune[deviceId] = bankedPpg
+            if (bankedPpg >= ppgWaveformPruneEveryRows) {
+                runCatching { dao.prunePpgWaveform(deviceId, ppgWaveformRetentionRows) }
+                    .onSuccess { ppgWaveformRowsSincePrune[deviceId] = 0 }
+                    // prunePpgWaveform is a suspend call, so a scope cancellation arrives here as a
+                    // CancellationException that runCatching would otherwise swallow, leaving the caller
+                    // running inside a cancelled coroutine. Same rethrow as the v18-aux sweep below.
+                    .onFailure { if (it is kotlin.coroutines.cancellation.CancellationException) throw it }
+            }
         }
 
         // Every remaining v18 slot (v31), one compact blob per strap-second. Persist-only, same as
@@ -2136,6 +2161,35 @@ class WhoopRepository(
 
         /** Default row cap on range reads. Matches the Swift call sites' bounded scans. */
         const val DEFAULT_LIMIT = 100_000
+
+        /**
+         * #1911: rolling retention for the v27 PPG waveform table (Swift twin
+         * `WhoopStore.ppgWaveformRetentionRows`). Previously the only UNBOUNDED blob table, and at
+         * ~1 row/second through a v26-heavy night the fastest-growing table per byte in the store.
+         *
+         * A NEWEST-N-ROWS CAP, DELIBERATELY NOT A TIME-WINDOW DROP. #1911 proposes "dropped after the hot
+         * window", calling the waveform "diagnostic-only". That framing is wrong: the migration note on
+         * `ppgWaveformSample` is the authority, and these rows are kept so a better estimator,
+         * HRV-from-PPG, or a waveform viewer can later run over the ORIGINAL samples rather than the
+         * derived bpm. Deleting by wall-clock age would empty the table for exactly the user such an
+         * estimator needs most (a sporadic wearer, whose v26 seconds are spread thin over months), and a
+         * waveform has no aggregate that survives it. Newest-N bounds the bytes while always leaving a
+         * full working set — the same trade [V18_AUX_RETENTION_ROWS] below makes.
+         *
+         * 604,800 = 7 × 86,400, matching the aux cap's "week of strap-seconds" semantic and #1911's own
+         * 7-day hot window. The ceiling is larger than aux's because the row is: ~120 B/row (a 48 B
+         * packed-i16 blob for 24 samples plus row and primary-key-index overhead) gives a ~70 MB hard
+         * ceiling per device against ~50 MB for aux. In practice v26 is a fraction of the strap's seconds,
+         * so occupancy sits far below that. Retuning is one constant with no migration.
+         */
+        const val PPG_WAVEFORM_RETENTION_ROWS = 604_800
+
+        /** Rows to bank before sweeping `ppgWaveformSample` again — same amortisation and magnitude as
+         *  [V18_AUX_PRUNE_EVERY_ROWS] below, for the same reason: the sweep walks up to
+         *  [PPG_WAVEFORM_RETENTION_ROWS] index entries, so running it per insert batch is the cost. The
+         *  table may sit this many rows (plus the crossing batch) above the cap, roughly a MB against its
+         *  ~70 MB ceiling. Swift twin: `WhoopStore.ppgWaveformPruneEveryRows`. */
+        const val PPG_WAVEFORM_PRUNE_EVERY_ROWS = 10_000
 
         /**
          * v31: rolling retention for the v18 aux-slot table (Swift twin `WhoopStore.v18AuxRetentionRows`).

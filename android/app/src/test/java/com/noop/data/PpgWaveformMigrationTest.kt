@@ -133,4 +133,108 @@ class PpgWaveformMigrationTest {
         // And it unpacks back to the original samples.
         assertEquals(realSamples, StreamPersistence.unpackPpgSamples(rows[0].samples))
     }
+
+    // MARK: - #1911 rolling retention (twin of Swift PpgWaveformSampleTests' retention block)
+
+    private fun waveformRow(ts: Long) = PpgWaveformRow(ts = ts, samples = listOf(1, -2, 3), burstIndex = 0)
+
+    /** Records every `prunePpgWaveform(deviceId, keep)` the repository makes. */
+    private fun sweepRecordingDao(sweeps: MutableList<Pair<String, Int>>): WhoopDao =
+        Proxy.newProxyInstance(
+            WhoopDao::class.java.classLoader,
+            arrayOf(WhoopDao::class.java),
+        ) { _, method, args ->
+            when (method.name) {
+                "insertPpgWaveform" -> listOf(1L)
+                "insertV18Aux" -> listOf(1L)
+                "pruneV18Aux" -> Unit
+                "prunePpgWaveform" -> { sweeps.add((args[0] as String) to (args[1] as Int)); Unit }
+                else -> throw UnsupportedOperationException("unexpected DAO call ${method.name}")
+            }
+        } as WhoopDao
+
+    /** Under the sweep threshold nothing is evicted — the overshoot is deliberate amortisation. */
+    @Test
+    fun waveformRetention_doesNotSweepUnderTheThreshold(): Unit = runBlocking {
+        val sweeps = mutableListOf<Pair<String, Int>>()
+        val repo = WhoopRepository(sweepRecordingDao(sweeps))
+        repeat(3) { i ->
+            repo.insert(
+                StreamBatch(ppgWaveform = listOf(waveformRow(1_780_917_232L + i))),
+                "my-whoop",
+                ppgWaveformPruneEveryRows = 5_000,
+            )
+        }
+        assertEquals("three rows must not reach a 5 000-row budget", 0, sweeps.size)
+    }
+
+    /**
+     * Once the banked count crosses the threshold the sweep runs, and the counter resets so the next
+     * window has to earn its own sweep. It must also pass the RETENTION cap as `keep`, not the budget.
+     */
+    @Test
+    fun waveformRetention_sweepsOnThresholdThenResets(): Unit = runBlocking {
+        val sweeps = mutableListOf<Pair<String, Int>>()
+        val repo = WhoopRepository(sweepRecordingDao(sweeps))
+        // Two rows per batch against a budget of 3: banked=2 (no sweep), 4 (sweep, reset), 2 (no sweep).
+        repeat(3) { i ->
+            repo.insert(
+                StreamBatch(ppgWaveform = listOf(
+                    waveformRow(1_780_917_232L + i * 2), waveformRow(1_780_917_233L + i * 2),
+                )),
+                "my-whoop",
+                ppgWaveformPruneEveryRows = 3,
+                ppgWaveformRetentionRows = 99,
+            )
+        }
+        assertEquals("exactly one sweep — the counter must reset after it", 1, sweeps.size)
+        assertEquals("my-whoop" to 99, sweeps[0])
+    }
+
+    /** The budget is per device, because the delete is — one strap must not spend another's. */
+    @Test
+    fun waveformRetention_budgetIsNotSharedBetweenDevices(): Unit = runBlocking {
+        val sweeps = mutableListOf<Pair<String, Int>>()
+        val repo = WhoopRepository(sweepRecordingDao(sweeps))
+        repeat(3) { i ->
+            repo.insert(StreamBatch(ppgWaveform = listOf(waveformRow(1_780_917_232L + i))),
+                "strap-a", ppgWaveformPruneEveryRows = 4)
+        }
+        // With a SHARED counter this fourth banked row would cross the threshold and sweep strap-b,
+        // evicting nothing from strap-a while zeroing strap-a's budget.
+        repo.insert(StreamBatch(ppgWaveform = listOf(waveformRow(1_780_918_000L))),
+            "strap-b", ppgWaveformPruneEveryRows = 4)
+        assertEquals("neither strap has banked four of its OWN rows yet", 0, sweeps.size)
+
+        repo.insert(StreamBatch(ppgWaveform = listOf(waveformRow(1_780_917_240L))),
+            "strap-a", ppgWaveformPruneEveryRows = 4)
+        assertEquals(1, sweeps.size)
+        assertEquals("strap-a must sweep on its own fourth row", "strap-a", sweeps[0].first)
+    }
+
+    /**
+     * A batch that banks no waveform row must not sweep, even with a budget of one — a WHOOP 4.0 offload
+     * (or any non-v26 second) never pays for the index scan and never evicts. Guards specifically against
+     * banking the waveform budget off a DIFFERENT stream's rows.
+     */
+    @Test
+    fun waveformRetention_otherStreamsDoNotBankTheBudget(): Unit = runBlocking {
+        val sweeps = mutableListOf<Pair<String, Int>>()
+        WhoopRepository(sweepRecordingDao(sweeps)).insert(
+            StreamBatch(v18Aux = listOf(V18AuxRow(ts = 1_780_916_150L, statusWord = 1_792L))),
+            "my-whoop",
+            ppgWaveformPruneEveryRows = 1,
+        )
+        assertEquals("a v18-aux batch must not sweep the waveform table", 0, sweeps.size)
+    }
+
+    /**
+     * The shipped cap is a real bound and matches the Swift constant. Pinned so a future "just make it
+     * 7 days" edit has to confront the NEWEST-N rationale on [WhoopRepository.PPG_WAVEFORM_RETENTION_ROWS].
+     */
+    @Test
+    fun shippedWaveformRetentionConstants() {
+        assertEquals(604_800, WhoopRepository.PPG_WAVEFORM_RETENTION_ROWS)  // 7 x 86_400 strap-seconds
+        assertEquals(10_000, WhoopRepository.PPG_WAVEFORM_PRUNE_EVERY_ROWS)
+    }
 }

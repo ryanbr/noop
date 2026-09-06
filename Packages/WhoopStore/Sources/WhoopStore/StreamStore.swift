@@ -58,6 +58,36 @@ extension WhoopStore {
         return out
     }
 
+    /// Rolling retention for the v27 PPG waveform table (twin of Kotlin `PPG_WAVEFORM_RETENTION_ROWS`),
+    /// added for #1911. This table was previously the only UNBOUNDED blob table, and at ~1 row/second
+    /// through a v26-heavy night it is the fastest-growing table per byte in the store.
+    ///
+    /// **A NEWEST-N-ROWS CAP, DELIBERATELY NOT A TIME-WINDOW DROP.** #1911 proposes "dropped after the hot
+    /// window", justifying it as "diagnostic-only". That justification is wrong, and the migration note on
+    /// `ppgWaveformSample` in `Database.swift` is the authority: these rows are kept precisely so a better
+    /// estimator, HRV-from-PPG, or a waveform viewer can later run over the ORIGINAL samples rather than
+    /// the derived bpm. Deleting by wall-clock age would empty the table for exactly the user a future
+    /// estimator needs most — a sporadic wearer, whose v26 seconds are spread thin over months — and a
+    /// waveform, unlike an HR series, has no aggregate that survives it. Newest-N instead bounds the bytes
+    /// while ALWAYS leaving a full working set to analyse, which is the same trade `v18AuxRetentionRows`
+    /// below makes for the same reason.
+    ///
+    /// 604,800 = 7 × 86,400, matching the aux cap's "a week of strap-seconds" semantic and #1911's own
+    /// 7-day hot window. The ceiling is larger than the aux table's because the row is: ~120 B/row (a 48 B
+    /// packed-i16 blob for 24 samples, plus row and primary-key-index overhead) puts it at a **~70 MB hard
+    /// ceiling** per device, against ~50 MB for aux. In practice v26 is a fraction of the strap's seconds,
+    /// so occupancy is far below that and the window spans considerably longer than a week in wall-clock
+    /// terms. Retuning is a one-constant change with no migration once a device `row_bytes` measurement
+    /// lands, and RELAXING a cap is always cheaper than imposing one on a user with a year of history.
+    public static let ppgWaveformRetentionRows = 604_800
+
+    /// Rows to bank before sweeping `ppgWaveformSample` again, same amortisation as
+    /// `v18AuxPruneEveryRows` below and the same magnitude for the same reason: the sweep walks up to
+    /// `ppgWaveformRetentionRows` index entries, so running it per insert batch is the cost. The table may
+    /// sit this many rows (plus the crossing batch) above the cap in exchange, roughly a MB against its
+    /// ~70 MB ceiling.
+    public static let ppgWaveformPruneEveryRows = 10_000
+
     /// v31 rolling retention for the v18 aux-slot table (twin of Kotlin `V18_AUX_RETENTION_ROWS`).
     ///
     /// Raw instrumentation must be capped rather than unbounded. Nothing reads these rows yet, so a cap is far
@@ -109,7 +139,9 @@ extension WhoopStore {
             spo2: Int, skinTemp: Int, resp: Int, gravity: Int) {
         try await insert(streams, deviceId: deviceId,
                          v18AuxRetentionRows: WhoopStore.v18AuxRetentionRows,
-                         v18AuxPruneEveryRows: WhoopStore.v18AuxPruneEveryRows)
+                         v18AuxPruneEveryRows: WhoopStore.v18AuxPruneEveryRows,
+                         ppgWaveformRetentionRows: WhoopStore.ppgWaveformRetentionRows,
+                         ppgWaveformPruneEveryRows: WhoopStore.ppgWaveformPruneEveryRows)
     }
 
     /// `insert(_:deviceId:)` with the v31 aux-table cap made explicit. Internal and a SEPARATE overload
@@ -117,13 +149,21 @@ extension WhoopStore {
     /// require `insert(_:deviceId:)` exactly, and a Swift witness must match the requirement's parameter
     /// list — a default argument does not satisfy it. Exists so a test can prove the rolling delete with a
     /// small cap instead of writing 600k rows; every production caller goes through the wrapper above.
+    ///
+    /// The two v18-aux caps are required because eleven existing call sites already pass them; the two
+    /// ppg-waveform caps added for #1911 are DEFAULTED so those same call sites keep compiling untouched.
+    /// A default is fine on this overload (unlike the public entry point, per the note above) because
+    /// nothing witnesses it against a protocol requirement.
     @discardableResult
     func insert(_ streams: Streams, deviceId: String, v18AuxRetentionRows: Int,
-                v18AuxPruneEveryRows: Int) async throws
+                v18AuxPruneEveryRows: Int,
+                ppgWaveformRetentionRows: Int = WhoopStore.ppgWaveformRetentionRows,
+                ppgWaveformPruneEveryRows: Int = WhoopStore.ppgWaveformPruneEveryRows) async throws
         -> (hr: Int, rr: Int, events: Int, battery: Int,
             spo2: Int, skinTemp: Int, resp: Int, gravity: Int) {
         // Banked rows, accumulated across batches so the sweep does not run on every one.
         var v18Written = 0
+        var ppgWaveformWritten = 0
         let result: (Int, Int, Int, Int, Int, Int, Int, Int) = try syncWrite { db in
             var hr = 0, rr = 0, ev = 0, bat = 0
             var spo2 = 0, skin = 0, resp = 0, grav = 0
@@ -309,6 +349,7 @@ extension WhoopStore {
                 for s in streams.ppgWaveform {
                     try stmt.execute(arguments: [deviceId, s.ts, WhoopStore.packPpgSamples(s.samples),
                                                  s.burstIndex])
+                    ppgWaveformWritten += 1
                 }
             }
             // Every remaining v18 slot (v31), one compact blob per strap-second. Persist-only, same as
@@ -351,6 +392,25 @@ extension WhoopStore {
                        """, arguments: [deviceId, deviceId, v18AuxRetentionRows])
                }) != nil {
                 v18AuxRowsSincePrune[deviceId] = 0
+            }
+        }
+        // #1911 rolling retention for the waveform blobs, amortised and best-effort on exactly the same
+        // terms as the aux sweep above (see `ppgWaveformRetentionRows` for why this is a newest-N cap and
+        // not an age-based drop). Its own counter and its own transaction: a batch routinely writes one of
+        // these two tables and not the other, and a failed sweep here must not fail an insert whose rows
+        // are already committed — leaving the budget unspent simply retries on the next batch.
+        if ppgWaveformWritten > 0 {
+            let banked = (ppgWaveformRowsSincePrune[deviceId] ?? 0) + ppgWaveformWritten
+            ppgWaveformRowsSincePrune[deviceId] = banked
+            if banked >= ppgWaveformPruneEveryRows,
+               (try? syncWrite { db in
+                   try db.execute(sql: """
+                       DELETE FROM ppgWaveformSample WHERE deviceId = ? AND ts < (
+                           SELECT MIN(ts) FROM (
+                               SELECT ts FROM ppgWaveformSample WHERE deviceId = ? ORDER BY ts DESC LIMIT ?))
+                       """, arguments: [deviceId, deviceId, ppgWaveformRetentionRows])
+               }) != nil {
+                ppgWaveformRowsSincePrune[deviceId] = 0
             }
         }
         return result
