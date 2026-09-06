@@ -1,0 +1,81 @@
+{
+  "note": "Produced by compiling Packages/StrandAnalytics/Sources/StrandAnalytics/LocalDayWindows.swift standalone. Dates are YYYY-MM-DD, instants are whole seconds since the epoch, offsets are seconds east of UTC.",
+  "producedBy": {"toolchain": "Swift version 6.0.3 (swift-6.0.3-RELEASE)", "timeZoneDataVersion": "unavailable"},
+  "starts": [
+    {"zone": "America/New_York", "date": "2025-02-23", "start": 1740286800},
+    {"zone": "America/New_York", "date": "2025-03-09", "start": 1741496400},
+    {"zone": "America/New_York", "date": "2025-10-19", "start": 1760846400},
+    {"zone": "America/New_York", "date": "2025-11-01", "start": 1761969600},
+    {"zone": "America/New_York", "date": "2025-11-02", "start": 1762056000},
+    {"zone": "America/New_York", "date": "2025-11-03", "start": 1762146000},
+    {"zone": "America/New_York", "date": "2025-11-10", "start": 1762750800},
+    {"zone": "America/New_York", "date": "2014-11-29", "start": 1417237200},
+    {"zone": "America/Santiago", "date": "2025-08-24", "start": 1756008000},
+    {"zone": "America/Santiago", "date": "2025-09-07", "start": 1757217600},
+    {"zone": "America/Havana", "date": "2025-10-19", "start": 1760846400},
+    {"zone": "America/Havana", "date": "2025-11-02", "start": 1762056000},
+    {"zone": "Pacific/Apia", "date": "2011-12-16", "start": 1324029600},
+    {"zone": "Pacific/Apia", "date": "2011-12-29", "start": 1325152800},
+    {"zone": "Pacific/Apia", "date": "2011-12-30", "start": null},
+    {"zone": "Pacific/Apia", "date": "2011-12-31", "start": 1325239200},
+    {"zone": "Pacific/Apia", "date": "2012-01-02", "start": 1325412000},
+    {"zone": "Asia/Kolkata", "date": "2025-06-15", "start": 1749925800},
+    {"zone": "Asia/Kathmandu", "date": "2025-06-15", "start": 1749924900}
+  ],
+  "windows": [
+    {"zone": "America/New_York", "date": "2025-02-23", "start": 1740286800, "nextStart": 1740373200, "utcOffsetSeconds": -18000, "durationSeconds": 86400},
+    {"zone": "America/New_York", "date": "2025-03-09", "start": 1741496400, "nextStart": 1741579200, "utcOffsetSeconds": -18000, "durationSeconds": 82800},
+    {"zone": "America/New_York", "date": "2025-10-19", "start": 1760846400, "nextStart": 1760932800, "utcOffsetSeconds": -14400, "durationSeconds": 86400},
+    {"zone": "America/New_York", "date": "2025-11-01", "start": 1761969600, "nextStart": 1762056000, "utcOffsetSeconds": -14400, "durationSeconds": 86400},
+    {"zone": "America/New_York", "date": "2025-11-02", "start": 1762056000, "nextStart": 1762146000, "utcOffsetSeconds": -14400, "durationSeconds": 90000},
+    {"zone": "America/New_York", "date": "2025-11-03", "start": 1762146000, "nextStart": 1762232400, "utcOffsetSeconds": -18000, "durationSeconds": 86400},
+    {"zone": "America/New_York", "date": "2025-11-10", "start": 1762750800, "nextStart": 1762837200, "utcOffsetSeconds": -18000, "durationSeconds": 86400},
+    {"zone": "America/New_York", "date": "2014-11-29", "start": 1417237200, "nextStart": 1417323600, "utcOffsetSeconds": -18000, "durationSeconds": 86400},
+    {"zone": "America/Santiago", "date": "2025-08-24", "start": 1756008000, "nextStart": 1756094400, "utcOffsetSeconds": -14400, "durationSeconds": 86400},
+    {"zone": "America/Santiago", "date": "2025-09-07", "start": 1757217600, "nextStart": 1757300400, "utcOffsetSeconds": -10800, "durationSeconds": 82800},
+    {"zone": "America/Havana", "date": "2025-10-19", "start": 1760846400, "nextStart": 1760932800, "utcOffsetSeconds": -14400, "durationSeconds": 86400},
+    {"zone": "America/Havana", "date": "2025-11-02", "start": 1762056000, "nextStart": 1762146000, "utcOffsetSeconds": -14400, "durationSeconds": 90000},
+    {"zone": "Pacific/Apia", "date": "2011-12-16", "start": 1324029600, "nextStart": 1324116000, "utcOffsetSeconds": -36000, "durationSeconds": 86400},
+    {"zone": "Pacific/Apia", "date": "2011-12-29", "start": 1325152800, "nextStart": 1325239200, "utcOffsetSeconds": -36000, "durationSeconds": 86400},
+    {"zone": "Pacific/Apia", "date": "2011-12-31", "start": 1325239200, "nextStart": 1325325600, "utcOffsetSeconds": 50400, "durationSeconds": 86400},
+    {"zone": "Pacific/Apia", "date": "2012-01-02", "start": 1325412000, "nextStart": 1325498400, "utcOffsetSeconds": 50400, "durationSeconds": 86400},
+    {"zone": "Asia/Kolkata", "date": "2025-06-15", "start": 1749925800, "nextStart": 1750012200, "utcOffsetSeconds": 19800, "durationSeconds": 86400},
+    {"zone": "Asia/Kathmandu", "date": "2025-06-15", "start": 1749924900, "nextStart": 1750011300, "utcOffsetSeconds": 20700, "durationSeconds": 86400}
+  ],
+  "containingDayStarts": [
+    {"zone": "America/New_York", "instant": 1762061400, "start": 1762056000},
+    {"zone": "America/New_York", "instant": 1762106400, "start": 1762056000},
+    {"zone": "America/New_York", "instant": 1741521600, "start": 1741496400},
+    {"zone": "America/Santiago", "instant": 1757246400, "start": 1757217600},
+    {"zone": "America/Havana", "instant": 1762057800, "start": 1762056000},
+    {"zone": "America/Havana", "instant": 1762061400, "start": 1762056000},
+    {"zone": "Pacific/Apia", "instant": 1325246400, "start": 1325239200},
+    {"zone": "Asia/Kathmandu", "instant": 1749945600, "start": 1749924900}
+  ],
+  "dayKeys": [
+    {"zone": "America/New_York", "instant": 1762055999, "key": "2025-11-01"},
+    {"zone": "America/New_York", "instant": 1762056000, "key": "2025-11-02"},
+    {"zone": "America/New_York", "instant": 1762056001, "key": "2025-11-02"},
+    {"zone": "America/New_York", "instant": 1762061400, "key": "2025-11-02"},
+    {"zone": "America/New_York", "instant": 1762145999, "key": "2025-11-02"},
+    {"zone": "America/New_York", "instant": 1762146000, "key": "2025-11-03"},
+    {"zone": "America/Santiago", "instant": 1757217600, "key": "2025-09-07"},
+    {"zone": "America/Havana", "instant": 1762056000, "key": "2025-11-02"},
+    {"zone": "Pacific/Apia", "instant": 1325239199, "key": "2011-12-29"},
+    {"zone": "Pacific/Apia", "instant": 1325239200, "key": "2011-12-31"},
+    {"zone": "Asia/Kathmandu", "instant": 1749924900, "key": "2025-06-15"}
+  ],
+  "runs": [
+    {"zone": "America/New_York", "endingAt": "2025-11-10", "requested": 21, "size": 21, "oldest": {"date": "2025-10-21", "start": 1761019200}, "newest": {"date": "2025-11-10", "start": 1762750800}, "daysTruncated": false, "days": [{"date": "2025-10-21", "start": 1761019200}, {"date": "2025-10-22", "start": 1761105600}, {"date": "2025-10-23", "start": 1761192000}, {"date": "2025-10-24", "start": 1761278400}, {"date": "2025-10-25", "start": 1761364800}, {"date": "2025-10-26", "start": 1761451200}, {"date": "2025-10-27", "start": 1761537600}, {"date": "2025-10-28", "start": 1761624000}, {"date": "2025-10-29", "start": 1761710400}, {"date": "2025-10-30", "start": 1761796800}, {"date": "2025-10-31", "start": 1761883200}, {"date": "2025-11-01", "start": 1761969600}, {"date": "2025-11-02", "start": 1762056000}, {"date": "2025-11-03", "start": 1762146000}, {"date": "2025-11-04", "start": 1762232400}, {"date": "2025-11-05", "start": 1762318800}, {"date": "2025-11-06", "start": 1762405200}, {"date": "2025-11-07", "start": 1762491600}, {"date": "2025-11-08", "start": 1762578000}, {"date": "2025-11-09", "start": 1762664400}, {"date": "2025-11-10", "start": 1762750800}]},
+    {"zone": "America/New_York", "endingAt": "2025-11-10", "requested": 4000, "size": 4000, "oldest": {"date": "2014-11-29", "start": 1417237200}, "newest": {"date": "2025-11-10", "start": 1762750800}, "daysTruncated": true, "days": []},
+    {"zone": "Pacific/Apia", "endingAt": "2012-01-02", "requested": 5, "size": 4, "oldest": {"date": "2011-12-29", "start": 1325152800}, "newest": {"date": "2012-01-02", "start": 1325412000}, "daysTruncated": false, "days": [{"date": "2011-12-29", "start": 1325152800}, {"date": "2011-12-31", "start": 1325239200}, {"date": "2012-01-01", "start": 1325325600}, {"date": "2012-01-02", "start": 1325412000}]},
+    {"zone": "Pacific/Apia", "endingAt": "2011-12-30", "requested": 3, "size": 2, "oldest": {"date": "2011-12-28", "start": 1325066400}, "newest": {"date": "2011-12-29", "start": 1325152800}, "daysTruncated": false, "days": [{"date": "2011-12-28", "start": 1325066400}, {"date": "2011-12-29", "start": 1325152800}]}
+  ],
+  "sleepWindowEnds": [
+    {"zone": "America/New_York", "date": "2025-11-02", "referenceInstant": 1762106400, "end": 1762106400},
+    {"zone": "America/New_York", "date": "2025-11-02", "referenceInstant": 1765800000, "end": 1762146000},
+    {"zone": "America/New_York", "date": "2025-11-10", "referenceInstant": 1762794000, "end": 1762794000},
+    {"zone": "America/New_York", "date": "2025-10-19", "referenceInstant": 1760529600, "end": 1760529600},
+    {"zone": "Pacific/Apia", "date": "2011-12-29", "referenceInstant": 1765800000, "end": 1325239200}
+  ]
+}
