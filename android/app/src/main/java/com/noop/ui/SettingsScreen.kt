@@ -1785,9 +1785,16 @@ fun SettingsScreen(
                     // Live while dragging, persisted once on release: a drag emits a value per frame, and
                     // writing each one records a decision the user makes once. Rounded, not truncated -
                     // the snapped value can arrive as 5.9999998, which truncation would read as step 5.
-                    onValueChange = { BottomBarStyleStore.previewOpacityStep(it.roundToInt()) },
+                    onValueChange = {
+                        // Hold the bar visible for the drag: reaching this slider means scrolling down,
+                        // which auto-hide reads as "hide the bar", so the live preview was invisible at
+                        // exactly the moment it is for.
+                        BottomBarStyleStore.pinPreview(true)
+                        BottomBarStyleStore.previewOpacityStep(it.roundToInt())
+                    },
                     onValueChangeFinished = {
                         BottomBarStyleStore.setOpacityStep(context, BottomBarStyleStore.opacityStep)
+                        BottomBarStyleStore.pinPreview(false)
                     },
                     valueRange = MIN_OPACITY_STEP.toFloat()..MAX_OPACITY_STEP.toFloat(),
                     // Compose counts the stops BETWEEN the ends, so N notches is N-2. Derived, not

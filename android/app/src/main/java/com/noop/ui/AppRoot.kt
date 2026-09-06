@@ -290,8 +290,12 @@ internal object MoreSectionPrefs {
  * translating the bar away would leave an empty band rather than handing the space back to content —
  * visibly worse than not hiding at all. Auto-hide only makes sense over content.
  */
-internal fun shouldHideBar(autoHide: Boolean, overlay: Boolean, scrollingDown: Boolean): Boolean =
-    autoHide && overlay && scrollingDown
+internal fun shouldHideBar(
+    autoHide: Boolean,
+    overlay: Boolean,
+    scrollingDown: Boolean,
+    pinned: Boolean = false,
+): Boolean = !pinned && autoHide && overlay && scrollingDown
 
 /**
  * #1839: does this scroll delta change the direction, or is it noise?
@@ -375,6 +379,24 @@ object BottomBarStyleStore {
      */
     var scale by mutableStateOf(DEFAULT_SCALE)
         private set
+
+    /**
+     * Hold the bar visible regardless of auto-hide, while something is adjusting how it LOOKS.
+     *
+     * The transparency slider sits below the fold in Settings, so reaching it means scrolling down -
+     * which is exactly what auto-hide reads as "hide the bar". The control's live preview was therefore
+     * invisible at the moment it mattered, and touching the slider does not scroll, so nothing brought
+     * the bar back. Pinning while the drag is in flight is the narrowest fix: auto-hide is untouched as
+     * a setting, and the pin lasts only as long as a finger is down.
+     */
+    var previewPinned by mutableStateOf(false)
+        private set
+
+    /** Named `pinPreview` rather than `setPreviewPinned`: the latter is the property's own generated
+     *  setter, and declaring both is a JVM signature clash. */
+    fun pinPreview(value: Boolean) {
+        previewPinned = value
+    }
 
     /**
      * Move the bar NOW without persisting, for a slider drag.
@@ -473,7 +495,8 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
     // Boolean, and only on a movement past the threshold, so a fingertip tremor cannot flicker the bar.
     var scrollingDown by remember { mutableStateOf(false) }
     val reduceMotion = rememberReduceMotion()
-    val hidden = shouldHideBar(BottomBarStyleStore.autoHide, BottomBarStyleStore.overlay, scrollingDown)
+    val hidden = shouldHideBar(BottomBarStyleStore.autoHide, BottomBarStyleStore.overlay, scrollingDown,
+                               pinned = BottomBarStyleStore.previewPinned)
     val collapseTarget = barCollapseFraction(hidden, reduceMotion)
     // The transform is a graphicsLayer only — GPU, per frame, NO relayout — so content never reflows as
     // the bar comes and goes and scrolling stays smooth. (The approach #90 got right.)
