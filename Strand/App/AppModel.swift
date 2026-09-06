@@ -1368,7 +1368,14 @@ final class AppModel: ObservableObject {
     /// `log` (optional): strap-log sink for the not-authorized bail (#401 close-out) — a silent no-op left a
     /// user whose backup never fired with nothing in the log. The caller wraps the sink in a main-actor hop
     /// (the auth check completes off-main). Diagnostic only.
+    ///
+    /// #1864: `overrides` carries the per-weekday wake-time overrides (#554 / `WindDownNudge.perDayWakeOverrides`).
+    /// A weekday with an override fires at ITS OWN time, not the shared `minutes` — so a user who sets
+    /// "Tuesday 03:30" on the alarm screen is woken at 03:30 on Tuesday, not at the default time with only
+    /// the wind-down reminder shifting. An empty map (the default) is byte-for-byte the old path. Mirrors
+    /// Android's `SmartAlarmScheduler.arm` which reads `SmartAlarmStore.targetOverrides` per weekday.
     static func scheduleSmartAlarmBackupNotification(minutes: Int, weekdays: Set<Int>,
+                                                     overrides: [Int: Int] = [:],
                                                      log: ((String) -> Void)? = nil) {
         #if os(iOS)
         let center = UNUserNotificationCenter.current()
@@ -1383,6 +1390,9 @@ final class AppModel: ObservableObject {
         let valid = weekdays.filter { (1...7).contains($0) }
         // A non-empty selection that filters to nothing (only out-of-range numbers) has no day to fire on.
         if !weekdays.isEmpty && valid.isEmpty { return }
+        // #1864: only valid override entries (day 1…7, minute in [0, 1440)) count; a day without an override
+        // uses the default `minutes`. When the map is empty this is byte-for-byte the old path.
+        let cleanOverrides = overrides.filter { (1...7).contains($0.key) && (0..<24 * 60).contains($0.value) }
 
         // Build + add the repeating trigger(s). Factored so the already-authorized and the just-granted
         // paths schedule identically.
@@ -1391,20 +1401,37 @@ final class AppModel: ObservableObject {
             content.title = String(localized: "Smart alarm")
             content.body = String(localized: "Backup wake: your smart alarm time is here.")
             content.sound = .default
-            let hour = minutes / 60
-            let minute = minutes % 60
             if weekdays.isEmpty {
-                var comps = DateComponents()
-                comps.hour = hour
-                comps.minute = minute
-                let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)
-                center.add(UNNotificationRequest(identifier: smartAlarmBackupId, content: content, trigger: trigger))
-            } else {
-                for weekday in valid {
+                // Every day. When overrides exist, fan out to per-weekday triggers (each at its own time)
+                // so an override on a day the weekday set doesn't restrict still fires at the right time.
+                // Without overrides this stays the single daily trigger (byte-for-byte the old path).
+                if cleanOverrides.isEmpty {
+                    let hour = minutes / 60
+                    let minute = minutes % 60
                     var comps = DateComponents()
-                    comps.weekday = weekday   // Calendar weekday 1=Sun…7=Sat , fires weekly on that day
                     comps.hour = hour
                     comps.minute = minute
+                    let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)
+                    center.add(UNNotificationRequest(identifier: smartAlarmBackupId, content: content, trigger: trigger))
+                } else {
+                    for weekday in 1...7 {
+                        let m = cleanOverrides[weekday] ?? minutes
+                        var comps = DateComponents()
+                        comps.weekday = weekday
+                        comps.hour = m / 60
+                        comps.minute = m % 60
+                        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)
+                        center.add(UNNotificationRequest(identifier: "\(smartAlarmBackupId)-d\(weekday)",
+                                                         content: content, trigger: trigger))
+                    }
+                }
+            } else {
+                for weekday in valid {
+                    let m = cleanOverrides[weekday] ?? minutes
+                    var comps = DateComponents()
+                    comps.weekday = weekday   // Calendar weekday 1=Sun…7=Sat , fires weekly on that day
+                    comps.hour = m / 60
+                    comps.minute = m % 60
                     let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)
                     center.add(UNNotificationRequest(identifier: "\(smartAlarmBackupId)-d\(weekday)",
                                                      content: content, trigger: trigger))
@@ -1445,14 +1472,25 @@ final class AppModel: ObservableObject {
     /// On iOS this ALSO (dis)arms the best-effort backup wake notification (#4 + #6): a repeating daily
     /// `UNCalendarNotificationTrigger` that survives suspend/relaunch, so a missed strap buzz still gets
     /// an OS-level wake. macOS keeps just the firmware alarm (the static helpers are no-ops there).
+    ///
+    /// #1864: the per-weekday wake-time overrides (`WindDownNudge.perDayWakeOverrides`, #554) now flow
+    /// through to BOTH the strap firmware alarm and the backup notification — so a user who sets
+    /// "Tuesday 03:30" on the alarm screen is woken at 03:30 on Tuesday, not at the default time with
+    /// only the wind-down reminder shifting. Before this, the overrides had exactly two readers
+    /// (`wakeMinutes(forWeekday:)` → the nudge fan-out, and `SmartAlarmView` which edits them) and the
+    /// alarm backup took a single time plus a day set, so the control on the alarm screen silently moved
+    /// only the evening reminder. Mirrors Android's `reconcileStrapAlarm` which passes `dayOverrides`
+    /// to `nextSmartAlarmEpochSec`, and `SmartAlarmScheduler.arm` which reads `targetOverrides`.
     func applySmartAlarm() {
+        let overrides = WindDownNudge.perDayWakeOverrides
         guard behavior.smartAlarmEnabled else {
             ble.disableStrapAlarm()
             Self.cancelSmartAlarmBackupNotification()
             return
         }
         guard let next = Self.nextSmartAlarmDate(minutes: behavior.smartAlarmMinutes,
-                                                 weekdays: behavior.smartAlarmWeekdays) else {
+                                                 weekdays: behavior.smartAlarmWeekdays,
+                                                 overrides: overrides) else {
             // No enabled weekday in the next week (only possible from a corrupted set) , disarm rather
             // than arm a misleading time the user never asked for.
             ble.disableStrapAlarm()
@@ -1465,6 +1503,7 @@ final class AppModel: ObservableObject {
         // @MainActor - the same Task hop the importTraceSink uses.
         Self.scheduleSmartAlarmBackupNotification(minutes: behavior.smartAlarmMinutes,
                                                   weekdays: behavior.smartAlarmWeekdays,
+                                                  overrides: overrides,
                                                   log: { [weak self] line in
                                                       Task { @MainActor in self?.live.append(log: line) }
                                                   })
@@ -1474,28 +1513,39 @@ final class AppModel: ObservableObject {
     /// - `minutes`: target wake time, minutes since local midnight.
     /// - `weekdays`: Calendar weekday numbers (1 = Sun … 7 = Sat) the alarm may fire on. Empty = every
     ///   day. Days outside 1…7 are ignored.
+    /// - `overrides`: per-weekday wake-time overrides (#554 / #1864). A weekday with an override uses
+    ///   ITS OWN time instead of `minutes`; a day without one falls back to `minutes`. Only valid
+    ///   entries (day 1…7, minute in [0, 1440)) count. An empty map is byte-for-byte the old path.
     /// Returns the next strictly-future date matching the time on an enabled weekday, scanning today
     /// plus the next 7 days, or nil if no enabled weekday falls in that range. Pure + side-effect-free
     /// so it can be unit-tested against a fixed clock.
     nonisolated static func nextSmartAlarmDate(minutes: Int,
                                                weekdays: Set<Int>,
+                                               overrides: [Int: Int] = [:],
                                                from now: Date = Date(),
                                                calendar cal: Calendar = .current) -> Date? {
         let valid = weekdays.filter { (1...7).contains($0) }
         // An empty input means "every day" (backward compatible). A non-empty selection that filters to
         // nothing (only out-of-range numbers) has no valid day to fire on, so it's nil, not a daily alarm.
         if !weekdays.isEmpty && valid.isEmpty { return nil }
-        let hour = minutes / 60
-        let minute = minutes % 60
+        // #1864: only valid override entries (day 1…7, minute in [0, 1440)) count; a day without an
+        // override uses the default `minutes`. When the map is empty this is byte-for-byte the old path.
+        let cleanOverrides = overrides.filter { (1...7).contains($0.key) && (0..<24 * 60).contains($0.value) }
         // Scan today (offset 0) through +7 days so a once-a-week alarm picked for "today, already
         // passed" still resolves to the same weekday next week.
         for offset in 0...7 {
-            guard let day = cal.date(byAdding: .day, value: offset, to: now),
-                  let fire = cal.date(bySettingHour: hour, minute: minute, second: 0, of: day)
-            else { continue }
+            guard let day = cal.date(byAdding: .day, value: offset, to: now) else { continue }
+            // Resolve this calendar day's weekday FIRST, so the per-day override time is applied BEFORE
+            // the strictly-future check — a later override time on today can make today's occurrence
+            // still pending (mirrors Android's `nextSmartAlarmEpochSec`).
+            let dow = cal.component(.weekday, from: day)
+            if !weekdays.isEmpty && !valid.contains(dow) { continue }
+            let wakeMin = cleanOverrides[dow] ?? minutes
+            let hour = wakeMin / 60
+            let minute = wakeMin % 60
+            guard let fire = cal.date(bySettingHour: hour, minute: minute, second: 0, of: day) else { continue }
             if fire <= now { continue }
-            if weekdays.isEmpty { return fire }
-            if valid.contains(cal.component(.weekday, from: fire)) { return fire }
+            return fire
         }
         return nil
     }
