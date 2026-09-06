@@ -204,6 +204,35 @@ final class PpgWaveformSampleTests: XCTestCase {
         XCTAssertEqual(rows.map(\.ts), [100])
     }
 
+    /// One strap's sweep must not evict ANOTHER strap's rows. Distinct from the budget test above, which
+    /// only proves the two devices bank separately: this pins the DELETE's own device scoping, and it is
+    /// the reason the older strap's rows sit BELOW the sweeping strap's cutoff. With `dev2` newer than the
+    /// cutoff (as in the budget test) the rows survive even a DELETE that has lost its `deviceId` filter,
+    /// so that arrangement cannot see the bug. Dropping the outer filter is silent cross-device data loss
+    /// on a multi-strap install, and nothing else in the suite catches it.
+    func testRetentionSweepDoesNotEvictAnotherDevicesRows() async throws {
+        let s = try await retentionStore()
+        try await s.upsertDevice(id: "dev2", mac: nil, name: nil)
+        for ts in [500, 501] {
+            _ = try await s.insert(waveform(ts), deviceId: "dev2",
+                                   v18AuxRetentionRows: WhoopStore.v18AuxRetentionRows,
+                                   v18AuxPruneEveryRows: WhoopStore.v18AuxPruneEveryRows,
+                                   ppgWaveformRetentionRows: 10, ppgWaveformPruneEveryRows: 50)
+        }
+        // dev1's rows are all NEWER than dev2's, so dev1's cutoff sits above every dev2 row.
+        for ts in 1_000...1_003 {
+            _ = try await s.insert(waveform(ts), deviceId: "dev1",
+                                   v18AuxRetentionRows: WhoopStore.v18AuxRetentionRows,
+                                   v18AuxPruneEveryRows: WhoopStore.v18AuxPruneEveryRows,
+                                   ppgWaveformRetentionRows: 1, ppgWaveformPruneEveryRows: 1)
+        }
+        let d1 = try await s.ppgWaveformSamples(deviceId: "dev1", from: 0, to: 10_000)
+        let d2 = try await s.ppgWaveformSamples(deviceId: "dev2", from: 0, to: 10_000)
+        XCTAssertEqual(d1.map(\.ts), [1_003], "dev1 is swept to its own cap")
+        XCTAssertEqual(d2.map(\.ts), [500, 501],
+                       "dev2's older rows must survive dev1's sweep — the DELETE is per device")
+    }
+
     /// The production cap must stay a WEEK-SCALE newest-N row count, not an age-based drop. Pins the
     /// constant so a future "just make it 7 days" edit has to confront `ppgWaveformRetentionRows`' note.
     func testProductionRetentionCapIsAWeekOfStrapSeconds() {

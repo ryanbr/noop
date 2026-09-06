@@ -135,6 +135,15 @@ class PpgWaveformMigrationTest {
     }
 
     // MARK: - #1911 rolling retention (twin of Swift PpgWaveformSampleTests' retention block)
+    //
+    // WHAT THESE TESTS DO AND DO NOT COVER. They drive a Proxy DAO, so they pin the repository's
+    // AMORTISATION (when a sweep fires, with which deviceId and cap, and whose budget paid for it) but
+    // never execute `prunePpgWaveform`'s SQL. The statement's semantics -- newest-N kept, and the DELETE
+    // scoped so one strap's sweep cannot evict another's rows -- are proven on the Swift side against a
+    // real database by `PpgWaveformSampleTests`, and the two statements are deliberately identical text
+    // modulo the parameter syntax. A change to the SQL here MUST be mirrored there, because this file
+    // cannot fail for it. (The project pins migration SQL without Robolectric on purpose; see the class
+    // doc, so there is no real-DB seam available here.)
 
     private fun waveformRow(ts: Long) = PpgWaveformRow(ts = ts, samples = listOf(1, -2, 3), burstIndex = 0)
 
