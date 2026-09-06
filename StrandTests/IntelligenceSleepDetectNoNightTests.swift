@@ -58,6 +58,19 @@ final class IntelligenceSleepDetectNoNightTests: XCTestCase {
         XCTAssertTrue(line.contains("atCap=grav"), line)
     }
 
+    /// HR and R-R at their caps produce NO marker, and that is deliberate rather than an oversight.
+    ///
+    /// Both arrive through `SlidingStreamWindow.rows`, which returns a SLICE of a read spanning more than
+    /// this night, so a truncated spliced window still hands back a count under the cap — the marker would
+    /// miss the very case it claims to catch. Their exact truncation count is printed once per pass by
+    /// `WindowedStreamPlan.logLine` instead. Pinned so the omission is not "fixed" back in.
+    func testHrAndRrAtTheirCapsCarryNoMarker() {
+        let line = IntelligenceEngine.sleepDetectNoNightLogLine(
+            day: "2026-09-06", hrCount: StreamReadCap.hr, rrCount: StreamReadCap.rr, respCount: 0,
+            gravCount: 10, stepCount: 0, providedCount: 0, windowHours: 54, skinCount: 0)
+        XCTAssertFalse(line.contains("atCap"), line)
+    }
+
     /// A healthy night says nothing extra — the marker only appears when something actually clipped.
     func testANightUnderTheCapsCarriesNoMarker() {
         let line = IntelligenceEngine.sleepDetectNoNightLogLine(

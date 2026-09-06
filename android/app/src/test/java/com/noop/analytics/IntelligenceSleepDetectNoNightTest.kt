@@ -71,6 +71,22 @@ class IntelligenceSleepDetectNoNightTest {
         assertTrue(line, line.contains("atCap=grav"))
     }
 
+    /**
+     * HR and R-R at their caps produce NO marker, and that is deliberate rather than an oversight.
+     *
+     * Both arrive through `SlidingStreamWindow.rows`, which returns a SLICE of a read spanning more than
+     * this night, so a truncated spliced window still hands back a count under the cap - the marker would
+     * miss the very case it claims to catch. Their exact truncation count is printed once per pass by
+     * `WindowedStreamPlan.logLine` instead. Pinned so the omission is not "fixed" back in.
+     */
+    @Test fun `hr and rr at their caps carry no marker`() {
+        val line = IntelligenceEngine.sleepDetectNoNightLogLine(
+            day = "2026-09-06", hrCount = StreamReadCap.HR, rrCount = StreamReadCap.RR, respCount = 0,
+            gravCount = 10, stepCount = 0, providedCount = 0, windowHours = 54, skinCount = 0,
+        )
+        assertFalse(line, line.contains("atCap"))
+    }
+
     /** A healthy night says nothing extra - the marker only appears when something actually clipped. */
     @Test fun `a night under the caps carries no marker`() {
         val line = IntelligenceEngine.sleepDetectNoNightLogLine(

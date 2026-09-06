@@ -2962,12 +2962,19 @@ object IntelligenceEngine {
         // truncations; gravity is a plain read with no counter at all, so a night clipped of its newest
         // motion staged badly and said nothing. That is the difference between "this release fixes your
         // night" and "your offload never ran", and a log could not tell them apart.
+        // ONLY the plain reads. Gravity and skin are read whole, so a result of exactly the cap IS the
+        // truncation — the same `size >= limit` test used everywhere else here, and neither stream has a
+        // counter of its own, which is why this marker exists.
+        //
+        // HR and R-R are deliberately absent even though their counts are printed. They arrive through
+        // `SlidingStreamWindow.rows`, which returns `full.filter { ts in from..to }` — a SLICE of a read
+        // that usually spans more than this night. A spliced window that WAS truncated still hands back a
+        // slice under the cap, so the marker would silently fail to fire: a false negative on a line whose
+        // only value is that its absence means "not clipped". Their exact truncation count is already
+        // printed unconditionally once per pass by `WindowedStreamPlan.logLine` (`hrTruncated=`), so
+        // nothing is lost by declining to guess it per night.
         val atCap = buildList {
             if (gravCount >= StreamReadCap.GRAVITY) add("grav")
-            if (hrCount >= StreamReadCap.HR) add("hr")
-            if (rrCount >= StreamReadCap.RR) add("rr")
-            // Skin is here because it is the stream whose density was never measured — the reason the
-            // count is printed at all. The count is the night-WINDOW read, so this marks that read clipped.
             if (skinCount >= StreamReadCap.SKIN) add("skin")
         }
         val capNote = if (atCap.isEmpty()) "" else " atCap=${atCap.joinToString(",")}"
