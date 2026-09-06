@@ -26,9 +26,11 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from typing import Callable
 
 ROOT = Path(__file__).resolve().parent.parent
 LANGS = ["de", "es", "fr", "pt-PT"]
@@ -38,6 +40,12 @@ ANDROID_LOCALE_DIRS = {
     "fr": "values-fr",
     "pt-PT": "values-pt-rPT",
 }
+
+# A file's text (or None if absent) at some point in time — either the
+# working tree (`_disk_read`) or a git ref (`ref_reader`). Every scan_*/
+# *_gaps function accepts one so `ci_check` can compute the same violations
+# at HEAD and at `base_ref` and diff the two.
+Reader = Callable[[Path], str | None]
 
 # Strings that are legitimately identical across all languages (symbols,
 # format-only placeholders, brand name, units) — mirrors the exclude
@@ -419,13 +427,14 @@ def _visible_val_initializer(
 _PRECEDED_BY_ARG_BOUNDARY = re.compile(r"[(,]\s*\Z")
 
 
-def scan_android() -> list[tuple[str, int, str]]:
+def scan_android(read: Reader | None = None) -> list[tuple[str, int, str]]:
+    read = read or _disk_read
     findings = []
     for base in ANDROID_DIRS:
         if not base.exists():
             continue
         for path in sorted(base.rglob("*.kt")):
-            raw = path.read_text(encoding="utf-8", errors="replace")
+            raw = read(path) or ""
             text = _mask_comments(raw)
             seen: set[int] = set()
 
@@ -481,23 +490,25 @@ def scan_android() -> list[tuple[str, int, str]]:
 ANDROID_EXEMPT_KEYS = {"app_name"}  # brand name
 
 
-def android_strings_xml_gaps() -> dict[str, set[str]]:
+def android_strings_xml_gaps(read: Reader | None = None) -> dict[str, set[str]]:
     """Keys present in the base values/strings.xml but missing from an
     existing values-<locale>/strings.xml. (Doesn't invent missing locale dirs —
     see the audit summary for languages with NO directory at all.)"""
+    read = read or _disk_read
     base_path = ROOT / "android/app/src/main/res/values/strings.xml"
     # <plurals> count too: converting a hand-rolled singular/plural PAIR into one <plurals> would
     # otherwise DROP those keys out of this gate's view entirely, so a locale could silently lose them —
     # fixing the plural model must not open a coverage hole (see #540 for the same class of blind spot).
-    base_keys = set(re.findall(r'<(?:string|plurals) name="([^"]+)"', base_path.read_text(encoding="utf-8")))
+    base_keys = set(re.findall(r'<(?:string|plurals) name="([^"]+)"', read(base_path) or ""))
     gaps: dict[str, set[str]] = {}
     for lang in LANGS:
         locale_dir = ANDROID_LOCALE_DIRS[lang]
         lang_path = ROOT / f"android/app/src/main/res/{locale_dir}/strings.xml"
-        if not lang_path.exists():
+        lang_text = read(lang_path)
+        if lang_text is None:
             gaps[lang] = {"<entire %s/ directory is missing>" % locale_dir}
             continue
-        lang_keys = set(re.findall(r'<(?:string|plurals) name="([^"]+)"', lang_path.read_text(encoding="utf-8")))
+        lang_keys = set(re.findall(r'<(?:string|plurals) name="([^"]+)"', lang_text))
         missing = (base_keys - ANDROID_EXEMPT_KEYS) - lang_keys
         if missing:
             gaps[lang] = missing
@@ -507,8 +518,9 @@ def android_strings_xml_gaps() -> dict[str, set[str]]:
 ANDROID_FORMAT_PATTERN = re.compile(r"%[1-9]\d*\$[-+0 #,(]*\d*(?:\.\d+)?([sdif])")
 
 
-def android_format_gaps() -> dict[str, list[str]]:
+def android_format_gaps(read: Reader | None = None) -> dict[str, list[str]]:
     """Resource keys whose translated Formatter arguments differ from English."""
+    read = read or _disk_read
     paths = {
         "en": ROOT / "android/app/src/main/res/values/strings.xml",
         **{
@@ -522,9 +534,10 @@ def android_format_gaps() -> dict[str, list[str]]:
     values: dict[str, dict[str, str]] = {}
     plural_items: dict[str, dict[str, list[str]]] = {}
     for lang, path in paths.items():
-        if not path.exists():
+        text = read(path)
+        if text is None:
             continue
-        root = ET.parse(path).getroot()
+        root = ET.fromstring(text)
         entries = {node.attrib["name"]: node.text or "" for node in root.findall("string")}
         items_by_key: dict[str, list[str]] = {}
         # <plurals> carry their format args on the <item> CHILDREN, so a plain findall("string") leaves
@@ -840,17 +853,19 @@ def catalog_lookup(cat: dict, key: str) -> dict | None:
     return cat.get("strings", {}).get(key)
 
 
-def scan_ios() -> tuple[list[tuple[str, int, str]], dict[str, list[str]]]:
+def scan_ios(read: Reader | None = None) -> tuple[list[tuple[str, int, str]], dict[str, list[str]]]:
+    read = read or _disk_read
     hardcoded: list[tuple[str, int, str]] = []  # not in any catalog at all
     lang_gaps: dict[str, list[str]] = {lang: [] for lang in LANGS}
 
     for dirs, catalog_path in CATALOGS:
-        cat = load_catalog(catalog_path)
+        cat_text = read(catalog_path)
+        cat = json.loads(cat_text) if cat_text else {"strings": {}}
         for base in dirs:
             if not base.exists():
                 continue
             for path in sorted(base.rglob("*.swift")):
-                text = path.read_text(encoding="utf-8", errors="replace")
+                text = read(path) or ""
                 for offset, literal in swift_string_literals(text):
                     if not is_probably_ui_text(literal):
                         continue
@@ -1083,87 +1098,169 @@ def write_baseline() -> None:
     print(f"Wrote {len(android)} android + {len(ios)} ios entries to {BASELINE_PATH.relative_to(ROOT)}")
 
 
+def _disk_read(path: Path) -> str | None:
+    if not path.exists():
+        return None
+    return path.read_text(encoding="utf-8", errors="replace")
+
+
+def git_show(ref: str, rel_path: str) -> str | None:
+    """File content at `ref`, or None if the path didn't exist there."""
+    result = subprocess.run(
+        ["git", "show", f"{ref}:{rel_path}"],
+        cwd=ROOT, capture_output=True, text=True,
+    )
+    return result.stdout if result.returncode == 0 else None
+
+
+def ref_reader(ref: str) -> Reader:
+    """A `Reader` backed by `git show ref:<path>` instead of disk, for diffing
+    the current tree against a base ref. Uses the CURRENT file list (a file
+    added by the PR simply reads as empty at the base ref, which correctly
+    counts its literals as new)."""
+    def read(path: Path) -> str | None:
+        return git_show(ref, str(path.relative_to(ROOT)))
+    return read
+
+
+def apple_missing_and_format_gaps(
+    read: Reader | None = None,
+) -> tuple[dict[tuple[str, str], set[str]], dict[tuple[str, str], set[str]]]:
+    """Per (catalog, lang): the set of catalog keys missing a translation, and
+    the set of catalog keys whose translated printf arguments don't match."""
+    read = read or _disk_read
+    missing: dict[tuple[str, str], set[str]] = {}
+    formats: dict[tuple[str, str], set[str]] = {}
+    for _dirs, catalog_path in CATALOGS:
+        cat_text = read(catalog_path)
+        cat = json.loads(cat_text) if cat_text else {"strings": {}}
+        rel = str(catalog_path.relative_to(ROOT))
+        for lang in LANGS:
+            keys_missing = {
+                key for key, entry in cat.get("strings", {}).items()
+                if entry.get("shouldTranslate") is not False and not _is_translated(entry, lang)
+            }
+            if keys_missing:
+                missing[(rel, lang)] = keys_missing
+            fmt_gaps = set(apple_format_gaps(cat, lang))
+            if fmt_gaps:
+                formats[(rel, lang)] = fmt_gaps
+    return missing, formats
+
+
 def ci_check(base_ref: str) -> int:
-    """Strict CI gate: the #453 backlog is closed, so every focus language
-    translation must remain complete, and no NEW hardcoded literal may land
-    (pre-existing ones are tracked in the baseline — see load_baseline()).
-    ``base_ref`` remains in the CLI for workflow compatibility but coverage
-    is now a standing invariant, not a diff-scoped allowance.
+    """CI gate, exempting a violation on either of two independent grounds:
+
+    1. It's in the committed baseline (Tools/i18n_audit_baseline.json) — the
+       248-entry backlog #540/#558's improved scanner surfaced, tracked so it
+       can be closed incrementally instead of blocking the scanner fix itself.
+    2. It already exists at `base_ref` — so this PR didn't cause it. A prior
+       version of this gate audited the whole tree unconditionally, ignoring
+       base_ref entirely: a transient regression on `base_ref` itself (e.g. a
+       release generating a raw literal, #514) then red-flagged every open PR
+       whose diff never touched the offending file, and those PRs stayed red
+       until they got a fresh push, because a GitHub `pull_request` workflow
+       doesn't re-run just because the base branch changed. The baseline
+       alone doesn't cover this case — it's a fixed snapshot, so a *new*
+       regression on main after the snapshot was taken would still red-flag
+       every unrelated PR until someone updates the baseline. Diffing against
+       `base_ref` closes that gap: a violation already present there isn't
+       this PR's fault regardless of whether it made it into the baseline,
+       so a main-side regression is self-contained to whoever caused it
+       instead of spreading.
+
+    Locale-gap and format-mismatch checks aren't in the baseline (it only
+    tracks hardcoded literals) — the base_ref diff is their only exemption,
+    which is sufficient since that backlog is fully closed today.
     """
+    base_read = ref_reader(base_ref)
     failed = False
     baseline = load_baseline()
 
-    print("--- Android: no NEW hardcoded UI copy, and complete focus locales ---")
-    android_literals = scan_android()
-    android_found = {(p, lit) for p, _line, lit in android_literals}
-    android_new = [f for f in android_literals if (f[0], f[2]) not in baseline["android"]]
-    if android_new:
+    print(f"--- Android: no new hardcoded UI copy or focus-locale gaps vs {base_ref} ---")
+    cur_android = scan_android()
+    android_found = {(p, lit) for p, _line, lit in cur_android}
+    base_android_keys = {(path, literal) for path, _line, literal in scan_android(base_read)}
+    exempt_android = baseline["android"] | base_android_keys
+    new_android = [f for f in cur_android if (f[0], f[2]) not in exempt_android]
+    if new_android:
         failed = True
-        print(f"FAIL {len(android_new)} NEW hardcoded literal(s) (not in {BASELINE_PATH.relative_to(ROOT)}):")
-        for path, line, literal in android_new[:30]:
+        print(f"FAIL {len(new_android)} new hardcoded literal(s):")
+        for path, line, literal in new_android[:30]:
             print(f"  {path}:{line}: {literal!r}")
     else:
-        print(f"  OK no new hardcoded literals ({len(android_found)} pre-existing, tracked in the baseline)")
+        note = f" ({len(android_found)} pre-existing, tracked in the baseline or on {base_ref})" if android_found else ""
+        print(f"  OK no new hardcoded literals{note}")
     android_fixed = baseline["android"] - android_found
     if android_fixed:
         print(f"  {len(android_fixed)} baseline entr(y/ies) no longer found — run --update-baseline to shrink the backlog")
-    android_gaps = android_strings_xml_gaps()
-    android_formats = android_format_gaps()
+
+    cur_gaps = android_strings_xml_gaps()
+    base_gaps = android_strings_xml_gaps(base_read)
+    cur_formats = android_format_gaps()
+    base_formats = android_format_gaps(base_read)
     for lang in LANGS:
-        gaps = android_gaps.get(lang)
-        if gaps:
+        new_gap = sorted(cur_gaps.get(lang, set()) - base_gaps.get(lang, set()))
+        if new_gap:
             failed = True
             locale_dir = ANDROID_LOCALE_DIRS[lang]
-            print(f"FAIL {locale_dir}/strings.xml missing {len(gaps)} key(s): {sorted(gaps)[:30]}")
+            print(f"FAIL {locale_dir}/strings.xml has {len(new_gap)} new missing key(s): {new_gap[:30]}")
         else:
             locale_dir = ANDROID_LOCALE_DIRS[lang]
             print(f"  OK {locale_dir}/strings.xml")
-        format_gaps = android_formats.get(lang)
-        if format_gaps:
+        new_fmt = sorted(set(cur_formats.get(lang, [])) - set(base_formats.get(lang, [])))
+        if new_fmt:
             failed = True
             locale_dir = ANDROID_LOCALE_DIRS[lang]
-            print(f"FAIL {locale_dir}/strings.xml has {len(format_gaps)} format mismatch(es): {format_gaps[:30]}")
+            print(f"FAIL {locale_dir}/strings.xml has {len(new_fmt)} new format mismatch(es): {new_fmt[:30]}")
 
-    print("\n--- Apple: no NEW un-extracted UI copy, and complete focus locales ---")
-    ios_literals, _source_gaps = scan_ios()
-    ios_found = {(p, lit) for p, _line, lit in ios_literals}
-    ios_new = [f for f in ios_literals if (f[0], f[2]) not in baseline["ios"]]
-    if ios_new:
+    print(f"\n--- Apple: no new un-extracted UI copy or focus-locale gaps vs {base_ref} ---")
+    cur_ios, _cur_ios_lang_gaps = scan_ios()
+    ios_found = {(p, lit) for p, _line, lit in cur_ios}
+    base_ios_keys = {(path, literal) for path, _line, literal in scan_ios(base_read)[0]}
+    exempt_ios = baseline["ios"] | base_ios_keys
+    new_ios = [f for f in cur_ios if (f[0], f[2]) not in exempt_ios]
+    if new_ios:
         failed = True
-        print(f"FAIL {len(ios_new)} NEW literal(s) absent from their target catalog:")
-        for path, line, literal in ios_new[:30]:
+        print(f"FAIL {len(new_ios)} new literal(s) absent from their target catalog:")
+        for path, line, literal in new_ios[:30]:
             print(f"  {path}:{line}: {literal!r}")
     else:
-        print(f"  OK no new un-extracted literals ({len(ios_found)} pre-existing, tracked in the baseline)")
+        note = f" ({len(ios_found)} pre-existing, tracked in the baseline or on {base_ref})" if ios_found else ""
+        print(f"  OK no new un-extracted literals{note}")
     ios_fixed = baseline["ios"] - ios_found
     if ios_fixed:
         print(f"  {len(ios_fixed)} baseline entr(y/ies) no longer found — run --update-baseline to shrink the backlog")
     allowance = extra_locale_allowance()
     extra_apple_gaps: dict[str, int] = {}
+    cur_missing, cur_fmt = apple_missing_and_format_gaps()
+    base_missing, base_fmt = apple_missing_and_format_gaps(base_read)
     for _dirs, catalog_path in CATALOGS:
-        cat = load_catalog(catalog_path)
+        rel = str(catalog_path.relative_to(ROOT))
         # #844: count the shipped locales OUTSIDE the focus set while the catalog is already parsed,
         # and gate them below. Reloading each catalog for a second pass wasted a full re-parse of a
-        # 3255-string file.
+        # 3255-string file. Deliberately disk-based like the rest of this ratchet (not base_ref-diffed
+        # like the LANGS check below): the allowance file is already the mechanism that keeps a main-side
+        # change here from spreading to unrelated PRs, by tracking a target count instead of demanding
+        # zero, so it doesn't need base_ref's protection on top.
+        cat = load_catalog(catalog_path)
         for extra in sorted(shipped_apple_langs(cat) - set(LANGS)):
-            extra_apple_gaps[f"{catalog_path.relative_to(ROOT).as_posix()}:{extra}"] = sum(
+            extra_apple_gaps[f"{rel}:{extra}"] = sum(
                 1 for v in cat.get("strings", {}).values()
                 if v.get("shouldTranslate") is not False and not _is_translated(v, extra)
             )
         for lang in LANGS:
-            missing = sum(
-                1 for v in cat.get("strings", {}).values()
-                if v.get("shouldTranslate") is not False and not _is_translated(v, lang)
-            )
-            if missing:
+            key = (rel, lang)
+            new_missing = sorted(cur_missing.get(key, set()) - base_missing.get(key, set()))
+            if new_missing:
                 failed = True
-                print(f"FAIL {catalog_path.relative_to(ROOT)} {lang}: missing={missing}")
+                print(f"FAIL {rel} {lang}: {len(new_missing)} new missing translation(s): {new_missing[:30]}")
             else:
-                print(f"  OK {catalog_path.relative_to(ROOT)} {lang}")
-            format_gaps = apple_format_gaps(cat, lang)
-            if format_gaps:
+                print(f"  OK {rel} {lang}")
+            new_fmt_gap = sorted(cur_fmt.get(key, set()) - base_fmt.get(key, set()))
+            if new_fmt_gap:
                 failed = True
-                print(f"FAIL {catalog_path.relative_to(ROOT)} {lang}: {len(format_gaps)} format mismatch(es): {format_gaps[:10]}")
+                print(f"FAIL {rel} {lang}: {len(new_fmt_gap)} new format mismatch(es): {new_fmt_gap[:10]}")
 
     # A key that EXISTS in a language still says nothing about whether it was TRANSLATED. This section is
     # the difference between "complete" and "translated": it counts localizations whose value is the
@@ -1273,7 +1370,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--platform", choices=["ios", "android", "all"], default="all")
     ap.add_argument("--full", action="store_true", help="print every finding, not just counts")
-    ap.add_argument("--ci", metavar="BASE_REF", help="strict coverage gate (BASE_REF is retained for workflow compatibility); see ci_check() docstring")
+    ap.add_argument("--ci", metavar="BASE_REF", help="coverage gate: fail only on violations new vs BASE_REF or the baseline; see ci_check() docstring")
     ap.add_argument("--update-baseline", action="store_true", help="rewrite Tools/i18n_audit_baseline.json from the current hardcoded-literal scan (see load_baseline() docstring). Does NOT touch Tools/i18n_extra_locale_baseline.txt — that one is lowered by hand, so shrinking it stays a deliberate act")
     args = ap.parse_args()
 
