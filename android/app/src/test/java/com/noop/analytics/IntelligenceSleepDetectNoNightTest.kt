@@ -29,7 +29,7 @@ class IntelligenceSleepDetectNoNightTest {
             // fallback, so no quantity of HR could have staged a night. That is a strap capability limit,
             // and it wants a different follow-up from a night that had motion and still staged nothing.
             "sleep-detect day=2026-08-11 NO-NIGHT hr=41230 rr=0 resp=880 " +
-                "grav=0 steps=12 provided=0 window=54h reason=no-motion",
+                "grav=0 skin=0 steps=12 provided=0 window=54h reason=no-motion",
             line,
         )
     }
@@ -87,6 +87,21 @@ class IntelligenceSleepDetectNoNightTest {
      */
     @Test fun `the measured field night is clear of the caps`() {
         assertTrue(192_698 < StreamReadCap.GRAVITY)
+    }
+
+
+    /**
+     * The count that could not be measured. Skin temp only appears in a Test Centre "Night" line, which
+     * fires when a session EXISTS - so on the nights being triaged, the ones with no sleep at all, its
+     * volume was invisible. It rides in the record that carries gravity, so whether it is dense or sparse
+     * decides whether its own 21-day anchor scan is anywhere near a cap; nobody could say which.
+     */
+    @Test fun `the line reports the skin sample count`() {
+        val line = IntelligenceEngine.sleepDetectNoNightLogLine(
+            day = "2026-09-06", hrCount = 1000, rrCount = 900, respCount = 0, gravCount = 0,
+            stepCount = 0, providedCount = 0, windowHours = 54, skinCount = 4242,
+        )
+        assertTrue(line, line.contains("skin=4242"))
     }
 
 }

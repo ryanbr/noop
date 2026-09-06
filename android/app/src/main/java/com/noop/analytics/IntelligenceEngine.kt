@@ -1226,7 +1226,7 @@ object IntelligenceEngine {
                     sleepDetectNoNightLogLine(
                         day = day, hrCount = hr.size, rrCount = rr.size, respCount = resp.size,
                         gravCount = grav.size, stepCount = steps.size, providedCount = providedSleep.size,
-                        windowHours = windowHours,
+                        windowHours = windowHours, skinCount = skin.size,
                     ),
                 )
             }
@@ -2936,7 +2936,7 @@ object IntelligenceEngine {
      */
     internal fun sleepDetectNoNightLogLine(
         day: String, hrCount: Int, rrCount: Int, respCount: Int, gravCount: Int,
-        stepCount: Int, providedCount: Int, windowHours: Int,
+        stepCount: Int, providedCount: Int, windowHours: Int, skinCount: Int = 0,
     ): String {
         // `reason` names WHICH absence this is, because grav=0 is printed but its consequence is not.
         //
@@ -2967,8 +2967,8 @@ object IntelligenceEngine {
         }
         val capNote = if (atCap.isEmpty()) "" else " atCap=${atCap.joinToString(",")}"
         return "sleep-detect day=$day NO-NIGHT hr=$hrCount rr=$rrCount resp=$respCount " +
-            "grav=$gravCount steps=$stepCount provided=$providedCount window=${windowHours}h " +
-            "reason=$reason$capNote"
+            "grav=$gravCount skin=$skinCount steps=$stepCount provided=$providedCount " +
+            "window=${windowHours}h reason=$reason$capNote"
     }
 
     /**

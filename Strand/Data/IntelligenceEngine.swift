@@ -339,7 +339,8 @@ final class IntelligenceEngine: ObservableObject {
 
     nonisolated static func sleepDetectNoNightLogLine(day: String, hrCount: Int, rrCount: Int,
                                                       respCount: Int, gravCount: Int, stepCount: Int,
-                                                      providedCount: Int, windowHours: Int) -> String {
+                                                      providedCount: Int, windowHours: Int,
+                                                      skinCount: Int = 0) -> String {
         // `reason` names WHICH absence this is, because grav=0 is printed but its consequence is not.
         // With no motion the stager has no HR-only fallback, so no quantity of HR can stage a night — a
         // strap capability limit, not a coverage gap, and the two want completely different follow-ups.
@@ -361,8 +362,8 @@ final class IntelligenceEngine: ObservableObject {
         if rrCount >= StreamReadCap.rr { atCap.append("rr") }
         let capNote = atCap.isEmpty ? "" : " atCap=" + atCap.joined(separator: ",")
         return "sleep-detect day=\(day) NO-NIGHT hr=\(hrCount) rr=\(rrCount) resp=\(respCount) "
-            + "grav=\(gravCount) steps=\(stepCount) provided=\(providedCount) window=\(windowHours)h "
-            + "reason=\(reason)" + capNote
+            + "grav=\(gravCount) skin=\(skinCount) steps=\(stepCount) provided=\(providedCount) "
+            + "window=\(windowHours)h reason=\(reason)" + capNote
     }
 
     /// #674/#1244: the "sleep total with no matched session" divergence line. A COMPUTED day whose fresh

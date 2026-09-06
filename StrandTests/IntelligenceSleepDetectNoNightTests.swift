@@ -25,7 +25,7 @@ final class IntelligenceSleepDetectNoNightTests: XCTestCase {
             // reason=no-motion is the point of this fixture: grav=0 means the stager has no HR-only
             // fallback, so no quantity of HR could have staged a night. That is a strap capability limit,
             // and it wants a different follow-up from a night that had motion and still staged nothing.
-            + "grav=0 steps=12 provided=0 window=54h reason=no-motion")
+            + "grav=0 skin=0 steps=12 provided=0 window=54h reason=no-motion")
     }
 
     func testTodayWindowIs48h() {
@@ -70,6 +70,17 @@ final class IntelligenceSleepDetectNoNightTests: XCTestCase {
     /// and silent. Under the caps this ships with, the same night is comfortably clear.
     func testTheMeasuredFieldNightIsClearOfTheCaps() {
         XCTAssertLessThan(192_698, StreamReadCap.gravity)
+    }
+
+
+    /// The count that could not be measured. Skin temp only appears in a Test Centre "Night" line, which
+    /// fires when a session EXISTS — so on the nights being triaged, the ones with no sleep at all, its
+    /// volume was invisible.
+    func testTheLineReportsTheSkinSampleCount() {
+        let line = IntelligenceEngine.sleepDetectNoNightLogLine(
+            day: "2026-09-06", hrCount: 1000, rrCount: 900, respCount: 0, gravCount: 0,
+            stepCount: 0, providedCount: 0, windowHours: 54, skinCount: 4242)
+        XCTAssertTrue(line.contains("skin=4242"), line)
     }
 
 }
