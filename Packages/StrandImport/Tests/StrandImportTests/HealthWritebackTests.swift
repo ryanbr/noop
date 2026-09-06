@@ -241,4 +241,81 @@ final class HealthWritebackTests: XCTestCase {
         XCTAssertNotEqual(hrv, resp)
         XCTAssertNotEqual(spo2, resp)
     }
+
+    // MARK: - #1503 stranded-records sweep completion tracking (per-type, not a single boolean)
+
+    /// An authorized type that has not been swept is pending — it should be attempted this run.
+    func testStrandedSweepPendingForAuthorizedUnsweptType() {
+        let pending = HealthWriteback.strandedSweepPending(
+            swept: [], authorized: ["restingHeartRate", "sleepAnalysis"])
+        XCTAssertEqual(pending, ["restingHeartRate", "sleepAnalysis"])
+    }
+
+    /// A type that was already swept is NOT pending again — the sweep is once per install per type.
+    func testStrandedSweepSkipsAlreadySweptType() {
+        let pending = HealthWriteback.strandedSweepPending(
+            swept: ["restingHeartRate"], authorized: ["restingHeartRate", "sleepAnalysis"])
+        XCTAssertEqual(pending, ["sleepAnalysis"])
+    }
+
+    /// A type the user DECLINED (absent from authorized) is never pending — it is not attempted and
+    /// not marked swept, so a later grant still gets swept. This is the partial-authorization case.
+    func testStrandedSweepNeverAttemptsDeclinedType() {
+        let pending = HealthWriteback.strandedSweepPending(
+            swept: [], authorized: ["restingHeartRate"])  // workouts declined
+        XCTAssertFalse(pending.contains("workout"))
+        XCTAssertEqual(pending, ["restingHeartRate"])
+    }
+
+    /// A type whose delete SUCCEEDED this run is added to the swept set, so it is not retried.
+    func testStrandedSweepResultRecordsSuccessfulDelete() {
+        let updated = HealthWriteback.strandedSweepResult(
+            swept: ["restingHeartRate"], succeededThisRun: ["sleepAnalysis"])
+        XCTAssertEqual(updated, ["restingHeartRate", "sleepAnalysis"])
+    }
+
+    /// A type whose delete FAILED (absent from succeededThisRun) is NOT added to the swept set, so
+    /// it is retried on the next write-back run instead of being silently abandoned.
+    func testStrandedSweepResultDoesNotRecordFailedDelete() {
+        let updated = HealthWriteback.strandedSweepResult(
+            swept: ["restingHeartRate"], succeededThisRun: [])  // sleep delete threw
+        XCTAssertEqual(updated, ["restingHeartRate"])
+        XCTAssertFalse(updated.contains("sleepAnalysis"))
+    }
+
+    /// The partial-authorization recovery sequence: run 1 sweeps only the authorized type; after a
+    /// later grant, run 2 sweeps the newly-authorized type. The migration completes across runs.
+    func testStrandedSweepCompletesAcrossRunsAfterLateAuthorizationGrant() {
+        // Run 1: sleep granted, workouts declined. Only sleep is authorized.
+        var swept: Set<String> = []
+        let authRun1: Set<String> = ["sleepAnalysis"]
+        let pending1 = HealthWriteback.strandedSweepPending(swept: swept, authorized: authRun1)
+        XCTAssertEqual(pending1, ["sleepAnalysis"])
+        // Sleep delete succeeds; workouts were never attempted (declined).
+        swept = HealthWriteback.strandedSweepResult(swept: swept, succeededThisRun: ["sleepAnalysis"])
+        XCTAssertEqual(swept, ["sleepAnalysis"])
+        // Run 2: user later grants workouts.
+        let authRun2: Set<String> = ["sleepAnalysis", "workout"]
+        let pending2 = HealthWriteback.strandedSweepPending(swept: swept, authorized: authRun2)
+        XCTAssertEqual(pending2, ["workout"], "the late-granted workout type must still be swept")
+        // Workout delete succeeds; the migration is now complete.
+        swept = HealthWriteback.strandedSweepResult(swept: swept, succeededThisRun: ["workout"])
+        XCTAssertEqual(swept, ["sleepAnalysis", "workout"])
+    }
+
+    /// A delete that fails on run 1 is retried on run 2 and succeeds — the migration is not lost.
+    func testStrandedSweepRetriesFailedDeleteOnNextRun() {
+        var swept: Set<String> = []
+        let auth: Set<String> = ["restingHeartRate", "sleepAnalysis"]
+        // Run 1: sleep delete throws (absent from succeededThisRun).
+        let pending1 = HealthWriteback.strandedSweepPending(swept: swept, authorized: auth)
+        XCTAssertEqual(pending1, ["restingHeartRate", "sleepAnalysis"])
+        swept = HealthWriteback.strandedSweepResult(swept: swept, succeededThisRun: ["restingHeartRate"])
+        XCTAssertEqual(swept, ["restingHeartRate"])
+        // Run 2: sleep is still pending (not marked swept), so it is retried and succeeds.
+        let pending2 = HealthWriteback.strandedSweepPending(swept: swept, authorized: auth)
+        XCTAssertEqual(pending2, ["sleepAnalysis"], "the failed sleep delete must be retried")
+        swept = HealthWriteback.strandedSweepResult(swept: swept, succeededThisRun: ["sleepAnalysis"])
+        XCTAssertEqual(swept, ["restingHeartRate", "sleepAnalysis"])
+    }
 }

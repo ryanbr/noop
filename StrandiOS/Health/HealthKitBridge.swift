@@ -783,44 +783,73 @@ final class HealthKitBridge: ObservableObject {
         if let firstError { throw firstError }
     }
 
-    /// UserDefaults flag for the #1503 one-off stranded-records sweep. Runs once per install.
-    private static let strandedRecordsMigratedKey = "hkStrandedRecordsMigrated.v1"
+    /// UserDefaults key for the #1503 stranded-records sweep completion set. Stores the set of
+    /// type ids whose sweep delete has SUCCEEDED, so a type that was unauthorized or whose delete
+    /// failed is retried on a later write-back run rather than abandoned. Per-type (not a single
+    /// boolean) because partial authorization is a supported state: a user who granted sleep but
+    /// declined workouts must still get the stranded workouts swept once they later grant workouts,
+    /// and a `deleteObjects` that threw must not read as "already done".
+    private static let strandedRecordsSweptKey = "hkStrandedRecordsSweptTypes.v1"
+
+    /// Stable type ids used in the per-type swept set. The quantity identifiers are the
+    /// `HKQuantityTypeIdentifier` raw values; sleep and workout use fixed labels so the set is
+    /// round-trippable through UserDefaults without depending on HealthKit type object identity.
+    private static let sleepSweepTypeId = "sleepAnalysis"
+    private static let workoutSweepTypeId = "workout"
 
     /// One-off migration (#1503): delete ALL of our prior Apple Health records in the write-back
     /// window that were written under the old device-id-keyed scheme. The old keys embedded the
     /// active strap id, which became unreachable after a re-pair; the new keys drop the id segment.
     /// This sweep uses `HKSource.default()` + date range (like the HR path) to reach records the
-    /// new key-based delete predicate can never find. Runs once per install, gated by UserDefaults,
-    /// BEFORE the new-key writes so the fresh batch re-adds everything under the stable keys.
+    /// new key-based delete predicate can never find. Runs BEFORE the new-key writes so the fresh
+    /// batch re-adds everything under the stable keys.
     ///
-    /// The sweep covers the same three types that carried the id-keyed external UUID: vitals
-    /// (resting HR, HRV, SpO₂, respiratory rate), sleep, and workouts. Heart-rate is immune (it
-    /// already deletes by date range) and is not swept again.
+    /// Completion is tracked PER-TYPE (not a single boolean): a type is marked swept only when its
+    /// `deleteObjects` call returned a result (succeeded, even if it deleted zero records). A type
+    /// that was unauthorized or whose delete threw is left un-swept, so a later authorization grant
+    /// or a successful retry finishes the migration instead of abandoning the stranded records.
+    /// The decision helpers live in `HealthWriteback` so they are unit-tested without HealthKit.
     private func migrateStrandedHealthRecords(fromTs: Int, nowTs: Int) async throws {
         let defaults = UserDefaults.standard
-        guard !defaults.bool(forKey: Self.strandedRecordsMigratedKey) else { return }
+        let swept: Set<String> = Set(defaults.stringArray(forKey: Self.strandedRecordsSweptKey) ?? [])
         let bySource = HKQuery.predicateForObjects(from: HKSource.default())
         let byDate = HKQuery.predicateForSamples(
             withStart: Date(timeIntervalSince1970: TimeInterval(fromTs)),
             end: Date(timeIntervalSince1970: TimeInterval(nowTs) + 60),
             options: [])
         let pred = NSCompoundPredicate(andPredicateWithSubpredicates: [bySource, byDate])
+        var succeededThisRun: Set<String> = []
         // Vitals: each quantity type that carried an id-keyed external UUID.
         for id in Self.quantityWriteIds {
-            guard let type = HKQuantityType.quantityType(forIdentifier: id),
+            let typeId = id.rawValue
+            guard !swept.contains(typeId),
+                  let type = HKQuantityType.quantityType(forIdentifier: id),
                   store.authorizationStatus(for: type) == .sharingAuthorized else { continue }
-            _ = try? await store.deleteObjects(of: type, predicate: pred)
+            // `try?` returns nil on throw — a failure is NOT recorded as swept, so it retries next run.
+            if (try? await store.deleteObjects(of: type, predicate: pred)) != nil {
+                succeededThisRun.insert(typeId)
+            }
         }
         // Sleep.
-        if let sleep = HKObjectType.categoryType(forIdentifier: .sleepAnalysis),
+        if !swept.contains(Self.sleepSweepTypeId),
+           let sleep = HKObjectType.categoryType(forIdentifier: .sleepAnalysis),
            store.authorizationStatus(for: sleep) == .sharingAuthorized {
-            _ = try? await store.deleteObjects(of: sleep, predicate: pred)
+            if (try? await store.deleteObjects(of: sleep, predicate: pred)) != nil {
+                succeededThisRun.insert(Self.sleepSweepTypeId)
+            }
         }
         // Workouts.
-        if store.authorizationStatus(for: .workoutType()) == .sharingAuthorized {
-            _ = try? await store.deleteObjects(of: .workoutType(), predicate: pred)
+        if !swept.contains(Self.workoutSweepTypeId),
+           store.authorizationStatus(for: .workoutType()) == .sharingAuthorized {
+            if (try? await store.deleteObjects(of: .workoutType(), predicate: pred)) != nil {
+                succeededThisRun.insert(Self.workoutSweepTypeId)
+            }
         }
-        defaults.set(true, forKey: Self.strandedRecordsMigratedKey)
+        // Persist only the types that actually succeeded this run; the rest stay pending.
+        if !succeededThisRun.isEmpty {
+            let updated = HealthWriteback.strandedSweepResult(swept: swept, succeededThisRun: succeededThisRun)
+            defaults.set(Array(updated), forKey: Self.strandedRecordsSweptKey)
+        }
     }
 
     /// The nightly vitals write (the original write-back), now stamped at the day's wake time when

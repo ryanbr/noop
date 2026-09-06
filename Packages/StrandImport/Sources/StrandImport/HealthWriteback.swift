@@ -190,4 +190,34 @@ public enum HealthWriteback {
     public static func appleHealthWorkoutKey(startTs: Int) -> String {
         appleHealthExternalUUID(kind: "workout", identity: "\(startTs)")
     }
+
+    // MARK: - #1503 stranded-records sweep completion tracking
+    //
+    // The one-off sweep that clears Apple Health records written under the OLD device-id-keyed
+    // scheme must be PER-TYPE, not a single boolean. A single flag set unconditionally loses the
+    // migration permanently when authorization is partial (sleep granted, workouts declined) or
+    // when a `deleteObjects` call fails — both of which read as "already done" and leave the
+    // stranded records unreachable forever. Per-type tracking lets an install that could not
+    // complete the sweep finish it later, once the missing authorization arrives or the failing
+    // delete succeeds on a retry.
+    //
+    // These pure helpers model the decision so it is unit-testable without HealthKit (HealthKit
+    // itself can't run under `swift test`). The app-target migration (`HealthKitBridge`) loads the
+    // already-swept set from UserDefaults, computes the types to attempt, attempts each delete, and
+    // records only the types whose delete SUCCEEDED back into the swept set.
+
+    /// The type ids that should be attempted this run: authorized for sharing but not yet swept.
+    /// A type that was declined (absent from `authorized`) is never attempted and never marked
+    /// swept, so a later grant still gets swept. A type whose delete failed (not in `swept`) is
+    /// retried on the next write-back run.
+    public static func strandedSweepPending(swept: Set<String>, authorized: Set<String>) -> Set<String> {
+        authorized.subtracting(swept)
+    }
+
+    /// The new swept set after this run: the union of previously swept types and the types whose
+    /// delete SUCCEEDED this run. A type whose delete threw (absent from `succeededThisRun`) is NOT
+    /// marked swept, so it is retried next run rather than silently abandoned.
+    public static func strandedSweepResult(swept: Set<String>, succeededThisRun: Set<String>) -> Set<String> {
+        swept.union(succeededThisRun)
+    }
 }
