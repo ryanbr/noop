@@ -1507,6 +1507,14 @@ fun TodayScreen(
                                     heroSourceLabel = heroSourceLabel,
                                     onScoreInfo = openGuide,
                                     onChargeTap = { showChargeBreakdown = true },
+                                    // #1164: today's Rest is provisional while the strap has banked records
+                                    // not yet offloaded — show "Pending sync" instead of a number that moves.
+                                    restPendingSync = restPendingSync(
+                                        restScore = restScoreForDay,
+                                        backfilling = live.backfilling,
+                                        historyPendingSync = live.historyPendingSync,
+                                        isTodaySelected = selectedDayOffset == 0,
+                                    ),
                                 )
                             }
                             // Honest "why is Effort 0?" caption — only when today's Effort is a real
@@ -1612,6 +1620,14 @@ fun TodayScreen(
                                     restSpark = restCompositeSpark,
                                     enabledMetrics = enabledKeyMetrics,
                                     isToday = selectedDayOffset == 0,
+                                    // #1164: today's Rest is provisional while the strap has banked records
+                                    // not yet offloaded — the Rest tile shows "Pending sync" instead of a number.
+                                    restPendingSync = restPendingSync(
+                                        restScore = restScoreForDay,
+                                        backfilling = live.backfilling,
+                                        historyPendingSync = live.historyPendingSync,
+                                        isTodaySelected = selectedDayOffset == 0,
+                                    ),
                                     onScoreInfo = openGuide,
                                     metricsExpanded = metricsExpanded,
                                     onToggleMetrics = { metricsExpanded = !metricsExpanded },
@@ -2556,6 +2572,9 @@ private fun ScoreHeroRow(
     // A1 (#514/#706): tapping the Charge ring opens the breakdown sheet. A small chevron cue overlays the
     // ring's bottom edge INSIDE the ring frame, so it adds no stacked height (the #762 self-sizing parity).
     onChargeTap: (() -> Unit)? = null,
+    // #1164: pending-sync state for today's Rest (strap has banked records not yet offloaded). When true
+    // the Rest vessel shows "Pending sync" instead of a provisional number that will change.
+    restPendingSync: Boolean = false,
 ) {
     val recovery = day?.recovery
     // Prefer the live in-progress Effort for today, but never BELOW the day's already-earned strain
@@ -2682,15 +2701,20 @@ private fun ScoreHeroRow(
                                 tint = Palette.recoveryColor(restScore ?: 0.0),
                                 diameter = ring,
                                 animated = animated,
-                                showsValue = restScore != null,
+                                showsValue = restScore != null && !restPendingSync,
                             )
-                            // #898: an aggregate-import user (a daily HRV/RHR import, no in-bed session) gets a
-                            // Charge from WatchRecovery but NO sleep_performance, so Rest used to read a bare
-                            // "No Data" next to a lit Charge , reading as broken. When a Charge IS present for the
-                            // day but Rest is absent, say WHY honestly ("Needs a tracked night") instead. We do
-                            // NOT fabricate a Rest number , an aggregate genuinely has no scored night. A day with
-                            // no Charge either (truly empty) keeps the plain "No Data". Mirrors iOS restRing.
-                            if (restScore == null) {
+                            // #1164: when today's Rest is provisional (strap has banked records not yet
+                            // offloaded), show "Pending sync" instead of a number that will change once the
+                            // full night lands. Past days are final (no more data coming). Mirrors iOS restRing.
+                            if (restPendingSync) {
+                                RingPendingSync()
+                            } else if (restScore == null) {
+                                // #898: an aggregate-import user (a daily HRV/RHR import, no in-bed session) gets a
+                                // Charge from WatchRecovery but NO sleep_performance, so Rest used to read a bare
+                                // "No Data" next to a lit Charge , reading as broken. When a Charge IS present for the
+                                // day but Rest is absent, say WHY honestly ("Needs a tracked night") instead. We do
+                                // NOT fabricate a Rest number , an aggregate genuinely has no scored night. A day with
+                                // no Charge either (truly empty) keeps the plain "No Data". Mirrors iOS restRing.
                                 if (recovery != null) RingNeedsTrackedNight() else RingNoData(diameter = ring)
                             }
                         }
@@ -3098,6 +3122,26 @@ private fun RingNeedsTrackedNight() {
         )
         AutoSizeValue(
             uiString(R.string.l10n_today_screen_needs_a_tracked_night_ccfd532a),
+            style = NoopType.footnote,
+            color = Palette.textSecondary,
+        )
+    }
+}
+
+/** #1164: the Rest ring's overlay when today's score is provisional because the strap still has banked
+ *  records not yet offloaded. Shows "Pending sync" instead of a number that will change once the full
+ *  night lands and `analyzeRecent` re-scores it. Mirrors iOS ringPendingSync. */
+@Composable
+private fun RingPendingSync() {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        AutoSizeValue(
+            uiString(R.string.l10n_today_screen_pending_sync_1164),
+            style = NoopType.headline,
+            color = Palette.textTertiary,
+            minScale = 0.7f,
+        )
+        AutoSizeValue(
+            uiString(R.string.l10n_today_screen_strap_history_still_offloading_1164),
             style = NoopType.footnote,
             color = Palette.textSecondary,
         )
@@ -5164,6 +5208,9 @@ private fun MetricGrid(
     restSpark: List<Double> = emptyList(),
     enabledMetrics: List<KeyMetric> = KeyMetric.defaultOrder,
     isToday: Boolean = false,
+    // #1164: today's Rest is provisional while the strap has banked records not yet offloaded — the Rest
+    // tile shows "Pending sync" instead of a number that will change. Past days are final.
+    restPendingSync: Boolean = false,
     onScoreInfo: (ScoreSection) -> Unit = {},
     // S5: cap the grid to the first METRICS_COLLAPSED_CAP tiles behind a "Show all metrics" expander,
     // collapsing OVERFLOW only (never dropping or reordering a user-selected tile, #251). Defaults keep the
@@ -5223,11 +5270,14 @@ private fun MetricGrid(
         ),
         KeyMetric.REST to KeyTileData(
             label = uiString(R.string.l10n_today_screen_rest_b79e5f48),
-            value = restScore?.let { "${it.roundToInt()}" } ?: NO_DATA,
-            unit = if (restScore != null) "%" else "",
+            // #1164: when today's Rest is provisional, show "—" with a "Pending sync" caption instead of
+            // a number that will change once the full night lands. Past days are final.
+            value = if (restPendingSync) NO_DATA else restScore?.let { "${it.roundToInt()}" } ?: NO_DATA,
+            unit = if (!restPendingSync && restScore != null) "%" else "",
             tint = restScore?.let { Palette.recoveryColor(it) } ?: Palette.restColor,
             frac = restScore?.let { (it / 100.0).coerceIn(0.0, 1.0) },
             spark = restSpark,
+            caption = if (restPendingSync) uiString(R.string.l10n_today_screen_strap_history_still_offloading_1164) else null,
         ),
         KeyMetric.HRV to run {
             val v = d?.avgHrv ?: carriedDay?.avgHrv

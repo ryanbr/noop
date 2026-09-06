@@ -1073,6 +1073,8 @@
     <string name="l10n_today_screen_needs_a_tracked_night_ccfd532a">needs a tracked night</string>
     <string name="l10n_today_screen_new_here_b81f2e17">New here?</string>
     <string name="l10n_today_screen_now_e3b82040">Now</string>
+    <string name="l10n_today_screen_pending_sync_1164">Pending sync</string>
+    <string name="l10n_today_screen_strap_history_still_offloading_1164">strap history still offloading</string>
     <string name="l10n_today_screen_pct_roundtoint_05ba4549">%1$s</string>
     <string name="l10n_today_screen_quick_actions_e47e8042">Quick actions</string>
     <string name="l10n_today_screen_readiness_word_749b3330">Readiness: %1$s</string>

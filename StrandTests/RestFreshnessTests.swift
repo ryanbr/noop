@@ -57,4 +57,45 @@ final class RestFreshnessTests: XCTestCase {
             TodayView.freshRestScore(todayValue: nil, lastDay: nil, lastValue: nil,
                                      isTodaySelected: true, todayKey: todayKey))
     }
+
+    // MARK: - #1164 Rest pending-sync (provisional before full offload)
+
+    /// An active offload (`backfilling`) with today's Rest present → pending, not a provisional number.
+    func testPendingSync_backfillingWithRestScore_showsPending() {
+        XCTAssertTrue(TodayView.restPendingSync(
+            restScore: 72, backfilling: true, historyPendingSync: false, isTodaySelected: true))
+    }
+
+    /// The strap has banked records not yet ingested (`historyPendingSync`) even with no active offload →
+    /// pending. This is the right-after-connect window before the first offload starts.
+    func testPendingSync_historyPendingWithRestScore_showsPending() {
+        XCTAssertTrue(TodayView.restPendingSync(
+            restScore: 72, backfilling: false, historyPendingSync: true, isTodaySelected: true))
+    }
+
+    /// No pending signals and a Rest score → NOT pending. The normal finalized state: the score is real.
+    func testPendingSync_noSignalsWithRestScore_notPending() {
+        XCTAssertFalse(TodayView.restPendingSync(
+            restScore: 72, backfilling: false, historyPendingSync: false, isTodaySelected: true))
+    }
+
+    /// No Rest score → never pending (pending suppresses a provisional NUMBER; it does not fabricate one
+    /// when there is none — the calibrating/no-data states already cover that).
+    func testPendingSync_noRestScore_neverPending_evenWithSignals() {
+        XCTAssertFalse(TodayView.restPendingSync(
+            restScore: nil, backfilling: true, historyPendingSync: true, isTodaySelected: true))
+    }
+
+    /// A PAST day is never pending — its score is final, no more data is coming for it. Even with both
+    /// signals true, a navigated past day shows its number.
+    func testPendingSync_pastDayNeverPending_evenWithSignals() {
+        XCTAssertFalse(TodayView.restPendingSync(
+            restScore: 72, backfilling: true, historyPendingSync: true, isTodaySelected: false))
+    }
+
+    /// Both signals true → pending (either signal alone is enough; both is the strongest case).
+    func testPendingSync_bothSignals_showsPending() {
+        XCTAssertTrue(TodayView.restPendingSync(
+            restScore: 72, backfilling: true, historyPendingSync: true, isTodaySelected: true))
+    }
 }

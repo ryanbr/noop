@@ -2913,6 +2913,13 @@ public final class BLEManager: NSObject, ObservableObject {
         Task { @MainActor in
             let frontier = await collector?.latestHRSampleTs() ?? nil
             let wallNow = Int(Date().timeIntervalSince1970)   // #928: real wall clock, at decision time
+            // #1164: publish whether the strap has banked records newer than our local frontier, so the
+            // Today Rest card can show "Pending sync" instead of a provisional number. Same behind check
+            // the auto-continue predicate uses (5-min gap), computed here because this is the one path
+            // that already reads both values. Caught-up (or unknown) → false, never a stale "pending".
+            if let n = newest, let f = frontier {
+                state.historyPendingSync = (n - f) > BackfillContinuation.defaultBehindGapSeconds
+            }
             let stillConnected = state.connected && state.bonded
             guard BackfillContinuation.shouldAutoContinue(
                 stillConnected: stillConnected,
@@ -5803,6 +5810,7 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         lastSessionEndTrim = nil
         backfilling = false
         state.backfilling = false
+        state.historyPendingSync = false   // #1164: a stale "pending" must not outlive the link
         state.syncChunksThisSession = 0
         // A mid-sync disconnect bypasses exitBackfilling, so clear the reject counters here too —
         // otherwise a stale non-zero count survives until the next beginBackfill. (#77/#91)
@@ -6632,6 +6640,19 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
             // UNIVERSAL clock-drift snapshot (RTC cluster #531/#767/#804/#812): bank the [oldest, newest]
             // window onto LiveState UNCONDITIONALLY (observability, not gated) for the export assembler.
             if feedsSync { state.setStrapRange(newestUnix: newest, oldestUnix: (oldest.map { $0 < newest } ?? false) ? oldest : nil) }
+            // #1164: recompute the "strap has banked records newer than our frontier" flag so the Today
+            // Rest card can show "Pending sync" right after connect (before the first offload starts),
+            // not only after an offload completes. The frontier read is async; the flag settles a beat
+            // after the range lands. feedsSync only (5/MG sync is unconfirmed — leave it untouched).
+            if feedsSync {
+                let newestForPending = newest
+                Task { @MainActor in
+                    let frontier = await collector?.latestHRSampleTs() ?? nil
+                    if let f = frontier {
+                        state.historyPendingSync = (newestForPending - f) > BackfillContinuation.defaultBehindGapSeconds
+                    }
+                }
+            }
             // Connection test mode: promote the CLOCK-DRIFT picture to one upfront tagged line (#767/#754).
             if TestCentre.active(.connection) {
                 let line = ConnectionTrace.clockDriftLine(

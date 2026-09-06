@@ -120,6 +120,46 @@ class TodayExplainabilityTest {
         assertEquals(R.string.score_state_title_needs_strap, needsStrap.titleRes)
     }
 
+    // ── #1164 — Rest pending-sync (provisional before full offload) ─────────────────────────────────
+
+    @Test
+    fun restPendingSync_backfillingWithRestScore_showsPending() {
+        // An active offload with today's Rest present → pending, not a provisional number.
+        assertTrue(restPendingSync(restScore = 72.0, backfilling = true, historyPendingSync = false, isTodaySelected = true))
+    }
+
+    @Test
+    fun restPendingSync_historyPendingWithRestScore_showsPending() {
+        // The strap has banked records not yet ingested even with no active offload → pending.
+        // This is the right-after-connect window before the first offload starts.
+        assertTrue(restPendingSync(restScore = 72.0, backfilling = false, historyPendingSync = true, isTodaySelected = true))
+    }
+
+    @Test
+    fun restPendingSync_noSignalsWithRestScore_notPending() {
+        // No pending signals and a Rest score → NOT pending. The normal finalized state.
+        assertFalse(restPendingSync(restScore = 72.0, backfilling = false, historyPendingSync = false, isTodaySelected = true))
+    }
+
+    @Test
+    fun restPendingSync_noRestScore_neverPending_evenWithSignals() {
+        // No Rest score → never pending (pending suppresses a provisional NUMBER; it does not fabricate
+        // one when there is none — the calibrating/no-data states already cover that).
+        assertFalse(restPendingSync(restScore = null, backfilling = true, historyPendingSync = true, isTodaySelected = true))
+    }
+
+    @Test
+    fun restPendingSync_pastDayNeverPending_evenWithSignals() {
+        // A PAST day is never pending — its score is final, no more data is coming for it.
+        assertFalse(restPendingSync(restScore = 72.0, backfilling = true, historyPendingSync = true, isTodaySelected = false))
+    }
+
+    @Test
+    fun restPendingSync_bothSignals_showsPending() {
+        // Both signals true → pending (either signal alone is enough; both is the strongest case).
+        assertTrue(restPendingSync(restScore = 72.0, backfilling = true, historyPendingSync = true, isTodaySelected = true))
+    }
+
     // ── COMPONENT 3 — recording state ────────────────────────────────────────────────────────────────
 
     @Test

@@ -288,6 +288,32 @@ internal fun scoreStateForToday(
 }
 
 /**
+ * #1164 — should today's Rest show "Pending sync" instead of a provisional number? When the strap has
+ * banked records not yet offloaded, the Rest score is computed from partial data and will change once
+ * the full night lands and `analyzeRecent` re-scores it. Surfacing it as "Pending sync" rather than a
+ * confident number that then moves reads honestly instead of as a bug.
+ *
+ * Two honest signals, either of which means more data is expected:
+ * - [backfilling]: an offload is actively running right now (data is draining).
+ * - [historyPendingSync]: the strap reports banked records newer than our local frontier (the strap has
+ *   data we haven't ingested yet, even when no offload is running — e.g. right after connect, before
+ *   the first offload starts).
+ *
+ * Only applies to TODAY (a past day's score is final — no more data is coming for it) and only when a
+ * Rest score EXISTS (pending suppresses a provisional number; it does not fabricate one when there is
+ * none). Pure + unit-tested. Mirror EXACTLY of Swift `TodayView.restPendingSync`.
+ */
+internal fun restPendingSync(
+    restScore: Double?,
+    backfilling: Boolean,
+    historyPendingSync: Boolean,
+    isTodaySelected: Boolean,
+): Boolean {
+    if (!isTodaySelected || restScore == null) return false
+    return backfilling || historyPendingSync
+}
+
+/**
  * The honest live-recording state of the strap, for the Today/Live chip. Derived from the BLE connection
  * + last-sync timestamp so people always know it's working, or know it isn't and why. Mirrors Swift
  * `RecordingState` 1:1 (same three cases, same [title] / [detail] copy, same [tone]).

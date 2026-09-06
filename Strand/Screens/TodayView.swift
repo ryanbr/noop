@@ -295,6 +295,10 @@ struct TodayView: View {
     // the deferred set immediately (belt-and-braces alongside the coalesced refreshSeq bump). A bare boolean
     // that flips ~twice per offload, so it costs nothing like the per-tick chunk count would.
     @State private var liveBackfillingFlag = false
+    // #1164: mirror of `LiveState.historyPendingSync` (strap has banked records newer than our frontier).
+    // Bridged through the same `BackfillFlagBridge` as `liveBackfillingFlag` (no second LiveState observer).
+    // Drives the Today Rest "Pending sync" state so a provisional score isn't shown as final.
+    @State private var liveHistoryPendingSyncFlag = false
     // #755: have the history-wide reads ever populated this session? Used so the FIRST load always runs them
     // (even mid-offload, so a cold launch during a sync is never a blank dashboard), while later re-loads can
     // safely defer them during an active backfill.
@@ -727,6 +731,26 @@ struct TodayView: View {
         guard isTodaySelected, let lastDay, let lastValue,
               !isCarryStale(priorDayKey: lastDay, todayKey: todayKey) else { return nil }
         return lastValue
+    }
+
+    /// #1164 — should today's Rest show "Pending sync" instead of a provisional number? When the strap has
+    /// banked records not yet offloaded, the Rest score is computed from partial data and will change once
+    /// the full night lands and `analyzeRecent` re-scores it. Surfacing it as "Pending sync" rather than a
+    /// confident number that then moves reads honestly instead of as a bug.
+    ///
+    /// Two honest signals, either of which means more data is expected:
+    /// - `backfilling`: an offload is actively running right now (data is draining).
+    /// - `historyPendingSync`: the strap reports banked records newer than our local frontier (the strap
+    ///   has data we haven't ingested yet, even when no offload is running — e.g. right after connect,
+    ///   before the first offload starts).
+    ///
+    /// Only applies to TODAY (a past day's score is final — no more data is coming for it) and only when a
+    /// Rest score EXISTS (pending suppresses a provisional number; it does not fabricate one when there is
+    /// none). Pure + unit-testable. Mirror EXACTLY in Kotlin.
+    static func restPendingSync(restScore: Double?, backfilling: Bool,
+                                historyPendingSync: Bool, isTodaySelected: Bool) -> Bool {
+        guard isTodaySelected, restScore != nil else { return false }
+        return backfilling || historyPendingSync
     }
 
     /// The carried recovery caption stamp, keyed on that scored day's own date and its recency. Within the
@@ -1480,7 +1504,8 @@ struct TodayView: View {
             // zero-size leaf in `.background` (no layout impact) that owns the observation and pushes only
             // the boolean EDGE up. loadAll reads the flag to defer the heavy history-wide reads during an
             // active offload; the off→false edge below re-runs them as a safety net to the coalesced refresh.
-            .background(BackfillFlagBridge(flag: $liveBackfillingFlag))
+            .background(BackfillFlagBridge(flag: $liveBackfillingFlag,
+                                            pendingSyncFlag: $liveHistoryPendingSyncFlag))
         }
         // Reload when the data refreshes OR the selected day changes, the HR trend and Rest score are
         // day-scoped, so navigating must re-fetch them for the newly selected window.
@@ -3302,7 +3327,14 @@ struct TodayView: View {
     /// Rest (sleep composite 0–100) hero ring.
     @ViewBuilder
     private func restRing(diameter: CGFloat) -> some View {
-        if let s = restScore {
+        // #1164: when the strap has banked records not yet offloaded, today's Rest is provisional — it
+        // will change once the full night lands and `analyzeRecent` re-scores it. Show "Pending sync"
+        // instead of a confident number that then moves. Past days are final (no more data coming).
+        if Self.restPendingSync(restScore: restScore, backfilling: liveBackfillingFlag,
+                                historyPendingSync: liveHistoryPendingSyncFlag,
+                                isTodaySelected: selectedDayOffset == 0) {
+            emptyHeroRing(diameter: diameter) { ringPendingSync() }
+        } else if let s = restScore {
             GlowRing(fraction: s / 100, value: s, format: { "\(Int($0.rounded()))" },
                      color: StrandPalette.restColor, diameter: diameter, lineWidth: diameter * 0.10)
         } else if displayDay?.recovery != nil {
@@ -3326,6 +3358,20 @@ struct TodayView: View {
             Text("Calibrating").font(StrandFont.headline).foregroundStyle(StrandPalette.textTertiary)
                 .lineLimit(1).minimumScaleFactor(0.7).fixedSize()
             Text("needs a tracked night").font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
+                .lineLimit(1).minimumScaleFactor(0.6).fixedSize()
+        }
+    }
+
+    /// #1164: the Rest ring's overlay when today's score is provisional because the strap still has
+    /// banked records not yet offloaded. Shows "Pending sync" instead of a number that will change once
+    /// the full night lands and `analyzeRecent` re-scores it. Mirrors Android's RingPendingSync.
+    @ViewBuilder
+    private func ringPendingSync() -> some View {
+        VStack(spacing: 3) {
+            Text("Pending sync").font(StrandFont.headline).foregroundStyle(StrandPalette.textTertiary)
+                .lineLimit(1).minimumScaleFactor(0.7).fixedSize()
+            Text("strap history still offloading").font(StrandFont.footnote)
+                .foregroundStyle(StrandPalette.textSecondary)
                 .lineLimit(1).minimumScaleFactor(0.6).fixedSize()
         }
     }
@@ -3794,23 +3840,40 @@ struct TodayView: View {
                 accessory: { scoreInfoButton(.effort) }
             )
         case .rest:
-            // Unscored TODAY → "building, wear it tonight" instead of a lone ", " caption (#527);
-            // a scored day keeps its sleep-duration / efficiency caption.
-            StatTile(
-                label: "Rest",
-                value: restScore.map { "\(Int($0.rounded()))%" } ?? "—",
-                // Component 2: a scored day shows its duration/efficiency caption; an unscored TODAY shows
-                // the "building" hint; a past day with no Rest falls to the honest "Needs the strap" rather
-                // than a bare blank, so the tile always carries a state.
-                caption: restScore != nil ? restCaption(d)
-                    : (buildingHint(.rest) ?? restCaption(d) ?? Self.needsStrapCaption),
-                accent: restScore.map { StrandPalette.recoveryColor($0) } ?? StrandPalette.textPrimary,
-                // The Rest composite (0–100) trend, not raw sleep minutes, tracks the score above (#614).
-                sparkline: sparks["sleep_performance"],
-                sparkColor: StrandPalette.metricPurple,
-                // Inline ⓘ in the tile header (not a corner overlay) so it never sits over the value (#495).
-                accessory: { scoreInfoButton(.rest) }
-            )
+            // #1164: when today's Rest is provisional (strap has banked records not yet offloaded), show
+            // "Pending sync" instead of a number that will change once the full night lands. Past days
+            // are final (no more data coming), so the pending state is today-only.
+            if Self.restPendingSync(restScore: restScore, backfilling: liveBackfillingFlag,
+                                     historyPendingSync: liveHistoryPendingSyncFlag,
+                                     isTodaySelected: selectedDayOffset == 0) {
+                StatTile(
+                    label: "Rest",
+                    value: "—",
+                    caption: String(localized: "Pending sync · strap history still offloading"),
+                    accent: StrandPalette.textPrimary,
+                    sparkline: sparks["sleep_performance"],
+                    sparkColor: StrandPalette.metricPurple,
+                    accessory: { scoreInfoButton(.rest) }
+                )
+            } else {
+                // Unscored TODAY → "building, wear it tonight" instead of a lone ", " caption (#527);
+                // a scored day keeps its sleep-duration / efficiency caption.
+                StatTile(
+                    label: "Rest",
+                    value: restScore.map { "\(Int($0.rounded()))%" } ?? "—",
+                    // Component 2: a scored day shows its duration/efficiency caption; an unscored TODAY shows
+                    // the "building" hint; a past day with no Rest falls to the honest "Needs the strap" rather
+                    // than a bare blank, so the tile always carries a state.
+                    caption: restScore != nil ? restCaption(d)
+                        : (buildingHint(.rest) ?? restCaption(d) ?? Self.needsStrapCaption),
+                    accent: restScore.map { StrandPalette.recoveryColor($0) } ?? StrandPalette.textPrimary,
+                    // The Rest composite (0–100) trend, not raw sleep minutes, tracks the score above (#614).
+                    sparkline: sparks["sleep_performance"],
+                    sparkColor: StrandPalette.metricPurple,
+                    // Inline ⓘ in the tile header (not a corner overlay) so it never sits over the value (#495).
+                    accessory: { scoreInfoButton(.rest) }
+                )
+            }
         case .hrv:
             // Carry the last scored night's HRV at the rollover (#543), today's wins, the carried value
             // is stamped "Last night · <date>", and a never-scored metric still shows ", ".
@@ -5409,12 +5472,21 @@ private struct SyncingHistoryNoteIfBackfilling: View {
 private struct BackfillFlagBridge: View {
     @EnvironmentObject private var live: LiveState
     @Binding var flag: Bool
+    /// #1164: optional mirror of `LiveState.historyPendingSync` (strap has banked records newer than our
+    /// frontier). Bridged through the SAME invisible leaf so a second LiveState observer isn't added to
+    /// the view tree (the 1 Hz flood isolation the top-of-type note describes). nil when the caller
+    /// doesn't need it.
+    @Binding var pendingSyncFlag: Bool
     var body: some View {
         Color.clear
             .frame(width: 0, height: 0)
             .accessibilityHidden(true)
-            .onAppear { if flag != live.backfilling { flag = live.backfilling } }
+            .onAppear {
+                if flag != live.backfilling { flag = live.backfilling }
+                if pendingSyncFlag != live.historyPendingSync { pendingSyncFlag = live.historyPendingSync }
+            }
             .onChangeCompat(of: live.backfilling) { now in if flag != now { flag = now } }
+            .onChangeCompat(of: live.historyPendingSync) { now in if pendingSyncFlag != now { pendingSyncFlag = now } }
     }
 }
 
