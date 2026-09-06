@@ -1578,6 +1578,25 @@ class WhoopBleClient(
         }
 
         /**
+         * Mask the pack's six address bytes inside the event-census `payload=` hex, and nothing else.
+         * Event 109 (the pushed pack record, see BatteryPackInfo) carries the pack's BT address at
+         * payload offset 5..10. `redactStrapLogPii` lifts an ASCII serial out of a hex run but has no
+         * rule that reaches a colon-less address, so without this the census publishes the address in
+         * every shared strap log. Same rule as [maskPackAddrInDump]: blanked only once `decodeEventFrame`
+         * has confirmed a present pack at the expected layout — for any other event, or an undecodable
+         * 109, the payload stays whole, because there the bytes ARE the evidence the census exists for.
+         */
+        internal fun maskPackAddrInEventPayload(payloadHex: String, frame: ByteArray): String {
+            if (frame.size <= 10 || (frame[10].toInt() and 0xFF) != com.noop.protocol.BatteryPackInfo.PACK_INFO_EVENT) return payloadHex
+            val info = com.noop.protocol.BatteryPackInfo.decodeEventFrame(frame)
+            if (info == null || !info.present) return payloadHex
+            val from = 5 * 2
+            val to = from + 12
+            if (to > payloadHex.length) return payloadHex
+            return payloadHex.substring(0, from) + "••••••••••••" + payloadHex.substring(to)
+        }
+
+        /**
          * First and last octet of a pack's BT address, the rest masked — the same shape
          * `redactStrapLogPii` gives a colon-formatted MAC, applied at the SOURCE because this report
          * also reaches a copy-to-clipboard dialog that the scrubber never sees.
@@ -7867,7 +7886,8 @@ class WhoopBleClient(
                     // one), and the 5/MG opaque payload hex — which is where a pack charge would live if
                     // any event carries one. Read-only; sends nothing and decodes nothing into state.
                     if (testCentre.active(com.noop.testcentre.TestDomain.CONNECTION)) {
-                        val payHex = parsed.parsed["event_payload_hex"] as? String
+                        val payHex = (parsed.parsed["event_payload_hex"] as? String)
+                            ?.let { maskPackAddrInEventPayload(it, frame) }
                         log("[event] $ev${if (replayedOffload) " (replayed offload)" else ""}" +
                             (payHex?.let { " payload=$it" } ?: ""))
                     }
