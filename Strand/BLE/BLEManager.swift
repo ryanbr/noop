@@ -2917,8 +2917,22 @@ public final class BLEManager: NSObject, ObservableObject {
             // Today Rest card can show "Pending sync" instead of a provisional number. Same behind check
             // the auto-continue predicate uses (5-min gap), computed here because this is the one path
             // that already reads both values. Caught-up (or unknown) → false, never a stale "pending".
+            // #1164 + #928/#1012 + #1144: the bare gap is not enough. Both traps that
+            // `shouldAutoContinue` guards against latch this flag TRUE forever, which would pin Rest to
+            // "Pending sync" and never show a score — strictly worse than the provisional number this
+            // exists to hide.
+            //  - a strap whose clock is set in the FUTURE reads ahead of ANY frontier, so the gap never
+            //    closes (there is a user-facing banner for exactly that state);
+            //  - a PHANTOM gap (a timestamp the strap will not actually offload, a console-only tail, a
+            //    dup re-offload) advertises newer data while banking no new rows, so the frontier cannot
+            //    advance and the gap stays open. `persistedSensorRows` is the same evidence #1144 added to
+            //    the auto-continue predicate for this exact latch; a caught-up strap is already false via
+            //    the gap, so gating on it only bites the phantom case.
             if let n = newest, let f = frontier {
-                state.historyPendingSync = (n - f) > BackfillContinuation.defaultBehindGapSeconds
+                state.historyPendingSync =
+                    !BackfillContinuation.isFutureDatedNewest(n, wallNowUnix: wallNow)
+                    && persistedSensorRows
+                    && (n - f) > BackfillContinuation.defaultBehindGapSeconds
             }
             let stillConnected = state.connected && state.bonded
             guard BackfillContinuation.shouldAutoContinue(
@@ -6649,7 +6663,15 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                 Task { @MainActor in
                     let frontier = await collector?.latestHRSampleTs() ?? nil
                     if let f = frontier {
-                        state.historyPendingSync = (newestForPending - f) > BackfillContinuation.defaultBehindGapSeconds
+                        // #928/#1012: a strap whose clock is set in the FUTURE reads ahead of ANY
+                        // frontier, so without this the gap never closes and Rest is pinned to "Pending
+                        // sync" for good. The phantom-gap guard used at the post-offload site cannot apply
+                        // here: no offload has run yet, so there is no row evidence to weigh. The first
+                        // completed pass corrects it.
+                        let wallNowP = Int(Date().timeIntervalSince1970)
+                        state.historyPendingSync =
+                            !BackfillContinuation.isFutureDatedNewest(newestForPending, wallNowUnix: wallNowP)
+                            && (newestForPending - f) > BackfillContinuation.defaultBehindGapSeconds
                     }
                 }
             }

@@ -2743,4 +2743,6 @@
     <string name="units_kilometres">Kilometer</string>
     <string name="units_miles">Meilen</string>
     <string name="units_follow_body">Wie Körpermaße</string>
+    <string name="l10n_today_screen_pending_sync_cbe01f9e">Sync ausstehend</string>
+    <string name="l10n_today_screen_strap_history_still_offloading_80140264">Strap-Verlauf wird noch übertragen</string>
 </resources>

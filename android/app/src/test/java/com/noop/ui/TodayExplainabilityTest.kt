@@ -122,6 +122,30 @@ class TodayExplainabilityTest {
 
     // ── #1164 — Rest pending-sync (provisional before full offload) ─────────────────────────────────
 
+    /**
+     * The flag that drives this must not be able to latch on forever, which is the failure both
+     * `shouldAutoContinue` guards already exist for: a future-dated strap clock reads ahead of ANY
+     * frontier, and a phantom gap advertises newer data while banking no rows. Either would pin Rest to
+     * "Pending sync" and never show a score, which is worse than the provisional number it replaces.
+     * The helper itself is pure, so this pins the CONTRACT it is handed: a caller must not pass true
+     * for a gap it cannot close.
+     */
+    @Test
+    fun restPendingSyncOnlySuppressesWhileThereIsAScoreAndTodayIsSelected() {
+        // A gap the caller has judged real: suppress.
+        assertTrue(restPendingSync(restScore = 71.0, backfilling = false,
+                                   historyPendingSync = true, isTodaySelected = true))
+        // No score yet: calibrating / no-data states own that, so never fabricate a suppression.
+        assertFalse(restPendingSync(restScore = null, backfilling = true,
+                                    historyPendingSync = true, isTodaySelected = true))
+        // A past day is final, whatever the strap is doing now.
+        assertFalse(restPendingSync(restScore = 71.0, backfilling = true,
+                                    historyPendingSync = true, isTodaySelected = false))
+        // Caught up and idle: show the number.
+        assertFalse(restPendingSync(restScore = 71.0, backfilling = false,
+                                    historyPendingSync = false, isTodaySelected = true))
+    }
+
     @Test
     fun restPendingSync_backfillingWithRestScore_showsPending() {
         // An active offload with today's Rest present → pending, not a provisional number.

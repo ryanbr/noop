@@ -2643,4 +2643,6 @@
     <string name="units_kilometres">公里</string>
     <string name="units_miles">英里</string>
     <string name="units_follow_body">跟随身体测量</string>
+    <string name="l10n_today_screen_pending_sync_cbe01f9e">等待同步</string>
+    <string name="l10n_today_screen_strap_history_still_offloading_80140264">手环历史记录仍在传输</string>
 </resources>

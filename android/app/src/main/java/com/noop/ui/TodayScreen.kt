@@ -3135,13 +3135,13 @@ private fun RingNeedsTrackedNight() {
 private fun RingPendingSync() {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         AutoSizeValue(
-            uiString(R.string.l10n_today_screen_pending_sync_1164),
+            uiString(R.string.l10n_today_screen_pending_sync_cbe01f9e),
             style = NoopType.headline,
             color = Palette.textTertiary,
             minScale = 0.7f,
         )
         AutoSizeValue(
-            uiString(R.string.l10n_today_screen_strap_history_still_offloading_1164),
+            uiString(R.string.l10n_today_screen_strap_history_still_offloading_80140264),
             style = NoopType.footnote,
             color = Palette.textSecondary,
         )
@@ -5277,7 +5277,7 @@ private fun MetricGrid(
             tint = restScore?.let { Palette.recoveryColor(it) } ?: Palette.restColor,
             frac = restScore?.let { (it / 100.0).coerceIn(0.0, 1.0) },
             spark = restSpark,
-            caption = if (restPendingSync) uiString(R.string.l10n_today_screen_strap_history_still_offloading_1164) else null,
+            caption = if (restPendingSync) uiString(R.string.l10n_today_screen_strap_history_still_offloading_80140264) else null,
         ),
         KeyMetric.HRV to run {
             val v = d?.avgHrv ?: carriedDay?.avgHrv

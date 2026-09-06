@@ -7266,7 +7266,14 @@ class WhoopBleClient(
                             ioScope.launch {
                                 val f = runCatching { repository.latestHrSampleTs(deviceId) }.getOrNull()
                                 if (f != null) {
-                                    val p = (newestForPending - f) > AUTO_CONTINUE_BEHIND_GAP_SECONDS
+                                    // #928/#1012: a strap whose clock is set in the FUTURE reads ahead
+                                    // of ANY frontier, so without this the gap never closes and Rest is
+                                    // pinned to "Pending sync" for good. The phantom-gap guard used at the
+                                    // post-offload site cannot apply here: no offload has run yet, so there
+                                    // is no row evidence to weigh. The first completed pass corrects it.
+                                    val wallNowP = System.currentTimeMillis() / 1000L
+                                    val p = !isFutureDatedNewest(newestForPending, wallNowP) &&
+                                        (newestForPending - f) > AUTO_CONTINUE_BEHIND_GAP_SECONDS
                                     if (_state.value.historyPendingSync != p) {
                                         _state.value = _state.value.copy(historyPendingSync = p)
                                     }
@@ -10103,7 +10110,21 @@ class WhoopBleClient(
             // #1164: publish whether the strap has banked records newer than our local frontier, so the
             // Today Rest card can show "Pending sync" instead of a provisional number. Same behind check
             // the auto-continue predicate uses (5-min gap). Caught-up (or unknown) → false.
+            // #1164 + #928/#1012 + #1144: the bare gap is not enough. Both traps that
+            // `shouldAutoContinue` guards against latch this flag TRUE forever, which would pin
+            // Rest to "Pending sync" and never show a score — strictly worse than the
+            // provisional number this exists to hide.
+            //  - a strap whose clock is set in the FUTURE reads ahead of ANY frontier, so the
+            //    gap never closes (there is a user-facing banner for exactly that state);
+            //  - a PHANTOM gap (a timestamp the strap will not actually offload, a console-only
+            //    tail, a dup re-offload) advertises newer data while banking no new rows, so the
+            //    frontier cannot advance and the gap stays open. `persistedSensorRows` is the
+            //    same evidence #1144 added to the auto-continue predicate for this exact latch;
+            //    a caught-up strap is already false via the gap, so gating on it only bites the
+            //    phantom case.
             val pending = newest != null && frontier != null &&
+                !isFutureDatedNewest(newest, wallNow) &&
+                persistedSensorRows &&
                 (newest - frontier) > AUTO_CONTINUE_BEHIND_GAP_SECONDS
             if (_state.value.historyPendingSync != pending) {
                 _state.value = _state.value.copy(historyPendingSync = pending)

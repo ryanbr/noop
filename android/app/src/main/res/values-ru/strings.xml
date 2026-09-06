@@ -2613,4 +2613,6 @@
     <string name="units_kilometres">Километры</string>
     <string name="units_miles">Мили</string>
     <string name="units_follow_body">Как для параметров тела</string>
+    <string name="l10n_today_screen_pending_sync_cbe01f9e">Ожидает синхронизации</string>
+    <string name="l10n_today_screen_strap_history_still_offloading_80140264">история браслета ещё передаётся</string>
 </resources>

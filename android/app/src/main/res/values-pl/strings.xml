@@ -2734,4 +2734,6 @@
     <string name="units_kilometres">Kilometry</string>
     <string name="units_miles">Mile</string>
     <string name="units_follow_body">Jak pomiary ciała</string>
+    <string name="l10n_today_screen_pending_sync_cbe01f9e">Oczekuje na synchronizację</string>
+    <string name="l10n_today_screen_strap_history_still_offloading_80140264">historia paska wciąż jest przesyłana</string>
 </resources>

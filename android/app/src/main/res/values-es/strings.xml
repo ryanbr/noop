@@ -2730,4 +2730,6 @@
     <string name="units_kilometres">Kilómetros</string>
     <string name="units_miles">Millas</string>
     <string name="units_follow_body">Según medidas corporales</string>
+    <string name="l10n_today_screen_pending_sync_cbe01f9e">Sincronización pendiente</string>
+    <string name="l10n_today_screen_strap_history_still_offloading_80140264">el historial de la pulsera aún se está transfiriendo</string>
 </resources>
