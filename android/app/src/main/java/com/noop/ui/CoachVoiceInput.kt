@@ -10,6 +10,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import androidx.core.content.ContextCompat
+import com.noop.R
 
 /**
  * K4: On-device speech-to-text wrapper for the Coach composer (Android).
