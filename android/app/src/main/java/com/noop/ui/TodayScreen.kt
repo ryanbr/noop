@@ -2938,7 +2938,22 @@ private fun SynthesisHeroCard(
             } else {
                 // Comma (not the old em-dash) to match the Swift canonical synthesis copy VERBATIM
                 // (TodayView "Learning your baseline, N of M nights.") and the no-em-dash standing rule.
-                uiString(R.string.today_synthesis_learning_baseline, recoveryCalibration, Baselines.minNightsSeed)
+                // #612 above covers a TOTAL drought. The common shape is the other one: nights arriving,
+                // most of them empty. Five days in with three HRV-less nights sits at "2 of 4" with no
+                // reason given, which reads as a stuck counter rather than as missing data. Name the
+                // missing nights so a wearer has something to act on instead of something to wait for.
+                // Swift twin: TodayView.calibrationDetail.
+                val cov = Baselines.recentHrvCoverage(
+                    days.map { it.day }, days.map { it.avgHrv }, logicalDayKeyNow(),
+                )
+                val base = uiString(
+                    R.string.today_synthesis_learning_baseline, recoveryCalibration, Baselines.minNightsSeed,
+                )
+                if (cov.second > 0 && cov.first > 0) {
+                    base + " " + uiString(R.string.today_synthesis_nights_without_hrv, cov.second, cov.first)
+                } else {
+                    base
+                }
             }
         } else if (carriedDay != null) {
             // Carried prior-day read, summarise that day + stamp it so it isn't passed off as today's.

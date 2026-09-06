@@ -279,6 +279,29 @@ public enum Baselines {
     /// from your strap for N days" when the baseline aged out silently instead of only "building your
     /// baseline". Pure and TZ-free (civil-day arithmetic); mirror EXACTLY in the Kotlin twin.
     /// `dayKeys`/`nightlyHrv` are parallel (same night per index); `today` is an ISO `yyyy-MM-dd` key.
+    /// Nights the app OBSERVED in the recent window, and how many of them carried no usable HRV.
+    ///
+    /// Distinct from both neighbours, and the gap between them. `calibrationNights` counts progress
+    /// toward a baseline; `nightsSinceNewestValidNight` measures a TOTAL drought and only speaks once it
+    /// passes `staleDays`. Neither says anything about the common case: nights arriving, but most of them
+    /// carrying nothing. A wearer five days in with three empty nights sits at "2 of 4" with no reason
+    /// given, which reads as a stuck counter rather than as missing data — that is the report this exists
+    /// to answer.
+    ///
+    /// Counts only days the app has a row for, so a new install is not charged for nights before it owned
+    /// the strap. Pure and TZ-free (civil-day arithmetic); mirror EXACTLY in the Kotlin twin.
+    public static func recentHrvCoverage(dayKeys: [String], nightlyHrv: [Double?], today: String,
+                                         window: Int = staleDays) -> (observed: Int, missing: Int) {
+        guard let t = isoEpochDay(today) else { return (0, 0) }
+        var observed = 0, missing = 0
+        for i in 0..<Swift.min(dayKeys.count, nightlyHrv.count) {
+            guard let d = isoEpochDay(dayKeys[i]), t - d >= 0, t - d < window else { continue }
+            observed += 1
+            if nightlyHrv[i] == nil { missing += 1 }
+        }
+        return (observed, missing)
+    }
+
     public static func nightsSinceNewestValidNight(dayKeys: [String], nightlyHrv: [Double?], today: String) -> Int? {
         var newest: String? = nil
         for i in 0..<Swift.min(dayKeys.count, nightlyHrv.count) where nightlyHrv[i] != nil {

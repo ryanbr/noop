@@ -2340,6 +2340,7 @@
     <string name="today_steps_headline_more_days">Encore %1$d jours également comptés par le téléphone</string>
     <string name="today_steps_headline_no_motion">Aucune donnée de mouvement synchronisée pour l\'instant</string>
     <string name="today_synthesis_learning_baseline">Création de votre référence, %1$d nuits sur %2$d.</string>
+    <string name="today_synthesis_nights_without_hrv">%1$d des %2$d dernières nuits n\'ont enregistré aucune VFC. Vérifiez que le bracelet est porté la nuit et se synchronise.</string>
     <string name="today_last_night_date">Nuit dernière · %1$s</string>
     <string name="today_hr_min">Min.</string>
     <string name="today_hr_avg">Moy.</string>

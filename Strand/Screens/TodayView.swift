@@ -1108,6 +1108,16 @@ struct TodayView: View {
            stale > Baselines.staleDays {
             return "No new nights from your strap for \(stale) days. Check it's connected and saving data."
         }
+        // #612 covers a TOTAL drought (nothing valid for staleDays). The common shape is the other one:
+        // nights arriving, most of them empty — five days in with three HRV-less nights sits at "2 of 4"
+        // with no reason given, which reads as a stuck counter. Name the missing nights so the wearer has
+        // something to act on instead of something to wait for.
+        let cov = Baselines.recentHrvCoverage(dayKeys: repo.days.map(\.day),
+                                              nightlyHrv: repo.days.map(\.avgHrv),
+                                              today: Repository.logicalDayKey(Date()))
+        if cov.missing > 0, cov.observed > 0 {
+            return "Learning your baseline, \(n) of \(Baselines.minNightsSeed) nights. \(cov.missing) of the last \(cov.observed) nights recorded no HRV. Check the strap is worn overnight and syncing."
+        }
         return "Learning your baseline, \(n) of \(Baselines.minNightsSeed) nights."
     }
 

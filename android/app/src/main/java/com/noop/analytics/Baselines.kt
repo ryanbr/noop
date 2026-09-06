@@ -234,6 +234,37 @@ object Baselines {
         return BaselineStatus.TRUSTED
     }
 
+    /**
+     * Nights the app OBSERVED in the recent window, and how many carried no usable HRV. Swift twin:
+     * `Baselines.recentHrvCoverage`.
+     *
+     * Distinct from both neighbours, and the gap between them. `calibrationNights` counts progress toward
+     * a baseline; [nightsSinceNewestValidNight] measures a TOTAL drought and only speaks once it passes
+     * [staleDays]. Neither says anything about the common case: nights arriving, but most of them carrying
+     * nothing. A wearer five days in with three empty nights sits at "2 of 4" with no reason given, which
+     * reads as a stuck counter rather than as missing data — that is the report this exists to answer.
+     *
+     * Counts only days the app has a row for, so a new install is not charged for nights before it owned
+     * the strap. Pure and TZ-free (civil-day arithmetic).
+     */
+    fun recentHrvCoverage(
+        dayKeys: List<String>,
+        nightlyHrv: List<Double?>,
+        today: String,
+        window: Int = staleDays,
+    ): Pair<Int, Int> {
+        val t = isoEpochDay(today) ?: return 0 to 0
+        var observed = 0
+        var missing = 0
+        for (i in 0 until minOf(dayKeys.size, nightlyHrv.size)) {
+            val d = isoEpochDay(dayKeys[i]) ?: continue
+            if (t - d < 0 || t - d >= window) continue
+            observed++
+            if (nightlyHrv[i] == null) missing++
+        }
+        return observed to missing
+    }
+
     /** #612: calendar days since the newest night that carried a usable HRV reading (the baseline's input),
      *  or null when there is none / a key can't be parsed. DISTINCT from `calibrationNights` (which counts
      *  progress TOWARD a usable baseline) — this measures staleness, so a surface can say "no new nights from

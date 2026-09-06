@@ -2341,6 +2341,7 @@
     <string name="today_steps_headline_more_days">Faltan %1$d días contabilizados también por el teléfono</string>
     <string name="today_steps_headline_no_motion">Aún no se han sincronizado datos de movimiento</string>
     <string name="today_synthesis_learning_baseline">Creando tu referencia, %1$d de %2$d noches.</string>
+    <string name="today_synthesis_nights_without_hrv">%1$d de las últimas %2$d noches no registraron HRV. Comprueba que llevas la banda por la noche y que se sincroniza.</string>
     <string name="today_last_night_date">Anoche · %1$s</string>
     <string name="today_hr_min">Mín.</string>
     <string name="today_hr_avg">Media</string>

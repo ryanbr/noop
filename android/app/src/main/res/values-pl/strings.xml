@@ -2333,6 +2333,7 @@
     <string name="today_steps_headline_more_days">Potrzeba jeszcze %1$d dni z krokami telefonu</string>
     <string name="today_steps_headline_no_motion">Brak zsynchronizowanych danych o ruchu</string>
     <string name="today_synthesis_learning_baseline">Tworzenie bazy: %1$d z %2$d nocy.</string>
+    <string name="today_synthesis_nights_without_hrv">%1$d z ostatnich %2$d nocy nie zarejestrowało HRV. Sprawdź, czy opaska jest noszona w nocy i synchronizuje się.</string>
     <string name="today_last_night_date">Ostatnia noc · %1$s</string>
     <string name="today_hr_min">Min.</string>
     <string name="today_hr_avg">Śr.</string>

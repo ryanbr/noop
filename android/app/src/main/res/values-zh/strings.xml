@@ -2268,6 +2268,7 @@
     <string name="today_steps_headline_more_days">还需 %1$d 天由手机同时记录步数</string>
     <string name="today_steps_headline_no_motion">尚未同步运动数据</string>
     <string name="today_synthesis_learning_baseline">正在建立基线：%1$d/%2$d 晚。</string>
+    <string name="today_synthesis_nights_without_hrv">最近 %2$d 晚中有 %1$d 晚未记录 HRV。请检查夜间是否佩戴并已同步。</string>
     <string name="today_last_night_date">昨晚 · %1$s</string>
     <string name="today_hr_min">最低</string>
     <string name="today_hr_avg">平均</string>

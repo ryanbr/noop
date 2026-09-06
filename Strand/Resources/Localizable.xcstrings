@@ -210062,6 +210062,18 @@
         "ru": {"stringUnit": {"state": "translated", "value": "%lld из %lld ночей"}},
         "zh-Hans": {"stringUnit": {"state": "translated", "value": "%lld / %lld 晚"}},
         "zh-Hant": {"stringUnit": {"state": "translated", "value": "%lld / %lld 晚"}}
+    } },
+    "%lld of the last %lld nights recorded no HRV. Check the strap is worn overnight and syncing.": { "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "%lld der letzten %lld Nächte haben keine HRV aufgezeichnet. Prüfe, ob der Strap nachts getragen wird und synchronisiert."}},
+        "en": {"stringUnit": {"state": "translated", "value": "%lld of the last %lld nights recorded no HRV. Check the strap is worn overnight and syncing."}},
+        "es": {"stringUnit": {"state": "translated", "value": "%lld de las últimas %lld noches no registraron HRV. Comprueba que llevas la banda por la noche y que se sincroniza."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "%lld des %lld dernières nuits n’ont enregistré aucune VFC. Vérifiez que le bracelet est porté la nuit et se synchronise."}},
+        "it": {"stringUnit": {"state": "translated", "value": "%lld delle ultime %lld notti non hanno registrato HRV. Controlla che la fascia sia indossata di notte e si sincronizzi."}},
+        "pl": {"stringUnit": {"state": "translated", "value": "%lld z ostatnich %lld nocy nie zarejestrowało HRV. Sprawdź, czy opaska jest noszona w nocy i synchronizuje się."}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "%lld das últimas %lld noites não registaram HRV. Verifica se usas a fita à noite e se sincroniza."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "%lld из последних %lld ночей не записали ВСР. Проверьте, что ремешок надет ночью и синхронизируется."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "最近 %2$lld 晚中有 %1$lld 晚未记录 HRV。请检查夜间是否佩戴并已同步。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "最近 %2$lld 晚中有 %1$lld 晚未記錄 HRV。請檢查夜間是否配戴並已同步。"}}
     } }
   },
   "version": "1.0"

@@ -2287,6 +2287,7 @@
     <string name="today_steps_headline_more_days">Нужно ещё %1$d дней, когда ваш телефон тоже считал шаги</string>
     <string name="today_steps_headline_no_motion">Данные о движении ещё не синхронизированы</string>
     <string name="today_synthesis_learning_baseline">Изучаем вашу норму, %1$d из %2$d ночей.</string>
+    <string name="today_synthesis_nights_without_hrv">%1$d из последних %2$d ночей не записали ВСР. Проверьте, что ремешок надет ночью и синхронизируется.</string>
     <string name="today_last_night_date">Прошлая ночь · %1$s</string>
     <string name="today_hr_min">Мин.</string>
     <string name="today_hr_avg">Сред.</string>

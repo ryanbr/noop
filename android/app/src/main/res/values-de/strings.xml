@@ -2354,6 +2354,7 @@
     <string name="today_steps_headline_more_days">Noch %1$d Tage mit Smartphone-Schritten nötig</string>
     <string name="today_steps_headline_no_motion">Noch keine Bewegungsdaten synchronisiert</string>
     <string name="today_synthesis_learning_baseline">Dein Basiswert wird gelernt, %1$d von %2$d Nächten.</string>
+    <string name="today_synthesis_nights_without_hrv">%1$d der letzten %2$d Nächte haben keine HRV aufgezeichnet. Prüfe, ob der Strap nachts getragen wird und synchronisiert.</string>
     <string name="today_last_night_date">Letzte Nacht · %1$s</string>
     <string name="today_hr_min">Min.</string>
     <string name="today_hr_avg">Ø</string>

@@ -2453,6 +2453,7 @@
     <string name="today_steps_headline_more_days">Need %1$d more days where your phone also counted steps</string>
     <string name="today_steps_headline_no_motion">No motion synced yet</string>
     <string name="today_synthesis_learning_baseline">Learning your baseline, %1$d of %2$d nights.</string>
+    <string name="today_synthesis_nights_without_hrv">%1$d of the last %2$d nights recorded no HRV. Check the strap is worn overnight and syncing.</string>
     <string name="today_last_night_date">Last night · %1$s</string>
     <string name="today_hr_min">Min</string>
     <string name="today_hr_avg">Avg</string>
