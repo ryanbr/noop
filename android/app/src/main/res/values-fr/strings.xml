@@ -296,6 +296,7 @@
     <string name="l10n_devices_screen_leave_none_active_b5c858cb">N\'en laisser aucune active</string>
     <string name="l10n_devices_screen_name_709a2322">Nom</string>
     <string name="l10n_devices_screen_pack_voltage_9af3c3ff">%1$.2f V</string>
+    <string name="l10n_devices_screen_pack_charge_0e9589da">Pack %1$.1f%%</string>
     <string name="l10n_devices_screen_paired_locally_noop_owns_this_ring_30c16190">Associée localement. NOOP possède cette bague tant qu\'il détient la clé. Si vous la réinitialisez à nouveau ou la configurez dans l\'app Oura, NOOP ne la possède plus et vous devrez la rajouter pour en reprendre le contrôle.</string>
     <string name="l10n_devices_screen_pick_a_new_active_strap_edd73542">Choisir un nouveau bracelet actif</string>
     <string name="l10n_devices_screen_rename_device_ee233604">Renommer l\'appareil</string>

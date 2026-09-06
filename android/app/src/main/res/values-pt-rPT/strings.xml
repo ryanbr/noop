@@ -443,6 +443,7 @@
     <string name="l10n_devices_screen_leave_none_active_b5c858cb">Não deixe nenhum ativo</string>
     <string name="l10n_devices_screen_name_709a2322">Nome</string>
     <string name="l10n_devices_screen_pack_voltage_9af3c3ff">%1$.2f V</string>
+    <string name="l10n_devices_screen_pack_charge_0e9589da">Pack %1$.1f%%</string>
     <string name="l10n_devices_screen_paired_locally_noop_owns_this_ring_30c16190">Emparelhado localmente. NOOP possui este anel enquanto detém a chave. Se o repor novamente ou o configurar na aplicação Oura, o NOOP já não será o proprietário e irá adicioná-lo novamente para o assumir.</string>
     <string name="l10n_devices_screen_pick_a_new_active_strap_edd73542">Escolha uma nova bracelete ativa</string>
     <string name="l10n_devices_screen_rename_device_ee233604">Renomear dispositivo</string>

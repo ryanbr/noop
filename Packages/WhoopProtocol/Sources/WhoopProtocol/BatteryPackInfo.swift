@@ -50,30 +50,70 @@ public enum BatteryPackInfo {
         }
     }
 
+    /// Offset of the present flag inside the event-109 payload.
+    public static let eventRecordBase = 4
+
+    /// Where a WHOOP 5/MG EVENT frame's opaque payload begins. Mirrors `Framing.decodeEventWhoop5`.
+    public static let whoop5EventPayloadStart = 16
+
+    /// The uncatalogued 5/MG event that carries the pack record. Named here because `EventNumber` has no
+    /// entry for it — it decodes as `0x6D(109)`.
+    public static let packInfoEvent = 109
+
+    /// Decode the pack RECORD itself, given the offset of its present-flag byte.
+    ///
+    /// Split out from `decode` because the same record reaches us by two entirely different transports: as
+    /// the payload of a `GET_BATTERY_PACK_INFO` (151) COMMAND_RESPONSE, and — hardware-confirmed on WHOOP MG
+    /// fw 50.39.1.0, 2026-09-01 — as the payload of the UNCATALOGUED pushed event `0x6D` (109), which the
+    /// strap volunteers while a pack is attached. Only the framing around the record differs; the fields are
+    /// identical, so they must not be decoded twice.
+    ///
+    /// Layout from `base`: +0 present, +1 BT address (6 B), +7 serial (16 B ASCII, NUL-terminated),
+    /// +23 SoC (u16 little-endian, tenths of a percent). nil when the buffer is too short to hold it.
+    public static func decodeRecord(_ bytes: [UInt8], base: Int) -> Info? {
+        guard base >= 0, bytes.count > base else { return nil }
+        let present = bytes[base] == 1
+        guard present else { return Info(present: false, socPct: nil, serial: nil, btAddr: nil) }
+
+        let btStart = base + 1
+        let serStart = base + 7
+        let socStart = base + 23
+        guard bytes.count >= socStart + 2 else { return nil }
+
+        let btAddr = bytes[btStart..<btStart + 6].map { String(format: "%02x", $0) }.joined()
+        let serBytes = Array(bytes[serStart..<serStart + 16].prefix { $0 != 0 })
+        let serial = serBytes.isEmpty ? nil : String(bytes: serBytes, encoding: .ascii)
+        let raw = Int(bytes[socStart]) | (Int(bytes[socStart + 1]) << 8)
+        return Info(present: true, socPct: Double(raw) / 10.0, serial: serial, btAddr: btAddr)
+    }
+
+    /// Decode the pack record from the pushed event `0x6D` (109) payload — the transport that actually works
+    /// on a 5/MG. The strap sends this unprompted while a pack is attached, so it needs no command, no
+    /// send-allowlist entry and no polling, and because it repeats it is a self-refreshing LEVEL signal.
+    public static func decodeEventPayload(_ payload: [UInt8]) -> Info? {
+        decodeRecord(payload, base: eventRecordBase)
+    }
+
+    /// Decode straight from a whole 5/MG EVENT frame, so callers never need to know where the payload
+    /// starts. Callers must first check the event number is `packInfoEvent`; this does not re-check it,
+    /// because the event byte lives in the frame header rather than the record.
+    public static func decodeEventFrame(_ frame: [UInt8]) -> Info? {
+        decodeRecord(frame, base: whoop5EventPayloadStart + eventRecordBase)
+    }
+
     /// The response-command byte sits at `cmdOff` (10 on WHOOP 5/MG — the only family with a pack; a 4.0's
     /// 6 is accepted only so a caller can pass it, though 4.0 never answers 151). Returns nil when the
     /// frame is not a well-formed 151 SUCCESS response. The caller is expected to have CRC-gated the frame
     /// (the framing layer already does), as the sibling probes assume.
+    ///
+    /// NOTE this command path is retained for completeness only. On WHOOP MG fw 50.39.1.0 opcode 151 answers
+    /// FAILURE(0) whether or not a pack is attached, so the feature is driven by `decodeEventFrame` instead.
     public static func decode(frame: [UInt8], cmdOff: Int = 10) -> Info? {
-        // Layout relative to cmdOff, pinned to the captures: +0 resp-cmd (151), +2 result (1 = SUCCESS),
-        // +4 present flag, +5 BT address (6 bytes), +11 serial (16-byte ASCII, NUL-terminated),
-        // +27 SoC (u16 little-endian, tenths of a percent).
+        // Header, pinned to the captures: +0 resp-cmd (151), +2 result (1 = SUCCESS). The record then starts
+        // at +4, which is what `decodeRecord` expects as its base.
         guard cmdOff >= 0, frame.count > cmdOff + 4 else { return nil }
         guard Int(frame[cmdOff]) == 151, Int(frame[cmdOff + 2]) == 1 else { return nil }
-        let present = frame[cmdOff + 4] == 1
-        guard present else { return Info(present: false, socPct: nil, serial: nil, btAddr: nil) }
-
-        let btStart = cmdOff + 5
-        let serStart = cmdOff + 11
-        let socStart = cmdOff + 27
-        guard frame.count >= socStart + 2 else { return nil }
-
-        let btAddr = frame[btStart..<btStart + 6].map { String(format: "%02x", $0) }.joined()
-        let serBytes = Array(frame[serStart..<serStart + 16].prefix { $0 != 0 })
-        let serial = serBytes.isEmpty ? nil : String(bytes: serBytes, encoding: .ascii)
-        let raw = Int(frame[socStart]) | (Int(frame[socStart + 1]) << 8)
-        let socPct = Double(raw) / 10.0
-        return Info(present: true, socPct: socPct, serial: serial, btAddr: btAddr)
+        return decodeRecord(frame, base: cmdOff + 4)
     }
 
     /// WHOOP 4.0 path. A 4.0 has no `GET_BATTERY_PACK_INFO` (151); its pack is read via

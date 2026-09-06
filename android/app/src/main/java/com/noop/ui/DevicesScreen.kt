@@ -255,6 +255,8 @@ fun DevicesScreen(
                     live.batteryPct?.let { Math.round(it).toInt() } else null,
                 liveBatteryMv = if (device.status == DeviceStatus.active.name && live.connected)
                     live.batteryMv else null,
+                livePackSocPct = if (device.status == DeviceStatus.active.name && live.connected)
+                    live.packSocPct else null,
                 // Firmware version for the ACTIVE strap. It's a STABLE property (NOOP can't change a strap's
                 // firmware), so prefer the live handshake value but fall back to the last-known persisted
                 // firmware (NoopPrefs, written on connect) when the live value is momentarily null — mid-
@@ -728,6 +730,10 @@ private fun DeviceCard(
      *  generic strap, or an FTMS machine. null when not active/connected or no battery was reported. */
     liveBatteryPct: Int? = null,
     liveBatteryMv: Int? = null,
+    /** Battery-pack charge % (5/MG only), from the pushed pack event. Null when no pack is attached or
+     *  none has been reported yet — the row is simply absent then, which is the "only show it when a
+     *  pack is actually on" behaviour, for free. */
+    livePackSocPct: Double? = null,
     /** The active+connected strap's firmware version (from the connect handshake). null when not
      *  active/connected, or for a source that reports no firmware (e.g. a non-WHOOP strap). */
     liveFirmware: String? = null,
@@ -849,11 +855,18 @@ private fun DeviceCard(
             val voltsSuffix = if (liveBatteryMv != null)
                 " · " + stringResource(R.string.l10n_devices_screen_pack_voltage_9af3c3ff, liveBatteryMv / 1000.0)
             else ""
+            // Battery-pack charge (5/MG). Present only while a pack is actually attached, because the
+            // strap only sends the pack event then — so an empty suffix is the whole "hide it when not
+            // charging" rule, with no extra conditional.
+            val packSuffix = if (livePackSocPct != null)
+                " · " + stringResource(R.string.l10n_devices_screen_pack_charge_0e9589da, livePackSocPct)
+            else ""
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     lastSeenLine(device, isLiveConnected, bondRefused) +
                         (liveFirmware?.let { " · FW $it" } ?: "") +
                         voltsSuffix +
+                        packSuffix +
                         (historyLayoutLine(liveHistoryLayout)?.let { " · $it" } ?: ""),
                     style = NoopType.footnote,
                     color = Palette.textTertiary,
