@@ -396,27 +396,30 @@ final class ReadTests: XCTestCase {
     }
 
 
-    /// #1911: the byte estimate must MEASURE the blob rather than assume it. `ppgWaveformSample` is the
-    /// only table here whose row size varies, and the one a per-second row model misprices worst — so a
-    /// footprint that treats every row as a fixed width answers the wrong question about exactly the table
-    /// the question is usually about.
+    /// #1911: the byte estimate must MEASURE the blob rather than assume a fixed row width.
+    /// `ppgWaveformSample` is the only table here whose row size varies, and the one a per-second row
+    /// model misprices worst — a footprint that treats every row as fixed-width answers the wrong question
+    /// about exactly the table the question is usually about.
     ///
-    /// Seeded rows carry a real 4-byte blob, so its estimate must exceed a fixed-width table's per-row
-    /// figure by roughly the blob, and both must be positive and finite.
-    func testStorageByteEstimatesMeasureTheBlobColumn() async throws {
-        let store = try await seeded()
-        let bytes = try await store.storageByteEstimates()
-        let counts = try await store.storageRowCounts()
-        let wave = try XCTUnwrap(bytes["ppgWaveform"], "the blob table must be estimated, not skipped")
-        XCTAssertGreaterThan(wave, 0)
-        // Per-row, the blob table must cost more than a table of the same row count whose columns are all
-        // numeric — otherwise the blob is not being measured at all.
-        let waveRows = try XCTUnwrap(counts["ppgWaveform"])
-        let hrRows = try XCTUnwrap(counts["hr"])
-        if waveRows > 0, hrRows > 0, let hrBytes = bytes["hr"] {
-            XCTAssertGreaterThan(Double(wave) / Double(waveRows), Double(hrBytes) / Double(hrRows),
-                                 "a blob row must estimate larger than an all-numeric row")
+    /// Pinned by GROWING the blob rather than by comparing tables. My first attempt asserted that a blob
+    /// row estimates larger than an all-numeric row, which is false on a fixture: with a three-sample
+    /// blob `ppgWaveformSample` is three columns to `hrSample`'s four, so it estimates SMALLER. The blob
+    /// dominates in production (~48 bytes per v26 strap-second), not in a seed — so the invariant worth
+    /// pinning is that the blob's length reaches the estimate at all, which comparing two blob sizes
+    /// establishes and comparing two tables does not.
+    func testStorageByteEstimatesGrowWithBlobLength() async throws {
+        func estimate(sampleCount: Int) async throws -> Int {
+            let store = try await WhoopStore.inMemory()
+            let samples = [Int](repeating: 7, count: sampleCount)
+            _ = try await store.insert(Streams(ppgWaveform: [PpgWaveformSample(ts: 400, samples: samples)]),
+                                       deviceId: "dev1")
+            return try await store.storageByteEstimates()["ppgWaveform"] ?? 0
         }
+        let small = try await estimate(sampleCount: 4)      // ~8 bytes packed i16
+        let large = try await estimate(sampleCount: 200)    // ~400 bytes packed i16
+        XCTAssertGreaterThan(small, 0, "the blob table must be estimated, not skipped")
+        XCTAssertGreaterThan(large, small + 300,
+                             "a 400-byte blob must estimate far above an 8-byte one, or the blob is not measured")
     }
 
     /// An empty table is omitted rather than reported as zero bytes, matching the row counts: absent means
