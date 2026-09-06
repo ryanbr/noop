@@ -667,7 +667,9 @@ extension WhoopStore {
                         ? "COALESCE(LENGTH(\"\(name)\"), 0)" : "8"
                 }
                 let sql = "SELECT AVG(n) FROM (SELECT (\(terms.joined(separator: " + "))) AS n "
-                    + "FROM \(table) LIMIT \(sampleRows))"
+                    // Clamped: SQLite reads a NEGATIVE limit as no limit at all, so an unchecked value
+                    // here would full-scan the very tables the sampling exists to avoid scanning.
+                    + "FROM \(table) LIMIT \(max(1, sampleRows)))"
                 if let mean = try? Double.fetchOne(db, sql: sql), mean.isFinite, mean >= 0 {
                     out[key] = Int((mean * Double(rows)).rounded())
                 }
@@ -691,11 +693,17 @@ extension WhoopStore {
     /// calling it purely for `rawBytes` and discarding the rest - thirteen full scans, on the large stores
     /// where a scan is least free, for two numbers that touch a different table entirely.
     public func rawOutboxStats() async throws -> (batches: Int, bytes: Int) {
-        try syncRead { db in
-            let batches = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM rawBatch") ?? 0
-            let bytes = try Int.fetchOne(db, sql: "SELECT COALESCE(SUM(byteSize), 0) FROM rawBatch") ?? 0
-            return (batches, bytes)
-        }
+        try syncRead { try Self.rawOutbox($0) }
+    }
+
+    /// The outbox pair against an OPEN database, so `storageStats()` and `rawOutboxStats()` share one
+    /// implementation. It has to take `db` rather than call the other: `syncRead` is `dbWriter.read`, and
+    /// a read nested inside a read deadlocks - so a plain helper is the only way these two stop being a
+    /// copy of each other, and a test pinning that a copy agrees is a weaker thing than not having one.
+    private static func rawOutbox(_ db: Database) throws -> (batches: Int, bytes: Int) {
+        let batches = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM rawBatch") ?? 0
+        let bytes = try Int.fetchOne(db, sql: "SELECT COALESCE(SUM(byteSize), 0) FROM rawBatch") ?? 0
+        return (batches, bytes)
     }
 
     /// Aggregate storage footprint: total decoded rows, raw batch count, total raw byteSize.
@@ -715,10 +723,8 @@ extension WhoopStore {
             for (_, t) in Self.rawTableKeys {
                 decoded += try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM \(t)") ?? 0
             }
-            let batches = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM rawBatch") ?? 0
-            let bytes   = try Int.fetchOne(db,
-                sql: "SELECT COALESCE(SUM(byteSize), 0) FROM rawBatch") ?? 0
-            return (decoded, batches, bytes)
+            let outbox = try Self.rawOutbox(db)
+            return (decoded, outbox.batches, outbox.bytes)
         }
     }
 }

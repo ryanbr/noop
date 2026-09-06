@@ -444,12 +444,28 @@ final class ReadTests: XCTestCase {
 
     /// The raw-outbox read must agree with the aggregate it was split out of, or the probe's rawBytes
     /// silently changed meaning when it stopped counting thirteen decoded tables to get one number.
+    ///
+    /// They share one implementation now rather than being two copies this test compares — `syncRead` is
+    /// `dbWriter.read` and nesting one inside another deadlocks, so a plain `db`-taking helper is the only
+    /// way to share it. The assertion stays as the guard on that wiring.
     func testRawOutboxStatsMatchTheAggregate() async throws {
         let store = try await seeded()
         let stats = try await store.storageStats()
         let outbox = try await store.rawOutboxStats()
         XCTAssertEqual(outbox.batches, stats.rawBatches)
         XCTAssertEqual(outbox.bytes, stats.rawBytes)
+    }
+
+
+    /// A negative sample limit must not become an unbounded scan. SQLite reads `LIMIT -1` as "no limit",
+    /// so an unchecked value would full-scan every table — the exact cost the sampling exists to avoid,
+    /// reached by passing a number that looks like it would sample less rather than more.
+    func testStorageByteEstimatesClampANegativeSampleLimit() async throws {
+        let store = try await seeded()
+        let normal = try await store.storageByteEstimates()
+        let negative = try await store.storageByteEstimates(sampleRows: -1)
+        XCTAssertEqual(negative.keys.sorted(), normal.keys.sorted())
+        for (k, v) in negative { XCTAssertGreaterThan(v, 0, "\(k) must still estimate") }
     }
 
 }
