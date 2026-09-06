@@ -217,144 +217,6 @@ public enum RecoveryScorer {
                                          dampFraction: dampFraction)
     }
 
-    /// Rolling-mean HR window (seconds) for the resting-HR estimate.
-    public static let restingHRWindowS: Int = 5 * 60
-
-    /// Minimum HR samples a 5-min bin must hold before its mean is eligible to WIN the resting
-    /// floor (#686). A thinly-populated bin — at the limit a single lone beat — lets one artifact
-    /// (a dropout, a decode glitch) become the bin "mean" and win the night's minimum, dragging
-    /// resting HR implausibly low. Requiring a handful of samples means the floor is a genuine
-    /// sustained dip, not a one-sample fluke. Worn nights stream ~1 Hz HR so a real 5-min bin holds
-    /// hundreds of samples and clears this trivially; only sparse/edge bins (a partial trailing bin,
-    /// a gap-straddling bin) fall below it. Does NOT change the floor DEFINITION — still the min of
-    /// 5-min bin means — it only stops an under-sampled artifact bin from being that min.
-    public static let restingHRMinBinSamples: Int = 5
-
-    /// Physiological resting-HR floor (bpm) below which a bin mean is rejected as a dropout artifact
-    /// (#686), never the resting floor. An adult's true sleeping resting HR essentially never sits
-    /// below this; a 5-min mean that does is a run of dropout/decode-zero beats, not a real cardiac
-    /// dip. 25 bpm clears even deeply-bradycardic trained athletes (resting HRs in the low 30s) with
-    /// margin while rejecting the implausible artifact range. A bin below this is excluded from floor
-    /// candidacy; if it were allowed to win, resting HR would read a fabricated sub-physiological value.
-    public static let restingHRMinPlausibleBpm: Double = 25.0
-
-    // MARK: - Resting HR
-
-    /// Lowest sustained HR during the in-bed window (bpm, rounded), or nil.
-    ///
-    /// "Sustained" = the minimum of 5-minute non-overlapping bin means of the HR
-    /// samples whose ts ∈ [start, end]. Rejects single-beat dips while capturing
-    /// the night's true floor. Returns nil when there are no HR samples in window.
-    ///
-    /// The window is CLOSED at both ends, so the binning is too: bins are `[t, t + windowS)`
-    /// except the final one, which is `[t, end]`. Half-open bins alone would admit a
-    /// sample sitting exactly on an aligned `end` through the prefilter and then place it in no
-    /// bin — counted as data, silently ignored. A zero-length window (`start == end`) is that
-    /// single closed bin.
-    ///
-    /// Artifact hardening (#686): a bin may only WIN the floor when it is BOTH well-populated
-    /// (≥ `restingHRMinBinSamples`, so one lone artifact beat can't be a bin "mean") AND
-    /// physiologically plausible (mean ≥ `restingHRMinPlausibleBpm`, rejecting dropout-driven
-    /// sub-physiological dips). The floor DEFINITION is unchanged — still the minimum of the
-    /// 5-min bin means — only artifact bins are barred from being that minimum. If no bin
-    /// qualifies (a wholly sparse/degenerate window), fall back to the lowest of ALL bin means,
-    /// else the all-sample mean, preserving the never-nil-on-data behaviour.
-    public static func restingHR(_ hr: [HRSample], start: Int, end: Int) -> Int? {
-        let seg = hr.filter { $0.ts >= start && $0.ts <= end }
-        guard !seg.isEmpty else { return nil }
-
-        var means: [Double] = []          // every bin mean (legacy floor, the fallback)
-        var qualified: [Double] = []       // bins eligible to WIN the floor (#686)
-        var t = start
-        repeat {
-            // The last bin (its half-open end reaches or passes `end`) closes on `end` instead,
-            // catching an endpoint sample the prefilter already admitted. `seg` holds nothing
-            // past `end`, so "everything from t onwards" IS [t, end]. `repeat` runs once for a
-            // zero-length window, where that single closed bin is the whole window.
-            let isFinal = t + restingHRWindowS >= end
-            let win = seg.filter { $0.ts >= t && (isFinal || $0.ts < t + restingHRWindowS) }
-            if !win.isEmpty {
-                let mean = Double(win.reduce(0) { $0 + $1.bpm }) / Double(win.count)
-                means.append(mean)
-                // A bin wins the floor only if it is well-populated AND physiologically plausible —
-                // a thin (single-artifact) or sub-physiological (dropout) bin can't be the minimum.
-                if win.count >= restingHRMinBinSamples && mean >= restingHRMinPlausibleBpm {
-                    qualified.append(mean)
-                }
-            }
-            t += restingHRWindowS
-        } while t < end
-        let floor: Double
-        if let m = qualified.min() {
-            floor = m
-        } else if let m = means.min() {
-            // No bin cleared the artifact bar (sparse window): fall back to the legacy floor.
-            floor = m
-        } else {
-            floor = Double(seg.reduce(0) { $0 + $1.bpm }) / Double(seg.count)
-        }
-        return Int(floor.rounded())
-    }
-
-    // MARK: - Recovery Index (overnight HR-decline slope)
-
-    /// Minimum 5-minute bins (`restingHR`'s SAME binning) required before a slope is trusted —
-    /// below this, too little of the night has elapsed to fit a trend, and a 1-2-point
-    /// regression is noise, not a night-long pattern. 6 bins = 30 minutes of binned coverage,
-    /// a deliberately low floor so a short/partial night still gets a number rather than a
-    /// routine nil.
-    public static let recoveryIndexMinBins: Int = 6
-
-    /// Overnight resting-HR DECLINE slope (bpm/hour) across the in-bed window — the "Recovery
-    /// Index" component of Oura's Readiness that Charge lacked (it previously only read the
-    /// overnight FLOOR via `restingHR` above, never the trend that reaches it).
-    ///
-    /// Computed as the least-squares slope of the SAME non-overlapping 5-minute HR bin means
-    /// `restingHR` uses (`restingHRWindowS`) against each bin's midpoint time (hours from
-    /// `start`, and for the final closed bin still its half-open midpoint `t + windowS / 2`, so a
-    /// partial or endpoint-only last bin keeps the same time axis as every other bin).
-    /// NEGATIVE = declining (HR falling through the night — the physiologically
-    /// expected, good pattern); POSITIVE = rising (restlessness, illness, alcohol, a late
-    /// stimulant). Returns nil when fewer than `recoveryIndexMinBins` bins have data (too
-    /// little of the window to fit a trend) or there are no samples at all — it never
-    /// fabricates a slope from a sliver of the night.
-    public static func recoveryIndexSlope(_ hr: [HRSample], start: Int, end: Int) -> Double? {
-        let seg = hr.filter { $0.ts >= start && $0.ts <= end }
-        guard !seg.isEmpty else { return nil }
-
-        // Same non-overlapping 5-minute binning as restingHR: both read the identical
-        // underlying series, one as a floor, one as a trend across it.
-        var points: [(tHours: Double, meanBpm: Double)] = []
-        var t = start
-        repeat {
-            // Final bin closes on `end` — same closed-window rule as restingHR, so an
-            // endpoint sample counts toward the bin gate instead of vanishing after admission.
-            let isFinal = t + restingHRWindowS >= end
-            let win = seg.filter { $0.ts >= t && (isFinal || $0.ts < t + restingHRWindowS) }
-            if !win.isEmpty {
-                let mean = Double(win.reduce(0) { $0 + $1.bpm }) / Double(win.count)
-                let midpointS = Double(t - start) + Double(restingHRWindowS) / 2.0
-                points.append((tHours: midpointS / 3600.0, meanBpm: mean))
-            }
-            t += restingHRWindowS
-        } while t < end
-        guard points.count >= recoveryIndexMinBins else { return nil }
-
-        // Least-squares slope: Σ((t-t̄)(y-ȳ)) / Σ((t-t̄)²), bpm per hour.
-        let n = Double(points.count)
-        let tBar = points.reduce(0.0) { $0 + $1.tHours } / n
-        let yBar = points.reduce(0.0) { $0 + $1.meanBpm } / n
-        var num = 0.0, den = 0.0
-        for p in points {
-            let dt = p.tHours - tBar
-            num += dt * (p.meanBpm - yBar)
-            den += dt * dt
-        }
-        // Degenerate (all bins at the same instant): no time spread to fit against.
-        guard den > 1e-9 else { return 0.0 }
-        return num / den
-    }
-
     // MARK: - Recovery band
 
     /// WHOOP-style color band for a recovery score [0, 100].
@@ -438,8 +300,8 @@ public enum RecoveryScorer {
     ///     no-skin-temp score is identical to before.
     ///   - hrvBaselineUsable: whether the HRV baseline has enough nights
     ///     (BaselineState.usable). When false, returns nil (cold-start).
-    ///   - recoveryIndexSlope: overnight resting-HR DECLINE slope (bpm/hour, from
-    ///     `recoveryIndexSlope(_:start:end:)`). Negative (declining) supports recovery;
+    ///   - recoveryIndexSlope: overnight resting-HR DECLINE slope (bpm/hour), supplied by the
+    ///     caller. Negative (declining) supports recovery;
     ///     positive (rising) limits it, weight wRecoveryIndex. nil (the default) drops the
     ///     term and the weights renormalize, so the no-slope score is IDENTICAL to before
     ///     this parameter existed.

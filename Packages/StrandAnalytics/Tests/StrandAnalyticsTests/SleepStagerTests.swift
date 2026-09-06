@@ -859,6 +859,101 @@ final class SleepStagerTests: XCTestCase {
         XCTAssertLessThan(hrv!, 50, "ectopic spikes must be rejected before rMSSD")
     }
 
+    // MARK: - Session window endpoint: the closed [start, end] window has a closed FINAL bin
+
+    // `sessionRestingHR` and `sessionHrvWindows` prefilter ts ∈ [start, end], so a sample sitting
+    // exactly ON `end` is admitted. Binned as [t, t + 300) with a loop that stops at `end`, an
+    // ALIGNED end (end - start a multiple of the window) left that admitted sample in no bin: it
+    // counted as data and was then silently ignored. The final bin is therefore closed on `end`,
+    // the same rule RecoveryScorer already carries. Each case is paired with a non-aligned twin
+    // that was always correct, so the fix cannot be mistaken for a change to trailing partial bins.
+    // Expected values are the verbatim stdout of a standalone Swift oracle over the fixed binning;
+    // SleepStagerWindowEndpointTest.kt pins the same scenarios with the same literals.
+
+    func testSessionRestingHRAlignedEndpointSampleReachesABin() {
+        // Minimal case: start = 0, end = 300 (one window wide), five samples on the endpoint.
+        // Already returned 60 before the fix, but only via the all-sample fallback (no bin held
+        // anything); it now flows through the bin path.
+        let hr = (0..<5).map { _ in HRSample(ts: 300, bpm: 60) }
+        XCTAssertEqual(SleepStager.sessionRestingHR(start: 0, end: 300, hr: hr), 60,
+                       "a sample exactly on an aligned end must belong to the final bin")
+    }
+
+    func testSessionRestingHRNonAlignedEndpointSampleReachesABin() {
+        // Paired non-aligned case: end = 450 falls mid-window, so the endpoint sample was always
+        // inside the trailing partial bin. Same answer, before and after.
+        let hr = (0..<5).map { _ in HRSample(ts: 450, bpm: 60) }
+        XCTAssertEqual(SleepStager.sessionRestingHR(start: 0, end: 450, hr: hr), 60,
+                       "a sample on a non-aligned end stays in the trailing partial bin")
+    }
+
+    func testSessionRestingHREndpointSampleLandsInFinalBinOnly() {
+        // Where the fallback cannot hide the dropped sample: a dense 70 bpm first bin plus five
+        // endpoint beats at 40 makes the floor 40, and the 70 bpm bin stays untouched. Before the
+        // fix the endpoint beats vanished and the shipped resting HR read 70.
+        var hr: [HRSample] = (0..<300).map { HRSample(ts: $0, bpm: 70) }
+        hr.append(contentsOf: (0..<5).map { _ in HRSample(ts: 600, bpm: 40) })
+        XCTAssertEqual(SleepStager.sessionRestingHR(start: 0, end: 600, hr: hr), 40,
+                       "the endpoint sample belongs to the final bin only")
+    }
+
+    func testSessionRestingHRDegenerateZeroLengthWindow() {
+        // start == end: the single instant is one closed bin — the same number the all-sample
+        // fallback produced before.
+        let hr = (0..<5).map { _ in HRSample(ts: 1000, bpm: 58) }
+        XCTAssertEqual(SleepStager.sessionRestingHR(start: 1000, end: 1000, hr: hr), 58)
+    }
+
+    func testSessionRestingHREndpointSweepMatchesOracle() {
+        // `end` walks a whole window width and beyond in 25 s steps against a dense 70 bpm opening
+        // bin plus five endpoint beats at 60. Verbatim oracle stdout, the check that catches drift
+        // the eye does not — including end = 300, where the single closed bin holds BOTH groups.
+        let expected = [62, 68, 69, 69, 70, 70, 70, 70, 70, 70, 70, 70, 70,
+                        60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60,
+                        60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60]
+        var i = 0
+        var endTs = 0
+        while endTs <= 900 {
+            var hr: [HRSample] = (0..<300).map { HRSample(ts: $0, bpm: 70) }
+            hr.append(contentsOf: (0..<5).map { _ in HRSample(ts: endTs, bpm: 60) })
+            XCTAssertEqual(SleepStager.sessionRestingHR(start: 0, end: endTs, hr: hr), expected[i],
+                           "sessionRestingHR.end=\(endTs)")
+            i += 1
+            endTs += 25
+        }
+    }
+
+    func testSessionHrvWindowsAlignedEndpointBeatsFillTheFinalWindow() {
+        // 120 beats in the opening window plus three beats exactly on an aligned end = 600. The
+        // second window is the final one, so it closes on `end` and holds those three beats;
+        // before the fix it was emitted empty and its RMSSD was nil. Constant 900 ms RR keeps the
+        // RMSSD analytically 0.0 on both platforms — this pins the BINNING, not the RMSSD math.
+        var rr: [RRInterval] = (0..<120).map { RRInterval(ts: $0, rrMs: 900) }
+        rr.append(contentsOf: (0..<3).map { _ in RRInterval(ts: 600, rrMs: 900) })
+        let wins = SleepStager.sessionHrvWindows(start: 0, end: 600, rr: rr, stages: [])
+        XCTAssertEqual(wins.map { $0.startTs }, [0, 300])
+        XCTAssertEqual(wins.map { $0.cleanBeats }, [120, 3],
+                       "the endpoint beats must fill the final window")
+        XCTAssertEqual(wins.map { $0.rmssd }, [0.0, 0.0])
+    }
+
+    func testSessionHrvWindowsNonAlignedEndpointUnchanged() {
+        // Paired non-aligned case: end = 450 sits mid-window, so the endpoint beats were already
+        // inside the trailing partial window. Same shape, before and after.
+        var rr: [RRInterval] = (0..<120).map { RRInterval(ts: $0, rrMs: 900) }
+        rr.append(contentsOf: (0..<3).map { _ in RRInterval(ts: 450, rrMs: 900) })
+        let wins = SleepStager.sessionHrvWindows(start: 0, end: 450, rr: rr, stages: [])
+        XCTAssertEqual(wins.map { $0.startTs }, [0, 300])
+        XCTAssertEqual(wins.map { $0.cleanBeats }, [120, 3])
+    }
+
+    func testSessionAvgHRVZeroLengthWindowUsesTheEndpointBeats() {
+        // The value-level consequence: a zero-length window (start == end) is one closed bin, so
+        // beats admitted by the prefilter produce a number instead of nil.
+        let rr = (0..<3).map { _ in RRInterval(ts: 1000, rrMs: 900) }
+        XCTAssertEqual(SleepStager.sessionAvgHRV(start: 1000, end: 1000, rr: rr), 0.0)
+    }
+
     // MARK: - Helper robustness
 
     func testConvolveReflectShortInputDoesNotCrash() {
