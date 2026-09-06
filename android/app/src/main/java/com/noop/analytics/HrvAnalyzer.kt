@@ -442,6 +442,15 @@ object HrvAnalyzer {
      * enters the personal baseline the following nights are scored against, so showing it spreads the
      * error into days whose own capture was clean.
      *
+     * THE COST REACHES FURTHER THAN THE CARD, and a reader should know it before widening this rule.
+     * [Baselines.update] holds on a null night without advancing `nValid`, so on an install whose EVERY
+     * night gates, the HRV baseline never reaches [Baselines.minNightsSeed] and stays CALIBRATING
+     * indefinitely. That is the WHOOP 4.0-only case exactly. It is still the right answer, because the
+     * alternative is seeding a personal baseline from beats the heart did not produce and scoring every
+     * later night against it, but it means this gate can leave a strap with no HRV baseline at all rather
+     * than merely a gap in one. A mixed install is unaffected: its clean nights seed the baseline and the
+     * gated ones skip-and-hold.
+     *
      * UNDER_COVERED and UNMEASURABLE stay trusted for the same reason they do above: neither duplicates a
      * beat, and UNMEASURABLE is what an honest live spot reading looks like. Pure. Byte-parity twin of
      * Swift `successiveDiffIsTrustworthy`.
