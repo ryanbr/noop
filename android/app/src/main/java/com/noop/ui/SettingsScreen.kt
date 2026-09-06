@@ -87,6 +87,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -141,6 +142,7 @@ import com.noop.update.UpdateCheck
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 import com.noop.analytics.ClockFormatPreference
 
@@ -1741,6 +1743,18 @@ fun SettingsScreen(
                     onCheckedChange = { BottomBarStyleStore.setAutoHide(context, it) },
                 )
             }
+            // Reaching either control below means scrolling DOWN, which auto-hide reads as "hide the
+            // bar" - so a change made here landed on a bar the user could not see, and neither a slider
+            // drag nor a menu pick is a scroll, so nothing brought it back.
+            //
+            // Keyed on what the bar LOOKS like rather than on either control, so one rule covers both: a
+            // drag restarts this every frame and stays pinned throughout, a menu pick fires it once, and
+            // either way the bar is held a moment longer so the result is visible after the finger lifts.
+            LaunchedEffect(BottomBarStyleStore.scale, BottomBarStyleStore.opacityStep) {
+                BottomBarStyleStore.pinPreview(true)
+                delay(1_500)
+                BottomBarStyleStore.pinPreview(false)
+            }
             SettingsRowDivider()
             // Size. A dropdown of fixed multipliers rather than a slider: these are the sizes worth
             // having, and a continuous control here mostly produces sizes a user cannot tell apart.
@@ -1785,16 +1799,9 @@ fun SettingsScreen(
                     // Live while dragging, persisted once on release: a drag emits a value per frame, and
                     // writing each one records a decision the user makes once. Rounded, not truncated -
                     // the snapped value can arrive as 5.9999998, which truncation would read as step 5.
-                    onValueChange = {
-                        // Hold the bar visible for the drag: reaching this slider means scrolling down,
-                        // which auto-hide reads as "hide the bar", so the live preview was invisible at
-                        // exactly the moment it is for.
-                        BottomBarStyleStore.pinPreview(true)
-                        BottomBarStyleStore.previewOpacityStep(it.roundToInt())
-                    },
+                    onValueChange = { BottomBarStyleStore.previewOpacityStep(it.roundToInt()) },
                     onValueChangeFinished = {
                         BottomBarStyleStore.setOpacityStep(context, BottomBarStyleStore.opacityStep)
-                        BottomBarStyleStore.pinPreview(false)
                     },
                     valueRange = MIN_OPACITY_STEP.toFloat()..MAX_OPACITY_STEP.toFloat(),
                     // Compose counts the stops BETWEEN the ends, so N notches is N-2. Derived, not
