@@ -111,8 +111,8 @@ final class CoachVoiceInput: ObservableObject {
         #if canImport(UIKit)
         guard canUseVoice else {
             statusMessage = Self.localeSupportsOnDevice
-                ? "Voice input unavailable. Check microphone permission in Settings."
-                : "On-device speech not available for \(Locale.current.identifier)."
+                ? String(localized: "Voice input unavailable. Check microphone permission in Settings.")
+                : String(localized: "On-device speech not available for \(Locale.current.identifier).")
             return
         }
         stopTranscribing(completion: { _ in })
@@ -173,7 +173,7 @@ final class CoachVoiceInput: ObservableObject {
         self.recognitionRequest = request
 
         guard let recognizer = SFSpeechRecognizer(locale: Locale.current) else {
-            statusMessage = "On-device speech not available for \(Locale.current.identifier)."
+            statusMessage = String(localized: "On-device speech not available for \(Locale.current.identifier).")
             return
         }
 
@@ -207,7 +207,7 @@ final class CoachVoiceInput: ObservableObject {
             try audioEngine.start()
             isRecording = true
         } catch {
-            statusMessage = "Couldn't start the microphone: \(error.localizedDescription)"
+            statusMessage = String(localized: "Couldn't start the microphone: \(error.localizedDescription)")
             finishSession(completion: { _ in })
         }
     }
