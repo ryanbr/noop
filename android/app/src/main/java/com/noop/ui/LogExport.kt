@@ -7,6 +7,7 @@ import android.widget.Toast
 import androidx.core.content.FileProvider
 import com.noop.BuildConfig
 import com.noop.ble.PuffinExperiment
+import com.noop.testcentre.TestBundleAssembler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -494,8 +495,10 @@ object LogExport {
             if (!hasCapture) {
                 Toast.makeText(context, noCaptureMsg(context, whoop5Connected, encryptedBond, sharingLog = true), Toast.LENGTH_LONG).show()
             }
+            val redacted = TestBundleAssembler.redactEntries(entries)
+            val (capped, _) = TestBundleAssembler.capEntries(redacted)
             val name = "noop-export-${timestamp()}.zip"
-            exportBundle(context, entries, name)
+            exportBundle(context, capped, name)
         }.onFailure {
             Toast.makeText(context, "Couldn't export the pair: ${it.message}", Toast.LENGTH_LONG).show()
         }
