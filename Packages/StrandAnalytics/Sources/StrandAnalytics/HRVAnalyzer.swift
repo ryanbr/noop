@@ -424,11 +424,47 @@ public enum HRVAnalyzer {
     /// arriving in real time, carrying no timestamps to measure coverage with — and suppressing those
     /// would refuse honest readings, the opposite of the point.
     ///
-    /// Successive-difference statistics (RMSSD, pNN50) are deliberately NOT gated here. Their dominant
-    /// error on a banked stream was the lost within-second emission order (#823, root-caused in #1072),
-    /// which is fixed at the write path; whether they need a gate of their own is a question for a
-    /// post-fix capture to answer, not an assumption to bake in now.
+    /// Successive-difference statistics (RMSSD, pNN50) are not gated HERE, but they are no longer ungated:
+    /// see `successiveDiffIsTrustworthy` below. The question this comment used to leave open, whether they
+    /// need a gate of their own, was one for a post-fix capture to answer. That capture has since arrived
+    /// and answered it yes.
     public static func beatSpreadIsTrustworthy(_ verdict: RrCoverageVerdict) -> Bool {
+        switch verdict {
+        case .sameSecondOverCount, .crossSecondOverCount:
+            return false
+        case .plausible, .underCovered, .unmeasurable:
+            return true
+        }
+    }
+
+    /// Whether RMSSD / pNN50 can be trusted from a window with this coverage verdict (#1118).
+    ///
+    /// The sibling of `beatSpreadIsTrustworthy`, and the same two verdicts refuse, but for its own reason
+    /// rather than by borrowing that one's. SDNN is a spread over every interval, so a duplicated beat
+    /// widens it. Successive-difference statistics fail the other way: a beat the heart never produced
+    /// sits next to its neighbour with a near-zero difference, and RMSSD is the root mean square of
+    /// exactly those differences, so an over-counted night reads LOW. Measured on a WHOOP 4.0 night whose
+    /// banked R-R covers 2.13× the wall clock it spans, RMSSD reads 36 ms where the same night's beats
+    /// collapsed read 41 ms; the direction of the error is not obvious from the number, which is precisely
+    /// why it cannot be shown.
+    ///
+    /// The comment on `beatSpreadIsTrustworthy` used to say these were deliberately ungated because their
+    /// dominant error was the lost within-second emission order fixed at the write path (#823 / #1072),
+    /// and that whether they needed a gate of their own was for a post-fix capture to answer. The capture
+    /// arrived: a build carrying that fix, on a WHOOP 4.0, still reports `crossSecondOverCount` on every
+    /// measured night, with 91% of the inflating beat-time on seconds written by more than one delivery.
+    /// The write-path fix did not make the stream clean, so the assumption it licensed no longer holds.
+    ///
+    /// WITHHOLD, DO NOT FABRICATE. This trades a wrong number for a blank on every affected night, which
+    /// is a real cost: HRV is the dominant Charge driver, so a gated night drops that term and renormalises
+    /// the rest. That cost is accepted deliberately. A contaminated RMSSD does not merely display wrong, it
+    /// enters the personal baseline the following nights are scored against, so showing it spreads the
+    /// error into days whose own capture was clean.
+    ///
+    /// `underCovered` and `unmeasurable` stay trusted for the same reason they do above: neither duplicates
+    /// a beat, and `unmeasurable` is what an honest live spot reading looks like. Pure. Byte-parity twin of
+    /// Kotlin `successiveDiffIsTrustworthy`.
+    public static func successiveDiffIsTrustworthy(_ verdict: RrCoverageVerdict) -> Bool {
         switch verdict {
         case .sameSecondOverCount, .crossSecondOverCount:
             return false

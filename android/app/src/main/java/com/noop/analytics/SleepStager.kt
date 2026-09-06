@@ -3108,7 +3108,26 @@ object SleepStager {
      */
     internal fun sessionAvgHRV(start: Long, end: Long, rr: List<RrInterval>): Double? {
         val vals = sessionHrvWindows(start, end, rr, emptyList()).mapNotNull { it.rmssd }
-        return if (vals.isEmpty()) null else vals.sum() / vals.size.toDouble()
+        if (vals.isEmpty()) return null
+        // #1118: refuse the night outright when its own R-R banks more beat-time than the wall clock it
+        // spans. Gated HERE rather than at the caller because this is where RMSSD BECOMES the day's HRV:
+        // one seam covers the daily row, the sleep-session cache, the Health card and the baseline that
+        // later nights are scored against, so none of them can end up disagreeing about whether the night
+        // was trustworthy. See [HrvAnalyzer.successiveDiffIsTrustworthy] for why an over-count corrupts a
+        // successive-difference statistic and why a blank is the right answer.
+        //
+        // Classified over the SAME beats the value was built from, windowed [start, end] exactly as
+        // `sessionHrvWindows` does, so the verdict cannot describe a different set of beats than the number
+        // it is gating.
+        val seg = rr.filter { it.ts in start..end }
+        val segTs = seg.map { it.ts }
+        val segMs = seg.map { it.rrMs.toDouble() }
+        val verdict = HrvAnalyzer.classifyCoverage(
+            HrvAnalyzer.rrCoverage(segTs, segMs),
+            HrvAnalyzer.collapsedCoverage(segTs, segMs),
+        )
+        if (!HrvAnalyzer.successiveDiffIsTrustworthy(verdict)) return null
+        return vals.sum() / vals.size.toDouble()
     }
 
     /**
