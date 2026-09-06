@@ -36,6 +36,19 @@ final class SseDeltasTests: XCTestCase {
         XCTAssertFalse(SseDeltas.isDone("{\"choices\":[]}"))
     }
 
+    // MARK: - CRLF parity (Kotlin trim() strips \r; Swift .whitespaces does not)
+
+    func testIsDoneStripsCRLF() {
+        // A CRLF stream leaves a trailing \r after \n-splitting. Kotlin's trim() removes it;
+        // Swift must use .whitespacesAndNewlines to match, or isDone returns false on iOS.
+        XCTAssertTrue(SseDeltas.isDone("[DONE]\r"))
+        XCTAssertTrue(SseDeltas.isDone("[DONE]\r\n"))
+    }
+
+    func testDataPayloadStripsCRLF() {
+        XCTAssertEqual(SseDeltas.dataPayload(fromLine: "data: {\"hello\":1}\r"), "{\"hello\":1}")
+    }
+
     // MARK: - OpenAI delta
 
     func testOpenAiContentDelta() {
@@ -59,6 +72,14 @@ final class SseDeltasTests: XCTestCase {
 
     func testOpenAiMalformedReturnsNil() {
         XCTAssertNil(SseDeltas.openAiDelta("not json"))
+    }
+
+    func testOpenAiEmptyContentReturnsNil() {
+        // OpenAI's usual first delta carries `"content": ""`. Kotlin returns null (optString +
+        // takeIf { isNotEmpty() }); Swift must match so onDelta doesn't fire on one platform only
+        // (K14 haptics hang off delta arrival).
+        let payload = #"{"choices":[{"index":0,"delta":{"content":""}}]}"#
+        XCTAssertNil(SseDeltas.openAiDelta(payload))
     }
 
     // MARK: - Gemini delta
@@ -111,6 +132,12 @@ final class SseDeltasTests: XCTestCase {
 
     func testAnthropicMalformedReturnsNil() {
         XCTAssertNil(SseDeltas.anthropicDelta("not json"))
+    }
+
+    func testAnthropicEmptyTextReturnsNil() {
+        // Parity with Kotlin: empty text → null, not "" (same reason as OpenAI empty content).
+        let payload = #"{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":""}}"#
+        XCTAssertNil(SseDeltas.anthropicDelta(payload))
     }
 
     // MARK: - Full-stream reassembly (the parity pin: streamed == non-streamed)

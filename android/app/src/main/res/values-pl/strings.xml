@@ -2718,4 +2718,12 @@
     <string name="coach_brief_widget_title">✦ Podsumowanie Trenera</string>
     <string name="coach_brief_widget_empty">Brak podsumowania</string>
     <string name="coach_brief_widget_enable">Włącz poranne podsumowanie w ustawieniach Trenera, aby zobaczyć tu dzisiejszą gotowość.</string>
+    <string name="coach_voice_error_no_speech">Nie wykryto mowy.</string>
+    <string name="coach_voice_error_audio">Nie udało się nagrać dźwięku.</string>
+    <string name="coach_voice_error_busy">Rozpoznawanie mowy jest zajęte. Spróbuj ponownie.</string>
+    <string name="coach_voice_error_permission">Odmowa uprawnień do mikrofonu.</string>
+    <string name="coach_voice_error_generic">Wprowadzanie głosowe nie powiodło się. Spróbuj ponownie.</string>
+    <string name="coach_voice_error_server">Rozpoznawanie mowy na urządzeniu jest niedostępne dla tego języka.</string>
+    <string name="coach_voice_unavailable">Rozpoznawanie mowy na urządzeniu nie jest dostępne na tym urządzeniu lub w tym języku.</string>
+    <string name="coach_voice_permission_denied">Odmowa uprawnień do mikrofonu. Włącz je w Ustawieniach, aby używać wprowadzania głosowego.</string>
 </resources>

@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -14,20 +15,23 @@ import androidx.core.content.ContextCompat
  * K4: On-device speech-to-text wrapper for the Coach composer (Android).
  *
  * Design contract (see PRD-K4):
- * - **No raw audio egress.** Android's [SpeechRecognizer] runs on-device for the locales the
- *   platform supports; the intent is configured with [RecognizerIntent.EXTRA_PREFER_OFFLINE] = true
- *   so the platform prefers the on-device recognizer when available. Only the resulting TEXT
- *   ever reaches the AI provider, via the same channel a typed question uses.
+ * - **No raw audio egress.** Uses [SpeechRecognizer.createOnDeviceSpeechRecognizer] (API 31+)
+ *   behind an [SpeechRecognizer.isOnDeviceRecognitionAvailable] gate, so audio is GUARANTEED to
+ *   stay on-device — not merely "preferred". On API < 31 the on-device-only APIs don't exist, so
+ *   voice is disabled entirely (matching iOS, which disables voice when
+ *   `supportsOnDeviceRecognition` is false for the locale). Only the resulting TEXT ever reaches
+ *   the AI provider, via the same channel a typed question uses.
  * - The mic button lives in the Coach composer; this class is the single source of truth for
  *   start/stop/permission state.
  * - Mirrors the iOS `CoachVoiceInput` (SFSpeechRecognizer) twin — feature-level parity, the
  *   transcript text is the same kind of string a typed question produces.
  *
  * Usage:
- * 1. [isPermissionGranted] / [checkPermission] gate whether the mic button is enabled.
- * 2. [start] begins a session; [onPartial] fires with the live transcript.
- * 3. [stop] finalizes and returns the final text via [onFinal].
- * 4. [destroy] releases the recognizer (call from Compose `DisposableEffect` or `onCleared`).
+ * 1. [isAvailable] gates whether the mic button is shown at all (API 31+ + on-device support).
+ * 2. [isPermissionGranted] / [checkPermission] gate whether the mic button is enabled.
+ * 3. [start] begins a session; [onPartial] fires with the live transcript.
+ * 4. [stop] finalizes and returns the final text via [onFinal].
+ * 5. [destroy] releases the recognizer (call from Compose `DisposableEffect` or `onCleared`).
  *
  * This class is NOT a ViewModel — it's a lightweight controller owned by the Compose layer
  * (the mic button), because SpeechRecognizer must be created and destroyed on the main thread
@@ -43,6 +47,16 @@ class CoachVoiceInput(
     private var recognizer: SpeechRecognizer? = null
     private var isRecording: Boolean = false
 
+    /**
+     * Whether on-device speech recognition is available on this device + locale.
+     * Requires API 31+ (`createOnDeviceSpeechRecognizer` / `isOnDeviceRecognitionAvailable`).
+     * Below API 31, the on-device-only APIs don't exist, so voice is disabled — matching iOS,
+     * which disables voice when `supportsOnDeviceRecognition` is false.
+     */
+    fun isAvailable(): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
+
     /** Whether RECORD_AUDIO is already granted. */
     fun isPermissionGranted(): Boolean =
         ContextCompat.checkSelfPermission(
@@ -57,11 +71,16 @@ class CoachVoiceInput(
     fun recording(): Boolean = isRecording
 
     /**
-     * Begin a recognition session. The platform SpeechRecognizer is created on the main thread
-     * (per its contract) and configured to prefer the on-device engine.
+     * Begin a recognition session. The on-device SpeechRecognizer is created on the main thread
+     * (per its contract). Uses [createOnDeviceSpeechRecognizer] so audio is guaranteed to stay
+     * on-device — no server fallback is possible.
      */
     fun start() {
         if (isRecording) return
+        if (!isAvailable()) {
+            onError("On-device speech recognition is not available on this device or locale.")
+            return
+        }
         if (!isPermissionGranted()) {
             onError("Microphone permission not granted.")
             return
@@ -69,12 +88,15 @@ class CoachVoiceInput(
         // SpeechRecognizer must be created on the main thread; this class is called from Compose
         // which runs there, so we're safe.
         recognizer?.destroy()
-        recognizer = SpeechRecognizer.createSpeechRecognizer(context)
+        recognizer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
+        } else {
+            // Unreachable: isAvailable() gates on API 31+ above.
+            return
+        }
 
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            // K4 hard constraint: prefer the on-device recognizer so audio doesn't leave the device.
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
             // Partial results so the composer updates live as the user speaks.
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             // Use the device's current locale.
@@ -133,13 +155,13 @@ class CoachVoiceInput(
 
     /** Map platform error codes to a short human-readable message. */
     private fun mapError(error: Int): String = when (error) {
-        SpeechRecognizer.ERROR_NO_MATCH -> "No speech was heard."
-        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech was heard."
-        SpeechRecognizer.ERROR_AUDIO -> "Audio recording failed."
-        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Speech recognizer is busy. Try again."
-        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission denied."
-        SpeechRecognizer.ERROR_CLIENT -> "Voice input failed. Try again."
-        SpeechRecognizer.ERROR_SERVER -> "On-device speech is unavailable for this locale."
-        else -> "Voice input failed. Try again."
+        SpeechRecognizer.ERROR_NO_MATCH -> context.getString(R.string.coach_voice_error_no_speech)
+        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> context.getString(R.string.coach_voice_error_no_speech)
+        SpeechRecognizer.ERROR_AUDIO -> context.getString(R.string.coach_voice_error_audio)
+        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> context.getString(R.string.coach_voice_error_busy)
+        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> context.getString(R.string.coach_voice_error_permission)
+        SpeechRecognizer.ERROR_CLIENT -> context.getString(R.string.coach_voice_error_generic)
+        SpeechRecognizer.ERROR_SERVER -> context.getString(R.string.coach_voice_error_server)
+        else -> context.getString(R.string.coach_voice_error_generic)
     }
 }

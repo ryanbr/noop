@@ -43,6 +43,17 @@ class SseDeltasTest {
         assertFalse(SseDeltas.isDone("{\"choices\":[]}"))
     }
 
+    // MARK: - CRLF parity (Kotlin trim() strips \r; Swift .whitespaces does not)
+
+    @Test fun isDoneStripsCRLF() {
+        assertTrue(SseDeltas.isDone("[DONE]\r"))
+        assertTrue(SseDeltas.isDone("[DONE]\r\n"))
+    }
+
+    @Test fun dataPayloadStripsCRLF() {
+        assertEquals("{\"hello\":1}", SseDeltas.dataPayload(fromLine = "data: {\"hello\":1}\r"))
+    }
+
     // MARK: - OpenAI delta
 
     @Test fun openAiContentDelta() {
@@ -65,6 +76,13 @@ class SseDeltasTest {
 
     @Test fun openAiMalformedReturnsNull() {
         assertNull(SseDeltas.openAiDelta("not json"))
+    }
+
+    @Test fun openAiEmptyContentReturnsNull() {
+        // OpenAI's usual first delta carries `"content": ""`. Kotlin returns null (optString +
+        // takeIf { isNotEmpty() }); Swift must match so onDelta doesn't fire on one platform only.
+        val payload = """{"choices":[{"index":0,"delta":{"content":""}}]}"""
+        assertNull(SseDeltas.openAiDelta(payload))
     }
 
     // MARK: - Gemini delta
@@ -122,6 +140,12 @@ class SseDeltasTest {
 
     @Test fun anthropicMalformedReturnsNull() {
         assertNull(SseDeltas.anthropicDelta("not json"))
+    }
+
+    @Test fun anthropicEmptyTextReturnsNull() {
+        // Parity with Swift: empty text → null, not "" (same reason as OpenAI empty content).
+        val payload = """{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":""}}"""
+        assertNull(SseDeltas.anthropicDelta(payload))
     }
 
     // MARK: - Full-stream reassembly (the parity pin: streamed == non-streamed)

@@ -949,7 +949,7 @@ abstract class WhoopDatabase : RoomDatabase() {
         }
 
         /** PRD-K2: persisted Coach conversation history (schema v37). Swift twin: WhoopStore
-         *  Database.swift `v39-coach-messages` migration. Column order matches [CoachMessageRow]
+         *  Database.swift `v43-coach-messages` migration. Column order matches [CoachMessageRow]
          *  field declaration order so Room's generated `CREATE TABLE` shape agrees. */
         internal val MIGRATION_36_37 = object : Migration(36, 37) {
             override fun migrate(db: SupportSQLiteDatabase) {

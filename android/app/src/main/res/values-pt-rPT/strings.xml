@@ -2706,4 +2706,12 @@
     <string name="coach_brief_widget_title">✦ Resumo do Coach</string>
     <string name="coach_brief_widget_empty">Ainda sem resumo</string>
     <string name="coach_brief_widget_enable">Ativa o Resumo matinal nas definições do Coach para veres a prontidão de hoje aqui.</string>
+    <string name="coach_voice_error_no_speech">Nenhuma fala detectada.</string>
+    <string name="coach_voice_error_audio">Falha na gravação de áudio.</string>
+    <string name="coach_voice_error_busy">O reconhecedor de voz está ocupado. Tente novamente.</string>
+    <string name="coach_voice_error_permission">Permissão de microfone negada.</string>
+    <string name="coach_voice_error_generic">Falha na entrada de voz. Tente novamente.</string>
+    <string name="coach_voice_error_server">O reconhecimento de voz no dispositivo não está disponível para este idioma.</string>
+    <string name="coach_voice_unavailable">O reconhecimento de voz no dispositivo não está disponível neste dispositivo ou idioma.</string>
+    <string name="coach_voice_permission_denied">Permissão de microfone negada. Ative-a nas Configurações para usar a entrada de voz.</string>
 </resources>

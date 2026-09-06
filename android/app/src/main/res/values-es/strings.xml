@@ -2714,4 +2714,12 @@
     <string name="coach_brief_widget_title">✦ Resumen del Coach</string>
     <string name="coach_brief_widget_empty">Aún no hay resumen</string>
     <string name="coach_brief_widget_enable">Activa el Resumen matutino en los ajustes del Coach para ver la preparación de hoy aquí.</string>
+    <string name="coach_voice_error_no_speech">No se detectó voz.</string>
+    <string name="coach_voice_error_audio">Error de grabación de audio.</string>
+    <string name="coach_voice_error_busy">El reconocedor de voz está ocupado. Inténtelo de nuevo.</string>
+    <string name="coach_voice_error_permission">Permiso de micrófono denegado.</string>
+    <string name="coach_voice_error_generic">Error de entrada de voz. Inténtelo de nuevo.</string>
+    <string name="coach_voice_error_server">El reconocimiento de voz en el dispositivo no está disponible para este idioma.</string>
+    <string name="coach_voice_unavailable">El reconocimiento de voz en el dispositivo no está disponible en este dispositivo o idioma.</string>
+    <string name="coach_voice_permission_denied">Permiso de micrófono denegado. Actívalo en Configuración para usar la entrada de voz.</string>
 </resources>

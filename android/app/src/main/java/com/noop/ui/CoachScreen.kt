@@ -1007,7 +1007,7 @@ private fun MicComposerRow(
             voiceInput.start()
             isRecording = true
         } else {
-            voiceStatus = "Microphone permission denied. Enable it in Settings to use voice input."
+            voiceStatus = context.getString(R.string.coach_voice_permission_denied)
         }
     }
 
@@ -1040,26 +1040,30 @@ private fun MicComposerRow(
             shape = RoundedCornerShape(14.dp),
         )
 
-        // K4: mic button — on-device voice input.
-        MicButton(
-            isRecording = isRecording,
-            enabled = !sending,
-            statusMessage = voiceStatus,
-            onClick = {
-                voiceStatus = null
-                if (isRecording) {
-                    voiceInput.stop()
-                    isRecording = false
-                } else {
-                    if (voiceInput.isPermissionGranted()) {
-                        voiceInput.start()
-                        isRecording = true
+        // K4: mic button — on-device voice input. Hidden entirely when on-device recognition
+        // is not available (API < 31 or locale without an offline model), matching iOS which
+        // disables voice when `supportsOnDeviceRecognition` is false.
+        if (voiceInput.isAvailable()) {
+            MicButton(
+                isRecording = isRecording,
+                enabled = !sending,
+                statusMessage = voiceStatus,
+                onClick = {
+                    voiceStatus = null
+                    if (isRecording) {
+                        voiceInput.stop()
+                        isRecording = false
                     } else {
-                        permLauncher.launch(voiceInput.requiredPermission)
+                        if (voiceInput.isPermissionGranted()) {
+                            voiceInput.start()
+                            isRecording = true
+                        } else {
+                            permLauncher.launch(voiceInput.requiredPermission)
+                        }
                     }
-                }
-            },
-        )
+                },
+            )
+        }
 
         SendButton(
             enabled = input.isNotBlank() && !sending,

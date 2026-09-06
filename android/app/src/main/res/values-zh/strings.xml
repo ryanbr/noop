@@ -2627,4 +2627,12 @@
     <string name="coach_brief_widget_title">✦ 教练简报</string>
     <string name="coach_brief_widget_empty">暂无简报</string>
     <string name="coach_brief_widget_enable">在教练设置中启用晨间简报，即可在此查看今天的准备状态。</string>
+    <string name="coach_voice_error_no_speech">未检测到语音。</string>
+    <string name="coach_voice_error_audio">录音失败。</string>
+    <string name="coach_voice_error_busy">语音识别器正忙。请重试。</string>
+    <string name="coach_voice_error_permission">麦克风权限被拒绝。</string>
+    <string name="coach_voice_error_generic">语音输入失败。请重试。</string>
+    <string name="coach_voice_error_server">此语言不支持设备端语音识别。</string>
+    <string name="coach_voice_unavailable">此设备或语言不支持设备端语音识别。</string>
+    <string name="coach_voice_permission_denied">麦克风权限被拒绝。请在设置中启用以使用语音输入。</string>
 </resources>

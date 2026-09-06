@@ -634,8 +634,8 @@ data class AppleStepHour(
 )
 
 /**
- * PRD-K2: one persisted turn in the AI Coach conversation (v39 / MIGRATION_31_32). Swift
- * `coachMessage` (WhoopStore Database.swift `v39-coach-messages` migration). Lets the Coach chat
+ * PRD-K2: one persisted turn in the AI Coach conversation (Room v37 / MIGRATION_36_37). Swift
+ * `coachMessage` (WhoopStore Database.swift `v43-coach-messages` migration). Lets the Coach chat
  * survive relaunch. `orderIndex` (not `createdAt`, which two streamed turns can share to the second)
  * is a monotonically-increasing counter so replay order is exact. `provider` isn't filtered on for
  * v1 (a conversation is a conversation across a provider switch) but is carried so a future

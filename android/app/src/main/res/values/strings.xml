@@ -2741,4 +2741,14 @@
     <string name="coach_brief_widget_title">✦ Coach Brief</string>
     <string name="coach_brief_widget_empty">No brief yet</string>
     <string name="coach_brief_widget_enable">Enable Morning Brief in Coach settings to see today\'s readiness here.</string>
+
+    <!-- K4: voice input error messages (CoachVoiceInput.mapError). -->
+    <string name="coach_voice_error_no_speech">No speech was heard.</string>
+    <string name="coach_voice_error_audio">Audio recording failed.</string>
+    <string name="coach_voice_error_busy">Speech recognizer is busy. Try again.</string>
+    <string name="coach_voice_error_permission">Microphone permission denied.</string>
+    <string name="coach_voice_error_generic">Voice input failed. Try again.</string>
+    <string name="coach_voice_error_server">On-device speech is unavailable for this locale.</string>
+    <string name="coach_voice_unavailable">On-device speech recognition is not available on this device or locale.</string>
+    <string name="coach_voice_permission_denied">Microphone permission denied. Enable it in Settings to use voice input.</string>
 </resources>

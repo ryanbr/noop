@@ -24,9 +24,10 @@ public enum SseDeltas {
     /// lines (event separators), comments (`: …`), or non-data fields (`event:`, `id:`, etc.).
     /// Pure; byte-twin of Android `dataPayload(fromLine:)`.
     public static func dataPayload(fromLine line: String) -> String? {
-        // SSE lines are terminated by \n; the caller splits on \n. A blank line is an event
-        // separator — no payload. A line starting with ":" is a comment. Only "data:" carries text.
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        // SSE lines are terminated by \n; the caller splits on \n. A trailing \r (CRLF streams)
+        // must be stripped — Kotlin's trim() removes \r, so .whitespacesAndNewlines keeps parity.
+        // A blank line is an event separator — no payload. A line starting with ":" is a comment.
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty { return nil }
         if trimmed.hasPrefix(":") { return nil }
         // "data:" or "data: " — strip the prefix, then one optional leading space (SSE spec: the
@@ -42,7 +43,7 @@ public enum SseDeltas {
 
     /// True when a data payload is the `[DONE]` terminator (OpenAI-compatible). Pure.
     public static func isDone(_ payload: String) -> Bool {
-        payload.trimmingCharacters(in: .whitespaces) == doneMarker
+        payload.trimmingCharacters(in: .whitespacesAndNewlines) == doneMarker
     }
 
     // MARK: - Per-provider delta extraction
@@ -59,7 +60,10 @@ public enum SseDeltas {
               let first = choices.first,
               let delta = first["delta"] as? [String: Any],
               let content = delta["content"] as? String else { return nil }
-        return content
+        // Kotlin twin returns null for empty content (optString.takeIf { isNotEmpty() }), so
+        // onDelta does not fire for OpenAI's usual first delta `"content": ""`. Returning ""
+        // here would fire onDelta on Swift but not Kotlin — breaks K14 haptic parity.
+        return content.isEmpty ? nil : content
     }
 
     /// Extract the text delta from a Gemini SSE data payload (`:streamGenerateContent?alt=sse`).
@@ -91,7 +95,8 @@ public enum SseDeltas {
               let deltaType = delta["type"] as? String,
               deltaType == "text_delta",
               let text = delta["text"] as? String else { return nil }
-        return text
+        // Kotlin twin returns null for empty text — parity with openAiDelta above.
+        return text.isEmpty ? nil : text
     }
 
     // MARK: - Full-stream reassembly (test helper)

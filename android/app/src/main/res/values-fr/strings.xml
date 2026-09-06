@@ -2713,4 +2713,12 @@
     <string name="coach_brief_widget_title">✦ Brief du Coach</string>
     <string name="coach_brief_widget_empty">Pas encore de brief</string>
     <string name="coach_brief_widget_enable">"Activez le Brief matinal dans les réglages du Coach pour voir la préparation d'aujourd'hui ici."</string>
+    <string name="coach_voice_error_no_speech">Aucune parole détectée.</string>
+    <string name="coach_voice_error_audio">Échec de l\'enregistrement audio.</string>
+    <string name="coach_voice_error_busy">Le module de reconnaissance vocale est occupé. Réessayez.</string>
+    <string name="coach_voice_error_permission">Autorisation du microphone refusée.</string>
+    <string name="coach_voice_error_generic">Échec de la saisie vocale. Réessayez.</string>
+    <string name="coach_voice_error_server">La reconnaissance vocale sur l\'appareil n\'est pas disponible pour cette langue.</string>
+    <string name="coach_voice_unavailable">La reconnaissance vocale sur l\'appareil n\'est pas disponible sur cet appareil ou pour cette langue.</string>
+    <string name="coach_voice_permission_denied">Autorisation du microphone refusée. Activez-la dans les Paramètres pour utiliser la saisie vocale.</string>
 </resources>

@@ -2727,4 +2727,12 @@
     <string name="coach_brief_widget_title">✦ Coach-Brief</string>
     <string name="coach_brief_widget_empty">Noch kein Brief</string>
     <string name="coach_brief_widget_enable">Aktiviere den Morgenbrief in den Coach-Einstellungen, um die heutige Bereitschaft hier zu sehen.</string>
+    <string name="coach_voice_error_no_speech">Keine Sprache erkannt.</string>
+    <string name="coach_voice_error_audio">Audioaufnahme fehlgeschlagen.</string>
+    <string name="coach_voice_error_busy">Spracherkennung ist beschäftigt. Versuchen Sie es erneut.</string>
+    <string name="coach_voice_error_permission">Mikrofonberechtigung verweigert.</string>
+    <string name="coach_voice_error_generic">Spracheingabe fehlgeschlagen. Versuchen Sie es erneut.</string>
+    <string name="coach_voice_error_server">On-Device-Spracherkennung für diese Sprache nicht verfügbar.</string>
+    <string name="coach_voice_unavailable">On-Device-Spracherkennung ist auf diesem Gerät oder für diese Sprache nicht verfügbar.</string>
+    <string name="coach_voice_permission_denied">Mikrofonberechtigung verweigert. Aktivieren Sie sie in den Einstellungen, um die Spracheingabe zu nutzen.</string>
 </resources>
