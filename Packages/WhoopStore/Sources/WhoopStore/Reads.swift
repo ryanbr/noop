@@ -170,6 +170,9 @@ extension WhoopStore {
     ///   with no measured HR changes the scored series while `hrSample` stays put.
     /// - `rrInterval`: filtered exactly as [rrIntervals] filters at read (the 0x6E SpO2-IBI duplicate and
     ///   future-stamped beats are excluded), so the witness counts the beats that are actually scored.
+    /// - `sleepStateSample`: appended from the SAME v18 record at the same `ts` as HR, so a re-offloaded
+    ///   record whose HR row is dropped on conflict still lands a new band row that `analyzeDay` scores.
+    ///   Its letter is `b` (band), not `s` — `s1|` is the version prefix.
     /// - `respSample`, `spo2Sample`, `gravitySample`, `stepSample`, `skinTempSample`, `event`.
     ///
     /// Returned as an opaque string: it is only ever compared to itself in memory, so no cross-platform or
@@ -198,11 +201,13 @@ extension WhoopStore {
                   (SELECT COALESCE(MAX(ts), 0) FROM stepSample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS zm,
                   (SELECT COUNT(*) FROM skinTempSample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS tc,
                   (SELECT COALESCE(MAX(ts), 0) FROM skinTempSample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS tm,
+                  (SELECT COUNT(*) FROM sleepStateSample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS bc,
+                  (SELECT COALESCE(MAX(ts), 0) FROM sleepStateSample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS bm,
                   (SELECT COUNT(*) FROM event WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS ec,
                   (SELECT COALESCE(MAX(ts), 0) FROM event WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS em
                 """, arguments: ["d": deviceId, "f": from, "t": to,
                                  "rrx": RRSourceChannel.spo2Ibi.rawValue]) else { return "" }
-            let keys = ["p", "r", "x", "o", "g", "z", "t", "e"]
+            let keys = ["p", "r", "x", "o", "g", "z", "t", "b", "e"]
             let parts = keys.map { key -> String in
                 let count: Int = row[key + "c"], maxTs: Int = row[key + "m"]
                 return "\(key)\(count):\(maxTs)"

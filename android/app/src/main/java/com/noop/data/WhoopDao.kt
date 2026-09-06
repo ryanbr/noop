@@ -41,9 +41,14 @@ internal const val ANALYSIS_FINGERPRINT_SQL =
  * RrSourceChannel.SPO2_IBI.code, pinned to the enum by RrChannelTest, for the same reason it is a literal
  * there: a Room @Query is a compile-time constant string.
  *
+ * sleepStateSample is in it because the band state is appended from the SAME v18 record at the same ts as
+ * HR: a re-offloaded record whose HR row is ignored on conflict still lands a new band row that the day is
+ * scored from. Its letter is 'b' (band), not 's', which [ANALYSIS_FINGERPRINT_SQL] already spends.
+ *
  * The result is opaque and only ever compared to itself in memory, so it needs no byte identity with the
- * Swift twin, `WhoopStore.dayStreamFingerprint`. Kept as one constant so Room and a plain-JVM SQLite test
- * execute the exact same statement. */
+ * Swift twin, `WhoopStore.dayStreamFingerprint`. Kept as one constant so every caller executes the exact
+ * same statement; unlike [ANALYSIS_FINGERPRINT_SQL] it carries :deviceId/:from/:to binds, so a plain-JVM
+ * SQLite harness could not run it verbatim. Room's KSP verification is what checks it. */
 internal const val DAY_STREAM_FINGERPRINT_SQL =
     "SELECT 's1|' || " +
         "'p' || (SELECT COUNT(*) FROM ppgHrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
@@ -62,6 +67,8 @@ internal const val DAY_STREAM_FINGERPRINT_SQL =
         "':' || (SELECT COALESCE(MAX(ts), 0) FROM stepSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
         "'t' || (SELECT COUNT(*) FROM skinTempSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
         "':' || (SELECT COALESCE(MAX(ts), 0) FROM skinTempSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
+        "'b' || (SELECT COUNT(*) FROM sleepStateSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
+        "':' || (SELECT COALESCE(MAX(ts), 0) FROM sleepStateSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
         "'e' || (SELECT COUNT(*) FROM event WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
         "':' || (SELECT COALESCE(MAX(ts), 0) FROM event WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to)"
 

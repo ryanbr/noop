@@ -94,12 +94,17 @@ final class ReadTests: XCTestCase {
         let hrBefore = try await store.hrFingerprint(deviceId: "dev1", from: 0, to: 1000)
         var previous = try await store.dayStreamFingerprint(deviceId: "dev1", from: 0, to: 1000)
 
+        // Every arm of the witness gets an entry: an arm that silently reads a NEIGHBOURING table is
+        // valid SQL and invisible to a test that never commits its stream.
         let commits: [(String, Streams)] = [
+            ("ppgHr", Streams(ppgHr: [PpgHrSample(ts: 401, bpm: 62, conf: 0.9)])),
             ("rr", Streams(rr: [RRInterval(ts: 400, rrMs: 810)])),
             ("resp", Streams(resp: [RespSample(ts: 400, raw: 12)])),
             ("spo2", Streams(spo2: [SpO2Sample(ts: 400, red: 100, ir: 200)])),
             ("gravity", Streams(gravity: [GravitySample(ts: 400, x: 0, y: 0, z: 1)])),
+            ("steps", Streams(steps: [StepSample(ts: 400, counter: 7)])),
             ("skin", Streams(skinTemp: [SkinTempSample(ts: 400, raw: 1290)])),
+            ("sleepState", Streams(sleepState: [SleepStateSample(ts: 400, state: 2)])),
             ("event", Streams(events: [WhoopEvent(ts: 410, kind: "WRIST_OFF", payload: [:])])),
         ]
         for (label, commit) in commits {

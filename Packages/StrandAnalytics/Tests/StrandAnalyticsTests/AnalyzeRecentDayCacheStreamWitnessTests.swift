@@ -16,7 +16,8 @@ import WhoopStore
 /// `AnalyzeRecentDayCacheTests` pins the key's contract on literal witnesses. This one drives the two real
 /// halves against each other — `analyzeDay` for what the night actually scores, a real store for what the
 /// witness actually reports — so neither half can drift into agreeing with a broken other half.
-/// Oracle for the Kotlin `AnalyzeRecentDayCacheStreamWitnessTest`.
+/// Swift-only: it drives a real `WhoopStore`, and Kotlin pins the same contract from the key side in
+/// `AnalyzeRecentDayCacheTest`.
 final class AnalyzeRecentDayCacheStreamWitnessTests: XCTestCase {
 
     private let profile = UserProfile(weightKg: 75, heightCm: 178, age: 30, sex: "male")
