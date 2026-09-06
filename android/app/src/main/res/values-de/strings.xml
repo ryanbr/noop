@@ -478,6 +478,7 @@
     <string name="l10n_devices_screen_leave_none_active_b5c858cb">Keins aktiv lassen</string>
     <string name="l10n_devices_screen_name_709a2322">Name</string>
     <string name="l10n_devices_screen_pack_voltage_9af3c3ff">%1$.2f V</string>
+    <string name="l10n_devices_screen_pack_charge_0e9589da">Pack %1$.1f%%</string>
     <string name="l10n_devices_screen_paired_locally_noop_owns_this_ring_30c16190">Lokal gekoppelt. NOOP besitzt diesen Ring, solange es den Schlüssel hält. Wenn du ihn erneut zurücksetzt oder in der Oura-App einrichtest, besitzt NOOP ihn nicht mehr, und du müsstest ihn zum Übernehmen neu hinzufügen.</string>
     <string name="l10n_devices_screen_pick_a_new_active_strap_edd73542">Neuen aktiven Strap auswählen</string>
     <string name="l10n_devices_screen_rename_device_ee233604">Gerät umbenennen</string>

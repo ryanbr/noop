@@ -170,6 +170,14 @@ data class LiveState(
      *  Cleared on disconnect so a stale flag can't outlive the link. Twin of macOS
      *  LiveState.charging. */
     val charging: Boolean? = null,
+    /** Battery-pack charge, tenths-of-a-percent precision, from the pushed pack event (109) payload.
+     *  5/MG only — a WHOOP 4.0 has no pack fuel gauge (its pack reads as a VOLTAGE via opcode 98, a
+     *  different quantity). Null until the first pack event lands, cleared on BATTERY_PACK_REMOVED and
+     *  on disconnect, so a removed pack or a dropped link can never leave a stale charge on the card.
+     *
+     *  There is deliberately no separate "pack attached" flag: nothing needs one. Non-null here already
+     *  means a pack is attached and reporting, because the strap only sends the event while one is on. */
+    val packSocPct: Double? = null,
     /** Wrist-wear from WRIST_ON/WRIST_OFF events. Defaults TRUE to match the macOS LiveState (Swift
      *  parity) — assume worn until the strap says otherwise. (Was false, which made the UI show
      *  "Worn: Off" forever when no WRIST_ON event arrived — issue #18.) */
@@ -1344,6 +1352,12 @@ class WhoopBleClient(
                 charging = null, strapFirmware = null, historyLayoutVersion = null,
                 pairingHint = null, scanning = false,
                 statusNote = null,
+                // Pack readout dies with the link, the same rule as [charging]: a card still showing
+                // "Pack 56.9%" for a strap we are no longer talking to is a stale reading, not a stale
+                // pill. This clear is also why no expiry timer is needed — the only way to miss a pack
+                // removal is to be disconnected for it, and reconnecting starts from null either way.
+                // Event 109 re-establishes the reading within a couple of minutes if a pack is still on.
+                packSocPct = null,
             )
 
         /** #1466: did this offload hand over anything at all? Acked chunks, persisted rows, or deep packets.
@@ -7932,7 +7946,46 @@ class WhoopBleClient(
                             if (ev.startsWith("BATTERY_PACK_CONNECTED")) {
                                 _state.update { s -> s.copy(charging = true) }
                             } else if (ev.startsWith("BATTERY_PACK_REMOVED")) {
-                                _state.update { s -> s.copy(charging = false) }
+                                // Removal clears the readout too: a detached pack must not leave a stale
+                                // charge sitting on the card.
+                                _state.update { s -> s.copy(charging = false, packSocPct = null) }
+                            }
+                            // The pack's own charge. The strap volunteers the full pack record — present
+                            // flag, BT address, serial and SoC — in the UNCATALOGUED event 109 every couple
+                            // of minutes while a pack is attached, so this needs no command, no
+                            // send-allowlist entry and no polling. Because it REPEATS it is a level signal:
+                            // unlike the old edge-driven charging flag it re-establishes itself after any
+                            // reconnect and cannot go stale.
+                            //
+                            // Hardware-confirmed on WHOOP MG fw 50.39.1.0 (2026-09-01): three consecutive
+                            // records, serial WBB5AP0000001, SoC 57.1% -> 56.9% -> 56.7% as the pack drained
+                            // into the strap. That falling trend across a real physical process — not one
+                            // plausible-looking value — is what establishes the SoC word as tenths of a
+                            // percent. Gated by BatteryPackInfo.displayable below, so a wrong offset
+                            // yields nothing rather than a fabricated reading.
+                            // Matched on the event BYTE, not on the rendered label: an uncatalogued event
+                            // renders as "0x6D(109)" only because nothing names it, so a future
+                            // EventNumber entry would rename it and silently break a string match.
+                            // A 5/MG event frame carries its event number at offset 10.
+                            if (connectedFamily == DeviceFamily.WHOOP5 && frame.size > 10 &&
+                                (frame[10].toInt() and 0xFF) == com.noop.protocol.BatteryPackInfo.PACK_INFO_EVENT
+                            ) {
+                                com.noop.protocol.BatteryPackInfo.decodeEventFrame(frame)?.let { info ->
+                                    val soc = info.socPct
+                                    // [displayable] is #1303's gate, not a second copy of it: present, a
+                                    // charge, and inside 0..100. Two definitions of one rule is how the
+                                    // command path and the event path end up disagreeing about the same
+                                    // pack, which is the drift decodeRecord() exists to prevent.
+                                    if (info.displayable && soc != null) {
+                                        // charging=true here as well as on event 21 is the anti-staleness
+                                        // half: if the attach edge was missed (app started with the pack
+                                        // already on, or the link dropped over the attach), this repeating
+                                        // event re-establishes the state within a couple of minutes.
+                                        _state.update { s -> s.copy(packSocPct = soc, charging = true) }
+                                    } else if (!info.present) {
+                                        _state.update { s -> s.copy(packSocPct = null) }
+                                    }
+                                }
                             }
                         }
                         // PR #577: the strap fired its firmware smart alarm (STRAP_DRIVEN_ALARM_EXECUTED,
