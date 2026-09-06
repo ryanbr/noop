@@ -1351,6 +1351,36 @@
     <string name="l10n_app_root_this_section_is_on_the_way_ca7c4a32">Этот раздел скоро появится.</string>
     <string name="l10n_app_root_updates_c76d1807">Обновления</string>
     <string name="l10n_coach_screen_coach_b32c9ad3">ИИ-тренер</string>
+    <!-- K5: scheduled Coach morning-brief notification. -->
+    <string name="coach_brief_channel_name">Утренний брифинг тренера</string>
+    <string name="coach_brief_channel_desc">Сегодняшний брифинг тренера, генерируется на устройстве в выбранное время.</string>
+    <string name="coach_brief_title">Сегодняшний брифинг тренера</string>
+    <string name="coach_brief_unavailable_title">Брифинг тренера недоступен</string>
+    <string name="coach_brief_unavailable_body">Не удалось сгенерировать сегодняшний брифинг. Откройте тренера, чтобы попробовать снова.</string>
+    <!-- Coach screen: clear-conversation dialog, morning-brief settings, message actions, and voice input. -->
+    <string name="coach_clear_conversation_confirm">Очистить разговор?</string>
+    <string name="coach_clear_conversation_message">Это удалит сохранённый разговор с этого устройства. История тренера — ваши заметки, а не медицинская консультация.</string>
+    <string name="coach_clear_action">Очистить</string>
+    <string name="coach_token_estimate">~%1$d токенов</string>
+    <string name="coach_token_warning"> · может превысить небольшой контекст</string>
+    <string name="coach_morning_brief">Утренний брифинг</string>
+    <string name="coach_morning_brief_desc">Локальное уведомление с сегодняшней готовностью и планом тренировок, генерируется на устройстве каждое утро.</string>
+    <string name="coach_morning_brief_off">Выкл.: ничего не генерируется и не отправляется по расписанию.</string>
+    <string name="coach_morning_brief_time">Время</string>
+    <string name="coach_morning_brief_best_effort">Лучшее усилие: Android решает, когда разбудить фоновое приложение для генерации.</string>
+    <string name="coach_copy_action">Копировать</string>
+    <string name="coach_share_action">Поделиться</string>
+    <string name="coach_save_to_journal">Сохранить в журнал</string>
+    <string name="coach_listening">Слушаю…</string>
+    <string name="coach_generating">Генерация…</string>
+    <string name="coach_generate_now">Сгенерировать сейчас</string>
+    <string name="coach_status_suffix">: %1$s</string>
+    <string name="coach_no_reply">(нет ответа)</string>
+    <string name="coach_stream_interrupted">%1$s\n\n*(поток прерван)*</string>
+    <string name="coach_today_brief_format">Сегодняшний брифинг\n\n%1$s</string>
+    <string name="coach_brief_widget_title">✦ Брифинг тренера</string>
+    <string name="coach_brief_widget_empty">Брифинга пока нет</string>
+    <string name="coach_brief_widget_enable">Включите утренний брифинг в настройках тренера, чтобы видеть сегодняшнюю готовность здесь.</string>
     <string name="l10n_compare_screen_remove_title_ddb5361c">Удалить %1$s</string>
     <string name="l10n_components_chunks_chunks_pulled_cec186cf">Получено фрагментов: %1$s</string>
     <string name="l10n_components_decrease_accessibility_df5f1511">Уменьшить %1$s</string>
