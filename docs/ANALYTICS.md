@@ -47,8 +47,12 @@ The package contains more analytics than the app currently surfaces. This sectio
 | `CorrelationEngine` | `CorrelationEngine.swift` | **Live.** Used by `InsightsView`, `CompareView`, `MetricExplorerView`. |
 | `BehaviorInsights` | `BehaviorInsights.swift` | **Live.** Used by `InsightsView` (`rank` + `sentence`). |
 | `ComparisonEngine` | `ComparisonEngine.swift` | **Live.** Used by `MetricExplorerView`. |
+| `DaytimeStress` | `DaytimeStress.swift` | **Live.** Computes the Stress screen's intraday (hourly) stress timeline from the day's own banked HR + R-R. Runs in `StressView.loadDaytime()`; day-relative — scored against the day's own waking-hour calm reference, not the personal 30-day baseline the daily score uses. APPROXIMATE. |
+| `StressIndex` | `StressIndex.swift` | **Live.** Baevsky Stress Index, an additive HRV lens — does not feed the 0–3 score. Runs in `StressView.loadDaytime()` (Advanced HRV card) and `AICoach.stressIndexLine()` (AI Coach context, consent-gated). |
+| `HRVFreqDomain` | `HRVFreqDomain.swift` | **Live.** Frequency-domain HRV (LF/HF), an additive lens alongside `StressIndex` — does not feed the 0–3 score. Runs in `StressView.loadDaytime()` (Advanced HRV card). |
+| `StressOnsetDetector` | `StressOnsetDetector.swift` | **Live**, opt-in (default OFF). Edge-triggered, exercise-gated L3 stress check-in. Runs in `AppModel.evaluateStress()`, state persisted via `BiofeedbackPrefs`, surfaced by `StressCheckInCard`. |
 
-**In short:** the *interactive data-interrogation* engines (correlation, behavior effects, period comparison) are wired into screens, and the *recompute-from-raw-streams* engines that produce the three daily scores — Charge (recovery), Effort (strain), Rest (sleep), plus workout detection — run live too: `IntelligenceEngine` calls `analyzeDay` for every night the strap offloaded and persists the APPROXIMATE results under the `"-noop"` source, merged under any imported rows — a WHOOP export still wins wherever it covers a day. The live BLE app additionally runs four small inline analytics in `AppModel`: HR smoothing, RMSSD, HR-zone coaching, an illness/strain early-warning, and a resting-stress nudge.
+**In short:** the *interactive data-interrogation* engines (correlation, behavior effects, period comparison) are wired into screens, and the *recompute-from-raw-streams* engines that produce the three daily scores — Charge (recovery), Effort (strain), Rest (sleep), plus workout detection — run live too: `IntelligenceEngine` calls `analyzeDay` for every night the strap offloaded and persists the APPROXIMATE results under the `"-noop"` source, merged under any imported rows — a WHOOP export still wins wherever it covers a day. The live BLE app additionally runs four small inline analytics in `AppModel`: HR smoothing, RMSSD, HR-zone coaching, an illness/strain early-warning, and a resting-stress nudge. The **Stress** screen adds a further layer on top: `DaytimeStress` reapplies the daily score's z-score-plus-logistic math at the hourly grain (day-relative, not yet the personal baseline), `StressIndex` and `HRVFreqDomain` are two additive on-demand HRV lenses shown alongside it, and `StressOnsetDetector` runs an opt-in (default off), edge-triggered stress check-in off the live BLE stream in `AppModel`.
 
 ---
 
@@ -428,6 +432,47 @@ Active samples are grouped into runs (merging gaps < `mergeGapS = 150 s`), then 
 ### Calories (`Calories.estimateBoutCalories`)
 
 Per-second blend of **Keytel (2005)** active expenditure and **revised Harris–Benedict** BMR (resting), with sex-specific coefficients (`male` / `female` / `nonbinary`). Below a `RHR + 0.30 × HRR` threshold the resting rate is used; above it, the HR-driven active rate. Returns `(kcal, kJ)`. **Approximate** — not laboratory calorimetry.
+
+---
+
+## Stress analytics — intraday timeline, additive HRV lenses, check-in detector
+
+Source: `Strand/Screens/StressView.swift` (the **Stress** screen) plus four engines in the `StrandAnalytics` package. The Stress screen's own daily 0–3 score (`StressModel` / `StressMath`, defined directly in `StressView.swift`, not the package) sums a z-score for today's resting HR (up = stress) and HRV (down = stress) against a personal 30-day baseline, then squashes onto 0–3 with a logistic (`3 / (1 + e^−raw)`): 0 calm · 1.5 baseline · 3 high, banded LOW `<1` / MEDIUM `1–2` / HIGH `≥2`. The four engines below extend that screen; none of them change the daily 0–3 score itself.
+
+### `DaytimeStress` — intraday stress timeline (feeds the Stress screen's "Today's Timeline")
+
+Source: `DaytimeStress.swift`. An hour-by-hour read of the **same** autonomic-stress proxy the daily score uses, computed from the day's own banked HR + R-R — not a new score, a finer grain of the existing one.
+
+- **Inputs:** the day's `[HRSample]` and `[RRInterval]`, plus a UTC offset so hour buckets land on the local clock.
+- **Bucketing:** HR and R-R are bucketed into local hour-of-day windows (`bucketSeconds = 3600`); only the **waking window** (06:00–22:00, `wakingStartHour`/`wakingEndHour`) is scored.
+- **Per-hour signal:** mean HR (needs ≥ `minHourHRSamples = 300` samples, ~5 min at 1 Hz, else the hour is left unscored) and RMSSD over the hour's R-R (via the shared `HRVAnalyzer` cleaner, so ectopic beats can't fabricate variability).
+- **The day's own calm reference — what makes it day-relative:** instead of a personal multi-day baseline, the reference is built from **that day's own waking hours** — the lower quartile of hourly mean HR (calm = low) and the upper quartile of hourly RMSSD (calm = high), falling back to the plain mean under 4 scored hours. Spread is the across-hour SD. Sleep hours are deliberately excluded from the reference (they would drag the "calm" anchor below every waking hour and inflate an ordinary day toward HIGH).
+- **Scoring:** each waking hour's HR and RMSSD are z-scored against that calm reference and summed (HR-up and RMSSD-down both push positive), then squashed through the identical logistic the daily score uses, onto the same 0–3 scale and bands.
+- **Sustained-high flag:** walks back from the most recent scored hour; if the trailing `sustainedHours = 3` hours are all `≥ highBandFloor (2.0)`, `sustainedHigh` is set — this drives a passive, in-app-only "Start a Breathe session" suggestion, never a notification.
+- **Honesty:** an hour with too little data is `.noData` (`level == nil`) and never invented; `Result.empty` covers a day with no usable intraday HR at all.
+- **Status: Live.** Wired into `Strand/Screens/StressView.swift` — `loadDaytime()` calls `DaytimeStress.analyze(hr:rr:tzOffsetSeconds:)` and stores the `Result` in `daytime`, which renders the "Today's Timeline" card (`DaytimeLoadLine` chart + `StressTotalsBar` Calm/Moderate/High split) and the sustained-high Breathe-suggestion card. The Stress screen itself is reachable on iOS via the More tab (`StrandiOS/App/RootTabView.swift`: `MoreRow("Stress", …, .stress)` → `StressView()`) and as a sidebar item on macOS.
+- **Day-relative today.** `DaytimeStress` does not compare against the personal multi-day baseline the daily score uses — each day is scored purely against its own calm hours. A baseline-relative mode is not implemented here.
+
+### `StressIndex` — Baevsky Stress Index (additive HRV lens)
+
+Source: `StressIndex.swift`. A histogram-based autonomic-balance metric (Baevsky & Berseneva cardiointervalography): `SI = AMo / (2 · Mo · MxDMn)` from the R-R histogram's mode (`Mo`), modal-bin amplitude (`AMo`, %), and variation range (`MxDMn`), binned at the canonical 50 ms width. A tall, narrow, low-range histogram (high SI) reads as a rigid, sympathetically-driven rhythm; a broad, flat, wide-range one (low SI) reads as relaxed. Needs ≥ `minBeats = 20` clean beats; returns `nil` on an all-equal (zero-range) series rather than dividing by zero.
+
+**Status: Live**, purely additive — touches no score. Wired into `StressView.loadDaytime()` (`stressIndex = StressIndex.components(rr:)`), shown as the "Baevsky Stress Index" tile in the Stress screen's "Advanced HRV" card. Also wired into `Strand/AI/AICoach.swift` (`stressIndexLine()`), which folds a one-line SI summary over today's R-R into the AI Coach's context, gated on data consent.
+
+### `HRVFreqDomain` — frequency-domain HRV (additive HRV lens)
+
+Source: `HRVFreqDomain.swift`. LF/HF band power over R-R. **Status: Live**, purely additive — wired into the same `StressView.loadDaytime()` call (`freqHRV = HRVFreqDomain.freqDomain(rr:)`) and shown in the Advanced HRV card: the LF/HF ratio when the span is long enough, or the HF (rest) band power alone as a fallback. Neither reading feeds the 0–3 score or the timeline. This engine was found wired-but-undocumented alongside `StressIndex` during this pass.
+
+### `StressOnsetDetector` — L3 closed-loop stress check-in (JITAI)
+
+Source: `StressOnsetDetector.swift`. Generalises what used to be inline logic in `AppModel.evaluateStress()` into an edge-triggered, motion-gated, replay-safe detector that decides, at the moment it matters, whether to offer a passive breathing-cue check-in.
+
+- Tracks a **fast** RMSSD (latest `fastWindowBeats = 60` clean beats) against a **slow** EMA baseline (`baselineEmaAlpha = 0.98`, the same weight as the legacy nudge).
+- Fires only on a **fresh edge** — the fast RMSSD crossing from above to below `baseline × dropRatio (0.6)` — not on every tick it stays below.
+- **Exercise-gated:** suppressed when HR is outside the resting band (`55–100` bpm) or recent wrist motion is at/above a threshold shared with `SedentaryDetector` — a brisk walk's HRV dip must not read as stress.
+- Rate-limited to one fire per `minSecondsBetweenFires = 900` s (15 min), suppressible by quiet hours or an active manual session.
+- Pure and stateless between calls — the caller persists `State` (baseline EMA, edge flag, last-fire clock) and feeds it back, so a replayed window can't re-fire.
+- **Status: Live, opt-in (default OFF).** Wired into `Strand/App/AppModel.swift`'s `evaluateStress()`, which is now the detector's *only* caller — the legacy inline resting-stress nudge it generalised has since been removed, so `evaluateStress()` delegates every gate to the engine. Gated on a "stress check-ins" master + auto-nudge toggle (both default off, `BiofeedbackPrefs.stressConfig()`), plus `live.bonded` and `live.worn`. State round-trips through `BiofeedbackPrefs.loadStressState()` / `saveStressState(_:)`; a fire posts to `StressNudgeCenter`, surfaced by the dismissible `StressCheckInCard` (Breathe now / Not now / Turn off) — never a push notification.
 
 ---
 
