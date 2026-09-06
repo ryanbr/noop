@@ -378,18 +378,16 @@ struct WorkoutDetailView: View {
     /// from. An on-device recorded route says "Recorded on device"; an imported route (Apple Health
     /// or Health Connect) says "Imported from Apple Health" / "Imported" so the user is not told
     /// their phone recorded GPS data that actually came from another app.
-    private var routeOriginLabel: String {
-        let cls = WorkoutSource.classify(row.source)
-        switch cls {
-        case .apple: return String(localized: "Imported from Apple Health")
-        case .whoop, .lifting, .activityFile: return String(localized: "Imported")
-        case .detected, .manual: return String(localized: "Recorded on device")
+    private var routeOriginLabel: LocalizedStringKey {
+        switch WorkoutSource.classify(row.source) {
+        case .apple: return "Imported from Apple Health"
+        case .whoop, .lifting, .activityFile: return "Imported"
+        case .detected, .manual: return "Recorded on device"
         }
     }
 
     private var routeDescription: String {
-        let cls = WorkoutSource.classify(row.source)
-        switch cls {
+        switch WorkoutSource.classify(row.source) {
         case .apple:
             return String(localized: "GPS route imported from Apple Health. Stored on your device; nothing leaves your phone.")
         case .whoop, .lifting, .activityFile:

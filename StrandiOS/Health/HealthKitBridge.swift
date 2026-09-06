@@ -99,7 +99,7 @@ final class HealthKitBridge: ObservableObject {
         // samples associated with each HKWorkout; without this in readTypes the route query returns
         // empty and the imported workout shows distance but no map — same as today, so the addition
         // is strictly additive.
-        if let route = HKSeriesType.workoutRoute() { s.insert(route) }
+        s.insert(HKSeriesType.workoutRoute())
         return s
     }
 
@@ -1353,7 +1353,7 @@ final class HealthKitBridge: ObservableObject {
     /// is no route, the user has not granted route read access, or HealthKit reports an error —
     /// all of which are graceful skips (the workout imports without a map, same as today).
     nonisolated static func fetchWorkoutRoute(for workout: HKWorkout, store: HKHealthStore) async -> [RouteMath.LatLng]? {
-        guard let routeType = HKSeriesType.workoutRoute() else { return nil }
+        let routeType = HKSeriesType.workoutRoute()
         let predicate = HKQuery.predicateForSamples(withStart: workout.startDate, end: workout.endDate, options: .strictStartDate)
         // First: query for HKWorkoutRoute samples associated with this workout.
         let routes: [HKWorkoutRoute] = await withCheckedContinuation { (cont: CheckedContinuation<[HKWorkoutRoute], Never>) in
