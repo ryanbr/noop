@@ -285,7 +285,7 @@ struct TestCentreView: View {
                 // #1853: skin-temp absolute backfill (on-demand, diagnostic-first). Fills `skinTempC`
                 // for nights outside the 21-night rescore window that never got an absolute. Fill-only:
                 // it can only fill a NULL, never overwrite a measured value or touch the deviation.
-                NoopButton("Backfill skin-temp absolutes", systemImage: "therometer.medium",
+                NoopButton("Backfill skin-temp absolutes", systemImage: "thermometer.medium",
                            kind: .secondary) {
                     runSkinTempBackfill()
                 }

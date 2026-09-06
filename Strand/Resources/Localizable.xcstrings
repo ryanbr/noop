@@ -210050,6 +210050,18 @@
         "ru": {"stringUnit": {"state": "translated", "value": "Не удалось включить микрофон: %@"}},
         "zh-Hans": {"stringUnit": {"state": "translated", "value": "无法启动麦克风：%@"}},
         "zh-Hant": {"stringUnit": {"state": "translated", "value": "無法啟動麥克風：%@"}}
+    } },
+    "Re-derives the absolute °C for nights the 21-night rescore window never reaches, using the same funnel as the scoring pass. Fill-only: it never overwrites a measured value. Watch the strap log for the result.": { "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Leitet das absolute °C für Nächte neu ab, die das 21-Nächte-Fenster nie erreicht, mit demselben Funnel wie der Scoring-Durchlauf. Nur Auffüllen: ein gemessener Wert wird nie überschrieben. Das Ergebnis steht im Strap-Log."}},
+        "en": {"stringUnit": {"state": "translated", "value": "Re-derives the absolute °C for nights the 21-night rescore window never reaches, using the same funnel as the scoring pass. Fill-only: it never overwrites a measured value. Watch the strap log for the result."}},
+        "es": {"stringUnit": {"state": "translated", "value": "Vuelve a derivar el °C absoluto de las noches que la ventana de 21 noches nunca alcanza, con el mismo embudo que la pasada de puntuación. Solo rellena: nunca sobrescribe un valor medido. Consulta el resultado en el registro de la banda."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Recalcule le °C absolu des nuits que la fenêtre de 21 nuits n’atteint jamais, avec le même entonnoir que la passe de calcul. Remplissage seul : une valeur mesurée n’est jamais écrasée. Le résultat s’affiche dans le journal du bracelet."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Ricalcola il °C assoluto per le notti che la finestra di 21 notti non raggiunge mai, con lo stesso funnel della passata di calcolo. Solo riempimento: non sovrascrive mai un valore misurato. Il risultato è nel log della fascia."}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Ponownie wylicza bezwzględne °C dla nocy, których nie obejmuje okno 21 nocy, tym samym lejkiem co przebieg oceniający. Tylko uzupełnia: nigdy nie nadpisuje zmierzonej wartości. Wynik znajdziesz w dzienniku opaski."}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Volta a derivar o °C absoluto das noites que a janela de 21 noites nunca alcança, com o mesmo funil da passagem de pontuação. Apenas preenche: nunca substitui um valor medido. Vê o resultado no registo da fita."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Пересчитывает абсолютные °C для ночей, до которых не доходит окно в 21 ночь, тем же алгоритмом, что и обычный расчёт. Только заполняет: измеренное значение никогда не перезаписывается. Результат смотрите в журнале ремешка."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "用与评分流程相同的漏斗，为 21 晚窗口未覆盖的夜晚重新推导绝对温度（°C）。仅填充：绝不覆盖已测量的值。结果见腕带日志。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "以與評分流程相同的漏斗，為 21 晚視窗未涵蓋的夜晚重新推導絕對溫度（°C）。僅填充：絕不覆寫已測量的值。結果見腕帶日誌。"}}
     } }
   },
   "version": "1.0"
